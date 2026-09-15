@@ -2,7 +2,7 @@
 
 **Owner soạn:** Trần Văn Dũng — AI2  
 **Trạng thái:** Draft ready — nội dung để người tổng hợp chèn vào PRD chung; chưa có sign-off AI1/BE/FE/leader.  
-**Nguồn chuẩn:** [DOC-02-BRD.vi.md](DOC-02-BRD.vi.md), [DATA-CONTRACT.vi.md](DATA-CONTRACT.vi.md), [CASE-CATALOG.vi.md](CASE-CATALOG.vi.md).
+**Nguồn chuẩn:** [ST-015-DOC-02-BRD.vi.md](ST-015-DOC-02-BRD.vi.md), [ST-017-DATA-CONTRACT.vi.md](ST-017-DATA-CONTRACT.vi.md), [ST-016-CASE-CATALOG.vi.md](ST-016-CASE-CATALOG.vi.md).
 
 ## 1. Mục tiêu, người dùng và ngoài phạm vi
 
@@ -47,4 +47,4 @@ Hệ thống hỗ trợ reviewer kiểm dossier gồm một hợp đồng và `0
 
 ## 5. Handoff và trạng thái review
 
-PRD chung chỉ cần tham chiếu khối này thay vì sao chép data contract/metric formula. Trước khi accepted, AI1 review snapshot/geometry; BE review persistence/API/concurrency; FE review two-sided evidence/highlight; leader xác nhận priority, scope và reviewer. Các quyết định chưa được chốt nằm tại [AI2-TRACEABILITY-AND-INTEGRATION.vi.md](AI2-TRACEABILITY-AND-INTEGRATION.vi.md).
+PRD chung chỉ cần tham chiếu khối này thay vì sao chép data contract/metric formula. Trước khi accepted, AI1 review snapshot/geometry; BE review persistence/API/concurrency; FE review two-sided evidence/highlight; leader xác nhận priority, scope và reviewer. Các quyết định chưa được chốt nằm tại [ST-022-TRACEABILITY-AND-INTEGRATION.vi.md](ST-022-TRACEABILITY-AND-INTEGRATION.vi.md).

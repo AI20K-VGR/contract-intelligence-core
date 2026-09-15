@@ -2,7 +2,7 @@
 
 **Owner soạn:** Trần Văn Dũng — AI2  
 **Trạng thái:** Draft ready — đề xuất interface/pipeline, chờ AI1/BE/FE/leader review.  
-**Nguồn chuẩn:** [DATA-CONTRACT.vi.md](DATA-CONTRACT.vi.md), [DOC-02-BRD.vi.md](DOC-02-BRD.vi.md), [AI2-EXPERIMENT-CARD.vi.md](AI2-EXPERIMENT-CARD.vi.md).
+**Nguồn chuẩn:** [ST-017-DATA-CONTRACT.vi.md](ST-017-DATA-CONTRACT.vi.md), [ST-015-DOC-02-BRD.vi.md](ST-015-DOC-02-BRD.vi.md), [ST-021-EXPERIMENT-CARD.vi.md](ST-021-EXPERIMENT-CARD.vi.md).
 
 ## 1. Context và pipeline logic
 
@@ -53,4 +53,4 @@ Pipeline tạo finding kỹ thuật; không tự chọn điều khoản hiện h
 - Chỉ ghi fact có bằng chứng: baseline đề xuất dùng local rule/normalizer, external services = none; compute/latency/hardware chưa đo.
 - Phải tách audit/run metadata, failed/missing citations và metric counts khỏi raw OCR log. Logging/retention raw OCR là quyết định privacy của nhóm.
 - Không khẳng định topology, queue, database, endpoint, RBAC, encryption, retention, SLO hay production monitoring khi chưa có quyết định/evidence.
-- Các quyết định integration và test đã được đưa vào [AI2-TRACEABILITY-AND-INTEGRATION.vi.md](AI2-TRACEABILITY-AND-INTEGRATION.vi.md).
+- Các quyết định integration và test đã được đưa vào [ST-022-TRACEABILITY-AND-INTEGRATION.vi.md](ST-022-TRACEABILITY-AND-INTEGRATION.vi.md).

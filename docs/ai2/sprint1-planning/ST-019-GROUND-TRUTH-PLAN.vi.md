@@ -1,6 +1,6 @@
 # Kế hoạch ground truth v0.2
 
-Nguồn chuẩn nội dung tình huống: [CASE-CATALOG.vi.md](CASE-CATALOG.vi.md). Schema ledger: [GROUND-TRUTH-LEDGER.template.md](GROUND-TRUTH-LEDGER.template.md). Đây là thiết kế nhãn; gán nhãn thật và chạy model còn chưa thực hiện.
+Nguồn chuẩn nội dung tình huống: [ST-016-CASE-CATALOG.vi.md](ST-016-CASE-CATALOG.vi.md). Schema ledger: [ST-019-GROUND-TRUTH-LEDGER.template.md](ST-019-GROUND-TRUTH-LEDGER.template.md). Đây là thiết kế nhãn; gán nhãn thật và chạy model còn chưa thực hiện.
 
 ## Cỡ mẫu dự kiến và đơn vị đếm
 
@@ -17,7 +17,7 @@ Nguồn chuẩn nội dung tình huống: [CASE-CATALOG.vi.md](CASE-CATALOG.vi.m
 2. Reviewer đọc nguồn và đề xuất sửa bằng label revision; chỉ nhãn đã adjudicated mới dùng làm gold đo lường. `label_review_status` riêng với HITL `review_state`.
 3. AI1 cung cấp PDF/snapshot sau đó mới bind logical fact sang `fact_id`, `snapshot_id`, document/page/line/span/bbox của mỗi representation. OCR hỏng không làm thay đổi gold nội dung; binding có thể ghi missing/unreadable.
 4. Evaluation round đóng băng gold version và snapshots. Prediction lưu riêng cùng run/rule version; không copy prediction vào expected disposition.
-5. Đối chiếu theo [METRIC-PROTOCOL.vi.md](METRIC-PROTOCOL.vi.md), audit có ghi actor, ngày và disagreement.
+5. Đối chiếu theo [ST-021-METRIC-PROTOCOL.vi.md](ST-021-METRIC-PROTOCOL.vi.md), audit có ghi actor, ngày và disagreement.
 
 ## Audit dự kiến
 

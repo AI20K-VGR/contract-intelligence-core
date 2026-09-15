@@ -1,6 +1,6 @@
 # Ledger planning v0.2
 
-Template tiếng Việt. Từ điển này là nguồn chuẩn cho các bảng ledger; chưa có label review hoặc run thực tế. Cỡ mẫu và quy trình nằm trong [GROUND-TRUTH-PLAN.vi.md](GROUND-TRUTH-PLAN.vi.md).
+Template tiếng Việt. Từ điển này là nguồn chuẩn cho các bảng ledger; chưa có label review hoặc run thực tế. Cỡ mẫu và quy trình nằm trong [ST-019-GROUND-TRUTH-PLAN.vi.md](ST-019-GROUND-TRUTH-PLAN.vi.md).
 
 ## A. Logical gold facts
 
@@ -12,7 +12,7 @@ Khóa: `(gold_version, logical_fact_id)`. Cột: `document_id, document_role, so
 
 Khóa: `(gold_version, case_id)`. Cột: `left_logical_fact_id, right_logical_fact_id, comparison_scope, family, finding_type, expected_disposition, rationale, label_revision_id, previous_label_revision_id, label_review_status, labeler, reviewer, reviewed_at, review_note`.
 
-Nội dung C01–C15 nằm ở [CASE-CATALOG.vi.md](CASE-CATALOG.vi.md). Semantic dùng logical proposition IDs trong hai trường logical_fact_id với entity_type=proposition; không tính chúng vào metric bảy structured entity types. Mỗi proposition ghi subject/action/object/recipient/time/condition/polarity.
+Nội dung C01–C15 nằm ở [ST-016-CASE-CATALOG.vi.md](ST-016-CASE-CATALOG.vi.md). Semantic dùng logical proposition IDs trong hai trường logical_fact_id với entity_type=proposition; không tính chúng vào metric bảy structured entity types. Mỗi proposition ghi subject/action/object/recipient/time/condition/polarity.
 
 ## C. Evidence bindings theo snapshot
 

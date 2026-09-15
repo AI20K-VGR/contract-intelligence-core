@@ -30,11 +30,11 @@ DOC-02 v0.3 chốt BRD cho MVP dossier PDF tiếng Việt: fact có evidence, co
 
 ## Artefact review
 
-- [DOC-02 BRD v0.3](DOC-02-BRD.vi.md)
-- [Traceability register](AI2-TRACEABILITY-AND-INTEGRATION.vi.md)
-- [Decision/risk register](DECISIONS-RISKS-REVIEW.vi.md)
-- [Case catalog](CASE-CATALOG.vi.md)
-- [Data contract](DATA-CONTRACT.vi.md)
-- [Metric protocol](METRIC-PROTOCOL.vi.md)
+- [DOC-02 BRD v0.3](ST-015-DOC-02-BRD.vi.md)
+- [Traceability register](ST-022-TRACEABILITY-AND-INTEGRATION.vi.md)
+- [Decision/risk register](ST-022-DECISIONS-RISKS-REVIEW.vi.md)
+- [Case catalog](ST-016-CASE-CATALOG.vi.md)
+- [Data contract](ST-017-DATA-CONTRACT.vi.md)
+- [Metric protocol](ST-021-METRIC-PROTOCOL.vi.md)
 
 Chỉ chuyển `Pending leader review` khi brief/tài liệu thực sự được gửi hoặc có lịch review; khi feedback yêu cầu sửa dùng `Returned`.

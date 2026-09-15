@@ -147,7 +147,7 @@ Không đặt accuracy/cost threshold ở v0.3. Leader/mentor chốt metric targ
 | INT-05 | Identity, RBAC, retention, security classification. | Leader + BE | Không claim production/security. |
 | INT-06 | Reviewer/adjudicator, amendment, semantic policy. | Leader + reviewer | Candidate chưa thành accepted business outcome. |
 
-DOC-01 định hướng problem/users/value/out-of-scope; DOC-02 định nghĩa business rules; DOC-03 capability; DOC-04 lifecycle/components; DOC-05 API; DOC-06 evidence evaluation. Mapping chi tiết: [AI2-TRACEABILITY-AND-INTEGRATION.vi.md](AI2-TRACEABILITY-AND-INTEGRATION.vi.md).
+DOC-01 định hướng problem/users/value/out-of-scope; DOC-02 định nghĩa business rules; DOC-03 capability; DOC-04 lifecycle/components; DOC-05 API; DOC-06 evidence evaluation. Mapping chi tiết: [ST-022-TRACEABILITY-AND-INTEGRATION.vi.md](ST-022-TRACEABILITY-AND-INTEGRATION.vi.md).
 
 ## 10. Review và sign-off
 
@@ -164,9 +164,9 @@ Gate A accepted không chứng minh Gate B đã chạy.
 
 ## 11. Artefact liên quan
 
-- [DOC-01 Product Vision](DOC-01-PRODUCT-VISION.vi.md)
-- [Case catalog C01–C15](CASE-CATALOG.vi.md)
-- [Data contract](DATA-CONTRACT.vi.md)
-- [Metric protocol](METRIC-PROTOCOL.vi.md)
-- [Traceability/integration register](AI2-TRACEABILITY-AND-INTEGRATION.vi.md)
-- [Decision/risk/review register](DECISIONS-RISKS-REVIEW.vi.md)
+- [DOC-01 Product Vision](ST-014-DOC-01-PRODUCT-VISION.vi.md)
+- [Case catalog C01–C15](ST-016-CASE-CATALOG.vi.md)
+- [Data contract](ST-017-DATA-CONTRACT.vi.md)
+- [Metric protocol](ST-021-METRIC-PROTOCOL.vi.md)
+- [Traceability/integration register](ST-022-TRACEABILITY-AND-INTEGRATION.vi.md)
+- [Decision/risk/review register](ST-022-DECISIONS-RISKS-REVIEW.vi.md)

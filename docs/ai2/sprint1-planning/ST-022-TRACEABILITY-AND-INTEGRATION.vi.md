@@ -40,7 +40,7 @@
 - Self-review: enum canonical; không lẫn `finding_type`, `model_disposition`, `review_state`; refs/data ownership nhất quán giữa PRD/SAD/data contract.
 - Integration design: cross-document evidence, missing evidence, multi-page/table citation, re-OCR preserves history, concurrent review conflict, upright-frame highlight.
 - Case catalogue C01–C15 × hai representation là coverage thiết kế. Không dùng làm claim OCR quality, integration pass hoặc metric.
-- Gate B chỉ chạy sau khi có PDF/OCR thật, source digest, bindings, audit và run log. Khi đó dùng [OCR-BBOX-AUDIT-CHECKLIST.vi.md](OCR-BBOX-AUDIT-CHECKLIST.vi.md) và [METRIC-PROTOCOL.vi.md](METRIC-PROTOCOL.vi.md).
+- Gate B chỉ chạy sau khi có PDF/OCR thật, source digest, bindings, audit và run log. Khi đó dùng [ST-020-OCR-BBOX-AUDIT-CHECKLIST.vi.md](ST-020-OCR-BBOX-AUDIT-CHECKLIST.vi.md) và [ST-021-METRIC-PROTOCOL.vi.md](ST-021-METRIC-PROTOCOL.vi.md).
 
 ## 5. Ảnh hưởng tài liệu nhóm
 
