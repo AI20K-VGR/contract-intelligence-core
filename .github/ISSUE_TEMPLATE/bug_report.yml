@@ -1,0 +1,23 @@
+name: Bug report
+description: Something behaves wrongly
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: subsystem
+    attributes:
+      label: Subsystem
+      options: [frontend, backend, ai, docs, infra]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens
+      description: Steps, input (describe it, do not attach contracts), expected vs actual.
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: Branch / commit, OS, model or service used.

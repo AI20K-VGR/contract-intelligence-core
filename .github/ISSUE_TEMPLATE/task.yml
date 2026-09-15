@@ -1,0 +1,22 @@
+name: Task
+description: A unit of work from the sprint tracker
+labels: ["task"]
+body:
+  - type: dropdown
+    id: subsystem
+    attributes:
+      label: Subsystem
+      options: [frontend, backend, ai, docs, infra]
+    validations:
+      required: true
+  - type: input
+    id: tracker
+    attributes:
+      label: Tracker reference
+      description: Story / sub-task id in the sprint tracker.
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+    validations:
+      required: true

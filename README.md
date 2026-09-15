@@ -28,36 +28,24 @@ contract-intelligence/
 
 ---
 
-## 🌿 Quy ước branch
+## 🌿 Quy ước làm việc trên repo
 
-Dùng mô hình **trunk-based + feature branch** đơn giản:
+Quy tắc đầy đủ (tiếng Anh) ở [CONTRIBUTING.md](CONTRIBUTING.md); GitHub ruleset và check `pr-guard` cưỡng chế các điểm chính:
 
 ```
-main                          # nhánh chính, luôn deployable
-feature/<phần>-<tên-task>     # ví dụ:
-feat/<phần>-<tên-task>        #   feature/backend-upload-api
-hotfix/<tên-task>             #   feat/frontend-clause-review
-release/<version>             #   hotfix/fix-flyway-migration
-                              #   release/v0.1.0
+feature branch  ──PR──▶  develop  ──release PR──▶  main
+(feature/…, feat/…)      2 approvals              2 approvals, chỉ squash merge
 ```
 
-### Đặt tên chi tiết
-
-| Prefix | Ý nghĩa | Ví dụ |
-|---|---|---|
-| `feature/backend-*` | Tính năng mới ở backend | `feature/backend-upload-api` |
-| `feature/frontend-*` | Tính năng mới ở frontend | `feature/frontend-clause-editor` |
-| `feature/ai-*` | Tính năng mới ở ai-service | `feature/ai-clause-extractor` |
-| `feature/docs-*` | Cập nhật tài liệu | `feature/docs-api-spec-v2` |
-| `feat/*` | Alias ngắn cho `feature/*` | `feat/backend-conflict-detection` |
-| `hotfix/*` | Sửa bug khẩn cấp trên main | `hotfix/fix-auth-token-expiry` |
-| `release/*` | Chuẩn bị bản phát hành | `release/v0.1.0` |
-
-### Quy tắc
-- Tên branch dùng **kebab-case**, không viết hoa, không dấu.
-- Mỗi branch tương ứng **một PR**.
-- PR vào `main` cần ít nhất **1 reviewer**; squash merge khi approved.
-- Xoá branch sau khi merge.
+- `develop` là nhánh mặc định; **không ai push thẳng** vào `develop` hoặc `main`.
+- Mỗi PR cần **2 approval từ đồng đội** (không tự approve; push mới làm mất approval cũ), resolve hết
+  review thread, `pr-guard` xanh.
+- `main` chỉ nhận PR từ `develop`, `release/*` hoặc `hotfix/*`.
+- Tên nhánh: `^(feat|feature|fix|docs|chore|refactor|test|hotfix|release)/[a-z0-9._-]+$`,
+  ví dụ `feature/backend-upload-api`, `hotfix/fix-flyway-migration`, `release/v0.1.0`.
+- Tiêu đề PR: `<type>(<scope>): <summary>`, scope là `frontend | backend | ai | docs | infra | repo`.
+- **Không commit hợp đồng, bản scan, file nén** (thật hay test) vào repo; `pr-guard` chặn các file
+  `.pdf .docx .tif .jpg .png .zip …` ngoài `docs/assets/`. Dữ liệu mẫu để trên OneDrive, đọc qua đường dẫn ngoài repo.
 
 ---
 

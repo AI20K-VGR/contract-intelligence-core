@@ -1,0 +1,66 @@
+# Required check on `develop` and `main`. Fails when the PR breaks a repo rule:
+# branch name, PR title, source branch for main, or contract-like files added outside docs/assets/.
+name: pr-guard
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-guard:
+    name: pr-guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Branch name
+        env:
+          HEAD: ${{ github.head_ref }}
+        run: |
+          if [[ "$HEAD" == "develop" || "$HEAD" == dependabot/* ]]; then exit 0; fi
+          if [[ ! "$HEAD" =~ ^(feat|feature|fix|docs|chore|refactor|test|hotfix|release)/[a-z0-9._-]+$ ]]; then
+            echo "::error::Branch '$HEAD' must match ^(feat|feature|fix|docs|chore|refactor|test|hotfix|release)/[a-z0-9._-]+$ (see CONTRIBUTING.md)"
+            exit 1
+          fi
+
+      - name: PR title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if [[ ! "$TITLE" =~ ^(feat|fix|docs|chore|refactor|test|ci)\((frontend|backend|ai|ai-service|docs|infra|repo)\):\ .+ ]]; then
+            echo "::error::PR title '$TITLE' must be '<type>(<scope>): <summary>' with type feat|fix|docs|chore|refactor|test|ci and scope frontend|backend|ai|ai-service|docs|infra|repo"
+            exit 1
+          fi
+
+      - name: Source branch for main
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+        run: |
+          if [[ "$BASE" == "main" && "$HEAD" != "develop" && "$HEAD" != hotfix/* && "$HEAD" != release/* ]]; then
+            echo "::error::PRs into main must come from develop, hotfix/* or release/*; got '$HEAD'"
+            exit 1
+          fi
+
+      - name: No contract data or archives
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          git fetch --quiet origin "$BASE"
+          bad=$(git diff --name-only --diff-filter=ACR "origin/$BASE...HEAD" \
+            | grep -Ei '\.(pdf|doc|docx|tif|tiff|jpg|jpeg|png|zip|rar|7z)$' \
+            | grep -Ev '^docs/assets/' || true)
+          if [[ -n "$bad" ]]; then
+            echo "::error::Contracts, scans and archives must not be committed (only docs/assets/ may hold images):"
+            echo "$bad"
+            exit 1
+          fi

@@ -1,0 +1,25 @@
+name: Feature
+description: A capability from the PRD or a proposal
+labels: ["feature"]
+body:
+  - type: dropdown
+    id: subsystem
+    attributes:
+      label: Subsystem
+      options: [frontend, backend, ai, docs, infra]
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What is in, what is out, which PRD section or epic.
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Definition of done
+      description: How we know it works (metric, test, demo).
+    validations:
+      required: true

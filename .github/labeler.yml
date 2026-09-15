@@ -1,0 +1,15 @@
+frontend:
+  - changed-files:
+      - any-glob-to-any-file: "frontend/**"
+backend:
+  - changed-files:
+      - any-glob-to-any-file: "backend/**"
+ai:
+  - changed-files:
+      - any-glob-to-any-file: "ai-service/**"
+docs:
+  - changed-files:
+      - any-glob-to-any-file: ["docs/**", "*.md"]
+infra:
+  - changed-files:
+      - any-glob-to-any-file: [".github/**", "docker*", "*.toml", "*.yaml", "*.yml"]

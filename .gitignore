@@ -1,3 +1,21 @@
+# ---------- Contract data: never in the repo (CONTRIBUTING.md) ----------
+# Only docs/assets/ may hold images (diagrams, screenshots for documents).
+*.pdf
+*.doc
+*.docx
+*.tif
+*.tiff
+*.jpg
+*.jpeg
+*.png
+*.zip
+*.rar
+*.7z
+!docs/assets/**
+data/
+samples/
+datasets/
+
 # =====================================================================
 # Contract Intelligence - Root .gitignore
 # Monorepo: backend (Java/Maven) | frontend (Node) | ai-service (Python)

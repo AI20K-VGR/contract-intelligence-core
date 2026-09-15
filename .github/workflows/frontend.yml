@@ -1,0 +1,24 @@
+# CI for frontend/. The team fills in the steps once the stack is chosen (install, lint, test, build).
+# Runs only when frontend/ changes. Ask the mentor to make it a required check when it is stable.
+name: frontend
+
+on:
+  pull_request:
+    paths: ["frontend/**"]
+  push:
+    branches: [develop, main]
+    paths: ["frontend/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - name: TODO (team) — install, lint, test
+        run: echo "no CI defined for frontend yet"
