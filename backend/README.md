@@ -29,5 +29,3 @@ com.vsf.contractintel
 Mỗi module có đủ 4 layer: `domain` → `application` → `infrastructure` → `interfaces`.
 
 > Chi tiết sẽ được generate trong bước tiếp theo. Trước đó thư mục này giữ trống.
-
-<!-- ci-check: xác nhận .github/workflows/backend.yml trigger đúng khi backend/** đổi -->

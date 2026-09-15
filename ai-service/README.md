@@ -39,5 +39,3 @@ ai-service/
 > **Lưu ý:** Bước đầu, OCR/IDP có thể chạy trong `backend/` (gọi external API). Thư mục này chỉ tạo khi team muốn tách AI worker ra riêng để scale.
 
 > Chi tiết sẽ được generate khi AI Engineer nhận task. Thư mục này giữ trống trước.
-
-<!-- ci-check: xác nhận .github/workflows/ai-service.yml trigger đúng khi ai-service/** đổi -->
