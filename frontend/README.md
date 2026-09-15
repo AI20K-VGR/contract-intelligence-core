@@ -23,3 +23,5 @@ Thư mục này chứa ứng dụng web cho **Contract Intelligence**.
 | 5 | Approve | Reviewer duyệt hợp đồng cuối cùng |
 
 > Chi tiết sẽ được generate khi Frontend Engineer nhận task. Thư mục này giữ trống trước.
+
+<!-- ci-check: xác nhận .github/workflows/frontend.yml trigger đúng khi frontend/** đổi -->
