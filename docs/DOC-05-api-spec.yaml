@@ -1,0 +1,731 @@
+openapi: 3.0.3
+
+info:
+  title: Contract Intelligence API
+  description: |
+    REST API for Contract Intelligence — OCR/IDP system for commercial contracts.
+
+    ## Overview
+    - **Contract module**: upload, status tracking, metadata
+    - **Extraction module**: clause tree, bounding boxes, appendix tables
+    - **Conflict module**: conflict detection and resolution
+    - **Review module**: HITL review, approval
+
+    ## Response Format
+    All endpoints return a wrapped response:
+
+    ```json
+    {
+      "data": { ... },
+      "error": null,
+      "meta": {
+        "page": 1,
+        "size": 20,
+        "total": 100,
+        "timestamp": "2026-09-15T10:36:00Z"
+      }
+    }
+    ```
+  version: 0.1.0
+  contact:
+    name: Contract Intelligence Team
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://api.contractintel.internal
+    description: Internal staging/production (TBD)
+
+# ─── Tags ────────────────────────────────────────────────────────────────────
+tags:
+  - name: contracts
+    description: Contract upload and management
+  - name: clauses
+    description: Clause extraction and structure
+  - name: conflicts
+    description: Conflict detection and resolution
+  - name: review
+    description: Human-in-the-loop review and approval
+
+# ─── Paths ────────────────────────────────────────────────────────────────────
+paths:
+
+  # ── Contract ──────────────────────────────────────────────────────────────
+  /contracts:
+    post:
+      tags: [contracts]
+      summary: Upload a single contract
+      description: Upload a contract file (PDF/image), create a Contract record with status UPLOADED.
+      operationId: uploadContract
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContractUploadRequest'
+            encoding:
+              file:
+                contentType: application/pdf,image/*
+      responses:
+        '201':
+          description: Contract created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseContract'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+
+    get:
+      tags: [contracts]
+      summary: List contracts
+      operationId: listContracts
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ContractStatus'
+      responses:
+        '200':
+          description: Paginated contract list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseContractList'
+
+  /contracts/batch:
+    post:
+      tags: [contracts]
+      summary: Batch upload multiple contracts
+      operationId: batchUploadContracts
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: Multiple PDF/image files (max 50)
+      responses:
+        '202':
+          description: Batch upload accepted, processing async
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseBatchUpload'
+
+  /contracts/{id}:
+    get:
+      tags: [contracts]
+      summary: Get contract details
+      operationId: getContract
+      parameters:
+        - $ref: '#/components/parameters/ContractId'
+      responses:
+        '200':
+          description: Contract details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseContract'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /contracts/{id}/status:
+    get:
+      tags: [contracts]
+      summary: Get contract processing status
+      operationId: getContractStatus
+      parameters:
+        - $ref: '#/components/parameters/ContractId'
+      responses:
+        '200':
+          description: Current contract status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseContractStatus'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Clauses ────────────────────────────────────────────────────────────────
+  /contracts/{id}/clauses:
+    get:
+      tags: [clauses]
+      summary: Get clause tree for a contract
+      description: Returns the full clause hierarchy (Điều > Khoản > Điểm) with bounding boxes.
+      operationId: getClauses
+      parameters:
+        - $ref: '#/components/parameters/ContractId'
+      responses:
+        '200':
+          description: Clause tree
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseClauseTree'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /contracts/{id}/clauses/{clauseId}:
+    patch:
+      tags: [review]
+      summary: Update a single clause (HITL review)
+      description: Reviewer edits clause text or confirms extraction.
+      operationId: updateClause
+      parameters:
+        - $ref: '#/components/parameters/ContractId'
+        - name: clauseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClauseUpdateRequest'
+      responses:
+        '200':
+          description: Clause updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseClause'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Conflicts ──────────────────────────────────────────────────────────────
+  /contracts/{id}/conflicts:
+    get:
+      tags: [conflicts]
+      summary: Get all conflicts for a contract
+      operationId: getConflicts
+      parameters:
+        - $ref: '#/components/parameters/ContractId'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ConflictStatus'
+      responses:
+        '200':
+          description: Conflict list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseConflictList'
+
+  /contracts/{id}/conflicts/{conflictId}/resolve:
+    post:
+      tags: [conflicts]
+      summary: Resolve a conflict
+      description: Mark conflict as RESOLVED or IGNORED with optional note.
+      operationId: resolveConflict
+      parameters:
+        - $ref: '#/components/parameters/ContractId'
+        - name: conflictId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConflictResolveRequest'
+      responses:
+        '200':
+          description: Conflict resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseConflict'
+
+  # ── Review & Approve ───────────────────────────────────────────────────────
+  /contracts/{id}/review:
+    get:
+      tags: [review]
+      summary: Get review summary and audit log for a contract
+      operationId: getReviewSummary
+      parameters:
+        - $ref: '#/components/parameters/ContractId'
+      responses:
+        '200':
+          description: Review summary with audit log
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseReviewSummary'
+
+  /contracts/{id}/approve:
+    post:
+      tags: [review]
+      summary: Final approval of a contract
+      description: Approve contract — all clauses reviewed, conflicts resolved/ignored.
+      operationId: approveContract
+      parameters:
+        - $ref: '#/components/parameters/ContractId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveRequest'
+      responses:
+        '200':
+          description: Contract approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseContract'
+        '409':
+          description: Preconditions not met (unresolved conflicts, unreviewed clauses)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+
+# ─── Components ───────────────────────────────────────────────────────────────
+components:
+
+  parameters:
+    ContractId:
+      name: id
+      in: path
+      required: true
+      description: Contract UUID
+      schema:
+        type: string
+        format: uuid
+
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 0
+        minimum: 0
+
+    SizeParam:
+      name: size
+      in: query
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+
+  schemas:
+
+    # ── Shared ──────────────────────────────────────────────────────────────
+    ApiResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          nullable: true
+        error:
+          type: object
+          nullable: true
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                type: string
+        meta:
+          type: object
+          properties:
+            timestamp:
+              type: string
+              format: date-time
+            page:
+              type: integer
+            size:
+              type: integer
+            total:
+              type: integer
+
+    ApiResponseError:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            error:
+              type: object
+              properties:
+                code:
+                  type: string
+                message:
+                  type: string
+
+    # ── Contract ────────────────────────────────────────────────────────────
+    ContractStatus:
+      type: string
+      enum:
+        - UPLOADED
+        - PROCESSING
+        - EXTRACTED
+        - CONFLICT_DETECTED
+        - PENDING_REVIEW
+        - REVIEWED
+        - APPROVED
+
+    ContractUploadRequest:
+      type: object
+      required:
+        - file
+      properties:
+        file:
+          type: string
+          format: binary
+          description: Contract PDF or image file
+        filename:
+          type: string
+          description: Optional original filename
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    Contract:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        status:
+          $ref: '#/components/schemas/ContractStatus'
+        pageCount:
+          type: integer
+        extractedClauseCount:
+          type: integer
+        conflictCount:
+          type: integer
+        pendingConflictCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    ApiResponseContract:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Contract'
+
+    ApiResponseContractList:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Contract'
+
+    ApiResponseContractStatus:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                status:
+                  $ref: '#/components/schemas/ContractStatus'
+                updatedAt:
+                  type: string
+                  format: date-time
+
+    ApiResponseBatchUpload:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                acceptedCount:
+                  type: integer
+                contractIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+
+    # ── Clause ──────────────────────────────────────────────────────────────
+    ClauseLevel:
+      type: string
+      enum: [ARTICLE, SECTION, SUBSECTION]
+
+    BoundingBox:
+      type: object
+      properties:
+        pageNumber:
+          type: integer
+        x:
+          type: number
+        y:
+          type: number
+        width:
+          type: number
+        height:
+          type: number
+
+    Clause:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        contractId:
+          type: string
+          format: uuid
+        level:
+          $ref: '#/components/schemas/ClauseLevel'
+        title:
+          type: string
+        content:
+          type: string
+        parentClauseId:
+          type: string
+          format: uuid
+          nullable: true
+        orderIndex:
+          type: integer
+        boundingBox:
+          $ref: '#/components/schemas/BoundingBox'
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        isReviewed:
+          type: boolean
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/Clause'
+
+    ClauseUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        isConfirmed:
+          type: boolean
+          description: Confirm this clause extraction is correct
+
+    ApiResponseClause:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Clause'
+
+    ApiResponseClauseTree:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Clause'
+
+    # ── Conflict ───────────────────────────────────────────────────────────
+    ConflictType:
+      type: string
+      enum:
+        - CONTRADICTION
+        - OVERLAP
+        - REDUNDANCY
+        - AMBIGUITY
+
+    ConflictStatus:
+      type: string
+      enum: [PENDING, RESOLVED, IGNORED]
+
+    Conflict:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        contractId:
+          type: string
+          format: uuid
+        clauseIdA:
+          type: string
+          format: uuid
+        clauseIdB:
+          type: string
+          format: uuid
+        conflictType:
+          $ref: '#/components/schemas/ConflictType'
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/ConflictStatus'
+        resolutionNote:
+          type: string
+          nullable: true
+        resolvedBy:
+          type: string
+          nullable: true
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    ConflictResolveRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [RESOLVED, IGNORED]
+        resolutionNote:
+          type: string
+
+    ApiResponseConflict:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Conflict'
+
+    ApiResponseConflictList:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Conflict'
+
+    # ── Review ──────────────────────────────────────────────────────────────
+    ReviewLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        contractId:
+          type: string
+          format: uuid
+        reviewerId:
+          type: string
+        action:
+          type: string
+          enum: [CLAUSE_UPDATED, CONFLICT_RESOLVED, CONFLICT_IGNORED, APPROVED, REJECTED]
+        entityType:
+          type: string
+          enum: [CLAUSE, CONFLICT, CONTRACT]
+        entityId:
+          type: string
+          format: uuid
+        note:
+          type: string
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+
+    ReviewSummary:
+      type: object
+      properties:
+        contractId:
+          type: string
+          format: uuid
+        totalClauses:
+          type: integer
+        reviewedClauses:
+          type: integer
+        totalConflicts:
+          type: integer
+        pendingConflicts:
+          type: integer
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewLog'
+
+    ApiResponseReviewSummary:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ReviewSummary'
+
+    ApproveRequest:
+      type: object
+      properties:
+        note:
+          type: string
+          description: Optional approval note
+
+  responses:
+    BadRequest:
+      description: Invalid request payload
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponseError'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponseError'
+
+    PayloadTooLarge:
+      description: File exceeds maximum size limit
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponseError'
