@@ -1,0 +1,391 @@
+{
+  "$defs": {
+    "BBox": {
+      "additionalProperties": false,
+      "properties": {
+        "x1": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "X1",
+          "type": "number"
+        },
+        "y1": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Y1",
+          "type": "number"
+        },
+        "x2": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "X2",
+          "type": "number"
+        },
+        "y2": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Y2",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x1",
+        "y1",
+        "x2",
+        "y2"
+      ],
+      "title": "BBox",
+      "type": "object"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "page": {
+          "minimum": 1,
+          "title": "Page",
+          "type": "integer"
+        },
+        "input_type": {
+          "$ref": "#/$defs/InputType"
+        },
+        "native_word_count": {
+          "minimum": 0,
+          "title": "Native Word Count",
+          "type": "integer"
+        },
+        "native_text_length": {
+          "minimum": 0,
+          "title": "Native Text Length",
+          "type": "integer"
+        },
+        "native_span_count": {
+          "minimum": 0,
+          "title": "Native Span Count",
+          "type": "integer"
+        },
+        "image_coverage_ratio": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Image Coverage Ratio",
+          "type": "number"
+        },
+        "usable_text": {
+          "title": "Usable Text",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "page",
+        "input_type",
+        "native_word_count",
+        "native_text_length",
+        "native_span_count",
+        "image_coverage_ratio",
+        "usable_text"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "InputType": {
+      "enum": [
+        "TEXT_LAYER",
+        "SCANNED",
+        "MIXED"
+      ],
+      "title": "InputType",
+      "type": "string"
+    },
+    "Line": {
+      "additionalProperties": false,
+      "properties": {
+        "line_id": {
+          "title": "Line Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BBox"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "geometry_available": {
+          "default": false,
+          "title": "Geometry Available",
+          "type": "boolean"
+        },
+        "words": {
+          "items": {
+            "$ref": "#/$defs/Word"
+          },
+          "title": "Words",
+          "type": "array"
+        }
+      },
+      "required": [
+        "line_id",
+        "text"
+      ],
+      "title": "Line",
+      "type": "object"
+    },
+    "Page": {
+      "additionalProperties": false,
+      "properties": {
+        "page_number": {
+          "minimum": 1,
+          "title": "Page Number",
+          "type": "integer"
+        },
+        "input_type": {
+          "$ref": "#/$defs/InputType",
+          "default": "SCANNED"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "title": "Width",
+          "type": "number"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "title": "Height",
+          "type": "number"
+        },
+        "dimension_unit": {
+          "default": "px",
+          "enum": [
+            "pt",
+            "px"
+          ],
+          "title": "Dimension Unit",
+          "type": "string"
+        },
+        "rotation": {
+          "default": 0,
+          "title": "Rotation",
+          "type": "integer"
+        },
+        "engine": {
+          "title": "Engine",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "processing_ms": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Processing Ms",
+          "type": "number"
+        },
+        "status": {
+          "$ref": "#/$defs/Status",
+          "default": "SUCCESS"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/Line"
+          },
+          "title": "Lines",
+          "type": "array"
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Evidence"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "raw_markdown": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Markdown"
+        },
+        "raw_output_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Output Path"
+        },
+        "geometry_available": {
+          "default": false,
+          "title": "Geometry Available",
+          "type": "boolean"
+        },
+        "preprocessing": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Preprocessing",
+          "type": "array"
+        },
+        "transform": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Transform"
+        }
+      },
+      "required": [
+        "page_number",
+        "width",
+        "height",
+        "engine",
+        "model"
+      ],
+      "title": "Page",
+      "type": "object"
+    },
+    "Status": {
+      "enum": [
+        "SUCCESS",
+        "FAILED",
+        "SKIPPED"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "Word": {
+      "additionalProperties": false,
+      "properties": {
+        "word_id": {
+          "title": "Word Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BBox"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "geometry_available": {
+          "default": false,
+          "title": "Geometry Available",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "word_id",
+        "text"
+      ],
+      "title": "Word",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "document_id": {
+      "title": "Document Id",
+      "type": "string"
+    },
+    "source_file": {
+      "title": "Source File",
+      "type": "string"
+    },
+    "pages": {
+      "items": {
+        "$ref": "#/$defs/Page"
+      },
+      "title": "Pages",
+      "type": "array"
+    }
+  },
+  "required": [
+    "document_id",
+    "source_file"
+  ],
+  "title": "Document",
+  "type": "object"
+}
