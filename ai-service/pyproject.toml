@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "contract-ocr-lab"
+version = "0.1.0"
+description = "Local, page-aware OCR experiments for Vietnamese and English contracts"
+requires-python = ">=3.11,<3.13"
+dependencies = ["pymupdf>=1.26", "pydantic>=2.10,<3", "pyyaml>=6", "numpy>=1.26", "opencv-python-headless>=4.10", "pillow>=11", "rapidfuzz>=3.10", "scipy>=1.14", "psutil>=6"]
+
+[project.optional-dependencies]
+paddle = ["paddleocr>=3.6,<4", "paddlepaddle>=3.2,<4"]
+deepseek = ["torch==2.6.0", "transformers==4.46.3", "einops", "addict", "easydict"]
+vllm = ["vllm>=0.16; sys_platform == 'linux'"]
+dev = ["pytest>=8", "ruff>=0.11"]
+web = [
+    "fastapi>=0.136.3",
+    "python-dotenv>=1.0",
+    "python-multipart>=0.0.32",
+    "uvicorn[standard]>=0.53.0",
+]
+openai = [
+    "openai>=1.50",
+]
+gemini = [
+    "google-genai>=1.0",
+]
+
+[tool.uv]
+conflicts = [[{extra = "deepseek"}, {extra = "vllm"}], [{extra = "deepseek"}, {extra = "paddle"}]]
+
+[project.scripts]
+contract-ocr = "contract_ocr.cli.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/contract_ocr"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [".uv-cache", ".venv", "dataset", "data", "reports"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
