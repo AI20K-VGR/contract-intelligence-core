@@ -30,7 +30,8 @@ contract-intelligence/
 
 ## 🌿 Quy ước làm việc trên repo
 
-Quy tắc đầy đủ (tiếng Anh) ở [CONTRIBUTING.md](CONTRIBUTING.md); GitHub ruleset và check `pr-guard` cưỡng chế các điểm chính:
+Quy tắc đầy đủ (tiếng Anh) ở [CONTRIBUTING.md](CONTRIBUTING.md); hướng dẫn thao tác cụ thể (tiếng Việt)
+ở [GITFLOWS.md](GITFLOWS.md). GitHub ruleset và check `pr-guard` cưỡng chế các điểm chính:
 
 ```
 feature branch  ──PR──▶  develop  ──release PR──▶  main
