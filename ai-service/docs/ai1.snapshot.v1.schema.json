@@ -1,0 +1,489 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI1 OCR Snapshot (ai1.snapshot.v1) - Document",
+  "$defs": {
+    "Cell": {
+      "additionalProperties": false,
+      "properties": {
+        "cell_id": {
+          "title": "Cell Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "bbox_normalized": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "title": "Bbox Normalized",
+          "type": "array"
+        }
+      },
+      "required": [
+        "cell_id",
+        "text",
+        "bbox_normalized"
+      ],
+      "title": "Cell",
+      "type": "object"
+    },
+    "EngineInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "EngineInfo",
+      "type": "object"
+    },
+    "PageImageRef": {
+      "additionalProperties": false,
+      "properties": {
+        "uri": {
+          "title": "Uri",
+          "type": "string"
+        },
+        "width_px": {
+          "exclusiveMinimum": 0,
+          "title": "Width Px",
+          "type": "integer"
+        },
+        "height_px": {
+          "exclusiveMinimum": 0,
+          "title": "Height Px",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "uri",
+        "width_px",
+        "height_px"
+      ],
+      "title": "PageImageRef",
+      "type": "object"
+    },
+    "Row": {
+      "additionalProperties": false,
+      "properties": {
+        "row_id": {
+          "title": "Row Id",
+          "type": "string"
+        },
+        "cells": {
+          "items": {
+            "$ref": "#/$defs/Cell"
+          },
+          "title": "Cells",
+          "type": "array"
+        }
+      },
+      "required": [
+        "row_id",
+        "cells"
+      ],
+      "title": "Row",
+      "type": "object"
+    },
+    "SnapshotBlock": {
+      "additionalProperties": false,
+      "description": "Recommended (not required) heading/paragraph grouping; see handoff §4.\n\nNot yet populated by BuildSnapshot in this version — AI2 may merge line\nbboxes into clause-region bboxes itself in the interim, as the handoff\nrequest explicitly allows.",
+      "properties": {
+        "block_id": {
+          "title": "Block Id",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "heading",
+            "paragraph"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "line_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Line Ids",
+          "type": "array"
+        },
+        "reading_order": {
+          "minimum": 0,
+          "title": "Reading Order",
+          "type": "integer"
+        },
+        "bbox_normalized": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "title": "Bbox Normalized",
+          "type": "array"
+        }
+      },
+      "required": [
+        "block_id",
+        "type",
+        "line_ids",
+        "reading_order",
+        "bbox_normalized"
+      ],
+      "title": "SnapshotBlock",
+      "type": "object"
+    },
+    "SnapshotLine": {
+      "additionalProperties": false,
+      "properties": {
+        "line_id": {
+          "title": "Line Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "page_char_start": {
+          "minimum": 0,
+          "title": "Page Char Start",
+          "type": "integer"
+        },
+        "page_char_end": {
+          "minimum": 0,
+          "title": "Page Char End",
+          "type": "integer"
+        },
+        "bbox_normalized": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "title": "Bbox Normalized",
+          "type": "array"
+        },
+        "word_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Word Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "line_id",
+        "text",
+        "page_char_start",
+        "page_char_end",
+        "bbox_normalized"
+      ],
+      "title": "SnapshotLine",
+      "type": "object"
+    },
+    "SnapshotPage": {
+      "additionalProperties": false,
+      "properties": {
+        "page_number": {
+          "minimum": 1,
+          "title": "Page Number",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "SUCCESS",
+            "PARTIAL",
+            "FAILED"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "input_type": {
+          "enum": [
+            "TEXT_LAYER",
+            "SCANNED_OCR",
+            "MIXED"
+          ],
+          "title": "Input Type",
+          "type": "string"
+        },
+        "source_page_width": {
+          "exclusiveMinimum": 0,
+          "title": "Source Page Width",
+          "type": "number"
+        },
+        "source_page_height": {
+          "exclusiveMinimum": 0,
+          "title": "Source Page Height",
+          "type": "number"
+        },
+        "rotation_degrees": {
+          "default": 0,
+          "title": "Rotation Degrees",
+          "type": "integer"
+        },
+        "page_image_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PageImageRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "default": "",
+          "title": "Text",
+          "type": "string"
+        },
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/SnapshotLine"
+          },
+          "title": "Lines",
+          "type": "array"
+        },
+        "words": {
+          "items": {
+            "$ref": "#/$defs/SnapshotWord"
+          },
+          "title": "Words",
+          "type": "array"
+        },
+        "blocks": {
+          "items": {
+            "$ref": "#/$defs/SnapshotBlock"
+          },
+          "title": "Blocks",
+          "type": "array"
+        },
+        "tables": {
+          "items": {
+            "$ref": "#/$defs/Table"
+          },
+          "title": "Tables",
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        }
+      },
+      "required": [
+        "page_number",
+        "status",
+        "input_type",
+        "source_page_width",
+        "source_page_height"
+      ],
+      "title": "SnapshotPage",
+      "type": "object"
+    },
+    "SnapshotWord": {
+      "additionalProperties": false,
+      "properties": {
+        "word_id": {
+          "title": "Word Id",
+          "type": "string"
+        },
+        "line_id": {
+          "title": "Line Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "line_char_start": {
+          "minimum": 0,
+          "title": "Line Char Start",
+          "type": "integer"
+        },
+        "line_char_end": {
+          "minimum": 0,
+          "title": "Line Char End",
+          "type": "integer"
+        },
+        "bbox_normalized": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "title": "Bbox Normalized",
+          "type": "array"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        }
+      },
+      "required": [
+        "word_id",
+        "line_id",
+        "text",
+        "line_char_start",
+        "line_char_end",
+        "bbox_normalized"
+      ],
+      "title": "SnapshotWord",
+      "type": "object"
+    },
+    "Table": {
+      "additionalProperties": false,
+      "properties": {
+        "table_id": {
+          "title": "Table Id",
+          "type": "string"
+        },
+        "bbox_normalized": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "title": "Bbox Normalized",
+          "type": "array"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/Row"
+          },
+          "title": "Rows",
+          "type": "array"
+        }
+      },
+      "required": [
+        "table_id",
+        "bbox_normalized",
+        "rows"
+      ],
+      "title": "Table",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "ai1.snapshot.v1",
+      "default": "ai1.snapshot.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "snapshot_id": {
+      "minLength": 1,
+      "title": "Snapshot Id",
+      "type": "string"
+    },
+    "source_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Source Digest",
+      "type": "string"
+    },
+    "dossier_id": {
+      "minLength": 1,
+      "title": "Dossier Id",
+      "type": "string"
+    },
+    "document_id": {
+      "minLength": 1,
+      "title": "Document Id",
+      "type": "string"
+    },
+    "filename": {
+      "minLength": 1,
+      "title": "Filename",
+      "type": "string"
+    },
+    "document_role": {
+      "enum": [
+        "contract",
+        "annex"
+      ],
+      "title": "Document Role",
+      "type": "string"
+    },
+    "input_type": {
+      "enum": [
+        "TEXT_LAYER",
+        "SCANNED_OCR",
+        "MIXED"
+      ],
+      "title": "Input Type",
+      "type": "string"
+    },
+    "engine": {
+      "$ref": "#/$defs/EngineInfo"
+    },
+    "page_count": {
+      "minimum": 0,
+      "title": "Page Count",
+      "type": "integer"
+    },
+    "processing_ms": {
+      "minimum": 0,
+      "title": "Processing Ms",
+      "type": "number"
+    },
+    "pages": {
+      "items": {
+        "$ref": "#/$defs/SnapshotPage"
+      },
+      "title": "Pages",
+      "type": "array"
+    }
+  },
+  "required": [
+    "snapshot_id",
+    "source_digest",
+    "dossier_id",
+    "document_id",
+    "filename",
+    "document_role",
+    "input_type",
+    "engine",
+    "page_count",
+    "processing_ms"
+  ],
+  "type": "object"
+}
