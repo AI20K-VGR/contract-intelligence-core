@@ -1,0 +1,47 @@
+{
+  "schema_version": "ai2.data-contract.v0.2",
+  "example_only": true,
+  "offset_unit": "unicode_code_point_0_based_end_exclusive",
+  "dossier_id": "demo-dossier-c02",
+  "snapshots": [
+    {
+      "snapshot_id": "synthetic-contract-v1",
+      "document_id": "HD-01",
+      "document_role": "contract",
+      "source_digest": null,
+      "source_digest_reason": "Synthetic planning example; no supplied PDF/OCR source.",
+      "engine": { "name": "illustrative-only", "version": "0" },
+      "representation": "synthetic_text",
+      "pages": [{ "page_no": 1, "width_px": 1000, "height_px": 1400, "source_rotation_degrees": 0, "coord_space": "upright_rendered_page" }],
+      "lines": [{ "line_id": "hd01-p1-l02", "page_no": 1, "raw_text": "Điều 2: Đơn giá DV-A 1.000.000 VND/lần từ 01/09/2026.", "bbox_ref": "hd01-p1-b02" }],
+      "words": [], "bboxes": [{ "bbox_id": "hd01-p1-b02", "page_no": 1, "normalized": [0.10, 0.20, 0.82, 0.24] }], "clauses": [{ "clause_id": "hd01-art2", "page_no": 1, "line_ids": ["hd01-p1-l02"] }], "table_rows": [], "table_cells": []
+    },
+    {
+      "snapshot_id": "synthetic-annex-v1",
+      "document_id": "PL-01",
+      "document_role": "annex",
+      "source_digest": null,
+      "source_digest_reason": "Synthetic planning example; no supplied PDF/OCR source.",
+      "engine": { "name": "illustrative-only", "version": "0" },
+      "representation": "synthetic_text",
+      "pages": [{ "page_no": 1, "width_px": 1000, "height_px": 1400, "source_rotation_degrees": 0, "coord_space": "upright_rendered_page" }],
+      "lines": [{ "line_id": "pl01-p1-l03", "page_no": 1, "raw_text": "PL-01 sửa Điều 2 HD-01: DV-A 1.500.000 VND/lần từ 01/10/2026; các phạm vi khác giữ nguyên.", "bbox_ref": "pl01-p1-b03" }],
+      "words": [], "bboxes": [{ "bbox_id": "pl01-p1-b03", "page_no": 1, "normalized": [0.08, 0.30, 0.90, 0.35] }], "clauses": [{ "clause_id": "pl01-amend-art2", "page_no": 1, "line_ids": ["pl01-p1-l03"] }], "table_rows": [], "table_cells": []
+    }
+  ],
+  "facts": [
+    {
+      "fact_id": "fact-c02-left-price", "entity_type": "money", "business_role": "unit_price", "raw_value": "1.000.000 VND/lần", "normalized_value": { "amount": 1000000, "currency": "VND", "unit": "lần" },
+      "context": { "subject": "DV-A", "unit": "lần", "currency": "VND", "tax_basis": "unknown", "applicability_scope": "DV-A", "validity_start": "2026-09-01", "validity_end": null, "context_origin": "source_rule" },
+      "citation": { "snapshot_id": "synthetic-contract-v1", "document_id": "HD-01", "page_no": 1, "line_id": "hd01-p1-l02", "char_start": 21, "char_end": 38, "word_ids": [], "bbox_refs": ["hd01-p1-b02"], "clause_id": "hd01-art2" }, "context_citations": []
+    },
+    {
+      "fact_id": "fact-c02-right-price", "entity_type": "money", "business_role": "unit_price", "raw_value": "1.500.000 VND/lần", "normalized_value": { "amount": 1500000, "currency": "VND", "unit": "lần" },
+      "context": { "subject": "DV-A", "unit": "lần", "currency": "VND", "tax_basis": "unknown", "applicability_scope": "DV-A", "validity_start": "2026-10-01", "validity_end": null, "context_origin": "source_rule" },
+      "citation": { "snapshot_id": "synthetic-annex-v1", "document_id": "PL-01", "page_no": 1, "line_id": "pl01-p1-l03", "char_start": 29, "char_end": 46, "word_ids": [], "bbox_refs": ["pl01-p1-b03"], "clause_id": "pl01-amend-art2" }, "context_citations": []
+    }
+  ],
+  "finding_run": { "run_id": "illustrative-run-c02", "snapshot_ids": ["synthetic-contract-v1", "synthetic-annex-v1"], "rule_version": "ai2-rules.v0.2", "fact_ids": ["fact-c02-left-price", "fact-c02-right-price"], "finding_ids": ["finding-C02"], "execution_status": "illustrative_only" },
+  "findings": [{ "finding_id": "finding-C02", "run_id": "illustrative-run-c02", "family": "structured", "finding_type": "price_difference", "comparison_scope": "contract_annex", "left_fact_id": "fact-c02-left-price", "right_fact_id": "fact-c02-right-price", "model_disposition": "candidate_amendment", "precedence_evidence": [{ "kind": "amendment_reference", "citation": { "snapshot_id": "synthetic-annex-v1", "document_id": "PL-01", "page_no": 1, "line_id": "pl01-p1-l03", "char_start": 0, "char_end": 25, "word_ids": [], "bbox_refs": ["pl01-p1-b03"], "clause_id": "pl01-amend-art2" } }], "example_only": true }],
+  "review_revisions": []
+}
