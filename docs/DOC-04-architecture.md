@@ -109,6 +109,35 @@ contracts ──────< contract_pages
 
 ---
 
+## 🔍 OCR/Ingestion chi tiết (đóng góp từ AI Service)
+
+> *Chi tiết hoá bước 2 "OCR/IDP" ở Flow trên. Bản đầy đủ, đã review nội bộ: `ai-service/architecture.md` §4, §5, §7.*
+
+```mermaid
+flowchart LR
+    A["PDF / ảnh đầu vào"] --> B["Detect: PdfPageClassifier<br/>phân loại từng trang"]
+    B -->|"TEXT_LAYER<br/>(usable_text=true)"| C["Extract native<br/>PyMuPDFExtractor"]
+    B -->|"SCANNED / MIXED<br/>(usable_text=false)"| D["Render trang ảnh<br/>300 DPI + preprocessing"]
+    D --> E{"is_sensitive?"}
+    E -->|"true"| F["OCR local<br/>PaddleOCR"]
+    E -->|"false, theo policy"| G["OCR engine đã benchmark<br/>(vd. GPT-5.6 Terra Light)"]
+    C --> H["Document → Page → Line/Word + bbox"]
+    F --> H
+    G --> H
+    H --> I["JSON theo output.schema.json"]
+```
+
+Phân loại và routing chạy **theo từng trang**, không theo cả tài liệu — một hợp đồng `MIXED` vẫn có trang native và trang OCR trong cùng một lần xử lý.
+Nguồn code: [`classify_pdf.py:15-30`](../ai-service/src/contract_ocr/application/use_cases/classify_pdf.py), [`process_document.py:62-104`](../ai-service/src/contract_ocr/application/use_cases/process_document.py). Test xác nhận: `tests/integration/test_pipeline.py::test_native_routing_and_ocr`.
+
+### Chọn engine OCR dựa trên benchmark
+
+Tiêu chí chọn primary/fallback (ADR-10 trong `ai-service/architecture.md` §7.3): CER/WER, độ chính xác trường quan trọng (critical-field accuracy), citation coverage, thời gian p50/p95, chi phí/trang — đo trên cùng bộ dataset, không chọn theo tên gọi hay giá công bố của nhà cung cấp.
+
+**Trạng thái hiện tại:** chưa có số benchmark chính thức để chốt engine — bộ dataset 30 mẫu mới có 10/30 (xem `ai-service/docs/DATASET.md`), chưa chạy `cli/main.py benchmark` đầy đủ. AI Service đang dùng **GPT-5.6 Terra Light** làm engine thử nghiệm mặc định trong lúc chờ số đo thật; đây là lựa chọn tạm, sẽ xác nhận lại bằng benchmark trước khi chốt chính thức.
+
+---
+
 ## 🔌 Integration Points
 
 > *Các điểm tích hợp với hệ thống bên ngoài.*
