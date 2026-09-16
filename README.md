@@ -21,10 +21,10 @@ contract-intelligence/
 |---|---|---|
 | `backend/` | API server, xử lý nghiệp vụ chính, lưu trữ, quản lý luồng review | Java 17, Spring Boot 3.x, PostgreSQL, Flyway |
 | `frontend/` | Giao diện upload hợp đồng, review điều khoản, xử lý conflict | Node.js (React hoặc Vue — chưa chốt) |
-| `ai-service/` | Worker OCR/IDP/LLM, tách riêng để scale độc lập với backend | Python (FastAPI / Celery worker) |
+| `ai-service/` | Worker OCR/IDP nội bộ, xử lý tác vụ do backend điều phối | Python worker |
 | `docs/` | Product vision, system design, database schema, API spec, ADRs | Markdown + OpenAPI YAML |
 
-> **Lưu ý:** `ai-service/` là *tuỳ chọn*. Phiên bản đầu có thể chạy OCR/IDP như một adapter trong `backend/` (gọi external service). Khi cần scale/đổi model độc lập, tách ra thư mục riêng.
+> **Quyết định kiến trúc:** Spring Boot sở hữu API, dữ liệu và điều phối; Python chỉ là worker OCR/IDP nội bộ. PostgreSQL là source of truth và task queue MVP. Xem [DOC-04](docs/DOC-04-architecture.md).
 
 ---
 

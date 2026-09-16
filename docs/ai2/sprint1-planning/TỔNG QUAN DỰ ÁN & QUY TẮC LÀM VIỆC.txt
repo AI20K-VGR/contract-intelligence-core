@@ -1,0 +1,78 @@
+# TỔNG QUAN DỰ ÁN & QUY TẮC LÀM VIỆC (WAY OF WORKING) 
+**Dự án:** Contract Intelligence (PROD-01) | **Đợt:** VSF OJT - Batch 3
+
+---
+
+## I. TỔNG QUAN DỰ ÁN
+* **Tên dự án:** Contract Intelligence
+* **Mã dự án:** PROD-01
+* **Mục tiêu:** Xây dựng ứng dụng tích hợp công nghệ OCR và IDP để xử lý, phân tích các hợp đồng thương mại và phụ lục đính kèm.
+* **Thời gian triển khai:** 11/09/2026 – 18/10/2026
+
+### Các tính năng cốt lõi
+1. **Trích xuất & bóc tách:** Trích xuất văn bản và bóc tách cấu trúc hợp đồng (Điều > Khoản > Điểm, bảng phụ lục).
+2. **Trích dẫn:** Trích dẫn các giá trị quan trọng trong văn bản.
+3. **Phát hiện xung đột:** Tự động phát hiện xung đột giữa các điều khoản trong hợp đồng hoặc giữa hợp đồng với phụ lục.
+4. **Đánh giá HITL (Human-in-the-loop):** Hỗ trợ quy trình đánh giá có sự tham gia của con người qua giao diện web.
+
+### Đội ngũ nhân sự (Team)
+Nhóm gồm 4 thành viên:
+* **Trần Thị Kiều Trang:** Team Leader / Frontend Engineer (Owner dự án).
+* **Nguyễn Đức Dũng:** AI Engineer.
+* **Trần Văn Dũng:** AI Engineer.
+* **Phạm Hoàng Chương:** Backend Engineer.
+
+---
+
+## II. TÀI LIỆU & KIẾN TRÚC
+Dự án quy hoạch sẵn 5 bộ tài liệu nền tảng:
+1. **Product Vision**
+2. **BRD** (Yêu cầu nghiệp vụ)
+3. **PRD** (Yêu cầu sản phẩm chi tiết cho hệ thống OCR/HITL)
+4. **Architecture** (Kiến trúc hệ thống, mô hình dữ liệu)
+5. **API Spec** (Đặc tả API)
+
+### Yêu cầu trọng tâm Sprint 1: Hoàn thành Product Vision (DOC-01)
+Toàn bộ nhóm có trách nhiệm phải cùng nhau viết và hoàn thiện tài liệu Tầm nhìn Sản phẩm.
+* **Nội dung bắt buộc:** 
+  * *Problem:* Vấn đề cần giải quyết.
+  * *Users:* Đối tượng người dùng mục tiêu.
+  * *Value:* Giá trị sản phẩm mang lại.
+  * *What is out of scope:* Những phạm vi/tính năng KHÔNG nằm trong dự án lần này.
+* **Nghiệm thu:** Mentor sẽ đánh giá trực tiếp tại buổi Sprint 1 demo.
+
+---
+
+## III. QUY TẮC LÀM VIỆC (WAY OF WORKING)
+Đội ngũ hoạt động theo mô hình Agile/Scrum. Dưới đây là các nguyên tắc cốt lõi:
+
+### 1. Khung thời gian & Lộ trình (3 Sprint)
+* **Sprint 1 (1.5 tuần):** Tập trung tìm hiểu nghiệp vụ, thiết kế giải pháp tổng quan, chuẩn bị base dự án và công cụ quản lý.
+* **Sprint 2 (2 tuần - Tăng tốc):** Tập trung đẩy mạnh tiến độ và deliver tính năng. Demo 1-2 lần/tuần.
+* **Sprint 3 (2 tuần - Về đích):** Hoàn thiện tính năng, sửa lỗi, đào sâu giải pháp, làm tài liệu và chuẩn bị để sản phẩm có thể chạy thực tế (production-ready).
+
+### 2. Quy định Họp hành & Báo cáo
+* **Daily (Hằng ngày):** Từng người báo cáo 3 ý: Hôm qua làm gì? Hôm nay làm gì? Đang gặp vướng mắc gì?
+* **Báo cáo cuối ngày:** Mỗi thành viên tổng kết công việc, gửi lên nhóm chat chung, **bắt buộc kèm theo link bằng chứng**.
+* **Planning (Đầu Sprint):** Thống nhất mục tiêu. Ngay sau buổi họp, phải tạo đầy đủ task lên tracker (*Stories & Tasks / SubTasks*) với người phụ trách (*Assignee*), hạn chót (*Due Date*) và *Story Points*.
+* **Demo & Retro (Cuối Sprint):** Rà soát độ hoàn thiện thực tế của task, tìm nguyên nhân trễ hạn, rút kinh nghiệm và cập nhật vào sheet *Sprint Review*.
+> **Lưu ý:** Biên bản mọi buổi họp phải đăng lên nhóm MS Teams và Team Leader phải lưu link vào sheet *Meeting Log*.
+
+### 3. Giao tiếp
+* Mọi thông báo phải được **xác nhận bằng chữ** (để lại ý kiến hoặc bổ sung nếu có). Không chấp nhận việc chỉ thả tim hoặc dùng reaction.
+
+### 4. Quản lý Tracker & Cập nhật công việc
+* **Cập nhật trung thực:** File tracker phản ánh nỗ lực thực tế. "Không cập nhật thông tin đồng nghĩa với việc không làm". Không chấp nhận lý do quên hay lười update.
+* **Không xóa dữ liệu:** Nếu hủy công việc, chỉ đổi Status thành "Cancelled", tuyệt đối không xóa dòng. Không tự ý chèn thêm dòng/cột.
+* **Bảo vệ dữ liệu:** Tuyệt đối không sửa/xóa dữ liệu hoặc bằng chứng của người khác. Vi phạm sẽ bị coi là fake tiến độ.
+* **Liên đới trách nhiệm:** Team Leader sẽ bị phạt liên đới nếu 1 thành viên bị nhắc nhở 2 lần liên tiếp, hoặc 2 thành viên cùng bị nhắc nhở 1 lần.
+
+### 5. Triển khai Code & Bằng chứng
+* **Phê duyệt trước khi code:** Mentor bắt buộc phải review giải pháp, kiến trúc và cấu trúc dự án (project structure) **TRƯỚC** khi nhóm bắt tay vào làm.
+* **Repository:** Chỉ sử dụng GitHub repo do Mentor cấp.
+* **Bằng chứng:** Mọi công việc hoàn thành phải có link bằng chứng thực tế từ GitHub (PR, commit, issue) dán vào tracker.
+
+### 6. Kỷ luật & Đánh giá 
+* Cuối mỗi sprint, từng cá nhân sẽ được đánh giá Đạt / Không đạt.
+* **Kỷ luật nặng:** Tuyệt đối nghiêm cấm việc **fake tiến độ** hoặc **báo cáo hình thức** (chỉ có chữ không có code/kết quả thực). Vi phạm = Không đạt sprint.
+* **ĐIỀU KIỆN FAIL:** Sinh viên bị đánh giá Không đạt từ 2 Sprint trở lên sẽ bị **FAIL OJT**.

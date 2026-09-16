@@ -13,7 +13,8 @@ Thư mục này chỉ giữ tài liệu đang dùng cho phần AI2. Lịch sử 
 | [ST-015-DOC-02-BRD.vi.md](ST-015-DOC-02-BRD.vi.md) | BRD AI2: MVP PDF tiếng Việt, 14 BR-ID, business rules, evidence và HITL. | Draft ready |
 | [ST-022-PRD-CONTENT.vi.md](ST-022-PRD-CONTENT.vi.md) | Contribution AI2 để owner DOC-03 PRD chung hợp nhất. | Draft ready |
 | [ST-022-SAD-CONTENT.vi.md](ST-022-SAD-CONTENT.vi.md) | Contribution AI2 cho DOC-04 Architecture/SAD chung. | Draft ready |
-| [ST-017-DATA-CONTRACT.vi.md](ST-017-DATA-CONTRACT.vi.md) | Contract dữ liệu/provenance để AI1, BE và FE review. | Draft ready |
+| [DATA-CONTRACT-EXAMPLE.vi.json](DATA-CONTRACT-EXAMPLE.vi.json) | Mẫu JSON khép kín: 2 fact C02, citation/provenance hai phía và finding. Synthetic, không phải OCR output. | Ready for review |
+| [ST-017-DATA-CONTRACT.vi.md](ST-017-DATA-CONTRACT.vi.md) | Contract dữ liệu/provenance để AI1, BE và FE review. | Ready for review |
 | [ST-022-TRACEABILITY-AND-INTEGRATION.vi.md](ST-022-TRACEABILITY-AND-INTEGRATION.vi.md) | Mapping BRD → PRD → Architecture → evaluation và dependency liên nhóm. | Draft ready |
 | [ST-015-LEADER-REVIEW-BRIEF.vi.md](ST-015-LEADER-REVIEW-BRIEF.vi.md) | Một trang quyết định/checklist gửi leader. | Draft ready |
 | [ST-022-DECISIONS-RISKS-REVIEW.vi.md](ST-022-DECISIONS-RISKS-REVIEW.vi.md) | Quyết định, risk, reviewer và sign-off register. | Draft ready |
@@ -28,9 +29,11 @@ Các artefact dưới đây hỗ trợ review thiết kế hoặc evaluation sau
 | [ST-016-CASE-CATALOG.vi.md](ST-016-CASE-CATALOG.vi.md) | Review taxonomy và decision table C01–C15. |
 | [ST-018-FIXTURE-MANIFEST.vi.md](ST-018-FIXTURE-MANIFEST.vi.md) | Chuẩn bị fixture tự soạn, an toàn dữ liệu. |
 | [ST-019-GROUND-TRUTH-PLAN.vi.md](ST-019-GROUND-TRUTH-PLAN.vi.md) | Thiết kế gold/adjudication. |
-| [ST-019-GROUND-TRUTH-LEDGER.template.md](ST-019-GROUND-TRUTH-LEDGER.template.md) | Ghi gold, binding, run và revision sau khi có nguồn thật. |
+| [ST-019-GROUND-TRUTH-LEDGER.v0.2.csv](ST-019-GROUND-TRUTH-LEDGER.v0.2.csv) | Sổ nhãn 15 dòng C01–C15: hai phía, expected disposition, nguồn planning và trạng thái nhãn `proposed`. |
+| [ST-019-GROUND-TRUTH-LEDGER.template.md](ST-019-GROUND-TRUTH-LEDGER.template.md) | Schema đầy đủ cho gold fact, evidence binding, run và revision. |
 | [ST-021-EXPERIMENT-CARD.vi.md](ST-021-EXPERIMENT-CARD.vi.md) | Chốt baseline/context experiment. |
-| [ST-020-OCR-BBOX-AUDIT-CHECKLIST.vi.md](ST-020-OCR-BBOX-AUDIT-CHECKLIST.vi.md) | Audit sau khi nhận snapshot/PDF thật. |
+| [ST-020-OCR-BBOX-AUDIT-STATUS.vi.md](ST-020-OCR-BBOX-AUDIT-STATUS.vi.md) | Trạng thái In Review: thiếu PDF/render, OCR snapshot và provenance nên chưa thể audit pass/fail. |
+| [ST-020-OCR-BBOX-AUDIT-CHECKLIST.vi.md](ST-020-OCR-BBOX-AUDIT-CHECKLIST.vi.md) | Protocol audit sau khi nhận snapshot/PDF thật. |
 | [ST-021-METRIC-PROTOCOL.vi.md](ST-021-METRIC-PROTOCOL.vi.md) | Đo DOC-06 sau Gate B, bắt buộc có `n`, denominator và version. |
 | [DATA-CONTRACT-EXAMPLE.vi.json](DATA-CONTRACT-EXAMPLE.vi.json) | Ví dụ synthetic; không phải OCR output. |
 

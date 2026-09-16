@@ -13,7 +13,7 @@ Thư mục này chứa REST API server cho dự án **Contract Intelligence**.
 - Lombok
 - Maven
 
-## Kiến trúc dự kiến
+## Kiến trúc đích
 
 Clean Architecture + DDD, chia theo **Bounded Context**:
 
@@ -29,3 +29,5 @@ com.vsf.contractintel
 Mỗi module có đủ 4 layer: `domain` → `application` → `infrastructure` → `interfaces`.
 
 > Chi tiết sẽ được generate trong bước tiếp theo. Trước đó thư mục này giữ trống.
+
+Backend là public API, owner của domain/persistence/Flyway, auth và orchestration. Không nhận callback do client cung cấp; worker Python chỉ trả artifact versioned qua internal authenticated boundary. Contract chuẩn: [`docs/DOC-04-architecture.md`](../docs/DOC-04-architecture.md) và [`docs/DOC-05-api-spec.yaml`](../docs/DOC-05-api-spec.yaml).

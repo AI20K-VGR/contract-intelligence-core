@@ -14,3 +14,5 @@ Images and diagrams go in `assets/` (the only folder in the repo where image fil
 
 Changes to a document go through a PR like code (2 approvals). The sprint tracker on OneDrive
 holds the status of each document.
+
+`DOC-04-architecture.md` là nguồn kiến trúc chuẩn. Các bản architecture draft trong root và `ai2/sprint1-planning` chỉ là historical/input review; không dùng làm contract triển khai.

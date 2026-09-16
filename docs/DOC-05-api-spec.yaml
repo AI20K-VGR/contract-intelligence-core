@@ -1,731 +1,568 @@
 openapi: 3.0.3
-
 info:
   title: Contract Intelligence API
+  version: 0.2.0-draft
   description: |
-    REST API for Contract Intelligence — OCR/IDP system for commercial contracts.
-
-    ## Overview
-    - **Contract module**: upload, status tracking, metadata
-    - **Extraction module**: clause tree, bounding boxes, appendix tables
-    - **Conflict module**: conflict detection and resolution
-    - **Review module**: HITL review, approval
-
-    ## Response Format
-    All endpoints return a wrapped response:
-
-    ```json
-    {
-      "data": { ... },
-      "error": null,
-      "meta": {
-        "page": 1,
-        "size": 20,
-        "total": 100,
-        "timestamp": "2026-09-15T10:36:00Z"
-      }
-    }
-    ```
-  version: 0.1.0
-  contact:
-    name: Contract Intelligence Team
-  license:
-    name: Proprietary
-
+    Dossier-centric API for evidence-backed OCR/IDP. Machine artifacts are immutable;
+    review state is append-only. This contract is draft until DOC-04 approval.
 servers:
-  - url: http://localhost:8080
+  - url: http://localhost:8080/api/v1
     description: Local development
-  - url: https://api.contractintel.internal
-    description: Internal staging/production (TBD)
-
-# ─── Tags ────────────────────────────────────────────────────────────────────
 tags:
-  - name: contracts
-    description: Contract upload and management
-  - name: clauses
-    description: Clause extraction and structure
-  - name: conflicts
-    description: Conflict detection and resolution
+  - name: dossiers
+  - name: processing
+  - name: evidence
   - name: review
-    description: Human-in-the-loop review and approval
-
-# ─── Paths ────────────────────────────────────────────────────────────────────
+  - name: optimization-admin
 paths:
-
-  # ── Contract ──────────────────────────────────────────────────────────────
-  /contracts:
+  /dossiers:
     post:
-      tags: [contracts]
-      summary: Upload a single contract
-      description: Upload a contract file (PDF/image), create a Contract record with status UPLOADED.
-      operationId: uploadContract
+      tags: [dossiers]
+      summary: Create an empty dossier
+      operationId: createDossier
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
-              $ref: '#/components/schemas/ContractUploadRequest'
-            encoding:
-              file:
-                contentType: application/pdf,image/*
+              $ref: '#/components/schemas/CreateDossierRequest'
       responses:
         '201':
-          description: Contract created
+          description: Dossier created
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseContract'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-
+              schema: { $ref: '#/components/schemas/Dossier' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+  /dossiers/{dossierId}:
     get:
-      tags: [contracts]
-      summary: List contracts
-      operationId: listContracts
-      parameters:
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/SizeParam'
-        - name: status
-          in: query
-          schema:
-            $ref: '#/components/schemas/ContractStatus'
+      tags: [dossiers]
+      summary: Get dossier and effective manifest
+      operationId: getDossier
+      parameters: [ { $ref: '#/components/parameters/DossierId' } ]
       responses:
         '200':
-          description: Paginated contract list
+          description: Dossier
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseContractList'
-
-  /contracts/batch:
+              schema: { $ref: '#/components/schemas/Dossier' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /dossiers/{dossierId}/documents:
     post:
-      tags: [contracts]
-      summary: Batch upload multiple contracts
-      operationId: batchUploadContracts
+      tags: [dossiers]
+      summary: Upload an immutable source document into the dossier
+      operationId: uploadDocument
+      parameters: [ { $ref: '#/components/parameters/DossierId' } ]
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
               type: object
+              required: [file]
               properties:
-                files:
-                  type: array
-                  items:
-                    type: string
-                    format: binary
-                  description: Multiple PDF/image files (max 50)
+                file: { type: string, format: binary }
+                idempotency_key: { type: string, maxLength: 128 }
+      responses:
+        '201':
+          description: Source staged and verified
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /dossiers/{dossierId}/manifests:
+    post:
+      tags: [dossiers]
+      summary: Confirm a versioned dossier manifest and begin a run
+      description: Requires exactly one CONTRACT and zero or more ANNEX documents.
+      operationId: confirmManifest
+      parameters: [ { $ref: '#/components/parameters/DossierId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConfirmManifestRequest' }
       responses:
         '202':
-          description: Batch upload accepted, processing async
+          description: Manifest accepted and initial run queued
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseBatchUpload'
-
-  /contracts/{id}:
+              schema: { $ref: '#/components/schemas/ProcessingRun' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /dossiers/{dossierId}/runs:
     get:
-      tags: [contracts]
-      summary: Get contract details
-      operationId: getContract
-      parameters:
-        - $ref: '#/components/parameters/ContractId'
+      tags: [processing]
+      summary: List immutable processing runs
+      operationId: listRuns
+      parameters: [ { $ref: '#/components/parameters/DossierId' } ]
       responses:
         '200':
-          description: Contract details
+          description: Processing runs
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponseContract'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /contracts/{id}/status:
-    get:
-      tags: [contracts]
-      summary: Get contract processing status
-      operationId: getContractStatus
-      parameters:
-        - $ref: '#/components/parameters/ContractId'
-      responses:
-        '200':
-          description: Current contract status
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseContractStatus'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  # ── Clauses ────────────────────────────────────────────────────────────────
-  /contracts/{id}/clauses:
-    get:
-      tags: [clauses]
-      summary: Get clause tree for a contract
-      description: Returns the full clause hierarchy (Điều > Khoản > Điểm) with bounding boxes.
-      operationId: getClauses
-      parameters:
-        - $ref: '#/components/parameters/ContractId'
-      responses:
-        '200':
-          description: Clause tree
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseClauseTree'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /contracts/{id}/clauses/{clauseId}:
-    patch:
-      tags: [review]
-      summary: Update a single clause (HITL review)
-      description: Reviewer edits clause text or confirms extraction.
-      operationId: updateClause
-      parameters:
-        - $ref: '#/components/parameters/ContractId'
-        - name: clauseId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+                type: array
+                items: { $ref: '#/components/schemas/ProcessingRun' }
+    post:
+      tags: [processing]
+      summary: Start a new rerun or re-OCR run
+      description: Never mutates an existing run or OCR snapshot.
+      operationId: createRun
+      parameters: [ { $ref: '#/components/parameters/DossierId' } ]
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/ClauseUpdateRequest'
+            schema: { $ref: '#/components/schemas/CreateRunRequest' }
       responses:
-        '200':
-          description: Clause updated
+        '202':
+          description: Run queued
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseClause'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  # ── Conflicts ──────────────────────────────────────────────────────────────
-  /contracts/{id}/conflicts:
+              schema: { $ref: '#/components/schemas/ProcessingRun' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /dossiers/{dossierId}/runs/{runId}:
     get:
-      tags: [conflicts]
-      summary: Get all conflicts for a contract
-      operationId: getConflicts
+      tags: [processing]
+      summary: Get run progress, availability and errors
+      operationId: getRun
       parameters:
-        - $ref: '#/components/parameters/ContractId'
-        - name: status
+        - { $ref: '#/components/parameters/DossierId' }
+        - { $ref: '#/components/parameters/RunId' }
+      responses:
+        '200':
+          description: Processing run
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProcessingRun' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /dossiers/{dossierId}/findings:
+    get:
+      tags: [evidence]
+      summary: List findings with evidence availability
+      operationId: listFindings
+      parameters:
+        - { $ref: '#/components/parameters/DossierId' }
+        - name: queue
           in: query
-          schema:
-            $ref: '#/components/schemas/ConflictStatus'
+          schema: { enum: [CONFLICT, NEEDS_EVIDENCE, NOT_COMPARABLE] }
+        - name: run_id
+          in: query
+          schema: { type: string, format: uuid }
       responses:
         '200':
-          description: Conflict list
+          description: Findings
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponseConflictList'
-
-  /contracts/{id}/conflicts/{conflictId}/resolve:
+                type: array
+                items: { $ref: '#/components/schemas/Finding' }
+  /citations/{citationId}:
+    get:
+      tags: [evidence]
+      summary: Resolve a citation to authorized evidence components
+      operationId: resolveCitation
+      parameters: [ { $ref: '#/components/parameters/CitationId' } ]
+      responses:
+        '200':
+          description: Citation components; render URLs are short-lived and authorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Citation' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /review-items/{reviewItemId}/revisions:
     post:
-      tags: [conflicts]
-      summary: Resolve a conflict
-      description: Mark conflict as RESOLVED or IGNORED with optional note.
-      operationId: resolveConflict
-      parameters:
-        - $ref: '#/components/parameters/ContractId'
-        - name: conflictId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      tags: [review]
+      summary: Append a reviewer decision or evidence overlay
+      operationId: appendReviewRevision
+      parameters: [ { $ref: '#/components/parameters/ReviewItemId' } ]
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/ConflictResolveRequest'
+            schema: { $ref: '#/components/schemas/CreateReviewRevisionRequest' }
       responses:
-        '200':
-          description: Conflict resolved
+        '201':
+          description: Revision appended
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseConflict'
-
-  # ── Review & Approve ───────────────────────────────────────────────────────
-  /contracts/{id}/review:
-    get:
-      tags: [review]
-      summary: Get review summary and audit log for a contract
-      operationId: getReviewSummary
-      parameters:
-        - $ref: '#/components/parameters/ContractId'
-      responses:
-        '200':
-          description: Review summary with audit log
+              schema: { $ref: '#/components/schemas/ReviewRevision' }
+        '409':
+          description: Stale previous revision; client must reload and rebase
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseReviewSummary'
-
-  /contracts/{id}/approve:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /admin/optimization/campaigns:
     post:
-      tags: [review]
-      summary: Final approval of a contract
-      description: Approve contract — all clauses reviewed, conflicts resolved/ignored.
-      operationId: approveContract
-      parameters:
-        - $ref: '#/components/parameters/ContractId'
+      tags: [optimization-admin]
+      summary: Create a DEV-only optimization campaign
+      description: Requires optimization-owner role. The optimizer may run only DEV experiments within this campaign's budget.
+      operationId: createOptimizationCampaign
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/ApproveRequest'
+            schema: { $ref: '#/components/schemas/CreateOptimizationCampaignRequest' }
+      responses:
+        '201':
+          description: Campaign created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OptimizationCampaign' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /admin/optimization/campaigns/{campaignId}/candidates:
+    post:
+      tags: [optimization-admin]
+      summary: Submit an allowlisted candidate patch
+      operationId: createOptimizationCandidate
+      parameters: [ { $ref: '#/components/parameters/CampaignId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateOptimizationCandidateRequest' }
+      responses:
+        '201':
+          description: Candidate canonicalized and static-validated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfigBundle' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /admin/optimization/experiments/{experimentId}:
+    get:
+      tags: [optimization-admin]
+      summary: Get aggregate experiment metrics and state
+      operationId: getOptimizationExperiment
+      parameters: [ { $ref: '#/components/parameters/ExperimentId' } ]
       responses:
         '200':
-          description: Contract approved
+          description: Aggregate-only experiment report; never contains raw source, gold or holdout items
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseContract'
-        '409':
-          description: Preconditions not met (unresolved conflicts, unreviewed clauses)
+              schema: { $ref: '#/components/schemas/OptimizationExperiment' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /admin/optimization/promotions:
+    post:
+      tags: [optimization-admin]
+      summary: Request a sealed evaluation or a human-gated rollout transition
+      description: Optimizer identity is forbidden. Only an authorized release owner may submit this request.
+      operationId: requestPromotion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePromotionRequest' }
+      responses:
+        '202':
+          description: Promotion request accepted for the requested controlled transition
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseError'
-
-# ─── Components ───────────────────────────────────────────────────────────────
+              schema: { $ref: '#/components/schemas/PromotionDecision' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /admin/optimization/bindings/{bindingId}/rollback:
+    post:
+      tags: [optimization-admin]
+      summary: Roll back new run routing to the last known-good config
+      operationId: rollbackConfigBinding
+      parameters: [ { $ref: '#/components/parameters/BindingId' } ]
+      responses:
+        '202':
+          description: New active binding created; historical runs remain unchanged
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfigBinding' }
+        '403': { $ref: '#/components/responses/Problem' }
 components:
-
   parameters:
-    ContractId:
-      name: id
-      in: path
-      required: true
-      description: Contract UUID
-      schema:
-        type: string
-        format: uuid
-
-    PageParam:
-      name: page
-      in: query
-      schema:
-        type: integer
-        default: 0
-        minimum: 0
-
-    SizeParam:
-      name: size
-      in: query
-      schema:
-        type: integer
-        default: 20
-        minimum: 1
-        maximum: 100
-
-  schemas:
-
-    # ── Shared ──────────────────────────────────────────────────────────────
-    ApiResponse:
-      type: object
-      properties:
-        data:
-          type: object
-          nullable: true
-        error:
-          type: object
-          nullable: true
-          properties:
-            code:
-              type: string
-            message:
-              type: string
-            details:
-              type: array
-              items:
-                type: string
-        meta:
-          type: object
-          properties:
-            timestamp:
-              type: string
-              format: date-time
-            page:
-              type: integer
-            size:
-              type: integer
-            total:
-              type: integer
-
-    ApiResponseError:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
-          properties:
-            error:
-              type: object
-              properties:
-                code:
-                  type: string
-                message:
-                  type: string
-
-    # ── Contract ────────────────────────────────────────────────────────────
-    ContractStatus:
-      type: string
-      enum:
-        - UPLOADED
-        - PROCESSING
-        - EXTRACTED
-        - CONFLICT_DETECTED
-        - PENDING_REVIEW
-        - REVIEWED
-        - APPROVED
-
-    ContractUploadRequest:
-      type: object
-      required:
-        - file
-      properties:
-        file:
-          type: string
-          format: binary
-          description: Contract PDF or image file
-        filename:
-          type: string
-          description: Optional original filename
-        metadata:
-          type: object
-          additionalProperties:
-            type: string
-
-    Contract:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        filename:
-          type: string
-        status:
-          $ref: '#/components/schemas/ContractStatus'
-        pageCount:
-          type: integer
-        extractedClauseCount:
-          type: integer
-        conflictCount:
-          type: integer
-        pendingConflictCount:
-          type: integer
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-        metadata:
-          type: object
-          additionalProperties:
-            type: string
-
-    ApiResponseContract:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
-          properties:
-            data:
-              $ref: '#/components/schemas/Contract'
-
-    ApiResponseContractList:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
-          properties:
-            data:
-              type: array
-              items:
-                $ref: '#/components/schemas/Contract'
-
-    ApiResponseContractStatus:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
-          properties:
-            data:
-              type: object
-              properties:
-                id:
-                  type: string
-                  format: uuid
-                status:
-                  $ref: '#/components/schemas/ContractStatus'
-                updatedAt:
-                  type: string
-                  format: date-time
-
-    ApiResponseBatchUpload:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
-          properties:
-            data:
-              type: object
-              properties:
-                acceptedCount:
-                  type: integer
-                contractIds:
-                  type: array
-                  items:
-                    type: string
-                    format: uuid
-
-    # ── Clause ──────────────────────────────────────────────────────────────
-    ClauseLevel:
-      type: string
-      enum: [ARTICLE, SECTION, SUBSECTION]
-
-    BoundingBox:
-      type: object
-      properties:
-        pageNumber:
-          type: integer
-        x:
-          type: number
-        y:
-          type: number
-        width:
-          type: number
-        height:
-          type: number
-
-    Clause:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        contractId:
-          type: string
-          format: uuid
-        level:
-          $ref: '#/components/schemas/ClauseLevel'
-        title:
-          type: string
-        content:
-          type: string
-        parentClauseId:
-          type: string
-          format: uuid
-          nullable: true
-        orderIndex:
-          type: integer
-        boundingBox:
-          $ref: '#/components/schemas/BoundingBox'
-        confidence:
-          type: number
-          format: float
-          minimum: 0
-          maximum: 1
-        isReviewed:
-          type: boolean
-        children:
-          type: array
-          items:
-            $ref: '#/components/schemas/Clause'
-
-    ClauseUpdateRequest:
-      type: object
-      properties:
-        title:
-          type: string
-        content:
-          type: string
-        isConfirmed:
-          type: boolean
-          description: Confirm this clause extraction is correct
-
-    ApiResponseClause:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
-          properties:
-            data:
-              $ref: '#/components/schemas/Clause'
-
-    ApiResponseClauseTree:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
-          properties:
-            data:
-              type: array
-              items:
-                $ref: '#/components/schemas/Clause'
-
-    # ── Conflict ───────────────────────────────────────────────────────────
-    ConflictType:
-      type: string
-      enum:
-        - CONTRADICTION
-        - OVERLAP
-        - REDUNDANCY
-        - AMBIGUITY
-
-    ConflictStatus:
-      type: string
-      enum: [PENDING, RESOLVED, IGNORED]
-
-    Conflict:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        contractId:
-          type: string
-          format: uuid
-        clauseIdA:
-          type: string
-          format: uuid
-        clauseIdB:
-          type: string
-          format: uuid
-        conflictType:
-          $ref: '#/components/schemas/ConflictType'
-        description:
-          type: string
-        status:
-          $ref: '#/components/schemas/ConflictStatus'
-        resolutionNote:
-          type: string
-          nullable: true
-        resolvedBy:
-          type: string
-          nullable: true
-        resolvedAt:
-          type: string
-          format: date-time
-          nullable: true
-        createdAt:
-          type: string
-          format: date-time
-
-    ConflictResolveRequest:
-      type: object
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          enum: [RESOLVED, IGNORED]
-        resolutionNote:
-          type: string
-
-    ApiResponseConflict:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
-          properties:
-            data:
-              $ref: '#/components/schemas/Conflict'
-
-    ApiResponseConflictList:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
-          properties:
-            data:
-              type: array
-              items:
-                $ref: '#/components/schemas/Conflict'
-
-    # ── Review ──────────────────────────────────────────────────────────────
-    ReviewLog:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        contractId:
-          type: string
-          format: uuid
-        reviewerId:
-          type: string
-        action:
-          type: string
-          enum: [CLAUSE_UPDATED, CONFLICT_RESOLVED, CONFLICT_IGNORED, APPROVED, REJECTED]
-        entityType:
-          type: string
-          enum: [CLAUSE, CONFLICT, CONTRACT]
-        entityId:
-          type: string
-          format: uuid
-        note:
-          type: string
-          nullable: true
-        timestamp:
-          type: string
-          format: date-time
-
-    ReviewSummary:
-      type: object
-      properties:
-        contractId:
-          type: string
-          format: uuid
-        totalClauses:
-          type: integer
-        reviewedClauses:
-          type: integer
-        totalConflicts:
-          type: integer
-        pendingConflicts:
-          type: integer
-        logs:
-          type: array
-          items:
-            $ref: '#/components/schemas/ReviewLog'
-
-    ApiResponseReviewSummary:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
-          properties:
-            data:
-              $ref: '#/components/schemas/ReviewSummary'
-
-    ApproveRequest:
-      type: object
-      properties:
-        note:
-          type: string
-          description: Optional approval note
-
+    DossierId: { name: dossierId, in: path, required: true, schema: { type: string, format: uuid } }
+    RunId: { name: runId, in: path, required: true, schema: { type: string, format: uuid } }
+    CitationId: { name: citationId, in: path, required: true, schema: { type: string, format: uuid } }
+    ReviewItemId: { name: reviewItemId, in: path, required: true, schema: { type: string, format: uuid } }
+    CampaignId: { name: campaignId, in: path, required: true, schema: { type: string, format: uuid } }
+    ExperimentId: { name: experimentId, in: path, required: true, schema: { type: string, format: uuid } }
+    BindingId: { name: bindingId, in: path, required: true, schema: { type: string, format: uuid } }
   responses:
-    BadRequest:
-      description: Invalid request payload
+    Problem:
+      description: RFC 7807 problem response
       content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ApiResponseError'
-
-    NotFound:
-      description: Resource not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ApiResponseError'
-
-    PayloadTooLarge:
-      description: File exceeds maximum size limit
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ApiResponseError'
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    CreateDossierRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, maxLength: 300 }
+        idempotency_key: { type: string, maxLength: 128 }
+    Dossier:
+      type: object
+      required: [id, status, documents]
+      properties:
+        id: { type: string, format: uuid }
+        status: { enum: [DRAFT, AWAITING_MANIFEST, PROCESSING, NEEDS_REVIEW, COMPLETED, PARTIAL_FAILED, QUARANTINED] }
+        effective_manifest_id: { type: string, format: uuid, nullable: true }
+        documents:
+          type: array
+          items: { $ref: '#/components/schemas/Document' }
+    Document:
+      type: object
+      required: [id, source_digest, status]
+      properties:
+        id: { type: string, format: uuid }
+        source_digest: { type: string, pattern: '^[A-Fa-f0-9]{64}$' }
+        status: { enum: [STAGED, VERIFIED, REJECTED] }
+        original_filename: { type: string }
+    ConfirmManifestRequest:
+      type: object
+      additionalProperties: false
+      required: [documents, idempotency_key]
+      properties:
+        idempotency_key: { type: string, maxLength: 128 }
+        documents:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [document_id, role]
+            properties:
+              document_id: { type: string, format: uuid }
+              role: { enum: [CONTRACT, ANNEX] }
+              annex_number: { type: string }
+              effective_date: { type: string, format: date }
+              relationship_source: { enum: [USER_DECLARED, SOURCE_EVIDENCE] }
+              relationship_citation_ids:
+                type: array
+                items: { type: string, format: uuid }
+    CreateRunRequest:
+      type: object
+      additionalProperties: false
+      required: [kind, idempotency_key]
+      properties:
+        kind: { enum: [RERUN, REOCR] }
+        manifest_id: { type: string, format: uuid }
+        parent_run_id: { type: string, format: uuid, nullable: true }
+        document_version_ids: { type: array, items: { type: string, format: uuid }, minItems: 1 }
+        page_numbers: { type: array, items: { type: integer, minimum: 1 }, uniqueItems: true }
+        idempotency_key: { type: string, maxLength: 128 }
+    ProcessingRun:
+      type: object
+      required: [id, dossier_id, status, manifest_id, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        dossier_id: { type: string, format: uuid }
+        manifest_id: { type: string, format: uuid }
+        status: { enum: [QUEUED, VALIDATING, WAITING_FOR_OCR, EXTRACTING, COMPARING, NEEDS_REVIEW, COMPLETED, PARTIAL_FAILED, FAILED, QUARANTINED] }
+        created_at: { type: string, format: date-time }
+        input_snapshot_ids:
+          type: array
+          items: { type: string, format: uuid }
+        execution_manifest_id: { type: string, format: uuid }
+        config_bundle_id: { type: string, format: uuid }
+        config_digest: { type: string, pattern: '^[A-Fa-f0-9]{64}$' }
+        policy_digest: { type: string, pattern: '^[A-Fa-f0-9]{64}$' }
+        errors:
+          type: array
+          items: { $ref: '#/components/schemas/ProcessingError' }
+    ProcessingError:
+      type: object
+      required: [code, retryable]
+      properties:
+        code: { type: string }
+        retryable: { type: boolean }
+        page_no: { type: integer, minimum: 1 }
+    Citation:
+      type: object
+      required: [id, snapshot_id, document_id, source_digest, components]
+      properties:
+        id: { type: string, format: uuid }
+        snapshot_id: { type: string, format: uuid }
+        document_id: { type: string, format: uuid }
+        source_digest: { type: string, pattern: '^[A-Fa-f0-9]{64}$' }
+        components:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [render_digest, page_no, line_id, char_start, char_end, quote, bbox_status]
+            properties:
+              page_no: { type: integer, minimum: 1 }
+              line_id: { type: string }
+              char_start: { type: integer, minimum: 0, description: Unicode code-point offset in raw line text }
+              char_end: { type: integer, minimum: 1 }
+              quote: { type: string }
+              bbox: { type: array, minItems: 4, maxItems: 4, items: { type: number } }
+              bbox_source: { enum: [native, detector, derived, line_only, absent] }
+              bbox_status: { enum: [measured, line_only, derived, absent] }
+              word_ids: { type: array, items: { type: string }, uniqueItems: true }
+              table_id: { type: string, nullable: true }
+              table_cell_id: { type: string, nullable: true }
+              render_digest: { type: string, pattern: '^[A-Fa-f0-9]{64}$' }
+              render_url: { type: string, format: uri, nullable: true }
+    Finding:
+      type: object
+      required: [id, run_id, disposition, queue, evidence]
+      properties:
+        id: { type: string, format: uuid }
+        run_id: { type: string, format: uuid }
+        family: { enum: [STRUCTURED, SEMANTIC] }
+        disposition: { enum: [COMPARABLE_MATCH, COMPARABLE_DIFFERENCE, CANDIDATE_AMENDMENT, NOT_COMPARABLE, INSUFFICIENT_EVIDENCE] }
+        queue: { enum: [CONFLICT, NEEDS_EVIDENCE, NOT_COMPARABLE] }
+        evidence:
+          type: object
+          required: [left_status, right_status]
+          properties:
+            left_status: { enum: [VALID, MISSING, INVALID] }
+            right_status: { enum: [VALID, MISSING, INVALID] }
+            left_citation_ids: { type: array, items: { type: string, format: uuid } }
+            right_citation_ids: { type: array, items: { type: string, format: uuid } }
+    CreateReviewRevisionRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_previous_revision_id, action]
+      properties:
+        expected_previous_revision_id: { type: string, format: uuid, nullable: true }
+        action: { enum: [CONFIRM, CORRECT, REJECT, REQUEST_EVIDENCE] }
+        reason_code: { type: string }
+        correction:
+          type: object
+          additionalProperties: false
+          description: Typed human overlay/correction; never overwrites a machine bbox.
+          properties:
+            target_type: { enum: [FACT, FINDING, CLAUSE, EVIDENCE_SELECTION] }
+            citation_ids: { type: array, items: { type: string, format: uuid }, uniqueItems: true }
+            cps_polygon: { type: array, items: { type: number }, minItems: 6, maxItems: 16 }
+            corrected_value: { type: string }
+    ReviewRevision:
+      type: object
+      required: [id, review_item_id, action, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        review_item_id: { type: string, format: uuid }
+        action: { enum: [CONFIRM, CORRECT, REJECT, REQUEST_EVIDENCE] }
+        created_at: { type: string, format: date-time }
+    CreateOptimizationCampaignRequest:
+      type: object
+      additionalProperties: false
+      required: [baseline_config_bundle_id, dev_dataset_version_id, evaluation_plan_id, allowed_knob_set_id, budget]
+      properties:
+        baseline_config_bundle_id: { type: string, format: uuid }
+        dev_dataset_version_id: { type: string, format: uuid }
+        evaluation_plan_id: { type: string, format: uuid }
+        allowed_knob_set_id: { type: string, format: uuid }
+        max_iterations: { type: integer, minimum: 1, maximum: 100, default: 10 }
+        budget:
+          type: object
+          additionalProperties: false
+          required: [max_pages, max_wall_seconds]
+          properties:
+            max_pages: { type: integer, minimum: 1 }
+            max_wall_seconds: { type: integer, minimum: 1 }
+            max_external_cost_usd: { type: number, minimum: 0, default: 0 }
+    OptimizationCampaign:
+      type: object
+      required: [id, baseline_config_bundle_id, dev_dataset_version_id, status]
+      properties:
+        id: { type: string, format: uuid }
+        baseline_config_bundle_id: { type: string, format: uuid }
+        dev_dataset_version_id: { type: string, format: uuid }
+        status: { enum: [DRAFT, RUNNING, BUDGET_EXHAUSTED, COMPLETED, CANCELLED] }
+    CreateOptimizationCandidateRequest:
+      type: object
+      additionalProperties: false
+      required: [base_config_bundle_id, allowed_knob_set_id, hypothesis, changes]
+      properties:
+        base_config_bundle_id: { type: string, format: uuid }
+        allowed_knob_set_id: { type: string, format: uuid }
+        hypothesis: { type: string, maxLength: 2000 }
+        changes:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            additionalProperties: false
+            required: [path, value]
+            properties:
+              path: { type: string, pattern: '^/(render|preprocess|ocr_layout|idp_rules|routing|semantic)/[A-Za-z0-9._-]+$' }
+              value:
+                nullable: true
+                oneOf:
+                  - { type: string }
+                  - { type: number }
+                  - { type: boolean }
+    ConfigBundle:
+      type: object
+      required: [id, digest, status, parent_config_bundle_id]
+      properties:
+        id: { type: string, format: uuid }
+        digest: { type: string, pattern: '^[A-Fa-f0-9]{64}$' }
+        parent_config_bundle_id: { type: string, format: uuid, nullable: true }
+        status: { enum: [DRAFT, STATIC_VALIDATED, DEV_EVALUATED, HOLDOUT_EVALUATED, APPROVED, ACTIVE, RETIRED, REVOKED] }
+    OptimizationExperiment:
+      type: object
+      required: [id, campaign_id, baseline_config_bundle_id, candidate_config_bundle_id, split, status, metrics]
+      properties:
+        id: { type: string, format: uuid }
+        campaign_id: { type: string, format: uuid }
+        baseline_config_bundle_id: { type: string, format: uuid }
+        candidate_config_bundle_id: { type: string, format: uuid }
+        split: { enum: [DEV, SEALED_HOLDOUT] }
+        status: { enum: [QUEUED, RUNNING, SCORING, GATE_FAILED, READY_FOR_REVIEW, COMPLETED, FAILED, CANCELLED] }
+        metrics:
+          type: array
+          items:
+            type: object
+            required: [metric_id, stratum_key, denominator]
+            properties:
+              metric_id: { type: string }
+              stratum_key: { type: string }
+              denominator: { type: integer, minimum: 0 }
+              value: { type: number, nullable: true }
+              failed_count: { type: integer, minimum: 0 }
+              not_run_count: { type: integer, minimum: 0 }
+    CreatePromotionRequest:
+      type: object
+      additionalProperties: false
+      required: [candidate_config_bundle_id, experiment_id, transition, idempotency_key]
+      properties:
+        candidate_config_bundle_id: { type: string, format: uuid }
+        experiment_id: { type: string, format: uuid }
+        transition: { enum: [QUEUE_SEALED_HOLDOUT, APPROVE_SHADOW, APPROVE_CANARY, ACTIVATE] }
+        idempotency_key: { type: string, maxLength: 128 }
+    PromotionDecision:
+      type: object
+      required: [id, candidate_config_bundle_id, status]
+      properties:
+        id: { type: string, format: uuid }
+        candidate_config_bundle_id: { type: string, format: uuid }
+        status: { enum: [PENDING, GATE_FAILED, AWAITING_DUAL_APPROVAL, APPROVED, REJECTED, PAUSED] }
+    ConfigBinding:
+      type: object
+      required: [id, config_bundle_id, state, effective_at]
+      properties:
+        id: { type: string, format: uuid }
+        config_bundle_id: { type: string, format: uuid }
+        state: { enum: [SHADOW, CANARY, ACTIVE, PAUSED, ROLLED_BACK] }
+        effective_at: { type: string, format: date-time }
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+security:
+  - bearerAuth: []
