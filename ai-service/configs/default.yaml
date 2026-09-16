@@ -1,0 +1,29 @@
+render:
+  dpi: 300
+classifier:
+  min_chars: 20
+  min_words: 3
+  image_threshold: 0.5
+paddle:
+  enabled: true
+  model: PP-OCRv6
+  device: cpu
+deepseek:
+  enabled: true
+  model: deepseek-ai/DeepSeek-OCR-2
+  backend: transformers
+  device: cuda:0
+  prompt: "<image>\n<|grounding|>Convert the document to markdown."
+  allow_download: false
+  attention: flash_attention_2
+evaluation:
+  unicode_normalization: NFC
+  bbox_iou_threshold: 0.5
+experiments:
+  - {id: E0, engine: pymupdf}
+  - {id: E1, engine: paddle}
+  - {id: E2, engine: deepseek}
+  - {id: E3, engine: paddle, preprocessing: [deskew]}
+  - {id: E4, engine: paddle, preprocessing: [deskew, denoise]}
+  - {id: E5, engine: paddle, preprocessing: [contrast]}
+  - {id: E6, engine: paddle, preprocessing: [threshold]}
