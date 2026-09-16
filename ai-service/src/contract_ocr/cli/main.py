@@ -3,14 +3,17 @@ import hashlib
 import json
 import logging
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
+import pymupdf
 from PIL import Image, ImageDraw
 
+from contract_ocr.application.use_cases.build_snapshot import BuildSnapshot
 from contract_ocr.application.use_cases.classify_pdf import PdfPageClassifier
 from contract_ocr.application.use_cases.process_document import ProcessDocument
 from contract_ocr.application.use_cases.run_benchmark import RunBenchmark
-from contract_ocr.domain.entities import Document
+from contract_ocr.domain.entities import Document, Experiment
 from contract_ocr.infrastructure.config import load_settings, read_manifest
 from contract_ocr.infrastructure.image.degradation import VARIANTS, degrade
 from contract_ocr.infrastructure.image.preprocessing import ImagePreprocessor
@@ -75,6 +78,57 @@ def inspect(args: argparse.Namespace) -> None:
             for i, page in enumerate(pdf)
         ]
     print(json.dumps(results, ensure_ascii=False, indent=2))
+
+
+def snapshot(args: argparse.Namespace) -> None:
+    """Produce one ai1.snapshot.v1 document handoff file for AI2 (see
+    docs/AI1_OCR_SNAPSHOT_HANDOFF_RESPONSE.md and docs/ai1.snapshot.v1.schema.json)."""
+    settings = load_settings(args.config)
+    engine = None
+    if args.engine == "paddle":
+        engine = PaddleOCREngine(**settings.paddle)
+    elif args.engine == "deepseek":
+        engine = DeepSeekOCRAdapter(**settings.deepseek)
+    processor = ProcessDocument(
+        PyMuPDFExtractor(), PdfRenderer(), ImagePreprocessor(), PdfPageClassifier(**settings.classifier)
+    )
+    experiment = Experiment(id="snapshot", engine=args.engine if engine else "pymupdf")
+    document = processor.execute(
+        str(args.file),
+        args.document_id,
+        experiment,
+        engine,
+        args.output / "_raw",
+        "snapshot-cli",
+        args.dpi,
+    )
+    snapshot_id = args.snapshot_id or (
+        f"ocr-run-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}-{args.document_id}"
+    )
+    doc_dir = args.output / args.dossier_id / args.document_id
+    result = BuildSnapshot(PdfRenderer(), image_dpi=args.image_dpi).execute(
+        document,
+        snapshot_id=snapshot_id,
+        dossier_id=args.dossier_id,
+        document_role=args.role,
+        filename=args.filename or args.file.name,
+        engine_name=engine.name if engine else "pymupdf",
+        engine_version=str(engine.model) if engine else pymupdf.VersionBind,
+        image_output_dir=doc_dir / snapshot_id,
+        image_uri_prefix=f"storage://ocr/{snapshot_id}",
+    )
+    out_path = doc_dir / f"{snapshot_id}.json"
+    write_json(out_path, result.model_dump(mode="json"))
+    print(
+        json.dumps(
+            {
+                "snapshot_id": snapshot_id,
+                "path": str(out_path.resolve()),
+                "page_count": result.page_count,
+                "input_type": result.input_type,
+            }
+        )
+    )
 
 
 def visualize(args: argparse.Namespace) -> None:
@@ -198,6 +252,19 @@ def main(argv: list[str] | None = None) -> int:
     check.add_argument("--file", type=Path, required=True)
     check.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
     check.set_defaults(func=inspect)
+    snap = sub.add_parser("snapshot")
+    snap.add_argument("--file", type=Path, required=True)
+    snap.add_argument("--document-id", required=True)
+    snap.add_argument("--dossier-id", required=True)
+    snap.add_argument("--role", choices=["contract", "annex"], required=True)
+    snap.add_argument("--filename", default="")
+    snap.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
+    snap.add_argument("--engine", default="none", choices=["none", "paddle", "deepseek"])
+    snap.add_argument("--dpi", type=int, default=300)
+    snap.add_argument("--image-dpi", type=int, default=150)
+    snap.add_argument("--snapshot-id", default="")
+    snap.add_argument("--output", type=Path, default=Path("data/generated/snapshots"))
+    snap.set_defaults(func=snapshot)
     overlay = sub.add_parser("visualize")
     overlay.add_argument("--prediction", type=Path, required=True)
     overlay.add_argument("--page", type=int, default=1)
