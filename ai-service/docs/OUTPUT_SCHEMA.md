@@ -1,5 +1,7 @@
 # Canonical output
 
+This is the internal benchmark schema (`Document`/`Page`/`Line`/`Word`), used to compare OCR engines. It is **not** the contract handed off to AI2 — that is `ai1.snapshot.v1`, a separate, frozen shape documented in [AI1_OCR_SNAPSHOT_HANDOFF_RESPONSE.md](AI1_OCR_SNAPSHOT_HANDOFF_RESPONSE.md) and [ai1.snapshot.v1.schema.json](ai1.snapshot.v1.schema.json) (models in `domain/snapshot.py`), built from this one via `application/use_cases/build_snapshot.py`. The two evolve independently on purpose.
+
 Authoritative validation schema: [output.schema.json](output.schema.json). Pydantic models live in `domain/entities.py`; public re-exports in `schemas/output.py`.
 
 Document: `schema_version`, `document_id`, `source_file` (resolved source path), `pages`.

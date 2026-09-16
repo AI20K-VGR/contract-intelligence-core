@@ -308,3 +308,19 @@ Sprint 2: chốt bộ annotation có kiểm tra chéo, chạy đủ các engine 
 - [DeepSeek-OCR](https://huggingface.co/deepseek-ai/DeepSeek-OCR)
 
 Các nguồn này hướng dẫn adapter và cài đặt; không phải bằng chứng về độ chính xác trên dataset của dự án.
+
+## 10. Bàn giao OCR snapshot cho AI2 (`ai1.snapshot.v1`)
+
+Contract riêng, tách khỏi schema benchmark ở mục 9 (`Document`/`Page` dùng để so sánh engine): xem [docs/AI1_OCR_SNAPSHOT_HANDOFF_RESPONSE.md](docs/AI1_OCR_SNAPSHOT_HANDOFF_RESPONSE.md) (phản hồi đầy đủ, mapping từng mục với yêu cầu bàn giao gốc), [docs/ai1.snapshot.v1.schema.json](docs/ai1.snapshot.v1.schema.json) và [docs/ai1.dossier_manifest.v1.schema.json](docs/ai1.dossier_manifest.v1.schema.json) (JSON Schema, sinh từ Pydantic models ở `domain/snapshot.py` — nguồn xác thực chính là các model đó, tương tự cách `output.schema.json` liên hệ với `domain/entities.py`).
+
+Sinh một document snapshot từ PDF thật:
+
+```powershell
+uv run contract-ocr snapshot --file hop-dong.pdf --document-id contract-001 --dossier-id dossier-001 --role contract --engine paddle --output data/generated/snapshots
+```
+
+Sinh nhanh một dossier mẫu đầy đủ (hợp đồng TEXT_LAYER + phụ lục SCANNED_OCR + manifest, dữ liệu tổng hợp, không phải hợp đồng thật):
+
+```powershell
+uv run python scripts/export_snapshot_demo.py
+```
