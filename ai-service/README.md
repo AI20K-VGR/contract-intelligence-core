@@ -15,11 +15,9 @@ src/contract_ocr/web/app.py  ← backend FastAPI, chỉ trả JSON  (port 8000)
 
 Hai server độc lập hoàn toàn: frontend chỉ là 1 file HTML tĩnh (không cần cài gì để chạy nó), backend là API thuần không biết gì về giao diện. Chạy trên 2 máy khác nhau cũng được, miễn frontend trỏ đúng địa chỉ backend.
 
-**Bước 1 — cài đặt backend (chỉ cần làm 1 lần).** Mở PowerShell tại `D:\codebase_ocr`:
+**Bước 1 — cài đặt backend (chỉ cần làm 1 lần).** Mở terminal tại thư mục `ai-service/` (thư mục chứa file README này):
 
 ```powershell
-cd D:\codebase_ocr
-$env:UV_CACHE_DIR = "$PWD\.uv-cache"
 uv sync --locked --python 3.12 --extra dev --extra web --extra paddle
 ```
 
@@ -43,10 +41,10 @@ Frontend chạy tại `http://127.0.0.1:5500`, tự mở trình duyệt. Dòng n
 
 Để dừng, bấm `Ctrl+C` ở từng cửa sổ.
 
-**Bước 4 — dùng:** kéo thả một file PDF hoặc ảnh (thử ngay file trong `dataset/`, kể cả các file `.jpg`/`.png` trong `dataset/Degraded scanned PDF/`), chọn engine. File ảnh được tự động bọc thành PDF 1 trang ở backend trước khi xử lý (không sửa file gốc), nên luôn đi thẳng vào nhánh OCR — bản thân ảnh không có "text-layer" nên chọn PyMuPDF cho file ảnh sẽ luôn báo `SKIPPED`, phải chọn một engine OCR:
+**Bước 4 — dùng:** kéo thả một file PDF hoặc ảnh (thử ngay file trong `data/raw/digital/` hoặc `data/raw/scanned_bad/` nếu đã chuẩn bị theo [mục 2](#2-chuẩn-bị-30-mẫu)), chọn engine. File ảnh được tự động bọc thành PDF 1 trang ở backend trước khi xử lý (không sửa file gốc), nên luôn đi thẳng vào nhánh OCR — bản thân ảnh không có "text-layer" nên chọn PyMuPDF cho file ảnh sẽ luôn báo `SKIPPED`, phải chọn một engine OCR:
 
-- **PyMuPDF** — chỉ đọc text có sẵn trong PDF, không OCR. Nhanh, dùng cho PDF có text-layer (ví dụ các file trong `dataset/Text-layer PDF/`). PDF scan sẽ báo `SKIPPED` vì không có text để đọc — đúng như thiết kế, không phải lỗi.
-- **PaddleOCR** — OCR ảnh thật, dùng cho PDF scan (ví dụ `dataset/Degraded scanned PDF/`). Trên CPU máy này khá chậm (có thể vài chục giây đến vài phút một trang); hạ DPI xuống 150 ở "Tuỳ chọn nâng cao" để test nhanh hơn.
+- **PyMuPDF** — chỉ đọc text có sẵn trong PDF, không OCR. Nhanh, dùng cho PDF có text-layer (ví dụ các file trong `data/raw/digital/`). PDF scan sẽ báo `SKIPPED` vì không có text để đọc — đúng như thiết kế, không phải lỗi.
+- **PaddleOCR** — OCR ảnh thật, dùng cho PDF scan (ví dụ `data/raw/scanned_bad/`). Trên CPU máy này khá chậm (có thể vài chục giây đến vài phút một trang); hạ DPI xuống 150 ở "Tuỳ chọn nâng cao" để test nhanh hơn.
 - **DeepSeek-OCR** — bị mờ (disabled) trên máy này vì thiếu GPU NVIDIA.
 - **OpenAI GPT-5.6 Terra (Vision)** — ⚠️ gửi ảnh trang PDF lên API của OpenAI, không còn xử lý cục bộ. Chỉ dùng cho file demo/không nhạy cảm, không bao giờ dùng cho hợp đồng thật. Xem [mục "OpenAI/Gemini/DeepSeek (tuỳ chọn)"](#openaigeminideepseek-tuỳ-chọn-ocr-qua-vision-api) để bật.
 - **Gemini 3 Flash (Vision)** — ⚠️ tương tự OpenAI nhưng gửi lên Google Gemini. Trong test nội bộ, độ chính xác tiếng Việt (giữ đúng dấu) tốt hơn rõ rệt so với PaddleOCR, và nhanh hơn nhiều (~30s/trang so với vài phút của PaddleOCR CPU).
@@ -86,44 +84,30 @@ Các model dòng `gpt-5.6+` bỏ tham số `max_tokens`/`temperature` cũ (yêu 
 
 Chi tiết kỹ thuật và cách khắc phục sự cố ở [mục 8b](#8b-test-ui-chi-tiết-kỹ-thuật-và-khắc-phục-sự-cố).
 
-## 1. Môi trường đã tạo trên máy này
+## 1. Cài đặt môi trường
 
-Thư mục dự án: `D:\codebase_ocr`. Venv: `.venv`, Python **3.12**. Bản cài nền gồm PyMuPDF, OpenCV, Pydantic, thư viện đánh giá, pytest và Ruff. PaddleOCR và DeepSeek là dependency tùy chọn, không nằm trong bản cài nền.
-
-PowerShell:
+Chạy mọi lệnh dưới đây từ thư mục `ai-service/` (thư mục chứa file README này). Cần Python 3.11–3.12 và [`uv`](https://docs.astral.sh/uv/) đã cài sẵn.
 
 ```powershell
-cd D:\codebase_ocr
-.\.venv\Scripts\Activate.ps1
-python --version
-python scripts/benchmark.py --help
-```
-
-Nếu PowerShell không cho chạy activation script, có thể dùng thẳng Python trong venv, không cần đổi execution policy:
-
-```powershell
-.\.venv\Scripts\python.exe scripts/benchmark.py --help
-```
-
-Trong VS Code: **Python: Select Interpreter** → `D:\codebase_ocr\.venv\Scripts\python.exe`.
-
-Tạo lại môi trường trên máy mới có `uv`:
-
-```powershell
-$env:UV_CACHE_DIR = "$PWD\.uv-cache"
 uv sync --locked --python 3.12 --extra dev
+uv run python scripts/benchmark.py --help
+uv run pytest -q
 ```
 
-Linux/macOS: `uv sync --locked --python 3.12 --extra dev`, sau đó `source .venv/bin/activate`. Python 3.11–3.12 được hỗ trợ; Python mặc định của máy có thể khác Python trong venv.
+`uv run` tự dùng đúng venv trong `.venv/` mà không cần activate — cách nhanh và ít lỗi nhất, dùng được cả trên Windows/Linux/macOS. Bản cài nền gồm PyMuPDF, OpenCV, Pydantic, thư viện đánh giá, pytest và Ruff; PaddleOCR/OpenAI/Gemini/DeepSeek là extra tùy chọn (xem các mục dưới).
+
+Muốn activate venv để gõ thẳng `python` thay vì `uv run python`: `.\.venv\Scripts\Activate.ps1` (PowerShell) hoặc `source .venv/bin/activate` (Linux/macOS). Nếu PowerShell chặn activation script, dùng thẳng `.\.venv\Scripts\python.exe scripts/benchmark.py --help` mà không cần đổi execution policy.
+
+Trong VS Code: **Python: Select Interpreter** → chọn `ai-service/.venv/Scripts/python.exe` (Windows) hoặc `ai-service/.venv/bin/python` (Linux/macOS).
 
 ## 2. Chuẩn bị 30 mẫu
 
 Phân bổ gợi ý: **8 PDF có text, 8 scan sạch, 8 scan suy giảm, 6 ca khó**. Bao phủ tiếng Việt, Anh, song ngữ, bảng, phụ lục, dấu, chữ ký, chữ nhỏ và ảnh kém chất lượng.
 
-1. Đặt tài liệu vào `data/raw/digital`, `scanned_clean`, `scanned_bad`, `hard_cases`, hoặc tham chiếu trực tiếp thư mục `dataset/` hiện có.
+1. Đặt tài liệu vào `data/raw/digital`, `scanned_clean`, `scanned_bad`, `hard_cases` theo đúng loại.
 2. Sao chép `data/manifest.example.csv` thành `data/manifest.csv`.
 3. Thay các dòng ví dụ bằng đường dẫn thật. `sample_id` phải duy nhất; chỉ dùng chữ ASCII, số, `_`, `-`.
-4. Đường dẫn tương đối được tính từ thư mục chạy lệnh; dùng `--root D:\codebase_ocr` nếu cần chỉ định rõ. Đường dẫn tuyệt đối cũng được hỗ trợ.
+4. Đường dẫn tương đối được tính từ thư mục chạy lệnh (thường là `ai-service/`); dùng `--root <đường dẫn khác>` nếu chạy lệnh từ nơi khác. Đường dẫn tuyệt đối cũng được hỗ trợ.
 5. Ghi nhãn ngôn ngữ nhất quán: `vi`, `en`, `vi-en`. Các cột boolean dùng `true`/`false`.
 
 Không commit hợp đồng thật, annotation thật hay báo cáo chứa nội dung tài liệu. Các thư mục dữ liệu và `dataset/` đã được ignore. Manifest sai định dạng bị từ chối trước khi chạy; file PDF hỏng/mất được ghi FAILED và các mẫu khác tiếp tục.
@@ -133,8 +117,8 @@ Không commit hợp đồng thật, annotation thật hay báo cáo chứa nội
 Chạy thử ngay bằng dữ liệu tổng hợp (không phải hợp đồng thật):
 
 ```powershell
-python scripts/create_synthetic_demo.py
-python scripts/benchmark.py --manifest data/generated/synthetic_demo/manifest.csv --engines pymupdf,paddle,deepseek --experiments E0,E1,E2 --output reports/synthetic_smoke
+uv run python scripts/create_synthetic_demo.py
+uv run python scripts/benchmark.py --manifest data/generated/synthetic_demo/manifest.csv --engines pymupdf,paddle,deepseek --experiments E0,E1,E2 --output reports/synthetic_smoke
 ```
 
 Lệnh tạo demo chỉ chạy một lần cho thư mục này. Nếu demo đã tồn tại, dùng manifest có sẵn và chọn tên output mới. Thiếu model OCR không cản trở kiểm tra luồng native và báo cáo.
@@ -142,8 +126,8 @@ Lệnh tạo demo chỉ chạy một lần cho thư mục này. Nếu demo đã 
 ### E0 — PyMuPDF, dùng được ngay với bản cài nền
 
 ```powershell
-python scripts/inspect_pdf.py --file "data/raw/digital/a.pdf"
-python scripts/benchmark.py --manifest data/manifest.csv --engines pymupdf --output reports/native_001
+uv run python scripts/inspect_pdf.py --file "data/raw/digital/a.pdf"
+uv run python scripts/benchmark.py --manifest data/manifest.csv --engines pymupdf --output reports/native_001
 ```
 
 Trang có text đủ dùng được trích xuất kèm word/line bbox. Trang scan không có text được ghi `SKIPPED`, không tạo kết quả giả.
@@ -154,7 +138,7 @@ Cài thêm Paddle CPU trong cùng venv:
 
 ```powershell
 uv sync --locked --python 3.12 --extra dev --extra paddle
-python scripts/benchmark.py --manifest data/manifest.csv --engines pymupdf,paddle --experiments E0,E1 --output reports/baseline_001
+uv run python scripts/benchmark.py --manifest data/manifest.csv --engines pymupdf,paddle --experiments E0,E1 --output reports/baseline_001
 ```
 
 Lần chạy Paddle đầu có thể tải trọng số từ kho model của Paddle. Tài liệu được xử lý cục bộ, không gửi đến dịch vụ OCR bên thứ ba. Nếu máy không tải được model hoặc Paddle không tương thích, báo cáo ghi `SKIPPED` cùng lý do. Model không tự động bị đổi về phiên bản cũ.
@@ -162,7 +146,7 @@ Lần chạy Paddle đầu có thể tải trọng số từ kho model của Pad
 Để thử cả các biến thể preprocessing:
 
 ```powershell
-python scripts/benchmark.py --manifest data/manifest.csv --engines pymupdf,paddle --output reports/cpu_variants_001
+uv run python scripts/benchmark.py --manifest data/manifest.csv --engines pymupdf,paddle --output reports/cpu_variants_001
 ```
 
 Mặc định render **300 DPI**. E1 không tự xoay, unwarp, deskew hay enhance. E3 deskew; E4 deskew + denoise; E5 contrast; E6 adaptive threshold. Mỗi biến thể được áp dụng riêng trên cùng trang nguồn. Trang có text dùng PyMuPDF trong mọi pipeline để tránh OCR không cần thiết.
@@ -237,7 +221,7 @@ Ví dụ cấu trúc **MOCK, không phải benchmark thực**:
 ## 7. Sinh mẫu suy giảm
 
 ```powershell
-python scripts/generate_degraded_samples.py --file data/raw/digital/a.pdf --seed 42 --language vi
+uv run python scripts/generate_degraded_samples.py --file data/raw/digital/a.pdf --seed 42 --language vi
 ```
 
 Sinh 19 biến thể mỗi trang vào `data/generated/<source-hash>-seed42/`, kèm manifest và tham số/ma trận biến đổi. Không sửa file gốc. Kết quả là PDF ảnh để benchmark dùng cùng luồng như scan thật. Annotation không tự được sao chép: phải tách text đúng trang và biến đổi bbox theo ma trận đã lưu. JPEG artifact được giữ trong ảnh raster rồi đóng gói thành PDF.
@@ -245,12 +229,12 @@ Sinh 19 biến thể mỗi trang vào `data/generated/<source-hash>-seed42/`, k�
 ## 8. Kiểm thử và cấu hình
 
 ```powershell
-python -m pytest -q
-python -m ruff check src scripts tests
-python -m ruff format --check src scripts tests
+uv run pytest -q
+uv run ruff check src scripts tests
+uv run ruff format --check src scripts tests
 ```
 
-Nếu có GNU Make: `make install`, `make test`, `make lint`, `make inspect FILE=example.pdf`, `make generate-degraded FILE=example.pdf`, `make benchmark MANIFEST=data/manifest.csv OUTPUT=reports/run_001`. Trên Windows không có Make, dùng các lệnh Python tương ứng phía trên.
+Có GNU Make (Linux/macOS, hoặc WSL/Git Bash trên Windows nếu cài `make`): `make install`, `make test`, `make lint`, `make inspect FILE=example.pdf`, `make generate-degraded FILE=example.pdf`, `make benchmark MANIFEST=data/manifest.csv OUTPUT=reports/run_001` — các target này chỉ gọi lại đúng các lệnh `uv run` ở trên. PowerShell/CMD trên Windows thường không có `make` sẵn, dùng thẳng các lệnh `uv run` phía trên.
 
 Config chính là `configs/default.yaml`; `paddle.yaml` và `deepseek.yaml` là các profile đầy đủ. Dùng `--config`. Environment override hỗ trợ `OCR_DPI`, `OCR_DEEPSEEK_MODEL`, `OCR_DEEPSEEK_BACKEND`; `.env.example` chỉ là mẫu, không tự được nạp. `experiments/definitions.yaml` là danh sách thí nghiệm tham khảo; runner đọc danh sách trong config được chọn.
 
