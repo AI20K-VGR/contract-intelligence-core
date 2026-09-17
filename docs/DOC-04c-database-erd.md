@@ -43,7 +43,7 @@ Ngày tạo: 17/09/2026 · Cập nhật lần cuối: 17/09/2026
 | Loại tài liệu | Database Design — ERD Reference |
 | Phiên bản | 1.0 |
 | Trạng thái | Đã chốt — khớp DOC-04b v1.0 |
-| Người phụ trách | Trần Văn Dũng |
+| Người phụ trách | Phạm Hoàng Chương |
 | Tài liệu đầu vào | `docs/DOC-04b-postgres-schema.sql` (DDL), `docs/DOC-04-architecture.md` §7, `backend/CONTEXT.md` §5 |
 | Tài liệu liên quan | `docs/DOC-05-api-spec.yaml` (API), `docs/adr/*` |
 
