@@ -1,0 +1,147 @@
+{
+  "schema_version": "contract-validation-fixtures.v1",
+  "format": "RFC-6902 JSON Patch over a named valid base payload",
+  "purpose": "Executable input vectors for the Spring semantic validator and DOC-05 DTO adapter. Each case applies patch to base_payload, validates against its named target, then compares the declared assertions.",
+  "runner_protocol": {
+    "patch_dialect": "RFC-6902",
+    "offset_unit": "Unicode code point, 0-based and end-exclusive",
+    "procedure": [
+      "Deep-copy base_payloads[case.base_payload] and fixture_contexts[case.validation_context || base_context[case.base_payload]] when the target needs source context.",
+      "Apply case.patch in order.",
+      "Resolve case.target in validation_targets.",
+      "Run JSON Schema when schema_ref is non-null, then the Spring semantic validator, then the listed DOC-05 DTO adapter.",
+      "Compare every result to case.expected; a mismatch fails the gate."
+    ]
+  },
+  "validation_targets": {
+    "snapshot_v3": {"schema_ref": "ai1.snapshot.v3.schema.json", "semantic_validator": "SpringSnapshotSemanticValidator", "dto_component": null},
+    "reocr_v3": {"schema_ref": "reocr-request.v3.schema.json", "semantic_validator": "SpringReOcrRequestSemanticValidator", "dto_component": "DOC-05#/components/schemas/ReOcrRequest"},
+    "citation_dto": {"schema_ref": null, "semantic_validator": "SpringCitationSemanticValidator", "dto_component": "DOC-05#/components/schemas/Citation"},
+    "external_grant_v1": {"schema_ref": "external-egress-approval-grant.v1.schema.json", "semantic_validator": "SpringExternalEgressGrantValidator", "dto_component": "DOC-05#/components/schemas/ExternalApprovalGrant"}
+  },
+  "fixture_contexts": {
+    "citation_abc": {"snapshot_id": "10000000-0000-4000-8000-000000000001", "render_digest": "3333333333333333333333333333333333333333333333333333333333333333", "page_no": 1, "line_id": "line-1", "raw_line": "ABC", "words": [{"word_id": "word-1", "char_start": 0, "char_end": 3, "bbox": [0,0,1,1]}]},
+    "citation_emoji": {"snapshot_id": "10000000-0000-4000-8000-000000000001", "render_digest": "3333333333333333333333333333333333333333333333333333333333333333", "page_no": 1, "line_id": "line-unicode", "raw_line": "A😀B", "words": [{"word_id": "word-emoji", "char_start": 1, "char_end": 2, "bbox": [0,0,1,1]}]},
+    "citation_vi_composed": {"snapshot_id": "10000000-0000-4000-8000-000000000001", "render_digest": "3333333333333333333333333333333333333333333333333333333333333333", "page_no": 1, "line_id": "line-vi-composed", "raw_line": "Giá", "words": [{"word_id": "word-vi-composed", "char_start": 0, "char_end": 3, "bbox": [0,0,1,1]}]},
+    "citation_vi_decomposed": {"snapshot_id": "10000000-0000-4000-8000-000000000001", "render_digest": "3333333333333333333333333333333333333333333333333333333333333333", "page_no": 1, "line_id": "line-vi-decomposed", "raw_line": "Giá", "words": [{"word_id": "word-vi-decomposed", "char_start": 0, "char_end": 4, "bbox": [0,0,1,1]}]},
+    "citation_crlf": {"snapshot_id": "10000000-0000-4000-8000-000000000001", "render_digest": "3333333333333333333333333333333333333333333333333333333333333333", "page_no": 1, "line_id": "line-crlf", "raw_line": "Điều 1\r\nGiá", "words": [{"word_id": "word-crlf", "char_start": 8, "char_end": 11, "bbox": [0,0,1,1]}]},
+    "citation_repeated": {"snapshot_id": "10000000-0000-4000-8000-000000000001", "render_digest": "3333333333333333333333333333333333333333333333333333333333333333", "page_no": 1, "line_id": "line-repeated", "raw_line": "gia gia", "words": [{"word_id": "word-first-gia", "char_start": 0, "char_end": 3, "bbox": [0,0,0.4,1]}, {"word_id": "word-second-gia", "char_start": 4, "char_end": 7, "bbox": [0.6,0,1,1]}]}
+  },
+  "base_context": {"citation_measured": "citation_abc", "citation_unicode_emoji": "citation_emoji", "citation_vietnamese_composed": "citation_vi_composed", "citation_vietnamese_decomposed": "citation_vi_decomposed", "citation_crlf": "citation_crlf", "citation_repeated_token": "citation_repeated"},
+  "workflow_cases": [
+    {"id": "grant-request-binding-valid", "validators": ["SpringReOcrRequestSemanticValidator", "SpringExternalEgressGrantValidator"], "request_patch": [{"op":"replace","path":"/resolved_route","value":"EXTERNAL_APPROVED"},{"op":"replace","path":"/selected_profile_id","value":"external-v1"},{"op":"replace","path":"/external_approval_grant_id","value":"30000000-0000-4000-8000-000000000001"},{"op":"replace","path":"/state","value":"QUEUED"}], "grant_base": "external_grant_active", "expected": "accept only if request/snapshot/target/tenant/profile/policy bindings match and grant is atomically consumed"},
+    {"id": "grant-revoked-or-expired-invalid", "validators": ["SpringExternalEgressGrantValidator"], "grant_base": "external_grant_active", "state_variants": ["REVOKED", "EXPIRED"], "expected": "reject transition/enqueue"},
+    {"id": "grant-consumed-reuse-invalid", "validators": ["SpringExternalEgressGrantValidator"], "grant_base": "external_grant_active", "state_variant": "CONSUMED", "expected": "reject second enqueue"},
+    {"id": "reocr-action-cas-and-lineage", "validators": ["SpringReOcrRequestSemanticValidator"], "actions": ["RETRY_LOCAL", "CANCEL"], "expected": "stale ETag/idempotency collision returns 409; retry appends one revision; cancel appends one revision and creates no OCR task"},
+    {"id": "batch-action-cas-and-lineage", "validators": ["SpringBatchItemActionValidator"], "actions": ["RETRY", "CANCEL"], "expected": "stale ETag/idempotency collision returns 409; retry has one resulting run; cancel has null resulting run"}
+  ],
+  "base_payloads": {
+    "snapshot_success": {
+      "schema_version": "ai1.snapshot.v3",
+      "snapshot_id": "10000000-0000-4000-8000-000000000001",
+      "parent_snapshot_id": null,
+      "dossier_id": "10000000-0000-4000-8000-000000000002",
+      "document_id": "10000000-0000-4000-8000-000000000003",
+      "run_id": "10000000-0000-4000-8000-000000000004",
+      "source_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "created_at": "2026-09-17T00:00:00Z",
+      "status": "SUCCESS",
+      "execution": {"execution_manifest_id": "10000000-0000-4000-8000-000000000005", "config_bundle_id": "10000000-0000-4000-8000-000000000006", "config_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "policy_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "source_version_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"},
+      "producer": {"engine_name": "local-ocr", "engine_version": "1", "code_image_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "config_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"},
+      "language": {"declared_scope": "vi", "detected_profile": "vi", "detector": {"name": "lang", "version": "1", "confidence": 1}},
+      "pages": [{"page_no": 1, "page_revision_id": "10000000-0000-4000-8000-000000000007", "input_type": "TEXT_LAYER", "status": "SUCCESS", "raw_text_digest": "1111111111111111111111111111111111111111111111111111111111111111", "render": {"uri": "object://fixture/page-1", "digest": "2222222222222222222222222222222222222222222222222222222222222222", "width_px": 100, "height_px": 100}, "transform": {"rotation_degrees": 0, "profile_version": "cps-1"}, "quality": {"coverage_status": "COMPLETE"}, "lines": [{"line_id": "line-1", "raw_text": "ABC", "bbox": [0, 0, 1, 1], "bbox_source": "native", "geometry_status": "measured", "words": [{"word_id": "word-1", "text": "ABC", "char_start": 0, "char_end": 3, "bbox": [0, 0, 1, 1], "bbox_source": "native", "geometry_status": "measured"}]}], "tables": [], "warnings": []}]
+    },
+    "reocr_local": {
+      "schema_version": "reocr-request.v3",
+      "request_id": "20000000-0000-4000-8000-000000000001",
+      "evidence_gap_event_id": "20000000-0000-4000-8000-000000000002",
+      "correlation_id": "20000000-0000-4000-8000-000000000003",
+      "idempotency_key": "fixture-reocr-local-0001",
+      "dossier_id": "20000000-0000-4000-8000-000000000004",
+      "source_snapshot_id": "20000000-0000-4000-8000-000000000005",
+      "target": {"document_id": "20000000-0000-4000-8000-000000000006", "scope": "REGION", "page_numbers": [1], "regions": [[0, 0, 1, 1]]},
+      "reason_code": "LOW_QUALITY",
+      "evidence_refs": ["citation:1"],
+      "artifact_refs": ["fact:1"],
+      "priority": "NORMAL",
+      "repair_action": "REGION_RESCAN",
+      "coverage_requirement": "TARGET_ONLY",
+      "resolved_route": "LOCAL_AUTO",
+      "selected_profile_id": "local-v1",
+      "external_approval_grant_id": null,
+      "state": "VALIDATED",
+      "budget": {"max_transport_attempts": 3, "max_quality_repairs": 1, "max_provider_submissions": 4, "max_crop_children": 4, "max_crop_depth": 1, "transport_attempts_used": 0, "quality_repairs_used": 0, "provider_submissions_used": 0, "crop_children_used": 0, "crop_depth_used": 0},
+      "result_snapshot_id": null,
+      "outcome_code": null,
+      "created_at": "2026-09-17T00:00:00Z"
+    },
+    "external_grant_active": {
+      "schema_version": "external-egress-approval-grant.v1", "grant_id": "30000000-0000-4000-8000-000000000001", "request_id": "20000000-0000-4000-8000-000000000001", "tenant_id": "30000000-0000-4000-8000-000000000002", "source_snapshot_id": "20000000-0000-4000-8000-000000000005", "target_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "policy_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "consent_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "provider_id": "approved-provider", "model_id": "approved-model", "region": "vn", "retention_policy_id": "no-retention", "approved_profile_id": "external-v1", "actor_id": "30000000-0000-4000-8000-000000000003", "decision": "APPROVE", "reason": "approved fixture", "state": "ACTIVE", "single_use": true, "consumed_at": null, "revoked_at": null, "expires_at": "2026-09-18T00:00:00Z", "created_at": "2026-09-17T00:00:00Z"
+    },
+    "citation_measured": {
+      "render_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+      "page_no": 1,
+      "line_id": "line-1",
+      "char_start": 0,
+      "char_end": 3,
+      "quote": "ABC",
+      "bbox": [0, 0, 1, 1],
+      "bbox_source": "native",
+      "bbox_status": "measured",
+      "word_ids": ["word-1"]
+    },
+    "citation_unicode_emoji": {
+      "render_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+      "page_no": 1,
+      "line_id": "line-unicode", "char_start": 1, "char_end": 2,
+      "quote": "😀", "bbox": [0, 0, 1, 1], "bbox_source": "native", "bbox_status": "measured", "word_ids": ["word-emoji"]
+    },
+    "citation_vietnamese_composed": {
+      "render_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+      "page_no": 1,
+      "line_id": "line-vi-composed", "char_start": 0, "char_end": 3,
+      "quote": "Giá", "bbox": [0, 0, 1, 1], "bbox_source": "native", "bbox_status": "measured", "word_ids": ["word-vi-composed"]
+    },
+    "citation_vietnamese_decomposed": {
+      "render_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+      "page_no": 1,
+      "line_id": "line-vi-decomposed", "char_start": 0, "char_end": 4,
+      "quote": "Giá", "bbox": [0, 0, 1, 1], "bbox_source": "native", "bbox_status": "measured", "word_ids": ["word-vi-decomposed"]
+    },
+    "citation_crlf": {
+      "render_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+      "page_no": 1,
+      "line_id": "line-crlf", "char_start": 7, "char_end": 10,
+      "quote": "Giá", "bbox": [0, 0, 1, 1], "bbox_source": "native", "bbox_status": "measured", "word_ids": ["word-crlf"]
+    },
+    "citation_repeated_token": {
+      "render_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+      "page_no": 1,
+      "line_id": "line-repeated", "char_start": 4, "char_end": 7,
+      "quote": "gia", "bbox": [0, 0, 1, 1], "bbox_source": "native", "bbox_status": "measured", "word_ids": ["word-second-gia"]
+    }
+  },
+  "cases": [
+    {"id": "snapshot-success-valid", "target": "snapshot_v3", "base_payload": "snapshot_success", "patch": [], "expected": {"schema_valid": true, "semantic_valid": true, "dto_valid": null}},
+    {"id": "bbox-order-invalid", "target": "snapshot_v3", "base_payload": "snapshot_success", "patch": [{"op": "replace", "path": "/pages/0/lines/0/bbox", "value": [0.8, 0, 0.2, 1]}], "expected": {"schema_valid": true, "semantic_valid": false, "dto_valid": null}},
+    {"id": "word-raw-span-invalid", "target": "snapshot_v3", "base_payload": "snapshot_success", "patch": [{"op": "replace", "path": "/pages/0/lines/0/words/0/text", "value": "XYZ"}], "expected": {"schema_valid": true, "semantic_valid": false, "dto_valid": null}},
+    {"id": "full-snapshot-inventory-invalid", "target": "snapshot_v3", "base_payload": "snapshot_success", "patch": [{"op": "replace", "path": "/pages/0/status", "value": "FAILED"}], "expected": {"schema_valid": true, "semantic_valid": false, "dto_valid": null}},
+    {"id": "reocr-local-valid", "target": "reocr_v3", "base_payload": "reocr_local", "patch": [], "expected": {"schema_valid": true, "semantic_valid": true, "dto_valid": true}},
+    {"id": "page-pair-adjacency-invalid", "target": "reocr_v3", "base_payload": "reocr_local", "patch": [{"op": "replace", "path": "/target/scope", "value": "PAGE_PAIR"}, {"op": "replace", "path": "/target/page_numbers", "value": [1, 3]}, {"op": "remove", "path": "/target/regions"}, {"op": "replace", "path": "/repair_action", "value": "PAGE_PAIR_CONTEXT"}, {"op": "replace", "path": "/coverage_requirement", "value": "TARGET_AND_CONTINUATION"}], "expected": {"schema_valid": true, "semantic_valid": false, "dto_valid": false}},
+    {"id": "region-cps-order-invalid", "target": "reocr_v3", "base_payload": "reocr_local", "patch": [{"op": "replace", "path": "/target/regions/0", "value": [0.8, 0, 0.2, 1]}], "expected": {"schema_valid": true, "semantic_valid": false, "dto_valid": false}},
+    {"id": "repair-action-invalid", "target": "reocr_v3", "base_payload": "reocr_local", "patch": [{"op": "replace", "path": "/target/scope", "value": "PAGE"}, {"op": "remove", "path": "/target/regions"}], "expected": {"schema_valid": false, "semantic_valid": false, "dto_valid": false}},
+    {"id": "external-review-hold-invalid", "target": "reocr_v3", "base_payload": "reocr_local", "patch": [{"op": "replace", "path": "/resolved_route", "value": "EXTERNAL_REVIEW_REQUIRED"}, {"op": "replace", "path": "/state", "value": "QUEUED"}, {"op": "replace", "path": "/selected_profile_id", "value": null}], "expected": {"schema_valid": false, "semantic_valid": false, "dto_valid": false}},
+    {"id": "budget-counter-invalid", "target": "reocr_v3", "base_payload": "reocr_local", "patch": [{"op": "replace", "path": "/budget/max_crop_children", "value": 0}, {"op": "replace", "path": "/budget/crop_children_used", "value": 1}], "expected": {"schema_valid": true, "semantic_valid": false, "dto_valid": false}},
+    {"id": "citation-measured-valid", "target": "citation_dto", "base_payload": "citation_measured", "patch": [], "expected": {"schema_valid": null, "semantic_valid": true, "dto_valid": true}},
+    {"id": "citation-word-overlap-invalid", "target": "citation_dto", "base_payload": "citation_measured", "patch": [{"op": "replace", "path": "/word_ids", "value": ["word-outside-span"]}], "expected": {"schema_valid": null, "semantic_valid": false, "dto_valid": false}},
+    {"id": "citation-emoji-code-point-valid", "target": "citation_dto", "base_payload": "citation_unicode_emoji", "patch": [], "raw_line": "A😀B", "expected": {"schema_valid": null, "semantic_valid": true, "dto_valid": true}},
+    {"id": "citation-emoji-utf16-offset-invalid", "target": "citation_dto", "base_payload": "citation_unicode_emoji", "patch": [{"op": "replace", "path": "/char_end", "value": 3}], "raw_line": "A😀B", "expected": {"schema_valid": null, "semantic_valid": false, "dto_valid": false}},
+    {"id": "citation-vietnamese-composed-valid", "target": "citation_dto", "base_payload": "citation_vietnamese_composed", "patch": [], "raw_line": "Giá", "expected": {"schema_valid": null, "semantic_valid": true, "dto_valid": true}},
+    {"id": "citation-vietnamese-decomposed-valid", "target": "citation_dto", "base_payload": "citation_vietnamese_decomposed", "patch": [], "raw_line": "Giá", "expected": {"schema_valid": null, "semantic_valid": true, "dto_valid": true}},
+    {"id": "citation-crlf-valid", "target": "citation_dto", "base_payload": "citation_crlf", "patch": [], "raw_line": "Điều 1\r\nGiá", "expected": {"schema_valid": null, "semantic_valid": true, "dto_valid": true}},
+    {"id": "citation-repeated-token-valid", "target": "citation_dto", "base_payload": "citation_repeated_token", "patch": [], "raw_line": "gia gia", "expected": {"schema_valid": null, "semantic_valid": true, "dto_valid": true}},
+    {"id": "external-grant-active-valid", "target": "external_grant_v1", "base_payload": "external_grant_active", "patch": [], "expected": {"schema_valid": true, "semantic_valid": true, "dto_valid": true}},
+    {"id": "external-grant-single-use-invalid", "target": "external_grant_v1", "base_payload": "external_grant_active", "patch": [{"op": "replace", "path": "/single_use", "value": false}], "expected": {"schema_valid": false, "semantic_valid": false, "dto_valid": false}},
+    {"id": "external-grant-consumed-without-time-invalid", "target": "external_grant_v1", "base_payload": "external_grant_active", "patch": [{"op": "replace", "path": "/state", "value": "CONSUMED"}], "expected": {"schema_valid": false, "semantic_valid": false, "dto_valid": false}}
+  ]
+}

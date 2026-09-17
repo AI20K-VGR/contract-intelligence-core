@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractintel.internal/schemas/external-egress-approval-grant.v1.json",
+  "title": "Spring External Egress Approval Grant v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "grant_id", "request_id", "tenant_id", "source_snapshot_id", "target_digest", "policy_digest", "consent_digest", "provider_id", "model_id", "region", "retention_policy_id", "approved_profile_id", "actor_id", "decision", "reason", "state", "single_use", "expires_at", "created_at"],
+  "properties": {
+    "schema_version": {"const": "external-egress-approval-grant.v1"},
+    "grant_id": {"type": "string", "format": "uuid"},
+    "request_id": {"type": "string", "format": "uuid"},
+    "tenant_id": {"type": "string", "format": "uuid"},
+    "source_snapshot_id": {"type": "string", "format": "uuid"},
+    "target_digest": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+    "policy_digest": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+    "consent_digest": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+    "provider_id": {"type": "string", "minLength": 1},
+    "model_id": {"type": "string", "minLength": 1},
+    "region": {"type": "string", "minLength": 1},
+    "retention_policy_id": {"type": "string", "minLength": 1},
+    "approved_profile_id": {"type": "string", "minLength": 1},
+    "actor_id": {"type": "string", "format": "uuid"},
+    "decision": {"const": "APPROVE"},
+    "reason": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "state": {"enum": ["ACTIVE", "CONSUMED", "REVOKED", "EXPIRED"]},
+    "single_use": {"const": true},
+    "consumed_at": {"type": ["string", "null"], "format": "date-time"},
+    "revoked_at": {"type": ["string", "null"], "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "allOf": [
+    {"if": {"properties": {"state": {"const": "CONSUMED"}}}, "then": {"required": ["consumed_at"], "properties": {"consumed_at": {"type": "string", "format": "date-time"}, "revoked_at": {"type": "null"}}}},
+    {"if": {"properties": {"state": {"const": "REVOKED"}}}, "then": {"required": ["revoked_at"], "properties": {"revoked_at": {"type": "string", "format": "date-time"}, "consumed_at": {"type": "null"}}}}
+  ]
+}

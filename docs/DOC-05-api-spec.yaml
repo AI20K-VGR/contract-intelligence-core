@@ -1,7 +1,17 @@
 openapi: 3.0.3
 info:
   title: Contract Intelligence API
-  version: 0.2.0-draft
+  version: 0.5.0-draft
+  x-document-id: DOC-05
+  x-status: Draft — Ready for Review
+  x-document-owner: Backend/Architecture Lead
+  x-contributors: [Backend, AI1, AI2, QA]
+  x-reviewer: Mentor
+  x-effective-date: 2026-09-17
+  x-review-date: TBD
+  x-replaces: legacy API drafts in docs/archive
+  x-upstream-documents: [DOC-01, DOC-02, DOC-03, DOC-04]
+  x-standard-error-responses: [401, 403, 404, 409, 422]
   description: |
     Dossier-centric API for evidence-backed OCR/IDP. Machine artifacts are immutable;
     review state is append-only. This contract is draft until DOC-04 approval.
@@ -11,6 +21,8 @@ servers:
 tags:
   - name: dossiers
   - name: processing
+  - name: reocr
+  - name: internal-orchestration
   - name: evidence
   - name: review
   - name: optimization-admin
@@ -108,8 +120,8 @@ paths:
                 items: { $ref: '#/components/schemas/ProcessingRun' }
     post:
       tags: [processing]
-      summary: Start a new rerun or re-OCR run
-      description: Never mutates an existing run or OCR snapshot.
+      summary: Start a new whole-dossier rerun
+      description: Never mutates an existing run or OCR snapshot. Targeted re-OCR can only originate from an audited internal EvidenceGap event and is not exposed by this endpoint.
       operationId: createRun
       parameters: [ { $ref: '#/components/parameters/DossierId' } ]
       requestBody:
@@ -139,6 +151,234 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ProcessingRun' }
         '404': { $ref: '#/components/responses/Problem' }
+  /dossiers/{dossierId}/runs/{runId}/coverage:
+    get:
+      tags: [processing]
+      summary: Get auditable page and chunk coverage ledger for a run
+      operationId: getRunCoverage
+      parameters:
+        - { $ref: '#/components/parameters/DossierId' }
+        - { $ref: '#/components/parameters/RunId' }
+      responses:
+        '200':
+          description: Page/chunk ledger; evidence eligibility is explicit per entry
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CoverageLedger' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /dossiers/{dossierId}/reocr-requests:
+    get:
+      tags: [reocr]
+      summary: List evidence-backed bounded re-OCR requests
+      description: AI2 creates these through an authenticated internal event; this public endpoint is read-only. Operators may only retry/cancel an audited request.
+      operationId: listReOcrRequests
+      parameters:
+        - { $ref: '#/components/parameters/DossierId' }
+        - name: state
+          in: query
+          schema: { enum: [REQUESTED, VALIDATED, AWAITING_EXTERNAL_REVIEW, QUEUED, RUNNING, SUCCEEDED, PARTIAL, FAILED, QUARANTINED, CANCELLED, BUDGET_EXHAUSTED] }
+      responses:
+        '200':
+          description: Auditable re-OCR requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ReOcrRequest' }
+  /dossiers/{dossierId}/reocr-requests/{requestId}:
+    get:
+      tags: [reocr]
+      summary: Get a re-OCR request and its resulting snapshot lineage
+      operationId: getReOcrRequest
+      parameters:
+        - { $ref: '#/components/parameters/DossierId' }
+        - { $ref: '#/components/parameters/ReOcrRequestId' }
+      responses:
+        '200':
+          description: Re-OCR request
+          headers:
+            ETag: { description: Opaque current request revision; required for action compare-and-set., schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReOcrRequest' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /dossiers/{dossierId}/reocr-requests/{requestId}/actions:
+    post:
+      tags: [reocr]
+      summary: Perform an audited operator action on a re-OCR request
+      description: Retry remains subject to the original local profile, finite repair/submission budget and egress policy. This endpoint never edits OCR text or an existing snapshot.
+      operationId: actOnReOcrRequest
+      parameters:
+        - { $ref: '#/components/parameters/DossierId' }
+        - { $ref: '#/components/parameters/ReOcrRequestId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReOcrActionRequest' }
+      responses:
+        '202':
+          description: Action accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReOcrRequest' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /internal/reocr-requests/{requestId}/external-approval-grants:
+    post:
+      tags: [internal-orchestration]
+      summary: Append a Spring-owned external processing approval grant
+      description: Internal mTLS/service command only; never callable by the public operator API. The command atomically evaluates the persisted request, policy and approved profile, appends an immutable grant, and may transition the request to EXTERNAL_APPROVED.
+      operationId: appendExternalApprovalGrant
+      x-internal: true
+      x-authentication: mTLS service identity plus authorized approval principal
+      parameters: [ { $ref: '#/components/parameters/ReOcrRequestId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateExternalApprovalGrantRequest' }
+      responses:
+        '201':
+          description: Immutable grant appended; request transition is auditable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExternalApprovalGrant' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /batches:
+    post:
+      tags: [processing]
+      summary: Queue independent dossier runs as a batch
+      operationId: createBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateBatchRequest' }
+      responses:
+        '202':
+          description: Batch accepted; individual member errors do not abort the batch
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Batch' }
+  /batches/{batchId}:
+    get:
+      tags: [processing]
+      summary: Get batch summary and terminal member counts
+      operationId: getBatch
+      parameters: [ { $ref: '#/components/parameters/BatchId' } ]
+      responses:
+        '200':
+          description: Batch
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Batch' }
+  /batches/{batchId}/items:
+    get:
+      tags: [processing]
+      summary: List immutable batch membership and per-item run state
+      operationId: listBatchItems
+      parameters: [ { $ref: '#/components/parameters/BatchId' } ]
+      responses:
+        '200':
+          description: Batch items; retry/cancel history remains tied to each item
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/BatchItem' }
+  /batches/{batchId}/items/{itemId}/actions:
+    post:
+      tags: [processing]
+      summary: Retry or cancel one audited batch item
+      operationId: actOnBatchItem
+      parameters:
+        - { $ref: '#/components/parameters/BatchId' }
+        - { $ref: '#/components/parameters/BatchItemId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BatchItemActionRequest' }
+      responses:
+        '202':
+          description: Item action accepted; does not alter other batch items
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BatchItem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /dossiers/{dossierId}/manifest-relations/{relationshipId}/review-revisions:
+    post:
+      tags: [review]
+      summary: Append reviewer confirmation or rejection of an annex relationship declaration
+      operationId: appendManifestRelationReviewRevision
+      parameters:
+        - { $ref: '#/components/parameters/DossierId' }
+        - { $ref: '#/components/parameters/RelationshipId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateManifestRelationReviewRequest' }
+      responses:
+        '201':
+          description: Immutable relation review revision
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ManifestRelationReviewRevision' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /dossiers/{dossierId}/review-completions:
+    post:
+      tags: [review]
+      summary: Mark required dossier review items complete
+      operationId: completeDossierReview
+      parameters: [ { $ref: '#/components/parameters/DossierId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateReviewCompletionRequest' }
+      responses:
+        '201': { description: Review completion recorded }
+        '409': { $ref: '#/components/responses/Problem' }
+  /dossiers/{dossierId}/review-items:
+    get:
+      tags: [review]
+      summary: List review items and their effective revision state
+      operationId: listReviewItems
+      parameters:
+        - { $ref: '#/components/parameters/DossierId' }
+        - name: queue
+          in: query
+          schema: { enum: [CONFLICT, NEEDS_EVIDENCE, NOT_COMPARABLE] }
+      responses:
+        '200':
+          description: Review items
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ReviewItem' }
+  /dossiers/{dossierId}/approval-revisions:
+    post:
+      tags: [review]
+      summary: Append an internal dossier output approval revision
+      description: Does not approve the legal effect of a contract.
+      operationId: appendDossierApprovalRevision
+      parameters: [ { $ref: '#/components/parameters/DossierId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateDossierApprovalRequest' }
+      responses:
+        '201':
+          description: Approval revision recorded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DossierApprovalRevision' }
+        '409': { $ref: '#/components/responses/Problem' }
   /dossiers/{dossierId}/findings:
     get:
       tags: [evidence]
@@ -282,6 +522,10 @@ components:
   parameters:
     DossierId: { name: dossierId, in: path, required: true, schema: { type: string, format: uuid } }
     RunId: { name: runId, in: path, required: true, schema: { type: string, format: uuid } }
+    ReOcrRequestId: { name: requestId, in: path, required: true, schema: { type: string, format: uuid } }
+    RelationshipId: { name: relationshipId, in: path, required: true, schema: { type: string, format: uuid } }
+    BatchId: { name: batchId, in: path, required: true, schema: { type: string, format: uuid } }
+    BatchItemId: { name: itemId, in: path, required: true, schema: { type: string, format: uuid } }
     CitationId: { name: citationId, in: path, required: true, schema: { type: string, format: uuid } }
     ReviewItemId: { name: reviewItemId, in: path, required: true, schema: { type: string, format: uuid } }
     CampaignId: { name: campaignId, in: path, required: true, schema: { type: string, format: uuid } }
@@ -305,8 +549,12 @@ components:
       required: [id, status, documents]
       properties:
         id: { type: string, format: uuid }
-        status: { enum: [DRAFT, AWAITING_MANIFEST, PROCESSING, NEEDS_REVIEW, COMPLETED, PARTIAL_FAILED, QUARANTINED] }
+        status: { enum: [UPLOADED, PROCESSING, EXTRACTED, PENDING_REVIEW, REVIEWED, APPROVED, FAILED] }
         effective_manifest_id: { type: string, format: uuid, nullable: true }
+        effective_manifest_relations:
+          type: array
+          description: Immutable relation records in the effective manifest; use relationship_id when appending a review revision.
+          items: { $ref: '#/components/schemas/ManifestRelation' }
         documents:
           type: array
           items: { $ref: '#/components/schemas/Document' }
@@ -318,6 +566,8 @@ components:
         source_digest: { type: string, pattern: '^[A-Fa-f0-9]{64}$' }
         status: { enum: [STAGED, VERIFIED, REJECTED] }
         original_filename: { type: string }
+        declared_language_scope: { enum: [vi, en, vi-en, unknown] }
+        detected_language_profile: { enum: [vi, en, vi-en, unknown] }
     ConfirmManifestRequest:
       type: object
       additionalProperties: false
@@ -334,23 +584,290 @@ components:
             properties:
               document_id: { type: string, format: uuid }
               role: { enum: [CONTRACT, ANNEX] }
+              relationship_id: { type: string, format: uuid, description: Immutable client-generated relation ID; required for ANNEX when a relationship is declared. }
               annex_number: { type: string }
               effective_date: { type: string, format: date }
               relationship_source: { enum: [USER_DECLARED, SOURCE_EVIDENCE] }
               relationship_citation_ids:
                 type: array
+                minItems: 1
                 items: { type: string, format: uuid }
+            x-semantic-invariants:
+              - For every ANNEX relationship declaration, relationship_id is unique inside the manifest and binds the declared document_id to the immutable uploaded source digest resolved by Spring at confirmation.
+              - SOURCE_EVIDENCE requires relationship_citation_ids resolved to this document version; USER_DECLARED requires a CONFIRM manifest-relation review revision for this exact relationship_id before cross-document comparison.
+    ManifestRelation:
+      type: object
+      additionalProperties: false
+      required: [relationship_id, manifest_id, document_id, document_source_digest, relationship_source, citation_ids, revision_etag]
+      properties:
+        relationship_id: { type: string, format: uuid }
+        manifest_id: { type: string, format: uuid }
+        document_id: { type: string, format: uuid }
+        document_source_digest: { type: string, pattern: '^[A-Fa-f0-9]{64}$' }
+        relationship_source: { enum: [USER_DECLARED, SOURCE_EVIDENCE] }
+        citation_ids: { type: array, items: { type: string, format: uuid }, uniqueItems: true }
+        revision_etag: { type: string, description: Opaque current relation-review version for compare-and-set. }
     CreateRunRequest:
       type: object
       additionalProperties: false
       required: [kind, idempotency_key]
       properties:
-        kind: { enum: [RERUN, REOCR] }
+        kind: { enum: [RERUN] }
         manifest_id: { type: string, format: uuid }
         parent_run_id: { type: string, format: uuid, nullable: true }
-        document_version_ids: { type: array, items: { type: string, format: uuid }, minItems: 1 }
-        page_numbers: { type: array, items: { type: integer, minimum: 1 }, uniqueItems: true }
         idempotency_key: { type: string, maxLength: 128 }
+    ReOcrRequest:
+      type: object
+      additionalProperties: false
+      required: [schema_version, request_id, evidence_gap_event_id, correlation_id, idempotency_key, dossier_id, source_snapshot_id, target, reason_code, evidence_refs, artifact_refs, priority, repair_action, coverage_requirement, resolved_route, selected_profile_id, state, budget, created_at]
+      properties:
+        schema_version: { enum: [reocr-request.v3] }
+        request_id: { type: string, format: uuid }
+        evidence_gap_event_id: { type: string, format: uuid }
+        correlation_id: { type: string, format: uuid }
+        idempotency_key: { type: string, minLength: 16 }
+        parent_request_id: { type: string, format: uuid, nullable: true }
+        dossier_id: { type: string, format: uuid }
+        source_snapshot_id: { type: string, format: uuid }
+        target:
+          type: object
+          additionalProperties: false
+          required: [document_id, page_numbers, scope]
+          properties:
+            document_id: { type: string, format: uuid }
+            page_numbers: { type: array, minItems: 1, maxItems: 2, items: { type: integer, minimum: 1 }, uniqueItems: true }
+            scope: { enum: [REGION, PAGE, PAGE_PAIR] }
+            regions:
+              type: array
+              minItems: 1
+              maxItems: 4
+              items: { type: array, minItems: 4, maxItems: 4, items: { type: number, minimum: 0, maximum: 1 } }
+        reason_code: { enum: [LOW_QUALITY, MISSING_GEOMETRY, CRITICAL_AMBIGUITY, TABLE_PARSE_FAILURE, CITATION_BINDING_FAILURE, CROSS_PAGE_CONTINUATION, EVIDENCE_DISAGREEMENT, OUTPUT_TRUNCATION] }
+        evidence_refs: { type: array, minItems: 1, items: { type: string }, uniqueItems: true }
+        artifact_refs: { type: array, minItems: 1, items: { type: string }, uniqueItems: true }
+        priority: { enum: [LOW, NORMAL, HIGH, CRITICAL] }
+        repair_action: { enum: [REGION_RESCAN, PAGE_PAIR_CONTEXT, OUTPUT_SPLIT] }
+        coverage_requirement: { enum: [TARGET_ONLY, TARGET_AND_CONTINUATION] }
+        resolved_route: { enum: [LOCAL_AUTO, EXTERNAL_REVIEW_REQUIRED, EXTERNAL_APPROVED, DENIED] }
+        selected_profile_id: { type: string, nullable: true }
+        external_approval_grant_id: { type: string, format: uuid, nullable: true }
+        budget:
+          type: object
+          additionalProperties: false
+          required: [max_transport_attempts, max_quality_repairs, max_provider_submissions, max_crop_children, max_crop_depth, transport_attempts_used, quality_repairs_used, provider_submissions_used, crop_children_used, crop_depth_used]
+          properties:
+            max_transport_attempts: { type: integer, minimum: 0, maximum: 3 }
+            max_quality_repairs: { type: integer, minimum: 0, maximum: 1 }
+            max_provider_submissions: { type: integer, minimum: 0, maximum: 4 }
+            max_crop_children: { type: integer, minimum: 0, maximum: 4 }
+            max_crop_depth: { type: integer, minimum: 0, maximum: 1 }
+            transport_attempts_used: { type: integer, minimum: 0, maximum: 3 }
+            quality_repairs_used: { type: integer, minimum: 0, maximum: 1 }
+            provider_submissions_used: { type: integer, minimum: 0, maximum: 4 }
+            crop_children_used: { type: integer, minimum: 0, maximum: 4 }
+            crop_depth_used: { type: integer, minimum: 0, maximum: 1 }
+        state: { enum: [REQUESTED, VALIDATED, AWAITING_EXTERNAL_REVIEW, QUEUED, RUNNING, SUCCEEDED, PARTIAL, FAILED, QUARANTINED, CANCELLED, BUDGET_EXHAUSTED] }
+        result_snapshot_id: { type: string, format: uuid, nullable: true }
+        outcome_code: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        action_revisions:
+          type: array
+          description: Append-only operator action history; GET response exposes audit lineage without mutating the wire contract.
+          items: { $ref: '#/components/schemas/ReOcrActionRevision' }
+      x-semantic-invariants:
+        - REGION has exactly one page and at least one CPS region; PAGE has exactly one page and no regions; PAGE_PAIR has two consecutive pages and no regions.
+        - SUCCEEDED/PARTIAL require result_snapshot_id; FAILED, QUARANTINED and BUDGET_EXHAUSTED require outcome_code.
+        - Route DENIED requires selected_profile_id null. EXTERNAL_REVIEW_REQUIRED requires AWAITING_EXTERNAL_REVIEW and no profile/grant; EXTERNAL_APPROVED requires a grant and profile. Spring validates all invariants against contracts/reocr-request.v3.schema.json.
+    ReOcrActionRequest:
+      type: object
+      additionalProperties: false
+      required: [action, expected_request_etag, idempotency_key]
+      properties:
+        action: { enum: [RETRY_LOCAL, CANCEL] }
+        expected_request_etag: { type: string, minLength: 1, description: Opaque ETag returned by GET re-OCR request. }
+        reason: { type: string, maxLength: 1000 }
+        idempotency_key: { type: string, maxLength: 128 }
+      x-semantic-invariants:
+        - Apply atomically only if expected_request_etag equals the current request revision; otherwise return 409. Persist actor, time, reason, prior/request result revision and idempotency key as an immutable action revision.
+        - RETRY_LOCAL is accepted only when the persisted request resolved_route is LOCAL_AUTO; external routes require a separate immutable approval grant and cannot be retried by an operator.
+    ReOcrActionRevision:
+      type: object
+      additionalProperties: false
+      required: [id, request_id, action, actor_id, prior_request_etag, resulting_request_etag, reason, idempotency_key, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        request_id: { type: string, format: uuid }
+        action: { enum: [RETRY_LOCAL, CANCEL] }
+        actor_id: { type: string, format: uuid }
+        prior_request_etag: { type: string }
+        resulting_request_etag: { type: string }
+        reason: { type: string, nullable: true }
+        idempotency_key: { type: string }
+        created_at: { type: string, format: date-time }
+    CreateBatchRequest:
+      type: object
+      additionalProperties: false
+      required: [dossier_ids, idempotency_key]
+      properties:
+        dossier_ids: { type: array, minItems: 1, items: { type: string, format: uuid }, uniqueItems: true }
+        idempotency_key: { type: string, maxLength: 128 }
+    Batch:
+      type: object
+      required: [id, status, submitted_count, done_count, failed_count, needs_review_count]
+      properties:
+        id: { type: string, format: uuid }
+        status: { enum: [QUEUED, RUNNING, COMPLETED, COMPLETED_WITH_ERRORS, CANCELLED] }
+        submitted_count: { type: integer, minimum: 0 }
+        done_count: { type: integer, minimum: 0 }
+        failed_count: { type: integer, minimum: 0 }
+        needs_review_count: { type: integer, minimum: 0 }
+    BatchItem:
+      type: object
+      additionalProperties: false
+      required: [id, batch_id, dossier_id, manifest_id, initial_run_id, active_run_id, revision_etag, status, retry_revisions, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        batch_id: { type: string, format: uuid }
+        dossier_id: { type: string, format: uuid }
+        manifest_id: { type: string, format: uuid }
+        initial_run_id: { type: string, format: uuid }
+        active_run_id: { type: string, format: uuid }
+        revision_etag: { type: string, description: Opaque current item revision for compare-and-set. }
+        status: { enum: [QUEUED, RUNNING, DONE, FAILED, NEEDS_REVIEW, CANCELLED] }
+        retry_count: { type: integer, minimum: 0 }
+        retry_revisions:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, prior_run_id, resulting_run_id, action, actor_id, created_at]
+            properties:
+              id: { type: string, format: uuid }
+              prior_run_id: { type: string, format: uuid }
+              resulting_run_id: { type: string, format: uuid, nullable: true }
+              action: { enum: [RETRY, CANCEL] }
+              actor_id: { type: string, format: uuid }
+              reason: { type: string, nullable: true }
+              created_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+    BatchItemActionRequest:
+      type: object
+      additionalProperties: false
+      required: [action, expected_item_etag, idempotency_key]
+      properties:
+        action: { enum: [RETRY, CANCEL] }
+        expected_item_etag: { type: string, minLength: 1, description: Opaque ETag returned with BatchItem. }
+        reason: { type: string, maxLength: 1000 }
+        idempotency_key: { type: string, maxLength: 128 }
+      x-semantic-invariants:
+        - Apply atomically only if expected_item_etag equals the current item revision; otherwise return 409. RETRY requires exactly one new resulting_run_id; CANCEL requires resulting_run_id null and never creates a run.
+    CreateManifestRelationReviewRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_previous_revision_id, expected_relation_etag, manifest_id, action, idempotency_key]
+      properties:
+        expected_previous_revision_id: { type: string, format: uuid, nullable: true }
+        expected_relation_etag: { type: string, minLength: 1 }
+        manifest_id: { type: string, format: uuid }
+        action: { enum: [CONFIRM, REJECT] }
+        reason: { type: string, maxLength: 2000 }
+        idempotency_key: { type: string, maxLength: 128 }
+    ManifestRelationReviewRevision:
+      type: object
+      additionalProperties: false
+      required: [id, dossier_id, relationship_id, document_id, document_source_digest, manifest_id, relationship_source, citation_ids, parent_revision_id, actor_id, action, revision_etag, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        dossier_id: { type: string, format: uuid }
+        relationship_id: { type: string, format: uuid }
+        document_id: { type: string, format: uuid }
+        document_source_digest: { type: string, pattern: '^[A-Fa-f0-9]{64}$' }
+        manifest_id: { type: string, format: uuid }
+        relationship_source: { enum: [USER_DECLARED, SOURCE_EVIDENCE] }
+        citation_ids: { type: array, items: { type: string, format: uuid }, uniqueItems: true }
+        parent_revision_id: { type: string, format: uuid, nullable: true }
+        actor_id: { type: string, format: uuid }
+        action: { enum: [CONFIRM, REJECT] }
+        revision_etag: { type: string }
+        created_at: { type: string, format: date-time }
+    CreateExternalApprovalGrantRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_request_etag, approved_profile_id, policy_digest, expires_at, reason, idempotency_key]
+      properties:
+        expected_request_etag: { type: string, minLength: 1 }
+        approved_profile_id: { type: string, minLength: 1 }
+        policy_digest: { type: string, pattern: '^[A-Fa-f0-9]{64}$' }
+        expires_at: { type: string, format: date-time }
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+        idempotency_key: { type: string, maxLength: 128 }
+      x-semantic-invariants:
+        - The request must be AWAITING_EXTERNAL_REVIEW and its tenant/classification, target, selected profile and policy must pass the current approved egress policy. A stale ETag returns 409.
+    ExternalApprovalGrant:
+      type: object
+      additionalProperties: false
+      required: [id, request_id, tenant_id, source_snapshot_id, target_digest, policy_digest, consent_digest, provider_id, model_id, region, retention_policy_id, approved_profile_id, actor_id, decision, state, single_use, reason, expires_at, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        request_id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        source_snapshot_id: { type: string, format: uuid }
+        target_digest: { type: string, pattern: '^[A-Fa-f0-9]{64}$' }
+        policy_digest: { type: string, pattern: '^[A-Fa-f0-9]{64}$' }
+        consent_digest: { type: string, pattern: '^[A-Fa-f0-9]{64}$' }
+        provider_id: { type: string }
+        model_id: { type: string }
+        region: { type: string }
+        retention_policy_id: { type: string }
+        approved_profile_id: { type: string }
+        actor_id: { type: string, format: uuid }
+        decision: { enum: [APPROVE] }
+        state: { enum: [ACTIVE, CONSUMED, REVOKED, EXPIRED] }
+        single_use: { type: boolean, enum: [true] }
+        consumed_at: { type: string, format: date-time, nullable: true }
+        revoked_at: { type: string, format: date-time, nullable: true }
+        reason: { type: string }
+        expires_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+    CreateReviewCompletionRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_review_watermark, idempotency_key]
+      properties:
+        expected_review_watermark: { type: string, format: uuid }
+        waiver_reason: { type: string, maxLength: 2000 }
+        idempotency_key: { type: string, maxLength: 128 }
+    ReviewItem:
+      type: object
+      required: [id, dossier_id, finding_id, queue, effective_state]
+      properties:
+        id: { type: string, format: uuid }
+        dossier_id: { type: string, format: uuid }
+        finding_id: { type: string, format: uuid }
+        queue: { enum: [CONFLICT, NEEDS_EVIDENCE, NOT_COMPARABLE] }
+        effective_state: { enum: [UNREVIEWED, CONFIRMED, CORRECTED, REJECTED, EVIDENCE_REQUESTED] }
+    CreateDossierApprovalRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_previous_revision_id, manifest_id, effective_run_id, review_watermark, idempotency_key]
+      properties:
+        expected_previous_revision_id: { type: string, format: uuid, nullable: true }
+        manifest_id: { type: string, format: uuid }
+        effective_run_id: { type: string, format: uuid }
+        review_watermark: { type: string, format: uuid }
+        reason: { type: string, maxLength: 2000 }
+        idempotency_key: { type: string, maxLength: 128 }
+    DossierApprovalRevision:
+      type: object
+      required: [id, dossier_id, manifest_id, effective_run_id, review_watermark, action, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        dossier_id: { type: string, format: uuid }
+        manifest_id: { type: string, format: uuid }
+        effective_run_id: { type: string, format: uuid }
+        review_watermark: { type: string, format: uuid }
+        action: { enum: [APPROVE, SUPERSEDE] }
+        created_at: { type: string, format: date-time }
     ProcessingRun:
       type: object
       required: [id, dossier_id, status, manifest_id, created_at]
@@ -367,6 +884,21 @@ components:
         config_bundle_id: { type: string, format: uuid }
         config_digest: { type: string, pattern: '^[A-Fa-f0-9]{64}$' }
         policy_digest: { type: string, pattern: '^[A-Fa-f0-9]{64}$' }
+        page_coverage:
+          type: object
+          properties:
+            pending: { type: integer, minimum: 0 }
+            processing: { type: integer, minimum: 0 }
+            completed: { type: integer, minimum: 0 }
+            blank_verified: { type: integer, minimum: 0 }
+            needs_review: { type: integer, minimum: 0 }
+            failed: { type: integer, minimum: 0 }
+        chunk_coverage:
+          type: object
+          properties:
+            blocked: { type: integer, minimum: 0 }
+            ready: { type: integer, minimum: 0 }
+            finalized: { type: integer, minimum: 0 }
         errors:
           type: array
           items: { $ref: '#/components/schemas/ProcessingError' }
@@ -377,8 +909,40 @@ components:
         code: { type: string }
         retryable: { type: boolean }
         page_no: { type: integer, minimum: 1 }
+    CoverageLedger:
+      type: object
+      additionalProperties: false
+      required: [run_id, pages, chunks]
+      properties:
+        run_id: { type: string, format: uuid }
+        pages:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [document_id, page_no, page_revision_id, state, evidence_eligible]
+            properties:
+              document_id: { type: string, format: uuid }
+              page_no: { type: integer, minimum: 1 }
+              page_revision_id: { type: string, format: uuid }
+              state: { enum: [PENDING, PROCESSING, COMPLETED, BLANK_VERIFIED, NEEDS_REVIEW, FAILED] }
+              evidence_eligible: { type: boolean }
+              artifact_refs: { type: array, items: { type: string }, uniqueItems: true }
+              warning_codes: { type: array, items: { type: string }, uniqueItems: true }
+        chunks:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [chunk_id, state, page_refs, continuation_resolved]
+            properties:
+              chunk_id: { type: string, format: uuid }
+              state: { enum: [BLOCKED, READY, FINALIZED] }
+              page_refs: { type: array, minItems: 1, items: { type: string }, uniqueItems: true }
+              continuation_resolved: { type: boolean }
     Citation:
       type: object
+      additionalProperties: false
       required: [id, snapshot_id, document_id, source_digest, components]
       properties:
         id: { type: string, format: uuid }
@@ -390,14 +954,15 @@ components:
           minItems: 1
           items:
             type: object
+            additionalProperties: false
             required: [render_digest, page_no, line_id, char_start, char_end, quote, bbox_status]
             properties:
               page_no: { type: integer, minimum: 1 }
               line_id: { type: string }
               char_start: { type: integer, minimum: 0, description: Unicode code-point offset in raw line text }
-              char_end: { type: integer, minimum: 1 }
+              char_end: { type: integer, minimum: 1, description: Must be greater than char_start; semantic validator rejects non-positive spans. }
               quote: { type: string }
-              bbox: { type: array, minItems: 4, maxItems: 4, items: { type: number } }
+              bbox: { type: array, minItems: 4, maxItems: 4, items: { type: number, minimum: 0, maximum: 1 }, description: CPS [x0,y0,x1,y1]; validator requires x1>x0 and y1>y0. }
               bbox_source: { enum: [native, detector, derived, line_only, absent] }
               bbox_status: { enum: [measured, line_only, derived, absent] }
               word_ids: { type: array, items: { type: string }, uniqueItems: true }
@@ -405,6 +970,10 @@ components:
               table_cell_id: { type: string, nullable: true }
               render_digest: { type: string, pattern: '^[A-Fa-f0-9]{64}$' }
               render_url: { type: string, format: uri, nullable: true }
+            x-semantic-invariants:
+              - measured requires bbox_source native or detector and a valid CPS bbox.
+              - line_only/derived/absent cannot carry word_ids as word-level evidence.
+              - char_end must be greater than char_start and quote must round-trip against raw line text.
     Finding:
       type: object
       required: [id, run_id, disposition, queue, evidence]
@@ -566,3 +1135,42 @@ components:
       bearerFormat: JWT
 security:
   - bearerAuth: []
+x-rbac:
+  enforced_claim: roles
+  tenant_claim: tenant_id
+  object_scope: JWT tenant_id must equal the resolved resource tenant. Resolve every child resource first and enforce its declared parent containment before role evaluation; a path parent mismatch returns 404 (or 403 where existence disclosure is prohibited).
+  containment_invariants:
+    - run.dossier_id == {dossierId}; reocr_request.dossier_id == {dossierId}; document.dossier_id == {dossierId}; review_item.dossier_id == {dossierId}.
+    - batch_item.batch_id == {batchId}; batch item dossier/manifest/run lineage remains inside its resolved batch membership.
+    - manifest_relation.dossier_id == {dossierId}; manifest_relation.manifest_id belongs to that dossier; its document_id and source digest equal the immutable relation record in that manifest.
+    - citation, review item and finding are resolved through their owning dossier before authorization; optimization resources are resolved through their campaign/binding ownership.
+  deny_if_missing: true
+  operation_roles:
+    getDossier: [OPERATOR, REVIEWER, ADMINISTRATOR]
+    createDossier: [OPERATOR, ADMINISTRATOR]
+    uploadDocument: [OPERATOR, ADMINISTRATOR]
+    confirmManifest: [OPERATOR, ADMINISTRATOR]
+    createRun: [OPERATOR, ADMINISTRATOR]
+    createBatch: [OPERATOR, ADMINISTRATOR]
+    actOnBatchItem: [OPERATOR, ADMINISTRATOR]
+    actOnReOcrRequest: [OPERATOR, ADMINISTRATOR]
+    appendExternalApprovalGrant: [ADMINISTRATOR]
+    listRuns: [OPERATOR, REVIEWER, ADMINISTRATOR]
+    getRun: [OPERATOR, REVIEWER, ADMINISTRATOR]
+    getRunCoverage: [OPERATOR, REVIEWER, ADMINISTRATOR]
+    listReOcrRequests: [OPERATOR, REVIEWER, ADMINISTRATOR]
+    getReOcrRequest: [OPERATOR, REVIEWER, ADMINISTRATOR]
+    getBatch: [OPERATOR, REVIEWER, ADMINISTRATOR]
+    listBatchItems: [OPERATOR, REVIEWER, ADMINISTRATOR]
+    listReviewItems: [REVIEWER, ADMINISTRATOR]
+    appendReviewRevision: [REVIEWER, ADMINISTRATOR]
+    completeDossierReview: [REVIEWER, ADMINISTRATOR]
+    appendManifestRelationReviewRevision: [REVIEWER, ADMINISTRATOR]
+    appendDossierApprovalRevision: [REVIEWER, ADMINISTRATOR]
+    listFindings: [REVIEWER, ADMINISTRATOR]
+    resolveCitation: [REVIEWER, ADMINISTRATOR]
+    createOptimizationCampaign: [ADMINISTRATOR]
+    createOptimizationCandidate: [ADMINISTRATOR]
+    getOptimizationExperiment: [ADMINISTRATOR]
+    requestPromotion: [ADMINISTRATOR]
+    rollbackConfigBinding: [ADMINISTRATOR]

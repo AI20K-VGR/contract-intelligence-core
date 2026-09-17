@@ -9,7 +9,7 @@
 
 ## 1. Mục tiêu, phạm vi và nguồn chuẩn
 
-AI2 biến OCR/layout snapshot bất biến thành structure, fact, citation, context, finding kỹ thuật và metadata đánh giá để reviewer kiểm tra. AI2 không OCR lại PDF, không tự xác định role contract/annex từ filename/upload order, không ghi đè raw OCR/machine output và không đưa ra kết luận pháp lý.
+AI2 biến OCR/layout snapshot bất biến thành structure, fact, citation, context, finding kỹ thuật và metadata đánh giá để reviewer kiểm tra. AI2 không OCR lại PDF, không tự xác định role contract/annex từ filename/upload order, không ghi đè raw OCR/machine output và không đưa ra kết luận pháp lý. Khi evidence không đủ, AI2 chỉ được phát yêu cầu re-OCR có căn cứ cho Spring orchestration; AI2 không gọi AI1 trực tiếp.
 
 Thứ tự tham chiếu khi có mâu thuẫn: BRD đã được Leader chốt → PRD AI2 → data contract AI1→AI2 → SAD này. Các proposal chưa được Mentor duyệt chỉ là input review, không tự động thành quyết định triển khai.
 
@@ -32,10 +32,10 @@ Dossier manifest
 ```
 
 1. Backend/intake tạo dossier manifest; role `CONTRACT|ANNEX` và relation do người có thẩm quyền xác nhận.
-2. AI1 tạo snapshot immutable theo document. Re-OCR phải sinh snapshot mới.
+2. AI1 xử lý trang song song có giới hạn concurrency và tạo snapshot immutable theo document. Re-OCR phải sinh snapshot mới.
 3. AI2 validator chỉ cho snapshot hợp lệ đi vào extraction/comparison; thiếu evidence không được “sửa” bằng suy đoán.
 4. AI2 tạo artifact machine immutable; Backend là system of record, FE chỉ hiển thị source/evidence và gửi review action.
-5. Re-OCR/rerun tạo run mới, không update result/review cũ.
+5. Re-OCR/rerun tạo run mới, không update result/review cũ. Dependency graph chỉ recompute artifact phụ thuộc vào page revision.
 
 ## 3. Component boundary và ownership
 
@@ -62,7 +62,7 @@ AI2 cần manifest versioned gồm `manifest_id`, `dossier_id`, version, actor/t
 
 ### 4.2 OcrSnapshot canonical
 
-AI1 cung cấp `ai1.snapshot.v1`, immutable theo document với:
+AI1 cung cấp `ai1.snapshot.v2`, immutable theo document với:
 
 ```text
 snapshot_id, schema_version, dossier_id, document_id, source_digest,
@@ -74,7 +74,7 @@ Mỗi page có `page_no`, input type `TEXT_LAYER|SCANNED_OCR|MIXED`, status `SUC
 
 Mỗi line/word/table ref có ID scoped theo snapshot. Bbox dùng duy nhất `[x0,y0,x1,y1]`, normalized 0..1, origin top-left trên upright render. Offset là Unicode code point, 0-based/end-exclusive trên `line.text_raw`; consumer JavaScript xử lý bằng `Array.from`, không dùng UTF-16 offset.
 
-Table không được là text blob: `table → fragment → row → cell`; cell có text, bbox, row/column index, rowspan/colspan khi áp dụng và line refs. Snapshot phải giữ reading order, page status và re-OCR lineage.
+Table không được là text blob: `table → fragment → row → cell`; cell có text, bbox, row/column index, rowspan/colspan khi áp dụng và line refs. Snapshot phải giữ reading order, page status, `parent_snapshot_id`, page revision và re-OCR lineage. V1 chỉ được read/audit thông qua adapter tương thích; V2 là contract mới cho integration.
 
 ### 4.3 Validator behavior
 
@@ -134,6 +134,14 @@ Finding(id, finding_run_id, dossier_id, family, finding_type, comparison_scope,
 
 ## 6. HITL, rerun và failure semantics
 
+### 6.1 Controlled AI2 → AI1 feedback
+
+AI2 phát `reocr-request.v1` khi và chỉ khi evidence cho một artifact không đủ nhưng có thể khoanh vùng: `LOW_QUALITY`, `MISSING_GEOMETRY`, `CRITICAL_AMBIGUITY`, `TABLE_PARSE_FAILURE`, `CITATION_BINDING_FAILURE`, `CROSS_PAGE_CONTINUATION` hoặc `EVIDENCE_DISAGREEMENT`.
+
+Request bắt buộc pin `source_snapshot_id`, target nhỏ nhất (`REGION`, `PAGE`, hoặc `PAGE_PAIR`), citation/evidence refs, artifact refs, priority và idempotency key. AI2 không chứa OCR correction text trong request và không chọn provider/credential bên ngoài. Spring xác thực, deduplicate, áp attempt/budget; local allowlisted profile được chạy tự động, external luôn cần review policy/consent. Không re-OCR được thì tạo `NEEDS_EVIDENCE`/review item, không tạo positive fact/finding.
+
+Sau re-OCR, AI1 công bố snapshot revision bất biến. AI2 invalidates đúng clause, fact, citation, comparison và finding phụ thuộc vào page revision; review cũ vẫn append-only và truy xuất được.
+
 ```text
 ReviewRevision(id, target_type, target_id, parent_revision_id?, actor_id,
                created_at, action, reason?, patch_value?, patch_evidence_selection?)
@@ -155,7 +163,7 @@ QUEUED → VALIDATING → WAITING_FOR_AI1 → EXTRACTING → COMPARING → NEEDS
       → COMPLETED | PARTIAL_FAILED | FAILED | QUARANTINED
 ```
 
-- Mọi OCR source required terminal trước khi structuring/extraction dossier được enqueue.
+- S1–S5 fan-out theo page. Structure/fact có thể enqueue incremental khi trang hoặc page-group cần thiết terminal; comparison chỉ chạy khi tập evidence cần thiết terminal.
 - Source `PARTIAL`/`FAILED` không tạo comparative alert khẳng định; run giữ reason/missing evidence.
 - Idempotency pin dossier, manifest version, snapshot/source set và rule version.
 - Retry có giới hạn, backoff và JobAttempt history; worker crash/retry exhausted chuyển `QUARANTINED`, không biến mất im lặng.
@@ -165,7 +173,7 @@ QUEUED → VALIDATING → WAITING_FOR_AI1 → EXTRACTING → COMPARING → NEEDS
 
 | Owner | Điều kiện AI2 cần nhận/kiểm tra | Evidence hoàn tất |
 |---|---|---|
-| AI1 | Scan/text-layer cùng schema, line/word geometry, rotation, render digest, table cell, blank/partial/failed, re-OCR | Citation thật resolve và overlay đúng trên hai representation |
+| AI1 | Scan/text-layer cùng schema V2, line/word geometry, rotation, render digest, table cell, blank/partial/failed, re-OCR revision | Citation thật resolve và overlay đúng trên hai representation |
 | Backend | Manifest version, IDs/ref integrity, run lineage, retry/idempotency, immutable revision và CAS | Design/API review có ngày; stale review trả rebase conflict |
 | Frontend | Hai-source navigation, Unicode raw span, upright bbox transform, machine/reviewer overlay | Walkthrough highlight/correction trên render đã xác định |
 | Leader/Reviewer | Scope, manifest owner, semantic boundary, reviewer/adjudicator, Gate B target | Quyết định bằng chữ và ADR status cập nhật |
@@ -195,8 +203,9 @@ SAD chỉ chuyển `Ready for Review` khi trace từ BRD/PRD requirement đến 
 1. Citation multi-line, multi-page, table-cell; Unicode `A😀B`; tiếng Việt composed/decomposed; rotation/frame đúng.
 2. Manifest thiếu, annex relation sai, citation không resolve, page partial/failed đều có behavior rõ.
 3. Structured controls trả `not_comparable`/`insufficient_evidence`; semantic polarity/condition candidate không dựa vào keyword.
-4. Re-OCR/rerun giữ old lineage; duplicate pair không tạo finding trùng.
-5. Concurrent review rebase, bbox overlay và machine artifact bất biến.
-6. Batch retry/crash/quarantine và summary dossier không làm job biến mất.
+4. Re-OCR targeted giữ old lineage; request duplicate bị deduplicate, chỉ artifact phụ thuộc bị recompute và duplicate pair không tạo finding trùng.
+5. Hợp đồng 50 trang được fan-out bounded; AI2 không gửi toàn bộ trang vào một model call; số tiền/mã số mơ hồ chỉ thành fact confirmed sau citation mới hợp lệ.
+6. Concurrent review rebase, bbox overlay và machine artifact bất biến.
+7. Batch retry/crash/quarantine và summary dossier không làm job biến mất.
 
 Không phần nào trong SAD này thay thế Mentor approval architecture/project structure trước product code.

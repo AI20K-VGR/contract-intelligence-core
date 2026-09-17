@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractintel.internal/schemas/artifact-dependency.v1.json",
+  "title": "Incremental Artifact Dependency v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "dependency_id", "source_snapshot_id", "source_page_revision_id", "artifact", "invalidation_state", "created_at"],
+  "properties": {
+    "schema_version": { "const": "artifact-dependency.v1" },
+    "dependency_id": { "type": "string", "format": "uuid" },
+    "source_snapshot_id": { "type": "string", "format": "uuid" },
+    "source_page_revision_id": { "type": "string", "format": "uuid" },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id", "run_id"],
+      "properties": {
+        "type": { "enum": ["CLAUSE", "CLAUSE_REGION", "FACT", "CITATION", "ANNEX_LINK", "COMPARISON", "FINDING"] },
+        "id": { "type": "string", "format": "uuid" },
+        "run_id": { "type": "string", "format": "uuid" },
+        "digest": { "type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$" }
+      }
+    },
+    "invalidation_state": { "enum": ["ACTIVE", "INVALIDATED", "RECOMPUTED", "SUPERSEDED"] },
+    "invalidation_batch_id": { "type": ["string", "null"], "format": "uuid" },
+    "created_at": { "type": "string", "format": "date-time" }
+  }
+}

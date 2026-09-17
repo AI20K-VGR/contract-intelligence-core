@@ -1,225 +1,870 @@
-# DOC-04 · Architecture — Contract Intelligence
+# DOC-04 · KIẾN TRÚC PHẦN MỀM — Contract Intelligence
 
-| Thuộc tính | Giá trị |
+> Đây là thiết kế chuẩn để review mentor và làm baseline triển khai. Tài liệu là đề xuất kiến trúc, không phải bằng chứng benchmark, chất lượng production hoặc kết luận pháp lý.
+
+| Thuộc tính | Nội dung |
 |---|---|
-| Trạng thái | Proposed — chờ Leader/Mentor phê duyệt trước product code |
-| Nguồn chuẩn | Architecture/SAD duy nhất của repository |
-| Phạm vi MVP | Một dossier: đúng một hợp đồng và 0..n phụ lục; OCR, IDP, review có bằng chứng |
-| Ngoài phạm vi | Kết luận/tư vấn pháp lý, tự xác lập hiệu lực phụ lục, training foundation model |
+| Mã tài liệu / sản phẩm | DOC-04 / Contract Intelligence (PROD-01) |
+| Phiên bản / trạng thái | v0.6 — Draft · Ready for Review |
+| Owner / Contributors | Architecture Lead / Backend, AI1, AI2, Frontend, QA |
+| Reviewer | Mentor |
+| Ngày hiệu lực / review | 17/09/2026 / TBD |
+| Upstream | DOC-01, DOC-02, DOC-03, `contracts/` canonical |
+| Downstream | DOC-05 API, DOC-06 evaluation, implementation/test plan |
+| Thay thế | Architecture cũ trong `docs/archive/` — chỉ legacy/audit |
 
-## 1. Quy ước và hiện trạng
+## Mục lục
 
-Tài liệu này thay thế thiết kế contract đơn lẻ trước đây. Các bản `architecture.md`, `architecture.v2.md` và draft trong `docs/ai2/sprint1-planning/` là input/historical, không được dùng để chọn stack, queue, API hoặc data contract.
+1. [Tóm tắt kiến trúc](#1-tóm-tắt-kiến-trúc)
+2. [Phạm vi, nguyên tắc và ADR](#2-phạm-vi-nguyên-tắc-và-adr)
+3. [System context, trust boundary và module](#3-system-context-trust-boundary-và-module)
+4. [Dossier, manifest và lifecycle](#4-dossier-manifest-và-lifecycle)
+5. [Execution, queue và recovery](#5-execution-queue-và-recovery)
+6. [OCR/layout cho tài liệu dài](#6-ocrlayout-cho-tài-liệu-dài)
+7. [Evidence, CPS và grounding](#7-evidence-cps-và-grounding)
+8. [IDP, annex link và comparison](#8-idp-annex-link-và-comparison)
+9. [Vòng lặp re-OCR có giới hạn](#9-vòng-lặp-re-ocr-có-giới-hạn)
+10. [Data, API và HITL](#10-data-api-và-hitl)
+11. [Security, observability và egress](#11-security-observability-và-egress)
+12. [Evaluation, release và acceptance](#12-evaluation-release-và-acceptance)
+13. [API và boundary nội bộ chi tiết](#13-api-và-boundary-nội-bộ-chi-tiết)
+14. [HITL, approval và UX evidence](#14-hitl-approval-và-ux-evidence)
+15. [Observability, dashboard, alert và runbook](#15-observability-dashboard-alert-và-runbook)
+16. [Dataset, ground truth và evaluation protocol](#16-dataset-ground-truth-và-evaluation-protocol)
+17. [Chi phí, capacity và external service register](#17-chi-phí-capacity-và-external-service-register)
+18. [Security, retention và vận hành local](#18-security-retention-và-vận-hành-local)
+19. [Kiểm thử và quality gate](#19-kiểm-thử-và-quality-gate)
+20. [Delivery roadmap, traceability và mentor review](#20-delivery-roadmap-traceability-và-mentor-review)
+21. [IDP tốc độ cao và chống hallucination](#21-idp-tốc-độ-cao-và-chống-hallucination)
 
-Repository chưa có runtime backend, worker, migration hay deployment đã triển khai. Mọi nội dung dưới đây là thiết kế đích, không phải tuyên bố production-ready.
+## 1. Tóm tắt kiến trúc
 
-`690758295-Scan-HỢP-ĐỒNG-Feddy.ocr.json` là OCR legacy chỉ có text. Nó thiếu source/render digest, snapshot ID, raw line/word refs và geometry, đồng thời có thể chứa PII. Artifact bị cấm làm citation, fact evidence, finding, fixture hoặc telemetry input. Chỉ source gốc được quyền re-OCR vào snapshot chuẩn sau khi qua policy dữ liệu.
+Contract Intelligence xử lý một hợp đồng và `0..n` phụ lục PDF. Hệ thống tạo snapshot OCR/layout bất biến, dựng cấu trúc Điều–Khoản–Điểm/bảng, trích fact typed có citation, rồi tạo finding kỹ thuật có evidence hai phía. Reviewer kiểm tra và phê duyệt output nội bộ; hệ thống không tư vấn pháp lý hay tự quyết hiệu lực/phạm vi ưu tiên của hợp đồng.
 
-## 2. Quyết định kiến trúc
-
-| ADR | Quyết định |
-|---|---|
-| ADR-01 | Java 17+/Spring Boot là public API, RBAC, domain, persistence, orchestration và read-model owner. |
-| ADR-02 | Python là OCR/IDP worker nội bộ; không là public authority và không ghi trực tiếp business tables. |
-| ADR-03 | PostgreSQL là system of record và task queue MVP; không dùng đồng thời Redis/Celery/callback queue. |
-| ADR-04 | Object storage qua port/adapter: filesystem local cho dev, S3-compatible khi triển khai. DB chỉ lưu metadata, digest và URI nội bộ. |
-| ADR-05 | Local-first OCR/layout. Egress tới OCR/LLM ngoài tắt mặc định và chỉ mở khi policy, consent và Gate B cho phép. |
-| ADR-06 | Snapshot, machine result và run bất biến; review là revision append-only với optimistic concurrency. |
-| ADR-07 | Rules/normalizer tạo fact và so sánh có cấu trúc trước; LLM semantic chỉ tạo candidate có grounding, không kết luận pháp lý. |
-
-## 3. Context và ownership
+Kiến trúc đi theo nguyên tắc **evidence-first**. OCR không chạy một lần rồi được tin tuyệt đối: AI2 chỉ phát hiện evidence gap; Spring kiểm policy, phạm vi và ngân sách hữu hạn; AI1 re-OCR đúng vùng/trang/cặp trang cần thiết. Mọi source, output, retry và chỉnh sửa đều truy vết được.
 
 ```mermaid
 flowchart LR
-  U[Operator / Reviewer] --> UI[Web UI]
-  UI --> API[Spring Boot API + Orchestrator]
-  API --> DB[(PostgreSQL)]
-  API --> OS[(Object Storage)]
-  DB --> W[Python OCR / IDP Worker]
+  OP[Operator] --> UI[Web UI]
+  RV[Reviewer] --> UI
+  UI --> API[Spring modular monolith]
+  API --> DB[(PostgreSQL: domain, queue, audit)]
+  API --> OS[(Artifact storage: PDF, render, artifacts)]
+  API --> W[AI1 và AI2 worker nội bộ]
+  W --> DB
   W --> OS
-  W --> API
-  W -. approved pages only .-> EXT[Approved external AI]
+  W -. chỉ khi được duyệt .-> EG[Egress broker]
+  EG -. task tối thiểu .-> EXT[External OCR/AI]
+  API --> TEL[Telemetry và báo cáo]
+  W --> TEL
 ```
 
-| Thành phần | Sở hữu | Không được làm |
+## 2. Phạm vi, nguyên tắc và ADR
+
+### 2.1 Phạm vi
+
+| Trong phạm vi | Ngoài phạm vi |
+|---|---|
+| PDF tiếng Việt native/scan/mixed; thử nghiệm Anh/song ngữ khi có data | Tư vấn pháp lý, tự kết luận hiệu lực/precedence, ký tự động |
+| Clause/table/fact/finding có citation và bbox | Sửa PDF gốc, xác minh chữ ký, cam kết handwriting |
+| Single dossier, batch, HITL, audit, bounded repair | Train model, microservice, Kubernetes, enterprise DMS/IAM |
+| Local baseline và external route đã được duyệt | Gửi sample mentor ra ngoài khi chưa có policy/mentor approval |
+
+### 2.2 Nguyên tắc không được phá vỡ
+
+1. PDF nguồn, artifact máy, execution manifest và revision con người đều append-only.
+2. Fact/finding tích cực chỉ được publish khi có source, citation, coverage evidence-eligible và context hợp lệ.
+3. Output model là input không đáng tin: validate schema, định danh, quote, geometry, context và ledger trước persist.
+4. Khác giá trị chưa là conflict: phải xét subject, unit, currency, VAT basis, scope và validity.
+5. `CANDIDATE_AMENDMENT` chỉ là candidate kỹ thuật; Reviewer vẫn chịu trách nhiệm quyết định.
+6. Task lỗi luôn có trạng thái/lý do; không được biến mất hay âm thầm thành công.
+
+### 2.3 Architecture Decision Records
+
+| ADR | Quyết định | Hệ quả |
 |---|---|---|
-| Spring API | dossier/manifest, auth, storage authorization, tasks/runs, validation, persistence, audit, review | Tự suy luận nội dung hoặc legal outcome |
-| Python worker | classify, render, OCR/layout, structure, fact, comparison candidate | Suy role từ filename, quyết định quyền hoặc mutate canonical domain |
-| Web UI | upload, manifest confirmation, evidence overlay, review/rebase UX | Tự tính provenance hoặc ghi đè machine output |
-| Reviewer | confirm/correct/reject/request evidence | Biến candidate kỹ thuật thành legal decision ngoài policy |
+| ADR-01 | Java/Spring sở hữu public API, domain, RBAC, persistence và orchestration. | Một business authority. |
+| ADR-02 | AI1/AI2 là Python worker nội bộ. | Không ghi trực tiếp business table hay sở hữu public API. |
+| ADR-03 | PostgreSQL là system of record và queue MVP. | Không thêm Redis/Celery/second state store khi chưa có bằng chứng cần thiết. |
+| ADR-04 | Filesystem local là object-storage adapter khi development. | DB chỉ lưu metadata/digest, không lưu PDF/render lớn. |
+| ADR-05 | `ai1.snapshot.v3` là handoff OCR/layout canonical. | Spring semantic gate trước khi IDP nhận dữ liệu. |
+| ADR-06 | CPS là hệ tọa độ trang đứng đã chuẩn hóa. | Mọi consumer dùng chung bbox convention. |
+| ADR-07 | Finding là domain canonical; Conflict chỉ là queue/UI/API surface. | Không sinh entity/pipeline conflict thứ hai. |
+| ADR-08 | AI2 phát `EvidenceGapDetected.v2`; Spring tạo `ReOcrRequest.v3`. | AI2 không bypass OCR, budget hay egress policy. |
+| ADR-09 | Product workflow, run, review và re-OCR là state machine tách biệt. | Partial operation vẫn minh bạch. |
+| ADR-10 | Reviewer có quyền approve output dossier nội bộ. | Khớp DOC-01/02/03; không phải legal approval. |
+| ADR-11 | Page/chunk ledger là authority của completeness. | Không dùng word count để chứng minh tài liệu dài đã xử lý đủ. |
+| ADR-12 | Retry/repair/provider dùng shared finite budget. | Không loop vô hạn hoặc phát sinh chi phí không kiểm soát. |
 
-## 4. Dossier, source và lifecycle
+## 3. System context, trust boundary và module
 
-`Dossier` là đơn vị xử lý. Manifest bất biến theo version chứa đúng một `CONTRACT`, 0..n `ANNEX`, actor xác nhận, relation/effective date và evidence của relation nếu có. Hệ thống có thể gợi ý role/liên kết từ nội dung, nhưng operator phải xác nhận trước comparison liên tài liệu. Dossier một hợp đồng được OCR/extract bình thường; cross-document comparison bị `BLOCKED_MANIFEST`.
+```mermaid
+flowchart TB
+  subgraph T[Authorized team environment]
+    USER[Operator / Reviewer] --> FE[Frontend] --> APP[Spring API và domain]
+    APP <--> DB[(PostgreSQL)]
+    APP <--> ART[(Artifact store)]
+    AI[AI1 / AI2] <--> DB
+    AI <--> ART
+  end
+  subgraph C[Controlled egress]
+    POLICY[Classification, consent, policy] --> GRANT[Single-use grant] --> BROKER[Egress broker]
+  end
+  APP --> POLICY
+  AI -. page/crop tối thiểu .-> BROKER --> EXT[External provider]
+```
 
-1. Spring kiểm magic-byte/MIME, AV, mật khẩu PDF, page/size/time limits; stage source, tính SHA-256 và phân loại dữ liệu.
-2. Sau khi source đọc được và digest khớp, Spring transactionally tạo document version, manifest/run và outbox task.
-3. Worker xử lý page/document; mọi artifact có URI nội bộ, SHA-256 và version producer.
-4. Spring semantic-validate artifact, persist machine result bất biến và phát task phụ thuộc kế tiếp.
-5. Retry giữ cùng run/config/input; re-OCR, đổi manifest/config/rule tạo snapshot/run mới. Bản cũ vẫn audit được.
+| Boundary | Cơ chế kiểm soát |
+|---|---|
+| Client → API | authentication, tenant/RBAC, MIME/magic-byte, AV, size/page limit, idempotency |
+| API ↔ artifact | URI/digest private, đọc qua quyền ngắn hạn |
+| Worker → Spring | service auth, task attempt và lease token |
+| Worker → external | grant bất biến bind task/snapshot/target/policy/provider; default deny |
+| Telemetry | chỉ metadata allowlist; không raw PDF/OCR/prompt/signed URL mặc định |
+
+```mermaid
+flowchart LR
+  FE[React + PDF viewer] --> HTTP[Spring REST API]
+  HTTP --> DOMAIN[Domain/application modules]
+  DOMAIN --> PG[(PostgreSQL)]
+  DOMAIN --> STORE[Artifact storage port]
+  DOMAIN --> OUTBOX[Outbox]
+  OUTBOX --> TASK[Task table]
+  TASK --> AI1[AI1 OCR/layout]
+  TASK --> AI2[AI2 IDP]
+  AI1 --> RESULT[Authenticated result adapter]
+  AI2 --> RESULT
+  RESULT --> DOMAIN
+```
+
+| Module | Sở hữu | Không được sở hữu |
+|---|---|---|
+| intake | dossier, document version, manifest, upload validation | OCR result hoặc legal conclusion |
+| orchestration | run/task/lease/outbox/retry/coverage | extraction/comparison semantics |
+| evidence | snapshot validation, CPS, citation resolve | sửa source |
+| AI1 | render/page route/OCR/layout/table candidate | public API/domain write |
+| AI2 | structure/fact/link/compare/evidence-gap candidate | gọi OCR trực tiếp/kết luận pháp lý |
+| review | revision append-only/CAS/approval | ghi đè output máy |
+| policy/egress | consent/provider/usage/grant validation | cấp credential provider tùy ý |
+
+## 4. Dossier, manifest và lifecycle
+
+`Dossier` là đơn vị xử lý. Một manifest version có đúng một `CONTRACT` và `0..n ANNEX`. Mỗi relation có `relationship_id` bất biến, bind manifest/document/source digest/citation IDs. Relation do user khai báo phải được Reviewer `CONFIRM` đúng relation đó trước khi compare cross-document.
+
+```mermaid
+erDiagram
+  DOSSIER ||--o{ DOCUMENT_VERSION : contains
+  DOSSIER ||--o{ DOSSIER_MANIFEST : versions
+  DOSSIER_MANIFEST ||--|{ MANIFEST_DOCUMENT : pins
+  MANIFEST_DOCUMENT ||--o| MANIFEST_RELATION : declares
+  MANIFEST_RELATION ||--o{ RELATION_REVIEW_REVISION : reviewed_by
+  DOSSIER ||--o{ PIPELINE_RUN : executes
+  DOCUMENT_VERSION ||--o{ OCR_SNAPSHOT : has
+```
 
 ```mermaid
 stateDiagram-v2
-  [*] --> QUEUED
-  QUEUED --> VALIDATING
-  VALIDATING --> WAITING_FOR_OCR
-  WAITING_FOR_OCR --> EXTRACTING
-  EXTRACTING --> COMPARING
-  COMPARING --> NEEDS_REVIEW
-  NEEDS_REVIEW --> COMPLETED
-  VALIDATING --> PARTIAL_FAILED
-  WAITING_FOR_OCR --> FAILED
-  EXTRACTING --> QUARANTINED
-  FAILED --> QUEUED: operator retry/new attempt
+  [*] --> UPLOADED
+  UPLOADED --> PROCESSING: manifest/run accepted
+  PROCESSING --> EXTRACTED: usable output
+  PROCESSING --> FAILED: không có usable output
+  EXTRACTED --> PENDING_REVIEW
+  PENDING_REVIEW --> REVIEWED: blocker resolved/waived
+  REVIEWED --> APPROVED: Reviewer sign-off
+  APPROVED --> PROCESSING: rerun/re-OCR lineage mới
 ```
 
-`PARTIAL_FAILED` giữ evidence đọc được nhưng không tạo positive comparative claim từ nguồn thiếu. `QUARANTINED` giữ JobAttempt/error để operator xử lý, không làm job biến mất.
+`conflict_detected` là nhãn hiển thị phái sinh. Run/review/approval cũ vẫn audit được sau khi effective lineage thay đổi.
 
-## 5. Queue, idempotency và recovery
-
-- `task` có key unique `(run_id, step, scope_key)`; `scope_key` luôn NOT NULL để tránh uniqueness sai với NULL.
-- Worker claim atomically bằng `FOR UPDATE SKIP LOCKED`, nhận `lease_token`; heartbeat/complete/reap đều điều kiện theo token và attempt.
-- Spring là owner state: worker chỉ trả `{task_id, attempt_no, lease_token, artifact_uri, artifact_sha256, schema_version}` qua internal authenticated endpoint.
-- Dispatcher chỉ phát S6–S10 khi prerequisite terminal; S8–S10 áp dụng barrier theo dossier.
-- Retry bounded exponential backoff+jitter; idempotency provider/usage ledger theo task attempt; hết retry vào quarantine/dead-letter.
-- Upload dùng staged object + digest + outbox; reconciler phát hiện blob orphan/document thiếu blob. Không giả định DB và object storage có transaction chung.
-
-## 6. OCR/layout pipeline S0–S5
-
-| Bước | Owner | Kết quả |
-|---|---|---|
-| S0 Intake | Spring | Source immutable, manifest, classification, run/task |
-| S1 Classify | Python | `TEXT_LAYER`, `SCANNED_OCR` hoặc `MIXED`; quality warnings |
-| S2 Render | Python | Upright render, dimensions, digest, CropBox/rotation/transform |
-| S3 Preprocess | Python | Reversible/versioned transform và quality signals |
-| S4 OCR | Python | Native text hoặc local OCR/layout; external route chỉ nếu policy cho phép |
-| S5 Layout | Python | Reading order, blocks, table/row/cell, geometry provenance |
-
-Native text layer chỉ dùng khi usable; hidden OCR, mojibake, image coverage và chất lượng thấp phải route lại. Hybrid recognition chỉ cấp word evidence khi text-to-detector alignment exact, persisted và có algorithm version. Không nội suy bbox theo số ký tự.
-
-### Canonical Page Space (CPS)
-
-Mọi bbox persisted là `[x0, y0, x1, y1]`, normalized 0..1, origin top-left, trên exact upright render sau rotation đúng một lần. Page giữ render/source digest, dimensions, transform và polygon nếu source có polygon. `bbox_source` là `native`, `detector`, `derived`, `human`, `line_only` hoặc `absent`; `geometry_status` biểu đạt coverage. Engine confidence có thể `null`; alignment/quality score là trường derived riêng, không được giả làm engine confidence.
-
-## 7. Snapshot, provenance và citation contract
-
-Mọi OCR output phải đạt [`ai1.snapshot.v1`](contracts/ai1.snapshot.v1.schema.json) và semantic validator trước khi vào IDP. Snapshot có source/render digest, schema/engine/model/prompt/preprocess/config version, pages, raw text/digest, line/word IDs, geometry, table refs, status/warnings/errors và lineage. Các invariant liên-field nằm trong [contract notes](contracts/README.md) và phải được Spring thực thi trước persist.
-
-Citation component chứa `snapshot_id`, source/render digest, document/page, `line_id`, `char_start`, `char_end`, word/bbox refs và exact quote. Offset là Unicode code point, 0-based/end-exclusive trên raw UTF-8 line text; không NFC, trim hay thay line break trước khi cite. Search text được phép normalize nhưng phải có mapping về raw span.
-
-Validator reject schema không hỗ trợ, digest mismatch, stale/missing reference, bbox ngoài CPS, span không round-trip exact quote, word/line/table reference sai hoặc legacy text-only output. Cross-language fixtures bắt buộc gồm `A😀B`, dấu tiếng Việt composed/decomposed, CRLF và token lặp.
-
-## 8. IDP pipeline S6–S10
-
-| Bước | Hành vi |
-|---|---|
-| S6 Structure | Rules-first Điều/Khoản/Điểm, coverage/hierarchy validation; fallback chỉ trả source IDs/ranges |
-| S7 Facts | Typed raw + normalized value, context, exact citations; ambiguous value giữ raw và lý do |
-| S8 Annex link | Signals + citation; không suy từ upload order/filename |
-| S9 Compare | Context gate, deterministic candidate pair, structured first rồi semantic candidate approved-only |
-| S10 Review | Tách Conflict, Needs evidence và Not comparable; ưu tiên reviewer |
-
-Context gate kiểm subject, unit, currency, tax/VAT basis, scope và validity. Thiếu evidence trả `insufficient_evidence`; context không tương thích trả `not_comparable`. `candidate_amendment` cần relation/reference, wording sửa đổi, compatible scope/context và effective evidence; luôn là candidate kỹ thuật.
-
-`comparison_candidate`/`evidence_binding` lưu cả nguồn thiếu hoặc invalid. Chỉ finding `comparable_difference`/`candidate_amendment` có hai bindings hợp lệ mới vào Conflict. Không trộn Needs evidence vào conflict metric hoặc queue.
-
-## 9. Mô hình dữ liệu
-
-| Nhóm | Entity chính |
-|---|---|
-| Intake | `dossier`, `document`, `document_version`, `dossier_manifest`, `manifest_document` |
-| Execution | `pipeline_run`, `task`, `job_attempt`, `outbox_event`, `usage_ledger` |
-| Evidence | `ocr_snapshot`, `page_snapshot`, `ocr_line`, `ocr_word`, `layout_block`, `doc_table`, `table_cell` |
-| IDP | `clause_node`, `clause_region`, `fact`, `citation`, `annex_link`, `comparison_candidate`, `finding`, `finding_side` |
-| HITL | `review_item`, `review_revision`, `effective_review_view` |
-
-Machine tables append-only. DB constraints và application validator kiểm foreign reference, exact span, source/render digest và immutable lineage trước persist. Review có `expected_previous_revision_id`; stale request trả `409`, UI reload/rebase. Bbox correction là human overlay trên snapshot cụ thể, không sửa bbox machine hoặc metric machine.
-
-## 10. API và internal worker boundary
-
-Public API được mô tả trong `DOC-05-api-spec.yaml`: dossier creation/upload, manifest confirmation, status/run, evidence/finding queries, rerun/re-OCR và review revision. API không expose raw object URI công khai; evidence render dùng authorized short-lived access.
-
-Internal worker result endpoint yêu cầu service authentication, task attempt và lease token. Không dùng `callback_url` do client cung cấp, public `file_url`, temporary clause IDs hoặc worker-owned Redis lifecycle.
-
-## 11. Security, privacy và observability
-
-- Classification, tenant authorization và external-route policy được kiểm trước render/egress; default là deny.
-- External request chỉ chứa page/crop tối thiểu đã approved; provider/model/region/retention được allowlist và ghi usage/egress audit.
-- TLS, encryption at rest, scoped object access, secrets management, AV/limits, RBAC và audit access là bắt buộc trước dữ liệu thật.
-- Không log raw PDF/OCR/prompt/signed URL/ground truth. Trace chỉ metadata pseudonymous; cache key gồm tenant/classification + source/render/preprocess + engine/model/prompt/schema/rule versions.
-- Retention dùng tombstone + async purge verification. Không tự upload, move hoặc delete legacy PII artifact trước khi data owner quyết định custody/retention.
-
-## 12. Optimization Plane và controlled release
-
-Optimization Plane là control plane tách khỏi đường xử lý dossier. Nó biến vòng lặp `config → evaluation → error analysis → candidate` thành research workflow có audit; nó không cho agent tự sửa hay tự deploy cấu hình production.
+### Batch
 
 ```mermaid
 flowchart LR
-  CR[Config Registry] --> EH[Experiment Harness]
-  DS[DEV dataset release] --> EH
-  EH --> ME[Trusted metric engine]
-  ME --> OA[Optimizer sandbox]
-  OA --> CR
-  EH --> SE[Sealed evaluator]
-  SE --> PG[Promotion Controller]
-  PG --> RB[Active config binding]
-  RB --> API[Spring run resolver]
+  B[Batch] --> A[Immutable item A]
+  B --> C[Immutable item B]
+  B --> N[Immutable item N]
+  A --> RA[Run lineage A] --> SA[DONE/FAILED/NEEDS_REVIEW]
+  C --> RC[Run lineage B] --> SB[DONE/FAILED/NEEDS_REVIEW]
+  SA --> SUM[Derived summary]
+  SB --> SUM
 ```
 
-| Thành phần | Quyền | Bị cấm |
+Batch action dùng ETag CAS. `RETRY` tạo đúng một run mới. `CANCEL` không tạo run và lưu `resulting_run_id = null`. Một item lỗi không abort các item khác.
+
+## 5. Execution, queue và recovery
+
+```mermaid
+flowchart TD
+  S0[0 Intake validation] --> S1[1 Inspect PDF/page inventory]
+  S1 --> S2[2 Canonical render]
+  S2 --> S3[3 Native/scan/mixed route]
+  S3 --> S4[4 OCR + layout + tables]
+  S4 --> S5[5 Snapshot semantic gate]
+  S5 --> S6[6 Clause/table structure]
+  S6 --> S7[7 Facts + citations]
+  S7 --> S8[8 Annex link]
+  S8 --> S9[9 Comparison/findings]
+  S9 --> S10[10 Review queue + immutable publish]
+```
+
+S1–S5 chạy theo page với concurrency bị giới hạn. S6/S7 có thể stream finalized chunk. S8–S10 chỉ chờ evidence liên quan, không chờ các task không liên quan.
+
+```mermaid
+sequenceDiagram
+  participant D as Dispatcher
+  participant P as PostgreSQL task table
+  participant W as Worker
+  participant A as Spring result adapter
+  D->>P: enqueue unique(run,step,scope)
+  W->>P: claim SKIP LOCKED + lease token
+  W->>P: heartbeat(token,attempt)
+  W->>A: artifact + digest + token
+  A->>P: validate/persist + outbox atomically
+  Note over D,P: lease hết hạn được reclaim với bounded retry
+```
+
+Task key là `(run_id, step, scope_key)` với scope không null. Worker result chỉ được nhận cho attempt/lease đang active. Transport retry, quality repair và provider usage là các counter khác nhau.
+
+## 6. OCR/layout cho tài liệu dài
+
+```mermaid
+flowchart TD
+  PAGE[Page inventory] --> Q{Native text và geometry usable?}
+  Q -->|yes| N[Native extraction]
+  Q -->|no/suspect| R[Canonical render]
+  R --> T{Scan hay mixed?}
+  T -->|scan| O[Local OCR + layout]
+  T -->|mixed| M[Region native/OCR merge]
+  N --> SNAP[Snapshot v3 candidate]
+  O --> SNAP
+  M --> SNAP
+  SNAP --> VALID[Spring semantic validation]
+```
+
+Native text chỉ được nhận khi content/geometry/coverage đều usable. Hidden OCR, mojibake, thiếu coverage sẽ route sang repair. Trang trắng là `BLANK_VERIFIED`, không bao giờ bị bỏ qua âm thầm.
+
+```mermaid
+flowchart LR
+  PL[Page ledger per revision] --> CL[Chunk ledger: clause/table/context]
+  CL --> READY[READY candidate]
+  READY --> FINAL[FINALIZED evidence]
+  FINAL --> PUB[Fact/finding publish]
+  PL --> GAP[FAILED/NEEDS_REVIEW]
+  GAP --> IE[INSUFFICIENT_EVIDENCE]
+```
+
+| Ledger | Quy tắc |
+|---|---|
+| Page | `PENDING`, `PROCESSING`, `COMPLETED`, `BLANK_VERIFIED`, `NEEDS_REVIEW`, `FAILED`; chỉ completed/blank evidence-eligible. |
+| Chunk | `BLOCKED`, `READY`, `FINALIZED`; clause/table cross-page cần mọi continuation page. |
+| Partial output | Có thể hiển thị kèm issue; không được claim dossier complete hay positive finding từ evidence thiếu. |
+
+Với hợp đồng 50 trang, OCR theo page/crop có checkpoint. Extraction theo clause/chunk. Comparison chỉ nhận hai nguồn và context cần thiết, không gửi cả dossier thành một prompt. Hỏng trang 27 chỉ invalidates dependency liên quan, không mặc định OCR lại toàn bộ.
+
+Throughput control: giới hạn riêng render/OCR/provider/AI2; backpressure task/rendered bytes/RPM/TPM/budget; cache key gồm source/crop/render/preprocess/engine/model/prompt/schema/config. Candidate ban đầu: 3 transport attempts, 1 quality repair, 4 provider submissions, 4 crop children, depth 1 — không phải SLA.
+
+## 7. Evidence, CPS và grounding
+
+Bbox là `[x0,y0,x1,y1]`, normalized 0..1, origin top-left, trên exact upright render sau rotation đúng một lần. Page giữ render/source digest, dimensions và transform version.
+
+```mermaid
+flowchart LR
+  RAW[Source page] --> RENDER[Canonical upright render]
+  RENDER --> CPS[CPS bbox]
+  CPS --> CIT[Citation]
+  CIT --> VIEW[Viewer overlay]
+  HUMAN[Human correction] -. append-only overlay .-> VIEW
+```
+
+| Geometry source | Quy tắc evidence |
+|---|---|
+| `native`/`detector`, measured | Có thể là word-level geometry sau validation |
+| `derived`/`line_only` | Chỉ region provenance, không được nâng thành measured word evidence |
+| `absent` | Không claim bbox; tạo evidence gap/review nếu geometry cần thiết |
+
+Citation bind snapshot/document/page/render digest, line, raw Unicode code-point span, exact quote, word IDs và geometry. Raw text không normalize/trim/rewrite trước cite. Fixture cover `A😀B`, tiếng Việt composed/decomposed, CRLF và repeated token.
+
+```mermaid
+flowchart TD
+  C[Candidate clause/fact/finding] --> A{Schema và identity hợp lệ?}
+  A -->|no| STAGE[Giữ staging + issue]
+  A -->|yes| B{Digest, lineage, quote, bbox resolve?}
+  B -->|no| GAP[Evidence gap]
+  B -->|yes| D{Page/chunk evidence eligible?}
+  D -->|no| IE[INSUFFICIENT_EVIDENCE]
+  D -->|yes| E{Context compatible?}
+  E -->|no| NC[NOT_COMPARABLE]
+  E -->|yes| PUB[Publish immutable output]
+```
+
+## 8. IDP, annex link và comparison
+
+```mermaid
+flowchart LR
+  SNAP[Validated snapshot] --> STR[Rules-first structure]
+  STR --> CLAUSE[Điều/Khoản/Điểm graph]
+  STR --> TABLE[Table/row/cell graph]
+  CLAUSE --> FACT[Typed facts]
+  TABLE --> FACT
+  FACT --> NORM[Normalization + context]
+  NORM --> CIT[Exact citations]
+```
+
+Fact giữ raw value, normalized value hoặc null+reason, business role, context và citation. Tiền tệ dùng decimal/minor-unit, không float. Ambiguity phải được giữ, không đoán.
+
+```mermaid
+flowchart TD
+  MAN[Confirmed manifest] --> REL[relationship_id + source binding]
+  REL --> CHECK{Có source evidence hoặc Reviewer confirm?}
+  CHECK -->|no| BLOCK[BLOCKED_MANIFEST]
+  CHECK -->|yes| PAIR[Candidate clause/fact pairs]
+  PAIR --> CTX{Subject, unit, currency, VAT, scope, validity compatible?}
+  CTX -->|thiếu evidence| IE[INSUFFICIENT_EVIDENCE]
+  CTX -->|không tương thích| NC[NOT_COMPARABLE]
+  CTX -->|tương thích| CMP[Structured rồi semantic comparison]
+  CMP --> FIND[Finding có A/B evidence]
+```
+
+| Disposition | Nghĩa |
+|---|---|
+| `COMPARABLE_MATCH` | Giá trị/context comparable giống nhau |
+| `COMPARABLE_DIFFERENCE` | Khác nhau nhưng chưa có amendment proof |
+| `CANDIDATE_AMENDMENT` | Candidate kỹ thuật có relation/reference, amendment wording, effective evidence |
+| `NOT_COMPARABLE` | Context không tương thích |
+| `INSUFFICIENT_EVIDENCE` | Thiếu/invalid evidence hoặc context |
+
+Chỉ difference/amendment có evidence mới vào Conflict. Evidence thiếu là queue/metric riêng.
+
+## 9. Vòng lặp re-OCR có giới hạn
+
+```mermaid
+sequenceDiagram
+  participant AI2 as AI2
+  participant SP as Spring policy/orchestrator
+  participant AI1 as AI1
+  participant DB as Ledger/contracts
+  AI2->>SP: EvidenceGapDetected.v2
+  SP->>DB: validate, dedupe, audit
+  SP->>SP: chọn scope, route, budget
+  SP->>DB: persist ReOcrRequest.v3
+  alt local route
+    SP->>AI1: ReOcrScheduled
+    AI1->>DB: SnapshotRevisionPublished
+  else external route
+    SP->>DB: AWAITING_EXTERNAL_REVIEW
+    SP->>DB: append và consume grant
+    SP->>AI1: approved bounded task
+  end
+  SP->>DB: selective invalidation/new lineage
+```
+
+AI2 không gọi OCR hay thay raw text/bbox. Operator chỉ retry/cancel request local đã audit bằng ETag CAS.
+
+| Action | Required scope | Coverage | Trường hợp |
+|---|---|---|---|
+| `REGION_RESCAN` | 1 page + CPS region | target | quality/geometry/critical ambiguity |
+| `PAGE_PAIR_CONTEXT` | 2 page liền kề | target + continuation | cross-page context |
+| `OUTPUT_SPLIT` | page hoặc pair | bounded split | output truncation |
+
+```mermaid
+stateDiagram-v2
+  [*] --> REQUESTED
+  REQUESTED --> VALIDATED
+  VALIDATED --> QUEUED: LOCAL_AUTO
+  VALIDATED --> AWAITING_EXTERNAL_REVIEW: cần approval
+  AWAITING_EXTERNAL_REVIEW --> QUEUED: active grant được consume một lần
+  QUEUED --> RUNNING
+  RUNNING --> SUCCEEDED
+  RUNNING --> PARTIAL
+  RUNNING --> FAILED
+  FAILED --> VALIDATED: bounded local retry/CAS
+  VALIDATED --> DENIED
+  REQUESTED --> CANCELLED
+  VALIDATED --> BUDGET_EXHAUSTED
+```
+
+`external-egress-approval-grant.v1` bind request, source snapshot, target digest, tenant, policy/consent, provider/model/region/retention/profile, actor, expiry và single-use state. UUID không tự tạo quyền egress. Re-OCR tạo full snapshot inventory mới và selective invalidation.
+
+## 10. Data, API và HITL
+
+```mermaid
+erDiagram
+  PIPELINE_RUN ||--o{ TASK : schedules
+  PIPELINE_RUN ||--o{ OCR_SNAPSHOT : produces
+  OCR_SNAPSHOT ||--|{ PAGE_SNAPSHOT : inventories
+  PAGE_SNAPSHOT ||--o{ OCR_LINE : contains
+  OCR_LINE ||--o{ OCR_WORD : contains
+  OCR_SNAPSHOT ||--o{ CLAUSE_NODE : grounds
+  CLAUSE_NODE ||--o{ FACT : contains
+  FACT ||--|{ CITATION : proves
+  FINDING ||--|{ FINDING_SIDE : requires
+  FINDING ||--o{ REVIEW_REVISION : reviewed_by
+  REOCR_REQUEST ||--o{ REOCR_ACTION_REVISION : audited_by
+  REOCR_REQUEST ||--o| EXTERNAL_EGRESS_GRANT : authorized_by
+```
+
+DOC-05 là authority của HTTP. Spring resolve child resource, kiểm tenant và path-parent containment, rồi mới RBAC. Mismatch trả `404` hoặc `403` theo anti-enumeration policy.
+
+```mermaid
+flowchart LR
+  CLIENT[JWT client] --> RESOLVE[Resolve resource]
+  RESOLVE --> TENANT{Tenant match?}
+  TENANT -->|no| DENY[403/404]
+  TENANT -->|yes| PARENT{Path containment?}
+  PARENT -->|no| DENY
+  PARENT -->|yes| ROLE{Role permitted?}
+  ROLE -->|no| DENY
+  ROLE -->|yes| ACT[Execute/append revision]
+```
+
+```mermaid
+sequenceDiagram
+  participant R as Reviewer
+  participant UI as Evidence UI
+  participant API as Spring
+  participant DB as Audit store
+  R->>UI: mở finding/citation
+  UI->>API: resolve source/render được phép
+  API-->>UI: page, raw quote, CPS overlay
+  R->>API: CONFIRM/CORRECT/REJECT/REQUEST_EVIDENCE
+  API->>DB: append ReviewRevision bằng CAS
+  R->>API: complete review và approve output
+  API->>DB: append completion/approval revision bằng CAS
+```
+
+Review, relation review, batch action, re-OCR action phải giữ actor/time/reason/idempotency; stale revision trả `409`. Approval là internal sign-off của Reviewer, không phải legal approval.
+
+## 11. Security, observability và egress
+
+| Control | Kiến trúc áp dụng |
+|---|---|
+| Isolation | tenant + containment trước RBAC; storage/cache key theo tenant |
+| Integrity | SHA-256, source/version bất biến, render/source digest lineage |
+| Upload safety | MIME/magic, AV, encrypted/corrupt PDF handling, pixel/time limit |
+| Audit | review/action/grant/retry append-only |
+| Privacy | không log source/OCR/prompt/signed URL; retention tombstone/purge verification |
+
+```mermaid
+flowchart LR
+  API[Spring API] --> OTEL[OpenTelemetry collector]
+  AI[AI workers] --> OTEL
+  OTEL --> MET[Metrics/dashboard]
+  OTEL --> TRACE[Traces]
+  OTEL --> LOG[Redacted logs]
+  DB[(Business/audit ledger)] --> REP[Operational reports]
+  MET --> ALERT[Alerts/runbook]
+```
+
+Theo dõi task age, lease reclaim, page/chunk eligibility, unresolved citation/reference, contract invalid, repair/submission counter, budget exhaustion, cache hit, batch state, cost và review queue age. Dossier/page ID chỉ nằm ở trace/audit, không làm metric label vô hạn.
+
+```mermaid
+flowchart TD
+  E[External candidate] --> C{Classification và consent hợp lệ?}
+  C -->|no| HOLD[DENIED/AWAITING_REVIEW]
+  C -->|yes| P{Provider/model/region/retention allowlisted?}
+  P -->|no| HOLD
+  P -->|yes| B{Budget còn?}
+  B -->|no| HOLD
+  B -->|yes| G[Append immutable single-use grant]
+  G --> U[Consume grant atomically]
+  U --> Q[Queue page/crop tối thiểu]
+```
+
+## 12. Evaluation, release và acceptance
+
+Fixture chứng minh contract integration, không chứng minh OCR quality. DOC-06 chỉ được claim khi có dataset được phép, gold/adjudication, denominator, execution/config provenance và điều kiện chạy.
+
+| Dimension | Candidate measurement |
+|---|---|
+| OCR | CER, WER, diacritic accuracy, critical-field accuracy |
+| Geometry/citation | bbox coverage/IoU, quote/span/word resolve exact |
+| Structure/table | hierarchy và table/cell exactness |
+| Fact/finding | precision/recall/F1 theo type/source pair, reviewer outcome |
+| Operations | p50/p95 page/dossier, throughput, retry/cost |
+
+```mermaid
+stateDiagram-v2
+  [*] --> DRAFT
+  DRAFT --> STATIC_VALIDATED
+  STATIC_VALIDATED --> DEV_EVALUATED
+  DEV_EVALUATED --> HOLDOUT_QUEUED
+  HOLDOUT_QUEUED --> HOLDOUT_EVALUATED
+  HOLDOUT_EVALUATED --> APPROVED_FOR_SHADOW
+  APPROVED_FOR_SHADOW --> SHADOWING
+  SHADOWING --> APPROVED_FOR_CANARY
+  APPROVED_FOR_CANARY --> CANARYING
+  CANARYING --> ACTIVE
+  ACTIVE --> ROLLED_BACK
+  DEV_EVALUATED --> REJECTED
+  HOLDOUT_EVALUATED --> REJECTED
+```
+
+Config bundle immutable/digested. Dataset split theo source/template/dossier family. Promotion kiểm citation, geometry, critical fact, failure/needs-evidence, cost theo stratum; missing/failed vẫn thuộc denominator. Rollback tạo binding mới và giữ historical run.
+
+```mermaid
+gantt
+  title Trình tự triển khai kiến trúc
+  dateFormat YYYY-MM-DD
+  section Nền tảng
+  Chốt ADR và contracts :a1, 2026-09-17, 3d
+  Spring storage/task/outbox :a2, after a1, 5d
+  section Evidence slice
+  Native và scan snapshot/CPS :b1, after a2, 5d
+  Clause/fact/citation viewer :b2, after b1, 5d
+  section Intelligence
+  Annex/finding/HITL revision :c1, after b2, 5d
+  Bounded re-OCR và batch :c2, after c1, 4d
+```
+
+Gantt chỉ thể hiện dependency, không phải cam kết tiến độ.
+
+### Acceptance và open decisions
+
+Acceptance architecture: reject tampered digest/unknown schema/stale lease/unauthorized path; snapshot v3 full inventory và Unicode/CPS citation round-trip; 50-page dossier thấy rõ missing middle page; external OCR bị chặn khi chưa có valid consumed grant; CAS lineage cho review/relation/re-OCR/batch; finding hai phía nguồn; report có dataset, `n`, config và denominator.
+
+| Open decision | Owner/evidence |
+|---|---|
+| OCR/layout engine chính và fallback | AI1 + DOC-06 benchmark + mentor |
+| DPI/preprocessing profile | benchmark đo được, không mặc định quality promise |
+| Laptop concurrency/dossier limit | operational measurement |
+| External provider enablement | mentor/policy approval; default deny |
+| Semantic comparison scope | DOC-02 và reviewer validation |
+
+Mọi thay đổi ADR, contract, lifecycle, role hoặc evidence rule phải có change record theo ngày và đồng bộ DOC-01…DOC-06/contracts.
+
+## 13. API và boundary nội bộ chi tiết
+
+DOC-05 là authority cho đường dẫn, request/response DTO, RBAC và mã lỗi HTTP. DOC-04 chỉ định boundary và invariant; implementation không được tự mở endpoint OCR direct để “cho tiện demo”.
+
+| Nhóm API | Năng lực | Invariant kiến trúc |
 |---|---|---|
-| Config Registry | Canonicalize, validate, digest, persist immutable config bundle | Tự activate/publish config |
-| Experiment Harness | Enqueue `EVAL` task, reserve budget, pin input/config | Dùng production task pool hoặc customer output |
-| Optimizer sandbox | Đọc aggregate/redacted error slices; tạo typed candidate patch | Raw source/OCR/prompt/gold/holdout, shell/SQL/URL, DB/object storage, egress, deployment |
-| Sealed evaluator | Chạy locked holdout và score policy đã preregister | Tiết lộ membership/sample-level result cho optimizer |
-| Promotion Controller | Enforce gate, approvals, shadow/canary/rollback binding | Sửa snapshot/finding/review lịch sử |
-| Egress Broker | Cấp one-time request grant và usage audit | Cấp credential provider trực tiếp cho worker |
+| Intake | Tạo dossier, upload source, confirm manifest | Source chỉ được tạo version mới; manifest pin document/source digest. |
+| Processing | Tạo/list/get run, coverage ledger | Rerun là whole-dossier; không mutate run/snapshot cũ. |
+| Evidence | List finding, resolve citation | Render/object URL phải scoped, short-lived và tenant-bound. |
+| Review | Append finding/relation/approval revision | Mọi ghi sửa là append-only, CAS, có actor/time/reason. |
+| Batch | Tạo batch, list item, retry/cancel item | Membership bất biến; action không ảnh hưởng item khác. |
+| Re-OCR | Query request, local retry/cancel audited | Public API không tạo direct re-OCR hoặc external route. |
+| Internal policy | Append external approval grant | mTLS service command, không phải public operator endpoint. |
 
-### 12.1 Config và execution reproducibility
-
-`config_bundle` là canonical JSON bất biến cho toàn bộ S1–S10, có `id`, `digest`, `parent_id`, `schema_version`, `policy_version`, `code_image_digest`, `dependency_lock_digest` và component refs/digests cho routing, render, preprocess, OCR/layout, rules, normalizer, comparison, prompt/model template và timeout/retry. Bundle chỉ chứa declarative allowlist; không chứa secret, code, arbitrary URL hay provider/model không đăng ký.
-
-Khi tạo run, Spring resolver chọn active binding theo tenant/classification/consent/policy và persist `execution_manifest`: source/document/page scope, parent lineage, bundle/policy/routing digest, container/code/runtime digest, requested/actual engine-model-provider, seed và replay status. Retry giữ manifest; rerun/re-OCR tạo run mới. Provider call không deterministic phải ghi `replay=false`, không được gọi là reproduction.
-
-### 12.2 Dataset, experiment và promotion lifecycle
-
-Dataset/gold release append-only, có consent/classification/retention, item manifest digest, gold/adjudication digest và split theo source/template/dossier family. `DEV` dùng cho vòng lặp; `SEALED_HOLDOUT` chỉ evaluator được đọc. Product review correction chỉ vào dataset release mới sau curation, consent, dual annotation và adjudication.
-
-`optimization_campaign` pin baseline, DEV release, objective, allowed knobs, quota và iteration cap. Một proposal chỉ đổi một logical component hoặc coupled bundle đã được phê duyệt. Baseline/candidate chạy trên đúng cùng materialized inputs; metric lưu stratum, denominator, TP/FP/FN, failed/not-run, CI và redacted error taxonomy.
-
-```text
-DRAFT → STATIC_VALIDATED → DEV_EVALUATED → AWAITING_RELEASE
-      → HOLDOUT_QUEUED → HOLDOUT_EVALUATED → APPROVED_FOR_SHADOW
-      → SHADOWING → APPROVED_FOR_CANARY → CANARYING → ACTIVE → RETIRED
-                                  ↘ REJECTED | PAUSED | ROLLED_BACK
+```mermaid
+sequenceDiagram
+  actor U as Client
+  participant G as Spring API
+  participant R as Resource resolver
+  participant P as Policy/RBAC
+  participant D as Domain service
+  U->>G: Request + JWT + Idempotency-Key
+  G->>R: Resolve resource và parent path
+  R-->>G: tenant + containment result
+  G->>P: Check tenant, role, data classification
+  P-->>G: allow/deny
+  alt allow
+    G->>D: Execute immutable command/query
+    D-->>G: Result + revision/ETag
+    G-->>U: 2xx
+  else deny hoặc stale
+    G-->>U: 403/404/409/422 Problem Details
+  end
 ```
 
-Optimizer chỉ được tạo ba trạng thái đầu và tự chạy DEV trong quota. Holdout, shadow, canary, activation và rollback yêu cầu role người dùng riêng; proposer, evaluator holdout và release approver phải tách biệt.
+### 13.1 Idempotency, CAS và audit action
 
-### 12.3 Evidence-first promotion và rollback
+* Command tạo resource dùng `idempotency_key` scoped theo tenant/operation/request digest.
+* Action mutation dùng expected ETag hoặc expected previous revision. Khác revision phải trả `409`; server không last-write-wins.
+* Re-OCR action revision giữ `prior_request_etag`, `resulting_request_etag`, actor, reason và idempotency key.
+* Batch `CANCEL` không sinh `PipelineRun`; batch `RETRY` phải sinh chính xác một resulting run.
+* Relation review bind đúng `relationship_id`, `manifest_id`, `document_id`, source digest và citation IDs, không dùng free-text relationship key.
 
-`promotion_policy` preregister primary metric, strata, denominator, paired source-family CI/non-inferiority, safety/error/cost ceilings. Không dùng overall accuracy. Candidate phải không regression citation exact/validity, geometry coverage/IoU, critical fact, conflict false positive, failure hoặc Needs-evidence theo từng stratum; missing/failed không được loại khỏi mẫu số. Không có permitted dataset, policy threshold hoặc dual approval thì promotion bị disable.
+## 14. HITL, approval và UX evidence
 
-Shadow chỉ ghi artifact cách ly, không tạo public finding/review. Canary dùng dossier-hash sticky routing, có expiry và auto-pause cho integrity, egress, budget hoặc hard-error violation. Rollback tạo binding mới tới last-known-good config cho run mới; run, snapshot, finding và review cũ vẫn pin manifest ban đầu.
+### 14.1 Các màn hình bắt buộc
 
-### 12.4 Egress, cost và observability
+| Màn hình | Dữ liệu phải hiện | Hành động |
+|---|---|---|
+| Danh sách dossier/job | trạng thái, tiến độ, lỗi đọc được, batch summary | mở, retry trong quyền hạn |
+| Evidence viewer | PDF/render gốc, raw OCR, page/line/word/clause bbox, citation quote | zoom, điều hướng citation |
+| Finding panel | disposition, context, evidence A/B, gap/reason | mở hai nguồn đồng thời |
+| Review panel | machine value, human overlay, history revision | confirm/correct/reject/request evidence |
+| Approval | manifest/run/review watermark được pin | approve nội bộ hoặc xem revision trước |
 
-Worker không có unrestricted outbound network hoặc provider credential. Egress Broker kiểm tenant, classification, consent, config/policy, provider/model/region/retention, page/crop scope và budget; rồi cấp grant single-use, expiry-bound theo task attempt. Provider outage/rate limit không được silent-switch engine trong cùng run.
+```mermaid
+flowchart LR
+  LIST[Dossier list] --> DETAIL[Dossier detail]
+  DETAIL --> SOURCE[Source và OCR viewer]
+  DETAIL --> FIND[Finding queue]
+  FIND --> LEFT[Evidence A]
+  FIND --> RIGHT[Evidence B]
+  LEFT --> REV[Review revision]
+  RIGHT --> REV
+  REV --> COMPLETE[Review completion]
+  COMPLETE --> APPROVE[Reviewer approval]
+```
 
-`budget_reservation` và `usage_ledger` idempotent theo experiment/task/provider request; quota tách theo tenant/dataset/campaign và EVAL pool không được làm nghẽn PROD pool. Telemetry service, kể cả tracker experiment, là external processor: mặc định metadata-only, không raw PDF/OCR/prompt/output/annotation/signed URL; registry nội bộ vẫn là source of truth.
+### 14.2 Quy tắc UX evidence
 
-## 13. Evaluation và release gates
+1. Highlight phải dựa trên CPS cùng render digest với citation; không vẽ bbox “ước lượng”.
+2. `derived`, `line_only` và `absent` luôn có nhãn provenance rõ ràng.
+3. Khi page/chunk không evidence-eligible, UI phải hiển thị `INSUFFICIENT_EVIDENCE`, không hiển thị finding như kết quả chắc chắn.
+4. Correction của người dùng là overlay; màn hình luôn xem được machine output/citation gốc.
+5. Reviewer approval chỉ xuất hiện khi policy review completion thỏa và output được pin.
 
-Synthetic fixtures chỉ kiểm integration, không là bằng chứng chất lượng. Gate B yêu cầu dataset được phép dùng, provenance source→render→snapshot, locked holdout tách source family, dual annotation/adjudication và report có denominator/CI.
+## 15. Observability, dashboard, alert và runbook
 
-Đo CER/WER/diacritic accuracy khi có gold; geometry coverage và IoU theo `bbox_source`; table/structure/fact/context/citation exact-match; structured finding precision/recall/F1; semantic candidate/reviewer outcome; Needs-evidence rate; latency/cost thực đo. Missing geometry là coverage failure, không được bỏ khỏi mẫu số. Không đặt số threshold, model winner hay cost claim trước benchmark và Leader/Mentor approval.
+### 15.1 Trace, metric, log
 
-## 14. Delivery sequence và acceptance
+| Tín hiệu | Nội dung | Không được ghi |
+|---|---|---|
+| Trace | `dossier_id` hash/ref, run/task/attempt, config digest, route, duration, error code | raw PDF/OCR/prompt/signed URL |
+| Metric | throughput, latency, error class, queue depth, coverage/gap, cache, budget | page/dossier ID làm high-cardinality label |
+| Log | structured event, actor/service, correlation/idempotency, reason code | contract text, PII, credential |
+| Audit ledger | source/version/revision/grant/usage/action lineage | thay thế bằng sampled telemetry |
 
-1. Freeze ADR, DOC-05, snapshot schema, manifest/finding/review contracts; xây mock worker và cross-language contract tests.
-2. Foundation Spring: storage, Flyway entities, outbox/task lease/recovery, validator, immutable audit và Config Registry/Execution Manifest.
-3. Native/local OCR vertical slice: CPS/render/snapshot, citation overlay, quarantine legacy; Dataset/Gold Registry và deterministic metric harness.
-4. DEV-only optimization campaign cho render/preprocess/OCR routing/rules; budget/queue isolation, error slices và no-egress proof.
-5. Promotion Controller, sealed evaluator, shadow/canary/rollback binding; Gate B, rồi mới external semantic route và batch hardening.
+```mermaid
+flowchart TB
+  API[Spring API spans] --> COL[OTel collector]
+  W[Worker spans] --> COL
+  COL --> TR[Trace backend]
+  COL --> MT[Metrics backend]
+  COL --> LG[Redacted logs]
+  MT --> DB1[Operations dashboard]
+  MT --> AL[Alert rules]
+  AL --> RB[Runbook action]
+  AUD[(PostgreSQL audit)] --> REP[Audit/cost report]
+```
 
-Minimum acceptance: tampered digest/legacy input bị reject; unicode/rotation/table citation round-trip; duplicate/crash/reclaim/barrier test; concurrent review CAS; external-disabled proves no egress; optimizer forbidden-capability tests; family-split leakage rejection; promotion guardrail/approval failure; rollback preserves historical provenance; một provenance chain thật được audit trước rollout.
+### 15.2 Dashboard tối thiểu
+
+| Dashboard | Câu hỏi cần trả lời |
+|---|---|
+| Intake & queue | Dossier nào chờ, task nào lease quá hạn, worker có nghẽn không? |
+| OCR/layout | Route native/scan/mixed, failed page, low-quality, geometry gap ở đâu? |
+| Evidence/IDP | Chunk chưa finalize, citation unresolved, finding/gap theo loại? |
+| Review | Queue age, stale CAS, correction/reject/request-evidence rate? |
+| External/cost | External hold, grant consumed/revoked/expired, usage/budget exhaustion? |
+| Batch | Done/failed/needs-review, retry, item không có progress? |
+
+### 15.3 Alert và runbook
+
+| Điều kiện | Alert | Runbook đầu tiên |
+|---|---|---|
+| Task lease hết hạn tăng | Worker/recovery degraded | xem task attempt, worker heartbeat, reclaim bounded task |
+| Page coverage thiếu | Dossier evidence incomplete | xem page ledger, retry đúng page/region hoặc tạo review item |
+| Citation resolve fail | Evidence integrity failure | kiểm snapshot/render digest, span/word mapping, không publish fact |
+| Provider 429/5xx | External route degraded | dừng retry sau budget, giữ `NEEDS_EVIDENCE`, không silent-switch |
+| Cost/budget gần cap | Policy budget warning | pause new external task, kiểm usage ledger và approval |
+| 409 tăng bất thường | UX concurrency issue | reload/rebase client, kiểm ETag/action pattern |
+
+## 16. Dataset, ground truth và evaluation protocol
+
+### 16.1 Dataset manifest
+
+Dataset release là append-only, có `dataset_id`, version, source permission/classification, item digest, language/quality tag, family split, ground-truth/adjudication version và retention policy. Raw mentor sample không được commit repo.
+
+```mermaid
+flowchart LR
+  SRC[Permitted sources] --> MAN[Dataset manifest]
+  MAN --> DEV[DEV split]
+  MAN --> HOLD[Sealed holdout]
+  DEV --> EXP[Benchmark/experiment]
+  HOLD --> EVAL[Controlled evaluator]
+  EXP --> REPORT[DOC-06 report]
+  EVAL --> REPORT
+```
+
+| Nhóm mẫu cần cover | Ví dụ |
+|---|---|
+| PDF type | text-layer, clean scan, low-quality scan, mixed page |
+| Ngôn ngữ | Việt, Anh, Việt–Anh, dấu tiếng Việt khó |
+| Layout | Điều/Khoản/Điểm, bảng, merged cell, cross-page clause/table |
+| Nhiễu | rotation, skew, blur, low contrast, compression, seal overlap |
+| Dossier relation | contract-only, annex rõ tham chiếu, annex relation mơ hồ |
+| Failure injection | missing middle page, output truncation, unresolved reference, stale citation |
+
+### 16.2 Metric và denominator
+
+| Năng lực | Metric | Quy tắc denominator |
+|---|---|---|
+| OCR | CER/WER/diacritic/critical-field accuracy | báo theo document class, language, scan quality |
+| Geometry | coverage, IoU, citation hit/exact span | missing geometry là lỗi coverage, không loại khỏi mẫu |
+| Structure/table | exact hierarchy/table-cell correctness | ghi rõ item count và annotation policy |
+| Fact/finding | precision/recall/F1, candidate/reviewer outcome | failed/not-run/abstain phải được báo riêng |
+| Operation | p50/p95, throughput, cost/dossier | cùng corpus, config, hardware và `n` |
+
+Synthetic fixture chỉ chứng minh contract/integration; không được dùng thay kết quả OCR quality.
+
+## 17. Chi phí, capacity và external service register
+
+### 17.1 Usage ledger
+
+`usage_ledger` idempotent theo task/provider request. Record tối thiểu: tenant, run/task/attempt, provider/profile/model, request/crop digest, input/output unit, currency, status, timestamp, policy/config digest và external grant ID nếu có.
+
+```mermaid
+flowchart LR
+  TASK[Bounded task] --> RES[Budget reservation]
+  RES --> GRANT[Policy/grant check]
+  GRANT --> CALL[Provider call]
+  CALL --> USE[Usage ledger]
+  USE --> COST[Cost report]
+  USE --> LIMIT[Quota/budget gate]
+```
+
+Cost report phải nêu corpus, số dossier/page, số local/external call, retry/repair, config/profile, thời gian và công thức estimate. Không công bố chi phí “mỗi 1.000 dossier” nếu chưa đo từng thành phần.
+
+### 17.2 Capacity benchmark
+
+Capacity được đo theo laptop/profile thực: max pages/document, annex/dossier, dossier/batch, memory peak, queue wait, p50/p95, provider rate limit và failure mode. Không suy capacity từ số worker cấu hình.
+
+### 17.3 External service register
+
+| Thuộc tính bắt buộc | Ý nghĩa |
+|---|---|
+| Provider/model/profile/version | quyết định chính xác engine nào xử lý artifact |
+| Classification/consent/region/retention | quyết định dữ liệu có thể rời trust boundary không |
+| Egress grant/usage | chứng minh ai duyệt, task nào dùng, đã consume bao nhiêu |
+| Fallback policy | local fallback/hold/review, không silent provider switch |
+
+## 18. Security, retention và vận hành local
+
+### 18.1 Security control chi tiết
+
+* Validate magic byte, MIME, encrypted/corrupt PDF, page count, pixel/render budget trước worker.
+* Encrypt data at rest/in transit theo môi trường; secret chỉ từ secret store/environment, không in logs/repo.
+* Object read bằng authorization theo tenant/resource; không expose internal URI/public callback URL.
+* Egress broker là nơi duy nhất có credential provider. Worker không có unrestricted outbound network.
+* Cache key chứa tenant/classification và digest/version để tránh artifact cross-tenant.
+* Retention dùng tombstone + async purge verification; không tự xóa legacy sample khi data owner chưa quyết định custody.
+
+### 18.2 Profile local và one-command
+
+| Profile | Thành phần | Dùng cho |
+|---|---|---|
+| `local-baseline` | Spring, PostgreSQL, filesystem artifact, AI1/AI2 local | development/demo mặc định |
+| `observability` | thêm OTel/metrics/traces theo compose | debug/vận hành, metadata-only |
+| `external-approved` | egress broker + profile allowlist | chỉ dataset/policy/mentor đã duyệt |
+
+README implementation phải có một lệnh khởi động documented, health check, sample synthetic và shutdown/backup guide. Không khẳng định command đã chạy được nếu chưa có implementation thật.
+
+### 18.3 Backup, restore và shutdown
+
+Backup gồm PostgreSQL dump/point-in-time strategy, artifact digest inventory và config/execution manifest. Restore phải verify digest/object reference trước mở queue. Shutdown dừng intake, drain/lease-expire task theo policy, không mark task thành công giả tạo.
+
+## 19. Kiểm thử và quality gate
+
+| Lớp test | Case bắt buộc |
+|---|---|
+| Contract | JSON Schema, semantic validation, Unicode span, CPS ordering, source/line/word/table refs |
+| Integration | outbox/inbox dedupe, lease/crash/reclaim, artifact digest, parent containment, RBAC |
+| Pipeline | native/scan/mixed, blank page, long document missing page, cross-page continuation |
+| IDP | context gate, all dispositions, two-sided evidence, relation confirm requirement |
+| Re-OCR | scope/action matrix, bounded counter, external hold/grant/consume/revoke/expiry, invalidation lineage |
+| HITL | append-only correction, stale CAS, viewer bbox/citation resolve, Reviewer approval pinning |
+| Security | forbidden egress, prompt injection as data, secret/log redaction, cross-tenant access denial |
+| Regression | fixed permitted corpus and synthetic failure fixtures per config change |
+
+```mermaid
+flowchart LR
+  UNIT[Unit + contract] --> INT[Integration]
+  INT --> PIPE[Pipeline regression]
+  PIPE --> EVAL[Evaluation gate]
+  EVAL --> MENTOR[Mentor/team review]
+  MENTOR --> RELEASE[Controlled release]
+```
+
+Release bị block nếu valid fixture không được accept, invalid fixture không bị reject, source lineage không resolve, page ledger không reconcile, hoặc policy/consent/egress audit thiếu.
+
+## 20. Delivery roadmap, traceability và mentor review
+
+### 20.1 Delivery sequence
+
+| Giai đoạn | Deliverable thực tế | Không được claim |
+|---|---|---|
+| Sprint 1 | DOC-01…06 draft, dataset/GT plan, OCR spike, bbox trên trang thật, wireframe | production readiness/accuracy chưa đo |
+| Foundation | Spring schema/migration, storage, task/outbox/lease, contract validator | full semantic model hoặc external route |
+| Evidence slice | native+scan snapshot, CPS, clause/fact/citation viewer | chất lượng cho mọi scan/ngôn ngữ |
+| Intelligence | annex link, finding, HITL revision, bounded repair/batch | legal amendment conclusion |
+| Gate B | benchmark report, audit provenance, controlled external decision | SLA nếu chưa có capacity evidence |
+
+### 20.2 Traceability matrix
+
+| Nguồn yêu cầu | DOC-04 đáp ứng |
+|---|---|
+| DOC-01 evidence-first/human accountable | immutable provenance, grounding gate, reviewer approval |
+| DOC-02 OCR/bbox/citation | snapshot v3, CPS, semantic validator, evidence viewer |
+| DOC-02 dossier/finding/HITL/batch | manifest, context gate, revision, queue, batch item lineage |
+| DOC-03 product acceptance | lifecycle, role, UX evidence, failure transparency |
+| DOC-05 public contract | containment/RBAC/CAS/internal boundary |
+| DOC-06 evaluation | dataset manifest, denominator, benchmark/cost protocol |
+
+### 20.3 Kịch bản review mentor 10–15 phút
+
+1. Nêu problem: PDF dài, scan/native/bảng/phụ lục khó kiểm chứng.
+2. Upload dossier synthetic hoặc được phép; cho thấy manifest, page ledger và run state.
+3. Mở fact/finding; click qua hai citation/bbox trên source.
+4. Mô phỏng page quality gap; giải thích vì sao không hallucinate và chỉ repair phạm vi hẹp.
+5. Thực hiện review correction/approval; chứng minh history append-only.
+6. Cho thấy batch failure isolation, audit/cost/coverage report và các quyết định còn mở.
+
+## 21. IDP tốc độ cao và chống hallucination
+
+### 21.1 Ba đơn vị xử lý khác nhau
+
+| Đơn vị | Mục đích | Không được làm |
+|---|---|---|
+| OCR chunk | 1 page hoặc crop | Không mất vùng chưa đọc, không đọc cả PDF vào RAM |
+| Extraction chunk | Clause/subsegment có source IDs | Không cắt giữa câu, bảng, ngoại lệ hoặc continuation |
+| Comparison packet | Fact/clause A+B và context/reference cần thiết | Không dùng summary thay raw source citation |
+
+```mermaid
+flowchart LR
+  P[Page/crop OCR] --> S[Snapshot + source anchors]
+  S --> C[Clause/table chunks]
+  C --> F[Fact candidates + exact citation]
+  F --> R[Reference/context retrieval]
+  R --> K[Comparable A/B packet]
+  K --> D[Structured/semantic comparison]
+  D --> G[Grounding + coverage gate]
+```
+
+Overlap chunk phải giữ source IDs. Reducer deduplicate theo source anchor và field type, không chỉ theo text/value. Một giá trị giống nhau ở hai điều khoản vẫn là hai occurrence khác nhau.
+
+### 21.2 Vòng repair đúng nguyên nhân
+
+| Validation fail | Hành động repair | Điều kiện dừng |
+|---|---|---|
+| Quote/span không tồn tại | resolve source hoặc đọc lại crop cụ thể | không match → unknown/review |
+| Money/date giữa engine bất đồng | crop có header/currency/context | còn bất đồng → review, không majority vote |
+| Clause thiếu ngoại lệ | lấy neighbor/reference source rõ ràng | không resolve/hết budget → insufficient evidence |
+| JSON/refusal/truncation | xử lý status, split output có giới hạn | không hợp lệ → task issue |
+| Bbox không align | dùng geometry/alignment đã persist | không tự sinh bbox chính xác |
+
+```mermaid
+flowchart TD
+  START[Task candidate] --> CALL[Bounded call/parse]
+  CALL --> CHECK{Schema/source/context/coverage pass?}
+  CHECK -->|yes| ART[Immutable candidate artifact]
+  CHECK -->|no, actionable| REPAIR[Repair chỉ vùng/context lỗi]
+  REPAIR --> BUD{Còn budget?}
+  BUD -->|yes| CALL
+  BUD -->|no| ISSUE[Unknown + reason + review task]
+```
+
+### 21.3 Confidence có ý nghĩa
+
+Không dùng câu model tự báo `confidence=0.98` như 98% chính xác. OCR confidence là engine signal; fact/finding quality nên là tập signal: source resolved, exact span, normalization valid, context complete, OCR disagreement, coverage state. Nếu chưa calibration bằng held-out set, score phải có `score_kind=heuristic`, version công thức và không được auto-approve.
+
+### 21.4 Envelope và partial result
+
+```json
+{
+  "dossier_id": "...",
+  "run_id": "...",
+  "is_partial": true,
+  "coverage": {"expected_pages": 50, "completed_pages": 49, "failed_pages": 1},
+  "facts": [],
+  "findings": [],
+  "issues": [{"code": "PAGE_PROCESSING_FAILED", "page_number": 27}],
+  "review_required": true
+}
+```
+
+Đây là envelope minh họa; wire shape thật theo DOC-05/contracts. `not_found` chỉ được trả khi phạm vi tìm liên quan đã hoàn tất theo policy. Khi page/chunk còn thiếu, trạng thái đúng là `unknown_due_to_incomplete_processing` hoặc `INSUFFICIENT_EVIDENCE`, không phải “không có thông tin”.

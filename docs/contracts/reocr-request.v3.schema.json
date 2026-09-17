@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractintel.internal/schemas/reocr-request.v3.json",
+  "title": "Spring Re-OCR Request v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "evidence_gap_event_id", "correlation_id", "idempotency_key", "dossier_id", "source_snapshot_id", "target", "reason_code", "evidence_refs", "artifact_refs", "priority", "repair_action", "coverage_requirement", "resolved_route", "selected_profile_id", "state", "budget", "created_at"],
+  "properties": {
+    "schema_version": {"const": "reocr-request.v3"},
+    "request_id": {"type": "string", "format": "uuid"},
+    "evidence_gap_event_id": {"type": "string", "format": "uuid"},
+    "correlation_id": {"type": "string", "format": "uuid"},
+    "idempotency_key": {"type": "string", "minLength": 16},
+    "parent_request_id": {"type": ["string", "null"], "format": "uuid"},
+    "dossier_id": {"type": "string", "format": "uuid"},
+    "source_snapshot_id": {"type": "string", "format": "uuid"},
+    "target": {"$ref": "#/$defs/target"},
+    "reason_code": {"enum": ["LOW_QUALITY", "MISSING_GEOMETRY", "CRITICAL_AMBIGUITY", "TABLE_PARSE_FAILURE", "CITATION_BINDING_FAILURE", "CROSS_PAGE_CONTINUATION", "EVIDENCE_DISAGREEMENT", "OUTPUT_TRUNCATION"]},
+    "repair_action": {"enum": ["REGION_RESCAN", "PAGE_PAIR_CONTEXT", "OUTPUT_SPLIT"]},
+    "coverage_requirement": {"enum": ["TARGET_ONLY", "TARGET_AND_CONTINUATION"]},
+    "evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string"}, "uniqueItems": true},
+    "artifact_refs": {"type": "array", "minItems": 1, "items": {"type": "string"}, "uniqueItems": true},
+    "priority": {"enum": ["LOW", "NORMAL", "HIGH", "CRITICAL"]},
+    "resolved_route": {"enum": ["LOCAL_AUTO", "EXTERNAL_REVIEW_REQUIRED", "EXTERNAL_APPROVED", "DENIED"]},
+    "selected_profile_id": {"type": ["string", "null"]},
+    "external_approval_grant_id": {"type": ["string", "null"], "format": "uuid"},
+    "budget": {"type": "object", "additionalProperties": false, "required": ["max_transport_attempts", "max_quality_repairs", "max_provider_submissions", "max_crop_children", "max_crop_depth", "transport_attempts_used", "quality_repairs_used", "provider_submissions_used", "crop_children_used", "crop_depth_used"], "properties": {"max_transport_attempts": {"type": "integer", "minimum": 0, "maximum": 3}, "max_quality_repairs": {"type": "integer", "minimum": 0, "maximum": 1}, "max_provider_submissions": {"type": "integer", "minimum": 0, "maximum": 4}, "max_crop_children": {"type": "integer", "minimum": 0, "maximum": 4}, "max_crop_depth": {"type": "integer", "minimum": 0, "maximum": 1}, "transport_attempts_used": {"type": "integer", "minimum": 0, "maximum": 3}, "quality_repairs_used": {"type": "integer", "minimum": 0, "maximum": 1}, "provider_submissions_used": {"type": "integer", "minimum": 0, "maximum": 4}, "crop_children_used": {"type": "integer", "minimum": 0, "maximum": 4}, "crop_depth_used": {"type": "integer", "minimum": 0, "maximum": 1}}},
+    "state": {"enum": ["REQUESTED", "VALIDATED", "AWAITING_EXTERNAL_REVIEW", "QUEUED", "RUNNING", "SUCCEEDED", "PARTIAL", "FAILED", "QUARANTINED", "CANCELLED", "BUDGET_EXHAUSTED"]},
+    "result_snapshot_id": {"type": ["string", "null"], "format": "uuid"},
+    "outcome_code": {"type": ["string", "null"]},
+    "action_revisions": {"type": "array", "items": {"$ref": "#/$defs/action_revision"}},
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "allOf": [
+    {"if": {"properties": {"state": {"enum": ["SUCCEEDED", "PARTIAL"]}}}, "then": {"required": ["result_snapshot_id"], "properties": {"result_snapshot_id": {"type": "string"}}}},
+    {"if": {"properties": {"state": {"enum": ["FAILED", "QUARANTINED", "BUDGET_EXHAUSTED"]}}}, "then": {"required": ["outcome_code"], "properties": {"outcome_code": {"type": "string", "minLength": 1}}}},
+    {"if": {"properties": {"resolved_route": {"const": "DENIED"}}}, "then": {"properties": {"selected_profile_id": {"type": "null"}}}},
+    {"if": {"properties": {"resolved_route": {"const": "EXTERNAL_REVIEW_REQUIRED"}}}, "then": {"properties": {"state": {"const": "AWAITING_EXTERNAL_REVIEW"}, "selected_profile_id": {"type": "null"}, "external_approval_grant_id": {"type": "null"}}}},
+    {"if": {"properties": {"resolved_route": {"const": "EXTERNAL_APPROVED"}}}, "then": {"required": ["external_approval_grant_id"], "properties": {"external_approval_grant_id": {"type": "string"}, "selected_profile_id": {"type": "string"}}}},
+    {"if": {"properties": {"repair_action": {"const": "REGION_RESCAN"}}}, "then": {"properties": {"target": {"properties": {"scope": {"const": "REGION"}}}}}},
+    {"if": {"properties": {"repair_action": {"const": "PAGE_PAIR_CONTEXT"}}}, "then": {"properties": {"target": {"properties": {"scope": {"const": "PAGE_PAIR"}}}, "coverage_requirement": {"const": "TARGET_AND_CONTINUATION"}}}},
+    {"if": {"properties": {"repair_action": {"const": "OUTPUT_SPLIT"}}}, "then": {"properties": {"reason_code": {"const": "OUTPUT_TRUNCATION"}}}}
+  ],
+  "$defs": {
+    "action_revision": {"type": "object", "additionalProperties": false, "required": ["id", "request_id", "action", "actor_id", "prior_request_etag", "resulting_request_etag", "idempotency_key", "created_at"], "properties": {"id": {"type": "string", "format": "uuid"}, "request_id": {"type": "string", "format": "uuid"}, "action": {"enum": ["RETRY_LOCAL", "CANCEL"]}, "actor_id": {"type": "string", "format": "uuid"}, "prior_request_etag": {"type": "string", "minLength": 1}, "resulting_request_etag": {"type": "string", "minLength": 1}, "reason": {"type": ["string", "null"]}, "idempotency_key": {"type": "string", "minLength": 1}, "created_at": {"type": "string", "format": "date-time"}}},
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["document_id", "scope", "page_numbers"],
+      "properties": {
+        "document_id": {"type": "string", "format": "uuid"},
+        "scope": {"enum": ["REGION", "PAGE", "PAGE_PAIR"]},
+        "page_numbers": {"type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": {"type": "integer", "minimum": 1}},
+        "regions": {"type": "array", "minItems": 1, "maxItems": 4, "items": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "number", "minimum": 0, "maximum": 1}}}
+      },
+      "allOf": [
+        {"if": {"properties": {"scope": {"const": "REGION"}}}, "then": {"properties": {"page_numbers": {"minItems": 1, "maxItems": 1}}, "required": ["regions"]}},
+        {"if": {"properties": {"scope": {"const": "PAGE"}}}, "then": {"properties": {"page_numbers": {"minItems": 1, "maxItems": 1}}, "not": {"required": ["regions"]}}},
+        {"if": {"properties": {"scope": {"const": "PAGE_PAIR"}}}, "then": {"properties": {"page_numbers": {"minItems": 2, "maxItems": 2}}, "not": {"required": ["regions"]}}}
+      ]
+    }
+  }
+}
