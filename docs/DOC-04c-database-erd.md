@@ -51,7 +51,7 @@ Ngày tạo: 17/09/2026 · Cập nhật lần cuối: 17/09/2026
 
 | Phiên bản | Ngày | Người thực hiện | Nội dung |
 |---|---|---|---|
-| 1.0 | 17/09/2026 | Trần Văn Dũng | ERD đầy đủ 23 bảng, 8 domain, 23 index, trigger; khớp DOC-04b v1.0 |
+| 1.0 | 17/09/2026 | Phạm Hoàng Chương | ERD đầy đủ 23 bảng, 8 domain, 23 index, trigger; khớp DOC-04b v1.0 |
 
 ### 0.2 Quy ước trong tài liệu
 
