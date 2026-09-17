@@ -1,0 +1,247 @@
+[project]
+name = "contract-intelligence-backend"
+version = "0.1.0"
+description = "Backend API for Contract Intelligence - OCR/IDP/Citation/Conflict/HITL pipeline"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [
+    { name = "VSF OJT Batch 3 - Backend Engineer" },
+]
+
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "sqlalchemy[asyncio]>=2.0.30",
+    "alembic>=1.13.0",
+    "asyncpg>=0.29.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.4.0",
+    "python-multipart>=0.0.9",
+    "minio>=7.2.0",
+    "httpx>=0.27.0",
+    "python-ulid>=3.0.0",
+    "opentelemetry-api>=1.27.0",
+    "opentelemetry-sdk>=1.27.0",
+    "opentelemetry-instrumentation-fastapi>=0.48b0",
+    "structlog>=24.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=5.0.0",
+    "httpx>=0.27.0",
+    "ruff>=0.5.0",
+    "import-linter>=2.0",
+    "mypy>=1.10.0",
+    "types-python-dateutil>=2.9.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/contract_intelligence"]
+
+# -----------------------------------------------------------------------------
+# Ruff — linter + formatter
+# -----------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort (import order)
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "N",    # pep8-naming
+    "C4",   # flake8-comprehensions
+    "RET",  # flake8-return
+    "SIM",  # flake8-simplify
+    "TID",  # flake8-tidy-imports — enforces layer boundaries!
+    "TCH",  # flake8-type-checking
+    "ARG",  # flake8-unused-arguments
+    "PL",   # pylint
+]
+ignore = [
+    "PLR0913",  # too many arguments (DTOs)
+    "PLR2004",  # magic value (used in tests)
+]
+
+[tool.ruff.lint.tidy-imports]
+# Cấm import từ các layer "bị cấm" theo từng bounded context.
+# Đây là tuyến phòng thủ THỨ HAI bên cạnh import-linter.
+[tool.ruff.lint.tidy-imports.banned-api]
+"sqlalchemy.orm".msg = "Domain layer không được import trực tiếp từ SQLAlchemy ORM. Dùng Protocol trong domain/repositories/"
+"fastapi".msg = "Domain layer không được import FastAPI. Dùng router trong interfaces/"
+"pydantic".msg = "Domain layer nên dùng dataclass hoặc custom base. Pydantic chỉ dành cho DTO ở application layer."
+
+[tool.ruff.lint.isort]
+known-first-party = ["contract_intelligence", "shared"]
+combine-as-imports = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# -----------------------------------------------------------------------------
+# MyPy — strict type checking
+# -----------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["minio.*", "alembic.*"]
+ignore_missing_imports = true
+
+# -----------------------------------------------------------------------------
+# Pytest
+# -----------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--import-mode=importlib",
+]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+markers = [
+    "unit: unit tests (no DB)",
+    "integration: integration tests (needs DB)",
+    "architecture: architecture conformance tests",
+]
+
+# -----------------------------------------------------------------------------
+# Coverage
+# -----------------------------------------------------------------------------
+[tool.coverage.run]
+branch = true
+source = ["src/contract_intelligence"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+show_missing = true
+fail_under = 70
+
+# -----------------------------------------------------------------------------
+# import-linter — enforce DDD layer dependencies
+# Run: lint-imports
+# -----------------------------------------------------------------------------
+[tool.importlinter:contract_types]
+type = "forbidden"
+# Domain layer không được import từ application/infrastructure/interfaces
+# và không được import framework/ORM trực tiếp.
+source_modules = [
+    "contract_intelligence.contract.domain",
+    "contract_intelligence.extraction.domain",
+    "contract_intelligence.conflict.domain",
+    "contract_intelligence.review.domain",
+]
+forbidden_modules = [
+    "fastapi",
+    "sqlalchemy",
+    "alembic",
+    "minio",
+    "httpx",
+    "contract_intelligence.contract.application",
+    "contract_intelligence.contract.infrastructure",
+    "contract_intelligence.contract.interfaces",
+    "contract_intelligence.extraction.application",
+    "contract_intelligence.extraction.infrastructure",
+    "contract_intelligence.extraction.interfaces",
+    "contract_intelligence.conflict.application",
+    "contract_intelligence.conflict.infrastructure",
+    "contract_intelligence.conflict.interfaces",
+    "contract_intelligence.review.application",
+    "contract_intelligence.review.infrastructure",
+    "contract_intelligence.review.interfaces",
+]
+
+[tool.importlinter:contract_application]
+type = "layers"
+layers = [
+    "contract_intelligence.contract.interfaces",
+    "contract_intelligence.contract.application",
+    "contract_intelligence.contract.domain",
+]
+
+[tool.importlinter:contract_extraction]
+type = "layers"
+layers = [
+    "contract_intelligence.extraction.interfaces",
+    "contract_intelligence.extraction.application",
+    "contract_intelligence.extraction.domain",
+]
+
+[tool.importlinter:contract_conflict]
+type = "layers"
+layers = [
+    "contract_intelligence.conflict.interfaces",
+    "contract_intelligence.conflict.application",
+    "contract_intelligence.conflict.domain",
+]
+
+[tool.importlinter:contract_review]
+type = "layers"
+layers = [
+    "contract_intelligence.review.interfaces",
+    "contract_intelligence.review.application",
+    "contract_intelligence.review.domain",
+]
+
+[tool.importlinter:contract_cross_module]
+type = "forbidden"
+# Application layer của module A không được import infrastructure của module B.
+# Cross-module chỉ qua: shared kernel, domain event, application service public.
+source_modules = [
+    "contract_intelligence.contract.application",
+    "contract_intelligence.contract.infrastructure",
+]
+forbidden_modules = [
+    "contract_intelligence.extraction.infrastructure",
+    "contract_intelligence.conflict.infrastructure",
+    "contract_intelligence.review.infrastructure",
+    "contract_intelligence.extraction.interfaces",
+    "contract_intelligence.conflict.interfaces",
+    "contract_intelligence.review.interfaces",
+]
+
+[tool.importlinter:contract_infra_no_interfaces]
+type = "forbidden"
+# Infrastructure không được import interfaces (router/API).
+source_modules = [
+    "contract_intelligence.contract.infrastructure",
+    "contract_intelligence.extraction.infrastructure",
+    "contract_intelligence.conflict.infrastructure",
+    "contract_intelligence.review.infrastructure",
+]
+forbidden_modules = [
+    "contract_intelligence.contract.interfaces",
+    "contract_intelligence.extraction.interfaces",
+    "contract_intelligence.conflict.interfaces",
+    "contract_intelligence.review.interfaces",
+]

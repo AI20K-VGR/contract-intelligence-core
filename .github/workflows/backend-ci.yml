@@ -1,0 +1,130 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, feature/**]
+    paths: ["backend/**"]
+  pull_request:
+    branches: [main]
+    paths: ["backend/**"]
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Layer Conformance — import-linter (Dependency Rule)
+  # ---------------------------------------------------------------------------
+  lint-layers:
+    name: Layer Conformance (import-linter)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync --frozen --no-install-project
+        env:
+          UV_PROJECT_ENVIRONMENT: .venv
+
+      - name: Run import-linter
+        run: uv run python -m import_linter --config .importlinter
+        env:
+          UV_PROJECT_ENVIRONMENT: .venv
+
+  # ---------------------------------------------------------------------------
+  # Lint + Format
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Ruff Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync --frozen
+        env:
+          UV_PROJECT_ENVIRONMENT: .venv
+
+      - name: Run ruff check
+        run: uv run ruff check src/ tests/
+
+      - name: Run ruff format check
+        run: uv run ruff format --check src/ tests/
+
+  # ---------------------------------------------------------------------------
+  # Type check
+  # ---------------------------------------------------------------------------
+  typecheck:
+    name: MyPy Type Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync --frozen
+        env:
+          UV_PROJECT_ENVIRONMENT: .venv
+
+      - name: Run mypy
+        run: uv run mypy src/
+
+  # ---------------------------------------------------------------------------
+  # Unit Tests
+  # ---------------------------------------------------------------------------
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install test dependencies
+        run: uv sync --frozen
+        env:
+          UV_PROJECT_ENVIRONMENT: .venv
+
+      - name: Run unit tests
+        run: uv run pytest tests/unit/ -v --tb=short
+
+      - name: Run architecture tests (layer conformance)
+        run: uv run pytest tests/architecture/ -v --tb=short
