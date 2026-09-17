@@ -16,7 +16,7 @@ class ReviewTargetType(str, Enum):
     FACT = "fact"
     FINDING = "finding"
     ANNEX_LINK = "annex_link"
-    CLAUSE = "clause"
+    CLAUSE_NODE = "clause_node"
     TABLE_CELL = "table_cell"
     CITATION = "citation"
 

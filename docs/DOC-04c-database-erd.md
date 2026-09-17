@@ -1,12 +1,12 @@
 # DOC-04c · DATABASE ERD — Contract Intelligence
 
-**Sơ đồ quan hệ thực thể (ERD) — PostgreSQL v1.0**
+**Sơ đồ quan hệ thực thể (ERD) — PostgreSQL v1.1**
 
-Dự án: VSF OJT Batch 3 · Phiên bản 1.0
+Dự án: VSF OJT Batch 3 · Phiên bản 1.1
 Ngày tạo: 17/09/2026 · Cập nhật lần cuối: 17/09/2026
 
-> **Tài liệu này dành cho:** người mới onboard dự án muốn hiểu nhanh toàn bộ 23 bảng; reviewer kiến trúc muốn đối chiếu ERD ↔ DDL; thành viên viết Alembic migration muốn biết quan hệ trước khi sửa.
-> **DDL canonical:** `docs/DOC-04b-postgres-schema.sql` (516 dòng).
+> **Tài liệu này dành cho:** người mới onboard dự án muốn hiểu nhanh toàn bộ 26 bảng; reviewer kiến trúc muốn đối chiếu ERD ↔ DDL; thành viên viết Alembic migration muốn biết quan hệ trước khi sửa.
+> **DDL canonical:** `docs/DOC-04b-postgres-schema.sql` (560 dòng, v1.1).
 > **Quyết định kiến trúc:** xem `backend/CONTEXT.md` mục 5 (`5.2` Optimistic Concurrency, `5.3` Denormalize ngày, `5.4` Indexes).
 
 ---
@@ -14,7 +14,7 @@ Ngày tạo: 17/09/2026 · Cập nhật lần cuối: 17/09/2026
 ## Mục lục
 
 0. [Thông tin tài liệu](#0-thông-tin-tài-liệu)
-1. [Tổng quan 23 bảng](#1-tổng-quan-23-bảng)
+1. [Tổng quan 26 bảng](#1-tổng-quan-26-bảng)
 2. [ERD tổng (System Overview)](#2-erd-tổng-system-overview)
 3. [Domain 1 — Tổ chức & Nghiệp vụ](#3-domain-1--tổ-chức--nghiệp-vụ)
 4. [Domain 2 — Pipeline & Hàng đợi](#4-domain-2--pipeline--hàng-đợi)
@@ -51,7 +51,7 @@ Ngày tạo: 17/09/2026 · Cập nhật lần cuối: 17/09/2026
 
 | Phiên bản | Ngày | Người thực hiện | Nội dung |
 |---|---|---|---|
-| 1.0 | 17/09/2026 | Phạm Hoàng Chương | ERD đầy đủ 23 bảng, 8 domain, 23 index, trigger; khớp DOC-04b v1.0 |
+| 1.1 | 17/09/2026 | Claude | +doc_table, table_cell, clause_region; cập nhật 23→26 bảng, CHECK target_type; khớp DOC-04b v1.1 |
 
 ### 0.2 Quy ước trong tài liệu
 
@@ -67,7 +67,7 @@ Ngày tạo: 17/09/2026 · Cập nhật lần cuối: 17/09/2026
 
 ---
 
-## 1. Tổng quan 23 bảng
+## 1. Tổng quan 26 bảng
 
 | # | Bảng | Domain | Bất biến? | Mục đích chính |
 |---|---|---|---|---|
@@ -84,18 +84,21 @@ Ngày tạo: 17/09/2026 · Cập nhật lần cuối: 17/09/2026
 | 11 | `ocr_line` | 3 — Trang & OCR | 🔒 | Một dòng OCR (text + bbox CPS) |
 | 12 | `citation` | 5 — Citation | 🔒 | Trích dẫn: quote + bbox — cốt lõi BR-07 |
 | 13 | `clause_node` | 4 — Cấu trúc | 🔒 | Điều → Khoản → Điểm (cây) |
-| 14 | `fact` | 5 — Citation | 🔒 | Một thực thể trích xuất (tiền, ngày, bên, …) |
-| 15 | `annex_link` | 6 — Annex | 🔒 | Liên kết phụ lục ↔ hợp đồng chính |
-| 16 | `finding` | 6 — Annex | 🔒 | Một phát hiện conflict hoặc khớp |
-| 17 | `finding_side` | 6 — Annex | 🔒 | Hai phía (a, b) của finding |
-| 18 | `review_item` | 7 — HITL | ❌ | Hàng đợi review cho reviewer |
-| 19 | `review_action` | 7 — HITL | 🔒 | Append-only lịch sử thao tác reviewer |
-| 20 | `dossier_approval` | 7 — HITL | 🔒 | Snapshot ký duyệt cuối cùng |
-| 21 | `job_event` | 2 — Pipeline | 🔒 | Audit chuyển trạng thái job |
-| 22 | `page_step_stat` | 8 — Đo lường | 🔒 | Thời gian xử lý theo trang × bước |
-| 23 | `usage_ledger` | 8 — Đo lường | 🔒 | Token + USD cho mỗi call LLM |
+| 14 | `clause_region` | 4 — Cấu trúc | 🔒 | bbox trên mỗi trang cho clause_node (CPS) |
+| 15 | `doc_table` | 4 — Cấu trúc | 🔒 | Bảng phát hiện (layout) trên một trang |
+| 16 | `table_cell` | 4 — Cấu trúc | 🔒 | Ô trong doc_table (row/col/size/bbox/header) |
+| 17 | `fact` | 5 — Citation | 🔒 | Một thực thể trích xuất (tiền, ngày, bên, …) |
+| 18 | `annex_link` | 6 — Annex | 🔒 | Liên kết phụ lục ↔ hợp đồng chính |
+| 19 | `finding` | 6 — Annex | 🔒 | Một phát hiện conflict hoặc khớp |
+| 20 | `finding_side` | 6 — Annex | 🔒 | Hai phía (a, b) của finding |
+| 21 | `review_item` | 7 — HITL | ❌ | Hàng đợi review cho reviewer |
+| 22 | `review_action` | 7 — HITL | 🔒 | Append-only lịch sử thao tác reviewer |
+| 23 | `dossier_approval` | 7 — HITL | 🔒 | Snapshot ký duyệt cuối cùng |
+| 24 | `job_event` | 2 — Pipeline | 🔒 | Audit chuyển trạng thái job |
+| 25 | `page_step_stat` | 8 — Đo lường | 🔒 | Thời gian xử lý theo trang × bước |
+| 26 | `usage_ledger` | 8 — Đo lường | 🔒 | Token + USD cho mỗi call LLM |
 
-**Tổng:** 23 bảng (10 bất biến 🔒, 13 mutable), 23 index, 12 trigger, 3 view.
+**Tổng:** 26 bảng (13 bất biến 🔒, 13 mutable), 26 index, 15 trigger, 3 view.
 
 ---
 
@@ -614,6 +617,62 @@ erDiagram
 
 > **Cây:** Truy vấn đệ quy `WITH RECURSIVE` trên `parent_id` để dựng cây đầy đủ một document. UI render outline bên trái, click → scroll đến trang + highlight bbox.
 
+### 6.2 Bảng `clause_region` (🔒, bất biến) — BR-05
+
+Mỗi trang chứa điều khoản có thể có nhiều region (hình chữ nhật tách cột, phần ghi chú, …).
+
+| Cột | Kiểu | Ràng buộc | Ý nghĩa |
+|---|---|---|---|
+| `id` | TEXT PK | prefix `clr_` | |
+| `clause_node_id` | TEXT FK | → `clause_node(id)` CASCADE | Điều khoản cha |
+| `page_no` | INT | NOT NULL | |
+| `bbox` | JSONB | NOT NULL | CPS — hợp bbox dòng trên trang |
+| `bbox_source` | TEXT | NOT NULL CHECK ∈ `native`, `detector`, `estimated`, `human` | Nguồn bbox |
+
+**Index:** `idx_clause_region_node (clause_node_id)`.
+
+**Trigger:** `trg_immutable_clause_region`.
+
+### 6.3 Bảng `doc_table` (🔒, bất biến) — BR-04
+
+Mỗi trang có thể chứa 0..n bảng layout. Bảng kéo dài nhiều trang nối qua `continued_from`.
+
+| Cột | Kiểu | Ràng buộc | Ý nghĩa |
+|---|---|---|---|
+| `id` | TEXT PK | prefix `tbl_` | |
+| `document_id` | TEXT FK | → `document(id)` CASCADE | |
+| `run_id` | TEXT FK | → `pipeline_run(id)` CASCADE | |
+| `page_no` | INT | NOT NULL | |
+| `bbox` | JSONB | NOT NULL | CPS toàn bảng |
+| `rows_count`, `cols_count` | INT | NOT NULL | Kích thước |
+| `has_borders` | BOOLEAN | NOT NULL | Dòng/bảng có viền |
+| `is_multi_page` | BOOLEAN | NOT NULL DEFAULT false | Kéo dài qua trang |
+| `continued_from` | TEXT FK | → `doc_table(id)` | Trang trước (nếu multi-page) |
+
+**Index:** `idx_doc_table_document (document_id)`.
+
+**Trigger:** `trg_immutable_doc_table`.
+
+### 6.4 Bảng `table_cell` (🔒, bất biến) — BR-04
+
+Ô bảng với vị trí hàng/cột, span, text, bbox.
+
+| Cột | Kiểu | Ràng buộc | Ý nghĩa |
+|---|---|---|---|
+| `id` | TEXT PK | prefix `tcl_` | |
+| `table_id` | TEXT FK | → `doc_table(id)` CASCADE | |
+| `row_idx`, `col_idx` | INT | NOT NULL | Vị trí |
+| `row_span`, `col_span` | INT | NOT NULL DEFAULT 1 | Merge ô |
+| `text` | TEXT | NOT NULL | Nội dung |
+| `bbox` | JSONB | NOT NULL | CPS |
+| `is_header` | BOOLEAN | NOT NULL DEFAULT false | Dòng tiêu đề |
+| `char_span_doc` | INT4RANGE | | Vị trí ký tự trong document |
+| `confidence` | REAL | NOT NULL, CHECK 0–1 | |
+
+**Index:** `idx_table_cell_table (table_id, row_idx, col_idx)`.
+
+**Trigger:** `trg_immutable_table_cell`.
+
 ---
 
 ## 7. Domain 5 — Citation & Fact
@@ -886,7 +945,7 @@ erDiagram
 | `id` | TEXT | PK, prefix `ri_` | |
 | `dossier_id` | TEXT | FK → `dossier.id` CASCADE | |
 | `run_id` | TEXT | FK → `pipeline_run.id` CASCADE | |
-| `target_type` | TEXT | CHECK ∈ `fact`, `finding`, `annex_link`, `clause`, `table_cell`, `citation` | Loại đối tượng |
+| `target_type` | TEXT | CHECK ∈ `fact`, `finding`, `annex_link`, `clause_node`, `table_cell`, `citation` | Loại đối tượng |
 | `target_id` | TEXT | NOT NULL | ULID đối tượng |
 | `reason` | TEXT | NOT NULL | Tại sao cần review |
 | `priority` | TEXT | CHECK ∈ `P1`, `P2`, `P3` | |
@@ -1044,6 +1103,8 @@ erDiagram
 | `document` | 1 → 1..* | có | `page` | `page.document_id` | CASCADE |
 | `document` | 1 → 0..* | checkpoint | `job_step` | `job_step.document_id` | CASCADE |
 | `document` | 1 → 0..* | có | `clause_node` | `clause_node.document_id` | CASCADE |
+| `document` | 1 → 0..* | có | `clause_region` | `clause_region.document_id` | CASCADE |
+| `document` | 1 → 0..* | có | `doc_table` | `doc_table.document_id` | CASCADE |
 | `document` | 1 → 0..* | có | `fact` | `fact.document_id` | CASCADE |
 | `document` | 1 → 0..* | trích dẫn | `citation` | `citation.document_id` | CASCADE |
 | `document` | 1 → 0..* | tham gia | `finding_side` | `finding_side.document_id` | CASCADE |
@@ -1057,6 +1118,7 @@ erDiagram
 | `pipeline_run` | 1 → 0..* | sinh | `ocr_line` | `ocr_line.run_id` | CASCADE |
 | `pipeline_run` | 1 → 0..* | sinh | `citation` | `citation.run_id` | CASCADE |
 | `pipeline_run` | 1 → 0..* | sinh | `clause_node` | `clause_node.run_id` | CASCADE |
+| `pipeline_run` | 1 → 0..* | sinh | `doc_table` | `doc_table.run_id` | CASCADE |
 | `pipeline_run` | 1 → 0..* | sinh | `fact` | `fact.run_id` | CASCADE |
 | `pipeline_run` | 1 → 0..* | sinh | `annex_link` | `annex_link.run_id` | CASCADE |
 | `pipeline_run` | 1 → 0..* | sinh | `finding` | `finding.run_id` | CASCADE |
@@ -1065,7 +1127,10 @@ erDiagram
 | `page` | 1 → 0..* | chứa | `ocr_line` | `ocr_line.page_id` | CASCADE |
 | `page` | 1 → 0..* | đo | `page_step_stat` | `page_step_stat.page_id` | CASCADE |
 | `clause_node` | 1 → 0..* | cha | `clause_node` | `clause_node.parent_id` | (self) |
+| `clause_node` | 1 → 0..* | region | `clause_region` | `clause_region.clause_node_id` | CASCADE |
 | `clause_node` | 1 → 0..* | context | `fact` | `fact.context_clause_id` | (không cascade) |
+| `doc_table` | 1 → 0..* | ô | `table_cell` | `table_cell.table_id` | CASCADE |
+| `doc_table` | 1 → 0..1 | nối | `doc_table` | `doc_table.continued_from` | (self) |
 | `citation` | 1 → 0..* | trích | `fact` | `fact.citation_id` | (không cascade) |
 | `citation` | 1 → 0..* | trích | `finding_side` | `finding_side.citation_id` | (không cascade) |
 | `citation` | 1 → 0..1 | trích | `annex_link` | `annex_link.citation_id` | (không cascade) |
@@ -1078,7 +1143,7 @@ erDiagram
 
 ## 12. Quy tắc bất biến & Trigger
 
-12 trigger trên 12 bảng bất biến. Hàm chung:
+15 trigger trên 15 bảng bất biến. Hàm chung:
 
 ```sql
 CREATE OR REPLACE FUNCTION forbid_mutation() RETURNS trigger AS $$
@@ -1094,6 +1159,9 @@ $$ LANGUAGE plpgsql;
 | `ocr_line` | `trg_immutable_ocr_line` | Kết quả OCR cố định cho mỗi run |
 | `citation` | `trg_immutable_citation` | Trích dẫn cố định (sửa qua `review_action`) |
 | `clause_node` | `trg_immutable_clause_node` | Cấu trúc điều khoản cố định |
+| `clause_region` | `trg_immutable_clause_region` | Region bbox điều khoản cố định |
+| `doc_table` | `trg_immutable_doc_table` | Bảng layout cố định |
+| `table_cell` | `trg_immutable_table_cell` | Ô bảng cố định |
 | `fact` | `trg_immutable_fact` | Kết quả trích xuất cố định (sửa qua `review_action`) |
 | `annex_link` | `trg_immutable_annex_link` | Liên kết phụ lục cố định |
 | `finding` | `trg_immutable_finding` | Phát hiện conflict cố định |
@@ -1165,20 +1233,23 @@ LEFT JOIN LATERAL (
 | 9 | `idx_ocr_line_page_run` | `ocr_line` | `(page_id, run_id)` | Resolve bbox cho citation |
 | 10 | `idx_citation_document_run` | `citation` | `(document_id, run_id)` | Lookup fact/finding theo citation |
 | 11 | `idx_clause_node_doc_run` | `clause_node` | `(document_id, run_id)` | Render cây điều khoản |
-| 12 | `idx_fact_document_run` | `fact` | `(document_id, run_id)` | List fact theo document |
-| 13 | `idx_fact_key` | `fact` | `key` | Lookup `price.total`, `date.signing`, … |
-| 14 | `idx_fact_citation_id` | `fact` | `citation_id` | Truy ngược citation |
-| 15 | `idx_finding_dossier_run` | `finding` | `(dossier_id, run_id)` | List finding theo dossier |
-| 16 | `idx_finding_side_finding_id` | `finding_side` | `finding_id` | Join PK |
-| 17 | `idx_finding_side_fact_id` | `finding_side` | `fact_id` | Truy ngược fact |
-| 18 | `idx_finding_side_citation_id` | `finding_side` | `citation_id` | Truy ngược citation |
-| 19 | `idx_review_item_dossier` | `review_item` | `(dossier_id, status)` | Hàng đợi reviewer |
-| 20 | `idx_review_item_target` | `review_item` | `(target_type, target_id)` | Tìm item của một fact/finding |
-| 21 | `idx_review_action_item` | `review_action` | `(review_item_id, created_at DESC)` | Action mới nhất |
-| 22 | `idx_usage_ledger_run` | `usage_ledger` | `run_id` | Tổng chi phí theo run |
-| 23 | `idx_usage_ledger_dossier` | `usage_ledger` | `dossier_id` | Tổng chi phí theo dossier |
+| 12 | `idx_clause_region_node` | `clause_region` | `clause_node_id` | Region theo điều khoản |
+| 13 | `idx_doc_table_document` | `doc_table` | `document_id` | Table theo document |
+| 14 | `idx_table_cell_table` | `table_cell` | `(table_id, row_idx, col_idx)` | Ô theo bảng |
+| 15 | `idx_fact_document_run` | `fact` | `(document_id, run_id)` | List fact theo document |
+| 16 | `idx_fact_key` | `fact` | `key` | Lookup `price.total`, `date.signing`, … |
+| 17 | `idx_fact_citation_id` | `fact` | `citation_id` | Truy ngược citation |
+| 18 | `idx_finding_dossier_run` | `finding` | `(dossier_id, run_id)` | List finding theo dossier |
+| 19 | `idx_finding_side_finding_id` | `finding_side` | `finding_id` | Join PK |
+| 20 | `idx_finding_side_fact_id` | `finding_side` | `fact_id` | Truy ngược fact |
+| 21 | `idx_finding_side_citation_id` | `finding_side` | `citation_id` | Truy ngược citation |
+| 22 | `idx_review_item_dossier` | `review_item` | `(dossier_id, status)` | Hàng đợi reviewer |
+| 23 | `idx_review_item_target` | `review_item` | `(target_type, target_id)` | Tìm item của một fact/finding |
+| 24 | `idx_review_action_item` | `review_action` | `(review_item_id, created_at DESC)` | Action mới nhất |
+| 25 | `idx_usage_ledger_run` | `usage_ledger` | `run_id` | Tổng chi phí theo run |
+| 26 | `idx_usage_ledger_dossier` | `usage_ledger` | `dossier_id` | Tổng chi phí theo dossier |
 
-> **Lưu ý vận hành:** PK index không tính trong danh sách 23 này (đếm riêng). Khi thêm truy vấn mới, hãy EXPLAIN trước; nếu Seq Scan trên bảng > 10k row, thêm index tương ứng.
+> **Lưu ý vận hành:** PK index không tính trong danh sách 26 này (đếm riêng). Khi thêm truy vấn mới, hãy EXPLAIN trước; nếu Seq Scan trên bảng > 10k row, thêm index tương ứng.
 
 ---
 

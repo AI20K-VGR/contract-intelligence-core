@@ -1,7 +1,7 @@
 -- =============================================================================
 -- DOC-04b · PostgreSQL Schema for Contract Intelligence
 -- =============================================================================
--- Phiên bản: v1.0 · 2026-09-17 · Đã chốt sau P0-05 optimistic concurrency + 2 concern
+-- Phiên bản: v1.1 · 2026-09-17 · +doc_table, table_cell, clause_region (khớp target_type CHECK)
 -- Tài liệu tham chiếu:
 --   - docs/DOC-04-architecture.md (kiến trúc)
 --   - backend/CONTEXT.md mục 5 (quyết định & ERD)
@@ -225,6 +225,44 @@ CREATE TABLE clause_node (
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE clause_region (
+    id             TEXT PRIMARY KEY,                           -- prefix "clr_"
+    clause_node_id TEXT NOT NULL REFERENCES clause_node(id) ON DELETE CASCADE,
+    page_no        INT NOT NULL,
+    bbox           JSONB NOT NULL,                            -- CPS
+    bbox_source    TEXT NOT NULL CHECK (bbox_source IN ('native','detector','estimated','human')),
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE doc_table (
+    id             TEXT PRIMARY KEY,                          -- prefix "tbl_"
+    document_id    TEXT NOT NULL REFERENCES document(id) ON DELETE CASCADE,
+    run_id         TEXT NOT NULL REFERENCES pipeline_run(id) ON DELETE CASCADE,
+    page_no        INT NOT NULL,
+    bbox           JSONB NOT NULL,                            -- CPS
+    rows_count     INT NOT NULL,
+    cols_count     INT NOT NULL,
+    has_borders    BOOLEAN NOT NULL,
+    is_multi_page  BOOLEAN NOT NULL DEFAULT false,
+    continued_from TEXT REFERENCES doc_table(id),
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE table_cell (
+    id             TEXT PRIMARY KEY,                          -- prefix "tcl_"
+    table_id       TEXT NOT NULL REFERENCES doc_table(id) ON DELETE CASCADE,
+    row_idx        INT NOT NULL,
+    col_idx        INT NOT NULL,
+    row_span       INT NOT NULL DEFAULT 1,
+    col_span       INT NOT NULL DEFAULT 1,
+    text           TEXT NOT NULL,
+    bbox           JSONB NOT NULL,                           -- CPS
+    is_header      BOOLEAN NOT NULL DEFAULT false,
+    char_span_doc  INT4RANGE,
+    confidence     REAL NOT NULL CHECK (confidence BETWEEN 0 AND 1),
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE fact (
     id                TEXT PRIMARY KEY,                        -- prefix "fct_"
     document_id       TEXT NOT NULL REFERENCES document(id) ON DELETE CASCADE,
@@ -299,7 +337,7 @@ CREATE TABLE review_item (
     id                    TEXT PRIMARY KEY,                   -- prefix "ri_"
     dossier_id            TEXT NOT NULL REFERENCES dossier(id) ON DELETE CASCADE,
     run_id                TEXT NOT NULL REFERENCES pipeline_run(id) ON DELETE CASCADE,
-    target_type           TEXT NOT NULL CHECK (target_type IN ('fact', 'finding', 'annex_link', 'clause', 'table_cell', 'citation')),
+    target_type           TEXT NOT NULL CHECK (target_type IN ('fact', 'finding', 'annex_link', 'clause_node', 'table_cell', 'citation')),
     target_id             TEXT NOT NULL,
     reason                TEXT NOT NULL,
     priority              TEXT NOT NULL CHECK (priority IN ('P1', 'P2', 'P3')),
@@ -315,7 +353,7 @@ CREATE TABLE review_item (
 CREATE TABLE review_action (
     id              TEXT PRIMARY KEY,                          -- prefix "ra_"
     review_item_id  TEXT NOT NULL REFERENCES review_item(id) ON DELETE CASCADE,
-    target_type     TEXT NOT NULL,
+    target_type     TEXT NOT NULL CHECK (target_type IN ('fact', 'finding', 'annex_link', 'clause_node', 'table_cell', 'citation')),
     target_id       TEXT NOT NULL,
     action          TEXT NOT NULL CHECK (action IN ('confirm', 'correct', 'reject', 'needs_more_evidence')),
     base_version    INT NOT NULL,                              -- P0-05: client echo version đang xem
@@ -401,6 +439,9 @@ CREATE INDEX idx_task_job_id                ON task(job_id);
 CREATE INDEX idx_ocr_line_page_run          ON ocr_line(page_id, run_id);
 CREATE INDEX idx_citation_document_run      ON citation(document_id, run_id);
 CREATE INDEX idx_clause_node_doc_run        ON clause_node(document_id, run_id);
+CREATE INDEX idx_clause_region_node         ON clause_region(clause_node_id);
+CREATE INDEX idx_doc_table_document         ON doc_table(document_id);
+CREATE INDEX idx_table_cell_table           ON table_cell(table_id, row_idx, col_idx);
 CREATE INDEX idx_fact_document_run          ON fact(document_id, run_id);
 CREATE INDEX idx_fact_key                   ON fact(key);
 CREATE INDEX idx_fact_citation_id           ON fact(citation_id);
@@ -431,6 +472,9 @@ CREATE TRIGGER trg_immutable_document_text BEFORE UPDATE OR DELETE ON document_t
 CREATE TRIGGER trg_immutable_ocr_line       BEFORE UPDATE OR DELETE ON ocr_line       FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
 CREATE TRIGGER trg_immutable_citation       BEFORE UPDATE OR DELETE ON citation       FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
 CREATE TRIGGER trg_immutable_clause_node    BEFORE UPDATE OR DELETE ON clause_node    FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+CREATE TRIGGER trg_immutable_clause_region   BEFORE UPDATE OR DELETE ON clause_region   FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+CREATE TRIGGER trg_immutable_doc_table       BEFORE UPDATE OR DELETE ON doc_table       FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+CREATE TRIGGER trg_immutable_table_cell      BEFORE UPDATE OR DELETE ON table_cell      FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
 CREATE TRIGGER trg_immutable_fact           BEFORE UPDATE OR DELETE ON fact           FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
 CREATE TRIGGER trg_immutable_annex_link     BEFORE UPDATE OR DELETE ON annex_link     FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
 CREATE TRIGGER trg_immutable_finding        BEFORE UPDATE OR DELETE ON finding        FOR EACH ROW EXECUTE FUNCTION forbid_mutation();

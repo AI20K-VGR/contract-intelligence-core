@@ -377,7 +377,7 @@ uploaded → processing → extracted → conflict_detected → pending_review �
 ### 4.3 Ràng buộc nghiệp vụ
 
 > TODO: Điền nội dung
-> - Giới hạn file: tối đa 10MB, chỉ chấp nhận PDF
+> - Giới hạn file: tối đa 50MB, chỉ chấp nhận PDF
 > - Tên file tiếng Việt: xử lý encoding không lỗi font
 > - Batch upload: 1 item lỗi không fail cả lô (chi tiết xử lý như thế nào)
 
@@ -1024,7 +1024,7 @@ CREATE INDEX review_item_priority_idx   ON review_item(priority) WHERE status <>
 CREATE TABLE review_action (
     id                  TEXT PRIMARY KEY,                 -- prefix "ra_"
     review_item_id      TEXT NOT NULL REFERENCES review_item(id),
-    target_type         TEXT NOT NULL,                    -- mirror của review_item để query
+    target_type         TEXT NOT NULL CHECK (target_type IN ('fact','finding','annex_link','clause_node','table_cell','citation')),  -- mirror của review_item để query
     target_id           TEXT NOT NULL,
     action              TEXT NOT NULL CHECK (action IN ('confirm','correct','reject','needs_more_evidence')),
     corrected_value     JSONB,

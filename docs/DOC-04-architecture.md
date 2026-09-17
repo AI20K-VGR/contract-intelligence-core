@@ -962,7 +962,7 @@ CREATE TABLE finding_side (
 CREATE TABLE review_action (
     id               TEXT PRIMARY KEY,
     review_item_id   TEXT NOT NULL REFERENCES review_item(id),
-    target_type      TEXT NOT NULL,          -- fact | finding | annex_link | clause | table_cell | citation
+    target_type      TEXT NOT NULL CHECK (target_type IN ('fact', 'finding', 'annex_link', 'clause_node', 'table_cell', 'citation')),
     target_id        TEXT NOT NULL,
     action           TEXT NOT NULL CHECK (action IN ('confirm', 'correct', 'reject', 'needs_more_evidence')),
     corrected_value  JSONB,
@@ -1097,7 +1097,7 @@ Sau khi reviewer sửa (BR-08): citation gốc giữ nguyên; `review_action` l�
 | Định dạng | `[x0, y0, x1, y1]`, số thực, 4–5 chữ số thập phân |
 | Miền giá trị | `0 ≤ x0 < x1 ≤ 1`, `0 ≤ y0 < y1 ≤ 1` (clamp khi làm tròn) |
 | Gốc | Góc trên bên trái của trang **đã xoay theo `/Rotate`** (CPS) |
-| Cấp | `word`, `line`, `clause_region`, `table_cell` |
+| Cấp | `word_union`, `line`, `clause_region` (ô bảng `table_cell` là thực thể riêng, không phải cấp bbox của `ocr_line`) |
 | Nguồn (`bbox_source`) | `native`, `detector`, `estimated`, `human` |
 | Kèm theo trang | `width_pt`, `height_pt`, `rotation`, `transform` |
 
