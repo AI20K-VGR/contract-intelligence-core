@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>1 · Hàng đợi job · HITL</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;550;650;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="artboard">
+    <div class="shell">
+      <header class="topbar">
+        <div>
+          <div class="brand">Contract Intelligence</div>
+          <span class="en">Reviewer workspace</span>
+        </div>
+        <nav class="tabs">
+          <a class="tab is-on" href="01-job-list.html">Hàng đợi<span class="en">Queue</span></a>
+          <a class="tab" href="02-hitl-compare.html">HITL<span class="en">Compare</span></a>
+          <a class="tab" href="04-findings.html">Finding<span class="en">Conflicts</span></a>
+          <a class="tab" href="05-approve.html">Duyệt<span class="en">Approve</span></a>
+        </nav>
+        <div class="role">Nguyễn Lan<span class="en">Reviewer</span></div>
+      </header>
+
+      <div class="legend">
+        <div class="legend-bar">
+          <strong>Màn 1 · PRD 5.1 Danh sách job</strong>
+          <label class="note"><input type="checkbox" onchange="document.body.classList.toggle('hide-notes', this.checked)"> Ẩn khoanh đỏ / Hide notes</label>
+        </div>
+        <ol>
+          <li>Bảng dossier + trạng thái lifecycle (uploaded → approved | failed).</li>
+          <li>Chip nét đứt = payload Backend (GET job status) — chưa có API thật.</li>
+        </ol>
+      </div>
+
+      <div class="page-head callouts" style="position:relative;width:100%;">
+        <h1>Hàng đợi rà soát</h1>
+        <span class="en">Review queue · pending_review first</span>
+        <div class="callout" style="right:0;top:0;">
+          <span class="dot">1</span>
+          <b>Danh sách job / Job list — chờ Backend GET /jobs</b>
+        </div>
+      </div>
+
+      <div class="card" style="position:relative;">
+        <div class="callout" style="left:-8px;top:36px;">
+          <span class="dot">2</span>
+          <b>Status chip · DOC-03 §3.8</b>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Dossier<span class="en">Id</span></th>
+              <th>Tài liệu<span class="en">Documents</span></th>
+              <th>Trạng thái<span class="en">Status</span></th>
+              <th>Finding<span class="en">Open</span></th>
+              <th>Cập nhật<span class="en">Updated</span></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mono">DS-2026-0912</td>
+              <td>HĐ dịch vụ + PL giá<br><span class="en">Contract + price annex</span></td>
+              <td><span class="chip chip-wait">Chờ rà soát<span class="en">pending_review</span></span></td>
+              <td>2 mở / 2</td>
+              <td>2 giờ trước</td>
+              <td><a class="btn btn-primary" href="02-hitl-compare.html">Rà soát<span class="en">Review</span></a></td>
+            </tr>
+            <tr>
+              <td class="mono">DS-2026-0908</td>
+              <td>HĐ mua bán thiết bị<br><span class="en">Equipment sale</span></td>
+              <td><span class="chip">Đang xử lý<span class="en">processing</span></span></td>
+              <td>—</td>
+              <td>15 phút</td>
+              <td><button class="btn" disabled>Chờ OCR<span class="en">Wait</span></button></td>
+            </tr>
+            <tr>
+              <td class="mono">DS-2026-0901</td>
+              <td>HĐ thuê + 2 phụ lục</td>
+              <td><span class="chip chip-ok">Đã duyệt<span class="en">approved</span></span></td>
+              <td>0 mở</td>
+              <td>Hôm qua</td>
+              <td><a class="btn" href="05-approve.html">Xem<span class="en">Open</span></a></td>
+            </tr>
+            <tr>
+              <td class="mono">DS-2026-0855</td>
+              <td>PDF hỏng / &gt;50 MB</td>
+              <td><span class="chip chip-fail">Lỗi<span class="en">failed</span></span></td>
+              <td>—</td>
+              <td>3 ngày</td>
+              <td><span class="note">File vượt 50 MB — không lộ secret<span class="en">Readable failure reason</span></span></td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="note" style="margin:12px 0 0;">Worker nội bộ (OCR_PROCESSING, …) không hiện trên UI — gom vào <code>processing</code>. <span class="chip chip-be">[Backend] job status</span></p>
+      </div>
+    </div>
+    <p class="foot">ST-005 · 01/05 · 1224×1024 · #F8F9FF</p>
+  </div>
+</body>
+</html>

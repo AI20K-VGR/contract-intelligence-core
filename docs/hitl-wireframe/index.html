@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ST-005 · HITL wireframe index</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;550;650;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="artboard">
+    <div class="shell">
+      <header class="topbar">
+        <div>
+          <div class="brand">Contract Intelligence · <span>ST-005</span></div>
+          <span class="en">Sprint 1 wireframe · not production UI</span>
+        </div>
+        <div class="role">
+          Trần Thị Kiều Trang
+          <span class="en">Reviewer / HITL owner</span>
+        </div>
+      </header>
+
+      <div class="page-head">
+        <h1>Wireframe HITL</h1>
+        <span class="en">Human-in-the-loop review mockup</span>
+        <p>Figma artboard 1224×1024, nền #F8F9FF, laptop. AC: ảnh gốc | OCR · highlight bbox · sửa tay. Khoanh đỏ = ghi chú design, không phải UI sản phẩm.</p>
+      </div>
+
+      <div class="legend">
+        <div class="legend-bar">
+          <strong>Acceptance (ST-005) / Tiêu chí nghiệm thu</strong>
+        </div>
+        <ol>
+          <li>Layout hai cột: ảnh/PDF gốc | text OCR (FR-HITL-01).</li>
+          <li>Highlight bbox trên ảnh, ưu tiên vùng OCR thấp; 1 vùng đang chọn (FR-HITL-02).</li>
+          <li>Sửa tay text/clause và lưu thành revision (FR-HITL-04). Không vẽ lại bbox ở Sprint 1 (FR-HITL-09 = Should).</li>
+        </ol>
+      </div>
+
+      <div class="index-grid">
+        <a class="index-card" href="01-job-list.html">
+          <strong>1 · Hàng đợi job</strong>
+          <span class="en">Job queue · PRD 5.1</span>
+          Danh sách dossier, trạng thái lifecycle, lý do lỗi. Chip nét đứt = chờ Backend.
+        </a>
+        <a class="index-card" href="02-hitl-compare.html">
+          <strong>2 · Đối chiếu HITL ★</strong>
+          <span class="en">Original | OCR · PRD 5.2 · AC chính</span>
+          Hai cột, bbox, chọn Điều 5. Màn bắt buộc của ST-005.
+        </a>
+        <a class="index-card" href="03-hitl-edit.html">
+          <strong>3 · Sửa clause</strong>
+          <span class="en">Correct clause · PRD 5.3</span>
+          Form sửa tay, giữ bản máy, ghi revision append-only.
+        </a>
+        <a class="index-card" href="04-findings.html">
+          <strong>4 · Panel finding</strong>
+          <span class="en">Conflict panel · PRD 5.4</span>
+          Evidence hai phía, confirm / correct / reject / needs-more-evidence.
+        </a>
+        <a class="index-card" href="05-approve.html">
+          <strong>5 · Duyệt dossier</strong>
+          <span class="en">Approve · FR-APR-01</span>
+          Hệ thống không tự duyệt. Nút gửi khi finding đang mở vẫn khóa.
+        </a>
+      </div>
+
+      <div class="card note">
+        Mở file trực tiếp hoặc qua HTTP. Không commit PDF/ảnh hợp đồng — trang giả lập bằng HTML.
+        <span class="en">Open these HTML files in a browser. No contract scans in the repo.</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

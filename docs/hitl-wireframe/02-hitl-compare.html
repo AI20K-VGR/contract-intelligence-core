@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>2 · Đối chiếu HITL · AC</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;550;650;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="artboard">
+    <div class="shell">
+      <header class="topbar">
+        <div>
+          <div class="brand">Contract Intelligence</div>
+          <span class="en">DS-2026-0912 · page 3 / 12</span>
+        </div>
+        <nav class="tabs">
+          <a class="tab" href="01-job-list.html">Hàng đợi<span class="en">Queue</span></a>
+          <a class="tab is-on" href="02-hitl-compare.html">HITL<span class="en">Compare</span></a>
+          <a class="tab" href="04-findings.html">Finding<span class="en">Conflicts</span></a>
+          <a class="tab" href="05-approve.html">Duyệt<span class="en">Approve</span></a>
+        </nav>
+        <a class="btn" href="03-hitl-edit.html">Lưu tạm<span class="en">Save draft</span></a>
+      </header>
+
+      <div class="legend">
+        <div class="legend-bar">
+          <strong>Màn 2 · AC ST-005 · FR-HITL-01 / 02 / 04</strong>
+          <label class="note"><input type="checkbox" onchange="document.body.classList.toggle('hide-notes', this.checked)"> Ẩn khoanh đỏ / Hide notes</label>
+        </div>
+        <ol>
+          <li>Hai cột bằng nhau: ảnh gốc | OCR. Đổi trang thì hai cột vẫn khớp.</li>
+          <li>Bbox: vùng khác mờ; OCR thấp nét đứt đỏ; đúng 1 vùng đang chọn (xanh) = Điều 5.</li>
+          <li>Nút Sửa tay mở màn 3. Sprint 1 không kéo vẽ bbox.</li>
+        </ol>
+      </div>
+
+      <div class="toolbar">
+        <div>HD-2026-0912_CungCapDichVu.pdf · <span class="chip chip-wait">Chờ rà soát<span class="en">pending_review</span></span></div>
+        <div>Trang 3 / 12 · 100% · <span class="chip chip-be">[Backend] review payload</span></div>
+      </div>
+
+      <div class="split callouts" style="position:relative;">
+        <div class="callout" style="left:28%;top:-8px;">
+          <span class="dot">1</span>
+          <b>Layout ảnh gốc | OCR / Original | OCR</b>
+        </div>
+
+        <section class="pane">
+          <div class="pane-h">Ảnh gốc<span class="en">Source page (scan / text-layer)</span></div>
+          <div class="canvas">
+            <div class="thumbs">
+              <div class="thumb">2</div>
+              <div class="thumb is-on">3</div>
+              <div class="thumb">4</div>
+            </div>
+            <article class="paper">
+              <h2>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</h2>
+              <div class="meta">Độc lập – Tự do – Hạnh phúc</div>
+              <h3>HỢP ĐỒNG CUNG CẤP DỊCH VỤ</h3>
+              <p>Số: 0912/2026/HĐ-DV</p>
+              <p><strong>Điều 4. Giá trị hợp đồng</strong><br>Tổng giá trị là 2.450.000.000 VNĐ (đã gồm VAT 10%).</p>
+              <p><strong>Điều 5. Thời hạn thanh toán</strong><br>Bên A thanh toán cho Bên B trong vòng 15 ngày kể từ ngày nhận hóa đơn hợp lệ.</p>
+              <p><strong>Điều 6. Phạt vi phạm</strong><br>Phạt 8% giá trị phần chậm theo 301 Luật Thương mại.</p>
+
+              <!-- bbox coords mock: normalized 0..1 on the paper box -->
+              <div class="bbox" style="left:6%;top:38%;width:88%;height:12%;" title="Điều 4"></div>
+              <div class="bbox is-on" style="left:6%;top:52%;width:88%;height:14%;" title="Điều 5 selected"></div>
+              <div class="bbox is-low" style="left:6%;top:68%;width:88%;height:14%;" title="Điều 6 low OCR"></div>
+            </article>
+            <div class="callout" style="left:52%;top:54%;">
+              <span class="dot">2</span>
+              <b>Highlight bbox · 1 selected · low-OCR dashed</b>
+            </div>
+          </div>
+        </section>
+
+        <section class="pane">
+          <div class="pane-h">Văn bản OCR<span class="en">Page text · click maps to bbox</span></div>
+          <div class="ocr">
+            <div class="ocr-row">
+              <h4>Điều 4. Giá trị hợp đồng</h4>
+              <p>Tổng giá trị là 2.450.000.000 VNĐ (đã gồm VAT 10%).</p>
+            </div>
+            <div class="ocr-row is-on">
+              <h4>Điều 5. Thời hạn thanh toán</h4>
+              <p>Bên A thanh toán cho Bên B trong vòng 15 ngày kể từ ngày nhận hóa đơn hợp lệ.</p>
+              <div class="btn-row" style="margin-top:10px;">
+                <a class="btn btn-primary" href="03-hitl-edit.html">Sửa tay<span class="en">Edit / correct</span></a>
+                <button class="btn" type="button">Xác nhận<span class="en">Confirm</span></button>
+              </div>
+              <p class="note" style="margin-top:8px;">Đang chọn trên ảnh gốc · OCR thấp không gắn % lên mọi dòng.</p>
+            </div>
+            <div class="ocr-row">
+              <h4>Điều 6. Phạt vi phạm</h4>
+              <p>Phạt 8% giá trị phần chậm theo 301 Luật Thương mại.</p>
+              <p class="note">Vùng OCR thấp — nét đứt trên ảnh. <span class="en">Low-confidence region</span></p>
+            </div>
+          </div>
+        </section>
+
+        <div class="callout" style="right:24px;bottom:72px;">
+          <span class="dot">3</span>
+          <b>Sửa tay / Manual edit → màn 3</b>
+        </div>
+      </div>
+    </div>
+    <p class="foot">ST-005 AC · 02/05 · bbox 0..1 top-left · FR-HITL-09 vẽ lại bbox = ngoài Sprint 1</p>
+  </div>
+</body>
+</html>

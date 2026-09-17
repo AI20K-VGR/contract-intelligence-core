@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>5 · Duyệt dossier · HITL</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;550;650;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="artboard">
+    <div class="shell">
+      <header class="topbar">
+        <div>
+          <div class="brand">Contract Intelligence</div>
+          <span class="en">Approve is a separate action</span>
+        </div>
+        <nav class="tabs">
+          <a class="tab" href="01-job-list.html">Hàng đợi<span class="en">Queue</span></a>
+          <a class="tab" href="02-hitl-compare.html">HITL<span class="en">Compare</span></a>
+          <a class="tab" href="04-findings.html">Finding<span class="en">Conflicts</span></a>
+          <a class="tab is-on" href="05-approve.html">Duyệt<span class="en">Approve</span></a>
+        </nav>
+        <span class="chip">DS-2026-0912</span>
+      </header>
+
+      <div class="legend">
+        <div class="legend-bar">
+          <strong>Màn 5 · FR-APR-01 · hệ thống không tự duyệt</strong>
+          <label class="note"><input type="checkbox" onchange="document.body.classList.toggle('hide-notes', this.checked)"> Ẩn khoanh đỏ / Hide notes</label>
+        </div>
+        <ol>
+          <li>Confirm từng finding ≠ duyệt dossier.</li>
+          <li>Còn finding mở → nút Duyệt khóa. Dossier không finding vẫn vào pending_review rồi duyệt tay.</li>
+        </ol>
+      </div>
+
+      <div class="card center-wrap" style="position:relative;margin:0 auto;">
+        <div class="callout" style="right:-12px;top:12px;">
+          <span class="dot">5</span>
+          <b>POST approve · [Backend] · reviewer only</b>
+        </div>
+        <h1 style="margin:0;font-size:22px;">Duyệt dossier này?</h1>
+        <span class="en">Send DS-2026-0912 to approved?</span>
+
+        <div class="stat" style="margin-top:16px;"><span>Điều khoản đã xác nhận</span><strong>45 / 48</strong></div>
+        <div class="stat"><span>Finding đã xử lý</span><strong>0 / 2</strong></div>
+        <div class="stat"><span>Revision đã lưu</span><strong>1</strong></div>
+
+        <p class="note" style="margin:14px 0;">Còn mục mở — mở lại HITL hoặc finding trước khi duyệt.</p>
+        <ul class="note">
+          <li><a href="02-hitl-compare.html">Điều 5 · VAT / thời hạn — mở ảnh | OCR</a></li>
+          <li><a href="04-findings.html">Finding 15 ngày ↔ 7 ngày — mở panel</a></li>
+        </ul>
+
+        <div class="btn-row" style="margin-top:16px;">
+          <a class="btn" href="02-hitl-compare.html">Quay lại HITL<span class="en">Back</span></a>
+          <button class="btn btn-primary is-off" type="button" disabled>Duyệt dossier<span class="en">Approve — locked</span></button>
+        </div>
+        <p class="note" style="margin-top:12px;">Khi đủ điều kiện (D-03), nút bật. Máy không bao giờ tự chuyển <code>approved</code>.</p>
+      </div>
+    </div>
+    <p class="foot">ST-005 · 05/05 · reviewed ≠ approved</p>
+  </div>
+</body>
+</html>

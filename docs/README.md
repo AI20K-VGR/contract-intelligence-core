@@ -3,6 +3,8 @@
 Product and technical documents, one file per deliverable (Markdown, OpenAPI YAML for the API spec).
 Images and diagrams go in `assets/` (the only folder in the repo where image files are allowed).
 
+Sprint 1 HITL wireframe (ST-005, static HTML, not production UI): [`hitl-wireframe/`](./hitl-wireframe/).
+
 | file | document | due | reviewer |
 |---|---|---|---|
 | `DOC-01-product-vision.md` | Product Vision | Sprint 1 (20/09) | mentor |
