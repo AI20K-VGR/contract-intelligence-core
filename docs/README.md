@@ -12,5 +12,10 @@ Images and diagrams go in `assets/` (the only folder in the repo where image fil
 | `DOC-05-api-spec.yaml` | API Spec | Sprint 2 (04/10) | mentor |
 | `DOC-06-eval-report.md` | Evaluation Report | Sprint 3 (18/10) | mentor |
 
+`DOC-04-architecture.md` and `DOC-05-api-spec.yaml` are the earlier sprint deliverables; the
+current living architecture doc is **[architecture.md](architecture.md)** (see root README),
+kept in sync with the actual FastAPI/Postgres implementation. The `DOC-*` files stay as-is for
+mentor traceability — do not delete them.
+
 Changes to a document go through a PR like code (2 approvals). The sprint tracker on OneDrive
 holds the status of each document.
