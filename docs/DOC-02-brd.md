@@ -6,8 +6,8 @@
 |---|---|
 | Dự án | VSF OJT Batch 3 |
 | Mã / trạng thái | DOC-02 / Draft — Ready for Review |
-| Phiên bản | 0.2 — Bản nháp · Sprint 1 |
-| Ngày tạo / cập nhật | 15/09/2026 · 16/09/2026 |
+| Phiên bản | 0.3 — Bản nháp · Sprint 1 |
+| Ngày tạo / cập nhật | 15/09/2026 · 17/09/2026 |
 | Người phụ trách | Trần Văn Dũng |
 | Người tham gia | Cả team |
 | Reviewer / effective-review date | Mentor / 16-09-2026 · TBD |
@@ -99,7 +99,7 @@ Hệ thống cần chuyển hợp đồng/phụ lục thành thông tin có cấ
 | BR-13 | So sánh within-document, contract–annex và annex–annex khi đủ context/evidence. |
 | BR-14 | Finding cross-document cite được hai phía. |
 | BR-15 | UI có dossier/status/page image/clause/fact/finding/citation/bbox highlight. |
-| BR-16 | Review actions: Confirm, Correct, Reject, Needs-more-evidence; approve dossier là hành động cấp dossier riêng. |
+| BR-16 | Review actions: Confirm, Correct, Reject, Request-evidence (UI label “Needs more evidence”; wire `REQUEST_EVIDENCE`); áp dụng cho finding, fact và clause; approve dossier là hành động cấp dossier riêng. |
 | BR-17 | Chỉnh bbox là Should Sprint 2–3; review overlay không overwrite OCR bbox. |
 
 ### Single, batch và status
@@ -108,7 +108,7 @@ Hệ thống cần chuyển hợp đồng/phụ lục thành thông tin có cấ
 |---|---|
 | BR-18 | Single dossier qua UI/API trả job ID, trạng thái và kết quả. |
 | BR-19 | Batch có background execution, retry, failure handling và summary `Done`, `Failed`, `Needs Review`. |
-| BR-20 | UI lifecycle tổng hợp: uploaded → processing → extracted → pending_review → reviewed → approved/failed; job không được biến mất im lặng. |
+| BR-20 | UI lifecycle tổng hợp: uploaded → processing → extracted → pending_review → reviewed → approved/failed; `failed` có thể rerun về `processing`; job không được biến mất im lặng. |
 
 ## 7. Non-functional requirements
 

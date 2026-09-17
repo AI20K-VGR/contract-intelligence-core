@@ -18,7 +18,7 @@ datasets/
 
 # =====================================================================
 # Contract Intelligence - Root .gitignore
-# Monorepo: backend (Java/Maven) | frontend (Node) | ai-service (Python)
+# Monorepo: backend (Python/FastAPI) | frontend (Node) | ai-service (Python)
 # =====================================================================
 
 # ---------- OS / Editor ----------
@@ -39,21 +39,25 @@ desktop.ini
 *.key
 secrets/
 
-# ---------- Java / Maven (backend/) ----------
-backend/target/
-backend/**/target/
-backend/**/build/
-backend/*.class
-backend/**/*.class
-backend/*.jar
-backend/*.war
-backend/*.ear
+# ---------- Python / FastAPI (backend/) ----------
+backend/__pycache__/
+backend/**/__pycache__/
+backend/**/*.pyc
+backend/**/*.pyo
+backend/.venv/
+backend/venv/
+backend/env/
+backend/.env
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/.coverage
+backend/htmlcov/
+backend/dist/
+backend/build/
+backend/*.egg-info/
+backend/**/*.egg-info/
 backend/*.log
-backend/.gradle/
-backend/dependency-reduced-pom.xml
-
-# Spring Boot
-backend/**/*.original
 
 # ---------- Node / Frontend (frontend/) ----------
 frontend/node_modules/

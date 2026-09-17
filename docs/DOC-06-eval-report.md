@@ -2,8 +2,8 @@
 
 | Thuộc tính | Giá trị |
 |---|---|
-| Version / status | v0.5 — Draft · Ready for Review |
-| Owner | AI/QA Lead |
+| Version / status | v0.6 — Draft · Ready for Review |
+| Owner | AI/QA Lead — tên cụ thể TBD, Leader chỉ định trước khi rời trạng thái Draft |
 | Contributors / reviewer | AI, QA, Architecture team / Mentor |
 | Effective / review date | 2026-09-17 / TBD |
 | Upstream | DOC-01; DOC-02 BR-03, BR-06…BR-19, NFR-02…NFR-05; DOC-03…DOC-05/contracts |
@@ -33,9 +33,9 @@ Report every applicable metric by input type, language profile (`vi`, `en`, `vi-
 | OCR/layout | CER/WER/diacritic and critical-field accuracy when gold exists; geometry coverage/IoU; table/structure accuracy. |
 | Citation | Exact source/document/page/line/span/word/bbox validity. |
 | Facts | TP/FP/FN, precision/recall/F1 by entity; raw, normalized and context errors separate. |
-| Findings | Disposition confusion matrix; structured difference precision/recall/F1; amendment/semantic candidate separate. |
+| Findings | Disposition confusion matrix over all five dispositions including `COMPARABLE_MATCH` (queue `null`); structured difference precision/recall/F1; amendment/semantic candidate separate. |
 | Batch | Submitted/terminal counts, per-member retry/quarantine, queue wait, throughput and independent `DONE/FAILED/NEEDS_REVIEW`. |
-| Re-OCR | Reason/scope/source, dedupe, route, repair action, transport/quality/provider budget usage, evidence-resolution, recompute and failure outcomes. |
+| Re-OCR | Reason/scope/source, dedupe, route (`LOCAL_AUTO`/`EXTERNAL_REVIEW_REQUIRED`/`EXTERNAL_APPROVED`/`DENIED`), terminal state incl. `QUARANTINED`, repair action, transport/quality/provider budget usage, evidence-resolution, recompute and failure outcomes. |
 | Long-document coverage | Page/chunk terminal coverage, continuation-finalization correctness, unsupported-fact rate from human audit, budget exhaustion and stale-dependency rate. |
 | Review/approval | Pending-review aging, action/override rate, approval CAS failures and processed→reviewed→approved completion. |
 
@@ -47,7 +47,8 @@ Report every applicable metric by input type, language profile (`vi`, `en`, `vi-
 - 50-page contract fan-out with bounded concurrency and no whole-document model prompt.
 - Vietnamese, English, bilingual and unknown language profiles.
 - Critical `O/0` ambiguity, failed/exhausted re-OCR, targeted page-pair continuation and selective recompute.
-- Page/chunk ledger on a 50-page dossier: missing middle page, blank verified page, truncated OCR output, bounded crop repair and a fact blocked by incomplete continuation.
+- Page/chunk ledger on a 50-page dossier: missing middle page, blank verified page (`quality.coverage_status = BLANK_VERIFIED` with detector evidence) versus empty page without detector evidence (`NEEDS_REVIEW`), truncated OCR output, bounded crop repair and a fact blocked by incomplete continuation.
+- Backend-push transport: ai-service job lost mid-flight, lease reclaim, orphan job cancellation, result returned for a stale attempt (must be discarded and audited).
 - Batch member isolation, retry and summary; review/approval concurrency; approval superseded by rerun/re-OCR.
 
 ## 5. Promotion

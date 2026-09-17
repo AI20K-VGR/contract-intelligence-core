@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contractintel.internal/schemas/external-egress-approval-grant.v1.json",
-  "title": "Spring External Egress Approval Grant v1",
+  "title": "FastAPI Backend External Egress Approval Grant v1",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "grant_id", "request_id", "tenant_id", "source_snapshot_id", "target_digest", "policy_digest", "consent_digest", "provider_id", "model_id", "region", "retention_policy_id", "approved_profile_id", "actor_id", "decision", "reason", "state", "single_use", "expires_at", "created_at"],

@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu / sản phẩm | DOC-04 / Contract Intelligence (PROD-01) |
-| Phiên bản / trạng thái | v0.6 — Draft · Ready for Review |
+| Phiên bản / trạng thái | v0.7 — Draft · Ready for Review |
 | Owner / Contributors | Architecture Lead / Backend, AI1, AI2, Frontend, QA |
 | Reviewer | Mentor |
 | Ngày hiệu lực / review | 17/09/2026 / TBD |
@@ -36,23 +36,25 @@
 19. [Kiểm thử và quality gate](#19-kiểm-thử-và-quality-gate)
 20. [Delivery roadmap, traceability và mentor review](#20-delivery-roadmap-traceability-và-mentor-review)
 21. [IDP tốc độ cao và chống hallucination](#21-idp-tốc-độ-cao-và-chống-hallucination)
+22. [Change record](#22-change-record)
 
 ## 1. Tóm tắt kiến trúc
 
 Contract Intelligence xử lý một hợp đồng và `0..n` phụ lục PDF. Hệ thống tạo snapshot OCR/layout bất biến, dựng cấu trúc Điều–Khoản–Điểm/bảng, trích fact typed có citation, rồi tạo finding kỹ thuật có evidence hai phía. Reviewer kiểm tra và phê duyệt output nội bộ; hệ thống không tư vấn pháp lý hay tự quyết hiệu lực/phạm vi ưu tiên của hợp đồng.
 
-Kiến trúc đi theo nguyên tắc **evidence-first**. OCR không chạy một lần rồi được tin tuyệt đối: AI2 chỉ phát hiện evidence gap; Spring kiểm policy, phạm vi và ngân sách hữu hạn; AI1 re-OCR đúng vùng/trang/cặp trang cần thiết. Mọi source, output, retry và chỉnh sửa đều truy vết được.
+Kiến trúc đi theo nguyên tắc **evidence-first**. OCR không chạy một lần rồi được tin tuyệt đối: AI2 chỉ phát hiện evidence gap; Backend FastAPI kiểm policy, phạm vi và ngân sách hữu hạn; AI1 re-OCR đúng vùng/trang/cặp trang cần thiết. Mọi source, output, retry và chỉnh sửa đều truy vết được.
+
+Mô hình tích hợp là **backend-push**: Backend FastAPI sở hữu PostgreSQL task table, dispatcher claim task rồi gọi `ai-service` qua HTTP REST (`POST /jobs/...`, `GET /jobs/{id}` polling). `ai-service` là HTTP service stateless: không kết nối PostgreSQL, không sở hữu queue/lease, chỉ đọc artifact qua URL ngắn hạn do backend cấp và trả kết quả có digest cho backend validate rồi persist.
 
 ```mermaid
 flowchart LR
   OP[Operator] --> UI[Web UI]
   RV[Reviewer] --> UI
-  UI --> API[Spring modular monolith]
-  API --> DB[(PostgreSQL: domain, queue, audit)]
-  API --> OS[(Artifact storage: PDF, render, artifacts)]
-  API --> W[AI1 và AI2 worker nội bộ]
-  W --> DB
-  W --> OS
+  UI --> API[FastAPI modular monolith]
+  API --> DB[(PostgreSQL: domain, task queue, audit)]
+  API --> OS[(MinIO: PDF, render, artifacts)]
+  API -- HTTP job + poll --> W[ai-service: AI1 OCR/layout và AI2 IDP]
+  W -. short-lived URL .-> OS
   W -. chỉ khi được duyệt .-> EG[Egress broker]
   EG -. task tối thiểu .-> EXT[External OCR/AI]
   API --> TEL[Telemetry và báo cáo]
@@ -83,14 +85,14 @@ flowchart LR
 
 | ADR | Quyết định | Hệ quả |
 |---|---|---|
-| ADR-01 | Java/Spring sở hữu public API, domain, RBAC, persistence và orchestration. | Một business authority. |
-| ADR-02 | AI1/AI2 là Python worker nội bộ. | Không ghi trực tiếp business table hay sở hữu public API. |
-| ADR-03 | PostgreSQL là system of record và queue MVP. | Không thêm Redis/Celery/second state store khi chưa có bằng chứng cần thiết. |
-| ADR-04 | Filesystem local là object-storage adapter khi development. | DB chỉ lưu metadata/digest, không lưu PDF/render lớn. |
-| ADR-05 | `ai1.snapshot.v3` là handoff OCR/layout canonical. | Spring semantic gate trước khi IDP nhận dữ liệu. |
+| ADR-01 | Python 3.12 + FastAPI sở hữu public API, domain, RBAC, persistence và orchestration (thay quyết định Java/Spring trước 17/09/2026, xem [§22](#22-change-record)). | Một business authority, theo `backend/`. Runtime mục tiêu là 3.12; `pyproject.toml` hiện còn khai báo `>=3.11` và phải nâng đồng bộ trước merge. |
+| ADR-02 | AI1/AI2 nằm trong `ai-service`, một Python HTTP service nội bộ, stateless, được backend gọi theo mô hình push (`POST /jobs`, `GET /jobs/{id}` polling). | `ai-service` không kết nối PostgreSQL, không sở hữu queue/lease/callback lifecycle, không ghi business table, không có public API. Mọi kết quả đi qua backend validate. |
+| ADR-03 | PostgreSQL là system of record và task queue MVP; task table do backend dispatcher sở hữu độc quyền. | Không thêm Redis/Celery/second state store khi chưa có bằng chứng cần thiết. |
+| ADR-04 | MinIO là S3-compatible object-storage adapter cho PDF/render; local compose dùng MinIO. | PostgreSQL chỉ lưu metadata/digest/object key, không lưu PDF/render lớn. |
+| ADR-05 | `ai1.snapshot.v3` là handoff OCR/layout canonical. | Backend FastAPI semantic gate trước khi IDP nhận dữ liệu. |
 | ADR-06 | CPS là hệ tọa độ trang đứng đã chuẩn hóa. | Mọi consumer dùng chung bbox convention. |
 | ADR-07 | Finding là domain canonical; Conflict chỉ là queue/UI/API surface. | Không sinh entity/pipeline conflict thứ hai. |
-| ADR-08 | AI2 phát `EvidenceGapDetected.v2`; Spring tạo `ReOcrRequest.v3`. | AI2 không bypass OCR, budget hay egress policy. |
+| ADR-08 | AI2 trả `EvidenceGapDetected.v2` trong kết quả job; Backend FastAPI tạo `ReOcrRequest.v3`. | AI2 không bypass OCR, budget hay egress policy. |
 | ADR-09 | Product workflow, run, review và re-OCR là state machine tách biệt. | Partial operation vẫn minh bạch. |
 | ADR-10 | Reviewer có quyền approve output dossier nội bộ. | Khớp DOC-01/02/03; không phải legal approval. |
 | ADR-11 | Page/chunk ledger là authority của completeness. | Không dùng word count để chứng minh tài liệu dài đã xử lý đủ. |
@@ -101,11 +103,11 @@ flowchart LR
 ```mermaid
 flowchart TB
   subgraph T[Authorized team environment]
-    USER[Operator / Reviewer] --> FE[Frontend] --> APP[Spring API và domain]
-    APP <--> DB[(PostgreSQL)]
-    APP <--> ART[(Artifact store)]
-    AI[AI1 / AI2] <--> DB
-    AI <--> ART
+    USER[Operator / Reviewer] --> FE[Frontend] --> APP[FastAPI API, domain và dispatcher]
+    APP <--> DB[(PostgreSQL: domain + task table)]
+    APP <--> ART[(MinIO artifact store)]
+    APP -- HTTP job/poll --> AI[ai-service: AI1 / AI2]
+    AI -. short-lived URL .-> ART
   end
   subgraph C[Controlled egress]
     POLICY[Classification, consent, policy] --> GRANT[Single-use grant] --> BROKER[Egress broker]
@@ -118,21 +120,22 @@ flowchart TB
 |---|---|
 | Client → API | authentication, tenant/RBAC, MIME/magic-byte, AV, size/page limit, idempotency |
 | API ↔ artifact | URI/digest private, đọc qua quyền ngắn hạn |
-| Worker → Spring | service auth, task attempt và lease token |
-| Worker → external | grant bất biến bind task/snapshot/target/policy/provider; default deny |
+| FastAPI backend → ai-service | service credential (API key nội bộ Sprint 1, mTLS khi có hạ tầng), `task_id`/`attempt_id`, URL artifact ngắn hạn; ai-service không gọi ngược backend và không nhận callback URL từ client |
+| ai-service → external | grant bất biến bind task/snapshot/target/policy/provider; default deny |
 | Telemetry | chỉ metadata allowlist; không raw PDF/OCR/prompt/signed URL mặc định |
 
 ```mermaid
 flowchart LR
-  FE[React + PDF viewer] --> HTTP[Spring REST API]
+  FE[React + PDF viewer] --> HTTP[FastAPI REST API]
   HTTP --> DOMAIN[Domain/application modules]
   DOMAIN --> PG[(PostgreSQL)]
-  DOMAIN --> STORE[Artifact storage port]
+  DOMAIN --> STORE[MinIO S3-compatible storage adapter]
   DOMAIN --> OUTBOX[Outbox]
   OUTBOX --> TASK[Task table]
-  TASK --> AI1[AI1 OCR/layout]
-  TASK --> AI2[AI2 IDP]
-  AI1 --> RESULT[Authenticated result adapter]
+  TASK --> DISP[Dispatcher: claim + lease]
+  DISP -- httpx POST/GET --> AI1[ai-service AI1 OCR/layout]
+  DISP -- httpx POST/GET --> AI2[ai-service AI2 IDP]
+  AI1 --> RESULT[Result adapter: schema + semantic validate]
   AI2 --> RESULT
   RESULT --> DOMAIN
 ```
@@ -140,12 +143,45 @@ flowchart LR
 | Module | Sở hữu | Không được sở hữu |
 |---|---|---|
 | intake | dossier, document version, manifest, upload validation | OCR result hoặc legal conclusion |
-| orchestration | run/task/lease/outbox/retry/coverage | extraction/comparison semantics |
+| orchestration | run/task/lease/outbox/retry/coverage, dispatcher gọi ai-service | extraction/comparison semantics |
 | evidence | snapshot validation, CPS, citation resolve | sửa source |
-| AI1 | render/page route/OCR/layout/table candidate | public API/domain write |
-| AI2 | structure/fact/link/compare/evidence-gap candidate | gọi OCR trực tiếp/kết luận pháp lý |
+| AI1 (ai-service) | render/page route/OCR/layout/table candidate | public API, DB access, domain write |
+| AI2 (ai-service) | structure/fact/link/compare/evidence-gap candidate | gọi OCR trực tiếp, DB access, kết luận pháp lý |
 | review | revision append-only/CAS/approval | ghi đè output máy |
 | policy/egress | consent/provider/usage/grant validation | cấp credential provider tùy ý |
+
+### 3.1 Stack backend baseline
+
+Bảng dưới tham chiếu skeleton trên branch `feature/backend-setup`. Skeleton là scaffold để mentor review cấu trúc project, không phải feature code đã được duyệt; theo DOC-03 CON-06, business logic chỉ bắt đầu sau khi mentor phê duyệt kiến trúc và cấu trúc project.
+
+| Hạng mục | Công nghệ baseline / hướng triển khai |
+|---|---|
+| Runtime | Python 3.12 là target của team; branch hiện khai báo Python `>=3.11`, cần nâng `requires-python`, Ruff và MyPy target trước merge để khớp target. |
+| HTTP/API | FastAPI + Uvicorn; OpenAPI tại `/openapi.json`, Swagger `/docs`, ReDoc `/redoc`. |
+| Validation/settings | Pydantic v2 + pydantic-settings. |
+| Persistence | SQLAlchemy 2.x async + `asyncpg`; migration bằng Alembic. |
+| Queue MVP | PostgreSQL task table do backend dispatcher claim bằng lease token, `FOR UPDATE SKIP LOCKED`, heartbeat và bounded reclaim; ai-service không truy cập bảng này. |
+| Object storage | MinIO S3-compatible; tách bucket PDF và render, adapter nằm ở infrastructure. |
+| AI boundary | `extraction/infrastructure/ai_client` dùng `httpx` gọi `ai-service` (`POST /jobs/{kind}`, `GET /jobs/{id}`); Sprint 1 dùng REST polling, không callback, không để router gọi model trực tiếp. |
+| Observability | OpenTelemetry FastAPI SDK + structlog; export là optional profile. |
+| Test/quality | pytest/pytest-asyncio/httpx, Ruff, MyPy strict và import-linter. |
+
+### 3.2 Clean Architecture và bounded context thực tế
+
+```mermaid
+flowchart TB
+  ROUTER[interfaces: FastAPI router] --> APP[application: service + DTO]
+  APP --> DOMAIN[domain: dataclass/entity + Protocol]
+  INFRA[infrastructure: SQLAlchemy/MinIO/httpx] --> DOMAIN
+  INFRA --> APP
+  SHARED[shared kernel: event/exception/base] --> DOMAIN
+  SHARED --> APP
+  SHARED --> INFRA
+```
+
+Backend có bốn bounded context: `contract` (Dossier/Document/Job), `extraction` (Page/OcrLine/Citation/ClauseNode/Fact/PipelineRun), `conflict` (Finding/FindingSide/AnnexLink) và `review` (ReviewItem/ReviewAction/DossierApproval). Mỗi context có `domain`, `application`, `infrastructure`, `interfaces`.
+
+Dependency rule: `domain` chỉ stdlib/shared và không import FastAPI/SQLAlchemy/MinIO/httpx; `application` chỉ domain/shared; `infrastructure` implement Protocol và không import router; `interfaces` chỉ parse HTTP/DTO rồi gọi application service. `import-linter` là CI gate, không chỉ là convention.
 
 ## 4. Dossier, manifest và lifecycle
 
@@ -172,9 +208,11 @@ stateDiagram-v2
   PENDING_REVIEW --> REVIEWED: blocker resolved/waived
   REVIEWED --> APPROVED: Reviewer sign-off
   APPROVED --> PROCESSING: rerun/re-OCR lineage mới
+  FAILED --> PROCESSING: Operator rerun (createRun)
+  PENDING_REVIEW --> PROCESSING: re-OCR tạo effective run mới
 ```
 
-`conflict_detected` là nhãn hiển thị phái sinh. Run/review/approval cũ vẫn audit được sau khi effective lineage thay đổi.
+`conflict_detected` là nhãn hiển thị phái sinh. `FAILED` không phải trạng thái chết: Operator có thể tạo rerun whole-dossier (DOC-05 `createRun`) hoặc batch `RETRY`. Run/review/approval cũ vẫn audit được sau khi effective lineage thay đổi.
 
 ### Batch
 
@@ -211,19 +249,25 @@ S1–S5 chạy theo page với concurrency bị giới hạn. S6/S7 có thể st
 
 ```mermaid
 sequenceDiagram
-  participant D as Dispatcher
+  participant O as Orchestrator (outbox)
   participant P as PostgreSQL task table
-  participant W as Worker
-  participant A as Spring result adapter
-  D->>P: enqueue unique(run,step,scope)
-  W->>P: claim SKIP LOCKED + lease token
-  W->>P: heartbeat(token,attempt)
-  W->>A: artifact + digest + token
-  A->>P: validate/persist + outbox atomically
-  Note over D,P: lease hết hạn được reclaim với bounded retry
+  participant D as Backend dispatcher
+  participant S as ai-service HTTP
+  participant A as Result adapter
+  O->>P: enqueue unique(run,step,scope)
+  D->>P: claim SKIP LOCKED + lease token
+  D->>S: POST /jobs/{kind} (task_id, attempt_id, short-lived artifact URL, config digest)
+  S-->>D: 202 job_id
+  loop poll với backoff, heartbeat lease
+    D->>S: GET /jobs/{job_id}
+    S-->>D: RUNNING | SUCCEEDED(result + digest) | FAILED(error code)
+  end
+  D->>A: result + digest + attempt/lease token
+  A->>P: schema/semantic validate, persist artifact + outbox atomically
+  Note over D,P: lease hết hạn được reclaim với bounded retry; job ai-service mồ côi bị huỷ theo task_id
 ```
 
-Task key là `(run_id, step, scope_key)` với scope không null. Worker result chỉ được nhận cho attempt/lease đang active. Transport retry, quality repair và provider usage là các counter khác nhau.
+Task key là `(run_id, step, scope_key)` với scope không null. Result chỉ được nhận cho attempt/lease đang active; result trả về cho attempt cũ bị bỏ và ghi audit. `ai-service` job là ephemeral: backend là nơi duy nhất giữ trạng thái bền vững của task. Transport retry, quality repair và provider usage là các counter khác nhau.
 
 ## 6. OCR/layout cho tài liệu dài
 
@@ -238,7 +282,7 @@ flowchart TD
   N --> SNAP[Snapshot v3 candidate]
   O --> SNAP
   M --> SNAP
-  SNAP --> VALID[Spring semantic validation]
+  SNAP --> VALID[FastAPI semantic validation]
 ```
 
 Native text chỉ được nhận khi content/geometry/coverage đều usable. Hidden OCR, mojibake, thiếu coverage sẽ route sang repair. Trang trắng là `BLANK_VERIFIED`, không bao giờ bị bỏ qua âm thầm.
@@ -257,6 +301,16 @@ flowchart LR
 |---|---|
 | Page | `PENDING`, `PROCESSING`, `COMPLETED`, `BLANK_VERIFIED`, `NEEDS_REVIEW`, `FAILED`; chỉ completed/blank evidence-eligible. |
 | Chunk | `BLOCKED`, `READY`, `FINALIZED`; clause/table cross-page cần mọi continuation page. |
+
+Ánh xạ từ `ai1.snapshot.v3` sang page ledger do backend thực hiện, không suy diễn từ word count:
+
+| Snapshot page `status` / `quality.coverage_status` | Ledger state |
+|---|---|
+| `SUCCESS` / `COMPLETE` | `COMPLETED` |
+| `SUCCESS` / `BLANK_VERIFIED` (bắt buộc `lines=[]`, `tables=[]`) | `BLANK_VERIFIED` |
+| `SUCCESS` hoặc `PARTIAL` / `NEEDS_REVIEW` | `NEEDS_REVIEW` |
+| `FAILED` / `FAILED`, hoặc page thiếu trong inventory | `FAILED` |
+| Chưa có snapshot page cho revision hiện tại | `PENDING` / `PROCESSING` theo task |
 | Partial output | Có thể hiển thị kèm issue; không được claim dossier complete hay positive finding từ evidence thiếu. |
 
 Với hợp đồng 50 trang, OCR theo page/crop có checkpoint. Extraction theo clause/chunk. Comparison chỉ nhận hai nguồn và context cần thiết, không gửi cả dossier thành một prompt. Hỏng trang 27 chỉ invalidates dependency liên quan, không mặc định OCR lại toàn bộ.
@@ -325,40 +379,44 @@ flowchart TD
   CMP --> FIND[Finding có A/B evidence]
 ```
 
-| Disposition | Nghĩa |
-|---|---|
-| `COMPARABLE_MATCH` | Giá trị/context comparable giống nhau |
-| `COMPARABLE_DIFFERENCE` | Khác nhau nhưng chưa có amendment proof |
-| `CANDIDATE_AMENDMENT` | Candidate kỹ thuật có relation/reference, amendment wording, effective evidence |
-| `NOT_COMPARABLE` | Context không tương thích |
-| `INSUFFICIENT_EVIDENCE` | Thiếu/invalid evidence hoặc context |
+| Disposition | Nghĩa | Queue (DOC-05 `Finding.queue`) |
+|---|---|---|
+| `COMPARABLE_MATCH` | Giá trị/context comparable giống nhau | `null` — không tạo review item, vẫn hiển thị và tính vào denominator |
+| `COMPARABLE_DIFFERENCE` | Khác nhau nhưng chưa có amendment proof | `CONFLICT` |
+| `CANDIDATE_AMENDMENT` | Candidate kỹ thuật có relation/reference, amendment wording, effective evidence | `CONFLICT` |
+| `NOT_COMPARABLE` | Context không tương thích | `NOT_COMPARABLE` |
+| `INSUFFICIENT_EVIDENCE` | Thiếu/invalid evidence hoặc context | `NEEDS_EVIDENCE` |
 
-Chỉ difference/amendment có evidence mới vào Conflict. Evidence thiếu là queue/metric riêng.
+Chỉ difference/amendment có evidence hai phía mới vào Conflict. Evidence thiếu là queue/metric riêng. Reviewer vẫn có thể mở review item thủ công cho một `COMPARABLE_MATCH` (target `FINDING`) nếu muốn phủ định; khi đó queue của review item là `CONFLICT`.
 
 ## 9. Vòng lặp re-OCR có giới hạn
 
 ```mermaid
 sequenceDiagram
   participant AI2 as AI2
-  participant SP as Spring policy/orchestrator
+  participant SP as FastAPI policy/orchestrator
   participant AI1 as AI1
   participant DB as Ledger/contracts
-  AI2->>SP: EvidenceGapDetected.v2
+  AI2-->>SP: EvidenceGapDetected.v2 (trong kết quả job AI2)
   SP->>DB: validate, dedupe, audit
   SP->>SP: chọn scope, route, budget
   SP->>DB: persist ReOcrRequest.v3
-  alt local route
-    SP->>AI1: ReOcrScheduled
-    AI1->>DB: SnapshotRevisionPublished
-  else external route
-    SP->>DB: AWAITING_EXTERNAL_REVIEW
-    SP->>DB: append và consume grant
-    SP->>AI1: approved bounded task
+  alt route LOCAL_AUTO
+    SP->>DB: emit ReOcrScheduled, enqueue task
+    SP->>AI1: POST /jobs/reocr (bounded target) + poll
+    AI1-->>SP: snapshot revision candidate
+    SP->>DB: validate, persist, emit SnapshotRevisionPublished
+  else route EXTERNAL_REVIEW_REQUIRED
+    SP->>DB: state AWAITING_EXTERNAL_REVIEW
+    SP->>DB: append grant, consume atomically, state QUEUED
+    SP->>AI1: POST /jobs/reocr với grant ID + poll
+  else route DENIED
+    SP->>DB: state FAILED, outcome_code EGRESS_DENIED
   end
   SP->>DB: selective invalidation/new lineage
 ```
 
-AI2 không gọi OCR hay thay raw text/bbox. Operator chỉ retry/cancel request local đã audit bằng ETag CAS.
+AI2 không gọi OCR hay thay raw text/bbox. AI1 không tự publish: backend validate kết quả rồi phát `SnapshotRevisionPublished`. Operator chỉ retry/cancel request local đã audit bằng ETag CAS.
 
 | Action | Required scope | Coverage | Trường hợp |
 |---|---|---|---|
@@ -370,18 +428,25 @@ AI2 không gọi OCR hay thay raw text/bbox. Operator chỉ retry/cancel request
 stateDiagram-v2
   [*] --> REQUESTED
   REQUESTED --> VALIDATED
-  VALIDATED --> QUEUED: LOCAL_AUTO
-  VALIDATED --> AWAITING_EXTERNAL_REVIEW: cần approval
-  AWAITING_EXTERNAL_REVIEW --> QUEUED: active grant được consume một lần
+  VALIDATED --> QUEUED: route LOCAL_AUTO
+  VALIDATED --> AWAITING_EXTERNAL_REVIEW: route EXTERNAL_REVIEW_REQUIRED
+  VALIDATED --> FAILED: route DENIED, outcome_code EGRESS_DENIED
+  AWAITING_EXTERNAL_REVIEW --> QUEUED: grant ACTIVE được consume một lần, route thành EXTERNAL_APPROVED
+  AWAITING_EXTERNAL_REVIEW --> CANCELLED: Operator CANCEL hoặc grant hết hạn
   QUEUED --> RUNNING
   RUNNING --> SUCCEEDED
   RUNNING --> PARTIAL
-  RUNNING --> FAILED
-  FAILED --> VALIDATED: bounded local retry/CAS
-  VALIDATED --> DENIED
-  REQUESTED --> CANCELLED
+  RUNNING --> FAILED: transport/quality lỗi
+  RUNNING --> QUARANTINED: kết quả AI1 không qua semantic validator
+  FAILED --> VALIDATED: RETRY_LOCAL (chỉ route LOCAL_AUTO, CAS)
   VALIDATED --> BUDGET_EXHAUSTED
+  FAILED --> BUDGET_EXHAUSTED
+  REQUESTED --> CANCELLED
+  VALIDATED --> CANCELLED
+  QUEUED --> CANCELLED
 ```
+
+`state` và `resolved_route` là hai trục độc lập trong `reocr-request.v3`: `DENIED`/`EXTERNAL_APPROVED` là giá trị route, không phải state. Route `DENIED` luôn đi kèm state `FAILED` và `outcome_code`; route `EXTERNAL_REVIEW_REQUIRED` luôn đi kèm state `AWAITING_EXTERNAL_REVIEW`; approval grant đổi route sang `EXTERNAL_APPROVED` và state sang `QUEUED`. `QUARANTINED` là kết quả bị giữ lại vì vi phạm contract, không được retry tự động.
 
 `external-egress-approval-grant.v1` bind request, source snapshot, target digest, tenant, policy/consent, provider/model/region/retention/profile, actor, expiry và single-use state. UUID không tự tạo quyền egress. Re-OCR tạo full snapshot inventory mới và selective invalidation.
 
@@ -403,7 +468,7 @@ erDiagram
   REOCR_REQUEST ||--o| EXTERNAL_EGRESS_GRANT : authorized_by
 ```
 
-DOC-05 là authority của HTTP. Spring resolve child resource, kiểm tenant và path-parent containment, rồi mới RBAC. Mismatch trả `404` hoặc `403` theo anti-enumeration policy.
+DOC-05 là authority của HTTP. FastAPI backend resolve child resource, kiểm tenant và path-parent containment, rồi mới RBAC. Mismatch trả `404` hoặc `403` theo anti-enumeration policy.
 
 ```mermaid
 flowchart LR
@@ -421,7 +486,7 @@ flowchart LR
 sequenceDiagram
   participant R as Reviewer
   participant UI as Evidence UI
-  participant API as Spring
+  participant API as FastAPI
   participant DB as Audit store
   R->>UI: mở finding/citation
   UI->>API: resolve source/render được phép
@@ -446,7 +511,7 @@ Review, relation review, batch action, re-OCR action phải giữ actor/time/rea
 
 ```mermaid
 flowchart LR
-  API[Spring API] --> OTEL[OpenTelemetry collector]
+  API[FastAPI API] --> OTEL[OpenTelemetry collector]
   AI[AI workers] --> OTEL
   OTEL --> MET[Metrics/dashboard]
   OTEL --> TRACE[Traces]
@@ -482,41 +547,33 @@ Fixture chứng minh contract integration, không chứng minh OCR quality. DOC-
 | Fact/finding | precision/recall/F1 theo type/source pair, reviewer outcome |
 | Operations | p50/p95 page/dossier, throughput, retry/cost |
 
+Hai state machine tách biệt, khớp DOC-05 `ConfigBundle.status` và `ConfigBinding.state`:
+
 ```mermaid
 stateDiagram-v2
-  [*] --> DRAFT
-  DRAFT --> STATIC_VALIDATED
-  STATIC_VALIDATED --> DEV_EVALUATED
-  DEV_EVALUATED --> HOLDOUT_QUEUED
-  HOLDOUT_QUEUED --> HOLDOUT_EVALUATED
-  HOLDOUT_EVALUATED --> APPROVED_FOR_SHADOW
-  APPROVED_FOR_SHADOW --> SHADOWING
-  SHADOWING --> APPROVED_FOR_CANARY
-  APPROVED_FOR_CANARY --> CANARYING
-  CANARYING --> ACTIVE
-  ACTIVE --> ROLLED_BACK
-  DEV_EVALUATED --> REJECTED
-  HOLDOUT_EVALUATED --> REJECTED
+  state "ConfigBundle" as B {
+    [*] --> DRAFT
+    DRAFT --> STATIC_VALIDATED
+    STATIC_VALIDATED --> DEV_EVALUATED
+    DEV_EVALUATED --> HOLDOUT_EVALUATED: QUEUE_SEALED_HOLDOUT + run
+    HOLDOUT_EVALUATED --> APPROVED: human dual approval
+    APPROVED --> ACTIVE: binding ACTIVE
+    ACTIVE --> RETIRED
+    DEV_EVALUATED --> REVOKED: gate failed
+    HOLDOUT_EVALUATED --> REVOKED: gate failed / rejected
+    APPROVED --> REVOKED
+  }
+  state "ConfigBinding" as R {
+    [*] --> SHADOW: APPROVE_SHADOW
+    SHADOW --> CANARY: APPROVE_CANARY
+    CANARY --> ACTIVE: ACTIVATE
+    SHADOW --> PAUSED
+    CANARY --> PAUSED
+    ACTIVE --> ROLLED_BACK: rollback tạo binding mới
+  }
 ```
 
 Config bundle immutable/digested. Dataset split theo source/template/dossier family. Promotion kiểm citation, geometry, critical fact, failure/needs-evidence, cost theo stratum; missing/failed vẫn thuộc denominator. Rollback tạo binding mới và giữ historical run.
-
-```mermaid
-gantt
-  title Trình tự triển khai kiến trúc
-  dateFormat YYYY-MM-DD
-  section Nền tảng
-  Chốt ADR và contracts :a1, 2026-09-17, 3d
-  Spring storage/task/outbox :a2, after a1, 5d
-  section Evidence slice
-  Native và scan snapshot/CPS :b1, after a2, 5d
-  Clause/fact/citation viewer :b2, after b1, 5d
-  section Intelligence
-  Annex/finding/HITL revision :c1, after b2, 5d
-  Bounded re-OCR và batch :c2, after c1, 4d
-```
-
-Gantt chỉ thể hiện dependency, không phải cam kết tiến độ.
 
 ### Acceptance và open decisions
 
@@ -538,18 +595,19 @@ DOC-05 là authority cho đường dẫn, request/response DTO, RBAC và mã l�
 
 | Nhóm API | Năng lực | Invariant kiến trúc |
 |---|---|---|
-| Intake | Tạo dossier, upload source, confirm manifest | Source chỉ được tạo version mới; manifest pin document/source digest. |
+| Intake | List/tạo dossier, upload source, confirm manifest (kèm `declared_language_scope`) | Source chỉ được tạo version mới; manifest pin document/source digest và language scope. |
 | Processing | Tạo/list/get run, coverage ledger | Rerun là whole-dossier; không mutate run/snapshot cũ. |
-| Evidence | List finding, resolve citation | Render/object URL phải scoped, short-lived và tenant-bound. |
+| Evidence | List page (render + OCR line/word), clause tree, fact, finding; resolve citation | Render/object URL phải scoped, short-lived và tenant-bound; page/line/clause/fact luôn pin `snapshot_id`/`run_id`. |
 | Review | Append finding/relation/approval revision | Mọi ghi sửa là append-only, CAS, có actor/time/reason. |
 | Batch | Tạo batch, list item, retry/cancel item | Membership bất biến; action không ảnh hưởng item khác. |
 | Re-OCR | Query request, local retry/cancel audited | Public API không tạo direct re-OCR hoặc external route. |
-| Internal policy | Append external approval grant | mTLS service command, không phải public operator endpoint. |
+| Internal policy | Append external approval grant | Service command qua security scheme riêng (`serviceIdentity`, mTLS-terminated), không phải public operator endpoint. |
+| Backend → ai-service | `POST /jobs/{ocr\|reocr\|idp}`, `GET /jobs/{id}`, `DELETE /jobs/{id}` | Internal contract của ai-service, không nằm trong DOC-05 public API; request luôn mang `task_id`/`attempt_id`, artifact URL ngắn hạn và config digest. |
 
 ```mermaid
 sequenceDiagram
   actor U as Client
-  participant G as Spring API
+  participant G as FastAPI API
   participant R as Resource resolver
   participant P as Policy/RBAC
   participant D as Domain service
@@ -584,7 +642,7 @@ sequenceDiagram
 | Danh sách dossier/job | trạng thái, tiến độ, lỗi đọc được, batch summary | mở, retry trong quyền hạn |
 | Evidence viewer | PDF/render gốc, raw OCR, page/line/word/clause bbox, citation quote | zoom, điều hướng citation |
 | Finding panel | disposition, context, evidence A/B, gap/reason | mở hai nguồn đồng thời |
-| Review panel | machine value, human overlay, history revision | confirm/correct/reject/request evidence |
+| Review panel | machine value, human overlay, history revision; review item có thể target `FINDING`, `FACT`, `CLAUSE` hoặc `RELATION` | confirm/correct/reject/request evidence |
 | Approval | manifest/run/review watermark được pin | approve nội bộ hoặc xem revision trước |
 
 ```mermaid
@@ -621,7 +679,7 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-  API[Spring API spans] --> COL[OTel collector]
+  API[FastAPI API spans] --> COL[OTel collector]
   W[Worker spans] --> COL
   COL --> TR[Trace backend]
   COL --> MT[Metrics backend]
@@ -738,7 +796,7 @@ Capacity được đo theo laptop/profile thực: max pages/document, annex/doss
 
 | Profile | Thành phần | Dùng cho |
 |---|---|---|
-| `local-baseline` | Spring, PostgreSQL, filesystem artifact, AI1/AI2 local | development/demo mặc định |
+| `local-baseline` | FastAPI, PostgreSQL, MinIO, AI1/AI2 local | development/demo mặc định |
 | `observability` | thêm OTel/metrics/traces theo compose | debug/vận hành, metadata-only |
 | `external-approved` | egress broker + profile allowlist | chỉ dataset/policy/mentor đã duyệt |
 
@@ -779,7 +837,7 @@ Release bị block nếu valid fixture không được accept, invalid fixture k
 | Giai đoạn | Deliverable thực tế | Không được claim |
 |---|---|---|
 | Sprint 1 | DOC-01…06 draft, dataset/GT plan, OCR spike, bbox trên trang thật, wireframe | production readiness/accuracy chưa đo |
-| Foundation | Spring schema/migration, storage, task/outbox/lease, contract validator | full semantic model hoặc external route |
+| Foundation | FastAPI schema/migration, MinIO, PostgreSQL task/lease, contract validator | full semantic model hoặc external route |
 | Evidence slice | native+scan snapshot, CPS, clause/fact/citation viewer | chất lượng cho mọi scan/ngôn ngữ |
 | Intelligence | annex link, finding, HITL revision, bounded repair/batch | legal amendment conclusion |
 | Gate B | benchmark report, audit provenance, controlled external decision | SLA nếu chưa có capacity evidence |
@@ -868,3 +926,18 @@ Không dùng câu model tự báo `confidence=0.98` như 98% chính xác. OCR co
 ```
 
 Đây là envelope minh họa; wire shape thật theo DOC-05/contracts. `not_found` chỉ được trả khi phạm vi tìm liên quan đã hoàn tất theo policy. Khi page/chunk còn thiếu, trạng thái đúng là `unknown_due_to_incomplete_processing` hoặc `INSUFFICIENT_EVIDENCE`, không phải “không có thông tin”.
+
+## 22. Change record
+
+Theo [DOCUMENT-GOVERNANCE.md](DOCUMENT-GOVERNANCE.md), mọi thay đổi ADR/contract/lifecycle phải ghi owner, ngày, lý do, requirement bị ảnh hưởng và tài liệu phải sửa.
+
+| Ngày | Thay đổi | Lý do | Ảnh hưởng | Tài liệu đã đồng bộ | Owner |
+|---|---|---|---|---|---|
+| 2026-09-17 | ADR-01: backend từ Java 17/Spring Boot 3 sang Python 3.12/FastAPI; Flyway → Alembic; Maven → pyproject. | Team backend đã dựng skeleton FastAPI trên `feature/backend-setup`; một ngôn ngữ cho toàn stack giảm chi phí bàn giao OJT. | DOC-03 CON-02 (vẫn monolith DDD), NFR-06; không đổi business rule. | README gốc, `backend/README.md`, `ai-service/README.md`, DOC-03, DOC-05, `contracts/`, AI2 pipeline, archive manifest. | Architecture Lead + Backend |
+| 2026-09-17 | ADR-02/03: chốt mô hình **backend-push**: dispatcher backend claim PostgreSQL task table rồi gọi `ai-service` qua HTTP REST + polling; `ai-service` stateless, không truy cập DB. | Trước đó DOC-04 mô tả song song hai mô hình (worker pull DB và httpx push), Backend và AI có thể implement khác nhau. | §1, §3, §5, §9, §13; ai-service README. | DOC-04, `ai-service/README.md`, `backend/README.md`, AI2 pipeline, `contracts/README.md`. | Architecture Lead + Backend + AI |
+| 2026-09-17 | ADR-04: object storage development từ filesystem local sang MinIO S3-compatible. | Khớp skeleton backend và profile compose `local-baseline`. | NFR-01 local demo. | DOC-04 §18.2, README. | Backend |
+| 2026-09-17 | Re-OCR: tách rõ `state` và `resolved_route`; thêm `QUARANTINED`; route `DENIED` ⇒ state `FAILED` + `outcome_code`. | DOC-04 state diagram dùng route như state, thiếu `QUARANTINED` so với schema/DOC-05. | BR-03, BR-06. | DOC-04 §9, `reocr-request.v3.schema.json`, `contracts/README.md`, fixtures, DOC-05. | Backend + AI2 |
+| 2026-09-17 | Page ledger: thêm `quality.coverage_status = BLANK_VERIFIED` vào `ai1.snapshot.v3` và bảng ánh xạ snapshot → ledger. | ADR-11/DOC-06 yêu cầu `BLANK_VERIFIED` nhưng contract AI1 không có cách khai báo. | BR-02, BR-03, DOC-06 §6. | DOC-04 §6, snapshot v3 schema, fixtures, `contracts/README.md`. | AI1 + Backend |
+| 2026-09-17 | Finding queue: `COMPARABLE_MATCH` ⇒ `queue = null`; review item có `target_type` (`FINDING`/`FACT`/`CLAUSE`/`RELATION`). | DOC-05 bắt buộc queue nhưng MATCH không thuộc queue nào; BR-08 sửa fact không có review item. | BR-08, BR-11…BR-16. | DOC-04 §8/§14, DOC-05, DOC-03. | AI2 + Backend + Frontend |
+| 2026-09-17 | Dossier lifecycle: thêm `FAILED → PROCESSING` và `PENDING_REVIEW → PROCESSING`. | BR-19/BR-20 và `createRun` cho phép rerun nhưng state diagram để `FAILED` là dead-end. | BR-19, BR-20. | DOC-04 §4, DOC-03 §2. | Backend |
+| 2026-09-17 | DOC-05: thêm `GET /dossiers`, page/clause/fact endpoints, `declared_language_scope` trong manifest, security scheme `serviceIdentity`, grant DTO dùng đúng field schema. | Màn hình DOC-04 §14 và DOC-03 §4 không có API tương ứng; fixture parity DTO ↔ schema không thể pass. | BR-15, DOC-03 §4, FR-HITL. | DOC-05, fixtures, `contracts/README.md`. | Backend + Frontend |

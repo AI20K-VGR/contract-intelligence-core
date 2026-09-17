@@ -8,9 +8,9 @@ Hệ thống **OCR / IDP (Intelligent Document Processing)** xử lý hợp đ�
 
 ```
 contract-intelligence/
-├── backend/        # Java Spring Boot — REST API, Clean Architecture + DDD
-├── frontend/       # Web UI cho reviewer / operator (Node/React/Vue — sẽ chốt sau)
-├── ai-service/     # Python service cho OCR / IDP / LLM extraction (nếu tách riêng)
+├── backend/        # Python 3.12 + FastAPI — REST API, Clean Architecture + DDD, orchestration
+├── frontend/       # Web UI cho reviewer / operator (React + PDF viewer)
+├── ai-service/     # Python HTTP service cho OCR / IDP (AI1/AI2), stateless, backend gọi qua HTTP
 ├── docs/           # Tài liệu sản phẩm & kỹ thuật (Product Vision, Architecture, API Spec)
 └── README.md       # File này
 ```
@@ -19,12 +19,12 @@ contract-intelligence/
 
 | Thư mục | Mục đích | Công nghệ dự kiến |
 |---|---|---|
-| `backend/` | API server, xử lý nghiệp vụ chính, lưu trữ, quản lý luồng review | Java 17, Spring Boot 3.x, PostgreSQL, Flyway |
-| `frontend/` | Giao diện upload hợp đồng, review điều khoản, xử lý conflict | Node.js (React hoặc Vue — chưa chốt) |
-| `ai-service/` | Worker OCR/IDP nội bộ, xử lý tác vụ do backend điều phối | Python worker |
-| `docs/` | Product vision, system design, database schema, API spec, ADRs | Markdown + OpenAPI YAML |
+| `backend/` | Public API, domain, RBAC, persistence, task dispatcher gọi ai-service, luồng review | Python 3.12, FastAPI, SQLAlchemy 2 async + asyncpg, Alembic, PostgreSQL, MinIO |
+| `frontend/` | Giao diện dossier/job list, evidence viewer, review điều khoản, xử lý conflict | React + PDF viewer |
+| `ai-service/` | HTTP service OCR/layout (AI1) và IDP (AI2); stateless, không truy cập DB | Python 3.12, FastAPI, PaddleOCR/Tesseract baseline |
+| `docs/` | Product vision, BRD, PRD, architecture, API spec, contracts, evaluation | Markdown + OpenAPI YAML + JSON Schema |
 
-> **Quyết định kiến trúc:** Spring Boot sở hữu API, dữ liệu và điều phối; Python chỉ là worker OCR/IDP nội bộ. PostgreSQL là source of truth và task queue MVP. Xem [DOC-04](docs/DOC-04-architecture.md).
+> **Quyết định kiến trúc (DOC-04 ADR-01/02/03, change record 2026-09-17):** Backend FastAPI sở hữu API, dữ liệu, task queue và điều phối; `ai-service` là HTTP service nội bộ được backend gọi theo mô hình push (`POST /jobs` + polling), không kết nối PostgreSQL. PostgreSQL là source of truth và task queue MVP; MinIO lưu PDF/render. Xem [DOC-04](docs/DOC-04-architecture.md).
 
 ---
 
@@ -58,14 +58,19 @@ feature branch  ──PR──▶  develop  ──release PR──▶  main
 git clone <repo-url>
 cd contract-intelligence
 
-# Mở backend
-cd backend && ./mvnw spring-boot:run
+# Hạ tầng local (PostgreSQL + MinIO) — profile local-baseline, xem DOC-04 §18.2
+docker compose up -d postgres minio
+
+# Mở backend (Python 3.12, FastAPI) — skeleton dùng uv + hatchling, xem backend/README.md
+cd backend && pip install uv && uv sync --extra dev
+uv run alembic upgrade head && uv run uvicorn contract_intelligence.main:app --reload --port 8000
+
+# Mở ai-service (sau khi generate)
+cd ../ai-service && python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
+uvicorn app.main:app --port 8100
 
 # Mở frontend (sau khi generate)
 cd ../frontend && npm install && npm run dev
-
-# Mở ai-service (sau khi generate)
-cd ../ai-service && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt
 ```
 
 ---
@@ -75,8 +80,13 @@ cd ../ai-service && python -m venv venv && source venv/bin/activate && pip insta
 Xem thư mục [`docs/`](./docs/):
 
 - `DOC-01-product-vision.md` — Tầm nhìn sản phẩm, vấn đề, đối tượng người dùng
-- `DOC-04-architecture.md` — System design, database schema, ADRs
-- `DOC-05-api-spec.yaml` — OpenAPI 3.0 spec cho REST API
+- `DOC-02-brd.md` — Business requirements, BR/NFR
+- `DOC-03-prd.md` — Product requirements, acceptance, constraints
+- `DOC-04-architecture.md` — System design, ADRs, state machines, change record (§22)
+- `DOC-05-api-spec.yaml` — OpenAPI 3.0 spec cho REST API public
+- `DOC-06-eval-report.md` — Evaluation protocol và report template
+- `contracts/` — JSON Schema wire contracts và validation fixtures
+- `DOCUMENT-GOVERNANCE.md` — authority, metadata, archive policy
 
 ---
 

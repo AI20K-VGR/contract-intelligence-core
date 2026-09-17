@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contractintel.internal/schemas/reocr-request.v3.json",
-  "title": "Spring Re-OCR Request v3",
+  "title": "FastAPI Backend Re-OCR Request v3",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "request_id", "evidence_gap_event_id", "correlation_id", "idempotency_key", "dossier_id", "source_snapshot_id", "target", "reason_code", "evidence_refs", "artifact_refs", "priority", "repair_action", "coverage_requirement", "resolved_route", "selected_profile_id", "state", "budget", "created_at"],
@@ -34,7 +34,9 @@
   "allOf": [
     {"if": {"properties": {"state": {"enum": ["SUCCEEDED", "PARTIAL"]}}}, "then": {"required": ["result_snapshot_id"], "properties": {"result_snapshot_id": {"type": "string"}}}},
     {"if": {"properties": {"state": {"enum": ["FAILED", "QUARANTINED", "BUDGET_EXHAUSTED"]}}}, "then": {"required": ["outcome_code"], "properties": {"outcome_code": {"type": "string", "minLength": 1}}}},
-    {"if": {"properties": {"resolved_route": {"const": "DENIED"}}}, "then": {"properties": {"selected_profile_id": {"type": "null"}}}},
+    {"if": {"properties": {"resolved_route": {"const": "DENIED"}}}, "then": {"required": ["outcome_code"], "properties": {"selected_profile_id": {"type": "null"}, "external_approval_grant_id": {"type": "null"}, "state": {"enum": ["FAILED", "CANCELLED"]}, "outcome_code": {"type": "string", "minLength": 1}}}},
+    {"if": {"properties": {"resolved_route": {"const": "LOCAL_AUTO"}}}, "then": {"properties": {"selected_profile_id": {"type": "string", "minLength": 1}, "external_approval_grant_id": {"type": "null"}, "state": {"not": {"const": "AWAITING_EXTERNAL_REVIEW"}}}}},
+    {"if": {"properties": {"state": {"const": "QUARANTINED"}}}, "then": {"required": ["result_snapshot_id"], "properties": {"result_snapshot_id": {"type": "string"}}}},
     {"if": {"properties": {"resolved_route": {"const": "EXTERNAL_REVIEW_REQUIRED"}}}, "then": {"properties": {"state": {"const": "AWAITING_EXTERNAL_REVIEW"}, "selected_profile_id": {"type": "null"}, "external_approval_grant_id": {"type": "null"}}}},
     {"if": {"properties": {"resolved_route": {"const": "EXTERNAL_APPROVED"}}}, "then": {"required": ["external_approval_grant_id"], "properties": {"external_approval_grant_id": {"type": "string"}, "selected_profile_id": {"type": "string"}}}},
     {"if": {"properties": {"repair_action": {"const": "REGION_RESCAN"}}}, "then": {"properties": {"target": {"properties": {"scope": {"const": "REGION"}}}}}},

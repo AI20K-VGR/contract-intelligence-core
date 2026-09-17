@@ -6,6 +6,8 @@
 | `pipelines/IDP-OPTIMIZATION-PIPELINE.md` | `AI2-IDP-OPTIMIZATION-PIPELINE.md` | Sequential pipeline lacks controlled re-OCR feedback. | 2026-09-17 | Audit only. |
 | `contracts/ai1.snapshot.v1.schema.json` | `contracts/ai1.snapshot.v3.schema.json` | Legacy OCR wire contract. | 2026-09-17 | Read-only legacy input. |
 | `contracts/ai1.snapshot.v2.schema.json` | `contracts/ai1.snapshot.v3.schema.json` | Draft v2 lacks language provenance and v3 invariants. | 2026-09-17 | Read-only migration input. |
-| `contracts/reocr-request.v1.schema.json` | `contracts/evidence-gap-event.v2.schema.json`, `contracts/reocr-request.v3.schema.json` | AI2 intent and Spring-owned request state were conflated. | 2026-09-17 | Read-only migration input. |
+| `contracts/reocr-request.v1.schema.json` | `contracts/evidence-gap-event.v2.schema.json`, `contracts/reocr-request.v3.schema.json` | AI2 intent and backend-owned request state were conflated. | 2026-09-17 | Read-only migration input. |
 | `contracts/evidence-gap-event.v1.schema.json` | `contracts/evidence-gap-event.v2.schema.json` | v2 adds coverage requirement and bounded repair suggestion. | 2026-09-17 | Read-only migration input. |
-| `contracts/reocr-request.v2.schema.json` | `contracts/reocr-request.v3.schema.json` | v3 records Spring-selected repair and finite retry/submission budget. | 2026-09-17 | Read-only migration input. |
+| `contracts/reocr-request.v2.schema.json` | `contracts/reocr-request.v3.schema.json` | v3 records backend-selected repair and finite retry/submission budget. | 2026-09-17 | Read-only migration input. |
+
+Ghi chú: tài liệu archive được viết khi backend còn là Java/Spring Boot (ADR-01 cũ). Từ 2026-09-17 backend là Python/FastAPI (DOC-04 §22); mọi tham chiếu "Spring" trong archive chỉ mang tính lịch sử.

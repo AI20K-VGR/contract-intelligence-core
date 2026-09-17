@@ -13,7 +13,7 @@
 | [AI2 pipeline](AI2-IDP-OPTIMIZATION-PIPELINE.md) | Luồng OCR ↔ IDP ↔ targeted re-OCR có sơ đồ. |
 | [Contracts](contracts/README.md) | Wire/semantic contracts hiện hành. |
 
-Quy tắc authority, metadata, change record và archive policy nằm tại [DOCUMENT-GOVERNANCE.md](DOCUMENT-GOVERNANCE.md). DOC-01/02 quyết định product scope/business semantics; DOC-04 chỉ quyết định technical lifecycle; DOC-05 quyết định public API; JSON schema quyết định wire shape.
+Quy tắc authority, metadata, change record và archive policy nằm tại [DOCUMENT-GOVERNANCE.md](DOCUMENT-GOVERNANCE.md); change record hiện hành nằm ở [DOC-04 §22](DOC-04-architecture.md#22-change-record). DOC-01/02 quyết định product scope/business semantics; DOC-04 chỉ quyết định technical lifecycle; DOC-05 quyết định public API; JSON schema quyết định wire shape.
 
 ## Lịch sử
 
