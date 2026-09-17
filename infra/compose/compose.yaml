@@ -1,0 +1,55 @@
+name: contract-intelligence
+services:
+  postgres:
+    image: postgres:17.5-alpine
+    environment:
+      POSTGRES_DB: ci
+      POSTGRES_USER: ci
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes: ["postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ci -d ci"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  migrate:
+    build: ../../backend
+    environment: &environment
+      CI_DATABASE_URL: postgresql+psycopg://ci:${POSTGRES_PASSWORD}@postgres:5432/ci
+      CI_ARTIFACT_ROOT: /artifacts
+      CI_ACCOUNTS: ${CI_ACCOUNTS:?Set CI_ACCOUNTS}
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres: {condition: service_healthy}
+  api:
+    build: ../../backend
+    environment: *environment
+    volumes: ["${CI_DATA_DIR:?Set CI_DATA_DIR}:/artifacts"]
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/ready')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  worker:
+    build: ../../backend
+    environment: *environment
+    volumes: ["${CI_DATA_DIR:?Set CI_DATA_DIR}:/artifacts"]
+    command: ["python", "-m", "app.worker"]
+    stop_grace_period: 120s
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+  web:
+    build: ../../apps/web
+    ports: ["127.0.0.1:8080:80"]
+    depends_on:
+      api: {condition: service_healthy}
+  prometheus:
+    image: prom/prometheus:v3.4.1
+    profiles: [ops]
+    volumes: ["../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["127.0.0.1:9090:9090"]
+volumes:
+  postgres:
