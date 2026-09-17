@@ -2,12 +2,13 @@ import time
 from contextlib import contextmanager
 from typing import Literal
 
-from fastapi import Depends, FastAPI, File, Form, Header, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from prometheus_client import Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 
+from app.audit import audit_trail, log_event
 from app.config import settings
 from app.db import Session
 from app.domain import DomainError, require, uid
@@ -125,8 +126,7 @@ def ready():
     try:
         with transaction() as db:
             revision = db.execute(text("SELECT version_num FROM alembic_version")).scalar()
-            require(revision == "0002", "SCHEMA_NOT_READY", 503)
-        require(bool(settings.accounts), "ACCOUNTS_NOT_CONFIGURED", 503)
+            require(revision == "0003", "SCHEMA_NOT_READY", 503)
         import tempfile
 
         with tempfile.TemporaryFile(dir=store().root) as probe:
@@ -143,7 +143,8 @@ def metrics():
 
 @app.post("/api/v1/dossiers", status_code=201)
 def create_dossier(
-    body: CreateDossier, actor: Actor = Depends(authenticate), idempotency_key: str = Header()
+    body: CreateDossier, request: Request,
+    actor: Actor = Depends(authenticate), idempotency_key: str = Header(),
 ):
     allowed(actor, "operator")
     with transaction() as db:
@@ -152,6 +153,8 @@ def create_dossier(
             dossier = Dossier(title=body.title, created_by=actor.id)
             db.add(dossier)
             db.flush()
+            log_event(db, dossier.id, actor.id, "dossier.created", "dossier", dossier.id,
+                      request.state.request_id)
             return {"id": dossier.id, "revision": dossier.revision}
 
         return mutate(db, actor, idempotency_key, "dossier.create", body.model_dump(), create)
@@ -191,6 +194,7 @@ def dossiers(
 @app.post("/api/v1/dossiers/{dossier_id}/documents", status_code=201)
 def upload(
     dossier_id: str,
+    request: Request,
     file: UploadFile = File(),
     role: Literal["contract", "appendix"] = Form(),
     actor: Actor = Depends(authenticate),
@@ -200,28 +204,38 @@ def upload(
     content = file.file.read(settings.max_upload_bytes + 1)
     require(len(content) <= settings.max_upload_bytes, "UPLOAD_TOO_LARGE", 413)
     with transaction() as db:
+
+        def do_upload():
+            result = ingest(db, store(), dossier_id, role, content, settings)
+            log_event(db, dossier_id, actor.id, "document.uploaded", "document", result["id"],
+                      request.state.request_id, detail={"role": role, "page_count": result["page_count"]})
+            return result
+
         return mutate(
             db,
             actor,
             idempotency_key,
             f"{dossier_id}.upload",
             {"sha256": digest(content), "role": role},
-            lambda: ingest(db, store(), dossier_id, role, content, settings),
+            do_upload,
         )
 
 
 @app.post("/api/v1/dossiers/{dossier_id}/jobs", status_code=202)
-def start(dossier_id: str, actor: Actor = Depends(authenticate), idempotency_key: str = Header()):
+def start(
+    dossier_id: str, request: Request,
+    actor: Actor = Depends(authenticate), idempotency_key: str = Header(),
+):
     allowed(actor, "operator")
     with transaction() as db:
-        return mutate(
-            db,
-            actor,
-            idempotency_key,
-            f"{dossier_id}.start",
-            {},
-            lambda: enqueue(db, dossier_id, settings),
-        )
+
+        def do_start():
+            result = enqueue(db, dossier_id, settings)
+            log_event(db, dossier_id, actor.id, "job.enqueued", "job", result["id"],
+                      request.state.request_id)
+            return result
+
+        return mutate(db, actor, idempotency_key, f"{dossier_id}.start", {}, do_start)
 
 
 @app.get("/api/v1/jobs/{job_id}")
@@ -246,7 +260,10 @@ def job_status(job_id: str, actor: Actor = Depends(authenticate)):
 
 
 @app.post("/api/v1/jobs/{job_id}/retry", status_code=202)
-def retry(job_id: str, actor: Actor = Depends(authenticate), idempotency_key: str = Header()):
+def retry(
+    job_id: str, request: Request,
+    actor: Actor = Depends(authenticate), idempotency_key: str = Header(),
+):
     allowed(actor, "operator")
     with transaction() as db:
 
@@ -272,6 +289,8 @@ def retry(job_id: str, actor: Actor = Depends(authenticate), idempotency_key: st
             for batch in db.scalars(select(Batch).with_for_update()):
                 if job_id in batch.job_ids:
                     batch.job_ids = [new.id if item == job_id else item for item in batch.job_ids]
+            log_event(db, old.dossier_id, actor.id, "job.retried", "job", new.id,
+                      request.state.request_id, detail={"previous_job_id": old.id})
             return {**response, "previous_job_id": old.id, "reused_pages": len(cached)}
 
         return mutate(db, actor, idempotency_key, f"{job_id}.retry", {}, create_retry)
@@ -314,6 +333,13 @@ def documents(dossier_id: str, actor: Actor = Depends(authenticate)):
                 for d in docs
             ]
         }
+
+
+@app.get("/api/v1/dossiers/{dossier_id}/audit")
+def audit(dossier_id: str, actor: Actor = Depends(authenticate)):
+    with transaction() as db:
+        require(db.get(Dossier, dossier_id) is not None, "DOSSIER_NOT_FOUND", 404)
+        return {"items": audit_trail(db, dossier_id)}
 
 
 @app.get("/api/v1/dossiers/{dossier_id}/{collection}")
@@ -403,7 +429,10 @@ def page_image(document_id: str, number: int, run_id: str, actor: Actor = Depend
 
 
 @app.post("/api/v1/review-events", status_code=201)
-def review(body: ReviewBody, actor: Actor = Depends(authenticate), idempotency_key: str = Header()):
+def review(
+    body: ReviewBody, request: Request,
+    actor: Actor = Depends(authenticate), idempotency_key: str = Header(),
+):
     allowed(actor, "reviewer")
     with transaction() as db:
         return mutate(
@@ -412,7 +441,7 @@ def review(body: ReviewBody, actor: Actor = Depends(authenticate), idempotency_k
             idempotency_key,
             "review",
             body.model_dump(),
-            lambda: append_review(db, body, actor),
+            lambda: append_review(db, body, actor, request.state.request_id),
         )
 
 
@@ -420,6 +449,7 @@ def review(body: ReviewBody, actor: Actor = Depends(authenticate), idempotency_k
 def approval(
     dossier_id: str,
     body: ApproveBody,
+    request: Request,
     actor: Actor = Depends(authenticate),
     idempotency_key: str = Header(),
 ):
@@ -431,13 +461,14 @@ def approval(
             idempotency_key,
             f"{dossier_id}.approve",
             body.model_dump(),
-            lambda: approve(db, dossier_id, body.expected_revision, actor),
+            lambda: approve(db, dossier_id, body.expected_revision, actor, request.state.request_id),
         )
 
 
 @app.post("/api/v1/batches", status_code=202)
 def create_batch(
-    body: BatchBody, actor: Actor = Depends(authenticate), idempotency_key: str = Header()
+    body: BatchBody, request: Request,
+    actor: Actor = Depends(authenticate), idempotency_key: str = Header(),
 ):
     allowed(actor, "operator")
     require(len(set(body.dossier_ids)) == len(body.dossier_ids), "DUPLICATE_DOSSIER", 422)
@@ -449,6 +480,9 @@ def create_batch(
             )
             db.add(batch)
             db.flush()
+            for dossier_id in body.dossier_ids:
+                log_event(db, dossier_id, actor.id, "batch.created", "batch", batch.id,
+                          request.state.request_id)
             return {"id": batch.id, "job_ids": batch.job_ids}
 
         return mutate(db, actor, idempotency_key, "batch", body.model_dump(), create)

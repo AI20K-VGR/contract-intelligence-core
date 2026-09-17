@@ -4,13 +4,13 @@ Codebase xử lý hợp đồng và phụ lục, hiển thị bằng chứng và
 
 ## Chạy nhanh
 
-Cần Docker Desktop chạy Linux containers. Copy `infra/compose/.env.example` thành `infra/compose/.env`; đặt mật khẩu PostgreSQL, token account và `CI_DATA_DIR` là đường dẫn tuyệt đối tới thư mục được phép lưu tài liệu, ngoài Git.
+Cần Docker Desktop chạy Linux containers. Copy `infra/compose/.env.example` thành `infra/compose/.env`; đặt mật khẩu PostgreSQL và `CI_DATA_DIR` là đường dẫn tuyệt đối tới thư mục được phép lưu tài liệu, ngoài Git.
 
 ```powershell
 .\scripts\demo.ps1 -Profile core
 ```
 
-Mở **http://localhost:8080**, nhập token đã cấu hình, tải một PDF hợp đồng và phụ lục nếu có. Swagger: **http://localhost:8000/docs**. `-Profile ops` thêm Prometheus tại port 9090; chưa phải toàn bộ observability stack trong kiến trúc.
+Mở **http://localhost:8080** và tải một PDF hợp đồng và phụ lục nếu có — không cần đăng nhập. Swagger: **http://localhost:8000/docs**. `-Profile ops` thêm Prometheus tại port 9090; chưa phải toàn bộ observability stack trong kiến trúc.
 
 ## Cấu trúc
 

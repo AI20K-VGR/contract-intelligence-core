@@ -129,3 +129,17 @@ class Batch(Base):
     __tablename__ = "batches"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     job_ids: Mapped[list] = mapped_column(JSON)
+
+
+class AuditEvent(Base):
+    __tablename__ = "audit_events"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    dossier_id: Mapped[str] = mapped_column(ForeignKey("dossiers.id"), index=True)
+    actor: Mapped[str] = mapped_column(String(100))
+    action: Mapped[str] = mapped_column(String(60))
+    object_type: Mapped[str] = mapped_column(String(40))
+    object_id: Mapped[str] = mapped_column(String(80))
+    request_id: Mapped[str | None] = mapped_column(String(36))
+    result: Mapped[str] = mapped_column(String(20), default="success")
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[float] = mapped_column(Float, default=time.time, index=True)

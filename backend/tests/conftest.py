@@ -14,10 +14,6 @@ def system(tmp_path, monkeypatch):
         database_url=f"sqlite:///{tmp_path / 'test.db'}",
         artifact_root=tmp_path / "artifacts",
         _env_file=None,
-        accounts={
-            "admin-token": {"id": "alice", "role": "admin"},
-            "reader-token": {"id": "mentor", "role": "mentor-readonly"},
-        },
         max_attempts=1,
     )
     engine = make_engine(config.database_url)
@@ -25,11 +21,7 @@ def system(tmp_path, monkeypatch):
     factory = sessionmaker(engine, expire_on_commit=False)
     monkeypatch.setattr(api, "Session", factory)
     monkeypatch.setattr(api, "settings", config)
-    import app.policy
-
-    monkeypatch.setattr(app.policy, "settings", config)
     with TestClient(api.app) as client:
-        client.headers["Authorization"] = "Bearer admin-token"
         yield client, factory, config
     engine.dispose()
 

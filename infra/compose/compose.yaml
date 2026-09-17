@@ -17,7 +17,6 @@ services:
     environment: &environment
       CI_DATABASE_URL: postgresql+psycopg://ci:${POSTGRES_PASSWORD}@postgres:5432/ci
       CI_ARTIFACT_ROOT: /artifacts
-      CI_ACCOUNTS: ${CI_ACCOUNTS:?Set CI_ACCOUNTS}
     command: ["alembic", "upgrade", "head"]
     depends_on:
       postgres: {condition: service_healthy}

@@ -55,6 +55,18 @@ def test_native_end_to_end_review_approval_and_citation(system):
     assert response.status_code == 201
     assert response.json()["result_hash"] == original
     assert client.get(f"/api/v1/jobs/{job_id}").json()["status"] == "approved"
+    audit = client.get(f"/api/v1/dossiers/{dossier}/audit").json()["items"]
+    actions = [e["action"] for e in audit]
+    assert actions[0] == "dossier.created"
+    assert "document.uploaded" in actions
+    assert "job.enqueued" in actions
+    assert "job.pending_review" in actions
+    assert actions.count("review.confirm") == len(result["review"]["unresolved"])
+    assert actions[-1] == "dossier.approved"
+    assert all(e["created_at"] <= audit[i + 1]["created_at"] for i, e in enumerate(audit[:-1]))
+    assert all(e["actor"] for e in audit)
+    uploaded = next(e for e in audit if e["action"] == "document.uploaded")
+    assert uploaded["object_type"] == "document" and uploaded["result"] == "success"
 
 
 def test_document_list_file_and_page_text(system):
@@ -79,7 +91,7 @@ def test_document_list_file_and_page_text(system):
     assert client.get("/api/v1/documents/missing/file").status_code == 404
 
 
-def test_idempotency_and_roles(system):
+def test_idempotency(system):
     client, _, _ = system
     body = {"title": "Demo"}
     headers = {"Idempotency-Key": "same"}
@@ -89,16 +101,6 @@ def test_idempotency_and_roles(system):
         client.post("/api/v1/dossiers", json={"title": "Changed"}, headers=headers).status_code
         == 409
     )
-    assert (
-        client.post(
-            "/api/v1/dossiers",
-            json=body,
-            headers={**headers, "Authorization": "Bearer reader-token"},
-        ).status_code
-        == 403
-    )
-    client.headers.pop("Authorization")
-    assert client.get("/api/v1/dossiers").status_code == 401
 
 
 def test_manifest_freeze_and_contract_required(system):

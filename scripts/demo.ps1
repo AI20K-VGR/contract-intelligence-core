@@ -4,7 +4,7 @@ $repoRoot = Split-Path $PSScriptRoot -Parent
 $composeFile = Join-Path $repoRoot 'infra/compose/compose.yaml'
 $envFile = Join-Path $repoRoot 'infra/compose/.env'
 if (-not (Test-Path -LiteralPath $envFile)) {
-  throw 'Create infra/compose/.env from .env.example, set tokens/password and an approved absolute CI_DATA_DIR.'
+  throw 'Create infra/compose/.env from .env.example, set POSTGRES_PASSWORD and an approved absolute CI_DATA_DIR.'
 }
 docker info --format '{{.ServerVersion}}'
 if ($LASTEXITCODE -ne 0) { throw 'Start Docker Desktop (Linux containers) first.' }

@@ -2,6 +2,7 @@ from copy import deepcopy
 
 from sqlalchemy import select
 
+from app.audit import log_event
 from app.comparison import compare
 from app.corrections import validate_correction
 from app.domain import require
@@ -96,7 +97,7 @@ def review_state(db, job, snapshot):
     }
 
 
-def append_review(db, body, actor):
+def append_review(db, body, actor, request_id=None):
     job = db.get(Job, body.job_id)
     require(job is not None, "JOB_NOT_FOUND", 404)
     dossier = lock_dossier(db, job.dossier_id)
@@ -133,10 +134,14 @@ def append_review(db, body, actor):
     if body.action == "correct":
         recompute(db, job, snapshot, event)
     job.status = "pending_review" if review_state(db, job, snapshot)["blocked"] else "reviewed"
+    log_event(
+        db, job.dossier_id, actor.id, f"review.{body.action}", "review_event", event.id,
+        request_id, detail={"target_id": body.target_id},
+    )
     return {"id": event.id, "review_version": dossier.review_version, "status": job.status}
 
 
-def approve(db, dossier_id, expected_revision, actor):
+def approve(db, dossier_id, expected_revision, actor, request_id=None):
     dossier = lock_dossier(db, dossier_id)
     require(dossier.review_version == expected_revision, "STALE_REVIEW_VERSION")
     job = db.get(Job, dossier.active_job_id) if dossier.active_job_id else None
@@ -154,5 +159,9 @@ def approve(db, dossier_id, expected_revision, actor):
     db.add(approval)
     job.status = "approved"
     db.flush()
+    log_event(
+        db, dossier_id, actor.id, "dossier.approved", "approval", approval.id,
+        request_id, detail={"result_hash": effective_hash},
+    )
     return {"id": approval.id, "job_id": job.id, "result_hash": effective_hash,
             "machine_result_hash": snapshot.result_hash}

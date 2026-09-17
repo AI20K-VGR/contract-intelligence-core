@@ -4,6 +4,7 @@ import threading
 
 from sqlalchemy import select
 
+from app.audit import log_event
 from app.comparison import compare
 from app.config import settings
 from app.db import Session
@@ -75,10 +76,15 @@ def publish_ready(db):
             validate_result(result)
         except DomainError as exc:
             job.status, job.failure_code = "failed", exc.code
+            log_event(db, job.dossier_id, "system", "job.failed", "job", job.id,
+                      result="failure", detail={"failure_code": exc.code})
             continue
         db.add(Snapshot(job_id=job.id, result_hash=digest(canonical(result)), result=result))
         job.status = "failed" if any(t.status == "failed" for t in tasks) else "pending_review"
         job.failure_code = "PAGE_PROCESSING_FAILED" if job.status == "failed" else None
+        log_event(db, job.dossier_id, "system", f"job.{job.status}", "job", job.id,
+                  result="failure" if job.status == "failed" else "success",
+                  detail={"failure_code": job.failure_code, "is_partial": result["is_partial"]})
 
 
 def run_once(factory=Session, config=settings, processor=process_page):
