@@ -55,7 +55,7 @@ Ngày tạo: 16/09/2026 · Cập nhật lần cuối: 16/09/2026
 
 | Phiên bản | Ngày | Người thực hiện | Nội dung |
 |---|---|---|---|
-| 0.1 | 16/09/2026 | Trần Văn Dũng | Bản nháp đầu tiên: kiến trúc tổng thể, pipeline, dữ liệu, observability (OpenTelemetry + Langfuse), evaluation, chi phí |
+| 0.1 | 16/09/2026 | Trần Văn Dũng, Phạm Hoàng Chương | Bản nháp đầu tiên: kiến trúc tổng thể, pipeline, dữ liệu, observability (OpenTelemetry + Langfuse), evaluation, chi phí |
 
 ### 0.2 Quy ước trong tài liệu
 
