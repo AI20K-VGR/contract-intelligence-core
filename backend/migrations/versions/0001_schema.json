@@ -1,0 +1,608 @@
+[
+  {
+    "name": "batches",
+    "columns": [
+      {
+        "name": "id",
+        "type": "VARCHAR",
+        "pk": true,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "job_ids",
+        "type": "JSON",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      }
+    ],
+    "unique": [],
+    "checks": [],
+    "indexes": []
+  },
+  {
+    "name": "dossiers",
+    "columns": [
+      {
+        "name": "id",
+        "type": "VARCHAR",
+        "pk": true,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "title",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "created_by",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "revision",
+        "type": "INTEGER",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "review_version",
+        "type": "INTEGER",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "active_job_id",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": true,
+        "fk": null
+      },
+      {
+        "name": "created_at",
+        "type": "FLOAT",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      }
+    ],
+    "unique": [],
+    "checks": [],
+    "indexes": []
+  },
+  {
+    "name": "idempotency",
+    "columns": [
+      {
+        "name": "key",
+        "type": "VARCHAR",
+        "pk": true,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "request_hash",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "response",
+        "type": "JSON",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      }
+    ],
+    "unique": [],
+    "checks": [],
+    "indexes": []
+  },
+  {
+    "name": "documents",
+    "columns": [
+      {
+        "name": "id",
+        "type": "VARCHAR",
+        "pk": true,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "dossier_id",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": "dossiers.id"
+      },
+      {
+        "name": "role",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "sha256",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "page_count",
+        "type": "INTEGER",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "storage_key",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      }
+    ],
+    "unique": [],
+    "checks": [
+      "role IN ('contract', 'appendix')"
+    ],
+    "indexes": [
+      {
+        "name": "ix_documents_dossier_id",
+        "columns": [
+          "dossier_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  {
+    "name": "jobs",
+    "columns": [
+      {
+        "name": "id",
+        "type": "VARCHAR",
+        "pk": true,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "dossier_id",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": "dossiers.id"
+      },
+      {
+        "name": "dossier_revision",
+        "type": "INTEGER",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "status",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "manifest",
+        "type": "JSON",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "config",
+        "type": "JSON",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "failure_code",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": true,
+        "fk": null
+      },
+      {
+        "name": "created_at",
+        "type": "FLOAT",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      }
+    ],
+    "unique": [],
+    "checks": [
+      "status IN ('uploaded','processing','extracted','pending_review','reviewed','approved','failed')"
+    ],
+    "indexes": [
+      {
+        "name": "ix_jobs_status",
+        "columns": [
+          "status"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_jobs_dossier_id",
+        "columns": [
+          "dossier_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  {
+    "name": "approvals",
+    "columns": [
+      {
+        "name": "id",
+        "type": "VARCHAR",
+        "pk": true,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "job_id",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": "jobs.id"
+      },
+      {
+        "name": "dossier_revision",
+        "type": "INTEGER",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "review_version",
+        "type": "INTEGER",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "result_hash",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "actor",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "created_at",
+        "type": "FLOAT",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      }
+    ],
+    "unique": [
+      [
+        "job_id"
+      ]
+    ],
+    "checks": [],
+    "indexes": []
+  },
+  {
+    "name": "review_events",
+    "columns": [
+      {
+        "name": "id",
+        "type": "VARCHAR",
+        "pk": true,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "job_id",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": "jobs.id"
+      },
+      {
+        "name": "target_id",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "actor",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "action",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "reason",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "correction",
+        "type": "JSON",
+        "pk": false,
+        "nullable": true,
+        "fk": null
+      },
+      {
+        "name": "version",
+        "type": "INTEGER",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "created_at",
+        "type": "FLOAT",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      }
+    ],
+    "unique": [
+      [
+        "job_id",
+        "version"
+      ]
+    ],
+    "checks": [
+      "action IN ('confirm','correct','reject','needs_more_evidence')"
+    ],
+    "indexes": [
+      {
+        "name": "ix_review_events_job_id",
+        "columns": [
+          "job_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  {
+    "name": "snapshots",
+    "columns": [
+      {
+        "name": "id",
+        "type": "VARCHAR",
+        "pk": true,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "job_id",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": "jobs.id"
+      },
+      {
+        "name": "result_hash",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "result",
+        "type": "JSON",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      }
+    ],
+    "unique": [
+      [
+        "job_id"
+      ]
+    ],
+    "checks": [],
+    "indexes": []
+  },
+  {
+    "name": "tasks",
+    "columns": [
+      {
+        "name": "id",
+        "type": "VARCHAR",
+        "pk": true,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "job_id",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": "jobs.id"
+      },
+      {
+        "name": "task_key",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "payload",
+        "type": "JSON",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "status",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "attempts",
+        "type": "INTEGER",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "lease_token",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": true,
+        "fk": null
+      },
+      {
+        "name": "lease_until",
+        "type": "FLOAT",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "retry_at",
+        "type": "FLOAT",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "output",
+        "type": "JSON",
+        "pk": false,
+        "nullable": true,
+        "fk": null
+      },
+      {
+        "name": "error_code",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": true,
+        "fk": null
+      }
+    ],
+    "unique": [
+      [
+        "job_id",
+        "task_key"
+      ]
+    ],
+    "checks": [],
+    "indexes": [
+      {
+        "name": "ix_tasks_job_id",
+        "columns": [
+          "job_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_tasks_lease_until",
+        "columns": [
+          "lease_until"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_tasks_status",
+        "columns": [
+          "status"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  {
+    "name": "task_attempts",
+    "columns": [
+      {
+        "name": "id",
+        "type": "VARCHAR",
+        "pk": true,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "task_id",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": false,
+        "fk": "tasks.id"
+      },
+      {
+        "name": "number",
+        "type": "INTEGER",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "started_at",
+        "type": "FLOAT",
+        "pk": false,
+        "nullable": false,
+        "fk": null
+      },
+      {
+        "name": "finished_at",
+        "type": "FLOAT",
+        "pk": false,
+        "nullable": true,
+        "fk": null
+      },
+      {
+        "name": "error_code",
+        "type": "VARCHAR",
+        "pk": false,
+        "nullable": true,
+        "fk": null
+      }
+    ],
+    "unique": [],
+    "checks": [],
+    "indexes": [
+      {
+        "name": "ix_task_attempts_task_id",
+        "columns": [
+          "task_id"
+        ],
+        "unique": false
+      }
+    ]
+  }
+]
