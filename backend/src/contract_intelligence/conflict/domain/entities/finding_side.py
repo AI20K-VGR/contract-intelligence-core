@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 from contract_intelligence.shared.base import BaseEntity
 
 
-class FindingSideEnum(str, Enum):
+class FindingSideEnum(StrEnum):
     A = "a"
     B = "b"
 

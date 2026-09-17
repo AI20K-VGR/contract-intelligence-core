@@ -43,21 +43,20 @@ class BaseEntity(Generic[EntityId]):
     Pure Python — KHÔNG dùng SQLAlchemy ``@dataclass`` hay Pydantic ``BaseModel``.
     Concrete ORM mapping được thực hiện trong ``infrastructure/persistence/``.
 
-    Subclass **bắt buộc** khai báo ``id`` và dùng ``field(default_factory=...)``
-    để tự sinh khi ``__init__`` chưa nhận từ DB.
+    Subclass **bắt buộc** khai báo ``id`` (override field) và dùng
+    ``field(default_factory=...)`` để tự sinh khi ``__init__`` chưa nhận từ DB.
     """
 
-    id: EntityId = field(...)  # type: ignore[assignment]
     created_at: datetime = field(default_factory=utcnow)
     updated_at: datetime = field(default_factory=utcnow)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, BaseEntity):
             return NotImplemented
-        return self.id == other.id
+        return self.id == other.id  # type: ignore[attr-defined, no-any-return]
 
     def __hash__(self) -> int:
-        return hash(self.id)
+        return hash(self.id)  # type: ignore[attr-defined]
 
     def touch(self) -> None:
         """Cập nhật ``updated_at`` khi entity thay đổi."""
@@ -71,7 +70,7 @@ class BaseEntity(Generic[EntityId]):
 class Page(Generic[EntityId]):
     """Pagination result cho repository.list()."""
 
-    items: list[BaseEntity]
+    items: list[BaseEntity[EntityId]]
     total: int
     limit: int
     offset: int
@@ -86,7 +85,7 @@ class BaseRepository(ABC, Generic[EntityId]):
     """
 
     @abstractmethod
-    async def get(self, entity_id: EntityId) -> BaseEntity | None: ...
+    async def get(self, entity_id: EntityId) -> BaseEntity[EntityId] | None: ...
 
     @abstractmethod
     async def list(
@@ -95,13 +94,13 @@ class BaseRepository(ABC, Generic[EntityId]):
         limit: int = 50,
         offset: int = 0,
         **filters: object,
-    ) -> Page: ...
+    ) -> Page[EntityId]: ...
 
     @abstractmethod
-    async def add(self, entity: BaseEntity) -> None: ...
+    async def add(self, entity: BaseEntity[EntityId]) -> None: ...
 
     @abstractmethod
-    async def save(self, entity: BaseEntity) -> None: ...
+    async def save(self, entity: BaseEntity[EntityId]) -> None: ...
 
     @abstractmethod
     async def delete(self, entity_id: EntityId) -> None: ...

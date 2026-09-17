@@ -28,7 +28,7 @@ class SqlDocumentRepository:
         role: DocumentRole | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> Page:
+    ) -> Page[str]:
         raise NotImplementedError
 
     async def add(self, document: Document) -> None:

@@ -6,12 +6,12 @@ Tương ứng bảng ``fact`` (xem ``DOC-04c`` §7.2).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from contract_intelligence.shared.base import BaseEntity, new_ulid
 
 
-class FactType(str, Enum):
+class FactType(StrEnum):
     """Phân loại fact — discriminator cho extractor & UI."""
 
     MONEY = "money"

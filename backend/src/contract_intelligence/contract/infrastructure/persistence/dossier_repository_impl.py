@@ -34,7 +34,7 @@ class SqlDossierRepository:
         has_conflicts: bool | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> Page:
+    ) -> Page[str]:
         raise NotImplementedError
 
     async def add(self, dossier: Dossier) -> None:

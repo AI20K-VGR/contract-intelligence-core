@@ -9,6 +9,6 @@ from contract_intelligence.shared.responses import ApiResponse
 router = APIRouter()
 
 
-@router.get("/documents/{document_id}/facts", response_model=ApiResponse[list])
-async def list_facts(document_id: str) -> ApiResponse[list]:
+@router.get("/documents/{document_id}/facts", response_model=ApiResponse[list[object]])
+async def list_facts(document_id: str) -> ApiResponse[list[object]]:
     return ApiResponse(data=[])

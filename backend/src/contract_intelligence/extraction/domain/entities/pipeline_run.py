@@ -6,12 +6,12 @@ Tương ứng bảng ``pipeline_run`` (xem ``DOC-04c`` §4.2).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from contract_intelligence.shared.base import BaseEntity, new_ulid
 
 
-class RunStatus(str, Enum):
+class RunStatus(StrEnum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"

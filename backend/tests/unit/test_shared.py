@@ -1,13 +1,13 @@
 """Unit tests cho shared/ utilities."""
 
-from contract_intelligence.shared.base import new_ulid, utcnow
-from contract_intelligence.shared.utils import normalize_text
+from contract_intelligence.shared.base import new_ulid
 from contract_intelligence.shared.exceptions import (
-    DomainException,
     DomainErrorCode,
+    DomainException,
     NotFoundError,
     ReviewVersionConflict,
 )
+from contract_intelligence.shared.utils import normalize_text
 
 
 class TestNewUlid:

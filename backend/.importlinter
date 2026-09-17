@@ -10,8 +10,12 @@
 # CI:     fail PR nếu vi phạm
 # Docs:   https://import-linter.readthedocs.io/
 # -----------------------------------------------------------------------------
+[importlinter]
+root_package = contract_intelligence
+include_external_packages = True
 
 [importlinter:contract:domain_purity]
+name = Domain purity
 type = forbidden
 source_modules =
     contract_intelligence.contract.domain
@@ -38,6 +42,7 @@ forbidden_modules =
     contract_intelligence.review.interfaces
 
 [importlinter:contract:application_no_infra_or_interfaces]
+name = Application no infra or interfaces
 type = forbidden
 source_modules =
     contract_intelligence.contract.application
@@ -55,6 +60,7 @@ forbidden_modules =
     contract_intelligence.review.interfaces
 
 [importlinter:contract:infrastructure_no_interfaces]
+name = Infrastructure no interfaces
 type = forbidden
 source_modules =
     contract_intelligence.contract.infrastructure
@@ -68,6 +74,7 @@ forbidden_modules =
     contract_intelligence.review.interfaces
 
 [importlinter:contract:cross_module_independence]
+name = Cross module independence
 type = forbidden
 source_modules =
     contract_intelligence.contract.application
@@ -83,6 +90,7 @@ forbidden_modules =
     contract_intelligence.review.interfaces
 
 [importlinter:contract:contract_layers]
+name = Contract layers
 type = layers
 layers =
     contract_intelligence.contract.interfaces
@@ -90,6 +98,7 @@ layers =
     contract_intelligence.contract.domain
 
 [importlinter:contract:extraction_layers]
+name = Extraction layers
 type = layers
 layers =
     contract_intelligence.extraction.interfaces
@@ -97,6 +106,7 @@ layers =
     contract_intelligence.extraction.domain
 
 [importlinter:contract:conflict_layers]
+name = Conflict layers
 type = layers
 layers =
     contract_intelligence.conflict.interfaces
@@ -104,6 +114,7 @@ layers =
     contract_intelligence.conflict.domain
 
 [importlinter:contract:review_layers]
+name = Review layers
 type = layers
 layers =
     contract_intelligence.review.interfaces

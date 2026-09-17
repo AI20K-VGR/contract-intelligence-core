@@ -6,12 +6,12 @@ Tương ứng bảng ``job`` trong DB (xem ``DOC-04b`` §4 + ``DOC-04c`` §4.1).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from contract_intelligence.shared.base import BaseEntity, new_ulid
 
 
-class JobStatus(str, Enum):
+class JobStatus(StrEnum):
     """State machine — xem ``backend/CONTEXT.md`` §4.1."""
 
     UPLOADED = "uploaded"

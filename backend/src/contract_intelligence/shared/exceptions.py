@@ -6,11 +6,11 @@ Mapping sang HTTP status code được làm trong ``interfaces/api/exception_han
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class DomainErrorCode(str, Enum):
+class DomainErrorCode(StrEnum):
     """Mã lỗi nghiệp vụ — bounded context tự định nghĩa thêm khi cần."""
 
     # Lỗi chung

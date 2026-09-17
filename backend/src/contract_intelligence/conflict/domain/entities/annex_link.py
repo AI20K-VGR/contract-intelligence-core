@@ -6,12 +6,12 @@ Tương ứng bảng ``annex_link`` (xem ``DOC-04c`` §8.1).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from contract_intelligence.shared.base import BaseEntity, new_ulid
 
 
-class AnnexLinkStatus(str, Enum):
+class AnnexLinkStatus(StrEnum):
     LINKED = "linked"
     LINKED_NEEDS_REVIEW = "linked_needs_review"
     UNLINKED = "unlinked"

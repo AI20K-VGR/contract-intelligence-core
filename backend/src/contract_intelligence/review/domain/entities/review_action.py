@@ -6,12 +6,12 @@ Tương ứng bảng ``review_action`` (xem ``DOC-04c`` §9.2).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from contract_intelligence.shared.base import BaseEntity, new_ulid
 
 
-class ReviewActionType(str, Enum):
+class ReviewActionType(StrEnum):
     CONFIRM = "confirm"
     CORRECT = "correct"
     REJECT = "reject"

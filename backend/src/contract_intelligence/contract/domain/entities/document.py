@@ -6,12 +6,12 @@ Tương ứng bảng ``document`` trong DB (xem ``DOC-04b`` §3 + ``DOC-04c`` §
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from contract_intelligence.shared.base import BaseEntity, new_ulid
 
 
-class DocumentRole(str, Enum):
+class DocumentRole(StrEnum):
     """Vai trò của document trong dossier."""
 
     CONTRACT = "contract"

@@ -6,23 +6,23 @@ Tương ứng bảng ``finding`` (xem ``DOC-04c`` §8.2).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from contract_intelligence.shared.base import BaseEntity, new_ulid
 
 
-class FindingType(str, Enum):
+class FindingType(StrEnum):
     STRUCTURED = "structured"  # rule-based compare
     SEMANTIC = "semantic"  # LLM compare
 
 
-class Scope(str, Enum):
+class Scope(StrEnum):
     WITHIN_DOCUMENT = "within_document"
     CONTRACT_ANNEX = "contract_annex"
     ANNEX_ANNEX = "annex_annex"
 
 
-class Disposition(str, Enum):
+class Disposition(StrEnum):
     """Kết luận so sánh — 5 giá trị theo schema."""
 
     COMPARABLE_MATCH = "comparable_match"
@@ -32,7 +32,7 @@ class Disposition(str, Enum):
     INSUFFICIENT_EVIDENCE = "insufficient_evidence"
 
 
-class Severity(str, Enum):
+class Severity(StrEnum):
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"

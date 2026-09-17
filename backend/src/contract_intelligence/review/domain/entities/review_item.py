@@ -7,12 +7,12 @@ Optimistic concurrency: ``version`` tăng mỗi action (P0-05).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from contract_intelligence.shared.base import BaseEntity, new_ulid
 
 
-class ReviewTargetType(str, Enum):
+class ReviewTargetType(StrEnum):
     FACT = "fact"
     FINDING = "finding"
     ANNEX_LINK = "annex_link"
@@ -21,13 +21,13 @@ class ReviewTargetType(str, Enum):
     CITATION = "citation"
 
 
-class ReviewPriority(str, Enum):
+class ReviewPriority(StrEnum):
     P1 = "P1"
     P2 = "P2"
     P3 = "P3"
 
 
-class ReviewItemStatus(str, Enum):
+class ReviewItemStatus(StrEnum):
     OPEN = "open"
     RESOLVED = "resolved"
     AWAITING_EVIDENCE = "awaiting_evidence"

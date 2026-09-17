@@ -14,13 +14,21 @@ from fastapi.responses import JSONResponse
 
 from contract_intelligence.config.logging import configure_logging, get_logger
 from contract_intelligence.config.settings import get_settings
-from contract_intelligence.conflict.interfaces.api.routers import conflict_router
-from contract_intelligence.contract.interfaces.api.routers import (
-    contract_status_router,
-    contract_upload_router,
+from contract_intelligence.conflict.interfaces.api.routers.conflict_router import (
+    router as conflict_router,
 )
-from contract_intelligence.extraction.interfaces.api.routers import extraction_router
-from contract_intelligence.review.interfaces.api.routers import review_router
+from contract_intelligence.contract.interfaces.api.routers.contract_status_router import (
+    router as contract_status_router,
+)
+from contract_intelligence.contract.interfaces.api.routers.contract_upload_router import (
+    router as contract_upload_router,
+)
+from contract_intelligence.extraction.interfaces.api.routers.extraction_router import (
+    router as extraction_router,
+)
+from contract_intelligence.review.interfaces.api.routers.review_router import (
+    router as review_router,
+)
 from contract_intelligence.shared.exceptions import DomainException
 from contract_intelligence.shared.responses import ErrorPayload, ErrorResponse
 

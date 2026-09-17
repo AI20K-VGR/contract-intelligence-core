@@ -9,20 +9,20 @@ from contract_intelligence.shared.responses import ApiResponse
 router = APIRouter()
 
 
-@router.get("/dossiers/{dossier_id}/items", response_model=ApiResponse[list])
-async def list_review_items(dossier_id: str) -> ApiResponse[list]:
+@router.get("/dossiers/{dossier_id}/items", response_model=ApiResponse[list[object]])
+async def list_review_items(dossier_id: str) -> ApiResponse[list[object]]:
     return ApiResponse(data=[])
 
 
 @router.post(
     "/items/{item_id}/actions",
     status_code=status.HTTP_200_OK,
-    response_model=ApiResponse[dict],
+    response_model=ApiResponse[dict[str, object]],
 )
 async def submit_action(
     item_id: str,
-    payload: dict = Body(...),
-) -> ApiResponse[dict]:
+    payload: dict[str, object] = Body(...),
+) -> ApiResponse[dict[str, object]]:
     """POST /review/items/{id}/actions — optimistic concurrency.
 
     Body:
@@ -34,4 +34,6 @@ async def submit_action(
             "comment": "..."
         }
     """
-    return ApiResponse(data={"item_id": item_id, "version": payload.get("base_version", 0) + 1})
+    base_version = payload.get("base_version", 0)
+    version = (base_version if isinstance(base_version, int) else 0) + 1
+    return ApiResponse(data={"item_id": item_id, "version": version})

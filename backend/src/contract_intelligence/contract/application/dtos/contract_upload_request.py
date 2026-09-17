@@ -28,8 +28,8 @@ class ContractUploadRequest(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=255)
     batch_id: str | None = None
-    contract_file: _UploadFile = Field(...)  # type: ignore[valid-type]
-    annex_files: list[_UploadFile] = Field(  # type: ignore[valid-type]
+    contract_file: _UploadFile = Field(...)
+    annex_files: list[_UploadFile] = Field(
         default_factory=list,
         description="0..n phụ lục",
     )

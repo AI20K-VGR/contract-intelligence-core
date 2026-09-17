@@ -27,8 +27,8 @@ async def upload_dossier(
     _ = ContractUploadRequest(
         name=name,
         batch_id=batch_id,
-        contract_file=contract_file,  # type: ignore[arg-type]
-        annex_files=annex_files,  # type: ignore[arg-type]
+        contract_file=contract_file,
+        annex_files=annex_files,
     )
     # dossier_id = await service.execute(req)
     return ApiResponse(data="dos_placeholder")

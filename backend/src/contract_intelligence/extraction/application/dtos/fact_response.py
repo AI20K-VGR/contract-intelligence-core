@@ -17,7 +17,7 @@ class FactResponse(BaseModel):
     key: str
     fact_type: FactType
     raw_text: str
-    normalized_value: dict | None
+    normalized_value: dict[str, object] | None
     confidence: float
     extractor: str
     citation_id: str

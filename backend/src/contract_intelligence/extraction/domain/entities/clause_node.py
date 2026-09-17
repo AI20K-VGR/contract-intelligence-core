@@ -6,12 +6,12 @@ Tương ứng bảng ``clause_node`` (xem ``DOC-04c`` §6.1).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from contract_intelligence.shared.base import BaseEntity, new_ulid
 
 
-class ClauseLevel(str, Enum):
+class ClauseLevel(StrEnum):
     """Cấp độ trong cây điều khoản."""
 
     DOCUMENT = "document"

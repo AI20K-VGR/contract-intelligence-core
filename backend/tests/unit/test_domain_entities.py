@@ -8,8 +8,8 @@ Các test này verify domain logic thuần túy:
 
 import pytest
 
-from contract_intelligence.contract.domain.entities.dossier import Dossier
 from contract_intelligence.contract.domain.entities.document import Document, DocumentRole
+from contract_intelligence.contract.domain.entities.dossier import Dossier
 from contract_intelligence.contract.domain.entities.job import Job, JobStatus
 from contract_intelligence.shared.exceptions import InvalidStateTransition
 
