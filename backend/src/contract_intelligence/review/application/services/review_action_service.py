@@ -66,7 +66,8 @@ class ReviewActionService:
         if item is None:
             raise NotFoundError("ReviewItem", review_item_id)
 
-        action = ReviewAction(
+        # 3. Persist (Sprint 2 — append ReviewActionRepository.add)
+        return ReviewAction(
             id=new_ulid("ra_"),
             review_item_id=review_item_id,
             target_type=item.target_type.value,
@@ -77,7 +78,5 @@ class ReviewActionService:
             corrected_bbox=corrected_bbox,
             comment=comment,
             reviewer_id=self._reviewer_id,
-            created_at=_dt.datetime.now(tz=_dt.timezone.utc),
+            created_at=_dt.datetime.now(tz=_dt.UTC),
         )
-        # 3. Persist (Sprint 2 — append ReviewActionRepository.add)
-        return action

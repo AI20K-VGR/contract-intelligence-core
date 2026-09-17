@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from contract_intelligence.contract.domain.entities.dossier import Dossier
-from contract_intelligence.contract.domain.entities.job import Job
-from contract_intelligence.contract.domain.entities.job import JobStatus
+from contract_intelligence.contract.domain.entities.job import Job, JobStatus
 
 
 class ContractStatusResponse(BaseModel):
@@ -27,7 +26,7 @@ class ContractStatusResponse(BaseModel):
     updated_at: datetime
 
     @classmethod
-    def from_domain(cls, *, dossier: Dossier, latest_job: Job | None) -> "ContractStatusResponse":
+    def from_domain(cls, *, dossier: Dossier, latest_job: Job | None) -> ContractStatusResponse:
         return cls(
             dossier_id=dossier.id,
             name=dossier.name,

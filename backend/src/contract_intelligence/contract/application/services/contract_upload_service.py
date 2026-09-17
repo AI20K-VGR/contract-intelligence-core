@@ -25,7 +25,6 @@ from contract_intelligence.contract.domain.repositories.dossier_repository impor
     DossierRepository,
 )
 from contract_intelligence.contract.domain.repositories.job_repository import JobRepository
-from contract_intelligence.shared.base import new_ulid
 from contract_intelligence.shared.exceptions import ValidationError
 
 
@@ -65,7 +64,7 @@ class ContractUploadService:
         await self._dossier_repo.add(dossier)
 
         # 2. Upload từng file + tạo Document
-        contract_doc = await self._ingest_one(
+        await self._ingest_one(
             dossier_id=dossier.id,
             file=request.contract_file,
             role=DocumentRole.CONTRACT,

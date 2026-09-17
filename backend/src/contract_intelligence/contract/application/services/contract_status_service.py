@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from contract_intelligence.contract.application.dtos.contract_status_response import (
     ContractStatusResponse,
 )
-from contract_intelligence.contract.domain.entities.dossier import Dossier
 from contract_intelligence.contract.domain.entities.job import Job
 from contract_intelligence.contract.domain.repositories.dossier_repository import (
     DossierRepository,

@@ -6,10 +6,9 @@ Domain layer chỉ phụ thuộc các abstraction này — không biết SQLAlch
 
 from __future__ import annotations
 
-import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Generic, TypeVar
 
 # -----------------------------------------------------------------------------
@@ -31,7 +30,7 @@ def new_ulid(prefix: str = "") -> str:
 
 def utcnow() -> datetime:
     """Datetime UTC có timezone — alias cho dễ test/mock."""
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(tz=UTC)
 
 
 # -----------------------------------------------------------------------------

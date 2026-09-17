@@ -6,7 +6,6 @@ import unicodedata
 from datetime import date, datetime
 from typing import Final
 
-
 _NFC_FORM: Final[str] = "NFC"
 
 

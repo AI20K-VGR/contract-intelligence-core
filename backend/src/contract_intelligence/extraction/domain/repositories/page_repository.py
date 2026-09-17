@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 from contract_intelligence.extraction.domain.entities.page import Page
-from contract_intelligence.shared.base import Page as PageResult
 
 
 @runtime_checkable

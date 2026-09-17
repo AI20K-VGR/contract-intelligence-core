@@ -23,7 +23,7 @@ class FactResponse(BaseModel):
     citation_id: str
 
     @classmethod
-    def from_domain(cls, fact: Fact) -> "FactResponse":
+    def from_domain(cls, fact: Fact) -> FactResponse:
         return cls(
             id=fact.id,
             document_id=fact.document_id,

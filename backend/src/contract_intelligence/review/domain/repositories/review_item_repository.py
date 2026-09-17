@@ -6,7 +6,6 @@ from typing import Protocol, runtime_checkable
 
 from contract_intelligence.review.domain.entities.review_item import (
     ReviewItem,
-    ReviewItemStatus,
     ReviewPriority,
 )
 

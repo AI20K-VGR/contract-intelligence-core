@@ -5,8 +5,8 @@ Chỉ import FastAPI ở đây và trong ``interfaces/`` routers.
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,11 +14,11 @@ from fastapi.responses import JSONResponse
 
 from contract_intelligence.config.logging import configure_logging, get_logger
 from contract_intelligence.config.settings import get_settings
+from contract_intelligence.conflict.interfaces.api.routers import conflict_router
 from contract_intelligence.contract.interfaces.api.routers import (
     contract_status_router,
     contract_upload_router,
 )
-from contract_intelligence.conflict.interfaces.api.routers import conflict_router
 from contract_intelligence.extraction.interfaces.api.routers import extraction_router
 from contract_intelligence.review.interfaces.api.routers import review_router
 from contract_intelligence.shared.exceptions import DomainException
