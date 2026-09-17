@@ -1,10 +1,10 @@
 # contract-ocr-lab
 
-Baseline OCR cho hợp đồng và phụ lục tiếng Việt/Anh, phục vụ technical spike Sprint 1. Chạy cục bộ, phân loại từng trang PDF, ưu tiên trích xuất text sẵn có, thử OCR và preprocessing, xuất JSON chuẩn hóa và báo cáo đánh giá. Không có RAG, suy luận điều khoản, huấn luyện hay database. Sprint 1 không cần frontend; mục [Chạy nhanh](#chạy-nhanh-test-ui-tải-pdf-lên-xem-ocr) bên dưới có thêm một test UI cục bộ để tải PDF lên và xem thử kết quả OCR bằng tay, nằm ngoài phạm vi benchmark chính. Các mục 1-9 phía sau là tài liệu đầy đủ cho pipeline benchmark/CLI.
+Baseline OCR cho hợp đồng và phụ lục tiếng Việt/Anh, phục vụ technical spike Sprint 1. Chạy cục bộ, phân loại từng trang PDF, ưu tiên trích xuất text sẵn có, thử OCR và preprocessing, xuất JSON chuẩn hóa và báo cáo đánh giá. Không có RAG, suy luận điều khoản, huấn luyện hay database. Sprint 1 không cần frontend; mục [Chạy nhanh](#chạy-nhanh-demo-ui-tải-pdf-lên-xem-idp) bên dưới có thêm một demo UI cục bộ để tải PDF lên và xem thử kết quả IDP (phân loại, cấu trúc, fact, citation, xung đột) bằng tay, nằm ngoài phạm vi benchmark chính. Các mục 1-9 phía sau là tài liệu đầy đủ cho pipeline benchmark/CLI.
 
-## Chạy nhanh: Test UI (tải PDF lên, xem OCR)
+## Chạy nhanh: Demo UI (tải PDF lên, xem IDP)
 
-Cách nhanh nhất để tự test: chạy **hai server riêng biệt** — backend (API OCR) và frontend (trang tĩnh) — rồi kéo thả PDF hoặc ảnh (JPG/PNG/WEBP/BMP/TIFF) vào, đọc kết quả OCR ngay trên trình duyệt. Không cần biết CLI hay manifest.
+Cách nhanh nhất để tự test: chạy **hai server riêng biệt** — backend (API OCR + AI2) và frontend (trang tĩnh) — rồi kéo thả một PDF hợp đồng vào, xem ngay phân loại/cấu trúc/fact/citation/xung đột trên trình duyệt. Không cần biết CLI hay manifest.
 
 ```text
 frontend/index.html  ← trang tĩnh, không có Python          (port 5500)
@@ -41,16 +41,26 @@ Frontend chạy tại `http://127.0.0.1:5500`, tự mở trình duyệt. Dòng n
 
 Để dừng, bấm `Ctrl+C` ở từng cửa sổ.
 
-**Bước 4 — dùng:** kéo thả một file PDF hoặc ảnh (thử ngay file trong `data/raw/digital/` hoặc `data/raw/scanned_bad/` nếu đã chuẩn bị theo [mục 2](#2-chuẩn-bị-30-mẫu)), chọn engine. File ảnh được tự động bọc thành PDF 1 trang ở backend trước khi xử lý (không sửa file gốc), nên luôn đi thẳng vào nhánh OCR — bản thân ảnh không có "text-layer" nên chọn PyMuPDF cho file ảnh sẽ luôn báo `SKIPPED`, phải chọn một engine OCR:
+**Bước 4 — dùng:** kéo một file PDF hợp đồng (bắt buộc) vào ô "Tải PDF cần xử lý" — phân tích chạy tự động ngay bằng engine đang chọn ở dropdown, không cần thao tác gì thêm. Ra ngay: phân loại `contract`/`appendix`/`other`, cây **Điều → Khoản → Điểm**, các fact (bên A/B, giá trị hợp đồng, ngày ký, thời hạn thanh toán) kèm citation (trang/dòng/bbox) và **confidence**, cùng tab **Evaluation**. Muốn kiểm tra xung đột thì kéo thêm PDF vào ô "Phụ lục" bên dưới (kéo nhiều file cùng lúc cũng được — 0..N phụ lục, mỗi file có nút "x" để bỏ ra và phân tích lại, kết quả nhóm riêng theo từng phụ lục). Đổi engine ở dropdown rồi bấm "Phân tích lại" nếu PDF hoá ra là bản scan (PyMuPDF không đọc được text, cần PaddleOCR hoặc một Vision API):
 
-- **PyMuPDF** — chỉ đọc text có sẵn trong PDF, không OCR. Nhanh, dùng cho PDF có text-layer (ví dụ các file trong `data/raw/digital/`). PDF scan sẽ báo `SKIPPED` vì không có text để đọc — đúng như thiết kế, không phải lỗi.
+- **PyMuPDF** — chỉ đọc text có sẵn trong PDF, không OCR. Nhanh, dùng cho PDF có text-layer (ví dụ các file trong `data/raw/digital/`). PDF scan sẽ báo `SKIPPED`/không ra fact nào vì không có text để đọc — đúng như thiết kế, không phải lỗi.
 - **PaddleOCR** — OCR ảnh thật, dùng cho PDF scan (ví dụ `data/raw/scanned_bad/`). Trên CPU máy này khá chậm (có thể vài chục giây đến vài phút một trang); hạ DPI xuống 150 ở "Tuỳ chọn nâng cao" để test nhanh hơn.
 - **DeepSeek-OCR** — bị mờ (disabled) trên máy này vì thiếu GPU NVIDIA.
 - **OpenAI GPT-5.6 Terra (Vision)** — ⚠️ gửi ảnh trang PDF lên API của OpenAI, không còn xử lý cục bộ. Chỉ dùng cho file demo/không nhạy cảm, không bao giờ dùng cho hợp đồng thật. Xem [mục "OpenAI/Gemini/DeepSeek (tuỳ chọn)"](#openaigeminideepseek-tuỳ-chọn-ocr-qua-vision-api) để bật.
 - **Gemini 3 Flash (Vision)** — ⚠️ tương tự OpenAI nhưng gửi lên Google Gemini. Trong test nội bộ, độ chính xác tiếng Việt (giữ đúng dấu) tốt hơn rõ rệt so với PaddleOCR, và nhanh hơn nhiều (~30s/trang so với vài phút của PaddleOCR CPU).
 - **DeepSeek Flash (API, Vision)** — ⚠️ tương tự nhưng gửi lên DeepSeek. **Không phải cùng model** với "DeepSeek-OCR" ở trên: đây là model chat đa năng có vision (`deepseek-flash`) qua API hosted, còn "DeepSeek-OCR" ở trên là model chuyên OCR (`DeepSeek-OCR-2`) chạy local, cần GPU — hai model khác nhau, chỉ trùng tên hãng.
 
-Kết quả hiện theo từng trang kèm trạng thái, có nút copy và tải `.txt`/`.json`. File PDF upload chỉ lưu tạm ở backend lúc xử lý rồi xoá ngay; ngoại trừ 3 engine gửi ảnh ra ngoài (OpenAI/Gemini/DeepSeek API), không gửi đi đâu ngoài hai máy chủ cục bộ này.
+File PDF upload chỉ lưu tạm ở backend lúc xử lý rồi xoá ngay; ngoại trừ 3 engine gửi ảnh ra ngoài (OpenAI/Gemini/DeepSeek API), không gửi đi đâu ngoài hai máy chủ cục bộ này. Xem [mục 11](#11-demo-ai2-phân-loại-cấu-trúc-fact-citation-xung-đột-confidence-docsarchitecturemd) để biết chi tiết field/giới hạn của lớp AI2 (chung code với endpoint này, ở `src/contract_ocr/application/use_cases/extract_ai2_facts.py`) và cách chạy bản CLI/hoàn toàn-trong-trình-duyệt không cần backend.
+
+### Công cụ phụ: xem OCR thô từng dòng (debug engine)
+
+`frontend/index.html` ở trên đã chạy cả lớp phân loại/cấu trúc/fact/citation. Nếu chỉ cần xem OCR thô (text/dòng theo từng trang, không phân loại hay trích fact) để debug một engine cụ thể, dùng trang phụ `frontend/ocr_raw.html`, chạy trên **cùng hai server đã chạy ở Bước 2-3** (không cần chạy thêm gì):
+
+```text
+http://127.0.0.1:5500/ocr_raw.html
+```
+
+(hoặc thêm `?api=http://host:port` nếu backend chạy ở địa chỉ khác, giống `index.html`). Kéo thả PDF hoặc ảnh, chọn engine như mô tả ở Bước 4 — kết quả hiện theo từng trang kèm trạng thái, có nút copy và tải `.txt`/`.json`.
 
 ### OpenAI/Gemini/DeepSeek (tuỳ chọn): OCR qua vision API
 
@@ -240,7 +250,7 @@ Config chính là `configs/default.yaml`; `paddle.yaml` và `deepseek.yaml` là 
 
 ## 8b. Test UI: chi tiết kỹ thuật và khắc phục sự cố
 
-Xem [mục Chạy nhanh](#chạy-nhanh-test-ui-tải-pdf-lên-xem-ocr) ở đầu file để chạy ngay. Phần này là chi tiết cho ai cần hiểu sâu hơn hoặc gặp lỗi.
+Xem [mục Chạy nhanh](#chạy-nhanh-demo-ui-tải-pdf-lên-xem-idp) ở đầu file để chạy ngay. Phần này là chi tiết cho ai cần hiểu sâu hơn hoặc gặp lỗi.
 
 Đây là công cụ kiểm thử thủ công cho một file duy nhất, gồm hai phần tách biệt hoàn toàn, không phải một sản phẩm hay pipeline riêng, và không nằm trong phạm vi Sprint 1 mô tả ở đầu file:
 
@@ -249,6 +259,8 @@ Xem [mục Chạy nhanh](#chạy-nhanh-test-ui-tải-pdf-lên-xem-ocr) ở đầ
 
 Các lỗi thường gặp:
 
+- **`ModuleNotFoundError: fastapi`/`click`/`colorlog`...** — venv chưa sync đủ (thường do đã `uv sync` không kèm extra ở lần khác trước đó, làm rớt bớt gói); chạy lại đúng lệnh cài đặt ở mục Chạy nhanh (`uv sync --locked --python 3.12 --extra dev --extra web --extra paddle`) để cài lại đầy đủ.
+- **Backend chạy được, log không báo lỗi, nhưng mọi request treo/không có response, kèm log nền `AttributeError: module 'httptools' has no attribute 'HttpRequestParser'`** — bản `httptools` (HTTP parser mặc định của uvicorn) bị cài lỗi trên máy đó. `scripts/serve_backend.py` đã tự chuyển sang dùng `http="h11"` (thuần Python, không phụ thuộc wheel này) để né lỗi; nếu tự chạy `uvicorn` trực tiếp thay vì qua script, thêm `--http h11`.
 - **`ModuleNotFoundError: fastapi`** — chưa cài `--extra web`; chạy lại lệnh cài đặt ở mục Chạy nhanh.
 - **Port 8000 hoặc 5500 đã dùng** — một server cũ vẫn đang chạy nền. Tìm và dừng nó trước khi chạy lại (đổi `8000` thành `5500` nếu là frontend): `Get-NetTCPConnection -LocalPort 8000 -State Listen | Select-Object -ExpandProperty OwningProcess | Stop-Process -Force`.
 - **Frontend báo "Không kết nối được backend"** — backend chưa chạy, chạy sai port, hoặc `<meta name="api-base">`/`?api=` trỏ sai địa chỉ. Mở thẳng `http://127.0.0.1:8000/api/engines` trên trình duyệt để kiểm tra backend còn sống không.
@@ -306,3 +318,29 @@ Sinh nhanh một dossier mẫu đầy đủ (hợp đồng TEXT_LAYER + phụ l�
 ```powershell
 uv run python scripts/export_snapshot_demo.py
 ```
+
+## 11. Demo AI2: phân loại, cấu trúc, fact, citation, xung đột, confidence (`docs/architecture.md`)
+
+Lớp AI2 mô tả ở `docs/architecture.md` §5-9 và §27 sống ở một chỗ duy nhất — `src/contract_ocr/application/use_cases/extract_ai2_facts.py` — và có **ba cách chạy** tuỳ nhu cầu:
+
+| Cách chạy | Dùng khi nào | OCR engine | Đủ tính năng mới nhất? |
+| --- | --- | --- | --- |
+| `frontend/index.html` + backend (mục "Chạy nhanh" ở trên) | Muốn dùng UI, cần đọc cả PDF scan | Mọi engine đã cấu hình ở backend (PyMuPDF/PaddleOCR/Vision API) | Có — cây Điều/Khoản/Điểm, confidence, N phụ lục, Evaluation, "Sửa" |
+| `scripts/demo_ai2_pipeline.py --contract ...` | Muốn chạy dòng lệnh / không cần UI | `--engine none` (native) hoặc `--engine paddle` | Có — cùng module dùng chung, `--annex` lặp lại được nhiều lần |
+| Kéo-thả PDF thẳng vào `demo_report.html` đã sinh ra | Muốn xem nhanh, không cần chạy backend | Chỉ đọc được PDF native (pdf.js, chạy trong trình duyệt) | Có — cùng logic JS mirror, cây Điều/Khoản/Điểm, confidence, N phụ lục, Evaluation, "Sửa"; PDF scan vẫn không đọc được vì không có OCR trong trình duyệt |
+
+Luồng chính ở cả ba cách là **tải một PDF hợp đồng**, tự động ra output IDP theo đúng slice tối thiểu ở §27.11 — 0..N phụ lục là bổ sung, không bắt buộc, không có nút bật/tắt "so sánh" riêng. Output khớp các mục trong bảng "Output người dùng yêu cầu" ở §27.2:
+
+- **Input processing**: 1 contract + 0..N appendix, PDF native hoặc scan (tuỳ engine).
+- **Classification**: `contract`/`appendix`/`other` theo từ khoá trang đầu.
+- **Clause extraction**: cây `Dieu` → `Khoan` → `Diem` (mỗi clause có `parent_clause_id`), không chỉ Điều phẳng.
+- **Structured extraction**: field MVP `parties` (bên A/B), `amount`, `date`, `payment term`.
+- **Citation**: mỗi fact/finding có document hash + trang/dòng/bbox/quote.
+- **Conflict detection**: so hợp đồng với từng phụ lục độc lập, kết quả gắn `annex_filename` để không gộp lẫn khi có nhiều phụ lục.
+- **Confidence**: object `{signals, review_priority}` theo tín hiệu (anchor precision, có mismatch hay không) — không phải xác suất bịa, đúng cảnh báo ở §27.8.
+- **Human review**: hành động "Sửa" trên `index.html` — chỉ sửa trong phiên trình duyệt, không lưu.
+- **Evaluation report**: tab đếm N theo review_priority, nói rõ chưa có ground truth nên chưa có accuracy/F1 thật.
+
+Những gì **chưa có** (ghi rõ để không hiểu nhầm là đã đủ): trích bảng (`tables[]` trong ai1.snapshot.v1 luôn rỗng — gap có sẵn ở tầng OCR, không phải AI2 tạo ra), evaluation report thật cần ground truth gán nhãn, human review có lưu trữ/persist.
+
+Chạy `uv run python scripts/demo_ai2_pipeline.py` (không tham số) để lấy demo dữ liệu tổng hợp, hoặc `--contract path/to/file.pdf` để thử PDF thật, thêm `--annex path/to/file2.pdf` (lặp lại nhiều lần để có nhiều phụ lục, đều tuỳ chọn — xem docstring đầu file để biết chi tiết/giới hạn). Kết quả là một `demo_report.html` tĩnh, tự chứa, mở thẳng bằng trình duyệt.

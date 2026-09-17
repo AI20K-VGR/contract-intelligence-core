@@ -4,797 +4,649 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="api-base" content="http://127.0.0.1:8000" />
-<title>Contract OCR Lab — Test UI</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='44' fill='none' stroke='%23B23A2E' stroke-width='8'/%3E%3Ccircle cx='50' cy='50' r='26' fill='none' stroke='%23B23A2E' stroke-width='5'/%3E%3C/svg%3E" />
+<title>Contract Intelligence - IDP Demo</title>
 <style>
   :root {
-    --paper: #f3f5f4;
-    --paper-raised: #ffffff;
-    --ink: #1b2430;
-    --ink-dim: #5b6672;
-    --line: #d9e0e1;
-    --seal: #b23a2e;
-    --seal-ink: #8c2a21;
-    --seal-bg: #f7e9e6;
-    --success: #2f7a4d;
-    --success-bg: #e4f3ea;
-    --warn: #8a5c19;
-    --warn-bg: #fbf0dc;
-    --fail: #b23a2e;
-    --fail-bg: #fbe8e5;
-    --focus: #1e4fd8;
-    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    --font-mono: ui-monospace, "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    --bg: #f4f5f8;
+    --surface: #ffffff;
+    --surface-2: #fafbfc;
+    --border: #e3e6ec;
+    --text: #191c22;
+    --text-muted: #666e7d;
+    --primary: #2554e8;
+    --primary-soft: #eaf0ff;
+    --success: #0f7a55;
+    --success-soft: #e4f6ee;
+    --danger: #b7382c;
+    --danger-soft: #fbeae8;
+    --accent-b: #b3540a;
+    --accent-b-soft: #fdf0e0;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .08);
+    color-scheme: light dark;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --paper: #14181d;
-      --paper-raised: #1b2129;
-      --ink: #e7eaec;
-      --ink-dim: #97a1aa;
-      --line: #2a323b;
-      --seal: #e0685a;
-      --seal-ink: #e0685a;
-      --seal-bg: #33201d;
-      --success: #5fbe85;
-      --success-bg: #17301f;
-      --warn: #d9a44a;
-      --warn-bg: #332510;
-      --fail: #e0685a;
-      --fail-bg: #33201d;
-      --focus: #7d9dff;
+      --bg: #14161a;
+      --surface: #1d2025;
+      --surface-2: #21242a;
+      --border: #2c3037;
+      --text: #e8eaed;
+      --text-muted: #9aa1ac;
+      --primary: #7d9dff;
+      --primary-soft: #1c2740;
+      --success: #56d9a6;
+      --success-soft: #103226;
+      --danger: #ff9086;
+      --danger-soft: #3a1d1c;
+      --accent-b: #e8a35c;
+      --accent-b-soft: #3a2a12;
+      --shadow: 0 1px 3px rgba(0, 0, 0, .5);
     }
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
   body {
-    background: var(--paper);
-    color: var(--ink);
-    font-family: var(--font-ui);
-    line-height: 1.5;
-    padding: 32px 16px 64px;
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    margin: 0; background: var(--bg); color: var(--text);
+    font-size: 14px; line-height: 1.45;
   }
-  a { color: var(--focus); }
-  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px; }
+  .app-bar {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 14px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .app-bar h1 { font-size: 16px; margin: 0; }
+  .app-bar .subtitle { font-size: 12px; color: var(--text-muted); }
+  .tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px;
+    background: var(--primary-soft); color: var(--primary); white-space: nowrap;
+  }
+  .tag.is-down { background: var(--danger-soft); color: var(--danger); }
+  main { max-width: 1400px; margin: 0 auto; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
 
-  .shell { max-width: 800px; margin: 0 auto; }
-
-  header.masthead {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding-bottom: 20px;
-    margin-bottom: 24px;
-    border-bottom: 1px solid var(--line);
-  }
-  .stamp-mark { color: var(--seal); flex: none; }
-  .masthead h1 {
-    font-size: 17px;
-    margin: 0 0 2px;
-    font-family: var(--font-mono);
-    letter-spacing: 0.02em;
-    font-weight: 600;
-  }
-  .masthead p {
-    margin: 0;
-    font-size: 13px;
-    color: var(--ink-dim);
-  }
-  .backend-tag {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: var(--ink-dim);
-    margin-top: 4px;
-  }
-  .backend-tag.is-down { color: var(--fail); }
-  .backend-tag .dot {
-    display: inline-block;
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--ink-dim);
-    margin-right: 5px;
-  }
-  .backend-tag.is-up .dot { background: var(--success); }
-  .backend-tag.is-down .dot { background: var(--fail); }
-
-  .card {
-    background: var(--paper-raised);
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: 24px;
-    margin-bottom: 24px;
-  }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .card-pad { padding: 16px; }
 
   .dropzone {
-    border: 2px dashed var(--line);
-    border-radius: 8px;
-    padding: 32px 20px;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color 0.15s ease, background 0.15s ease;
+    border: 2px dashed var(--border); border-radius: var(--radius); padding: 18px;
+    text-align: center; cursor: pointer; background: var(--surface-2); transition: .15s;
   }
-  .dropzone:hover { border-color: var(--seal); }
-  .dropzone.is-dragover { border-color: var(--seal); background: var(--seal-bg); }
-  .dropzone.has-file { border-style: solid; border-color: var(--success); }
-  .dropzone-title { font-weight: 600; margin: 0 0 4px; }
-  .dropzone-sub { color: var(--ink-dim); font-size: 13px; margin: 0; }
-  .dropzone-filename {
-    margin-top: 10px;
-    font-family: var(--font-mono);
-    font-size: 12.5px;
-    color: var(--seal-ink);
-  }
-  input[type="file"] { display: none; }
+  .dropzone:hover, .dropzone.dragover { border-color: var(--primary); background: var(--primary-soft); }
+  .dropzone .label { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+  .dropzone .hint { font-size: 11px; color: var(--text-muted); }
+  .dropzone .filename { margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--primary); word-break: break-all; }
+  .dropzone input { display: none; }
 
-  fieldset { border: none; padding: 0; margin: 20px 0 0; }
-  legend {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--ink-dim);
-    padding: 0 0 8px;
+  .uploader-actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  button {
+    font: inherit; border-radius: 8px; padding: 9px 16px; cursor: pointer; border: 1px solid transparent;
   }
+  button.primary { background: var(--primary); color: #fff; font-weight: 600; }
+  button.primary:disabled { opacity: .45; cursor: not-allowed; }
+  button.ghost { background: transparent; border-color: var(--border); color: var(--text); }
+  button.ghost:hover { border-color: var(--primary); color: var(--primary); }
+  select.engine-select { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+  .uploader-note { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+  .status-line { font-size: 12px; color: var(--primary); margin-top: 10px; min-height: 16px; }
+  .status-line.error { color: var(--danger); }
 
-  .engine-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 8px;
-  }
-  @media (max-width: 560px) {
-    .engine-grid { grid-template-columns: 1fr; }
-  }
-  .engine-option[data-external="true"] label { border-style: dashed; }
-  .engine-option[data-external="true"] input:checked + label {
-    border-color: var(--warn);
-    background: var(--warn-bg);
-  }
-  .engine-option[data-external="true"] .engine-note { color: var(--warn); }
-  .engine-option input { position: absolute; opacity: 0; pointer-events: none; }
-  .engine-option label {
-    display: block;
-    border: 1px solid var(--line);
-    border-radius: 7px;
-    padding: 10px 12px;
-    cursor: pointer;
-    transition: border-color 0.15s ease, background 0.15s ease;
-  }
-  .engine-option input:checked + label {
-    border-color: var(--seal);
-    background: var(--seal-bg);
-  }
-  .engine-option input:focus-visible + label { outline: 2px solid var(--focus); outline-offset: 2px; }
-  .engine-option .engine-name {
-    font-family: var(--font-mono);
-    font-size: 12.5px;
-    font-weight: 600;
-  }
-  .engine-option .engine-note {
-    display: block;
-    font-size: 11.5px;
-    color: var(--ink-dim);
-    margin-top: 3px;
-  }
-  .engine-option.is-unavailable label { cursor: not-allowed; opacity: 0.55; }
+  .workspace { display: grid; grid-template-columns: minmax(300px, 1.05fr) minmax(320px, 1fr); gap: 18px; align-items: start; }
+  @media (max-width: 980px) { .workspace { grid-template-columns: 1fr; } }
 
-  details.advanced { margin-top: 18px; }
-  details.advanced summary {
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--ink-dim);
-  }
-  details.advanced summary:hover { color: var(--ink); }
-  .advanced-body { padding-top: 14px; display: flex; flex-wrap: wrap; gap: 24px; }
-  .field-group label.field-label {
-    display: block;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--ink-dim);
-    margin-bottom: 6px;
-  }
-  input[type="number"] {
-    font: inherit;
-    width: 90px;
-    padding: 6px 8px;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    background: var(--paper);
-    color: var(--ink);
-  }
-  .checkbox-row { display: flex; flex-wrap: wrap; gap: 10px 16px; max-width: 320px; }
-  .checkbox-row label {
-    font-size: 13px;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    cursor: pointer;
-  }
+  .doc-card h2 { font-size: 13px; margin: 0 0 2px; }
+  .doc-card { margin-bottom: 14px; }
+  .doc-card .meta { font-size: 11px; color: var(--text-muted); margin-bottom: 10px; }
+  .role-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+  .role-badge.contract { background: var(--primary-soft); color: var(--primary); }
+  .role-badge.annex { background: var(--accent-b-soft); color: var(--accent-b); }
 
-  .submit-row { margin-top: 22px; display: flex; align-items: center; gap: 12px; }
-  button.primary {
-    font: inherit;
-    font-weight: 600;
-    font-size: 14px;
-    background: var(--seal);
-    color: #fdf6f4;
-    border: none;
-    border-radius: 7px;
-    padding: 12px 22px;
-    cursor: pointer;
-    transition: background 0.15s ease;
+  .page-wrap { position: relative; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; line-height: 0; margin-bottom: 8px; }
+  .page-wrap img { width: 100%; display: block; }
+  .page-badge { position: absolute; top: 6px; left: 6px; font-size: 10px; background: rgba(0,0,0,.55); color: #fff; padding: 1px 6px; border-radius: 4px; z-index: 2; }
+  .bbox {
+    position: absolute; border: 1px dashed rgba(37, 84, 232, .4); border-radius: 2px;
+    pointer-events: none; transition: all .12s ease; background: transparent;
   }
-  button.primary:hover:not(:disabled) { background: var(--seal-ink); }
-  button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
-  .spinner {
-    width: 15px; height: 15px;
-    border: 2px solid rgba(255,255,255,0.4);
-    border-top-color: #fff;
-    border-radius: 50%;
-    display: inline-block;
-    vertical-align: -3px;
-    margin-right: 8px;
-    animation: spin 0.7s linear infinite;
+  .bbox.active-a { border: 2px solid var(--primary); background: rgba(37, 84, 232, .18); }
+  .bbox.active-b { border: 2px solid var(--accent-b); background: rgba(179, 84, 10, .18); }
+
+  .panel-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+  .panel-tab { padding: 8px 4px; font-size: 13px; font-weight: 600; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; margin-right: 14px; }
+  .panel-tab.active { color: var(--primary); border-color: var(--primary); }
+  .panel-body[hidden] { display: none; }
+
+  .search-box { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; margin-bottom: 10px; }
+
+  .fact-row {
+    display: flex; align-items: baseline; gap: 8px; padding: 8px 6px; border-radius: 8px; cursor: pointer; font-size: 12px;
   }
+  .fact-row:hover { background: var(--surface-2); }
+  .fact-row.selected { background: var(--primary-soft); }
+  .fact-row .fact-field { font-weight: 700; min-width: 130px; }
+  .fact-row .fact-value { font-family: ui-monospace, "SF Mono", Consolas, monospace; flex: 1; }
+  .fact-row .fact-clause { color: var(--text-muted); font-size: 11px; }
+
+  .empty-state { padding: 20px 10px; text-align: center; color: var(--text-muted); font-size: 12px; }
+
+  .finding-card { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; cursor: pointer; }
+  .finding-card:hover { border-color: var(--primary); }
+  .finding-card.selected { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+  .finding-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .finding-topic { font-weight: 700; font-size: 12px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+  .badge.match, .badge.conf-low { background: var(--success-soft); color: var(--success); }
+  .badge.diff, .badge.conf-high { background: var(--danger-soft); color: var(--danger); }
+  .badge.conf-medium { background: var(--accent-b-soft); color: var(--accent-b); }
+
+  .clause-tree { margin-top: 8px; font-size: 11px; }
+  .clause-row { padding: 2px 0; color: var(--text-muted); }
+  .clause-row .clause-level-article { color: var(--text); font-weight: 700; }
+  .clause-row .clause-level-clause { color: var(--text); font-weight: 600; }
+  .clause-row .clause-level-preamble { font-style: italic; }
+
+  .annex-group-title { font-size: 12px; font-weight: 700; margin: 12px 0 6px; color: var(--text-muted); }
+  .annex-group-title:first-child { margin-top: 0; }
+
+  .fact-row-wrap { border-radius: 8px; }
+  .fact-row-wrap:hover .fact-row { background: var(--surface-2); }
+  .correct-btn { font-size: 10px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; }
+  .correct-btn:hover { border-color: var(--primary); color: var(--primary); }
+  .human-value { font-size: 11px; color: var(--success); padding: 0 6px 6px 6px; }
+
+  .eval-stat { display: flex; justify-content: space-between; padding: 7px 2px; border-bottom: 1px dashed var(--border); font-size: 12px; }
+  .finding-values { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px; }
+  .value-block { font-size: 11px; border-radius: 6px; padding: 6px 8px; }
+  .value-block.a { background: var(--primary-soft); color: var(--primary); }
+  .value-block.b { background: var(--accent-b-soft); color: var(--accent-b); }
+  .value-block .value-label { font-weight: 700; display: block; margin-bottom: 2px; }
+  .finding-rationale { font-size: 11px; color: var(--text-muted); }
+
+  .detail-panel { margin-top: 10px; font-size: 12px; background: var(--surface-2); border: 1px dashed var(--border); border-radius: 8px; padding: 10px; white-space: pre-wrap; }
+  .detail-panel[hidden] { display: none; }
+  .quote-a { color: var(--primary); font-weight: 600; }
+  .quote-b { color: var(--accent-b); font-weight: 600; }
+
+  footer { text-align: center; font-size: 11px; color: var(--text-muted); padding: 6px 20px 26px; }
+
+  .overlay-loading {
+    position: fixed; inset: 0; background: rgba(20, 22, 26, .45); display: flex; align-items: center; justify-content: center; z-index: 50;
+  }
+  .overlay-loading[hidden] { display: none; }
+  .overlay-box { background: var(--surface); border-radius: var(--radius); padding: 20px 26px; box-shadow: var(--shadow); text-align: center; min-width: 220px; }
+  .spinner { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--primary); margin: 0 auto 10px; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) {
-    .spinner { animation: none; border-top-color: rgba(255,255,255,0.4); }
-  }
-  .timing-note { font-size: 12.5px; color: var(--ink-dim); }
-
-  .error-banner {
-    border: 1px solid var(--fail);
-    background: var(--fail-bg);
-    color: var(--fail);
-    border-radius: 7px;
-    padding: 12px 14px;
-    font-size: 13.5px;
-    margin-bottom: 24px;
-  }
-  .error-banner[hidden] { display: none; }
-
-  .results-summary {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px 16px;
-    margin-bottom: 16px;
-  }
-  .results-summary h2 {
-    font-family: var(--font-mono);
-    font-size: 13px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .stamp-hit {
-    animation: stamp-in 0.32s cubic-bezier(.2,1.4,.4,1);
-  }
-  @keyframes stamp-in {
-    0% { opacity: 0; transform: scale(2.2) rotate(-14deg); }
-    100% { opacity: 1; transform: scale(1) rotate(-6deg); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .stamp-hit { animation: none; }
-  }
-  .results-meta { font-size: 12.5px; color: var(--ink-dim); font-family: var(--font-mono); }
-  .results-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
-  button.ghost {
-    font: inherit;
-    font-size: 12.5px;
-    background: none;
-    border: 1px solid var(--line);
-    color: var(--ink);
-    border-radius: 6px;
-    padding: 6px 11px;
-    cursor: pointer;
-  }
-  button.ghost:hover { border-color: var(--seal); color: var(--seal-ink); }
-
-  .empty-note {
-    color: var(--ink-dim);
-    font-size: 13.5px;
-    border: 1px dashed var(--line);
-    border-radius: 8px;
-    padding: 20px;
-    text-align: center;
-  }
-
-  .page-card {
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    margin-bottom: 12px;
-    overflow: hidden;
-  }
-  .page-card-head {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px 10px;
-    padding: 10px 14px;
-    background: var(--paper);
-    border-bottom: 1px solid var(--line);
-  }
-  .page-number { font-family: var(--font-mono); font-weight: 600; font-size: 13px; }
-  .badge {
-    font-family: var(--font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-weight: 600;
-  }
-  .badge.status-success { color: var(--success); background: var(--success-bg); }
-  .badge.status-skipped { color: var(--warn); background: var(--warn-bg); }
-  .badge.status-failed { color: var(--fail); background: var(--fail-bg); }
-  .badge.tag { color: var(--ink-dim); background: var(--paper-raised); border: 1px solid var(--line); }
-  .page-meta { margin-left: auto; font-size: 11.5px; font-family: var(--font-mono); color: var(--ink-dim); }
-  .page-body { padding: 14px; }
-  .page-note {
-    font-size: 13px;
-    color: var(--ink-dim);
-    background: var(--paper);
-    border-left: 3px solid var(--warn);
-    padding: 8px 12px;
-    border-radius: 4px;
-  }
-  .page-card.is-failed .page-note { border-left-color: var(--fail); }
-  .page-text-wrap { position: relative; }
-  .page-text {
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    font-size: 14px;
-    max-height: 360px;
-    overflow-y: auto;
-    margin: 0;
-    padding-right: 70px;
-  }
-  .copy-btn {
-    position: absolute;
-    top: 0;
-    right: 0;
-    font: inherit;
-    font-size: 11.5px;
-    background: var(--paper-raised);
-    border: 1px solid var(--line);
-    color: var(--ink-dim);
-    border-radius: 6px;
-    padding: 4px 9px;
-    cursor: pointer;
-  }
-  .copy-btn:hover { border-color: var(--seal); color: var(--seal-ink); }
-
-  footer {
-    text-align: center;
-    font-size: 12px;
-    color: var(--ink-dim);
-    margin-top: 32px;
-  }
 </style>
 </head>
 <body>
-<div class="shell">
+<div class="app-bar">
+  <div>
+    <h1>Contract Intelligence &mdash; IDP Demo</h1>
+    <div class="subtitle">Upload PDF -&gt; OCR engine da chon &mdash; Xem docs/architecture.md DOC-04 v0.2 &mdash; <a href="ocr_raw.html">cong cu debug OCR tho</a></div>
+  </div>
+  <span class="tag" id="backend-tag">dang ket noi backend...</span>
+</div>
 
-  <header class="masthead">
-    <svg class="stamp-mark" width="46" height="46" viewBox="0 0 120 120" aria-hidden="true">
-      <circle cx="60" cy="60" r="54" fill="none" stroke="currentColor" stroke-width="2"/>
-      <circle cx="60" cy="60" r="44" fill="none" stroke="currentColor" stroke-width="1"/>
-      <path id="arcTop" d="M 14,64 A 46,46 0 0 1 106,64" fill="none"/>
-      <path id="arcBottom" d="M 106,58 A 46,46 0 0 1 14,58" fill="none"/>
-      <text font-size="10.5" letter-spacing="1.5" fill="currentColor">
-        <textPath href="#arcTop" startOffset="50%" text-anchor="middle">CONTRACT OCR</textPath>
-      </text>
-      <text font-size="10.5" letter-spacing="1.5" fill="currentColor">
-        <textPath href="#arcBottom" startOffset="50%" text-anchor="middle">LAB · LOCAL</textPath>
-      </text>
-      <g transform="translate(60,61)">
-        <rect x="-13" y="-16" width="26" height="32" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
-        <line x1="-7" y1="-7" x2="7" y2="-7" stroke="currentColor" stroke-width="2"/>
-        <line x1="-7" y1="0" x2="7" y2="0" stroke="currentColor" stroke-width="2"/>
-        <line x1="-7" y1="7" x2="3" y2="7" stroke="currentColor" stroke-width="2"/>
-      </g>
-    </svg>
-    <div>
-      <h1>Contract OCR Lab</h1>
-      <p>Tải hợp đồng PDF lên, đọc thử kết quả OCR — frontend tĩnh này gọi API sang một backend riêng.</p>
-      <p class="backend-tag" id="backend-tag"><span class="dot"></span><span id="backend-tag-text">Đang kiểm tra backend…</span></p>
+<main>
+  <section class="card card-pad">
+    <label class="dropzone" id="dropzone-contract">
+      <div class="label">📄 Tai PDF can xu ly (bat buoc)</div>
+      <div class="hint">Keo tha 1 file PDF vao day, hoac bam de chon &mdash; phan tich chay tu dong ngay sau khi chon file</div>
+      <div class="filename" id="filename-contract"></div>
+      <input type="file" id="file-contract" accept="application/pdf" />
+    </label>
+
+    <label class="dropzone" id="dropzone-annex" style="margin-top: 12px;">
+      <div class="label">📎 Phu luc (0..N, tuy chon)</div>
+      <div class="hint">Keo tha hoac chon nhieu file cung luc de kiem tra mau thuan voi hop dong o tren</div>
+      <div class="filename" id="filename-annex"></div>
+      <input type="file" id="file-annex" accept="application/pdf" multiple />
+    </label>
+
+    <div class="uploader-actions">
+      <label for="engine-select" style="font-size:12px; color: var(--text-muted);">OCR engine:</label>
+      <select class="engine-select" id="engine-select"></select>
+      <button class="ghost" id="btn-rerun" hidden>Phan tich lai</button>
     </div>
-  </header>
-
-  <div id="error-banner" class="error-banner" role="alert" hidden></div>
-
-  <form id="ocr-form" class="card" novalidate>
-    <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Chọn file PDF hoặc ảnh để tải lên">
-      <p class="dropzone-title">Kéo thả file PDF hoặc ảnh vào đây, hoặc bấm để chọn</p>
-      <p class="dropzone-sub">Tối đa 50MB · PDF hoặc JPG/PNG/WEBP/BMP/TIFF · hợp đồng, phụ lục tiếng Việt hoặc tiếng Anh</p>
-      <p id="file-name" class="dropzone-filename"></p>
-    </div>
-    <input type="file" id="file-input" accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,image/bmp,image/tiff,.jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff" />
-
-    <fieldset>
-      <legend>Cách đọc file</legend>
-      <div id="engine-grid" class="engine-grid">
-        <!-- filled by JS from /api/engines, with a static fallback below -->
-        <div class="engine-option" data-engine="pymupdf">
-          <input type="radio" name="engine" id="engine-pymupdf" value="pymupdf" checked />
-          <label for="engine-pymupdf">
-            <span class="engine-name">PyMuPDF</span>
-            <span class="engine-note">Đọc text có sẵn trong PDF, không cần OCR</span>
-          </label>
-        </div>
-        <div class="engine-option" data-engine="paddle">
-          <input type="radio" name="engine" id="engine-paddle" value="paddle" />
-          <label for="engine-paddle">
-            <span class="engine-name">PaddleOCR</span>
-            <span class="engine-note">Đang kiểm tra…</span>
-          </label>
-        </div>
-        <div class="engine-option" data-engine="deepseek">
-          <input type="radio" name="engine" id="engine-deepseek" value="deepseek" />
-          <label for="engine-deepseek">
-            <span class="engine-name">DeepSeek-OCR</span>
-            <span class="engine-note">Đang kiểm tra…</span>
-          </label>
-        </div>
-        <div class="engine-option" data-engine="openai" data-external="true">
-          <input type="radio" name="engine" id="engine-openai" value="openai" />
-          <label for="engine-openai">
-            <span class="engine-name">OpenAI GPT-5.6 Terra</span>
-            <span class="engine-note">Đang kiểm tra…</span>
-          </label>
-        </div>
-        <div class="engine-option" data-engine="gemini" data-external="true">
-          <input type="radio" name="engine" id="engine-gemini" value="gemini" />
-          <label for="engine-gemini">
-            <span class="engine-name">Gemini 3 Flash</span>
-            <span class="engine-note">Đang kiểm tra…</span>
-          </label>
-        </div>
-        <div class="engine-option" data-engine="deepseek_api" data-external="true">
-          <input type="radio" name="engine" id="engine-deepseek-api" value="deepseek_api" />
-          <label for="engine-deepseek-api">
-            <span class="engine-name">DeepSeek Flash (API)</span>
-            <span class="engine-note">Đang kiểm tra…</span>
-          </label>
-        </div>
-      </div>
-    </fieldset>
-
-    <details class="advanced">
-      <summary>Tuỳ chọn nâng cao</summary>
-      <div class="advanced-body">
-        <div class="field-group">
-          <label class="field-label" for="dpi-input">Độ phân giải render (DPI)</label>
-          <input type="number" id="dpi-input" name="dpi" min="72" max="600" step="1" value="300" />
-          <p class="dropzone-sub" style="margin-top:6px; max-width:220px;">OCR trên CPU chậm hơn nhiều so với GPU; hạ xuống 150 để test nhanh hơn.</p>
-        </div>
-        <div class="field-group">
-          <label class="field-label">Tiền xử lý ảnh (chỉ áp dụng khi dùng OCR engine)</label>
-          <div class="checkbox-row">
-            <label><input type="checkbox" name="step" value="deskew" /> deskew</label>
-            <label><input type="checkbox" name="step" value="denoise" /> denoise</label>
-            <label><input type="checkbox" name="step" value="contrast" /> contrast</label>
-            <label><input type="checkbox" name="step" value="threshold" /> threshold</label>
-          </div>
-        </div>
-      </div>
-    </details>
-
-    <div class="submit-row">
-      <button type="submit" class="primary" id="submit-btn" disabled>Chạy OCR</button>
-      <span class="timing-note" id="timing-note"></span>
-    </div>
-  </form>
-
-  <section id="results-section" class="card" hidden>
-    <div class="results-summary">
-      <h2><span class="stamp-hit" id="result-title-mark">✓</span> <span id="result-filename"></span></h2>
-      <span class="results-meta" id="result-meta"></span>
-      <div class="results-actions">
-        <button type="button" class="ghost" id="copy-all-btn">Copy toàn bộ text</button>
-        <button type="button" class="ghost" id="download-txt-btn">Tải .txt</button>
-        <button type="button" class="ghost" id="download-json-btn">Tải JSON</button>
-      </div>
-    </div>
-    <div id="pages-container"></div>
+    <div class="uploader-note">Chay qua backend that (<code>/api/ai2/analyze</code>), dung dung engine da chon o tren &mdash; ho tro ca PDF scan neu chon PaddleOCR/Vision, khong chi PDF native nhu ban chay thang trong trinh duyet.</div>
+    <div class="status-line" id="status-line"></div>
   </section>
 
-  <section id="empty-section" class="card">
-    <p class="empty-note">Kết quả OCR theo từng trang sẽ hiện ở đây sau khi bạn chạy.</p>
+  <section class="workspace">
+    <div id="docs">
+      <div class="card card-pad empty-state">Chua co du lieu &mdash; tai PDF hop dong o tren de bat dau.</div>
+    </div>
+    <div class="card card-pad">
+      <div class="panel-tabs">
+        <div class="panel-tab active" data-tab="facts">Facts</div>
+        <div class="panel-tab" data-tab="findings">Xung dot (Findings)</div>
+        <div class="panel-tab" data-tab="evaluation">Evaluation</div>
+      </div>
+      <div class="panel-body" data-tab-body="facts">
+        <input class="search-box" id="fact-search" placeholder="Loc theo field, gia tri, dieu khoan..." />
+        <div id="facts-list"></div>
+      </div>
+      <div class="panel-body" data-tab-body="findings" hidden>
+        <div id="findings-list"></div>
+      </div>
+      <div class="panel-body" data-tab-body="evaluation" hidden>
+        <div id="evaluation-body"></div>
+      </div>
+      <div class="detail-panel" id="detail-panel" hidden></div>
+    </div>
   </section>
+</main>
 
-  <footer>Frontend tĩnh, không xử lý gì trên máy này — mọi việc OCR chạy ở backend riêng. Không có tài liệu nào được gửi ra ngoài hai máy chủ cục bộ này.</footer>
+<footer>docs/architecture.md demo &mdash; PDF gui len backend cuc bo (127.0.0.1) de OCR/phan tich, khong gui di dau khac. Xem repo root DOC-04 v0.2 de doi chieu thiet ke day du.</footer>
+
+<div class="overlay-loading" id="overlay-loading" hidden>
+  <div class="overlay-box">
+    <div class="spinner"></div>
+    <div id="overlay-text">Dang xu ly...</div>
+  </div>
 </div>
 
 <script>
-(function () {
-  const API_BASE = (
-    new URLSearchParams(location.search).get('api') ||
-    document.querySelector('meta[name="api-base"]').content
-  ).replace(/\/+$/, '');
+"use strict";
+const API_BASE = (
+  new URLSearchParams(location.search).get("api") ||
+  document.querySelector('meta[name="api-base"]').content
+).replace(/\/+$/, "");
 
-  const form = document.getElementById('ocr-form');
-  const dropzone = document.getElementById('dropzone');
-  const fileInput = document.getElementById('file-input');
-  const fileNameEl = document.getElementById('file-name');
-  const submitBtn = document.getElementById('submit-btn');
-  const timingNote = document.getElementById('timing-note');
-  const errorBanner = document.getElementById('error-banner');
-  const resultsSection = document.getElementById('results-section');
-  const emptySection = document.getElementById('empty-section');
-  const pagesContainer = document.getElementById('pages-container');
-  const resultFilename = document.getElementById('result-filename');
-  const resultMeta = document.getElementById('result-meta');
-  const resultTitleMark = document.getElementById('result-title-mark');
-  const backendTag = document.getElementById('backend-tag');
-  const backendTagText = document.getElementById('backend-tag-text');
+const docsEl = document.getElementById("docs");
+const factsList = document.getElementById("facts-list");
+const findingsList = document.getElementById("findings-list");
+const evaluationBody = document.getElementById("evaluation-body");
+const detailPanel = document.getElementById("detail-panel");
+const factSearch = document.getElementById("fact-search");
+const backendTag = document.getElementById("backend-tag");
+const engineSelect = document.getElementById("engine-select");
+const statusLine = document.getElementById("status-line");
+const overlayLoading = document.getElementById("overlay-loading");
+const overlayText = document.getElementById("overlay-text");
+const btnRerun = document.getElementById("btn-rerun");
 
-  let selectedFile = null;
-  let lastResult = null;
-  const MAX_BYTES = 50 * 1024 * 1024;
+let overlaysByDoc = {};
+let allFactRows = [];
+let currentData = null;
+const state = { contract: null, annexes: [] };
 
-  function showError(message) {
-    errorBanner.textContent = message;
-    errorBanner.hidden = false;
+// --------------------------------------------------------------------------
+// Rendering - same shape/behaviour as scripts/demo_report_template.html's
+// renderDossier(), just fed by a backend JSON response instead of embedded
+// data + client-side pdf.js.
+// --------------------------------------------------------------------------
+
+function bboxStyle(bbox) {
+  const [x0, y0, x1, y1] = bbox;
+  return `left:${x0 * 100}%; top:${y0 * 100}%; width:${(x1 - x0) * 100}%; height:${(y1 - y0) * 100}%;`;
+}
+
+function clearActive() {
+  Object.values(overlaysByDoc).forEach((m) => m.forEach((el) => el.classList.remove("active-a", "active-b")));
+  document.querySelectorAll(".selected").forEach((el) => el.classList.remove("selected"));
+}
+
+function activateCitation(citationId, docId, cls) {
+  const el = overlaysByDoc[docId] && overlaysByDoc[docId].get(citationId);
+  if (el) {
+    el.classList.add(cls);
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
   }
-  function hideError() {
-    errorBanner.hidden = true;
-    errorBanner.textContent = '';
+}
+
+function clauseDepth(clause, byId) {
+  let depth = 0;
+  let parentId = clause.parent_clause_id;
+  while (parentId && byId.has(parentId)) {
+    depth++;
+    parentId = byId.get(parentId).parent_clause_id;
+  }
+  return depth;
+}
+
+function renderClauseTree(doc) {
+  const tree = document.createElement("div");
+  tree.className = "clause-tree";
+  const byId = new Map(doc.clauses.map((c) => [c.clause_id, c]));
+  doc.clauses.forEach((clause) => {
+    const row = document.createElement("div");
+    row.className = "clause-row";
+    row.style.paddingLeft = `${clauseDepth(clause, byId) * 14}px`;
+    row.innerHTML =
+      `<span class="clause-level-${clause.level}">${clause.label}</span>` +
+      (clause.title ? ` - ${clause.title}` : "");
+    tree.appendChild(row);
+  });
+  return tree;
+}
+
+function renderFactRow(doc, fact) {
+  const wrap = document.createElement("div");
+  wrap.className = "fact-row-wrap";
+  const conf = fact.confidence.review_priority;
+  const row = document.createElement("div");
+  row.className = "fact-row";
+  row.innerHTML =
+    `<span class="role-badge ${doc.role === "contract" ? "contract" : "annex"}">${doc.role}</span>` +
+    `<span class="fact-field">${fact.field}</span>` +
+    `<span class="fact-value">${fact.human_correction ? `<s>${fact.raw}</s>` : fact.raw}</span>` +
+    `<span class="fact-clause">${fact.context.clause_label}</span>` +
+    `<span class="badge conf-${conf}" title="review_priority">${conf}</span>` +
+    `<button class="correct-btn" type="button">Sua</button>`;
+  row.dataset.searchText = `${fact.field} ${fact.raw} ${fact.context.clause_label} ${fact.context.clause_title}`.toLowerCase();
+  row.addEventListener("click", (e) => {
+    if (e.target.closest(".correct-btn")) return;
+    clearActive();
+    row.classList.add("selected");
+    activateCitation(fact.citation.citation_id, fact.citation.document_id, "active-a");
+    detailPanel.hidden = false;
+    detailPanel.textContent =
+      `Citation (${doc.role}, trang ${fact.citation.segments[0].page_number}, anchor=${fact.citation.segments[0].anchor_precision}):\n"${fact.citation.segments[0].quote}"`;
+  });
+  row.querySelector(".correct-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    const value = prompt(
+      `Sua gia tri cho '${fact.field}' (machine: "${fact.raw}"). Chi luu trong phien lam viec nay, khong gui len backend.`,
+      fact.human_correction ? fact.human_correction.value : fact.raw
+    );
+    if (value === null) return;
+    fact.human_correction = value === fact.raw ? null : { value, actor: "reviewer (demo)", at: new Date().toLocaleString() };
+    renderDossier(currentData);
+  });
+  wrap.appendChild(row);
+  if (fact.human_correction) {
+    const humanRow = document.createElement("div");
+    humanRow.className = "human-value";
+    humanRow.textContent = `Da sua: "${fact.human_correction.value}" (${fact.human_correction.actor}, ${fact.human_correction.at})`;
+    wrap.appendChild(humanRow);
+  }
+  allFactRows.push(row);
+  return wrap;
+}
+
+function renderFindingCard(finding) {
+  const card = document.createElement("div");
+  card.className = "finding-card";
+  const badgeClass = finding.disposition === "comparable_match" ? "match" : "diff";
+  const conf = finding.confidence.review_priority;
+  card.innerHTML =
+    `<div class="finding-top"><span class="finding-topic">${finding.topic}</span>` +
+    `<span><span class="badge ${badgeClass}">${finding.disposition}</span> <span class="badge conf-${conf}">${conf}</span></span></div>` +
+    `<div class="finding-values">` +
+    `<div class="value-block a"><span class="value-label">A - Hop dong</span>${finding.value_a}</div>` +
+    `<div class="value-block b"><span class="value-label">B - ${finding.annex_filename || "Phu luc"}</span>${finding.value_b}</div>` +
+    `</div>` +
+    `<div class="finding-rationale">${finding.rationale}</div>`;
+  card.addEventListener("click", () => {
+    clearActive();
+    card.classList.add("selected");
+    const citA = finding.citations_a[0];
+    const citB = finding.citations_b[0];
+    activateCitation(citA.citation_id, citA.document_id, "active-a");
+    activateCitation(citB.citation_id, citB.document_id, "active-b");
+    detailPanel.hidden = false;
+    detailPanel.innerHTML =
+      `<strong>${finding.topic}</strong> - ${finding.disposition}\n${finding.rationale}\n` +
+      `<span class="quote-a">A (hop dong, trang ${citA.segments[0].page_number}): "${citA.segments[0].quote}"</span>\n` +
+      `<span class="quote-b">B (${finding.annex_filename || "phu luc"}, trang ${citB.segments[0].page_number}): "${citB.segments[0].quote}"</span>`;
+  });
+  return card;
+}
+
+function renderEvaluation(data) {
+  const totalFacts = data.documents.reduce((n, d) => n + d.facts.length, 0);
+  const byPriority = { low: 0, medium: 0, high: 0 };
+  data.documents.forEach((d) => d.facts.forEach((f) => byPriority[f.confidence.review_priority]++));
+  const correctedCount = data.documents.reduce(
+    (n, d) => n + d.facts.filter((f) => f.human_correction).length,
+    0
+  );
+  const rows = [
+    ["So tai lieu (hop dong + phu luc)", data.documents.length],
+    ["So fact trich duoc", totalFacts],
+    ["So finding (xung dot/khop) da phat hien", data.findings.length],
+    ["Fact review_priority = low (it can xem lai)", byPriority.low],
+    ["Fact review_priority = medium", byPriority.medium],
+    ["Fact review_priority = high (uu tien xem lai)", byPriority.high],
+    ["Fact da duoc reviewer sua trong phien nay", correctedCount],
+  ];
+  evaluationBody.innerHTML =
+    rows.map(([label, value]) => `<div class="eval-stat"><span>${label}</span><span>${value}</span></div>`).join("") +
+    '<div class="uploader-note" style="margin-top:10px;">Day la thong ke tren 1 lan chay, KHONG phai accuracy/F1 - chua co ground truth nap vao de doi chieu. Xem docs/architecture.md muc 16 cho thiet ke evaluation day du (can dataset da gan nhan).</div>';
+}
+
+function renderDossier(data) {
+  currentData = data;
+  overlaysByDoc = {};
+  docsEl.innerHTML = "";
+  factsList.innerHTML = "";
+  findingsList.innerHTML = "";
+  detailPanel.hidden = true;
+  allFactRows = [];
+
+  data.documents.forEach((doc) => {
+    const card = document.createElement("div");
+    card.className = "card card-pad doc-card";
+    const roleClass = doc.role === "contract" ? "contract" : "annex";
+    const cls = doc.classification;
+    const clsBadgeClass = cls.status === "confirmed" ? "match" : "diff";
+    card.innerHTML =
+      `<span class="role-badge ${roleClass}">${doc.role}</span>` +
+      `<h2>${doc.filename}</h2>` +
+      `<div class="meta">input_type: ${doc.input_type} | engine: ${doc.engine.name} | pages: ${doc.page_count} | clauses: ${doc.clauses.length} | facts: ${doc.facts.length}</div>` +
+      `<div class="meta">phan loai: <span class="badge ${clsBadgeClass}">${cls.predicted_role} (${cls.status})</span>${cls.evidence ? ` - tu khoa: "${cls.evidence}"` : ""}</div>`;
+    card.appendChild(renderClauseTree(doc));
+    const overlays = new Map();
+    overlaysByDoc[doc.document_id] = overlays;
+
+    for (let pageNo = 1; pageNo <= doc.page_count; pageNo++) {
+      const key = `${doc.document_id}:${pageNo}`;
+      const wrap = document.createElement("div");
+      wrap.className = "page-wrap";
+      wrap.style.marginTop = "8px";
+      wrap.innerHTML = `<span class="page-badge">trang ${pageNo}</span>`;
+      if (data.images[key]) {
+        const img = document.createElement("img");
+        img.src = data.images[key];
+        wrap.appendChild(img);
+      }
+      card.appendChild(wrap);
+
+      doc.facts
+        .filter((f) => f.citation.segments[0].page_number === pageNo)
+        .forEach((f) => {
+          const seg = f.citation.segments[0];
+          const box = document.createElement("div");
+          box.className = "bbox";
+          box.style.cssText += bboxStyle(seg.bbox);
+          wrap.appendChild(box);
+          overlays.set(f.citation.citation_id, box);
+        });
+    }
+    docsEl.appendChild(card);
+  });
+
+  let factCount = 0;
+  data.documents.forEach((doc) => {
+    doc.facts.forEach((fact) => {
+      factCount++;
+      factsList.appendChild(renderFactRow(doc, fact));
+    });
+  });
+  if (!factCount) {
+    factsList.innerHTML = '<div class="empty-state">Khong nhan dien duoc fact nao (van ban khong khop mau cau, hoac trang chua co text - kiem tra input_type/engine o tren, thu doi engine sang PaddleOCR neu la ban scan).</div>';
   }
 
-  const ALLOWED_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tif', '.tiff'];
+  if (!data.findings.length) {
+    findingsList.innerHTML = '<div class="empty-state">Khong co finding (chua co phu luc nao duoc them, hoac khong co field nao trung ten voi hop dong).</div>';
+  } else {
+    const groups = new Map();
+    data.findings.forEach((finding) => {
+      const key = finding.annex_filename || finding.annex_document_id || "?";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(finding);
+    });
+    groups.forEach((findings, filename) => {
+      const heading = document.createElement("div");
+      heading.className = "annex-group-title";
+      heading.textContent = `So sanh voi: ${filename}`;
+      findingsList.appendChild(heading);
+      findings.forEach((finding) => findingsList.appendChild(renderFindingCard(finding)));
+    });
+  }
+
+  renderEvaluation(data);
+}
+
+factSearch.addEventListener("input", () => {
+  const q = factSearch.value.trim().toLowerCase();
+  allFactRows.forEach((row) => {
+    row.style.display = !q || row.dataset.searchText.includes(q) ? "" : "none";
+  });
+});
+
+document.querySelectorAll(".panel-tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".panel-tab").forEach((t) => t.classList.remove("active"));
+    tab.classList.add("active");
+    document.querySelectorAll(".panel-body").forEach((b) => {
+      b.hidden = b.dataset.tabBody !== tab.dataset.tab;
+    });
+  });
+});
+
+// --------------------------------------------------------------------------
+// Backend wiring
+// --------------------------------------------------------------------------
+
+fetch(API_BASE + "/api/engines")
+  .then((r) => r.json())
+  .then((data) => {
+    backendTag.className = "tag";
+    backendTag.textContent = "backend: " + API_BASE;
+    engineSelect.innerHTML = "";
+    data.engines.forEach((eng) => {
+      const opt = document.createElement("option");
+      opt.value = eng.id;
+      opt.textContent = eng.label + (eng.available ? "" : " (khong kha dung)");
+      opt.disabled = !eng.available;
+      if (eng.id === "pymupdf") opt.selected = true;
+      engineSelect.appendChild(opt);
+    });
+  })
+  .catch(() => {
+    backendTag.className = "tag is-down";
+    backendTag.textContent = "khong ket noi duoc backend tai " + API_BASE;
+    statusLine.textContent =
+      "Khong lay duoc danh sach engine. Kiem tra backend da chay chua (scripts/serve_backend.py), " +
+      "hoac them ?api=http://host:port vao URL de tro sang backend khac.";
+    statusLine.classList.add("error");
+  });
+
+function isPdf(file) {
+  return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+}
+
+function renderAnnexFilenames() {
+  const el = document.getElementById("filename-annex");
+  if (!state.annexes.length) { el.textContent = ""; return; }
+  el.innerHTML = state.annexes
+    .map(
+      (f, i) =>
+        `<span style="margin-right:8px;">${f.name} <button type="button" class="correct-btn" data-remove="${i}">x</button></span>`
+    )
+    .join("");
+  el.querySelectorAll("[data-remove]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      state.annexes.splice(Number(btn.dataset.remove), 1);
+      renderAnnexFilenames();
+      if (state.contract) runAnalysis();
+    });
+  });
+}
+
+async function runAnalysis() {
+  if (!state.contract) return;
+  statusLine.textContent = "";
+  statusLine.classList.remove("error");
+  overlayLoading.hidden = false;
+  overlayText.textContent = "Dang gui len backend va cho OCR...";
+  try {
+    const formData = new FormData();
+    formData.append("contract", state.contract);
+    state.annexes.forEach((file) => formData.append("annexes", file));
+    formData.append("engine", engineSelect.value || "pymupdf");
+    const res = await fetch(API_BASE + "/api/ai2/analyze", { method: "POST", body: formData });
+    if (!res.ok) {
+      const detail = await res.json().catch(() => null);
+      throw new Error((detail && detail.detail) || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    renderDossier(data);
+    btnRerun.hidden = false;
+  } catch (err) {
+    statusLine.textContent = `Loi khi phan tich: ${err.message}`;
+    statusLine.classList.add("error");
+  } finally {
+    overlayLoading.hidden = true;
+  }
+}
+
+function wireContractDropzone() {
+  const zone = document.getElementById("dropzone-contract");
+  const input = document.getElementById("file-contract");
+  const filenameEl = document.getElementById("filename-contract");
 
   function setFile(file) {
-    const name = file.name.toLowerCase();
-    if (!ALLOWED_EXTENSIONS.some((ext) => name.endsWith(ext))) {
-      showError('Chỉ nhận file PDF hoặc ảnh (jpg, png, webp, bmp, tiff).');
+    if (!file) return;
+    if (!isPdf(file)) {
+      statusLine.textContent = "Chi nhan file PDF.";
+      statusLine.classList.add("error");
       return;
     }
-    if (file.size > MAX_BYTES) {
-      showError('File vượt quá 50MB.');
-      return;
-    }
-    hideError();
-    selectedFile = file;
-    fileNameEl.textContent = file.name + ' · ' + (file.size / 1024 / 1024).toFixed(2) + ' MB';
-    dropzone.classList.add('has-file');
-    submitBtn.disabled = false;
+    state.contract = file;
+    filenameEl.textContent = file.name;
+    runAnalysis();
   }
 
-  dropzone.addEventListener('click', () => fileInput.click());
-  dropzone.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      fileInput.click();
-    }
-  });
-  ['dragenter', 'dragover'].forEach((evt) =>
-    dropzone.addEventListener(evt, (e) => {
-      e.preventDefault();
-      dropzone.classList.add('is-dragover');
-    })
-  );
-  ['dragleave', 'drop'].forEach((evt) =>
-    dropzone.addEventListener(evt, (e) => {
-      e.preventDefault();
-      dropzone.classList.remove('is-dragover');
-    })
-  );
-  dropzone.addEventListener('drop', (e) => {
-    const file = e.dataTransfer.files && e.dataTransfer.files[0];
-    if (file) setFile(file);
-  });
-  fileInput.addEventListener('change', () => {
-    if (fileInput.files[0]) setFile(fileInput.files[0]);
-  });
-
-  function renderEngineOptions(engines) {
-    engines.forEach((engine) => {
-      const wrap = document.querySelector('.engine-option[data-engine="' + engine.id + '"]');
-      if (!wrap) return;
-      const input = wrap.querySelector('input');
-      const note = wrap.querySelector('.engine-note');
-      note.textContent = engine.note;
-      if (!engine.available) {
-        wrap.classList.add('is-unavailable');
-        input.disabled = true;
-      } else {
-        wrap.classList.remove('is-unavailable');
-        input.disabled = false;
-      }
-    });
-  }
-
-  fetch(API_BASE + '/api/engines')
-    .then((r) => r.json())
-    .then((data) => {
-      renderEngineOptions(data.engines);
-      backendTag.className = 'backend-tag is-up';
-      backendTagText.textContent = 'Backend: ' + API_BASE;
-    })
-    .catch(() => {
-      backendTag.className = 'backend-tag is-down';
-      backendTagText.textContent = 'Không kết nối được backend tại ' + API_BASE;
-      showError(
-        'Không lấy được danh sách engine từ backend (' + API_BASE + '). ' +
-        'Kiểm tra backend đã chạy chưa, hoặc thêm ?api=http://host:port vào URL để trỏ sang backend khác.'
-      );
-    });
-
-  function setLoading(isLoading) {
-    submitBtn.disabled = isLoading || !selectedFile;
-    submitBtn.innerHTML = isLoading
-      ? '<span class="spinner" aria-hidden="true"></span>Đang xử lý…'
-      : 'Chạy OCR';
-    timingNote.textContent = '';
-  }
-
-  function statusBadgeClass(status) {
-    if (status === 'SUCCESS') return 'status-success';
-    if (status === 'SKIPPED') return 'status-skipped';
-    return 'status-failed';
-  }
-
-  function statusLabel(status) {
-    if (status === 'SUCCESS') return 'Thành công';
-    if (status === 'SKIPPED') return 'Bỏ qua';
-    return 'Lỗi';
-  }
-
-  function buildPageCard(page) {
-    const card = document.createElement('div');
-    card.className = 'page-card' + (page.status === 'FAILED' ? ' is-failed' : '');
-
-    const head = document.createElement('div');
-    head.className = 'page-card-head';
-    head.innerHTML =
-      '<span class="page-number">Trang ' + page.page_number + '</span>' +
-      '<span class="badge ' + statusBadgeClass(page.status) + '">' + statusLabel(page.status) + '</span>' +
-      '<span class="badge tag">' + page.input_type + '</span>' +
-      '<span class="page-meta">' + page.processing_ms.toFixed(0) + ' ms</span>';
-    card.appendChild(head);
-
-    const body = document.createElement('div');
-    body.className = 'page-body';
-
-    if (page.evidence) {
-      const meta = document.createElement('p');
-      meta.className = 'page-meta';
-      meta.style.marginBottom = '10px';
-      meta.textContent =
-        page.evidence.native_text_length + ' ký tự · ' +
-        page.evidence.native_word_count + ' từ · ảnh phủ ' +
-        Math.round(page.evidence.image_coverage_ratio * 100) + '%';
-      body.appendChild(meta);
-    }
-
-    if (page.status !== 'SUCCESS') {
-      const note = document.createElement('p');
-      note.className = 'page-note';
-      let msg = page.error || 'Không có nội dung.';
-      if (page.status === 'SKIPPED' && /native text/i.test(msg)) {
-        msg += ' — chọn PaddleOCR hoặc DeepSeek-OCR ở trên để đọc trang scan này.';
-      }
-      note.textContent = msg;
-      body.appendChild(note);
-    }
-
-    if (page.text) {
-      const wrap = document.createElement('div');
-      wrap.className = 'page-text-wrap';
-      const pre = document.createElement('pre');
-      pre.className = 'page-text';
-      pre.textContent = page.text;
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'copy-btn';
-      btn.textContent = 'Copy';
-      btn.addEventListener('click', () => copyText(page.text, btn));
-      wrap.appendChild(pre);
-      wrap.appendChild(btn);
-      body.appendChild(wrap);
-    }
-
-    card.appendChild(body);
-    return card;
-  }
-
-  async function copyText(text, btn) {
-    const original = btn.textContent;
-    try {
-      await navigator.clipboard.writeText(text);
-      btn.textContent = 'Đã copy';
-    } catch (err) {
-      btn.textContent = 'Không copy được';
-    }
-    setTimeout(() => { btn.textContent = original; }, 1500);
-  }
-
-  function downloadBlob(content, filename, type) {
-    const blob = new Blob([content], { type: type });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }
-
-  function renderResults(data) {
-    lastResult = data;
-    resultFilename.textContent = data.filename;
-    const successCount = data.pages.filter((p) => p.status === 'SUCCESS').length;
-    resultMeta.textContent =
-      data.page_count + ' trang · ' + successCount + ' thành công · ' + data.elapsed_ms.toFixed(0) + ' ms';
-    pagesContainer.innerHTML = '';
-    data.pages.forEach((page) => pagesContainer.appendChild(buildPageCard(page)));
-    resultsSection.hidden = false;
-    emptySection.hidden = true;
-    resultTitleMark.classList.remove('stamp-hit');
-    void resultTitleMark.offsetWidth;
-    resultTitleMark.classList.add('stamp-hit');
-  }
-
-  document.getElementById('copy-all-btn').addEventListener('click', () => {
-    if (!lastResult) return;
-    const btn = document.getElementById('copy-all-btn');
-    copyText(lastResult.full_text.split('\f').join('\n\n'), btn);
-  });
-  document.getElementById('download-txt-btn').addEventListener('click', () => {
-    if (!lastResult) return;
-    const base = lastResult.filename.replace(/\.[^.]+$/, '');
-    downloadBlob(lastResult.full_text.split('\f').join('\n\n'), base + '.ocr.txt', 'text/plain;charset=utf-8');
-  });
-  document.getElementById('download-json-btn').addEventListener('click', () => {
-    if (!lastResult) return;
-    const base = lastResult.filename.replace(/\.[^.]+$/, '');
-    downloadBlob(JSON.stringify(lastResult, null, 2), base + '.ocr.json', 'application/json');
-  });
-
-  form.addEventListener('submit', async (e) => {
+  input.addEventListener("change", (e) => setFile(e.target.files[0]));
+  zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("dragover"); });
+  zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
+  zone.addEventListener("drop", (e) => {
     e.preventDefault();
-    if (!selectedFile) return;
-    const externalNames = { openai: 'OpenAI', gemini: 'Google Gemini', deepseek_api: 'DeepSeek' };
-    if (externalNames[form.engine.value]) {
-      const ok = window.confirm(
-        'Ảnh các trang PDF sẽ được gửi lên ' + externalNames[form.engine.value] + ' để OCR — không còn xử lý cục bộ. ' +
-        'Chỉ tiếp tục nếu đây KHÔNG phải hợp đồng thật hay tài liệu nhạy cảm. Tiếp tục?'
-      );
-      if (!ok) return;
-    }
-    hideError();
-    setLoading(true);
-    const started = performance.now();
-    const fd = new FormData();
-    fd.append('file', selectedFile);
-    fd.append('engine', form.engine.value);
-    fd.append('dpi', document.getElementById('dpi-input').value);
-    const steps = Array.from(form.querySelectorAll('input[name="step"]:checked')).map((i) => i.value);
-    fd.append('preprocessing', steps.join(','));
-    try {
-      const res = await fetch(API_BASE + '/api/ocr', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (!res.ok) {
-        showError(data.detail || 'Có lỗi xảy ra khi xử lý file.');
-        return;
-      }
-      renderResults(data);
-      timingNote.textContent = 'Xong sau ' + ((performance.now() - started) / 1000).toFixed(1) + 's';
-    } catch (err) {
-      showError('Không kết nối được backend (' + API_BASE + '): ' + err.message);
-    } finally {
-      setLoading(false);
-    }
+    zone.classList.remove("dragover");
+    setFile(e.dataTransfer.files[0]);
   });
-})();
+}
+
+function wireAnnexDropzone() {
+  const zone = document.getElementById("dropzone-annex");
+  const input = document.getElementById("file-annex");
+
+  function addFiles(fileList) {
+    const files = Array.from(fileList || []).filter(isPdf);
+    if (!files.length) return;
+    state.annexes.push(...files);
+    renderAnnexFilenames();
+    if (state.contract) runAnalysis();
+  }
+
+  input.addEventListener("change", (e) => { addFiles(e.target.files); input.value = ""; });
+  zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("dragover"); });
+  zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
+  zone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    zone.classList.remove("dragover");
+    addFiles(e.dataTransfer.files);
+  });
+}
+
+wireContractDropzone();
+wireAnnexDropzone();
+btnRerun.addEventListener("click", runAnalysis);
 </script>
 </body>
 </html>

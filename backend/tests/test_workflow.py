@@ -57,6 +57,28 @@ def test_native_end_to_end_review_approval_and_citation(system):
     assert client.get(f"/api/v1/jobs/{job_id}").json()["status"] == "approved"
 
 
+def test_document_list_file_and_page_text(system):
+    client, factory, config = system
+    dossier, job_id = create_job(client)
+    drain(factory, config)
+    docs = client.get(f"/api/v1/dossiers/{dossier}/documents").json()["items"]
+    assert [d["role"] for d in docs] == ["contract"]
+    document_id = docs[0]["id"]
+    assert docs[0]["page_count"] == 1
+    file_response = client.get(f"/api/v1/documents/{document_id}/file")
+    assert file_response.status_code == 200
+    assert file_response.content.startswith(b"%PDF-")
+    text_response = client.get(
+        f"/api/v1/documents/{document_id}/pages/1/text", params={"run_id": job_id}
+    )
+    assert text_response.status_code == 200
+    body = text_response.json()
+    assert body["engine"] == "pymupdf"
+    assert any("Payment" in line["text"] for line in body["lines"])
+    assert client.get(f"/api/v1/documents/{document_id}/pages/2/text", params={"run_id": job_id}).status_code == 404
+    assert client.get("/api/v1/documents/missing/file").status_code == 404
+
+
 def test_idempotency_and_roles(system):
     client, _, _ = system
     body = {"title": "Demo"}

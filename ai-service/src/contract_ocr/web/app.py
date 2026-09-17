@@ -9,11 +9,13 @@ handling, evidence, engine availability) matches what `contract-ocr benchmark` w
 produce for a single document.
 """
 
+import base64
 import importlib.util
 import os
 import tempfile
 import threading
 import uuid
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 from time import perf_counter
@@ -32,7 +34,14 @@ from PIL import Image
 from pydantic import ValidationError
 
 from contract_ocr.application.ports.ocr_engine import OCREngine
+from contract_ocr.application.use_cases.build_snapshot import BuildSnapshot
 from contract_ocr.application.use_cases.classify_pdf import PdfPageClassifier
+from contract_ocr.application.use_cases.extract_ai2_facts import (
+    classify_document,
+    compare_facts_multi,
+    extract_clauses,
+    extract_facts,
+)
 from contract_ocr.application.use_cases.process_document import ProcessDocument
 from contract_ocr.domain.entities import Document, Experiment
 from contract_ocr.infrastructure.image.preprocessing import ImagePreprocessor, validate_steps
@@ -266,7 +275,7 @@ def index() -> JSONResponse:
         {
             "service": "contract-ocr-lab backend",
             "docs": "/docs",
-            "endpoints": ["/api/engines", "/api/ocr"],
+            "endpoints": ["/api/engines", "/api/ocr", "/api/ai2/analyze"],
             "frontend": "run scripts/serve_frontend.py separately, see README",
         }
     )
@@ -352,3 +361,168 @@ def ocr_pdf(
         elapsed_ms = (perf_counter() - started) * 1000
 
     return JSONResponse(_document_response(document, filename, elapsed_ms))
+
+
+def _read_pdf_upload(file: UploadFile) -> bytes:
+    filename = file.filename or "upload.pdf"
+    if Path(filename).suffix.lower() != ".pdf":
+        raise HTTPException(400, f"'{filename}': chỉ nhận file .pdf cho endpoint này")
+    content = file.file.read()
+    if not content:
+        raise HTTPException(400, f"'{filename}': file rỗng")
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, f"'{filename}': vượt quá 50MB")
+    if b"%PDF-" not in content[:1024]:
+        raise HTTPException(400, f"'{filename}': không phải PDF hợp lệ")
+    return content
+
+
+def _analyze_one(
+    content: bytes,
+    filename: str,
+    role: str,
+    dossier_id: str,
+    engine_id: str,
+    engine_obj: OCREngine | None,
+    dpi: int,
+    tmp_path: Path,
+) -> tuple[dict, dict[str, str]]:
+    """OCR (existing pipeline) -> ai1.snapshot.v1 -> AI2 layer for one uploaded
+    PDF. Returns (document entry for the /api/ai2/analyze response, that
+    document's page images keyed "document_id:page_number")."""
+    document_id = f"web-{role}-{uuid.uuid4().hex[:8]}"
+    pdf_path = tmp_path / f"{role}.pdf"
+    pdf_path.write_bytes(content)
+
+    max_workers = WEB_MAX_WORKERS if engine_id in PARALLEL_ENGINES else 1
+    with _process_lock:
+        document = _processor.execute(
+            source=str(pdf_path),
+            document_id=document_id,
+            experiment=Experiment(id="AI2WEB", engine=engine_id, preprocessing=[]),
+            engine=engine_obj,
+            output=tmp_path / f"{role}-output",
+            run_id=document_id,
+            dpi=dpi,
+            max_workers=max_workers,
+        )
+
+    engine_label = "pymupdf" if engine_obj is None else f"pymupdf+{engine_id}"
+    image_dir = tmp_path / "images" / document_id
+    snapshot = BuildSnapshot(PdfRenderer(), image_dpi=dpi).execute(
+        document,
+        snapshot_id=f"ocr-run-{document_id}",
+        dossier_id=dossier_id,
+        document_role="contract" if role == "contract" else "annex",
+        filename=filename,
+        engine_name=engine_label,
+        engine_version=pymupdf.VersionBind,
+        image_output_dir=image_dir,
+        image_uri_prefix=f"storage://ocr/{document_id}",
+    )
+
+    clauses = extract_clauses(snapshot)
+    facts = extract_facts(snapshot, clauses)
+    images = {}
+    for page in snapshot.pages:
+        png_path = image_dir / f"page-{page.page_number:03d}.png"
+        if png_path.exists():
+            encoded = base64.b64encode(png_path.read_bytes()).decode("ascii")
+            images[f"{document_id}:{page.page_number}"] = f"data:image/png;base64,{encoded}"
+
+    doc_entry = {
+        "document_id": document_id,
+        "role": role,
+        "filename": filename,
+        "input_type": snapshot.input_type,
+        "engine": snapshot.engine.model_dump(),
+        "page_count": snapshot.page_count,
+        "classification": classify_document(snapshot),
+        "clauses": clauses,
+        "facts": facts,
+    }
+    return doc_entry, images
+
+
+@app.post("/api/ai2/analyze")
+def ai2_analyze(
+    contract: UploadFile = File(...),
+    annexes: list[UploadFile] = File([]),
+    engine: str = Form("pymupdf"),
+    dpi: int = Form(200),
+) -> JSONResponse:
+    """Runs OCR + the AI2 layer (classification, clause/preamble structure,
+    typed facts with citations and confidence, conflict detection against 0..N
+    appendices — see contract_ocr.application.use_cases.extract_ai2_facts) on
+    one required Contract PDF plus any number of Appendix PDFs. Unlike the
+    pdf.js-only path in scripts/demo_report_template.html, this goes through
+    the real OCR engines below (including Paddle for scanned pages), so it
+    isn't limited to PDFs with a native text layer."""
+    if engine not in ENGINE_IDS:
+        raise HTTPException(
+            400, "engine phải là pymupdf, paddle, deepseek, openai, gemini hoặc deepseek_api"
+        )
+    if not 72 <= dpi <= 600:
+        raise HTTPException(400, "DPI phải trong khoảng 72-600")
+
+    contract_content = _read_pdf_upload(contract)
+    annex_contents = [(a, _read_pdf_upload(a)) for a in annexes]
+    engine_obj = _get_engine(engine)
+    dossier_id = f"web-dossier-{uuid.uuid4().hex[:8]}"
+
+    with tempfile.TemporaryDirectory(prefix="contract_ocr_ai2_") as tmp:
+        tmp_path = Path(tmp)
+        try:
+            documents = []
+            images: dict[str, str] = {}
+
+            contract_entry, contract_images = _analyze_one(
+                contract_content,
+                contract.filename or "hop-dong.pdf",
+                "contract",
+                dossier_id,
+                engine,
+                engine_obj,
+                dpi,
+                tmp_path,
+            )
+            documents.append(contract_entry)
+            images.update(contract_images)
+
+            annex_refs = []
+            for annex_file, annex_content in annex_contents:
+                annex_entry, annex_images = _analyze_one(
+                    annex_content,
+                    annex_file.filename or "phu-luc.pdf",
+                    "annex",
+                    dossier_id,
+                    engine,
+                    engine_obj,
+                    dpi,
+                    tmp_path,
+                )
+                documents.append(annex_entry)
+                images.update(annex_images)
+                annex_refs.append(
+                    (annex_entry["document_id"], annex_entry["filename"], annex_entry["facts"])
+                )
+        except ValueError as exc:
+            raise HTTPException(400, f"Không xử lý được PDF: {exc}") from exc
+        except Exception as exc:
+            raise HTTPException(500, f"Lỗi không mong đợi: {type(exc).__name__}: {exc}") from exc
+
+        findings = compare_facts_multi(contract_entry["facts"], annex_refs)
+
+    return JSONResponse(
+        {
+            "dossier_id": dossier_id,
+            "generated_at": datetime.now(UTC).isoformat(),
+            "disclaimer": (
+                "DEMO PIPELINE qua backend that (OCR engine da chon + lop AI2 don gian hoa) - "
+                "khong phai ket qua extraction da benchmark."
+            ),
+            "documents": documents,
+            "findings": findings,
+            "images": images,
+        }
+    )

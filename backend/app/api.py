@@ -303,6 +303,19 @@ def results(dossier_id: str, run_id: str | None = None, actor: Actor = Depends(a
         }
 
 
+@app.get("/api/v1/dossiers/{dossier_id}/documents")
+def documents(dossier_id: str, actor: Actor = Depends(authenticate)):
+    with transaction() as db:
+        require(db.get(Dossier, dossier_id) is not None, "DOSSIER_NOT_FOUND", 404)
+        docs = list(db.scalars(select(Document).where(Document.dossier_id == dossier_id)))
+        return {
+            "items": [
+                {"id": d.id, "role": d.role, "page_count": d.page_count, "sha256": d.sha256}
+                for d in docs
+            ]
+        }
+
+
 @app.get("/api/v1/dossiers/{dossier_id}/{collection}")
 def collection(
     dossier_id: str,
@@ -323,6 +336,37 @@ def collection(
                 in ("comparable_difference", "candidate_amendment", "insufficient_evidence")
             ]
         return {"items": items, "run_id": job.id, "is_partial": snapshot.result["is_partial"]}
+
+
+@app.get("/api/v1/documents/{document_id}/file")
+def document_file(document_id: str, actor: Actor = Depends(authenticate)):
+    with transaction() as db:
+        doc = db.get(Document, document_id)
+        require(doc is not None, "DOCUMENT_NOT_FOUND", 404)
+        return FileResponse(store().path(doc.storage_key), media_type="application/pdf")
+
+
+@app.get("/api/v1/documents/{document_id}/pages/{number}/text")
+def page_text(document_id: str, number: int, run_id: str, actor: Actor = Depends(authenticate)):
+    with transaction() as db:
+        task = db.scalar(
+            select(Task).where(
+                Task.job_id == run_id,
+                Task.task_key == f"{document_id}:{number}",
+                Task.status == "completed",
+            )
+        )
+        require(task is not None and task.output, "PAGE_NOT_FOUND", 404)
+        output = task.output
+        return {
+            "engine": output.get("engine"),
+            "status": output.get("status"),
+            "issue": output.get("issue"),
+            "lines": [
+                {"id": line["id"], "text": line["text"], "bbox": line["bbox"]}
+                for line in output.get("lines", [])
+            ],
+        }
 
 
 @app.get("/api/v1/citations/{citation_id}/resolve")

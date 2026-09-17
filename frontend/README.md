@@ -1,5 +1,7 @@
 # frontend/
 
+> **Cập nhật theo `docs/architecture.md`:** UI đã triển khai tại [`apps/web/`](../apps/web/README.md) bằng React + TypeScript. Nội dung dưới đây là kế hoạch cũ, giữ để tham khảo.
+
 > **Sẽ generate chi tiết ở bước tiếp theo — phụ trách: Frontend Engineer**
 
 Thư mục này chứa ứng dụng web cho **Contract Intelligence**.
