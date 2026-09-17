@@ -1,35 +1,36 @@
 # DOC-04c · DATABASE ERD — Contract Intelligence
 
-**Sơ đồ quan hệ thực thể (ERD) — PostgreSQL v1.1**
+**Sơ đồ quan hệ thực thể (ERD) — PostgreSQL v1.2.0**
 
-Dự án: VSF OJT Batch 3 · Phiên bản 1.1
+Dự án: VSF OJT Batch 3 · Phiên bản: v1.2.0 (SemVer)  
 Ngày tạo: 17/09/2026 · Cập nhật lần cuối: 17/09/2026
 
-> **Tài liệu này dành cho:** người mới onboard dự án muốn hiểu nhanh toàn bộ 26 bảng; reviewer kiến trúc muốn đối chiếu ERD ↔ DDL; thành viên viết Alembic migration muốn biết quan hệ trước khi sửa.
-> **DDL canonical:** `docs/DOC-04b-postgres-schema.sql` (560 dòng, v1.1).
-> **Quyết định kiến trúc:** xem `backend/CONTEXT.md` mục 5 (`5.2` Optimistic Concurrency, `5.3` Denormalize ngày, `5.4` Indexes).
+> **Tài liệu này dành cho:** người mới onboard dự án muốn hiểu nhanh toàn bộ 33 bảng; reviewer kiến trúc muốn đối chiếu ERD ↔ DDL; thành viên viết Alembic migration muốn biết quan hệ trước khi sửa.  
+> **DDL canonical:** `docs/DOC-04b-postgres-schema.sql` (v1.2.0).  
+> **Quyết định kiến trúc:** xem `docs/DOC-04-architecture.md` (v0.7.0) và `backend/CONTEXT.md` mục 5 (`5.2` Optimistic Concurrency, `5.3` Denormalize ngày, `5.4` Indexes).
 
 ---
 
 ## Mục lục
 
 0. [Thông tin tài liệu](#0-thông-tin-tài-liệu)
-1. [Tổng quan 26 bảng](#1-tổng-quan-26-bảng)
+1. [Tổng quan 33 bảng](#1-tổng-quan-33-bảng)
 2. [ERD tổng (System Overview)](#2-erd-tổng-system-overview)
-3. [Domain 1 — Tổ chức & Nghiệp vụ](#3-domain-1--tổ-chức--nghiệp-vụ)
+3. [Domain 1 — Tổ chức, Nghiệp vụ & Manifest](#3-domain-1--tổ-chức-nghiệp-vụ--manifest)
 4. [Domain 2 — Pipeline & Hàng đợi](#4-domain-2--pipeline--hàng-đợi)
-5. [Domain 3 — Trang & OCR](#5-domain-3--trang--ocr)
+5. [Domain 3 — Trang & OCR (kèm Re-OCR)](#5-domain-3--trang--ocr-kèm-re-ocr)
 6. [Domain 4 — Cấu trúc tài liệu](#6-domain-4--cấu-trúc-tài-liệu)
 7. [Domain 5 — Citation & Fact](#7-domain-5--citation--fact)
 8. [Domain 6 — Annex & Conflict](#8-domain-6--annex--conflict)
-9. [Domain 7 — HITL Review](#9-domain-7--hitl-review)
+9. [Domain 7 — HITL Review & Phê duyệt ngoài](#9-domain-7--hitl-review--phê-duyệt-ngoài)
 10. [Domain 8 — Đo lường & Chi phí](#10-domain-8--đo-lường--chi-phí)
-11. [Ma trận quan hệ đầy đủ](#11-ma-trận-quan-hệ-đầy-đủ)
-12. [Quy tắc bất biến & Trigger](#12-quy-tắc-bất-biến--trigger)
-13. [Bộ 23 chỉ mục hiệu năng](#13-bộ-23-chỉ-mục-hiệu-năng)
-14. [Cardinality chuẩn](#14-cardinality-chuẩn)
-15. [Quy ước đặt tên](#15-quy-ước-đặt-tên)
-16. [Phụ lục — Truy vấn mẫu](#16-phụ-lục--truy-vấn-mẫu)
+11. [Domain 9 — Vòng lặp tối ưu hóa (Optimization Loop)](#11-domain-9--vòng-lặp-tối-ưu-hóa-optimization-loop)
+12. [Ma trận quan hệ đầy đủ](#12-ma-trận-quan-hệ-đầy-đủ)
+13. [Quy tắc bất biến & Trigger](#13-quy-tắc-bất-biến--trigger)
+14. [Bộ 33 chỉ mục hiệu năng](#14-bộ-33-chỉ-mục-hiệu-năng)
+15. [Cardinality chuẩn](#15-cardinality-chuẩn)
+16. [Quy ước đặt tên](#16-quy-ước-đặt-tên)
+17. [Phụ lục — Truy vấn mẫu](#17-phụ-lục--truy-vấn-mẫu)
 
 ---
 
@@ -41,17 +42,19 @@ Ngày tạo: 17/09/2026 · Cập nhật lần cuối: 17/09/2026
 | Mã tài liệu | DOC-04c |
 | Dự án | VSF OJT Batch 3 |
 | Loại tài liệu | Database Design — ERD Reference |
-| Phiên bản | 1.0 |
-| Trạng thái | Đã chốt — khớp DOC-04b v1.0 |
-| Người phụ trách | Phạm Hoàng Chương |
-| Tài liệu đầu vào | `docs/DOC-04b-postgres-schema.sql` (DDL), `docs/DOC-04-architecture.md` §7, `backend/CONTEXT.md` §5 |
-| Tài liệu liên quan | `docs/DOC-05-api-spec.yaml` (API), `docs/adr/*` |
+| Phiên bản | v1.2.0 (SemVer) |
+| Trạng thái | Đã chốt — Khớp hoàn toàn DOC-04b v1.2.0 & DOC-04 v0.7.0 |
+| Người phụ trách | Phạm Hoàng Chương / Antigravity |
+| Tài liệu đầu vào | `docs/DOC-04b-postgres-schema.sql` (DDL v1.2.0), `docs/DOC-04-architecture.md` (v0.7.0), `backend/CONTEXT.md` §5 |
+| Tài liệu liên quan | `docs/DOC-05-api-spec.yaml` (API v0.3.0), `docs/adr/*` |
 
 ### 0.1 Lịch sử thay đổi
 
 | Phiên bản | Ngày | Người thực hiện | Nội dung |
 |---|---|---|---|
-| 1.1 | 17/09/2026 | Claude | +doc_table, table_cell, clause_region; cập nhật 23→26 bảng, CHECK target_type; khớp DOC-04b v1.1 |
+| 1.0.0 | 17/09/2026 | Phạm Hoàng Chương | Khởi tạo baseline 23 bảng |
+| 1.1.0 | 17/09/2026 | Claude | +doc_table, table_cell, clause_region; cập nhật 23→26 bảng, CHECK target_type; khớp DOC-04b v1.1 |
+| 1.2.0 | 17/09/2026 | Antigravity | Đồng bộ kiến trúc Enterprise v0.7.0 / schema v1.2.0: thêm cột `tenant_id` & index cho Tenant Isolation, chuẩn hóa vai trò `OPERATOR`, `REVIEWER`, `ADMINISTRATOR`, thêm 7 bảng mới (`dossier_manifest`, `manifest_document`, `reocr_request`, `external_approval_grant`, `optimization_campaign`, `optimization_candidate`, `optimization_experiment`), nâng tổng số bảng lên 33 và tổng chỉ mục lên 33. |
 
 ### 0.2 Quy ước trong tài liệu
 
@@ -67,38 +70,45 @@ Ngày tạo: 17/09/2026 · Cập nhật lần cuối: 17/09/2026
 
 ---
 
-## 1. Tổng quan 26 bảng
+## 1. Tổng quan 33 bảng
 
 | # | Bảng | Domain | Bất biến? | Mục đích chính |
 |---|---|---|---|---|
-| 1 | `app_user` | 1 — Tổ chức | ❌ | Tài khoản local (operator/reviewer/admin) |
-| 2 | `batch` | 1 — Tổ chức | ❌ | Gom nhiều dossier vào một đợt xử lý |
-| 3 | `dossier` | 1 — Tổ chức | ❌ | Đơn vị nghiệp vụ: 1 hợp đồng + 0..n phụ lục |
-| 4 | `document` | 1 — Tổ chức | ❌ | Một file PDF trong dossier (contract hoặc annex) |
-| 5 | `job` | 2 — Pipeline | ❌ | Một lần xử lý dossier qua pipeline |
-| 6 | `pipeline_run` | 2 — Pipeline | ❌ | Một lần chạy thực tế của pipeline (tái lập) |
-| 7 | `job_step` | 2 — Pipeline | ❌ | Checkpoint theo bước (S0..S10) của một run |
-| 8 | `task` | 2 — Pipeline | ❌ | Hàng đợi tác vụ nền (`FOR UPDATE SKIP LOCKED`) |
-| 9 | `page` | 3 — Trang & OCR | ❌ | Một trang vật lý của document |
-| 10 | `document_text` | 3 — Trang & OCR | 🔒 | Văn bản gộp toàn document (mỗi run) |
-| 11 | `ocr_line` | 3 — Trang & OCR | 🔒 | Một dòng OCR (text + bbox CPS) |
-| 12 | `citation` | 5 — Citation | 🔒 | Trích dẫn: quote + bbox — cốt lõi BR-07 |
-| 13 | `clause_node` | 4 — Cấu trúc | 🔒 | Điều → Khoản → Điểm (cây) |
-| 14 | `clause_region` | 4 — Cấu trúc | 🔒 | bbox trên mỗi trang cho clause_node (CPS) |
-| 15 | `doc_table` | 4 — Cấu trúc | 🔒 | Bảng phát hiện (layout) trên một trang |
-| 16 | `table_cell` | 4 — Cấu trúc | 🔒 | Ô trong doc_table (row/col/size/bbox/header) |
-| 17 | `fact` | 5 — Citation | 🔒 | Một thực thể trích xuất (tiền, ngày, bên, …) |
-| 18 | `annex_link` | 6 — Annex | 🔒 | Liên kết phụ lục ↔ hợp đồng chính |
-| 19 | `finding` | 6 — Annex | 🔒 | Một phát hiện conflict hoặc khớp |
-| 20 | `finding_side` | 6 — Annex | 🔒 | Hai phía (a, b) của finding |
-| 21 | `review_item` | 7 — HITL | ❌ | Hàng đợi review cho reviewer |
-| 22 | `review_action` | 7 — HITL | 🔒 | Append-only lịch sử thao tác reviewer |
-| 23 | `dossier_approval` | 7 — HITL | 🔒 | Snapshot ký duyệt cuối cùng |
-| 24 | `job_event` | 2 — Pipeline | 🔒 | Audit chuyển trạng thái job |
-| 25 | `page_step_stat` | 8 — Đo lường | 🔒 | Thời gian xử lý theo trang × bước |
-| 26 | `usage_ledger` | 8 — Đo lường | 🔒 | Token + USD cho mỗi call LLM |
+| 1 | `app_user` | 1 — Tổ chức | ❌ | Tài khoản người dùng (OPERATOR/REVIEWER/ADMINISTRATOR) kèm `tenant_id` |
+| 2 | `batch` | 1 — Tổ chức | ❌ | Gom nhiều dossier vào một đợt xử lý kèm `tenant_id` |
+| 3 | `dossier` | 1 — Tổ chức | ❌ | Đơn vị nghiệp vụ: 1 hợp đồng + 0..n phụ lục kèm `tenant_id` |
+| 4 | `document` | 1 — Tổ chức | ❌ | Một file PDF trong dossier (`CONTRACT` hoặc `ANNEX`) |
+| 5 | `dossier_manifest` | 1 — Tổ chức | ❌ | **[MỚI]** Khai báo danh mục tài liệu dự kiến kèm `tenant_id` |
+| 6 | `manifest_document` | 1 — Tổ chức | ❌ | **[MỚI]** Chi tiết từng tài liệu trong manifest khai báo |
+| 7 | `job` | 2 — Pipeline | ❌ | Một lần xử lý dossier qua pipeline kèm `tenant_id` |
+| 8 | `pipeline_run` | 2 — Pipeline | ❌ | Một lần chạy thực tế của pipeline (tái lập) kèm `tenant_id` |
+| 9 | `job_step` | 2 — Pipeline | ❌ | Checkpoint theo bước (S0..S10) của một run |
+| 10 | `task` | 2 — Pipeline | ❌ | Hàng đợi tác vụ nền (`FOR UPDATE SKIP LOCKED`) kèm `tenant_id` |
+| 11 | `page` | 3 — Trang & OCR | ❌ | Một trang vật lý của document |
+| 12 | `document_text` | 3 — Trang & OCR | 🔒 | Văn bản gộp toàn document (mỗi run) |
+| 13 | `ocr_line` | 3 — Trang & OCR | 🔒 | Một dòng OCR (text + bbox CPS) |
+| 14 | `reocr_request` | 3 — Trang & OCR | ❌ | **[MỚI]** Yêu cầu chạy lại OCR nâng cao cho trang kém kèm `tenant_id` |
+| 15 | `clause_node` | 4 — Cấu trúc | 🔒 | Điều → Khoản → Điểm (cây) |
+| 16 | `clause_region` | 4 — Cấu trúc | 🔒 | Bbox trên mỗi trang cho clause_node (CPS) |
+| 17 | `doc_table` | 4 — Cấu trúc | 🔒 | Bảng phát hiện (layout) trên một trang |
+| 18 | `table_cell` | 4 — Cấu trúc | 🔒 | Ô trong doc_table (row/col/size/bbox/header) |
+| 19 | `citation` | 5 — Citation | 🔒 | Trích dẫn: quote + bbox — cốt lõi BR-07 |
+| 20 | `fact` | 5 — Citation | 🔒 | Một thực thể trích xuất (tiền, ngày, bên, …) |
+| 21 | `annex_link` | 6 — Annex | 🔒 | Liên kết phụ lục ↔ hợp đồng chính |
+| 22 | `finding` | 6 — Annex | 🔒 | Một phát hiện conflict hoặc khớp |
+| 23 | `finding_side` | 6 — Annex | 🔒 | Hai phía (a, b) của finding |
+| 24 | `review_item` | 7 — HITL | ❌ | Hàng đợi review cho reviewer |
+| 25 | `review_action` | 7 — HITL | 🔒 | Append-only lịch sử thao tác reviewer |
+| 26 | `dossier_approval` | 7 — HITL | 🔒 | Snapshot ký duyệt cuối cùng của nội bộ |
+| 27 | `external_approval_grant` | 7 — HITL | ❌ | **[MỚI]** Cấp quyền truy cập phê duyệt cho bên ngoài kèm `tenant_id` |
+| 28 | `job_event` | 2 — Pipeline | 🔒 | Audit chuyển trạng thái job |
+| 29 | `page_step_stat` | 8 — Đo lường | 🔒 | Thời gian xử lý theo trang × bước |
+| 30 | `usage_ledger` | 8 — Đo lường | 🔒 | Token + USD cho mỗi call LLM kèm `tenant_id` |
+| 31 | `optimization_campaign` | 9 — Tối ưu | ❌ | **[MỚI]** Chiến dịch tối ưu hóa prompt / hyperparam kèm `tenant_id` |
+| 32 | `optimization_candidate` | 9 — Tối ưu | ❌ | **[MỚI]** Ứng viên prompt / cấu hình trong chiến dịch |
+| 33 | `optimization_experiment` | 9 — Tối ưu | ❌ | **[MỚI]** Thử nghiệm chạy đánh giá ứng viên |
 
-**Tổng:** 26 bảng (13 bất biến 🔒, 13 mutable), 26 index, 15 trigger, 3 view.
+**Tổng:** 33 bảng (15 bất biến 🔒, 18 mutable 📋), 33 index hiệu năng, 15 trigger, 3 view.
 
 ---
 
@@ -115,18 +125,27 @@ erDiagram
     BATCH ||--o{ TASK     : "gom"
 
     DOSSIER ||--|{ DOCUMENT : "gồm"
+    DOSSIER ||--o| DOSSIER_MANIFEST : "xác nhận manifest"
     DOSSIER ||--o{ JOB      : "xử lý"
     DOSSIER ||--o{ FINDING  : "có"
-    DOSSIER ||--o{ REVIEW_ITEM    : "có"
+    DOSSIER ||--o{ REVIEW_ITEM : "có"
     DOSSIER ||--o{ DOSSIER_APPROVAL : "có"
+    DOSSIER ||--o{ EXTERNAL_APPROVAL_GRANT : "cấp quyền duyệt"
+
+    DOSSIER_MANIFEST ||--|{ MANIFEST_DOCUMENT : "danh mục file"
 
     DOCUMENT ||--|{ PAGE            : "có"
     DOCUMENT ||--o{ JOB_STEP        : "checkpoint"
     DOCUMENT ||--o{ CLAUSE_NODE     : "có"
+    DOCUMENT ||--o{ DOC_TABLE       : "có"
     DOCUMENT ||--o{ FACT            : "có"
     DOCUMENT ||--o{ CITATION        : "trích dẫn"
     DOCUMENT ||--o{ ANNEX_LINK      : "là contract | annex"
     DOCUMENT ||--o{ FINDING_SIDE    : "tham gia"
+
+    PAGE ||--|{ OCR_LINE           : "chứa"
+    PAGE ||--o{ REOCR_REQUEST      : "yêu cầu re-ocr"
+    PAGE ||--o{ PAGE_STEP_STAT     : "đo"
 
     JOB ||--|| PIPELINE_RUN        : "hiện hành"
     JOB ||--o{ PIPELINE_RUN        : "lịch sử"
@@ -138,34 +157,38 @@ erDiagram
     PIPELINE_RUN ||--o{ OCR_LINE       : "sinh"
     PIPELINE_RUN ||--o{ CITATION       : "sinh"
     PIPELINE_RUN ||--o{ CLAUSE_NODE    : "sinh"
+    PIPELINE_RUN ||--o{ DOC_TABLE      : "sinh"
     PIPELINE_RUN ||--o{ FACT           : "sinh"
     PIPELINE_RUN ||--o{ ANNEX_LINK     : "sinh"
     PIPELINE_RUN ||--o{ FINDING        : "sinh"
     PIPELINE_RUN ||--o{ USAGE_LEDGER   : "ghi"
 
-    PAGE ||--|{ OCR_LINE      : "chứa"
-    PAGE ||--o{ PAGE_STEP_STAT : "đo"
+    DOC_TABLE ||--|{ TABLE_CELL   : "chứa"
+    CLAUSE_NODE ||--o{ CLAUSE_REGION : "chứa"
+    CLAUSE_NODE ||--o{ CLAUSE_NODE : "cha của"
+    CLAUSE_NODE ||--o{ FACT        : "context"
 
     CITATION ||--o{ FACT          : "trích dẫn"
     CITATION ||--o{ FINDING_SIDE  : "trích dẫn"
     CITATION ||--o{ ANNEX_LINK    : "trích dẫn"
 
-    CLAUSE_NODE ||--o{ CLAUSE_NODE : "cha của"
-    CLAUSE_NODE ||--o{ FACT        : "context"
-
     FACT ||--o{ FINDING_SIDE : "tham chiếu"
 
     REVIEW_ITEM ||--|{ REVIEW_ACTION : "có"
     FINDING    ||--|{ FINDING_SIDE   : "hai phía"
+
+    OPTIMIZATION_CAMPAIGN ||--|{ OPTIMIZATION_CANDIDATE : "chứa"
+    OPTIMIZATION_CAMPAIGN ||--o{ OPTIMIZATION_EXPERIMENT : "thực thi"
+    OPTIMIZATION_CANDIDATE ||--o{ OPTIMIZATION_EXPERIMENT : "đánh giá"
 ```
 
-> **Đọc nhanh:** Mọi thứ xuất phát từ `DOSSIER` (đơn vị nghiệp vụ). Dossier → document → page → ocr_line → citation → fact/finding. Pipeline_run gắn với job và "sinh" ra tất cả kết quả máy (bất biến 🔒). Reviewer tương tác qua review_item → review_action (append-only).
+> **Đọc nhanh:** Mọi nghiệp vụ xuất phát từ `DOSSIER` trong một `tenant_id`. Dossier có thể được khai báo qua `DOSSIER_MANIFEST` trước khi upload `DOCUMENT`. Document sinh ra `PAGE` và các `OCR_LINE`. `PIPELINE_RUN` gắn với `JOB` và sinh ra toàn bộ kết quả máy bất biến 🔒 (`ocr_line`, `fact`, `finding`, …). Reviewer tương tác qua `REVIEW_ITEM` → `REVIEW_ACTION` (append-only) hoặc cấp quyền phê duyệt đối tác qua `EXTERNAL_APPROVAL_GRANT`. Phân hệ tối ưu hóa chạy độc lập qua `OPTIMIZATION_CAMPAIGN` để tinh chỉnh prompt/model.
 
 ---
 
-## 3. Domain 1 — Tổ chức & Nghiệp vụ
+## 3. Domain 1 — Tổ chức, Nghiệp vụ & Manifest
 
-Gồm 4 bảng: `app_user`, `batch`, `dossier`, `document`. Đây là khung nghiệp vụ, tất cả mutable, có `updated_at`.
+Gồm 6 bảng: `app_user`, `batch`, `dossier`, `document`, `dossier_manifest`, `manifest_document`. Tất cả là bảng nghiệp vụ mutable, có hỗ trợ cô lập `tenant_id`.
 
 ```mermaid
 erDiagram
@@ -173,10 +196,13 @@ erDiagram
     BATCH ||--o{ DOSSIER : "gom (nullable)"
     BATCH ||--o{ JOB : "gom (nullable)"
     DOSSIER ||--|{ DOCUMENT : "1..n file"
+    DOSSIER ||--o| DOSSIER_MANIFEST : "xác nhận manifest"
+    DOSSIER_MANIFEST ||--|{ MANIFEST_DOCUMENT : "chứa"
     DOSSIER ||--o{ JOB : "1..n lần xử lý"
 
     APP_USER {
         text id PK
+        text tenant_id
         text display_name
         text role
         text password_hash
@@ -184,6 +210,7 @@ erDiagram
     }
     BATCH {
         text id PK
+        text tenant_id
         text name
         bool auto_paused
         text created_by FK
@@ -191,6 +218,7 @@ erDiagram
     }
     DOSSIER {
         text id PK
+        text tenant_id
         text name
         text batch_id FK
         bool has_conflicts
@@ -211,6 +239,24 @@ erDiagram
         date effective_date
         timestamptz created_at
     }
+    DOSSIER_MANIFEST {
+        text id PK
+        text tenant_id
+        text dossier_id FK
+        text status
+        jsonb metadata
+        timestamptz confirmed_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    MANIFEST_DOCUMENT {
+        text id PK
+        text manifest_id FK
+        text filename
+        text doc_type
+        text sha256
+        timestamptz created_at
+    }
 ```
 
 ### 3.1 Bảng `app_user` (📋, mutable)
@@ -218,10 +264,14 @@ erDiagram
 | Cột | Kiểu | Ràng buộc | Mô tả |
 |---|---|---|---|
 | `id` | TEXT | PK, prefix `usr_` | ULID |
+| `tenant_id` | TEXT | NOT NULL DEFAULT 'default' | Định danh không gian tenant |
 | `display_name` | TEXT | NOT NULL | Tên hiển thị |
-| `role` | TEXT | CHECK ∈ `operator`, `reviewer`, `admin` | Phân quyền |
+| `role` | TEXT | NOT NULL, CHECK ∈ `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Phân quyền RBAC chuẩn |
 | `password_hash` | TEXT | NOT NULL | argon2id |
 | `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Index:**
+- `idx_app_user_tenant (tenant_id)`
 
 **Quan hệ:**
 - `1 → * BATCH` (qua `batch.created_by`)
@@ -232,11 +282,15 @@ erDiagram
 
 | Cột | Kiểu | Ràng buộc | Mô tả |
 |---|---|---|---|
-| `id` | TEXT | PK, prefix `btc_` | |
+| `id` | TEXT | PK, prefix `btc_` | ULID |
+| `tenant_id` | TEXT | NOT NULL DEFAULT 'default' | Định danh không gian tenant |
 | `name` | TEXT | NOT NULL | Tên đợt (vd: "Wave-3 2026-09") |
 | `auto_paused` | BOOLEAN | NOT NULL DEFAULT false | Tạm dừng tự động khi lỗi |
 | `created_by` | TEXT | FK → `app_user.id` | Người tạo |
 | `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Index:**
+- `idx_batch_tenant (tenant_id)`
 
 **Quan hệ:**
 - `1 → * DOSSIER` (qua `dossier.batch_id`, ON DELETE SET NULL)
@@ -247,54 +301,78 @@ erDiagram
 
 | Cột | Kiểu | Ràng buộc | Mô tả |
 |---|---|---|---|
-| `id` | TEXT | PK, prefix `dos_` | |
+| `id` | TEXT | PK, prefix `dos_` | ULID |
+| `tenant_id` | TEXT | NOT NULL DEFAULT 'default' | Định danh không gian tenant |
 | `name` | TEXT | NOT NULL | Tên hồ sơ |
 | `batch_id` | TEXT | FK → `batch.id` (SET NULL) | Có thể không thuộc batch |
 | `has_conflicts` | BOOLEAN | NOT NULL DEFAULT false | Cached flag — true khi có finding severity ≥ medium |
 | `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL | |
 
+**Index:**
+- `idx_dossier_tenant (tenant_id)`
+
 **Quan hệ trung tâm:**
-- `1 → * DOCUMENT` (CASCADE — xóa dossier xóa hết file)
+- `1 → * DOCUMENT` (CASCADE)
+- `1 → 0..1 DOSSIER_MANIFEST` (CASCADE)
 - `1 → * JOB` (CASCADE)
 - `1 → * FINDING` (CASCADE)
 - `1 → * REVIEW_ITEM` (CASCADE)
 - `1 → * DOSSIER_APPROVAL` (CASCADE)
+- `1 → * EXTERNAL_APPROVAL_GRANT` (CASCADE)
 
 ### 3.4 Bảng `document` (📋, mutable)
 
 | Cột | Kiểu | Ràng buộc | Mô tả |
 |---|---|---|---|
-| `id` | TEXT | PK, prefix `doc_` | |
-| `dossier_id` | TEXT | FK → `dossier.id` CASCADE | |
-| `role` | TEXT | CHECK ∈ `contract`, `annex` | Loại vai trò |
+| `id` | TEXT | PK, prefix `doc_` | ULID |
+| `dossier_id` | TEXT | FK → `dossier.id` CASCADE | Hồ sơ chứa tài liệu |
+| `role` | TEXT | NOT NULL, CHECK ∈ `CONTRACT`, `ANNEX` | Phân loại vai trò tài liệu |
 | `order_index` | INT | NOT NULL DEFAULT 0 | Thứ tự trong dossier |
 | `filename` | TEXT | NOT NULL | Tên file gốc upload |
-| `sha256` | TEXT | NOT NULL | Hash nội dung |
-| `blob_uri` | TEXT | NOT NULL | Đường dẫn trong `BlobStore` (`./data/blobs/pdf/<sha256>.pdf`) |
+| `sha256` | TEXT | NOT NULL | Hash nội dung file |
+| `blob_uri` | TEXT | NOT NULL | Đường dẫn trong `BlobStore` |
 | `page_count` | INT | NOT NULL DEFAULT 0 | |
 | `lang_detected` | TEXT | DEFAULT `'vi'` | |
-| **`signing_date`** | **DATE** | **NULL** | **denormalize từ `fact.key='date.signing'` (S7)** |
-| **`effective_date`** | **DATE** | **NULL** | **denormalize từ `fact.key='date.effective'` (S7)** |
+| `signing_date` | DATE | NULL | Denormalize từ `fact.key='date.signing'` (S7) |
+| `effective_date` | DATE | NULL | Denormalize từ `fact.key='date.effective'` (S7) |
 | `created_at` | TIMESTAMPTZ | NOT NULL | |
 
 **Index:**
 - `idx_document_dossier_id` — JOIN dossier
 - `idx_document_order (dossier_id, role, order_index)` — list document theo dossier
 
-**Quan hệ:**
-- `→ DOSSIER` (cha)
-- `1 → * PAGE` (CASCADE)
-- `1 → * CLAUSE_NODE` (CASCADE)
-- `1 → * FACT` (CASCADE)
-- `1 → * CITATION` (CASCADE)
-- `1 → * FINDING_SIDE` (CASCADE)
-- `* ↔ * DOCUMENT` (qua `annex_link`)
+### 3.5 Bảng `dossier_manifest` (📋, mutable) — [MỚI]
+
+Khai báo trước danh mục tài liệu dự kiến cần thu thập cho một dossier.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|---|---|---|---|
+| `id` | TEXT | PK, prefix `mnf_` | ULID |
+| `tenant_id` | TEXT | NOT NULL DEFAULT 'default' | Định danh không gian tenant |
+| `dossier_id` | TEXT | FK → `dossier.id` CASCADE | Dossier liên kết |
+| `status` | TEXT | NOT NULL, CHECK ∈ `DRAFT`, `CONFIRMED` | Trạng thái xác nhận manifest |
+| `metadata` | JSONB | NOT NULL DEFAULT '{}' | Metadata mở rộng |
+| `confirmed_at` | TIMESTAMPTZ | NULL | Thời điểm xác nhận hoàn tất |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL | |
+
+### 3.6 Bảng `manifest_document` (📋, mutable) — [MỚI]
+
+Chi tiết từng tài liệu được liệt kê trong một manifest.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|---|---|---|---|
+| `id` | TEXT | PK, prefix `mfd_` | ULID |
+| `manifest_id` | TEXT | FK → `dossier_manifest.id` CASCADE | Manifest cha |
+| `filename` | TEXT | NOT NULL | Tên file quy định |
+| `doc_type` | TEXT | NOT NULL | Loại tài liệu dự kiến |
+| `sha256` | TEXT | NULL | Checksum dự kiến hoặc khi đã nhận diện |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
 
 ---
 
 ## 4. Domain 2 — Pipeline & Hàng đợi
 
-Gồm 5 bảng: `job`, `pipeline_run`, `job_step`, `task`, `job_event`. Cơ chế điều phối xử lý nền, không có broker ngoài.
+Gồm 5 bảng: `job`, `pipeline_run`, `job_step`, `task`, `job_event`. Cơ chế điều phối xử lý bất đồng bộ, không cần broker ngoài (PostgreSQL Listen/Notify + SKIP LOCKED).
 
 ```mermaid
 erDiagram
@@ -306,6 +384,7 @@ erDiagram
 
     JOB {
         text id PK
+        text tenant_id
         text dossier_id FK
         text batch_id FK
         text status
@@ -318,6 +397,7 @@ erDiagram
     }
     PIPELINE_RUN {
         text id PK
+        text tenant_id
         text job_id FK
         text dossier_id FK
         text status
@@ -344,6 +424,7 @@ erDiagram
     }
     TASK {
         bigserial id PK
+        text tenant_id
         text kind
         text job_id FK
         text batch_id FK
@@ -374,103 +455,107 @@ erDiagram
 
 ### 4.1 Bảng `job` (📋, mutable)
 
-Trạng thái: `uploaded → processing → extracted → pending_review → reviewed → approved` (hoặc `failed` ở bất kỳ bước nào).
-
 | Cột | Kiểu | Ràng buộc | Mô tả |
 |---|---|---|---|
-| `id` | TEXT | PK, prefix `job_` | |
+| `id` | TEXT | PK, prefix `job_` | ULID |
+| `tenant_id` | TEXT | NOT NULL DEFAULT 'default' | Định danh không gian tenant |
 | `dossier_id` | TEXT | FK → `dossier.id` CASCADE | |
 | `batch_id` | TEXT | FK → `batch.id` SET NULL | |
-| `status` | TEXT | CHECK (7 giá trị) | |
-| `has_conflicts` | BOOLEAN | | Cached |
+| `status` | TEXT | CHECK ∈ `uploaded`, `processing`, `extracted`, `pending_review`, `reviewed`, `approved`, `failed` | Trạng thái job |
+| `has_conflicts` | BOOLEAN | | Cached flag |
 | `current_run_id` | TEXT | FK → `pipeline_run.id` SET NULL (deferred) | Run hiện hành |
-| `error_code` / `error_detail` | TEXT / JSONB | | Lưu lỗi cuối |
+| `error_code` / `error_detail` | TEXT / JSONB | | Lưu lỗi cuối cùng |
 | `created_at` / `updated_at` | TIMESTAMPTZ | | |
 
-**Index:** `idx_job_dossier_id`, `idx_job_status`.
+**Index:**
+- `idx_job_tenant (tenant_id)`
+- `idx_job_dossier_id`
+- `idx_job_status`
 
 ### 4.2 Bảng `pipeline_run` (📋, mutable)
 
 | Cột | Kiểu | Ràng buộc | Mô tả |
 |---|---|---|---|
-| `id` | TEXT | PK, prefix `run_` | |
+| `id` | TEXT | PK, prefix `run_` | ULID |
+| `tenant_id` | TEXT | NOT NULL DEFAULT 'default' | Định danh không gian tenant |
 | `job_id` | TEXT | FK → `job.id` CASCADE | |
 | `dossier_id` | TEXT | FK → `dossier.id` CASCADE | |
 | `status` | TEXT | CHECK ∈ `running`, `succeeded`, `failed` | |
 | `config_snapshot` | JSONB | NOT NULL | Snapshot config lúc chạy → tái lập |
-| `pipeline_version` | TEXT | NOT NULL | vd `1.0.0` |
-| `git_sha` | TEXT | NOT NULL | vd `5c611d4` |
+| `pipeline_version` | TEXT | NOT NULL | SemVer vd `1.0.0` |
+| `git_sha` | TEXT | NOT NULL | SHA commit code chạy |
 | `trace_id` | TEXT | | OpenTelemetry trace |
-| `requested_by_pseudo_id` | TEXT | | Người yêu cầu (chưa auth đầy đủ) |
+| `requested_by_pseudo_id` | TEXT | | Người yêu cầu |
 | `created_at` / `finished_at` | TIMESTAMPTZ | | |
 
-> **Quan trọng:** Mỗi run tạo ra một bộ kết quả máy hoàn toàn mới trong các bảng 🔒 (ocr_line, fact, finding, …). Đây là nền tảng cho việc **tái lập** (replay).
+**Index:**
+- `idx_pipeline_run_tenant (tenant_id)`
 
 ### 4.3 Bảng `job_step` (📋, mutable) — Checkpoint
 
 | Cột | Kiểu | Ràng buộc | Mô tả |
 |---|---|---|---|
-| `id` | BIGSERIAL | PK | |
+| `id` | BIGSERIAL | PK | Tăng dần |
 | `run_id` | TEXT | FK → `pipeline_run.id` CASCADE | |
-| `document_id` | TEXT | FK → `document.id` CASCADE (nullable) | Có thể là bước cả dossier |
+| `document_id` | TEXT | FK → `document.id` CASCADE (nullable) | |
 | `step` | TEXT | NOT NULL | Mã bước `S0..S10` |
 | `status` | TEXT | CHECK ∈ `queued`, `running`, `succeeded`, `failed`, `retrying` | |
 | `attempt` | INT | NOT NULL DEFAULT 1 | Số lần retry |
-| `pages` / `duration_ms` | INT | | |
+| `pages` / `duration_ms` | INT | | Thống kê |
 | `metrics` | JSONB | | Số liệu riêng của bước |
-| UNIQUE | | `(run_id, document_id, step)` | Idempotent retry |
+| UNIQUE | | `(run_id, document_id, step)` | Chống chạy trùng |
 
-**Index:** `idx_job_step_run_id`.
+**Index:**
+- `idx_job_step_run_id`
 
 ### 4.4 Bảng `task` (📋, mutable) — Hàng đợi nền
 
 | Cột | Kiểu | Ràng buộc | Mô tả |
 |---|---|---|---|
 | `id` | BIGSERIAL | PK | |
+| `tenant_id` | TEXT | NOT NULL DEFAULT 'default' | Định danh không gian tenant |
 | `kind` | TEXT | NOT NULL | vd `ocr_extract`, `fact_extract` |
 | `job_id` | TEXT | FK → `job.id` CASCADE | |
 | `batch_id` | TEXT | FK SET NULL | |
-| `payload` | JSONB | NOT NULL DEFAULT '{}' | |
-| `traceparent` | TEXT | | Truyền OpenTelemetry context |
+| `payload` | JSONB | NOT NULL DEFAULT '{}' | Tham số thực thi |
+| `traceparent` | TEXT | | W3C TraceContext |
 | `status` | TEXT | CHECK ∈ `queued`, `running`, `succeeded`, `failed`, `dead` | |
-| `priority` | INT | NOT NULL DEFAULT 100 | Thấp = trước |
-| `attempts` / `max_attempts` | INT | | |
-| `run_after` | TIMESTAMPTZ | NOT NULL DEFAULT now() | Cho delay/schedule |
-| `locked_by` / `locked_at` / `heartbeat_at` | | | Worker lease |
-| `last_error` | JSONB | | Lưu lỗi cuối |
+| `priority` | INT | NOT NULL DEFAULT 100 | Ưu tiên (thấp hơn = chạy trước) |
+| `attempts` / `max_attempts` | INT | | Kiểm soát retry |
+| `run_after` | TIMESTAMPTZ | NOT NULL DEFAULT now() | Hỗ trợ delay/backoff |
+| `locked_by` / `locked_at` / `heartbeat_at` | | | Worker lease mechanism |
+| `last_error` | JSONB | | |
 
 **Index:**
-- `idx_task_ready (priority, run_after) WHERE status = 'queued'` — partial index cho hot path
-- `idx_task_job_id` — debug theo job
-
-> **Worker dùng:** `SELECT … FOR UPDATE SKIP LOCKED` để claim task không tranh chấp. Sau khi xong, UPDATE status → `succeeded`/`failed`. Heartbeat chống worker chết giữa chừng.
+- `idx_task_tenant (tenant_id)`
+- `idx_task_ready (priority, run_after) WHERE status = 'queued'` — partial index cho hot path worker
+- `idx_task_job_id`
 
 ### 4.5 Bảng `job_event` (🔒, bất biến)
 
-Audit chuyển trạng thái job.
+Audit trail bất biến ghi nhận mọi bước chuyển trạng thái của `job`.
 
 | Cột | Kiểu | Mô tả |
 |---|---|---|
 | `id` | BIGSERIAL | PK |
 | `job_id` | TEXT | FK → `job.id` CASCADE |
-| `from_status` / `to_status` | TEXT | |
+| `from_status` / `to_status` | TEXT | Trạng thái chuyển dịch |
 | `actor` | TEXT | "worker" / "reviewer" / "admin" |
-| `reason` | TEXT | |
+| `reason` | TEXT | Lý do thay đổi |
 | `created_at` | TIMESTAMPTZ | |
-
-**Trigger:** `trg_immutable_job_event`.
 
 ---
 
-## 5. Domain 3 — Trang & OCR
+## 5. Domain 3 — Trang & OCR (kèm Re-OCR)
 
-Gồm 3 bảng: `page`, `document_text`, `ocr_line`. Lớp dữ liệu cấp trang, đa phần bất biến.
+Gồm 4 bảng: `page`, `document_text`, `ocr_line`, `reocr_request`.
 
 ```mermaid
 erDiagram
     DOCUMENT ||--|{ PAGE  : "có"
     PAGE ||--|{ OCR_LINE : "1..n dòng"
     DOCUMENT ||--|| DOCUMENT_TEXT : "1/run (unique)"
+    PAGE ||--o{ REOCR_REQUEST : "yêu cầu xử lý lại"
 
     PAGE {
         text id PK
@@ -509,71 +594,76 @@ erDiagram
         jsonb flags
         timestamptz created_at
     }
+    REOCR_REQUEST {
+        text id PK
+        text tenant_id
+        text page_id FK
+        text reason
+        jsonb options
+        text status
+        timestamptz created_at
+        timestamptz updated_at
+    }
 ```
 
 ### 5.1 Bảng `page` (📋, mutable)
 
 | Cột | Kiểu | Ràng buộc | Mô tả |
 |---|---|---|---|
-| `id` | TEXT | PK, prefix `pg_` | |
+| `id` | TEXT | PK, prefix `pg_` | ULID |
 | `document_id` | TEXT | FK → `document.id` CASCADE | |
 | `page_no` | INT | NOT NULL | Số trang (1..n) |
-| `kind` | TEXT | CHECK ∈ `native`, `scanned`, `hybrid` | Loại xử lý |
-| `features` | JSONB | DEFAULT '{}' | Đặc trưng (có text layer, density, …) |
+| `kind` | TEXT | CHECK ∈ `native`, `scanned`, `hybrid` | Phân loại trang |
+| `features` | JSONB | DEFAULT '{}' | Đặc trưng text layer, density, ... |
 | `width_pt` / `height_pt` | REAL | NOT NULL | Kích thước PDF points |
-| `rotation` | INT | NOT NULL DEFAULT 0 | 0/90/180/270 |
-| `transform` | JSONB | | Ma trận biến đổi nếu đã xử lý ảnh |
-| `render_uri` | TEXT | NOT NULL | Đường dẫn ảnh render |
-| `preview_uri` | TEXT | NOT NULL | Ảnh thumbnail |
+| `rotation` | INT | NOT NULL DEFAULT 0 | Góc xoay |
+| `transform` | JSONB | | Biến đổi ảnh |
+| `render_uri` / `preview_uri` | TEXT | NOT NULL | URI ảnh render và thumbnail |
 | UNIQUE | | `(document_id, page_no)` | |
 
 **Index:** `idx_page_document_id`.
 
 ### 5.2 Bảng `document_text` (🔒, bất biến)
 
-Văn bản gộp cho **mỗi (document, run)**. Dùng làm nền cho `doc_char_start`/`doc_char_end`.
+Văn bản gộp toàn document cho mỗi `(document_id, run_id)`. Dùng làm nền tham chiếu ký tự toàn tài liệu (`doc_char_start`/`doc_char_end`).
 
-| Cột | Kiểu | Ràng buộc |
-|---|---|---|
-| `id` | TEXT | PK |
-| `document_id` | TEXT | FK → `document.id` CASCADE |
-| `run_id` | TEXT | FK → `pipeline_run.id` CASCADE |
-| `text` | TEXT | NOT NULL |
-| `normalization` | TEXT | NOT NULL DEFAULT `'NFC'` |
-| UNIQUE | | `(document_id, run_id)` |
+### 5.3 Bảng `ocr_line` (🔒, bất biến)
 
-**Trigger:** `trg_immutable_document_text`.
-
-### 5.3 Bảng `ocr_line` (🔒, bất biến) — Kết quả OCR
-
-| Cột | Kiểu | Mô tả |
-|---|---|---|
-| `id` | TEXT | PK, prefix `ln_` |
-| `page_id` | TEXT | FK → `page.id` CASCADE |
-| `run_id` | TEXT | FK → `pipeline_run.id` CASCADE |
-| `line_no` | INT | NOT NULL (đếm trong trang) |
-| `text` | TEXT | NOT NULL |
-| `bbox` | JSONB | NOT NULL — `[x0,y0,x1,y1]` CPS 0..1 |
-| `confidence` | REAL | NOT NULL |
-| `doc_char_start` / `doc_char_end` | INT | Con trỏ vào `document_text.text` |
-| `words` | JSONB | NOT NULL DEFAULT `'[]'` — mảng word bbox |
-| `source` | JSONB | vd `{"engine":"terra","model":"gpt-5.6-terra"}` |
-| `flags` | JSONB | DEFAULT '{}' — đánh dấu low-confidence, … |
+Dòng OCR với tọa độ Bbox theo chuẩn **CPS (Canonical Page Space, 0..1)**, phục vụ highlight trực tiếp trên giao diện frontend.
 
 **Index:** `idx_ocr_line_page_run (page_id, run_id)`.
 
-**Trigger:** `trg_immutable_ocr_line`.
+### 5.4 Bảng `reocr_request` (📋, mutable) — [MỚI]
+
+Quản lý yêu cầu chạy lại OCR với cấu hình nâng cao (bộ lọc khử nhiễu, engine khác, tăng DPI) cho các trang có chất lượng nhận dạng thấp.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|---|---|---|---|
+| `id` | TEXT | PK, prefix `req_` | ULID |
+| `tenant_id` | TEXT | NOT NULL DEFAULT 'default' | Định danh không gian tenant |
+| `page_id` | TEXT | FK → `page.id` CASCADE | Trang cần re-OCR |
+| `reason` | TEXT | NOT NULL | Lý do yêu cầu |
+| `options` | JSONB | NOT NULL DEFAULT '{}' | Tùy chọn cấu hình OCR mới |
+| `status` | TEXT | NOT NULL, CHECK ∈ `PENDING`, `PROCESSING`, `COMPLETED`, `REJECTED` | Trạng thái yêu cầu |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL | |
 
 ---
 
 ## 6. Domain 4 — Cấu trúc tài liệu
 
-Bảng `clause_node` — cây Điều → Khoản → Điểm. Bất biến, có self-reference.
+Gồm 4 bảng bất biến 🔒: `clause_node`, `clause_region`, `doc_table`, `table_cell`.
 
 ```mermaid
 erDiagram
     DOCUMENT ||--o{ CLAUSE_NODE : "có"
-    CLAUSE_NODE ||--o{ CLAUSE_NODE : "parent_id"
+    DOCUMENT ||--o{ DOC_TABLE   : "có"
+    PIPELINE_RUN ||--o{ CLAUSE_NODE : "sinh"
+    PIPELINE_RUN ||--o{ DOC_TABLE   : "sinh"
+
+    CLAUSE_NODE ||--o{ CLAUSE_NODE   : "parent_id"
+    CLAUSE_NODE ||--o{ CLAUSE_REGION : "chứa"
+    DOC_TABLE   ||--|{ TABLE_CELL    : "chứa"
+    DOC_TABLE   ||--o| DOC_TABLE     : "continued_from"
 
     CLAUSE_NODE {
         text id PK
@@ -593,91 +683,50 @@ erDiagram
         real confidence
         timestamptz created_at
     }
+    CLAUSE_REGION {
+        text id PK
+        text clause_node_id FK
+        int page_no
+        jsonb bbox
+        text bbox_source
+    }
+    DOC_TABLE {
+        text id PK
+        text document_id FK
+        text run_id FK
+        int page_no
+        jsonb bbox
+        int rows_count
+        int cols_count
+        bool has_borders
+        bool is_multi_page
+        text continued_from FK
+    }
+    TABLE_CELL {
+        text id PK
+        text table_id FK
+        int row_idx
+        int col_idx
+        int row_span
+        int col_span
+        text text
+        jsonb bbox
+        bool is_header
+        int4range char_span_doc
+        real confidence
+    }
 ```
 
-### 6.1 Bảng `clause_node` (🔒, bất biến)
-
-| Cột | Kiểu | Mô tả |
-|---|---|---|
-| `id` | TEXT | PK, prefix `cln_` |
-| `document_id` | TEXT | FK → `document.id` CASCADE |
-| `run_id` | TEXT | FK → `pipeline_run.id` CASCADE |
-| `parent_id` | TEXT | FK → `clause_node.id` (self-reference) |
-| `node_type` | TEXT | vd `article`, `clause`, `point` |
-| `label` / `number` / `title` | TEXT | "Điều", "1", "Mục đích" |
-| `text` | TEXT | NOT NULL — nội dung điều |
-| `doc_char_start` / `doc_char_end` | INT | Con trỏ vào `document_text` |
-| `line_ids` | JSONB | NOT NULL DEFAULT `'[]'` — danh sách `ocr_line.id` dùng để vẽ |
-| `page_start` / `page_end` | INT | NOT NULL |
-| `confidence` | REAL | NOT NULL |
-
-**Index:** `idx_clause_node_doc_run (document_id, run_id)`.
-
-**Trigger:** `trg_immutable_clause_node`.
-
-> **Cây:** Truy vấn đệ quy `WITH RECURSIVE` trên `parent_id` để dựng cây đầy đủ một document. UI render outline bên trái, click → scroll đến trang + highlight bbox.
-
-### 6.2 Bảng `clause_region` (🔒, bất biến) — BR-05
-
-Mỗi trang chứa điều khoản có thể có nhiều region (hình chữ nhật tách cột, phần ghi chú, …).
-
-| Cột | Kiểu | Ràng buộc | Ý nghĩa |
-|---|---|---|---|
-| `id` | TEXT PK | prefix `clr_` | |
-| `clause_node_id` | TEXT FK | → `clause_node(id)` CASCADE | Điều khoản cha |
-| `page_no` | INT | NOT NULL | |
-| `bbox` | JSONB | NOT NULL | CPS — hợp bbox dòng trên trang |
-| `bbox_source` | TEXT | NOT NULL CHECK ∈ `native`, `detector`, `estimated`, `human` | Nguồn bbox |
-
-**Index:** `idx_clause_region_node (clause_node_id)`.
-
-**Trigger:** `trg_immutable_clause_region`.
-
-### 6.3 Bảng `doc_table` (🔒, bất biến) — BR-04
-
-Mỗi trang có thể chứa 0..n bảng layout. Bảng kéo dài nhiều trang nối qua `continued_from`.
-
-| Cột | Kiểu | Ràng buộc | Ý nghĩa |
-|---|---|---|---|
-| `id` | TEXT PK | prefix `tbl_` | |
-| `document_id` | TEXT FK | → `document(id)` CASCADE | |
-| `run_id` | TEXT FK | → `pipeline_run(id)` CASCADE | |
-| `page_no` | INT | NOT NULL | |
-| `bbox` | JSONB | NOT NULL | CPS toàn bảng |
-| `rows_count`, `cols_count` | INT | NOT NULL | Kích thước |
-| `has_borders` | BOOLEAN | NOT NULL | Dòng/bảng có viền |
-| `is_multi_page` | BOOLEAN | NOT NULL DEFAULT false | Kéo dài qua trang |
-| `continued_from` | TEXT FK | → `doc_table(id)` | Trang trước (nếu multi-page) |
-
-**Index:** `idx_doc_table_document (document_id)`.
-
-**Trigger:** `trg_immutable_doc_table`.
-
-### 6.4 Bảng `table_cell` (🔒, bất biến) — BR-04
-
-Ô bảng với vị trí hàng/cột, span, text, bbox.
-
-| Cột | Kiểu | Ràng buộc | Ý nghĩa |
-|---|---|---|---|
-| `id` | TEXT PK | prefix `tcl_` | |
-| `table_id` | TEXT FK | → `doc_table(id)` CASCADE | |
-| `row_idx`, `col_idx` | INT | NOT NULL | Vị trí |
-| `row_span`, `col_span` | INT | NOT NULL DEFAULT 1 | Merge ô |
-| `text` | TEXT | NOT NULL | Nội dung |
-| `bbox` | JSONB | NOT NULL | CPS |
-| `is_header` | BOOLEAN | NOT NULL DEFAULT false | Dòng tiêu đề |
-| `char_span_doc` | INT4RANGE | | Vị trí ký tự trong document |
-| `confidence` | REAL | NOT NULL, CHECK 0–1 | |
-
-**Index:** `idx_table_cell_table (table_id, row_idx, col_idx)`.
-
-**Trigger:** `trg_immutable_table_cell`.
+- **`clause_node` (🔒):** Cây cấu trúc pháp lý Điều → Khoản → Điểm. Self-reference qua `parent_id`.
+- **`clause_region` (🔒):** Tọa độ CPS Bbox của điều khoản trên từng trang (xử lý chia cột, ngắt trang).
+- **`doc_table` (🔒):** Cấu trúc bảng layout phát hiện được trên trang (hỗ trợ bảng ngắt nhiều trang qua `continued_from`).
+- **`table_cell` (🔒):** Vị trí hàng, cột, merge cell và nội dung văn bản trong từng ô bảng.
 
 ---
 
 ## 7. Domain 5 — Citation & Fact
 
-Hai bảng bất biến cốt lõi cho BR-07 (Citation), BR-09 (bbox), BO-02 (fact có kiểu).
+Hai bảng bất biến 🔒 cốt lõi cho nguyên tắc "không ảo giác, có bằng chứng trích dẫn":
 
 ```mermaid
 erDiagram
@@ -719,62 +768,14 @@ erDiagram
     }
 ```
 
-### 7.1 Bảng `citation` (🔒, bất biến) — Cốt lõi BR-07/BR-08
-
-Citation là **điểm chạm** giữa kết quả máy và giao diện người dùng. Một fact có đúng một citation. Một finding có đúng hai citation (BR-14, mỗi phía một).
-
-| Cột | Kiểu | Ràng buộc | Mô tả |
-|---|---|---|---|
-| `id` | TEXT | PK, prefix `cit_` | |
-| `document_id` | TEXT | FK → `document.id` CASCADE | |
-| `run_id` | TEXT | FK → `pipeline_run.id` CASCADE | |
-| `quote` | TEXT | NOT NULL | Chuỗi trích (NFC-normalized) |
-| `quote_sha256` | TEXT | NOT NULL | Hash cho truy vết nhanh |
-| `segments` | JSONB | NOT NULL | Mảng `{page_no, bbox, line_id, char_start, char_end}` |
-| `doc_char_start` / `doc_char_end` | INT | NOT NULL, CHECK(end > start) | Con trỏ vào `document_text` |
-
-**Index:** `idx_citation_document_run (document_id, run_id)`.
-
-**Trigger:** `trg_immutable_citation`.
-
-> **Cấu trúc segments:**
-> ```json
-> [
->   {"page_no": 3, "line_id": "ln_01HZ...1", "char_start": 412, "char_end": 488, "bbox": [0.10, 0.20, 0.85, 0.24]},
->   {"page_no": 3, "line_id": "ln_01HZ...2", "char_start": 489, "char_end": 530, "bbox": [0.10, 0.26, 0.85, 0.30]}
-> ]
-> ```
-> Mỗi segment nằm trọn trong một dòng → dễ căn chỉnh với `ocr_line.bbox`.
-
-### 7.2 Bảng `fact` (🔒, bất biến) — BR-09 + BO-02
-
-| Cột | Kiểu | Ràng buộc | Mô tả |
-|---|---|---|---|
-| `id` | TEXT | PK, prefix `fct_` | |
-| `document_id` | TEXT | FK → `document.id` CASCADE | |
-| `run_id` | TEXT | FK → `pipeline_run.id` CASCADE | |
-| `key` | TEXT | NOT NULL | vd `price.total`, `date.signing`, `party.buyer.name` |
-| `fact_type` | TEXT | NOT NULL | `money`, `date`, `duration`, `party`, `percent`, … |
-| `raw_text` | TEXT | NOT NULL | Nguyên văn |
-| `normalized_value` | JSONB | | Giá trị đã chuẩn hóa |
-| `context_clause_id` | TEXT | FK → `clause_node.id` | Khoản chứa fact |
-| `context_text` | TEXT | | Ngữ cảnh rút gọn |
-| `confidence` | REAL | NOT NULL | |
-| `extractor` | TEXT | NOT NULL | `rule:money@1`, `llm:gpt-5.6-terra@extract.v1` |
-| `validation_status` | TEXT | CHECK ∈ `passed`, `failed`, `skipped` | |
-| `validation_notes` | JSONB | | |
-| **`citation_id`** | TEXT | NOT NULL FK → `citation.id` | **Mỗi fact có ≥1 citation** |
-| `trace_id` / `observation_id` | TEXT | | Langfuse linkage |
-
-**Index:** `idx_fact_document_run`, `idx_fact_key`, `idx_fact_citation_id`.
-
-**Trigger:** `trg_immutable_fact`.
+- **`citation` (🔒):** Trích dẫn chính xác nguyên văn (`quote`) kèm mảng segments chứa tọa độ Bbox CPS từng trang và dòng OCR. Mọi fact bắt buộc phải có `citation_id` hợp lệ.
+- **`fact` (🔒):** Thực thể có cấu trúc trích xuất từ văn bản (`price.total`, `date.signing`, `party.buyer.name`, ...), bao gồm cả giá trị thô và giá trị chuẩn hóa (`normalized_value`).
 
 ---
 
 ## 8. Domain 6 — Annex & Conflict
 
-3 bảng bất biến: `annex_link` (liên kết phụ lục ↔ hợp đồng), `finding` (một phát hiện), `finding_side` (hai phía a/b).
+Gồm 3 bảng bất biến 🔒: `annex_link`, `finding`, `finding_side`.
 
 ```mermaid
 erDiagram
@@ -830,66 +831,15 @@ erDiagram
     }
 ```
 
-### 8.1 Bảng `annex_link` (🔒, bất biến) — BR-06
-
-| Cột | Kiểu | Ràng buộc | Mô tả |
-|---|---|---|---|
-| `id` | TEXT | PK, prefix `alnk_` | |
-| `annex_document_id` | TEXT | FK → `document.id` CASCADE | Phụ lục |
-| `contract_document_id` | TEXT | FK → `document.id` CASCADE | Hợp đồng chính |
-| `run_id` | TEXT | FK → `pipeline_run.id` CASCADE | |
-| `score` | REAL | NOT NULL | 0..1, độ tự tin khi liên kết |
-| `status` | TEXT | CHECK ∈ `linked`, `linked_needs_review`, `unlinked` | |
-| `annex_sequence` | INT | NOT NULL DEFAULT 1 | Phụ lục số mấy (1, 2, …) |
-| `effective_date` | DATE | | Ngày có hiệu lực riêng của phụ lục |
-| `citation_id` | TEXT | FK → `citation.id` | Trích dẫn chỗ liên kết |
-| UNIQUE | | `(annex_document_id, contract_document_id, run_id)` | |
-
-**Trigger:** `trg_immutable_annex_link`.
-
-### 8.2 Bảng `finding` (🔒, bất biến) — BR-11..BR-14
-
-| Cột | Kiểu | CHECK | Mô tả |
-|---|---|---|---|
-| `id` | TEXT | PK, prefix `fnd_` | |
-| `dossier_id` | TEXT | FK → `dossier.id` CASCADE | |
-| `run_id` | TEXT | FK → `pipeline_run.id` CASCADE | |
-| `finding_type` | TEXT | ∈ `structured`, `semantic` | So sánh rule hay LLM |
-| `scope` | TEXT | ∈ `within_document`, `contract_annex`, `annex_annex` | Phạm vi |
-| `key_or_topic` | TEXT | NOT NULL | vd `price.total`, "Phạm vi hợp đồng" |
-| `disposition` | TEXT | ∈ `comparable_match`, `comparable_difference`, `candidate_amendment`, `not_comparable`, `insufficient_evidence` | Kết luận |
-| `severity` | TEXT | ∈ `high`, `medium`, `low` | |
-| `confidence` | REAL | NOT NULL | |
-| `rationale` | TEXT | | Lý do ngắn |
-| `method` | TEXT | NOT NULL | `rule:money_compare@1`, `llm:…` |
-| `trace_id` / `observation_id` | TEXT | | Langfuse |
-
-**Index:** `idx_finding_dossier_run (dossier_id, run_id)`.
-
-**Trigger:** `trg_immutable_finding`.
-
-### 8.3 Bảng `finding_side` (🔒, bất biến) — BR-14
-
-| Cột | Kiểu | Ràng buộc | Mô tả |
-|---|---|---|---|
-| `finding_id` | TEXT | FK → `finding.id` CASCADE | |
-| `side` | TEXT | CHECK ∈ `a`, `b` | Phía A (contract) hoặc B (annex hoặc annex khác) |
-| `document_id` | TEXT | FK → `document.id` CASCADE | |
-| `fact_id` | TEXT | FK → `fact.id` (nullable) | Nếu so sánh fact |
-| `clause_node_id` | TEXT | FK → `clause_node.id` (nullable) | Nếu so sánh ngữ nghĩa theo điều |
-| **`citation_id`** | TEXT | NOT NULL FK → `citation.id` | **Cả hai phía đều có citation (BR-14)** |
-| `value_snapshot` | JSONB | | Giá trị phía đó lúc so sánh |
-| PRIMARY KEY | | `(finding_id, side)` | |
-
-**Index:** `idx_finding_side_finding_id`, `idx_finding_side_fact_id`, `idx_finding_side_citation_id`.
-
-**Trigger:** `trg_immutable_finding_side`.
+- **`annex_link` (🔒):** Liên kết ngữ nghĩa giữa file phụ lục và file hợp đồng chính kèm điểm số tự tin (`score`) và thứ tự phụ lục.
+- **`finding` (🔒):** Phát hiện xung đột hoặc sửa đổi giữa các điều khoản / fact với mức độ nghiêm trọng (`severity`: `high`, `medium`, `low`) và kết luận pháp lý (`disposition`).
+- **`finding_side` (🔒):** Mô hình hóa đối sánh 2 phía (Side A: hợp đồng gốc, Side B: phụ lục). Cả hai phía bắt buộc có `citation_id` để kiểm chứng song song trên UI.
 
 ---
 
-## 9. Domain 7 — HITL Review
+## 9. Domain 7 — HITL Review & Phê duyệt ngoài
 
-3 bảng: `review_item` (mutable, có version), `review_action` (bất biến), `dossier_approval` (bất biến).
+Gồm 4 bảng: `review_item`, `review_action`, `dossier_approval`, `external_approval_grant`.
 
 ```mermaid
 erDiagram
@@ -897,7 +847,8 @@ erDiagram
     REVIEW_ITEM ||--|{ REVIEW_ACTION : "append-only"
     APP_USER ||--o{ REVIEW_ACTION : "thực hiện"
     DOSSIER ||--o{ DOSSIER_APPROVAL : "có"
-    APP_USER ||--o{ DOSSIER_APPROVAL : "duyệt"
+    APP_USER ||--o{ DOSSIER_APPROVAL : "duyệt nội bộ"
+    DOSSIER ||--o{ EXTERNAL_APPROVAL_GRANT : "cấp quyền duyệt ngoài"
 
     REVIEW_ITEM {
         text id PK
@@ -936,85 +887,57 @@ erDiagram
         text comment
         timestamptz approved_at
     }
+    EXTERNAL_APPROVAL_GRANT {
+        text id PK
+        text tenant_id
+        text dossier_id FK
+        text grantee_email
+        text token_hash
+        text status
+        timestamptz expires_at
+        timestamptz created_at
+    }
 ```
 
-### 9.1 Bảng `review_item` (📋, mutable) — Optimistic Concurrency P0-05
+### 9.1 Bảng `review_item` (📋, mutable) & Cơ chế Optimistic Concurrency
 
-| Cột | Kiểu | Ràng buộc | Mô tả |
-|---|---|---|---|
-| `id` | TEXT | PK, prefix `ri_` | |
-| `dossier_id` | TEXT | FK → `dossier.id` CASCADE | |
-| `run_id` | TEXT | FK → `pipeline_run.id` CASCADE | |
-| `target_type` | TEXT | CHECK ∈ `fact`, `finding`, `annex_link`, `clause_node`, `table_cell`, `citation` | Loại đối tượng |
-| `target_id` | TEXT | NOT NULL | ULID đối tượng |
-| `reason` | TEXT | NOT NULL | Tại sao cần review |
-| `priority` | TEXT | CHECK ∈ `P1`, `P2`, `P3` | |
-| `status` | TEXT | CHECK ∈ `open`, `resolved`, `awaiting_evidence` | |
-| **`version`** | INT | NOT NULL DEFAULT 1 | **Tăng mỗi khi có action (P0-05)** |
-| `source_trace_id` / `source_observation_id` | TEXT | | Từ Langfuse |
+- Mỗi item có cột `version INT NOT NULL DEFAULT 1`.
+- Reviewer gửi `base_version` khi commit action; server chỉ cập nhật nếu `version = base_version`, chống ghi đè đồng thời.
 
-**Index:** `idx_review_item_dossier (dossier_id, status)`, `idx_review_item_target (target_type, target_id)`.
+### 9.2 Bảng `review_action` (🔒, bất biến — Append-only)
 
-> **Optimistic concurrency flow (xem `backend/CONTEXT.md` §5.2):**
-> 1. Client mở review → nhận `version` hiện tại.
-> 2. Client `POST /review-items/{id}/actions` gửi `base_version`.
-> 3. Server trong 1 transaction:
->    ```sql
->    UPDATE review_item
->       SET version = version + 1, updated_at = now()
->     WHERE id = :ri_id AND version = :base_version;
->    -- 0 rows → trả 409 VERSION_CONFLICT
->    INSERT INTO review_action (...) VALUES (...);
->    ```
-> 4. Client nhận 409 → refetch + hiển thị version mới cho reviewer xử lý xung đột.
-
-### 9.2 Bảng `review_action` (🔒, bất biến) — Append-only
-
-| Cột | Kiểu | Ràng buộc | Mô tả |
-|---|---|---|---|
-| `id` | TEXT | PK, prefix `ra_` | |
-| `review_item_id` | TEXT | FK → `review_item.id` CASCADE | |
-| `target_type` / `target_id` | TEXT | | Phiếm định (không FK để tránh vòng) |
-| `action` | TEXT | CHECK ∈ `confirm`, `correct`, `reject`, `needs_more_evidence` | |
-| **`base_version`** | INT | NOT NULL | **Echo lại version client đang xem (P0-05)** |
-| `corrected_value` | JSONB | | Khi `correct` — giá trị đã sửa |
-| `corrected_bbox` | JSONB | | Khi `correct` bbox — `[{page_no, bbox}]` CPS |
-| `comment` | TEXT | | |
-| `reviewer_id` | TEXT | FK → `app_user.id` | |
-| CHECK | | `action != 'correct' OR corrected_value IS NOT NULL OR corrected_bbox IS NOT NULL` | |
-
-**Index:** `idx_review_action_item (review_item_id, created_at DESC)`.
-
-**Trigger:** `trg_immutable_review_action`.
-
-> **Giá trị hiệu lực** đọc qua view `v_fact_effective` (xem §12). View `LATERAL JOIN` lấy action mới nhất theo `created_at DESC`.
+Lưu vết toàn bộ quyết định của chuyên viên (`confirm`, `correct`, `reject`, `needs_more_evidence`). Khi sửa đổi (`correct`), lưu giá trị đã sửa (`corrected_value`) hoặc tọa độ mới (`corrected_bbox`).
 
 ### 9.3 Bảng `dossier_approval` (🔒, bất biến)
 
-| Cột | Kiểu | Mô tả |
-|---|---|---|
-| `id` | TEXT | PK, prefix `apr_` |
-| `dossier_id` | TEXT | FK → `dossier.id` CASCADE |
-| `run_id` | TEXT | FK → `pipeline_run.id` CASCADE |
-| `approved_by` | TEXT | FK → `app_user.id` |
-| `snapshot_sha256` | TEXT | NOT NULL — hash toàn bộ kết quả effective |
-| `comment` | TEXT | |
-| `approved_at` | TIMESTAMPTZ | |
+Lưu trữ chữ ký số nội bộ và snapshot checksum (`snapshot_sha256`) tại thời điểm phê duyệt chính thức dossier.
 
-**Trigger:** `trg_immutable_dossier_approval`.
+### 9.4 Bảng `external_approval_grant` (📋, mutable) — [MỚI]
+
+Cấp phát liên kết có chữ ký tạm thời cho phép đối tác bên ngoài hoặc lãnh đạo cấp cao phê duyệt dossier mà không cần tài khoản thường trực trong hệ thống.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|---|---|---|---|
+| `id` | TEXT | PK, prefix `eag_` | ULID |
+| `tenant_id` | TEXT | NOT NULL DEFAULT 'default' | Định danh không gian tenant |
+| `dossier_id` | TEXT | FK → `dossier.id` CASCADE | Dossier được cấp quyền |
+| `grantee_email` | TEXT | NOT NULL | Email bên ngoài nhận quyền |
+| `token_hash` | TEXT | NOT NULL | Hash của access token cấp phát |
+| `status` | TEXT | NOT NULL, CHECK ∈ `ACTIVE`, `REVOKED`, `EXPIRED` | Trạng thái ủy quyền |
+| `expires_at` | TIMESTAMPTZ | NOT NULL | Thời điểm hết hạn |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
 
 ---
 
 ## 10. Domain 8 — Đo lường & Chi phí
 
-3 bảng bất biến phục vụ KPI, hiệu năng và billing.
+Gồm 2 bảng bất biến 🔒 phục vụ quan sát, hạch toán chi phí và audit SLA:
 
 ```mermaid
 erDiagram
-    PIPELINE_RUN ||--o{ USAGE_LEDGER : "ghi"
     PAGE ||--o{ PAGE_STEP_STAT : "đo"
     PIPELINE_RUN ||--o{ PAGE_STEP_STAT : "trong run"
-    JOB ||--o{ JOB_EVENT : "audit (đã xem ở §4)"
+    PIPELINE_RUN ||--o{ USAGE_LEDGER : "ghi"
 
     PAGE_STEP_STAT {
         bigserial id PK
@@ -1028,6 +951,7 @@ erDiagram
     }
     USAGE_LEDGER {
         bigserial id PK
+        text tenant_id
         text run_id FK
         text dossier_id
         text step
@@ -1049,43 +973,92 @@ erDiagram
     }
 ```
 
-### 10.1 Bảng `page_step_stat` (🔒, bất biến)
-
-| Cột | Kiểu | Mô tả |
-|---|---|---|
-| `id` | BIGSERIAL | PK |
-| `page_id` | TEXT | FK → `page.id` CASCADE |
-| `run_id` | TEXT | FK → `pipeline_run.id` CASCADE |
-| `step` | TEXT | NOT NULL — `S2_ocr`, `S3_extract`, … |
-| `engine` | TEXT | NOT NULL — `terra`, `local_detector`, `rule_money` |
-| `duration_ms` | INT | NOT NULL |
-| `cache_hit` | BOOLEAN | NOT NULL DEFAULT false |
-
-### 10.2 Bảng `usage_ledger` (🔒, bất biến) — NFR-03
-
-| Cột | Kiểu | Mô tả |
-|---|---|---|
-| `id` | BIGSERIAL | PK |
-| `run_id` | TEXT | FK → `pipeline_run.id` CASCADE |
-| `dossier_id` | TEXT | NOT NULL (không FK để tiện archive) |
-| `step` | TEXT | NOT NULL — `ocr`, `extract`, `compare` |
-| `provider` | TEXT | NOT NULL — `openai`, `local` |
-| `model_requested` / `model_returned` | TEXT | |
-| `input_tokens` / `cached_tokens` / `output_tokens` / `reasoning_tokens` | INT | |
-| `pages` | INT | NOT NULL DEFAULT 0 |
-| `cache_hit` | BOOLEAN | NOT NULL DEFAULT false |
-| `latency_ms` | INT | |
-| **`cost_usd`** | NUMERIC(12, 6) | NOT NULL — đã tính theo `price_version` |
-| **`price_version`** | TEXT | NOT NULL — vd `gpt5.6-terra@2026-09-15` |
-| `trace_id` / `observation_id` | TEXT | Langfuse linkage |
-
-**Index:** `idx_usage_ledger_run`, `idx_usage_ledger_dossier`.
-
-**Trigger:** `trg_immutable_usage_ledger`.
+- **`page_step_stat` (🔒):** Ghi nhận thời gian thực thi chi tiết của từng engine theo từng trang và từng bước xử lý.
+- **`usage_ledger` (🔒):** Ghi sổ chi tiết lượng token tiêu thụ, cache hits, độ trễ và chi phí USD cho từng tác vụ LLM có gắn liền `tenant_id` phục vụ chargeback.
 
 ---
 
-## 11. Ma trận quan hệ đầy đủ
+## 11. Domain 9 — Vòng lặp tối ưu hóa (Optimization Loop)
+
+Gồm 3 bảng nghiệp vụ 📋: `optimization_campaign`, `optimization_candidate`, `optimization_experiment`. Phục vụ tinh chỉnh tự động prompt và siêu tham số LLM.
+
+```mermaid
+erDiagram
+    OPTIMIZATION_CAMPAIGN ||--|{ OPTIMIZATION_CANDIDATE : "chứa"
+    OPTIMIZATION_CAMPAIGN ||--o{ OPTIMIZATION_EXPERIMENT : "thực thi"
+    OPTIMIZATION_CANDIDATE ||--o{ OPTIMIZATION_EXPERIMENT : "đánh giá"
+
+    OPTIMIZATION_CAMPAIGN {
+        text id PK
+        text tenant_id
+        text name
+        text target_metric
+        text status
+        jsonb config
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    OPTIMIZATION_CANDIDATE {
+        text id PK
+        text campaign_id FK
+        text prompt_template
+        jsonb hyperparams
+        text status
+        timestamptz created_at
+    }
+    OPTIMIZATION_EXPERIMENT {
+        text id PK
+        text campaign_id FK
+        text candidate_id FK
+        jsonb metrics
+        text status
+        timestamptz created_at
+    }
+```
+
+### 11.1 Bảng `optimization_campaign` (📋, mutable) — [MỚI]
+
+Quản lý một chiến dịch tối ưu hóa (ví dụ: "Tối ưu trích xuất ngày ký", "Giảm hallucination cho điều khoản phạt").
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|---|---|---|---|
+| `id` | TEXT | PK, prefix `cmp_` | ULID |
+| `tenant_id` | TEXT | NOT NULL DEFAULT 'default' | Định danh không gian tenant |
+| `name` | TEXT | NOT NULL | Tên chiến dịch |
+| `target_metric` | TEXT | NOT NULL | Chỉ số mục tiêu (F1, Accuracy, Cost, ...) |
+| `status` | TEXT | NOT NULL, CHECK ∈ `ACTIVE`, `PAUSED`, `COMPLETED` | Trạng thái chiến dịch |
+| `config` | JSONB | NOT NULL DEFAULT '{}' | Cấu hình bộ dữ liệu test / tiêu chí dừng |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL | |
+
+### 11.2 Bảng `optimization_candidate` (📋, mutable) — [MỚI]
+
+Lưu trữ các biến thể prompt template và bộ siêu tham số được đề xuất thử nghiệm.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|---|---|---|---|
+| `id` | TEXT | PK, prefix `cnd_` | ULID |
+| `campaign_id` | TEXT | FK → `optimization_campaign.id` CASCADE | Chiến dịch cha |
+| `prompt_template` | TEXT | NOT NULL | Nội dung prompt đề xuất |
+| `hyperparams` | JSONB | NOT NULL DEFAULT '{}' | Siêu tham số (temperature, top_p, ...) |
+| `status` | TEXT | NOT NULL, CHECK ∈ `CANDIDATE`, `SELECTED`, `ARCHIVED` | Trạng thái ứng viên |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+### 11.3 Bảng `optimization_experiment` (📋, mutable) — [MỚI]
+
+Ghi nhận kết quả chạy thử nghiệm ứng viên trên tập dữ liệu benchmark.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|---|---|---|---|
+| `id` | TEXT | PK, prefix `exp_` | ULID |
+| `campaign_id` | TEXT | FK → `optimization_campaign.id` CASCADE | |
+| `candidate_id` | TEXT | FK → `optimization_candidate.id` CASCADE | Ứng viên được test |
+| `metrics` | JSONB | NOT NULL DEFAULT '{}' | Điểm số đạt được (F1, Token cost, ...) |
+| `status` | TEXT | NOT NULL, CHECK ∈ `RUNNING`, `COMPLETED`, `FAILED` | Trạng thái thực nghiệm |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+---
+
+## 12. Ma trận quan hệ đầy đủ
 
 | Bảng A | Cardinality | Quan hệ | Bảng B | FK column | ON DELETE |
 |---|---|---|---|---|---|
@@ -1096,19 +1069,24 @@ erDiagram
 | `batch` | 1 → 0..* | gom | `job` | `job.batch_id` | SET NULL |
 | `batch` | 1 → 0..* | gom | `task` | `task.batch_id` | SET NULL |
 | `dossier` | 1 → 1..* | gồm | `document` | `document.dossier_id` | CASCADE |
+| `dossier` | 1 → 0..1 | khai báo | `dossier_manifest` | `dossier_manifest.dossier_id` | CASCADE |
 | `dossier` | 1 → 0..* | xử lý | `job` | `job.dossier_id` | CASCADE |
 | `dossier` | 1 → 0..* | có | `finding` | `finding.dossier_id` | CASCADE |
 | `dossier` | 1 → 0..* | có | `review_item` | `review_item.dossier_id` | CASCADE |
 | `dossier` | 1 → 0..* | có | `dossier_approval` | `dossier_approval.dossier_id` | CASCADE |
+| `dossier` | 1 → 0..* | cấp quyền ngoài | `external_approval_grant` | `external_approval_grant.dossier_id` | CASCADE |
+| `dossier_manifest` | 1 → 1..* | danh mục | `manifest_document` | `manifest_document.manifest_id` | CASCADE |
 | `document` | 1 → 1..* | có | `page` | `page.document_id` | CASCADE |
 | `document` | 1 → 0..* | checkpoint | `job_step` | `job_step.document_id` | CASCADE |
 | `document` | 1 → 0..* | có | `clause_node` | `clause_node.document_id` | CASCADE |
-| `document` | 1 → 0..* | có | `clause_region` | `clause_region.document_id` | CASCADE |
 | `document` | 1 → 0..* | có | `doc_table` | `doc_table.document_id` | CASCADE |
 | `document` | 1 → 0..* | có | `fact` | `fact.document_id` | CASCADE |
 | `document` | 1 → 0..* | trích dẫn | `citation` | `citation.document_id` | CASCADE |
 | `document` | 1 → 0..* | tham gia | `finding_side` | `finding_side.document_id` | CASCADE |
 | `document` | * ↔ * | liên kết | `document` | `annex_link.annex_document_id` + `contract_document_id` | CASCADE |
+| `page` | 1 → 0..* | chứa | `ocr_line` | `ocr_line.page_id` | CASCADE |
+| `page` | 1 → 0..* | yêu cầu re-ocr | `reocr_request` | `reocr_request.page_id` | CASCADE |
+| `page` | 1 → 0..* | đo | `page_step_stat` | `page_step_stat.page_id` | CASCADE |
 | `job` | 1 → 0..* | chạy | `pipeline_run` | `pipeline_run.job_id` | CASCADE |
 | `job` | 1 → 0..1 | hiện hành | `pipeline_run` | `job.current_run_id` | SET NULL |
 | `job` | 1 → 0..* | ghi log | `job_event` | `job_event.job_id` | CASCADE |
@@ -1124,8 +1102,6 @@ erDiagram
 | `pipeline_run` | 1 → 0..* | sinh | `finding` | `finding.run_id` | CASCADE |
 | `pipeline_run` | 1 → 0..* | ghi | `usage_ledger` | `usage_ledger.run_id` | CASCADE |
 | `pipeline_run` | 1 → 0..* | ghi | `page_step_stat` | `page_step_stat.run_id` | CASCADE |
-| `page` | 1 → 0..* | chứa | `ocr_line` | `ocr_line.page_id` | CASCADE |
-| `page` | 1 → 0..* | đo | `page_step_stat` | `page_step_stat.page_id` | CASCADE |
 | `clause_node` | 1 → 0..* | cha | `clause_node` | `clause_node.parent_id` | (self) |
 | `clause_node` | 1 → 0..* | region | `clause_region` | `clause_region.clause_node_id` | CASCADE |
 | `clause_node` | 1 → 0..* | context | `fact` | `fact.context_clause_id` | (không cascade) |
@@ -1138,12 +1114,15 @@ erDiagram
 | `clause_node` | 1 → 0..* | tham chiếu | `finding_side` | `finding_side.clause_node_id` | (không cascade) |
 | `finding` | 1 → 2 | hai phía | `finding_side` | `finding_side.finding_id` | CASCADE |
 | `review_item` | 1 → 1..* | append-only | `review_action` | `review_action.review_item_id` | CASCADE |
+| `optimization_campaign` | 1 → 1..* | chứa | `optimization_candidate` | `optimization_candidate.campaign_id` | CASCADE |
+| `optimization_campaign` | 1 → 0..* | thực nghiệm | `optimization_experiment` | `optimization_experiment.campaign_id` | CASCADE |
+| `optimization_candidate` | 1 → 0..* | thử nghiệm | `optimization_experiment` | `optimization_experiment.candidate_id` | CASCADE |
 
 ---
 
-## 12. Quy tắc bất biến & Trigger
+## 13. Quy tắc bất biến & Trigger
 
-15 trigger trên 15 bảng bất biến. Hàm chung:
+Hệ thống duy trì 15 trigger bất biến ngăn chặn mọi thao tác `UPDATE` hoặc `DELETE` trên các bảng kết quả máy và audit:
 
 ```sql
 CREATE OR REPLACE FUNCTION forbid_mutation() RETURNS trigger AS $$
@@ -1171,54 +1150,19 @@ $$ LANGUAGE plpgsql;
 | `usage_ledger` | `trg_immutable_usage_ledger` | Token/USD append-only cho billing |
 | `dossier_approval` | `trg_immutable_dossier_approval` | Snapshot duyệt cuối append-only |
 
-> **Cách "sửa" hợp lệ:** Ghi `review_action` với `action='correct'` kèm `corrected_value`/`corrected_bbox`. Đọc giá trị hiệu lực qua view `v_fact_effective`.
-
-### 12.1 View nghiệp vụ
-
-3 view hỗ trợ truy vấn phổ biến:
+### 13.1 View nghiệp vụ
 
 | View | Dựa trên | Mục đích |
 |---|---|---|
-| `v_conflict` | `finding` | Finding cần reviewer (disposition ∈ conflict + confidence < 0.6) |
-| `v_fact_effective` | `fact` LEFT JOIN `review_item` LATERAL JOIN `review_action` | Fact + action mới nhất; có `current_item_version` để client echo |
-| `v_batch_summary` | `job` GROUP BY | Tổng hợp trạng thái một batch |
-
-```sql
--- v_fact_effective (rút gọn — xem DOC-04b §10)
-CREATE OR REPLACE VIEW v_fact_effective AS
-SELECT
-    f.id                  AS fact_id,
-    f.document_id,
-    f.run_id,
-    f.key,
-    f.normalized_value    AS machine_value,
-    CASE ra.action
-        WHEN 'correct' THEN COALESCE(ra.corrected_value, f.normalized_value)
-        WHEN 'reject'  THEN NULL
-        ELSE f.normalized_value
-    END                   AS effective_value,
-    COALESCE(ra.action, 'unreviewed') AS review_state,
-    ra.corrected_bbox,
-    ra.reviewer_id,
-    ra.created_at         AS reviewed_at,
-    f.citation_id         AS original_citation_id,
-    ri.id                 AS review_item_id,
-    ri.version            AS current_item_version   -- echo vào base_version
-FROM fact f
-LEFT JOIN review_item ri
-       ON ri.target_type = 'fact' AND ri.target_id = f.id
-LEFT JOIN LATERAL (
-    SELECT a.*
-    FROM review_action a
-    WHERE a.review_item_id = ri.id
-    ORDER BY a.created_at DESC
-    LIMIT 1
-) ra ON TRUE;
-```
+| `v_conflict` | `finding` | Lọc finding có conflict hoặc độ tự tin thấp cần reviewer xử lý |
+| `v_fact_effective` | `fact` LEFT JOIN `review_item` LATERAL JOIN `review_action` | Truy vấn fact kèm giá trị hiệu lực mới nhất do reviewer hiệu chỉnh |
+| `v_batch_summary` | `job` GROUP BY | Báo cáo tiến độ và tỷ lệ lỗi của toàn batch |
 
 ---
 
-## 13. Bộ 23 chỉ mục hiệu năng
+## 14. Bộ 33 chỉ mục hiệu năng
+
+Bao gồm 26 chỉ mục nghiệp vụ chuyên sâu và 7 chỉ mục tối ưu hóa Tenant Isolation:
 
 | # | Index | Bảng | Cột | Phục vụ |
 |---|---|---|---|---|
@@ -1228,7 +1172,7 @@ LEFT JOIN LATERAL (
 | 4 | `idx_job_dossier_id` | `job` | `dossier_id` | Lịch sử job theo dossier |
 | 5 | `idx_job_status` | `job` | `status` | Dashboard batch |
 | 6 | `idx_job_step_run_id` | `job_step` | `run_id` | Checkpoint theo run |
-| 7 | `idx_task_ready` | `task` | `(priority, run_after) WHERE status='queued'` | **Partial index — hot path worker** |
+| 7 | `idx_task_ready` | `task` | `(priority, run_after) WHERE status='queued'` | **Partial index — hot path worker claim** |
 | 8 | `idx_task_job_id` | `task` | `job_id` | Debug theo job |
 | 9 | `idx_ocr_line_page_run` | `ocr_line` | `(page_id, run_id)` | Resolve bbox cho citation |
 | 10 | `idx_citation_document_run` | `citation` | `(document_id, run_id)` | Lookup fact/finding theo citation |
@@ -1248,26 +1192,31 @@ LEFT JOIN LATERAL (
 | 24 | `idx_review_action_item` | `review_action` | `(review_item_id, created_at DESC)` | Action mới nhất |
 | 25 | `idx_usage_ledger_run` | `usage_ledger` | `run_id` | Tổng chi phí theo run |
 | 26 | `idx_usage_ledger_dossier` | `usage_ledger` | `dossier_id` | Tổng chi phí theo dossier |
-
-> **Lưu ý vận hành:** PK index không tính trong danh sách 26 này (đếm riêng). Khi thêm truy vấn mới, hãy EXPLAIN trước; nếu Seq Scan trên bảng > 10k row, thêm index tương ứng.
-
----
-
-## 14. Cardinality chuẩn
-
-| Quan hệ | Ý nghĩa |
-|---|---|
-| 1 → 0..* | Một cha có 0 hoặc nhiều con (vd: dossier → document) |
-| 1 → 1..* | Một cha có **ít nhất 1** con (vd: document → page) |
-| 1 → 0..1 | Quan hệ 1-1 optional (vd: job.current_run_id) |
-| 1 → 2 | Quan hệ cố định (vd: finding → finding_side) |
-| * ↔ * | Quan hệ nhiều-nhiều qua bảng trung gian (vd: document ↔ document qua annex_link) |
+| 27 | `idx_app_user_tenant` | `app_user` | `tenant_id` | **Tenant isolation filter** |
+| 28 | `idx_batch_tenant` | `batch` | `tenant_id` | **Tenant isolation filter** |
+| 29 | `idx_dossier_tenant` | `dossier` | `tenant_id` | **Tenant isolation filter** |
+| 30 | `idx_job_tenant` | `job` | `tenant_id` | **Tenant isolation filter** |
+| 31 | `idx_pipeline_run_tenant` | `pipeline_run` | `tenant_id` | **Tenant isolation filter** |
+| 32 | `idx_task_tenant` | `task` | `tenant_id` | **Tenant isolation filter** |
+| 33 | `idx_usage_ledger_tenant` | `usage_ledger` | `tenant_id` | **Tenant isolation filter** |
 
 ---
 
-## 15. Quy ước đặt tên
+## 15. Cardinality chuẩn
 
-### 15.1 Tiền tố ID (ULID)
+| Quan hệ | Ý nghĩa | Ví dụ điển hình |
+|---|---|---|
+| 1 → 0..* | Một cha có 0 hoặc nhiều con | `dossier` → `document` |
+| 1 → 1..* | Một cha có **ít nhất 1** con | `document` → `page` |
+| 1 → 0..1 | Quan hệ 1-1 tùy chọn | `job` → `pipeline_run` (`current_run_id`) |
+| 1 → 2 | Quan hệ cố định 2 nhánh | `finding` → `finding_side` (phía a & phía b) |
+| * ↔ * | Quan hệ nhiều-nhiều qua bảng phụ | `document` ↔ `document` (qua `annex_link`) |
+
+---
+
+## 16. Quy ước đặt tên
+
+### 16.1 Tiền tố ID (ULID)
 
 | Prefix | Bảng |
 |---|---|
@@ -1275,62 +1224,72 @@ LEFT JOIN LATERAL (
 | `btc_` | `batch` |
 | `dos_` | `dossier` |
 | `doc_` | `document` |
+| `mnf_` | `dossier_manifest` |
+| `mfd_` | `manifest_document` |
 | `pg_` | `page` |
+| `req_` | `reocr_request` |
 | `job_` | `job` |
 | `run_` | `pipeline_run` |
 | `ln_` | `ocr_line` |
 | `cit_` | `citation` |
 | `cln_` | `clause_node` |
+| `clr_` | `clause_region` |
+| `tbl_` | `doc_table` |
+| `tcl_` | `table_cell` |
 | `fct_` | `fact` |
 | `alnk_` | `annex_link` |
 | `fnd_` | `finding` |
 | `ri_` | `review_item` |
 | `ra_` | `review_action` |
 | `apr_` | `dossier_approval` |
+| `eag_` | `external_approval_grant` |
+| `cmp_` | `optimization_campaign` |
+| `cnd_` | `optimization_candidate` |
+| `exp_` | `optimization_experiment` |
 
-> BIGSERIAL bảng (`job_event`, `job_step`, `task`, `page_step_stat`, `usage_ledger`) không có prefix — ID chỉ cần đủ tăng dần cho debug log.
+> BIGSERIAL bảng (`job_event`, `job_step`, `task`, `page_step_stat`, `usage_ledger`) không có prefix — ID tăng dần thuần túy cho mục đích ghi vết.
 
-### 15.2 Bbox
+### 16.2 Bounding Box chuẩn CPS
 
-Luôn dạng JSONB `[x0, y0, x1, y1]` theo **Canonical Page Space (CPS, 0..1)**. Công thức chuẩn hóa: `x = px / width_px`, `y = py / height_px`. Xem `DOC-04` §7.5.
-
-### 15.3 JSONB shape thường gặp
-
-| Trường | Shape | Ghi chú |
-|---|---|---|
-| `ocr_line.words` | `[{text, bbox, conf}]` | Mảng word trong dòng |
-| `ocr_line.bbox` | `[x0, y0, x1, y1]` | CPS |
-| `citation.segments` | `[{page_no, line_id, char_start, char_end, bbox}]` | Mỗi segment trong 1 dòng |
-| `finding_side.value_snapshot` | `{...}` | Snapshot giá trị phía đó |
-| `usage_ledger` cost | `NUMERIC(12, 6)` | USD |
-| `pipeline_run.config_snapshot` | `{...}` | Toàn bộ config lúc chạy |
+Toàn bộ tọa độ lưu trữ dưới dạng JSONB `[x0, y0, x1, y1]` theo **Canonical Page Space (CPS, 0..1)**, độc lập với độ phân giải DPI của ảnh render: `x = px / width_px`, `y = py / height_px`.
 
 ---
 
-## 16. Phụ lục — Truy vấn mẫu
+## 17. Phụ lục — Truy vấn mẫu
 
-### 16.1 Lấy tất cả fact "hiệu lực" của một dossier
+### 17.1 Lấy tất cả dossier theo tenant kèm số lượng document
+
+```sql
+SELECT d.id, d.name, d.has_conflicts, COUNT(doc.id) AS total_docs
+FROM dossier d
+LEFT JOIN document doc ON doc.dossier_id = d.id
+WHERE d.tenant_id = :tenant_id
+GROUP BY d.id, d.name, d.has_conflicts
+ORDER BY d.created_at DESC;
+```
+
+### 17.2 Lấy tất cả fact "hiệu lực" của một dossier
 
 ```sql
 SELECT v.*
 FROM v_fact_effective v
 JOIN fact f ON f.id = v.fact_id
 WHERE f.document_id IN (
-    SELECT id FROM document WHERE dossier_id = 'dos_01J9X...'
+    SELECT id FROM document WHERE dossier_id = :dossier_id
 )
 ORDER BY f.key, f.document_id;
 ```
 
-### 16.2 Hàng đợi reviewer của một dossier
+### 17.3 Hàng đợi reviewer của một dossier
 
 ```sql
 SELECT id, target_type, target_id, reason, priority, version, status
 FROM review_item
-WHERE dossier_id = 'dos_01J9X...' AND status = 'open'
+WHERE dossier_id = :dossier_id AND status = 'open'
 ORDER BY priority ASC, created_at ASC;
 ```
 
-### 16.3 Ghi action với optimistic concurrency
+### 17.4 Ghi review action với optimistic concurrency
 
 ```sql
 BEGIN;
@@ -1339,21 +1298,27 @@ UPDATE review_item
    SET version = version + 1, updated_at = now()
  WHERE id = :ri_id AND version = :base_version;
 
--- Nếu 0 rows → rollback & trả 409 VERSION_CONFLICT
-INSERT INTO review_action (id, review_item_id, target_type, target_id, action,
-                           base_version, corrected_value, reviewer_id)
-VALUES (:ra_id, :ri_id, :tgt_type, :tgt_id, 'correct',
-        :base_version, :corrected, :reviewer_id);
+-- Nếu không có dòng nào được cập nhật -> ROLLBACK & trả mã 409 Conflict
+INSERT INTO review_action (
+    id, review_item_id, target_type, target_id, action,
+    base_version, corrected_value, reviewer_id
+)
+VALUES (
+    :ra_id, :ri_id, :tgt_type, :tgt_id, 'correct',
+    :base_version, :corrected, :reviewer_id
+);
 
 COMMIT;
 ```
 
-### 16.4 Worker claim task không tranh chấp
+### 17.5 Worker claim task không tranh chấp có lọc tenant
 
 ```sql
 WITH next AS (
     SELECT id FROM task
-     WHERE status = 'queued' AND run_after <= now()
+     WHERE tenant_id = :tenant_id
+       AND status = 'queued'
+       AND run_after <= now()
      ORDER BY priority ASC, run_after ASC
      FOR UPDATE SKIP LOCKED
      LIMIT 1
@@ -1369,54 +1334,19 @@ UPDATE task t
 RETURNING t.*;
 ```
 
-### 16.5 Tổng chi phí theo dossier
+### 17.6 Tổng chi phí token và USD theo dossier & tenant
 
 ```sql
-SELECT dossier_id,
+SELECT tenant_id, dossier_id,
        SUM(cost_usd)                            AS total_usd,
        SUM(input_tokens)                        AS total_in,
        SUM(output_tokens)                       AS total_out,
-       COUNT(*)                                AS calls
+       COUNT(*)                                 AS calls
 FROM usage_ledger
-WHERE dossier_id = 'dos_01J9X...'
-GROUP BY dossier_id;
-```
-
-### 16.6 Finding cần reviewer (qua view)
-
-```sql
-SELECT * FROM v_conflict
-WHERE dossier_id = 'dos_01J9X...'
-ORDER BY
-  CASE severity WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
-  confidence ASC;
-```
-
-### 16.7 Cập nhật ngày hiệu lực lên document (S7)
-
-```sql
-UPDATE document d
-   SET effective_date = (
-       SELECT (normalized_value->>'value')::date
-       FROM fact
-       WHERE document_id = d.id AND key = 'date.effective'
-       ORDER BY confidence DESC LIMIT 1
-   ),
-   signing_date = (
-       SELECT (normalized_value->>'value')::date
-       FROM fact
-       WHERE document_id = d.id AND key = 'date.signing'
-       ORDER BY confidence DESC LIMIT 1
-   )
-WHERE d.id = ANY(:doc_ids);
-```
-
-### 16.8 Tóm tắt batch
-
-```sql
-SELECT * FROM v_batch_summary WHERE batch_id = 'btc_01J9X...';
+WHERE tenant_id = :tenant_id AND dossier_id = :dossier_id
+GROUP BY tenant_id, dossier_id;
 ```
 
 ---
 
-**Hết DOC-04c · Database ERD v1.0**
+**Hết DOC-04c · Database ERD v1.2.0 (SemVer)**

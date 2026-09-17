@@ -1,20 +1,23 @@
 -- =============================================================================
 -- DOC-04b · PostgreSQL Schema for Contract Intelligence
 -- =============================================================================
--- Phiên bản: v1.1 · 2026-09-17 · +doc_table, table_cell, clause_region (khớp target_type CHECK)
+-- Phiên bản: v1.2.0 · 2026-09-17 · Multi-Tenancy (tenant_id), Chuẩn hóa x-rbac,
+--           Bổ sung: dossier_manifest, manifest_document, reocr_request,
+--           external_approval_grant, optimization_campaign/candidate/experiment.
 -- Tài liệu tham chiếu:
---   - docs/DOC-04-architecture.md (kiến trúc)
---   - backend/CONTEXT.md mục 5 (quyết định & ERD)
---   - docs/DOC-05-api-spec.yaml (API dùng schema này)
+--   - docs/DOC-04-architecture.md (kiến trúc v0.7.0)
+--   - docs/DOC-05-api-spec.yaml (API v0.3.0)
+--   - docs/DOC-04c-database-erd.md (ERD v1.2.0)
 --
 -- Migration Alembic V1 ban đầu sẽ sinh từ file này.
 -- Trước khi chạy: tạo database `ci` và user `ci` riêng cho ứng dụng.
 --
 -- Nguyên tắc:
---   1. Bảng kết quả máy + audit chỉ INSERT (trigger forbid_mutation)
---   2. Optimistic concurrency: review_item.version, client echo base_version
---   3. Ngày hiệu lực: denormalize trên document, cập nhật ở S7
---   4. ID: TEXT có tiền tố (dos_, doc_, pg_, run_, ln_, cit_, fct_, fnd_, ri_, ra_)
+--   1. Tenant Isolation: Bắt buộc tenant_id trên các bảng nghiệp vụ gốc
+--   2. Bảng kết quả máy + audit chỉ INSERT (trigger forbid_mutation)
+--   3. Optimistic concurrency: review_item.version, client echo base_version
+--   4. Ngày hiệu lực: denormalize trên document, cập nhật ở S7
+--   5. ID: TEXT có tiền tố (dos_, doc_, pg_, run_, ln_, cit_, fct_, fnd_, ri_, ra_, mnf_, req_, eag_, cmp_, cnd_, exp_)
 -- =============================================================================
 
 BEGIN;
@@ -28,12 +31,13 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 
 -- ===========================================================================
--- §2. TÀI KHOẢN & PHÂN QUYỀN
+-- §2. TÀI KHOẢN, MULTI-TENANCY & PHÂN QUYỀN
 -- ===========================================================================
 CREATE TABLE app_user (
     id            TEXT PRIMARY KEY,                            -- prefix "usr_"
+    tenant_id     TEXT NOT NULL,                               -- Tenant Isolation
     display_name  TEXT NOT NULL,
-    role          TEXT NOT NULL CHECK (role IN ('operator', 'reviewer', 'admin')),
+    role          TEXT NOT NULL CHECK (role IN ('OPERATOR', 'REVIEWER', 'ADMINISTRATOR')),
     password_hash TEXT NOT NULL,                               -- argon2
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -44,6 +48,7 @@ CREATE TABLE app_user (
 -- ===========================================================================
 CREATE TABLE batch (
     id          TEXT PRIMARY KEY,                              -- prefix "btc_"
+    tenant_id   TEXT NOT NULL,                                 -- Tenant Isolation
     name        TEXT NOT NULL,
     auto_paused BOOLEAN NOT NULL DEFAULT false,
     created_by  TEXT NOT NULL REFERENCES app_user(id),
@@ -52,9 +57,15 @@ CREATE TABLE batch (
 
 CREATE TABLE dossier (
     id            TEXT PRIMARY KEY,                            -- prefix "dos_"
+    tenant_id     TEXT NOT NULL,                               -- Tenant Isolation
     name          TEXT NOT NULL,
     batch_id      TEXT REFERENCES batch(id) ON DELETE SET NULL,
+    status        TEXT NOT NULL DEFAULT 'uploaded' CHECK (status IN (
+                      'uploaded', 'processing', 'extracted',
+                      'pending_review', 'reviewed', 'approved', 'failed'
+                  )),
     has_conflicts BOOLEAN NOT NULL DEFAULT false,
+    is_locked     BOOLEAN NOT NULL DEFAULT false,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -62,16 +73,48 @@ CREATE TABLE dossier (
 CREATE TABLE document (
     id             TEXT PRIMARY KEY,                           -- prefix "doc_"
     dossier_id     TEXT NOT NULL REFERENCES dossier(id) ON DELETE CASCADE,
-    role           TEXT NOT NULL CHECK (role IN ('contract', 'annex')),
+    role           TEXT NOT NULL CHECK (role IN ('CONTRACT', 'ANNEX')),
     order_index    INT NOT NULL DEFAULT 0,
     filename       TEXT NOT NULL,
     sha256         TEXT NOT NULL,
     blob_uri       TEXT NOT NULL,
     page_count     INT NOT NULL DEFAULT 0,
     lang_detected  TEXT DEFAULT 'vi',
-    signing_date   DATE,                                       -- FIX concern 1: denormalized
-    effective_date DATE,                                       -- FIX concern 1: denormalized
+    signing_date   DATE,                                       -- denormalized
+    effective_date DATE,                                       -- denormalized
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+
+-- ===========================================================================
+-- §3b. MANIFEST & QUAN HỆ TÀI LIỆU
+-- ===========================================================================
+CREATE TABLE dossier_manifest (
+    id           TEXT PRIMARY KEY,                             -- prefix "mnf_"
+    tenant_id    TEXT NOT NULL,
+    dossier_id   TEXT NOT NULL REFERENCES dossier(id) ON DELETE CASCADE,
+    version      INT NOT NULL DEFAULT 1,
+    status       TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'confirmed', 'locked')),
+    confirmed_by TEXT REFERENCES app_user(id),
+    confirmed_at TIMESTAMPTZ,
+    notes        TEXT,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_dossier_manifest_version UNIQUE (dossier_id, version)
+);
+
+CREATE TABLE manifest_document (
+    id                 TEXT PRIMARY KEY,                         -- prefix "mfd_"
+    manifest_id        TEXT NOT NULL REFERENCES dossier_manifest(id) ON DELETE CASCADE,
+    document_id        TEXT NOT NULL REFERENCES document(id) ON DELETE CASCADE,
+    role               TEXT NOT NULL CHECK (role IN ('CONTRACT', 'ANNEX')),
+    display_order      INT NOT NULL,
+    title              TEXT,
+    document_number    TEXT,
+    signing_date       DATE,
+    annex_type         TEXT,
+    parent_document_id TEXT REFERENCES document(id),
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_manifest_document UNIQUE (manifest_id, document_id)
 );
 
 
@@ -80,6 +123,7 @@ CREATE TABLE document (
 -- ===========================================================================
 CREATE TABLE job (
     id             TEXT PRIMARY KEY,                           -- prefix "job_"
+    tenant_id      TEXT NOT NULL,                              -- Tenant Isolation
     dossier_id     TEXT NOT NULL REFERENCES dossier(id) ON DELETE CASCADE,
     batch_id       TEXT REFERENCES batch(id) ON DELETE SET NULL,
     status         TEXT NOT NULL CHECK (status IN (
@@ -96,9 +140,10 @@ CREATE TABLE job (
 
 CREATE TABLE pipeline_run (
     id                     TEXT PRIMARY KEY,                   -- prefix "run_"
+    tenant_id              TEXT NOT NULL,                      -- Tenant Isolation
     job_id                 TEXT NOT NULL REFERENCES job(id) ON DELETE CASCADE,
     dossier_id             TEXT NOT NULL REFERENCES dossier(id) ON DELETE CASCADE,
-    status                 TEXT NOT NULL CHECK (status IN ('running', 'succeeded', 'failed')),
+    status                 TEXT NOT NULL CHECK (status IN ('running', 'succeeded', 'failed', 'cancelled')),
     config_snapshot        JSONB NOT NULL,
     pipeline_version       TEXT NOT NULL,
     git_sha                TEXT NOT NULL,
@@ -117,7 +162,7 @@ CREATE TABLE job_step (
     run_id      TEXT NOT NULL REFERENCES pipeline_run(id) ON DELETE CASCADE,
     document_id TEXT REFERENCES document(id) ON DELETE CASCADE,
     step        TEXT NOT NULL,
-    status      TEXT NOT NULL CHECK (status IN ('queued', 'running', 'succeeded', 'failed', 'retrying')),
+    status      TEXT NOT NULL CHECK (status IN ('queued', 'running', 'succeeded', 'failed', 'retrying', 'skipped')),
     attempt     INT NOT NULL DEFAULT 1,
     pages       INT DEFAULT 0,
     duration_ms INT,
@@ -129,6 +174,7 @@ CREATE TABLE job_step (
 
 CREATE TABLE task (
     id           BIGSERIAL PRIMARY KEY,
+    tenant_id    TEXT NOT NULL,                                -- Tenant Isolation
     kind         TEXT NOT NULL,
     job_id       TEXT NOT NULL REFERENCES job(id) ON DELETE CASCADE,
     batch_id     TEXT REFERENCES batch(id) ON DELETE SET NULL,
@@ -149,7 +195,7 @@ CREATE TABLE task (
 
 
 -- ===========================================================================
--- §5. DỮ LIỆU CẤP TRANG VÀ KẾT QUẢ MÁY (PHẦN LỚN IMMUTABLE)
+-- §5. DỮ LIỆU CẤP TRANG VÀ KẾT QUẢ MÁY (IMMUTABLE)
 -- ===========================================================================
 CREATE TABLE page (
     id          TEXT PRIMARY KEY,                              -- prefix "pg_"
@@ -332,7 +378,6 @@ CREATE TABLE finding_side (
 -- ===========================================================================
 -- §6. HITL & OPTIMISTIC CONCURRENCY
 -- ===========================================================================
--- review_item: cờ version tăng đơn (P0-05)
 CREATE TABLE review_item (
     id                    TEXT PRIMARY KEY,                   -- prefix "ri_"
     dossier_id            TEXT NOT NULL REFERENCES dossier(id) ON DELETE CASCADE,
@@ -377,16 +422,93 @@ CREATE TABLE dossier_approval (
 
 
 -- ===========================================================================
--- §7. AUDIT TRAILS & LEDGER (APPEND-ONLY)
+-- §7. RE-OCR REQUESTS & EXTERNAL APPROVAL GRANTS
+-- ===========================================================================
+CREATE TABLE reocr_request (
+    id           TEXT PRIMARY KEY,                             -- prefix "req_"
+    tenant_id    TEXT NOT NULL,                                -- Tenant Isolation
+    document_id  TEXT NOT NULL REFERENCES document(id) ON DELETE CASCADE,
+    profile      TEXT NOT NULL CHECK (profile IN ('high_res_binarize', 'table_optimized', 'handwritten_vietnamese')),
+    page_numbers INT[],                                        -- NULL hoặc rỗng = toàn bộ document
+    status       TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'cancelled')),
+    reason       TEXT,
+    requested_by TEXT NOT NULL REFERENCES app_user(id),
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    completed_at TIMESTAMPTZ
+);
+
+CREATE TABLE external_approval_grant (
+    id                     TEXT PRIMARY KEY,                   -- prefix "eag_"
+    tenant_id              TEXT NOT NULL,                      -- Tenant Isolation
+    dossier_id             TEXT NOT NULL REFERENCES dossier(id) ON DELETE CASCADE,
+    provider               TEXT NOT NULL CHECK (provider IN ('docusign', 'sap_ariba', 'corporate_sso')),
+    status                 TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'expired')),
+    approver_email         TEXT NOT NULL,
+    approver_name          TEXT,
+    external_reference_id  TEXT,
+    digital_signature_hash TEXT,
+    signature_certificate  TEXT,
+    expires_at             TIMESTAMPTZ NOT NULL,
+    granted_at             TIMESTAMPTZ,
+    created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+
+-- ===========================================================================
+-- §8. OPTIMIZATION LOOP (CAMPAIGNS, CANDIDATES, EXPERIMENTS)
+-- ===========================================================================
+CREATE TABLE optimization_campaign (
+    id                 TEXT PRIMARY KEY,                       -- prefix "cmp_"
+    tenant_id          TEXT NOT NULL,                          -- Tenant Isolation
+    name               TEXT NOT NULL,
+    description        TEXT,
+    target_metric      TEXT NOT NULL CHECK (target_metric IN ('f1_score', 'precision', 'latency', 'cost')),
+    baseline_score     NUMERIC(5, 4) NOT NULL,
+    current_best_score NUMERIC(5, 4),
+    status             TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'archived')),
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE optimization_candidate (
+    id                   TEXT PRIMARY KEY,                     -- prefix "cnd_"
+    campaign_id          TEXT NOT NULL REFERENCES optimization_campaign(id) ON DELETE CASCADE,
+    name                 TEXT NOT NULL,
+    prompt_template      TEXT NOT NULL,
+    model_name           TEXT NOT NULL,
+    temperature          NUMERIC(3, 2) NOT NULL DEFAULT 0.00,
+    is_active_production BOOLEAN NOT NULL DEFAULT false,
+    benchmark_f1         NUMERIC(5, 4),
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE optimization_experiment (
+    id                     TEXT PRIMARY KEY,                   -- prefix "exp_"
+    campaign_id            TEXT NOT NULL REFERENCES optimization_campaign(id) ON DELETE CASCADE,
+    candidate_id           TEXT NOT NULL REFERENCES optimization_candidate(id) ON DELETE CASCADE,
+    golden_dataset_version TEXT NOT NULL,
+    status                 TEXT NOT NULL DEFAULT 'configured' CHECK (status IN ('configured', 'running', 'completed', 'failed')),
+    sample_size            INT NOT NULL DEFAULT 100,
+    f1_score               NUMERIC(5, 4),
+    precision_score        NUMERIC(5, 4),
+    recall_score           NUMERIC(5, 4),
+    avg_latency_ms         NUMERIC(10, 2),
+    total_cost_usd         NUMERIC(10, 4),
+    created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+    completed_at           TIMESTAMPTZ
+);
+
+
+-- ===========================================================================
+-- §9. AUDIT TRAILS & LEDGER (APPEND-ONLY)
 -- ===========================================================================
 CREATE TABLE job_event (
-    id         BIGSERIAL PRIMARY KEY,
-    job_id     TEXT NOT NULL REFERENCES job(id) ON DELETE CASCADE,
+    id          BIGSERIAL PRIMARY KEY,
+    job_id      TEXT NOT NULL REFERENCES job(id) ON DELETE CASCADE,
     from_status TEXT,
-    to_status  TEXT NOT NULL,
-    actor      TEXT NOT NULL,
-    reason     TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    to_status   TEXT NOT NULL,
+    actor       TEXT NOT NULL,
+    reason      TEXT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE page_step_stat (
@@ -402,6 +524,7 @@ CREATE TABLE page_step_stat (
 
 CREATE TABLE usage_ledger (
     id               BIGSERIAL PRIMARY KEY,
+    tenant_id        TEXT NOT NULL,                            -- Tenant Isolation
     run_id           TEXT NOT NULL REFERENCES pipeline_run(id) ON DELETE CASCADE,
     dossier_id       TEXT NOT NULL,
     step             TEXT NOT NULL,
@@ -424,8 +547,17 @@ CREATE TABLE usage_ledger (
 
 
 -- ===========================================================================
--- §8. BỘ CHỈ MỤC HIỆU NĂNG (INDEXES)
+-- §10. BỘ CHỈ MỤC HIỆU NĂNG (INDEXES)
 -- ===========================================================================
+-- Multi-Tenancy root indexes
+CREATE INDEX idx_app_user_tenant            ON app_user(tenant_id);
+CREATE INDEX idx_batch_tenant               ON batch(tenant_id, created_at DESC);
+CREATE INDEX idx_dossier_tenant             ON dossier(tenant_id, created_at DESC);
+CREATE INDEX idx_job_tenant                 ON job(tenant_id, status);
+CREATE INDEX idx_pipeline_run_tenant        ON pipeline_run(tenant_id, created_at DESC);
+CREATE INDEX idx_task_tenant                ON task(tenant_id, status);
+CREATE INDEX idx_usage_ledger_tenant        ON usage_ledger(tenant_id, created_at DESC);
+
 -- FK + status filter + composite phục vụ resolve citation / effective view
 CREATE INDEX idx_document_dossier_id        ON document(dossier_id);
 CREATE INDEX idx_document_order             ON document(dossier_id, role, order_index);
@@ -435,6 +567,18 @@ CREATE INDEX idx_job_status                 ON job(status);
 CREATE INDEX idx_job_step_run_id            ON job_step(run_id);
 CREATE INDEX idx_task_ready                 ON task (priority, run_after) WHERE status = 'queued';
 CREATE INDEX idx_task_job_id                ON task(job_id);
+
+CREATE INDEX idx_manifest_dossier           ON dossier_manifest(dossier_id, status);
+CREATE INDEX idx_manifest_document_mnf      ON manifest_document(manifest_id, display_order);
+
+CREATE INDEX idx_reocr_request_tenant       ON reocr_request(tenant_id, status);
+CREATE INDEX idx_reocr_request_doc          ON reocr_request(document_id);
+CREATE INDEX idx_ext_approval_grant_tenant  ON external_approval_grant(tenant_id, status);
+CREATE INDEX idx_ext_approval_grant_dos     ON external_approval_grant(dossier_id);
+
+CREATE INDEX idx_opt_campaign_tenant        ON optimization_campaign(tenant_id, status);
+CREATE INDEX idx_opt_candidate_campaign     ON optimization_candidate(campaign_id, is_active_production);
+CREATE INDEX idx_opt_experiment_campaign    ON optimization_experiment(campaign_id, status);
 
 CREATE INDEX idx_ocr_line_page_run          ON ocr_line(page_id, run_id);
 CREATE INDEX idx_citation_document_run      ON citation(document_id, run_id);
@@ -458,7 +602,7 @@ CREATE INDEX idx_usage_ledger_dossier       ON usage_ledger(dossier_id);
 
 
 -- ===========================================================================
--- §9. CƯỠNG CHẾ BẤT BIẾN (TRIGGERS)
+-- §11. CƯỠNG CHẾ BẤT BIẾN (TRIGGERS)
 -- ===========================================================================
 -- Hàm chung: bất kỳ bảng immutable nào UPDATE/DELETE đều raise exception
 CREATE OR REPLACE FUNCTION forbid_mutation() RETURNS trigger AS $$
@@ -486,7 +630,7 @@ CREATE TRIGGER trg_immutable_dossier_approval BEFORE UPDATE OR DELETE ON dossier
 
 
 -- ===========================================================================
--- §10. VIEWS NGHIỆP VỤ
+-- §12. VIEWS NGHIỆP VỤ
 -- ===========================================================================
 -- Conflict: view trên finding cần reviewer xử lý
 CREATE OR REPLACE VIEW v_conflict AS
@@ -539,21 +683,8 @@ WHERE j.batch_id IS NOT NULL
 GROUP BY j.batch_id;
 
 
--- ===========================================================================
--- §11. SEED TÀI KHOẢN MẶC ĐỊNH (DEV ONLY)
--- ===========================================================================
--- 3 tài khoản bootstrap cho môi trường dev; production seed bằng script riêng
--- với password_hash từ argon2 thật. Không commit hash production.
--- INSERT INTO app_user (id, display_name, role, password_hash)
--- VALUES
---     ('usr_01J0001OPERATOR', 'Default Operator', 'operator', '$argon2id$dev_only'),
---     ('usr_01J0001REVIEWER', 'Default Reviewer', 'reviewer', '$argon2id$dev_only'),
---     ('usr_01J0001ADMIN',    'Default Admin',    'admin',    '$argon2id$dev_only');
-
-
 COMMIT;
 
-
 -- =============================================================================
--- Hết DOC-04b · PostgreSQL Schema v1.0
+-- Hết DOC-04b · PostgreSQL Schema v1.2.0
 -- =============================================================================
