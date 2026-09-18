@@ -1,6 +1,6 @@
 # AI2 Sprint 1 Planning
 
-Thư mục này chứa các tài liệu planning của AI2, được đặt tên theo mã ticket để dễ theo dõi. Tài liệu handoff/tổng hợp nằm tại [ST-022-HANDOFF.vi.md](ST-022-HANDOFF.vi.md).
+Thư mục này chứa các tài liệu planning của AI2, được đặt tên theo mã ticket để dễ theo dõi. Tài liệu handoff/tổng hợp nằm tại [ST-022-HANDOFF.vi.md](ST-022-HANDOFF.vi.md) và là entry point để leader review.
 
 Biên bản giới hạn claim EOD 15/09: [EOD-2026-09-15-CORRECTION.vi.md](EOD-2026-09-15-CORRECTION.vi.md).
 
@@ -16,4 +16,4 @@ Biên bản giới hạn claim EOD 15/09: [EOD-2026-09-15-CORRECTION.vi.md](EOD-
 | ST-021 | [Experiment card](ST-021-EXPERIMENT-CARD.vi.md), [metric protocol](ST-021-METRIC-PROTOCOL.vi.md) |
 | ST-022 | [Handoff](ST-022-HANDOFF.vi.md), [PRD content](ST-022-PRD-CONTENT.vi.md), [SAD content](ST-022-SAD-CONTENT.vi.md), [traceability](ST-022-TRACEABILITY-AND-INTEGRATION.vi.md), [review register](ST-022-DECISIONS-RISKS-REVIEW.vi.md), [task plan](ST-022-TASK-PLAN.vi.md) |
 
-Các tài liệu hiện ở trạng thái planning/draft; việc review, sign-off và evidence thực nghiệm được quản lý trong tài liệu handoff.
+Các tài liệu hiện ở trạng thái planning/draft; việc review, sign-off và evidence thực nghiệm được quản lý trong tài liệu handoff. ST-020 hiện `In Review / Blocked` vì chưa có PDF/render và OCR snapshot từ AI1/BE; không dùng folder link thay cho link file khi cập nhật tracker.

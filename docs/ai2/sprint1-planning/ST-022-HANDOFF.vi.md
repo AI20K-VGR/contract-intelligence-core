@@ -1,10 +1,10 @@
 # Sprint 1 — bộ tài liệu AI2 hiện hành
 
 **Owner:** Trần Văn Dũng — AI2
-**Trạng thái:** `Draft ready`; chưa có leader/mentor sign-off, OCR thật hoặc Gate B evidence.
+**Trạng thái:** `Draft ready / Pending review`; chưa có leader/mentor sign-off, OCR thật hoặc Gate B evidence. ST-020 đang blocked vì chưa nhận PDF/render và OCR snapshot từ AI1/BE.
 **Nguồn chuẩn:** Các tài liệu tiếng Việt trong danh sách dưới đây.
 
-Thư mục này chỉ giữ tài liệu đang dùng cho phần AI2. Lịch sử review, patch và bản Anh v0.2 được chuyển sang [`archive/`](archive/) để bảo toàn evidence nhưng không dùng làm nguồn nộp.
+Thư mục này chỉ giữ tài liệu đang dùng cho phần AI2. Lịch sử review, patch và bản Anh v0.2 được bảo toàn trong Git history nhưng không dùng làm nguồn nộp.
 
 ## Bộ nộp leader hiện tại
 
@@ -19,6 +19,21 @@ Thư mục này chỉ giữ tài liệu đang dùng cho phần AI2. Lịch sử 
 | [ST-015-LEADER-REVIEW-BRIEF.vi.md](ST-015-LEADER-REVIEW-BRIEF.vi.md) | Một trang quyết định/checklist gửi leader. | Draft ready |
 | [ST-022-DECISIONS-RISKS-REVIEW.vi.md](ST-022-DECISIONS-RISKS-REVIEW.vi.md) | Quyết định, risk, reviewer và sign-off register. | Draft ready |
 | [ST-022-TASK-PLAN.vi.md](ST-022-TASK-PLAN.vi.md) | Tracker cá nhân AI2; ngày/effort là đề xuất, không là timesheet. | Draft ready |
+
+## Trạng thái đóng task
+
+| Task | Trạng thái hiện tại | Điều kiện còn thiếu | Bằng chứng |
+|---|---|---|---|
+| ST-017 | Ready for review | AI1/BE/FE xác nhận contract, geometry và provenance | [Data contract](ST-017-DATA-CONTRACT.vi.md) |
+| ST-019 | Proposed / chưa adjudicate | Reviewer xác nhận ledger C01–C15 và ngày review | [Ground-truth ledger](ST-019-GROUND-TRUTH-LEDGER.v0.2.csv) |
+| ST-020 | In Review / Blocked | PDF/render, OCR snapshot, digest/run metadata và audit pass/fail | [Audit status](ST-020-OCR-BBOX-AUDIT-STATUS.vi.md) |
+| ST-022 | Draft ready / Pending review | Leader review và kết quả `Accept` hoặc `Returned` có ngày cho các task liên quan | File này |
+
+ST-022 chưa thể chuyển Done khi ST-017, ST-019 hoặc ST-020 chưa có kết quả review có ngày. Nếu reviewer trả về, ghi rõ ngày, lý do và file cần sửa; không xoá trạng thái blocked của ST-020 khi chưa có input.
+
+## Yêu cầu review leader
+
+Leader vui lòng phản hồi cho từng task bằng một trong hai kết quả `Accept` hoặc `Returned`, kèm ngày và link evidence. Với ST-020, nếu chưa có PDF/OCR snapshot từ AI1/BE, vui lòng xác nhận dependency còn mở thay vì đánh dấu Done.
 
 ## Phụ lục thiết kế và Gate B
 
@@ -46,6 +61,7 @@ Các artefact dưới đây hỗ trợ review thiết kế hoặc evaluation sau
 ## Cách dùng
 
 1. Gửi leader review brief, DOC-02, AI2 PRD, AI2 SAD, data contract và traceability register.
-2. Chỉ đổi trạng thái sang `Pending review` khi đã gửi hoặc có lịch review thật; lưu link bằng chứng trong decision register.
-3. Dùng phụ lục Gate B sau khi AI1/BE/FE và leader chốt dependency tương ứng.
-4. Không dùng nội dung trong `archive/` để báo cáo tiến độ hoặc làm nguồn chuẩn.
+2. Dùng file này làm entry point; link tracker phải trỏ trực tiếp tới file handoff, không chỉ trỏ tới folder.
+3. Chỉ đổi trạng thái sang `Pending review` khi đã gửi hoặc có lịch review thật; lưu link bằng chứng trong decision register.
+4. Dùng phụ lục Gate B sau khi AI1/BE/FE và leader chốt dependency tương ứng.
+5. Không dùng nội dung trong `archive/` để báo cáo tiến độ hoặc làm nguồn chuẩn.

@@ -1,6 +1,6 @@
 # Checklist audit OCR/bbox v0.2
 
-Đây là protocol planning; các ô chưa có kết quả. Owner audit đề xuất theo TASK-PLAN.vi.md. Ghi run/round ID, gold version, representation, document/snapshot IDs, source digest, engine/version, auditor, timestamp và đường dẫn PDF/render.
+Đây là protocol audit. Bản hiện tại chưa phải audit result vì chưa có input từ AI1/BE. Owner audit đề xuất theo TASK-PLAN.vi.md. Khi chạy phải ghi run/round ID, gold version, representation, document/snapshot IDs, source digest, engine/version, auditor, timestamp và đường dẫn PDF/render.
 
 ## Gate truy vết
 
@@ -25,3 +25,7 @@ C02,C13,C15: ba logical cases, hai phía/cả hai representations; tối đa 12 
 | Chưa chạy | pending | Theo gold/source | Chưa quan sát | pending | Chưa audit |
 
 Lỗi OCR dấu/số, unit, text song ngữ, table association là kết quả phải ghi nhận. Baseline dùng tập phát triển nên kết quả chỉ hỗ trợ feasibility; không suy rộng chất lượng corpus thực tế.
+
+## Gate đóng ST-020
+
+Không chuyển ticket sang Done chỉ vì checklist đã được viết. Cần có PDF/render và snapshot thật, audit log cho từng case/side, evidence link tới raw text và overlay bbox, cùng reviewer/date. Nếu input chưa đến, giữ `In Review / Blocked by input evidence` và ghi rõ owner cung cấp input.

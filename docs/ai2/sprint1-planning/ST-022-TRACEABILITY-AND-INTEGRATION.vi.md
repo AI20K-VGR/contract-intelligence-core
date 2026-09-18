@@ -1,7 +1,7 @@
 # Traceability và quyết định tích hợp — AI2 v0.2
 
 **Owner soạn:** Trần Văn Dũng — AI2  
-**Trạng thái:** Draft ready — register đề xuất, chưa có reviewer/ngày/evidence xác nhận.
+**Trạng thái:** Draft ready / Pending review — register đề xuất; chưa có reviewer, ngày review hoặc evidence xác nhận. ST-020 vẫn blocked bởi input OCR/BBox chưa được AI1/BE cung cấp.
 
 ## 1. Traceability
 
@@ -41,6 +41,10 @@
 - Integration design: cross-document evidence, missing evidence, multi-page/table citation, re-OCR preserves history, concurrent review conflict, upright-frame highlight.
 - Case catalogue C01–C15 × hai representation là coverage thiết kế. Không dùng làm claim OCR quality, integration pass hoặc metric.
 - Gate B chỉ chạy sau khi có PDF/OCR thật, source digest, bindings, audit và run log. Khi đó dùng [ST-020-OCR-BBOX-AUDIT-CHECKLIST.vi.md](ST-020-OCR-BBOX-AUDIT-CHECKLIST.vi.md) và [ST-021-METRIC-PROTOCOL.vi.md](ST-021-METRIC-PROTOCOL.vi.md).
+
+## 4.1. Closure evidence cho ST-022
+
+Trước khi đóng ST-022, cập nhật decision register với reviewer, ngày và link cho ST-017, ST-019 và ST-020. Kết quả hợp lệ là `Accept` hoặc `Returned`; `Draft ready`, `Pending review` hoặc một folder link không đủ để đóng task. Nếu ST-020 chưa nhận được input từ AI1/BE, ghi dependency này trong handoff và giữ ST-022 ở trạng thái chưa Done.
 
 ## 5. Ảnh hưởng tài liệu nhóm
 
