@@ -3,6 +3,7 @@
 REST API server cho dự án **Contract Intelligence** — FastAPI monolith với cấu trúc DDD + Clean Architecture.
 
 > **Ngữ cảnh làm việc:** đọc `backend/CONTEXT.md` trước khi bắt đầu bất kỳ task nào.
+> **Code regulations (CI rules):** đọc `backend/CONTRIBUTING.md` để biết pre-commit checklist + quy tắc tránh CI fail.
 > **Kiến trúc chi tiết:** xem `docs/DOC-04d-backend-architecture.md`.
 > **Sơ đồ quan hệ database:** xem `docs/DOC-04c-database-erd.md`.
 
