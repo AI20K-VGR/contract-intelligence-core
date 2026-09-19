@@ -121,3 +121,29 @@ jobs:
 
       - name: Run architecture tests (layer conformance)
         run: uv run pytest tests/architecture/ -v --tb=short
+
+  # ---------------------------------------------------------------------------
+  # Integration Tests — Auth flow với SQLite in-memory
+  # ---------------------------------------------------------------------------
+  test-integration:
+    name: Integration Tests (Auth endpoints)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install test dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: Run integration tests (SQLite in-memory)
+        run: uv run pytest tests/integration/ -v --tb=short

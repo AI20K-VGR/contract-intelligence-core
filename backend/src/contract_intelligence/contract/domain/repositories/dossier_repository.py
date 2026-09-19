@@ -23,7 +23,7 @@ class DossierRepository(Protocol):
     async def list(
         self,
         *,
-        batch_id: str | None = None,
+        status: str | None = None,
         has_conflicts: bool | None = None,
         limit: int = 50,
         offset: int = 0,
@@ -34,3 +34,9 @@ class DossierRepository(Protocol):
     async def save(self, dossier: Dossier) -> None: ...
 
     async def delete(self, dossier_id: str) -> None: ...
+
+    async def update_status(self, dossier_id: str, status: str) -> None: ...
+
+    async def lock(self, dossier_id: str, locked: bool = True) -> None: ...
+
+    async def approve(self, dossier_id: str, checksum: str) -> None: ...

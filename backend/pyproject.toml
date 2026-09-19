@@ -25,6 +25,9 @@ dependencies = [
     "opentelemetry-sdk>=1.27.0",
     "opentelemetry-instrumentation-fastapi>=0.48b0",
     "structlog>=24.1.0",
+    # Auth
+    "PyJWT[crypto]>=2.8.0",
+    "passlib[argon2]>=1.7.4",
 ]
 
 [project.optional-dependencies]
@@ -37,6 +40,8 @@ dev = [
     "import-linter>=2.0",
     "mypy>=1.10.0",
     "types-python-dateutil>=2.9.0",
+    "aiosqlite>=0.20.0",  # Integration tests (SQLite in-memory)
+    "aiofiles>=24.1.0",   # Async file I/O cho LocalFileStorage
 ]
 
 [build-system]
@@ -105,8 +110,20 @@ disallow_untyped_defs = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["minio.*", "alembic.*"]
+module = ["minio.*", "alembic.*", "passlib.*"]
 ignore_missing_imports = true
+
+# FastAPI router return types — chấp nhận untyped dict/list trong response models
+# vì API contract linh hoạt (OpenAPI generation tự handle). Domain logic vẫn strict.
+[[tool.mypy.overrides]]
+module = [
+    "contract_intelligence.contract.interfaces.api.routers.*",
+    "contract_intelligence.extraction.interfaces.api.routers.*",
+    "contract_intelligence.conflict.interfaces.api.routers.*",
+    "contract_intelligence.review.interfaces.api.routers.*",
+    "contract_intelligence.shared.ai.dispatcher",
+]
+disallow_any_explicit = false
 
 # -----------------------------------------------------------------------------
 # Pytest
@@ -147,104 +164,3 @@ exclude_lines = [
 ]
 show_missing = true
 fail_under = 70
-
-# -----------------------------------------------------------------------------
-# import-linter — enforce DDD layer dependencies
-# Run: lint-imports
-# -----------------------------------------------------------------------------
-[tool.importlinter]
-
-[[tool.importlinter.contract_types]]
-type = "forbidden"
-# Domain layer không được import từ application/infrastructure/interfaces
-# và không được import framework/ORM trực tiếp.
-source_modules = [
-    "contract_intelligence.contract.domain",
-    "contract_intelligence.extraction.domain",
-    "contract_intelligence.conflict.domain",
-    "contract_intelligence.review.domain",
-]
-forbidden_modules = [
-    "fastapi",
-    "sqlalchemy",
-    "alembic",
-    "minio",
-    "httpx",
-    "contract_intelligence.contract.application",
-    "contract_intelligence.contract.infrastructure",
-    "contract_intelligence.contract.interfaces",
-    "contract_intelligence.extraction.application",
-    "contract_intelligence.extraction.infrastructure",
-    "contract_intelligence.extraction.interfaces",
-    "contract_intelligence.conflict.application",
-    "contract_intelligence.conflict.infrastructure",
-    "contract_intelligence.conflict.interfaces",
-    "contract_intelligence.review.application",
-    "contract_intelligence.review.infrastructure",
-    "contract_intelligence.review.interfaces",
-]
-
-[[tool.importlinter.contract_application]]
-type = "layers"
-layers = [
-    "contract_intelligence.contract.interfaces",
-    "contract_intelligence.contract.application",
-    "contract_intelligence.contract.domain",
-]
-
-[[tool.importlinter.contract_extraction]]
-type = "layers"
-layers = [
-    "contract_intelligence.extraction.interfaces",
-    "contract_intelligence.extraction.application",
-    "contract_intelligence.extraction.domain",
-]
-
-[[tool.importlinter.contract_conflict]]
-type = "layers"
-layers = [
-    "contract_intelligence.conflict.interfaces",
-    "contract_intelligence.conflict.application",
-    "contract_intelligence.conflict.domain",
-]
-
-[[tool.importlinter.contract_review]]
-type = "layers"
-layers = [
-    "contract_intelligence.review.interfaces",
-    "contract_intelligence.review.application",
-    "contract_intelligence.review.domain",
-]
-
-[[tool.importlinter.contract_cross_module]]
-type = "forbidden"
-# Application layer của module A không được import infrastructure của module B.
-# Cross-module chỉ qua: shared kernel, domain event, application service public.
-source_modules = [
-    "contract_intelligence.contract.application",
-    "contract_intelligence.contract.infrastructure",
-]
-forbidden_modules = [
-    "contract_intelligence.extraction.infrastructure",
-    "contract_intelligence.conflict.infrastructure",
-    "contract_intelligence.review.infrastructure",
-    "contract_intelligence.extraction.interfaces",
-    "contract_intelligence.conflict.interfaces",
-    "contract_intelligence.review.interfaces",
-]
-
-[[tool.importlinter.contract_infra_no_interfaces]]
-type = "forbidden"
-# Infrastructure không được import interfaces (router/API).
-source_modules = [
-    "contract_intelligence.contract.infrastructure",
-    "contract_intelligence.extraction.infrastructure",
-    "contract_intelligence.conflict.infrastructure",
-    "contract_intelligence.review.infrastructure",
-]
-forbidden_modules = [
-    "contract_intelligence.contract.interfaces",
-    "contract_intelligence.extraction.interfaces",
-    "contract_intelligence.conflict.interfaces",
-    "contract_intelligence.review.interfaces",
-]

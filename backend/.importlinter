@@ -22,12 +22,15 @@ source_modules =
     contract_intelligence.extraction.domain
     contract_intelligence.conflict.domain
     contract_intelligence.review.domain
+    contract_intelligence.identity.domain
 forbidden_modules =
     fastapi
     sqlalchemy
     alembic
     minio
     httpx
+    jwt
+    passlib
     contract_intelligence.contract.application
     contract_intelligence.contract.infrastructure
     contract_intelligence.contract.interfaces
@@ -40,6 +43,9 @@ forbidden_modules =
     contract_intelligence.review.application
     contract_intelligence.review.infrastructure
     contract_intelligence.review.interfaces
+    contract_intelligence.identity.application
+    contract_intelligence.identity.infrastructure
+    contract_intelligence.identity.interfaces
 
 [importlinter:contract:application_no_infra_or_interfaces]
 name = Application no infra or interfaces
@@ -49,6 +55,7 @@ source_modules =
     contract_intelligence.extraction.application
     contract_intelligence.conflict.application
     contract_intelligence.review.application
+    contract_intelligence.identity.application
 forbidden_modules =
     contract_intelligence.contract.infrastructure
     contract_intelligence.contract.interfaces
@@ -58,6 +65,8 @@ forbidden_modules =
     contract_intelligence.conflict.interfaces
     contract_intelligence.review.infrastructure
     contract_intelligence.review.interfaces
+    contract_intelligence.identity.infrastructure
+    contract_intelligence.identity.interfaces
 
 [importlinter:contract:infrastructure_no_interfaces]
 name = Infrastructure no interfaces
@@ -67,11 +76,13 @@ source_modules =
     contract_intelligence.extraction.infrastructure
     contract_intelligence.conflict.infrastructure
     contract_intelligence.review.infrastructure
+    contract_intelligence.identity.infrastructure
 forbidden_modules =
     contract_intelligence.contract.interfaces
     contract_intelligence.extraction.interfaces
     contract_intelligence.conflict.interfaces
     contract_intelligence.review.interfaces
+    contract_intelligence.identity.interfaces
 
 [importlinter:contract:cross_module_independence]
 name = Cross module independence
@@ -81,6 +92,7 @@ source_modules =
     contract_intelligence.extraction.application
     contract_intelligence.conflict.application
     contract_intelligence.review.application
+    contract_intelligence.identity.application
 forbidden_modules =
     contract_intelligence.extraction.infrastructure
     contract_intelligence.extraction.interfaces
@@ -88,6 +100,8 @@ forbidden_modules =
     contract_intelligence.conflict.interfaces
     contract_intelligence.review.infrastructure
     contract_intelligence.review.interfaces
+    contract_intelligence.identity.infrastructure
+    contract_intelligence.identity.interfaces
 
 [importlinter:contract:contract_layers]
 name = Contract layers
@@ -120,3 +134,11 @@ layers =
     contract_intelligence.review.interfaces
     contract_intelligence.review.application
     contract_intelligence.review.domain
+
+[importlinter:contract:identity_layers]
+name = Identity layers
+type = layers
+layers =
+    contract_intelligence.identity.interfaces
+    contract_intelligence.identity.application
+    contract_intelligence.identity.domain

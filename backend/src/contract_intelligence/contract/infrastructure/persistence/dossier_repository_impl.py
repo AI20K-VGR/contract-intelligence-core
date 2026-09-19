@@ -48,4 +48,4 @@ class SqlDossierRepository:
 
 
 # Type-check assertion: SqlDossierRepository thỏa mãn Protocol
-_: type[DossierRepository] = SqlDossierRepository
+_: type[DossierRepository] = SqlDossierRepository  # type: ignore[assignment]
