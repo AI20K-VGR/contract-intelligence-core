@@ -83,7 +83,7 @@ async def _stream_run_events(
                 return
 
             # ── Emit step changes ───────────────────────────────────────
-            steps = await repo.list_steps(run_id)
+            steps: list[dict[str, Any]] = await repo.list_steps(run_id)
             for step in steps:
                 step_key = step["step"]
                 cur_status = step["status"]

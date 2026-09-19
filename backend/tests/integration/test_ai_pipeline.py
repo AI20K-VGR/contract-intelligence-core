@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import asyncio
 import io
-import json
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -34,7 +33,6 @@ from sqlalchemy.ext.asyncio import (
 
 from contract_intelligence.config.settings import get_settings
 from contract_intelligence.identity.domain.entities.app_user import AppUser, UserRole
-from contract_intelligence.identity.infrastructure.persistence.orm import AppUserORM
 from contract_intelligence.identity.infrastructure.persistence.user_repository_impl import (
     UserRepositoryImpl,
 )
@@ -51,7 +49,6 @@ from contract_intelligence.shared.persistence import (
     reset_engine,
 )
 from contract_intelligence.shared.persistence.session import get_async_session
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Settings override (autouse)
@@ -92,9 +89,7 @@ async def db_engine() -> AsyncGenerator[Any, None]:
 
 @pytest_asyncio.fixture(scope="function")
 async def seeded_users(db_engine: Any) -> AsyncGenerator[None, None]:
-    factory = async_sessionmaker(
-        bind=db_engine, expire_on_commit=False, class_=AsyncSession
-    )
+    factory = async_sessionmaker(bind=db_engine, expire_on_commit=False, class_=AsyncSession)
     async with factory() as session:
         hasher = Argon2PasswordHasher()
         repo = UserRepositoryImpl(session)
@@ -126,13 +121,9 @@ async def seeded_users(db_engine: Any) -> AsyncGenerator[None, None]:
 
 
 @pytest_asyncio.fixture
-async def client(
-    db_engine: Any, seeded_users: None
-) -> AsyncGenerator[AsyncClient, None]:
+async def client(db_engine: Any, seeded_users: None) -> AsyncGenerator[AsyncClient, None]:
     async def override_get_async_session() -> AsyncGenerator[AsyncSession, None]:
-        factory = async_sessionmaker(
-            bind=db_engine, expire_on_commit=False, class_=AsyncSession
-        )
+        factory = async_sessionmaker(bind=db_engine, expire_on_commit=False, class_=AsyncSession)
         async with factory() as session:
             try:
                 yield session
@@ -178,7 +169,7 @@ def _auth(token: str) -> dict[str, str]:
 
 def _pdf_bytes(content: str = "PDF stub content") -> bytes:
     """Tạo PDF stub bytes — không cần format PDF thật vì StubAI trả về canned."""
-    return (b"%PDF-stub\n" + content.encode("utf-8") + b"\n%%EOF")
+    return b"%PDF-stub\n" + content.encode("utf-8") + b"\n%%EOF"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -188,9 +179,7 @@ def _pdf_bytes(content: str = "PDF stub content") -> bytes:
 
 class TestDossierUpload:
     @pytest.mark.asyncio
-    async def test_upload_dossier_with_contract_only(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_upload_dossier_with_contract_only(self, client: AsyncClient) -> None:
         """POST /dossiers/upload với 1 contract file → 202 + dossier_id + run_id."""
         token = await _login(client, "operator@vgr.vn", "Operator@123")
         pdf = _pdf_bytes("Contract PDF")
@@ -216,19 +205,23 @@ class TestDossierUpload:
         assert data["documents"][0]["role"] == "contract"
 
     @pytest.mark.asyncio
-    async def test_upload_dossier_with_contract_and_annexes(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_upload_dossier_with_contract_and_annexes(self, client: AsyncClient) -> None:
         """POST /dossiers/upload với contract + 2 annex files."""
         token = await _login(client, "operator@vgr.vn", "Operator@123")
-        pdf = _pdf_bytes("Test")
 
         resp = await client.post(
             "/api/v1/dossiers/upload",
             headers=_auth(token),
             data={"name": "Dossier with annexes"},
             files=[
-                ("contract_file", ("contract.pdf", io.BytesIO(_pdf_bytes("Contract content unique")), "application/pdf")),
+                (
+                    "contract_file",
+                    (
+                        "contract.pdf",
+                        io.BytesIO(_pdf_bytes("Contract content unique")),
+                        "application/pdf",
+                    ),
+                ),
                 (
                     "annex_files",
                     ("phuluc-01.pdf", io.BytesIO(_pdf_bytes("Annex 01 unique")), "application/pdf"),
@@ -247,9 +240,7 @@ class TestDossierUpload:
         assert data["documents"][2]["role"] == "annex"
 
     @pytest.mark.asyncio
-    async def test_upload_without_contract_file_returns_400(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_upload_without_contract_file_returns_400(self, client: AsyncClient) -> None:
         """Thiếu contract_file → 422 (Pydantic validation) hoặc 400."""
         token = await _login(client, "operator@vgr.vn", "Operator@123")
         resp = await client.post(
@@ -261,9 +252,7 @@ class TestDossierUpload:
         assert resp.status_code in (400, 422)
 
     @pytest.mark.asyncio
-    async def test_upload_reviewer_role_forbidden(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_upload_reviewer_role_forbidden(self, client: AsyncClient) -> None:
         """REVIEWER không có quyền upload (chỉ OPERATOR, ADMINISTRATOR)."""
         # Note: chúng ta không seed REVIEWER trong fixture này — admin sẽ trả 403
         # vì admin cũng đủ quyền. Đăng nhập admin thử trước.
@@ -351,9 +340,7 @@ class TestAiServiceHealth:
 
 class TestReOcrAsync:
     @pytest.mark.asyncio
-    async def test_reocr_submit_returns_job_id(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_reocr_submit_returns_job_id(self, client: AsyncClient) -> None:
         """POST /documents/{id}/re-ocr trả job_id async."""
         token = await _login(client, "operator@vgr.vn", "Operator@123")
         pdf = _pdf_bytes()
@@ -433,9 +420,7 @@ class TestReOcrAsync:
 
 class TestPipelineRun:
     @pytest.mark.asyncio
-    async def test_pipeline_run_completes_via_stub(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_pipeline_run_completes_via_stub(self, client: AsyncClient) -> None:
         """Full pipeline (OCR → Extract) chạy qua stub → run=SUCCEEDED."""
         token = await _login(client, "operator@vgr.vn", "Operator@123")
         pdf = _pdf_bytes()
@@ -449,7 +434,6 @@ class TestPipelineRun:
         )
         assert up.status_code == 202
         run_id = up.json()["data"]["run_id"]
-        dossier_id = up.json()["data"]["dossier_id"]
 
         # Poll run status — StubAI trả completed ngay → run nên be succeeded sau vài giây
         status = None
@@ -467,9 +451,7 @@ class TestPipelineRun:
         assert status == "succeeded", f"expected succeeded, got {status}"
 
     @pytest.mark.asyncio
-    async def test_pipeline_run_steps_endpoint(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_pipeline_run_steps_endpoint(self, client: AsyncClient) -> None:
         """GET /runs/{id}/steps trả về 11 steps S0..S10."""
         token = await _login(client, "operator@vgr.vn", "Operator@123")
         pdf = _pdf_bytes()

@@ -32,9 +32,7 @@ class DossierApprovalORM(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    __table_args__ = (
-        Index("uq_dossier_approval_dossier", "dossier_id", unique=True),
-    )
+    __table_args__ = (Index("uq_dossier_approval_dossier", "dossier_id", unique=True),)
 
 
 class ExternalApprovalORM(Base):
@@ -55,9 +53,7 @@ class ExternalApprovalORM(Base):
     )  # pending | approved | rejected | expired
     callback_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    responded_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     response_payload: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON
     created_by: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

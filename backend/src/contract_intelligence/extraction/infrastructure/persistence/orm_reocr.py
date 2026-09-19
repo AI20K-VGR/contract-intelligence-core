@@ -32,13 +32,9 @@ class ReOcrRequestORM(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
-    finished_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    __table_args__ = (
-        Index("ix_reocr_doc_status", "document_id", "status"),
-    )
+    __table_args__ = (Index("ix_reocr_doc_status", "document_id", "status"),)
 
 
 __all__ = ["ReOcrRequestORM"]

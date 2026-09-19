@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -13,14 +13,13 @@ from contract_intelligence.shared.auth.dependencies import (
 )
 from contract_intelligence.shared.auth.exceptions import (
     AuthenticationError,
-    InsufficientRoleError,
 )
 from contract_intelligence.shared.auth.schemas import AuthenticatedUser, TokenType
-
 
 # -----------------------------------------------------------------------
 # Fixtures
 # -----------------------------------------------------------------------
+
 
 @pytest.fixture
 def valid_user() -> AuthenticatedUser:
@@ -46,6 +45,7 @@ def mock_request(valid_user: AuthenticatedUser) -> MagicMock:
 # get_current_user tests
 # -----------------------------------------------------------------------
 
+
 class TestGetCurrentUser:
     @pytest.mark.asyncio
     async def test_missing_authorization_header(self) -> None:
@@ -69,15 +69,9 @@ class TestGetCurrentUser:
     async def test_valid_token_returns_user(
         self, mock_request: MagicMock, valid_user: AuthenticatedUser
     ) -> None:
-        with patch(
-            "contract_intelligence.shared.auth.dependencies.get_jwt_service"
-        ) as mock_jwt:
-            mock_jwt.return_value.decode_and_validate_access.return_value = (
-                valid_user
-            )
-            result = await get_current_user(
-                mock_request, authorization="Bearer valid.jwt.token"
-            )
+        with patch("contract_intelligence.shared.auth.dependencies.get_jwt_service") as mock_jwt:
+            mock_jwt.return_value.decode_and_validate_access.return_value = valid_user
+            result = await get_current_user(mock_request, authorization="Bearer valid.jwt.token")
             assert result.user_id == valid_user.user_id
             assert result.tenant_id == valid_user.tenant_id
             assert result.role == valid_user.role
@@ -86,16 +80,12 @@ class TestGetCurrentUser:
 
     @pytest.mark.asyncio
     async def test_expired_token_returns_401(self, mock_request: MagicMock) -> None:
-        with patch(
-            "contract_intelligence.shared.auth.dependencies.get_jwt_service"
-        ) as mock_jwt:
-            mock_jwt.return_value.decode_and_validate_access.side_effect = (
-                AuthenticationError("Token has expired")
+        with patch("contract_intelligence.shared.auth.dependencies.get_jwt_service") as mock_jwt:
+            mock_jwt.return_value.decode_and_validate_access.side_effect = AuthenticationError(
+                "Token has expired"
             )
             with pytest.raises(HTTPException) as exc_info:
-                await get_current_user(
-                    mock_request, authorization="Bearer expired.jwt.token"
-                )
+                await get_current_user(mock_request, authorization="Bearer expired.jwt.token")
             assert exc_info.value.status_code == 401
             assert "expired" in exc_info.value.detail
 
@@ -103,6 +93,7 @@ class TestGetCurrentUser:
 # -----------------------------------------------------------------------
 # require_role tests
 # -----------------------------------------------------------------------
+
 
 class TestRequireRole:
     @pytest.mark.asyncio
@@ -141,13 +132,12 @@ class TestRequireRole:
 # AuthenticatedUser helper tests
 # -----------------------------------------------------------------------
 
+
 class TestAuthenticatedUser:
     def test_has_role_single(self, valid_user: AuthenticatedUser) -> None:
         assert valid_user.has_role("REVIEWER") is True
         assert valid_user.has_role("ADMINISTRATOR") is False
 
-    def test_has_role_multiple(
-        self, valid_user: AuthenticatedUser
-    ) -> None:
+    def test_has_role_multiple(self, valid_user: AuthenticatedUser) -> None:
         assert valid_user.has_role("OPERATOR", "REVIEWER") is True
         assert valid_user.has_role("ADMINISTRATOR", "OPERATOR") is False

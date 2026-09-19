@@ -43,9 +43,7 @@ class ReviewItemORM(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    __table_args__ = (
-        Index("ix_review_item_priority", "tenant_id", "priority", "status"),
-    )
+    __table_args__ = (Index("ix_review_item_priority", "tenant_id", "priority", "status"),)
 
 
 class ReviewActionORM(Base):

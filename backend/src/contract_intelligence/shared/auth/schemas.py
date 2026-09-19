@@ -19,6 +19,7 @@ class TokenType(StrEnum):
 # AuthenticatedUser — injected vào request.state via get_current_user()
 # -----------------------------------------------------------------------------
 
+
 @dataclass
 class AuthenticatedUser:
     """Auth context gắn vào mỗi request đã được xác thực.
@@ -37,11 +38,11 @@ class AuthenticatedUser:
                 raise PermissionError("Insufficient role")
     """
 
-    user_id: str       # "usr_..."
-    tenant_id: str     # "tenant_vgr_01"
-    email: str         # "john@company.com"
+    user_id: str  # "usr_..."
+    tenant_id: str  # "tenant_vgr_01"
+    email: str  # "john@company.com"
     display_name: str  # "Nguyễn Văn A"
-    role: str          # "OPERATOR" | "REVIEWER" | "ADMINISTRATOR"
+    role: str  # "OPERATOR" | "REVIEWER" | "ADMINISTRATOR"
     token_type: TokenType = TokenType.ACCESS
 
     def has_role(self, *roles: str) -> bool:
@@ -91,12 +92,8 @@ class LocalTokenClaims(BaseModel):
     tenant_id: str = Field(..., description="Tenant isolation scope")
     token_type: TokenType = Field(..., description='"access" hoặc "refresh"')
     email: str | None = Field(None, description="Email — chỉ có trong access token")
-    display_name: str | None = Field(
-        None, description="Tên hiển thị — chỉ có trong access token"
-    )
-    role: str | None = Field(
-        None, description="RBAC role — chỉ có trong access token"
-    )
+    display_name: str | None = Field(None, description="Tên hiển thị — chỉ có trong access token")
+    role: str | None = Field(None, description="RBAC role — chỉ có trong access token")
     token_version: int = Field(
         default=0,
         description="Số version của refresh token — dùng revoke session",
@@ -108,6 +105,7 @@ class LocalTokenClaims(BaseModel):
 # -----------------------------------------------------------------------------
 # Keycloak JWT claims (Production: RS256, JWKS)
 # -----------------------------------------------------------------------------
+
 
 class KeycloakTokenClaims(BaseModel):
     """Claims từ Keycloak JWT — production mode (RS256).
@@ -140,6 +138,7 @@ class KeycloakTokenClaims(BaseModel):
 # -----------------------------------------------------------------------------
 # Auth DTOs (request/response — dùng trong interfaces/router)
 # -----------------------------------------------------------------------------
+
 
 class LoginRequest(BaseModel):
     """Request body cho POST /auth/login."""

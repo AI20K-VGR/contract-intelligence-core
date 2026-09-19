@@ -14,12 +14,8 @@ class AuthenticationError(Exception):
 class TenantMismatchError(Exception):
     """Header X-Tenant-Id không khớp với JWT claim tenant_id."""
 
-    def __init__(
-        self, header_tenant: str | None, token_tenant: str | None
-    ) -> None:
-        super().__init__(
-            f"Tenant mismatch: header={header_tenant}, token={token_tenant}"
-        )
+    def __init__(self, header_tenant: str | None, token_tenant: str | None) -> None:
+        super().__init__(f"Tenant mismatch: header={header_tenant}, token={token_tenant}")
         self.header_tenant = header_tenant
         self.token_tenant = token_tenant
 
@@ -28,11 +24,7 @@ class InsufficientRoleError(Exception):
     """User không có vai trò cần thiết."""
 
     def __init__(self, required: str | tuple[str, ...]) -> None:
-        required_str = (
-            ", ".join(required)
-            if isinstance(required, tuple)
-            else required
-        )
+        required_str = ", ".join(required) if isinstance(required, tuple) else required
         super().__init__(f"Required role: {required_str}")
         self.required = required
 

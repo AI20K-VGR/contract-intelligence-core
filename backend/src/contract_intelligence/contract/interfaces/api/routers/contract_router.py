@@ -23,7 +23,7 @@ RBAC matrix (DOC-05b §2.3):
 
 from __future__ import annotations
 
-from typing import Any,  Annotated
+from typing import Annotated, Any
 
 from fastapi import (
     APIRouter,
@@ -312,7 +312,6 @@ async def get_manifest(
     return ApiResponse(
         data={
             "id": manifest.id,
-            "tenant_id": manifest.tenant_id,
             "dossier_id": manifest.dossier_id,
             "status": manifest.status,
             "confirmed_at": manifest.confirmed_at.isoformat() if manifest.confirmed_at else None,

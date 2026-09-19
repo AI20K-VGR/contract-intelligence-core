@@ -4,25 +4,27 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from typing import Any
+from typing import Any, cast
 
 import structlog
 
-from contract_intelligence.contract.infrastructure.persistence.repository_impl import (
-    DocumentRepositoryImpl,
+from contract_intelligence.contract.domain.repositories.document_repository import (
+    DocumentRepository,
 )
 from contract_intelligence.extraction.domain.entities.pipeline_run import (
     PipelineRun,
     PipelineRunStatus,
 )
-from contract_intelligence.extraction.infrastructure.persistence.repository_impl import (
-    CitationRepositoryImpl,
-    ClauseNodeRepositoryImpl,
-    DocTableRepositoryImpl,
-    FactRepositoryImpl,
-    PageRepositoryImpl,
-    PipelineRunRepositoryImpl,
+from contract_intelligence.extraction.domain.repositories.citation_repository import (
+    CitationRepository,
 )
+from contract_intelligence.extraction.domain.repositories.fact_repository import (
+    FactRepository,
+)
+from contract_intelligence.extraction.domain.repositories.page_repository import (
+    PageRepository,
+)
+
 # Import trực tiếp từ sub-module để tránh chain qua shared.ai.__init__
 # (eagerly imports persistence → ORM).
 from contract_intelligence.shared.ai.pipeline_orchestrator import (
@@ -38,19 +40,22 @@ logger = structlog.get_logger(__name__)
 
 
 class ExtractionService:
-    """Use-case orchestration cho Extraction BC."""
+    """Use-case orchestration cho Extraction BC.
+
+    Tất cả repo params giờ là Protocol từ domain — application không leak ORM/infrastructure.
+    """
 
     def __init__(
         self,
         *,
-        pipeline_run_repo: PipelineRunRepositoryImpl,
-        page_repo: PageRepositoryImpl,
-        ocr_line_repo: Any,  # OcrLineRepositoryImpl — chưa tạo riêng, dùng page_repo.get()
-        fact_repo: FactRepositoryImpl,
-        citation_repo: CitationRepositoryImpl,
-        clause_repo: ClauseNodeRepositoryImpl,
-        table_repo: DocTableRepositoryImpl,
-        document_repo: DocumentRepositoryImpl | None = None,
+        pipeline_run_repo: Any,  # PipelineRunRepository — domain Protocol
+        page_repo: PageRepository,
+        ocr_line_repo: Any,  # OcrLineRepository — domain Protocol (chưa extract)
+        fact_repo: FactRepository,
+        citation_repo: CitationRepository,
+        clause_repo: Any,  # ClauseNodeRepository — chưa extract Protocol
+        table_repo: Any,  # DocTableRepository — chưa extract Protocol
+        document_repo: DocumentRepository | None = None,
         orchestrator: PipelineOrchestrator | None = None,
         tenant_id: str,
     ) -> None:
@@ -97,6 +102,8 @@ class ExtractionService:
             git_sha=git_sha,
             trace_id=trace_id or str(uuid.uuid4()),
         )
+
+        run = cast(PipelineRun, run)
 
         # Build context — gather documents
         ctx = await self._build_context(run_id=run_id, dossier_id=dossier_id, trace_id=trace_id)
@@ -183,7 +190,9 @@ class ExtractionService:
         run = await self._pipeline_run_repo.get(run_id)
         if run is None:
             raise NotFoundError(entity_type="PipelineRun", entity_id=run_id)
-        return run
+        from typing import cast
+
+        return cast(PipelineRun, run)
 
     async def list_pipeline_runs(
         self,
@@ -196,7 +205,7 @@ class ExtractionService:
 
         page = cast(
             Any,
-            await self._pipeline_run_repo.list(
+            await self._pipeline_run_repo.list_pipeline_runs(
                 dossier_id=dossier_id, limit=limit, offset=offset
             ),
         )
@@ -204,7 +213,9 @@ class ExtractionService:
 
     async def get_pipeline_steps(self, run_id: str) -> list[dict[str, Any]]:
         await self.get_pipeline_run(run_id)  # Verify exists + tenant
-        return await self._pipeline_run_repo.list_steps(run_id)
+        from typing import cast
+
+        return cast(list[dict[str, Any]], await self._pipeline_run_repo.list_steps(run_id))
 
     async def cancel_pipeline_run(self, run_id: str) -> PipelineRun:
         run = await self.get_pipeline_run(run_id)
@@ -243,10 +254,12 @@ class ExtractionService:
         return data
 
     async def list_clauses(self, document_id: str) -> list[dict[str, Any]]:
-        return await self._clause_repo.list_by_document(document_id)
+        from typing import cast
+
+        return cast(list[dict[str, Any]], await self._clause_repo.list_by_document(document_id))
 
     async def list_tables(self, document_id: str) -> list[dict[str, Any]]:
-        return await self._table_repo.list_by_document(document_id)
+        return cast(list[dict[str, Any]], await self._table_repo.list_by_document(document_id))
 
 
 __all__ = ["ExtractionService"]

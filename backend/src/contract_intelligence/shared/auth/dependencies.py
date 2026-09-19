@@ -53,6 +53,7 @@ _TENANT_HEADER: str = "X-Tenant-Id"
 # get_current_user — extract & validate JWT from Authorization header
 # -----------------------------------------------------------------------------
 
+
 async def get_current_user(
     request: Request,
     authorization: Annotated[str | None, Header()] = None,
@@ -104,6 +105,7 @@ async def get_current_user(
 # require_role — factory trả dependency kiểm tra RBAC role
 # -----------------------------------------------------------------------------
 
+
 def require_role(*allowed_roles: str) -> Any:
     """Factory trả FastAPI dependency kiểm tra user.role ∈ allowed_roles.
 
@@ -133,8 +135,7 @@ def require_role(*allowed_roles: str) -> Any:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
-                    f"Insufficient role — required one of "
-                    f"{list(allowed_roles)}, got {user.role!r}"
+                    f"Insufficient role — required one of {list(allowed_roles)}, got {user.role!r}"
                 ),
             )
         return user
@@ -145,6 +146,7 @@ def require_role(*allowed_roles: str) -> Any:
 # -----------------------------------------------------------------------------
 # require_tenant — verify X-Tenant-Id header matches JWT claim
 # -----------------------------------------------------------------------------
+
 
 async def require_tenant(
     request: Request,

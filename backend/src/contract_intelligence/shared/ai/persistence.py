@@ -201,10 +201,10 @@ async def persist_ai1_snapshot(
 
     # ── Clauses ────────────────────────────────────────────────────────────
     # Map clause_text_offset_to_id để gắn parent_id
-    clause_id_map: dict[str, str] = {}
+    clause_id_map: dict[int, str] = {}
     for clause in payload.clauses:
         clause_id = new_ulid("cl_")
-        clause_id_map[id(clause)] = clause_id  # type: ignore[arg-type]
+        clause_id_map[id(clause)] = clause_id
         clause_orm = ClauseNodeORM(
             id=clause_id,
             tenant_id=tenant_id,
@@ -221,8 +221,10 @@ async def persist_ai1_snapshot(
             doc_char_start=clause.doc_char_start,
             doc_char_end=clause.doc_char_end,
             regions=json.dumps(
-                [{"page_no": r.page_no, "bbox": list(r.bbox), "bbox_source": r.bbox_source}
-                 for r in clause.regions]
+                [
+                    {"page_no": r.page_no, "bbox": list(r.bbox), "bbox_source": r.bbox_source}
+                    for r in clause.regions
+                ]
             )
             if clause.regions
             else None,

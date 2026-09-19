@@ -95,9 +95,7 @@ async def list_runs(
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ApiResponse[dict[str, Any]]:
     """Danh sách runs trong tenant."""
-    items, total = await svc.list_pipeline_runs(
-        dossier_id=dossier_id, limit=limit, offset=offset
-    )
+    items, total = await svc.list_pipeline_runs(dossier_id=dossier_id, limit=limit, offset=offset)
     return ApiResponse(
         data={
             "items": [

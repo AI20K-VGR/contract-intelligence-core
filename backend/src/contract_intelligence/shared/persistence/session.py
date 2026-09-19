@@ -102,10 +102,7 @@ def get_engine() -> AsyncEngine:
 def get_session_factory() -> async_sessionmaker[AsyncSession]:
     """Lấy session factory singleton — dùng cho background workers."""
     if _session_factory is None:
-        msg = (
-            "Session factory chưa được bind. "
-            "Gọi bind_engine() trong main.py lifespan startup."
-        )
+        msg = "Session factory chưa được bind. Gọi bind_engine() trong main.py lifespan startup."
         raise RuntimeError(msg)
     return _session_factory
 
@@ -169,4 +166,3 @@ __all__ = [
     "get_async_session",
     "reset_engine",
 ]
-

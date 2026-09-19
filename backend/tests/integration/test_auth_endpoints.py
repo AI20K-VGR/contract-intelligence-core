@@ -34,7 +34,6 @@ from sqlalchemy.ext.asyncio import (
 
 from contract_intelligence.config.settings import get_settings
 from contract_intelligence.identity.domain.entities.app_user import AppUser, UserRole
-from contract_intelligence.identity.infrastructure.persistence.orm import AppUserORM
 from contract_intelligence.identity.infrastructure.persistence.user_repository_impl import (
     UserRepositoryImpl,
 )
@@ -49,10 +48,10 @@ from contract_intelligence.shared.persistence import (
 )
 from contract_intelligence.shared.persistence.session import get_async_session
 
-
 # -----------------------------------------------------------------------------
 # Force test settings — phải set TRƯỚC khi import app để settings cached
 # -----------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="session", autouse=True)
 def _override_settings() -> Generator[None, None, None]:
@@ -72,6 +71,7 @@ def _override_settings() -> Generator[None, None, None]:
 # -----------------------------------------------------------------------------
 # DB setup — create schema once per session
 # -----------------------------------------------------------------------------
+
 
 @pytest_asyncio.fixture(scope="function")
 async def db_engine() -> AsyncGenerator[Any, None]:
@@ -95,9 +95,7 @@ async def db_engine() -> AsyncGenerator[Any, None]:
 @pytest_asyncio.fixture(scope="function")
 async def db_session(db_engine: Any) -> AsyncGenerator[AsyncSession, None]:
     """AsyncSession bound to test engine."""
-    factory = async_sessionmaker(
-        bind=db_engine, expire_on_commit=False, class_=AsyncSession
-    )
+    factory = async_sessionmaker(bind=db_engine, expire_on_commit=False, class_=AsyncSession)
     async with factory() as session:
         yield session
 
@@ -150,16 +148,13 @@ async def seeded_users(db_session: AsyncSession) -> AsyncGenerator[None, None]:
 # Test client
 # -----------------------------------------------------------------------------
 
+
 @pytest_asyncio.fixture
-async def client(
-    db_engine: Any, seeded_users: None
-) -> AsyncGenerator[AsyncClient, None]:
+async def client(db_engine: Any, seeded_users: None) -> AsyncGenerator[AsyncClient, None]:
     """AsyncClient bound to FastAPI app with dependency override."""
 
     async def override_get_async_session() -> AsyncGenerator[AsyncSession, None]:
-        factory = async_sessionmaker(
-            bind=db_engine, expire_on_commit=False, class_=AsyncSession
-        )
+        factory = async_sessionmaker(bind=db_engine, expire_on_commit=False, class_=AsyncSession)
         async with factory() as session:
             try:
                 yield session
@@ -186,9 +181,7 @@ async def client(
 
 class TestLogin:
     @pytest.mark.asyncio
-    async def test_login_success_returns_tokens(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_login_success_returns_tokens(self, client: AsyncClient) -> None:
         """Login với credentials đúng → 201 + access/refresh token + profile."""
         response = await client.post(
             "/api/v1/auth/login",
@@ -217,9 +210,7 @@ class TestLogin:
         assert user["tenant_id"] == "tenant_vgr_01"
 
     @pytest.mark.asyncio
-    async def test_login_wrong_password_returns_401(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_login_wrong_password_returns_401(self, client: AsyncClient) -> None:
         """Sai password → 401."""
         response = await client.post(
             "/api/v1/auth/login",
@@ -232,9 +223,7 @@ class TestLogin:
         assert "detail" in body or "error" in body
 
     @pytest.mark.asyncio
-    async def test_login_nonexistent_user_returns_401(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_login_nonexistent_user_returns_401(self, client: AsyncClient) -> None:
         """Email không tồn tại → 401 (không phân biệt được với wrong-password)."""
         response = await client.post(
             "/api/v1/auth/login",
@@ -244,9 +233,7 @@ class TestLogin:
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_login_deactivated_user_returns_401(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_login_deactivated_user_returns_401(self, client: AsyncClient) -> None:
         """User bị deactivate (is_active=False) → 401, không leak thông tin."""
         response = await client.post(
             "/api/v1/auth/login",
@@ -256,9 +243,7 @@ class TestLogin:
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_login_wrong_tenant_returns_401(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_login_wrong_tenant_returns_401(self, client: AsyncClient) -> None:
         """Email + tenant_id khác nhau → 401 (email unique per tenant)."""
         response = await client.post(
             "/api/v1/auth/login",
@@ -275,9 +260,7 @@ class TestLogin:
 
 class TestMe:
     @pytest.mark.asyncio
-    async def test_me_with_valid_token_returns_profile(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_me_with_valid_token_returns_profile(self, client: AsyncClient) -> None:
         # Login trước
         login_response = await client.post(
             "/api/v1/auth/login",
@@ -298,16 +281,12 @@ class TestMe:
         assert body["data"]["email"] == "admin@vgr.vn"
 
     @pytest.mark.asyncio
-    async def test_me_without_token_returns_401(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_me_without_token_returns_401(self, client: AsyncClient) -> None:
         response = await client.get("/api/v1/auth/me")
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_me_with_invalid_token_returns_401(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_me_with_invalid_token_returns_401(self, client: AsyncClient) -> None:
         response = await client.get(
             "/api/v1/auth/me",
             headers={"Authorization": "Bearer invalid.token.here"},
@@ -322,9 +301,7 @@ class TestMe:
 
 class TestRefresh:
     @pytest.mark.asyncio
-    async def test_refresh_with_valid_token_returns_new_pair(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_refresh_with_valid_token_returns_new_pair(self, client: AsyncClient) -> None:
         # Login
         login_response = await client.post(
             "/api/v1/auth/login",
@@ -336,6 +313,7 @@ class TestRefresh:
 
         # Sleep 1s để iat timestamp khác (JWT determinism với same second)
         import asyncio
+
         await asyncio.sleep(1.1)
 
         # Refresh
@@ -353,9 +331,7 @@ class TestRefresh:
         assert body["data"]["refresh_token"] != refresh_token
 
     @pytest.mark.asyncio
-    async def test_old_refresh_token_rejected_after_rotation(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_old_refresh_token_rejected_after_rotation(self, client: AsyncClient) -> None:
         """Sau refresh, dùng refresh_token CŨ → 401 (token_version revoked)."""
         # Login
         login_response = await client.post(
@@ -379,9 +355,7 @@ class TestRefresh:
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_refresh_with_invalid_token_returns_401(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_refresh_with_invalid_token_returns_401(self, client: AsyncClient) -> None:
         response = await client.post(
             "/api/v1/auth/refresh",
             json={"refresh_token": "invalid.token.here"},
@@ -423,8 +397,6 @@ class TestLogout:
         assert refresh_response.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_logout_without_token_returns_401(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_logout_without_token_returns_401(self, client: AsyncClient) -> None:
         response = await client.post("/api/v1/auth/logout")
         assert response.status_code == 401

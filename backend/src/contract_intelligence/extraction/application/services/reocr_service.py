@@ -25,6 +25,7 @@ from contract_intelligence.config.settings import get_settings
 from contract_intelligence.extraction.infrastructure.persistence.orm_reocr import (
     ReOcrRequestORM,
 )
+
 # Import directly from sub-modules to avoid transitive chain through
 # shared/ai/__init__.py (which eagerly imports shared.ai.persistence,
 # creating a back-reference to extraction.infrastructure).
@@ -108,9 +109,7 @@ class ReOcrService:
             )
         else:
             # Test path — chạy inline
-            asyncio.create_task(
-                self._poll_reocr_safely(req.id, submission.job_id)
-            )
+            asyncio.create_task(self._poll_reocr_safely(req.id, submission.job_id))
 
         return self._to_dict(req)
 
@@ -207,9 +206,7 @@ class ReOcrService:
                 await session.rollback()
                 raise
 
-    async def _mark_reocr_failed(
-        self, request_id: str, code: str, message: str
-    ) -> None:
+    async def _mark_reocr_failed(self, request_id: str, code: str, message: str) -> None:
         try:
             from contract_intelligence.shared.persistence import get_session_factory
 

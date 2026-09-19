@@ -147,6 +147,8 @@ async def external_approval_callback(
     svc: ApprovalServiceDep,
 ) -> ApiResponse[dict[str, Any]]:
     """Public webhook — không cần auth (dùng X-Internal-Service-Key ở Sprint 4)."""
-    return ApiResponse(data=await svc.handle_external_callback(
-        token=body.token, status=body.status, payload=body.payload
-    ))
+    return ApiResponse(
+        data=await svc.handle_external_callback(
+            token=body.token, status=body.status, payload=body.payload
+        )
+    )

@@ -66,12 +66,8 @@ class AppUserORM(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="true", index=True
     )
-    last_login_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    token_version: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default="0"
-    )
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
     # Audit
     created_at: Mapped[datetime] = mapped_column(
@@ -109,9 +105,7 @@ class AppUserORM(Base):
             "display_name": self.display_name,
             "role": self.role,
             "is_active": self.is_active,
-            "last_login_at": self.last_login_at.isoformat()
-            if self.last_login_at
-            else None,
+            "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
             "token_version": self.token_version,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

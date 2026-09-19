@@ -37,7 +37,7 @@ class FileStorage(ABC):
         """Download toàn bộ file thành bytes (dùng cho content endpoint)."""
 
     @abstractmethod
-    async def stream(self, blob_uri: str) -> AsyncGenerator[bytes, None]:
+    def stream(self, blob_uri: str) -> AsyncGenerator[bytes, None]:
         """Stream file theo chunk (tiết kiệm memory cho PDF lớn)."""
 
     @abstractmethod
@@ -111,7 +111,7 @@ class LocalFileStorage(FileStorage):
             msg = f"Blob not found: {blob_uri}"
             raise FileNotFoundError(msg)
         async with aiofiles.open(path, mode="rb") as f:
-            return await f.read()
+            return bytes(await f.read())
 
     async def stream(self, blob_uri: str) -> AsyncGenerator[bytes, None]:
         path = self._resolve(blob_uri)

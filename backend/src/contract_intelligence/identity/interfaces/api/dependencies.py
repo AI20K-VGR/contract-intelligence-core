@@ -44,6 +44,7 @@ from contract_intelligence.shared.persistence import get_async_session
 # Repository factories
 # -----------------------------------------------------------------------------
 
+
 async def get_user_repository(
     session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> UserRepository:

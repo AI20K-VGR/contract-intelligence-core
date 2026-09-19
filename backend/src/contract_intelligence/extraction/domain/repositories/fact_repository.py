@@ -1,18 +1,20 @@
-"""FactRepository Protocol."""
+"""FactRepository Protocol.
+
+Concrete impl (FactRepositoryImpl) trả về ``dict[str, Any] | None`` — application
+layer truy cập qua Protocol này, không thấy ORM.
+"""
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
-
-from contract_intelligence.extraction.domain.entities.fact import Fact
+from typing import Any, Protocol, runtime_checkable
 
 
 @runtime_checkable
 class FactRepository(Protocol):
-    async def get(self, fact_id: str) -> Fact | None: ...
+    async def get(self, fact_id: str) -> dict[str, Any] | None: ...
 
-    async def list_by_document(self, document_id: str, run_id: str) -> list[Fact]: ...
+    async def list_by_document(self, document_id: str) -> list[dict[str, Any]]: ...
 
-    async def list_by_key(self, key: str) -> list[Fact]: ...
+    async def list_by_key(self, key: str) -> list[dict[str, Any]]: ...
 
-    async def add(self, fact: Fact) -> None: ...
+    async def add(self, fact: object) -> None: ...

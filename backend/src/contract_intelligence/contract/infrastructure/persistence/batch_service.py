@@ -1,13 +1,15 @@
-"""SQLAlchemy ORM models + service cho Batches bounded context.
+"""Batch service — pure ORM CRUD wrapper, lives in infrastructure.
 
-Layer: infrastructure (persistence) + application (service).
+Layer: infrastructure/persistence (returns dicts, no domain entities).
+Moved from contract.application.services để tuân thủ DDD dependency rule
+(application layer KHÔNG được import infrastructure).
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from contract_intelligence.contract.infrastructure.persistence.orm_others import BatchORM
@@ -22,8 +24,6 @@ class BatchService:
     async def list_batches(
         self, *, limit: int = 50, offset: int = 0
     ) -> tuple[list[dict[str, Any]], int]:
-        from sqlalchemy import func
-
         stmt = select(BatchORM).where(BatchORM.tenant_id == self._tenant_id)
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total = int((await self._session.execute(count_stmt)).scalar() or 0)

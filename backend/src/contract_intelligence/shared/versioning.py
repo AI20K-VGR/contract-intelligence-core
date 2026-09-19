@@ -52,4 +52,3 @@ __all__ = [
     "__version__",
     "full_version",
 ]
-

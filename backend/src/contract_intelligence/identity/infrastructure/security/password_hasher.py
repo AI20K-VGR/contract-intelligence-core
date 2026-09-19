@@ -25,7 +25,7 @@ from contract_intelligence.identity.domain.entities.app_user import (
 _argon2_context = CryptContext(
     schemes=["argon2"],
     argon2__memory_cost=65536,  # 64 MiB
-    argon2__time_cost=3,        # iterations
+    argon2__time_cost=3,  # iterations
     argon2__parallelism=4,
     deprecated="auto",
 )

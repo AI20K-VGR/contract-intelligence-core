@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from contract_intelligence.conflict.infrastructure.persistence.repository_impl import (
-    AnnexLinkRepositoryImpl,
-    FindingRepositoryImpl,
+from contract_intelligence.conflict.domain.repositories import (
+    AnnexLinkRepository,
+    FindingRepository,
 )
 from contract_intelligence.shared.exceptions import NotFoundError
 
@@ -15,8 +15,8 @@ class ConflictService:
     def __init__(
         self,
         *,
-        finding_repo: FindingRepositoryImpl,
-        annex_link_repo: AnnexLinkRepositoryImpl,
+        finding_repo: FindingRepository,
+        annex_link_repo: AnnexLinkRepository,
         tenant_id: str,
     ) -> None:
         self._finding_repo = finding_repo

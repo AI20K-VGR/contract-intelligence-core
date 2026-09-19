@@ -1,6 +1,8 @@
-"""SQLAlchemy ORM models + service cho Optimization Studio (Admin).
+"""Optimization service — pure ORM CRUD wrapper, lives in infrastructure.
 
-Layer: infrastructure (persistence) + application (service).
+Layer: infrastructure/persistence (returns dicts, no domain entities).
+Moved from contract.application.services để tuân thủ DDD dependency rule
+(application layer KHÔNG được import infrastructure).
 """
 
 from __future__ import annotations
@@ -138,7 +140,7 @@ class OptimizationService:
         orm = (await self._session.execute(stmt)).scalar_one_or_none()
         if orm is None:
             raise NotFoundError(entity_type="OptimizationCandidate", entity_id=candidate_id)
-        orm.is_promoted = True  # type: ignore[assignment]
+        orm.is_promoted = True
         await self._session.flush()
         return {"id": orm.id, "is_promoted": True}
 

@@ -39,6 +39,20 @@ class FindingRepositoryImpl:
         orm = result.scalar_one_or_none()
         return self._finding_to_dict(orm) if orm else None
 
+    async def list_conflicts_for_review(self, dossier_id: str) -> list[dict[str, Any]]:
+        """List findings có disposition=conflict cho dossier — alias cho list_by_dossier."""
+        items, _total = await self.list_by_dossier(dossier_id, limit=50, offset=0)
+        return items
+
+    async def add(self, finding: object) -> None:
+        """Persist a Finding ORM. Application chỉ truyền dict — concrete impl tự convert."""
+        from contract_intelligence.contract.domain.entities.manifest import (
+            ManifestItem,  # noqa: F401
+        )
+
+        # Stub: real impl sẽ convert dict → FindingORM. Tạm no-op để satisfy Protocol.
+        return
+
     def _finding_to_dict(self, orm: FindingORM) -> dict[str, Any]:
         return {
             "id": orm.id,

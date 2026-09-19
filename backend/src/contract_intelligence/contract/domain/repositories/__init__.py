@@ -8,5 +8,13 @@ from contract_intelligence.contract.domain.repositories.document_repository impo
 )
 from contract_intelligence.contract.domain.repositories.dossier_repository import DossierRepository
 from contract_intelligence.contract.domain.repositories.job_repository import JobRepository
+from contract_intelligence.contract.domain.repositories.manifest_repository import (
+    ManifestRepository,
+)
 
-__all__ = ["DossierRepository", "DocumentRepository", "JobRepository"]
+__all__ = [
+    "DossierRepository",
+    "DocumentRepository",
+    "JobRepository",
+    "ManifestRepository",
+]

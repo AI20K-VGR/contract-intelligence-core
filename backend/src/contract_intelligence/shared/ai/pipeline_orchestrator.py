@@ -335,7 +335,7 @@ class PipelineOrchestrator:
                 lambda s: persist_usage_ledger(
                     s,
                     tenant_id=ctx.tenant_id,
-                    usage=report.usage,  # type: ignore[arg-type]
+                    usage=report.usage,
                     task_id=task_id,
                     job_kind="ocr",
                 )
@@ -389,7 +389,7 @@ class PipelineOrchestrator:
                 lambda s: persist_usage_ledger(
                     s,
                     tenant_id=ctx.tenant_id,
-                    usage=report.usage,  # type: ignore[arg-type]
+                    usage=report.usage,
                     task_id=task_id,
                     job_kind="extract",
                 )
@@ -451,7 +451,7 @@ class PipelineOrchestrator:
                 lambda s: persist_usage_ledger(
                     s,
                     tenant_id=ctx.tenant_id,
-                    usage=report.usage,  # type: ignore[arg-type]
+                    usage=report.usage,
                     task_id=task_id,
                     job_kind="compare",
                 )

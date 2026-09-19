@@ -28,6 +28,7 @@ class _UploadFilePlaceholder:
 
     def __get_pydantic_core_schema__(self, _source: Any, _handler: Any) -> Any:
         from pydantic_core import core_schema
+
         return core_schema.any_schema()
 
 

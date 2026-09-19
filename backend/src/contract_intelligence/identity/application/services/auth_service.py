@@ -167,8 +167,8 @@ class AuthService:
                                   token_version không khớp (bị revoke).
         """
         # 1. Decode & validate refresh token
-        user_id, tenant_id, token_version_from_token = (
-            self._jwt_svc.decode_refresh_token(refresh_token)
+        user_id, tenant_id, token_version_from_token = self._jwt_svc.decode_refresh_token(
+            refresh_token
         )
 
         # 2. Tra user và kiểm tra token_version
@@ -181,9 +181,7 @@ class AuthService:
 
         # 3. CRITICAL: Token version phải khớp — nếu không, token đã bị revoke
         if user.token_version != token_version_from_token:
-            raise AuthenticationError(
-                "Session has been revoked — please login again"
-            )
+            raise AuthenticationError("Session has been revoked — please login again")
 
         # 4. Sign tokens mới
         new_version = user.increment_token_version()

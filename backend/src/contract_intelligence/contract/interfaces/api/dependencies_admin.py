@@ -7,8 +7,10 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from contract_intelligence.contract.application.services.batch_service import BatchService
-from contract_intelligence.contract.application.services.optimization_service import (
+from contract_intelligence.contract.infrastructure.persistence.batch_service import (
+    BatchService,
+)
+from contract_intelligence.contract.infrastructure.persistence.optimization_service import (
     OptimizationService,
 )
 from contract_intelligence.shared.auth.tenant import get_tenant_id

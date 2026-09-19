@@ -87,9 +87,7 @@ class UserRepositoryImpl(UserRepository):
         orm = result.scalar_one_or_none()
         return _to_domain(orm) if orm else None
 
-    async def get_by_email(
-        self, tenant_id: str, email: str
-    ) -> AppUser | None:
+    async def get_by_email(self, tenant_id: str, email: str) -> AppUser | None:
         """SELECT * FROM app_user WHERE tenant_id = $1 AND lower(email) = lower($2).
 
         Args:

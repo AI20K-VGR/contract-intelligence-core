@@ -24,11 +24,11 @@ Lưu ý kiến trúc:
 from __future__ import annotations
 
 import hashlib
-import logging
 import uuid
 from io import BytesIO
 from typing import Annotated, Any
 
+import structlog
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -62,7 +62,7 @@ from contract_intelligence.shared.persistence import get_async_session
 from contract_intelligence.shared.responses import ApiResponse
 from contract_intelligence.shared.storage import get_file_storage
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["Contract-Upload"])
 
 

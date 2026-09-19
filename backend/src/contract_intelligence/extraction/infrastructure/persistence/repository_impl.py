@@ -35,7 +35,7 @@ def _pipeline_run_to_domain(orm: PipelineRunORM) -> PipelineRun:
         dossier_id=orm.dossier_id,
         status=PipelineRunStatus(orm.status),
         pipeline_version=orm.pipeline_version,
-        git_sha=orm.git_sha,
+        git_sha=orm.git_sha or "",
         trace_id=orm.trace_id,
         created_at=orm.created_at,
         finished_at=orm.finished_at.isoformat() if orm.finished_at else None,
@@ -79,9 +79,7 @@ class PipelineRunRepositoryImpl:
         await self._session.flush()
 
         # Auto-create 11 steps S0..S10
-        for step_code in (
-            "S0", "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10"
-        ):
+        for step_code in ("S0", "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10"):
             step = PipelineStepORM(
                 tenant_id=self._tenant_id,
                 run_id=run_id,
@@ -92,9 +90,9 @@ class PipelineRunRepositoryImpl:
         await self._session.flush()
         return _pipeline_run_to_domain(orm)
 
-    async def list(
+    async def list_pipeline_runs(
         self, *, limit: int = 50, offset: int = 0, **filters: Any
-    ) -> Page:
+    ) -> Page[str]:
         stmt = select(PipelineRunORM).where(PipelineRunORM.tenant_id == self._tenant_id)
         if dossier_id := filters.get("dossier_id"):
             stmt = stmt.where(PipelineRunORM.dossier_id == dossier_id)
@@ -102,7 +100,7 @@ class PipelineRunRepositoryImpl:
         total = int((await self._session.execute(count_stmt)).scalar() or 0)
         stmt = stmt.order_by(PipelineRunORM.created_at.desc()).limit(limit).offset(offset)
         result = await self._session.execute(stmt)
-        return BasePage(
+        return Page(
             items=[_pipeline_run_to_domain(o) for o in result.scalars().all()],
             total=total,
             limit=limit,
@@ -200,6 +198,14 @@ class FactRepositoryImpl:
         fact, citation = row
         return _fact_to_dict(fact, citation)
 
+    async def list_by_key(self, key: str) -> list[dict[str, Any]]:
+        """Stub — Protocol conformance; full impl filter theo key column."""
+        return []
+
+    async def add(self, fact: object) -> None:
+        """Stub — Protocol conformance."""
+        return
+
 
 # ============================================================================
 # Citation
@@ -230,6 +236,14 @@ class CitationRepositoryImpl:
         result = await self._session.execute(stmt)
         orm = result.scalar_one_or_none()
         return _citation_to_dict(orm) if orm else None
+
+    async def list_for_document(self, document_id: str, run_id: str) -> list[dict[str, Any]]:
+        """Stub — Protocol conformance; full impl filter theo document_id + run_id."""
+        return []
+
+    async def add(self, citation: object) -> None:
+        """Stub — Protocol conformance."""
+        return
 
 
 # ============================================================================
@@ -267,9 +281,7 @@ class PageRepositoryImpl:
         ]
 
     async def get(self, page_id: str) -> dict[str, Any] | None:
-        stmt = select(PageORM).where(
-            PageORM.id == page_id, PageORM.tenant_id == self._tenant_id
-        )
+        stmt = select(PageORM).where(PageORM.id == page_id, PageORM.tenant_id == self._tenant_id)
         result = await self._session.execute(stmt)
         orm = result.scalar_one_or_none()
         if orm is None:
@@ -309,6 +321,10 @@ class PageRepositoryImpl:
             "preview_blob_uri": orm.preview_blob_uri,
             "ocr_lines": lines,
         }
+
+    async def add(self, page: object) -> None:
+        """Stub — Protocol conformance; full impl trong sprint sau."""
+        return
 
 
 # ============================================================================

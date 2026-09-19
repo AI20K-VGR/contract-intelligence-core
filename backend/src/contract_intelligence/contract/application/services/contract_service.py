@@ -1,6 +1,6 @@
 """Contract application service — compose dossier/document/job/manifest logic.
 
-Layer: application — orchestrates infrastructure impls.
+Layer: application — orchestrates infrastructure impls (qua Protocols).
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ import structlog
 
 from contract_intelligence.contract.domain.entities.document import Document, DocumentRole
 from contract_intelligence.contract.domain.entities.dossier import Dossier
+from contract_intelligence.contract.domain.entities.manifest import Manifest
 from contract_intelligence.contract.domain.repositories.document_repository import (
     DocumentRepository,
 )
@@ -21,14 +22,10 @@ from contract_intelligence.contract.domain.repositories.dossier_repository impor
 from contract_intelligence.contract.domain.repositories.job_repository import (
     JobRepository,
 )
-from contract_intelligence.contract.infrastructure.persistence.orm import (
-    ManifestItemORM,
-    ManifestORM,
+from contract_intelligence.contract.domain.repositories.manifest_repository import (
+    ManifestRepository,
 )
-from contract_intelligence.contract.infrastructure.persistence.repository_impl import (
-    ManifestRepositoryImpl,
-)
-from contract_intelligence.shared.base import Page, new_ulid
+from contract_intelligence.shared.base import new_ulid
 from contract_intelligence.shared.exceptions import NotFoundError
 from contract_intelligence.shared.storage import FileStorage
 
@@ -56,7 +53,7 @@ class ContractService:
         dossier_repo: DossierRepository,
         document_repo: DocumentRepository,
         job_repo: JobRepository,
-        manifest_repo: ManifestRepositoryImpl,
+        manifest_repo: ManifestRepository,
         storage: FileStorage,
         tenant_id: str,
     ) -> None:
@@ -132,9 +129,9 @@ class ContractService:
                 has_conflicts=has_conflicts,
                 limit=limit,
                 offset=offset,
-            )
+            ),
         )
-        return list(page.items), page.total  # type: ignore[union-attr]
+        return list(page.items), page.total
 
     async def get_dossier(self, dossier_id: str) -> Dossier:
         dossier = await self._dossier_repo.get(dossier_id)
@@ -164,38 +161,34 @@ class ContractService:
         data = await self._storage.get(doc.blob_uri)
         return data, doc.filename
 
-    async def get_or_create_manifest(self, dossier_id: str) -> ManifestORM:
-        """Lấy hoặc tạo manifest draft cho dossier."""
+    async def get_or_create_manifest(self, dossier_id: str) -> Manifest:
+        """Lấy hoặc tạo manifest draft cho dossier.
+
+        Application layer gọi Protocol — infrastructure lo toàn bộ ORM.
+        """
         existing = await self._manifest_repo.get_by_dossier(dossier_id)
         if existing:
             return existing
         # Verify dossier tồn tại
         await self.get_dossier(dossier_id)
-        manifest = await self._manifest_repo.create(dossier_id)
-        # Tự động thêm 1 item cho mỗi document trong dossier
+        # Truyền plain dicts (id/filename/role/sha256) — không leak ORM lên application
         documents = await self._document_repo.list_by_dossier(dossier_id)
-        for idx, doc in enumerate(documents):
-            item = ManifestItemORM(
-                id=new_ulid("mfi_"),
-                manifest_id=manifest.id,
-                document_id=doc.id,
-                filename=doc.filename,
-                doc_type=doc.role.value,
-                sha256=doc.sha256,
-                confidence="1.0",  # exact match từ upload trực tiếp
-                order_index=idx,
-            )
-            await self._manifest_repo.add_item(item)
-        return manifest
+        documents_payload: list[dict[str, object]] = [
+            {"id": d.id, "filename": d.filename, "role": d.role.value, "sha256": d.sha256}
+            for d in documents
+        ]
+        return await self._manifest_repo.create_with_default_items(dossier_id, documents_payload)
 
-    async def confirm_manifest(self, dossier_id: str, user_id: str) -> ManifestORM:
+    async def confirm_manifest(self, dossier_id: str, user_id: str) -> Manifest:
         manifest = await self._manifest_repo.get_by_dossier(dossier_id)
         if manifest is None:
             raise NotFoundError(entity_type="Manifest", entity_id=dossier_id)
         await self._manifest_repo.confirm(manifest.id, user_id)
         # Cập nhật dossier status → ready for extraction
         await self._dossier_repo.update_status(dossier_id, "extracted")
-        return manifest
+        # Refresh sau confirm
+        refreshed = await self._manifest_repo.get_by_dossier(dossier_id)
+        return refreshed if refreshed is not None else manifest
 
 
 # -----------------------------------------------------------------------------

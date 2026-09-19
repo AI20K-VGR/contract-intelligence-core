@@ -7,6 +7,7 @@ Run: pytest tests/architecture/test_layer_conformance.py -v
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -24,12 +25,16 @@ class TestLayerConformance:
 
     def test_import_linter_passes(self, backend_root: Path) -> None:
         """import-linter phải pass — fail nếu vi phạm Dependency Rule."""
+        # Đảm bảo subprocess dùng UTF-8 cho stdout/stderr/file reading — tránh
+        # charmap decode error trên Windows khi .importlinter có comment Unicode.
+        env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
         result = subprocess.run(
             [sys.executable, "-m", "import_linter", "--config", ".importlinter"],
             cwd=str(backend_root),
             capture_output=True,
             text=True,
             encoding="utf-8",
+            env=env,
         )
         if result.returncode != 0:
             pytest.fail(

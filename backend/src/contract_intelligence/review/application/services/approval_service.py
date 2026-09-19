@@ -47,9 +47,7 @@ class ApprovalService:
         await self._dossier_repo.lock(dossier_id, locked=True)
         return {"id": dossier_id, "is_locked": True}
 
-    async def approve_dossier(
-        self, dossier_id: str, user_id: str
-    ) -> dict[str, Any]:
+    async def approve_dossier(self, dossier_id: str, user_id: str) -> dict[str, Any]:
         dossier = await self._dossier_repo.get(dossier_id)
         if dossier is None:
             raise NotFoundError(entity_type="Dossier", entity_id=dossier_id)

@@ -55,10 +55,14 @@ class ReviewRepositoryImpl:
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total = int((await self._session.execute(count_stmt)).scalar() or 0)
         # Sort priority P1 → P2 → P3 then by created_at
-        stmt = stmt.order_by(
-            ReviewItemORM.priority.asc(),
-            ReviewItemORM.created_at.asc(),
-        ).limit(limit).offset(offset)
+        stmt = (
+            stmt.order_by(
+                ReviewItemORM.priority.asc(),
+                ReviewItemORM.created_at.asc(),
+            )
+            .limit(limit)
+            .offset(offset)
+        )
         result = await self._session.execute(stmt)
         return [self._item_to_dict(o) for o in result.scalars().all()], total
 
@@ -127,12 +131,13 @@ class ReviewRepositoryImpl:
         orm = result.scalar_one_or_none()
         if orm is None:
             from contract_intelligence.shared.exceptions import NotFoundError
+
             raise NotFoundError(entity_type="ReviewItem", entity_id=item_id)
 
         if orm.version != base_version:
             # Conflict — client cần refetch
             raise ReviewVersionConflict(
-                item_id=item_id,
+                review_item_id=item_id,
                 expected_version=base_version,
                 current_version=orm.version,
             )
@@ -162,6 +167,7 @@ class ReviewRepositoryImpl:
             orm.status = ReviewItemStatus.AWAITING_EVIDENCE.value
 
         from contract_intelligence.shared.base import utcnow
+
         orm.updated_at = utcnow()
 
         try:
@@ -169,7 +175,7 @@ class ReviewRepositoryImpl:
         except IntegrityError as exc:
             await self._session.rollback()
             raise ReviewVersionConflict(
-                item_id=item_id,
+                review_item_id=item_id,
                 expected_version=base_version,
                 current_version=orm.version,
             ) from exc

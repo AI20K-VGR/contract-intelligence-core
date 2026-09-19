@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from contract_intelligence.contract.domain.entities.document import Document, DocumentRole
 from contract_intelligence.contract.domain.entities.dossier import Dossier
 from contract_intelligence.contract.domain.entities.job import Job, JobStatus
+from contract_intelligence.contract.domain.entities.manifest import Manifest, ManifestItem
 from contract_intelligence.contract.domain.repositories.document_repository import (
     DocumentRepository,
 )
@@ -310,16 +311,12 @@ class JobRepositoryImpl(JobRepository):
         self._tenant_id = tenant_id
 
     async def get(self, job_id: str) -> Job | None:
-        stmt = select(JobORM).where(
-            JobORM.id == job_id, JobORM.tenant_id == self._tenant_id
-        )
+        stmt = select(JobORM).where(JobORM.id == job_id, JobORM.tenant_id == self._tenant_id)
         result = await self._session.execute(stmt)
         orm = result.scalar_one_or_none()
         return _job_to_domain(orm) if orm else None
 
-    async def list(
-        self, *, limit: int = 50, offset: int = 0, **filters: object
-    ) -> Page[str]:
+    async def list(self, *, limit: int = 50, offset: int = 0, **filters: object) -> Page[str]:
         stmt = select(JobORM).where(JobORM.tenant_id == self._tenant_id)
         if dossier_id := filters.get("dossier_id"):
             stmt = stmt.where(JobORM.dossier_id == dossier_id)
@@ -349,9 +346,7 @@ class JobRepositoryImpl(JobRepository):
         await self._session.flush()
 
     async def save(self, entity: Job) -> None:
-        stmt = select(JobORM).where(
-            JobORM.id == entity.id, JobORM.tenant_id == self._tenant_id
-        )
+        stmt = select(JobORM).where(JobORM.id == entity.id, JobORM.tenant_id == self._tenant_id)
         result = await self._session.execute(stmt)
         orm = result.scalar_one_or_none()
         if orm is None:
@@ -364,9 +359,7 @@ class JobRepositoryImpl(JobRepository):
         await self._session.flush()
 
     async def delete(self, job_id: str) -> None:
-        stmt = select(JobORM).where(
-            JobORM.id == job_id, JobORM.tenant_id == self._tenant_id
-        )
+        stmt = select(JobORM).where(JobORM.id == job_id, JobORM.tenant_id == self._tenant_id)
         result = await self._session.execute(stmt)
         orm = result.scalar_one_or_none()
         if orm:
@@ -379,31 +372,88 @@ class JobRepositoryImpl(JobRepository):
 # ============================================================================
 
 
+def _manifest_to_domain(orm: ManifestORM, items: list[ManifestItem]) -> Manifest:
+    return Manifest(
+        id=orm.id,
+        dossier_id=orm.dossier_id,
+        status=orm.status,
+        items=list(items),
+        confirmed_at=orm.confirmed_at,
+        confirmed_by=orm.confirmed_by,
+    )
+
+
+def _manifest_item_to_domain(orm: ManifestItemORM) -> ManifestItem:
+    return ManifestItem(
+        id=orm.id,
+        manifest_id=orm.manifest_id,
+        document_id=orm.document_id or "",
+        filename=orm.filename,
+        doc_type=orm.doc_type,
+        sha256=orm.sha256 or "",
+        confidence=str(orm.confidence),
+        order_index=int(orm.order_index),
+    )
+
+
 class ManifestRepositoryImpl:
+    """Concrete implementation — convert ORM ↔ domain entities."""
+
     def __init__(self, session: AsyncSession, tenant_id: str) -> None:
         self._session = session
         self._tenant_id = tenant_id
 
-    async def get_by_dossier(self, dossier_id: str) -> ManifestORM | None:
+    async def get_by_dossier(self, dossier_id: str) -> Manifest | None:
         stmt = select(ManifestORM).where(
             ManifestORM.dossier_id == dossier_id,
             ManifestORM.tenant_id == self._tenant_id,
         )
         result = await self._session.execute(stmt)
-        return result.scalar_one_or_none()
+        orm = result.scalar_one_or_none()
+        if orm is None:
+            return None
+        items = await self.list_items(orm.id)
+        return _manifest_to_domain(orm, items)
 
-    async def create(self, dossier_id: str) -> ManifestORM:
+    async def create_with_default_items(
+        self, dossier_id: str, documents: list[dict[str, object]]
+    ) -> Manifest:
+        """Tạo manifest draft + tự động thêm 1 item mỗi document (default order).
+
+        Application layer truyền plain dicts (không ORM) → tuân thủ dependency rule.
+        """
         from ulid import ULID
 
-        orm = ManifestORM(
+        from contract_intelligence.contract.domain.entities.manifest import Manifest
+
+        manifest_orm = ManifestORM(
             id=f"mft_{ULID()}",
             tenant_id=self._tenant_id,
             dossier_id=dossier_id,
             status="DRAFT",
         )
-        self._session.add(orm)
+        self._session.add(manifest_orm)
         await self._session.flush()
-        return orm
+        for idx, doc in enumerate(documents):
+            item = ManifestItemORM(
+                id=f"mfi_{ULID()}",
+                manifest_id=manifest_orm.id,
+                document_id=str(doc.get("id", "")),
+                filename=str(doc.get("filename", "")),
+                doc_type=str(doc.get("role", "")),
+                sha256=str(doc.get("sha256", "")),
+                confidence="1.0",  # exact match từ upload trực tiếp
+                order_index=idx,
+            )
+            self._session.add(item)
+        await self._session.flush()
+        items = await self.list_items(manifest_orm.id)
+        return Manifest(
+            id=manifest_orm.id,
+            dossier_id=dossier_id,
+            status="DRAFT",
+            items=items,
+        )
 
     async def add_item(self, item: ManifestItemORM) -> None:
         self._session.add(item)
@@ -421,14 +471,14 @@ class ManifestRepositoryImpl:
             orm.confirmed_by = user_id
             await self._session.flush()
 
-    async def list_items(self, manifest_id: str) -> list[ManifestItemORM]:
+    async def list_items(self, manifest_id: str) -> list[ManifestItem]:
         stmt = (
             select(ManifestItemORM)
             .where(ManifestItemORM.manifest_id == manifest_id)
             .order_by(ManifestItemORM.order_index)
         )
         result = await self._session.execute(stmt)
-        return list(result.scalars().all())
+        return [_manifest_item_to_domain(o) for o in result.scalars().all()]
 
 
 __all__ = [

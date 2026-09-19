@@ -37,8 +37,8 @@ if TYPE_CHECKING:
 # Constants
 # -----------------------------------------------------------------------------
 
-_ACCESS_EXP_MINUTES: int = 60       # 1 hour
-_REFRESH_EXP_DAYS: int = 7          # 7 days
+_ACCESS_EXP_MINUTES: int = 60  # 1 hour
+_REFRESH_EXP_DAYS: int = 7  # 7 days
 _JWKS_CACHE_TTL_SECONDS: int = 3600  # 1 hour
 
 # Header keys
@@ -49,6 +49,7 @@ _HEADER_KID: str = "kid"
 # -----------------------------------------------------------------------------
 # JWKS key cache (thread-safe singleton)
 # -----------------------------------------------------------------------------
+
 
 class _JWKSCache:
     """In-memory JWKS cache với TTL.
@@ -66,10 +67,7 @@ class _JWKSCache:
     def get_signing_key(self, kid: str) -> Any:
         """Lấy signing key từ JWKS, tự refresh nếu hết TTL hoặc key not found."""
         now = time.monotonic()
-        if (
-            self._client is None
-            or (now - self._cached_at) > _JWKS_CACHE_TTL_SECONDS
-        ):
+        if self._client is None or (now - self._cached_at) > _JWKS_CACHE_TTL_SECONDS:
             self._refresh()
         return self._keys.get(kid)
 
@@ -94,6 +92,7 @@ class _JWKSCache:
         except Exception as exc:
             # JWKS fetch fail — log và keep using stale cache
             import structlog
+
             logger = structlog.get_logger(__name__)
             logger.warning(
                 "jwks_refresh_failed",
@@ -110,6 +109,7 @@ _jwks_cache = _JWKSCache()
 # -----------------------------------------------------------------------------
 # JWTService
 # -----------------------------------------------------------------------------
+
 
 class JWTService:
     """JWT encode/decode service — local HS256 hoặc Keycloak RS256.
@@ -206,9 +206,7 @@ class JWTService:
     # Decode — xác thực và parse token
     # -------------------------------------------------------------------------
 
-    def decode_and_validate_access(
-        self, token: str
-    ) -> AuthenticatedUser:
+    def decode_and_validate_access(self, token: str) -> AuthenticatedUser:
         """Decode + validate access token, trả về AuthenticatedUser.
 
         Raises:
@@ -255,9 +253,7 @@ class JWTService:
             return self._decode_keycloak_token(token, for_token_type)
         return self._decode_local_token(token, for_token_type)
 
-    def _decode_local_token(
-        self, token: str, for_token_type: TokenType
-    ) -> LocalTokenClaims:
+    def _decode_local_token(self, token: str, for_token_type: TokenType) -> LocalTokenClaims:
         """Decode + verify local JWT (HS256)."""
         try:
             raw = jwt.decode(
@@ -274,15 +270,11 @@ class JWTService:
         # Validate token_type
         actual_type = raw.get("token_type")
         if actual_type != for_token_type.value:
-            raise AuthenticationError(
-                f"Expected {for_token_type.value} token, got {actual_type!r}"
-            )
+            raise AuthenticationError(f"Expected {for_token_type.value} token, got {actual_type!r}")
 
         return LocalTokenClaims(**raw)
 
-    def _decode_keycloak_token(
-        self, token: str, for_token_type: TokenType
-    ) -> KeycloakTokenClaims:
+    def _decode_keycloak_token(self, token: str, for_token_type: TokenType) -> KeycloakTokenClaims:
         """Decode + verify Keycloak JWT (RS256 via JWKS)."""
         # Get header để lấy kid
         try:
@@ -301,9 +293,7 @@ class JWTService:
             _jwks_cache._refresh()  # noqa: SLF001
             key_data = _jwks_cache.get_signing_key(kid)
             if not key_data:
-                raise AuthenticationError(
-                    f"Signing key 'kid={kid}' not found in JWKS"
-                )
+                raise AuthenticationError(f"Signing key 'kid={kid}' not found in JWKS")
 
         try:
             # key_data is already a PyJWK from the cached JWKS — pass directly

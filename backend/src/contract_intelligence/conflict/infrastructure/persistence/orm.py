@@ -56,9 +56,7 @@ class FindingSideORM(Base):
     citation_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     value_snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON
 
-    __table_args__ = (
-        Index("uq_finding_side_finding_side", "finding_id", "side", unique=True),
-    )
+    __table_args__ = (Index("uq_finding_side_finding_side", "finding_id", "side", unique=True),)
 
 
 class AnnexLinkORM(Base):

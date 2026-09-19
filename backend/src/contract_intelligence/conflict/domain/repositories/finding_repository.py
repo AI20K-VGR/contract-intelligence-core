@@ -2,28 +2,30 @@
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
-
-from contract_intelligence.conflict.domain.entities.finding import (
-    Disposition,
-    Finding,
-    Severity,
-)
+from typing import Any, Protocol, runtime_checkable
 
 
 @runtime_checkable
 class FindingRepository(Protocol):
-    async def get(self, finding_id: str) -> Finding | None: ...
+    """Contract cho Finding persistence — application layer phụ thuộc Protocol này.
 
-    async def list_for_dossier(
-        self,
-        dossier_id: str,
-        *,
-        disposition: Disposition | None = None,
-        severity: Severity | None = None,
-        min_confidence: float | None = None,
-    ) -> list[Finding]: ...
+    Concrete impl (FindingRepositoryImpl) ở infrastructure phải khớp method names
+    và return types. Application chỉ type-hint qua Protocol — không biết ORM tồn tại.
+    """
 
-    async def list_conflicts_for_review(self, dossier_id: str) -> list[Finding]: ...
+    async def get(self, finding_id: str) -> dict[str, Any] | None: ...
 
-    async def add(self, finding: Finding) -> None: ...
+    async def list_by_dossier(
+        self, dossier_id: str, *, limit: int = 50, offset: int = 0
+    ) -> tuple[list[dict[str, Any]], int]: ...
+
+    async def list_conflicts_for_review(self, dossier_id: str) -> list[dict[str, Any]]: ...
+
+    async def add(self, finding: object) -> None: ...
+
+
+@runtime_checkable
+class AnnexLinkRepository(Protocol):
+    """Contract cho AnnexLink persistence."""
+
+    async def list_by_dossier(self, dossier_id: str) -> list[dict[str, Any]]: ...

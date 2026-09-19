@@ -37,18 +37,10 @@ class DossierORM(Base):
     tenant_id: Mapped[str] = mapped_column(Text, nullable=False, index=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     batch_id: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
-    status: Mapped[str] = mapped_column(
-        Text, nullable=False, server_default="uploaded"
-    )
-    has_conflicts: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default="false"
-    )
-    is_locked: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default="false"
-    )
-    is_approved: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default="false"
-    )
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="uploaded")
+    has_conflicts: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    is_locked: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    is_approved: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     checksum: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -57,9 +49,7 @@ class DossierORM(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    __table_args__ = (
-        Index("ix_dossier_tenant_status", "tenant_id", "status"),
-    )
+    __table_args__ = (Index("ix_dossier_tenant_status", "tenant_id", "status"),)
 
 
 class DocumentORM(Base):
@@ -78,9 +68,7 @@ class DocumentORM(Base):
     sha256: Mapped[str] = mapped_column(Text, nullable=False)
     blob_uri: Mapped[str] = mapped_column(Text, nullable=False)
     page_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
-    lang_detected: Mapped[str] = mapped_column(
-        Text, nullable=False, server_default="vi"
-    )
+    lang_detected: Mapped[str] = mapped_column(Text, nullable=False, server_default="vi")
     signing_date: Mapped[str | None] = mapped_column(Text, nullable=True)
     effective_date: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -104,12 +92,8 @@ class JobORM(Base):
         Text, ForeignKey("dossier.id", ondelete="CASCADE"), nullable=False, index=True
     )
     batch_id: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(
-        Text, nullable=False, server_default="uploaded"
-    )
-    has_conflicts: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default="false"
-    )
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="uploaded")
+    has_conflicts: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     current_run_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_detail: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSONB
@@ -134,9 +118,7 @@ class ManifestORM(Base):
     status: Mapped[str] = mapped_column(
         Text, nullable=False, server_default="DRAFT"
     )  # DRAFT | CONFIRMED
-    confirmed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     confirmed_by: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -157,7 +139,9 @@ class ManifestItemORM(Base):
     doc_type: Mapped[str] = mapped_column(Text, nullable=False)  # contract | annex | other
     sha256: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidence: Mapped[float] = mapped_column(
-        String, nullable=False, server_default="0.0"  # use String to avoid Float precision issues
+        String,
+        nullable=False,
+        server_default="0.0",  # use String to avoid Float precision issues
     )
     order_index: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(

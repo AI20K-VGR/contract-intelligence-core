@@ -36,9 +36,7 @@ class PipelineRunORM(Base):
     status: Mapped[str] = mapped_column(
         Text, nullable=False, server_default="queued"
     )  # queued | running | succeeded | failed | cancelled
-    pipeline_version: Mapped[str] = mapped_column(
-        Text, nullable=False, server_default="v1.0.0"
-    )
+    pipeline_version: Mapped[str] = mapped_column(Text, nullable=False, server_default="v1.0.0")
     git_sha: Mapped[str | None] = mapped_column(Text, nullable=True)
     trace_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     config_snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -47,9 +45,7 @@ class PipelineRunORM(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
-    finished_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class PipelineStepORM(Base):
@@ -64,9 +60,7 @@ class PipelineStepORM(Base):
     )
     document_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     step: Mapped[str] = mapped_column(Text, nullable=False)  # S0..S10
-    status: Mapped[str] = mapped_column(
-        Text, nullable=False, server_default="queued"
-    )
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="queued")
     attempt: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     pages: Mapped[int | None] = mapped_column(Integer, nullable=True)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -75,9 +69,7 @@ class PipelineStepORM(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    __table_args__ = (
-        Index("ix_pipeline_step_run_step", "run_id", "step"),
-    )
+    __table_args__ = (Index("ix_pipeline_step_run_step", "run_id", "step"),)
 
 
 class PageORM(Base):
@@ -102,9 +94,7 @@ class PageORM(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    __table_args__ = (
-        Index("uq_page_doc_page", "document_id", "page_no", unique=True),
-    )
+    __table_args__ = (Index("uq_page_doc_page", "document_id", "page_no", unique=True),)
 
 
 class OcrLineORM(Base):
@@ -123,9 +113,7 @@ class OcrLineORM(Base):
     doc_char_start: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     doc_char_end: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
-    __table_args__ = (
-        Index("ix_ocr_line_doc_page_line", "document_id", "page_no", "line_no"),
-    )
+    __table_args__ = (Index("ix_ocr_line_doc_page_line", "document_id", "page_no", "line_no"),)
 
 
 class ClauseNodeORM(Base):
