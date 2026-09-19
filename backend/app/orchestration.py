@@ -25,13 +25,16 @@ def enqueue(db, dossier_id, settings):
         for d in docs
     ]
     config = {
-        "profile": "local_baseline",
+        "profile": "terra_assisted" if settings.ocr_engine == "gpt_vision" else "local_baseline",
         "schema_version": "0.1",
         "rule_version": "local-v1",
         "dpi": settings.dpi,
         "max_pixels": settings.max_pixels,
         "ocr_languages": settings.ocr_languages,
         "ocr_timeout_seconds": settings.ocr_timeout_seconds,
+        "ocr_engine": settings.ocr_engine,
+        "ocr_vision_model": settings.ocr_vision_model,
+        "ocr_vision_max_retries": settings.ocr_vision_max_retries,
         "max_attempts": settings.max_attempts,
         "lease_seconds": settings.lease_seconds,
     }
