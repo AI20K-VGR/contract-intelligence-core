@@ -40,6 +40,7 @@ dev = [
     "import-linter>=2.0",
     "mypy>=1.10.0",
     "types-python-dateutil>=2.9.0",
+    "types-aiofiles>=24.1.0",  # Type stubs cho aiofiles (mypy strict)
     "aiosqlite>=0.20.0",  # Integration tests (SQLite in-memory)
     "aiofiles>=24.1.0",   # Async file I/O cho LocalFileStorage
 ]
