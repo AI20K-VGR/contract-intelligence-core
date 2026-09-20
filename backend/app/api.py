@@ -19,6 +19,7 @@ from app.policy import Actor, allowed, authenticate
 from app.reporting import batch_summary
 from app.review import append_review, approve, effective_result, review_state
 from app.storage import ArtifactStore, canonical, digest
+from app.tables import build_logical_tables
 
 app = FastAPI(title="Contract Intelligence", version="0.1.0")
 REQUESTS = Counter("ci_http_requests_total", "HTTP requests", ["method", "route", "status"])
@@ -345,7 +346,7 @@ def audit(dossier_id: str, actor: Actor = Depends(authenticate)):
 @app.get("/api/v1/dossiers/{dossier_id}/{collection}")
 def collection(
     dossier_id: str,
-    collection: Literal["clauses", "facts", "findings", "conflicts"],
+    collection: Literal["clauses", "tables", "facts", "findings", "conflicts"],
     run_id: str | None = None,
     view: Literal["machine", "effective"] = "effective",
     actor: Actor = Depends(authenticate),
@@ -361,7 +362,11 @@ def collection(
                 if f["disposition"]
                 in ("comparable_difference", "candidate_amendment", "insufficient_evidence")
             ]
-        return {"items": items, "run_id": job.id, "is_partial": snapshot.result["is_partial"]}
+        response = {"items": items, "run_id": job.id, "is_partial": snapshot.result["is_partial"]}
+        if collection == "tables":
+            response["logical_items"] = build_logical_tables(items)
+            response["reconstruction_version"] = "table-geometry-v1"
+        return response
 
 
 @app.get("/api/v1/documents/{document_id}/file")

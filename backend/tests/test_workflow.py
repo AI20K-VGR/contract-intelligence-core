@@ -203,6 +203,46 @@ def test_failed_page_retry_reuses_checkpoint(system):
         assert db.scalar(select(Snapshot).where(Snapshot.job_id == original)).result["is_partial"]
 
 
+def test_structured_comparison_match_difference_and_amendment(system):
+    client, factory, config = system
+    dossier = client.post(
+        "/api/v1/dossiers", json={"title": "Structured comparison"},
+        headers={"Idempotency-Key": "sc-create"},
+    ).json()["id"]
+    contract_text = (
+        "Article 1. Term\nwithin 30 days\n"
+        "Article 2. Effective Date\n01/01/2025\n"
+        "Article 3. Penalty\n10.000.000 VND"
+    )
+    annex_text = (
+        "Article 1. Term\nwithin 30 days\n"
+        "Article 2. Effective Date\n01/02/2025\n"
+        "Article 3 (amended). Penalty\n15.000.000 VND"
+    )
+    for text, role, key in ((contract_text, "contract", "sc-contract"), (annex_text, "appendix", "sc-annex")):
+        response = client.post(
+            f"/api/v1/dossiers/{dossier}/documents",
+            files={"file": ("doc.pdf", pdf_bytes(text), "application/pdf")},
+            data={"role": role},
+            headers={"Idempotency-Key": key},
+        )
+        assert response.status_code == 201, response.text
+    assert client.post(
+        f"/api/v1/dossiers/{dossier}/jobs", headers={"Idempotency-Key": "sc-start"}
+    ).status_code == 202
+    drain(factory, config)
+    findings = client.get(f"/api/v1/dossiers/{dossier}/results").json()["machine"]["findings"]
+    assert len(findings) == 3
+    by_topic = {f["topic"]: f for f in findings}
+    assert by_topic["duration_days"]["disposition"] == "comparable_match"
+    assert by_topic["duration_days"]["values_equal"] is True
+    assert by_topic["date"]["disposition"] == "comparable_difference"
+    assert by_topic["date"]["values_equal"] is False
+    assert by_topic["amount"]["disposition"] == "candidate_amendment"
+    assert by_topic["amount"]["values_equal"] is False
+    assert all(f["rule_version"] == "local-v2" for f in findings)
+
+
 def test_annex_findings_have_two_sources_and_abstain(system):
     client, factory, config = system
     dossier, _ = create_job(client, annex=True)

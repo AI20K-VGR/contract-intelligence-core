@@ -2,12 +2,20 @@ import re
 from datetime import datetime
 from decimal import Decimal
 
+from app.structure import ARTICLE_PATTERN, strip_diacritics
+
 
 def extract(pages, run_id):
     facts = []
+    clause_ref, clause_label = {}, {}
     for page in pages:
+        document_id = page["document_id"]
         for line in page["lines"]:
             text = line["text"]
+            header = ARTICLE_PATTERN.match(strip_diacritics(text))
+            if header:
+                clause_ref[document_id] = header.group(2)
+                clause_label[document_id] = text
             candidates = []
             for match in re.finditer(
                 r"(?<![\d.,])\d{1,3}(?:[.,]\d{3})+\s*(?:VND|VNĐ|đồng)\b", text, re.I
@@ -37,7 +45,12 @@ def extract(pages, run_id):
                         "normalized": value,
                         "document_id": page["document_id"],
                         "source_role": page["role"],
-                        "context": {"source_line": text, "scope_verified": False},
+                        "context": {
+                            "source_line": text,
+                            "scope_verified": False,
+                            "clause_ref": clause_ref.get(document_id),
+                            "clause_label": clause_label.get(document_id),
+                        },
                         "citation_ids": [f"{run_id}:{line['id']}"],
                         "confidence": {
                             "score": None,

@@ -16,6 +16,7 @@ from app.models import Job, Snapshot, Task
 from app.orchestration import claim, finish, heartbeat
 from app.storage import ArtifactStore, canonical, digest
 from app.structure import clauses
+from app.tables import link_continuations
 
 log = logging.getLogger("worker")
 
@@ -60,13 +61,13 @@ def publish_ready(db):
             "documents": job.manifest["documents"],
             "pages": pages,
             "clauses": clauses(pages, job.id),
-            "tables": [],
+            "tables": link_continuations([table for p in pages for table in p.get("tables", [])]),
             "facts": facts,
             "findings": compare(facts),
             "issues": issues,
             "limitations": [
                 "RULE_BASED_CANDIDATES",
-                "TABLE_EXTRACTION_NOT_IMPLEMENTED",
+                "TABLE_EXTRACTION_GEOMETRY_HEURISTIC",
                 "CONTEXT_REQUIRES_HUMAN_REVIEW",
             ],
             "citations": [],

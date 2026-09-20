@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schema_version": "backend.ocr_edge_cases.v1",
+  "title": "Backend OCR/Table Edge Case Catalog",
+  "description": "Danh mục các trường hợp OCR/bảng thật đã gặp và xử lý trong backend/app/document_processing.py + tables.py + structure.py (không phải ai-service — hai pipeline độc lập, xem backend/README.md). Mỗi case dựa trên dữ liệu thật rút ra từ 1 hợp đồng thử nghiệm scan thật (KIỂM THỬ OCR/IDP), không phải suy đoán — đủ để AI2 (hoặc bất kỳ bước reasoning nào tiêu thụ output của /dossiers/{id}/results và /dossiers/{id}/tables) biết chỗ nào dữ liệu có thể trông 'lạ' một cách hợp lệ và không nên bị hiểu nhầm là lỗi trích xuất.",
+  "$defs": {
+    "Case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "category", "title_vi", "module", "root_cause_vi", "symptom_vi", "reasoning_guidance_vi", "status", "example"],
+      "properties": {
+        "id": {"type": "string"},
+        "category": {"enum": ["table_structure", "text_geometry", "clause_structure", "infra"]},
+        "title_vi": {"type": "string"},
+        "title_en": {"type": "string"},
+        "module": {"type": "string", "description": "File/hàm chịu trách nhiệm xử lý case này."},
+        "root_cause_vi": {"type": "string"},
+        "symptom_vi": {"type": "string", "description": "Điều AI2 sẽ thấy trong JSON /results hoặc /tables nếu không biết case này."},
+        "reasoning_guidance_vi": {"type": "string"},
+        "status": {
+          "enum": ["fixed", "open_needs_more_data"],
+          "description": "fixed = đã sửa và có test hồi quy trong backend/tests/; open_needs_more_data = đã biết nhưng chưa đủ bằng chứng thật để sửa đúng (xem ghi chú riêng)."
+        },
+        "test_ref": {"type": "string", "description": "Test hồi quy tương ứng, nếu status=fixed."},
+        "example": {"type": "object"}
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "table_wrapped_cell_single_column",
+      "category": "table_structure",
+      "title_vi": "Ô 'Mô tả/quy cách' wrap 3-5 dòng OCR vật lý",
+      "title_en": "Single-column cell wraps across 3-5 physical OCR lines",
+      "module": "document_processing._merge_wrapped_continuation",
+      "root_cause_vi": "Tesseract tách mỗi dòng nhìn thấy thành 1 object 'line' riêng; PSM 6 không hiểu khái niệm 'ô bảng', chỉ thấy các dòng text kế tiếp nhau theo chiều dọc.",
+      "symptom_vi": "Nhiều 'dòng' liên tiếp chỉ có 1 cột được điền (Mô tả), các cột khác trống — nếu coi mỗi dòng là 1 hàng bảng riêng, bảng sẽ có hàng rỗng/trùng lặp vô nghĩa.",
+      "reasoning_guidance_vi": "Tin row.cells[i].text đã được nối sẵn thành câu liền mạch bởi _merge_wrapped_continuation; không tự tách lại theo dấu xuống dòng.",
+      "status": "fixed",
+      "test_ref": "backend/tests/test_processing.py::test_ocr_tables_reconstructs_a_real_scanned_item_table",
+      "example": {"cell_text": "Cấu hình tiêu chuẩn hạng mục 1; bao gồm phụ kiện đồng bộ, vật tư đấu nối, cấu hình ban đầu và tài liệu kỹ thuật theo hồ sơ chào giá."}
+    },
+    {
+      "id": "table_wrapped_cell_multi_column_simultaneous",
+      "category": "table_structure",
+      "title_vi": "Hai cột cùng wrap trên cùng một dòng vật lý (vd Mô tả + Ghi chú)",
+      "title_en": "Two columns wrapping simultaneously on the same physical line",
+      "module": "document_processing._merge_wrapped_continuation",
+      "root_cause_vi": "Cả 2 cột tràn dòng đúng ngay cùng độ cao trên trang.",
+      "symptom_vi": "1 dòng OCR có 2 cụm từ tách biệt nằm ở 2 vị trí x rất khác nhau, không liền mạch — nếu gộp cả dòng vào 1 cột sẽ lẫn nội dung 2 cột.",
+      "reasoning_guidance_vi": "Mỗi từ trên dòng nối tiếp được gán về đúng cột theo vị trí x của chính nó (không theo cả dòng); row.cells đã tách đúng col_index cho từng phần.",
+      "status": "fixed",
+      "test_ref": "backend/tests/test_processing.py::test_ocr_tables_reconstructs_a_real_scanned_item_table",
+      "example": {"row_cells": [{"col_index": 1, "text": "... kèm thanh ray lắp tủ."}, {"col_index": 6, "text": "Bảo hành 36 tháng"}]}
+    },
+    {
+      "id": "table_row_missing_value_blank_cell",
+      "category": "table_structure",
+      "title_vi": "Một hàng thiếu giá trị hợp lệ ở một cột (vd Ghi chú trống)",
+      "title_en": "A row legitimately has one blank cell",
+      "module": "document_processing._matching_cells",
+      "root_cause_vi": "Ô Ghi chú trống thật trên tài liệu gốc — không phải OCR bỏ sót chữ.",
+      "symptom_vi": "row.cells là mảng THƯA (sparse) — thiếu hẳn entry cho col_index đó, không phải entry rỗng.",
+      "reasoning_guidance_vi": "Tra cell theo col_index, không index theo vị trí mảng cells; thiếu entry = ô trống hợp lệ.",
+      "status": "fixed",
+      "test_ref": "backend/tests/test_processing.py::test_ocr_tables_reconstructs_a_real_scanned_item_table",
+      "example": {"row_cells": [{"col_index": 0, "text": "02"}, {"col_index": 1, "text": "Thiết bị lưu trữ NAS"}]}
+    },
+    {
+      "id": "table_anchor_column_split_from_row_start_line",
+      "category": "table_structure",
+      "title_vi": "Cột STT (mỏ neo) không nằm trên cùng dòng OCR với phần còn lại của hàng",
+      "title_en": "The STT/sequence-number value lands on a different OCR line than the rest of its row",
+      "module": "document_processing._matching_cells",
+      "root_cause_vi": "Tesseract's line-segmentation tách số STT khỏi phần Hạng mục/Mô tả cùng hàng do lệch y nhẹ — xảy ra THƯỜNG XUYÊN trên tài liệu thật, không phải ca hiếm. Trước khi sửa, code yêu cầu bắt buộc phải khớp đúng cột STT mới công nhận là hàng mới → những hàng kiểu này bị coi là bất thường và làm gãy cả bảng.",
+      "symptom_vi": "Dòng đầu tiên của 1 hàng có Hạng mục/Mô tả/SL/Đơn giá/Thành tiền đầy đủ nhưng KHÔNG có giá trị ở vị trí cột đầu tiên (STT) — cell col_index=0 vắng mặt cho hàng đó dù các cột khác đủ.",
+      "reasoning_guidance_vi": "Không coi thiếu STT là bằng chứng hàng bị lỗi nếu đa số cột khác đã khớp; đối chiếu STT còn thiếu bằng ngữ cảnh (STT liền trước là N thì hàng này nhiều khả năng là N+1) thay vì coi cả hàng không đáng tin.",
+      "status": "fixed",
+      "test_ref": "backend/tests/test_processing.py::test_ocr_tables_keeps_a_row_whose_stt_landed_on_a_different_line",
+      "example": {"row_cells_missing_stt": [{"col_index": 1, "text": "Thiết bị lưu trữ NAS"}, {"col_index": 2, "text": "Cấu hình tiêu chuẩn hạng mục 2; bao gồm"}, {"col_index": 3, "text": "3"}]}
+    },
+    {
+      "id": "table_grid_line_misread_as_stray_characters",
+      "category": "table_structure",
+      "title_vi": "Đường viền bảng bị OCR đọc nhầm thành ký tự rác rải rác",
+      "title_en": "Table ruling/border lines get misread as scattered stray characters",
+      "module": "document_processing._merge_wrapped_continuation, _matching_cells, _best_overlapping_cell",
+      "root_cause_vi": "Viền dọc/ngang của bảng (đường kẻ) đôi khi bị Tesseract đọc thành ký tự đơn lẻ ('›', '\\\\', '\"', ':', 'i', 'z'...) ở vị trí x bất kỳ, kể cả trùng đúng vị trí cột STT.",
+      "symptom_vi": "1-3 ký tự vô nghĩa xen giữa các dòng nối tiếp hợp lệ; nếu coi bất kỳ giá trị nào rơi đúng cột STT là 'hàng mới', các ký tự rác này liên tục kích hoạt sai, làm gãy bảng thành nhiều mảnh nhỏ dưới ngưỡng tối thiểu.",
+      "reasoning_guidance_vi": "Không dùng RIÊNG 1 ký tự rơi vào cột STT làm bằng chứng đủ mạnh cho 'hàng mới' — cần xem xét cùng lúc các cột khác có khớp theo tỉ lệ đáng kể hay không (_matching_cells yêu cầu khớp >= 1/2 số cột). Từ không khớp cột nào bị loại bỏ thầm lặng, không giữ lại trong output.",
+      "status": "fixed",
+      "test_ref": "backend/tests/test_processing.py::test_ocr_tables_survives_one_row_interrupted_by_a_stamp",
+      "example": {"stray_tokens_seen": ["›", "\\\\", "\"", ":", "i", "z"], "note": "Không xuất hiện trong bất kỳ cell.text nào sau khi xử lý."}
+    },
+    {
+      "id": "table_page_top_noise_poisons_the_reference_row",
+      "category": "table_structure",
+      "title_vi": "Nhiễu ở đầu trang (watermark/mép trang) bị chọn nhầm làm hàng mẫu (reference) của cả bảng",
+      "title_en": "A page-top artifact gets crowned as the block's reference row",
+      "module": "document_processing._plausible_row, _ocr_tables",
+      "root_cause_vi": "Một vệt watermark/mép trang mờ bị Tesseract đọc nhầm thành vài ký tự đơn lẻ rải rác đủ xa nhau để vượt ngưỡng >=3 nhóm của _row_cells, dù hoàn toàn là rác. Trước khi sửa, dòng ĐẦU TIÊN tạo được >=3 nhóm sẽ nghiễm nhiên trở thành 'hàng mẫu' cho cả khối — không có bước kiểm tra dòng đó có thực sự giống 1 hàng bảng hay không.",
+      "symptom_vi": "Toàn bộ bảng thật bên dưới biến mất (0 bảng được phát hiện) dù log cho thấy hàng chục dòng OCR rõ ràng có cấu trúc cột hợp lệ — vì mỗi hàng thật đều đúng-đắn KHÔNG khớp được với hàng mẫu rác (_matching_cells trả None), rồi lại bị _merge_wrapped_continuation nuốt nhầm thành 'phần nối tiếp' của chính hàng rác đó (chỉ cần 1 từ trùng vị trí 1 trong các ô rác rải rác là đủ), nên khối (block) không bao giờ lớn quá 1 hàng.",
+      "reasoning_guidance_vi": "Nếu 1 bảng hiện 0 hàng nhưng dữ liệu OCR gốc rõ ràng có cấu trúc bảng, nghi ngờ trước tiên dòng ĐẦU của khối (thường là watermark/mép trang) — không coi 0 bảng là bằng chứng trang không có bảng.",
+      "status": "fixed",
+      "test_ref": "backend/tests/test_processing.py::test_ocr_tables_ignores_page_top_noise_before_the_real_table",
+      "example": {"noise_groups_seen": ["2 _", "~", "Z", "x", "4", "^`"], "note": "Không đủ nội dung thật (đa số chỉ 1 ký tự) nên bị từ chối làm hàng mẫu."}
+    },
+    {
+      "id": "table_unrelated_line_glued_in_by_one_coincidental_word",
+      "category": "table_structure",
+      "title_vi": "Một dòng không liên quan (tiêu đề phụ lục, ghi chú test) bị dính vào ô mô tả chỉ vì 1 từ trùng vị trí x ngẫu nhiên",
+      "title_en": "An unrelated line gets glued into a cell via one coincidental word overlap",
+      "module": "document_processing._merge_wrapped_continuation",
+      "root_cause_vi": "Trước khi sửa, _merge_wrapped_continuation coi bất kỳ dòng nào có >=1 từ trùng vị trí 1 ô của hàng trên là 'phần nối tiếp' hợp lệ — không yêu cầu đa số từ của dòng đó phải liên quan. Một dòng tiêu đề/ghi chú hoàn toàn khác chủ đề vẫn có thể tình cờ có 1 từ nằm đúng khoảng x của cột mô tả (vốn khá rộng).",
+      "symptom_vi": "Nội dung ô mô tả của 1 hàng bị nối thêm đoạn văn bản không liên quan (vd tiêu đề 'PHỤ LỤC 02 - BẢNG DỊCH VỤ VẬN HÀNH' lẫn vào cuối mô tả hạng mục trước đó).",
+      "reasoning_guidance_vi": "Nếu văn bản 1 ô mô tả có vẻ lạc đề hoặc đổi chủ đề đột ngột giữa câu, nghi ngờ đây là 1 dòng không liên quan bị dính nhầm qua 1 từ trùng vị trí ngẫu nhiên — đối chiếu lại ảnh trang gốc trước khi tin toàn bộ văn bản của ô đó.",
+      "status": "fixed",
+      "test_ref": "backend/tests/test_processing.py::test_ocr_tables_skips_an_unrelated_line_with_only_one_coincidental_overlap",
+      "example": {"polluted_text_seen": "... 5.250.000 5.250.000 PHU LUC 02 - BANG DICH VU VAN HANH (BANG B)", "fix": "yêu cầu >= 1/2 số từ của dòng phải tìm được ô để gộp, không chỉ 1 từ."}
+    },
+    {
+      "id": "table_row_interrupted_by_stamp_or_seal",
+      "category": "table_structure",
+      "title_vi": "Con dấu/chữ ký chèn 1 cụm từ rác vào giữa một hàng đơn lẻ",
+      "title_en": "A stamp/signature injects one stray word-group into a single row",
+      "module": "document_processing._merge_wrapped_continuation",
+      "root_cause_vi": "Con dấu vật lý đè lên vùng chữ, tạo thêm 1 cụm từ không thuộc cột nào.",
+      "symptom_vi": "1 hàng có thêm 1 nhóm từ ở vị trí x xa các cột đã biết (vd x=0.80 khi cột cuối cùng kết thúc ở x=0.73).",
+      "reasoning_guidance_vi": "Cụm từ không khớp cột nào bị loại; 4 giá trị thật của hàng đó (không phải 5) vẫn được giữ nguyên vẹn, không bị mất cả hàng.",
+      "status": "fixed",
+      "test_ref": "backend/tests/test_processing.py::test_ocr_tables_survives_one_row_interrupted_by_a_stamp",
+      "example": {"row_word_count": 9, "real_columns": 4, "stray_word": "[MỘC]"}
+    },
+    {
+      "id": "table_split_across_pages_with_reset_stt_must_not_merge",
+      "category": "table_structure",
+      "title_vi": "Hai bảng cùng mẫu ở 2 trang khác nhau, STT đều reset về 1 → phải tách",
+      "title_en": "Two same-template tables on different pages both restart at STT 1 — must split",
+      "module": "tables.build_logical_tables",
+      "root_cause_vi": "STT quay lại 1 là bằng chứng đây là bảng mới (vd phụ lục khác), không phải phần nối tiếp — dù cột giống hệt nhau và 2 trang liền kề.",
+      "symptom_vi": "Nếu ghép nhầm theo vị trí trang liền kề, dữ liệu 2 bảng độc lập lẫn vào nhau thành 1 bảng sai.",
+      "reasoning_guidance_vi": "Không tự ghép 2 bảng liền trang chỉ vì cùng col_count; kiểm tra STT hàng đầu trang sau có = STT hàng cuối trang trước + 1 hay không trước khi coi là cùng 1 bảng.",
+      "status": "fixed",
+      "test_ref": "backend/tests/test_logical_tables.py::test_new_table_number_restart_not_joined",
+      "example": {}
+    },
+    {
+      "id": "table_split_across_pages_without_any_header",
+      "category": "table_structure",
+      "title_vi": "Bảng trải nhiều trang, KHÔNG trang nào có tiêu đề nhận diện được",
+      "title_en": "Table spans pages with no recognizable header on any page",
+      "module": "tables._looks_like_numbered_rows, _grid",
+      "root_cause_vi": "OCR bỏ sót dòng tiêu đề hoàn toàn, hoặc tiêu đề dùng cách viết không khớp whitelist nhãn cột.",
+      "symptom_vi": "_grid() không dựng được lưới cột nếu chỉ dựa vào dòng tiêu đề → mỗi trang thành 1 bảng STANDALONE rời rạc thay vì 1 bảng RECONSTRUCTED.",
+      "reasoning_guidance_vi": "Khi không có tiêu đề, dùng bằng chứng cột STT có dạng số nguyên nhỏ tăng dần trên đa số hàng để vẫn dựng được lưới cột và nối trang.",
+      "status": "fixed",
+      "test_ref": "backend/tests/test_logical_tables.py::test_headerless_table_still_reconstructs_via_numbered_rows",
+      "example": {}
+    },
+    {
+      "id": "table_header_label_wording_variation",
+      "category": "table_structure",
+      "title_vi": "Tiêu đề cột mô tả dùng nhiều cách viết khác nhau trong thực tế",
+      "title_en": "Real header wording for the description column varies",
+      "module": "tables._header, _grid, _DESCRIPTION_LABEL_PREFIXES",
+      "root_cause_vi": "Tài liệu thật dùng 'Nội dung hàng hóa / dịch vụ', 'Tên hàng', 'Hạng mục'... không phải 1 từ cố định.",
+      "symptom_vi": "Nếu so khớp CHÍNH XÁC theo 1 từ khoá, dòng tiêu đề thật bị gắn nhầm kind='data' thay vì 'header', làm số 'dòng dữ liệu' đếm dư 1.",
+      "reasoning_guidance_vi": "So khớp theo TIỀN TỐ đã chuẩn hoá bỏ dấu (vd 'noidung', 'tenhang', 'hangmuc') thay vì so khớp nguyên văn cả cụm.",
+      "status": "fixed",
+      "test_ref": "backend/tests/test_logical_tables.py",
+      "example": {"header_variants_seen": ["Nội dung hàng hóa / dịch vụ", "Tên hàng", "Hạng mục"]}
+    },
+    {
+      "id": "table_total_row_without_sequence_number",
+      "category": "table_structure",
+      "title_vi": "Dòng 'Tổng cộng' không có STT, có thể nằm giữa bảng",
+      "title_en": "A totals row has no STT and may sit mid-table",
+      "module": "document_processing / tables._total",
+      "root_cause_vi": "Quy ước trình bày hợp đồng: dòng tổng không đánh số thứ tự.",
+      "symptom_vi": "Nếu áp kiểm tra 'STT phải liên tục' cứng nhắc, dòng tổng bị coi là bằng chứng bảng lỗi.",
+      "reasoning_guidance_vi": "Nhận diện dòng tổng qua từ khoá ('tổng cộng'/'cộng'/'total') kết hợp thiếu STT trước khi áp kiểm tra liên tục số thứ tự.",
+      "status": "fixed",
+      "test_ref": "backend/tests/test_processing.py::test_ocr_tables_reconstructs_a_real_scanned_item_table",
+      "example": {"row_cells": [{"col_index": 1, "text": "Tổng cộng"}, {"col_index": 5, "text": "486.750.000"}]}
+    },
+    {
+      "id": "vision_text_substitution_keeps_original_word_geometry",
+      "category": "text_geometry",
+      "title_vi": "GPT vision thay text của dòng nhưng GIỮ NGUYÊN bbox/word gốc của Tesseract",
+      "title_en": "GPT vision replaces a line's text but keeps Tesseract's original word geometry",
+      "module": "document_processing.process_page (nhánh CI_OCR_ENGINE=gpt_vision, khi len(gpt_lines) == len(lines))",
+      "root_cause_vi": "GPT vision chỉ trả text thuần, không có toạ độ; code chỉ ghi đè line['text'], không đụng tới line['words'] (vẫn là bbox Tesseract đọc từ ảnh gốc).",
+      "symptom_vi": "engine hiển thị 'tesseract+gpt-5.6-terra' — text hiển thị có thể chính xác hơn Tesseract thuần, nhưng toạ độ citation/word bbox vẫn phản ánh cách Tesseract tách từ ban đầu, có thể lệch nếu Tesseract tách từ sai vị trí.",
+      "reasoning_guidance_vi": "Không coi engine có hậu tố '+gpt-...' là bằng chứng toạ độ đã được xác thực lại — chỉ nội dung text được xác thực; nếu cần bbox chính xác cho 1 từ cụ thể, ưu tiên đối chiếu lại bằng mắt qua page_image thay vì tin tuyệt đối bbox khi engine là dạng này.",
+      "status": "open_needs_more_data",
+      "example": {"page_engine": "tesseract+gpt-5.6-terra", "note": "line.text đã được GPT ghi đè; line.words vẫn là output gốc của Tesseract."}
+    },
+    {
+      "id": "ocr_engine_unavailable_infra_failure",
+      "category": "infra",
+      "title_vi": "Tesseract chưa cài/không có trong PATH — lỗi hạ tầng, không phải lỗi nội dung",
+      "title_en": "Tesseract binary missing from PATH — infra failure, not a content issue",
+      "module": "document_processing.process_page (bắt pytesseract.TesseractNotFoundError)",
+      "root_cause_vi": "Máy chạy worker chưa cài Tesseract OCR (+ gói ngôn ngữ 'vie').",
+      "symptom_vi": "Trang có issue=OCR_ENGINE_UNAVAILABLE, status=failed — khác hẳn trang trắng thật hoặc OCR đọc được nhưng chất lượng kém.",
+      "reasoning_guidance_vi": "OCR_ENGINE_UNAVAILABLE nghĩa là KHÔNG có bằng chứng gì để suy luận (không phải 'không có nội dung') — không dùng chung nhánh xử lý với trang trống thật; cần báo runbook hạ tầng (cài Tesseract), không phải sửa logic trích xuất.",
+      "status": "open_needs_more_data",
+      "example": {"page": {"status": "failed", "issue": "OCR_ENGINE_UNAVAILABLE"}}
+    }
+  ]
+}
