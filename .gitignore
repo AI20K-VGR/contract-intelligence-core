@@ -15,6 +15,9 @@
 data/
 samples/
 datasets/
+# Saved GET /dossiers/{id}/results exports used for local debugging (scripts/
+# reconstruct_tables.py) — contain real extracted document text/values.
+result*.json
 
 # =====================================================================
 # Contract Intelligence - Root .gitignore
