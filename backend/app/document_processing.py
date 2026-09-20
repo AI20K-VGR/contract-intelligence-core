@@ -532,6 +532,52 @@ def _row_from_reference_overlap(reference_cells, line):
     ]
 
 
+def _extend_reference_with_confirming_row(reference_cells, row0_cells, cells):
+    """Adds any of `cells` that don't overlap an existing reference column as a
+    brand-new one, inserted (by left edge, not appended at the end) into
+    `reference_cells` in place — meant to be called only once, for the row that
+    FIRST confirms the reference (the block's second row), so a column the
+    reference's own first row happened to leave blank still gets captured instead of
+    never existing at all.
+
+    Real hard case: the very first item of a Khối lượng/Đơn giá/Thành tiền table had
+    no value whatsoever in its own Khối lượng column (a genuinely blank field on that
+    one row, not a missed OCR read) — so that column position never entered the
+    reference to begin with. Every OTHER row's own quantity value then had nothing to
+    overlap and was silently dropped as noise (see _matching_cells), not just on the
+    first row but on every single row of the table — an entire real column vanished
+    rather than merely one blank cell.
+
+    Restricted to this one confirming moment deliberately, not tried again for every
+    later row: an ordinary stray character (a misread table border, a stamp
+    fragment) on some row 40 rows in must still be dropped as noise, not promoted
+    into a permanent phantom column. The first confirming row is the one moment
+    there's a principled reason to trust an unmatched cell as a real column instead
+    of noise — two independent rows of the very same table, each internally
+    consistent, disagreeing only on which columns happen to be filled in.
+
+    A newly-found column takes its rightful place among the existing ones by x0, with
+    every later column's (and `row0_cells`' matching own cells') col_index bumped up
+    to make room — the block's first row is a SEPARATE object from the reference by
+    design (see _ocr_tables) precisely so renumbering it here never invents a value
+    it never had; its Khối lượng cell simply stays absent, rendering as blank.
+    """
+    for cell in cells:
+        if _best_overlapping_cell(reference_cells, cell["bbox"]) is not None:
+            continue
+        insert_at = next(
+            (i for i, ref_cell in enumerate(reference_cells) if cell["bbox"][0] < ref_cell["bbox"][0]),
+            len(reference_cells),
+        )
+        for ref_cell in reference_cells:
+            if ref_cell["col_index"] >= insert_at:
+                ref_cell["col_index"] += 1
+        for row0_cell in row0_cells:
+            if row0_cell["col_index"] >= insert_at:
+                row0_cell["col_index"] += 1
+        reference_cells.insert(insert_at, {**cell, "col_index": insert_at})
+
+
 def _plausible_row(cells):
     """True if `cells` has enough real textual content to trust as a fresh table
     reference — the row every later line gets matched or merged against.
@@ -603,6 +649,11 @@ def _ocr_tables(lines, payload):
     """
     tables: list[dict] = []
     block: list[tuple[dict, list[dict]]] = []
+    # The block's column definitions — deliberately a separate object from any one
+    # row's own displayed cells (block[0][1] included), so extending it later (see
+    # _extend_reference_with_confirming_row) never retroactively puts a value into a
+    # row that never actually had it.
+    reference: list[dict] | None = None
 
     def _as_reference(cells):
         return [{**cell, "col_index": index} for index, cell in enumerate(cells)]
@@ -610,7 +661,7 @@ def _ocr_tables(lines, payload):
     def flush():
         if len(block) < _OCR_TABLE_MIN_ROWS:
             return
-        col_count = len(block[0][1])
+        col_count = len(reference)
         rows = [
             {
                 "row_index": row_index,
@@ -646,8 +697,8 @@ def _ocr_tables(lines, payload):
             # _row_cells to split into cells at all — but if its words plainly cover
             # most of the table's own columns anyway, it's a fresh row that failed
             # self-segmentation, not nothing (see _row_from_reference_overlap).
-            matched_cells = _row_from_reference_overlap(block[0][1], line) if block else None
-        elif not block:
+            matched_cells = _row_from_reference_overlap(reference, line) if reference else None
+        elif reference is None:
             # Nothing to filter against yet: this becomes the reference — but only if it
             # looks like a real row (see _plausible_row). A noise line crowned as the
             # reference here would never itself get replaced: every real row after it
@@ -655,9 +706,27 @@ def _ocr_tables(lines, payload):
             # one of its scattered noise cells is all it takes for _merge_wrapped_continuation
             # to wrongly absorb that real row as this one's "continuation" instead — so the
             # block never grows and the entire real table beneath the noise is lost.
-            matched_cells = _as_reference(cells) if _plausible_row(cells) else None
+            if _plausible_row(cells):
+                reference = _as_reference(cells)
+                # A genuinely independent set of dicts, not a shallow copy sharing
+                # reference's own cell objects — _extend_reference_with_confirming_row
+                # mutates each side's col_index separately, and shared objects would
+                # silently double-apply that shift (or leak a value into a row that
+                # never actually had it).
+                matched_cells = _as_reference(cells)
+            else:
+                matched_cells = None
         else:
-            matched_cells = _matching_cells(cells, block[0][1])
+            matched_cells = _matching_cells(cells, reference)
+            if matched_cells is not None and len(block) == 1:
+                # The block's very first row may have left a real column blank (see
+                # _extend_reference_with_confirming_row) — this confirming second row
+                # is the one moment there's principled evidence an unmatched cell is
+                # that missing column rather than noise.
+                before = len(reference)
+                _extend_reference_with_confirming_row(reference, block[0][1], cells)
+                if len(reference) != before:
+                    matched_cells = _matching_cells(cells, reference)
         if matched_cells is not None:
             block.append((line, matched_cells))
             mismatch_streak = 0
@@ -669,10 +738,12 @@ def _ocr_tables(lines, payload):
         mismatch_streak += 1
         if mismatch_streak >= 2:
             flush()
-            block = (
-                [(line, _as_reference(cells))]
-                if cells is not None and _plausible_row(cells) else []
-            )
+            if cells is not None and _plausible_row(cells):
+                reference = _as_reference(cells)
+                block = [(line, _as_reference(cells))]
+            else:
+                reference = None
+                block = []
             mismatch_streak = 0
         # else: one-off anomaly (e.g. a stamp mangling just this one row, badly
         # enough that it doesn't even split into word-groups at all) — drop

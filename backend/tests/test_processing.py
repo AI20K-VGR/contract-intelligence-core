@@ -624,6 +624,65 @@ def test_column_gap_threshold_finds_the_smallest_real_column_boundary_not_the_bi
     assert 0.0093 < threshold < 0.0238
 
 
+def test_ocr_tables_recovers_a_column_the_reference_row_left_blank():
+    # Real hard case (a scanned "Khối lượng/Đơn giá/Thành tiền" item table): the
+    # table's very first item legitimately has no value in its own "Khối lượng"
+    # (quantity) column at all -- a genuinely blank field, not a missed OCR read.
+    # Before this fix, the reference row (built from that first item alone) never
+    # gained a column for "Khối lượng" to begin with, so EVERY other row's own
+    # quantity value had nothing to overlap and was silently dropped as noise (see
+    # _matching_cells) -- the whole column vanished from the reconstructed table,
+    # not merely its first (blank) cell.
+    from app.document_processing import _ocr_tables
+
+    lines = [
+        _cells_line(0, 0.10, [
+            (0.05, 0.55, ["Khao", "sat", "hien", "trang"]),
+            (0.58, 0.62, ["goi"]),
+            (0.65, 0.68, []),  # Khối lượng genuinely blank on the reference row
+            (0.70, 0.80, ["4.850.000"]),
+            (0.82, 0.92, ["4.850.000"]),
+        ]),
+        _cells_line(1, 0.14, [
+            (0.05, 0.55, ["Lap", "dat", "tu", "dieu", "khien"]),
+            (0.58, 0.62, []),
+            (0.65, 0.68, ["2"]),
+            (0.70, 0.80, ["8.750.000"]),
+            (0.82, 0.92, ["17.500.000"]),
+        ]),
+        _cells_line(2, 0.18, [
+            (0.05, 0.55, ["Cap", "tin", "hieu", "chong", "nhieu"]),
+            (0.58, 0.62, []),
+            (0.65, 0.68, []),
+            (0.70, 0.80, ["42.000"]),
+            (0.82, 0.92, ["7.791.000"]),
+        ]),
+    ]
+
+    tables = _ocr_tables(lines, {"document_id": "doc", "page_number": 1})
+
+    assert len(tables) == 1
+    table = tables[0]
+    assert table["col_count"] == 5
+    assert table["row_count"] == 3
+
+    def cell_text(row, col_index):
+        return next((c["text"] for c in row["cells"] if c["col_index"] == col_index), "")
+
+    # Column order by x-position: Hạng mục(0), ĐVT(1), Khối lượng(2), Đơn giá(3),
+    # Thành tiền(4) — Khối lượng takes its rightful place between ĐVT and Đơn giá,
+    # not appended after Thành tiền.
+    assert cell_text(table["rows"][0], 2) == ""  # row 0's own Khối lượng genuinely blank
+    assert cell_text(table["rows"][0], 1) == "goi"
+    assert cell_text(table["rows"][0], 3) == "4.850.000"
+    assert cell_text(table["rows"][0], 4) == "4.850.000"
+    assert cell_text(table["rows"][1], 2) == "2"
+    assert cell_text(table["rows"][1], 3) == "8.750.000"
+    assert cell_text(table["rows"][1], 4) == "17.500.000"
+    assert cell_text(table["rows"][2], 3) == "42.000"
+    assert cell_text(table["rows"][2], 4) == "7.791.000"
+
+
 def test_ocr_tables_requires_minimum_consecutive_rows():
     from app.document_processing import _ocr_tables
 
