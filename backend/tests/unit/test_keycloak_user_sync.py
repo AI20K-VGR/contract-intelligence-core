@@ -21,7 +21,6 @@ from contract_intelligence.identity.infrastructure.keycloak_admin_client import 
     KeycloakAdminUserNotFoundError,
 )
 from contract_intelligence.identity.interfaces.api.keycloak_user_sync_service import (
-    KeycloakEventType,
     KeycloakUserEvent,
     KeycloakUserSyncService,
     WebhookResponse,
@@ -29,7 +28,6 @@ from contract_intelligence.identity.interfaces.api.keycloak_user_sync_service im
     _extract_tenant_id,
     _map_realm_roles_to_rbac,
 )
-
 
 # -----------------------------------------------------------------------
 # Helpers — tạo raw Keycloak Event payload (Phase Two shape)
@@ -44,16 +42,18 @@ def make_raw_event(
     client_id: str = "contract-intel-frontend",
 ) -> KeycloakUserEvent:
     """Build raw Keycloak Event như Phase Two gửi (không có nested user)."""
-    return KeycloakUserEvent.model_validate({
-        "type": event_type,
-        "realmId": realm_id,
-        "clientId": client_id,
-        "userId": user_id,
-        "sessionId": "session-xyz",
-        "ipAddress": "172.17.0.1",
-        "time": 1737370000000,
-        "details": {"username": "ignored-at-this-layer"},
-    })
+    return KeycloakUserEvent.model_validate(
+        {
+            "type": event_type,
+            "realmId": realm_id,
+            "clientId": client_id,
+            "userId": user_id,
+            "sessionId": "session-xyz",
+            "ipAddress": "172.17.0.1",
+            "time": 1737370000000,
+            "details": {"username": "ignored-at-this-layer"},
+        }
+    )
 
 
 def make_user_profile(
@@ -117,6 +117,7 @@ class TestBuildDisplayName:
         from contract_intelligence.identity.interfaces.api.keycloak_user_sync_service import (
             KeycloakUserProfile,
         )
+
         profile = KeycloakUserProfile.model_validate(
             make_user_profile(first_name="John", last_name="Doe", email="x@x")
         )
@@ -126,6 +127,7 @@ class TestBuildDisplayName:
         from contract_intelligence.identity.interfaces.api.keycloak_user_sync_service import (
             KeycloakUserProfile,
         )
+
         profile = KeycloakUserProfile.model_validate(
             make_user_profile(
                 email="x@x.com",
@@ -140,10 +142,9 @@ class TestBuildDisplayName:
         from contract_intelligence.identity.interfaces.api.keycloak_user_sync_service import (
             KeycloakUserProfile,
         )
+
         profile = KeycloakUserProfile.model_validate(
-            make_user_profile(
-                first_name="", last_name="", email="", username=""
-            )
+            make_user_profile(first_name="", last_name="", email="", username="")
         )
         assert _build_display_name(profile) == "kc-uuid-abc123"
 
@@ -153,15 +154,15 @@ class TestExtractTenantId:
         from contract_intelligence.identity.interfaces.api.keycloak_user_sync_service import (
             KeycloakUserProfile,
         )
-        profile = KeycloakUserProfile.model_validate(
-            make_user_profile(tenant_id=["tenant_vgr_01"])
-        )
+
+        profile = KeycloakUserProfile.model_validate(make_user_profile(tenant_id=["tenant_vgr_01"]))
         assert _extract_tenant_id(profile, "contract-intelligence") == "tenant_vgr_01"
 
     def test_fallback_to_realm(self) -> None:
         from contract_intelligence.identity.interfaces.api.keycloak_user_sync_service import (
             KeycloakUserProfile,
         )
+
         profile = KeycloakUserProfile.model_validate(make_user_profile(tenant_id=None))
         assert _extract_tenant_id(profile, "contract-intelligence") == "kc_contract-intelligence"
 
@@ -169,6 +170,7 @@ class TestExtractTenantId:
         from contract_intelligence.identity.interfaces.api.keycloak_user_sync_service import (
             KeycloakUserProfile,
         )
+
         profile = KeycloakUserProfile.model_validate(make_user_profile(tenant_id=None))
         assert _extract_tenant_id(profile, "") == "kc_default"
 
@@ -176,9 +178,7 @@ class TestExtractTenantId:
 class TestMapRealmRolesToRbac:
     def test_administrator_priority(self) -> None:
         assert _map_realm_roles_to_rbac(["ci_administrator"]) == "ADMINISTRATOR"
-        assert (
-            _map_realm_roles_to_rbac(["ci_administrator", "ci_operator"]) == "ADMINISTRATOR"
-        )
+        assert _map_realm_roles_to_rbac(["ci_administrator", "ci_operator"]) == "ADMINISTRATOR"
 
     def test_reviewer_next(self) -> None:
         assert _map_realm_roles_to_rbac(["ci_reviewer"]) == "REVIEWER"
@@ -456,16 +456,18 @@ class TestHandleEvent:
 class TestKeycloakUserEventSchema:
     def test_accepts_raw_phase_two_event(self) -> None:
         """Schema phải parse được đúng shape Phase Two gửi."""
-        event = KeycloakUserEvent.model_validate({
-            "type": "LOGIN",
-            "realmId": "abc-123",
-            "clientId": "contract-intel-frontend",
-            "userId": "f8a7-uuid",
-            "sessionId": "sess-1",
-            "ipAddress": "10.0.0.1",
-            "time": 1737370000000,
-            "details": {"username": "x", "auth_method": "openid-connect"},
-        })
+        event = KeycloakUserEvent.model_validate(
+            {
+                "type": "LOGIN",
+                "realmId": "abc-123",
+                "clientId": "contract-intel-frontend",
+                "userId": "f8a7-uuid",
+                "sessionId": "sess-1",
+                "ipAddress": "10.0.0.1",
+                "time": 1737370000000,
+                "details": {"username": "x", "auth_method": "openid-connect"},
+            }
+        )
         assert event.type == "LOGIN"
         assert event.userId == "f8a7-uuid"
         assert event.realmId == "abc-123"
@@ -474,20 +476,24 @@ class TestKeycloakUserEventSchema:
 
     def test_ignores_unknown_fields(self) -> None:
         """Schema forward-compatible với Keycloak fields mới."""
-        event = KeycloakUserEvent.model_validate({
-            "type": "LOGIN",
-            "userId": "u1",
-            "futureField": "ignored",
-            "anotherUnknown": 42,
-        })
+        event = KeycloakUserEvent.model_validate(
+            {
+                "type": "LOGIN",
+                "userId": "u1",
+                "futureField": "ignored",
+                "anotherUnknown": 42,
+            }
+        )
         assert event.userId == "u1"
 
-    def test_required_userId_falsy_for_non_user_events(self) -> None:
+    def test_required_user_id_falsy_for_non_user_events(self) -> None:
         """LOGIN_EVENT không có userId (anonymous) vẫn parse được."""
-        event = KeycloakUserEvent.model_validate({
-            "type": "LOGIN",
-            "realmId": "abc",
-        })
+        event = KeycloakUserEvent.model_validate(
+            {
+                "type": "LOGIN",
+                "realmId": "abc",
+            }
+        )
         assert event.userId == ""
 
 

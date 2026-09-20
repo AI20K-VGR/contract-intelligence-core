@@ -80,9 +80,7 @@ class _JWKSCache:
         if not jwks_uri:
             server = (settings.keycloak_server_url or "").rstrip("/")
             realm = settings.keycloak_realm
-            jwks_uri = (
-                f"{server}/realms/{realm}/protocol/openid-connect/certs"
-            )
+            jwks_uri = f"{server}/realms/{realm}/protocol/openid-connect/certs"
 
         self._client = jwt.PyJWKClient(jwks_uri)
         try:

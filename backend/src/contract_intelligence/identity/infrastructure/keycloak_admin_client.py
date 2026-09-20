@@ -37,7 +37,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, cast, runtime_checkable
 from urllib.parse import quote
 
 import httpx
@@ -219,7 +219,7 @@ class KeycloakAdminClient:
             raise ValueError("user_id is required")
 
         path = f"/admin/realms/{self._realm}/users/{quote(user_id, safe='')}"
-        return await self._authenticated_get(path)
+        return cast("dict[str, Any]", await self._authenticated_get(path))
 
     async def get_user_realm_roles(self, user_id: str) -> list[str]:
         """GET /admin/realms/{realm}/users/{id}/role-mappings/realm.
@@ -247,10 +247,7 @@ class KeycloakAdminClient:
 
     async def _fetch_token(self) -> dict[str, Any]:
         """Client Credentials Grant → access token."""
-        url = (
-            f"{self._server_url}/realms/{self._realm}"
-            f"/protocol/openid-connect/token"
-        )
+        url = f"{self._server_url}/realms/{self._realm}/protocol/openid-connect/token"
         try:
             response = await self._http.post(
                 url,
@@ -262,9 +259,7 @@ class KeycloakAdminClient:
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
         except httpx.TimeoutException as exc:
-            raise KeycloakAdminRequestError(
-                f"Keycloak token endpoint timeout: {exc}"
-            ) from exc
+            raise KeycloakAdminRequestError(f"Keycloak token endpoint timeout: {exc}") from exc
         except httpx.HTTPError as exc:
             raise KeycloakAdminRequestError(
                 f"Keycloak token endpoint network error: {exc}"
@@ -278,14 +273,10 @@ class KeycloakAdminClient:
         try:
             data: dict[str, Any] = response.json()
         except Exception as exc:
-            raise KeycloakAdminRequestError(
-                f"Token endpoint returned non-JSON: {exc}"
-            ) from exc
+            raise KeycloakAdminRequestError(f"Token endpoint returned non-JSON: {exc}") from exc
 
         if "access_token" not in data:
-            raise KeycloakAdminAuthError(
-                f"Token endpoint response missing access_token: {data}"
-            )
+            raise KeycloakAdminAuthError(f"Token endpoint response missing access_token: {data}")
 
         return data
 
@@ -301,13 +292,9 @@ class KeycloakAdminClient:
         try:
             response = await self._http.get(url, headers=headers)
         except httpx.TimeoutException as exc:
-            raise KeycloakAdminRequestError(
-                f"GET {path} timeout: {exc}"
-            ) from exc
+            raise KeycloakAdminRequestError(f"GET {path} timeout: {exc}") from exc
         except httpx.HTTPError as exc:
-            raise KeycloakAdminRequestError(
-                f"GET {path} network error: {exc}"
-            ) from exc
+            raise KeycloakAdminRequestError(f"GET {path} network error: {exc}") from exc
 
         if response.status_code == 401:
             # Token rejected — invalidate cache rồi thử lại 1 lần
@@ -317,18 +304,12 @@ class KeycloakAdminClient:
             try:
                 response = await self._http.get(url, headers=headers)
             except httpx.TimeoutException as exc:
-                raise KeycloakAdminRequestError(
-                    f"GET {path} timeout (retry): {exc}"
-                ) from exc
+                raise KeycloakAdminRequestError(f"GET {path} timeout (retry): {exc}") from exc
             except httpx.HTTPError as exc:
-                raise KeycloakAdminRequestError(
-                    f"GET {path} network error (retry): {exc}"
-                ) from exc
+                raise KeycloakAdminRequestError(f"GET {path} network error (retry): {exc}") from exc
 
         if response.status_code == 404:
-            raise KeycloakAdminUserNotFoundError(
-                f"User not found at {path}"
-            )
+            raise KeycloakAdminUserNotFoundError(f"User not found at {path}")
         if response.status_code in (401, 403):
             raise KeycloakAdminAuthError(
                 f"GET {path} forbidden ({response.status_code}): {response.text[:500]}"
@@ -339,11 +320,9 @@ class KeycloakAdminClient:
             )
 
         try:
-            return response.json()
+            return cast("dict[str, Any] | list[Any]", response.json())
         except Exception as exc:
-            raise KeycloakAdminRequestError(
-                f"GET {path} returned non-JSON: {exc}"
-            ) from exc
+            raise KeycloakAdminRequestError(f"GET {path} returned non-JSON: {exc}") from exc
 
 
 # -----------------------------------------------------------------------------

@@ -86,9 +86,7 @@ async def get_keycloak_admin_client() -> KeycloakAdminClient:
 
 
 # Type alias
-KeycloakAdminClientDep = Annotated[
-    KeycloakAdminClientPort, Depends(get_keycloak_admin_client)
-]
+KeycloakAdminClientDep = Annotated[KeycloakAdminClientPort, Depends(get_keycloak_admin_client)]
 
 
 # ------------------------------------------------------------------------------
@@ -118,9 +116,7 @@ async def get_keycloak_sync_service(
 
 
 # Type alias
-KeycloakSyncServiceDep = Annotated[
-    KeycloakUserSyncService, Depends(get_keycloak_sync_service)
-]
+KeycloakSyncServiceDep = Annotated[KeycloakUserSyncService, Depends(get_keycloak_sync_service)]
 
 
 __all__ = [

@@ -205,9 +205,7 @@ class KeycloakUserSyncService:
     # Internal — upsert flow
     # -------------------------------------------------------------------------
 
-    async def _handle_upsert(
-        self, event_type: str, user_id: str, realm_id: str
-    ) -> WebhookResponse:
+    async def _handle_upsert(self, event_type: str, user_id: str, realm_id: str) -> WebhookResponse:
         """Fetch full profile từ Keycloak Admin API rồi upsert local DB.
 
         Args:
@@ -352,9 +350,7 @@ def _build_display_name(profile: KeycloakUserProfile) -> str:
     Returns:
         Display name string (không bao giờ empty).
     """
-    full = " ".join(
-        part for part in (profile.firstName.strip(), profile.lastName.strip()) if part
-    )
+    full = " ".join(part for part in (profile.firstName.strip(), profile.lastName.strip()) if part)
     return full or profile.username or profile.email or profile.id
 
 

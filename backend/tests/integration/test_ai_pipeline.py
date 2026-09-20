@@ -158,7 +158,9 @@ def _pdf_bytes(content: str = "PDF stub content") -> bytes:
 
 class TestDossierUpload:
     @pytest.mark.asyncio
-    async def test_upload_dossier_with_contract_only(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
+    async def test_upload_dossier_with_contract_only(
+        self, client: AsyncClient, make_keycloak_token: Any
+    ) -> None:  # noqa: E501
         """POST /dossiers/upload với 1 contract file → 202 + dossier_id + run_id."""
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         pdf = _pdf_bytes("Contract PDF")
@@ -184,7 +186,9 @@ class TestDossierUpload:
         assert data["documents"][0]["role"] == "contract"
 
     @pytest.mark.asyncio
-    async def test_upload_dossier_with_contract_and_annexes(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
+    async def test_upload_dossier_with_contract_and_annexes(
+        self, client: AsyncClient, make_keycloak_token: Any
+    ) -> None:  # noqa: E501
         """POST /dossiers/upload với contract + 2 annex files."""
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
 
@@ -219,7 +223,9 @@ class TestDossierUpload:
         assert data["documents"][2]["role"] == "annex"
 
     @pytest.mark.asyncio
-    async def test_upload_without_contract_file_returns_400(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
+    async def test_upload_without_contract_file_returns_400(
+        self, client: AsyncClient, make_keycloak_token: Any
+    ) -> None:  # noqa: E501
         """Thiếu contract_file → 422 (Pydantic validation) hoặc 400."""
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         resp = await client.post(
@@ -231,7 +237,9 @@ class TestDossierUpload:
         assert resp.status_code in (400, 422)
 
     @pytest.mark.asyncio
-    async def test_upload_reviewer_role_forbidden(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
+    async def test_upload_reviewer_role_forbidden(
+        self, client: AsyncClient, make_keycloak_token: Any
+    ) -> None:  # noqa: E501
         """REVIEWER không có quyền upload (chỉ OPERATOR, ADMINISTRATOR)."""
         # Note: chúng ta không seed REVIEWER trong fixture này — admin sẽ trả 403
         # vì admin cũng đủ quyền. Đăng nhập admin thử trước.
@@ -274,7 +282,9 @@ class TestAiServiceHealth:
             assert "checks" in body["data"]
 
     @pytest.mark.asyncio
-    async def test_ai_get_job_status_stub(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
+    async def test_ai_get_job_status_stub(
+        self, client: AsyncClient, make_keycloak_token: Any
+    ) -> None:  # noqa: E501
         """GET /api/v1/ai/jobs/{id} — proxy qua StubAI."""
         # Trước submit 1 job qua reocr để có job_id
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
@@ -319,7 +329,9 @@ class TestAiServiceHealth:
 
 class TestReOcrAsync:
     @pytest.mark.asyncio
-    async def test_reocr_submit_returns_job_id(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
+    async def test_reocr_submit_returns_job_id(
+        self, client: AsyncClient, make_keycloak_token: Any
+    ) -> None:  # noqa: E501
         """POST /documents/{id}/re-ocr trả job_id async."""
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         pdf = _pdf_bytes()
@@ -356,7 +368,9 @@ class TestReOcrAsync:
         assert "ai_job_" in data["job_id"]
 
     @pytest.mark.asyncio
-    async def test_reocr_get_request_status(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
+    async def test_reocr_get_request_status(
+        self, client: AsyncClient, make_keycloak_token: Any
+    ) -> None:  # noqa: E501
         """GET /re-ocr-requests/{id} — poll status."""
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         pdf = _pdf_bytes()
@@ -399,7 +413,9 @@ class TestReOcrAsync:
 
 class TestPipelineRun:
     @pytest.mark.asyncio
-    async def test_pipeline_run_completes_via_stub(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
+    async def test_pipeline_run_completes_via_stub(
+        self, client: AsyncClient, make_keycloak_token: Any
+    ) -> None:  # noqa: E501
         """Full pipeline (OCR → Extract) chạy qua stub → run=SUCCEEDED."""
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         pdf = _pdf_bytes()
@@ -430,7 +446,9 @@ class TestPipelineRun:
         assert status == "succeeded", f"expected succeeded, got {status}"
 
     @pytest.mark.asyncio
-    async def test_pipeline_run_steps_endpoint(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
+    async def test_pipeline_run_steps_endpoint(
+        self, client: AsyncClient, make_keycloak_token: Any
+    ) -> None:  # noqa: E501
         """GET /runs/{id}/steps trả về 11 steps S0..S10."""
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         pdf = _pdf_bytes()
@@ -465,7 +483,9 @@ class TestPipelineRun:
 
 class TestSseEvents:
     @pytest.mark.asyncio
-    async def test_sse_stream_runs_events(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
+    async def test_sse_stream_runs_events(
+        self, client: AsyncClient, make_keycloak_token: Any
+    ) -> None:  # noqa: E501
         """GET /runs/{id}/events stream SSE events."""
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         pdf = _pdf_bytes()

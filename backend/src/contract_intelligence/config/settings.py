@@ -132,8 +132,7 @@ class Settings(BaseSettings):
     keycloak_client_id: str = Field(
         default="ci-backend",
         description=(
-            "Client ID đăng ký trong Keycloak cho backend này. "
-            "Dùng để verify `aud` claim."
+            "Client ID đăng ký trong Keycloak cho backend này. Dùng để verify `aud` claim."
         ),
     )
     keycloak_jwks_uri: str | None = Field(
