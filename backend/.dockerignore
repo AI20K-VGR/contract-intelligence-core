@@ -1,0 +1,39 @@
+# -----------------------------------------------------------------------------
+# .dockerignore — giữ build context nhỏ, tăng layer cache hit-rate.
+# -----------------------------------------------------------------------------
+
+# Local virtualenv + cache (tạo bởi uv sync dev trên host)
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.import_linter_cache/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+
+# Test artifacts
+var/
+tests/
+
+# Local config
+.env
+.env.local
+.env.*.local
+
+# Alembic migration SQL — mounted vào backend-db chứ không bake vào image
+alembic/versions/
+
+# Docs that aren't needed at runtime
+*.md
+!README.md
+docs/
+
+# Docker self-reference
+Dockerfile
+.dockerignore
