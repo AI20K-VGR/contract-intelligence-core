@@ -14,7 +14,7 @@ from contract_intelligence.shared.auth.dependencies import (
 from contract_intelligence.shared.auth.exceptions import (
     AuthenticationError,
 )
-from contract_intelligence.shared.auth.schemas import AuthenticatedUser, TokenType
+from contract_intelligence.shared.auth.schemas import AuthenticatedUser
 
 # -----------------------------------------------------------------------
 # Fixtures
@@ -29,7 +29,6 @@ def valid_user() -> AuthenticatedUser:
         email="reviewer@vgr.vn",
         display_name="Trần Phê Duyệt",
         role="REVIEWER",
-        token_type=TokenType.ACCESS,
     )
 
 

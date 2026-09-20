@@ -1,6 +1,6 @@
 """Integration tests cho async pipeline flow + AI service integration.
 
-Test setup giống test_auth_endpoints.py — SQLite in-memory + seeded users.
+Test setup giống test_auth_endpoints.py — SQLite in-memory + mock Keycloak JWKS.
 Mỗi test verify:
     - POST /dossiers/upload (multipart) trả 202 + dossier_id + run_id
     - Pipeline run được schedule async qua BackgroundDispatcher
@@ -9,6 +9,12 @@ Mỗi test verify:
     - GET /runs/{id}/events stream SSE events
     - POST /documents/{id}/re-ocr submits async + poll returns result
     - GET /ai/healthz + /readyz proxy qua AI client
+
+Sau refactor Keycloak SSO:
+    - Test KHÔNG seed users vào DB nữa (Keycloak quản lý user identity).
+    - Mỗi test tạo mock Keycloak JWT qua fixture `make_keycloak_token`
+      (private key trong memory, JWKS cache patched).
+    - User provisioning qua webhook được test riêng (Phase 2).
 
 Chạy:
     cd backend
@@ -32,13 +38,6 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from contract_intelligence.config.settings import get_settings
-from contract_intelligence.identity.domain.entities.app_user import AppUser, UserRole
-from contract_intelligence.identity.infrastructure.persistence.user_repository_impl import (
-    UserRepositoryImpl,
-)
-from contract_intelligence.identity.infrastructure.security.password_hasher import (
-    Argon2PasswordHasher,
-)
 from contract_intelligence.main import app
 from contract_intelligence.shared.ai import (
     reset_pipeline_orchestrator,
@@ -51,7 +50,7 @@ from contract_intelligence.shared.persistence import (
 from contract_intelligence.shared.persistence.session import get_async_session
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Settings override (autouse)
+# Settings override (autouse) — Keycloak SSO mode (no /auth/login anymore)
 # ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -60,9 +59,16 @@ def _override_settings() -> AsyncGenerator[None, None]:
     get_settings.cache_clear()
     settings = get_settings()
     settings.database_url = "sqlite+aiosqlite:///:memory:"
-    settings.auth_mode = "local"
-    settings.jwt_secret_key = "integration-test-secret-key-32chars!!"
-    settings.jwt_algorithm = "HS256"
+    settings.auth_mode = "keycloak"
+    settings.keycloak_server_url = "https://test-keycloak.local"
+    settings.keycloak_realm = "test-realm"
+    settings.keycloak_client_id = "ci-backend"
+    settings.keycloak_audience = "ci-backend"
+    settings.keycloak_role_map = {
+        "ci_operator": "OPERATOR",
+        "ci_reviewer": "REVIEWER",
+        "ci_administrator": "ADMINISTRATOR",
+    }
     settings.env = "test"
     settings.ai_service_mode = "stub"  # Dùng stub để test deterministic
     settings.ai_dispatcher_max_polls = 5
@@ -87,41 +93,8 @@ async def db_engine() -> AsyncGenerator[Any, None]:
     await engine.dispose()
 
 
-@pytest_asyncio.fixture(scope="function")
-async def seeded_users(db_engine: Any) -> AsyncGenerator[None, None]:
-    factory = async_sessionmaker(bind=db_engine, expire_on_commit=False, class_=AsyncSession)
-    async with factory() as session:
-        hasher = Argon2PasswordHasher()
-        repo = UserRepositoryImpl(session)
-        users = [
-            AppUser(
-                id="usr_admin",
-                tenant_id="tenant_vgr_01",
-                email="admin@vgr.vn",
-                display_name="Admin",
-                role=UserRole.ADMINISTRATOR,
-                password_hash=hasher.hash("Admin@123"),
-                is_active=True,
-                token_version=0,
-            ),
-            AppUser(
-                id="usr_operator",
-                tenant_id="tenant_vgr_01",
-                email="operator@vgr.vn",
-                display_name="Operator",
-                role=UserRole.OPERATOR,
-                password_hash=hasher.hash("Operator@123"),
-                is_active=True,
-                token_version=0,
-            ),
-        ]
-        for u in users:
-            await repo.save(u)
-        await session.commit()
-
-
 @pytest_asyncio.fixture
-async def client(db_engine: Any, seeded_users: None) -> AsyncGenerator[AsyncClient, None]:
+async def client(db_engine: Any) -> AsyncGenerator[AsyncClient, None]:
     async def override_get_async_session() -> AsyncGenerator[AsyncSession, None]:
         factory = async_sessionmaker(bind=db_engine, expire_on_commit=False, class_=AsyncSession)
         async with factory() as session:
@@ -146,24 +119,30 @@ async def client(db_engine: Any, seeded_users: None) -> AsyncGenerator[AsyncClie
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Helpers
+# Helpers — mock Keycloak token (no /auth/login endpoint anymore)
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-async def _login(client: AsyncClient, email: str, password: str) -> str:
-    resp = await client.post(
-        "/api/v1/auth/login",
-        headers={"X-Tenant-Id": "tenant_vgr_01"},
-        json={"email": email, "password": password},
+def _auth_headers(
+    make_keycloak_token: Any,
+    *,
+    role: str = "OPERATOR",
+    user_id: str = "usr_test_operator",
+    email: str = "operator@vgr.vn",
+    display_name: str = "Operator",
+    tenant_id: str = "tenant_vgr_01",
+) -> dict[str, str]:
+    """Tạo headers với Bearer Keycloak token cho test."""
+    token = make_keycloak_token(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        email=email,
+        display_name=display_name,
+        role=role,
     )
-    assert resp.status_code == 201, f"login failed: {resp.text}"
-    return resp.json()["data"]["access_token"]
-
-
-def _auth(token: str) -> dict[str, str]:
     return {
         "Authorization": f"Bearer {token}",
-        "X-Tenant-Id": "tenant_vgr_01",
+        "X-Tenant-Id": tenant_id,
     }
 
 
@@ -179,14 +158,14 @@ def _pdf_bytes(content: str = "PDF stub content") -> bytes:
 
 class TestDossierUpload:
     @pytest.mark.asyncio
-    async def test_upload_dossier_with_contract_only(self, client: AsyncClient) -> None:
+    async def test_upload_dossier_with_contract_only(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
         """POST /dossiers/upload với 1 contract file → 202 + dossier_id + run_id."""
-        token = await _login(client, "operator@vgr.vn", "Operator@123")
+        headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         pdf = _pdf_bytes("Contract PDF")
 
         resp = await client.post(
             "/api/v1/dossiers/upload",
-            headers=_auth(token),
+            headers=headers,
             data={"name": "Hop dong so 12/2026", "auto_run": "true"},
             files={
                 "contract_file": ("hop-dong.pdf", io.BytesIO(pdf), "application/pdf"),
@@ -205,13 +184,13 @@ class TestDossierUpload:
         assert data["documents"][0]["role"] == "contract"
 
     @pytest.mark.asyncio
-    async def test_upload_dossier_with_contract_and_annexes(self, client: AsyncClient) -> None:
+    async def test_upload_dossier_with_contract_and_annexes(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
         """POST /dossiers/upload với contract + 2 annex files."""
-        token = await _login(client, "operator@vgr.vn", "Operator@123")
+        headers = _auth_headers(make_keycloak_token, role="OPERATOR")
 
         resp = await client.post(
             "/api/v1/dossiers/upload",
-            headers=_auth(token),
+            headers=headers,
             data={"name": "Dossier with annexes"},
             files=[
                 (
@@ -240,29 +219,29 @@ class TestDossierUpload:
         assert data["documents"][2]["role"] == "annex"
 
     @pytest.mark.asyncio
-    async def test_upload_without_contract_file_returns_400(self, client: AsyncClient) -> None:
+    async def test_upload_without_contract_file_returns_400(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
         """Thiếu contract_file → 422 (Pydantic validation) hoặc 400."""
-        token = await _login(client, "operator@vgr.vn", "Operator@123")
+        headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         resp = await client.post(
             "/api/v1/dossiers/upload",
-            headers=_auth(token),
+            headers=headers,
             data={"name": "No file"},
         )
         # FastAPI trả 422 khi thiếu required File param (Pydantic validation)
         assert resp.status_code in (400, 422)
 
     @pytest.mark.asyncio
-    async def test_upload_reviewer_role_forbidden(self, client: AsyncClient) -> None:
+    async def test_upload_reviewer_role_forbidden(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
         """REVIEWER không có quyền upload (chỉ OPERATOR, ADMINISTRATOR)."""
         # Note: chúng ta không seed REVIEWER trong fixture này — admin sẽ trả 403
         # vì admin cũng đủ quyền. Đăng nhập admin thử trước.
         # REVIEWER test sẽ fail với 403 nếu có.
         # Bỏ qua nếu không có user reviewer — admin có quyền
-        token = await _login(client, "admin@vgr.vn", "Admin@123")
+        headers = _auth_headers(make_keycloak_token, role="ADMINISTRATOR")
         pdf = _pdf_bytes()
         resp = await client.post(
             "/api/v1/dossiers/upload",
-            headers=_auth(token),
+            headers=headers,
             data={"name": "Admin upload"},
             files={"contract_file": ("x.pdf", io.BytesIO(pdf), "application/pdf")},
         )
@@ -295,15 +274,15 @@ class TestAiServiceHealth:
             assert "checks" in body["data"]
 
     @pytest.mark.asyncio
-    async def test_ai_get_job_status_stub(self, client: AsyncClient) -> None:
+    async def test_ai_get_job_status_stub(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
         """GET /api/v1/ai/jobs/{id} — proxy qua StubAI."""
         # Trước submit 1 job qua reocr để có job_id
-        token = await _login(client, "operator@vgr.vn", "Operator@123")
+        headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         pdf = _pdf_bytes()
         # Tạo dossier
         up = await client.post(
             "/api/v1/dossiers/upload",
-            headers=_auth(token),
+            headers=headers,
             data={"name": "Setup for reocr", "auto_run": "false"},
             files={"contract_file": ("x.pdf", io.BytesIO(pdf), "application/pdf")},
         )
@@ -312,7 +291,7 @@ class TestAiServiceHealth:
         # Submit reocr
         reocr = await client.post(
             f"/api/v1/documents/{doc_id}/re-ocr",
-            headers=_auth(token),
+            headers=headers,
             json={
                 "page_ids": ["pg_test_1"],
                 "reason": "test reocr",
@@ -326,7 +305,7 @@ class TestAiServiceHealth:
         # Proxy qua AI service proxy
         resp = await client.get(
             f"/api/v1/ai/jobs/{job_id}",
-            headers=_auth(token),
+            headers=headers,
         )
         assert resp.status_code == 200
         data = resp.json()["data"]
@@ -340,15 +319,15 @@ class TestAiServiceHealth:
 
 class TestReOcrAsync:
     @pytest.mark.asyncio
-    async def test_reocr_submit_returns_job_id(self, client: AsyncClient) -> None:
+    async def test_reocr_submit_returns_job_id(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
         """POST /documents/{id}/re-ocr trả job_id async."""
-        token = await _login(client, "operator@vgr.vn", "Operator@123")
+        headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         pdf = _pdf_bytes()
 
         # Tạo dossier + document
         up = await client.post(
             "/api/v1/dossiers/upload",
-            headers=_auth(token),
+            headers=headers,
             data={"name": "Dossier for reocr", "auto_run": "false"},
             files={"contract_file": ("x.pdf", io.BytesIO(pdf), "application/pdf")},
         )
@@ -357,7 +336,7 @@ class TestReOcrAsync:
         # Submit re-OCR
         resp = await client.post(
             f"/api/v1/documents/{doc_id}/re-ocr",
-            headers=_auth(token),
+            headers=headers,
             json={
                 "page_ids": ["pg_1", "pg_2"],
                 "reason": "OCR bị mờ ở điều khoản thanh toán",
@@ -377,14 +356,14 @@ class TestReOcrAsync:
         assert "ai_job_" in data["job_id"]
 
     @pytest.mark.asyncio
-    async def test_reocr_get_request_status(self, client: AsyncClient) -> None:
+    async def test_reocr_get_request_status(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
         """GET /re-ocr-requests/{id} — poll status."""
-        token = await _login(client, "operator@vgr.vn", "Operator@123")
+        headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         pdf = _pdf_bytes()
 
         up = await client.post(
             "/api/v1/dossiers/upload",
-            headers=_auth(token),
+            headers=headers,
             data={"name": "Reocr status", "auto_run": "false"},
             files={"contract_file": ("x.pdf", io.BytesIO(pdf), "application/pdf")},
         )
@@ -392,7 +371,7 @@ class TestReOcrAsync:
 
         reocr = await client.post(
             f"/api/v1/documents/{doc_id}/re-ocr",
-            headers=_auth(token),
+            headers=headers,
             json={
                 "page_ids": ["pg_1"],
                 "reason": "test",
@@ -406,7 +385,7 @@ class TestReOcrAsync:
 
         resp = await client.get(
             f"/api/v1/re-ocr-requests/{request_id}",
-            headers=_auth(token),
+            headers=headers,
         )
         assert resp.status_code == 200
         body = resp.json()["data"]
@@ -420,15 +399,15 @@ class TestReOcrAsync:
 
 class TestPipelineRun:
     @pytest.mark.asyncio
-    async def test_pipeline_run_completes_via_stub(self, client: AsyncClient) -> None:
+    async def test_pipeline_run_completes_via_stub(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
         """Full pipeline (OCR → Extract) chạy qua stub → run=SUCCEEDED."""
-        token = await _login(client, "operator@vgr.vn", "Operator@123")
+        headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         pdf = _pdf_bytes()
 
         # Upload dossier với auto_run=true
         up = await client.post(
             "/api/v1/dossiers/upload",
-            headers=_auth(token),
+            headers=headers,
             data={"name": "Pipeline test", "auto_run": "true"},
             files={"contract_file": ("x.pdf", io.BytesIO(pdf), "application/pdf")},
         )
@@ -441,7 +420,7 @@ class TestPipelineRun:
             await asyncio.sleep(0.3)
             resp = await client.get(
                 f"/api/v1/runs/{run_id}",
-                headers=_auth(token),
+                headers=headers,
             )
             assert resp.status_code == 200
             status = resp.json()["data"]["status"]
@@ -451,14 +430,14 @@ class TestPipelineRun:
         assert status == "succeeded", f"expected succeeded, got {status}"
 
     @pytest.mark.asyncio
-    async def test_pipeline_run_steps_endpoint(self, client: AsyncClient) -> None:
+    async def test_pipeline_run_steps_endpoint(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
         """GET /runs/{id}/steps trả về 11 steps S0..S10."""
-        token = await _login(client, "operator@vgr.vn", "Operator@123")
+        headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         pdf = _pdf_bytes()
 
         up = await client.post(
             "/api/v1/dossiers/upload",
-            headers=_auth(token),
+            headers=headers,
             data={"name": "Steps test", "auto_run": "true"},
             files={"contract_file": ("x.pdf", io.BytesIO(pdf), "application/pdf")},
         )
@@ -469,7 +448,7 @@ class TestPipelineRun:
 
         resp = await client.get(
             f"/api/v1/runs/{run_id}/steps",
-            headers=_auth(token),
+            headers=headers,
         )
         assert resp.status_code == 200
         steps = resp.json()["data"]
@@ -486,14 +465,14 @@ class TestPipelineRun:
 
 class TestSseEvents:
     @pytest.mark.asyncio
-    async def test_sse_stream_runs_events(self, client: AsyncClient) -> None:
+    async def test_sse_stream_runs_events(self, client: AsyncClient, make_keycloak_token: Any) -> None:  # noqa: E501
         """GET /runs/{id}/events stream SSE events."""
-        token = await _login(client, "operator@vgr.vn", "Operator@123")
+        headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         pdf = _pdf_bytes()
 
         up = await client.post(
             "/api/v1/dossiers/upload",
-            headers=_auth(token),
+            headers=headers,
             data={"name": "SSE test", "auto_run": "true"},
             files={"contract_file": ("x.pdf", io.BytesIO(pdf), "application/pdf")},
         )
@@ -505,7 +484,7 @@ class TestSseEvents:
             async with client.stream(
                 "GET",
                 f"/api/v1/runs/{run_id}/events",
-                headers=_auth(token),
+                headers=headers,
                 timeout=5.0,
             ) as resp:
                 assert resp.status_code == 200

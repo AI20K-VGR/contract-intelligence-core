@@ -1,22 +1,17 @@
-"""Identity FastAPI dependencies — composition root cho auth flow.
+"""Identity FastAPI dependencies — composition root cho user repository và sync service.
 
 Layer: interfaces (FastAPI DI) — được phép import từ infrastructure
 để compose dependencies theo Clean Architecture pattern.
 
-Nguyên tắc:
-    - Domain/application KHÔNG biết infrastructure impl
-    - Chỉ composition root (ở interfaces/) mới wire:
-        AsyncSession → UserRepositoryImpl → AuthService
-
-Mỗi request sẽ resolve:
-    AsyncSession → fresh session per request (auto commit/rollback)
-    UserRepositoryImpl(session) → tạo mới per request
-    AuthService(repo, verifier) → tạo mới per request
-    AuthService methods → dùng session đã commit
-
-Note về thread safety:
-    AuthService và UserRepositoryImpl KHÔNG lưu state ngoài session —
-    mỗi request tạo instance mới, an toàn với concurrent requests.
+Sau refactor Keycloak SSO (Approach A — Admin API fetch):
+    - Backend không có AuthService (Keycloak lo auth).
+    - Backend không issue token, không verify password.
+    - Identity BC chỉ còn UserRepository (cho Keycloak user provisioning)
+      và KeycloakUserSyncService (cho webhook events).
+    - Auth (JWT verify) thuộc shared/auth/ — đã được sử dụng qua
+      ``shared.auth.dependencies.get_current_user``.
+    - KeycloakAdminClient cung cấp REST API access để fetch full user
+      profile khi webhook event không chứa firstName/lastName/email.
 """
 
 from __future__ import annotations
@@ -26,22 +21,23 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from contract_intelligence.identity.application.services.auth_service import (
-    AuthService,
-)
 from contract_intelligence.identity.domain.repositories.user_repository import (
     UserRepository,
+)
+from contract_intelligence.identity.infrastructure.keycloak_admin_client import (
+    KeycloakAdminClient,
+    KeycloakAdminClientPort,
 )
 from contract_intelligence.identity.infrastructure.persistence.user_repository_impl import (
     UserRepositoryImpl,
 )
-from contract_intelligence.identity.infrastructure.security.password_hasher import (
-    Argon2PasswordVerifier,
+from contract_intelligence.identity.interfaces.api.keycloak_user_sync_service import (
+    KeycloakUserSyncService,
 )
 from contract_intelligence.shared.persistence import get_async_session
 
 # -----------------------------------------------------------------------------
-# Repository factories
+# Repository factory
 # -----------------------------------------------------------------------------
 
 
@@ -54,7 +50,7 @@ async def get_user_repository(
         async def endpoint(
             repo: UserRepository = Depends(get_user_repository),
         ):
-            user = await repo.get_by_email(...)
+            user = await repo.upsert_from_keycloak(...)
     """
     return UserRepositoryImpl(session)
 
@@ -63,40 +59,75 @@ async def get_user_repository(
 UserRepositoryDep = Annotated[UserRepository, Depends(get_user_repository)]
 
 
+# ------------------------------------------------------------------------------
+# Keycloak Admin REST API client
 # -----------------------------------------------------------------------------
-# Auth service factory
-# -----------------------------------------------------------------------------
-
-# Singleton verifier — stateless, thread-safe
-_password_verifier = Argon2PasswordVerifier()
 
 
-async def get_auth_service(
-    repo: UserRepositoryDep,
-) -> AuthService:
-    """FastAPI dependency: tạo AuthService với real UserRepository + Argon2 verifier.
+async def get_keycloak_admin_client() -> KeycloakAdminClient:
+    """FastAPI dependency: trả singleton KeycloakAdminClient.
 
-    Usage trong router:
-        @router.post("/login")
-        async def login(
-            svc: AuthService = Depends(get_auth_service),
-            body: LoginRequest,
+    Singleton accessor đọc settings tại first-call; subsequent calls
+    trả về cùng instance. Lý do singleton: httpx.AsyncClient + token
+    cache cần share giữa các request để không reconnect liên tục.
+
+    Usage:
+        @router.post("/webhooks/keycloak")
+        async def webhook(
+            client: Annotated[KeycloakAdminClient, Depends(get_keycloak_admin_client)],
         ):
-            result = await svc.login(...)
-
-    Returns:
-        AuthService instance mới cho mỗi request — fresh state.
+            profile = await client.get_user_profile(user_id)
     """
-    return AuthService(user_repository=repo, password_verifier=_password_verifier.verify)
+    from contract_intelligence.identity.infrastructure.keycloak_admin_client import (
+        get_keycloak_admin_client as _factory,
+    )
+
+    return _factory()
 
 
 # Type alias
-AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+KeycloakAdminClientDep = Annotated[
+    KeycloakAdminClientPort, Depends(get_keycloak_admin_client)
+]
+
+
+# ------------------------------------------------------------------------------
+# Keycloak sync service factory
+# -----------------------------------------------------------------------------
+
+
+async def get_keycloak_sync_service(
+    repo: UserRepositoryDep,
+    admin_client: KeycloakAdminClientDep,
+) -> KeycloakUserSyncService:
+    """FastAPI dependency: tạo KeycloakUserSyncService.
+
+    Compose:
+        - UserRepository (DB) — để upsert/delete users
+        - KeycloakAdminClient (HTTP) — để fetch full user profile
+
+    Usage:
+        @router.post("/webhooks/keycloak")
+        async def webhook(svc: KeycloakSyncServiceDep):
+            result = await svc.handle_event(event)
+    """
+    return KeycloakUserSyncService(
+        user_repository=repo,
+        admin_client=admin_client,
+    )
+
+
+# Type alias
+KeycloakSyncServiceDep = Annotated[
+    KeycloakUserSyncService, Depends(get_keycloak_sync_service)
+]
 
 
 __all__ = [
-    "AuthServiceDep",
+    "KeycloakAdminClientDep",
+    "KeycloakSyncServiceDep",
     "UserRepositoryDep",
-    "get_auth_service",
+    "get_keycloak_admin_client",
+    "get_keycloak_sync_service",
     "get_user_repository",
 ]

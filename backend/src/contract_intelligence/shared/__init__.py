@@ -15,9 +15,9 @@ from contract_intelligence.shared.auth import (
     AuthenticatedUser,
     AuthenticationError,
     KeycloakTokenClaims,
-    LocalTokenClaims,
+    MeResponse,
     TenantMismatchError,
-    TokenType,
+    UserProfilePayload,
     get_current_user,
     require_role,
 )
@@ -31,9 +31,9 @@ __all__ = [
     "AuthenticatedUser",
     "AuthenticationError",
     "KeycloakTokenClaims",
-    "LocalTokenClaims",
+    "MeResponse",
+    "UserProfilePayload",
     "TenantMismatchError",
-    "TokenType",
     "get_current_user",
     "require_role",
 ]

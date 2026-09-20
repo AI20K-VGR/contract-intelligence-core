@@ -419,7 +419,7 @@ DDL đầy đủ 23 bảng + 27 index + trigger + view nằm trong file SQL. B�
 
 | # | Bảng | Cột đặc biệt / ràng buộc | Bất biến? |
 |---|---|---|---|
-| 1 | `app_user` | `role` enum, `password_hash` (argon2) | Không |
+| 1 | `app_user` | `role` enum, `keycloak_sub` UNIQUE | Không |
 | 2 | `batch` | `auto_paused` | Không |
 | 3 | `dossier` | `has_conflicts` | Không |
 | 4 | `document` | **`signing_date DATE`**, **`effective_date DATE`**, `role` enum, `sha256`, `page_count` | Không |

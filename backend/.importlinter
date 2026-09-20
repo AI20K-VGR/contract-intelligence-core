@@ -43,7 +43,6 @@ forbidden_modules =
     contract_intelligence.review.application
     contract_intelligence.review.infrastructure
     contract_intelligence.review.interfaces
-    contract_intelligence.identity.application
     contract_intelligence.identity.infrastructure
     contract_intelligence.identity.interfaces
 
@@ -55,7 +54,6 @@ source_modules =
     contract_intelligence.extraction.application
     contract_intelligence.conflict.application
     contract_intelligence.review.application
-    contract_intelligence.identity.application
 forbidden_modules =
     contract_intelligence.contract.infrastructure
     contract_intelligence.contract.interfaces
@@ -106,7 +104,6 @@ source_modules =
     contract_intelligence.extraction.application
     contract_intelligence.conflict.application
     contract_intelligence.review.application
-    contract_intelligence.identity.application
 forbidden_modules =
     contract_intelligence.extraction.infrastructure
     contract_intelligence.extraction.interfaces
@@ -164,5 +161,4 @@ name = Identity layers
 type = layers
 layers =
     contract_intelligence.identity.interfaces
-    contract_intelligence.identity.application
     contract_intelligence.identity.domain

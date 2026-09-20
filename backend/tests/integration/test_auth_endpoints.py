@@ -1,26 +1,30 @@
-"""Integration tests cho /auth/* endpoints — dùng SQLite in-memory.
+"""Integration tests cho /auth/me — dùng SQLite in-memory + mock Keycloak JWKS.
+
+Sau refactor Keycloak SSO:
+    - Backend CHỈ có endpoint /auth/me (pass-through từ JWT claims).
+    - KHÔNG có /auth/login, /auth/refresh, /auth/logout — frontend gọi thẳng Keycloak.
+    - Test tạo mock Keycloak JWKS + sign JWT với RSA private key.
 
 Test setup:
     - Spin up SQLite in-memory qua aiosqlite
     - Bind engine singleton trong shared.persistence.session
-    - Tạo schema từ Base.metadata (không cần alembic)
-    - Seed 3 dev users (admin/reviewer/operator) với Argon2 hash
-    - Override get_async_session dependency để dùng test session
+    - Tạo schema từ Base.metadata
+    - Patch JWKS cache với test RSA public key
+    - Tạo valid Keycloak JWT qua helper fixture
 
 Mỗi test:
     - Tạo AsyncClient với dependency override
-    - Gọi POST /auth/login → nhận JWT tokens
-    - Gọi các endpoint còn lại với Bearer token
-    - Verify response
+    - Gọi GET /auth/me với Bearer token
+    - Verify response — pass-through từ JWT claims
 
 Chạy:
     cd backend
-    uv run pytest tests/integration/ -v
+    uv run pytest tests/integration/test_auth_endpoints.py -v
 """
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 import pytest
@@ -33,13 +37,6 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from contract_intelligence.config.settings import get_settings
-from contract_intelligence.identity.domain.entities.app_user import AppUser, UserRole
-from contract_intelligence.identity.infrastructure.persistence.user_repository_impl import (
-    UserRepositoryImpl,
-)
-from contract_intelligence.identity.infrastructure.security.password_hasher import (
-    Argon2PasswordHasher,
-)
 from contract_intelligence.main import app
 from contract_intelligence.shared.persistence import (
     Base,
@@ -49,99 +46,68 @@ from contract_intelligence.shared.persistence import (
 from contract_intelligence.shared.persistence.session import get_async_session
 
 # -----------------------------------------------------------------------------
-# Force test settings — phải set TRƯỚC khi import app để settings cached
+# Settings override — chạy SQLite + Keycloak mode
 # -----------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _override_settings() -> Generator[None, None, None]:
-    """Force settings sang test values (SQLite, local JWT mode)."""
+def _override_settings() -> AsyncGenerator[None, None]:
+    """Force settings sang test values (SQLite, keycloak JWT mode)."""
     get_settings.cache_clear()
     settings = get_settings()
-    # Override to SQLite in-memory + local JWT mode
+    # SQLite in-memory cho test
     settings.database_url = "sqlite+aiosqlite:///:memory:"
-    settings.auth_mode = "local"
-    settings.jwt_secret_key = "integration-test-secret-key-32chars!!"
-    settings.jwt_algorithm = "HS256"
+    # Keycloak mode (chỉ hỗ trợ mode này)
+    settings.auth_mode = "keycloak"
+    settings.keycloak_server_url = "https://test-keycloak.local"
+    settings.keycloak_realm = "test-realm"
+    settings.keycloak_client_id = "ci-backend"
+    settings.keycloak_audience = "ci-backend"
+    settings.keycloak_role_map = {
+        "ci_operator": "OPERATOR",
+        "ci_reviewer": "REVIEWER",
+        "ci_administrator": "ADMINISTRATOR",
+    }
     settings.env = "test"
     yield
     get_settings.cache_clear()
 
 
 # -----------------------------------------------------------------------------
-# DB setup — create schema once per session
+# DB setup
 # -----------------------------------------------------------------------------
 
 
 @pytest_asyncio.fixture(scope="function")
 async def db_engine() -> AsyncGenerator[Any, None]:
-    """Fresh SQLite engine + schema per test (function-scoped cho isolation)."""
+    """Fresh SQLite engine + schema per test."""
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-
-    # Create all tables from Base.metadata
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-
-    # Bind singleton for get_async_session dependency
     bind_engine(engine)
-
     yield engine
-
-    # Cleanup
     reset_engine()
     await engine.dispose()
 
 
-@pytest_asyncio.fixture(scope="function")
-async def db_session(db_engine: Any) -> AsyncGenerator[AsyncSession, None]:
-    """AsyncSession bound to test engine."""
-    factory = async_sessionmaker(bind=db_engine, expire_on_commit=False, class_=AsyncSession)
-    async with factory() as session:
-        yield session
+# -----------------------------------------------------------------------------
+# Mock Keycloak JWKS — patch JWKS cache với test public key
+# -----------------------------------------------------------------------------
 
 
 @pytest_asyncio.fixture(scope="function")
-async def seeded_users(db_session: AsyncSession) -> AsyncGenerator[None, None]:
-    """Seed 3 dev users với Argon2 hash trước mỗi test."""
-    hasher = Argon2PasswordHasher()
-    repo = UserRepositoryImpl(db_session)
+async def mock_keycloak_jwks(
+    monkeypatch: pytest.MonkeyPatch,
+    make_keycloak_token: Any,
+) -> str:
+    """Patch global JWKS cache với test RSA public key.
 
-    users = [
-        AppUser(
-            id="usr_admin",
-            tenant_id="tenant_vgr_01",
-            email="admin@vgr.vn",
-            display_name="Admin",
-            role=UserRole.ADMINISTRATOR,
-            password_hash=hasher.hash("Admin@123"),
-            is_active=True,
-            token_version=0,
-        ),
-        AppUser(
-            id="usr_reviewer",
-            tenant_id="tenant_vgr_01",
-            email="reviewer@vgr.vn",
-            display_name="Reviewer",
-            role=UserRole.REVIEWER,
-            password_hash=hasher.hash("Reviewer@123"),
-            is_active=True,
-            token_version=0,
-        ),
-        AppUser(
-            id="usr_operator",
-            tenant_id="tenant_vgr_01",
-            email="operator@vgr.vn",
-            display_name="Operator",
-            role=UserRole.OPERATOR,
-            password_hash=hasher.hash("Operator@123"),
-            is_active=False,  # Test deactivation
-            token_version=0,
-        ),
-    ]
-
-    for user in users:
-        await repo.save(user)
-    await db_session.commit()
+    Returns:
+        kid được sử dụng — pass vào make_keycloak_token(..., kid=...).
+    """
+    # make_keycloak_token fixture đã patch JWKS cache qua cached_keycloak_jwks
+    # nhưng ta cần đảm bảo cả hai fixture work together
+    return "test-kid-1"
 
 
 # -----------------------------------------------------------------------------
@@ -150,7 +116,11 @@ async def seeded_users(db_session: AsyncSession) -> AsyncGenerator[None, None]:
 
 
 @pytest_asyncio.fixture
-async def client(db_engine: Any, seeded_users: None) -> AsyncGenerator[AsyncClient, None]:
+async def client(
+    db_engine: Any,
+    cached_keycloak_jwks: str,
+    mock_keycloak_settings: Any,
+) -> AsyncGenerator[AsyncClient, None]:
     """AsyncClient bound to FastAPI app with dependency override."""
 
     async def override_get_async_session() -> AsyncGenerator[AsyncSession, None]:
@@ -175,228 +145,153 @@ async def client(db_engine: Any, seeded_users: None) -> AsyncGenerator[AsyncClie
 
 
 # =============================================================================
-# Tests — POST /auth/login
-# =============================================================================
-
-
-class TestLogin:
-    @pytest.mark.asyncio
-    async def test_login_success_returns_tokens(self, client: AsyncClient) -> None:
-        """Login với credentials đúng → 201 + access/refresh token + profile."""
-        response = await client.post(
-            "/api/v1/auth/login",
-            headers={"X-Tenant-Id": "tenant_vgr_01"},
-            json={"email": "admin@vgr.vn", "password": "Admin@123"},
-        )
-        assert response.status_code == 201
-        body = response.json()
-
-        # Envelope shape
-        assert "data" in body
-        assert "meta" in body
-
-        data = body["data"]
-        assert data["token_type"] == "Bearer"
-        assert isinstance(data["access_token"], str)
-        assert len(data["access_token"]) > 20
-        assert isinstance(data["refresh_token"], str)
-        assert len(data["refresh_token"]) > 20
-        assert data["expires_in"] == 3600  # 60 minutes
-
-        # User profile in response
-        user = data["user"]
-        assert user["id"] == "usr_admin"
-        assert user["role"] == "ADMINISTRATOR"
-        assert user["tenant_id"] == "tenant_vgr_01"
-
-    @pytest.mark.asyncio
-    async def test_login_wrong_password_returns_401(self, client: AsyncClient) -> None:
-        """Sai password → 401."""
-        response = await client.post(
-            "/api/v1/auth/login",
-            headers={"X-Tenant-Id": "tenant_vgr_01"},
-            json={"email": "admin@vgr.vn", "password": "WrongPassword"},
-        )
-        assert response.status_code == 401
-        body = response.json()
-        # FastAPI HTTPException shape: {"detail": "..."}
-        assert "detail" in body or "error" in body
-
-    @pytest.mark.asyncio
-    async def test_login_nonexistent_user_returns_401(self, client: AsyncClient) -> None:
-        """Email không tồn tại → 401 (không phân biệt được với wrong-password)."""
-        response = await client.post(
-            "/api/v1/auth/login",
-            headers={"X-Tenant-Id": "tenant_vgr_01"},
-            json={"email": "ghost@vgr.vn", "password": "Anything"},
-        )
-        assert response.status_code == 401
-
-    @pytest.mark.asyncio
-    async def test_login_deactivated_user_returns_401(self, client: AsyncClient) -> None:
-        """User bị deactivate (is_active=False) → 401, không leak thông tin."""
-        response = await client.post(
-            "/api/v1/auth/login",
-            headers={"X-Tenant-Id": "tenant_vgr_01"},
-            json={"email": "operator@vgr.vn", "password": "Operator@123"},
-        )
-        assert response.status_code == 401
-
-    @pytest.mark.asyncio
-    async def test_login_wrong_tenant_returns_401(self, client: AsyncClient) -> None:
-        """Email + tenant_id khác nhau → 401 (email unique per tenant)."""
-        response = await client.post(
-            "/api/v1/auth/login",
-            headers={"X-Tenant-Id": "tenant_other_99"},
-            json={"email": "admin@vgr.vn", "password": "Admin@123"},
-        )
-        assert response.status_code == 401
-
-
-# =============================================================================
-# Tests — GET /auth/me
+# Tests — GET /auth/me (Keycloak JWT pass-through)
 # =============================================================================
 
 
 class TestMe:
     @pytest.mark.asyncio
-    async def test_me_with_valid_token_returns_profile(self, client: AsyncClient) -> None:
-        # Login trước
-        login_response = await client.post(
-            "/api/v1/auth/login",
-            headers={"X-Tenant-Id": "tenant_vgr_01"},
-            json={"email": "admin@vgr.vn", "password": "Admin@123"},
+    async def test_me_with_valid_keycloak_token_returns_profile(
+        self,
+        client: AsyncClient,
+        make_keycloak_token: Any,
+    ) -> None:
+        """Mock Keycloak JWT với claims chuẩn → /me trả về profile đúng."""
+        token = make_keycloak_token(
+            user_id="usr_01HZ_TEST_USER",
+            tenant_id="tenant_vgr_01",
+            email="reviewer@vgr.vn",
+            display_name="Trần Thị Phê Duyệt",
+            role="REVIEWER",
         )
-        access_token = login_response.json()["data"]["access_token"]
 
-        # Gọi /me
         response = await client.get(
             "/api/v1/auth/me",
-            headers={"Authorization": f"Bearer {access_token}"},
+            headers={"Authorization": f"Bearer {token}"},
         )
-        assert response.status_code == 200
+        assert response.status_code == 200, response.text
         body = response.json()
-        assert body["data"]["id"] == "usr_admin"
-        assert body["data"]["role"] == "ADMINISTRATOR"
-        assert body["data"]["email"] == "admin@vgr.vn"
+        data = body["data"]
+        assert data["id"] == "usr_01HZ_TEST_USER"
+        assert data["email"] == "reviewer@vgr.vn"
+        assert data["display_name"] == "Trần Thị Phê Duyệt"
+        assert data["role"] == "REVIEWER"
+        assert data["tenant_id"] == "tenant_vgr_01"
 
     @pytest.mark.asyncio
     async def test_me_without_token_returns_401(self, client: AsyncClient) -> None:
+        """Không có Authorization header → 401."""
         response = await client.get("/api/v1/auth/me")
         assert response.status_code == 401
+        assert "detail" in response.json() or "error" in response.json()
 
     @pytest.mark.asyncio
-    async def test_me_with_invalid_token_returns_401(self, client: AsyncClient) -> None:
+    async def test_me_with_invalid_token_returns_401(
+        self,
+        client: AsyncClient,
+        make_keycloak_token: Any,
+        rsa_keypair: Any,
+    ) -> None:
+        """Token sign với key không có trong JWKS → 401."""
+        # Tạo key khác (không patch vào cache)
+        import jwt as _jwt
+        from cryptography.hazmat.primitives import serialization as _ser
+        from cryptography.hazmat.primitives.asymmetric import rsa as _rsa
+
+        other_private = _rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        pem = other_private.private_bytes(
+            encoding=_ser.Encoding.PEM,
+            format=_ser.PrivateFormat.PKCS8,
+            encryption_algorithm=_ser.NoEncryption(),
+        )
+        bad_token = _jwt.encode(
+            {
+                "sub": "u1",
+                "email": "x@v.vn",
+                "name": "X",
+                "iss": "https://test-keycloak.local/realms/test-realm",
+                "aud": "ci-backend",
+                "iat": 0,
+                "exp": 9999999999,
+                "tenant_id": "t1",
+                "realm_access": {"roles": ["ci_operator"]},
+            },
+            pem,
+            algorithm="RS256",
+            headers={"kid": "unknown-kid"},
+        )
+
         response = await client.get(
             "/api/v1/auth/me",
-            headers={"Authorization": "Bearer invalid.token.here"},
+            headers={"Authorization": f"Bearer {bad_token}"},
+        )
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_me_with_wrong_audience_returns_401(
+        self,
+        client: AsyncClient,
+        make_keycloak_token: Any,
+    ) -> None:
+        """Token có aud claim khác với keycloak_client_id → 401."""
+        token = make_keycloak_token(audience="some-other-client")
+        response = await client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_me_with_malformed_token_returns_401(
+        self,
+        client: AsyncClient,
+    ) -> None:
+        response = await client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": "Bearer not.a.real.jwt"},
+        )
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_me_with_authorization_header_without_bearer_prefix_returns_401(
+        self,
+        client: AsyncClient,
+    ) -> None:
+        response = await client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": "Basic dXNlcjpwYXNz"},
         )
         assert response.status_code == 401
 
 
 # =============================================================================
-# Tests — POST /auth/refresh
+# Tests — Endpoint nào KHÔNG còn tồn tại (regression cho refactor)
 # =============================================================================
 
 
-class TestRefresh:
+class TestRemovedEndpoints:
+    """Verify các endpoint đã bị xóa đúng cách — frontend không thể gọi nhầm."""
+
     @pytest.mark.asyncio
-    async def test_refresh_with_valid_token_returns_new_pair(self, client: AsyncClient) -> None:
-        # Login
-        login_response = await client.post(
+    async def test_login_endpoint_returns_404(self, client: AsyncClient) -> None:
+        """POST /auth/login không còn — phải trả 404 (method/endpoint không tồn tại)."""
+        response = await client.post(
             "/api/v1/auth/login",
-            headers={"X-Tenant-Id": "tenant_vgr_01"},
-            json={"email": "admin@vgr.vn", "password": "Admin@123"},
+            json={"email": "x@v.vn", "password": "y"},
         )
-        refresh_token = login_response.json()["data"]["refresh_token"]
-        original_access = login_response.json()["data"]["access_token"]
+        assert response.status_code == 404
 
-        # Sleep 1s để iat timestamp khác (JWT determinism với same second)
-        import asyncio
-
-        await asyncio.sleep(1.1)
-
-        # Refresh
+    @pytest.mark.asyncio
+    async def test_refresh_endpoint_returns_404(self, client: AsyncClient) -> None:
+        """POST /auth/refresh không còn — phải trả 404."""
         response = await client.post(
             "/api/v1/auth/refresh",
-            json={"refresh_token": refresh_token},
+            json={"refresh_token": "any"},
         )
-        assert response.status_code == 200
-        body = response.json()
-        assert "access_token" in body["data"]
-        assert "refresh_token" in body["data"]
-        # Token mới phải khác token cũ
-        assert body["data"]["access_token"] != original_access
-        # Refresh token có token_version nên LUÔN khác (tăng mỗi lần refresh)
-        assert body["data"]["refresh_token"] != refresh_token
+        assert response.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_old_refresh_token_rejected_after_rotation(self, client: AsyncClient) -> None:
-        """Sau refresh, dùng refresh_token CŨ → 401 (token_version revoked)."""
-        # Login
-        login_response = await client.post(
-            "/api/v1/auth/login",
-            headers={"X-Tenant-Id": "tenant_vgr_01"},
-            json={"email": "admin@vgr.vn", "password": "Admin@123"},
-        )
-        old_refresh = login_response.json()["data"]["refresh_token"]
-
-        # Refresh lần 1 — OK
-        await client.post(
-            "/api/v1/auth/refresh",
-            json={"refresh_token": old_refresh},
-        )
-
-        # Refresh lần 2 với CÙNG refresh_token cũ → 401
-        response = await client.post(
-            "/api/v1/auth/refresh",
-            json={"refresh_token": old_refresh},
-        )
-        assert response.status_code == 401
-
-    @pytest.mark.asyncio
-    async def test_refresh_with_invalid_token_returns_401(self, client: AsyncClient) -> None:
-        response = await client.post(
-            "/api/v1/auth/refresh",
-            json={"refresh_token": "invalid.token.here"},
-        )
-        assert response.status_code == 401
-
-
-# =============================================================================
-# Tests — POST /auth/logout
-# =============================================================================
-
-
-class TestLogout:
-    @pytest.mark.asyncio
-    async def test_logout_revokes_session(self, client: AsyncClient) -> None:
-        """Logout → refresh token cũ bị reject ở lần refresh tiếp theo."""
-        # Login
-        login_response = await client.post(
-            "/api/v1/auth/login",
-            headers={"X-Tenant-Id": "tenant_vgr_01"},
-            json={"email": "admin@vgr.vn", "password": "Admin@123"},
-        )
-        access_token = login_response.json()["data"]["access_token"]
-        refresh_token = login_response.json()["data"]["refresh_token"]
-
-        # Logout
-        logout_response = await client.post(
-            "/api/v1/auth/logout",
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-        assert logout_response.status_code == 200
-        assert logout_response.json()["data"]["message"] == "Logged out successfully"
-
-        # Refresh sau logout → 401 (token_version đã tăng)
-        refresh_response = await client.post(
-            "/api/v1/auth/refresh",
-            json={"refresh_token": refresh_token},
-        )
-        assert refresh_response.status_code == 401
-
-    @pytest.mark.asyncio
-    async def test_logout_without_token_returns_401(self, client: AsyncClient) -> None:
+    async def test_logout_endpoint_returns_404(self, client: AsyncClient) -> None:
+        """POST /auth/logout không còn — frontend phải gọi thẳng Keycloak."""
         response = await client.post("/api/v1/auth/logout")
-        assert response.status_code == 401
+        assert response.status_code == 404

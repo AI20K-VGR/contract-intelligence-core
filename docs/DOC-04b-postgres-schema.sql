@@ -33,13 +33,21 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ===========================================================================
 -- §2. TÀI KHOẢN, MULTI-TENANCY & PHÂN QUYỀN
 -- ===========================================================================
+-- Sau refactor Keycloak SSO (v3__keycloak_sso_refactor):
+--   - password_hash: BỎ (Keycloak quản lý password)
+--   - last_login_at: BỎ (Keycloak track riêng)
+--   - token_version: BỎ (Keycloak quản lý refresh token revocation)
+--   - keycloak_sub: THÊM (UNIQUE — original Keycloak sub claim)
 CREATE TABLE app_user (
-    id            TEXT PRIMARY KEY,                            -- prefix "usr_"
+    id            TEXT PRIMARY KEY,                            -- prefix "usr_<keycloak_sub>"
     tenant_id     TEXT NOT NULL,                               -- Tenant Isolation
+    email         TEXT NOT NULL,
     display_name  TEXT NOT NULL,
     role          TEXT NOT NULL CHECK (role IN ('OPERATOR', 'REVIEWER', 'ADMINISTRATOR')),
-    password_hash TEXT NOT NULL,                               -- argon2
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    keycloak_sub TEXT NOT NULL UNIQUE,                         -- Keycloak sub claim (original user ID)
+    is_active    BOOLEAN NOT NULL DEFAULT true,                -- Backend-side override (độc lập với Keycloak)
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 

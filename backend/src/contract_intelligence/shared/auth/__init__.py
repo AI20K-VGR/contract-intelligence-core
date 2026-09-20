@@ -3,15 +3,19 @@
 Module này được phép import fastapi/jwt vì là shared kernel,
 KHÔNG thuộc domain layer của bounded context nào.
 
+Sau refactor Keycloak SSO:
+    - JWT service chỉ verify (KHÔNG encode) — backend không issue token.
+    - Chỉ hỗ trợ Keycloak RS256 mode (local HS256 đã bị bỏ).
+    - Frontend gọi thẳng Keycloak cho login/refresh/logout.
+
 Cấu trúc:
-    schemas.py      — Pydantic models cho auth context (AuthenticatedUser, TokenClaims)
-    jwt_service.py — JWT encode/decode (HS256 local + RS256 Keycloak)
+    schemas.py      — Pydantic/dataclass: AuthenticatedUser, KeycloakTokenClaims, MeResponse
+    jwt_service.py  — JWT verify (Keycloak RS256 via JWKS)
     dependencies.py — FastAPI Depends() factories (get_current_user, require_role)
-    exceptions.py  — Auth-specific exceptions (AuthenticationError, TenantMismatch)
+    exceptions.py   — Auth-specific exceptions (AuthenticationError, TenantMismatch)
 
 Quy tắc:
     - KHÔNG import SQLAlchemy, MinIO, httpx (đó là infrastructure concerns)
-    - JWT service tự detect mode dựa trên settings.auth_mode
 """
 
 from contract_intelligence.shared.auth.dependencies import (
@@ -25,16 +29,16 @@ from contract_intelligence.shared.auth.exceptions import (
 from contract_intelligence.shared.auth.schemas import (
     AuthenticatedUser,
     KeycloakTokenClaims,
-    LocalTokenClaims,
-    TokenType,
+    MeResponse,
+    UserProfilePayload,
 )
 
 __all__ = [
     # Schemas
     "AuthenticatedUser",
-    "LocalTokenClaims",
     "KeycloakTokenClaims",
-    "TokenType",
+    "MeResponse",
+    "UserProfilePayload",
     # Dependencies
     "get_current_user",
     "require_role",

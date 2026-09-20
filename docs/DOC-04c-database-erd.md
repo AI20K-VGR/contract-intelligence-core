@@ -74,7 +74,7 @@ Ngày tạo: 17/09/2026 · Cập nhật lần cuối: 17/09/2026
 
 | # | Bảng | Domain | Bất biến? | Mục đích chính |
 |---|---|---|---|---|
-| 1 | `app_user` | 1 — Tổ chức | ❌ | Tài khoản người dùng (OPERATOR/REVIEWER/ADMINISTRATOR) kèm `tenant_id` |
+| 1 | `app_user` | 1 — Tổ chức | ❌ | Tài khoản người dùng (Keycloak SSO, RBAC role, `keycloak_sub`) |
 | 2 | `batch` | 1 — Tổ chức | ❌ | Gom nhiều dossier vào một đợt xử lý kèm `tenant_id` |
 | 3 | `dossier` | 1 — Tổ chức | ❌ | Đơn vị nghiệp vụ: 1 hợp đồng + 0..n phụ lục kèm `tenant_id` |
 | 4 | `document` | 1 — Tổ chức | ❌ | Một file PDF trong dossier (`CONTRACT` hoặc `ANNEX`) |
@@ -203,10 +203,13 @@ erDiagram
     APP_USER {
         text id PK
         text tenant_id
+        text email
         text display_name
         text role
-        text password_hash
+        text keycloak_sub UK
+        boolean is_active
         timestamptz created_at
+        timestamptz updated_at
     }
     BATCH {
         text id PK
@@ -259,19 +262,27 @@ erDiagram
     }
 ```
 
-### 3.1 Bảng `app_user` (📋, mutable)
+### 3.1 Bảng `app_user` (📋, mutable, Keycloak SSO)
+
+> **Kiến trúc Auth đã thay đổi:** Backend không còn `password_hash`, `last_login_at`, `token_version`.
+> Identity được quản lý bởi Keycloak. Bảng này là **local cache** để join với audit logs.
 
 | Cột | Kiểu | Ràng buộc | Mô tả |
 |---|---|---|---|
-| `id` | TEXT | PK, prefix `usr_` | ULID |
-| `tenant_id` | TEXT | NOT NULL DEFAULT 'default' | Định danh không gian tenant |
-| `display_name` | TEXT | NOT NULL | Tên hiển thị |
-| `role` | TEXT | NOT NULL, CHECK ∈ `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Phân quyền RBAC chuẩn |
-| `password_hash` | TEXT | NOT NULL | argon2id |
+| `id` | TEXT | PK, prefix `usr_` | ULID, format: `usr_<keycloak_sub>` |
+| `tenant_id` | TEXT | NOT NULL | Định danh không gian tenant |
+| `email` | TEXT | NOT NULL | Email từ Keycloak |
+| `display_name` | TEXT | NOT NULL | Tên hiển thị từ Keycloak |
+| `role` | TEXT | NOT NULL, CHECK ∈ `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | RBAC role đã map từ `realm_access.roles[]` |
+| `keycloak_sub` | TEXT | NOT NULL, UNIQUE | Original Keycloak `sub` claim — dùng cho idempotent upsert |
+| `is_active` | BOOLEAN | NOT NULL DEFAULT true | Backend-side override (admin disable user độc lập với Keycloak) |
 | `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
 
 **Index:**
-- `idx_app_user_tenant (tenant_id)`
+- `idx_app_user_tenant (tenant_id)` — tenant isolation filter
+- `idx_app_user_keycloak_sub (keycloak_sub)` — lookup by Keycloak sub (unique)
+- `idx_app_user_tenant_email (tenant_id, email)` — unique per tenant
 
 **Quan hệ:**
 - `1 → * BATCH` (qua `batch.created_by`)

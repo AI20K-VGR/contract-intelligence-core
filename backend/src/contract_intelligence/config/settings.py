@@ -96,35 +96,136 @@ class Settings(BaseSettings):
     cors_allow_credentials: bool = Field(default=True)
 
     # -------------------------------------------------------------------------
-    # Authentication — Sprint 1 (local HS256) / Production (Keycloak OIDC)
+    # Authentication — Keycloak SSO (single source of truth cho token issuance)
+    #
+    # Backend TUYỆT ĐỐI KHÔNG issue Access Token / Refresh Token.
+    # Frontend gọi thẳng Keycloak để login + refresh, mang JWT đã verify
+    # tới backend. Backend chỉ làm nhiệm vụ decode + verify chữ ký RS256
+    # thông qua Keycloak JWKS endpoint.
+    #
+    # Luồng chuẩn:
+    #   1. User đăng nhập trên frontend (React) qua Keycloak login page
+    #   2. Keycloak trả access_token (RS256) + refresh_token cho frontend
+    #   3. Frontend giữ refresh_token, gửi access_token trong header:
+    #          Authorization: Bearer <access_token>
+    #   4. Backend verify chữ ký bằng public key từ Keycloak JWKS
+    #   5. Khi access_token hết hạn, frontend gọi thẳng Keycloak refresh
+    #      endpoint để lấy access_token mới (KHÔNG qua backend).
     # -------------------------------------------------------------------------
-    auth_mode: Literal["local", "keycloak"] = Field(
-        default="local",
+    auth_mode: Literal["keycloak"] = Field(
+        default="keycloak",
         description=(
-            '"local": self-issued HS256 JWT (Sprint 1). '
-            '"keycloak": RS256 JWT verified via Keycloak JWKS (production).'
+            'Chế độ xác thực. Hiện chỉ hỗ trợ "keycloak" — backend verify JWT '
+            "qua Keycloak JWKS, không issue token."
         ),
     )
-    jwt_secret_key: str = Field(
-        default="dev-secret-change-me-in-prod-32chars!!",
-        description="Secret key cho HS256 JWT signing. PHẢI đổi trong production.",
-    )
-    jwt_algorithm: str = Field(default="HS256")
-    jwt_access_token_expire_minutes: int = Field(default=60, ge=5, le=1440)
-    jwt_refresh_token_expire_days: int = Field(default=7, ge=1, le=30)
 
-    # Keycloak (production — dùng khi auth_mode = "keycloak")
-    keycloak_server_url: str | None = Field(
-        default=None,
-        description="VD: https://sso.company.com — auto-detect .well-known nếu None",
+    # Keycloak OIDC — bắt buộc
+    keycloak_server_url: str = Field(
+        default="https://sso.company.com",
+        description="VD: https://sso.company.com — base URL của Keycloak server.",
     )
-    keycloak_realm: str = Field(default="contract-intelligence")
-    keycloak_client_id: str = Field(default="ci-backend")
+    keycloak_realm: str = Field(
+        default="contract-intelligence",
+        description="Keycloak realm name.",
+    )
+    keycloak_client_id: str = Field(
+        default="ci-backend",
+        description=(
+            "Client ID đăng ký trong Keycloak cho backend này. "
+            "Dùng để verify `aud` claim."
+        ),
+    )
     keycloak_jwks_uri: str | None = Field(
         default=None,
         description=(
             "URL tới JWKS endpoint. "
             "Nếu None, tự build từ keycloak_server_url/realms/{realm}/protocol/openid-connect/certs"
+        ),
+    )
+    keycloak_audience: str | None = Field(
+        default=None,
+        description=(
+            "Expected `aud` claim. Nếu None, skip audience check "
+            "(khuyến nghị: set = keycloak_client_id)."
+        ),
+    )
+    keycloak_role_map: dict[str, str] = Field(
+        default_factory=lambda: {
+            "ci_operator": "OPERATOR",
+            "ci_reviewer": "REVIEWER",
+            "ci_administrator": "ADMINISTRATOR",
+        },
+        description=(
+            "Map Keycloak realm_access.roles[] → RBAC role nội bộ. "
+            "Key là Keycloak role name, value là RBAC role trong backend."
+        ),
+    )
+    keycloak_jwks_cache_ttl_seconds: int = Field(
+        default=3600,
+        ge=60,
+        le=86400,
+        description="TTL cache cho JWKS public keys (giây). Default 1 giờ.",
+    )
+
+    # -------------------------------------------------------------------------
+    # Keycloak Admin REST API — dùng để fetch full user profile khi nhận
+    # raw webhook event từ Phase Two keycloak-events extension.
+    #
+    # Backend sử dụng Client Credentials Grant (Service Account) để lấy
+    # access token cho Admin API, sau đó gọi GET /admin/realms/{realm}/users/{id}.
+    #
+    # Service account phải có realm-management client role `view-users` —
+    # xem ``keycloak/realm-export.json`` (servicesAccountsEnabled + role grant).
+    # -------------------------------------------------------------------------
+    keycloak_admin_client_id: str = Field(
+        default="contract-intel-backend",
+        description=(
+            "Client ID cho Service Account dùng để gọi Admin REST API. "
+            "Mặc định trùng với keycloak_client_id vì contract-intel-backend "
+            "đã có serviceAccountsEnabled=true."
+        ),
+    )
+    keycloak_admin_client_secret: str = Field(
+        default="backend_secret_dev",
+        description="Client secret cho Service Account — lấy từ Keycloak Admin Console.",
+    )
+    keycloak_admin_token_ttl_seconds: int = Field(
+        default=300,
+        ge=60,
+        le=3600,
+        description=(
+            "TTL cache cho Admin API access token (giây). Token Keycloak cấp "
+            "qua Client Credentials có lifespan mặc định 5 phút; refresh trước "
+            "khi hết hạn bằng cách giữ TTL < lifespan thực tế."
+        ),
+    )
+    keycloak_admin_http_timeout_seconds: float = Field(
+        default=10.0,
+        gt=0,
+        le=60,
+        description="Timeout cho HTTP call tới Keycloak Admin REST API (giây).",
+    )
+
+    # -------------------------------------------------------------------------
+    # Keycloak → backend webhook signature verification
+    #
+    # Phase Two keycloak-events extension ký mọi webhook payload bằng
+    # HMAC-SHA256 với shared secret (env WEBHOOK_SECRET trong docker-compose).
+    # Backend verify chữ ký trước khi parse + xử lý event.
+    # -------------------------------------------------------------------------
+    keycloak_webhook_secret: str = Field(
+        default="ci_webhook_shared_secret_dev",
+        description=(
+            "HMAC shared secret — PHẢI khớp với WEBHOOK_SECRET env var "
+            "trên Keycloak container (docker-compose.yml)."
+        ),
+    )
+    keycloak_webhook_verify_signature: bool = Field(
+        default=True,
+        description=(
+            "Bật/tắt HMAC verification. Set false CHỈ trong local debugging. "
+            "Production BẮT BUỘC phải bật."
         ),
     )
 

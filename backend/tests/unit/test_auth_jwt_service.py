@@ -1,274 +1,441 @@
-"""Unit tests cho shared/auth/jwt_service.py — HS256 local mode."""
+"""Unit tests cho shared/auth/jwt_service.py — Keycloak RS256 verify.
+
+Sau refactor Keycloak SSO, JWT service chỉ verify (KHÔNG encode).
+Test approach:
+    - Tạo 1 RSA keypair trong bộ nhớ (cryptography lib)
+    - Build JWKS response từ public key
+    - Mock JWKS cache để trả về public key
+    - Sign test JWT với private key
+    - Verify JWT → expect AuthenticatedUser đúng
+
+Cần cài `cryptography` lib — đã có sẵn vì Keycloak service yêu cầu.
+"""
 
 from __future__ import annotations
 
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
+from typing import Any
 from unittest.mock import patch
 
+import jwt
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 from contract_intelligence.config.settings import Settings
 from contract_intelligence.shared.auth.exceptions import AuthenticationError
-from contract_intelligence.shared.auth.jwt_service import JWTService
+from contract_intelligence.shared.auth.jwt_service import (
+    JWTService,
+    _JWKSCache,
+    _map_keycloak_role,
+)
 
-# -----------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Helpers — tạo RSA keypair + JWKS cho test
+# -----------------------------------------------------------------------------
+
+
+def _make_keypair() -> tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey]:
+    """Tạo RSA keypair trong memory."""
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public_key = private_key.public_key()
+    return private_key, public_key
+
+
+def _public_key_to_jwk(public_key: rsa.RSAPublicKey, kid: str = "test-key-1") -> dict[str, Any]:
+    """Convert public key → JWK dict (format Keycloak trả về)."""
+    # PyJWT sẽ parse PEM thành JWK tự động khi gọi from_jwk
+    # Nhưng để test thực tế với cache, ta build dict manually
+    from jwt.algorithms import RSAAlgorithm
+
+    jwk_dict = json.loads(RSAAlgorithm.to_jwk(public_key))
+    jwk_dict["kid"] = kid
+    jwk_dict["alg"] = "RS256"
+    jwk_dict["use"] = "sig"
+    return jwk_dict
+
+
+import json  # noqa: E402  — placed after helpers for readability
+
+# -----------------------------------------------------------------------------
 # Fixtures
-# -----------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 
 @pytest.fixture
-def jwt_service(local_settings: Settings) -> JWTService:
-    """JWTService với local HS256 mode."""
+def keypair() -> tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey]:
+    """RSA keypair cho mỗi test — đảm bảo isolation."""
+    return _make_keypair()
+
+
+@pytest.fixture
+def keycloak_settings(keypair: tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey]) -> Settings:
+    """Settings cho Keycloak test mode."""
+    return Settings(
+        env="test",
+        auth_mode="keycloak",
+        keycloak_server_url="https://test-keycloak.local",
+        keycloak_realm="test-realm",
+        keycloak_client_id="ci-backend",
+        keycloak_audience="ci-backend",
+        keycloak_role_map={
+            "ci_operator": "OPERATOR",
+            "ci_reviewer": "REVIEWER",
+            "ci_administrator": "ADMINISTRATOR",
+        },
+    )
+
+
+@pytest.fixture
+def jwt_service(keycloak_settings: Settings) -> JWTService:
+    """JWTService với Keycloak test settings."""
     return JWTService()
 
 
 @pytest.fixture
-def local_settings() -> Settings:
-    """Override settings sang local HS256 mode."""
-    return Settings(
-        auth_mode="local",
-        jwt_secret_key="test-secret-key-for-unit-tests!!",
-        jwt_algorithm="HS256",
-        jwt_access_token_expire_minutes=60,
-        jwt_refresh_token_expire_days=7,
+def cached_jwks(
+    monkeypatch: pytest.MonkeyPatch,
+    keypair: tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey],
+) -> None:
+    """Patch JWKS cache để trả về public key mà không cần HTTP call.
+
+    Inject 1 PyJWK thẳng vào cache.
+    """
+    _, public_key = keypair
+    jwk_dict = _public_key_to_jwk(public_key, kid="test-key-1")
+
+    from jwt import PyJWK
+
+    pyjwk = PyJWK.from_dict(jwk_dict)
+
+    fake_cache = _JWKSCache()
+    fake_cache._keys = {"test-key-1": pyjwk}  # noqa: SLF001
+    fake_cache._cached_at = float("inf")  # never expire
+
+    # Patch global cache
+    monkeypatch.setattr(
+        "contract_intelligence.shared.auth.jwt_service._jwks_cache",
+        fake_cache,
     )
 
 
-# -----------------------------------------------------------------------
-# Tests: encode_access_token
-# -----------------------------------------------------------------------
+def _sign_keycloak_token(
+    private_key: rsa.RSAPrivateKey,
+    *,
+    kid: str = "test-key-1",
+    issuer: str = "https://test-keycloak.local/realms/test-realm",
+    audience: str = "ci-backend",
+    sub: str = "usr_01HZ_TEST_USER",
+    email: str = "test@vgr.vn",
+    name: str = "Test User",
+    realm_roles: list[str] | None = None,
+    tenant_id: str = "tenant_vgr_01",
+    exp_delta: timedelta = timedelta(hours=1),
+    extra_claims: dict[str, Any] | None = None,
+) -> str:
+    """Sign JWT với private key theo format Keycloak."""
+    now = datetime.now(UTC)
+    claims: dict[str, Any] = {
+        "sub": sub,
+        "email": email,
+        "name": name,
+        "preferred_username": email.split("@")[0],
+        "iss": issuer,
+        "aud": audience,
+        "iat": int(now.timestamp()),
+        "exp": int((now + exp_delta).timestamp()),
+        "tenant_id": tenant_id,
+        "realm_access": {"roles": realm_roles or []},
+    }
+    if extra_claims:
+        claims.update(extra_claims)
+    pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    return jwt.encode(claims, pem, algorithm="RS256", headers={"kid": kid})
 
 
-class TestEncodeAccessToken:
-    def test_returns_token_and_expires_in(self, jwt_service: JWTService) -> None:
-        token, expires_in = jwt_service.encode_access_token(
-            user_id="usr_test123",
-            tenant_id="tenant_vgr_01",
-            email="test@example.com",
-            display_name="Test User",
-            role="OPERATOR",
-        )
-        assert isinstance(token, str)
-        assert len(token) > 20
-        assert expires_in == 60 * 60  # 3600 seconds
-
-    def test_different_users_get_different_tokens(self, jwt_service: JWTService) -> None:
-        token1, _ = jwt_service.encode_access_token(
-            user_id="usr_001",
-            tenant_id="t1",
-            email="a@t.com",
-            display_name="A",
-            role="OPERATOR",
-        )
-        token2, _ = jwt_service.encode_access_token(
-            user_id="usr_002",
-            tenant_id="t1",
-            email="b@t.com",
-            display_name="B",
-            role="REVIEWER",
-        )
-        assert token1 != token2
-
-
-# -----------------------------------------------------------------------
-# Tests: encode_refresh_token
-# -----------------------------------------------------------------------
-
-
-class TestEncodeRefreshToken:
-    def test_returns_refresh_token(self, jwt_service: JWTService) -> None:
-        token = jwt_service.encode_refresh_token(
-            user_id="usr_test123",
-            tenant_id="tenant_vgr_01",
-            token_version=1,
-        )
-        assert isinstance(token, str)
-        assert len(token) > 20
-
-    def test_different_versions_get_different_tokens(self, jwt_service: JWTService) -> None:
-        t1 = jwt_service.encode_refresh_token("u1", "t1", token_version=1)
-        t2 = jwt_service.encode_refresh_token("u1", "t1", token_version=2)
-        assert t1 != t2
-
-
-# -----------------------------------------------------------------------
-# Tests: decode_and_validate_access
-# -----------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Tests — decode_and_validate_access (happy path)
+# -----------------------------------------------------------------------------
 
 
 class TestDecodeAccessToken:
-    def test_roundtrip(self, jwt_service: JWTService) -> None:
-        token, _ = jwt_service.encode_access_token(
-            user_id="usr_roundtrip",
-            tenant_id="tenant_demo",
-            email="demo@example.com",
-            display_name="Demo User",
-            role="ADMINISTRATOR",
+    def test_roundtrip_returns_authenticated_user(
+        self,
+        keycloak_settings: Settings,
+        keypair: tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey],
+        cached_jwks: None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Sign → verify → expect AuthenticatedUser fields đúng."""
+        private_key, _ = keypair
+        monkeypatch.setattr(
+            "contract_intelligence.shared.auth.jwt_service.get_settings",
+            lambda: keycloak_settings,
         )
-        user = jwt_service.decode_and_validate_access(token)
 
-        assert user.user_id == "usr_roundtrip"
-        assert user.tenant_id == "tenant_demo"
-        assert user.email == "demo@example.com"
-        assert user.display_name == "Demo User"
+        token = _sign_keycloak_token(
+            private_key,
+            realm_roles=["ci_reviewer"],
+            email="reviewer@vgr.vn",
+            name="Trần Thị Phê Duyệt",
+        )
+
+        svc = JWTService()
+        user = svc.decode_and_validate_access(token)
+
+        assert user.user_id == "usr_01HZ_TEST_USER"
+        assert user.email == "reviewer@vgr.vn"
+        assert user.display_name == "Trần Thị Phê Duyệt"
+        assert user.role == "REVIEWER"
+        assert user.tenant_id == "tenant_vgr_01"
+
+    def test_administrator_role_higher_priority(
+        self,
+        keycloak_settings: Settings,
+        keypair: tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey],
+        cached_jwks: None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """User có cả operator + administrator → role phải là ADMINISTRATOR."""
+        private_key, _ = keypair
+        monkeypatch.setattr(
+            "contract_intelligence.shared.auth.jwt_service.get_settings",
+            lambda: keycloak_settings,
+        )
+
+        token = _sign_keycloak_token(
+            private_key,
+            realm_roles=["ci_operator", "ci_administrator"],
+        )
+        svc = JWTService()
+        user = svc.decode_and_validate_access(token)
         assert user.role == "ADMINISTRATOR"
 
-    def test_wrong_secret_raises(self, jwt_service: JWTService) -> None:
-        # Sign với secret khác
-        import jwt as _jwt
-
-        bad_token = _jwt.encode(
-            {"sub": "u1", "tenant_id": "t1", "token_type": "access", "iat": 0, "exp": 9999999999},
-            "wrong-secret",
-            algorithm="HS256",
+    def test_fallback_to_operator_when_no_known_role(
+        self,
+        keycloak_settings: Settings,
+        keypair: tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey],
+        cached_jwks: None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """User không có role nào match → fallback OPERATOR."""
+        private_key, _ = keypair
+        monkeypatch.setattr(
+            "contract_intelligence.shared.auth.jwt_service.get_settings",
+            lambda: keycloak_settings,
         )
-        with pytest.raises(AuthenticationError, match="Invalid token"):
-            jwt_service.decode_and_validate_access(bad_token)
 
-    def test_expired_token_raises(self, jwt_service: JWTService) -> None:
-        from datetime import datetime, timedelta
-
-        import jwt as _jwt
-
-        expired = _jwt.encode(
-            {
-                "sub": "u1",
-                "tenant_id": "t1",
-                "token_type": "access",
-                "iat": int((datetime.now(UTC) - timedelta(hours=2)).timestamp()),
-                "exp": int((datetime.now(UTC) - timedelta(hours=1)).timestamp()),
-            },
-            "test-secret-key-for-unit-tests!!",
-            algorithm="HS256",
+        token = _sign_keycloak_token(
+            private_key,
+            realm_roles=["some_other_role"],
         )
+        svc = JWTService()
+        user = svc.decode_and_validate_access(token)
+        assert user.role == "OPERATOR"
+
+
+# -----------------------------------------------------------------------------
+# Tests — error paths
+# -----------------------------------------------------------------------------
+
+
+class TestDecodeAccessTokenErrors:
+    def test_expired_token_raises(
+        self,
+        keycloak_settings: Settings,
+        keypair: tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey],
+        cached_jwks: None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        private_key, _ = keypair
+        monkeypatch.setattr(
+            "contract_intelligence.shared.auth.jwt_service.get_settings",
+            lambda: keycloak_settings,
+        )
+
+        token = _sign_keycloak_token(private_key, exp_delta=timedelta(hours=-1))
+        svc = JWTService()
         with pytest.raises(AuthenticationError, match="expired"):
-            jwt_service.decode_and_validate_access(expired)
+            svc.decode_and_validate_access(token)
 
-    def test_refresh_token_rejected_as_access(self, jwt_service: JWTService) -> None:
-        refresh = jwt_service.encode_refresh_token("u1", "t1", token_version=1)
-        with pytest.raises(AuthenticationError, match="Expected access token"):
-            jwt_service.decode_and_validate_access(refresh)
-
-
-# -----------------------------------------------------------------------
-# Tests: decode_refresh_token
-# -----------------------------------------------------------------------
-
-
-class TestDecodeRefreshToken:
-    def test_roundtrip(self, jwt_service: JWTService) -> None:
-        refresh = jwt_service.encode_refresh_token(
-            user_id="usr_refresh",
-            tenant_id="tenant_vgr_01",
-            token_version=3,
-        )
-        uid, tid, ver = jwt_service.decode_refresh_token(refresh)
-        assert uid == "usr_refresh"
-        assert tid == "tenant_vgr_01"
-        assert ver == 3
-
-    def test_access_token_rejected_as_refresh(self, jwt_service: JWTService) -> None:
-        access, _ = jwt_service.encode_access_token("u1", "t1", "e@t.com", "Name", "OPERATOR")
-        with pytest.raises(AuthenticationError, match="Expected refresh token"):
-            jwt_service.decode_refresh_token(access)
-
-    def test_wrong_secret_raises(self, jwt_service: JWTService) -> None:
-        import jwt as _jwt
-
-        bad = _jwt.encode(
-            {
-                "sub": "u1",
-                "tenant_id": "t1",
-                "token_type": "refresh",
-                "token_version": 1,
-                "iat": 0,
-                "exp": 9999999999,
-            },
-            "wrong-secret",
-            algorithm="HS256",
-        )
-        with pytest.raises(AuthenticationError, match="Invalid token"):
-            jwt_service.decode_refresh_token(bad)
-
-
-# -----------------------------------------------------------------------
-# Tests: AppUser token version flow
-# -----------------------------------------------------------------------
-
-
-class TestAppUserTokenVersion:
-    def test_increment_token_version(self) -> None:
-        from contract_intelligence.identity.domain.entities.app_user import (
-            AppUser,
-            UserRole,
+    def test_wrong_issuer_raises(
+        self,
+        keycloak_settings: Settings,
+        keypair: tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey],
+        cached_jwks: None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        private_key, _ = keypair
+        monkeypatch.setattr(
+            "contract_intelligence.shared.auth.jwt_service.get_settings",
+            lambda: keycloak_settings,
         )
 
-        user = AppUser(
-            id="usr_test",
-            tenant_id="tenant_demo",
-            email="demo@x.com",
-            display_name="Demo",
-            role=UserRole.OPERATOR,
-            password_hash="hash",
-            token_version=0,
-        )
-        assert user.token_version == 0
-        v1 = user.increment_token_version()
-        assert v1 == 1
-        assert user.token_version == 1
-        v2 = user.increment_token_version()
-        assert v2 == 2
-        assert user.token_version == 2
+        token = _sign_keycloak_token(private_key, issuer="https://attacker.com")
+        svc = JWTService()
+        with pytest.raises(AuthenticationError, match="issuer"):
+            svc.decode_and_validate_access(token)
 
-    def test_revoke_all_sessions(self) -> None:
-        from contract_intelligence.identity.domain.entities.app_user import (
-            AppUser,
-            UserRole,
+    def test_wrong_audience_raises(
+        self,
+        keycloak_settings: Settings,
+        keypair: tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey],
+        cached_jwks: None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        private_key, _ = keypair
+        monkeypatch.setattr(
+            "contract_intelligence.shared.auth.jwt_service.get_settings",
+            lambda: keycloak_settings,
         )
 
-        user = AppUser(
-            id="usr_revoke",
-            tenant_id="tenant_demo",
-            email="demo@x.com",
-            display_name="Demo",
-            role=UserRole.OPERATOR,
-            password_hash="hash",
-            token_version=5,
+        token = _sign_keycloak_token(private_key, audience="some-other-client")
+        svc = JWTService()
+        with pytest.raises(AuthenticationError, match="audience"):
+            svc.decode_and_validate_access(token)
+
+    def test_wrong_signature_raises(
+        self,
+        keycloak_settings: Settings,
+        keypair: tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey],
+        cached_jwks: None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Token sign với key khác (không phải public key trong JWKS) → 401."""
+        # Tạo key khác, sign với nó nhưng cùng kid để cache lookup OK
+        # → JWT decode sẽ tìm thấy key nhưng signature sai
+        other_private, _ = _make_keypair()
+        monkeypatch.setattr(
+            "contract_intelligence.shared.auth.jwt_service.get_settings",
+            lambda: keycloak_settings,
         )
-        user.revoke_all_sessions()
-        assert user.token_version == 6
 
-    def test_deactivate_also_revokes(self) -> None:
-        from contract_intelligence.identity.domain.entities.app_user import (
-            AppUser,
-            UserRole,
+        token = _sign_keycloak_token(other_private, kid="test-key-1")
+        svc = JWTService()
+        with pytest.raises(AuthenticationError, match="Signature verification failed"):
+            svc.decode_and_validate_access(token)
+
+    def test_unknown_kid_raises(
+        self,
+        keycloak_settings: Settings,
+        keypair: tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey],
+        cached_jwks: None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Token có kid không có trong JWKS cache → 401."""
+        # Tạo key khác + kid khác → không có trong cache
+        other_private, _ = _make_keypair()
+        monkeypatch.setattr(
+            "contract_intelligence.shared.auth.jwt_service.get_settings",
+            lambda: keycloak_settings,
         )
 
-        user = AppUser(
-            id="usr_deact",
-            tenant_id="tenant_demo",
-            email="demo@x.com",
-            display_name="Demo",
-            role=UserRole.OPERATOR,
-            password_hash="hash",
-            is_active=True,
-            token_version=2,
+        token = _sign_keycloak_token(other_private, kid="unknown-kid-999")
+        svc = JWTService()
+        with pytest.raises(AuthenticationError, match="not found"):
+            svc.decode_and_validate_access(token)
+
+    def test_malformed_token_raises(
+        self,
+        keycloak_settings: Settings,
+        cached_jwks: None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "contract_intelligence.shared.auth.jwt_service.get_settings",
+            lambda: keycloak_settings,
         )
-        user.deactivate()
-        assert user.is_active is False
-        assert user.token_version == 3
+        svc = JWTService()
+        with pytest.raises(AuthenticationError, match="Malformed"):
+            svc.decode_and_validate_access("not.a.jwt")
+
+    def test_missing_kid_raises(
+        self,
+        keycloak_settings: Settings,
+        keypair: tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Token không có kid trong header → 401."""
+        private_key, _ = keypair
+        monkeypatch.setattr(
+            "contract_intelligence.shared.auth.jwt_service.get_settings",
+            lambda: keycloak_settings,
+        )
+
+        pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        token = jwt.encode(
+            {"sub": "u1", "exp": 9999999999, "iat": 0},
+            pem,
+            algorithm="RS256",
+            # NO kid header
+        )
+        svc = JWTService()
+        with pytest.raises(AuthenticationError, match="kid"):
+            svc.decode_and_validate_access(token)
 
 
-# -----------------------------------------------------------------------
-# Helper: override settings for tests
-# -----------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Tests — helper _map_keycloak_role
+# -----------------------------------------------------------------------------
+
+
+class TestMapKeycloakRole:
+    def test_priority_admin_over_reviewer_over_operator(
+        self,
+        keycloak_settings: Settings,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "contract_intelligence.shared.auth.jwt_service.get_settings",
+            lambda: keycloak_settings,
+        )
+        assert _map_keycloak_role(["ci_administrator"]) == "ADMINISTRATOR"
+        assert _map_keycloak_role(["ci_administrator", "ci_operator"]) == "ADMINISTRATOR"
+        assert _map_keycloak_role(["ci_reviewer"]) == "REVIEWER"
+        assert _map_keycloak_role(["ci_reviewer", "ci_operator"]) == "REVIEWER"
+        assert _map_keycloak_role(["ci_operator"]) == "OPERATOR"
+
+    def test_empty_roles_fallback_operator(
+        self,
+        keycloak_settings: Settings,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "contract_intelligence.shared.auth.jwt_service.get_settings",
+            lambda: keycloak_settings,
+        )
+        assert _map_keycloak_role([]) == "OPERATOR"
+
+    def test_unknown_role_fallback_operator(
+        self,
+        keycloak_settings: Settings,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "contract_intelligence.shared.auth.jwt_service.get_settings",
+            lambda: keycloak_settings,
+        )
+        assert _map_keycloak_role(["some_other_role"]) == "OPERATOR"
+
+
+# -----------------------------------------------------------------------------
+# Helper: auto-patch settings cho mọi test
+# -----------------------------------------------------------------------------
 
 
 @pytest.fixture(autouse=True)
-def _patch_settings(local_settings: Settings) -> None:
-    """Auto-apply local_settings cho mọi test trong module này."""
+def _patch_settings(keycloak_settings: Settings) -> None:
+    """Auto-apply keycloak_settings cho các test không tự patch."""
     with patch(
         "contract_intelligence.shared.auth.jwt_service.get_settings",
-        return_value=local_settings,
+        return_value=keycloak_settings,
     ):
         yield

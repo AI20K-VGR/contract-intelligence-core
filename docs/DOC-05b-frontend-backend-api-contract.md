@@ -50,8 +50,8 @@
 ### 1.2 Content-Type & Headers
 | Header | Bắt buộc? | Mô tả |
 |---|:---:|---|
-| `Authorization` | Có (trừ login/refresh) | `Bearer <access_jwt_token>` (RFC 7519) |
-| `X-Tenant-Id` | Có (trừ login/refresh) | ID định danh không gian tenant (ví dụ: `tenant_vgr_01`) |
+| `Authorization` | Có | `Bearer <access_jwt_token>` (RFC 7519) — JWT được cấp bởi **Keycloak**, frontend lưu trong Memory/Secure Cookie. |
+| `X-Tenant-Id` | Có | ID định danh không gian tenant (ví dụ: `tenant_vgr_01`) |
 | `Content-Type` | Có | `application/json` (cho request payloads) hoặc `multipart/form-data` (khi upload file) |
 | `Accept` | Có | `application/json` hoặc `application/pdf` (khi tải file gốc) |
 | `X-Request-Id` | Tùy chọn | Client sinh UUIDv4 để truy vết log từ Frontend sang Backend |
@@ -60,18 +60,60 @@
 
 ## 2. Cơ chế Xác thực & Phân quyền (Auth & RBAC)
 
-### 2.1 Cấu trúc Bearer JWT Token
-Client nhận JWT từ endpoint `POST /auth/login` và lưu trữ trong bộ nhớ an toàn (Memory / Secure Cookie). Token Payload chứa:
+### 2.1 Luồng Xác thực Keycloak SSO
+
+**Backend TUYỆT ĐỐI KHÔNG issue Access Token / Refresh Token.**
+
+Frontend (React) xử lý toàn bộ auth flow với Keycloak:
+```
+Frontend                          Keycloak                  Backend
+    │                                │                        │
+    ├──► Login Page ──────────────►│ Login Credentials      │
+    │◄── access_token (RS256) ◄────│                        │
+    │◄── refresh_token ◄───────────│                        │
+    │                                │                        │
+    │   (Frontend lưu tokens trong Memory/Secure Cookie)     │
+    │                                │                        │
+    │   Khi access_token hết hạn:                              │
+    ├──► Keycloak refresh URL ◄───────────────────────────────│
+    │◄── access_token mới ◄─────────────────────────────────│
+    │                                │                        │
+    │   Khi gọi API:                                         │
+    │─── Authorization: Bearer <token> ─────────────────────►│ (Backend verify RS256 via JWKS)
+```
+
+**Backend chỉ làm nhiệm vụ:**
+1. **Verify** chữ ký RS256 của access_token bằng public key từ Keycloak JWKS endpoint.
+2. **Parse** JWT claims → `AuthenticatedUser` context cho mỗi request.
+3. **Map** Keycloak `realm_access.roles[]` → RBAC role nội bộ.
+
+**Keycloak event webhook:**
+- Keycloak gọi `POST /auth/webhooks/keycloak` khi user LOGIN/REGISTER/UPDATE_PROFILE/DELETE_ACCOUNT.
+- Backend sync user vào local `app_user` table (để join với audit logs).
+- Frontend **KHÔNG** gọi endpoint này.
+
+**JWT Token Structure (Keycloak RS256):**
 ```json
 {
   "sub": "usr_01J9X1K8...",
+  "email": "john@company.com",
   "name": "Nguyễn Văn Reviewer",
-  "role": "REVIEWER",
   "tenant_id": "tenant_vgr_01",
+  "realm_access": {"roles": ["ci_reviewer"]},
+  "iss": "https://sso.company.com/realms/contract-intelligence",
+  "aud": "ci-backend",
   "exp": 1790000000,
   "iat": 1789964000
 }
 ```
+
+**RBAC Role Mapping:**
+| Keycloak Realm Role | Backend RBAC Role |
+|---|---|
+| `ci_administrator` | `ADMINISTRATOR` |
+| `ci_reviewer` | `REVIEWER` |
+| `ci_operator` | `OPERATOR` |
+| *(không match)* | `OPERATOR` (fallback) |
 
 ### 2.2 Quy tắc Tenant Isolation
 - Client **bắt buộc** truyền header `X-Tenant-Id: <tenant_id>`.
@@ -159,37 +201,38 @@ const pixelBox = {
 ## 5. Chi tiết API Phân theo 10 Màn hình Frontend
 
 ### Màn hình 1: Authentication & Tenant Switcher
-Màn hình đăng nhập người dùng, cấp phát token và chuyển đổi không gian khách hàng (tenant).
+Màn hình hiển thị thông tin user hiện tại (từ Keycloak JWT). Frontend xử lý login/refresh/logout trực tiếp với Keycloak.
 
-| Phương thức | Endpoint | Phân quyền `x-rbac` | Chức năng |
+**Luồng Frontend:**
+1. User click "Đăng nhập" → redirect đến Keycloak login page.
+2. Keycloak trả `access_token` + `refresh_token` về frontend (OIDC callback).
+3. Frontend lưu `access_token` trong Memory hoặc Secure Cookie.
+4. Khi `access_token` hết hạn, frontend gọi Keycloak refresh endpoint trực tiếp.
+5. Khi user click "Đăng xuất", frontend gọi Keycloak logout endpoint trực tiếp.
+
+| Phương thức | Endpoint | Phân quyền | Chức năng |
 |:---:|---|:---:|---|
-| `POST` | `/auth/login` | Public | Đăng nhập tài khoản, nhận Access Token & Refresh Token |
-| `POST` | `/auth/refresh` | Public | Lấy Access Token mới bằng Refresh Token |
-| `GET` | `/auth/me` | Mọi role | Lấy thông tin người dùng hiện tại và danh sách tenant được phép truy cập |
-| `POST` | `/auth/logout` | Mọi role | Thu hồi session hiện tại |
+| `GET` | `/auth/me` | Mọi role | Lấy thông tin user hiện tại (từ Keycloak JWT claims) |
+| `POST` | `/auth/webhooks/keycloak` | Webhook (Keycloak) | Sync user từ Keycloak event vào local DB |
 
-- **Request Body Login:**
-  ```json
-  {
-    "username": "reviewer1@vgr.vn",
-    "password": "SecretPassword123"
-  }
-  ```
-- **Response Data:**
-  ```json
-  {
-    "access_token": "eyJhbGciOiJIUzI1Ni...",
-    "refresh_token": "def_456...",
-    "token_type": "Bearer",
-    "expires_in": 3600,
-    "user": {
-      "id": "usr_01J9X1K8...",
-      "display_name": "Nguyễn Văn Reviewer",
-      "role": "REVIEWER",
-      "tenant_id": "tenant_vgr_01"
-    }
-  }
-  ```
+**GET /auth/me Response:**
+```json
+{
+  "data": {
+    "id": "usr_01J9X1K8...",
+    "email": "john@company.com",
+    "display_name": "Nguyễn Văn Reviewer",
+    "role": "REVIEWER",
+    "tenant_id": "tenant_vgr_01"
+  },
+  "meta": {}
+}
+```
+
+**POST /auth/webhooks/keycloak (Keycloak → Backend):**
+- Event types: `LOGIN`, `REGISTER`, `UPDATE_PROFILE`, `DELETE_ACCOUNT`
+- Backend sync user vào `app_user` table (keycloak_sub, email, display_name, role).
+- Response: `{"data": {"synced": true, "user_id": "...", "action": "LOGIN"}}`
 
 ---
 

@@ -1,11 +1,26 @@
-"""AppUser entity — pure Python, no ORM/framework dependencies."""
+"""AppUser entity — domain model cho user trong hệ thống.
+
+Sau khi refactor sang Keycloak SSO:
+    - User identity (email, password, role, ...) → quản lý bởi Keycloak.
+    - Backend chỉ cache thông tin cần thiết để join với audit logs
+      (vd: dossier.created_by, review.approved_by) thông qua
+      Keycloak user provisioning webhook.
+    - KHÔNG lưu password_hash ở backend (Keycloak quản lý password).
+    - KHÔNG cần token_version (Keycloak quản lý refresh token revocation).
+
+Domain invariants giữ lại:
+    - deactivate(): Đánh dấu user bị vô hiệu hóa — admin dùng để cấm truy cập
+      ngay cả khi Keycloak token còn valid. Check ở middleware/dependency.
+    - activate(): Kích hoạt lại user.
+
+Tất cả fields là plain Python — không dùng SQLAlchemy/Pydantic.
+ORM mapping thực hiện trong infrastructure/persistence/.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import StrEnum
-from typing import Protocol
 
 from contract_intelligence.shared.base import BaseEntity, new_ulid
 
@@ -20,24 +35,29 @@ class UserRole(StrEnum):
 
 @dataclass(eq=False)
 class AppUser(BaseEntity[str]):
-    """User account entity.
+    """User account entity — local cache cho Keycloak user.
 
-    Tất cả fields đều là plain Python — không dùng SQLAlchemy/Pydantic.
-    ORM mapping thực hiện trong infrastructure/persistence/.
+    Source of truth cho user identity là Keycloak. Backend chỉ lưu cache
+    các field cần thiết cho business logic (audit log joins, admin actions).
 
     Attributes:
-        id: ULID với prefix "usr_", vd "usr_01HZXYZ..."
-        tenant_id: Định danh tenant — dùng cho tenant isolation trên mọi query.
-        email: Email duy nhất trong phạm vi tenant. Dùng để login.
-        display_name: Tên hiển thị (full name, không phải username).
-        role: Một trong OPERATOR / REVIEWER / ADMINISTRATOR.
-        password_hash: Argon2 hash — KHÔNG BAO GIỜ expose ra ngoài domain.
-        is_active: False khi user bị vô hiệu hóa (không login được).
-        last_login_at: Timestamp đăng nhập cuối cùng (null nếu chưa bao giờ).
-        token_version: Số nguyên tăng mỗi lần refresh token được cấp.
-            Dùng để revoke tất cả refresh token cũ khi cần (đổi mật khẩu,
-            admin disable user, logout tất cả thiết bị).
-            Giá trị 0 = chưa bao giờ có refresh token.
+        id: User ID — match Keycloak `sub` claim. Dùng prefix "usr_"
+            nếu đã provision, hoặc raw Keycloak UUID/sub nếu lazy-create.
+        tenant_id: Tenant scope — dùng cho tenant isolation trên mọi query.
+        email: Email từ Keycloak (sync qua webhook).
+        display_name: Tên hiển thị từ Keycloak `name` hoặc `preferred_username`.
+        role: Một trong OPERATOR / REVIEWER / ADMINISTRATOR — map từ
+            Keycloak `realm_access.roles[]`.
+        is_active: False khi admin disable user trên backend.
+            Lưu ý: Keycloak có cơ chế disable riêng (account.enabled),
+            backend is_active là lớp bảo vệ thứ 2.
+        created_at: Timestamp tạo local cache.
+        updated_at: Timestamp lần sync cuối từ Keycloak.
+
+    Invariants:
+        - Khi deactivate(): set is_active = False.
+        - Khi activate(): set is_active = True.
+        - update_profile(): chỉ sync từ Keycloak — KHÔNG cho phép BE tự sửa.
     """
 
     id: str = field(default_factory=lambda: new_ulid("usr_"))
@@ -45,44 +65,20 @@ class AppUser(BaseEntity[str]):
     email: str = ""
     display_name: str = ""
     role: UserRole = UserRole.OPERATOR
-    password_hash: str = field(default="")
     is_active: bool = True
-    last_login_at: datetime | None = None
-    token_version: int = 0
+    keycloak_sub: str | None = None  # Original Keycloak sub claim nếu id khác
 
     # -------------------------------------------------------------------------
     # Domain invariants
     # -------------------------------------------------------------------------
 
-    def verify_password(self, plaintext: str, verifier: PasswordVerifier) -> bool:
-        """Xác thực mật khẩu plaintext đã hash thành ``password_hash``.
-
-        Args:
-            plaintext: Mật khẩu người dùng nhập vào (chưa hash).
-            verifier: PasswordHasher protocol — impl nằm ở infrastructure.
-
-        Returns:
-            True nếu khớp, False nếu không.
-        """
-        return verifier.verify(plaintext, self.password_hash)
-
-    def increment_token_version(self) -> int:
-        """Tăng token_version và trả về giá trị mới.
-
-        Gọi khi cấp refresh token mới — làm vô hiệu tất cả token cũ.
-        """
-        self.token_version += 1
-        self.touch()
-        return self.token_version
-
-    def revoke_all_sessions(self) -> None:
-        """Thu hồi mọi session hiện tại bằng cách tăng token_version."""
-        self.increment_token_version()
-
     def deactivate(self) -> None:
-        """Vô hiệu hóa user — không thể đăng nhập."""
+        """Vô hiệu hóa user — không thể truy cập API ngay cả khi Keycloak token valid.
+
+        Đây là lớp bảo vệ backend-side. Admin dùng để cấm user trong TH
+        cần revoke truy cập ngay mà không cần chờ Keycloak session timeout.
+        """
         self.is_active = False
-        self.revoke_all_sessions()
         self.touch()
 
     def activate(self) -> None:
@@ -90,30 +86,30 @@ class AppUser(BaseEntity[str]):
         self.is_active = True
         self.touch()
 
+    def update_profile(
+        self,
+        email: str | None = None,
+        display_name: str | None = None,
+        role: UserRole | None = None,
+        tenant_id: str | None = None,
+    ) -> None:
+        """Sync profile từ Keycloak — chỉ update các field được truyền vào.
 
-# -----------------------------------------------------------------------------
-# Value objects / Protocols (domain layer — KHÔNG có implementation ở đây)
-# -----------------------------------------------------------------------------
+        Args:
+            email: Email mới từ Keycloak (None = giữ nguyên).
+            display_name: Display name mới từ Keycloak.
+            role: RBAC role mới đã map từ Keycloak roles.
+            tenant_id: Tenant mới (thường không đổi sau initial provision).
+        """
+        if email is not None:
+            self.email = email
+        if display_name is not None:
+            self.display_name = display_name
+        if role is not None:
+            self.role = role
+        if tenant_id is not None:
+            self.tenant_id = tenant_id
+        self.touch()
 
 
-class PasswordHasher(Protocol):
-    """Protocol cho password hashing.
-
-    Implementation (argon2) ở infrastructure/identity/persistence/.
-    """
-
-    def hash(self, plaintext: str) -> str:
-        """Băm plaintext → hash string."""
-        ...
-
-    def verify(self, plaintext: str, hash_value: str) -> bool:
-        """Verify plaintext against hash. Return True nếu khớp."""
-        ...
-
-
-class PasswordVerifier(Protocol):
-    """Protocol alias — dùng cho AppUser.verify_password()."""
-
-    def verify(self, plaintext: str, hash_value: str) -> bool:
-        """Verify password."""
-        ...
+__all__ = ["AppUser", "UserRole"]

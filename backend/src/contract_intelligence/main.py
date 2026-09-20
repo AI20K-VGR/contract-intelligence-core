@@ -43,6 +43,9 @@ from contract_intelligence.extraction.interfaces.api.routers.reocr_router import
 from contract_intelligence.identity.interfaces.api.auth_router import (
     router as auth_router,
 )
+from contract_intelligence.identity.interfaces.api.webhook_router import (
+    router as webhook_router,
+)
 from contract_intelligence.review.interfaces.api.routers.approval_router import (
     router as approval_router,
 )
@@ -222,6 +225,9 @@ def create_app() -> FastAPI:
 
     # Routers — theo DOC-05b §5 (10 màn hình frontend)
     app.include_router(auth_router, prefix="/api/v1/auth", tags=["Authentication"])
+    app.include_router(
+        webhook_router, prefix="/api/v1/auth", tags=["Authentication"]
+    )  # → /api/v1/auth/webhooks/keycloak
     app.include_router(contract_router, prefix="/api/v1", tags=["Contract"])
     app.include_router(contract_upload_router, prefix="/api/v1", tags=["Contract-Upload"])
     app.include_router(extraction_router, prefix="/api/v1", tags=["Extraction"])
