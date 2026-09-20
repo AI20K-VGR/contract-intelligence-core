@@ -676,6 +676,67 @@ def test_ocr_tables_survives_one_row_interrupted_by_a_stamp():
     assert not any("MỘC" in c["text"] for row in table["rows"] for c in row["cells"])
 
 
+def test_row_from_reference_overlap_recognizes_a_row_that_failed_self_segmentation():
+    # Real hard case (Hop_dong_scan_stress_bang_lien_trang_khong_header.pdf, trang 2):
+    # a row whose own internal word spacing was too compressed/inconsistent for
+    # _row_cells to split it into cells at all still plainly covers most of an
+    # already-established table's own columns. Before this fallback existed, such a
+    # line fell straight through to _merge_wrapped_continuation, which welded its
+    # values onto the PREVIOUS row instead of becoming a row of its own -- two real
+    # items collapsed into one garbled row, with the second item's own SL/Đơn giá/
+    # Thành tiền values concatenated onto the first item's.
+    from app.document_processing import _row_from_reference_overlap
+
+    reference = [
+        {"col_index": 0, "text": "11", "bbox": [0.05, 0.10, 0.07, 0.12]},
+        {"col_index": 1, "text": "Thiết bị UPS online 3KVA", "bbox": [0.10, 0.10, 0.55, 0.12]},
+        {"col_index": 2, "text": "Bộ", "bbox": [0.58, 0.10, 0.62, 0.12]},
+        {"col_index": 3, "text": "19.750.000", "bbox": [0.65, 0.10, 0.75, 0.12]},
+        {"col_index": 4, "text": "39.500.000", "bbox": [0.78, 0.10, 0.88, 0.12]},
+    ]
+    line = _ocr_line(0, [
+        _word("12", 0.10, 0.14, 0.115, 0.16),
+        _word("Tủ", 0.12, 0.14, 0.14, 0.16),
+        _word("rack", 0.145, 0.14, 0.20, 0.16),
+        _word("27U", 0.205, 0.14, 0.25, 0.16),
+        _word("14.900.000", 0.66, 0.14, 0.73, 0.16),
+        _word("29.800.000", 0.79, 0.14, 0.86, 0.16),
+    ])
+
+    result = _row_from_reference_overlap(reference, line)
+
+    assert result is not None
+    by_col = {c["col_index"]: c["text"] for c in result}
+    assert by_col[1] == "12 Tủ rack 27U"
+    assert by_col[3] == "14.900.000"
+    assert by_col[4] == "29.800.000"
+
+
+def test_row_from_reference_overlap_rejects_a_line_with_no_internal_gap_structure():
+    # Real hard case (Hop_dong_scan_testcase_bang_dut_doan_con_dau_v2.pdf, trang 4): an
+    # entirely unrelated paragraph sitting below a narrow (3-column) table can have one
+    # of its own words coincidentally land inside a price column purely by chance, with
+    # NOTHING in the line's own geometry (ordinary, uniformly-spaced prose -- a single
+    # _raw_word_groups group) suggesting it's table-shaped at all. Relying on
+    # reference-column overlap alone for that is what glued an unrelated "Ghi chú kiểm
+    # thử" paragraph onto a real row in practice.
+    from app.document_processing import _row_from_reference_overlap
+
+    reference = [
+        {"col_index": 0, "text": "Kiểm thử bộ dữ liệu mẫu", "bbox": [0.05, 0.10, 0.55, 0.12]},
+        {"col_index": 1, "text": "14.500.000", "bbox": [0.60, 0.10, 0.70, 0.12]},
+        {"col_index": 2, "text": "14.500.000", "bbox": [0.73, 0.10, 0.83, 0.12]},
+    ]
+    # 16 evenly-spaced words (uniform gap throughout -- no internal column structure
+    # at all); word #15 drifts into the reference's own col1 x-range purely from
+    # accumulated width, the same way an unrelated sentence can coincidentally reach a
+    # price column just by running long enough.
+    words = [_word(f"w{i}", 0.05 + i * 0.036, 0.14, 0.05 + i * 0.036 + 0.03, 0.16) for i in range(16)]
+    line = _ocr_line(0, words)
+
+    assert _row_from_reference_overlap(reference, line) is None
+
+
 def test_ocr_tables_ignores_page_top_noise_before_the_real_table():
     # Real hard case (Hop_dong_scan_bang_lien_trang_OCR_test.pdf, trang 2): a faint
     # watermark/margin artifact right at the top of the page gets misread as a handful

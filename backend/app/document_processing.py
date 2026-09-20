@@ -299,13 +299,16 @@ def _column_gap_threshold(gaps):
     return positive[-1] + 1.0
 
 
-def _row_cells(line):
-    """Splits one OCR line's words into cell-like groups by gap. Returns None if the
-    line doesn't look like a table row at all (fewer than _OCR_TABLE_MIN_COLUMNS
-    groups) — ordinary prose, even indented or with one wide gap, never qualifies."""
-    words = sorted(line["words"], key=lambda w: w["bbox"][0])
-    if len(words) < _OCR_TABLE_MIN_COLUMNS:
-        return None
+def _raw_word_groups(words):
+    """`words` (already sorted by x0) split into cell-like groups by gap, with no
+    minimum group count enforced — shared by _row_cells (which does enforce
+    _OCR_TABLE_MIN_COLUMNS on top of this) and _row_from_reference_overlap's own
+    precondition. A single group back (no gap in the row clears
+    _column_gap_threshold at all, or there are fewer than 2 words to have a gap
+    between) means this line's own geometry shows no internal column structure
+    whatsoever — plain, uniformly-spaced prose."""
+    if len(words) < 2:
+        return [words] if words else []
     gaps = [words[k + 1]["bbox"][0] - words[k]["bbox"][2] for k in range(len(words) - 1)]
     threshold = _column_gap_threshold(gaps)
     groups = [[words[0]]]
@@ -314,6 +317,17 @@ def _row_cells(line):
             groups[-1].append(words[k])
         else:
             groups.append([words[k]])
+    return groups
+
+
+def _row_cells(line):
+    """Splits one OCR line's words into cell-like groups by gap. Returns None if the
+    line doesn't look like a table row at all (fewer than _OCR_TABLE_MIN_COLUMNS
+    groups) — ordinary prose, even indented or with one wide gap, never qualifies."""
+    words = sorted(line["words"], key=lambda w: w["bbox"][0])
+    if len(words) < _OCR_TABLE_MIN_COLUMNS:
+        return None
+    groups = _raw_word_groups(words)
     if len(groups) < _OCR_TABLE_MIN_COLUMNS:
         return None
     return [
@@ -455,6 +469,69 @@ def _matching_cells(cells, reference_cells):
     return None
 
 
+def _row_from_reference_overlap(reference_cells, line):
+    """A fresh row built directly from `line`'s raw WORDS mapped onto the already-
+    established reference columns — for when the line's OWN gap segmentation
+    (_row_cells) is too compressed or inconsistent to split it into cells at all,
+    but its words plainly cover most of the table's width anyway.
+
+    _matching_cells already proves that overlap against the reference, by itself, is
+    a trustworthy way to recognize a new row — it just needs _row_cells to have
+    produced cells to test in the first place. A row's own internal word spacing
+    occasionally comes out too uniform for _row_cells to find any column boundary in
+    it at all (a real hard case: an item description ending right where the next
+    column starts, with no more separation than an ordinary word gap), and without
+    this fallback such a line falls through to _merge_wrapped_continuation, which
+    welds it onto the row above instead — silently merging two real rows into one and
+    losing the second one entirely (real hard case: items 11 and 12 collapsed into a
+    single row, their SL/Đơn giá/Thành tiền values concatenated together).
+
+    Same bar as _matching_cells for calling this a row at all (at least half the
+    reference's own columns, never fewer than 2) — genuine wrapped continuations
+    typically touch only one column, or two when a second, narrower column wraps at
+    the same visual height (see _merge_wrapped_continuation); covering most of the
+    table's columns is a different signal entirely; a fresh row that happened to fail
+    self-segmentation, not a wrapped fragment of the row above.
+
+    Requires the line to show SOME internal gap structure of its own first (at least
+    2 raw groups via _raw_word_groups), not just coincidental reference-column
+    overlap: a table with only 2-3 columns (so "half the columns" is a low bar of 2)
+    has a description column wide enough that an entirely unrelated paragraph of
+    plain, uniformly-spaced prose sitting at the same horizontal position — a stray
+    "Ghi chú kiểm thử" note, a signature block label — can have a couple of its own
+    words coincidentally land near a narrow price column purely by chance, with
+    nothing in the line's OWN geometry suggesting it's table-shaped at all. A line
+    collapsing to a single raw group means _column_gap_threshold found no internal
+    gap worth trusting in it whatsoever; relying on reference overlap alone for that
+    case is exactly what glued an unrelated paragraph onto a real row in practice.
+    """
+    words = sorted(line.get("words") or [], key=lambda w: w["bbox"][0])
+    if len(_raw_word_groups(words)) < 2:
+        return None
+    index_by_id = {id(cell): index for index, cell in enumerate(reference_cells)}
+    groups: dict[int, list[dict]] = {}
+    for word in words:
+        target = _best_overlapping_cell(reference_cells, word["bbox"])
+        if target is None:
+            continue
+        groups.setdefault(id(target), []).append(word)
+    if len(groups) < max(2, (len(reference_cells) + 1) // 2):
+        return None
+    return [
+        {
+            "col_index": index_by_id[target_id],
+            "text": " ".join(w["text"] for w in group_words),
+            "bbox": [
+                min(w["bbox"][0] for w in group_words),
+                min(w["bbox"][1] for w in group_words),
+                max(w["bbox"][2] for w in group_words),
+                max(w["bbox"][3] for w in group_words),
+            ],
+        }
+        for target_id, group_words in groups.items()
+    ]
+
+
 def _plausible_row(cells):
     """True if `cells` has enough real textual content to trust as a fresh table
     reference — the row every later line gets matched or merged against.
@@ -565,7 +642,11 @@ def _ocr_tables(lines, payload):
     for line in lines:
         cells = _row_cells(line)
         if cells is None:
-            matched_cells = None
+            # This line's own word spacing was too compressed/inconsistent for
+            # _row_cells to split into cells at all — but if its words plainly cover
+            # most of the table's own columns anyway, it's a fresh row that failed
+            # self-segmentation, not nothing (see _row_from_reference_overlap).
+            matched_cells = _row_from_reference_overlap(block[0][1], line) if block else None
         elif not block:
             # Nothing to filter against yet: this becomes the reference — but only if it
             # looks like a real row (see _plausible_row). A noise line crowned as the
