@@ -288,6 +288,12 @@ function App() {
     api(`/dossiers/${selected.id}/clauses`).then(d => setClauseTree(d.items)).catch(e => setError(e.message));
   }, [result?.machine.run_id, activeDocId]);
 
+  async function reprocess() {
+    if (!selected) return;
+    const job = await api(`/dossiers/${selected.id}/jobs`, 'POST');
+    await refresh();
+    await open({...selected, active_job_id: job.id, status: job.status});
+  }
   async function upload() {
     if (!contract || !title.trim()) throw new Error('Nhập tên hồ sơ và chọn PDF hợp đồng.');
     const dossier = await api('/dossiers', 'POST', {title});
@@ -377,7 +383,19 @@ function App() {
         </aside>
 
         <section className="detail">
-          <div className="panel-title"><h2>{selected?.title ?? 'Chọn hồ sơ để xem kết quả'}</h2>{selected && <StatusBadge status={selected.status}/>}</div>
+          <div className="panel-title">
+            <h2>{selected?.title ?? 'Chọn hồ sơ để xem kết quả'}</h2>
+            {selected && <StatusBadge status={selected.status}/>}
+            {selected && !['uploaded', 'processing'].includes(selected.status) &&
+              <button
+                type="button"
+                disabled={busy}
+                title="Chạy lại toàn bộ hồ sơ này từ đầu bằng code xử lý hiện tại — không dùng lại kết quả cũ"
+                onClick={() => perform(reprocess)}
+              >
+                Xử lý lại
+              </button>}
+          </div>
           {selected && !result && <div className="notice" role="status">
             {!selected.active_job_id ? <p>Tài liệu đã tải lên nhưng chưa bắt đầu xử lý.</p>
               : jobProgress?.status === 'failed' ? <p>Xử lý thất bại: {jobProgress.failure_code ?? 'chưa có kết quả'}. Có thể thử lại các trang lỗi.</p>
