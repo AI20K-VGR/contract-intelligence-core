@@ -97,7 +97,13 @@ def main(path: str) -> None:
             "GET /dossiers/{id}/results (ca envelope hoac chi phan 'machine')."
         )
 
-    print(f"So trang: {len(pages)}\n")
+    stored_flat = machine.get("tables")
+    print(f"So trang: {len(pages)}")
+    print(
+        f"Bang da luu san trong ket qua nay (\"machine.tables\", nhung gi API /tables "
+        f"va frontend dang thuc su doc, TU LUC job nay chay xong -- KHONG phai tinh "
+        f"lai bang code hien tai): {len(stored_flat) if stored_flat is not None else 'khong co truong nay'}\n"
+    )
     fragments = []
     zero_fragment_tesseract_pages = []
     for page in sorted(pages, key=lambda p: (p["document_id"], p["page_number"])):
@@ -109,12 +115,17 @@ def main(path: str) -> None:
             source = "chay lai _ocr_tables voi code hien tai"
             if not fresh:
                 zero_fragment_tesseract_pages.append(page)
+            stale_note = (
+                f" [DA LUU tu truoc (co the la code CU luc xu ly): {len(stored)} manh bang]"
+                if len(stored) != len(fresh) else ""
+            )
         else:
             fresh = stored
             source = "dung nguyen ket qua da luu (native PyMuPDF, khong the chay lai tu JSON)"
+            stale_note = ""
         print(
             f"- Trang {page['page_number']} (engine={engine or '?'}, issue={page.get('issue')}): "
-            f"{len(lines)} dong OCR -> {len(fresh)} manh bang [{source}]"
+            f"{len(lines)} dong OCR -> {len(fresh)} manh bang [{source}]{stale_note}"
         )
         fragments.extend(fresh)
 
