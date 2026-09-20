@@ -227,11 +227,16 @@ def _find_tables(page, payload):
 
 _OCR_TABLE_MIN_COLUMNS = 3
 _OCR_TABLE_MIN_ROWS = 3
-# A gap this many times a row's own median inter-word gap marks a column boundary
-# rather than an ordinary word space. Relative to the row's own median (not a fixed
-# pixel/fraction threshold) so it scales with whatever font size and DPI the page was
-# scanned at, instead of needing a different constant per scan quality.
-_OCR_TABLE_GAP_RATIO = 2.5
+# A gap this many times the previous (smaller) gap in a row marks a column boundary
+# rather than ordinary word spacing — see _column_gap_threshold. A narrow column (a
+# 1-2 digit STT) sits close enough to its neighbor that its own boundary gap clears
+# this by a much smaller margin than a gap between two wide columns does; three real
+# scanned rows (Hop_dong_scan_stress_bang_lien_trang_khong_header.pdf, trang 1) had
+# their genuine STT-to-description boundary ratio land at 2.39-2.49 — real column
+# structure, not word spacing, but just under the previous 2.5 cutoff, which pushed
+# _column_gap_threshold past it to a much later (and wrong) split point, collapsing
+# the whole row to 1-2 groups and rejecting it outright.
+_OCR_TABLE_GAP_RATIO = 2.2
 # Absolute floor (fraction of page width) below which a gap never counts as a column
 # boundary, even on a near-empty row where the median gap itself is tiny.
 _OCR_TABLE_MIN_GAP = 0.015
@@ -244,30 +249,54 @@ _OCR_TABLE_CONTINUATION_OVERLAP = 0.5
 
 def _column_gap_threshold(gaps):
     """The gap size that separates ordinary within-cell word-spacing from a real
-    column boundary: the biggest relative jump between consecutive sizes in the
-    SORTED gap list, not a median. A median picks the wrong side once a row's cells
-    average more than one word each — e.g. a real header row of "Tên hàng", "Đơn
-    giá", "Ghi chú" has as many (or more) small within-cell gaps as there are actual
-    columns, which can push the median onto a between-column gap and make the
-    threshold too high to separate anything. The biggest-jump split doesn't care how
-    many of each kind there are, only that they're sized differently.
+    column boundary: the FIRST relative jump, scanning the SORTED gap list from its
+    smallest values upward, that (a) clears _OCR_TABLE_GAP_RATIO and (b) lands at or
+    above the absolute floor _OCR_TABLE_MIN_GAP — not a median, and not simply
+    whichever jump anywhere in the row happens to be biggest. A median picks the
+    wrong side once a row's cells average more than one word each — e.g. a real
+    header row of "Tên hàng", "Đơn giá", "Ghi chú" has as many (or more) small
+    within-cell gaps as there are actual columns, which can push the median onto a
+    between-column gap and make the threshold too high to separate anything.
 
-    No jump clears _OCR_TABLE_GAP_RATIO at all (every gap is roughly the same size,
-    e.g. ordinary prose with uniform word-spacing) means there's no real column
-    boundary in this row — the threshold is set above every gap so the caller merges
-    everything into one group and (being under _OCR_TABLE_MIN_COLUMNS) rejects it.
+    Picking the single BIGGEST jump (rather than the first qualifying one) fails a
+    different, common way: a real item row's own column gaps are rarely all the same
+    width — a narrow STT column sits close to its neighbor while a wide description
+    column trails off into a much bigger gap before the next value. Real case: gaps of
+    0.008 (word spacing), 0.024, 0.044, 0.048 (three genuine, differently-sized column
+    boundaries) and 0.159 (the widest one, after a long description) all in one row.
+    The biggest RATIO jump anywhere in that list is the LAST one (0.048 -> 0.159) —
+    picking it as the sole cutoff lumps the earlier 0.024/0.044/0.048 boundaries in
+    with ordinary word spacing, collapsing 6 real columns down to 2 and causing
+    _row_cells to reject the entire row as not looking like a table at all. The
+    smallest-first search instead locks onto the boundary between "still word
+    spacing" and "definitely a gap", the moment it's confidently seen (a big enough
+    ratio AND a big enough absolute size to rule out noise from a near-zero
+    denominator inflating the ratio) — every larger real gap after that point is only
+    further evidence of a boundary, never grounds to reclassify it as spacing.
+
+    No jump clears _OCR_TABLE_GAP_RATIO at or above _OCR_TABLE_MIN_GAP at all (every
+    gap is roughly the same size, e.g. ordinary prose with uniform word-spacing) means
+    there's no real column boundary in this row — the threshold is set above every gap
+    so the caller merges everything into one group and (being under
+    _OCR_TABLE_MIN_COLUMNS) rejects it.
     """
     positive = sorted(g for g in gaps if g > 0)
     if not positive:
         return _OCR_TABLE_MIN_GAP
-    best_index, best_ratio = None, _OCR_TABLE_GAP_RATIO
     for i in range(len(positive) - 1):
-        ratio = positive[i + 1] / positive[i]
-        if ratio > best_ratio:
-            best_ratio, best_index = ratio, i
-    if best_index is None:
-        return positive[-1] + 1.0
-    return max(_OCR_TABLE_MIN_GAP, (positive[best_index] + positive[best_index + 1]) / 2)
+        # The floor applies to the CANDIDATE gap itself (positive[i + 1], the value that
+        # would start counting as "a boundary"), not to the midpoint returned as the
+        # threshold: a tiny word-spacing pair (e.g. 0.002 -> 0.0056) can still produce a
+        # ratio over _OCR_TABLE_GAP_RATIO purely because both sides are minuscule, which
+        # is noise, not a real column gap — but a tiny word-spacing gap followed by an
+        # already-plausible column-sized gap (0.003 -> 0.02) is exactly the real signal
+        # this function exists to find, even though their midpoint alone sits under the
+        # floor.
+        if positive[i + 1] < _OCR_TABLE_MIN_GAP:
+            continue
+        if positive[i + 1] / positive[i] > _OCR_TABLE_GAP_RATIO:
+            return (positive[i] + positive[i + 1]) / 2
+    return positive[-1] + 1.0
 
 
 def _row_cells(line):

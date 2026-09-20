@@ -99,6 +99,7 @@ def main(path: str) -> None:
 
     print(f"So trang: {len(pages)}\n")
     fragments = []
+    zero_fragment_tesseract_pages = []
     for page in sorted(pages, key=lambda p: (p["document_id"], p["page_number"])):
         engine = page.get("engine") or ""
         lines = page.get("lines") or []
@@ -106,6 +107,8 @@ def main(path: str) -> None:
         if engine.startswith("tesseract"):
             fresh = _ocr_tables(lines, {"document_id": page["document_id"], "page_number": page["page_number"]})
             source = "chay lai _ocr_tables voi code hien tai"
+            if not fresh:
+                zero_fragment_tesseract_pages.append(page)
         else:
             fresh = stored
             source = "dung nguyen ket qua da luu (native PyMuPDF, khong the chay lai tu JSON)"
@@ -124,15 +127,24 @@ def main(path: str) -> None:
             "nhom cot ma _row_cells tach duoc (can >= 3 va >= _OCR_TABLE_MIN_ROWS=3 "
             "dong lien tiep CUNG so nhom/tuong thich de tao thanh bang)."
         )
-        for page in sorted(pages, key=lambda p: (p["document_id"], p["page_number"])):
-            if (page.get("engine") or "").startswith("tesseract"):
-                _diagnose_page(page)
+        for page in zero_fragment_tesseract_pages:
+            _diagnose_page(page)
         return
 
     result = build_logical_tables(fragments)
     print(f"So bang sau khi ghep trang (logical_items): {len(result)}\n")
     for table in result:
         _render_table(table)
+
+    if zero_fragment_tesseract_pages:
+        pages_str = ", ".join(str(p["page_number"]) for p in zero_fragment_tesseract_pages)
+        print(
+            f"LUU Y: cac trang sau KHONG phat hien duoc manh bang nao du engine la "
+            f"tesseract (co the la phan con lai cua cung 1 bang bi ngat quang): {pages_str}\n"
+            "In chi tiet tung dong de tim nguyen nhan (--diag hoac xem duoi day):"
+        )
+        for page in zero_fragment_tesseract_pages:
+            _diagnose_page(page)
 
 
 if __name__ == "__main__":

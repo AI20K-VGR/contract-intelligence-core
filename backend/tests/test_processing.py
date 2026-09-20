@@ -598,6 +598,32 @@ def test_ocr_tables_ignores_two_column_key_value_block():
     assert _ocr_tables(lines, {"document_id": "doc", "page_number": 1}) == []
 
 
+def test_column_gap_threshold_finds_the_smallest_real_column_boundary_not_the_biggest():
+    # Real hard case (Hop_dong_scan_stress_bang_lien_trang_khong_header.pdf, trang 1,
+    # dong "01 |May chu ung dung..."): a genuine item row's own column gaps are rarely
+    # all the same width -- here STT sits close to the description (gap 0.0238), while
+    # the wide description trails into a much bigger gap before SL (0.1589), and the
+    # SL/DonGia/ThanhTien/GhiChu gaps land in between (0.044, 0.0484). The single
+    # BIGGEST ratio jump anywhere in the row is the last one (0.0484 -> 0.1589) --
+    # picking that as the sole cutoff lumped the earlier 0.0238/0.044/0.0484 column
+    # boundaries in with ordinary ~0.008 word spacing, collapsing 6 real columns down
+    # to 2 groups and making _row_cells reject the entire row as not table-shaped.
+    # The fix scans from the smallest gap upward and locks onto the FIRST boundary
+    # confidently seen, so every later (bigger) real gap only adds evidence, never
+    # grounds to reclassify an earlier one back into "spacing".
+    from app.document_processing import _column_gap_threshold
+
+    within_cell_gaps = [0.0077, 0.0089, 0.0085, 0.0085, 0.0081, 0.0085, 0.0093]
+    gaps = [0.0238, *within_cell_gaps, 0.1589, 0.044, 0.0484, 0.002, 0.0056, 0.0056]
+
+    threshold = _column_gap_threshold(gaps)
+
+    # The threshold must fall strictly between the largest within-cell gap (0.0093)
+    # and the smallest real column boundary (0.0238) -- not up near 0.1, which would
+    # merge STT, the description and several real columns into one group.
+    assert 0.0093 < threshold < 0.0238
+
+
 def test_ocr_tables_requires_minimum_consecutive_rows():
     from app.document_processing import _ocr_tables
 
