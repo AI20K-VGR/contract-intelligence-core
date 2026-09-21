@@ -11,10 +11,10 @@ Một số quy ước (xem ``docs/DOC-04-architecture.md`` §5 Technology stack)
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -92,8 +92,40 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # CORS
     # -------------------------------------------------------------------------
-    cors_allow_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
+    cors_allow_origins: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["http://localhost:5173"]
+    )
     cors_allow_credentials: bool = Field(default=True)
+
+    @field_validator("cors_allow_origins", mode="before")
+    @classmethod
+    def _parse_cors_allow_origins(cls, v: object) -> object:
+        """Accept BOTH JSON array AND comma-separated string từ env.
+
+        Design contract (xem ``.env.example``):
+            CORS_ALLOW_ORIGINS=http://localhost:3000,http://localhost:5173
+
+        Field được annotate với ``NoDecode`` để pydantic-settings KHÔNG tự
+        JSON-decode env value (mặc định 2.x treat ``list[str]`` như complex
+        type → bắt buộc JSON, fail với comma-separated). Validator này xử lý
+        cả hai format để vẫn tương thích với JSON-array users.
+        """
+        if isinstance(v, str):
+            stripped = v.strip()
+            if not stripped:
+                return []
+            if stripped.startswith("["):
+                # JSON array — parse thủ công rồi trả về list[str]
+                import json
+
+                parsed = json.loads(stripped)
+                if not isinstance(parsed, list):
+                    raise ValueError(
+                        f"cors_allow_origins phải là list, nhận: {type(parsed).__name__}"
+                    )
+                return [str(origin).strip() for origin in parsed if str(origin).strip()]
+            return [origin.strip() for origin in stripped.split(",") if origin.strip()]
+        return v
 
     # -------------------------------------------------------------------------
     # Authentication — Keycloak SSO (single source of truth cho token issuance)

@@ -28,6 +28,7 @@ dependencies = [
     # Auth
     "PyJWT[crypto]>=2.8.0",
     "passlib[argon2]>=1.7.4",
+    "aiofiles>=24.1.0",   # Async file I/O cho LocalFileStorage (runtime dep)
 ]
 
 [project.optional-dependencies]
@@ -42,7 +43,6 @@ dev = [
     "types-python-dateutil>=2.9.0",
     "types-aiofiles>=24.1.0",  # Type stubs cho aiofiles (mypy strict)
     "aiosqlite>=0.20.0",  # Integration tests (SQLite in-memory)
-    "aiofiles>=24.1.0",   # Async file I/O cho LocalFileStorage
 ]
 
 [build-system]

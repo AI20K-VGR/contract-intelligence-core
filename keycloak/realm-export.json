@@ -132,15 +132,7 @@
             "access.tokenResponse.claim": "false"
           }
         }
-      ],
-      "postLogoutRedirectUris": [],
-      "accessTokenResponseIssueStatement": {
-        "includeInTokenResponse": {
-          "access_token": true,
-          "id_token": false,
-          "refresh_token": false
-        }
-      }
+      ]
     },
     {
       "id": "contract-intel-frontend",
@@ -205,12 +197,6 @@
             "access.token.claim": "true"
           }
         }
-      ],
-      "postLogoutRedirectUris": [
-        "http://localhost:3000/*",
-        "http://localhost:5173/*",
-        "http://127.0.0.1:3000/*",
-        "http://127.0.0.1:5173/*"
       ]
     }
   ],
@@ -312,8 +298,8 @@
       }
     },
     {
-      "id": "service-account-contract-intel-backend",
-      "username": "service-account-contract-intel-backend",
+      "id": "sa-ci-backend",
+      "username": "sa-ci-backend",
       "enabled": true,
       "emailVerified": false,
       "serviceAccountClientId": "contract-intel-backend",
@@ -362,8 +348,6 @@
   "otpPolicyLookAheadWindow": 1,
   "otpPolicyPeriod": 30,
   "webAuthnPolicyRpEntityName": "keycloak",
-  "webAuthnPolicyCreatedDate": null,
-  "webAuthnPolicyOutdatedDate": null,
   "authenticationFlows": [
     {
       "alias": "account-console",
@@ -373,7 +357,6 @@
       "builtIn": true,
       "authenticationExecutions": [
         {
-          "authenticatorConfig": "invalid-grant-response",
           "authenticator": "invalid-grant-response-error",
           "authenticatorFlow": false,
           "requirement": "REQUIRED",
@@ -411,7 +394,6 @@
           "userSetupAllowed": false
         },
         {
-          "authenticatorConfig": "browser-conditional-otp",
           "authenticator": "conditional-otp-form",
           "authenticatorFlow": false,
           "requirement": "DISABLED",
@@ -428,7 +410,6 @@
       "builtIn": true,
       "authenticationExecutions": [
         {
-          "authenticatorConfig": "direct-grant-conditional-otp",
           "authenticator": "conditional-otp-form",
           "authenticatorFlow": false,
           "requirement": "DISABLED",
@@ -482,7 +463,6 @@
       "builtIn": true,
       "authenticationExecutions": [
         {
-          "authenticatorConfig": "review-profile",
           "authenticator": "idp-review-profile",
           "authenticatorFlow": false,
           "requirement": "REQUIRED",
@@ -497,7 +477,6 @@
           "userSetupAllowed": false
         },
         {
-          "authenticatorConfig": "update-user-on-login",
           "authenticator": "idp-account-email-verification",
           "authenticatorFlow": false,
           "requirement": "DISABLED",
@@ -691,48 +670,6 @@
           "userSetupAllowed": false
         }
       ]
-    }
-  ],
-  "authenticatorConfigs": [
-    {
-      "alias": "browser-conditional-otp",
-      "config": {
-        "default.action": "skip",
-        "force.otp.role": [
-          "offline_access",
-          "admin",
-          "realm-management"
-        ]
-      }
-    },
-    {
-      "alias": "direct-grant-conditional-otp",
-      "config": {
-        "default.action": "skip",
-        "force.otp.role": [
-          "offline_access",
-          "admin",
-          "realm-management"
-        ]
-      }
-    },
-    {
-      "alias": "invalid-grant-response",
-      "config": {
-        "error.message": "Invalid username or password."
-      }
-    },
-    {
-      "alias": "review-profile",
-      "config": {
-        "update.profile.on.first.login": "missing"
-      }
-    },
-    {
-      "alias": "update-user-on-login",
-      "config": {
-        "email.as.username": "on"
-      }
     }
   ]
 }

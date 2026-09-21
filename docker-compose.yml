@@ -264,10 +264,11 @@ services:
       - "host.docker.internal:host-gateway"
     healthcheck:
       # /health trả {"status":"ok",...} khi app + DB ready.
+      # Slim image KHÔNG có curl → dùng Python urllib thay thế.
       # `start_period` 30s cho FastAPI startup (load ORM models, build index, init AI stub).
       test:
         - CMD-SHELL
-        - 'curl -fsS http://localhost:8000/health | grep -q "\"status\":\"ok\"" || exit 1'
+        - 'python -c "import urllib.request, json, sys; r = urllib.request.urlopen(''http://localhost:8000/health'', timeout=3); sys.exit(0 if json.loads(r.read()).get(''status'') == ''ok'' else 1)"'
       interval: 15s
       timeout: 5s
       retries: 6
