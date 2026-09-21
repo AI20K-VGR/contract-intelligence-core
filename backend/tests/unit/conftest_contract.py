@@ -108,6 +108,17 @@ class FakeDossierRepository(DossierRepository):
         if dossier_id in self._store:
             self._store[dossier_id]._is_approved = True
             self._store[dossier_id]._checksum = checksum
+            self._store[dossier_id]._status = "approved"
+
+    async def get_flags(self, dossier_id: str) -> dict[str, object] | None:
+        d = self._store.get(dossier_id)
+        if d is None:
+            return None
+        return {
+            "is_locked": bool(getattr(d, "_is_locked", False)),
+            "is_approved": bool(getattr(d, "_is_approved", False)),
+            "status": str(getattr(d, "_status", "uploaded")),
+        }
 
 
 class FakeDocumentRepository(DocumentRepository):

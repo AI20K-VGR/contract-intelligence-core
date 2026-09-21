@@ -36,12 +36,20 @@ from fastapi import (
     UploadFile,
     status,
 )
-from pydantic import BaseModel, ConfigDict, Field
 
 from contract_intelligence.contract.application.dtos.batch_dtos import (
     BatchCreatedDTO,
     BatchDetailDTO,
     BatchListItemDTO,
+)
+from contract_intelligence.contract.application.dtos.optimization_dtos import (
+    CreateCampaignRequestDTO,
+    CreateCandidateRequestDTO,
+    CreateExperimentRequestDTO,
+    ExperimentResultDTO,
+    OptimizationCampaignDTO,
+    OptimizationCandidateDTO,
+    OptimizationExperimentDTO,
 )
 from contract_intelligence.contract.interfaces.api.dependencies_admin import (
     BatchServiceDep,
@@ -61,11 +69,6 @@ router = APIRouter(tags=["Admin/Ops"])
 # ============================================================================
 # Batches — Màn hình 2
 # ============================================================================
-
-
-class CreateBatchNameRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    name: str = Field(..., min_length=1, max_length=255)
 
 
 @router.post(
@@ -235,143 +238,170 @@ async def ops_metrics(
 
 @router.get(
     "/optimization/campaigns",
-    response_model=ApiResponse[list[Any]],
+    response_model=ApiResponse[list[OptimizationCampaignDTO]],
     summary="List optimization campaigns",
 )
 async def list_campaigns(
     svc: OptimizationServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
-) -> ApiResponse[list[Any]]:
-    return ApiResponse(data=await svc.list_campaigns())
+) -> ApiResponse[list[OptimizationCampaignDTO]]:
+    rows = await svc.list_campaigns()
+    return ApiResponse(data=[OptimizationCampaignDTO.from_row(r) for r in rows])
 
 
 @router.post(
     "/optimization/campaigns",
     status_code=status.HTTP_201_CREATED,
-    response_model=ApiResponse[dict[str, Any]],
+    response_model=ApiResponse[OptimizationCampaignDTO],
 )
 async def create_campaign(
-    body: Annotated[CreateBatchNameRequest, Body()],
+    body: Annotated[CreateCampaignRequestDTO, Body()],
     svc: OptimizationServiceDep,
     user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
-) -> ApiResponse[dict[str, Any]]:
-    return ApiResponse(
-        data=await svc.create_campaign(
-            name=body.name,
-            goal="",
-            target_metric="",
-            created_by=user.user_id,
-        )
+) -> ApiResponse[OptimizationCampaignDTO]:
+    row = await svc.create_campaign(
+        name=body.name,
+        description=body.description,
+        target_metric=body.target_metric,
+        baseline_score=body.baseline_score,
+        created_by=user.user_id,
     )
+    return ApiResponse(data=OptimizationCampaignDTO.from_row(row))
 
 
 @router.get(
     "/optimization/campaigns/{campaign_id}",
-    response_model=ApiResponse[dict[str, Any]],
+    response_model=ApiResponse[OptimizationCampaignDTO],
     responses={404: {"description": "Campaign not found"}},
 )
 async def get_campaign(
     campaign_id: Annotated[str, Path(min_length=1)],
     svc: OptimizationServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
-) -> ApiResponse[dict[str, Any]]:
-    return ApiResponse(data=await svc.get_campaign(campaign_id))
+) -> ApiResponse[OptimizationCampaignDTO]:
+    return ApiResponse(data=OptimizationCampaignDTO.from_row(await svc.get_campaign(campaign_id)))
 
 
 @router.get(
     "/optimization/candidates",
-    response_model=ApiResponse[list[Any]],
+    response_model=ApiResponse[list[OptimizationCandidateDTO]],
 )
 async def list_candidates(
     svc: OptimizationServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
-    campaign_id: str = Query(..., min_length=1),
-) -> ApiResponse[list[Any]]:
-    return ApiResponse(data=await svc.list_candidates(campaign_id))
+    campaign_id: Annotated[str | None, Query()] = None,
+) -> ApiResponse[list[OptimizationCandidateDTO]]:
+    rows = await svc.list_candidates(campaign_id)
+    return ApiResponse(data=[OptimizationCandidateDTO.from_row(r) for r in rows])
 
 
 @router.post(
     "/optimization/candidates",
     status_code=status.HTTP_201_CREATED,
-    response_model=ApiResponse[dict[str, Any]],
+    response_model=ApiResponse[OptimizationCandidateDTO],
 )
 async def create_candidate(
-    body: Annotated[dict[str, Any], Body()],
+    body: Annotated[CreateCandidateRequestDTO, Body()],
     svc: OptimizationServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[OptimizationCandidateDTO]:
+    row = await svc.create_candidate(
+        campaign_id=body.campaign_id,
+        name=body.name,
+        prompt_template=body.prompt_template,
+        model_name=body.model_name,
+        temperature=body.temperature,
+    )
+    return ApiResponse(data=OptimizationCandidateDTO.from_row(row))
+
+
+@router.get(
+    "/optimization/candidates/{candidate_id}",
+    response_model=ApiResponse[OptimizationCandidateDTO],
+    responses={404: {"description": "Candidate not found"}},
+)
+async def get_candidate(
+    candidate_id: Annotated[str, Path(min_length=1)],
+    svc: OptimizationServiceDep,
+    _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
+) -> ApiResponse[OptimizationCandidateDTO]:
     return ApiResponse(
-        data=await svc.create_candidate(
-            campaign_id=body["campaign_id"],
-            name=body["name"],
-            prompt_version=body["prompt_version"],
-            hyperparameters=body.get("hyperparameters", {}),
-        )
+        data=OptimizationCandidateDTO.from_row(await svc.get_candidate(candidate_id))
     )
 
 
 @router.post(
     "/optimization/candidates/{candidate_id}/promote",
-    response_model=ApiResponse[dict[str, Any]],
+    response_model=ApiResponse[OptimizationCandidateDTO],
+    responses={409: {"description": "Already active production"}},
 )
 async def promote_candidate(
     candidate_id: Annotated[str, Path(min_length=1)],
     svc: OptimizationServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
-) -> ApiResponse[dict[str, Any]]:
-    return ApiResponse(data=await svc.promote_candidate(candidate_id))
+) -> ApiResponse[OptimizationCandidateDTO]:
+    return ApiResponse(
+        data=OptimizationCandidateDTO.from_row(await svc.promote_candidate(candidate_id))
+    )
 
 
 @router.get(
     "/optimization/experiments",
-    response_model=ApiResponse[list[Any]],
+    response_model=ApiResponse[list[OptimizationExperimentDTO]],
 )
 async def list_experiments(
     svc: OptimizationServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
-    campaign_id: str = Query(..., min_length=1),
-) -> ApiResponse[list[Any]]:
-    return ApiResponse(data=await svc.list_experiments(campaign_id))
+    campaign_id: Annotated[str | None, Query()] = None,
+) -> ApiResponse[list[OptimizationExperimentDTO]]:
+    rows = await svc.list_experiments(campaign_id)
+    return ApiResponse(data=[OptimizationExperimentDTO.from_row(r) for r in rows])
 
 
 @router.post(
     "/optimization/experiments",
     status_code=status.HTTP_201_CREATED,
-    response_model=ApiResponse[dict[str, Any]],
+    response_model=ApiResponse[OptimizationExperimentDTO],
 )
 async def create_experiment(
-    body: Annotated[dict[str, Any], Body()],
+    body: Annotated[CreateExperimentRequestDTO, Body()],
     svc: OptimizationServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
-) -> ApiResponse[dict[str, Any]]:
-    return ApiResponse(
-        data=await svc.create_experiment(
-            campaign_id=body["campaign_id"],
-            candidate_id=body["candidate_id"],
-            benchmark_set_name=body["benchmark_set_name"],
-        )
+) -> ApiResponse[OptimizationExperimentDTO]:
+    row = await svc.create_experiment(
+        campaign_id=body.campaign_id,
+        candidate_id=body.candidate_id,
+        golden_dataset_version=body.golden_dataset_version,
+        sample_size=body.sample_size,
     )
+    return ApiResponse(data=OptimizationExperimentDTO.from_row(row))
 
 
 @router.post(
     "/optimization/experiments/{experiment_id}/run",
-    response_model=ApiResponse[dict[str, Any]],
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ApiResponse[OptimizationExperimentDTO],
+    responses={409: {"description": "Already running or finished"}},
 )
 async def run_experiment(
     experiment_id: Annotated[str, Path(min_length=1)],
     svc: OptimizationServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
-) -> ApiResponse[dict[str, Any]]:
-    return ApiResponse(data=await svc.run_experiment(experiment_id))
+) -> ApiResponse[OptimizationExperimentDTO]:
+    return ApiResponse(
+        data=OptimizationExperimentDTO.from_row(await svc.run_experiment(experiment_id))
+    )
 
 
 @router.get(
     "/optimization/experiments/{experiment_id}/results",
-    response_model=ApiResponse[dict[str, Any]],
+    response_model=ApiResponse[ExperimentResultDTO],
 )
 async def get_experiment_results(
     experiment_id: Annotated[str, Path(min_length=1)],
     svc: OptimizationServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
-) -> ApiResponse[dict[str, Any]]:
-    return ApiResponse(data=await svc.get_experiment_results(experiment_id))
+) -> ApiResponse[ExperimentResultDTO]:
+    return ApiResponse(
+        data=ExperimentResultDTO.from_row(await svc.get_experiment_results(experiment_id))
+    )

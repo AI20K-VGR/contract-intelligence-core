@@ -71,6 +71,7 @@ ignore_imports =
     # justify the refactor cost; tracked as technical debt for a dedicated refactor sprint.
     contract_intelligence.review.application.services.approval_service -> contract_intelligence.contract.infrastructure.persistence.repository_impl
     contract_intelligence.review.application.services.approval_service -> contract_intelligence.review.infrastructure.persistence.orm_approval
+    contract_intelligence.review.application.services.approval_service -> contract_intelligence.review.infrastructure.persistence.orm
     # ReOcrService interacts directly with ReOcrRequestORM. A Protocol wrapper adds
     # complexity without runtime value. Service can be moved to infrastructure in a
     # follow-up refactor sprint.
@@ -121,6 +122,7 @@ ignore_imports =
     # application_no_infra_or_interfaces section.
     contract_intelligence.extraction.application.services.reocr_service -> contract_intelligence.extraction.infrastructure.persistence.orm_reocr
     contract_intelligence.review.application.services.approval_service -> contract_intelligence.review.infrastructure.persistence.orm_approval
+    contract_intelligence.review.application.services.approval_service -> contract_intelligence.review.infrastructure.persistence.orm
 
 [importlinter:contract:contract_layers]
 name = Contract layers

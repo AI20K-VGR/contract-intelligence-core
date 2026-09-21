@@ -171,6 +171,20 @@ class DossierRepositoryImpl(DossierRepository):
             orm.updated_at = utcnow()
             await self._session.flush()
 
+    async def get_flags(self, dossier_id: str) -> dict[str, object] | None:
+        stmt = select(DossierORM).where(
+            DossierORM.id == dossier_id, DossierORM.tenant_id == self._tenant_id
+        )
+        result = await self._session.execute(stmt)
+        orm = result.scalar_one_or_none()
+        if orm is None:
+            return None
+        return {
+            "is_locked": bool(orm.is_locked),
+            "is_approved": bool(orm.is_approved),
+            "status": str(orm.status),
+        }
+
 
 # ============================================================================
 # Document
