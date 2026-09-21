@@ -87,7 +87,8 @@ class _JWKSCache:
             keys_data = self._client.get_jwk_set()
             self._keys = {}
             for key in keys_data.keys:
-                kid = getattr(key, "kid", None)
+                # PyJWT PyJWK exposes key id as ``key_id`` (not ``kid``).
+                kid = getattr(key, "key_id", None) or getattr(key, "kid", None)
                 if kid:
                     self._keys[kid] = key
             self._cached_at = time.monotonic()

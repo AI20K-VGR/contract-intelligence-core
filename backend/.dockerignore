@@ -26,8 +26,8 @@ tests/
 .env.local
 .env.*.local
 
-# Alembic migration SQL — mounted vào backend-db chứ không bake vào image
-alembic/versions/
+# Alembic revisions MUST be baked into the image — entrypoint runs
+# `alembic upgrade head` before uvicorn. (Do NOT exclude alembic/versions/.)
 
 # Docs that aren't needed at runtime
 *.md

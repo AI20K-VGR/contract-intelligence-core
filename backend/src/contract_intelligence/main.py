@@ -15,9 +15,10 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPBearer
 
 from contract_intelligence.config.logging import configure_logging, get_logger
 from contract_intelligence.config.settings import get_settings
@@ -84,6 +85,11 @@ from contract_intelligence.shared.responses import ErrorPayload, ErrorResponse
 from contract_intelligence.shared.versioning import full_version
 
 logger = get_logger(__name__)
+
+# Registers Bearer JWT in OpenAPI so Swagger UI shows the Authorize padlock.
+# auto_error=False: missing/invalid tokens are handled by existing RBAC deps
+# (get_current_user / require_role), not by this scheme.
+_http_bearer = HTTPBearer(auto_error=False)
 
 
 async def _run_alembic_upgrade() -> None:
@@ -202,6 +208,7 @@ def create_app() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url="/openapi.json",
+        dependencies=[Depends(_http_bearer)],
     )
 
     # CORS

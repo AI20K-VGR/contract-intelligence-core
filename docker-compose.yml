@@ -222,11 +222,15 @@ services:
       DATABASE_URL: postgresql+asyncpg://ci:${BACKEND_DB_PASSWORD:-ci_secret_dev}@backend-db:5432/contract_intelligence
       # ---- Keycloak SSO ----
       AUTH_MODE: keycloak
-      KEYCLOAK_SERVER_URL: http://host.docker.internal:${KEYCLOAK_HTTP_HOST_PORT:-8080}
+      # Issuer must match tokens minted from the Windows host (iss=localhost:8080).
+      KEYCLOAK_SERVER_URL: http://localhost:${KEYCLOAK_HTTP_HOST_PORT:-8080}
+      # JWKS must be reachable from inside the container (Keycloak service DNS).
+      KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/contract-intelligence/protocol/openid-connect/certs
       KEYCLOAK_REALM: contract-intelligence
       KEYCLOAK_CLIENT_ID: contract-intel-backend
       KEYCLOAK_AUDIENCE: contract-intel-backend
-      KEYCLOAK_JWKS_URI: ""
+      # Realm-export uses OPERATOR/REVIEWER/ADMINISTRATOR; keep ci_* aliases too.
+      KEYCLOAK_ROLE_MAP: ${KEYCLOAK_ROLE_MAP:-{"OPERATOR":"OPERATOR","REVIEWER":"REVIEWER","ADMINISTRATOR":"ADMINISTRATOR","ci_operator":"OPERATOR","ci_reviewer":"REVIEWER","ci_administrator":"ADMINISTRATOR"}}
 
       # ---- Admin REST API (Client Credentials Grant) ----
       # Service account "contract-intel-backend" phải có realm-management
