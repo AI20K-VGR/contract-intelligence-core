@@ -310,6 +310,68 @@ def test_headerless_no_stt_continuation_needs_agent_to_merge(monkeypatch):
     ]
 
 
+def test_low_confidence_page_edge_fragment_merges_when_sequence_continues():
+    # Real hard case: a table's last item spills onto the next page as the page's
+    # ONLY tabular row (document_processing._ocr_tables' page-edge exception rescues
+    # it as "low_confidence": True instead of dropping it outright for being under
+    # _OCR_TABLE_MIN_ROWS). It must still be eligible to join like any other
+    # fragment once the evidence supports it -- row-number sequence continues here,
+    # same as any ordinary two-fragment merge.
+    tables = sample()
+    tables[1]["rows"].pop()  # drop the "Tổng cộng" row so page 3 can still continue it
+    tables.append(fragment(3, [["08", "Next item", "1", "Cái", "2", "2", ""]]))
+    tables[-1]["low_confidence"] = True
+
+    result = build_logical_tables(tables)
+
+    assert len(result) == 1
+    assert result[0]["status"] == "RECONSTRUCTED"
+    assert result[0]["page_end"] == 3
+    assert result[0]["rows"][-1]["cells"][1]["text"] == "Next item"
+    assert "low_confidence" not in result[0]
+
+
+def test_low_confidence_narrow_bbox_fragment_maps_using_reference_frame():
+    # Real hard case: a low-confidence page-edge fragment's only row is missing its
+    # own trailing cells, so document_processing._ocr_tables computes its bbox from
+    # only the cells it actually has -- far narrower than the table it's continuing.
+    # _map_rows used to normalize a candidate's cells within ITS OWN bbox; here that
+    # scales "08"/"Next item"/"1" outward until none of them land inside the grid's
+    # (much wider) column bands at all -- purely a coordinate-frame mismatch, nothing
+    # to do with which column any of them visually belongs to.
+    tables = sample()
+    tables[1]["rows"].pop()  # drop "Tổng cộng" so page 3 can still continue it
+    extra = fragment(3, [["08", "Next item", "1", "", "", "", ""]])
+    extra["rows"][0]["cells"] = extra["rows"][0]["cells"][:3]  # only STT/Tên hàng/SL exist
+    extra["bbox"] = [0, 0.2, EDGES[3], 0.22]  # narrower than the table's real width
+    extra["low_confidence"] = True
+    tables.append(extra)
+
+    result = build_logical_tables(tables)
+
+    assert len(result) == 1
+    assert result[0]["status"] == "RECONSTRUCTED"
+    assert result[0]["rows"][-1]["cells"][1]["text"] == "Next item"
+    assert result[0]["rows"][-1]["cells"][2]["text"] == "1"
+
+
+def test_low_confidence_page_edge_fragment_dropped_silently_when_it_does_not_merge():
+    # Same rescue, but nothing about it actually continues the previous page's table
+    # (unrelated content that only coincidentally looked table-shaped). Showing it
+    # anyway as its own tiny "table" would be guessing from geometry alone -- worse
+    # than the pre-rescue behavior of dropping it, so it must vanish just as
+    # thoroughly, not surface as a bogus STANDALONE/NEEDS_REVIEW entry.
+    tables = sample()
+    tables[1]["rows"].pop()  # drop the "Tổng cộng" row: isolate the "no evidence" case
+    tables.append(fragment(3, [["Bên A", "Nguyễn Văn A", "", "", "", "", ""]]))
+    tables[-1]["low_confidence"] = True
+
+    result = build_logical_tables(tables)
+
+    assert len(result) == 1  # only the original page1+2 table -- the rescue is gone
+    assert result[0]["page_end"] == 2
+
+
 def test_real_pdf_extraction_to_logical_api_view(system):
     import pymupdf
 

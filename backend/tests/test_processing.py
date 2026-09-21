@@ -375,6 +375,69 @@ def _mock_two_tesseract_lines(*args, **kwargs):
     }
 
 
+def test_zero_area_tesseract_word_is_dropped_not_cited(tmp_path, monkeypatch):
+    # Real failure mode: Tesseract occasionally reports a phantom word with width or
+    # height 0 alongside real ones. Before clamping/filtering existed, that word's
+    # degenerate bbox survived into page["lines"] untouched, and evidence.citation()
+    # rejected it with CITATION_ANCHOR_INVALID -- failing the ENTIRE job (worker.py
+    # builds every page's citations in one batch), not just the one page with the
+    # stray word.
+    import app.document_processing as processing
+
+    def mock_ocr(*args, **kwargs):
+        # "Ghost" is its own line (line_num=2): before the fix, its degenerate
+        # zero-width bbox WAS the entire line's bbox, not just diluted into a wider
+        # real line's min/max -- the exact shape that made citation() raise.
+        return {
+            "text": ["Hello", "Ghost"],
+            "left": [10, 60],
+            "top": [10, 30],
+            "width": [40, 0],
+            "height": [15, 15],
+            "block_num": [1, 1],
+            "par_num": [1, 1],
+            "line_num": [1, 2],
+        }
+
+    monkeypatch.setattr(processing.pytesseract, "image_to_data", mock_ocr)
+    store, payload = _scan_pdf_payload(tmp_path)
+    result = process_page(
+        payload, {"dpi": 72, "max_pixels": 2_000_000, "ocr_languages": "vie+eng",
+                   "ocr_timeout_seconds": 5},
+        store,
+    )
+    assert [line["text"] for line in result["lines"]] == ["Hello"]
+    for line in result["lines"]:
+        citation(result, line, "run")  # must not raise CITATION_ANCHOR_INVALID
+
+
+def test_edge_overflowing_tesseract_word_is_clamped_not_rejected(tmp_path, monkeypatch):
+    # Real failure mode: Tesseract's own internal padding can report a word extending
+    # a few pixels past the rendered image's own edge, which -- without clamping --
+    # normalizes to a coordinate above 1.0 and fails evidence.citation()'s bounds
+    # check for the whole job, same as the zero-area case above.
+    import app.document_processing as processing
+
+    def mock_ocr(*args, **kwargs):
+        return {
+            "text": ["Edge"], "left": [190], "top": [10], "width": [20], "height": [15],
+            "block_num": [1], "par_num": [1], "line_num": [1],
+        }
+
+    monkeypatch.setattr(processing.pytesseract, "image_to_data", mock_ocr)
+    store, payload = _scan_pdf_payload(tmp_path)  # 200x100 page; dpi=72 keeps pix == page pixels
+    result = process_page(
+        payload, {"dpi": 72, "max_pixels": 2_000_000, "ocr_languages": "vie+eng",
+                   "ocr_timeout_seconds": 5},
+        store,
+    )
+    assert len(result["lines"]) == 1
+    bbox = result["lines"][0]["bbox"]
+    assert bbox[2] == 1.0
+    assert bbox[0] < bbox[2]
+    citation(result, result["lines"][0], "run")  # must not raise CITATION_ANCHOR_INVALID
+
+
 def test_gpt_vision_replaces_text_but_keeps_tesseract_bbox_on_line_match(tmp_path, monkeypatch):
     import app.document_processing as processing
 
@@ -624,6 +687,40 @@ def test_column_gap_threshold_finds_the_smallest_real_column_boundary_not_the_bi
     assert 0.0093 < threshold < 0.0238
 
 
+def test_row_cells_splits_a_misread_ruling_line_out_of_the_last_column():
+    # Same real hard case as the threshold test above (Hop_dong_scan_stress_bang_
+    # lien_trang_khong_header.pdf, trang 1, dong "01 |May chu ung dung..."): the
+    # table's own vertical rule between "Thành tiền" and "Ghi chú" gets OCR'd as a
+    # standalone "|" word sitting only ~0.002-0.006 from both real neighbors -- far
+    # closer than any genuine word-spacing gap elsewhere in the row. Fixing the
+    # THRESHOLD (see above) correctly locks onto the row's real column boundaries, but
+    # by the same token it's now too small to separate "173.000.000" from "|" or "|"
+    # from "Bảo" either -- all three land in one _column_gap_threshold-sized group.
+    # Left alone, that group's text becomes "173.000.000 | Bảo hành" -- Thành tiền
+    # and Ghi chú silently fused into one cell -- for every row that happens to carry
+    # a Ghi chú value, on every affected page.
+    from app.document_processing import _row_cells
+
+    words = [
+        _word("01", 0.0548, 0.401, 0.0758, 0.4116),
+        _word("|Máy", 0.0996, 0.4011, 0.1355, 0.4145),
+        _word("chủ", 0.1431, 0.4014, 0.1742, 0.4116),
+        _word("2", 0.5847, 0.4025, 0.5935, 0.4125),
+        _word("86.500.000", 0.6375, 0.4019, 0.7238, 0.4105),
+        _word("173.000.000", 0.7722, 0.4025, 0.8673, 0.4108),
+        _word("|", 0.8694, 0.4002, 0.8782, 0.4185),
+        _word("Bảo", 0.8839, 0.4014, 0.9069, 0.4094),
+        _word("hành", 0.9125, 0.4017, 0.9431, 0.4173),
+    ]
+    line = _ocr_line(0, words)
+
+    cells = _row_cells(line)
+
+    assert [c["text"] for c in cells] == [
+        "01", "|Máy chủ", "2", "86.500.000", "173.000.000", "Bảo hành",
+    ]
+
+
 def test_ocr_tables_recovers_a_column_the_reference_row_left_blank():
     # Real hard case (a scanned "Khối lượng/Đơn giá/Thành tiền" item table): the
     # table's very first item legitimately has no value in its own "Khối lượng"
@@ -686,14 +783,41 @@ def test_ocr_tables_recovers_a_column_the_reference_row_left_blank():
 def test_ocr_tables_requires_minimum_consecutive_rows():
     from app.document_processing import _ocr_tables
 
+    # Mid-page (not near either edge): the page-edge exception (see the next test)
+    # must not rescue this — only two rows, nowhere near _OCR_TABLE_MIN_ROWS, with
+    # nothing about the position suggesting a table continuing across a page break.
     lines = [
-        _work_history_row(0, 0.10, ("Tháng", "10/2007-"), ("Làm", "việc"),
+        _work_history_row(0, 0.45, ("Tháng", "10/2007-"), ("Làm", "việc"),
                            ("Trung", "tâm"), ("Nghiên", "cứu")),
-        _work_history_row(1, 0.14, ("Tháng", "9/2009-"), ("Học", "thạc"),
+        _work_history_row(1, 0.49, ("Tháng", "9/2009-"), ("Học", "thạc"),
                            ("Viện", "NC"), ("Học", "viên")),
     ]
 
     assert _ocr_tables(lines, {"document_id": "doc", "page_number": 1}) == []
+
+
+def test_ocr_tables_rescues_a_short_block_at_the_page_top_as_low_confidence():
+    # Real hard case (a table's last item spilling onto the next page as a single
+    # extra numbered row, with nothing else tabular on that page): too few rows to
+    # ever reach _OCR_TABLE_MIN_ROWS on its own, so it was silently dropped entirely
+    # -- losing that row from the reconstructed table, not just misplacing it. Now
+    # emitted (flagged low_confidence) so build_logical_tables' Table Continuity
+    # Agent gets a chance to decide whether it belongs to the previous page's table,
+    # rather than never seeing it at all.
+    from app.document_processing import _ocr_tables
+
+    lines = [
+        _work_history_row(0, 0.03, ("Tháng", "10/2007-"), ("Làm", "việc"),
+                           ("Trung", "tâm"), ("Nghiên", "cứu")),
+        _work_history_row(1, 0.07, ("Tháng", "9/2009-"), ("Học", "thạc"),
+                           ("Viện", "NC"), ("Học", "viên")),
+    ]
+
+    tables = _ocr_tables(lines, {"document_id": "doc", "page_number": 1})
+
+    assert len(tables) == 1
+    assert tables[0]["row_count"] == 2
+    assert tables[0]["low_confidence"] is True
 
 
 def test_ocr_tables_survives_one_row_interrupted_by_a_stamp():

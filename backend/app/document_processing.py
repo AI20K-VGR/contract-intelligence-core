@@ -1,5 +1,6 @@
 import base64
 import difflib
+import re
 import unicodedata
 from collections import defaultdict
 from io import BytesIO
@@ -185,10 +186,24 @@ def _gpt_vision_lines(image: Image.Image, config: dict) -> list[str] | None:
         return None
 
 
+def _clamp01(value):
+    """Real detectors (Tesseract especially) occasionally report a word/table box that
+    pokes a fraction of a pixel past the page's own edge -- floating-point drift in a
+    rotation matrix, or Tesseract's own internal padding on a word flush against the
+    image boundary. Left alone, that produces a normalized coordinate outside [0, 1],
+    which evidence.citation() then rejects outright (CITATION_ANCHOR_INVALID) -- for
+    the whole job, since worker.py builds every page's citations in one batch, not
+    just the one page with the stray box. Clamping at the point coordinates are
+    normalized keeps a harmless rounding error from taking down an entire job's
+    otherwise-good results.
+    """
+    return max(0.0, min(1.0, value))
+
+
 def _normalized(rect, page):
     box = pymupdf.Rect(rect) * page.rotation_matrix
-    return [box.x0 / page.rect.width, box.y0 / page.rect.height,
-            box.x1 / page.rect.width, box.y1 / page.rect.height]
+    return [_clamp01(box.x0 / page.rect.width), _clamp01(box.y0 / page.rect.height),
+            _clamp01(box.x1 / page.rect.width), _clamp01(box.y1 / page.rect.height)]
 
 
 def _nearest_heading_above(candidates, top):
@@ -255,6 +270,24 @@ def _find_tables(page, payload):
 
 _OCR_TABLE_MIN_COLUMNS = 3
 _OCR_TABLE_MIN_ROWS = 3
+# Mirrors tables.py's TOP_EDGE_THRESHOLD/BOTTOM_EDGE_THRESHOLD (duplicated, not
+# imported: tables.py already imports table_continuity, which this module also
+# imports, and tables.py would need _OCR_TABLE_MIN_ROWS back from here -- importing
+# either direction would cycle). A block sitting this close to the page's own top or
+# bottom edge is the layout signature of one table continuing across a page break, so
+# it's still emitted as a candidate fragment even short of _OCR_TABLE_MIN_ROWS --
+# letting build_logical_tables' Table Continuity Agent decide whether to fold it into
+# the neighboring page's table (real case: a table's last row spills onto the next
+# page as a single additional numbered item, with nothing else tabular left on that
+# page — too few rows to ever pass _OCR_TABLE_MIN_ROWS on its own, so today it's
+# dropped outright and the row is lost). A block in the MIDDLE of a page gets no such
+# benefit of the doubt: a coincidentally column-shaped line or two there (e.g. a
+# header/footer amid prose) is far more likely to be noise than a genuine
+# continuation, and _OCR_TABLE_MIN_ROWS alone is what protects against that.
+# Rescued this way is never trusted as a table on its own, either: tables.py drops it
+# again, silently, if it doesn't end up confidently attached to a real table.
+_OCR_TABLE_EDGE_TOP = 0.15
+_OCR_TABLE_EDGE_BOTTOM = 0.85
 # A gap this many times the previous (smaller) gap in a row marks a column boundary
 # rather than ordinary word spacing — see _column_gap_threshold. A narrow column (a
 # 1-2 digit STT) sits close enough to its neighbor that its own boundary gap clears
@@ -327,6 +360,42 @@ def _column_gap_threshold(gaps):
     return positive[-1] + 1.0
 
 
+# A misread table ruling line, standalone (not glued to a real word) — see
+# _merge_wrapped_continuation's own docstring on this exact class of noise
+# ("a vertical border read as '|' or '›', a corner read as ':' or '\\'"). Used by
+# _split_ruling_line_noise below for a DIFFERENT manifestation of the same noise: one
+# that lands so close to both its real neighbors that _column_gap_threshold can't
+# distinguish it from ordinary word-spacing (a real hard case: a "Thành tiền"/"Ghi
+# chú" column divider read as "|", both gaps around it under 0.006 — the row's other,
+# genuine column gaps are 0.02-0.05 — so it gets grouped WITH one or both real
+# neighbors instead of separating them).
+_RULING_LINE_NOISE_PATTERN = re.compile(r"^[|›:\\]+$")
+
+
+def _split_ruling_line_noise(groups):
+    """A misread vertical table rule sometimes lands close enough to both its real
+    neighbors that gap-based grouping alone glues it into the same group as one or
+    both of them — silently concatenating two genuinely different columns' values
+    into one cell (see _RULING_LINE_NOISE_PATTERN). Once grouped, though, the noise
+    token itself is trivial to recognize (pure ruling-line punctuation, never
+    alphanumeric): split the group there and drop the token, rather than leaving two
+    real columns fused together.
+    """
+    result = []
+    for group in groups:
+        current = []
+        for word in group:
+            if _RULING_LINE_NOISE_PATTERN.match(word["text"]):
+                if current:
+                    result.append(current)
+                current = []
+                continue
+            current.append(word)
+        if current:
+            result.append(current)
+    return result
+
+
 def _raw_word_groups(words):
     """`words` (already sorted by x0) split into cell-like groups by gap, with no
     minimum group count enforced — shared by _row_cells (which does enforce
@@ -345,7 +414,7 @@ def _raw_word_groups(words):
             groups[-1].append(words[k])
         else:
             groups.append([words[k]])
-    return groups
+    return _split_ruling_line_noise(groups)
 
 
 def _row_cells(line):
@@ -671,9 +740,13 @@ def _ocr_tables(lines, payload):
     e.g. real prose starting right after the table; that flushes whatever was
     accumulated and restarts fresh from the second anomalous row. A block shorter than
     _OCR_TABLE_MIN_ROWS drops instead of emitting a guessed table — same "surface for
-    review instead of guessing" posture as the rest of the table pipeline (tables.py);
-    a row landing two of its own cells on the same reference column never reaches the
-    block at all (_matching_cells rejects that row outright, as too ambiguous).
+    review instead of guessing" posture as the rest of the table pipeline (tables.py)
+    — unless it sits right at the page's own top or bottom edge, the layout signature
+    of a table continuing across a page break (see _OCR_TABLE_EDGE_TOP/_BOTTOM): that
+    one is still emitted, but only build_logical_tables' Table Continuity Agent, not
+    this function, ever gets to trust it as part of a real table. A row landing two of
+    its own cells on the same reference column never reaches the block at all
+    (_matching_cells rejects that row outright, as too ambiguous).
     """
     tables: list[dict] = []
     block: list[tuple[dict, list[dict]]] = []
@@ -687,7 +760,12 @@ def _ocr_tables(lines, payload):
         return [{**cell, "col_index": index} for index, cell in enumerate(cells)]
 
     def flush():
-        if len(block) < _OCR_TABLE_MIN_ROWS:
+        if not block:
+            return
+        top = min(line["bbox"][1] for line, _ in block)
+        bottom = max(line["bbox"][3] for line, _ in block)
+        under_min_rows = len(block) < _OCR_TABLE_MIN_ROWS
+        if under_min_rows and not (top <= _OCR_TABLE_EDGE_TOP or bottom >= _OCR_TABLE_EDGE_BOTTOM):
             return
         col_count = len(reference)
         rows = [
@@ -700,7 +778,6 @@ def _ocr_tables(lines, payload):
             }
             for row_index, (_, cells) in enumerate(block)
         ]
-        top = min(line["bbox"][1] for line, _ in block)
         tables.append(
             {
                 "id": f"table:{payload['document_id']}:{payload['page_number']}:{len(tables)}",
@@ -712,10 +789,13 @@ def _ocr_tables(lines, payload):
                     min(c["bbox"][0] for r in rows for c in r["cells"]),
                     top,
                     max(c["bbox"][2] for r in rows for c in r["cells"]),
-                    max(line["bbox"][3] for line, _ in block),
+                    bottom,
                 ],
                 "rows": rows,
                 "heading_before": _nearest_heading_above(lines, top),
+                # Only ever True for the page-edge exception above: a real, ordinary
+                # (>= _OCR_TABLE_MIN_ROWS) block is always confident on its own.
+                "low_confidence": under_min_rows,
             }
         )
 
@@ -801,17 +881,19 @@ def process_page(payload, config, store):
         if native:
             for word in raw_words:
                 box = pymupdf.Rect(word[:4]) * page.rotation_matrix
-                groups[(word[5], word[6])].append(
-                    {
-                        "text": _nfc(word[4]),
-                        "bbox": [
-                            box.x0 / page.rect.width,
-                            box.y0 / page.rect.height,
-                            box.x1 / page.rect.width,
-                            box.y1 / page.rect.height,
-                        ],
-                    }
-                )
+                bbox = [
+                    _clamp01(box.x0 / page.rect.width),
+                    _clamp01(box.y0 / page.rect.height),
+                    _clamp01(box.x1 / page.rect.width),
+                    _clamp01(box.y1 / page.rect.height),
+                ]
+                # A word that still has no real area after clamping is a degenerate
+                # detection (zero-width/height, or entirely outside the page) with no
+                # actual glyph to cite -- dropped here rather than left to fail
+                # evidence.citation() later and take the whole job down over noise.
+                if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
+                    continue
+                groups[(word[5], word[6])].append({"text": _nfc(word[4]), "bbox": bbox})
             engine = "pymupdf"
         else:
             image = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
@@ -836,16 +918,20 @@ def process_page(payload, config, store):
                 if not text.strip():
                     continue
                 x, y, w, h = (data[key][i] for key in ("left", "top", "width", "height"))
+                bbox = [
+                    _clamp01(x / pix.width),
+                    _clamp01(y / pix.height),
+                    _clamp01((x + w) / pix.width),
+                    _clamp01((y + h) / pix.height),
+                ]
+                # Tesseract occasionally reports a zero-width/height phantom detection
+                # (w or h == 0) alongside real words -- no real glyph to cite, so it's
+                # dropped here rather than left to fail evidence.citation() later (see
+                # _clamp01) and take the whole job down over one bad word.
+                if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
+                    continue
                 groups[(data["block_num"][i], data["par_num"][i], data["line_num"][i])].append(
-                    {
-                        "text": _nfc(text),
-                        "bbox": [
-                            x / pix.width,
-                            y / pix.height,
-                            (x + w) / pix.width,
-                            (y + h) / pix.height,
-                        ],
-                    }
+                    {"text": _nfc(text), "bbox": bbox}
                 )
             engine = "tesseract"
         lines = []

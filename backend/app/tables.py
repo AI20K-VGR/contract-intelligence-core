@@ -140,6 +140,44 @@ def _looks_like_numbered_rows(table):
     return total >= 2 and numeric / total >= 0.6
 
 
+def _overlaps_any(cell, cells):
+    left, right = cell["bbox"][0], cell["bbox"][2]
+    return any(min(right, c["bbox"][2]) - max(left, c["bbox"][0]) > 0 for c in cells)
+
+
+def _merged_column_cells(table):
+    """One row's worth of column-defining cells, built by folding the fragment's own
+    rows together (widest first) rather than trusting any single row alone — a
+    column left blank on the widest row can still be present, at its own genuine
+    geometric position, on some other row. Each row contributes only the cell
+    positions the ones already folded in don't already cover (same principle as
+    document_processing._extend_reference_with_confirming_row: two independent rows
+    of the same table, each internally consistent, disagreeing only on which columns
+    happen to be filled in — not proof either row's own shape is wrong).
+
+    Real hard case: a headerless OCR item table where different rows are each
+    independently missing a different one of SL/ĐVT, so no SINGLE row shows the true
+    full column count — the old widest-row-alone grid always left a gap some other,
+    legitimate column's values fell into, and _map_rows then rejected the ENTIRE row
+    hosting one of those values (not merely that one cell) as unable to sanely land
+    in any column at all.
+    """
+    ordered = sorted(table["rows"], key=lambda r: len(r["cells"]), reverse=True)
+    merged = sorted(ordered[0]["cells"], key=lambda c: c["bbox"][0])
+    for row in ordered[1:]:
+        if len(merged) >= table["col_count"]:
+            break
+        for cell in sorted(row["cells"], key=lambda c: c["bbox"][0]):
+            if _overlaps_any(cell, merged):
+                continue
+            insert_at = next(
+                (i for i, ref in enumerate(merged) if cell["bbox"][0] < ref["bbox"][0]),
+                len(merged),
+            )
+            merged.insert(insert_at, cell)
+    return merged
+
+
 def _grid(table):
     if not table["rows"]:
         return None
@@ -158,13 +196,12 @@ def _grid(table):
         return _grid_from_cells(table, cells)
 
     # No recognizable header anywhere on this fragment — fall back to deriving column
-    # bands from the widest row's own cell geometry, but only when the STT column's own
-    # shape still corroborates that this really is an item table (see
+    # bands from the fragment's own rows, but only when the STT column's own shape
+    # still corroborates that this really is an item table (see
     # _looks_like_numbered_rows). An arbitrary headerless block stays raw, unchanged.
     if not _looks_like_numbered_rows(table):
         return None
-    widest = max(table["rows"], key=lambda r: len(r["cells"]))
-    cells = sorted(widest["cells"], key=lambda c: c["bbox"][0])
+    cells = _merged_column_cells(table)
     if len(cells) < 2 or len(cells) != table["col_count"]:
         return None
     return _grid_from_cells(table, cells)
@@ -194,7 +231,7 @@ def _resolve_cell(cell, rank, x0, x1, grid):
     return {"cell": cell, "rank": rank, "best": best, "second": second, "dominant": dominant}
 
 
-def _map_rows(table, grid):
+def _map_rows(table, grid, *, bbox=None):
     """Map physical cells by horizontal geometry, never by unstable detector indices.
 
     Ambiguous nonempty spanning cells abort normalization; callers keep the raw
@@ -207,8 +244,18 @@ def _map_rows(table, grid):
     some trailing column, and this cell's rank is one of the two the geometry itself
     proposed. A row that doesn't already show that plain shape gets no such benefit of
     the doubt.
+
+    `bbox` defaults to `table`'s own — correct for a normal, full-width row, whose own
+    bbox already spans close to the true table width. It's the caller's job to pass
+    the REFERENCE table's bbox instead when mapping some other fragment onto an
+    already-established grid: a real hard case is a low-confidence page-edge fragment
+    (see document_processing._OCR_TABLE_EDGE_TOP/_BOTTOM) whose only row is missing
+    its own trailing cells, so ITS bbox is far narrower than the table it's actually
+    continuing — normalizing its cells in that too-narrow frame scales every position
+    outward, landing a real column's value well past where the grid expects it, with
+    nothing to do with which column it visually belongs to.
     """
-    x0, _, x1, _ = table["bbox"]
+    x0, _, x1, _ = bbox or table["bbox"]
     if x1 <= x0:
         return None
     rows = []
@@ -283,9 +330,13 @@ def build_logical_tables(tables, config=None):
         fragments = sorted(fragments, key=lambda t: (t["page_number"], t["bbox"][1]))
         active = None
         grid = None
+        grid_bbox = None
         previous = None
         for table in fragments:
-            mapped = _map_rows(table, grid) if grid else None
+            # The reference table's own bbox, not the candidate's -- see _map_rows'
+            # docstring on why a candidate fragment's own bbox can't be trusted as the
+            # normalization frame (a low-confidence page-edge fragment especially).
+            mapped = _map_rows(table, grid, bbox=grid_bbox) if grid else None
             adjacent = previous and table["page_number"] == previous["page_number"] + 1
             joined = False
             if active and adjacent and mapped and active["rows"]:
@@ -354,6 +405,7 @@ def build_logical_tables(tables, config=None):
                 candidate = bool(adjacent and active and active["rows"]
                                  and active["rows"][-1]["kind"] != "total")
                 grid = _grid(table)
+                grid_bbox = table["bbox"]
                 normalized = _map_rows(table, grid) if grid else None
                 active = {"id": "logical:" + table["id"],
                           "document_id": table["document_id"],
@@ -364,7 +416,17 @@ def build_logical_tables(tables, config=None):
                           "status": "NEEDS_REVIEW" if candidate or
                           (grid is not None and normalized is None) else "STANDALONE",
                           "rows": normalized if normalized is not None else _raw_rows(table),
-                          "repeated_headers": []}
+                          "repeated_headers": [],
+                          # True only for a fragment document_processing._ocr_tables
+                          # rescued below its own row-count floor via its page-edge
+                          # exception (a lone row or two, otherwise dropped, that
+                          # MIGHT be a table continuing across a page break) -- never
+                          # trusted on its own, only once something else actually
+                          # merges into or out of it. Popped again below before this
+                          # table is ever returned, so it never leaks into the public
+                          # shape. Native (find_tables) and ordinary OCR fragments
+                          # never set this, however few rows they have.
+                          "_low_confidence": bool(table.get("low_confidence"))}
                 output.append(active)
             previous = table
-    return output
+    return [t for t in output if not (t.pop("_low_confidence") and len(t["fragment_ids"]) == 1)]
