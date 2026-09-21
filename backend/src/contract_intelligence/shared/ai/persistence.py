@@ -55,9 +55,7 @@ logger = structlog.get_logger(__name__)
 # HITL thresholds — facts/findings below these create review_item rows.
 _FACT_REVIEW_CONFIDENCE = 0.85
 _FINDING_REVIEW_CONFIDENCE = 0.80
-_FINDING_REVIEW_DISPOSITIONS = frozenset(
-    {"conflict", "needs_review", "uncertain", "ambiguous"}
-)
+_FINDING_REVIEW_DISPOSITIONS = frozenset({"conflict", "needs_review", "uncertain", "ambiguous"})
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -337,9 +335,7 @@ async def persist_ai2_extraction(
                 doc_char_end=fact.citation.doc_char_end,
                 segments=_segments_json(fact.citation),
             )
-            review_targets.append(
-                ("fact", fact_id, f"citation_guard_rejected:{fact.key}", "P1")
-            )
+            review_targets.append(("fact", fact_id, f"citation_guard_rejected:{fact.key}", "P1"))
 
         session.add(citation_orm)
         session.add(
@@ -363,9 +359,7 @@ async def persist_ai2_extraction(
             priority = "P1" if float(fact.confidence) < 0.6 else "P2"
             # Avoid duplicate if already queued for citation failure
             if not any(t[1] == fact_id for t in review_targets):
-                review_targets.append(
-                    ("fact", fact_id, f"low_confidence:{fact.key}", priority)
-                )
+                review_targets.append(("fact", fact_id, f"low_confidence:{fact.key}", priority))
 
     for gap in payload.evidence_gaps:
         review_targets.append(

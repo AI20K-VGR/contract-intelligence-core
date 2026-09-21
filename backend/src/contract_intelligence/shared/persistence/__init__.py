@@ -1,4 +1,11 @@
-"""Cross-cutting persistence module."""
+"""Cross-cutting persistence module.
+
+NOTE: Do NOT re-export ``orm_registry`` here. Importing the package must stay
+layer-safe for application services (e.g. reocr_service → shared.persistence).
+Callers that need ``import_all_models`` must import
+``contract_intelligence.shared.persistence.orm_registry`` directly
+(composition root / alembic only).
+"""
 
 from contract_intelligence.shared.persistence.base import Base
 from contract_intelligence.shared.persistence.job_queue import (
@@ -10,7 +17,6 @@ from contract_intelligence.shared.persistence.job_queue import (
     fail_job,
     reap_expired_leases,
 )
-from contract_intelligence.shared.persistence.orm_registry import import_all_models
 from contract_intelligence.shared.persistence.session import (
     SessionDep,
     bind_engine,
@@ -37,7 +43,6 @@ __all__ = [
     "get_async_session",
     "get_engine",
     "get_session_factory",
-    "import_all_models",
     "reap_expired_leases",
     "reset_engine",
 ]
