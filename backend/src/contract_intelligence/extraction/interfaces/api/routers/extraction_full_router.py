@@ -2,6 +2,7 @@ r"""Extraction bounded context router — Màn hình 4, 5, 6 (DOC-05b §5.4, §5
 
 Endpoints (Màn hình 4 — Pipeline Run):
     POST  /dossiers/{id}/runs         — Trigger new pipeline run
+    POST  /dossiers/{id}/reprocess    — Reprocess (new immutable run)
     GET   /runs                       — List runs
     GET   /runs/{id}                  — Run status + config
     GET   /runs/{id}/steps            — 11 steps S0..S10 status
@@ -23,7 +24,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query, Response, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Path, Query, Response, status
 from fastapi.responses import StreamingResponse
 
 from contract_intelligence.extraction.application.dtos.clause_dtos import ClauseNodeDTO
@@ -31,12 +32,17 @@ from contract_intelligence.extraction.application.dtos.fact_effective_dtos impor
     FactEffectiveDTO,
 )
 from contract_intelligence.extraction.application.dtos.page_dtos import PageDTO
+from contract_intelligence.extraction.application.dtos.run_dtos import (
+    CreateRunRequestDTO,
+    PipelineRunSummaryDTO,
+    ReprocessAcceptedDTO,
+)
 from contract_intelligence.extraction.application.dtos.table_dtos import DocTableDTO
 from contract_intelligence.extraction.interfaces.api.dependencies import (
     ExtractionServiceDep,
 )
 from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user, require_role
-from contract_intelligence.shared.responses import ApiResponse
+from contract_intelligence.shared.responses import ApiMeta, ApiResponse
 
 router = APIRouter(tags=["Extraction"])
 
@@ -49,11 +55,12 @@ router = APIRouter(tags=["Extraction"])
 @router.post(
     "/dossiers/{dossier_id}/runs",
     status_code=status.HTTP_202_ACCEPTED,
-    response_model=ApiResponse[dict[str, Any]],
+    response_model=ApiResponse[PipelineRunSummaryDTO],
     summary="Trigger pipeline run",
     responses={
         403: {"description": "Insufficient role"},
         404: {"description": "Dossier not found"},
+        409: {"description": "Active run already exists"},
     },
 )
 async def trigger_run(
@@ -61,103 +68,97 @@ async def trigger_run(
     svc: ExtractionServiceDep,
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
     background_tasks: BackgroundTasks,
-) -> ApiResponse[dict[str, Any]]:
-    """Kích hoạt pipeline run mới. RBAC: ADMINISTRATOR inherits OPERATOR.
-
-    Background orchestrator sẽ chạy OCR → Extract → Compare chain qua AI service.
-    Frontend poll GET /runs/{id} để theo dõi tiến độ.
-    """
+    body: Annotated[CreateRunRequestDTO | None, Body()] = None,
+) -> ApiResponse[PipelineRunSummaryDTO]:
+    """Kích hoạt pipeline run mới. RBAC: ADMINISTRATOR inherits OPERATOR."""
+    override = (
+        body.config_override.model_dump(exclude_none=True)
+        if body and body.config_override
+        else None
+    )
     run = await svc.trigger_pipeline_run(
         dossier_id=dossier_id,
         trace_id=str(user.user_id),
         background_tasks=background_tasks,
+        config_override=override,
     )
-    return ApiResponse(
-        data={
-            "id": run.id,
-            "tenant_id": run.tenant_id,
-            "dossier_id": run.dossier_id,
-            "status": run.status.value,
-            "pipeline_version": run.pipeline_version,
-            "git_sha": run.git_sha,
-            "trace_id": run.trace_id,
-            "created_at": run.created_at.isoformat(),
-        }
+    return ApiResponse(data=svc.to_summary(run, triggered_by=user.user_id))
+
+
+@router.post(
+    "/dossiers/{dossier_id}/reprocess",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ApiResponse[ReprocessAcceptedDTO],
+    summary="Reprocess dossier (new immutable pipeline run)",
+    responses={
+        403: {"description": "Insufficient role"},
+        404: {"description": "Dossier not found"},
+        409: {"description": "Active run already exists"},
+    },
+)
+async def reprocess_dossier(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ExtractionServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    background_tasks: BackgroundTasks,
+) -> ApiResponse[ReprocessAcceptedDTO]:
+    accepted = await svc.reprocess_dossier(
+        dossier_id=dossier_id,
+        background_tasks=background_tasks,
+        trace_id=str(user.user_id),
     )
+    return ApiResponse(data=accepted)
 
 
 @router.get(
     "/runs",
-    response_model=ApiResponse[dict[str, Any]],
+    response_model=ApiResponse[list[PipelineRunSummaryDTO]],
     summary="List pipeline runs",
 )
 async def list_runs(
     svc: ExtractionServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     dossier_id: Annotated[str | None, Query()] = None,
+    status_filter: Annotated[
+        str | None,
+        Query(
+            alias="status",
+            pattern="^(queued|running|completed|failed|cancelled)$",
+        ),
+    ] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
-) -> ApiResponse[dict[str, Any]]:
-    """Danh sách runs trong tenant."""
-    items, total = await svc.list_pipeline_runs(dossier_id=dossier_id, limit=limit, offset=offset)
+) -> ApiResponse[list[PipelineRunSummaryDTO]]:
+    """Danh sách runs trong tenant — OpenAPI status filter (completed↔succeeded)."""
+    items, total = await svc.list_pipeline_runs(
+        dossier_id=dossier_id,
+        status=status_filter,
+        limit=limit,
+        offset=offset,
+    )
     return ApiResponse(
-        data={
-            "items": [
-                {
-                    "id": r.id,
-                    "dossier_id": r.dossier_id,
-                    "status": r.status.value,
-                    "pipeline_version": r.pipeline_version,
-                    "created_at": r.created_at.isoformat(),
-                    "finished_at": (
-                        r.finished_at.isoformat()
-                        if hasattr(r.finished_at, "isoformat")
-                        else r.finished_at
-                    )
-                    if r.finished_at
-                    else None,
-                }
-                for r in items
-            ],
-            "total": total,
-            "page": (offset // limit) + 1,
-            "page_size": limit,
-            "total_pages": (total + limit - 1) // limit if total > 0 else 0,
-        }
+        data=[svc.to_summary(r) for r in items],
+        meta=ApiMeta(
+            page=(offset // limit) + 1,
+            page_size=limit,
+            total=total,
+        ),
     )
 
 
 @router.get(
     "/runs/{run_id}",
-    response_model=ApiResponse[dict[str, Any]],
+    response_model=ApiResponse[PipelineRunSummaryDTO],
     responses={404: {"description": "Run not found"}},
 )
 async def get_run(
     run_id: Annotated[str, Path(min_length=1)],
     svc: ExtractionServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[PipelineRunSummaryDTO]:
     """Chi tiết run + config snapshot."""
     run = await svc.get_pipeline_run(run_id)
-    return ApiResponse(
-        data={
-            "id": run.id,
-            "tenant_id": run.tenant_id,
-            "dossier_id": run.dossier_id,
-            "status": run.status.value,
-            "pipeline_version": run.pipeline_version,
-            "git_sha": run.git_sha,
-            "trace_id": run.trace_id,
-            "created_at": run.created_at.isoformat(),
-            "finished_at": (
-                run.finished_at.isoformat()
-                if hasattr(run.finished_at, "isoformat")
-                else run.finished_at
-            )
-            if run.finished_at
-            else None,
-        }
-    )
+    return ApiResponse(data=svc.to_summary(run))
 
 
 @router.get(
@@ -177,26 +178,22 @@ async def get_run_steps(
 
 @router.post(
     "/runs/{run_id}/cancel",
-    response_model=ApiResponse[dict[str, Any]],
+    response_model=ApiResponse[PipelineRunSummaryDTO],
     summary="Cancel running pipeline run",
     responses={
         403: {"description": "Insufficient role"},
-        404: {"description": "Run not found or not cancellable"},
+        404: {"description": "Run not found"},
+        409: {"description": "Run not cancellable"},
     },
 )
 async def cancel_run(
     run_id: Annotated[str, Path(min_length=1)],
     svc: ExtractionServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[PipelineRunSummaryDTO]:
     """Hủy run đang chạy. RBAC: ADMINISTRATOR inherits OPERATOR."""
     run = await svc.cancel_pipeline_run(run_id)
-    return ApiResponse(
-        data={
-            "id": run.id,
-            "status": run.status.value,
-        }
-    )
+    return ApiResponse(data=svc.to_summary(run))
 
 
 # -----------------------------------------------------------------------------
@@ -313,7 +310,6 @@ async def list_dossier_facts(
 ) -> ApiResponse[list[FactEffectiveDTO]]:
     """FactEffective list — client MUST echo current_version as base_version on actions."""
     items = await svc.list_dossier_facts(dossier_id, key=key, effective=effective)
-    # Weak ETag from max current_version — UI can use for cache/concurrency hints
     max_ver = max((i.current_version for i in items), default=0)
     response.headers["ETag"] = f'W/"facts-{dossier_id}-{len(items)}-v{max_ver}"'
     return ApiResponse(data=items)

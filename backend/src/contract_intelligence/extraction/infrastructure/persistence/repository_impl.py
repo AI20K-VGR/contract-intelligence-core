@@ -96,6 +96,9 @@ class PipelineRunRepositoryImpl:
         stmt = select(PipelineRunORM).where(PipelineRunORM.tenant_id == self._tenant_id)
         if dossier_id := filters.get("dossier_id"):
             stmt = stmt.where(PipelineRunORM.dossier_id == dossier_id)
+        status_in = filters.get("status_in")
+        if status_in:
+            stmt = stmt.where(PipelineRunORM.status.in_(tuple(status_in)))
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total = int((await self._session.execute(count_stmt)).scalar() or 0)
         stmt = stmt.order_by(PipelineRunORM.created_at.desc()).limit(limit).offset(offset)

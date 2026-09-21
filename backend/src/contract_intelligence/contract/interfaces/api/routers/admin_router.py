@@ -25,9 +25,24 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, Depends, Path, Query, status
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    File,
+    Form,
+    Path,
+    Query,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel, ConfigDict, Field
 
+from contract_intelligence.contract.application.dtos.batch_dtos import (
+    BatchCreatedDTO,
+    BatchDetailDTO,
+    BatchListItemDTO,
+)
 from contract_intelligence.contract.interfaces.api.dependencies_admin import (
     BatchServiceDep,
     OptimizationServiceDep,
@@ -37,7 +52,8 @@ from contract_intelligence.shared.auth import (
     get_current_user,
     require_role,
 )
-from contract_intelligence.shared.responses import ApiResponse
+from contract_intelligence.shared.exceptions import ValidationError
+from contract_intelligence.shared.responses import ApiMeta, ApiResponse
 
 router = APIRouter(tags=["Admin/Ops"])
 
@@ -47,69 +63,89 @@ router = APIRouter(tags=["Admin/Ops"])
 # ============================================================================
 
 
-class CreateBatchRequest(BaseModel):
+class CreateBatchNameRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(..., min_length=1, max_length=255)
 
 
 @router.post(
     "/batches",
-    status_code=status.HTTP_201_CREATED,
-    response_model=ApiResponse[dict[str, Any]],
-    summary="Tạo batch mới (upload ZIP nhiều dossier — Sprint 4)",
-    responses={403: {"description": "Insufficient role"}},
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ApiResponse[BatchCreatedDTO],
+    summary="Tạo batch từ ZIP + manifest.csv",
+    responses={
+        400: {"description": "Invalid manifest"},
+        403: {"description": "Insufficient role"},
+    },
 )
 async def create_batch(
-    body: Annotated[CreateBatchRequest, Body()],
     svc: BatchServiceDep,
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
-) -> ApiResponse[dict[str, Any]]:
-    """RBAC: ADMINISTRATOR inherits OPERATOR. Sprint 3 stub — accept name only."""
-    # Stub: return existing or new batch_id — full impl Sprint 4
-    return ApiResponse(
-        data={
-            "id": f"bat_stub_{user.tenant_id}",
-            "name": body.name,
-            "status": "running",
-            "note": "Sprint 3 stub — full ZIP upload in Sprint 4",
-        }
-    )
+    manifest: Annotated[UploadFile, File(description="manifest.csv")],
+    archive: Annotated[UploadFile, File(description="ZIP archive")],
+    name: Annotated[str | None, Form()] = None,
+) -> ApiResponse[BatchCreatedDTO]:
+    """RBAC: ADMINISTRATOR inherits OPERATOR."""
+    manifest_bytes = await manifest.read()
+    archive_bytes = await archive.read()
+    if not manifest_bytes:
+        raise ValidationError("manifest.csv is required and must not be empty")
+    if not archive_bytes:
+        raise ValidationError("archive ZIP is required and must not be empty")
+    try:
+        created = await svc.create_batch(
+            created_by=user.user_id,
+            manifest_bytes=manifest_bytes,
+            archive_bytes=archive_bytes,
+            name=name,
+        )
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
+    return ApiResponse(data=BatchCreatedDTO.model_validate(created))
 
 
 @router.get(
     "/batches",
-    response_model=ApiResponse[dict[str, Any]],
+    response_model=ApiResponse[list[BatchListItemDTO]],
     summary="List batches",
 )
 async def list_batches(
     svc: BatchServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    status_filter: Annotated[
+        str | None,
+        Query(
+            alias="status",
+            pattern="^(processing|completed|partial_failed|failed|cancelled)$",
+        ),
+    ] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
-) -> ApiResponse[dict[str, Any]]:
-    items, total = await svc.list_batches(limit=limit, offset=offset)
+) -> ApiResponse[list[BatchListItemDTO]]:
+    items, total = await svc.list_batches(status=status_filter, limit=limit, offset=offset)
     return ApiResponse(
-        data={
-            "items": items,
-            "total": total,
-            "page": (offset // limit) + 1,
-            "page_size": limit,
-            "total_pages": (total + limit - 1) // limit if total > 0 else 0,
-        }
+        data=[BatchListItemDTO.from_row(i) for i in items],
+        meta=ApiMeta(
+            page=(offset // limit) + 1,
+            page_size=limit,
+            total=total,
+        ),
     )
 
 
 @router.get(
     "/batches/{batch_id}",
-    response_model=ApiResponse[dict[str, Any]],
+    response_model=ApiResponse[BatchDetailDTO],
     responses={404: {"description": "Batch not found"}},
 )
 async def get_batch(
     batch_id: Annotated[str, Path(min_length=1)],
     svc: BatchServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-) -> ApiResponse[dict[str, Any]]:
-    return ApiResponse(data=await svc.get_batch(batch_id))
+) -> ApiResponse[BatchDetailDTO]:
+    row = await svc.get_batch(batch_id)
+    item = BatchListItemDTO.from_row(row)
+    return ApiResponse(data=BatchDetailDTO(**item.model_dump(), dossiers=row.get("dossiers") or []))
 
 
 @router.get(
@@ -127,30 +163,40 @@ async def get_batch_summary(
 
 @router.post(
     "/batches/{batch_id}/cancel",
-    response_model=ApiResponse[dict[str, Any]],
-    responses={403: {"description": "Insufficient role"}},
+    response_model=ApiResponse[BatchDetailDTO],
+    responses={
+        403: {"description": "Insufficient role"},
+        409: {"description": "Batch already terminal"},
+    },
 )
 async def cancel_batch(
     batch_id: Annotated[str, Path(min_length=1)],
     svc: BatchServiceDep,
-    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
-) -> ApiResponse[dict[str, Any]]:
+    _user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+) -> ApiResponse[BatchDetailDTO]:
     """RBAC: ADMINISTRATOR inherits OPERATOR."""
-    return ApiResponse(data=await svc.cancel_batch(batch_id))
+    row = await svc.cancel_batch(batch_id)
+    item = BatchListItemDTO.from_row(row)
+    return ApiResponse(data=BatchDetailDTO(**item.model_dump(), dossiers=row.get("dossiers") or []))
 
 
 @router.post(
     "/batches/{batch_id}/resume",
-    response_model=ApiResponse[dict[str, Any]],
-    responses={403: {"description": "Insufficient role"}},
+    response_model=ApiResponse[BatchDetailDTO],
+    responses={
+        403: {"description": "Insufficient role"},
+        409: {"description": "Batch not resumable"},
+    },
 )
 async def resume_batch(
     batch_id: Annotated[str, Path(min_length=1)],
     svc: BatchServiceDep,
-    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
-) -> ApiResponse[dict[str, Any]]:
+    _user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+) -> ApiResponse[BatchDetailDTO]:
     """RBAC: ADMINISTRATOR inherits OPERATOR."""
-    return ApiResponse(data=await svc.resume_batch(batch_id))
+    row = await svc.resume_batch(batch_id)
+    item = BatchListItemDTO.from_row(row)
+    return ApiResponse(data=BatchDetailDTO(**item.model_dump(), dossiers=row.get("dossiers") or []))
 
 
 # ============================================================================
@@ -168,7 +214,6 @@ async def ops_metrics(
     _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
     """RBAC: ADMINISTRATOR only (top-level role)."""
-    # Stub metrics — Sprint 4 sẽ aggregate từ usage_ledger
     return ApiResponse(
         data={
             "by_day": [],
@@ -206,7 +251,7 @@ async def list_campaigns(
     response_model=ApiResponse[dict[str, Any]],
 )
 async def create_campaign(
-    body: Annotated[CreateBatchRequest, Body()],
+    body: Annotated[CreateBatchNameRequest, Body()],
     svc: OptimizationServiceDep,
     user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:

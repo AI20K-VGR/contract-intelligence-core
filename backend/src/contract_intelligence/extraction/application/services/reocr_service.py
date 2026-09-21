@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from contract_intelligence.config.settings import get_settings
+from contract_intelligence.extraction.application.dtos.reocr_dtos import ReOcrRequestRecordDTO
 from contract_intelligence.extraction.infrastructure.persistence.orm_reocr import (
     ReOcrRequestORM,
 )
@@ -54,43 +55,55 @@ class ReOcrService:
         self,
         *,
         document_id: str,
-        page_ids: list[str],
-        reason: str,
-        options: dict[str, Any],
+        profile: str,
+        page_numbers: list[int] | None = None,
+        reason: str = "",
         requested_by: str,
         background_tasks: Any | None = None,
-    ) -> dict[str, Any]:
+        # Back-compat kwargs (pre-OpenAPI)
+        page_ids: list[str] | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> ReOcrRequestRecordDTO:
         """Tạo ReOcrRequest + dispatch sang AI service async."""
+        pages = list(page_numbers or [])
+        # Legacy page_ids (string) → treat as opaque page references stored alongside numbers
+        legacy_ids = list(page_ids or [])
+        opts = dict(options or {})
+        opts["profile"] = profile
+        if pages:
+            opts["page_numbers"] = pages
+
+        stored_pages: list[Any] = pages if pages else legacy_ids
+
         req = ReOcrRequestORM(
-            id=new_ulid("ro_"),
+            id=new_ulid("req_"),
             tenant_id=self._tenant_id,
             document_id=document_id,
-            page_ids=json.dumps(page_ids),
-            reason=reason,
-            options=json.dumps(options) if options else None,
+            page_ids=json.dumps(stored_pages),
+            reason=reason or f"re-ocr profile={profile}",
+            options=json.dumps(opts),
             requested_by=requested_by,
             status="queued",
         )
         self._session.add(req)
         await self._session.flush()
 
-        # Build ReOcrJobRequest — submit 1 job cho document (AI service xử lý từng page)
-        # Sprint 3 stub: gửi 1 page đầu tiên làm đại diện (multi-page fan-out Sprint 4)
-        page_id = page_ids[0] if page_ids else "pg_unknown"
+        page_id = f"pg_no_{pages[0]}" if pages else (legacy_ids[0] if legacy_ids else "pg_unknown")
+        page_no = pages[0] if pages else 1
         ai_req = ReOcrJobRequest(
             task_id=self._next_task_id(),
             attempt_id=1,
             tenant_id=self._tenant_id,
             document_id=document_id,
             page_id=page_id,
-            page_no=1,  # Sprint 3 stub
+            page_no=page_no,
             source_page_render_url=f"http://minio.internal/renders/{page_id}.png?token=stub",
             crop_bbox=None,
-            profile=str(options.get("engine", "high_res_binarize")),
+            profile=profile,
             options={
-                "deskew": options.get("deskew", False),
-                "denoise": options.get("denoise", False),
-                "enhance_dpi": options.get("enhance_dpi", 300),
+                "deskew": opts.get("deskew", False),
+                "denoise": opts.get("denoise", False),
+                "enhance_dpi": opts.get("enhance_dpi", 300),
             },
         )
 
@@ -100,7 +113,6 @@ class ReOcrService:
         req.status = "running"
         await self._session.flush()
 
-        # Dispatch background poll — đảm bảo UI phản hồi ngay 202
         if background_tasks is not None:
             background_tasks.add_task(
                 self._poll_reocr_safely,
@@ -108,12 +120,11 @@ class ReOcrService:
                 job_id=submission.job_id,
             )
         else:
-            # Test path — chạy inline
             asyncio.create_task(self._poll_reocr_safely(req.id, submission.job_id))
 
-        return self._to_dict(req)
+        return self._to_record(req)
 
-    async def list_requests(self, document_id: str) -> list[dict[str, Any]]:
+    async def list_requests(self, document_id: str) -> list[ReOcrRequestRecordDTO]:
         stmt = (
             select(ReOcrRequestORM)
             .where(
@@ -123,9 +134,9 @@ class ReOcrService:
             .order_by(ReOcrRequestORM.created_at.desc())
         )
         result = await self._session.execute(stmt)
-        return [self._to_dict(r) for r in result.scalars().all()]
+        return [self._to_record(r) for r in result.scalars().all()]
 
-    async def get_request(self, request_id: str) -> dict[str, Any]:
+    async def get_request(self, request_id: str) -> ReOcrRequestRecordDTO:
         stmt = select(ReOcrRequestORM).where(
             ReOcrRequestORM.id == request_id,
             ReOcrRequestORM.tenant_id == self._tenant_id,
@@ -134,7 +145,7 @@ class ReOcrService:
         req = result.scalar_one_or_none()
         if req is None:
             raise NotFoundError(entity_type="ReOcrRequest", entity_id=request_id)
-        return self._to_dict(req)
+        return self._to_record(req)
 
     # ──────────────────────────────────────────────────────────────────────
     # Background polling — bound to AI service client
@@ -238,20 +249,32 @@ class ReOcrService:
         return int(new_ulid("tsk_").encode()[:8].hex(), 16) % 10_000_000
 
     @staticmethod
-    def _to_dict(req: ReOcrRequestORM) -> dict[str, Any]:
-        return {
-            "id": req.id,
-            "document_id": req.document_id,
-            "page_ids": json.loads(req.page_ids),
-            "reason": req.reason,
-            "options": json.loads(req.options) if req.options else {},
-            "status": req.status,
-            "job_id": req.job_id,
-            "error_code": req.error_code,
-            "requested_by": req.requested_by,
-            "created_at": req.created_at.isoformat(),
-            "finished_at": req.finished_at.isoformat() if req.finished_at else None,
-        }
+    def _to_record(req: ReOcrRequestORM) -> ReOcrRequestRecordDTO:
+        pages = json.loads(req.page_ids) if req.page_ids else []
+        opts = json.loads(req.options) if req.options else {}
+        profile = str(opts.get("profile") or "high_res_binarize")
+        # Prefer explicit page_numbers in options; else coerce stored list
+        page_numbers: list[int] = []
+        if isinstance(opts.get("page_numbers"), list):
+            page_numbers = [int(n) for n in opts["page_numbers"]]
+        else:
+            for p in pages:
+                if isinstance(p, int):
+                    page_numbers.append(p)
+        return ReOcrRequestRecordDTO.from_row(
+            {
+                "id": req.id,
+                "document_id": req.document_id,
+                "profile": profile,
+                "page_numbers": page_numbers,
+                "status": req.status,
+                "job_id": req.job_id,
+                "reason": req.reason,
+                "requested_by": req.requested_by,
+                "created_at": req.created_at,
+                "finished_at": req.finished_at,
+            }
+        )
 
 
 __all__ = ["ReOcrService"]

@@ -309,12 +309,12 @@ class TestAiServiceHealth:
             f"/api/v1/documents/{doc_id}/re-ocr",
             headers=headers,
             json={
-                "page_ids": ["pg_test_1"],
+                "profile": "high_res_binarize",
+                "page_numbers": [1],
                 "reason": "test reocr",
-                "options": {"deskew": True, "denoise": True, "enhance_dpi": 300},
             },
         )
-        assert reocr.status_code == 200
+        assert reocr.status_code == 202
         job_id = reocr.json()["data"]["job_id"]
         assert job_id is not None
 
@@ -356,20 +356,16 @@ class TestReOcrAsync:
             f"/api/v1/documents/{doc_id}/re-ocr",
             headers=headers,
             json={
-                "page_ids": ["pg_1", "pg_2"],
+                "profile": "high_res_binarize",
+                "page_numbers": [1, 2],
                 "reason": "OCR bị mờ ở điều khoản thanh toán",
-                "options": {
-                    "deskew": True,
-                    "denoise": True,
-                    "enhance_dpi": 300,
-                    "engine": "terra_advanced",
-                },
             },
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 202
         data = resp.json()["data"]
         assert data["document_id"] == doc_id
-        assert data["status"] in ("queued", "running", "succeeded")
+        assert data["profile"] == "high_res_binarize"
+        assert data["status"] in ("pending", "processing", "completed")
         assert data["job_id"] is not None
         assert "ai_job_" in data["job_id"]
 
@@ -393,11 +389,12 @@ class TestReOcrAsync:
             f"/api/v1/documents/{doc_id}/re-ocr",
             headers=headers,
             json={
-                "page_ids": ["pg_1"],
+                "profile": "table_optimized",
+                "page_numbers": [1],
                 "reason": "test",
-                "options": {"deskew": False},
             },
         )
+        assert reocr.status_code == 202
         request_id = reocr.json()["data"]["id"]
 
         # Đợi 1s để background polling complete (stub trả ngay)
@@ -446,10 +443,10 @@ class TestPipelineRun:
             )
             assert resp.status_code == 200
             status = resp.json()["data"]["status"]
-            if status in ("succeeded", "failed", "cancelled", "dead"):
+            if status in ("completed", "succeeded", "failed", "cancelled", "dead"):
                 break
 
-        assert status == "succeeded", f"expected succeeded, got {status}"
+        assert status in ("completed", "succeeded"), f"expected completed, got {status}"
 
     @pytest.mark.asyncio
     async def test_pipeline_run_steps_endpoint(

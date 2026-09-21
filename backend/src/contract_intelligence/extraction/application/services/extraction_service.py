@@ -19,6 +19,10 @@ from contract_intelligence.extraction.application.dtos.fact_effective_dtos impor
     FactEffectiveDTO,
 )
 from contract_intelligence.extraction.application.dtos.page_dtos import PageDTO
+from contract_intelligence.extraction.application.dtos.run_dtos import (
+    PipelineRunSummaryDTO,
+    ReprocessAcceptedDTO,
+)
 from contract_intelligence.extraction.application.dtos.table_dtos import DocTableDTO
 from contract_intelligence.extraction.domain.entities.pipeline_run import (
     PipelineRun,
@@ -43,7 +47,7 @@ from contract_intelligence.shared.ai.pipeline_orchestrator import (
     get_pipeline_orchestrator,
 )
 from contract_intelligence.shared.base import new_ulid
-from contract_intelligence.shared.exceptions import NotFoundError
+from contract_intelligence.shared.exceptions import InvalidStateTransition, NotFoundError
 from contract_intelligence.shared.storage import FileStorage
 
 logger = structlog.get_logger(__name__)
@@ -92,20 +96,17 @@ class ExtractionService:
         git_sha: str | None = None,
         trace_id: str | None = None,
         background_tasks: Any | None = None,
+        config_override: dict[str, Any] | None = None,
     ) -> PipelineRun:
         """Tạo pipeline_run + dispatch orchestrator chạy nền.
 
-        Args:
-            dossier_id: ID của dossier cần xử lý.
-            pipeline_version: SemVer của pipeline (default: v1.0.0).
-            git_sha: Optional git SHA để truy vết.
-            trace_id: W3C TraceContext cho OpenTelemetry.
-            background_tasks: FastAPI BackgroundTasks instance — nếu None,
-                orchestrator chạy inline (dùng cho test).
-
-        Returns:
-            PipelineRun vừa tạo — status=queued.
+        Raises:
+            InvalidStateTransition: if an active (queued/running) run already exists.
+            NotFoundError: if dossier has no documents.
         """
+        _ = config_override  # persisted later via config_snapshot when ORM supports it
+        await self._ensure_no_active_run(dossier_id)
+
         run_id = new_ulid("run_")
         run = await self._pipeline_run_repo.create(
             run_id=run_id,
@@ -121,7 +122,6 @@ class ExtractionService:
         ctx = await self._build_context(run_id=run_id, dossier_id=dossier_id, trace_id=trace_id)
 
         if background_tasks is not None:
-            # Production path — chạy nền qua FastAPI BackgroundTasks
             background_tasks.add_task(self._run_orchestrator_safely, ctx)
             logger.info(
                 "pipeline_run.scheduled",
@@ -131,7 +131,6 @@ class ExtractionService:
                 mode="background",
             )
         else:
-            # Test/sync path — chạy inline
             asyncio.create_task(self._run_orchestrator_safely(ctx))
             logger.info(
                 "pipeline_run.scheduled",
@@ -142,6 +141,39 @@ class ExtractionService:
             )
 
         return run
+
+    async def reprocess_dossier(
+        self,
+        *,
+        dossier_id: str,
+        background_tasks: Any | None = None,
+        trace_id: str | None = None,
+    ) -> ReprocessAcceptedDTO:
+        """Create a new immutable pipeline run for an existing dossier (reprocess)."""
+        run = await self.trigger_pipeline_run(
+            dossier_id=dossier_id,
+            background_tasks=background_tasks,
+            trace_id=trace_id,
+        )
+        return ReprocessAcceptedDTO(dossier_id=dossier_id, job_id=run.id)
+
+    async def _ensure_no_active_run(self, dossier_id: str) -> None:
+        active = await self._pipeline_run_repo.list_pipeline_runs(
+            dossier_id=dossier_id,
+            status_in=("queued", "running"),
+            limit=1,
+            offset=0,
+        )
+        if getattr(active, "total", 0) > 0 or (getattr(active, "items", None) or []):
+            raise InvalidStateTransition(
+                from_state="active_run",
+                to_state="queued",
+                entity="PipelineRun",
+            )
+
+    @staticmethod
+    def to_summary(run: PipelineRun, *, triggered_by: str | None = None) -> PipelineRunSummaryDTO:
+        return PipelineRunSummaryDTO.from_domain(run, triggered_by=triggered_by)
 
     async def _run_orchestrator_safely(self, ctx: PipelineContext) -> None:
         """Run orchestrator với error handling — không để crash background task."""
@@ -210,15 +242,25 @@ class ExtractionService:
         self,
         *,
         dossier_id: str | None = None,
+        status: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[PipelineRun], int]:
         from typing import cast
 
+        # OpenAPI ``completed`` ↔ internal ``succeeded``
+        status_in: tuple[str, ...] | None = None
+        if status:
+            db_status = "succeeded" if status == "completed" else status
+            status_in = (db_status,)
+
         page = cast(
             Any,
             await self._pipeline_run_repo.list_pipeline_runs(
-                dossier_id=dossier_id, limit=limit, offset=offset
+                dossier_id=dossier_id,
+                status_in=status_in,
+                limit=limit,
+                offset=offset,
             ),
         )
         return page.items, page.total
@@ -232,8 +274,10 @@ class ExtractionService:
     async def cancel_pipeline_run(self, run_id: str) -> PipelineRun:
         run = await self.get_pipeline_run(run_id)
         if run.status not in (PipelineRunStatus.RUNNING, PipelineRunStatus.QUEUED):
-            raise NotFoundError(
-                entity_type="PipelineRun", entity_id=f"{run_id} not cancellable ({run.status})"
+            raise InvalidStateTransition(
+                from_state=run.status.value,
+                to_state="cancelled",
+                entity="PipelineRun",
             )
         await self._pipeline_run_repo.update_status(run_id, "cancelled")
         run.status = PipelineRunStatus.CANCELLED

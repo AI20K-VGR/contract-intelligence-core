@@ -4,6 +4,11 @@ DTO dùng Pydantic. Đây là ranh giới giữa "trong" (domain entity dataclas
 "ngoài" (HTTP request/response JSON).
 """
 
+from contract_intelligence.contract.application.dtos.batch_dtos import (
+    BatchCreatedDTO,
+    BatchDetailDTO,
+    BatchListItemDTO,
+)
 from contract_intelligence.contract.application.dtos.contract_status_response import (
     ContractStatusResponse,
 )
@@ -22,6 +27,9 @@ from contract_intelligence.contract.application.dtos.dossier_dtos import (
 )
 
 __all__ = [
+    "BatchCreatedDTO",
+    "BatchDetailDTO",
+    "BatchListItemDTO",
     "ContractUploadRequest",
     "ContractStatusResponse",
     "DocumentDetailDTO",
