@@ -10,6 +10,7 @@ from PIL import Image
 
 from app.config import settings
 from app.domain import DomainError, require
+from app.table_continuity import is_annex_heading
 
 
 def _nfc(text: str) -> str:
@@ -190,6 +191,26 @@ def _normalized(rect, page):
             box.x1 / page.rect.width, box.y1 / page.rect.height]
 
 
+def _nearest_heading_above(candidates, top):
+    """The closest text (from `candidates`, each a {"text", "bbox"} dict) that sits
+    entirely above `top` and reads as a new section/annex heading — see
+    is_annex_heading. Used as table_continuity's `heading_between` evidence: only the
+    matched heading text is ever retained, everything else is discarded immediately.
+    """
+    best = None
+    for candidate in candidates:
+        text = candidate["text"].strip()
+        bottom = candidate["bbox"][3]
+        if not text or bottom > top:
+            continue
+        if best is None or bottom > best["bbox"][3]:
+            best = candidate
+    if best is None:
+        return None
+    text = best["text"].strip()
+    return text if is_annex_heading(text) else None
+
+
 def _find_tables(page, payload):
     # Relies on the PDF's own text/vector structure (ruling lines, column alignment);
     # image-only scanned pages have no such structure, so this legitimately finds none there.
@@ -197,6 +218,11 @@ def _find_tables(page, payload):
         finder = page.find_tables()
     except Exception:
         return []
+    blocks = [
+        {"text": block[4], "bbox": _normalized(pymupdf.Rect(block[:4]), page)}
+        for block in page.get_text("blocks")
+        if block[4].strip()
+    ]
     tables = []
     for index, table in enumerate(finder.tables):
         extracted = table.extract()
@@ -211,6 +237,7 @@ def _find_tables(page, payload):
                 if cell_bbox is not None  # None marks a slot covered by a merged neighbor cell
             ]
             rows.append({"row_index": row_index, "cells": cells})
+        bbox = _normalized(table.bbox, page)
         tables.append(
             {
                 "id": f"table:{payload['document_id']}:{payload['page_number']}:{index}",
@@ -218,8 +245,9 @@ def _find_tables(page, payload):
                 "page_number": payload["page_number"],
                 "row_count": table.row_count,
                 "col_count": table.col_count,
-                "bbox": _normalized(table.bbox, page),
+                "bbox": bbox,
                 "rows": rows,
+                "heading_before": _nearest_heading_above(blocks, bbox[1]),
             }
         )
     return tables
@@ -672,6 +700,7 @@ def _ocr_tables(lines, payload):
             }
             for row_index, (_, cells) in enumerate(block)
         ]
+        top = min(line["bbox"][1] for line, _ in block)
         tables.append(
             {
                 "id": f"table:{payload['document_id']}:{payload['page_number']}:{len(tables)}",
@@ -681,11 +710,12 @@ def _ocr_tables(lines, payload):
                 "col_count": col_count,
                 "bbox": [
                     min(c["bbox"][0] for r in rows for c in r["cells"]),
-                    min(line["bbox"][1] for line, _ in block),
+                    top,
                     max(c["bbox"][2] for r in rows for c in r["cells"]),
                     max(line["bbox"][3] for line, _ in block),
                 ],
                 "rows": rows,
+                "heading_before": _nearest_heading_above(lines, top),
             }
         )
 

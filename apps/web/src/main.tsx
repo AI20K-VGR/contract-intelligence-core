@@ -177,6 +177,7 @@ function App() {
   const [activeTableCellKey, setActiveTableCellKey] = useState('');
   const [detailTab, setDetailTab] = useState<DetailTab>('facts');
   const [sourceTab, setSourceTab] = useState<SourceTab>('overview');
+  const [continuityAgent, setContinuityAgent] = useState(false);
   function toggleClauseExpanded(id: string) {
     setExpandedClauseIds(prev => {
       const next = new Set(prev);
@@ -290,7 +291,7 @@ function App() {
 
   async function reprocess() {
     if (!selected) return;
-    const job = await api(`/dossiers/${selected.id}/jobs`, 'POST');
+    const job = await api(`/dossiers/${selected.id}/jobs`, 'POST', {table_continuity_agent: continuityAgent});
     await refresh();
     await open({...selected, active_job_id: job.id, status: job.status});
   }
@@ -386,7 +387,12 @@ function App() {
           <div className="panel-title">
             <h2>{selected?.title ?? 'Chọn hồ sơ để xem kết quả'}</h2>
             {selected && <StatusBadge status={selected.status}/>}
-            {selected && !['uploaded', 'processing'].includes(selected.status) &&
+            {selected && !['uploaded', 'processing'].includes(selected.status) && <>
+              <label className="checkbox-inline" title="Chỉ dùng khi bảng bị ngắt qua trang mà logic thuần không nối được — gửi một ít văn bản bảng (không phải ảnh) ra API ngoài của DeepSeek để phân xử">
+                <input type="checkbox" checked={continuityAgent}
+                  onChange={e => setContinuityAgent(e.target.checked)}/>
+                {' '}Dùng AI đối chiếu bảng qua trang (gửi dữ liệu ra ngoài)
+              </label>
               <button
                 type="button"
                 disabled={busy}
@@ -394,7 +400,8 @@ function App() {
                 onClick={() => perform(reprocess)}
               >
                 Xử lý lại
-              </button>}
+              </button>
+            </>}
           </div>
           {selected && !result && <div className="notice" role="status">
             {!selected.active_job_id ? <p>Tài liệu đã tải lên nhưng chưa bắt đầu xử lý.</p>

@@ -30,6 +30,15 @@ class Settings(BaseSettings):
     # a transient blip. Raised from the SDK's own default of 2. A permanent failure (bad
     # API key, unknown model name) still fails fast — the SDK does not retry those.
     ocr_vision_max_retries: int = 5
+    # Table Continuity Agent (app/table_continuity.py): only reached for a genuinely
+    # ambiguous cross-page table pair, and only when a job's own config explicitly
+    # opts in (Job.config["table_continuity_agent"], set per dossier by the caller of
+    # POST /dossiers/{id}/jobs — never a deployment-wide default). Sends a small
+    # metadata/text packet (never a page image, never a full table) to DeepSeek's
+    # hosted, OpenAI-wire-compatible API.
+    deepseek_api_key: str = ""
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_model: str = "deepseek-flash"
     lease_seconds: int = 180
     max_attempts: int = 3
     poll_seconds: float = 2

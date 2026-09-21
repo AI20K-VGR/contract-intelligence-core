@@ -3,6 +3,8 @@ import unicodedata
 from collections import defaultdict
 from copy import deepcopy
 
+from app.table_continuity import ContinuityDecision, ContinuityEvidence, decide
+
 # A table's last row sitting this close to the page bottom, immediately followed by
 # another table starting this close to the next page's top, is the layout signature of
 # one table split by a hard page break — no repeated header, the exact case in
@@ -256,13 +258,23 @@ def _description_only(row):
             and all(not c["text"].strip() for i, c in enumerate(row["cells"]) if i != 1))
 
 
-def build_logical_tables(tables):
+def _row_preview(row):
+    return " | ".join(c["text"].strip() for c in row["cells"] if c["text"].strip())[:120]
+
+
+def build_logical_tables(tables, config=None):
     """Derived view over immutable page fragments; no snapshot mutation.
 
     Automatic stitching requires adjacent pages in one document, a recognized
     header/grid, and row-number continuity (or a repeated matching header at page
-    edges). Unknown layouts remain separate with an explicit review status.
+    edges). A pair that this deterministic check can't confidently join or reject is
+    handed to the Table Continuity Agent (app/table_continuity.py) — hard guards and a
+    scored rule engine first, and only for the remaining genuine gray zone, an
+    optional DeepSeek call gated by config["table_continuity_agent"] (per-job opt-in,
+    off by default: `config=None` here reproduces the exact pre-agent behavior).
+    Unknown layouts remain separate with an explicit review status.
     """
+    config = config or {}
     output = []
     groups = defaultdict(list)
     for table in tables:
@@ -294,8 +306,38 @@ def build_logical_tables(tables):
                 edges = (previous["bbox"][3] >= BOTTOM_EDGE_THRESHOLD
                          and table["bbox"][1] <= TOP_EDGE_THRESHOLD)
                 compatible_header = body and body[0]["kind"] != "header"
-                if (last["kind"] != "total" and compatible_header
-                        and (sequence or (repeated and edges and first_number is None))):
+                candidate_join = bool(
+                    last["kind"] != "total" and compatible_header
+                    and (sequence or (repeated and edges and first_number is None))
+                )
+                header_kind = body[0]["kind"] if body else None
+                evidence = ContinuityEvidence(
+                    same_document=True,
+                    page_a=previous["page_number"],
+                    page_b=table["page_number"],
+                    # `mapped` already required this fragment's cells to fit onto
+                    # active's own established grid (_map_rows) -- geometric
+                    # compatibility is a precondition of reaching this branch at all,
+                    # not something to re-derive independently here.
+                    column_similarity=1.0,
+                    header_similarity=(
+                        (1.0 if repeated else 0.0) if header_kind == "header" else None
+                    ),
+                    last_anchor=last_number,
+                    first_anchor=first_number,
+                    anchor_continuous=sequence,
+                    previous_ends_near_bottom=previous["bbox"][3] >= BOTTOM_EDGE_THRESHOLD,
+                    next_starts_near_top=table["bbox"][1] <= TOP_EDGE_THRESHOLD,
+                    previous_ends_with_total=last["kind"] == "total",
+                    heading_between=table.get("heading_before"),
+                    previous_tail_rows=[_row_preview(r) for r in active["rows"][-2:]],
+                    next_head_rows=[_row_preview(r) for r in body[:2]],
+                )
+                result = decide(evidence, config)
+                approved = result.decision != ContinuityDecision.SPLIT and (
+                    candidate_join or result.decision == ContinuityDecision.MERGE
+                )
+                if approved:
                     if repeated:
                         active["repeated_headers"].append(mapped[0])
                     if split and (sequence or edges):

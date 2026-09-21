@@ -7,7 +7,7 @@ from app.ingestion import lock_dossier
 from app.models import Attempt, Document, Job, Task
 
 
-def enqueue(db, dossier_id, settings):
+def enqueue(db, dossier_id, settings, overrides=None):
     dossier = lock_dossier(db, dossier_id)
     docs = list(db.scalars(select(Document).where(Document.dossier_id == dossier_id)))
     require(sum(d.role == "contract" for d in docs) == 1, "EXACTLY_ONE_CONTRACT", 422)
@@ -37,6 +37,10 @@ def enqueue(db, dossier_id, settings):
         "ocr_vision_max_retries": settings.ocr_vision_max_retries,
         "max_attempts": settings.max_attempts,
         "lease_seconds": settings.lease_seconds,
+        # Per-dossier opt-in only (see app/table_continuity.py) -- never a
+        # deployment-wide default, since enabling it sends some contract table text
+        # to DeepSeek's hosted API.
+        "table_continuity_agent": bool((overrides or {}).get("table_continuity_agent")),
     }
     job = Job(
         dossier_id=dossier_id,

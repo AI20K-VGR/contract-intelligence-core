@@ -117,6 +117,12 @@ class BatchBody(BaseModel):
     dossier_ids: list[str] = Field(min_length=1, max_length=100)
 
 
+class StartJobBody(BaseModel):
+    # Opt-in only, per job -- see app/table_continuity.py and Settings.deepseek_api_key.
+    # Sends some contract table text to DeepSeek's hosted API when true.
+    table_continuity_agent: bool = False
+
+
 @app.get("/api/v1/health/live")
 def live():
     return {"status": "alive"}
@@ -224,19 +230,19 @@ def upload(
 
 @app.post("/api/v1/dossiers/{dossier_id}/jobs", status_code=202)
 def start(
-    dossier_id: str, request: Request,
+    dossier_id: str, request: Request, body: StartJobBody = StartJobBody(),
     actor: Actor = Depends(authenticate), idempotency_key: str = Header(),
 ):
     allowed(actor, "operator")
     with transaction() as db:
 
         def do_start():
-            result = enqueue(db, dossier_id, settings)
+            result = enqueue(db, dossier_id, settings, overrides=body.model_dump())
             log_event(db, dossier_id, actor.id, "job.enqueued", "job", result["id"],
                       request.state.request_id)
             return result
 
-        return mutate(db, actor, idempotency_key, f"{dossier_id}.start", {}, do_start)
+        return mutate(db, actor, idempotency_key, f"{dossier_id}.start", body.model_dump(), do_start)
 
 
 @app.get("/api/v1/jobs/{job_id}")
@@ -364,7 +370,7 @@ def collection(
             ]
         response = {"items": items, "run_id": job.id, "is_partial": snapshot.result["is_partial"]}
         if collection == "tables":
-            response["logical_items"] = build_logical_tables(items)
+            response["logical_items"] = build_logical_tables(items, job.config)
             response["reconstruction_version"] = "table-geometry-v1"
         return response
 

@@ -12,7 +12,13 @@ _ocr_tables). Cross-page COMBINING (tables.build_logical_tables) always runs fre
 matching what the live API's /tables endpoint does on every request.
 
 Usage (from backend/, with `uv sync` already run once):
-    uv run python scripts/reconstruct_tables.py path/to/results.json
+    uv run python scripts/reconstruct_tables.py path/to/results.json [--continuity-agent]
+
+`--continuity-agent` opts into the Table Continuity Agent (app/table_continuity.py)
+for any cross-page fragment pair the deterministic rule engine alone can't resolve --
+same opt-in this flag maps to on POST /dossiers/{id}/jobs. Requires
+CI_DEEPSEEK_API_KEY to actually reach DeepSeek; without it the agent tier is silently
+unavailable and ambiguous pairs stay NEEDS_REVIEW, same as leaving the flag off.
 
 `results.json` is the saved body of `GET /api/v1/dossiers/{id}/results` — either the
 full envelope ({"machine": {...}, "effective": {...}, ...}) or just its "machine"
@@ -87,7 +93,7 @@ def _render_table(table):
     print()
 
 
-def main(path: str) -> None:
+def main(path: str, *, continuity_agent: bool = False) -> None:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     machine = payload.get("machine", payload)
     pages = machine.get("pages")
@@ -142,7 +148,9 @@ def main(path: str) -> None:
             _diagnose_page(page)
         return
 
-    result = build_logical_tables(fragments)
+    result = build_logical_tables(
+        fragments, {"table_continuity_agent": True} if continuity_agent else None
+    )
     print(f"So bang sau khi ghep trang (logical_items): {len(result)}\n")
     for table in result:
         _render_table(table)
@@ -159,6 +167,12 @@ def main(path: str) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        raise SystemExit("Dung: uv run python scripts/reconstruct_tables.py <duong-dan-results.json>")
-    main(sys.argv[1])
+    args = sys.argv[1:]
+    agent_flag = "--continuity-agent"
+    use_agent = agent_flag in args
+    positional = [a for a in args if a != agent_flag]
+    if len(positional) != 1:
+        raise SystemExit(
+            f"Dung: uv run python scripts/reconstruct_tables.py <duong-dan-results.json> [{agent_flag}]"
+        )
+    main(positional[0], continuity_agent=use_agent)

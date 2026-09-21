@@ -1,5 +1,7 @@
 from copy import deepcopy
 
+from app import table_continuity
+from app.table_continuity import ContinuityDecision, ContinuityResult
 from app.tables import build_logical_tables
 
 EDGES = [0, 0.06, 0.60, 0.66, 0.72, 0.82, 0.94, 1]
@@ -253,6 +255,59 @@ def test_third_page_continues_with_original_canonical_columns():
     result = build_logical_tables(tables)
     assert len(result) == 1
     assert result[0]["page_end"] == 3
+
+
+def test_annex_heading_between_forces_split_even_with_matching_columns_and_sequence():
+    # Real risk case: two annexes share an identical item-table header/geometry, and
+    # the second annex's numbering happens to continue the first's -- every
+    # deterministic signal a pure geometry/sequence check relies on says MERGE, but
+    # "Phụ lục 02" between them means this is a NEW table (app/table_continuity.py's
+    # Tier-1 hard guard exists specifically for this).
+    tables = sample()
+    tables[1] = fragment(2, [HEADER, ["03", "C", "6", "Cái", "2", "12", ""]])
+    tables[1]["heading_before"] = "Phụ lục 02"
+    result = build_logical_tables(tables)
+    assert len(result) == 2
+
+
+def test_headerless_no_stt_continuation_needs_agent_to_merge(monkeypatch):
+    # Real hard case: a continuation row on the next page has no STT/header at all
+    # (mid-sentence table wrap) -- geometry alone lands in the genuine gray zone
+    # (column match + "no header on continuation", score 5 of the 8 needed), so the
+    # deterministic rule engine correctly refuses to guess without help.
+    fragments = [
+        fragment(
+            1,
+            [
+                ["01", "Bảng phòng Tư vấn", "04", "Cái", "1,000,000", "4,000,000", ""],
+                ["02", "Bảng tên phòng, thư mục sách", "20", "Cái", "100,000", "2,000,000", ""],
+            ],
+        ),
+        fragment(
+            2,
+            [
+                ["", "Dịch vụ triển khai lắp đặt", "1", "Bộ", "5,000,000", "5,000,000", ""],
+                ["03", "Bảo hành 12 tháng", "1", "Bộ", "1,000,000", "1,000,000", ""],
+            ],
+        ),
+    ]
+
+    without_agent = build_logical_tables(fragments)
+    assert len(without_agent) == 2
+    assert without_agent[1]["status"] == "NEEDS_REVIEW"
+
+    def fake_agent(evidence, score):
+        return ContinuityResult(ContinuityDecision.MERGE, ["agent_merge"], score, True)
+
+    monkeypatch.setattr(table_continuity, "_ask_agent", fake_agent)
+
+    with_agent = build_logical_tables(fragments, {"table_continuity_agent": True})
+    assert len(with_agent) == 1
+    assert with_agent[0]["status"] == "RECONSTRUCTED"
+    assert [row["cells"][1]["text"] for row in with_agent[0]["rows"]] == [
+        "Bảng phòng Tư vấn", "Bảng tên phòng, thư mục sách",
+        "Dịch vụ triển khai lắp đặt", "Bảo hành 12 tháng",
+    ]
 
 
 def test_real_pdf_extraction_to_logical_api_view(system):
