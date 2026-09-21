@@ -24,7 +24,11 @@ from contract_intelligence.review.domain.entities.review_item import (
     ReviewPriority,
 )
 from contract_intelligence.review.interfaces.api.dependencies import ReviewServiceDep
-from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user
+from contract_intelligence.shared.auth import (
+    AuthenticatedUser,
+    get_current_user,
+    require_role,
+)
 from contract_intelligence.shared.responses import ApiResponse
 
 router = APIRouter(tags=["Review"])
@@ -139,16 +143,13 @@ async def submit_action(
     item_id: Annotated[str, Path(min_length=1)],
     body: Annotated[ReviewActionRequest, Body()],
     svc: ReviewServiceDep,
-    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    user: Annotated[AuthenticatedUser, Depends(require_role("REVIEWER", "ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
     """Ghi nhận hành động review. RBAC: REVIEWER, ADMINISTRATOR.
 
     409 VERSION_CONFLICT nếu base_version không match current version.
     Frontend refetch item mới nhất.
     """
-    if user.role not in ("REVIEWER", "ADMINISTRATOR"):
-        raise HTTPException(status_code=403, detail="Insufficient role")
-
     try:
         action_type = ReviewActionType(body.action)
     except ValueError as exc:

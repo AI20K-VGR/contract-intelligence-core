@@ -40,6 +40,8 @@ class AuthenticatedUser:
         display_name: Từ `name` hoặc `preferred_username`.
         role: RBAC role mapped từ `realm_access.roles[]`
               (OPERATOR | REVIEWER | ADMINISTRATOR).
+        is_active: False khi admin disable user. Backend-side protection
+              bổ sung cho Keycloak session. Defaults to True if not in token.
 
     Usage trong router:
         @router.get("/items")
@@ -57,6 +59,7 @@ class AuthenticatedUser:
     email: str
     display_name: str
     role: str
+    is_active: bool = True
 
     def has_role(self, *roles: str) -> bool:
         """Kiểm tra user có một trong các vai trò được phép."""
@@ -91,6 +94,7 @@ class KeycloakTokenClaims(BaseModel):
     email: str = ""
     display_name: str = ""
     role: str = "OPERATOR"
+    is_active: bool = True
     preferred_username: str | None = None
     realm_access_roles: list[str] = Field(default_factory=list)
     iat: int = 0

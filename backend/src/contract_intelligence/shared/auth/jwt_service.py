@@ -223,6 +223,8 @@ class JWTService:
         raw["display_name"] = raw.get("name") or raw.get("preferred_username") or ""
         raw["email"] = raw.get("email") or raw.get("preferred_username") or ""
         raw["realm_access_roles"] = realm_roles
+        # is_active: từ custom claim (Keycloak protocol mapper). Default True.
+        raw["is_active"] = bool(raw.get("is_active", True))
 
         return KeycloakTokenClaims(**raw)
 
@@ -268,6 +270,7 @@ def _map_keycloak_claims_to_user(claims: KeycloakTokenClaims) -> AuthenticatedUs
         email=claims.email or "",
         display_name=claims.display_name or "",
         role=claims.role or "OPERATOR",
+        is_active=claims.is_active,
     )
 
 

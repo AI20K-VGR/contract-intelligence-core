@@ -2,15 +2,25 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, status
+from typing import Annotated
 
+from fastapi import APIRouter, Body, Depends, status
+
+from contract_intelligence.shared.auth import (
+    AuthenticatedUser,
+    get_current_user,
+    require_role,
+)
 from contract_intelligence.shared.responses import ApiResponse
 
 router = APIRouter()
 
 
 @router.get("/dossiers/{dossier_id}/items", response_model=ApiResponse[list[object]])
-async def list_review_items(dossier_id: str) -> ApiResponse[list[object]]:
+async def list_review_items(
+    dossier_id: str,
+    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> ApiResponse[list[object]]:
     return ApiResponse(data=[])
 
 
@@ -21,9 +31,12 @@ async def list_review_items(dossier_id: str) -> ApiResponse[list[object]]:
 )
 async def submit_action(
     item_id: str,
+    _user: Annotated[AuthenticatedUser, Depends(require_role("REVIEWER", "ADMINISTRATOR"))],
     payload: dict[str, object] = Body(...),
 ) -> ApiResponse[dict[str, object]]:
     """POST /review/items/{id}/actions — optimistic concurrency.
+
+    RBAC: REVIEWER, ADMINISTRATOR.
 
     Body:
         {

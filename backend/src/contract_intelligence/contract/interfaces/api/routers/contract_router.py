@@ -1,35 +1,32 @@
-r"""Contract bounded context router — Màn hình 3 (DOC-05b §5.3) + Màn hình 5 §5.5.
+r"""Contract bounded context router — Phase 1 endpoints per DOC-05-api-spec.yaml.
 
-Endpoints:
-    POST   /dossiers                     — Create dossier (multipart)
-    GET    /dossiers                     — List dossiers
-    GET    /dossiers/{id}                — Dossier detail
-    PATCH  /dossiers/{id}                — Update name/batch
-    POST   /dossiers/{id}/documents      — Upload PDF (multipart)
-    GET    /dossiers/{id}/documents      — List PDFs in dossier
-    GET    /dossiers/{id}/manifest       — Get manifest draft
-    POST   /dossiers/{id}/manifest/confirm — Confirm manifest
-
-    GET    /documents/{id}                — Document detail
-    GET    /documents/{id}/content        — Stream PDF binary
-    GET    /documents/{id}/pages          — List pages (basic — full impl in extraction router)
-    GET    /documents/{id}/clauses        — Clause tree (extraction BC provides full)
-    GET    /documents/{id}/tables         — Tables list (extraction BC provides full)
+Endpoints (Phase 1: Core Document Ingestion):
+    POST   /dossiers                     — Multipart upload (per spec line 116-148)
+    GET    /dossiers                     — List dossiers (spec line 150-183)
+    GET    /dossiers/{id}                — Dossier detail (spec line 185-204)
+    PATCH  /dossiers/{id}                — Update metadata (spec line 204-228)
+    GET    /dossiers/{id}/documents      — List documents (spec line 262-277)
+    GET    /documents/{id}               — Document detail (spec line ~759)
+    GET    /documents/{id}/content       — Stream PDF binary
 
 RBAC matrix (DOC-05b §2.3):
     OPERATOR, ADMINISTRATOR  → write ops (POST, PATCH, upload, manifest confirm)
-    OPERATOR, REVIEWER, ADMIN → read ops
+    OPERATOR, REVIEWER, ADMINISTRATOR  → read ops
+
+Layer: interfaces/api — composes application services, never directly hits ORM.
 """
 
 from __future__ import annotations
 
+import json
+from io import BytesIO
 from typing import Annotated, Any
 
 from fastapi import (
     APIRouter,
+    Body,
     Depends,
     File,
-    Form,
     HTTPException,
     Path,
     Query,
@@ -37,65 +34,219 @@ from fastapi import (
     status,
 )
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
-from contract_intelligence.contract.domain.entities.document import DocumentRole
+from contract_intelligence.contract.application.dtos.document_dtos import (
+    DocumentDetailDTO,
+    DocumentListItemDTO,
+)
+from contract_intelligence.contract.application.dtos.dossier_dtos import (
+    DossierCreatedDTO,
+    DossierDetailDTO,
+    DossierSummaryDTO,
+)
+from contract_intelligence.contract.domain.entities.document import (
+    Document,
+    DocumentRole,
+)
 from contract_intelligence.contract.interfaces.api.dependencies import (
     ContractServiceDep,
 )
-from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user
-from contract_intelligence.shared.responses import ApiResponse
+from contract_intelligence.shared.auth import (
+    AuthenticatedUser,
+    get_current_user,
+    require_role,
+)
+from contract_intelligence.shared.responses import ApiMeta, ApiResponse
 
 router = APIRouter(tags=["Contract"])
 
 
 # -----------------------------------------------------------------------------
-# Dossier endpoints — Màn hình 3
+# Multipart upload helper — accept JSON metadata field per spec
+# -----------------------------------------------------------------------------
+
+
+class DossierUploadMetadata(BaseModel):
+    """metadata field của DossierUploadRequest (openapi.yaml: required)."""
+
+    model_config = {"extra": "allow"}  # allow tags, notes, custom fields
+
+    name: str | None = None
+    tags: list[str] | None = None
+    notes: str | None = None
+
+
+def _parse_upload_metadata(raw: str | None) -> DossierUploadMetadata:
+    """Parse metadata field — JSON string theo OpenAPI multipart encoding.
+
+    Trả về empty object nếu thiếu (spec khuyến nghị name lấy từ filename).
+    """
+    if not raw:
+        return DossierUploadMetadata()
+    try:
+        return DossierUploadMetadata.model_validate_json(raw)
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid metadata JSON: {exc}",
+        ) from exc
+
+
+class DossierUpdateBody(BaseModel):
+    """Request body for PATCH /dossiers/{id} — per openapi.yaml DossierUpdateRequest."""
+
+    name: str | None = None
+    metadata: dict[str, Any] | None = None
+
+
+async def _ingest_upload_file(
+    *,
+    svc: Any,
+    dossier_id: str,
+    file: UploadFile,
+    role: DocumentRole,
+    order_index: int,
+) -> tuple[Document, int]:
+    """Đọc UploadFile, tính sha256 + size, ingest qua service.
+
+    Returns:
+        (Document entity, size_bytes) — size_bytes để log + trả response.
+    """
+    chunks: list[bytes] = []
+    total_size = 0
+    while chunk := await file.read(1024 * 1024):
+        chunks.append(chunk)
+        total_size += len(chunk)
+    raw_bytes = b"".join(chunks)
+
+    doc = await svc.upload_document(
+        dossier_id=dossier_id,
+        filename=file.filename or f"{role.value.lower()}.pdf",
+        content=BytesIO(raw_bytes),
+        role=role,
+        order_index=order_index,
+        file_size_bytes=total_size,
+    )
+    return doc, total_size
+
+
+# -----------------------------------------------------------------------------
+# POST /dossiers — Multipart upload (Per openapi.yaml line 116)
 # -----------------------------------------------------------------------------
 
 
 @router.post(
     "/dossiers",
-    status_code=status.HTTP_201_CREATED,
-    response_model=ApiResponse[dict[str, Any]],
-    summary="Create new dossier",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ApiResponse[DossierCreatedDTO],
+    summary="Tạo dossier + upload file hợp đồng/phụ lục",
+    description=(
+        "Multipart upload: `contract` (bắt buộc), `annexes` (tuỳ chọn, 0..n), "
+        "`metadata` (JSON string bắt buộc — vd `{\"name\": \"...\"}`).\n\n"
+        "RBAC: OPERATOR, ADMINISTRATOR (per openapi.yaml x-rbac)."
+    ),
     responses={
-        400: {"description": "Missing X-Tenant-Id"},
-        403: {"description": "Tenant mismatch"},
+        400: {"description": "Missing contract file"},
+        403: {"description": "Insufficient role"},
+        422: {"description": "Invalid metadata JSON"},
     },
 )
 async def create_dossier(
     svc: ContractServiceDep,
-    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-    name: Annotated[str, Form(min_length=1, max_length=255)],
-    batch_id: Annotated[str | None, Form()] = None,
-) -> ApiResponse[dict[str, Any]]:
-    """Tạo dossier mới — chỉ cần name (upload documents sau).
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    contract: Annotated[UploadFile, File(description="PDF hợp đồng chính (required)")],
+    metadata: Annotated[str, File(description="JSON string: {name, tags?, notes?}")],
+    annexes: Annotated[list[UploadFile] | None, File(description="PDF phụ lục (0..n)")] = None,
+) -> ApiResponse[DossierCreatedDTO]:
+    """Create dossier via multipart upload — per openapi.yaml createDossier operation.
 
-    RBAC: OPERATOR, ADMINISTRATOR.
+    Flow:
+        1. Validate metadata JSON
+        2. Create dossier (name from metadata or contract filename)
+        3. Ingest contract file + compute sha256 + store
+        4. Ingest each annex file (if any)
+        5. Return dossier_id + job_id (None — pipeline trigger happens in BackgroundTasks
+           via contract_upload_router.py for the legacy endpoint)
+
+    Note:
+        For the canonical multipart upload flow with auto-trigger of pipeline run,
+        use the legacy `/dossiers/upload` endpoint — preserved for backward compat.
+        This `/dossiers` endpoint mirrors the OpenAPI spec contract.
     """
-    if user.role not in ("OPERATOR", "ADMINISTRATOR"):
-        raise HTTPException(
-            status_code=403,
-            detail=f"Insufficient role — required OPERATOR or ADMINISTRATOR, got {user.role!r}",
+    # Validate contract file
+    if not contract or not contract.filename:
+        raise HTTPException(status_code=400, detail="contract file is required")
+    if (
+        contract.content_type
+        and contract.content_type
+        not in ("application/pdf", "application/octet-stream")
+    ):
+        # Warn but don't reject — Sprint 3 local dev sometimes sends octet-stream
+        pass
+
+    # Parse metadata
+    meta = _parse_upload_metadata(metadata)
+    name = meta.name or contract.filename or "Untitled dossier"
+
+    # Build metadata dict from optional tags/notes + any extra fields
+    meta_payload: dict[str, Any] = {}
+    if meta.tags is not None:
+        meta_payload["tags"] = meta.tags
+    if meta.notes is not None:
+        meta_payload["notes"] = meta.notes
+    extras = getattr(meta, "model_extra", None) or {}
+    for key, value in extras.items():
+        if key not in ("name", "tags", "notes") and value is not None:
+            meta_payload[key] = value
+
+    # Create dossier + initial Job (UPLOADED) — per openapi.yaml createDossier
+    dossier = await svc.create_dossier(
+        name=name,
+        batch_id=None,
+        metadata=meta_payload or None,
+    )
+    job = dossier.latest_job()
+
+    # Ingest contract (always role=CONTRACT, order_index=0)
+    await _ingest_upload_file(
+        svc=svc,
+        dossier_id=dossier.id,
+        file=contract,
+        role=DocumentRole.CONTRACT,
+        order_index=0,
+    )
+
+    # Ingest annexes (role=ANNEX, order_index=1..n)
+    annexes = annexes or []
+    for idx, annex_file in enumerate(annexes, start=1):
+        if not annex_file.filename:
+            continue
+        await _ingest_upload_file(
+            svc=svc,
+            dossier_id=dossier.id,
+            file=annex_file,
+            role=DocumentRole.ANNEX,
+            order_index=idx,
         )
 
-    dossier = await svc.create_dossier(name=name, batch_id=batch_id)
+    # ApiEnvelopeDossierCreated — dossier_id + job_id (openapi.yaml line 2320)
     return ApiResponse(
-        data={
-            "id": dossier.id,
-            "tenant_id": user.tenant_id,
-            "name": dossier.name,
-            "batch_id": dossier.batch_id,
-            "has_conflicts": dossier.has_conflicts,
-            "created_at": dossier.created_at.isoformat(),
-            "updated_at": dossier.updated_at.isoformat(),
-        }
+        data=DossierCreatedDTO(
+            dossier_id=dossier.id,
+            job_id=job.id if job else None,
+        )
     )
+
+
+# -----------------------------------------------------------------------------
+# GET /dossiers — List (Per openapi.yaml line 150)
+# -----------------------------------------------------------------------------
 
 
 @router.get(
     "/dossiers",
-    response_model=ApiResponse[dict[str, Any]],
+    response_model=ApiResponse[list[DossierSummaryDTO]],
     summary="List dossiers",
 )
 async def list_dossiers(
@@ -103,75 +254,73 @@ async def list_dossiers(
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     status_filter: Annotated[str | None, Query(alias="status")] = None,
     has_conflicts: Annotated[bool | None, Query()] = None,
+    batch_id: Annotated[str | None, Query()] = None,
+    q: Annotated[str | None, Query(max_length=200, description="Tìm theo tên dossier")] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
-) -> ApiResponse[dict[str, Any]]:
-    """Danh sách dossier có filter + pagination."""
+) -> ApiResponse[list[DossierSummaryDTO]]:
+    """Danh sách dossier có filter + pagination. RBAC: any authenticated."""
     items, total = await svc.list_dossiers(
         status=status_filter,
         has_conflicts=has_conflicts,
+        q=q,
+        batch_id=batch_id,
         limit=limit,
         offset=offset,
     )
     return ApiResponse(
-        data={
-            "items": [
-                {
-                    "id": d.id,
-                    "name": d.name,
-                    "batch_id": d.batch_id,
-                    "has_conflicts": d.has_conflicts,
-                    "created_at": d.created_at.isoformat(),
-                    "updated_at": d.updated_at.isoformat(),
-                }
-                for d in items
-            ],
-            "total": total,
-            "page": (offset // limit) + 1,
-            "page_size": limit,
-            "total_pages": (total + limit - 1) // limit if total > 0 else 0,
-        }
+        data=[
+            DossierSummaryDTO.from_domain(
+                d,
+                latest_job_status=(d.latest_job().status if d.latest_job() else None),
+            )
+            for d in items
+        ],
+        meta=ApiMeta(
+            total=total,
+            page=(offset // limit) + 1,
+            page_size=limit,
+        ),
     )
+
+
+# -----------------------------------------------------------------------------
+# GET /dossiers/{id} — Detail (Per openapi.yaml line 185)
+# -----------------------------------------------------------------------------
 
 
 @router.get(
     "/dossiers/{dossier_id}",
-    response_model=ApiResponse[dict[str, Any]],
+    response_model=ApiResponse[DossierDetailDTO],
     responses={404: {"description": "Dossier not found"}},
 )
 async def get_dossier(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ContractServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-) -> ApiResponse[dict[str, Any]]:
-    """Chi tiết dossier."""
+) -> ApiResponse[DossierDetailDTO]:
+    """Dossier detail kèm documents list."""
     dossier = await svc.get_dossier(dossier_id)
     documents = await svc.list_documents(dossier_id)
+    latest = dossier.latest_job()
     return ApiResponse(
-        data={
-            "id": dossier.id,
-            "name": dossier.name,
-            "batch_id": dossier.batch_id,
-            "has_conflicts": dossier.has_conflicts,
-            "total_documents": len(documents),
-            "documents": [
-                {
-                    "id": d.id,
-                    "filename": d.filename,
-                    "role": d.role.value,
-                    "page_count": d.page_count,
-                }
-                for d in documents
-            ],
-            "created_at": dossier.created_at.isoformat(),
-            "updated_at": dossier.updated_at.isoformat(),
-        }
+        data=DossierDetailDTO.from_domain(
+            dossier,
+            documents=documents,
+            latest_job_id=latest.id if latest else None,
+            latest_job_status=latest.status if latest else None,
+        ),
     )
+
+
+# -----------------------------------------------------------------------------
+# PATCH /dossiers/{id} — Update (Per openapi.yaml line 204)
+# -----------------------------------------------------------------------------
 
 
 @router.patch(
     "/dossiers/{dossier_id}",
-    response_model=ApiResponse[dict[str, Any]],
+    response_model=ApiResponse[DossierDetailDTO],
     responses={
         404: {"description": "Dossier not found"},
         403: {"description": "Insufficient role"},
@@ -180,214 +329,76 @@ async def get_dossier(
 async def patch_dossier(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ContractServiceDep,
-    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-    name: Annotated[str | None, Query(min_length=1, max_length=255)] = None,
-) -> ApiResponse[dict[str, Any]]:
-    """Đổi tên hoặc metadata dossier. RBAC: OPERATOR, ADMINISTRATOR."""
-    if user.role not in ("OPERATOR", "ADMINISTRATOR"):
-        raise HTTPException(status_code=403, detail="Insufficient role")
+    _user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    body: DossierUpdateBody | None = Body(default=None),
+) -> ApiResponse[DossierDetailDTO]:
+    """Cập nhật metadata (name, metadata, tags, notes). RBAC: OPERATOR, ADMINISTRATOR.
 
-    dossier = await svc.patch_dossier(dossier_id, name=name)
-    return ApiResponse(
-        data={
-            "id": dossier.id,
-            "name": dossier.name,
-            "updated_at": dossier.updated_at.isoformat(),
-        }
-    )
-
-
-# -----------------------------------------------------------------------------
-# Document upload + list — Màn hình 3
-# -----------------------------------------------------------------------------
-
-
-@router.post(
-    "/dossiers/{dossier_id}/documents",
-    status_code=status.HTTP_201_CREATED,
-    response_model=ApiResponse[dict[str, Any]],
-    summary="Upload PDF vào dossier",
-    responses={
-        400: {"description": "Bad form data"},
-        403: {"description": "Insufficient role"},
-        404: {"description": "Dossier not found"},
-    },
-)
-async def upload_document(
-    dossier_id: Annotated[str, Path(min_length=1)],
-    svc: ContractServiceDep,
-    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-    file: Annotated[UploadFile, File(description="PDF binary")],
-    role: Annotated[str, Form(description="CONTRACT | ANNEX")],
-    order_index: Annotated[int, Form(ge=0)] = 0,
-) -> ApiResponse[dict[str, Any]]:
-    """Upload PDF vào dossier. RBAC: OPERATOR, ADMINISTRATOR.
-
-    Multipart: file + role + order_index
+    Body per openapi.yaml DossierUpdateRequest:
+        { name?: string, metadata?: object }
     """
-    if user.role not in ("OPERATOR", "ADMINISTRATOR"):
-        raise HTTPException(status_code=403, detail="Insufficient role")
-    if role not in ("CONTRACT", "ANNEX"):
-        raise HTTPException(
-            status_code=422,
-            detail=f"role must be CONTRACT or ANNEX, got {role!r}",
-        )
-
-    document = await svc.upload_document(
-        dossier_id=dossier_id,
-        filename=file.filename or "document.pdf",
-        content=file.file,
-        role=DocumentRole(role),
-        order_index=order_index,
+    if body is None:
+        body = DossierUpdateBody()
+    dossier = await svc.patch_dossier(
+        dossier_id, name=body.name, metadata=body.metadata
     )
+    documents = await svc.list_documents(dossier_id)
+    latest = dossier.latest_job()
     return ApiResponse(
-        data={
-            "id": document.id,
-            "dossier_id": document.dossier_id,
-            "role": document.role.value,
-            "order_index": document.order_index,
-            "filename": document.filename,
-            "sha256": document.sha256,
-            "blob_uri": document.blob_uri,
-            "page_count": document.page_count,
-            "lang_detected": document.lang_detected,
-            "created_at": document.created_at.isoformat(),
-        }
+        data=DossierDetailDTO.from_domain(
+            dossier,
+            documents=documents,
+            latest_job_id=latest.id if latest else None,
+            latest_job_status=latest.status if latest else None,
+        )
     )
+
+
+# -----------------------------------------------------------------------------
+# GET /dossiers/{id}/documents — List (Per openapi.yaml line 262)
+# -----------------------------------------------------------------------------
 
 
 @router.get(
     "/dossiers/{dossier_id}/documents",
-    response_model=ApiResponse[list[Any]],
-    summary="List documents trong dossier",
+    response_model=ApiResponse[list[DocumentListItemDTO]],
+    responses={404: {"description": "Dossier not found"}},
 )
-async def list_documents(
+async def list_dossier_documents(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ContractServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-) -> ApiResponse[list[Any]]:
-    """Danh sách PDFs kèm role."""
+) -> ApiResponse[list[DocumentListItemDTO]]:
+    """Danh sách toàn bộ văn bản trong dossier (contract + annexes)."""
+    # Verify dossier exists for proper 404 semantics
+    await svc.get_dossier(dossier_id)
     documents = await svc.list_documents(dossier_id)
-    return ApiResponse(
-        data=[
-            {
-                "id": d.id,
-                "role": d.role.value,
-                "order_index": d.order_index,
-                "filename": d.filename,
-                "sha256": d.sha256,
-                "blob_uri": d.blob_uri,
-                "page_count": d.page_count,
-                "lang_detected": d.lang_detected,
-                "signing_date": d.signing_date,
-                "effective_date": d.effective_date,
-                "created_at": d.created_at.isoformat(),
-            }
-            for d in documents
-        ]
-    )
+    return ApiResponse(data=[DocumentListItemDTO.from_domain(d) for d in documents])
 
 
 # -----------------------------------------------------------------------------
-# Manifest endpoints — Màn hình 3
-# -----------------------------------------------------------------------------
-
-
-@router.get(
-    "/dossiers/{dossier_id}/manifest",
-    response_model=ApiResponse[dict[str, Any]],
-    summary="Get manifest draft",
-)
-async def get_manifest(
-    dossier_id: Annotated[str, Path(min_length=1)],
-    svc: ContractServiceDep,
-    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-) -> ApiResponse[dict[str, Any]]:
-    """Lấy manifest dự thảo (auto-generate nếu chưa có)."""
-
-    # Reuse same service for session/tenant — but we need raw repo access for items
-    manifest = await svc.get_or_create_manifest(dossier_id)
-    # Note: chúng ta dùng lại service session/tenant từ dependency
-    # Manifest items đã được tạo trong get_or_create_manifest
-    return ApiResponse(
-        data={
-            "id": manifest.id,
-            "dossier_id": manifest.dossier_id,
-            "status": manifest.status,
-            "confirmed_at": manifest.confirmed_at.isoformat() if manifest.confirmed_at else None,
-            "confirmed_by": manifest.confirmed_by,
-            "created_at": manifest.created_at.isoformat(),
-        }
-    )
-
-
-@router.post(
-    "/dossiers/{dossier_id}/manifest/confirm",
-    status_code=status.HTTP_200_OK,
-    response_model=ApiResponse[dict[str, Any]],
-    summary="Confirm manifest → trigger deep analysis",
-    responses={
-        403: {"description": "Insufficient role"},
-        404: {"description": "Dossier or manifest not found"},
-    },
-)
-async def confirm_manifest(
-    dossier_id: Annotated[str, Path(min_length=1)],
-    svc: ContractServiceDep,
-    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-) -> ApiResponse[dict[str, Any]]:
-    """Xác nhận phân loại tài liệu. RBAC: OPERATOR, ADMINISTRATOR."""
-    if user.role not in ("OPERATOR", "ADMINISTRATOR"):
-        raise HTTPException(status_code=403, detail="Insufficient role")
-
-    manifest = await svc.confirm_manifest(dossier_id, user.user_id)
-    return ApiResponse(
-        data={
-            "manifest_id": manifest.id,
-            "status": manifest.status,
-            "confirmed_at": manifest.confirmed_at.isoformat() if manifest.confirmed_at else None,
-            "confirmed_by": manifest.confirmed_by,
-        }
-    )
-
-
-# -----------------------------------------------------------------------------
-# Document detail & content — Màn hình 5 §5.5
+# Document endpoints
 # -----------------------------------------------------------------------------
 
 
 @router.get(
     "/documents/{document_id}",
-    response_model=ApiResponse[dict[str, Any]],
+    response_model=ApiResponse[DocumentDetailDTO],
     responses={404: {"description": "Document not found"}},
 )
 async def get_document(
     document_id: Annotated[str, Path(min_length=1)],
     svc: ContractServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-) -> ApiResponse[dict[str, Any]]:
-    """Chi tiết document: tổng số trang, ngôn ngữ, filename."""
+) -> ApiResponse[DocumentDetailDTO]:
+    """Chi tiết document theo spec (DocumentDetail — extends DocumentListItem)."""
     doc = await svc.get_document(document_id)
-    return ApiResponse(
-        data={
-            "id": doc.id,
-            "dossier_id": doc.dossier_id,
-            "role": doc.role.value,
-            "filename": doc.filename,
-            "sha256": doc.sha256,
-            "blob_uri": doc.blob_uri,
-            "page_count": doc.page_count,
-            "lang_detected": doc.lang_detected,
-            "signing_date": doc.signing_date,
-            "effective_date": doc.effective_date,
-            "created_at": doc.created_at.isoformat(),
-        }
-    )
+    return ApiResponse(data=DocumentDetailDTO.from_domain(doc))
 
 
 @router.get(
     "/documents/{document_id}/content",
-    summary="Stream PDF binary",
+    summary="Stream PDF binary từ MinIO/local storage",
     responses={
         200: {
             "content": {"application/pdf": {}},
@@ -401,7 +412,7 @@ async def get_document_content(
     svc: ContractServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> StreamingResponse:
-    """Tải PDF gốc — trả về binary stream."""
+    """Tải PDF gốc — trả về binary stream từ storage."""
     data, filename = await svc.get_document_blob(document_id)
     return StreamingResponse(
         iter([data]),
@@ -413,48 +424,4 @@ async def get_document_content(
     )
 
 
-# Stub endpoints — extraction BC provides full implementation
-# Placeholder routes để OpenAPI doc đầy đủ
-
-
-@router.get(
-    "/documents/{document_id}/pages",
-    response_model=ApiResponse[dict[str, Any]],
-    summary="[STUB] List pages — full impl in extraction router",
-)
-async def list_pages_stub(
-    document_id: Annotated[str, Path(min_length=1)],
-    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-) -> ApiResponse[dict[str, Any]]:
-    """Sprint 3 stub — full implementation in extraction_router."""
-    return ApiResponse(
-        data={
-            "items": [],
-            "total": 0,
-            "note": "See GET /documents/{id}/pages in extraction router",
-        }
-    )
-
-
-@router.get(
-    "/documents/{document_id}/clauses",
-    response_model=ApiResponse[list[Any]],
-    summary="[STUB] Clause tree — full impl in extraction router",
-)
-async def list_clauses_stub(
-    document_id: Annotated[str, Path(min_length=1)],
-    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-) -> ApiResponse[list[Any]]:
-    return ApiResponse(data=[])
-
-
-@router.get(
-    "/documents/{document_id}/tables",
-    response_model=ApiResponse[list[Any]],
-    summary="[STUB] Tables — full impl in extraction router",
-)
-async def list_tables_stub(
-    document_id: Annotated[str, Path(min_length=1)],
-    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-) -> ApiResponse[list[Any]]:
-    return ApiResponse(data=[])
+__all__ = ["router"]

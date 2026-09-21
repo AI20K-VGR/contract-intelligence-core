@@ -23,7 +23,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Path
 
 from contract_intelligence.shared.ai import get_ai_service_client
-from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user
+from contract_intelligence.shared.auth import AuthenticatedUser, require_role
 from contract_intelligence.shared.responses import ApiResponse
 from contract_intelligence.shared.versioning import __ai_contract__
 
@@ -100,7 +100,7 @@ async def backend_readyz() -> ApiResponse[dict[str, Any]]:
 )
 async def ai_get_job_status(
     job_id: Annotated[str, Path(min_length=1)],
-    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "REVIEWER", "ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
     """Proxy sang AI service GET /jobs/{id} (DOC-05c §4.5).
 
@@ -124,12 +124,9 @@ async def ai_get_job_status(
 )
 async def ai_cancel_job(
     job_id: Annotated[str, Path(min_length=1)],
-    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
-    """Cancel job tại AI service (DOC-05c §4.6)."""
-    if user.role not in ("OPERATOR", "ADMINISTRATOR"):
-        raise HTTPException(status_code=403, detail="Insufficient role")
-
+    """Cancel job tại AI service (DOC-05c §4.6). RBAC: ADMINISTRATOR inherits OPERATOR."""
     client = get_ai_service_client()
     try:
         report = await client.cancel_job(job_id)

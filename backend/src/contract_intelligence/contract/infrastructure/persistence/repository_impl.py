@@ -41,6 +41,7 @@ def _dossier_to_domain(orm: DossierORM) -> Dossier:
         name=orm.name,
         batch_id=orm.batch_id,
         has_conflicts=orm.has_conflicts,
+        metadata=orm.metadata_json,
         created_at=orm.created_at,
         updated_at=orm.updated_at,
     )
@@ -53,6 +54,7 @@ def _dossier_from_domain(d: Dossier) -> DossierORM:
         name=d.name,
         batch_id=d.batch_id,
         has_conflicts=d.has_conflicts,
+        metadata_json=d.metadata,
         status="uploaded",
     )
 
@@ -75,6 +77,8 @@ class DossierRepositoryImpl(DossierRepository):
         *,
         status: str | None = None,
         has_conflicts: bool | None = None,
+        q: str | None = None,
+        batch_id: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> Page[str]:
@@ -83,6 +87,10 @@ class DossierRepositoryImpl(DossierRepository):
             stmt = stmt.where(DossierORM.status == status)
         if has_conflicts is not None:
             stmt = stmt.where(DossierORM.has_conflicts == has_conflicts)
+        if q:
+            stmt = stmt.where(DossierORM.name.ilike(f"%{q}%"))
+        if batch_id:
+            stmt = stmt.where(DossierORM.batch_id == batch_id)
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total_result = await self._session.execute(count_stmt)
         total = int(total_result.scalar() or 0)
@@ -114,6 +122,7 @@ class DossierRepositoryImpl(DossierRepository):
         orm.name = dossier.name
         orm.batch_id = dossier.batch_id
         orm.has_conflicts = dossier.has_conflicts
+        orm.metadata_json = dossier.metadata
         orm.updated_at = utcnow()
         await self._session.flush()
 
@@ -177,6 +186,7 @@ def _document_to_domain(orm: DocumentORM) -> Document:
         filename=orm.filename,
         sha256=orm.sha256,
         blob_uri=orm.blob_uri,
+        file_size_bytes=orm.file_size_bytes,
         page_count=orm.page_count,
         lang_detected=orm.lang_detected,
         signing_date=orm.signing_date,
@@ -195,6 +205,7 @@ def _document_from_domain(d: Document) -> DocumentORM:
         filename=d.filename,
         sha256=d.sha256,
         blob_uri=d.blob_uri,
+        file_size_bytes=d.file_size_bytes,
         page_count=d.page_count,
         lang_detected=d.lang_detected,
         signing_date=d.signing_date,
@@ -316,10 +327,19 @@ class JobRepositoryImpl(JobRepository):
         orm = result.scalar_one_or_none()
         return _job_to_domain(orm) if orm else None
 
-    async def list(self, *, limit: int = 50, offset: int = 0, **filters: object) -> Page[str]:
+    async def list(
+        self,
+        *,
+        dossier_id: str | None = None,
+        status: JobStatus | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> Page[str]:
         stmt = select(JobORM).where(JobORM.tenant_id == self._tenant_id)
-        if dossier_id := filters.get("dossier_id"):
+        if dossier_id:
             stmt = stmt.where(JobORM.dossier_id == dossier_id)
+        if status is not None:
+            stmt = stmt.where(JobORM.status == status.value)
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total = int((await self._session.execute(count_stmt)).scalar() or 0)
         stmt = stmt.order_by(JobORM.created_at.desc()).limit(limit).offset(offset)

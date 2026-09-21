@@ -10,5 +10,24 @@ from contract_intelligence.contract.application.dtos.contract_status_response im
 from contract_intelligence.contract.application.dtos.contract_upload_request import (
     ContractUploadRequest,
 )
+from contract_intelligence.contract.application.dtos.document_dtos import (
+    DocumentDetailDTO,
+    DocumentListItemDTO,
+)
+from contract_intelligence.contract.application.dtos.dossier_dtos import (
+    DocumentSummaryDTO,
+    DossierCreatedDTO,
+    DossierDetailDTO,
+    DossierSummaryDTO,
+)
 
-__all__ = ["ContractUploadRequest", "ContractStatusResponse"]
+__all__ = [
+    "ContractUploadRequest",
+    "ContractStatusResponse",
+    "DocumentDetailDTO",
+    "DocumentListItemDTO",
+    "DocumentSummaryDTO",
+    "DossierCreatedDTO",
+    "DossierDetailDTO",
+    "DossierSummaryDTO",
+]

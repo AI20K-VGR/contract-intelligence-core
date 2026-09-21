@@ -6,6 +6,7 @@ Tương ứng bảng ``dossier`` trong DB (xem ``DOC-04b`` §3 + ``DOC-04c`` §3
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from contract_intelligence.contract.domain.entities.document import Document
 from contract_intelligence.contract.domain.entities.job import Job, JobStatus
@@ -26,6 +27,7 @@ class Dossier(BaseEntity[str]):
     name: str = ""
     batch_id: str | None = None
     has_conflicts: bool = False
+    metadata: dict[str, Any] | None = None
 
     # Navigation (không persist)
     documents: list[Document] = field(default_factory=list, repr=False)

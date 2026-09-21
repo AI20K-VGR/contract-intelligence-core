@@ -29,6 +29,7 @@ class Document(BaseEntity[str]):
     filename: str = ""
     sha256: str = ""
     blob_uri: str = ""
+    file_size_bytes: int = 0
     page_count: int = 0
     lang_detected: str = "vi"
     # Denormalized ngày — cập nhật bởi bước S7 của extraction pipeline

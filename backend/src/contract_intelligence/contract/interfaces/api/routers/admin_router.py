@@ -25,14 +25,18 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Body, Depends, Path, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from contract_intelligence.contract.interfaces.api.dependencies_admin import (
     BatchServiceDep,
     OptimizationServiceDep,
 )
-from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user
+from contract_intelligence.shared.auth import (
+    AuthenticatedUser,
+    get_current_user,
+    require_role,
+)
 from contract_intelligence.shared.responses import ApiResponse
 
 router = APIRouter(tags=["Admin/Ops"])
@@ -58,11 +62,9 @@ class CreateBatchRequest(BaseModel):
 async def create_batch(
     body: Annotated[CreateBatchRequest, Body()],
     svc: BatchServiceDep,
-    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
-    """RBAC: OPERATOR, ADMINISTRATOR. Sprint 3 stub — accept name only."""
-    if user.role not in ("OPERATOR", "ADMINISTRATOR"):
-        raise HTTPException(status_code=403, detail="Insufficient role")
+    """RBAC: ADMINISTRATOR inherits OPERATOR. Sprint 3 stub — accept name only."""
     # Stub: return existing or new batch_id — full impl Sprint 4
     return ApiResponse(
         data={
@@ -131,11 +133,9 @@ async def get_batch_summary(
 async def cancel_batch(
     batch_id: Annotated[str, Path(min_length=1)],
     svc: BatchServiceDep,
-    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
-    """RBAC: OPERATOR, ADMINISTRATOR."""
-    if user.role not in ("OPERATOR", "ADMINISTRATOR"):
-        raise HTTPException(status_code=403, detail="Insufficient role")
+    """RBAC: ADMINISTRATOR inherits OPERATOR."""
     return ApiResponse(data=await svc.cancel_batch(batch_id))
 
 
@@ -147,10 +147,9 @@ async def cancel_batch(
 async def resume_batch(
     batch_id: Annotated[str, Path(min_length=1)],
     svc: BatchServiceDep,
-    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
-    if user.role not in ("OPERATOR", "ADMINISTRATOR"):
-        raise HTTPException(status_code=403, detail="Insufficient role")
+    """RBAC: ADMINISTRATOR inherits OPERATOR."""
     return ApiResponse(data=await svc.resume_batch(batch_id))
 
 
@@ -166,11 +165,9 @@ async def resume_batch(
     responses={403: {"description": "ADMINISTRATOR only"}},
 )
 async def ops_metrics(
-    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
-    """RBAC: ADMINISTRATOR only."""
-    if _user.role != "ADMINISTRATOR":
-        raise HTTPException(status_code=403, detail="ADMINISTRATOR only")
+    """RBAC: ADMINISTRATOR only (top-level role)."""
     # Stub metrics — Sprint 4 sẽ aggregate từ usage_ledger
     return ApiResponse(
         data={
@@ -198,10 +195,8 @@ async def ops_metrics(
 )
 async def list_campaigns(
     svc: OptimizationServiceDep,
-    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
 ) -> ApiResponse[list[Any]]:
-    if _user.role != "ADMINISTRATOR":
-        raise HTTPException(status_code=403, detail="ADMINISTRATOR only")
     return ApiResponse(data=await svc.list_campaigns())
 
 
@@ -213,10 +208,8 @@ async def list_campaigns(
 async def create_campaign(
     body: Annotated[CreateBatchRequest, Body()],
     svc: OptimizationServiceDep,
-    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
-    if user.role != "ADMINISTRATOR":
-        raise HTTPException(status_code=403, detail="ADMINISTRATOR only")
     return ApiResponse(
         data=await svc.create_campaign(
             name=body.name,
@@ -235,10 +228,8 @@ async def create_campaign(
 async def get_campaign(
     campaign_id: Annotated[str, Path(min_length=1)],
     svc: OptimizationServiceDep,
-    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
-    if _user.role != "ADMINISTRATOR":
-        raise HTTPException(status_code=403, detail="ADMINISTRATOR only")
     return ApiResponse(data=await svc.get_campaign(campaign_id))
 
 
@@ -248,11 +239,9 @@ async def get_campaign(
 )
 async def list_candidates(
     svc: OptimizationServiceDep,
-    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
     campaign_id: str = Query(..., min_length=1),
 ) -> ApiResponse[list[Any]]:
-    if _user.role != "ADMINISTRATOR":
-        raise HTTPException(status_code=403, detail="ADMINISTRATOR only")
     return ApiResponse(data=await svc.list_candidates(campaign_id))
 
 
@@ -264,10 +253,8 @@ async def list_candidates(
 async def create_candidate(
     body: Annotated[dict[str, Any], Body()],
     svc: OptimizationServiceDep,
-    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
-    if _user.role != "ADMINISTRATOR":
-        raise HTTPException(status_code=403, detail="ADMINISTRATOR only")
     return ApiResponse(
         data=await svc.create_candidate(
             campaign_id=body["campaign_id"],
@@ -285,10 +272,8 @@ async def create_candidate(
 async def promote_candidate(
     candidate_id: Annotated[str, Path(min_length=1)],
     svc: OptimizationServiceDep,
-    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
-    if _user.role != "ADMINISTRATOR":
-        raise HTTPException(status_code=403, detail="ADMINISTRATOR only")
     return ApiResponse(data=await svc.promote_candidate(candidate_id))
 
 
@@ -298,11 +283,9 @@ async def promote_candidate(
 )
 async def list_experiments(
     svc: OptimizationServiceDep,
-    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
     campaign_id: str = Query(..., min_length=1),
 ) -> ApiResponse[list[Any]]:
-    if _user.role != "ADMINISTRATOR":
-        raise HTTPException(status_code=403, detail="ADMINISTRATOR only")
     return ApiResponse(data=await svc.list_experiments(campaign_id))
 
 
@@ -314,10 +297,8 @@ async def list_experiments(
 async def create_experiment(
     body: Annotated[dict[str, Any], Body()],
     svc: OptimizationServiceDep,
-    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
-    if _user.role != "ADMINISTRATOR":
-        raise HTTPException(status_code=403, detail="ADMINISTRATOR only")
     return ApiResponse(
         data=await svc.create_experiment(
             campaign_id=body["campaign_id"],
@@ -334,10 +315,8 @@ async def create_experiment(
 async def run_experiment(
     experiment_id: Annotated[str, Path(min_length=1)],
     svc: OptimizationServiceDep,
-    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
-    if _user.role != "ADMINISTRATOR":
-        raise HTTPException(status_code=403, detail="ADMINISTRATOR only")
     return ApiResponse(data=await svc.run_experiment(experiment_id))
 
 
@@ -348,8 +327,6 @@ async def run_experiment(
 async def get_experiment_results(
     experiment_id: Annotated[str, Path(min_length=1)],
     svc: OptimizationServiceDep,
-    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    _user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
-    if _user.role != "ADMINISTRATOR":
-        raise HTTPException(status_code=403, detail="ADMINISTRATOR only")
     return ApiResponse(data=await svc.get_experiment_results(experiment_id))

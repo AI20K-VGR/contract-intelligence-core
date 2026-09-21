@@ -12,13 +12,17 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Body, Depends, Path, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from contract_intelligence.review.interfaces.api.dependencies_approval import (
     ApprovalServiceDep,
 )
-from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user
+from contract_intelligence.shared.auth import (
+    AuthenticatedUser,
+    get_current_user,
+    require_role,
+)
 from contract_intelligence.shared.responses import ApiResponse
 
 router = APIRouter(tags=["Approval"])
@@ -60,11 +64,9 @@ class ExternalApprovalCallback(BaseModel):
 async def lock_dossier(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ApprovalServiceDep,
-    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    _user: Annotated[AuthenticatedUser, Depends(require_role("REVIEWER", "ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
-    """RBAC: REVIEWER, ADMINISTRATOR."""
-    if user.role not in ("REVIEWER", "ADMINISTRATOR"):
-        raise HTTPException(status_code=403, detail="Insufficient role")
+    """RBAC: REVIEWER, ADMINISTRATOR (ADMINISTRATOR inherits REVIEWER)."""
     return ApiResponse(data=await svc.lock_dossier(dossier_id))
 
 
@@ -80,11 +82,9 @@ async def lock_dossier(
 async def approve_dossier(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ApprovalServiceDep,
-    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
-    """RBAC: ADMINISTRATOR only."""
-    if user.role != "ADMINISTRATOR":
-        raise HTTPException(status_code=403, detail="Insufficient role — ADMINISTRATOR only")
+    """RBAC: ADMINISTRATOR only (top-level role)."""
     return ApiResponse(data=await svc.approve_dossier(dossier_id, user.user_id))
 
 
@@ -107,12 +107,9 @@ async def create_external_approval(
     dossier_id: Annotated[str, Path(min_length=1)],
     body: Annotated[ExternalApprovalRequest, Body()],
     svc: ApprovalServiceDep,
-    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
-    """RBAC: ADMINISTRATOR only."""
-    if user.role != "ADMINISTRATOR":
-        raise HTTPException(status_code=403, detail="Insufficient role — ADMINISTRATOR only")
-
+    """RBAC: ADMINISTRATOR only (top-level role)."""
     return ApiResponse(
         data=await svc.create_external_approval(
             dossier_id=dossier_id,

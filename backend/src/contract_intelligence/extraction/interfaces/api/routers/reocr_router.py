@@ -10,13 +10,13 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Path
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from contract_intelligence.extraction.interfaces.api.dependencies_reocr import (
     ReOcrServiceDep,
 )
-from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user
+from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user, require_role
 from contract_intelligence.shared.responses import ApiResponse
 
 router = APIRouter(tags=["ReOCR"])
@@ -54,7 +54,7 @@ async def create_reocr_request(
     document_id: Annotated[str, Path(min_length=1)],
     body: Annotated[ReOcrRequest, Body()],
     svc: ReOcrServiceDep,
-    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "REVIEWER", "ADMINISTRATOR"))],
     background_tasks: BackgroundTasks,
 ) -> ApiResponse[dict[str, Any]]:
     """RBAC: OPERATOR, REVIEWER, ADMINISTRATOR.
@@ -62,8 +62,6 @@ async def create_reocr_request(
     Submit ReOcrJobRequest sang AI service (DOC-05c §4.2) async qua dispatcher.
     Polling trạng thái tự động — frontend poll GET /documents/{id}/re-ocr-requests.
     """
-    if user.role not in ("OPERATOR", "REVIEWER", "ADMINISTRATOR"):
-        raise HTTPException(status_code=403, detail="Insufficient role")
     return ApiResponse(
         data=await svc.create_request(
             document_id=document_id,

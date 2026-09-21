@@ -44,6 +44,7 @@ from contract_intelligence.shared.persistence import (
     reset_engine,
 )
 from contract_intelligence.shared.persistence.session import get_async_session
+import tempfile
 
 # -----------------------------------------------------------------------------
 # Settings override — chạy SQLite + Keycloak mode
@@ -74,14 +75,19 @@ def _override_settings() -> AsyncGenerator[None, None]:
 
 
 # -----------------------------------------------------------------------------
-# DB setup
+# DB setup — use tempfile SQLite so all sessions share the same DB
 # -----------------------------------------------------------------------------
 
 
 @pytest_asyncio.fixture(scope="function")
-async def db_engine() -> AsyncGenerator[Any, None]:
-    """Fresh SQLite engine + schema per test."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+async def db_engine(tmp_path: Any) -> AsyncGenerator[Any, None]:
+    """Fresh SQLite file-based engine + schema per test.
+
+    Using a file (not :memory:) ensures all async sessions share the same DB
+    without SQLite shared-cache mode issues.
+    """
+    db_path = tmp_path / "test_auth.db"
+    engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}", echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     bind_engine(engine)

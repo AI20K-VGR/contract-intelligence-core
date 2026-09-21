@@ -18,6 +18,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    JSON,
     String,
     Text,
     UniqueConstraint,
@@ -42,6 +43,9 @@ class DossierORM(Base):
     is_locked: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     is_approved: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     checksum: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[dict | None] = mapped_column(
+        "metadata", JSON, nullable=True, default=None
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -67,6 +71,7 @@ class DocumentORM(Base):
     filename: Mapped[str] = mapped_column(Text, nullable=False)
     sha256: Mapped[str] = mapped_column(Text, nullable=False)
     blob_uri: Mapped[str] = mapped_column(Text, nullable=False)
+    file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     page_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     lang_detected: Mapped[str] = mapped_column(Text, nullable=False, server_default="vi")
     signing_date: Mapped[str | None] = mapped_column(Text, nullable=True)

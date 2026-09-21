@@ -50,6 +50,45 @@ _TENANT_HEADER: str = "X-Tenant-Id"
 
 
 # -----------------------------------------------------------------------------
+# Role hierarchy — ADMINISTRATOR inherits all permissions.
+# OPERATOR and REVIEWER are independent roles (not hierarchical).
+#
+# Check semantics (see _user_meets_required_level):
+#   - require_role("ADMINISTRATOR")                    → ADMINISTRATOR only
+#   - require_role("OPERATOR")                         → ADMINISTRATOR + OPERATOR
+#   - require_role("REVIEWER")                         → ADMINISTRATOR + REVIEWER
+#   - require_role("OPERATOR", "ADMINISTRATOR")        → ADMINISTRATOR + OPERATOR
+#   - require_role("OPERATOR", "REVIEWER")             → ADMINISTRATOR + OPERATOR + REVIEWER
+#
+# ADMINISTRATOR is a privileged superset role — inherits every other role's permissions.
+# OPERATOR and REVIEWER are NOT hierarchical to each other.
+# -----------------------------------------------------------------------------
+
+
+def _user_meets_required_level(
+    user_role: str, required_roles: tuple[str, ...]
+) -> bool:
+    """Check if user_role satisfies ANY of required_roles.
+
+    ADMINISTRATOR is treated as a superset — always passes any required role.
+    For non-ADMIN users, exact-match against required_roles.
+
+    Ví dụ:
+        - require_role("OPERATOR") → ADMINISTRATOR + OPERATOR pass; REVIEWER fails
+        - require_role("REVIEWER") → ADMINISTRATOR + REVIEWER pass; OPERATOR fails
+        - require_role("ADMINISTRATOR") → only ADMINISTRATOR
+        - require_role("OPERATOR", "REVIEWER") → all three roles pass
+
+    Returns True nếu user role đáp ứng được một trong các required roles.
+    """
+    # ADMINISTRATOR inherits all other roles
+    if user_role == "ADMINISTRATOR":
+        return True
+    # Other roles must match exactly
+    return user_role in required_roles
+
+
+# -----------------------------------------------------------------------------
 # get_current_user — extract & validate JWT from Authorization header
 # -----------------------------------------------------------------------------
 
@@ -98,6 +137,13 @@ async def get_current_user(
     # Attach to request state for downstream access
     request.state.authenticated_user = user
 
+    # Check if user has been deactivated by admin (backend-side protection)
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is inactive",
+        )
+
     return user
 
 
@@ -109,6 +155,11 @@ async def get_current_user(
 def require_role(*allowed_roles: str) -> Any:
     """Factory trả FastAPI dependency kiểm tra user.role ∈ allowed_roles.
 
+    Hỗ trợ role hierarchy (ADMINISTRATOR inherits all other roles):
+        - ``require_role("OPERATOR")`` cho phép OPERATOR + ADMINISTRATOR (REVIEWER denied)
+        - ``require_role("REVIEWER")`` cho phép REVIEWER + ADMINISTRATOR (OPERATOR denied)
+        - ``require_role("ADMINISTRATOR")`` cho phép ADMINISTRATOR only
+
     Args:
         *allowed_roles: Danh sách vai trò được phép, vd "ADMINISTRATOR", "REVIEWER"
 
@@ -119,7 +170,7 @@ def require_role(*allowed_roles: str) -> Any:
         ):
             ...
 
-        # Multiple roles (any match)
+        # Multiple roles (any match) — kết hợp logic OR
         async def edit(
             user: AuthenticatedUser = Depends(
                 require_role("ADMINISTRATOR", "OPERATOR")
@@ -131,7 +182,7 @@ def require_role(*allowed_roles: str) -> Any:
     async def _role_checker(
         user: AuthenticatedUser = Depends(get_current_user),
     ) -> AuthenticatedUser:
-        if user.role not in allowed_roles:
+        if not _user_meets_required_level(user.role, allowed_roles):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(

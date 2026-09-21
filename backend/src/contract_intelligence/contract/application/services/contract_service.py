@@ -6,12 +6,13 @@ Layer: application — orchestrates infrastructure impls (qua Protocols).
 from __future__ import annotations
 
 import hashlib
-from typing import BinaryIO
+from typing import Any, BinaryIO
 
 import structlog
 
 from contract_intelligence.contract.domain.entities.document import Document, DocumentRole
 from contract_intelligence.contract.domain.entities.dossier import Dossier
+from contract_intelligence.contract.domain.entities.job import Job, JobStatus
 from contract_intelligence.contract.domain.entities.manifest import Manifest
 from contract_intelligence.contract.domain.repositories.document_repository import (
     DocumentRepository,
@@ -36,7 +37,7 @@ class ContractService:
     """Use-case orchestration cho Contract BC.
 
     Phương thức:
-        create_dossier(...)
+        create_dossier(...)  — creates Dossier + initial Job (UPLOADED)
         upload_document(...)
         list_dossiers(...)
         get_dossier(...)
@@ -64,10 +65,41 @@ class ContractService:
         self._storage = storage
         self._tenant_id = tenant_id
 
-    async def create_dossier(self, *, name: str, batch_id: str | None) -> Dossier:
-        dossier = Dossier(id=new_ulid("dos_"), name=name, batch_id=batch_id)
+    async def create_dossier(
+        self,
+        *,
+        name: str,
+        batch_id: str | None,
+        metadata: dict[str, Any] | None = None,
+    ) -> Dossier:
+        """Create dossier + initial Job (status=uploaded) in one use-case.
+
+        Per openapi.yaml createDossier: dossier/document/job are created together;
+        documents are added via upload_document() after this call.
+        """
+        dossier = Dossier(
+            id=new_ulid("dos_"),
+            name=name,
+            batch_id=batch_id,
+            metadata=metadata,
+        )
         await self._dossier_repo.add(dossier)
-        logger.info("dossier.created", dossier_id=dossier.id, tenant_id=self._tenant_id)
+
+        job = Job(
+            id=new_ulid("job_"),
+            dossier_id=dossier.id,
+            batch_id=batch_id,
+            status=JobStatus.UPLOADED,
+        )
+        await self._job_repo.add(job)
+        dossier.jobs = [job]
+
+        logger.info(
+            "dossier.created",
+            dossier_id=dossier.id,
+            job_id=job.id,
+            tenant_id=self._tenant_id,
+        )
         return dossier
 
     async def upload_document(
@@ -78,6 +110,7 @@ class ContractService:
         content: BinaryIO,
         role: DocumentRole,
         order_index: int = 0,
+        file_size_bytes: int | None = None,
     ) -> Document:
         # Verify dossier exists + tenant
         dossier = await self._dossier_repo.get(dossier_id)
@@ -87,6 +120,7 @@ class ContractService:
         # Compute sha256 + save to storage
         data = content.read()
         sha256 = hashlib.sha256(data).hexdigest()
+        size_bytes = file_size_bytes if file_size_bytes is not None else len(data)
 
         # Lưu file vào storage
         blob_key = f"contracts/{dossier_id}/{sha256[:2]}/{filename}"
@@ -100,6 +134,7 @@ class ContractService:
             filename=filename,
             sha256=sha256,
             blob_uri=blob_key,
+            file_size_bytes=size_bytes,
         )
         await self._document_repo.add(document)
         logger.info(
@@ -108,7 +143,7 @@ class ContractService:
             dossier_id=dossier_id,
             filename=filename,
             sha256=sha256,
-            size_bytes=len(data),
+            size_bytes=size_bytes,
         )
         return document
 
@@ -117,34 +152,60 @@ class ContractService:
         *,
         status: str | None = None,
         has_conflicts: bool | None = None,
+        q: str | None = None,
+        batch_id: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[Dossier], int]:
-        from typing import Any, cast
+        from typing import cast
 
         page = cast(
             Any,  # Page is generic with bound=str — runtime carries Dossier entities
             await self._dossier_repo.list(
                 status=status,
                 has_conflicts=has_conflicts,
+                q=q,
+                batch_id=batch_id,
                 limit=limit,
                 offset=offset,
             ),
         )
-        return list(page.items), page.total
+        items = list(page.items)
+        # Hydrate latest job onto each dossier for DossierSummary.latest_job_status
+        for dossier in items:
+            await self._hydrate_latest_job(dossier)
+        return items, page.total
 
     async def get_dossier(self, dossier_id: str) -> Dossier:
         dossier = await self._dossier_repo.get(dossier_id)
         if dossier is None:
             raise NotFoundError(entity_type="Dossier", entity_id=dossier_id)
+        await self._hydrate_latest_job(dossier)
         return dossier
 
-    async def patch_dossier(self, dossier_id: str, *, name: str | None) -> Dossier:
+    async def patch_dossier(
+        self,
+        dossier_id: str,
+        *,
+        name: str | None,
+        metadata: dict[str, object] | None = None,
+    ) -> Dossier:
         dossier = await self.get_dossier(dossier_id)
         if name:
             dossier.name = name
+        if metadata is not None:
+            dossier.metadata = metadata  # type: ignore[assignment]
         await self._dossier_repo.save(dossier)
         return dossier
+
+    async def _hydrate_latest_job(self, dossier: Dossier) -> None:
+        """Load latest Job onto dossier.jobs for navigation / DTO mapping."""
+        if dossier.jobs:
+            return
+        page = await self._job_repo.list(dossier_id=dossier.id, limit=1, offset=0)
+        jobs = list(page.items)
+        if jobs:
+            dossier.jobs = [jobs[0]]  # type: ignore[list-item]
 
     async def list_documents(self, dossier_id: str) -> list[Document]:
         return await self._document_repo.list_by_dossier(dossier_id)

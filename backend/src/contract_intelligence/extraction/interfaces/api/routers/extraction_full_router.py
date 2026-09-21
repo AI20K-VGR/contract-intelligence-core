@@ -23,12 +23,12 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query, status
 
 from contract_intelligence.extraction.interfaces.api.dependencies import (
     ExtractionServiceDep,
 )
-from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user
+from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user, require_role
 from contract_intelligence.shared.responses import ApiResponse
 
 router = APIRouter(tags=["Extraction"])
@@ -52,17 +52,14 @@ router = APIRouter(tags=["Extraction"])
 async def trigger_run(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ExtractionServiceDep,
-    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
     background_tasks: BackgroundTasks,
 ) -> ApiResponse[dict[str, Any]]:
-    """Kích hoạt pipeline run mới. RBAC: OPERATOR, ADMINISTRATOR.
+    """Kích hoạt pipeline run mới. RBAC: ADMINISTRATOR inherits OPERATOR.
 
     Background orchestrator sẽ chạy OCR → Extract → Compare chain qua AI service.
     Frontend poll GET /runs/{id} để theo dõi tiến độ.
     """
-    if user.role not in ("OPERATOR", "ADMINISTRATOR"):
-        raise HTTPException(status_code=403, detail="Insufficient role")
-
     run = await svc.trigger_pipeline_run(
         dossier_id=dossier_id,
         trace_id=str(user.user_id),
@@ -183,12 +180,9 @@ async def get_run_steps(
 async def cancel_run(
     run_id: Annotated[str, Path(min_length=1)],
     svc: ExtractionServiceDep,
-    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    _user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
-    """Hủy run đang chạy. RBAC: OPERATOR, ADMINISTRATOR."""
-    if user.role not in ("OPERATOR", "ADMINISTRATOR"):
-        raise HTTPException(status_code=403, detail="Insufficient role")
-
+    """Hủy run đang chạy. RBAC: ADMINISTRATOR inherits OPERATOR."""
     run = await svc.cancel_pipeline_run(run_id)
     return ApiResponse(
         data={
