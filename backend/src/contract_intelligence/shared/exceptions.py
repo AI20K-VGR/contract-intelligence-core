@@ -99,13 +99,28 @@ class InvalidStateTransition(DomainException):
 class ReviewVersionConflict(DomainException):
     """Optimistic concurrency fail trên ``review_item.version`` — HTTP 409."""
 
-    def __init__(self, review_item_id: str, expected_version: int, current_version: int) -> None:
+    def __init__(
+        self,
+        review_item_id: str,
+        expected_version: int,
+        current_version: int,
+        *,
+        current_state: dict[str, Any] | None = None,
+    ) -> None:
+        message = (
+            f"Version conflict: another action was submitted before yours "
+            f"(current version: {current_version})."
+        )
+        details: dict[str, Any] = {
+            "review_item_id": review_item_id,
+            "expected_version": expected_version,
+            "current_version": current_version,
+        }
+        if current_state is not None:
+            details["current_state"] = current_state
         super().__init__(
             DomainErrorCode.REVIEW_VERSION_CONFLICT,
-            "Review item đã bị sửa bởi reviewer khác — refetch và thử lại",
-            details={
-                "review_item_id": review_item_id,
-                "expected_version": expected_version,
-                "current_version": current_version,
-            },
+            message,
+            details=details,
         )
+        self.current_state = current_state
