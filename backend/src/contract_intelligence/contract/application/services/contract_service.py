@@ -6,7 +6,7 @@ Layer: application — orchestrates infrastructure impls (qua Protocols).
 from __future__ import annotations
 
 import hashlib
-from typing import Any, BinaryIO
+from typing import Any, BinaryIO, cast
 
 import structlog
 
@@ -194,7 +194,7 @@ class ContractService:
         if name:
             dossier.name = name
         if metadata is not None:
-            dossier.metadata = metadata  # type: ignore[assignment]
+            dossier.metadata = metadata
         await self._dossier_repo.save(dossier)
         return dossier
 
@@ -203,9 +203,8 @@ class ContractService:
         if dossier.jobs:
             return
         page = await self._job_repo.list(dossier_id=dossier.id, limit=1, offset=0)
-        jobs = list(page.items)
-        if jobs:
-            dossier.jobs = [jobs[0]]  # type: ignore[list-item]
+        if page.items:
+            dossier.jobs = [cast(Job, page.items[0])]
 
     async def list_documents(self, dossier_id: str) -> list[Document]:
         return await self._document_repo.list_by_dossier(dossier_id)

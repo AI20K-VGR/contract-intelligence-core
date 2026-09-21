@@ -27,9 +27,9 @@ from contract_intelligence.contract.application.services.contract_service import
 )
 from contract_intelligence.contract.domain.entities.document import Document, DocumentRole
 from contract_intelligence.contract.domain.entities.dossier import Dossier
+from contract_intelligence.main import app
 from contract_intelligence.shared.auth.schemas import AuthenticatedUser
 from contract_intelligence.shared.exceptions import NotFoundError
-from contract_intelligence.main import app
 
 pytestmark = pytest.mark.asyncio
 
@@ -41,31 +41,31 @@ pytestmark = pytest.mark.asyncio
 
 def _make_dossier(**kwargs: Any) -> Dossier:
     """Create a Dossier entity with sensible defaults."""
-    defaults = dict(
-        id="dos_TEST_01",
-        name="Test Dossier",
-        batch_id=None,
-        has_conflicts=False,
-        metadata=None,
-    )
+    defaults: dict[str, Any] = {
+        "id": "dos_TEST_01",
+        "name": "Test Dossier",
+        "batch_id": None,
+        "has_conflicts": False,
+        "metadata": None,
+    }
     defaults.update(kwargs)
     return Dossier(**defaults)
 
 
 def _make_document(**kwargs: Any) -> Document:
     """Create a Document entity with sensible defaults."""
-    defaults = dict(
-        id="doc_TEST_01",
-        dossier_id="dos_TEST_01",
-        role=DocumentRole.CONTRACT,
-        order_index=0,
-        filename="contract.pdf",
-        sha256="abc123",
-        blob_uri="contracts/dos_TEST_01/ab/contract.pdf",
-        file_size_bytes=1024,
-        page_count=5,
-        lang_detected="vi",
-    )
+    defaults: dict[str, Any] = {
+        "id": "doc_TEST_01",
+        "dossier_id": "dos_TEST_01",
+        "role": DocumentRole.CONTRACT,
+        "order_index": 0,
+        "filename": "contract.pdf",
+        "sha256": "abc123",
+        "blob_uri": "contracts/dos_TEST_01/ab/contract.pdf",
+        "file_size_bytes": 1024,
+        "page_count": 5,
+        "lang_detected": "vi",
+    }
     defaults.update(kwargs)
     return Document(**defaults)
 
@@ -93,8 +93,7 @@ def _reviewer_user() -> AuthenticatedUser:
 @pytest_asyncio.fixture
 async def mock_svc() -> AsyncMock:
     """Create a fully mocked ContractService."""
-    svc = AsyncMock(spec=ContractService)
-    return svc
+    return AsyncMock(spec=ContractService)
 
 
 @pytest_asyncio.fixture
@@ -235,9 +234,7 @@ class TestPatchDossierEndpoint:
             "dos_TEST_01", name="Updated Name", metadata={"priority": "high"}
         )
 
-    async def test_patch_with_name_only(
-        self, client: AsyncClient, mock_svc: AsyncMock
-    ) -> None:
+    async def test_patch_with_name_only(self, client: AsyncClient, mock_svc: AsyncMock) -> None:
         updated = _make_dossier(name="Just Name")
         mock_svc.patch_dossier.return_value = updated
         mock_svc.list_documents.return_value = []
@@ -252,9 +249,7 @@ class TestPatchDossierEndpoint:
             "dos_TEST_01", name="Just Name", metadata=None
         )
 
-    async def test_patch_with_metadata_only(
-        self, client: AsyncClient, mock_svc: AsyncMock
-    ) -> None:
+    async def test_patch_with_metadata_only(self, client: AsyncClient, mock_svc: AsyncMock) -> None:
         updated = _make_dossier(metadata={"key": "val"})
         mock_svc.patch_dossier.return_value = updated
         mock_svc.list_documents.return_value = []
@@ -283,9 +278,7 @@ class TestPatchDossierEndpoint:
 
         assert resp.status_code == 404
 
-    async def test_rbac_rejects_reviewer(
-        self, client: AsyncClient, mock_svc: AsyncMock
-    ) -> None:
+    async def test_rbac_rejects_reviewer(self, client: AsyncClient, mock_svc: AsyncMock) -> None:
         """PATCH should be rejected for REVIEWER role (only OPERATOR/ADMIN allowed)."""
         from contract_intelligence.shared.auth import get_current_user
 
@@ -457,9 +450,7 @@ class TestCreateDossierEndpoint:
         from contract_intelligence.contract.domain.entities.job import Job, JobStatus
 
         dossier = _make_dossier(id="dos_META_01")
-        dossier.jobs = [
-            Job(id="job_META_01", dossier_id="dos_META_01", status=JobStatus.UPLOADED)
-        ]
+        dossier.jobs = [Job(id="job_META_01", dossier_id="dos_META_01", status=JobStatus.UPLOADED)]
         mock_svc.create_dossier.return_value = dossier
         mock_svc.upload_document.return_value = _make_document(dossier_id="dos_META_01")
 
@@ -469,9 +460,7 @@ class TestCreateDossierEndpoint:
                 "contract": ("c.pdf", b"%PDF", "application/pdf"),
                 "metadata": (
                     None,
-                    json.dumps(
-                        {"name": "Tagged", "tags": ["urgent"], "notes": "review asap"}
-                    ),
+                    json.dumps({"name": "Tagged", "tags": ["urgent"], "notes": "review asap"}),
                 ),
             },
         )
@@ -495,9 +484,7 @@ class TestCreateDossierEndpoint:
 
         assert resp.status_code == 422
 
-    async def test_rbac_rejects_reviewer(
-        self, client: AsyncClient, mock_svc: AsyncMock
-    ) -> None:
+    async def test_rbac_rejects_reviewer(self, client: AsyncClient, mock_svc: AsyncMock) -> None:
         """POST /dossiers should reject REVIEWER role."""
         from contract_intelligence.shared.auth import get_current_user
 
@@ -513,9 +500,7 @@ class TestCreateDossierEndpoint:
 
         assert resp.status_code == 403
 
-    async def test_upload_with_annexes(
-        self, client: AsyncClient, mock_svc: AsyncMock
-    ) -> None:
+    async def test_upload_with_annexes(self, client: AsyncClient, mock_svc: AsyncMock) -> None:
         from contract_intelligence.contract.domain.entities.job import Job, JobStatus
 
         dossier = _make_dossier(id="dos_ANNEX_01")

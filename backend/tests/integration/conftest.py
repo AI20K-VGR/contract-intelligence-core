@@ -10,8 +10,8 @@ from tests.conftest import (  # noqa: F401
     operator_user,
     reviewer_user,
     rsa_keypair,
-    sample_dossier_id,
     sample_document_id,
+    sample_dossier_id,
 )
 
 __all__ = [

@@ -54,7 +54,9 @@ async def create_reocr_request(
     document_id: Annotated[str, Path(min_length=1)],
     body: Annotated[ReOcrRequest, Body()],
     svc: ReOcrServiceDep,
-    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "REVIEWER", "ADMINISTRATOR"))],
+    user: Annotated[
+        AuthenticatedUser, Depends(require_role("OPERATOR", "REVIEWER", "ADMINISTRATOR"))
+    ],
     background_tasks: BackgroundTasks,
 ) -> ApiResponse[dict[str, Any]]:
     """RBAC: OPERATOR, REVIEWER, ADMINISTRATOR.

@@ -48,7 +48,6 @@ from contract_intelligence.shared.persistence import (
     reset_engine,
 )
 from contract_intelligence.shared.persistence.session import get_async_session
-import tempfile
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Settings override (autouse) — Keycloak SSO mode (no /auth/login anymore)

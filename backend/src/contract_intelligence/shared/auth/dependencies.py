@@ -65,9 +65,7 @@ _TENANT_HEADER: str = "X-Tenant-Id"
 # -----------------------------------------------------------------------------
 
 
-def _user_meets_required_level(
-    user_role: str, required_roles: tuple[str, ...]
-) -> bool:
+def _user_meets_required_level(user_role: str, required_roles: tuple[str, ...]) -> bool:
     """Check if user_role satisfies ANY of required_roles.
 
     ADMINISTRATOR is treated as a superset — always passes any required role.

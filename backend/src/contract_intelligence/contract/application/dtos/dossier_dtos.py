@@ -9,9 +9,9 @@ Schemas match DOC-05-api-spec.yaml components:
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Any
 
 from contract_intelligence.contract.domain.entities.document import Document, DocumentRole
 from contract_intelligence.contract.domain.entities.dossier import Dossier
@@ -91,9 +91,7 @@ class DossierDetailDTO(BaseModel):
             has_conflicts=dossier.has_conflicts,
             latest_job_id=latest_job_id,
             latest_job_status=latest_job_status,
-            documents=[
-                DocumentSummaryDTO.from_domain(d) for d in (documents or [])
-            ],
+            documents=[DocumentSummaryDTO.from_domain(d) for d in (documents or [])],
             open_review_items=open_review_items,
             pending_conflicts=pending_conflicts,
             metadata=dossier.metadata,

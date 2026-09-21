@@ -13,7 +13,6 @@ Used by:
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
-from io import BytesIO
 from pathlib import Path
 from typing import Any, BinaryIO
 
@@ -37,12 +36,8 @@ from contract_intelligence.contract.domain.repositories.dossier_repository impor
 from contract_intelligence.contract.domain.repositories.job_repository import (
     JobRepository,
 )
-from contract_intelligence.contract.domain.repositories.manifest_repository import (
-    ManifestRepository,
-)
 from contract_intelligence.shared.base import Page
 from contract_intelligence.shared.storage import FileStorage
-
 
 # -----------------------------------------------------------------------------
 # In-memory repositories (fakes) — for unit tests
@@ -103,16 +98,16 @@ class FakeDossierRepository(DossierRepository):
 
     async def update_status(self, dossier_id: str, status: str) -> None:
         if dossier_id in self._store:
-            setattr(self._store[dossier_id], "_status", status)
+            self._store[dossier_id]._status = status
 
     async def lock(self, dossier_id: str, locked: bool = True) -> None:
         if dossier_id in self._store:
-            setattr(self._store[dossier_id], "_is_locked", locked)
+            self._store[dossier_id]._is_locked = locked
 
     async def approve(self, dossier_id: str, checksum: str) -> None:
         if dossier_id in self._store:
-            setattr(self._store[dossier_id], "_is_approved", True)
-            setattr(self._store[dossier_id], "_checksum", checksum)
+            self._store[dossier_id]._is_approved = True
+            self._store[dossier_id]._checksum = checksum
 
 
 class FakeDocumentRepository(DocumentRepository):

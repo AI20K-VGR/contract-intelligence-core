@@ -21,7 +21,6 @@ from contract_intelligence.contract.application.services.contract_service import
 from contract_intelligence.contract.domain.entities.document import DocumentRole
 from contract_intelligence.shared.exceptions import NotFoundError
 
-
 pytestmark = pytest.mark.asyncio
 
 
@@ -62,18 +61,14 @@ class TestCreateDossier:
         contract_service: ContractService,
     ) -> None:
         meta = {"tags": ["q2"], "notes": "urgent"}
-        dossier = await contract_service.create_dossier(
-            name="Meta", batch_id=None, metadata=meta
-        )
+        dossier = await contract_service.create_dossier(name="Meta", batch_id=None, metadata=meta)
         assert dossier.metadata == meta
 
     async def test_creates_dossier_with_batch_id(
         self,
         contract_service: ContractService,
     ) -> None:
-        dossier = await contract_service.create_dossier(
-            name="Batch test", batch_id="bat_01HZ"
-        )
+        dossier = await contract_service.create_dossier(name="Batch test", batch_id="bat_01HZ")
         assert dossier.batch_id == "bat_01HZ"
         job = dossier.latest_job()
         assert job is not None
@@ -239,14 +234,12 @@ class TestListDossiers:
         fake_repos: dict[str, Any],
     ) -> None:
         d1 = await contract_service.create_dossier(name="C", batch_id=None)
-        d2 = await contract_service.create_dossier(name="NC", batch_id=None)
+        await contract_service.create_dossier(name="NC", batch_id=None)
         # Mutate + persist the change
         d1.has_conflicts = True
         await fake_repos["dossier_repo"].save(d1)
 
-        items, total = await contract_service.list_dossiers(
-            has_conflicts=True, limit=10, offset=0
-        )
+        items, total = await contract_service.list_dossiers(has_conflicts=True, limit=10, offset=0)
         assert total == 1
         assert items[0].id == d1.id
 
@@ -258,9 +251,7 @@ class TestListDossiers:
         await contract_service.create_dossier(name="Phụ lục gia hạn", batch_id=None)
         await contract_service.create_dossier(name="Hợp đồng thuê nhà", batch_id=None)
 
-        items, total = await contract_service.list_dossiers(
-            q="Hợp đồng", limit=10, offset=0
-        )
+        items, total = await contract_service.list_dossiers(q="Hợp đồng", limit=10, offset=0)
         assert total == 2
         assert all("Hợp đồng" in d.name for d in items)
 
@@ -272,9 +263,7 @@ class TestListDossiers:
         await contract_service.create_dossier(name="B", batch_id="bat_02")
         await contract_service.create_dossier(name="C", batch_id="bat_01")
 
-        items, total = await contract_service.list_dossiers(
-            batch_id="bat_01", limit=10, offset=0
-        )
+        items, total = await contract_service.list_dossiers(batch_id="bat_01", limit=10, offset=0)
         assert total == 2
         assert all(d.batch_id == "bat_01" for d in items)
 
@@ -285,9 +274,7 @@ class TestListDossiers:
         await contract_service.create_dossier(name="Alpha Contract", batch_id=None)
         await contract_service.create_dossier(name="Beta", batch_id=None)
 
-        items, total = await contract_service.list_dossiers(
-            q="alpha", limit=10, offset=0
-        )
+        items, total = await contract_service.list_dossiers(q="alpha", limit=10, offset=0)
         assert total == 1
         assert items[0].name == "Alpha Contract"
 
@@ -342,9 +329,7 @@ class TestPatchDossier:
         assert dossier.metadata is None
 
         meta = {"tags": ["urgent", "q2-2026"], "notes": "Internal review needed"}
-        patched = await contract_service.patch_dossier(
-            dossier.id, name=None, metadata=meta
-        )
+        patched = await contract_service.patch_dossier(dossier.id, name=None, metadata=meta)
         assert patched.metadata == meta
 
     async def test_updates_name_and_metadata_together(
@@ -363,9 +348,7 @@ class TestPatchDossier:
         contract_service: ContractService,
     ) -> None:
         dossier = await contract_service.create_dossier(name="D", batch_id=None)
-        await contract_service.patch_dossier(
-            dossier.id, name=None, metadata={"key": "value"}
-        )
+        await contract_service.patch_dossier(dossier.id, name=None, metadata={"key": "value"})
         reloaded = await contract_service.get_dossier(dossier.id)
         assert reloaded.metadata == {"key": "value"}
 
@@ -375,9 +358,7 @@ class TestPatchDossier:
     ) -> None:
         """When metadata is None (not provided), existing metadata should remain."""
         dossier = await contract_service.create_dossier(name="D", batch_id=None)
-        await contract_service.patch_dossier(
-            dossier.id, name=None, metadata={"existing": True}
-        )
+        await contract_service.patch_dossier(dossier.id, name=None, metadata={"existing": True})
         # Patch again without metadata — should keep existing
         patched = await contract_service.patch_dossier(dossier.id, name="Updated")
         assert patched.metadata == {"existing": True}

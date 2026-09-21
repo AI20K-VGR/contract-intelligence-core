@@ -143,7 +143,7 @@ async def _ingest_upload_file(
     summary="Tạo dossier + upload file hợp đồng/phụ lục",
     description=(
         "Multipart upload: `contract` (bắt buộc), `annexes` (tuỳ chọn, 0..n), "
-        "`metadata` (JSON string bắt buộc — vd `{\"name\": \"...\"}`).\n\n"
+        '`metadata` (JSON string bắt buộc — vd `{"name": "..."}`).\n\n'
         "RBAC: OPERATOR, ADMINISTRATOR (per openapi.yaml x-rbac)."
     ),
     responses={
@@ -177,10 +177,9 @@ async def create_dossier(
     # Validate contract file
     if not contract or not contract.filename:
         raise HTTPException(status_code=400, detail="contract file is required")
-    if (
-        contract.content_type
-        and contract.content_type
-        not in ("application/pdf", "application/octet-stream")
+    if contract.content_type and contract.content_type not in (
+        "application/pdf",
+        "application/octet-stream",
     ):
         # Warn but don't reject — Sprint 3 local dev sometimes sends octet-stream
         pass
@@ -268,14 +267,17 @@ async def list_dossiers(
         limit=limit,
         offset=offset,
     )
-    return ApiResponse(
-        data=[
+    summaries: list[DossierSummaryDTO] = []
+    for d in items:
+        latest = d.latest_job()
+        summaries.append(
             DossierSummaryDTO.from_domain(
                 d,
-                latest_job_status=(d.latest_job().status if d.latest_job() else None),
+                latest_job_status=latest.status if latest else None,
             )
-            for d in items
-        ],
+        )
+    return ApiResponse(
+        data=summaries,
         meta=ApiMeta(
             total=total,
             page=(offset // limit) + 1,
@@ -339,9 +341,7 @@ async def patch_dossier(
     """
     if body is None:
         body = DossierUpdateBody()
-    dossier = await svc.patch_dossier(
-        dossier_id, name=body.name, metadata=body.metadata
-    )
+    dossier = await svc.patch_dossier(dossier_id, name=body.name, metadata=body.metadata)
     documents = await svc.list_documents(dossier_id)
     latest = dossier.latest_job()
     return ApiResponse(

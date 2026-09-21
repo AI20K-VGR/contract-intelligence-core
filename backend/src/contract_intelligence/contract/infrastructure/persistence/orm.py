@@ -13,12 +13,12 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
     ForeignKey,
     Index,
     Integer,
-    JSON,
     String,
     Text,
     UniqueConstraint,
@@ -43,7 +43,7 @@ class DossierORM(Base):
     is_locked: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     is_approved: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     checksum: Mapped[str | None] = mapped_column(Text, nullable=True)
-    metadata_json: Mapped[dict | None] = mapped_column(
+    metadata_json: Mapped[dict[str, object] | None] = mapped_column(
         "metadata", JSON, nullable=True, default=None
     )
     created_at: Mapped[datetime] = mapped_column(

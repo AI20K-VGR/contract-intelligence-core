@@ -24,28 +24,14 @@ from typing import Any
 
 import pytest
 import pytest_asyncio
-from fastapi import Depends
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
 from tests.unit.conftest_contract import FakeFileStorage
 
-from contract_intelligence.config.settings import Settings, get_settings
-from contract_intelligence.contract.application.services.contract_service import (
-    ContractService,
-)
-from contract_intelligence.contract.infrastructure.persistence.repository_impl import (
-    DocumentRepositoryImpl,
-    DossierRepositoryImpl,
-    JobRepositoryImpl,
-    ManifestRepositoryImpl,
-)
+from contract_intelligence.config.settings import get_settings
 from contract_intelligence.main import app
-from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.shared.persistence import Base, bind_engine, reset_engine
 from contract_intelligence.shared.persistence.session import get_async_session
-from contract_intelligence.shared.storage import LocalFileStorage
-import tempfile
 
 # ---------------------------------------------------------------------------
 # Settings override — SQLite in-memory + Keycloak mode
@@ -114,6 +100,7 @@ async def client(
     # Override storage singleton with in-memory fake — avoids run_in_executor hangs
     # in pytest-asyncio context (asyncio.get_event_loop() inside executor is unreliable).
     from contract_intelligence.shared.storage import set_file_storage
+
     fake_storage = FakeFileStorage()
     set_file_storage(fake_storage)
 
@@ -131,7 +118,6 @@ async def client(
                 await session.close()
 
     # Override the session dependency
-    from contract_intelligence.shared.persistence.session import get_async_session
 
     app.dependency_overrides[get_async_session] = override_get_async_session
 
@@ -142,6 +128,7 @@ async def client(
     app.dependency_overrides.clear()
     # Reset storage singleton to allow next test to re-override cleanly
     from contract_intelligence.shared.storage import reset_file_storage
+
     reset_file_storage()
 
 
@@ -175,7 +162,9 @@ class TestDossierEndpoints:
             data={"metadata": '{"name": "Test Contract"}'},
             headers=_auth_headers(token),
         )
-        assert response.status_code == 202, f"Expected 202, got {response.status_code}: {response.text}"
+        assert response.status_code == 202, (
+            f"Expected 202, got {response.status_code}: {response.text}"
+        )
         body = response.json()
         assert "data" in body
         assert "dossier_id" in body["data"]
@@ -493,7 +482,7 @@ class TestDossierEndpoints:
 
         # All GET endpoints should work as REVIEWER
         for path in [
-            f"/api/v1/dossiers",
+            "/api/v1/dossiers",
             f"/api/v1/dossiers/{dossier_id}",
             f"/api/v1/dossiers/{dossier_id}/documents",
         ]:

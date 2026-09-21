@@ -100,7 +100,9 @@ async def backend_readyz() -> ApiResponse[dict[str, Any]]:
 )
 async def ai_get_job_status(
     job_id: Annotated[str, Path(min_length=1)],
-    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "REVIEWER", "ADMINISTRATOR"))],
+    user: Annotated[
+        AuthenticatedUser, Depends(require_role("OPERATOR", "REVIEWER", "ADMINISTRATOR"))
+    ],
 ) -> ApiResponse[dict[str, Any]]:
     """Proxy sang AI service GET /jobs/{id} (DOC-05c §4.5).
 
