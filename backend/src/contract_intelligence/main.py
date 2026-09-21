@@ -125,17 +125,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     bind_engine(engine)
     logger.info("db_engine_bound", url=split_url(settings.database_url))
 
-    # Ensure schema exists (Docker entrypoint also runs this; safe to re-run)
-    try:
-        await _run_alembic_upgrade()
-        logger.info("alembic.upgrade_head.ok")
-    except Exception as exc:
-        # Fallback for local/sqlite tests without alembic.ini path — create_all
-        logger.warning("alembic.upgrade_head.failed", error=str(exc))
-        import_all_models()
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        logger.info("db.create_all.fallback_ok")
+    # Ensure schema exists (Docker entrypoint also runs this; safe to re-run).
+    # Skip Alembic subprocess in test — fixtures already create_all on their engine.
+    if settings.env == "test":
+        logger.info("alembic.upgrade_head.skipped", reason="env=test")
+    else:
+        try:
+            await _run_alembic_upgrade()
+            logger.info("alembic.upgrade_head.ok")
+        except Exception as exc:
+            # Fallback for local/sqlite without alembic.ini path — create_all
+            logger.warning("alembic.upgrade_head.failed", error=str(exc))
+            import_all_models()
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            logger.info("db.create_all.fallback_ok")
 
     # Initialize AI service client (singleton) — verify connectivity
     ai_client = get_ai_service_client()
@@ -148,9 +152,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _dispatcher = get_background_dispatcher()
     logger.info("dispatcher.ready")
 
-    # Postgres job queue worker + lease reaper (no Redis/Celery)
-    start_job_queue_worker(engine)
-    logger.info("job_queue.worker_ready", enabled=settings.job_queue_enabled)
+    # Postgres job queue worker + lease reaper (no Redis/Celery).
+    # Skip in test env — ASGI integration clients manage their own DB and would
+    # hang forever on the worker/reaper asyncio loops.
+    if settings.job_queue_enabled and settings.env != "test":
+        start_job_queue_worker(engine)
+        logger.info("job_queue.worker_ready", enabled=True)
+    else:
+        logger.info(
+            "job_queue.worker_skipped",
+            enabled=settings.job_queue_enabled,
+            env=settings.env,
+        )
 
     yield
 

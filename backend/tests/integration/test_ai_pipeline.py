@@ -73,6 +73,7 @@ def _override_settings() -> AsyncGenerator[None, None]:
     settings.ai_service_mode = "stub"  # Dùng stub để test deterministic
     settings.ai_dispatcher_max_polls = 5
     settings.ai_dispatcher_poll_interval_seconds = 0.1
+    settings.job_queue_enabled = False
     yield
     get_settings.cache_clear()
 

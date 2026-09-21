@@ -55,6 +55,7 @@ def _override_settings() -> Any:
         "ci_administrator": "ADMINISTRATOR",
     }
     settings.env = "test"
+    settings.job_queue_enabled = False
     yield
     get_settings.cache_clear()
 
