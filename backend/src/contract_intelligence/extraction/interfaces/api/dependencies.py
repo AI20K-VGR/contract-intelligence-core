@@ -27,12 +27,14 @@ from contract_intelligence.shared.ai import (
 )
 from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.shared.persistence import get_async_session
+from contract_intelligence.shared.storage import FileStorage, get_file_storage
 
 
 async def get_extraction_service(
     session: Annotated[AsyncSession, Depends(get_async_session)],
     tenant_id: Annotated[str, Depends(get_tenant_id)],
     orchestrator: Annotated[PipelineOrchestrator, Depends(get_pipeline_orchestrator)],
+    storage: Annotated[FileStorage, Depends(get_file_storage)],
 ) -> ExtractionService:
     """Compose ExtractionService bound to current tenant + session + orchestrator.
 
@@ -50,6 +52,7 @@ async def get_extraction_service(
         clause_repo=ClauseNodeRepositoryImpl(session, tenant_id),
         table_repo=DocTableRepositoryImpl(session, tenant_id),
         document_repo=DocumentRepositoryImpl(session, tenant_id),
+        storage=storage,
         orchestrator=orchestrator,
         tenant_id=tenant_id,
     )

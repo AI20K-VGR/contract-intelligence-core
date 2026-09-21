@@ -17,4 +17,12 @@ class FactRepository(Protocol):
 
     async def list_by_key(self, key: str) -> list[dict[str, Any]]: ...
 
+    async def list_effective_by_dossier(
+        self,
+        dossier_id: str,
+        *,
+        key: str | None = None,
+        effective: bool = True,
+    ) -> list[dict[str, Any]]: ...
+
     async def add(self, fact: object) -> None: ...

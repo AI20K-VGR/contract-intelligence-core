@@ -16,10 +16,22 @@ class FindingRepository(Protocol):
     async def get(self, finding_id: str) -> dict[str, Any] | None: ...
 
     async def list_by_dossier(
-        self, dossier_id: str, *, limit: int = 50, offset: int = 0
+        self,
+        dossier_id: str,
+        *,
+        disposition: str | None = None,
+        scope: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
     ) -> tuple[list[dict[str, Any]], int]: ...
 
-    async def list_conflicts_for_review(self, dossier_id: str) -> list[dict[str, Any]]: ...
+    async def list_conflicts_for_review(
+        self,
+        dossier_id: str,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[dict[str, Any]], int]: ...
 
     async def add(self, finding: object) -> None: ...
 

@@ -18,7 +18,8 @@ class ConflictQueryService:
         self._finding_repo = finding_repo
 
     async def list_conflicts(self, dossier_id: str) -> list[dict[str, Any]]:
-        return await self._finding_repo.list_conflicts_for_review(dossier_id)
+        items, _total = await self._finding_repo.list_conflicts_for_review(dossier_id)
+        return items
 
     async def list_all(
         self,
@@ -28,5 +29,6 @@ class ConflictQueryService:
         severity: Severity | None = None,
     ) -> list[dict[str, Any]]:
         """List findings cho dossier (filters chưa được apply — refactor sprint sau)."""
+        _ = disposition, severity
         items, _total = await self._finding_repo.list_by_dossier(dossier_id, limit=50, offset=0)
         return items

@@ -11,6 +11,15 @@ import structlog
 from contract_intelligence.contract.domain.repositories.document_repository import (
     DocumentRepository,
 )
+from contract_intelligence.extraction.application.dtos.clause_dtos import (
+    ClauseNodeDTO,
+    build_clause_tree,
+)
+from contract_intelligence.extraction.application.dtos.fact_effective_dtos import (
+    FactEffectiveDTO,
+)
+from contract_intelligence.extraction.application.dtos.page_dtos import PageDTO
+from contract_intelligence.extraction.application.dtos.table_dtos import DocTableDTO
 from contract_intelligence.extraction.domain.entities.pipeline_run import (
     PipelineRun,
     PipelineRunStatus,
@@ -35,6 +44,7 @@ from contract_intelligence.shared.ai.pipeline_orchestrator import (
 )
 from contract_intelligence.shared.base import new_ulid
 from contract_intelligence.shared.exceptions import NotFoundError
+from contract_intelligence.shared.storage import FileStorage
 
 logger = structlog.get_logger(__name__)
 
@@ -56,6 +66,7 @@ class ExtractionService:
         clause_repo: Any,  # ClauseNodeRepository — chưa extract Protocol
         table_repo: Any,  # DocTableRepository — chưa extract Protocol
         document_repo: DocumentRepository | None = None,
+        storage: FileStorage | None = None,
         orchestrator: PipelineOrchestrator | None = None,
         tenant_id: str,
     ) -> None:
@@ -67,6 +78,7 @@ class ExtractionService:
         self._clause_repo = clause_repo
         self._table_repo = table_repo
         self._document_repo = document_repo
+        self._storage = storage
         self._orchestrator = orchestrator or get_pipeline_orchestrator()
         self._tenant_id = tenant_id
 
@@ -227,10 +239,11 @@ class ExtractionService:
         run.status = PipelineRunStatus.CANCELLED
         return run
 
-    # ----- Read endpoints -----------------------------------------------------
+    # ----- Read endpoints (Phase 2) ------------------------------------------
 
-    async def list_pages(self, document_id: str) -> list[dict[str, Any]]:
-        return await self._page_repo.list_by_document(document_id)
+    async def list_pages(self, document_id: str) -> list[PageDTO]:
+        rows = await self._page_repo.list_by_document(document_id)
+        return [PageDTO.from_row(r) for r in rows]
 
     async def get_page(self, page_id: str) -> dict[str, Any]:
         data = await self._page_repo.get(page_id)
@@ -238,8 +251,64 @@ class ExtractionService:
             raise NotFoundError(entity_type="Page", entity_id=page_id)
         return data
 
+    async def get_page_image(
+        self,
+        document_id: str,
+        page_no: int,
+        *,
+        variant: str = "preview",
+    ) -> tuple[bytes, str]:
+        """Stream page image bytes from storage.
+
+        Returns:
+            (image_bytes, media_type) — media_type is image/png or image/webp.
+        """
+        if self._storage is None:
+            raise RuntimeError("storage is None — ExtractionService needs FileStorage injected")
+
+        page = await self._page_repo.get_by_document_and_page_no(document_id, page_no)
+        if page is None:
+            raise NotFoundError(
+                entity_type="Page",
+                entity_id=f"{document_id}#{page_no}",
+            )
+
+        uri = page.get("preview_uri") if variant == "preview" else page.get("render_uri")
+        if not uri:
+            # Fall back to the other variant if requested one is missing
+            uri = page.get("render_uri") or page.get("preview_uri")
+        if not uri:
+            raise NotFoundError(
+                entity_type="PageImage",
+                entity_id=f"{document_id}#{page_no}/{variant}",
+            )
+
+        try:
+            data = await self._storage.get(uri)
+        except FileNotFoundError as exc:
+            raise NotFoundError(
+                entity_type="PageImage",
+                entity_id=f"{document_id}#{page_no}/{variant}",
+            ) from exc
+
+        media_type = "image/webp" if str(uri).lower().endswith(".webp") else "image/png"
+        return data, media_type
+
     async def list_facts(self, document_id: str) -> list[dict[str, Any]]:
         return await self._fact_repo.list_by_document(document_id)
+
+    async def list_dossier_facts(
+        self,
+        dossier_id: str,
+        *,
+        key: str | None = None,
+        effective: bool = True,
+    ) -> list[FactEffectiveDTO]:
+        """List FactEffective for a dossier — includes current_version for concurrency."""
+        rows = await self._fact_repo.list_effective_by_dossier(
+            dossier_id, key=key, effective=effective
+        )
+        return [FactEffectiveDTO.from_row(r, effective=effective) for r in rows]
 
     async def get_fact(self, fact_id: str) -> dict[str, Any]:
         data = await self._fact_repo.get(fact_id)
@@ -253,13 +322,20 @@ class ExtractionService:
             raise NotFoundError(entity_type="Citation", entity_id=citation_id)
         return data
 
-    async def list_clauses(self, document_id: str) -> list[dict[str, Any]]:
-        from typing import cast
+    async def list_clauses(
+        self, document_id: str, *, run_id: str | None = None
+    ) -> list[ClauseNodeDTO]:
+        flat = cast(list[dict[str, Any]], await self._clause_repo.list_by_document(document_id))
+        # run_id reserved for future pipeline-scoped filtering
+        _ = run_id
+        return build_clause_tree(flat)
 
-        return cast(list[dict[str, Any]], await self._clause_repo.list_by_document(document_id))
-
-    async def list_tables(self, document_id: str) -> list[dict[str, Any]]:
-        return cast(list[dict[str, Any]], await self._table_repo.list_by_document(document_id))
+    async def list_tables(
+        self, document_id: str, *, run_id: str | None = None
+    ) -> list[DocTableDTO]:
+        rows = cast(list[dict[str, Any]], await self._table_repo.list_by_document(document_id))
+        _ = run_id
+        return [DocTableDTO.from_row(r) for r in rows]
 
 
 __all__ = ["ExtractionService"]

@@ -23,8 +23,15 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query, Response, status
+from fastapi.responses import StreamingResponse
 
+from contract_intelligence.extraction.application.dtos.clause_dtos import ClauseNodeDTO
+from contract_intelligence.extraction.application.dtos.fact_effective_dtos import (
+    FactEffectiveDTO,
+)
+from contract_intelligence.extraction.application.dtos.page_dtos import PageDTO
+from contract_intelligence.extraction.application.dtos.table_dtos import DocTableDTO
 from contract_intelligence.extraction.interfaces.api.dependencies import (
     ExtractionServiceDep,
 )
@@ -193,22 +200,49 @@ async def cancel_run(
 
 
 # -----------------------------------------------------------------------------
-# Màn hình 5 — PDF Document Explorer
+# Màn hình 5 — PDF Document Explorer (Phase 2)
 # -----------------------------------------------------------------------------
 
 
 @router.get(
     "/documents/{document_id}/pages",
-    response_model=ApiResponse[list[Any]],
+    response_model=ApiResponse[list[PageDTO]],
     summary="List pages of document",
 )
 async def list_pages(
     document_id: Annotated[str, Path(min_length=1)],
     svc: ExtractionServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-) -> ApiResponse[list[Any]]:
+) -> ApiResponse[list[PageDTO]]:
     """Danh sách trang + kích thước + link ảnh."""
     return ApiResponse(data=await svc.list_pages(document_id))
+
+
+@router.get(
+    "/documents/{document_id}/pages/{page_no}/image",
+    summary="Stream page image (PNG/WebP) from storage",
+    responses={
+        200: {
+            "content": {"image/png": {}, "image/webp": {}},
+            "description": "Page image binary",
+        },
+        404: {"description": "Page or image not found"},
+    },
+)
+async def get_page_image(
+    document_id: Annotated[str, Path(min_length=1)],
+    page_no: Annotated[int, Path(ge=1)],
+    svc: ExtractionServiceDep,
+    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    variant: Annotated[str, Query(pattern="^(preview|render)$")] = "preview",
+) -> StreamingResponse:
+    """Ảnh trang — variant=preview|render (default preview)."""
+    data, media_type = await svc.get_page_image(document_id, page_no, variant=variant)
+    return StreamingResponse(
+        iter([data]),
+        media_type=media_type,
+        headers={"Content-Length": str(len(data))},
+    )
 
 
 @router.get(
@@ -227,35 +261,62 @@ async def get_page(
 
 @router.get(
     "/documents/{document_id}/clauses",
-    response_model=ApiResponse[list[Any]],
+    response_model=ApiResponse[list[ClauseNodeDTO]],
     summary="Clause tree of document",
 )
 async def list_clauses(
     document_id: Annotated[str, Path(min_length=1)],
     svc: ExtractionServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-) -> ApiResponse[list[Any]]:
+    run_id: Annotated[str | None, Query()] = None,
+) -> ApiResponse[list[ClauseNodeDTO]]:
     """Cây điều khoản (article > clause > point)."""
-    return ApiResponse(data=await svc.list_clauses(document_id))
+    return ApiResponse(data=await svc.list_clauses(document_id, run_id=run_id))
 
 
 @router.get(
     "/documents/{document_id}/tables",
-    response_model=ApiResponse[list[Any]],
+    response_model=ApiResponse[list[DocTableDTO]],
     summary="Tables detected in document",
 )
 async def list_tables(
     document_id: Annotated[str, Path(min_length=1)],
     svc: ExtractionServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-) -> ApiResponse[list[Any]]:
+    run_id: Annotated[str | None, Query()] = None,
+) -> ApiResponse[list[DocTableDTO]]:
     """Bảng biểu phát hiện được + cells."""
-    return ApiResponse(data=await svc.list_tables(document_id))
+    return ApiResponse(data=await svc.list_tables(document_id, run_id=run_id))
 
 
 # -----------------------------------------------------------------------------
-# Màn hình 6 — Fact & Extraction Inspector
+# Màn hình 6 — Fact & Extraction Inspector (Phase 2)
 # -----------------------------------------------------------------------------
+
+
+@router.get(
+    "/dossiers/{dossier_id}/facts",
+    response_model=ApiResponse[list[FactEffectiveDTO]],
+    summary="List facts + effective values (with current_version)",
+    responses={200: {"description": "FactEffective list; ETag for dossier-level concurrency"}},
+)
+async def list_dossier_facts(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ExtractionServiceDep,
+    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    response: Response,
+    effective: Annotated[
+        bool,
+        Query(description="If true, include current_version for optimistic concurrency"),
+    ] = True,
+    key: Annotated[str | None, Query(description="Filter by fact key")] = None,
+) -> ApiResponse[list[FactEffectiveDTO]]:
+    """FactEffective list — client MUST echo current_version as base_version on actions."""
+    items = await svc.list_dossier_facts(dossier_id, key=key, effective=effective)
+    # Weak ETag from max current_version — UI can use for cache/concurrency hints
+    max_ver = max((i.current_version for i in items), default=0)
+    response.headers["ETag"] = f'W/"facts-{dossier_id}-{len(items)}-v{max_ver}"'
+    return ApiResponse(data=items)
 
 
 @router.get(
@@ -268,7 +329,7 @@ async def list_facts(
     svc: ExtractionServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> ApiResponse[list[Any]]:
-    """Danh sách fact có (key, raw_text, normalized_value)."""
+    """Danh sách fact có (key, raw_text, normalized_value) — document-scoped."""
     return ApiResponse(data=await svc.list_facts(document_id))
 
 

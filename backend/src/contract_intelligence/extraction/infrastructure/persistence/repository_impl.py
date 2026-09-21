@@ -199,8 +199,124 @@ class FactRepositoryImpl:
         return _fact_to_dict(fact, citation)
 
     async def list_by_key(self, key: str) -> list[dict[str, Any]]:
-        """Stub — Protocol conformance; full impl filter theo key column."""
-        return []
+        stmt = (
+            select(FactORM, CitationORM)
+            .outerjoin(CitationORM, FactORM.citation_id == CitationORM.id)
+            .where(FactORM.key == key, FactORM.tenant_id == self._tenant_id)
+        )
+        result = await self._session.execute(stmt)
+        return [_fact_to_dict(fact, citation) for fact, citation in result.all()]
+
+    async def list_effective_by_dossier(
+        self,
+        dossier_id: str,
+        *,
+        key: str | None = None,
+        effective: bool = True,
+    ) -> list[dict[str, Any]]:
+        """List FactEffective rows for a dossier (SQLite/Postgres portable join).
+
+        Equivalent to ``v_fact_effective``: fact + optional review_item + latest
+        review_action. ``current_version`` comes from ``review_item.version``
+        (0 when no review_item exists).
+        """
+        from contract_intelligence.contract.infrastructure.persistence.orm import (
+            DocumentORM,
+        )
+        from contract_intelligence.review.infrastructure.persistence.orm import (
+            ReviewActionORM,
+            ReviewItemORM,
+        )
+
+        stmt = (
+            select(FactORM, CitationORM)
+            .join(DocumentORM, FactORM.document_id == DocumentORM.id)
+            .outerjoin(CitationORM, FactORM.citation_id == CitationORM.id)
+            .where(
+                DocumentORM.dossier_id == dossier_id,
+                FactORM.tenant_id == self._tenant_id,
+            )
+        )
+        if key:
+            stmt = stmt.where(FactORM.key == key)
+        result = await self._session.execute(stmt)
+        rows = list(result.all())
+        if not rows:
+            return []
+
+        fact_ids = [fact.id for fact, _citation in rows]
+        review_stmt = select(ReviewItemORM).where(
+            ReviewItemORM.tenant_id == self._tenant_id,
+            ReviewItemORM.target_type == "fact",
+            ReviewItemORM.target_id.in_(fact_ids),
+        )
+        review_result = await self._session.execute(review_stmt)
+        review_by_fact: dict[str, Any] = {ri.target_id: ri for ri in review_result.scalars().all()}
+
+        latest_action_by_item: dict[str, Any] = {}
+        if effective and review_by_fact:
+            item_ids = [ri.id for ri in review_by_fact.values()]
+            action_stmt = (
+                select(ReviewActionORM)
+                .where(
+                    ReviewActionORM.tenant_id == self._tenant_id,
+                    ReviewActionORM.review_item_id.in_(item_ids),
+                )
+                .order_by(ReviewActionORM.created_at.desc())
+            )
+            action_result = await self._session.execute(action_stmt)
+            for act in action_result.scalars().all():
+                # First seen per item is latest due to DESC order
+                if act.review_item_id not in latest_action_by_item:
+                    latest_action_by_item[act.review_item_id] = act
+
+        out: list[dict[str, Any]] = []
+        for fact, citation in rows:
+            base = _fact_to_dict(fact, citation)
+            machine_value = fact.normalized_value
+            review_item = review_by_fact.get(fact.id)
+            if not effective or review_item is None:
+                out.append(
+                    {
+                        **base,
+                        "machine_value": machine_value,
+                        "effective_value": machine_value,
+                        "review_state": "unreviewed",
+                        "reviewer_id": None,
+                        "reviewed_at": None,
+                        "review_item_id": None,
+                        "current_version": 0,
+                    }
+                )
+                continue
+
+            latest = latest_action_by_item.get(review_item.id)
+            effective_value = machine_value
+            review_state = "unreviewed"
+            reviewer_id = None
+            reviewed_at = None
+            if latest is not None:
+                review_state = latest.action
+                reviewer_id = latest.reviewer_id
+                reviewed_at = latest.created_at
+                if latest.action == "correct":
+                    effective_value = latest.corrected_value or machine_value
+                elif latest.action == "reject":
+                    effective_value = None
+
+            out.append(
+                {
+                    **base,
+                    "machine_value": machine_value,
+                    "effective_value": effective_value,
+                    "review_state": review_state,
+                    "reviewer_id": reviewer_id,
+                    "reviewed_at": reviewed_at,
+                    "review_item_id": review_item.id,
+                    "current_version": int(review_item.version or 0),
+                }
+            )
+        return out
 
     async def add(self, fact: object) -> None:
         """Stub — Protocol conformance."""
@@ -251,6 +367,24 @@ class CitationRepositoryImpl:
 # ============================================================================
 
 
+def _page_to_dict(orm: PageORM) -> dict[str, Any]:
+    return {
+        "id": orm.id,
+        "document_id": orm.document_id,
+        "page_no": orm.page_no,
+        "width_pt": float(orm.width_pt),
+        "height_pt": float(orm.height_pt),
+        "rotation": orm.rotation,
+        "kind": orm.kind,
+        "render_dpi": 300,
+        "render_uri": orm.render_blob_uri,
+        "preview_uri": orm.preview_blob_uri,
+        "render_blob_uri": orm.render_blob_uri,
+        "preview_blob_uri": orm.preview_blob_uri,
+        "features": orm.features,
+    }
+
+
 class PageRepositoryImpl:
     def __init__(self, session: AsyncSession, tenant_id: str) -> None:
         self._session = session
@@ -266,19 +400,19 @@ class PageRepositoryImpl:
             .order_by(PageORM.page_no)
         )
         result = await self._session.execute(stmt)
-        return [
-            {
-                "id": p.id,
-                "page_no": p.page_no,
-                "width_pt": float(p.width_pt),
-                "height_pt": float(p.height_pt),
-                "rotation": p.rotation,
-                "kind": p.kind,
-                "render_blob_uri": p.render_blob_uri,
-                "preview_blob_uri": p.preview_blob_uri,
-            }
-            for p in result.scalars().all()
-        ]
+        return [_page_to_dict(p) for p in result.scalars().all()]
+
+    async def get_by_document_and_page_no(
+        self, document_id: str, page_no: int
+    ) -> dict[str, Any] | None:
+        stmt = select(PageORM).where(
+            PageORM.document_id == document_id,
+            PageORM.page_no == page_no,
+            PageORM.tenant_id == self._tenant_id,
+        )
+        result = await self._session.execute(stmt)
+        orm = result.scalar_one_or_none()
+        return _page_to_dict(orm) if orm else None
 
     async def get(self, page_id: str) -> dict[str, Any] | None:
         stmt = select(PageORM).where(PageORM.id == page_id, PageORM.tenant_id == self._tenant_id)
@@ -309,18 +443,9 @@ class PageRepositoryImpl:
             }
             for ln in lines_result.scalars().all()
         ]
-        return {
-            "id": orm.id,
-            "document_id": orm.document_id,
-            "page_no": orm.page_no,
-            "width_pt": float(orm.width_pt),
-            "height_pt": float(orm.height_pt),
-            "rotation": orm.rotation,
-            "kind": orm.kind,
-            "render_blob_uri": orm.render_blob_uri,
-            "preview_blob_uri": orm.preview_blob_uri,
-            "ocr_lines": lines,
-        }
+        data = _page_to_dict(orm)
+        data["ocr_lines"] = lines
+        return data
 
     async def add(self, page: object) -> None:
         """Stub — Protocol conformance; full impl trong sprint sau."""
@@ -360,6 +485,9 @@ class ClauseNodeRepositoryImpl:
                 "page_start": n.page_start,
                 "page_end": n.page_end,
                 "confidence": float(n.confidence),
+                "doc_char_start": n.doc_char_start,
+                "doc_char_end": n.doc_char_end,
+                "regions": n.regions,
             }
             for n in result.scalars().all()
         ]
@@ -393,7 +521,9 @@ class DocTableRepositoryImpl:
                 "bbox": t.bbox,
                 "rows_count": t.rows_count,
                 "cols_count": t.cols_count,
-                "has_borders": t.has_borders == "true",  # type: ignore[comparison-overlap]
+                "has_borders": t.has_borders,
+                "is_multi_page": False,
+                "continued_from": None,
                 "cells": t.cells,
             }
             for t in result.scalars().all()
