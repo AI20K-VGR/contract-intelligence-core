@@ -294,8 +294,9 @@ class PipelineOrchestrator:
         ctx: PipelineContext,
         doc: DocumentJob,
     ) -> Ai1SnapshotPayload:
-        """Submit OCR + poll + return canonical payload.
+        """Submit OCR job to the external AI service and poll until complete.
 
+        Control-plane only — Backend MUST NOT run local OCR/Tesseract.
         Headers tuân thủ DOC-05c §3:
             X-Tenant-Id, X-Task-Id, X-Attempt-Id, X-Internal-Service-Key
         """

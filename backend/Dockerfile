@@ -38,11 +38,16 @@ RUN uv sync --frozen --no-install-project
 # ----------------------------------------------------------------------------
 COPY ./README.md ./
 COPY src/ src/
-COPY alembic.ini alembic/ ./
+COPY alembic.ini ./
+COPY alembic/ alembic/
+COPY scripts/ scripts/
+
+RUN chmod +x /app/scripts/entrypoint.sh
 
 ENV PYTHONPATH=/app/src
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
-CMD ["uv", "run", "uvicorn", "contract_intelligence.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Migrate schema to head, then start the API (Control Plane).
+CMD ["/app/scripts/entrypoint.sh"]

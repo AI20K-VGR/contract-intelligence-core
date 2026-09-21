@@ -78,6 +78,17 @@ class Settings(BaseSettings):
     ai_dispatcher_max_attempts: int = Field(default=3, ge=1, le=10)
 
     # -------------------------------------------------------------------------
+    # Postgres job queue (no Redis / Celery)
+    # -------------------------------------------------------------------------
+    job_queue_enabled: bool = Field(
+        default=True,
+        description="Start in-process worker + lease reaper on app lifespan.",
+    )
+    job_lease_seconds: int = Field(default=60, ge=10, le=3600)
+    job_worker_poll_interval_seconds: float = Field(default=2.0, ge=0.2, le=60.0)
+    job_reaper_interval_seconds: float = Field(default=15.0, ge=1.0, le=300.0)
+
+    # -------------------------------------------------------------------------
     # Storage (Sprint 3: local filesystem — Sprint 4: MinIO presigned URLs)
     # -------------------------------------------------------------------------
     storage_root: str = Field(default="./var/storage")

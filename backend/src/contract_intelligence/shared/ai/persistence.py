@@ -21,7 +21,6 @@ Bounded retry (DOC-05c §7.3):
 
 from __future__ import annotations
 
-import hashlib
 import json
 from datetime import datetime
 from typing import Any
@@ -40,6 +39,7 @@ from contract_intelligence.extraction.infrastructure.persistence.orm import (
     PipelineRunORM,
     PipelineStepORM,
 )
+from contract_intelligence.shared.ai.citation_guard import verify_citation
 from contract_intelligence.shared.ai.schemas import (
     Ai1SnapshotPayload,
     Ai2ComparisonPayload,
@@ -48,8 +48,16 @@ from contract_intelligence.shared.ai.schemas import (
     UsageLedgerReport,
 )
 from contract_intelligence.shared.base import new_ulid
+from contract_intelligence.shared.utils import normalize_text
 
 logger = structlog.get_logger(__name__)
+
+# HITL thresholds — facts/findings below these create review_item rows.
+_FACT_REVIEW_CONFIDENCE = 0.85
+_FINDING_REVIEW_CONFIDENCE = 0.80
+_FINDING_REVIEW_DISPOSITIONS = frozenset(
+    {"conflict", "needs_review", "uncertain", "ambiguous"}
+)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -305,32 +313,81 @@ async def persist_ai2_extraction(
 
     document_id = payload.document_id
     inserted = 0
+    # (target_type, target_id, reason, priority)
+    review_targets: list[tuple[str, str, str, str]] = []
+
+    dossier_id = await _lookup_dossier_id(session, document_id)
 
     for fact in payload.facts:
-        # 1. Citation
-        citation_id = new_ulid("cit_")
-        citation_orm = _build_citation_orm(citation_id, tenant_id, document_id, fact.citation)
-        session.add(citation_orm)
-
-        # 2. Fact
         fact_id = new_ulid("fct_")
-        fact_orm = FactORM(
-            id=fact_id,
-            tenant_id=tenant_id,
-            document_id=document_id,
-            key=fact.key,
-            fact_type=fact.fact_type,
-            raw_text=fact.raw_text,
-            normalized_value=json.dumps(fact.normalized_value),
-            confidence=str(fact.confidence),
-            extractor=fact.extractor,
-            context_text=fact.context_text,
-            citation_id=citation_id,
+        citation_id = new_ulid("cit_")
+
+        citation_orm = await _build_citation_orm(
+            session, citation_id, tenant_id, document_id, fact.citation
         )
-        session.add(fact_orm)
+        if citation_orm is None:
+            # Persist rejected quote for audit; force HITL review.
+            citation_orm = CitationORM(
+                id=citation_id,
+                tenant_id=tenant_id,
+                document_id=document_id,
+                quote=normalize_text(fact.citation.quote or ""),
+                quote_sha256="",
+                doc_char_start=fact.citation.doc_char_start,
+                doc_char_end=fact.citation.doc_char_end,
+                segments=_segments_json(fact.citation),
+            )
+            review_targets.append(
+                ("fact", fact_id, f"citation_guard_rejected:{fact.key}", "P1")
+            )
+
+        session.add(citation_orm)
+        session.add(
+            FactORM(
+                id=fact_id,
+                tenant_id=tenant_id,
+                document_id=document_id,
+                key=fact.key,
+                fact_type=fact.fact_type,
+                raw_text=fact.raw_text,
+                normalized_value=json.dumps(fact.normalized_value),
+                confidence=str(fact.confidence),
+                extractor=fact.extractor,
+                context_text=fact.context_text,
+                citation_id=citation_id,
+            )
+        )
         inserted += 1
 
+        if float(fact.confidence) < _FACT_REVIEW_CONFIDENCE:
+            priority = "P1" if float(fact.confidence) < 0.6 else "P2"
+            # Avoid duplicate if already queued for citation failure
+            if not any(t[1] == fact_id for t in review_targets):
+                review_targets.append(
+                    ("fact", fact_id, f"low_confidence:{fact.key}", priority)
+                )
+
+    for gap in payload.evidence_gaps:
+        review_targets.append(
+            (
+                "citation",
+                new_ulid("gap_"),
+                f"evidence_gap:p{gap.page_no}:{gap.reason}",
+                "P1" if gap.severity == "high" else "P2",
+            )
+        )
+
     await session.flush()
+
+    if dossier_id and run_id and review_targets:
+        await _create_review_items(
+            session,
+            tenant_id=tenant_id,
+            dossier_id=dossier_id,
+            run_id=run_id,
+            targets=review_targets,
+        )
+
     logger.info(
         "ai2_extraction.persisted",
         document_id=document_id,
@@ -338,6 +395,7 @@ async def persist_ai2_extraction(
         run_id=run_id,
         facts=inserted,
         evidence_gaps=len(payload.evidence_gaps),
+        review_items=len(review_targets),
     )
     return inserted
 
@@ -373,6 +431,7 @@ async def persist_ai2_comparison(
 
     dossier_id = payload.dossier_id
     inserted = 0
+    finding_review_targets: list[tuple[str, str, str, str]] = []
 
     # ── Annex Links ────────────────────────────────────────────────────────
     for link in payload.annex_links:
@@ -406,20 +465,42 @@ async def persist_ai2_comparison(
     for finding in payload.findings:
         finding_id = new_ulid("fd_")
 
-        # side_a citation
+        # side_a citation (Citation Guard)
         side_a_cit_id = new_ulid("cit_")
         side_a_doc_id = finding.side_a.document_id
-        side_a_cit = _build_citation_orm(
-            side_a_cit_id, tenant_id, side_a_doc_id, finding.side_a.citation
+        side_a_cit = await _build_citation_orm(
+            session, side_a_cit_id, tenant_id, side_a_doc_id, finding.side_a.citation
         )
+        if side_a_cit is None:
+            side_a_cit = CitationORM(
+                id=side_a_cit_id,
+                tenant_id=tenant_id,
+                document_id=side_a_doc_id,
+                quote=normalize_text(finding.side_a.citation.quote or ""),
+                quote_sha256="",
+                doc_char_start=finding.side_a.citation.doc_char_start,
+                doc_char_end=finding.side_a.citation.doc_char_end,
+                segments=_segments_json(finding.side_a.citation),
+            )
         session.add(side_a_cit)
 
-        # side_b citation
+        # side_b citation (Citation Guard)
         side_b_cit_id = new_ulid("cit_")
         side_b_doc_id = finding.side_b.document_id
-        side_b_cit = _build_citation_orm(
-            side_b_cit_id, tenant_id, side_b_doc_id, finding.side_b.citation
+        side_b_cit = await _build_citation_orm(
+            session, side_b_cit_id, tenant_id, side_b_doc_id, finding.side_b.citation
         )
+        if side_b_cit is None:
+            side_b_cit = CitationORM(
+                id=side_b_cit_id,
+                tenant_id=tenant_id,
+                document_id=side_b_doc_id,
+                quote=normalize_text(finding.side_b.citation.quote or ""),
+                quote_sha256="",
+                doc_char_start=finding.side_b.citation.doc_char_start,
+                doc_char_end=finding.side_b.citation.doc_char_end,
+                segments=_segments_json(finding.side_b.citation),
+            )
         session.add(side_b_cit)
 
         await session.execute(
@@ -503,7 +584,32 @@ async def persist_ai2_comparison(
 
         inserted += 1
 
+        needs_review = (
+            finding.disposition.lower() in _FINDING_REVIEW_DISPOSITIONS
+            or float(finding.confidence) < _FINDING_REVIEW_CONFIDENCE
+            or finding.severity.lower() == "high"
+        )
+        if needs_review:
+            finding_review_targets.append(
+                (
+                    "finding",
+                    finding_id,
+                    f"finding:{finding.key_or_topic}:{finding.disposition}",
+                    "P1" if finding.severity.lower() == "high" else "P2",
+                )
+            )
+
     await session.flush()
+
+    if run_id and finding_review_targets:
+        await _create_review_items(
+            session,
+            tenant_id=tenant_id,
+            dossier_id=dossier_id,
+            run_id=run_id,
+            targets=finding_review_targets,
+        )
+
     logger.info(
         "ai2_comparison.persisted",
         dossier_id=dossier_id,
@@ -511,6 +617,7 @@ async def persist_ai2_comparison(
         run_id=run_id,
         annex_links=len(payload.annex_links),
         findings=inserted,
+        review_items=len(finding_review_targets),
     )
     return inserted
 
@@ -582,34 +689,106 @@ async def persist_usage_ledger(
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def _build_citation_orm(
+def _segments_json(citation: CitationItem) -> str:
+    return json.dumps(
+        [
+            {
+                "page_no": seg.page_no,
+                "line_id": seg.line_id,
+                "char_start": seg.char_start,
+                "char_end": seg.char_end,
+                "bbox": list(seg.bbox),
+            }
+            for seg in citation.segments
+        ]
+    )
+
+
+async def _lookup_dossier_id(session: AsyncSession, document_id: str) -> str | None:
+    result = await session.execute(
+        text("SELECT dossier_id FROM document WHERE id = :id LIMIT 1"),
+        {"id": document_id},
+    )
+    return result.scalar_one_or_none()
+
+
+async def _create_review_items(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    dossier_id: str,
+    run_id: str,
+    targets: list[tuple[str, str, str, str]],
+) -> int:
+    """Persist ReviewItem rows so the HITL queue is no longer empty after pipeline."""
+    created = 0
+    for target_type, target_id, reason, priority in targets:
+        item_id = new_ulid("ri_")
+        await session.execute(
+            text(
+                """
+                INSERT INTO review_item (
+                    id, tenant_id, dossier_id, run_id, target_type, target_id,
+                    reason, priority, status, version
+                ) VALUES (
+                    :id, :tenant_id, :dossier_id, :run_id, :target_type, :target_id,
+                    :reason, :priority, 'open', 1
+                )
+                """
+            ),
+            {
+                "id": item_id,
+                "tenant_id": tenant_id,
+                "dossier_id": dossier_id,
+                "run_id": run_id,
+                "target_type": target_type,
+                "target_id": target_id,
+                "reason": reason[:500],
+                "priority": priority,
+            },
+        )
+        created += 1
+    await session.flush()
+    logger.info(
+        "review_items.created",
+        dossier_id=dossier_id,
+        run_id=run_id,
+        count=created,
+    )
+    return created
+
+
+async def _build_citation_orm(
+    session: AsyncSession,
     citation_id: str,
     tenant_id: str,
     document_id: str,
     citation: CitationItem,
-) -> CitationORM:
-    """Build CitationORM từ CitationItem — id được sinh từ bên ngoài."""
+) -> CitationORM | None:
+    """Build CitationORM only when Citation Guard accepts the OCR span.
+
+    ``quote_sha256`` is ALWAYS derived from the stored OCR span — never from
+    blindly hashing the model's quote string.
+    """
+    guard = await verify_citation(session, document_id=document_id, citation=citation)
+    if not guard.accepted:
+        logger.warning(
+            "citation_guard.rejected",
+            document_id=document_id,
+            reason=guard.reason,
+            citation_id=citation_id,
+        )
+        return None
+
     return CitationORM(
         id=citation_id,
         tenant_id=tenant_id,
         document_id=document_id,
-        quote=citation.quote,
-        quote_sha256=citation.quote_sha256
-        or hashlib.sha256(citation.quote.encode("utf-8")).hexdigest(),
+        quote=guard.quote,
+        quote_sha256=guard.quote_sha256,
         doc_char_start=citation.doc_char_start,
         doc_char_end=citation.doc_char_end,
-        segments=json.dumps(
-            [
-                {
-                    "page_no": seg.page_no,
-                    "line_id": seg.line_id,
-                    "char_start": seg.char_start,
-                    "char_end": seg.char_end,
-                    "bbox": list(seg.bbox),
-                }
-                for seg in citation.segments
-            ]
-        ),
+        segments=_segments_json(citation),
     )
 
 

@@ -87,7 +87,12 @@ class DocumentORM(Base):
 
 
 class JobORM(Base):
-    """ORM cho bảng ``job`` — 1 lần chạy dossier qua pipeline."""
+    """ORM cho bảng ``job`` — 1 lần chạy dossier qua pipeline.
+
+    Postgres job queue (no Redis/Celery): workers claim rows with
+    ``SELECT … FOR UPDATE SKIP LOCKED`` and hold ``lease_expires_at``.
+    An async reaper resets rows whose lease has expired back to ``uploaded``.
+    """
 
     __tablename__ = "job"
 
@@ -102,12 +107,18 @@ class JobORM(Base):
     current_run_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_detail: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSONB
+    lease_owner: Mapped[str | None] = mapped_column(Text, nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+    __table_args__ = (Index("ix_job_queue_ready", "status", "created_at"),)
 
 
 class ManifestORM(Base):

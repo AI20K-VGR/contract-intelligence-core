@@ -212,53 +212,58 @@ async def upload_dossier(
             )
         )
 
-    # ── 5. Auto-trigger pipeline run (async, qua shared/ai orchestrator) ───
+    # ── 5. Auto-trigger pipeline run via Postgres job queue ────────────────
     run_id: str | None = None
     if auto_run and uploaded_docs:
+        from contract_intelligence.config.settings import get_settings
+        from contract_intelligence.shared.persistence.job_queue import enqueue_job
+
         run_id = new_ulid("run_")
+        job_id = dossier.jobs[0].id if dossier.jobs else new_ulid("job_")
         await _create_pipeline_run_row(
             session=session,
             tenant_id=tenant_id,
             run_id=run_id,
             dossier_id=dossier.id,
+            job_id=job_id,
             trace_id=str(uuid.uuid4()),
         )
+        await enqueue_job(session, job_id=job_id, current_run_id=run_id)
 
-        # Build DocumentJob list (loaded from DB) — orchestrator schedules
-        # the OCR → Extract → Compare chain in background.
-        doc_jobs = [
-            DocumentJob(
-                document_id=d.id,
-                sha256=d.sha256,
-                blob_uri=d.blob_uri,
-                filename=d.filename,
-                role=d.role.value,
-                page_count=d.page_count,
-            )
-            for d in [
-                contract_doc,
-                *[
-                    await _load_document(
-                        session=session,
-                        tenant_id=tenant_id,
-                        doc_id=info.id,
-                    )
-                    for info in uploaded_docs[1:]  # skip contract (already loaded)
-                ],
+        settings = get_settings()
+        if not settings.job_queue_enabled:
+            # Fallback when queue worker disabled (unit tests / offline).
+            doc_jobs = [
+                DocumentJob(
+                    document_id=d.id,
+                    sha256=d.sha256,
+                    blob_uri=d.blob_uri,
+                    filename=d.filename,
+                    role=d.role.value,
+                    page_count=d.page_count,
+                )
+                for d in [
+                    contract_doc,
+                    *[
+                        await _load_document(
+                            session=session,
+                            tenant_id=tenant_id,
+                            doc_id=info.id,
+                        )
+                        for info in uploaded_docs[1:]
+                    ],
+                ]
             ]
-        ]
-
-        orchestrator = get_pipeline_orchestrator()
-        trace_id = str(uuid.uuid4())
-        background_tasks.add_task(
-            _safe_run_pipeline,
-            orchestrator=orchestrator,
-            run_id=run_id,
-            dossier_id=dossier.id,
-            tenant_id=tenant_id,
-            documents=doc_jobs,
-            trace_id=trace_id,
-        )
+            orchestrator = get_pipeline_orchestrator()
+            background_tasks.add_task(
+                _safe_run_pipeline,
+                orchestrator=orchestrator,
+                run_id=run_id,
+                dossier_id=dossier.id,
+                tenant_id=tenant_id,
+                documents=doc_jobs,
+                trace_id=str(uuid.uuid4()),
+            )
 
     # ── 6. Commit transaction ──────────────────────────────────────────────
     await session.commit()
@@ -341,6 +346,7 @@ async def _create_pipeline_run_row(
     tenant_id: str,
     run_id: str,
     dossier_id: str,
+    job_id: str,
     trace_id: str,
 ) -> None:
     """Tạo pipeline_run row + 11 steps S0..S10 — sync trước khi commit transaction."""
@@ -352,7 +358,7 @@ async def _create_pipeline_run_row(
     run = PipelineRunORM(
         id=run_id,
         tenant_id=tenant_id,
-        job_id=run_id,  # 1:1 placeholder
+        job_id=job_id,
         dossier_id=dossier_id,
         status="queued",
         pipeline_version="v1.0.0",

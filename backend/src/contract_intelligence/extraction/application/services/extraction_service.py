@@ -121,7 +121,19 @@ class ExtractionService:
         # Build context — gather documents
         ctx = await self._build_context(run_id=run_id, dossier_id=dossier_id, trace_id=trace_id)
 
-        if background_tasks is not None:
+        from contract_intelligence.config.settings import get_settings
+
+        settings = get_settings()
+        if settings.job_queue_enabled:
+            # Job already enqueued in pipeline_run_repo.create — worker claims it.
+            logger.info(
+                "pipeline_run.enqueued",
+                run_id=run_id,
+                dossier_id=dossier_id,
+                tenant_id=self._tenant_id,
+                mode="postgres_queue",
+            )
+        elif background_tasks is not None:
             background_tasks.add_task(self._run_orchestrator_safely, ctx)
             logger.info(
                 "pipeline_run.scheduled",

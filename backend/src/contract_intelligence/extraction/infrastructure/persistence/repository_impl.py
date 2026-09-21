@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from sqlalchemy import func, select
@@ -63,12 +64,44 @@ class PipelineRunRepositoryImpl:
         pipeline_version: str,
         git_sha: str | None,
         trace_id: str | None,
+        job_id: str | None = None,
     ) -> PipelineRun:
+        from contract_intelligence.contract.infrastructure.persistence.orm import JobORM
+        from contract_intelligence.shared.base import new_ulid, utcnow
+        from contract_intelligence.shared.persistence.job_queue import enqueue_job
+
+        resolved_job_id = job_id
+        if resolved_job_id is None:
+            # Prefer the newest job for this dossier; create one if missing.
+            job_stmt = (
+                select(JobORM)
+                .where(
+                    JobORM.dossier_id == dossier_id,
+                    JobORM.tenant_id == self._tenant_id,
+                )
+                .order_by(JobORM.created_at.desc())
+                .limit(1)
+            )
+            existing = (await self._session.execute(job_stmt)).scalar_one_or_none()
+            if existing is not None:
+                resolved_job_id = existing.id
+            else:
+                resolved_job_id = new_ulid("job_")
+                self._session.add(
+                    JobORM(
+                        id=resolved_job_id,
+                        tenant_id=self._tenant_id,
+                        dossier_id=dossier_id,
+                        status="uploaded",
+                        current_run_id=run_id,
+                    )
+                )
+                await self._session.flush()
 
         orm = PipelineRunORM(
             id=run_id,
             tenant_id=self._tenant_id,
-            job_id=run_id,  # 1:1 placeholder — Sprint 4 sẽ link qua job table
+            job_id=resolved_job_id,
             dossier_id=dossier_id,
             status="queued",
             pipeline_version=pipeline_version,
@@ -88,6 +121,17 @@ class PipelineRunRepositoryImpl:
             )
             self._session.add(step)
         await self._session.flush()
+
+        # Enqueue on Postgres job queue (worker claims via SKIP LOCKED).
+        await enqueue_job(self._session, job_id=resolved_job_id, current_run_id=run_id)
+        # Touch updated_at on job row for observability
+        job_row = (
+            await self._session.execute(select(JobORM).where(JobORM.id == resolved_job_id))
+        ).scalar_one_or_none()
+        if job_row is not None:
+            job_row.updated_at = utcnow()
+            await self._session.flush()
+
         return _pipeline_run_to_domain(orm)
 
     async def list_pipeline_runs(
@@ -357,12 +401,37 @@ class CitationRepositoryImpl:
         return _citation_to_dict(orm) if orm else None
 
     async def list_for_document(self, document_id: str, run_id: str) -> list[dict[str, Any]]:
-        """Stub — Protocol conformance; full impl filter theo document_id + run_id."""
-        return []
+        """List citations for a document.
+
+        ``run_id`` is accepted for Protocol compatibility; citations are keyed
+        by ``document_id`` (immutable OCR evidence for the active dossier run).
+        """
+        _ = run_id
+        stmt = select(CitationORM).where(
+            CitationORM.document_id == document_id,
+            CitationORM.tenant_id == self._tenant_id,
+        )
+        result = await self._session.execute(stmt)
+        return [_citation_to_dict(orm) for orm in result.scalars().all()]
 
     async def add(self, citation: object) -> None:
-        """Stub — Protocol conformance."""
-        return
+        """Persist a domain Citation entity (Protocol conformance)."""
+        from contract_intelligence.extraction.domain.entities.citation import Citation
+
+        if not isinstance(citation, Citation):
+            return
+        orm = CitationORM(
+            id=citation.id,
+            tenant_id=self._tenant_id,
+            document_id=citation.document_id,
+            quote=citation.quote,
+            quote_sha256=citation.quote_sha256,
+            doc_char_start=getattr(citation, "doc_char_start", 0) or 0,
+            doc_char_end=getattr(citation, "doc_char_end", 0) or 0,
+            segments=json.dumps(getattr(citation, "segments", None) or []),
+        )
+        self._session.add(orm)
+        await self._session.flush()
 
 
 # ============================================================================

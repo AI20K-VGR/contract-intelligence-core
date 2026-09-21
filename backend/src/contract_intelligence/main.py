@@ -10,8 +10,10 @@ Sprint 3 wiring:
 
 from __future__ import annotations
 
+import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -59,6 +61,10 @@ from contract_intelligence.shared.ai import (
     reset_background_dispatcher,
 )
 from contract_intelligence.shared.ai.health_router import router as ai_health_router
+from contract_intelligence.shared.ai.job_worker import (
+    start_job_queue_worker,
+    stop_job_queue_worker,
+)
 from contract_intelligence.shared.auth.exceptions import (
     AuthenticationError,
     InsufficientRoleError,
@@ -72,10 +78,34 @@ from contract_intelligence.shared.persistence import (
     create_async_engine,
     reset_engine,
 )
+from contract_intelligence.shared.persistence.base import Base
+from contract_intelligence.shared.persistence.orm_registry import import_all_models
 from contract_intelligence.shared.responses import ErrorPayload, ErrorResponse
 from contract_intelligence.shared.versioning import full_version
 
 logger = get_logger(__name__)
+
+
+async def _run_alembic_upgrade() -> None:
+    """Apply pending migrations before serving traffic."""
+    import asyncio
+
+    backend_root = Path(__file__).resolve().parents[2]
+    # Prefer project root (…/backend) when running from installed package layout
+    if not (backend_root / "alembic.ini").exists():
+        backend_root = Path.cwd()
+
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-m",
+        "alembic",
+        "upgrade",
+        "head",
+        cwd=str(backend_root),
+    )
+    code = await proc.wait()
+    if code != 0:
+        raise RuntimeError(f"alembic upgrade head failed with exit code {code}")
 
 
 @asynccontextmanager
@@ -95,6 +125,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     bind_engine(engine)
     logger.info("db_engine_bound", url=split_url(settings.database_url))
 
+    # Ensure schema exists (Docker entrypoint also runs this; safe to re-run)
+    try:
+        await _run_alembic_upgrade()
+        logger.info("alembic.upgrade_head.ok")
+    except Exception as exc:
+        # Fallback for local/sqlite tests without alembic.ini path — create_all
+        logger.warning("alembic.upgrade_head.failed", error=str(exc))
+        import_all_models()
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("db.create_all.fallback_ok")
+
     # Initialize AI service client (singleton) — verify connectivity
     ai_client = get_ai_service_client()
     if await ai_client.healthcheck():
@@ -106,10 +148,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _dispatcher = get_background_dispatcher()
     logger.info("dispatcher.ready")
 
+    # Postgres job queue worker + lease reaper (no Redis/Celery)
+    start_job_queue_worker(engine)
+    logger.info("job_queue.worker_ready", enabled=settings.job_queue_enabled)
+
     yield
 
     # Shutdown
     logger.info("shutdown")
+    await stop_job_queue_worker()
     reset_background_dispatcher()
     reset_ai_service_client()
     reset_engine()
