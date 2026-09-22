@@ -20,6 +20,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer
 
+from contract_intelligence.api.v1.dossiers import router as hitl_dossiers_router
+from contract_intelligence.api.v1.reviews import router as hitl_reviews_router
+from contract_intelligence.api.v1.webhooks import router as ai_webhooks_router
 from contract_intelligence.config.logging import configure_logging, get_logger
 from contract_intelligence.config.settings import get_settings
 from contract_intelligence.conflict.interfaces.api.routers.conflict_full_router import (
@@ -308,6 +311,13 @@ def create_app() -> FastAPI:
     app.include_router(contract_upload_router, prefix="/api/v1", tags=["Contract-Upload"])
     app.include_router(extraction_router, prefix="/api/v1", tags=["Extraction"])
     app.include_router(conflict_router, prefix="/api/v1", tags=["Conflict"])
+
+    # HITL orchestration surface — CONFIRM/NEEDS_REVIEW/REJECT + dossier approve.
+    # Registered before Phase 3/5 routers so the tutorial contract is the live
+    # match for POST /review-items/{id}/actions and POST /dossiers/{id}/approve.
+    app.include_router(hitl_reviews_router, prefix="/api/v1")
+    app.include_router(hitl_dossiers_router, prefix="/api/v1")
+
     app.include_router(review_router, prefix="/api/v1", tags=["Review"])
     app.include_router(approval_router, prefix="/api/v1", tags=["Approval"])
     app.include_router(reocr_router, prefix="/api/v1", tags=["ReOCR"])
@@ -319,6 +329,10 @@ def create_app() -> FastAPI:
     # AI service health + proxy — DOC-05c §4.7
     # /healthz + /readyz + /ai/jobs/{id}
     app.include_router(ai_health_router, prefix="/api/v1", tags=["AI-Service"])
+
+    # Inbound AI1 / AI2 webhooks — OCRSnapshot + CandidateFinding handoff
+    # → /api/v1/webhooks/ai1/snapshot, /api/v1/webhooks/ai2/findings
+    app.include_router(ai_webhooks_router, prefix="/api/v1")
 
     # Backend liveness (root — không qua /api/v1)
     @app.get("/health", tags=["health"])

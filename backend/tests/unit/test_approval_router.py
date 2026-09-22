@@ -93,22 +93,65 @@ class TestLock:
 
 
 class TestApprove:
-    async def test_approve_ok(self, client: AsyncClient, mock_svc: AsyncMock) -> None:
-        mock_svc.approve_dossier.return_value = _dossier(latest_job_status="approved")
-        resp = await client.post(
-            "/api/v1/dossiers/dos_1/approve",
-            json={"comment": "LGTM"},
-        )
-        assert resp.status_code == 200
-        mock_svc.approve_dossier.assert_called_once()
-        assert mock_svc.approve_dossier.call_args.kwargs["comment"] == "LGTM"
+    async def test_approve_ok(self, client: AsyncClient) -> None:
+        from unittest.mock import MagicMock
 
-    async def test_approve_precondition_409(self, client: AsyncClient, mock_svc: AsyncMock) -> None:
-        mock_svc.approve_dossier.side_effect = InvalidStateTransition(
-            from_state="extracted", to_state="approved", entity="Dossier"
-        )
-        resp = await client.post("/api/v1/dossiers/dos_1/approve")
+        from contract_intelligence.shared.persistence import get_async_session
+
+        dossier = MagicMock()
+        dossier.id = "dos_1"
+        dossier.status = "pending_review"
+        dossier.is_approved = False
+        dossier.is_locked = False
+
+        session = AsyncMock()
+        session.get = AsyncMock(return_value=dossier)
+        # No open review items
+        empty_result = MagicMock()
+        empty_result.all.return_value = []
+        session.execute = AsyncMock(return_value=empty_result)
+        session.flush = AsyncMock()
+
+        async def _override_session() -> AsyncGenerator[object, None]:
+            yield session
+
+        app.dependency_overrides[get_async_session] = _override_session
+        try:
+            resp = await client.post("/api/v1/dossiers/dos_1/approve")
+        finally:
+            app.dependency_overrides.pop(get_async_session, None)
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "ok"
+        assert body["dossier_status"] == "approved"
+        assert dossier.is_approved is True
+
+    async def test_approve_precondition_409(self, client: AsyncClient) -> None:
+        from unittest.mock import MagicMock
+
+        from contract_intelligence.shared.persistence import get_async_session
+
+        dossier = MagicMock()
+        dossier.id = "dos_1"
+
+        session = AsyncMock()
+        session.get = AsyncMock(return_value=dossier)
+        open_result = MagicMock()
+        open_result.all.return_value = [("ri_open_1",)]
+        session.execute = AsyncMock(return_value=open_result)
+
+        async def _override_session() -> AsyncGenerator[object, None]:
+            yield session
+
+        app.dependency_overrides[get_async_session] = _override_session
+        try:
+            resp = await client.post("/api/v1/dossiers/dos_1/approve")
+        finally:
+            app.dependency_overrides.pop(get_async_session, None)
+
         assert resp.status_code == 409
+        assert resp.json()["detail"]["code"] == "UNRESOLVED_REVIEW_ITEMS"
 
 
 class TestExternalApproval:

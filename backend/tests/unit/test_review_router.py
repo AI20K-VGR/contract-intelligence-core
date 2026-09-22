@@ -15,13 +15,12 @@ from httpx import ASGITransport, AsyncClient
 
 from contract_intelligence.main import app
 from contract_intelligence.review.application.dtos.review_dtos import (
-    ReviewActionResponseDTO,
     ReviewItemDTO,
     ReviewItemRevisionDTO,
 )
 from contract_intelligence.review.application.services.review_service import ReviewService
 from contract_intelligence.shared.auth.schemas import AuthenticatedUser
-from contract_intelligence.shared.exceptions import NotFoundError, ReviewVersionConflict
+from contract_intelligence.shared.exceptions import NotFoundError
 
 pytestmark = pytest.mark.asyncio
 
@@ -140,61 +139,55 @@ class TestListRevisions:
 
 
 class TestSubmitAction:
-    async def test_returns_200_with_new_version(
-        self, client: AsyncClient, mock_svc: AsyncMock
-    ) -> None:
-        mock_svc.submit_action.return_value = ReviewActionResponseDTO(
-            review_action_id="ra_1",
-            item_status="resolved",
-            new_version=4,
-            open_items_remaining=2,
-        )
+    """HITL orchestration API — CONFIRM / NEEDS_REVIEW / REJECT with OCC."""
+
+    async def test_returns_200_with_new_version(self, client: AsyncClient) -> None:
+        from contract_intelligence.api.v1.reviews import reset_review_store
+
+        reset_review_store()
         resp = await client.post(
             "/api/v1/review-items/ri_1/actions",
-            json={"action": "confirm", "base_version": 3},
+            json={"action": "CONFIRM", "base_version": 0, "reason": "looks good"},
         )
         assert resp.status_code == 200
-        data = resp.json()["data"]
-        assert data["review_action_id"] == "ra_1"
-        assert data["new_version"] == 4
-        assert data["item_status"] == "resolved"
+        body = resp.json()
+        assert body["status"] == "ok"
+        assert body["new_version"] == 1
+        assert body["item_status"] == "confirmed"
+        assert body["revision"]["action"] == "CONFIRM"
+        assert body["revision"]["reason"] == "looks good"
 
-    async def test_accepts_base_version_zero(
-        self, client: AsyncClient, mock_svc: AsyncMock
-    ) -> None:
-        mock_svc.submit_action.return_value = ReviewActionResponseDTO(
-            review_action_id="ra_0",
-            item_status="resolved",
-            new_version=1,
-        )
+    async def test_accepts_base_version_zero(self, client: AsyncClient) -> None:
+        from contract_intelligence.api.v1.reviews import reset_review_store
+
+        reset_review_store()
         resp = await client.post(
-            "/api/v1/review-items/ri_1/actions",
-            json={"action": "confirm", "base_version": 0},
+            "/api/v1/review-items/ri_zero/actions",
+            json={"action": "NEEDS_REVIEW", "base_version": 0},
         )
         assert resp.status_code == 200
-        assert mock_svc.submit_action.call_args.kwargs["base_version"] == 0
+        assert resp.json()["new_version"] == 1
+        assert resp.json()["item_status"] == "needs_review"
 
-    async def test_returns_409_on_version_conflict(
-        self, client: AsyncClient, mock_svc: AsyncMock
-    ) -> None:
-        mock_svc.submit_action.side_effect = ReviewVersionConflict(
-            review_item_id="ri_1",
-            expected_version=2,
-            current_version=5,
-            current_state={"id": "ri_1", "version": 5, "status": "open"},
+    async def test_returns_409_on_version_conflict(self, client: AsyncClient) -> None:
+        from contract_intelligence.api.v1.reviews import reset_review_store
+
+        reset_review_store()
+        # Seed version 0 → apply once → version becomes 1
+        await client.post(
+            "/api/v1/review-items/ri_conflict/actions",
+            json={"action": "CONFIRM", "base_version": 0},
         )
         resp = await client.post(
-            "/api/v1/review-items/ri_1/actions",
-            json={"action": "confirm", "base_version": 2},
+            "/api/v1/review-items/ri_conflict/actions",
+            json={"action": "CONFIRM", "base_version": 0},  # stale
         )
         assert resp.status_code == 409
-        body = resp.json()
-        assert body["error"]["code"] == "VERSION_CONFLICT"
-        assert body["current_state"]["version"] == 5
+        detail = resp.json()["detail"]
+        assert detail["code"] == "VERSION_CONFLICT"
+        assert detail["current_state"]["version"] == 1
 
-    async def test_invalid_action_returns_422(
-        self, client: AsyncClient, mock_svc: AsyncMock
-    ) -> None:
+    async def test_invalid_action_returns_422(self, client: AsyncClient) -> None:
         resp = await client.post(
             "/api/v1/review-items/ri_1/actions",
             json={"action": "noop", "base_version": 1},
