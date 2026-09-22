@@ -1,38 +1,178 @@
-:root {
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  color: #1c2140;
-  background: #f8f9ff;
-  line-height: 1.45;
+@import 'tailwindcss';
+
+/* Design tokens exported from Stitch (Institutional Access Management). */
+@theme {
+  --color-on-tertiary-fixed-variant: #003ea8;
+  --color-primary-fixed-dim: #b5c7ea;
+  --color-tertiary: #00051b;
+  --color-tertiary-fixed: #dbe1ff;
+  --color-tertiary-fixed-dim: #b4c5ff;
+  --color-on-error-container: #93000a;
+  --color-outline: #75777e;
+  --color-on-secondary-fixed: #111c2d;
+  --color-primary: #000615;
+  --color-on-secondary-fixed-variant: #3c475a;
+  --color-secondary: #545f73;
+  --color-surface-container-lowest: #ffffff;
+  --color-on-secondary-container: #586377;
+  --color-surface-tint: #4d5f7d;
+  --color-on-error: #ffffff;
+  --color-background: #f8f9ff;
+  --color-surface-container: #e5eeff;
+  --color-secondary-fixed: #d8e3fb;
+  --color-primary-fixed: #d6e3ff;
+  --color-error: #ba1a1a;
+  --color-inverse-surface: #213145;
+  --color-on-surface: #0b1c30;
+  --color-surface-dim: #cbdbf5;
+  --color-primary-container: #0b1f3a;
+  --color-on-background: #0b1c30;
+  --color-secondary-fixed-dim: #bcc7de;
+  --color-inverse-primary: #b5c7ea;
+  --color-on-secondary: #ffffff;
+  --color-on-primary-fixed: #071c36;
+  --color-surface-container-high: #dce9ff;
+  --color-surface-container-highest: #d3e4fe;
+  --color-surface-bright: #f8f9ff;
+  --color-surface-container-low: #eff4ff;
+  --color-surface: #f8f9ff;
+  --color-on-tertiary: #ffffff;
+  --color-on-primary: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-primary-fixed-variant: #364764;
+  --color-on-tertiary-container: #4e7fff;
+  --color-secondary-container: #d5e0f8;
+  --color-tertiary-container: #001a52;
+  --color-surface-variant: #d3e4fe;
+  --color-on-tertiary-fixed: #00174b;
+  --color-on-surface-variant: #44474d;
+  --color-inverse-on-surface: #eaf1ff;
+  --color-on-primary-container: #7587a7;
+  --color-outline-variant: #c4c6ce;
+
+  --radius: 0.125rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
+  --radius-full: 0.75rem;
+
+  --spacing-gutter-sm: 1rem;
+  --spacing-space-lg: 1.25rem;
+  --spacing-space-md: 0.75rem;
+  --spacing-gutter-lg: 2rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-xs: 0.25rem;
+  --spacing-margin: 2rem;
+  --spacing-margin-lg: 4rem;
+  --spacing-gutter: 1.5rem;
+  --spacing-space-xl: 2rem;
+  --spacing-margin-sm: 1rem;
+
+  --font-headline-lg-mobile: 'IBM Plex Sans', sans-serif;
+  --font-label-md: 'IBM Plex Sans', sans-serif;
+  --font-body-sm: 'IBM Plex Sans', sans-serif;
+  --font-label-sm: 'IBM Plex Sans', sans-serif;
+  --font-headline-md: 'IBM Plex Sans', sans-serif;
+  --font-headline-lg: 'IBM Plex Sans', sans-serif;
+  --font-title-sm: 'IBM Plex Sans', sans-serif;
+  --font-display-lg: 'IBM Plex Sans', sans-serif;
+  --font-body-md: 'IBM Plex Sans', sans-serif;
+  --font-body-lg: 'IBM Plex Sans', sans-serif;
+  --font-code-sm: 'IBM Plex Sans', sans-serif;
+
+  --text-headline-lg-mobile: 20px;
+  --text-headline-lg-mobile--line-height: 28px;
+  --text-headline-lg-mobile--letter-spacing: -0.01em;
+  --text-headline-lg-mobile--font-weight: 600;
+
+  --text-label-md: 12px;
+  --text-label-md--line-height: 16px;
+  --text-label-md--letter-spacing: 0.04em;
+  --text-label-md--font-weight: 600;
+
+  --text-body-sm: 13px;
+  --text-body-sm--line-height: 18px;
+  --text-body-sm--font-weight: 400;
+
+  --text-label-sm: 11px;
+  --text-label-sm--line-height: 14px;
+  --text-label-sm--letter-spacing: 0.05em;
+  --text-label-sm--font-weight: 500;
+
+  --text-headline-md: 18px;
+  --text-headline-md--line-height: 24px;
+  --text-headline-md--letter-spacing: -0.01em;
+  --text-headline-md--font-weight: 600;
+
+  --text-headline-lg: 24px;
+  --text-headline-lg--line-height: 32px;
+  --text-headline-lg--letter-spacing: -0.015em;
+  --text-headline-lg--font-weight: 600;
+
+  --text-title-sm: 15px;
+  --text-title-sm--line-height: 20px;
+  --text-title-sm--letter-spacing: -0.005em;
+  --text-title-sm--font-weight: 600;
+
+  --text-display-lg: 32px;
+  --text-display-lg--line-height: 40px;
+  --text-display-lg--letter-spacing: -0.02em;
+  --text-display-lg--font-weight: 600;
+
+  --text-body-md: 14px;
+  --text-body-md--line-height: 20px;
+  --text-body-md--font-weight: 400;
+
+  --text-body-lg: 15px;
+  --text-body-lg--line-height: 22px;
+  --text-body-lg--font-weight: 400;
+
+  --text-code-sm: 12px;
+  --text-code-sm--line-height: 16px;
+  --text-code-sm--letter-spacing: 0.01em;
+  --text-code-sm--font-weight: 500;
 }
 
-* {
-  box-sizing: border-box;
+@layer base {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    overscroll-behavior: none;
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
 }
 
-body {
-  margin: 0;
+::-webkit-scrollbar {
+  display: none;
 }
 
-#root {
-  min-height: 100vh;
+.bg-grid-pattern {
+  background-size: 24px 24px;
+  background-image: radial-gradient(circle, #c4c6ce 0.75px, transparent 0.75px);
 }
 
-main {
-  max-width: 40rem;
-  margin: 0 auto;
-  padding: 3rem 1.5rem;
-}
-
-h1 {
-  font-size: 1.5rem;
-  margin: 0 0 0.75rem;
-}
-
-p {
-  margin: 0 0 0.5rem;
-  color: #5e6580;
-}
-
-code {
-  font-size: 0.9em;
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
 }

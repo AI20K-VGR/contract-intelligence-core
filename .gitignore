@@ -12,9 +12,10 @@
 *.rar
 *.7z
 !docs/assets/**
-data/
-samples/
-datasets/
+# Root-only folders for contract files; do not ignore frontend/src/data (app mocks).
+/data/
+/samples/
+/datasets/
 
 # =====================================================================
 # Contract Intelligence - Root .gitignore
