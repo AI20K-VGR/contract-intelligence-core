@@ -28,6 +28,8 @@ forbidden_modules =
     sqlalchemy
     alembic
     minio
+    aiokafka
+    aioboto3
     httpx
     jwt
     passlib
@@ -45,6 +47,7 @@ forbidden_modules =
     contract_intelligence.review.interfaces
     contract_intelligence.identity.infrastructure
     contract_intelligence.identity.interfaces
+    contract_intelligence.infrastructure
 
 [importlinter:contract:application_no_infra_or_interfaces]
 name = Application no infra or interfaces

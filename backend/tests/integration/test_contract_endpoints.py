@@ -98,6 +98,8 @@ async def client(
     Uses FakeFileStorage (in-memory) to avoid async executor deadlocks from
     LocalFileStorage.run_in_executor() in pytest-asyncio context.
     """
+    from unittest.mock import AsyncMock, patch
+
     # Override storage singleton with in-memory fake — avoids run_in_executor hangs
     # in pytest-asyncio context (asyncio.get_event_loop() inside executor is unreliable).
     from contract_intelligence.shared.storage import set_file_storage
@@ -122,9 +124,14 @@ async def client(
 
     app.dependency_overrides[get_async_session] = override_get_async_session
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
+    # Stub MinIO upload — integration suite does not require a live object store.
+    with patch(
+        "contract_intelligence.contract.interfaces.api.routers.contract_router.upload_file",
+        new=AsyncMock(side_effect=lambda key, _data: f"s3://dossiers/{key}"),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac
 
     app.dependency_overrides.clear()
     # Reset storage singleton to allow next test to re-override cleanly

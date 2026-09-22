@@ -10,7 +10,9 @@
 #                    keycloak-events extension baked-in (xem keycloak/Dockerfile)
 #   backend-db     — PostgreSQL cho backend (port 5432 trên host)
 #   kafka          — Apache Kafka (KRaft, no Zookeeper) — port 9093 trên host
-#   backend        — FastAPI backend (depends_on backend-db + keycloak + kafka)
+#   backend        — FastAPI backend (depends_on backend-db + keycloak + kafka + minio)
+#   minio          — MinIO S3-compatible object storage (API 9000, Console 9001)
+#   minio-init     — one-shot: tạo bucket `dossiers` (private)
 #
 # Topology:
 #
@@ -248,6 +250,8 @@ services:
         condition: service_started        # ⬅ keycloak đã chạy (healthcheck tạm disabled)
       kafka:
         condition: service_started        # ⬅ Kafka broker đã start (KRaft)
+      minio:
+        condition: service_started
     environment:
       # ---- DB ----
       DATABASE_URL: postgresql+asyncpg://ci:${BACKEND_DB_PASSWORD:-ci_secret_dev}@backend-db:5432/contract_intelligence
@@ -277,13 +281,14 @@ services:
       # Internal listener: containers resolve `kafka` via ci-network DNS.
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
 
-      # ---- MinIO (optional — chỉ cần khi AI_SERVICE_MODE!=stub) ----
-      # NOTE: MinIO service không có trong file này. Nếu cần real uploads:
-      #   1. Thêm service `minio` + `minio-data` volume
-      #   2. Set AI_SERVICE_MODE=http và trỏ vào ai-service ngoài
+      # ---- MinIO / S3-compatible object storage ----
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY: admin
+      S3_SECRET_KEY: password123
+      S3_BUCKET_NAME: dossiers
       MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
+      MINIO_ACCESS_KEY: admin
+      MINIO_SECRET_KEY: password123
 
       # ---- AI service ----
       AI_SERVICE_MODE: stub               # set 'http' khi chạy ai-service thật
@@ -316,32 +321,35 @@ services:
       - ci-network
 
   # =============================================================================
-  # (OPTIONAL) SERVICE 6 — MinIO S3-compatible storage
-  # Bật bằng `docker compose --profile storage up`.
+  # SERVICE 6 — MinIO S3-compatible object storage
   # =============================================================================
   minio:
-    image: minio/minio:RELEASE.2024-09-13T00-00-00Z
+    image: quay.io/minio/minio:latest
     container_name: ci-minio
     restart: unless-stopped
-    profiles: ["storage"]                # OPT-IN only — không start theo mặc định
+    profiles: ["core"]
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password123
     volumes:
       - minio_data:/data
-    healthcheck:
-      # MinIO /minio/health/live trả 200 khi ready (không phụ thuộc drive).
-      test:
-        - CMD-SHELL
-        - 'curl -fsS http://localhost:9000/minio/health/live || exit 1'
-      interval: 15s
-      timeout: 5s
-      retries: 6
-      start_period: 10s
     ports:
-      - "${MINIO_API_HOST_PORT:-9000}:9000"     # S3 API
-      - "${MINIO_CONSOLE_HOST_PORT:-9001}:9001" # Web UI (http://localhost:9001)
+      - "9000:9000"     # S3 API
+      - "9001:9001"     # Web UI (http://localhost:9001)
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 7 — MinIO bucket initialization (create `dossiers`, private)
+  # =============================================================================
+  minio-init:
+    image: quay.io/minio/mc:latest
+    container_name: ci-minio-init
+    profiles: ["core"]
+    depends_on:
+      - minio
+    entrypoint: /bin/sh -c "until (/usr/bin/mc config host add myminio http://minio:9000 admin password123) do echo 'waiting for minio...' && sleep 1; done; /usr/bin/mc mb myminio/dossiers || true; /usr/bin/mc anonymous set private myminio/dossiers; exit 0;"
     networks:
       - ci-network
 
@@ -357,7 +365,7 @@ volumes:
   kafka_data_v2:
     driver: local
   minio_data:
-    driver: local                       # chỉ dùng khi enable profile "storage"
+    driver: local
 
 
 # -----------------------------------------------------------------------------

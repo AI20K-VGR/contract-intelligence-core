@@ -49,6 +49,7 @@ from contract_intelligence.identity.interfaces.api.auth_router import (
 from contract_intelligence.identity.interfaces.api.webhook_router import (
     router as webhook_router,
 )
+from contract_intelligence.infrastructure.messaging import start_producer, stop_producer
 from contract_intelligence.review.interfaces.api.routers.approval_router import (
     router as approval_router,
 )
@@ -171,10 +172,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             env=settings.env,
         )
 
+    # Kafka producer — event bus for dossier.uploaded and downstream workers.
+    if settings.env != "test":
+        await start_producer()
+        logger.info("kafka.producer.ready")
+    else:
+        logger.info("kafka.producer.skipped", reason="env=test")
+
     yield
 
     # Shutdown
     logger.info("shutdown")
+    await stop_producer()
     await stop_job_queue_worker()
     reset_background_dispatcher()
     reset_ai_service_client()

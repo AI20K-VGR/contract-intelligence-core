@@ -52,6 +52,8 @@ from contract_intelligence.contract.domain.entities.document import (
 from contract_intelligence.contract.interfaces.api.dependencies import (
     ContractServiceDep,
 )
+from contract_intelligence.infrastructure.messaging import publish_event
+from contract_intelligence.infrastructure.storage import upload_file
 from contract_intelligence.shared.auth import (
     AuthenticatedUser,
     get_current_user,
@@ -107,11 +109,11 @@ async def _ingest_upload_file(
     file: UploadFile,
     role: DocumentRole,
     order_index: int,
-) -> tuple[Document, int]:
-    """Đọc UploadFile, tính sha256 + size, ingest qua service.
+) -> tuple[Document, int, str]:
+    """Đọc UploadFile → MinIO → persist Document.
 
     Returns:
-        (Document entity, size_bytes) — size_bytes để log + trả response.
+        (Document entity, size_bytes, s3_path) — s3_path dùng cho Kafka event.
     """
     chunks: list[bytes] = []
     total_size = 0
@@ -120,15 +122,20 @@ async def _ingest_upload_file(
         total_size += len(chunk)
     raw_bytes = b"".join(chunks)
 
+    filename = file.filename or f"{role.value.lower()}.pdf"
+    object_key = f"{dossier_id}/{order_index:02d}_{filename}"
+    s3_path = await upload_file(object_key, raw_bytes)
+
     doc = await svc.upload_document(
         dossier_id=dossier_id,
-        filename=file.filename or f"{role.value.lower()}.pdf",
+        filename=filename,
         content=BytesIO(raw_bytes),
         role=role,
         order_index=order_index,
         file_size_bytes=total_size,
+        blob_uri=s3_path,
     )
-    return doc, total_size
+    return doc, total_size, s3_path
 
 
 # -----------------------------------------------------------------------------
@@ -207,8 +214,8 @@ async def create_dossier(
     )
     job = dossier.latest_job()
 
-    # Ingest contract (always role=CONTRACT, order_index=0)
-    await _ingest_upload_file(
+    # Ingest contract (always role=CONTRACT, order_index=0) → MinIO + DB
+    _contract_doc, _size, s3_path = await _ingest_upload_file(
         svc=svc,
         dossier_id=dossier.id,
         file=contract,
@@ -228,6 +235,16 @@ async def create_dossier(
             role=DocumentRole.ANNEX,
             order_index=idx,
         )
+
+    # Publish domain event for async downstream processing (OCR / extraction).
+    await publish_event(
+        "dossier_events",
+        {
+            "event": "dossier.uploaded",
+            "dossier_id": str(dossier.id),
+            "file_path": s3_path,
+        },
+    )
 
     # ApiEnvelopeDossierCreated — dossier_id + job_id (openapi.yaml line 2320)
     return ApiResponse(

@@ -3,7 +3,8 @@
 Một số quy ước (xem ``docs/DOC-04-architecture.md`` §5 Technology stack):
 
 - ``DATABASE_URL`` — async DSN (dùng ``postgresql+asyncpg://``).
-- ``MINIO_*`` — endpoint, access key, secret, bucket cho file storage.
+- ``S3_*`` / ``MINIO_*`` — endpoint, access key, secret, bucket cho file storage.
+- ``KAFKA_BOOTSTRAP_SERVERS`` — Kafka broker list cho event publishing.
 - ``AI_SERVICE_URL`` — base URL của ai-service (Sprint 1 polling).
 - ``OTEL_*`` — OpenTelemetry exporter config.
 """
@@ -45,14 +46,24 @@ class Settings(BaseSettings):
     database_echo: bool = Field(default=False)
 
     # -------------------------------------------------------------------------
-    # MinIO (S3-compatible)
+    # MinIO / S3-compatible object storage
     # -------------------------------------------------------------------------
+    s3_endpoint_url: str = Field(default="http://localhost:9000")
+    s3_access_key: str = Field(default="admin")
+    s3_secret_key: str = Field(default="password123")
+    s3_bucket_name: str = Field(default="dossiers")
+    # Legacy MinIO_* aliases (kept for existing LocalFileStorage / adapters)
     minio_endpoint: str = Field(default="localhost:9000")
-    minio_access_key: str = Field(default="minioadmin")
-    minio_secret_key: str = Field(default="minioadmin")
-    minio_bucket_pdf: str = Field(default="ci-pdf")
+    minio_access_key: str = Field(default="admin")
+    minio_secret_key: str = Field(default="password123")
+    minio_bucket_pdf: str = Field(default="dossiers")
     minio_bucket_render: str = Field(default="ci-render")
     minio_secure: bool = Field(default=False)
+
+    # -------------------------------------------------------------------------
+    # Kafka (event bus)
+    # -------------------------------------------------------------------------
+    kafka_bootstrap_servers: str = Field(default="localhost:9093")
 
     # -------------------------------------------------------------------------
     # AI Service (FastAPI bên ngoài — REST polling theo DOC-05c)

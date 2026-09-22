@@ -99,6 +99,9 @@ async def mock_svc() -> AsyncMock:
 @pytest_asyncio.fixture
 async def client(mock_svc: AsyncMock) -> AsyncGenerator[AsyncClient, None]:
     """AsyncClient with ContractService dependency overridden to mock."""
+    from unittest.mock import AsyncMock as _AsyncMock
+    from unittest.mock import patch
+
     from contract_intelligence.contract.interfaces.api.dependencies import (
         get_contract_service,
     )
@@ -111,9 +114,20 @@ async def client(mock_svc: AsyncMock) -> AsyncGenerator[AsyncClient, None]:
     app.dependency_overrides[get_current_user] = lambda: _operator_user()
     app.dependency_overrides[get_tenant_id] = lambda: "tenant_test"
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
+    # Stub MinIO + Kafka — unit tests must not hit live infrastructure.
+    with (
+        patch(
+            "contract_intelligence.contract.interfaces.api.routers.contract_router.upload_file",
+            new=_AsyncMock(return_value="s3://dossiers/test/00_contract.pdf"),
+        ),
+        patch(
+            "contract_intelligence.contract.interfaces.api.routers.contract_router.publish_event",
+            new=_AsyncMock(),
+        ),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac
 
     app.dependency_overrides.clear()
 

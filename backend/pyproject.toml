@@ -29,6 +29,8 @@ dependencies = [
     "PyJWT[crypto]>=2.8.0",
     "passlib[argon2]>=1.7.4",
     "aiofiles>=24.1.0",   # Async file I/O cho LocalFileStorage (runtime dep)
+    "aiokafka>=0.14.0",
+    "aioboto3>=15.5.0",
 ]
 
 [project.optional-dependencies]
@@ -111,7 +113,7 @@ disallow_untyped_defs = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["minio.*", "alembic.*", "passlib.*"]
+module = ["minio.*", "alembic.*", "passlib.*", "aiokafka.*", "aioboto3.*", "aiobotocore.*"]
 ignore_missing_imports = true
 
 # FastAPI router return types — chấp nhận untyped dict/list trong response models
