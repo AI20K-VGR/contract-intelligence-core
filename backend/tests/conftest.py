@@ -239,4 +239,3 @@ def mock_minio_and_kafka() -> Iterator[None]:
         ),
     ):
         yield
-
