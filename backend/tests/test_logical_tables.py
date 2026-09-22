@@ -248,6 +248,41 @@ def test_headerless_unrelated_block_stays_raw():
     assert result[0]["status"] == "STANDALONE"
 
 
+def test_raw_rows_never_cites_an_inferred_cell():
+    # A cell document_processing marks "inferred" (its bbox is borrowed from the
+    # table's own reference column, not a real detection -- see
+    # _inject_leading_gpt_word / _cells_from_gpt_tabs there) must never surface a
+    # citation button pointing a reviewer at a page position that isn't really where
+    # the text sits. The text itself is still trusted and shown.
+    block = fragment(1, [["01", "Nguyễn Văn A", "", "", "", "", ""]])
+    block["rows"][0]["cells"][0]["inferred"] = True
+
+    result = build_logical_tables([block])
+
+    assert len(result) == 1
+    cells = {c["col_index"]: c for c in result[0]["rows"][0]["cells"]}
+    assert cells[0]["text"] == "01"
+    assert cells[0]["sources"] == []
+    assert cells[1]["text"] == "Nguyễn Văn A"
+    assert cells[1]["sources"] != []
+
+
+def test_map_rows_never_cites_an_inferred_cell():
+    # Same guarantee as the raw-rows test above, but through the grid-normalized
+    # path (_map_rows) a headered fragment takes.
+    tables = sample()
+    stt_cell = next(c for c in tables[0]["rows"][1]["cells"] if c["col_index"] == 0)
+    stt_cell["inferred"] = True
+
+    result = build_logical_tables(tables)
+
+    row = result[0]["rows"][1]
+    cells = {c["col_index"]: c for c in row["cells"]}
+    assert cells[0]["text"] == "01"
+    assert cells[0]["sources"] == []
+    assert cells[1]["sources"] != []
+
+
 def test_third_page_continues_with_original_canonical_columns():
     tables = sample()
     tables[1]["rows"].pop()

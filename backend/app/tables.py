@@ -105,8 +105,14 @@ def _source(table, row, cell):
 
 
 def _raw_rows(table):
+    # A cell flagged "inferred" (document_processing._inject_leading_gpt_word /
+    # _cells_from_gpt_tabs) has a bbox borrowed from the table's own reference
+    # column, not a real detection -- citing it would point a reviewer at a page
+    # position that isn't really where this text sits, so it gets no source at all
+    # rather than a misleading one. The text itself is still trusted and kept.
     return [{"kind": "header" if _header(row) else "total" if _total(row) else "data",
-             "cells": [{**deepcopy(cell), "sources": [_source(table, row, cell)]}
+             "cells": [{**deepcopy(cell),
+                        "sources": [] if cell.get("inferred") else [_source(table, row, cell)]}
                        for cell in row["cells"]]} for row in table["rows"]]
 
 
@@ -285,7 +291,11 @@ def _map_rows(table, grid, *, bbox=None):
             if target["text"] and index != 1:
                 return None  # Never concatenate separate identifiers or numeric values.
             target["text"] = (target["text"] + " " + r["cell"]["text"].strip()).strip()
-            target["sources"].append(_source(table, raw, r["cell"]))
+            # See _raw_rows: an "inferred" cell's bbox is a borrowed position, not a
+            # real detection -- no source, so nothing points a reviewer at the wrong
+            # place on the page. The text contribution itself is unaffected.
+            if not r["cell"].get("inferred"):
+                target["sources"].append(_source(table, raw, r["cell"]))
             target["bbox"] = list(r["cell"]["bbox"])
         # Detector-only empty rows must not become business line items.
         if any(c["text"] for c in cells):

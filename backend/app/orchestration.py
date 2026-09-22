@@ -25,7 +25,12 @@ def enqueue(db, dossier_id, settings, overrides=None):
         for d in docs
     ]
     config = {
-        "profile": "terra_assisted" if settings.ocr_engine == "gpt_vision" else "local_baseline",
+        "profile": (
+            "terra_assisted" if settings.ocr_engine == "gpt_vision"
+            else "mistral_assisted" if settings.ocr_engine == "mistral_vision"
+            else settings.ocr_engine if settings.ocr_engine in ("gpt_vision_only", "mistral_vision_only")
+            else "local_baseline"
+        ),
         "schema_version": "0.1",
         "rule_version": "local-v1",
         "dpi": settings.dpi,
@@ -35,6 +40,7 @@ def enqueue(db, dossier_id, settings, overrides=None):
         "ocr_engine": settings.ocr_engine,
         "ocr_vision_model": settings.ocr_vision_model,
         "ocr_vision_max_retries": settings.ocr_vision_max_retries,
+        "ocr_mistral_model": settings.ocr_mistral_model,
         "max_attempts": settings.max_attempts,
         "lease_seconds": settings.lease_seconds,
         # Per-dossier opt-in only (see app/table_continuity.py) -- never a
@@ -65,7 +71,7 @@ def enqueue(db, dossier_id, settings, overrides=None):
     return {"id": job.id, "status": job.status, "status_url": f"/api/v1/jobs/{job.id}"}
 
 
-def claim(db, settings):
+def claim_batch(db, settings, limit=1):
     now = time.time()
     # PostgreSQL row locking distributes work; SQLite is only for single-worker tests.
     tasks = db.scalars(
@@ -80,6 +86,7 @@ def claim(db, settings):
         .with_for_update(skip_locked=True)
         .limit(20)
     )
+    claimed = []
     for task in tasks:
         job = db.get(Job, task.job_id)
         if task.lease_token:
@@ -94,9 +101,16 @@ def claim(db, settings):
         task.lease_until = now + job.config["lease_seconds"]
         db.add(Attempt(id=task.lease_token, task_id=task.id, number=task.attempts, started_at=now))
         job.status = "processing"
-        db.flush()
-        return task
-    return None
+        claimed.append(task)
+        if len(claimed) >= limit:
+            break
+    db.flush()
+    return claimed
+
+
+def claim(db, settings):
+    claimed = claim_batch(db, settings, limit=1)
+    return claimed[0] if claimed else None
 
 
 def heartbeat(db, task_id, token, seconds):

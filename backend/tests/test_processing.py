@@ -69,6 +69,113 @@ def test_native_table_extraction(tmp_path):
             assert 0 <= cell["bbox"][1] < cell["bbox"][3] <= 1
 
 
+def test_native_table_extraction_ignores_a_signature_block(tmp_path):
+    # Real hard case: a scanned Vietnamese contract's own signature block ("ĐẠI DIỆN
+    # BÊN A | ĐẠI DIỆN BÊN B" over "(Ký, ghi rõ họ tên và đóng dấu" x2), at the bottom
+    # of virtually every page of a multi-page document, is exactly as grid-shaped as
+    # a real 2x2 data table to PyMuPDF's own find_tables() -- and got detected as its
+    # own spurious table on every single page it appeared on, polluting the review
+    # UI with tables that carry no actual data.
+    with pymupdf.open() as pdf:
+        page = pdf.new_page(width=600, height=800)
+        x0, y0, col_w, row_h = 50, 50, 200, 30
+        for r in range(3):
+            page.draw_line((x0, y0 + r * row_h), (x0 + 2 * col_w, y0 + r * row_h))
+        for c in range(3):
+            page.draw_line((x0 + c * col_w, y0), (x0 + c * col_w, y0 + 2 * row_h))
+        labels = [
+            ["DAI DIEN BEN A", "DAI DIEN BEN B"],
+            ["(Ky, ghi ro ho ten va dong dau", "(Ky, ghi ro ho ten va dong dau"],
+        ]
+        for r in range(2):
+            for c in range(2):
+                page.insert_text((x0 + c * col_w + 5, y0 + r * row_h + 20), labels[r][c])
+        source = pdf.tobytes()
+    store = ArtifactStore(tmp_path)
+    payload = {
+        "document_id": "doc",
+        "role": "contract",
+        "sha256": digest(source),
+        "storage_key": store.put(source, "pdf"),
+        "page_number": 1,
+    }
+
+    result = process_page(payload, {"dpi": 100, "max_pixels": 2_000_000}, store)
+
+    assert result["engine"] == "pymupdf"
+    assert result["tables"] == []
+
+
+def test_is_signature_block_recognizes_a_real_two_party_signature_row():
+    from app.document_processing import _is_signature_block
+
+    rows = [
+        {"cells": [
+            {"col_index": 0, "text": "ĐẠI DIỆN NHÀ CUNG CẤP HÀNG HÓA"},
+            {"col_index": 1, "text": "ĐẠI DIỆN ĐƠN VỊ SỬ DỤNG NGÂN SÁCH"},
+        ]},
+        {"cells": [
+            {"col_index": 0, "text": "(Ký, ghi rõ họ tên và đóng dấu"},
+            {"col_index": 1, "text": "(Ký, ghi rõ họ tên và đóng dấu"},
+        ]},
+    ]
+
+    assert _is_signature_block(rows) is True
+
+
+def test_is_signature_block_rejects_a_real_data_row():
+    # A real data row never has EVERY one of its cells open with "Đại diện"/"(" --
+    # only one accidental match must not be enough to reject a genuine table.
+    from app.document_processing import _is_signature_block
+
+    rows = [
+        {"cells": [
+            {"col_index": 0, "text": "Khoản mục"},
+            {"col_index": 1, "text": "(theo hợp đồng)"},  # one coincidental match
+            {"col_index": 2, "text": "Số tiền"},
+        ]},
+        {"cells": [
+            {"col_index": 0, "text": "Cọc"},
+            {"col_index": 1, "text": "Đợt 1"},
+            {"col_index": 2, "text": "10.000.000 VND"},
+        ]},
+    ]
+
+    assert _is_signature_block(rows) is False
+
+
+def test_native_table_extraction_ignores_a_sparse_noise_fragment(tmp_path):
+    # Real hard case: a stray line (a barcode/serial number followed by a lone "."
+    # a few pixels away) that PyMuPDF's own find_tables() grid-detection picked up as
+    # a 1-row, 2-column table -- _plausible_row (the same noise guard _ocr_tables
+    # already relies on for its own geometry-based detection) correctly recognizes
+    # this has nowhere near enough real content to trust as a table row.
+    with pymupdf.open() as pdf:
+        page = pdf.new_page(width=600, height=800)
+        x0, y0, col_w, row_h = 50, 50, 200, 30
+        page.draw_line((x0, y0), (x0 + 2 * col_w, y0))
+        page.draw_line((x0, y0 + row_h), (x0 + 2 * col_w, y0 + row_h))
+        page.draw_line((x0, y0), (x0, y0 + row_h))
+        page.draw_line((x0 + col_w, y0), (x0 + col_w, y0 + row_h))
+        page.draw_line((x0 + 2 * col_w, y0), (x0 + 2 * col_w, y0 + row_h))
+        page.insert_text((x0 + 5, y0 + 20), "5007205033781")
+        page.insert_text((x0 + col_w + 5, y0 + 20), ".")
+        source = pdf.tobytes()
+    store = ArtifactStore(tmp_path)
+    payload = {
+        "document_id": "doc",
+        "role": "contract",
+        "sha256": digest(source),
+        "storage_key": store.put(source, "pdf"),
+        "page_number": 1,
+    }
+
+    result = process_page(payload, {"dpi": 100, "max_pixels": 2_000_000}, store)
+
+    assert result["engine"] == "pymupdf"
+    assert result["tables"] == []
+
+
 def _table(document_id, page_number, bbox, col_count, row_count=1, index=0):
     return {
         "id": f"table:{document_id}:{page_number}:{index}",
@@ -301,6 +408,82 @@ def test_clause_hierarchy_recognizes_headers_without_diacritics():
     assert by_id["clause:l1"]["label"] == "DIEU 1. NOI DUNG VA PHAM VI CONG VIEC"
 
 
+def test_small_logo_alongside_native_text_stays_native(tmp_path, monkeypatch):
+    import io
+
+    from PIL import Image
+
+    import app.document_processing as processing
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("OCR should not run: page has a full native text layer")
+
+    monkeypatch.setattr(processing.pytesseract, "image_to_data", fail_if_called)
+    logo = Image.new("RGB", (60, 40), "blue")
+    png = io.BytesIO()
+    logo.save(png, format="PNG")
+    with pymupdf.open() as pdf:
+        page = pdf.new_page(width=600, height=800)
+        page.insert_text((100, 150), "100.000.000 VND")
+        # A corner logo covering a small fraction of the page (60x40 of 600x800,
+        # ~0.5%) -- well under _SCAN_IMAGE_COVERAGE_THRESHOLD -- must not disqualify
+        # the page's own real text layer from the fast native path.
+        page.insert_image(pymupdf.Rect(10, 10, 70, 50), stream=png.getvalue())
+        source = pdf.tobytes()
+    store = ArtifactStore(tmp_path)
+    payload = {
+        "document_id": "doc",
+        "role": "contract",
+        "sha256": digest(source),
+        "storage_key": store.put(source, "pdf"),
+        "page_number": 1,
+    }
+    result = process_page(payload, {"dpi": 100, "max_pixels": 2_000_000}, store)
+    assert result["engine"] == "pymupdf"
+
+
+def test_mostly_scanned_image_with_some_text_still_routes_to_ocr(tmp_path, monkeypatch):
+    import io
+
+    from PIL import Image
+
+    import app.document_processing as processing
+
+    called = []
+
+    def mock_ocr(*args, **kwargs):
+        called.append(kwargs)
+        return {"text": []}
+
+    monkeypatch.setattr(processing.pytesseract, "image_to_data", mock_ocr)
+    scan = Image.new("RGB", (500, 700), "white")
+    png = io.BytesIO()
+    scan.save(png, format="PNG")
+    with pymupdf.open() as pdf:
+        page = pdf.new_page(width=600, height=800)
+        page.insert_text((100, 750), "Trang 1/1")
+        # A scanned-looking image covering ~73% of the page: real scans, not a
+        # decorative logo/stamp -- must still fall back to OCR even though the page
+        # also carries a sliver of real native text (e.g. a stamped page number).
+        page.insert_image(pymupdf.Rect(50, 50, 550, 700), stream=png.getvalue())
+        source = pdf.tobytes()
+    store = ArtifactStore(tmp_path)
+    payload = {
+        "document_id": "doc",
+        "role": "contract",
+        "sha256": digest(source),
+        "storage_key": store.put(source, "pdf"),
+        "page_number": 1,
+    }
+    result = process_page(
+        payload,
+        {"dpi": 100, "max_pixels": 2_000_000, "ocr_languages": "vie+eng", "ocr_timeout_seconds": 5},
+        store,
+    )
+    assert called
+    assert result["engine"] == "tesseract"
+
+
 def test_scan_routes_to_local_ocr_and_empty_is_not_blank(tmp_path, monkeypatch):
     import io
 
@@ -460,6 +643,73 @@ def test_gpt_vision_replaces_text_but_keeps_tesseract_bbox_on_line_match(tmp_pat
     assert result["issue"] is None
     # bbox still comes from Tesseract geometry, unaffected by the (untrusted) vision text.
     assert [line["bbox"] for line in result["lines"]] == [line["bbox"] for line in baseline["lines"]]
+    # _ocr_tables groups line["words"], never line["text"] -- GPT vision's better
+    # reading (Vietnamese diacritics especially) only helps table cells if it lands
+    # there too, not just in the line's own display string.
+    assert [w["text"] for w in result["lines"][0]["words"]] == ["Xin", "chào"]
+    assert [w["text"] for w in result["lines"][1]["words"]] == ["Tạm", "biệt"]
+    # Word bbox is still Tesseract's own, unmoved by the text substitution.
+    assert [w["bbox"] for w in result["lines"][0]["words"]] == \
+        [w["bbox"] for w in baseline["lines"][0]["words"]]
+
+
+def test_gpt_vision_word_mismatch_within_a_line_keeps_that_word_tesseracts(tmp_path, monkeypatch):
+    # Same line-level match as above (2 lines both sides), but GPT's own transcription
+    # of one line tokenizes differently (e.g. a compound word GPT wrote as one token
+    # where Tesseract split it in two) -- no confident one-for-one correspondence
+    # exists for that whole line at all (unequal lengths with no usable alignment), so
+    # it falls back to Tesseract's own per-word text exactly as before word-level
+    # substitution existed, rather than guessing which Tesseract word each GPT word
+    # replaces. The line's own display text still gets GPT's (generally more
+    # accurate) version regardless.
+    import app.document_processing as processing
+
+    monkeypatch.setattr(processing.pytesseract, "image_to_data", _mock_two_tesseract_lines)
+    monkeypatch.setattr(processing, "_gpt_vision_lines", lambda image, config: ["HelloWorld", "Fizz Buzz"])
+    store, payload = _scan_pdf_payload(tmp_path)
+    result = process_page(
+        payload,
+        {"dpi": 100, "max_pixels": 2_000_000, "ocr_languages": "vie+eng", "ocr_timeout_seconds": 5,
+         "ocr_engine": "gpt_vision"},
+        store,
+    )
+
+    assert [line["text"] for line in result["lines"]] == ["HelloWorld", "Fizz Buzz"]
+    # Line 1: GPT's single token vs Tesseract's two words -- no safe correspondence,
+    # so the words stay Tesseract's own.
+    assert [w["text"] for w in result["lines"][0]["words"]] == ["Hello", "World"]
+    # Line 2: counts agree (2 vs 2) -- words DO get replaced, proving line 1's
+    # fallback above is really about the mismatch, not that substitution never fires.
+    assert [w["text"] for w in result["lines"][1]["words"]] == ["Fizz", "Buzz"]
+
+
+def test_gpt_vision_recovers_aligned_words_despite_one_tesseract_missed_entirely(tmp_path, monkeypatch):
+    # Real hard case (dossier 9f889e79, trang 2, dòng "09 Gói giám sát..."): Tesseract's
+    # own line for an item row was missing its leading "09" entirely (swallowed into an
+    # unrelated garbled line next to it, no bbox for it anywhere) while correctly
+    # detecting the other 13 words -- two of which it still misread badly enough to
+    # become meaningless English ("en", "lap" for "Không", "lặp"). A raw word-count
+    # check (14 vs 13, purely because of GPT's extra leading "09") would trust NONE of
+    # the 14 words over the one word the two sources disagree about the position of.
+    # Alignment recovers the genuinely misread word ("World" -> "Cleaned" here) and
+    # simply leaves the unmatched leading word ("Extra") unplaced, with no bbox to
+    # give it, while an already-correct word ("Hello") is left as itself either way.
+    import app.document_processing as processing
+
+    monkeypatch.setattr(processing.pytesseract, "image_to_data", _mock_two_tesseract_lines)
+    monkeypatch.setattr(
+        processing, "_gpt_vision_lines", lambda image, config: ["Extra Hello Cleaned", "Foo Bar"],
+    )
+    store, payload = _scan_pdf_payload(tmp_path)
+    result = process_page(
+        payload,
+        {"dpi": 100, "max_pixels": 2_000_000, "ocr_languages": "vie+eng", "ocr_timeout_seconds": 5,
+         "ocr_engine": "gpt_vision"},
+        store,
+    )
+
+    assert result["lines"][0]["text"] == "Extra Hello Cleaned"
+    assert [w["text"] for w in result["lines"][0]["words"]] == ["Hello", "Cleaned"]
 
 
 def test_gpt_vision_falls_back_to_tesseract_text_on_line_count_mismatch(tmp_path, monkeypatch):
@@ -480,6 +730,53 @@ def test_gpt_vision_falls_back_to_tesseract_text_on_line_count_mismatch(tmp_path
     assert result["issue"] == "GPT_VISION_LINE_COUNT_MISMATCH"
 
 
+def test_gpt_vision_line_alignment_keeps_every_line_not_just_matched_ones(tmp_path, monkeypatch):
+    # Real hard case: a line-count mismatch is common whenever GPT vision splits or
+    # merges a table row's own multi-line description differently than Tesseract's
+    # own line segmentation -- costing several genuine lines their confident match,
+    # not just the odd stamp/watermark artifact _align_gpt_lines was designed
+    # around. Dropping every unmatched Tesseract line entirely (the previous
+    # behavior) silently lost real page text from BOTH "Toàn văn theo trang" and
+    # _ocr_tables (which runs on this exact list). A line with no confident match
+    # must still survive, just at its own original Tesseract text.
+    import app.document_processing as processing
+
+    def mock_ocr(*args, **kwargs):
+        return {
+            "text": ["Hello", "World", "Foo", "Bar", "Baz", "Qux"],
+            "left": [10, 60, 10, 60, 10, 60],
+            "top": [10, 10, 30, 30, 50, 50],
+            "width": [40, 40, 30, 30, 30, 30],
+            "height": [15, 15, 15, 15, 15, 15],
+            "block_num": [1, 1, 1, 1, 1, 1],
+            "par_num": [1, 1, 1, 1, 1, 1],
+            "line_num": [1, 1, 2, 2, 3, 3],
+        }
+
+    monkeypatch.setattr(processing.pytesseract, "image_to_data", mock_ocr)
+    monkeypatch.setattr(processing, "_gpt_vision_lines", lambda image, config: ["x", "y"])
+    # Only the first of three Tesseract lines gets a confident alignment; lines 1 and
+    # 2 simulate the common real case (GPT splitting/merging the rest of the page
+    # differently than Tesseract's own line segmentation) rather than depending on
+    # difflib's actual fuzzy-matching behavior, already covered elsewhere.
+    monkeypatch.setattr(
+        processing, "_align_gpt_lines", lambda tess, gpt: ({0: "Hello World"}, set())
+    )
+    store, payload = _scan_pdf_payload(tmp_path)
+    result = process_page(
+        payload,
+        {"dpi": 100, "max_pixels": 2_000_000, "ocr_languages": "vie+eng", "ocr_timeout_seconds": 5,
+         "ocr_engine": "gpt_vision"},
+        store,
+    )
+
+    assert len(result["lines"]) == 3  # all three Tesseract lines survive
+    assert result["lines"][0]["text"] == "Hello World"  # confidently matched: GPT's text
+    assert result["lines"][1]["text"] == "Foo Bar"  # unmatched: kept at Tesseract's own text
+    assert result["lines"][2]["text"] == "Baz Qux"  # unmatched: kept at Tesseract's own text
+    assert result["issue"] is None
+
+
 def test_gpt_vision_unavailable_falls_back_to_tesseract_text(tmp_path, monkeypatch):
     import app.document_processing as processing
 
@@ -495,6 +792,72 @@ def test_gpt_vision_unavailable_falls_back_to_tesseract_text(tmp_path, monkeypat
     assert [line["text"] for line in result["lines"]] == ["Hello World", "Foo Bar"]
     assert result["status"] == "needs_review"
     assert result["issue"] == "GPT_VISION_UNAVAILABLE"
+
+
+def test_mistral_vision_replaces_text_but_keeps_tesseract_bbox_on_line_match(tmp_path, monkeypatch):
+    # Mirrors test_gpt_vision_replaces_text_but_keeps_tesseract_bbox_on_line_match --
+    # same dispatch shape, different provider function/model label/engine tag. The
+    # actual word/line alignment (_align_gpt_words/_align_gpt_lines) is unchanged,
+    # provider-agnostic code already covered by the gpt_vision tests above; this
+    # confirms the mistral_vision branch wires into it the same way, not that the
+    # alignment algorithm itself works (already proven).
+    import app.document_processing as processing
+
+    monkeypatch.setattr(processing.pytesseract, "image_to_data", _mock_two_tesseract_lines)
+    base_config = {
+        "dpi": 100, "max_pixels": 2_000_000, "ocr_languages": "vie+eng", "ocr_timeout_seconds": 5,
+    }
+    store, payload = _scan_pdf_payload(tmp_path)
+    baseline = process_page(payload, base_config, store)
+
+    monkeypatch.setattr(processing, "_mistral_vision_lines", lambda image, config: ["Xin chào", "Tạm biệt"])
+    store, payload = _scan_pdf_payload(tmp_path)
+    result = process_page(
+        payload, {**base_config, "ocr_engine": "mistral_vision", "ocr_mistral_model": "mistral-ocr-4"}, store,
+    )
+
+    assert [line["text"] for line in result["lines"]] == ["Xin chào", "Tạm biệt"]
+    assert result["engine"] == "tesseract+mistral-ocr-4"
+    assert result["status"] == "completed"
+    assert result["issue"] is None
+    assert [line["bbox"] for line in result["lines"]] == [line["bbox"] for line in baseline["lines"]]
+    assert [w["text"] for w in result["lines"][0]["words"]] == ["Xin", "chào"]
+    assert [w["text"] for w in result["lines"][1]["words"]] == ["Tạm", "biệt"]
+
+
+def test_mistral_vision_falls_back_to_tesseract_text_on_line_count_mismatch(tmp_path, monkeypatch):
+    import app.document_processing as processing
+
+    monkeypatch.setattr(processing.pytesseract, "image_to_data", _mock_two_tesseract_lines)
+    monkeypatch.setattr(processing, "_mistral_vision_lines", lambda image, config: ["Only one line"])
+    store, payload = _scan_pdf_payload(tmp_path)
+    result = process_page(
+        payload,
+        {"dpi": 100, "max_pixels": 2_000_000, "ocr_languages": "vie+eng", "ocr_timeout_seconds": 5,
+         "ocr_engine": "mistral_vision"},
+        store,
+    )
+    assert [line["text"] for line in result["lines"]] == ["Hello World", "Foo Bar"]
+    assert result["engine"] == "tesseract"
+    assert result["status"] == "needs_review"
+    assert result["issue"] == "MISTRAL_VISION_LINE_COUNT_MISMATCH"
+
+
+def test_mistral_vision_unavailable_falls_back_to_tesseract_text(tmp_path, monkeypatch):
+    import app.document_processing as processing
+
+    monkeypatch.setattr(processing.pytesseract, "image_to_data", _mock_two_tesseract_lines)
+    monkeypatch.setattr(processing, "_mistral_vision_lines", lambda image, config: None)
+    store, payload = _scan_pdf_payload(tmp_path)
+    result = process_page(
+        payload,
+        {"dpi": 100, "max_pixels": 2_000_000, "ocr_languages": "vie+eng", "ocr_timeout_seconds": 5,
+         "ocr_engine": "mistral_vision"},
+        store,
+    )
+    assert [line["text"] for line in result["lines"]] == ["Hello World", "Foo Bar"]
+    assert result["status"] == "needs_review"
+    assert result["issue"] == "MISTRAL_VISION_UNAVAILABLE"
 
 
 def test_align_gpt_lines_drops_a_stamp_fragment_in_the_middle_without_shifting_later_lines():
@@ -522,9 +885,10 @@ def test_align_gpt_lines_drops_a_stamp_fragment_in_the_middle_without_shifting_l
         "Mã số thuế     : 0402004822",
     ]
 
-    matches = _align_gpt_lines(tess, gpt)
+    matches, noise = _align_gpt_lines(tess, gpt)
 
     assert 2 not in matches  # the stamp-fragment line: no confident GPT counterpart
+    assert 2 in noise  # ... because it has no counterpart in the alignment at all
     assert matches[0] == "Quận Liên Chiểu, Thành phố Đà Nẵng"
     assert matches[1].startswith("Số tài khoản")
     # The lines AFTER the dropped one still land on their true counterpart, not shifted:
@@ -533,13 +897,71 @@ def test_align_gpt_lines_drops_a_stamp_fragment_in_the_middle_without_shifting_l
     assert matches[5].startswith("Mã số thuế")
 
 
+def test_align_gpt_lines_distinguishes_noise_from_real_but_dissimilar_text():
+    # Two very different reasons a line can end up unmatched, and the caller must
+    # not treat them the same (see the reported bug: garbage like "2 _ ~ Z x 4 ^`"
+    # surviving into "Toàn văn theo trang" because both cases were being kept).
+    from app.document_processing import _align_gpt_lines
+
+    tess = [
+        "Alpha Beta Gamma",
+        "x9 z7 q3 stamp noise blob",  # no GPT counterpart anywhere: pure noise
+        "Delta Epsilon Zeta",
+    ]
+    gpt = [
+        "Alpha Beta Gamma Real",
+        "Delta Epsilon Zeta Real",
+    ]
+
+    matches, noise = _align_gpt_lines(tess, gpt)
+
+    assert matches[0] == "Alpha Beta Gamma Real"
+    assert matches[2] == "Delta Epsilon Zeta Real"
+    assert noise == {1}  # only the noise line is flagged for dropping
+
+
+def test_align_gpt_lines_keeps_real_content_the_order_constraint_cant_place():
+    # A real Tesseract line can genuinely resemble a GPT line (0.70 similarity here)
+    # that the alignment still can't confidently pair it with, because doing so would
+    # violate the surrounding anchors' own order (GPT happened to transcribe this one
+    # out of sequence relative to Tesseract). The noise check must look at the BEST
+    # similarity against every GPT line, not just whatever this one global path
+    # happened to align it with, or a real line like this would be wrongly dropped as
+    # noise right alongside actual stamp/watermark garbage.
+    from app.document_processing import _align_gpt_lines
+
+    tess = [
+        "Start Anchor One",
+        "ambiguous middle content wording here",
+        "Middle Anchor Two",
+        "End Anchor Three",
+    ]
+    gpt = [
+        "Start Anchor One",
+        "Middle Anchor Two",
+        "End Anchor Three",
+        "ambiguous middle content phrased quite differently over here",
+    ]
+
+    matches, noise = _align_gpt_lines(tess, gpt)
+
+    assert 1 not in matches  # not confidently placed by the order-constrained path
+    assert 1 not in noise  # but not noise either: real resemblance exists elsewhere
+
+
 def test_align_gpt_lines_no_confident_match_returns_empty():
     from app.document_processing import _align_gpt_lines
 
-    assert _align_gpt_lines(["Hello World", "Foo Bar"], ["Xin chào", "Tạm biệt"]) == {}
+    matches, _noise = _align_gpt_lines(["Hello World", "Foo Bar"], ["Xin chào", "Tạm biệt"])
+    assert matches == {}
 
 
 def test_process_page_uses_alignment_when_gpt_vision_line_count_differs(tmp_path, monkeypatch):
+    # "STAMP" has no counterpart anywhere in GPT's transcription (GPT read the page
+    # as just two real lines, correctly leaving the stamp decoration out) -- see
+    # _align_gpt_lines' docstring: a line with NO alignment counterpart at all is
+    # dropped, not kept at its own garbled Tesseract text, since GPT vision is the
+    # stronger signal that there's no real text there.
     import app.document_processing as processing
 
     def mock_ocr(*args, **kwargs):
@@ -567,6 +989,535 @@ def test_process_page_uses_alignment_when_gpt_vision_line_count_differs(tmp_path
     assert result["engine"] == "tesseract+gpt-5.6-terra"
     assert result["status"] == "completed"
     assert result["issue"] is None
+
+
+def test_parse_vision_table_rows_pads_ragged_rows_and_drops_bad_types():
+    from app.document_processing import _parse_vision_table_rows, _rectangularize
+
+    raw = json.dumps({"rows": [["STT", "Ten", "DVT"], ["1", "Item"], "not a row", ["2", "Item2", 3]]})
+    rows = _parse_vision_table_rows(raw)
+    # The malformed row ("not a row", a plain string) is dropped, not fatal to the rest.
+    assert rows == [["STT", "Ten", "DVT"], ["1", "Item"], ["2", "Item2", None]]
+    rectangular, col_count = _rectangularize(rows)
+    assert col_count == 3
+    assert rectangular == [["STT", "Ten", "DVT"], ["1", "Item", None], ["2", "Item2", None]]
+
+
+def test_parse_vision_table_rows_returns_none_for_unusable_response():
+    from app.document_processing import _parse_vision_table_rows
+
+    assert _parse_vision_table_rows("not json at all") is None
+    assert _parse_vision_table_rows(json.dumps({"cells": ["x"]})) is None
+    assert _parse_vision_table_rows(json.dumps({"rows": "not a list"})) is None
+    assert _parse_vision_table_rows(json.dumps({"rows": ["also not a list"]})) is None
+
+
+def test_gpt_vision_table_recovers_a_column_ocr_tables_geometry_dropped(tmp_path, monkeypatch):
+    # Real hard case (Hop_dong_scan_stress_bang_lien_trang_khong_header.pdf, trang 1):
+    # _ocr_tables' column grid comes entirely from Tesseract's own word x-positions --
+    # its ĐVT column's words sat close enough to a neighboring column's x-band that the
+    # whole column silently vanished from every row (col_count 6 instead of 7).
+    # Reconstructing straight from the vision model's own read of the table region,
+    # instead of trusting that geometry, recovers the missing column.
+    import app.document_processing as processing
+
+    def mock_ocr(*args, **kwargs):
+        # 3 rows x 3 well-separated word groups each -- enough for _ocr_tables to
+        # detect one plain table, whatever its (here irrelevant) column count.
+        text, left, top, width, line_num = [], [], [], [], []
+        rows = [["1", "Item one", "100"], ["2", "Item two", "200"], ["3", "Item three", "300"]]
+        for r, cells in enumerate(rows):
+            # Include a small within-cell word gap so column boundaries are
+            # distinguishable from uniformly spaced prose.
+            for value, x, w in zip(
+                [cells[0], *cells[1].split(), cells[2]], [10, 70, 100, 180], [25, 25, 25, 30]
+            ):
+                text.append(value)
+                left.append(x)
+                top.append(10 + r * 20)
+                width.append(w)
+                line_num.append(r)
+        return {
+            "text": text, "left": left, "top": top, "width": width,
+            "height": [15] * len(text), "block_num": [1] * len(text),
+            "par_num": [1] * len(text), "line_num": line_num,
+        }
+
+    monkeypatch.setattr(processing.pytesseract, "image_to_data", mock_ocr)
+    monkeypatch.setattr(processing, "_gpt_vision_lines", lambda image, config: None)
+    monkeypatch.setattr(
+        processing,
+        "_gpt_vision_table",
+        lambda image, bbox, config: [
+            ["STT", "Ten hang", "DVT", "So luong"],
+            ["1", "Item one", "Cai", "100"],
+            ["2", "Item two", "Bo", "200"],
+            ["3", "Item three", "Goi", "300"],
+        ],
+    )
+    store, payload = _scan_pdf_payload(tmp_path)
+    result = process_page(
+        payload,
+        {"dpi": 100, "max_pixels": 2_000_000, "ocr_languages": "vie+eng", "ocr_timeout_seconds": 5,
+         "ocr_engine": "gpt_vision"},
+        store,
+    )
+
+    assert len(result["tables"]) == 1
+    table = result["tables"][0]
+    # Recovered the 4th column _ocr_tables' own geometry-based grid never had.
+    assert table["col_count"] == 4
+    assert table["row_count"] == 4
+    assert [c["text"] for c in table["rows"][0]["cells"]] == ["STT", "Ten hang", "DVT", "So luong"]
+    assert [c["text"] for c in table["rows"][2]["cells"]] == ["2", "Item two", "Bo", "200"]
+    # Every cell's bbox is an even split of the table's region, not a real per-cell
+    # detection -- marked "inferred" so tables.py skips citing it (see
+    # _apply_gpt_vision_table), even though the text itself is fully trusted.
+    assert all(c["inferred"] for row in table["rows"] for c in row["cells"])
+
+
+def test_gpt_vision_table_unavailable_keeps_the_geometry_based_table(tmp_path, monkeypatch):
+    import app.document_processing as processing
+
+    def mock_ocr(*args, **kwargs):
+        text, left, top, width, line_num = [], [], [], [], []
+        rows = [["1", "Item one", "100"], ["2", "Item two", "200"], ["3", "Item three", "300"]]
+        for r, cells in enumerate(rows):
+            # Include a small within-cell word gap so column boundaries are
+            # distinguishable from uniformly spaced prose.
+            for value, x, w in zip(
+                [cells[0], *cells[1].split(), cells[2]], [10, 70, 100, 180], [25, 25, 25, 30]
+            ):
+                text.append(value)
+                left.append(x)
+                top.append(10 + r * 20)
+                width.append(w)
+                line_num.append(r)
+        return {
+            "text": text, "left": left, "top": top, "width": width,
+            "height": [15] * len(text), "block_num": [1] * len(text),
+            "par_num": [1] * len(text), "line_num": line_num,
+        }
+
+    monkeypatch.setattr(processing.pytesseract, "image_to_data", mock_ocr)
+    monkeypatch.setattr(processing, "_gpt_vision_lines", lambda image, config: None)
+    monkeypatch.setattr(processing, "_gpt_vision_table", lambda image, bbox, config: None)
+    store, payload = _scan_pdf_payload(tmp_path)
+    result = process_page(
+        payload,
+        {"dpi": 100, "max_pixels": 2_000_000, "ocr_languages": "vie+eng", "ocr_timeout_seconds": 5,
+         "ocr_engine": "gpt_vision"},
+        store,
+    )
+
+    assert len(result["tables"]) == 1
+    assert result["tables"][0]["col_count"] == 3
+    assert not any(
+        c["inferred"] for c in result["tables"][0]["rows"][0]["cells"]
+    )
+
+
+def test_parse_markdown_pipe_table_extracts_header_and_body_rows():
+    from app.document_processing import _parse_markdown_pipe_table
+
+    text = (
+        "Some heading text before the table.\n\n"
+        "|  STT | Ten hang | DVT |\n"
+        "| --- | --- | --- |\n"
+        "|  1 | Item one | Cai  |\n"
+        "|  2 | Item two |   |\n\n"
+        "Some trailing text after."
+    )
+    rows = _parse_markdown_pipe_table(text)
+    assert rows == [
+        ["STT", "Ten hang", "DVT"],
+        ["1", "Item one", "Cai"],
+        ["2", "Item two", ""],
+    ]
+
+
+def test_parse_markdown_pipe_table_returns_none_for_unusable_response():
+    from app.document_processing import _parse_markdown_pipe_table
+
+    assert _parse_markdown_pipe_table("just plain prose, no table here") is None
+    # A line that merely contains "|" without a following separator row isn't a table.
+    assert _parse_markdown_pipe_table("A | B\nC | D") is None
+
+
+def test_mistral_vision_table_recovers_a_column_ocr_tables_geometry_dropped(tmp_path, monkeypatch):
+    # Mirrors test_gpt_vision_table_recovers_a_column_ocr_tables_geometry_dropped.
+    import app.document_processing as processing
+
+    def mock_ocr(*args, **kwargs):
+        text, left, top, width, line_num = [], [], [], [], []
+        rows = [["1", "Item one", "100"], ["2", "Item two", "200"], ["3", "Item three", "300"]]
+        for r, cells in enumerate(rows):
+            # Include a small within-cell word gap so column boundaries are
+            # distinguishable from uniformly spaced prose.
+            for value, x, w in zip(
+                [cells[0], *cells[1].split(), cells[2]], [10, 70, 100, 180], [25, 25, 25, 30]
+            ):
+                text.append(value)
+                left.append(x)
+                top.append(10 + r * 20)
+                width.append(w)
+                line_num.append(r)
+        return {
+            "text": text, "left": left, "top": top, "width": width,
+            "height": [15] * len(text), "block_num": [1] * len(text),
+            "par_num": [1] * len(text), "line_num": line_num,
+        }
+
+    monkeypatch.setattr(processing.pytesseract, "image_to_data", mock_ocr)
+    monkeypatch.setattr(processing, "_mistral_vision_lines", lambda image, config: None)
+    monkeypatch.setattr(
+        processing,
+        "_mistral_vision_table",
+        lambda image, bbox, config: [
+            ["STT", "Ten hang", "DVT", "So luong"],
+            ["1", "Item one", "Cai", "100"],
+            ["2", "Item two", "Bo", "200"],
+            ["3", "Item three", "Goi", "300"],
+        ],
+    )
+    store, payload = _scan_pdf_payload(tmp_path)
+    result = process_page(
+        payload,
+        {"dpi": 100, "max_pixels": 2_000_000, "ocr_languages": "vie+eng", "ocr_timeout_seconds": 5,
+         "ocr_engine": "mistral_vision"},
+        store,
+    )
+
+    assert len(result["tables"]) == 1
+    table = result["tables"][0]
+    assert table["col_count"] == 4
+    assert table["row_count"] == 4
+    assert [c["text"] for c in table["rows"][0]["cells"]] == ["STT", "Ten hang", "DVT", "So luong"]
+    assert [c["text"] for c in table["rows"][2]["cells"]] == ["2", "Item two", "Bo", "200"]
+    assert all(c["inferred"] for row in table["rows"] for c in row["cells"])
+
+
+def test_mistral_vision_table_unavailable_keeps_the_geometry_based_table(tmp_path, monkeypatch):
+    import app.document_processing as processing
+
+    def mock_ocr(*args, **kwargs):
+        text, left, top, width, line_num = [], [], [], [], []
+        rows = [["1", "Item one", "100"], ["2", "Item two", "200"], ["3", "Item three", "300"]]
+        for r, cells in enumerate(rows):
+            # Include a small within-cell word gap so column boundaries are
+            # distinguishable from uniformly spaced prose.
+            for value, x, w in zip(
+                [cells[0], *cells[1].split(), cells[2]], [10, 70, 100, 180], [25, 25, 25, 30]
+            ):
+                text.append(value)
+                left.append(x)
+                top.append(10 + r * 20)
+                width.append(w)
+                line_num.append(r)
+        return {
+            "text": text, "left": left, "top": top, "width": width,
+            "height": [15] * len(text), "block_num": [1] * len(text),
+            "par_num": [1] * len(text), "line_num": line_num,
+        }
+
+    monkeypatch.setattr(processing.pytesseract, "image_to_data", mock_ocr)
+    monkeypatch.setattr(processing, "_mistral_vision_lines", lambda image, config: None)
+    monkeypatch.setattr(processing, "_mistral_vision_table", lambda image, bbox, config: None)
+    store, payload = _scan_pdf_payload(tmp_path)
+    result = process_page(
+        payload,
+        {"dpi": 100, "max_pixels": 2_000_000, "ocr_languages": "vie+eng", "ocr_timeout_seconds": 5,
+         "ocr_engine": "mistral_vision"},
+        store,
+    )
+
+    assert len(result["tables"]) == 1
+    assert result["tables"][0]["col_count"] == 3
+    assert not any(
+        c["inferred"] for c in result["tables"][0]["rows"][0]["cells"]
+    )
+
+
+def test_split_markdown_into_segments_separates_text_and_table_in_order():
+    from app.document_processing import _split_markdown_into_segments
+
+    text = (
+        "Heading line\n"
+        "Intro line\n\n"
+        "| STT | Ten |\n"
+        "| --- | --- |\n"
+        "| 1 | Item one |\n"
+        "| 2 | Item two |\n\n"
+        "Footer line"
+    )
+    segments = _split_markdown_into_segments(text)
+    assert segments == [
+        ("text", ["Heading line", "Intro line", ""]),
+        ("table", [["STT", "Ten"], ["1", "Item one"], ["2", "Item two"]]),
+        ("text", ["", "Footer line"]),
+    ]
+
+
+def test_split_markdown_into_segments_returns_one_text_segment_when_no_table():
+    from app.document_processing import _split_markdown_into_segments
+
+    segments = _split_markdown_into_segments("Just prose\nNo table here")
+    assert segments == [("text", ["Just prose", "No table here"])]
+
+
+def test_split_markdown_into_segments_extracts_every_table_on_the_page():
+    # Real bug this guards against: an earlier version only ever extracted the FIRST
+    # table block on a page, silently leaving a second table's own pipe-syntax as
+    # unparsed "| a | b |" prose lines -- confirmed against a real test page with two
+    # consecutive appendix tables separated by only a short intro line.
+    from app.document_processing import _split_markdown_into_segments
+
+    text = (
+        "# Bang A (tiep)\n"
+        "| STT | Ten |\n"
+        "| --- | --- |\n"
+        "| 1 | A |\n\n"
+        "# Bang B\n"
+        "Intro to table B.\n"
+        "| STT | Ten |\n"
+        "| --- | --- |\n"
+        "| 1 | B |\n"
+        "| 2 | B2 |\n"
+        "Trang 3/4"
+    )
+    segments = _split_markdown_into_segments(text)
+    kinds = [kind for kind, _ in segments]
+    assert kinds == ["text", "table", "text", "table", "text"]
+    assert segments[1] == ("table", [["STT", "Ten"], ["1", "A"]])
+    assert segments[3] == ("table", [["STT", "Ten"], ["1", "B"], ["2", "B2"]])
+
+
+def test_assemble_vision_only_page_splits_bbox_proportionally_and_marks_inferred():
+    from app.document_processing import _assemble_vision_only_page
+
+    payload = {"document_id": "doc", "page_number": 1}
+    segments = [
+        ("text", ["Heading", "Intro"]),
+        ("table", [["STT", "Ten"], ["1", "Item one"], ["2", "Item two"]]),
+        ("text", ["Footer"]),
+    ]
+    lines, tables = _assemble_vision_only_page(segments, payload)
+
+    # 2 prose-before + 3 table rows + 1 prose-after = 6 even vertical slots.
+    assert [line["text"] for line in lines] == ["Heading", "Intro", "Footer"]
+    assert all(line["inferred"] for line in lines)
+    assert lines[0]["bbox"] == [0.0, 0.0, 1.0, 1 / 6]
+    assert lines[1]["bbox"] == [0.0, 1 / 6, 1.0, 2 / 6]
+    assert lines[2]["bbox"] == [0.0, 5 / 6, 1.0, 1.0]  # "Footer" comes after the table's 3 slots
+
+    assert len(tables) == 1
+    table = tables[0]
+    assert table["row_count"] == 3
+    assert table["col_count"] == 2
+    assert table["bbox"] == [0.0, 2 / 6, 1.0, 5 / 6]
+    assert [c["text"] for c in table["rows"][0]["cells"]] == ["STT", "Ten"]
+    assert [c["text"] for c in table["rows"][2]["cells"]] == ["2", "Item two"]
+    assert all(c["inferred"] for row in table["rows"] for c in row["cells"])
+
+
+def test_assemble_vision_only_page_with_no_table_is_just_evenly_split_lines():
+    from app.document_processing import _assemble_vision_only_page
+
+    payload = {"document_id": "doc", "page_number": 1}
+    lines, tables = _assemble_vision_only_page([("text", ["A", "B", "C", "D"])], payload)
+    assert tables == []
+    assert [line["bbox"] for line in lines] == [
+        [0.0, 0.0, 1.0, 0.25], [0.0, 0.25, 1.0, 0.5], [0.0, 0.5, 1.0, 0.75], [0.0, 0.75, 1.0, 1.0],
+    ]
+
+
+def test_assemble_vision_only_page_keeps_two_tables_on_the_same_page_separate():
+    from app.document_processing import _assemble_vision_only_page
+
+    payload = {"document_id": "doc", "page_number": 3}
+    segments = [
+        ("table", [["STT", "Ten"], ["1", "A"]]),
+        ("text", ["Intro B"]),
+        ("table", [["STT", "Ten"], ["1", "B"], ["2", "B2"]]),
+    ]
+    lines, tables = _assemble_vision_only_page(segments, payload)
+    assert len(tables) == 2
+    assert tables[0]["row_count"] == 2
+    assert tables[1]["row_count"] == 3
+    # The two tables must not overlap and must sit in page order.
+    assert tables[0]["bbox"][3] <= tables[1]["bbox"][1]
+    assert [line["text"] for line in lines] == ["Intro B"]
+
+
+def test_mistral_block_bbox_normalizes_pixel_coordinates():
+    from types import SimpleNamespace
+
+    from app.document_processing import _mistral_block_bbox
+
+    block = SimpleNamespace(top_left_x=100, top_left_y=50, bottom_right_x=300, bottom_right_y=150)
+    assert _mistral_block_bbox(block, width=1000, height=500) == [0.1, 0.1, 0.3, 0.3]
+
+
+def test_assemble_vision_only_page_from_blocks_uses_real_bbox_and_confidence():
+    # mistral_vision_only's assembler -- unlike _assemble_vision_only_page (evenly
+    # split slots, for gpt_vision_only which has no block-bbox API), every bbox here
+    # comes straight from the block Mistral itself measured, no slot math at all.
+    from app.document_processing import _assemble_vision_only_page_from_blocks
+
+    payload = {"document_id": "doc", "page_number": 2}
+    segments = [
+        ("text", ["Title"], [0.1, 0.05, 0.9, 0.08], 0.99),
+        ("table", [["STT", "Ten"], ["1", "A"], ["2", "B"]], [0.0, 0.15, 1.0, 0.9], 0.95),
+    ]
+    lines, tables = _assemble_vision_only_page_from_blocks(segments, payload)
+
+    assert lines == [{
+        "id": "doc:2:0", "text": "Title", "bbox": [0.1, 0.05, 0.9, 0.08], "confidence": 0.99,
+    }]
+    assert len(tables) == 1
+    table = tables[0]
+    assert table["bbox"] == [0.0, 0.15, 1.0, 0.9]  # the block's own real bbox, untouched
+    assert table["confidence"] == 0.95
+    assert table["row_count"] == 3
+    # Cells have no real per-cell detection -- bbox is an even split WITHIN the
+    # table's own real bbox, still marked "inferred".
+    assert all(c["inferred"] for row in table["rows"] for c in row["cells"])
+    assert table["rows"][0]["cells"][0]["bbox"][1] == 0.15  # top of the real table bbox
+    assert table["rows"][-1]["cells"][0]["bbox"][3] == 0.9  # bottom of the real table bbox
+
+
+def test_assemble_vision_only_page_from_blocks_multiline_text_block_shares_one_bbox():
+    # Mistral's block granularity is paragraph-level, not per-visible-line -- every
+    # line split from one "text" block shares that one block's real bbox/confidence,
+    # since this API gives no finer geometry to split on.
+    from app.document_processing import _assemble_vision_only_page_from_blocks
+
+    payload = {"document_id": "doc", "page_number": 1}
+    segments = [("text", ["Line one", "Line two"], [0.0, 0.2, 1.0, 0.4], 0.9)]
+    lines, tables = _assemble_vision_only_page_from_blocks(segments, payload)
+    assert tables == []
+    assert [line["bbox"] for line in lines] == [[0.0, 0.2, 1.0, 0.4], [0.0, 0.2, 1.0, 0.4]]
+    assert [line["confidence"] for line in lines] == [0.9, 0.9]
+
+
+def test_process_page_mistral_vision_only_never_calls_tesseract(tmp_path, monkeypatch):
+    import app.document_processing as processing
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("Tesseract must not be called in mistral_vision_only")
+
+    monkeypatch.setattr(processing.pytesseract, "image_to_data", fail_if_called)
+    monkeypatch.setattr(
+        processing,
+        "_mistral_vision_page",
+        lambda image, config: [
+            ("text", ["Heading"], [0.0, 0.0, 1.0, 0.1], 0.97),
+            ("table", [["STT", "Ten"], ["1", "Item one"]], [0.0, 0.1, 1.0, 0.6], 0.99),
+            ("text", ["Footer"], [0.0, 0.9, 1.0, 1.0], 0.95),
+        ],
+    )
+    store, payload = _scan_pdf_payload(tmp_path)
+    result = process_page(
+        payload,
+        {"dpi": 100, "max_pixels": 2_000_000, "ocr_languages": "vie+eng", "ocr_timeout_seconds": 5,
+         "ocr_engine": "mistral_vision_only", "ocr_mistral_model": "mistral-ocr-4"},
+        store,
+    )
+
+    assert result["engine"] == "vision_only+mistral-ocr-4"
+    assert result["status"] == "completed"
+    assert result["issue"] is None
+    assert [line["text"] for line in result["lines"]] == ["Heading", "Footer"]
+    # Real (measured) bbox/confidence from the block, not the old evenly-split
+    # "inferred" scheme -- each line carries its own source block's real values.
+    assert result["lines"][0]["bbox"] == [0.0, 0.0, 1.0, 0.1]
+    assert result["lines"][0]["confidence"] == 0.97
+    assert result["lines"][1]["bbox"] == [0.0, 0.9, 1.0, 1.0]
+    assert result["lines"][1]["confidence"] == 0.95
+    assert len(result["tables"]) == 1
+    assert result["tables"][0]["row_count"] == 2
+    assert result["tables"][0]["bbox"] == [0.0, 0.1, 1.0, 0.6]
+    assert result["tables"][0]["confidence"] == 0.99
+    # Table cells still have no real per-cell detection -- bbox stays an even split
+    # WITHIN the table's own now-real bbox, still marked "inferred".
+    assert all(c["inferred"] for row in result["tables"][0]["rows"] for c in row["cells"])
+
+
+def test_process_page_mistral_vision_only_unavailable_is_empty_ocr_needs_review(tmp_path, monkeypatch):
+    import app.document_processing as processing
+
+    monkeypatch.setattr(processing.pytesseract, "image_to_data", lambda *a, **k: (_ for _ in ()).throw(
+        AssertionError("Tesseract must not be called")
+    ))
+    monkeypatch.setattr(processing, "_mistral_vision_page", lambda image, config: None)
+    store, payload = _scan_pdf_payload(tmp_path)
+    result = process_page(
+        payload,
+        {"dpi": 100, "max_pixels": 2_000_000, "ocr_languages": "vie+eng", "ocr_timeout_seconds": 5,
+         "ocr_engine": "mistral_vision_only"},
+        store,
+    )
+
+    assert result["lines"] == []
+    assert result["tables"] == []
+    assert result["status"] == "needs_review"
+    # No Tesseract fallback exists in this mode, so the specific provider-unavailable
+    # issue survives the generic EMPTY_OCR_REQUIRES_REVIEW check rather than being
+    # masked by it (see process_page's own comment on this precedence).
+    assert result["issue"] == "MISTRAL_VISION_UNAVAILABLE"
+
+
+def test_process_page_gpt_vision_only_wires_lines_and_table(tmp_path, monkeypatch):
+    import app.document_processing as processing
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("Tesseract must not be called in gpt_vision_only")
+
+    monkeypatch.setattr(processing.pytesseract, "image_to_data", fail_if_called)
+    monkeypatch.setattr(processing, "_gpt_vision_lines", lambda image, config: ["Heading", "Footer"])
+    monkeypatch.setattr(
+        processing, "_gpt_vision_page_table",
+        lambda image, config: [["STT", "Ten"], ["1", "Item one"]],
+    )
+    store, payload = _scan_pdf_payload(tmp_path)
+    result = process_page(
+        payload,
+        {"dpi": 100, "max_pixels": 2_000_000, "ocr_languages": "vie+eng", "ocr_timeout_seconds": 5,
+         "ocr_engine": "gpt_vision_only", "ocr_vision_model": "gpt-5.6-terra"},
+        store,
+    )
+
+    assert result["engine"] == "vision_only+gpt-5.6-terra"
+    assert result["status"] == "completed"
+    # GPT's own no-markdown transcription never embeds the table inline, so there is
+    # no known insertion point within the prose -- the table is placed after every
+    # prose line (see process_page's gpt_vision_only dispatch), unlike Mistral's
+    # exact before/after split from the same markdown response.
+    assert [line["text"] for line in result["lines"]] == ["Heading", "Footer"]
+    assert len(result["tables"]) == 1
+    assert [c["text"] for c in result["tables"][0]["rows"][0]["cells"]] == ["STT", "Ten"]
+
+
+def test_clean_vision_markdown_text_strips_artifacts_without_losing_real_content():
+    # Real cases confirmed against an actual scanned test page's Mistral OCR output:
+    # a "# " heading prefix silently broke structure.py's ^-anchored ARTICLE_PATTERN
+    # (a page-full of "# DIEU 1. ..." headings never formed a clause tree at all), and
+    # a payment percentage came back LaTeX-escaped, corrupting a legally meaningful
+    # number.
+    from app.document_processing import _clean_vision_markdown_text
+
+    assert _clean_vision_markdown_text("# DIEU 1. NOI DUNG") == "DIEU 1. NOI DUNG"
+    assert _clean_vision_markdown_text("### Ghi chu:") == "Ghi chu:"
+    assert _clean_vision_markdown_text(r"1. Dot 1: \(30\%\) sau khi ky.") == "1. Dot 1: 30% sau khi ky."
+    assert _clean_vision_markdown_text("**TAM TINH BANG B**") == "TAM TINH BANG B"
+    assert _clean_vision_markdown_text("![img-0.jpeg](img-0.jpeg)") == "[image: img-0.jpeg]"
+    # Only a "#" at the very start of the line, followed by a space, is treated as a
+    # Markdown heading marker -- a mid-line "#" (real content, e.g. a reference
+    # number) is untouched.
+    assert _clean_vision_markdown_text("Ma so #5") == "Ma so #5"
+    assert _clean_vision_markdown_text("#5 khong co khoang trang") == "#5 khong co khoang trang"
+    # Ordinary prose with no artifacts passes through unchanged (aside from trimming).
+    assert _clean_vision_markdown_text("  Hom nay, ngay 20 thang 09  ") == "Hom nay, ngay 20 thang 09"
 
 
 def _word(text, x0, y0, x1, y1):
@@ -719,6 +1670,156 @@ def test_row_cells_splits_a_misread_ruling_line_out_of_the_last_column():
     assert [c["text"] for c in cells] == [
         "01", "|Máy chủ", "2", "86.500.000", "173.000.000", "Bảo hành",
     ]
+
+
+def test_align_gpt_words_returns_trailing_extra_gpt_only_words():
+    # Symmetric real hard case to the leading-word one above: a row's "Đơn giá" and
+    # "Thành tiền" were both a plain "0" printed so faintly Tesseract's own OCR pass
+    # produced no word box for either -- GPT vision (built to transcribe, not merely
+    # detect ink) still read them. They land as an "insert" at the very END of the
+    # alignment, not the start, so leading_extra must stay empty while trailing_extra
+    # picks them up.
+    from app.document_processing import _align_gpt_words
+
+    tess_words = ["30", "Ho", "tro", "nghiem", "thu", "Goi", "1"]
+    gpt_words = ["30", "Hỗ", "trợ", "nghiệm", "thu", "Gói", "1", "0", "0"]
+
+    mapping, leading_extra, trailing_extra = _align_gpt_words(tess_words, gpt_words)
+
+    assert leading_extra == ""
+    assert trailing_extra == "0 0"
+    assert mapping[5] == "Gói"  # ordinary word substitution still happens either side
+
+
+def test_align_gpt_words_single_insert_is_leading_not_also_trailing():
+    # Edge case: Tesseract found NO words at all on this line (n=0) while GPT read
+    # some. The single "insert" opcode covering the whole gpt list starts at position
+    # 0 (satisfying the leading check) and also ends at len(tess_words)==0 (satisfying
+    # the trailing check) -- it must be reported once, as leading_extra, not counted
+    # again as trailing_extra for the exact same words.
+    from app.document_processing import _align_gpt_words
+
+    mapping, leading_extra, trailing_extra = _align_gpt_words([], ["Hỗ", "trợ"])
+
+    assert leading_extra == "Hỗ trợ"
+    assert trailing_extra == ""
+    assert mapping == {}
+
+
+def test_row_cells_recovers_gpt_only_trailing_numbers_tesseract_never_boxed():
+    # Real hard case: this row's own "Đơn giá"/"Thành tiền" cells were both a plain
+    # "0" Tesseract detected no ink for at all -- see _align_gpt_words. Without
+    # recovery, _row_cells would silently return a row 2 columns short, and if this
+    # happens to be the block's FIRST row (as it was for real), the table's own
+    # reference would permanently lack those two columns with no later mechanism able
+    # to notice: _extend_reference_with_confirming_row only ever adds a column a
+    # LATER row proves exists, and this row's own values would already be gone.
+    from app.document_processing import _row_cells
+
+    line = _cells_line(0, 0.10, [
+        (*_STT, ["30"]), (*_NOIDUNG, ["Ho", "tro", "nghiem", "thu"]),
+        (*_DVT, ["Goi"]), (*_SL, ["1"]),
+    ])
+    line["trailing_gpt_text"] = "0 0"
+
+    cells = _row_cells(line)
+
+    assert [c["text"] for c in cells] == ["30", "Ho tro nghiem thu", "Goi", "1", "0", "0"]
+    assert [c.get("inferred", False) for c in cells] == [False, False, False, False, True, True]
+    # The borrowed bbox comes from the last REAL cell ("1"), not a guessed position:
+    assert cells[4]["bbox"] == cells[3]["bbox"]
+    assert cells[5]["bbox"] == cells[3]["bbox"]
+
+
+def test_row_cells_ignores_trailing_extra_that_isnt_number_shaped():
+    # An insert at the end that ISN'T number-shaped is far more likely a genuine
+    # alignment ambiguity (words split differently between the two sources) than a
+    # lost numeric cell -- left alone, matching the existing behavior for any other
+    # non-leading, non-trailing-numeric insert.
+    from app.document_processing import _row_cells
+
+    line = _cells_line(0, 0.10, [
+        (*_STT, ["30"]), (*_NOIDUNG, ["Ho", "tro", "nghiem", "thu"]),
+        (*_DVT, ["Goi"]), (*_SL, ["1"]),
+    ])
+    line["trailing_gpt_text"] = "khong tinh"
+
+    cells = _row_cells(line)
+
+    assert [c["text"] for c in cells] == ["30", "Ho tro nghiem thu", "Goi", "1"]
+
+
+def test_plausible_row_ignores_inferred_trailing_cells():
+    # _append_trailing_gpt_numbers can add cells whose own text is a single short
+    # digit ("0") -- exactly the shape _plausible_row exists to be suspicious of.
+    # They must not count against a row that would otherwise clear the bar on its
+    # real (non-inferred) cells alone, or a row simply being MORE complete than
+    # before would get it rejected as implausible.
+    from app.document_processing import _plausible_row
+
+    real_only = [
+        {"text": "30 Ho tro nghiem thu", "bbox": [0, 0, 1, 1]},
+        {"text": "Goi", "bbox": [0, 0, 1, 1]},
+        {"text": "1", "bbox": [0, 0, 1, 1]},
+    ]
+    assert _plausible_row(real_only) is True
+
+    with_inferred_trailing = [
+        *real_only,
+        {"text": "0", "bbox": [0, 0, 1, 1], "inferred": True},
+        {"text": "0", "bbox": [0, 0, 1, 1], "inferred": True},
+    ]
+    assert _plausible_row(with_inferred_trailing) is True
+
+
+def test_summary_row_cells_parses_space_tab_and_no_separator_forms():
+    # GPT vision renders this same merged label+amount cell with a space, a tab, or --
+    # observed on a real dossier, non-deterministically even across identical
+    # reprocessing runs of the very same page -- NO separator at all. All three must
+    # resolve to the same (label, amount) split.
+    from app.document_processing import _summary_row_cells
+
+    reference = [
+        {"col_index": 0, "text": "Nội dung", "bbox": [0.05, 0.1, 0.5, 0.12]},
+        {"col_index": 1, "text": "Thành tiền", "bbox": [0.8, 0.1, 0.95, 0.12]},
+    ]
+
+    for text in (
+        "CỘNG TRƯỚC THUẾ 1.116.230.000",
+        "CỘNG TRƯỚC THUẾ\t1.116.230.000",
+        "CỘNG TRƯỚC THUẾ1.116.230.000",
+    ):
+        line = {"text": text, "bbox": [0.05, 0.3, 0.95, 0.32]}
+        cells = _summary_row_cells(line, reference)
+        assert cells is not None, text
+        by_col = {c["col_index"]: c["text"] for c in cells}
+        assert by_col == {0: "CỘNG TRƯỚC THUẾ", 1: "1.116.230.000"}
+        assert all(c["inferred"] for c in cells)
+
+
+def test_summary_row_cells_rejects_a_label_without_a_recognized_keyword():
+    # A generic "label + trailing number" line must NOT be treated as a summary row --
+    # only the handful of labels a Vietnamese commercial contract's value table
+    # actually ends on (see _SUMMARY_ROW_PATTERN). Otherwise an ordinary one-line
+    # sentence that happens to end in a number (a date, a serial, a section ref)
+    # would be silently absorbed as if it were a subtotal/tax/total row.
+    from app.document_processing import _summary_row_cells
+
+    reference = [
+        {"col_index": 0, "text": "Nội dung", "bbox": [0.05, 0.1, 0.5, 0.12]},
+        {"col_index": 1, "text": "Thành tiền", "bbox": [0.8, 0.1, 0.95, 0.12]},
+    ]
+    line = {"text": "Hợp đồng có hiệu lực từ ngày 20", "bbox": [0.05, 0.3, 0.95, 0.32]}
+
+    assert _summary_row_cells(line, reference) is None
+
+
+def test_summary_row_cells_requires_a_reference():
+    from app.document_processing import _summary_row_cells
+
+    line = {"text": "TỔNG CỘNG 1.227.853.000", "bbox": [0.05, 0.3, 0.95, 0.32]}
+
+    assert _summary_row_cells(line, None) is None
 
 
 def test_ocr_tables_recovers_a_column_the_reference_row_left_blank():
@@ -1177,7 +2278,203 @@ def test_ocr_tables_keeps_a_row_whose_stt_landed_on_a_different_line():
     assert text(row2, 0) is None  # STT genuinely missing — never guessed at
     assert text(row2, 1) == "Thiet bi luu tru NAS"
     assert text(row2, 4) == "74.800.000"
-    assert text(row3, 0) == "3"
+
+
+def test_ocr_tables_recovers_a_missing_stt_from_gpt_visions_leading_word():
+    # Same real hard case as the test above (STT genuinely absent from Tesseract's own
+    # word list, not merely misplaced), but now GPT vision's own re-transcription of
+    # that line DID read the STT digit — process_page recorded it as
+    # line["leading_gpt_text"] because it had no Tesseract bbox to attach to (see
+    # _align_gpt_words). Unlike the test above, this row's identity should NOT stay
+    # blank: the table's own already-established STT column position (from row 1 and
+    # row 3) is a principled place to put it, not a guess from this row's own
+    # (nonexistent) geometry.
+    from app.document_processing import _ocr_tables
+
+    lines = [
+        _cells_line(0, 0.10, [
+            (*_STT, ["STT"]), (*_NOIDUNG, ["Ten", "hang"]), (*_DVT, ["DVT"]),
+            (*_SL, ["SL"]), (*_DONGIA, ["Don", "gia"]), (*_THANHTIEN, ["Thanh", "tien"]),
+        ]),
+        _cells_line(1, 0.13, [
+            (*_STT, ["1"]), (*_NOIDUNG, ["May", "chu", "ung", "dung"]),
+            (*_DVT, ["Bo"]), (*_SL, ["2"]), (*_DONGIA, ["86.500.000"]), (*_THANHTIEN, ["173.000.000"]),
+        ]),
+        _cells_line(2, 0.16, [
+            (*_STT, []), (*_NOIDUNG, ["Thiet", "bi", "luu", "tru", "NAS"]),
+            (*_DVT, ["Bo"]), (*_SL, ["1"]), (*_DONGIA, ["74.800.000"]), (*_THANHTIEN, ["74.800.000"]),
+        ]),
+        _cells_line(3, 0.19, [
+            (*_STT, ["3"]), (*_NOIDUNG, ["Switch", "mang", "24", "port"]),
+            (*_DVT, ["Cai"]), (*_SL, ["4"]), (*_DONGIA, ["4.055.000"]), (*_THANHTIEN, ["16.220.000"]),
+        ]),
+    ]
+    lines[2]["leading_gpt_text"] = "2"
+
+    tables = _ocr_tables(lines, {"document_id": "doc", "page_number": 1})
+
+    assert len(tables) == 1
+    table = tables[0]
+
+    def text(row, col_index):
+        return next((c["text"] for c in row["cells"] if c["col_index"] == col_index), None)
+
+    row2 = table["rows"][2]
+    assert text(row2, 0) == "2"
+    stt_cell = next(c for c in row2["cells"] if c["col_index"] == 0)
+    # Borrowed bbox: the reference's own STT column x-range, this row's own y-range —
+    # not a real detection, an inherited position.
+    reference_stt_x = next(c for c in table["rows"][0]["cells"] if c["col_index"] == 0)
+    assert stt_cell["bbox"][0] == reference_stt_x["bbox"][0]
+    assert stt_cell["bbox"][1] == lines[2]["bbox"][1]
+
+
+def test_ocr_tables_keeps_subtotal_vat_and_total_rows_without_losing_the_table():
+    # Real dossier hard case: the value table's LAST item row is also the page's
+    # first line (so it becomes the block's reference row), its own "Đơn giá"/"Thành
+    # tiền" cells both a plain "0" Tesseract detected no ink for at all -- recovered
+    # via _row_cells' trailing-GPT-number rescue. It's followed immediately by the
+    # table's own subtotal/VAT/grand-total rows (a merged "label + amount" cell each,
+    # in all three separator forms GPT vision has been observed to use for the very
+    # same merge on different reprocessing runs), then by unrelated page content (a
+    # signature block) that must NOT be absorbed into the table.
+    #
+    # Before the summary-row fix, none of the three summary lines satisfied
+    # _matching_cells or _merge_wrapped_continuation, so the second of them (two
+    # anomalies back to back) flushed the block -- silently dropping the item row
+    # above from the reconstructed table right along with its own total, not just
+    # the total itself.
+    from app.document_processing import _ocr_tables
+
+    item_row = _cells_line(0, 0.10, [
+        (*_STT, ["30"]), (*_NOIDUNG, ["Ho", "tro", "nghiem", "thu"]),
+        (*_DVT, ["Goi"]), (*_SL, ["1"]),
+    ])
+    item_row["trailing_gpt_text"] = "0 0"
+
+    def _summary_line(index, y, text):
+        # A summary row's own words are real (Tesseract does detect ink for the
+        # label and the amount, just not shaped like the item table's own columns),
+        # spanning most of the row's width -- only its TEXT (as GPT vision corrected
+        # it) carries the merge that _row_cells' geometry-only grouping can't resolve.
+        line = _ocr_line(index, [_word(text.replace(" ", "_"), 0.05, y, 0.93, y + 0.018)])
+        line["text"] = text
+        return line
+
+    lines = [
+        item_row,
+        _summary_line(1, 0.13, "CỘNG TRƯỚC THUẾ 1.116.230.000"),
+        _summary_line(2, 0.16, "VAT 10%\t111.623.000"),
+        _summary_line(3, 0.19, "TỔNG CỘNG1.227.853.000"),
+        _summary_line(4, 0.22, "ĐẠI DIỆN BÊN A ĐẠI DIỆN BÊN B"),
+    ]
+
+    tables = _ocr_tables(lines, {"document_id": "doc", "page_number": 5})
+
+    assert len(tables) == 1
+    table = tables[0]
+
+    def row_text(row):
+        return {c["col_index"]: c["text"] for c in row["cells"]}
+
+    assert len(table["rows"]) == 4  # item row + 3 summary rows; signature block excluded
+    last_col = table["col_count"] - 1  # STT, Nội dung, ĐVT, SL, [Đơn giá], [Thành tiền]
+    assert row_text(table["rows"][0])[last_col - 1] == "0"
+    assert row_text(table["rows"][0])[last_col] == "0"
+    assert row_text(table["rows"][1]) == {0: "CỘNG TRƯỚC THUẾ", last_col: "1.116.230.000"}
+    assert row_text(table["rows"][2]) == {0: "VAT 10%", last_col: "111.623.000"}
+    assert row_text(table["rows"][3]) == {0: "TỔNG CỘNG", last_col: "1.227.853.000"}
+    # The signature block never became a row, or corrupted a summary row's own text:
+    assert all("ĐẠI DIỆN" not in text for row in table["rows"] for text in row_text(row).values())
+
+
+def test_split_gpt_text_positionally_six_column_row_with_unit():
+    # Real hard case (dossier 9f889e79, trang 2, dòng "08 Cáp quang LC-LC OM4 3m.
+    # Sợi 12 480.000 5.760.000"): no tabs this run (GPT vision's own tab habit is
+    # non-deterministic between calls -- see _gpt_tab_cells), so this is the only
+    # signal left. STT (leading number) and the three trailing Vietnamese-formatted
+    # numbers (SL/Đơn giá/Thành tiền) are read off by shape; "OM4" and "3m." don't
+    # match that shape, so the scan naturally stops there, leaving the ĐVT token
+    # ("Sợi") and the Mô tả text correctly split from each other.
+    from app.document_processing import _split_gpt_text_positionally
+
+    tokens = "08 Cáp quang LC-LC OM4 3m. Sợi 12 480.000 5.760.000".split()
+
+    assert _split_gpt_text_positionally(tokens, 6) == [
+        "08", "Cáp quang LC-LC OM4 3m.", "Sợi", "12", "480.000", "5.760.000",
+    ]
+
+
+def test_split_gpt_text_positionally_five_column_row_without_unit():
+    # A table shape with no ĐVT column at all (STT, Mô tả, SL, Đơn giá, Thành tiền):
+    # the same trailing-numeric scan leaves exactly ONE middle slot, so the whole
+    # remaining span becomes Mô tả with no further split.
+    from app.document_processing import _split_gpt_text_positionally
+
+    tokens = "03 Bàn làm việc gỗ công nghiệp 2 1.200.000 2.400.000".split()
+
+    assert _split_gpt_text_positionally(tokens, 5) == [
+        "03", "Bàn làm việc gỗ công nghiệp", "2", "1.200.000", "2.400.000",
+    ]
+
+
+def test_split_gpt_text_positionally_refuses_when_ambiguous():
+    from app.document_processing import _split_gpt_text_positionally
+
+    # No leading number at all -- which column (if any) absorbs the first token is
+    # genuinely ambiguous, not something to guess.
+    assert _split_gpt_text_positionally("Bàn làm việc gỗ 2 1.200.000 2.400.000".split(), 5) is None
+    # Too few tokens to fill every column even one-for-one.
+    assert _split_gpt_text_positionally("08 Cáp quang".split(), 6) is None
+    # No trailing numeric run at all -- more than two slots would be left between
+    # STT and nothing, past what a single Mô tả/ĐVT pair can absorb.
+    assert _split_gpt_text_positionally("08 Cáp quang LC-LC OM4 3m. Sợi mét".split(), 6) is None
+
+
+def test_ocr_tables_reconstructs_a_row_gpt_vision_split_by_position_alone():
+    # Full integration of the case above: Tesseract's own OCR of this exact line was
+    # so badly broken that none of its "words" resemble the real content at all
+    # (real observed tokens: "[os", "|cinacangtcucomeam", "m99|", "smoe|", ...), so
+    # neither word alignment (_align_gpt_words) nor a shared tab count
+    # (_gpt_tab_cells) has anything to work with -- yet GPT vision's own plain-text
+    # reading of the row is fully recovered via position and data shape alone.
+    from app.document_processing import _ocr_tables
+
+    lines = [
+        _cells_line(0, 0.10, [
+            (*_STT, ["05"]), (*_NOIDUNG, ["Bản", "quyền", "hệ", "điều", "hành"]),
+            (*_DVT, ["Lic"]), (*_SL, ["4"]), (*_DONGIA, ["22.450.000"]), (*_THANHTIEN, ["89.800.000"]),
+        ]),
+        _cells_line(1, 0.13, [
+            (*_STT, ["06"]), (*_NOIDUNG, ["Dịch", "vụ", "cấu", "hình"]),
+            (*_DVT, ["Gói"]), (*_SL, ["1"]), (*_DONGIA, ["32.600.000"]), (*_THANHTIEN, ["32.600.000"]),
+        ]),
+        _cells_line(
+            2, 0.16,
+            [(*_STT, ["[os"]), (*_NOIDUNG, ["|cinacangtcucomeam"]), (*_DVT, ["m99|"]), (*_THANHTIEN, ["smoe|"])],
+        ),
+        _cells_line(3, 0.19, [
+            (*_STT, ["10"]), (*_NOIDUNG, ["Dịch", "vụ", "hardening"]),
+            (*_DVT, ["Gói"]), (*_SL, ["2"]), (*_DONGIA, ["17.900.000"]), (*_THANHTIEN, ["35.800.000"]),
+        ]),
+    ]
+    lines[2]["text"] = "08 Cáp quang LC-LC OM4 3m. Sợi 12 480.000 5.760.000"
+
+    tables = _ocr_tables(lines, {"document_id": "doc", "page_number": 1})
+
+    assert len(tables) == 1
+    row = tables[0]["rows"][2]
+
+    def text(col_index):
+        return next((c["text"] for c in row["cells"] if c["col_index"] == col_index), None)
+
+    assert text(0) == "08"
+    assert text(1) == "Cáp quang LC-LC OM4 3m."
+    assert text(2) == "Sợi"
+    assert text(3) == "12"
+    assert text(4) == "480.000"
+    assert text(5) == "5.760.000"
+    assert all(c["inferred"] for c in row["cells"])
 
 
 def test_ocr_json_output_combines_a_headered_table_split_across_pages():
