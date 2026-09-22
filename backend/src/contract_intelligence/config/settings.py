@@ -6,6 +6,7 @@ Một số quy ước (xem ``docs/DOC-04-architecture.md`` §5 Technology stack)
 - ``S3_*`` / ``MINIO_*`` — endpoint, access key, secret, bucket cho file storage.
 - ``KAFKA_BOOTSTRAP_SERVERS`` — Kafka broker list cho event publishing.
 - ``AI_SERVICE_URL`` — base URL của ai-service (Sprint 1 polling).
+- ``AI1_BASE_URL`` / ``AI2_BASE_URL`` — OCR / Semantics HTTP adapters.
 - ``OTEL_*`` — OpenTelemetry exporter config.
 """
 
@@ -83,6 +84,15 @@ class Settings(BaseSettings):
         description="X-Internal-Service-Key cho internal auth (DOC-05c §3)",
     )
     ai_service_timeout_seconds: float = Field(default=30.0, gt=0)
+    # External AI1 (OCR) / AI2 (Semantics) base URLs for Kafka-worker HTTP adapters.
+    ai1_base_url: str = Field(
+        default="http://localhost:8001/api/v1",
+        description="AI1 OCR service base URL (POST {AI1_BASE_URL}/jobs).",
+    )
+    ai2_base_url: str = Field(
+        default="http://localhost:8002/api/v1",
+        description="AI2 Semantics service base URL (POST {AI2_BASE_URL}/process).",
+    )
     # Background dispatcher tuning
     ai_dispatcher_poll_interval_seconds: float = Field(default=1.5, ge=0.1, le=60.0)
     ai_dispatcher_max_polls: int = Field(default=200, ge=10, le=10_000)
