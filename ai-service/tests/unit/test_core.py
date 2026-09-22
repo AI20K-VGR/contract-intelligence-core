@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from contract_ocr.application.use_cases.classify_pdf import PdfPageClassifier
 from contract_ocr.domain.bbox import BBox
-from contract_ocr.domain.entities import CriticalField, Document, Line, Page
+from contract_ocr.domain.entities import CriticalField, Document, Line, Page, Word
 from contract_ocr.infrastructure.config import load_settings, read_manifest
 from contract_ocr.infrastructure.image.degradation import VARIANTS, degrade
 from contract_ocr.infrastructure.image.preprocessing import (
@@ -69,6 +69,21 @@ def test_critical_number_boundaries_and_repeats():
     assert critical_accuracy([field, field], "100 dong")["critical_field_accuracy"] == 0.5
 
 
+def test_word_and_line_reject_bbox_without_declared_provenance():
+    # Positive control (section 26): a bbox must never reach a consumer without
+    # declaring how it was obtained. Prove the gate actually rejects the violation,
+    # not just that well-formed input passes.
+    box = BBox(x1=0.1, y1=0.1, x2=0.2, y2=0.2)
+    with pytest.raises(ValidationError):
+        Word(word_id="w1", text="x", bbox=box)  # no geometry_provenance
+    with pytest.raises(ValidationError):
+        Line(line_id="l1", text="x", bbox=box)  # no geometry_provenance
+    with pytest.raises(ValidationError):
+        Word(word_id="w1", text="x", geometry_provenance="MEASURED")  # provenance, no bbox
+    # The well-formed shape the gate must still allow through:
+    assert Word(word_id="w1", text="x", bbox=box, geometry_provenance="MEASURED").bbox is not None
+
+
 def test_classifier():
     classifier = PdfPageClassifier()
     assert classifier.classify(1, 0, 0, 0, 0.97).input_type == "SCANNED"
@@ -76,6 +91,40 @@ def test_classifier():
     evidence = classifier.classify(1, 100, 20, 3, 0.9)
     assert evidence.input_type == "MIXED" and evidence.usable_text
     assert not classifier.classify(1, 5, 1, 1, 0.9).usable_text
+
+
+def test_classifier_mixed_page_requires_ocr_regions_even_though_text_is_usable():
+    # Section 3's explicit example: usable text + heavy image coverage must not
+    # collapse into a plain native-only classification.
+    classifier = PdfPageClassifier()
+    evidence = classifier.classify(7, 500, 80, 12, 0.82)
+    assert evidence.input_type == "MIXED"
+    assert evidence.usable_text is True
+    assert evidence.requires_ocr_regions is True
+    assert "TEXT_LAYER_WITH_HEAVY_IMAGE_OVERLAY" in evidence.reason_codes
+
+
+def test_classifier_plain_text_page_does_not_require_ocr_regions():
+    classifier = PdfPageClassifier()
+    evidence = classifier.classify(1, 100, 20, 3, 0)
+    assert evidence.requires_ocr_regions is False
+    assert "NATIVE_TEXT_USABLE" in evidence.reason_codes
+
+
+def test_classifier_garbled_text_layer_is_not_usable_even_if_long_enough():
+    classifier = PdfPageClassifier()
+    garbled = "�" * 200  # a legacy-encoding text layer decoded to replacement chars
+    evidence = classifier.classify(1, 200, 40, 5, 0, text_sample=garbled)
+    assert evidence.usable_text is False
+    assert evidence.input_type == "SCANNED"
+    assert evidence.requires_ocr_regions is True
+    assert "GARBLED_TEXT_LAYER" in evidence.reason_codes
+    assert evidence.garbled_text_ratio == 1.0
+
+
+def test_classifier_rejects_invalid_thresholds():
+    with pytest.raises(ValueError):
+        PdfPageClassifier(garbled_threshold=1.5)
 
 
 def test_manifest(manifest, tmp_path):
@@ -125,7 +174,7 @@ def test_preprocessing_and_inverse_geometry():
         rotated.shape[1],
         rotated.shape[0],
     )
-    lines = [Line(line_id="l1", text="test", bbox=box)]
+    lines = [Line(line_id="l1", text="test", bbox=box, geometry_provenance="MEASURED")]
     processor.restore(lines, transform, rotated.shape, image.shape)
     assert lines[0].bbox.x1 == pytest.approx(0.1)
     assert lines[0].bbox.y2 == pytest.approx(0.4)

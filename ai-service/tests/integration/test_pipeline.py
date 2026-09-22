@@ -1,7 +1,9 @@
 import json
+from io import BytesIO
 
 import numpy as np
 import pymupdf
+from PIL import Image, ImageDraw
 
 from contract_ocr.application.ports.ocr_engine import OCREngine
 from contract_ocr.application.use_cases.classify_pdf import PdfPageClassifier
@@ -39,6 +41,64 @@ def test_native_routing_and_ocr(synthetic_pdf, tmp_path):
     assert all(p.status == "SUCCESS" for p in result.pages)
     assert result.pages[0].lines[0].words[0].bbox is not None
     assert not result.pages[1].geometry_available
+
+
+def _mixed_page_pdf(tmp_path):
+    """One page with a usable native text layer *and* a full-page image on top of
+    it — the section-3 case a native-only reader must not silently collapse to."""
+    path = tmp_path / "mixed.pdf"
+    with pymupdf.open() as pdf:
+        page = pdf.new_page(width=300, height=400)
+        page.insert_text((25, 50), "SYNTHETIC contract for OCR testing only.")
+        page.insert_text((25, 75), "Amount 100000000. Date 15/09/2026.")
+        image = Image.new("RGB", (300, 400), "white")
+        ImageDraw.Draw(image).text((20, 200), "stamp overlay", fill="black")
+        buffer = BytesIO()
+        image.save(buffer, format="PNG")
+        page.insert_image(page.rect, stream=buffer.getvalue())
+        pdf.save(path)
+    return path
+
+
+def test_mixed_page_is_ocred_not_silently_read_native_only(tmp_path):
+    processor = ProcessDocument(
+        PyMuPDFExtractor(), PdfRenderer(), ImagePreprocessor(), PdfPageClassifier()
+    )
+    result = processor.execute(
+        str(_mixed_page_pdf(tmp_path)),
+        "MIXED_DOC",
+        Experiment(id="E1", engine="paddle"),
+        FakeEngine(),
+        tmp_path / "raw",
+        "TEST",
+        72,
+    )
+    page = result.pages[0]
+    assert page.evidence.input_type == "MIXED"
+    assert page.evidence.requires_ocr_regions is True
+    # Must have gone through the OCR engine, not the pymupdf native-only fast path.
+    assert page.engine == "MOCK"
+    assert page.lines[0].text == "SYNTHETIC scanned page"
+
+
+def test_mixed_page_without_an_engine_is_skipped_with_a_distinct_reason(tmp_path):
+    processor = ProcessDocument(
+        PyMuPDFExtractor(), PdfRenderer(), ImagePreprocessor(), PdfPageClassifier()
+    )
+    result = processor.execute(
+        str(_mixed_page_pdf(tmp_path)),
+        "MIXED_DOC",
+        Experiment(id="E1", engine="pymupdf"),
+        None,
+        tmp_path / "raw",
+        "TEST",
+        72,
+    )
+    page = result.pages[0]
+    assert page.status == "SKIPPED"
+    assert page.evidence is not None and page.evidence.input_type == "MIXED"
+    assert "heavy image overlay" in page.error
+    assert page.error != "No usable native text layer"
 
 
 def test_rotated_native_geometry(synthetic_pdf):

@@ -346,15 +346,34 @@
   }
   .page-card.is-failed .page-note { border-left-color: var(--fail); }
   .page-text-wrap { position: relative; }
+  .page-text-scroll {
+    max-height: 480px;
+    overflow-y: auto;
+    padding-right: 70px;
+  }
   .page-text {
     white-space: pre-wrap;
     word-wrap: break-word;
     font-size: 14px;
-    max-height: 360px;
-    overflow-y: auto;
-    margin: 0;
-    padding-right: 70px;
+    margin: 0 0 12px;
   }
+  .page-text:last-child { margin-bottom: 0; }
+  .ocr-table-wrap {
+    overflow-x: auto;
+    margin: 0 0 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  .ocr-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  .ocr-table th, .ocr-table td {
+    border: 1px solid var(--line);
+    padding: 5px 9px;
+    text-align: left;
+    vertical-align: top;
+    white-space: pre-wrap;
+  }
+  .ocr-table thead th { background: var(--paper); font-weight: 600; }
+  .ocr-table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--paper) 45%, transparent); }
   .copy-btn {
     position: absolute;
     top: 0;
@@ -460,6 +479,13 @@
           <input type="radio" name="engine" id="engine-deepseek-api" value="deepseek_api" />
           <label for="engine-deepseek-api">
             <span class="engine-name">DeepSeek Flash (API)</span>
+            <span class="engine-note">Đang kiểm tra…</span>
+          </label>
+        </div>
+        <div class="engine-option" data-engine="mistral" data-external="true">
+          <input type="radio" name="engine" id="engine-mistral" value="mistral" />
+          <label for="engine-mistral">
+            <span class="engine-name">Mistral OCR</span>
             <span class="engine-note">Đang kiểm tra…</span>
           </label>
         </div>
@@ -688,21 +714,110 @@
     if (page.text) {
       const wrap = document.createElement('div');
       wrap.className = 'page-text-wrap';
-      const pre = document.createElement('pre');
-      pre.className = 'page-text';
-      pre.textContent = page.text;
+      const scroll = document.createElement('div');
+      scroll.className = 'page-text-scroll';
+      renderOcrTextSegments(page.text).forEach((el) => scroll.appendChild(el));
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'copy-btn';
       btn.textContent = 'Copy';
       btn.addEventListener('click', () => copyText(page.text, btn));
-      wrap.appendChild(pre);
+      wrap.appendChild(scroll);
       wrap.appendChild(btn);
       body.appendChild(wrap);
     }
 
     card.appendChild(body);
     return card;
+  }
+
+  // A GFM pipe-table row: starts and ends with "|" (ignoring surrounding
+  // whitespace). The row right after the header must be a separator made only
+  // of "|", "-", ":" and whitespace, with at least one "-" — that's what tells
+  // a table apart from prose that merely contains a "|" character.
+  const TABLE_ROW_RE = /^\s*\|(.*)\|\s*$/;
+  const TABLE_SEPARATOR_RE = /^[\s|:-]+$/;
+
+  function splitTableRow(line) {
+    const match = line.match(TABLE_ROW_RE);
+    const inner = match ? match[1] : line;
+    return inner.split('|').map((cell) => cell.trim());
+  }
+
+  // Renders page.text as a sequence of plain-text <pre> blocks interleaved
+  // with real <table> elements wherever a markdown pipe-table was found —
+  // Mistral OCR's raw output has real GFM tables inline (see mistral_ocr.py),
+  // and the other engines never emit "|"-delimited lines, so this only ever
+  // activates for genuine tables, never plain prose.
+  function renderOcrTextSegments(text) {
+    const lines = text.split('\n');
+    const elements = [];
+    let textBuffer = [];
+
+    function flushText() {
+      if (textBuffer.length === 0) return;
+      const pre = document.createElement('pre');
+      pre.className = 'page-text';
+      pre.textContent = textBuffer.join('\n');
+      elements.push(pre);
+      textBuffer = [];
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const next = lines[i + 1];
+      const isHeaderCandidate = TABLE_ROW_RE.test(line);
+      const nextIsSeparator = next !== undefined && TABLE_ROW_RE.test(next) &&
+        TABLE_SEPARATOR_RE.test(next) && next.includes('-');
+      if (isHeaderCandidate && nextIsSeparator) {
+        flushText();
+        const header = splitTableRow(line);
+        const bodyRows = [];
+        let j = i + 2;
+        while (j < lines.length && TABLE_ROW_RE.test(lines[j])) {
+          bodyRows.push(splitTableRow(lines[j]));
+          j++;
+        }
+        elements.push(buildTableElement(header, bodyRows));
+        i = j - 1;
+      } else {
+        textBuffer.push(line);
+      }
+    }
+    flushText();
+    return elements;
+  }
+
+  function buildTableElement(header, bodyRows) {
+    const wrap = document.createElement('div');
+    wrap.className = 'ocr-table-wrap';
+    const table = document.createElement('table');
+    table.className = 'ocr-table';
+
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    header.forEach((cell) => {
+      const th = document.createElement('th');
+      th.textContent = cell;
+      headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    bodyRows.forEach((row) => {
+      const tr = document.createElement('tr');
+      row.forEach((cell) => {
+        const td = document.createElement('td');
+        td.textContent = cell;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+
+    wrap.appendChild(table);
+    return wrap;
   }
 
   async function copyText(text, btn) {
@@ -762,7 +877,7 @@
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!selectedFile) return;
-    const externalNames = { openai: 'OpenAI', gemini: 'Google Gemini', deepseek_api: 'DeepSeek' };
+    const externalNames = { openai: 'OpenAI', gemini: 'Google Gemini', deepseek_api: 'DeepSeek', mistral: 'Mistral' };
     if (externalNames[form.engine.value]) {
       const ok = window.confirm(
         'Ảnh các trang PDF sẽ được gửi lên ' + externalNames[form.engine.value] + ' để OCR — không còn xử lý cục bộ. ' +

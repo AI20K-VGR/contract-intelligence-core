@@ -20,7 +20,7 @@ from .protocols import LineDetector, TextRecognizer, VisionClient, WordSource
 from .routing import choose_adapter
 from .text_quality import garbage_char_ratio, valid_word_ratio
 from .types import Region
-from .vision import VisionAdapter, VisionCellCountMismatch
+from .vision import VisionAdapter
 
 __all__ = [
     "EscalationController",
@@ -31,7 +31,6 @@ __all__ = [
     "Region",
     "TextRecognizer",
     "VisionAdapter",
-    "VisionCellCountMismatch",
     "VisionClient",
     "WordSource",
     "choose_adapter",

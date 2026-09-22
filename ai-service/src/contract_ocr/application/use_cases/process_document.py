@@ -4,9 +4,12 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from time import perf_counter
 
+import numpy as np
+
 from contract_ocr.application.ports.ocr_engine import EngineUnavailable, OCREngine
 from contract_ocr.application.ports.pdf_extractor import PdfExtractor, Preprocessor, Renderer
 from contract_ocr.application.use_cases.classify_pdf import PdfPageClassifier
+from contract_ocr.application.use_cases.extract_scanned_tables import build_scanned_tables
 from contract_ocr.domain.entities import Context, Document, Experiment, Page
 from contract_ocr.domain.enums import Status
 
@@ -67,21 +70,35 @@ class ProcessDocument:
                     evidence = self.classifier.classify(index + 1, *self.extractor.evidence(page))
                     page_result.evidence = evidence
                     page_result.input_type = evidence.input_type
-                    if evidence.usable_text:
+                    # `requires_ocr_regions` (not `usable_text` alone) gates the native-only
+                    # fast path: a MIXED page has usable text *and* a large image the text
+                    # layer says nothing about, so it must not silently skip OCR (section 3).
+                    if evidence.usable_text and not evidence.requires_ocr_regions:
                         page_result = self.extractor.extract(page, document_id)
                         page_result.evidence, page_result.input_type = evidence, evidence.input_type
                         self._finish_page(
                             pages, index, page_result, start, experiment, run_id, document_id
                         )
                     elif engine is None:
-                        page_result.status, page_result.error = (
-                            Status.SKIPPED,
-                            "No usable native text layer",
+                        reason = (
+                            "No usable native text layer"
+                            if not evidence.usable_text
+                            else "MIXED page (native text plus heavy image overlay) requires "
+                            "an OCR engine to read the image-covered regions; none provided"
                         )
+                        page_result.status, page_result.error = Status.SKIPPED, reason
+                        page_result.evidence, page_result.input_type = evidence, evidence.input_type
                         self._finish_page(
                             pages, index, page_result, start, experiment, run_id, document_id
                         )
                     else:
+                        # Covers both SCANNED and MIXED pages. Known limitation for MIXED:
+                        # this re-OCRs the *whole* page rather than compositing the already-
+                        # good native text with OCR of just the image-covered regions (the
+                        # "region routing" cell of the target pipeline). Re-reading the full
+                        # page is strictly safer than the previous behaviour (silently
+                        # keeping native-only text and dropping the image), but it is not yet
+                        # the sub-page compositing the target architecture describes.
                         original = self.renderer.render(page, dpi)
                         image, transform = self.preprocessor.apply(
                             original, experiment.preprocessing
@@ -111,6 +128,23 @@ class ProcessDocument:
                         recognized.lines, transform, image.shape, original_shape
                     )
                     page_result.lines = recognized.lines
+                    # Bordered-table grid detection runs on the same (pre-restore)
+                    # image/transform the OCR call itself used, then inverse-maps
+                    # cell geometry the identical way `restore()` just did for lines
+                    # (section 9/17) -- see extract_scanned_tables.py for why this
+                    # reuses already-recognized line text instead of re-OCRing cells.
+                    # A detection failure must not fail an otherwise-successful page.
+                    try:
+                        page_result.tables = build_scanned_tables(
+                            image,
+                            page_result.lines,
+                            document_id=document_id,
+                            page_number=index + 1,
+                            inverse_transform=np.linalg.inv(transform),
+                            original_shape=original_shape,
+                        )
+                    except Exception:
+                        page_result.tables = []
                     page_result.raw_markdown = recognized.raw_markdown
                     page_result.raw_output_path = recognized.raw_output_path
                     page_result.width, page_result.height = original_shape[1], original_shape[0]

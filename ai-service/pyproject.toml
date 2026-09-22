@@ -27,6 +27,9 @@ openai = [
 gemini = [
     "google-genai>=1.0",
 ]
+mistral = [
+    "mistralai>=2.0",
+]
 
 [tool.uv]
 conflicts = [[{extra = "deepseek"}, {extra = "vllm"}], [{extra = "deepseek"}, {extra = "paddle"}]]

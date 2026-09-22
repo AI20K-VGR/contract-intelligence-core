@@ -7,7 +7,22 @@ the frozen AI2 handoff contract (domain/snapshot.py) does not move under them.
 
 Known, disclosed gaps versus the handoff request (see docs/AI1_OCR_SNAPSHOT_HANDOFF_RESPONSE.md):
 - `blocks[]` is always empty; no heading/paragraph grouping is implemented yet.
-- `tables[]` is always empty; no table-structure detection exists in any engine yet.
+- `tables[]` IS now populated for every input type: native `find_tables()` for
+  TEXT_LAYER (pymupdf_extractor.py), bordered ruling-line grid detection for
+  SCANNED_OCR/MIXED (extract_scanned_tables.py). Both are bordered-table only --
+  borderless is a real, disclosed gap (see docs/ai1-decisions.md D5/D7). The
+  separate, tested `contract_ocr.table_reconstruct` package (word/bbox-based) still
+  has no caller here.
+- `table_continuity[]` (document-level, added for task section 11) now links a
+  page's last table to the next page's first when they look like one table split by
+  a page break -- deterministic only (hard guards + score; no LLM gray-zone agent
+  in this pass, by explicit choice, see docs/ai1-decisions.md D8). It records a
+  MERGE/SPLIT/NEEDS_REVIEW decision, never merges rows/cells itself.
+- `nodes[]` (document-level clause/section hierarchy, added for task section 8) IS
+  now populated via BuildStructure, but only within-page: a clause whose body is
+  split across a page break is not spliced back together yet (see
+  build_structure.py's own docstring) -- cross-page *structural* continuity (as
+  opposed to tables) remains deferred.
 - "PARTIAL" is inferred with two interim heuristics (missing line geometry, low
   OCR confidence) pending a real partial-extraction signal from the engines.
 """
@@ -18,11 +33,15 @@ from pathlib import Path
 import pymupdf
 from PIL import Image
 
+from contract_ocr.application.use_cases.build_structure import BuildStructure
+from contract_ocr.application.use_cases.table_continuity import link_continuities
 from contract_ocr.domain.entities import Document as InternalDocument
 from contract_ocr.domain.entities import Line as InternalLine
 from contract_ocr.domain.entities import Page as InternalPage
+from contract_ocr.domain.entities import Table as InternalTable
 from contract_ocr.domain.enums import InputType, Status
 from contract_ocr.domain.snapshot import (
+    Cell,
     DocumentRole,
     DocumentSnapshot,
     DossierDocumentRef,
@@ -30,10 +49,14 @@ from contract_ocr.domain.snapshot import (
     EngineInfo,
     PageImageRef,
     PageStatus,
+    Row,
     SnapshotInputType,
     SnapshotLine,
     SnapshotPage,
     SnapshotWord,
+    Table,
+    TableContinuityLink,
+    TableStatus,
 )
 from contract_ocr.infrastructure.image.renderer import PdfRenderer
 
@@ -63,9 +86,15 @@ def id_prefix(document_id: str) -> str:
 
 
 class BuildSnapshot:
-    def __init__(self, renderer: PdfRenderer | None = None, image_dpi: int = 150) -> None:
+    def __init__(
+        self,
+        renderer: PdfRenderer | None = None,
+        image_dpi: int = 150,
+        structure_builder: BuildStructure | None = None,
+    ) -> None:
         self.renderer = renderer or PdfRenderer()
         self.image_dpi = image_dpi
+        self.structure_builder = structure_builder or BuildStructure()
 
     def execute(
         self,
@@ -83,6 +112,10 @@ class BuildSnapshot:
         image_output_dir.mkdir(parents=True, exist_ok=True)
         digest = source_digest(document.source_file)
         pages: list[SnapshotPage] = []
+        # Internal Line.line_id -> emitted SnapshotLine.line_id, populated as pages
+        # are built; BuildStructure uses it so a node's line_ids are ids a consumer
+        # can actually resolve in `pages[].lines`, not the internal benchmark id.
+        line_id_map: dict[str, str] = {}
         with pymupdf.open(document.source_file) as pdf:
             for index, internal_page in enumerate(document.pages):
                 try:
@@ -92,6 +125,7 @@ class BuildSnapshot:
                         document_id=document.document_id,
                         image_output_dir=image_output_dir,
                         image_uri_prefix=image_uri_prefix,
+                        line_id_map=line_id_map,
                     )
                 except Exception as exc:
                     # A page must never make the whole snapshot disappear (handoff §5
@@ -112,6 +146,22 @@ class BuildSnapshot:
         doc_input_type: SnapshotInputType = (
             next(iter(input_types)) if len(input_types) == 1 else "MIXED"
         )
+        nodes = self.structure_builder.execute(document, line_id_map)
+        continuity_links = link_continuities(
+            [(page.page_number, page.tables) for page in document.pages]
+        )
+        table_continuity = [
+            TableContinuityLink(
+                from_table_id=link.from_table_id,
+                from_page=link.from_page,
+                to_table_id=link.to_table_id,
+                to_page=link.to_page,
+                decision=link.decision,
+                confidence=link.confidence,
+                reason_codes=link.reason_codes,
+            )
+            for link in continuity_links
+        ]
         return DocumentSnapshot(
             snapshot_id=snapshot_id,
             source_digest=digest,
@@ -122,8 +172,10 @@ class BuildSnapshot:
             input_type=doc_input_type,
             engine=EngineInfo(name=engine_name, version=engine_version),
             page_count=len(pages),
+            table_continuity=table_continuity,
             processing_ms=sum(p.processing_ms for p in document.pages),
             pages=pages,
+            nodes=nodes,
         )
 
     def _build_page(
@@ -134,6 +186,7 @@ class BuildSnapshot:
         document_id: str,
         image_output_dir: Path,
         image_uri_prefix: str,
+        line_id_map: dict[str, str],
     ) -> SnapshotPage:
         prefix = id_prefix(document_id)
         page_no = internal_page.page_number
@@ -168,10 +221,14 @@ class BuildSnapshot:
             reason = internal_page.error or "no OCR engine selected for this page"
             return SnapshotPage(**common, status="FAILED", error=f"SKIPPED: {reason}")
 
-        return self._build_success_page(common, internal_page, prefix)
+        return self._build_success_page(common, internal_page, prefix, line_id_map)
 
     def _build_success_page(
-        self, common: dict, internal_page: InternalPage, prefix: str
+        self,
+        common: dict,
+        internal_page: InternalPage,
+        prefix: str,
+        line_id_map: dict[str, str],
     ) -> SnapshotPage:
         page_no = internal_page.page_number
         if not internal_page.lines or not any(line.text.strip() for line in internal_page.lines):
@@ -200,6 +257,7 @@ class BuildSnapshot:
 
             line_seq += 1
             line_id = f"{prefix}:p{page_no:03d}:l{line_seq:03d}"
+            line_id_map[line.line_id] = line_id
             line_words = self._build_words(line, line_id, prefix, page_no, word_seq)
             word_seq += len(line_words)
             lines_payload.append(
@@ -209,6 +267,9 @@ class BuildSnapshot:
                     page_char_start=start,
                     page_char_end=end,
                     bbox_normalized=[line.bbox.x1, line.bbox.y1, line.bbox.x2, line.bbox.y2],
+                    # `line.geometry_provenance` is guaranteed non-None here: the domain
+                    # Line model itself refuses a bbox without one (section 6 gate).
+                    geometry_provenance=line.geometry_provenance,
                     word_ids=[w.word_id for w in line_words],
                 )
             )
@@ -220,6 +281,7 @@ class BuildSnapshot:
         if low_confidence:
             warnings.append("low_confidence_lines")
         status: PageStatus = "PARTIAL" if warnings else "SUCCESS"
+        table_status, tables_payload = self._build_tables(internal_page.tables, prefix, page_no)
 
         return SnapshotPage(
             **common,
@@ -227,6 +289,8 @@ class BuildSnapshot:
             text="\n".join(text_parts),
             lines=lines_payload,
             words=words_payload,
+            table_status=table_status,
+            tables=tables_payload,
             warnings=warnings,
         )
 
@@ -252,10 +316,73 @@ class BuildSnapshot:
                     line_char_start=w_start,
                     line_char_end=w_end,
                     bbox_normalized=[word.bbox.x1, word.bbox.y1, word.bbox.x2, word.bbox.y2],
+                    geometry_provenance=word.geometry_provenance,
                     confidence=word.confidence,
                 )
             )
         return words
+
+    @staticmethod
+    def _build_tables(
+        internal_tables: list[InternalTable],
+        prefix: str,
+        page_no: int,
+    ) -> tuple[TableStatus, list[Table]]:
+        # A detector runs for every input type now: native `find_tables()` for
+        # TEXT_LAYER (pymupdf_extractor.py), bordered ruling-line grid detection for
+        # SCANNED_OCR/MIXED (extract_scanned_tables.py). Both are BORDERED-table only
+        # -- a borderless table is not detected either way (section 9's word-
+        # alignment approach needs word-level OCR this codebase does not produce for
+        # scanned pages -- see docs/ai1-decisions.md). `NOT_PRESENT` therefore means
+        # "no bordered table detected", not "definitely no table of any kind" --
+        # still a real distinction from `NOT_CHECKED` (section 15), which is reserved
+        # for genuinely un-attempted detection (a FAILED/SKIPPED page never reaches
+        # this method at all, so it keeps the model default).
+        if not internal_tables:
+            return "NOT_PRESENT", []
+
+        tables: list[Table] = []
+        for t_index, table in enumerate(internal_tables, 1):
+            rows: list[Row] = []
+            for r_index, row in enumerate(table.rows, 1):
+                cells: list[Cell] = []
+                for c_index, cell in enumerate(row.cells, 1):
+                    cell_id = (
+                        f"{prefix}:p{page_no:03d}:t{t_index:03d}:r{r_index:03d}:c{c_index:03d}"
+                    )
+                    if cell.bbox is None:
+                        cells.append(Cell(cell_id=cell_id, text=cell.text))
+                    else:
+                        cells.append(
+                            Cell(
+                                cell_id=cell_id,
+                                text=cell.text,
+                                bbox_normalized=[
+                                    cell.bbox.x1,
+                                    cell.bbox.y1,
+                                    cell.bbox.x2,
+                                    cell.bbox.y2,
+                                ],
+                                geometry_provenance=cell.geometry_provenance,
+                            )
+                        )
+                rows.append(
+                    Row(
+                        row_id=f"{prefix}:p{page_no:03d}:t{t_index:03d}:r{r_index:03d}", cells=cells
+                    )
+                )
+            # `table.bbox`/`geometry_provenance` are guaranteed non-None here: the
+            # internal Table model refuses a table without them (section 6 gate).
+            tables.append(
+                Table(
+                    table_id=table.table_id,
+                    bbox_normalized=[table.bbox.x1, table.bbox.y1, table.bbox.x2, table.bbox.y2],
+                    geometry_provenance=table.geometry_provenance,
+                    header=table.header,
+                    rows=rows,
+                )
+            )
+        return "DETECTED", tables
 
 
 def build_dossier_manifest(

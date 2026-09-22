@@ -17,6 +17,23 @@ SNAPSHOT_SCHEMA_VERSION = "ai1.snapshot.v1"
 DocumentRole = Literal["contract", "annex"]
 SnapshotInputType = Literal["TEXT_LAYER", "SCANNED_OCR", "MIXED"]
 PageStatus = Literal["SUCCESS", "PARTIAL", "FAILED"]
+# Section 15: a page's table result must never collapse "checked, none found"
+# and "not checked at all" into the same empty list.
+# NOT_CHECKED: no table detector ran for this page's input type yet (today:
+#     every SCANNED_OCR/MIXED page -- see infrastructure/pdf/pymupdf_extractor.py).
+# NOT_PRESENT: the detector ran and found no table.
+# DETECTED: the detector ran and `tables[]` holds the result.
+# Deliberately not yet including STRUCTURE_UNAVAILABLE/NEEDS_REVIEW/FAILED from
+# the target design: nothing in this codebase can produce them honestly yet
+# (no scanned-page detector, no partial-reconstruction recovery path) -- adding
+# them now would describe a capability that does not exist.
+TableStatus = Literal["NOT_CHECKED", "NOT_PRESENT", "DETECTED"]
+# How a bbox_normalized value was obtained (see contract_ocr.domain.enums.GeometryProvenance,
+# mirrored here as a plain Literal to keep this module's external contract self-contained).
+# MEASURED: directly measured (native glyph rects, a CV detector's own output).
+# DERIVED: computed from other trusted geometry (e.g. union of measured word boxes).
+# CLAIMED: reported by a model. AI2 must not treat CLAIMED geometry as citation-grade.
+GeometryProvenance = Literal["MEASURED", "DERIVED", "CLAIMED"]
 
 
 def _check_bbox_normalized(box: list[float]) -> list[float]:
@@ -55,6 +72,7 @@ class SnapshotWord(SnapshotEntity):
     line_char_start: int = Field(ge=0)
     line_char_end: int = Field(ge=0)
     bbox_normalized: NormalizedBBox
+    geometry_provenance: GeometryProvenance
     confidence: float | None = Field(default=None, ge=0, le=1)
 
     @model_validator(mode="after")
@@ -70,6 +88,7 @@ class SnapshotLine(SnapshotEntity):
     page_char_start: int = Field(ge=0)
     page_char_end: int = Field(ge=0)
     bbox_normalized: NormalizedBBox
+    geometry_provenance: GeometryProvenance
     word_ids: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -92,12 +111,24 @@ class SnapshotBlock(SnapshotEntity):
     line_ids: list[str]
     reading_order: int = Field(ge=0)
     bbox_normalized: NormalizedBBox
+    geometry_provenance: GeometryProvenance
 
 
 class Cell(SnapshotEntity):
     cell_id: str
     text: str
-    bbox_normalized: NormalizedBBox
+    # A merged/spanning cell a detector could not resolve to its own rect has no
+    # bbox rather than a fabricated one (section 15: absence, not a guess).
+    bbox_normalized: NormalizedBBox | None = None
+    geometry_provenance: GeometryProvenance | None = None
+
+    @model_validator(mode="after")
+    def _provenance_consistency(self) -> "Cell":
+        if (self.bbox_normalized is None) != (self.geometry_provenance is None):
+            raise ValueError(
+                "geometry_provenance must be set if and only if bbox_normalized is set"
+            )
+        return self
 
 
 class Row(SnapshotEntity):
@@ -108,6 +139,8 @@ class Row(SnapshotEntity):
 class Table(SnapshotEntity):
     table_id: str
     bbox_normalized: NormalizedBBox
+    geometry_provenance: GeometryProvenance
+    header: list[str] = Field(default_factory=list)
     rows: list[Row]
 
 
@@ -123,9 +156,18 @@ class SnapshotPage(SnapshotEntity):
     lines: list[SnapshotLine] = Field(default_factory=list)
     words: list[SnapshotWord] = Field(default_factory=list)
     blocks: list[SnapshotBlock] = Field(default_factory=list)
+    table_status: TableStatus = "NOT_CHECKED"
     tables: list[Table] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     error: str | None = None
+
+    @model_validator(mode="after")
+    def _table_status_consistency(self) -> "SnapshotPage":
+        if self.table_status == "DETECTED" and not self.tables:
+            raise ValueError("table_status=DETECTED requires a non-empty tables[]")
+        if self.table_status != "DETECTED" and self.tables:
+            raise ValueError("tables[] must be empty unless table_status=DETECTED")
+        return self
 
     @model_validator(mode="after")
     def _consistent_with_status(self) -> "SnapshotPage":
@@ -143,6 +185,57 @@ class SnapshotPage(SnapshotEntity):
         return self
 
 
+class TableContinuityLink(SnapshotEntity):
+    """One cross-page continuity decision (section 11) between the last table on one
+    page and the first table on the next. Does not merge rows/cells -- only records the
+    decision and why, same as `backend/app/tables.py`'s own `link_continuations`
+    (independently landing on the same "link, don't merge" answer). No LLM gray-zone
+    agent produced this in the current build (deterministic only -- see
+    docs/ai1-decisions.md D8); MERGE/SPLIT come from hard guards and a deterministic
+    score, anything in between is NEEDS_REVIEW rather than a guess.
+    """
+
+    from_table_id: str
+    from_page: int = Field(ge=1)
+    to_table_id: str
+    to_page: int = Field(ge=1)
+    decision: Literal["MERGE", "SPLIT", "NEEDS_REVIEW"]
+    confidence: float = Field(ge=0, le=1)
+    reason_codes: list[str] = Field(default_factory=list)
+
+
+class StructuralNode(SnapshotEntity):
+    """One node of the document's clause hierarchy (section 8): Document ->
+    Section/Article -> Clause -> Point. Built by `application.use_cases.
+    build_structure.BuildStructure` from real OCR lines — every node resolves
+    to the `line_ids` it was built from, which resolve to real `SnapshotLine`s
+    on a real page. See that module's docstring for the current limitation
+    (no cross-page merging of a clause body split by a page break yet).
+    """
+
+    node_id: str = Field(min_length=1)
+    # UNMARKED: text with no recognized numbering marker at all, kept as its own
+    # node rather than discarded (section 15: absence must stay distinguishable
+    # from silently-dropped content).
+    type: Literal["ARTICLE", "CLAUSE", "POINT", "UNMARKED"]
+    label_raw: str | None = None
+    label_normalized: str = Field(min_length=1)
+    parent_id: str | None = None
+    page_start: int = Field(ge=1)
+    page_end: int = Field(ge=1)
+    line_ids: list[str] = Field(default_factory=list)
+    bbox_normalized: NormalizedBBox | None = None
+    geometry_provenance: GeometryProvenance | None = None
+
+    @model_validator(mode="after")
+    def _provenance_consistency(self) -> "StructuralNode":
+        if (self.bbox_normalized is None) != (self.geometry_provenance is None):
+            raise ValueError(
+                "geometry_provenance must be set if and only if bbox_normalized is set"
+            )
+        return self
+
+
 class DocumentSnapshot(SnapshotEntity):
     schema_version: Literal["ai1.snapshot.v1"] = SNAPSHOT_SCHEMA_VERSION
     snapshot_id: str = Field(min_length=1)
@@ -156,6 +249,8 @@ class DocumentSnapshot(SnapshotEntity):
     page_count: int = Field(ge=0)
     processing_ms: float = Field(ge=0)
     pages: list[SnapshotPage] = Field(default_factory=list)
+    nodes: list[StructuralNode] = Field(default_factory=list)
+    table_continuity: list[TableContinuityLink] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _page_count_matches(self) -> "DocumentSnapshot":

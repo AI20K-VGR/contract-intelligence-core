@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
-from contract_ocr.word_adapters import Region, VisionAdapter, VisionCellCountMismatch
+from contract_ocr.word_adapters import Region, VisionAdapter
+from contract_ocr.word_adapters.vision import _OpenAIVisionClient
 
 from .factories import FakeVisionClient, blank_image
 
@@ -86,26 +88,44 @@ class TestVisionAdapterCellsMode:
         [word] = VisionAdapter(mode="cells", client=client).extract(blank_image(), region)
         assert word.text == "UNREADABLE"
 
-    def test_wrong_element_count_raises_and_never_auto_realigns(self):
+    def test_one_bad_element_type_skips_only_that_cell(self):
+        # A malformed single element (e.g. the model returned a number instead
+        # of a string/null) must not fail the whole batch -- the neighboring
+        # cell's real, correctly-typed text is still worth keeping.
+        cells = ((0.0, 0.0, 50.0, 20.0), (60.0, 0.0, 110.0, 20.0))
+        client = FakeVisionClient(json.dumps({"cells": [123, "Hàng A"]}))
+        region = Region(page=1, bbox=(0.0, 0.0, 200.0, 50.0), cells=cells)
+        words = VisionAdapter(mode="cells", client=client).extract(blank_image(), region)
+        assert [w.text for w in words] == ["Hàng A"]
+
+    def test_too_few_elements_keeps_the_ones_that_matched_by_position(self):
+        # The model dropped the second cell (miscounted) instead of leaving it
+        # null -- the first cell's real text must not be thrown away over it.
         cells = ((0.0, 0.0, 50.0, 20.0), (60.0, 0.0, 110.0, 20.0))
         client = FakeVisionClient(json.dumps({"cells": ["only one"]}))
         region = Region(page=1, bbox=(0.0, 0.0, 200.0, 50.0), cells=cells)
-        with pytest.raises(VisionCellCountMismatch):
-            VisionAdapter(mode="cells", client=client).extract(blank_image(), region)
+        words = VisionAdapter(mode="cells", client=client).extract(blank_image(), region)
+        assert [w.text for w in words] == ["only one"]
+        assert (words[0].x0, words[0].y0, words[0].x1, words[0].y1) == cells[0]
 
-    def test_malformed_json_raises(self):
+    def test_too_many_elements_drops_the_extras_by_position(self):
+        cells = ((0.0, 0.0, 50.0, 20.0),)
+        client = FakeVisionClient(json.dumps({"cells": ["Hàng A", "extra", "extra2"]}))
+        region = Region(page=1, bbox=(0.0, 0.0, 200.0, 50.0), cells=cells)
+        words = VisionAdapter(mode="cells", client=client).extract(blank_image(), region)
+        assert [w.text for w in words] == ["Hàng A"]
+
+    def test_malformed_json_yields_no_words_without_raising(self):
         cells = ((0.0, 0.0, 50.0, 20.0),)
         client = FakeVisionClient("not json at all")
         region = Region(page=1, bbox=(0.0, 0.0, 200.0, 50.0), cells=cells)
-        with pytest.raises(VisionCellCountMismatch):
-            VisionAdapter(mode="cells", client=client).extract(blank_image(), region)
+        assert VisionAdapter(mode="cells", client=client).extract(blank_image(), region) == []
 
-    def test_missing_cells_key_raises(self):
+    def test_missing_cells_key_yields_no_words_without_raising(self):
         cells = ((0.0, 0.0, 50.0, 20.0),)
         client = FakeVisionClient(json.dumps({"rows": ["x"]}))
         region = Region(page=1, bbox=(0.0, 0.0, 200.0, 50.0), cells=cells)
-        with pytest.raises(VisionCellCountMismatch):
-            VisionAdapter(mode="cells", client=client).extract(blank_image(), region)
+        assert VisionAdapter(mode="cells", client=client).extract(blank_image(), region) == []
 
     def test_requires_region_cells(self):
         client = FakeVisionClient(json.dumps({"cells": []}))
@@ -124,3 +144,47 @@ class TestVisionAdapterCellsMode:
         assert call["json_mode"] is True
         assert "3" in call["user_prompt"]
         assert len(call["images"]) == 3
+
+
+class _FakeOpenAISDK:
+    """Stands in for the real `openai.OpenAI` client, capturing exactly the
+    kwargs `_OpenAIVisionClient` sends to `chat.completions.create` -- this is
+    the one layer `FakeVisionClient` never exercises, since it replaces
+    `_OpenAIVisionClient` entirely rather than the SDK object underneath it.
+    """
+
+    def __init__(self, content: str) -> None:
+        self.captured_kwargs: dict | None = None
+        self._content = content
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    def _create(self, **kwargs):
+        self.captured_kwargs = kwargs
+        message = SimpleNamespace(content=self._content)
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+
+class TestOpenAIVisionClientNeverSendsTemperature:
+    """Regression coverage for a real bug found by running this adapter
+    against the live API on an actual hard_case scan: gpt-5.6-terra rejects
+    `temperature=0` outright ("Only the default (1) value is supported"),
+    but `complete()` used to hardcode it for every JSON-mode ("cells") call
+    -- meaning cells mode had never actually worked against the real model,
+    only against `FakeVisionClient` in the tests above. No unit test caught
+    this because nothing exercised `_OpenAIVisionClient` itself before now.
+    """
+
+    def test_region_mode_sends_no_temperature(self):
+        client = _OpenAIVisionClient(api_key="test")
+        sdk = _FakeOpenAISDK("some text")
+        client._client = sdk
+        client.complete(images=[blank_image()], system_prompt="sys", user_prompt="", json_mode=False)
+        assert "temperature" not in sdk.captured_kwargs
+
+    def test_json_mode_sends_no_temperature_either(self):
+        client = _OpenAIVisionClient(api_key="test")
+        sdk = _FakeOpenAISDK('{"cells": ["x"]}')
+        client._client = sdk
+        client.complete(images=[blank_image()], system_prompt="sys", user_prompt="", json_mode=True)
+        assert "temperature" not in sdk.captured_kwargs
+        assert sdk.captured_kwargs["response_format"] == {"type": "json_object"}

@@ -33,6 +33,7 @@ class GroundedEngine(OCREngine):
                     text="SYNTHETIC scanned page",
                     confidence=0.95,
                     bbox=BBox(x1=0.1, y1=0.1, x2=0.9, y2=0.2),
+                    geometry_provenance="MEASURED",
                 )
             ]
         )
@@ -90,8 +91,11 @@ def test_traceability_geometry_and_document_metadata(synthetic_pdf, tmp_path):
             assert 0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1
         for word in page.words:
             assert word.line_id in line_ids
-            assert 0 <= word.line_char_start < word.line_char_end <= len(
-                next(line_ for line_ in page.lines if line_.line_id == word.line_id).text
+            assert (
+                0
+                <= word.line_char_start
+                < word.line_char_end
+                <= len(next(line_ for line_ in page.lines if line_.line_id == word.line_id).text)
             )
 
     # (4) one TEXT_LAYER page and one SCANNED_OCR page share the same output shape.
@@ -108,6 +112,22 @@ def test_traceability_geometry_and_document_metadata(synthetic_pdf, tmp_path):
 
     # Round-trips through JSON exactly as AI2 will receive it.
     assert DocumentSnapshot.model_validate_json(snap.model_dump_json()) == snap
+
+
+def test_geometry_provenance_reflects_how_each_source_actually_got_its_bbox(
+    synthetic_pdf, tmp_path
+):
+    document = _process(synthetic_pdf, tmp_path, GroundedEngine())
+    snap = _build(document, tmp_path)
+    native_page = next(p for p in snap.pages if p.input_type == "TEXT_LAYER")
+    ocr_page = next(p for p in snap.pages if p.input_type == "SCANNED_OCR")
+    # Native PDF words are directly measured glyph rects; the line bbox around
+    # them is a union computed from those words, i.e. DERIVED, not independently
+    # measured (section 6's own worked example).
+    assert {w.geometry_provenance for w in native_page.words} == {"MEASURED"}
+    assert {ln.geometry_provenance for ln in native_page.lines} == {"DERIVED"}
+    # GroundedEngine mirrors a line-level CV detector (like Paddle): MEASURED.
+    assert {ln.geometry_provenance for ln in ocr_page.lines} == {"MEASURED"}
 
 
 def test_missing_geometry_marks_partial_not_silent_success(synthetic_pdf, tmp_path):
@@ -197,27 +217,72 @@ def test_bbox_normalized_rejects_out_of_order_or_out_of_range_boxes():
     from contract_ocr.domain.snapshot import SnapshotLine
 
     SnapshotLine(
-        line_id="l1", text="ok", page_char_start=0, page_char_end=2,
+        line_id="l1",
+        text="ok",
+        page_char_start=0,
+        page_char_end=2,
         bbox_normalized=[0.1, 0.1, 0.5, 0.5],
+        geometry_provenance="MEASURED",
     )
     with pytest.raises(ValidationError):
         SnapshotLine(
-            line_id="l1", text="bad", page_char_start=0, page_char_end=3,
+            line_id="l1",
+            text="bad",
+            page_char_start=0,
+            page_char_end=3,
             bbox_normalized=[0.5, 0.1, 0.1, 0.5],  # x0 > x1
+            geometry_provenance="MEASURED",
         )
     with pytest.raises(ValidationError):
         SnapshotLine(
-            line_id="l1", text="bad", page_char_start=0, page_char_end=3,
+            line_id="l1",
+            text="bad",
+            page_char_start=0,
+            page_char_end=3,
             bbox_normalized=[0.1, 0.1, 1.5, 0.5],  # out of [0, 1]
+            geometry_provenance="MEASURED",
         )
+
+
+def test_snapshot_word_and_line_reject_missing_geometry_provenance():
+    from contract_ocr.domain.snapshot import SnapshotLine, SnapshotWord
+
+    with pytest.raises(ValidationError):
+        SnapshotLine(
+            line_id="l1",
+            text="ok",
+            page_char_start=0,
+            page_char_end=2,
+            bbox_normalized=[0.1, 0.1, 0.5, 0.5],
+        )  # geometry_provenance omitted
+    with pytest.raises(ValidationError):
+        SnapshotWord(
+            word_id="w1",
+            line_id="l1",
+            text="ok",
+            line_char_start=0,
+            line_char_end=2,
+            bbox_normalized=[0.1, 0.1, 0.5, 0.5],
+        )  # geometry_provenance omitted
 
 
 def test_page_status_error_consistency_is_enforced():
     from contract_ocr.domain.snapshot import SnapshotPage
 
     with pytest.raises(ValidationError):
-        SnapshotPage(page_number=1, status="FAILED", input_type="TEXT_LAYER",
-                     source_page_width=1, source_page_height=1)  # FAILED needs error
+        SnapshotPage(
+            page_number=1,
+            status="FAILED",
+            input_type="TEXT_LAYER",
+            source_page_width=1,
+            source_page_height=1,
+        )  # FAILED needs error
     with pytest.raises(ValidationError):
-        SnapshotPage(page_number=1, status="SUCCESS", input_type="TEXT_LAYER",
-                     source_page_width=1, source_page_height=1, error="boom")
+        SnapshotPage(
+            page_number=1,
+            status="SUCCESS",
+            input_type="TEXT_LAYER",
+            source_page_width=1,
+            source_page_height=1,
+            error="boom",
+        )

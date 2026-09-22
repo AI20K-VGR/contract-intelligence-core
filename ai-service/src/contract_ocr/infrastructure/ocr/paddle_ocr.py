@@ -8,6 +8,7 @@ import numpy as np
 from contract_ocr.application.ports.ocr_engine import EngineUnavailable, OCREngine
 from contract_ocr.domain.bbox import BBox
 from contract_ocr.domain.entities import Context, Line, OCRResult
+from contract_ocr.domain.enums import GeometryProvenance
 
 
 class PaddleOCREngine(OCREngine):
@@ -75,6 +76,9 @@ class PaddleOCREngine(OCREngine):
                         text=text,
                         confidence=float(score),
                         bbox=box,
+                        # `rec_polys` is Paddle's own text-detector output, not a
+                        # union of anything this codebase computed — MEASURED.
+                        geometry_provenance=GeometryProvenance.MEASURED,
                     )
                 )
         path = Path(context.output_dir) / "raw.json"

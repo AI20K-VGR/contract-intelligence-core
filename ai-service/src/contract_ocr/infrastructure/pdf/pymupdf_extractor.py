@@ -3,14 +3,15 @@ from collections import defaultdict
 import pymupdf
 
 from contract_ocr.domain.bbox import BBox
-from contract_ocr.domain.entities import Line, Page, Word
+from contract_ocr.domain.entities import Cell, Line, Page, Row, Table, Word
+from contract_ocr.domain.enums import GeometryProvenance
 
 
 class PyMuPDFExtractor:
     def open(self, path: str) -> pymupdf.Document:
         return pymupdf.open(path)
 
-    def evidence(self, page: pymupdf.Page) -> tuple[int, int, int, float]:
+    def evidence(self, page: pymupdf.Page) -> tuple[int, int, int, float, str]:
         words = page.get_text("words")
         spans = sum(
             len(line["spans"])
@@ -35,7 +36,13 @@ class PyMuPDFExtractor:
                 end = max(end, high)
             area += (right - left) * height
         text = page.get_text()
-        return len(text.strip()), len(words), spans, min(1.0, area / page.rect.get_area())
+        return (
+            len(text.strip()),
+            len(words),
+            spans,
+            min(1.0, area / page.rect.get_area()),
+            text,
+        )
 
     def extract(self, page: pymupdf.Page, document_id: str) -> Page:
         width, height = page.rect.width, page.rect.height
@@ -48,6 +55,9 @@ class PyMuPDFExtractor:
                     word_id=f"{document_id}-p{page.number + 1:03d}-w{index:04d}",
                     text=word[4],
                     bbox=box,
+                    # Each word's own rect comes directly from the PDF's glyph
+                    # layout — a deterministic measurement, not a guess.
+                    geometry_provenance=GeometryProvenance.MEASURED,
                 )
             )
         lines = []
@@ -65,6 +75,9 @@ class PyMuPDFExtractor:
                     text=" ".join(w.text for w in words),
                     words=words,
                     bbox=box,
+                    # Not independently measured: this is the union of the words'
+                    # own measured boxes above, so it is DERIVED (section 6).
+                    geometry_provenance=GeometryProvenance.DERIVED,
                 )
             )
         return Page(
@@ -76,5 +89,57 @@ class PyMuPDFExtractor:
             engine="pymupdf",
             model=pymupdf.VersionBind,
             lines=lines,
+            tables=self._extract_tables(page, width, height, document_id),
             geometry_available=bool(lines),
         )
+
+    def _extract_tables(
+        self, page: pymupdf.Page, width: float, height: float, document_id: str
+    ) -> list[Table]:
+        """Native table detection: PyMuPDF's own `find_tables()` (ruling-line and
+        text-alignment based) on a text-layer page. This is a direct, deterministic
+        detector output -- MEASURED, not something this codebase derived. Scanned
+        pages have no native structure to detect this way and are not covered here
+        (see docs/ai1-current-state.md: no fragment/table-region detector exists
+        yet for OCR-only pages; this is a disclosed, deferred gap, not a silent
+        one -- BuildSnapshot marks those pages' table_status as NOT_CHECKED rather
+        than implying an empty result means "no table")."""
+        tables: list[Table] = []
+        try:
+            finder = page.find_tables()
+        except Exception:
+            # A malformed/unsupported page structure must not fail the whole
+            # page's extraction over table detection alone.
+            return tables
+        for index, table in enumerate(finder.tables, 1):
+            extracted = table.extract()
+            if not extracted:
+                continue
+            header_texts = [str(v) if v is not None else "" for v in extracted[0]]
+            rows: list[Row] = []
+            for row, row_texts in zip(table.rows[1:], extracted[1:], strict=False):
+                cells = []
+                for cell_bbox, text in zip(row.cells, row_texts, strict=False):
+                    if cell_bbox is None:
+                        cells.append(Cell(text=text or ""))
+                        continue
+                    rect = pymupdf.Rect(cell_bbox) * page.rotation_matrix
+                    cells.append(
+                        Cell(
+                            text=text or "",
+                            bbox=BBox.normalize(list(rect), width, height),
+                            geometry_provenance=GeometryProvenance.MEASURED,
+                        )
+                    )
+                rows.append(Row(cells=cells))
+            table_rect = pymupdf.Rect(table.bbox) * page.rotation_matrix
+            tables.append(
+                Table(
+                    table_id=f"{document_id}-p{page.number + 1:03d}-t{index:03d}",
+                    bbox=BBox.normalize(list(table_rect), width, height),
+                    geometry_provenance=GeometryProvenance.MEASURED,
+                    header=header_texts,
+                    rows=rows,
+                )
+            )
+        return tables

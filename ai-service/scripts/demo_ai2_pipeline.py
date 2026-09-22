@@ -135,7 +135,13 @@ class ReplayStubEngine(OCREngine):
     def recognize_page(self, page_image, context: Context) -> OCRResult:
         return OCRResult(
             lines=[
-                Line(line_id=f"stub-l{i}", text=text, confidence=0.98, bbox=box)
+                Line(
+                    line_id=f"stub-l{i}",
+                    text=text,
+                    confidence=0.98,
+                    bbox=box,
+                    geometry_provenance="MEASURED",  # mirrors Paddle's own line detector
+                )
                 for i, (text, box) in enumerate(self._lines, 1)
             ]
         )

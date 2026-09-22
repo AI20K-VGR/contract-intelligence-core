@@ -51,13 +51,21 @@ class ReplayStubEngine(OCREngine):
     def recognize_page(self, page_image, context: Context) -> OCRResult:
         return OCRResult(
             lines=[
-                Line(line_id=f"stub-l{i}", text=text, confidence=0.98, bbox=box)
+                Line(
+                    line_id=f"stub-l{i}",
+                    text=text,
+                    confidence=0.98,
+                    bbox=box,
+                    geometry_provenance="MEASURED",  # mirrors Paddle's own line detector
+                )
                 for i, (text, box) in enumerate(self._lines, 1)
             ]
         )
 
 
-def _native_lines_with_bbox(width: float, height: float, lines: list[str]) -> list[tuple[str, BBox]]:
+def _native_lines_with_bbox(
+    width: float, height: float, lines: list[str]
+) -> list[tuple[str, BBox]]:
     """Builds a one-page native PDF with `lines` drawn top-to-bottom and returns
     each line's text with its normalized bbox, read back from PyMuPDF's own word
     positions — i.e. exactly where we drew it, used as this demo's known-truth."""
@@ -150,8 +158,10 @@ def main() -> None:
             image_uri_prefix=f"storage://ocr/{snapshot_id}",
         )
         write_json(doc_dir / f"{snapshot_id}.json", snapshot.model_dump(mode="json"))
-        print(f"{document.document_id}: {snapshot.input_type}, {snapshot.page_count} page(s) -> "
-              f"{(doc_dir / f'{snapshot_id}.json').resolve()}")
+        print(
+            f"{document.document_id}: {snapshot.input_type}, {snapshot.page_count} page(s) -> "
+            f"{(doc_dir / f'{snapshot_id}.json').resolve()}"
+        )
 
     manifest = build_dossier_manifest(
         DOSSIER_ID,

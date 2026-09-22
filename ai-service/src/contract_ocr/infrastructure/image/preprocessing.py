@@ -91,27 +91,29 @@ class ImagePreprocessor:
         height, width = shape[:2]
         for line in lines:
             for item in [line, *line.words]:
-                box = item.bbox
-                if box is None:
-                    continue
-                points = (
-                    np.array(
-                        [
-                            [box.x1 * width, box.y1 * height, 1],
-                            [box.x2 * width, box.y1 * height, 1],
-                            [box.x2 * width, box.y2 * height, 1],
-                            [box.x1 * width, box.y2 * height, 1],
-                        ]
+                if item.bbox is not None:
+                    box = item.bbox
+                    item.bbox = restore_pixel_bbox(
+                        (box.x1 * width, box.y1 * height, box.x2 * width, box.y2 * height),
+                        inverse,
+                        original_shape,
                     )
-                    @ inverse.T
-                )
-                item.bbox = BBox.normalize(
-                    [
-                        points[:, 0].min(),
-                        points[:, 1].min(),
-                        points[:, 0].max(),
-                        points[:, 1].max(),
-                    ],
-                    original_shape[1],
-                    original_shape[0],
-                )
+
+
+def restore_pixel_bbox(
+    pixel_box: tuple[float, float, float, float],
+    inverse_transform: np.ndarray,
+    original_shape: tuple,
+) -> BBox:
+    """Inverse-map one pixel-space `(x0, y0, x1, y1)` box (in whatever frame
+    `inverse_transform` was built from) back into a bbox normalized against
+    `original_shape`. Shared by `ImagePreprocessor.restore` (lines/words, converting
+    from their own normalized frame first) and table-grid cell geometry, which is
+    already pixel-space and has no `Line` object to hang it on."""
+    x0, y0, x1, y1 = pixel_box
+    points = np.array([[x0, y0, 1], [x1, y0, 1], [x1, y1, 1], [x0, y1, 1]]) @ inverse_transform.T
+    return BBox.normalize(
+        [points[:, 0].min(), points[:, 1].min(), points[:, 0].max(), points[:, 1].max()],
+        original_shape[1],
+        original_shape[0],
+    )

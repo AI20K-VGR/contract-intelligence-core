@@ -49,12 +49,12 @@ from contract_ocr.infrastructure.image.renderer import PdfRenderer
 from contract_ocr.infrastructure.pdf.pymupdf_extractor import PyMuPDFExtractor
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
-ENGINE_IDS = {"pymupdf", "paddle", "deepseek", "openai", "gemini", "deepseek_api"}
+ENGINE_IDS = {"pymupdf", "paddle", "deepseek", "openai", "gemini", "deepseek_api", "mistral"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
 # Pages run concurrently only for stateless remote API engines. Paddle/DeepSeek(-local)
 # load one local model instance that isn't safe (or faster) for concurrent inference, so
 # they stay at the default max_workers=1 (sequential) in ProcessDocument.execute.
-PARALLEL_ENGINES = {"openai", "gemini", "deepseek_api"}
+PARALLEL_ENGINES = {"openai", "gemini", "deepseek_api", "mistral"}
 WEB_MAX_WORKERS = 4
 
 app = FastAPI(title="Contract OCR Lab - Backend API")
@@ -177,6 +177,23 @@ def _engine_status() -> list[dict[str, Any]]:
             ),
         }
     )
+    mistral_ok = importlib.util.find_spec("mistralai") is not None
+    has_mistral_key = bool(os.environ.get("MISTRAL_API_KEY"))
+    engines.append(
+        {
+            "id": "mistral",
+            "label": "Mistral OCR (Document AI)",
+            "available": mistral_ok and has_mistral_key,
+            "external": True,
+            "note": (
+                "⚠️ Ảnh trang PDF được gửi lên Mistral — chỉ dùng file demo, không dùng tài liệu thật"
+                if mistral_ok and has_mistral_key
+                else "Chưa cài đặt. Chạy: uv sync --extra mistral"
+                if not mistral_ok
+                else "Thiếu biến môi trường MISTRAL_API_KEY"
+            ),
+        }
+    )
     return engines
 
 
@@ -215,6 +232,10 @@ def _get_engine(engine_id: str) -> OCREngine | None:
                 )
 
                 _engine_cache[engine_id] = GeminiVisionOCREngine(enabled=True)
+            elif engine_id == "mistral":
+                from contract_ocr.infrastructure.ocr.mistral_ocr import MistralOCREngine
+
+                _engine_cache[engine_id] = MistralOCREngine(enabled=True)
             else:
                 from contract_ocr.infrastructure.ocr.deepseek_vision_ocr import (
                     DeepSeekVisionOCREngine,
@@ -301,7 +322,7 @@ def ocr_pdf(
         raise HTTPException(400, "Chỉ nhận file .pdf hoặc ảnh (jpg, png, webp, bmp, tiff)")
     if engine not in ENGINE_IDS:
         raise HTTPException(
-            400, "engine phải là pymupdf, paddle, deepseek, openai, gemini hoặc deepseek_api"
+            400, "engine phải là pymupdf, paddle, deepseek, openai, gemini, deepseek_api hoặc mistral"
         )
     if not 72 <= dpi <= 600:
         raise HTTPException(400, "DPI phải trong khoảng 72-600")
@@ -460,7 +481,7 @@ def ai2_analyze(
     isn't limited to PDFs with a native text layer."""
     if engine not in ENGINE_IDS:
         raise HTTPException(
-            400, "engine phải là pymupdf, paddle, deepseek, openai, gemini hoặc deepseek_api"
+            400, "engine phải là pymupdf, paddle, deepseek, openai, gemini, deepseek_api hoặc mistral"
         )
     if not 72 <= dpi <= 600:
         raise HTTPException(400, "DPI phải trong khoảng 72-600")

@@ -13,14 +13,20 @@ Two modes:
     resulting `Word` shares `region.bbox` since there is no finer geometry
     to give it.
   - "cells": `region.cells` gives N individual cell boxes; each is cropped
-    and sent together in one call, and the model must return exactly N
-    JSON results, in order — see `CELLS_SYSTEM_PROMPT`. A response with a
-    different element count is a hard error (`VisionCellCountMismatch`);
-    this adapter never guesses a realignment the way some other
-    OCR-reconciliation code in this codebase does (e.g.
-    `backend/app/document_processing.py`'s similarity-based line
-    alignment) — a cell-for-cell contract is either satisfied exactly or
-    rejected.
+    and sent together in one call, and the model is asked to return exactly
+    N JSON results, in order — see `CELLS_SYSTEM_PROMPT`. A response with a
+    different element count, or one bad element among otherwise-good ones,
+    is matched to the caller's cells by position on a best-effort basis
+    (extra elements dropped, missing ones treated as unreadable) rather than
+    discarding the whole batch: on a real scanned contract this is usually
+    the model getting most cells right and stumbling on just one (a stamp
+    overlapping a cell, a merged cell it split in two), and a correct table
+    built from what vision actually read matters more, right now, than
+    rejecting the batch over a byte-perfect response contract — see
+    `backend/app/document_processing.py`'s own similarity-based line
+    alignment for the same tradeoff made on this codebase's OCR side. Only a
+    response with no recoverable structure at all (not JSON, or no "cells"
+    list) yields nothing.
 """
 
 from __future__ import annotations
@@ -62,12 +68,6 @@ field — the caller already knows where each cell is.
 6. Return JSON only. No markdown, no code fences, no commentary outside \
 the JSON object.
 """
-
-
-class VisionCellCountMismatch(RuntimeError):
-    """The model returned a different number of cell results than cells
-    were sent (or a malformed response). Raised, never silently realigned
-    — see module docstring."""
 
 
 class VisionAdapter:
@@ -132,17 +132,29 @@ def _cells_user_prompt(count: int) -> str:
 
 
 def _parse_cells_response(raw: str, expected: int) -> list[str | None]:
+    """Best-effort positional match to the `expected` cells sent, tolerating
+    a response that isn't quite the requested shape rather than discarding
+    all of it — see module docstring. Only a response with no recoverable
+    "cells" list at all (unparsable JSON, or no such key) yields nothing.
+    """
     try:
         payload = json.loads(raw)
         values = payload["cells"]
-    except (json.JSONDecodeError, KeyError, TypeError) as exc:
-        raise VisionCellCountMismatch(f"malformed cells response: {raw!r}") from exc
+    except (json.JSONDecodeError, KeyError, TypeError):
+        return [None] * expected
+    if not isinstance(values, list):
+        return [None] * expected
 
-    if not isinstance(values, list) or len(values) != expected:
-        got = len(values) if isinstance(values, list) else type(values).__name__
-        raise VisionCellCountMismatch(f"expected {expected} cell result(s), got {got}")
-
-    return [_parse_cell_value(v) for v in values]
+    parsed = [_parse_cell_value(v) for v in values]
+    if len(parsed) < expected:
+        parsed.extend([None] * (expected - len(parsed)))
+    elif len(parsed) > expected:
+        # Extra trailing elements (the model split one cell into two, or
+        # miscounted) are dropped rather than shifting every cell after them
+        # out of position -- a positional contract can only be trusted up to
+        # where it was actually honored.
+        parsed = parsed[:expected]
+    return parsed
 
 
 def _parse_cell_value(value: Any) -> str | None:
@@ -156,7 +168,10 @@ def _parse_cell_value(value: Any) -> str | None:
         # model-reported coordinates are never used for anything.
         text = value.get("text")
         return text if isinstance(text, str) else None
-    raise VisionCellCountMismatch(f"unexpected cell value type: {value!r}")
+    # Any other shape for just this one cell (a number, a list, ...) has no
+    # text to recover -- treated as unreadable, not a reason to fail the
+    # cells around it that parsed fine.
+    return None
 
 
 def _crop(image: Any, bbox: Bbox) -> Any:
@@ -172,12 +187,12 @@ def _relative(bbox: Bbox, origin_bbox: Bbox) -> Bbox:
 
 class _OpenAIVisionClient:
     """Default `VisionClient`: OpenAI's vision API, `gpt-5.6-terra` by
-    default (`infrastructure/ocr/openai_vision_ocr.DEFAULT_MODEL`). JSON
-    mode uses `temperature=0` (matching
-    `reconstruction.llm_resolver.OpenAIBoundaryResolver`'s structured-output
-    call); free-text region mode leaves temperature at the model's default,
-    matching `OpenAIVisionOCREngine` — gpt-5.6+ rejects non-default
-    temperature on that call shape.
+    default (`infrastructure/ocr/openai_vision_ocr.DEFAULT_MODEL`). Never
+    sends `temperature` — confirmed against the real API (not just this
+    codebase's own comments elsewhere): gpt-5.6-terra rejects any override
+    other than its default (1) on every call shape used here, JSON mode
+    included, matching `OpenAIVisionOCREngine`'s own handling of the same
+    model family.
     """
 
     def __init__(self, model: str | None = None, api_key: str | None = None) -> None:
@@ -212,7 +227,6 @@ class _OpenAIVisionClient:
         kwargs: dict[str, Any] = {"max_completion_tokens": 4096}
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
-            kwargs["temperature"] = 0
 
         response = client.chat.completions.create(
             model=self.model,
