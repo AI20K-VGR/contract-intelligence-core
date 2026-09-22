@@ -251,13 +251,11 @@ Nếu tích hợp với Backend và Frontend của repo, đọc [AI1 team handof
 
 Contract riêng, tách khỏi schema benchmark ở mục 8 (`Document`/`Page` dùng để so sánh engine): xem [docs/AI1_OCR_SNAPSHOT_HANDOFF_RESPONSE.md](docs/AI1_OCR_SNAPSHOT_HANDOFF_RESPONSE.md) (phản hồi đầy đủ, mapping từng mục với yêu cầu bàn giao gốc), [docs/ai1.snapshot.v1.schema.json](docs/ai1.snapshot.v1.schema.json) và [docs/ai1.dossier_manifest.v1.schema.json](docs/ai1.dossier_manifest.v1.schema.json) (JSON Schema, sinh từ Pydantic models ở `domain/snapshot.py` — nguồn xác thực chính là các model đó, tương tự cách `output.schema.json` liên hệ với `domain/entities.py`).
 
-Sinh một document snapshot từ PDF thật (cần đã điền `MISTRAL_API_KEY` vào `.env` — xem [mục "OpenAI/Gemini/Mistral"](#openaigeminimistral-tuỳ-chọn-ocr-qua-visionocr-api) ở trên). Khác với `serve_backend.py`, CLI này **không** tự nạp `.env` — thêm cờ `--env-file .env` vào lệnh `uv run` để nó đọc:
+Sinh một document snapshot từ PDF thật (cần `MISTRAL_API_KEY` trong biến môi trường — CLI không tự nạp `.env`):
 
 ```powershell
-uv run --env-file .env contract-ocr snapshot --file hop-dong.pdf --document-id contract-001 --dossier-id dossier-001 --role contract --engine mistral --output data/generated/snapshots
+uv run contract-ocr snapshot --file hop-dong.pdf --document-id contract-001 --dossier-id dossier-001 --role contract --engine mistral --output data/generated/snapshots
 ```
-
-`--env-file` chỉ áp dụng cho đúng lệnh đang chạy, không set biến môi trường hệ thống nên không ảnh hưởng `uv run pytest`. Không muốn đụng tới `.env` thì set tay mỗi phiên PowerShell thay thế: `$env:MISTRAL_API_KEY = "..."` trước khi gọi `uv run contract-ocr ...` (không cần `--env-file` nữa nếu đã set kiểu này).
 
 `--engine mistral` **không** có nghĩa "toàn bộ file qua Mistral" — mỗi trang được định tuyến độc lập: trang có text-layer native (đọc được thẳng, kể cả trang chỉ có ảnh logo/chữ ký nhỏ) luôn qua PyMuPDF trước, Mistral chỉ được gọi cho trang thật sự SCANNED hoặc MIXED không đọc được text gốc. Một PDF trộn (vài trang native, vài trang scan) ra kết quả trộn tương ứng trong cùng snapshot, không phải tất cả trang đều qua Mistral. **Lưu ý khi đọc snapshot:** `engine` chỉ có ở mức document (`DocumentSnapshot.engine`, tên engine được CHỌN cho cả lần chạy) — snapshot **không** ghi engine thật đã xử lý riêng từng trang; muốn biết trang nào đi qua PyMuPDF hay Mistral, đọc `pages[].input_type` (`TEXT_LAYER` = chỉ PyMuPDF, `SCANNED_OCR`/`MIXED` = đã gọi engine OCR). Quyết định định tuyến nằm ở `ProcessDocument.execute` (`application/use_cases/process_document.py`), áp dụng như nhau cho mọi engine, không riêng Mistral — có test ở `tests/integration/test_pipeline.py::test_native_routing_and_ocr` (định tuyến, dùng schema benchmark nội bộ có `page.engine` riêng — khác `ai1.snapshot.v1`) và `tests/unit/test_mistral_ocr.py` (bản thân `MistralOCREngine`, dùng SDK giả lập).
 

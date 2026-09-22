@@ -62,7 +62,7 @@ Ra 1 hợp đồng TEXT_LAYER (có bảng native, đủ `tables[]`/`nodes[]`) + 
 **Trên PDF thật của AI2 (cần `MISTRAL_API_KEY`):**
 
 ```powershell
-uv run --env-file .env contract-ocr snapshot --file <pdf-that>.pdf --document-id <id> --dossier-id <id> --role contract --engine mistral --output data/generated/snapshots
+uv run contract-ocr snapshot --file <pdf-that>.pdf --document-id <id> --dossier-id <id> --role contract --engine mistral --output data/generated/snapshots
 ```
 
 Lưu ý: mỗi trang tự định tuyến — trang có text-layer native đọc qua PyMuPDF, chỉ trang SCANNED/MIXED mới gọi Mistral (xem `pages[].input_type` để biết trang nào đi đường nào; snapshot không có field engine riêng theo trang). Chi tiết ở [AI1 team handoff](AI1_TEAM_HANDOFF.md) mục 5.
