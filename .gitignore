@@ -18,7 +18,7 @@ datasets/
 
 # =====================================================================
 # Contract Intelligence - Root .gitignore
-# Monorepo: backend (Java/Maven) | frontend (Node) | ai-service (Python)
+# Monorepo: backend (Python/FastAPI) | frontend (Node) | ai-service (Python)
 # =====================================================================
 
 # ---------- OS / Editor ----------
@@ -39,21 +39,34 @@ desktop.ini
 *.key
 secrets/
 
-# ---------- Java / Maven (backend/) ----------
-backend/target/
-backend/**/target/
-backend/**/build/
-backend/*.class
-backend/**/*.class
-backend/*.jar
-backend/*.war
-backend/*.ear
-backend/*.log
-backend/.gradle/
-backend/dependency-reduced-pom.xml
+# ---------- Python (Backend & AI Service) ----------
+__pycache__/
+*.pyc
+*.pyo
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.import_linter_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
 
-# Spring Boot
-backend/**/*.original
+# Jupyter
+.ipynb_checkpoints/
+
+# ML model artifacts (thường quá lớn, mount riêng)
+ai-service/models/checkpoints/
+ai-service/**/*.h5
+ai-service/**/*.pt
+ai-service/**/*.pth
+ai-service/**/*.onnx
 
 # ---------- Node / Frontend (frontend/) ----------
 frontend/node_modules/
@@ -71,36 +84,6 @@ frontend/yarn-debug.log*
 frontend/yarn-error.log*
 frontend/pnpm-debug.log*
 frontend/.pnpm-store/
-
-# ---------- Python / AI (ai-service/) ----------
-ai-service/__pycache__/
-ai-service/**/__pycache__/
-ai-service/*.pyc
-ai-service/**/*.pyc
-ai-service/*.pyo
-ai-service/**/*.pyo
-ai-service/venv/
-ai-service/.venv/
-ai-service/env/
-ai-service/.env
-ai-service/.pytest_cache/
-ai-service/.mypy_cache/
-ai-service/.ruff_cache/
-ai-service/.coverage
-ai-service/htmlcov/
-ai-service/dist/
-ai-service/build/
-ai-service/*.egg-info/
-
-# Jupyter
-ai-service/.ipynb_checkpoints/
-
-# ML model artifacts (thường quá lớn, mount riêng)
-ai-service/models/checkpoints/
-ai-service/**/*.h5
-ai-service/**/*.pt
-ai-service/**/*.pth
-ai-service/**/*.onnx
 
 # ---------- Docs / Misc ----------
 docs/_site/
