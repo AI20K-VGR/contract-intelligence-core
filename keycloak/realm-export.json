@@ -138,6 +138,7 @@
       "id": "contract-intel-frontend",
       "clientId": "contract-intel-frontend",
       "name": "Contract Intelligence SPA",
+      "description": "React SPA — public OIDC client (Authorization Code + PKCE S256, no client secret)",
       "enabled": true,
       "publicClient": true,
       "bearerOnly": false,
@@ -145,6 +146,8 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "frontchannelLogout": true,
       "protocol": "openid-connect",
       "fullScopeAllowed": true,
       "redirectUris": [
@@ -156,7 +159,9 @@
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:5173/"
+        "post.logout.redirect.uris": "http://localhost:5173/*",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "oidc.ciba.grant.enabled": "false"
       },
       "defaultClientScopes": [
         "role_list",
