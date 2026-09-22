@@ -9,7 +9,8 @@
 #   keycloak       — Keycloak 26 (Quarkus) ở dev mode, với Phase Two
 #                    keycloak-events extension baked-in (xem keycloak/Dockerfile)
 #   backend-db     — PostgreSQL cho backend (port 5432 trên host)
-#   backend        — FastAPI backend (depends_on backend-db + keycloak healthy)
+#   kafka          — Apache Kafka (KRaft, no Zookeeper) — port 9093 trên host
+#   backend        — FastAPI backend (depends_on backend-db + keycloak + kafka)
 #
 # Topology:
 #
@@ -21,19 +22,20 @@
 #   ┌──────────────┐    internal    ┌──────────────┐
 #   │   backend    │◄──────────────►│  backend-db  │
 #   └──────┬───────┘                └──────────────┘
-#          │ 8000 (host)
-#          ▼
+#          │ 8000 (host)            ┌──────────────┐
+#          ├───────────────────────►│    kafka     │  9093 (host EXTERNAL)
+#          ▼                        └──────────────┘  29092 (internal PLAINTEXT)
 #       end user
 #
 # Services on custom bridge network `ci-network` → resolve nhau bằng tên
-# container (keycloak-db, backend-db, keycloak, backend).
+# container (keycloak-db, backend-db, keycloak, kafka, backend).
 #
 # MỌI host port đều override được qua env: ví dụ `KC_HTTP_PORT=9080 docker
 # compose up`.
 #
 # Notes:
-#   - Data persistence: 2 named volumes (keycloak_pgdata, backend_pgdata).
-#     KHÔNG mất user / contract data khi restart container.
+#   - Data persistence: named volumes (keycloak_pgdata, backend_pgdata,
+#     kafka_data_v2). KHÔNG mất user / contract / Kafka data khi restart.
 #   - Startup order: pg_isready healthcheck đảm bảo DB ready trước khi
 #     keycloak / backend start.
 #   - Keycloak auto-import realm từ keycloak/realm-export.json (mount ro).
@@ -203,7 +205,34 @@ services:
       - ci-network
 
   # =============================================================================
-  # SERVICE 4 — Contract Intelligence Backend (FastAPI)
+  # SERVICE 4 — Apache Kafka (KRaft — no Zookeeper)
+  # =============================================================================
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: ci-kafka
+    restart: unless-stopped
+    profiles: ["core"]
+    environment:
+      # ---- KRaft mode (combined controller + broker) ----
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      CLUSTER_ID: ci-kafka-cluster-id-01
+      # ---- Listeners ----
+      # PLAINTEXT  : inter-container (backend → kafka:29092)
+      # CONTROLLER : KRaft controller quorum
+      # EXTERNAL   : host access via localhost:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,EXTERNAL://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,EXTERNAL://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+    ports:
+      - "${KAFKA_HOST_PORT:-9093}:9093"
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 5 — Contract Intelligence Backend (FastAPI)
   # =============================================================================
   backend:
     build:
@@ -217,6 +246,8 @@ services:
         condition: service_healthy        # ⬅ đợi pg_isready pass
       keycloak:
         condition: service_started        # ⬅ keycloak đã chạy (healthcheck tạm disabled)
+      kafka:
+        condition: service_started        # ⬅ Kafka broker đã start (KRaft)
     environment:
       # ---- DB ----
       DATABASE_URL: postgresql+asyncpg://ci:${BACKEND_DB_PASSWORD:-ci_secret_dev}@backend-db:5432/contract_intelligence
@@ -241,6 +272,10 @@ services:
       # ---- Webhook signature verification ----
       KEYCLOAK_WEBHOOK_SECRET: ${KEYCLOAK_WEBHOOK_SECRET:-ci_webhook_shared_secret_dev}
       KEYCLOAK_WEBHOOK_VERIFY_SIGNATURE: "true"
+
+      # ---- Kafka (event-driven) ----
+      # Internal listener: containers resolve `kafka` via ci-network DNS.
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
 
       # ---- MinIO (optional — chỉ cần khi AI_SERVICE_MODE!=stub) ----
       # NOTE: MinIO service không có trong file này. Nếu cần real uploads:
@@ -281,7 +316,7 @@ services:
       - ci-network
 
   # =============================================================================
-  # (OPTIONAL) SERVICE 5 — MinIO S3-compatible storage
+  # (OPTIONAL) SERVICE 6 — MinIO S3-compatible storage
   # Bật bằng `docker compose --profile storage up`.
   # =============================================================================
   minio:
@@ -318,6 +353,8 @@ volumes:
   keycloak_pgdata:
     driver: local
   backend_pgdata:
+    driver: local
+  kafka_data_v2:
     driver: local
   minio_data:
     driver: local                       # chỉ dùng khi enable profile "storage"
