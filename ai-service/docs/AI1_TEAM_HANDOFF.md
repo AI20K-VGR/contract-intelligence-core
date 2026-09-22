@@ -39,7 +39,7 @@ Frontend <--job/result + URL ảnh + dữ liệu review---------------- Backend
 
 CLI hiện hỗ trợ `--engine none|mistral` (Paddle/DeepSeek — cả bản local lẫn API — đã bị gỡ khỏi codebase, không dùng nữa). Engine `mistral` (Mistral OCR Document AI, `mistral-ocr-4`) đọc trực tiếp `page.blocks` của Mistral (bbox/confidence THẬT theo từng block, không suy diễn) và tự dựng `tables[]` từ pipe-table markdown Mistral trả về — không qua detector pixel bảng có đường kẻ. OpenAI/Gemini vẫn chỉ có trong **demo web OCR**, chưa nối vào lệnh `snapshot`.
 
-CLI **không** tự nạp `.env` như `scripts/serve_backend.py` (demo web) làm — chạy `contract-ocr snapshot --engine mistral` cần `MISTRAL_API_KEY` đã có sẵn trong biến môi trường của phiên shell đang chạy (ví dụ PowerShell: `$env:MISTRAL_API_KEY = "..."` trước khi gọi `uv run contract-ocr ...`, hoặc nạp file `.env` bằng tay). Cần cài thêm `--extra mistral` (`uv sync --locked --python 3.12 --extra dev --extra mistral`) để có SDK `mistralai`.
+CLI **không** tự nạp `.env` như `scripts/serve_backend.py` (demo web) làm — chạy `contract-ocr snapshot --engine mistral` cần `MISTRAL_API_KEY`. Cách gọn nhất: điền key vào `.env` (mục "OpenAI/Gemini/Mistral" ở README), rồi thêm cờ `--env-file .env` vào lệnh `uv run` — chỉ áp dụng cho đúng lệnh đang chạy, không set biến môi trường hệ thống nên không ảnh hưởng `uv run pytest`. Cách khác: set tay mỗi phiên shell (PowerShell: `$env:MISTRAL_API_KEY = "..."` trước khi gọi `uv run contract-ocr ...`, không cần `--env-file` nữa nếu đã set kiểu này). Cần cài thêm `--extra mistral` (`uv sync --locked --python 3.12 --extra dev --extra mistral`) để có SDK `mistralai`.
 
 ## 4. Output AI1 cam kết
 
@@ -63,10 +63,10 @@ Một file snapshot có `schema_version: "ai1.snapshot.v1"`, `snapshot_id`, `sou
 Từ thư mục `ai-service/`, chạy với PDF được phép xử lý:
 
 ```powershell
-uv run contract-ocr snapshot --file .\input.pdf --document-id doc-001 --dossier-id dossier-001 --role contract --engine mistral --output data/generated/snapshots
+uv run --env-file .env contract-ocr snapshot --file .\input.pdf --document-id doc-001 --dossier-id dossier-001 --role contract --engine mistral --output data/generated/snapshots
 ```
 
-Cần `MISTRAL_API_KEY` trong biến môi trường trước khi chạy (xem mục 3). `--engine mistral` không ép toàn bộ file qua Mistral — như mục 2 bước 2 đã nói, mỗi trang tự quyết định: trang có text-layer native đọc thẳng qua PyMuPDF, chỉ trang SCANNED/MIXED thật sự mới gọi Mistral. Một PDF hợp đồng thường gặp — vài trang gõ máy, vài trang chèn ảnh ký/đóng dấu scan — ra kết quả trộn trong cùng snapshot. **`engine` trong snapshot chỉ có ở mức document** (`DocumentSnapshot.engine`, tên engine đã CHỌN cho cả lần chạy) — muốn biết một trang cụ thể đã qua PyMuPDF hay Mistral, đọc `pages[].input_type` của trang đó (`TEXT_LAYER` = chỉ PyMuPDF; `SCANNED_OCR`/`MIXED` = đã gọi Mistral), không có field engine riêng theo trang trong contract này. Lệnh in ra `snapshot_id` và đường dẫn JSON. Cấu trúc file:
+Cần đã điền `MISTRAL_API_KEY` vào `.env` trước khi chạy (xem mục 3). `--engine mistral` không ép toàn bộ file qua Mistral — như mục 2 bước 2 đã nói, mỗi trang tự quyết định: trang có text-layer native đọc thẳng qua PyMuPDF, chỉ trang SCANNED/MIXED thật sự mới gọi Mistral. Một PDF hợp đồng thường gặp — vài trang gõ máy, vài trang chèn ảnh ký/đóng dấu scan — ra kết quả trộn trong cùng snapshot. **`engine` trong snapshot chỉ có ở mức document** (`DocumentSnapshot.engine`, tên engine đã CHỌN cho cả lần chạy) — muốn biết một trang cụ thể đã qua PyMuPDF hay Mistral, đọc `pages[].input_type` của trang đó (`TEXT_LAYER` = chỉ PyMuPDF; `SCANNED_OCR`/`MIXED` = đã gọi Mistral), không có field engine riêng theo trang trong contract này. Lệnh in ra `snapshot_id` và đường dẫn JSON. Cấu trúc file:
 
 ```text
 data/generated/snapshots/
