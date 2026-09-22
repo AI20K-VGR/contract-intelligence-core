@@ -78,6 +78,7 @@ Xem thư mục [`docs/`](./docs/):
 - `DOC-01-product-vision.md` — Tầm nhìn sản phẩm, vấn đề, đối tượng người dùng
 - `DOC-04-architecture.md` — System design, database schema, ADRs
 - `DOC-05-api-spec.yaml` — OpenAPI 3.0 spec cho REST API
+- `DOC-06-khung-project.md` — Khung dự án: luồng end-to-end, ranh giới subsystem, I/O ghép nối
 
 ---
 
