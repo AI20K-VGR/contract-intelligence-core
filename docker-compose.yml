@@ -199,7 +199,7 @@ services:
       start_period: 10s
     ports:
       # Host 5434 tránh xung đột với Postgres local (5432). Trong mạng Docker vẫn là 5432.
-      - "${BACKEND_DB_HOST_PORT:-5434}:5432"
+      - "5434:5432"
     networks:
       - ci-network
 

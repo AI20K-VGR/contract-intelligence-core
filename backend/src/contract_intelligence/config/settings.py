@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # Database (async DSN)
     # -------------------------------------------------------------------------
     database_url: str = Field(
-        default="postgresql+asyncpg://ci:ci@localhost:5432/ci",
+        default="postgresql+asyncpg://ci:ci_secret_dev@localhost:5434/contract_intelligence",
         description="Async SQLAlchemy DSN — dùng postgresql+asyncpg driver",
     )
     database_pool_size: int = Field(default=10, ge=1, le=100)
