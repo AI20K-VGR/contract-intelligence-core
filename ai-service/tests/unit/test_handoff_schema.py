@@ -16,6 +16,6 @@ def test_handoff_json_schemas_match_models():
         published = json.loads((DOCS / filename).read_text(encoding="utf-8"))
         generated = model.model_json_schema()
         assert published["$schema"] == "https://json-schema.org/draft/2020-12/schema"
-        assert {key: value for key, value in published.items() if key not in {"$schema", "title"}} == {
-            key: value for key, value in generated.items() if key != "title"
-        }
+        assert {
+            key: value for key, value in published.items() if key not in {"$schema", "title"}
+        } == {key: value for key, value in generated.items() if key != "title"}

@@ -232,9 +232,7 @@ def ocr_pdf(
     if not (is_pdf or is_image):
         raise HTTPException(400, "Chỉ nhận file .pdf hoặc ảnh (jpg, png, webp, bmp, tiff)")
     if engine not in ENGINE_IDS:
-        raise HTTPException(
-            400, "engine phải là pymupdf, openai, gemini hoặc mistral"
-        )
+        raise HTTPException(400, "engine phải là pymupdf, openai, gemini hoặc mistral")
     if not 72 <= dpi <= 600:
         raise HTTPException(400, "DPI phải trong khoảng 72-600")
     content = file.file.read()
@@ -391,9 +389,7 @@ def ai2_analyze(
     the real OCR engines below (including Mistral for scanned pages), so it
     isn't limited to PDFs with a native text layer."""
     if engine not in ENGINE_IDS:
-        raise HTTPException(
-            400, "engine phải là pymupdf, openai, gemini hoặc mistral"
-        )
+        raise HTTPException(400, "engine phải là pymupdf, openai, gemini hoặc mistral")
     if not 72 <= dpi <= 600:
         raise HTTPException(400, "DPI phải trong khoảng 72-600")
 
