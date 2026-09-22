@@ -18,7 +18,7 @@ import asyncio
 import json
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from contract_intelligence.config.settings import get_settings
@@ -51,6 +51,15 @@ class ReOcrService:
         self._tenant_id = tenant_id
         self._settings = get_settings()
 
+    async def _ensure_document_in_tenant(self, document_id: str) -> None:
+        """Reject Re-OCR for documents outside the caller's tenant."""
+        result = await self._session.execute(
+            text("SELECT 1 FROM document WHERE id = :id AND tenant_id = :tid LIMIT 1"),
+            {"id": document_id, "tid": self._tenant_id},
+        )
+        if result.scalar() is None:
+            raise NotFoundError(entity_type="Document", entity_id=document_id)
+
     async def create_request(
         self,
         *,
@@ -65,6 +74,8 @@ class ReOcrService:
         options: dict[str, Any] | None = None,
     ) -> ReOcrRequestRecordDTO:
         """Tạo ReOcrRequest + dispatch sang AI service async."""
+        await self._ensure_document_in_tenant(document_id)
+
         pages = list(page_numbers or [])
         # Legacy page_ids (string) → treat as opaque page references stored alongside numbers
         legacy_ids = list(page_ids or [])

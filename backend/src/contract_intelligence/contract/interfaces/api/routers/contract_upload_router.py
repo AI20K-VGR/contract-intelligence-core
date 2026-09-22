@@ -61,6 +61,7 @@ from contract_intelligence.shared.base import new_ulid
 from contract_intelligence.shared.persistence import get_async_session
 from contract_intelligence.shared.responses import ApiResponse
 from contract_intelligence.shared.storage import get_file_storage
+from contract_intelligence.shared.utils import safe_filename
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["Contract-Upload"])
@@ -312,7 +313,7 @@ async def _ingest_file(
 
     document = await contract_svc.upload_document(
         dossier_id=dossier_id,
-        filename=file.filename or f"{role.value.lower()}.pdf",
+        filename=safe_filename(file.filename, fallback=f"{role.value.lower()}.pdf"),
         content=BytesIO(raw_bytes),
         role=role,
         order_index=order_index,

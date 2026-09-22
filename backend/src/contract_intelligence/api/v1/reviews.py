@@ -66,7 +66,7 @@ async def submit_review_action(
     id: str,  # noqa: A002 — path param name per API contract
     body: ReviewActionRequest,
 ) -> dict[str, Any]:
-    """Apply CONFIRM / NEEDS_REVIEW / REJECT with optimistic concurrency.
+    """Apply confirm / correct / reject / needs_more_evidence with OCC.
 
     If ``base_version`` does not match the current simulated version → **409**.
     On success, bumps version and appends a ReviewRevision log entry.
@@ -99,9 +99,10 @@ async def submit_review_action(
 
     new_version = current_version + 1
     status_map = {
-        "CONFIRM": "confirmed",
-        "NEEDS_REVIEW": "needs_review",
-        "REJECT": "rejected",
+        "confirm": "confirmed",
+        "correct": "corrected",
+        "reject": "rejected",
+        "needs_more_evidence": "needs_more_evidence",
     }
     new_status = status_map[body.action.value]
     now: datetime = utcnow()

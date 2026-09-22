@@ -2,7 +2,7 @@
 
 Tables (DOC-04b/DOC-04c):
     dossier_approval          — Snapshot khi ký duyệt nội bộ
-    external_approval         — Token + callback cho phê duyệt ngoài
+    external_approval_grant   — Token + callback cho phê duyệt ngoài
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ class DossierApprovalORM(Base):
 class ExternalApprovalORM(Base):
     """External approval grant — DocuSign / SAP / corporate SSO."""
 
-    __tablename__ = "external_approval"
+    __tablename__ = "external_approval_grant"
 
     id: Mapped[str] = mapped_column(Text, primary_key=True)
     tenant_id: Mapped[str] = mapped_column(Text, nullable=False, index=True)

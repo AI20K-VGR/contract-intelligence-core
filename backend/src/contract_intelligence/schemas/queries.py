@@ -14,7 +14,8 @@ class DossierQueryRequest(BaseModel):
 
     query: str = Field(..., min_length=1, max_length=4000)
     policy_flags: dict[str, Any] = Field(
-        default_factory=lambda: {"egress_allowed": True},
+        default_factory=lambda: {"egress_allowed": False},
+        description="AI2 policy flags — external egress is default-deny.",
     )
 
 

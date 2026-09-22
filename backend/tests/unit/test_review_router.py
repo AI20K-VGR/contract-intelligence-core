@@ -139,7 +139,7 @@ class TestListRevisions:
 
 
 class TestSubmitAction:
-    """HITL orchestration API — CONFIRM / NEEDS_REVIEW / REJECT with OCC."""
+    """HITL orchestration API — confirm/correct/reject/needs_more_evidence with OCC."""
 
     async def test_returns_200_with_new_version(self, client: AsyncClient) -> None:
         from contract_intelligence.api.v1.reviews import reset_review_store
@@ -147,14 +147,14 @@ class TestSubmitAction:
         reset_review_store()
         resp = await client.post(
             "/api/v1/review-items/ri_1/actions",
-            json={"action": "CONFIRM", "base_version": 1, "reason": "looks good"},
+            json={"action": "confirm", "base_version": 1, "reason": "looks good"},
         )
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "ok"
         assert body["new_version"] == 2
         assert body["item_status"] == "confirmed"
-        assert body["revision"]["action"] == "CONFIRM"
+        assert body["revision"]["action"] == "confirm"
         assert body["revision"]["reason"] == "looks good"
 
     async def test_accepts_base_version_one(self, client: AsyncClient) -> None:
@@ -163,11 +163,11 @@ class TestSubmitAction:
         reset_review_store()
         resp = await client.post(
             "/api/v1/review-items/ri_zero/actions",
-            json={"action": "NEEDS_REVIEW", "base_version": 1},
+            json={"action": "needs_more_evidence", "base_version": 1},
         )
         assert resp.status_code == 200
         assert resp.json()["new_version"] == 2
-        assert resp.json()["item_status"] == "needs_review"
+        assert resp.json()["item_status"] == "needs_more_evidence"
 
     async def test_returns_409_on_version_conflict(self, client: AsyncClient) -> None:
         from contract_intelligence.api.v1.reviews import reset_review_store
@@ -176,11 +176,11 @@ class TestSubmitAction:
         # Seed version 1 → apply once → version becomes 2
         await client.post(
             "/api/v1/review-items/ri_conflict/actions",
-            json={"action": "CONFIRM", "base_version": 1},
+            json={"action": "confirm", "base_version": 1},
         )
         resp = await client.post(
             "/api/v1/review-items/ri_conflict/actions",
-            json={"action": "CONFIRM", "base_version": 1},  # stale
+            json={"action": "confirm", "base_version": 1},  # stale
         )
         assert resp.status_code == 409
         detail = resp.json()["detail"]

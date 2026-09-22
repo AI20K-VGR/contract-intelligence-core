@@ -63,6 +63,7 @@ from contract_intelligence.shared.auth import (
     require_role,
 )
 from contract_intelligence.shared.responses import ApiMeta, ApiResponse
+from contract_intelligence.shared.utils import safe_filename
 
 router = APIRouter(tags=["Contract"])
 
@@ -125,7 +126,7 @@ async def _ingest_upload_file(
         total_size += len(chunk)
     raw_bytes = b"".join(chunks)
 
-    filename = file.filename or f"{role.value.lower()}.pdf"
+    filename = safe_filename(file.filename, fallback=f"{role.value.lower()}.pdf")
     object_key = f"{dossier_id}/{order_index:02d}_{filename}"
     s3_path = await storage.upload_file(object_key, raw_bytes)
 
