@@ -27,8 +27,8 @@ from contract_intelligence.contract.application.dtos.dossier_dtos import (
 )
 from contract_intelligence.contract.application.dtos.manifest_dtos import (
     ConfirmManifestRequest,
-    ManifestDTO,
     ManifestDocumentRole,
+    ManifestDTO,
     ManifestMemberDTO,
     ManifestRelationDTO,
     ManifestStatus,

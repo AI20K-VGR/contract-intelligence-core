@@ -257,9 +257,7 @@ class ContractService:
             }
             for d in documents
         ]
-        return await self._manifest_repo.create_with_default_items(
-            dossier_id, documents_payload
-        )
+        return await self._manifest_repo.create_with_default_items(dossier_id, documents_payload)
 
     async def get_manifest(self, dossier_id: str) -> ManifestDTO:
         """GET /dossiers/{id}/manifest — current ManifestDTO (create draft if needed)."""

@@ -314,9 +314,7 @@ class TestManifestRouter:
         assert resp.json()["data"]["version"] == 2
 
     @pytest.mark.asyncio
-    async def test_confirm_version_conflict(
-        self, client: AsyncClient, mock_svc: AsyncMock
-    ) -> None:
+    async def test_confirm_version_conflict(self, client: AsyncClient, mock_svc: AsyncMock) -> None:
         mock_svc.confirm_manifest.side_effect = ManifestVersionConflict(
             dossier_id="dos_01",
             expected_version=1,

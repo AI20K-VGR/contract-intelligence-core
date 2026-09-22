@@ -120,9 +120,16 @@ def _build_keycloak_admin() -> KeycloakAdmin:
 def _ms_to_dt(value: object) -> datetime | None:
     if value is None:
         return None
-    try:
-        ms = int(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        ms = int(value)
+    elif isinstance(value, str):
+        try:
+            ms = int(value)
+        except ValueError:
+            return None
+    else:
         return None
     if ms <= 0:
         return None

@@ -189,10 +189,7 @@ def validate_and_prepare_confirmation(
                 source_document_id=rel.source_document_id,
             )
 
-        if (
-            rel.source_document_id not in included_ids
-            or rel.target_document_id not in included_ids
-        ):
+        if rel.source_document_id not in included_ids or rel.target_document_id not in included_ids:
             raise ManifestValidationError(
                 DomainErrorCode.RELATION_MEMBER_INVALID,
                 "Relation endpoints must reference included members",

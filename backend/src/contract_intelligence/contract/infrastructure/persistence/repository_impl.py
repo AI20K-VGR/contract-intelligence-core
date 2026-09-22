@@ -35,6 +35,23 @@ from contract_intelligence.contract.infrastructure.persistence.orm import (
 )
 from contract_intelligence.shared.base import Page, new_ulid, utcnow
 
+
+def _coerce_int(value: object, default: int = 0) -> int:
+    """Best-effort int coercion for loosely typed dict payloads."""
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return default
+    return default
+
+
 # ============================================================================
 # Dossier
 # ============================================================================
@@ -530,10 +547,10 @@ class ManifestRepositoryImpl:
                 doc_type=role,
                 sha256=str(doc.get("sha256", "")),
                 confidence="1.0",
-                order_index=int(doc.get("order_index", idx) or idx),
+                order_index=_coerce_int(doc.get("order_index", idx), idx) or idx,
                 included=True,
-                page_count=int(doc.get("page_count", 0) or 0),
-                file_size_bytes=int(doc.get("file_size_bytes", 0) or 0),
+                page_count=_coerce_int(doc.get("page_count", 0), 0),
+                file_size_bytes=_coerce_int(doc.get("file_size_bytes", 0), 0),
             )
             self._session.add(item)
             if role == "annex":
@@ -607,12 +624,16 @@ class ManifestRepositoryImpl:
 
         # Replace membership rows
         existing_items = (
-            await self._session.execute(
-                select(ManifestItemORM).where(ManifestItemORM.manifest_id == manifest_id)
+            (
+                await self._session.execute(
+                    select(ManifestItemORM).where(ManifestItemORM.manifest_id == manifest_id)
+                )
             )
-        ).scalars().all()
-        for row in existing_items:
-            await self._session.delete(row)
+            .scalars()
+            .all()
+        )
+        for item_row in existing_items:
+            await self._session.delete(item_row)
 
         for member in members:
             self._session.add(
@@ -633,14 +654,18 @@ class ManifestRepositoryImpl:
 
         # Replace relations
         existing_rels = (
-            await self._session.execute(
-                select(ManifestRelationORM).where(
-                    ManifestRelationORM.manifest_id == manifest_id
+            (
+                await self._session.execute(
+                    select(ManifestRelationORM).where(
+                        ManifestRelationORM.manifest_id == manifest_id
+                    )
                 )
             )
-        ).scalars().all()
-        for row in existing_rels:
-            await self._session.delete(row)
+            .scalars()
+            .all()
+        )
+        for rel_row in existing_rels:
+            await self._session.delete(rel_row)
 
         for rel in relations:
             self._session.add(

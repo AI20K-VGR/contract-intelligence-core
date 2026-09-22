@@ -412,9 +412,7 @@ async def list_dossier_documents(
 async def get_dossier_manifest(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ContractServiceDep,
-    _user: Annotated[
-        AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))
-    ],
+    _user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
 ) -> ApiResponse[ManifestDTO]:
     """Return the current ManifestDTO (creates a pending draft if none exists).
 
@@ -444,9 +442,7 @@ async def confirm_dossier_manifest(
     dossier_id: Annotated[str, Path(min_length=1)],
     body: ConfirmManifestRequest,
     svc: ContractServiceDep,
-    user: Annotated[
-        AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))
-    ],
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
 ) -> ApiResponse[ManifestDTO]:
     """Confirm manifest within one DB transaction.
 
@@ -454,7 +450,7 @@ async def confirm_dossier_manifest(
     files and does not start a pipeline run.
     """
     data = await svc.confirm_manifest(dossier_id, user.user_id, body)
-    return ApiResponse(data=data)  # type: ignore[arg-type]
+    return ApiResponse(data=data)
 
 
 # -----------------------------------------------------------------------------
