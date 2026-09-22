@@ -1,4 +1,4 @@
-# DOC-06 · Khung dự án
+# DOC-07 · Khung dự án
 
 > **Contract Intelligence** — Luồng end-to-end · Ranh giới subsystem · Input/Output ghép nối
 
