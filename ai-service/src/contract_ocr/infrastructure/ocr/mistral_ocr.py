@@ -9,7 +9,14 @@ import numpy as np
 from PIL import Image
 
 from contract_ocr.application.ports.ocr_engine import EngineUnavailable, OCREngine
-from contract_ocr.domain.entities import Context, Line, OCRResult
+from contract_ocr.domain.bbox import BBox
+from contract_ocr.domain.entities import Context, Line, OCRResult, Table
+from contract_ocr.domain.enums import GeometryProvenance
+from contract_ocr.domain.headings import is_annex_heading
+from contract_ocr.infrastructure.ocr.markdown_tables import (
+    build_table_from_block,
+    clean_markdown_text,
+)
 
 # mistral-ocr-4 is Mistral's dedicated Document AI OCR model (pinned, not the
 # `mistral-ocr-latest` alias, so behavior doesn't shift under this codebase when Mistral
@@ -20,34 +27,51 @@ from contract_ocr.domain.entities import Context, Line, OCRResult
 DEFAULT_MODEL = "mistral-ocr-4"
 
 
+def _block_bbox(block: Any, width: float, height: float) -> BBox:
+    """Normalizes one OCR block's real (measured, pixel) bounding box to [0, 1]
+    against the page's own render dimensions -- mirrors
+    `backend/app/document_processing.py::_mistral_block_bbox`."""
+    return BBox.normalize(
+        [block.top_left_x, block.top_left_y, block.bottom_right_x, block.bottom_right_y],
+        width,
+        height,
+    )
+
+
 class MistralOCREngine(OCREngine):
     """Sends the rendered page image to Mistral's dedicated OCR endpoint (`POST /v1/ocr`,
     `client.ocr.process`). Not local: page images leave this machine. Only use with
     non-confidential documents.
 
-    Unlike the OpenAI/Gemini/DeepSeek engines in this package, this is **not** a chat-
+    Unlike the OpenAI/Gemini engines in this package, this is **not** a chat-
     completion vision prompt — the OCR endpoint takes no system prompt at all, so this
     engine does not use (and cannot enforce) `infrastructure/ocr/prompts.OCR_SYSTEM_PROMPT`'s
     "never guess, mark [illegible]" instructions. Its accuracy/hallucination behavior is
     whatever Mistral's OCR model does natively; this has not been separately verified the
-    way the shared prompt was against the other three engines. The response is also
-    genuine Markdown rather than the plain-text-per-line convention the other engines are
-    instructed to follow — a real table in the source image ends up as literal
-    `| cell | cell |` syntax in `OCRResult.raw_markdown`/the `Line`s built from it, since
-    nothing here parses pipe tables back out. That raw markdown is still written to
-    `raw.md` per page like every other engine, so it is a legitimate table-to-markdown
-    output on its own; it is just not (yet) fed into `extract_scanned_tables.py`'s
-    bordered-grid/bbox pipeline, which expects OCR `Line`s, not table markdown.
+    way the shared prompt was against the other three engines.
+
+    Requests `include_blocks=True, confidence_scores_granularity="block"` (mirrors
+    `backend/app/document_processing.py::_mistral_vision_page`, the same call shape
+    already proven in that production pipeline): every block Mistral's own layout
+    detector finds comes back with a REAL (measured) pixel bbox and a confidence
+    score, not an evenly-split guess. A `type == "table"` block's markdown content
+    (literal `| cell | cell |` syntax) is parsed into a real `Table` by
+    `infrastructure/ocr/markdown_tables.py` and returned via `OCRResult.tables` — see
+    that module for why each CELL's own bbox (an even split of the block's real bbox)
+    is `GeometryProvenance.CLAIMED` while the table's own bbox stays `MEASURED`. A
+    `Table`'s `heading_before` is set to the nearest preceding text block that reads
+    as a new section/annex heading (`domain.headings.is_annex_heading`), for
+    `table_continuity.py`'s cross-page hard guard. Raw markdown is still written to
+    `raw.md` per page like every other engine.
 
     `table_format` is left at its API default (`None`/omitted = tables stay inline in
-    `page.markdown`), **not** `"markdown"` or `"html"` — those two values, confirmed live
-    against a real scanned table, pull the table OUT of `page.markdown` into a separate
-    `page.tables[i].content` field and leave only a dead-looking placeholder link (e.g.
-    `[tbl-0.md](tbl-0.md)`) in its place. Since `OCRResult` here only carries `raw_markdown`/
-    `Line`s (no `tables` field), passing either of those values would silently drop every
-    table's actual content — the opposite of this engine's purpose. If a future caller wants
-    the structured `page.tables` objects instead, that needs a real `OCRResult`/`OCREngine`
-    extension, not a `table_format` override on this constructor.
+    `page.markdown`/`page.blocks`), **not** `"markdown"` or `"html"` — those two values,
+    confirmed live against a real scanned table, pull the table OUT of `page.markdown`
+    into a separate `page.tables[i].content` field (a field of Mistral's own response,
+    distinct from this module's `OCRResult.tables`) and leave only a dead-looking
+    placeholder link (e.g. `[tbl-0.md](tbl-0.md)`) in its place, which
+    `markdown_tables.build_table_from_block` cannot parse — silently dropping every
+    table's actual content, the opposite of this engine's purpose.
     """
 
     name = "mistral_ocr"
@@ -92,17 +116,53 @@ class MistralOCREngine(OCREngine):
             model=self.model,
             document={"type": "image_url", "image_url": data_url},
             table_format=self.table_format,
+            include_blocks=True,
+            confidence_scores_granularity="block",
         )
-        text = response.pages[0].markdown if response.pages else ""
+        page = response.pages[0] if response.pages else None
+        text = (page.markdown if page else "") or ""
 
         directory = Path(context.output_dir)
         directory.mkdir(parents=True, exist_ok=True)
         path = directory / "raw.md"
         path.write_text(text, encoding="utf-8")
 
-        lines = [
-            Line(line_id=f"{context.document_id}-p{context.page:03d}-l{i:04d}", text=line_text)
-            for i, line_text in enumerate(text.splitlines(), 1)
-            if line_text.strip()
-        ]
-        return OCRResult(lines=lines, raw_markdown=text, raw_output_path=str(path.resolve()))
+        lines: list[Line] = []
+        tables: list[Table] = []
+        last_heading: str | None = None
+        for block in (page.blocks if page else None) or []:
+            bbox = _block_bbox(block, page.dimensions.width, page.dimensions.height)
+            scores = block.confidence_scores
+            confidence = scores.average_content_confidence_score if scores else None
+            content = block.content or ""
+
+            if block.type == "table":
+                table = build_table_from_block(
+                    table_id=f"{context.document_id}-p{context.page:03d}-t{len(tables) + 1:03d}",
+                    block_bbox=bbox,
+                    block_content=content,
+                    heading_before=last_heading,
+                )
+                if table is not None:
+                    tables.append(table)
+                continue
+
+            clean_lines = [clean_markdown_text(line) for line in content.splitlines()]
+            clean_lines = [line for line in clean_lines if line]
+            for line_text in clean_lines:
+                lines.append(
+                    Line(
+                        line_id=f"{context.document_id}-p{context.page:03d}-l{len(lines) + 1:04d}",
+                        text=line_text,
+                        bbox=bbox,
+                        geometry_provenance=GeometryProvenance.MEASURED,
+                        confidence=confidence,
+                    )
+                )
+            last_heading = next(
+                (line for line in reversed(clean_lines) if is_annex_heading(line)), last_heading
+            )
+
+        return OCRResult(
+            lines=lines, tables=tables, raw_markdown=text, raw_output_path=str(path.resolve())
+        )

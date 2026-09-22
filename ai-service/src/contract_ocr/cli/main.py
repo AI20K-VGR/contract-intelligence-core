@@ -19,8 +19,7 @@ from contract_ocr.infrastructure.image.degradation import VARIANTS, degrade
 from contract_ocr.infrastructure.image.preprocessing import ImagePreprocessor
 from contract_ocr.infrastructure.image.renderer import PdfRenderer
 from contract_ocr.infrastructure.metrics.evaluation import SampleEvaluator
-from contract_ocr.infrastructure.ocr.deepseek_ocr import DeepSeekOCRAdapter
-from contract_ocr.infrastructure.ocr.paddle_ocr import PaddleOCREngine
+from contract_ocr.infrastructure.ocr.mistral_ocr import MistralOCREngine
 from contract_ocr.infrastructure.pdf.pymupdf_extractor import PyMuPDFExtractor
 from contract_ocr.infrastructure.reporting import FileReporter, write_csv, write_json
 
@@ -28,8 +27,8 @@ from contract_ocr.infrastructure.reporting import FileReporter, write_csv, write
 def benchmark(args: argparse.Namespace) -> None:
     settings = load_settings(args.config)
     requested = set(args.engines.split(","))
-    if requested - {"pymupdf", "paddle", "deepseek"}:
-        raise ValueError("engines must be pymupdf,paddle,deepseek")
+    if requested - {"pymupdf"}:
+        raise ValueError("engines must be pymupdf")
     selected = set(args.experiments.split(",")) if args.experiments else None
     settings.experiments = [
         e
@@ -39,10 +38,6 @@ def benchmark(args: argparse.Namespace) -> None:
     if not settings.experiments or (selected and selected != {e.id for e in settings.experiments}):
         raise ValueError("no experiments selected or unknown/incompatible experiment IDs")
     engines = {}
-    if any(e.engine == "paddle" for e in settings.experiments):
-        engines["paddle"] = PaddleOCREngine(**settings.paddle)
-    if any(e.engine == "deepseek" for e in settings.experiments):
-        engines["deepseek"] = DeepSeekOCRAdapter(**settings.deepseek)
     processor = ProcessDocument(
         PyMuPDFExtractor(),
         PdfRenderer(),
@@ -85,12 +80,13 @@ def snapshot(args: argparse.Namespace) -> None:
     docs/AI1_OCR_SNAPSHOT_HANDOFF_RESPONSE.md and docs/ai1.snapshot.v1.schema.json)."""
     settings = load_settings(args.config)
     engine = None
-    if args.engine == "paddle":
-        engine = PaddleOCREngine(**settings.paddle)
-    elif args.engine == "deepseek":
-        engine = DeepSeekOCRAdapter(**settings.deepseek)
+    if args.engine == "mistral":
+        engine = MistralOCREngine()
     processor = ProcessDocument(
-        PyMuPDFExtractor(), PdfRenderer(), ImagePreprocessor(), PdfPageClassifier(**settings.classifier)
+        PyMuPDFExtractor(),
+        PdfRenderer(),
+        ImagePreprocessor(),
+        PdfPageClassifier(**settings.classifier),
     )
     experiment = Experiment(id="snapshot", engine=args.engine if engine else "pymupdf")
     document = processor.execute(
@@ -244,7 +240,7 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--manifest", type=Path, default=Path("data/manifest.csv"))
     run.add_argument("--root", type=Path, default=Path.cwd())
     run.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
-    run.add_argument("--engines", default="pymupdf,paddle,deepseek")
+    run.add_argument("--engines", default="pymupdf")
     run.add_argument("--experiments", default="")
     run.add_argument("--output", type=Path, required=True)
     run.set_defaults(func=benchmark)
@@ -259,7 +255,7 @@ def main(argv: list[str] | None = None) -> int:
     snap.add_argument("--role", choices=["contract", "annex"], required=True)
     snap.add_argument("--filename", default="")
     snap.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
-    snap.add_argument("--engine", default="none", choices=["none", "paddle", "deepseek"])
+    snap.add_argument("--engine", default="none", choices=["none", "mistral"])
     snap.add_argument("--dpi", type=int, default=300)
     snap.add_argument("--image-dpi", type=int, default=150)
     snap.add_argument("--snapshot-id", default="")

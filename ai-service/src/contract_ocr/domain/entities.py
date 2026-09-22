@@ -75,6 +75,12 @@ class Table(Entity):
     geometry_provenance: GeometryProvenance | None = None
     header: list[str] = Field(default_factory=list)
     rows: list[Row] = Field(default_factory=list)
+    # Nearest heading text (e.g. "Phụ lục 02") found directly above this table on the
+    # same page, when the detector that built this table knows how to look (currently
+    # only the Mistral markdown-block builder does -- see infrastructure/ocr/
+    # markdown_tables.py). None means "not computed", not "no heading present"; a table
+    # continuity hard guard treats None as "no signal" rather than "confirmed absent".
+    heading_before: str | None = None
 
     @model_validator(mode="after")
     def _provenance_consistency(self) -> "Table":
@@ -131,6 +137,12 @@ class Document(Entity):
 
 class OCRResult(Entity):
     lines: list[Line] = Field(default_factory=list)
+    # Populated only by an engine whose own response already segments tables from prose
+    # (currently Mistral OCR's block output -- see infrastructure/ocr/markdown_tables.py).
+    # Empty (not None) is the "this engine doesn't supply tables itself" signal that
+    # ProcessDocument.run_ocr_job uses to fall back to the pixel-based bordered-grid
+    # detector (extract_scanned_tables.build_scanned_tables) instead.
+    tables: list[Table] = Field(default_factory=list)
     raw_markdown: str | None = None
     raw_output_path: str | None = None
 
@@ -180,14 +192,12 @@ class Sample(Entity):
 
 class Experiment(Entity):
     id: str = Field(pattern=r"^[A-Za-z0-9_-]+$")
-    engine: Literal["pymupdf", "paddle", "deepseek", "openai", "gemini", "deepseek_api", "mistral"]
+    engine: Literal["pymupdf", "openai", "gemini", "mistral"]
     preprocessing: list[str] = Field(default_factory=list)
 
 
 class Settings(Entity):
     render: dict[str, Any] = Field(default_factory=lambda: {"dpi": 300})
     classifier: dict[str, Any] = Field(default_factory=dict)
-    paddle: dict[str, Any] = Field(default_factory=dict)
-    deepseek: dict[str, Any] = Field(default_factory=dict)
     evaluation: dict[str, Any] = Field(default_factory=lambda: {"bbox_iou_threshold": 0.5})
     experiments: list[Experiment] = Field(default_factory=list)
