@@ -1,4 +1,5 @@
 """Quick summary of API endpoints."""
+
 from contract_intelligence.main import app
 
 schema = app.openapi()

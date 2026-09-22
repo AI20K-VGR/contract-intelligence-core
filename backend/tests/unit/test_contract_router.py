@@ -99,8 +99,7 @@ async def mock_svc() -> AsyncMock:
 @pytest_asyncio.fixture
 async def client(mock_svc: AsyncMock) -> AsyncGenerator[AsyncClient, None]:
     """AsyncClient with ContractService dependency overridden to mock."""
-    from unittest.mock import AsyncMock as _AsyncMock
-    from unittest.mock import patch
+    from unittest.mock import AsyncMock as _AsyncMock, patch
 
     from contract_intelligence.contract.interfaces.api.dependencies import (
         get_contract_service,

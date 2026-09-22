@@ -129,10 +129,10 @@ class Repo:
     async def list(self) -> list[Item]:  # mypy: 'list' is not valid as a type
         ...
 
+
 # ✅ Đúng — đổi tên
 class Repo:
-    async def list_items(self) -> list[Item]:
-        ...
+    async def list_items(self) -> list[Item]: ...
 ```
 
 ---
@@ -267,6 +267,7 @@ class Foo(BaseEntity[str]):
 import structlog
 
 logger = structlog.get_logger(__name__)
+
 
 async def do_thing(self, x: str) -> Foo:
     result = await self._repo.get(x)
