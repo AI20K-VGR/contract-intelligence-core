@@ -45,7 +45,7 @@ class ProcessDocument:
         """max_workers only parallelizes the OCR engine call itself (network-bound API
         engines): PDF reading/classification/rendering always stays sequential because
         the underlying PDF SDK page object is not safe for concurrent access, and a
-        single loaded local model (Paddle/DeepSeek) is not safe for concurrent inference
+        single loaded local model is not safe (or faster) for concurrent inference
         either. Callers must only raise max_workers for stateless remote engines."""
         result = Document(document_id=document_id, source_file=source)
         with self.extractor.open(source) as pdf:
@@ -128,23 +128,32 @@ class ProcessDocument:
                         recognized.lines, transform, image.shape, original_shape
                     )
                     page_result.lines = recognized.lines
-                    # Bordered-table grid detection runs on the same (pre-restore)
-                    # image/transform the OCR call itself used, then inverse-maps
-                    # cell geometry the identical way `restore()` just did for lines
-                    # (section 9/17) -- see extract_scanned_tables.py for why this
-                    # reuses already-recognized line text instead of re-OCRing cells.
-                    # A detection failure must not fail an otherwise-successful page.
-                    try:
-                        page_result.tables = build_scanned_tables(
-                            image,
-                            page_result.lines,
-                            document_id=document_id,
-                            page_number=index + 1,
-                            inverse_transform=np.linalg.inv(transform),
-                            original_shape=original_shape,
-                        )
-                    except Exception:
-                        page_result.tables = []
+                    if recognized.tables:
+                        # The engine's own response already segments tables from prose
+                        # (currently only Mistral OCR -- see infrastructure/ocr/
+                        # markdown_tables.py) -- its tables are the real, parsed
+                        # content, so the pixel-based bordered-grid detector below
+                        # would only ever add noise (it cannot see markdown at all)
+                        # and never runs for this page.
+                        page_result.tables = recognized.tables
+                    else:
+                        # Bordered-table grid detection runs on the same (pre-restore)
+                        # image/transform the OCR call itself used, then inverse-maps
+                        # cell geometry the identical way `restore()` just did for lines
+                        # (section 9/17) -- see extract_scanned_tables.py for why this
+                        # reuses already-recognized line text instead of re-OCRing cells.
+                        # A detection failure must not fail an otherwise-successful page.
+                        try:
+                            page_result.tables = build_scanned_tables(
+                                image,
+                                page_result.lines,
+                                document_id=document_id,
+                                page_number=index + 1,
+                                inverse_transform=np.linalg.inv(transform),
+                                original_shape=original_shape,
+                            )
+                        except Exception:
+                            page_result.tables = []
                     page_result.raw_markdown = recognized.raw_markdown
                     page_result.raw_output_path = recognized.raw_output_path
                     page_result.width, page_result.height = original_shape[1], original_shape[0]

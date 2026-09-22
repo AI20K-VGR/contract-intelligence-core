@@ -9,14 +9,24 @@ Known, disclosed gaps versus the handoff request (see docs/AI1_OCR_SNAPSHOT_HAND
 - `blocks[]` is always empty; no heading/paragraph grouping is implemented yet.
 - `tables[]` IS now populated for every input type: native `find_tables()` for
   TEXT_LAYER (pymupdf_extractor.py), bordered ruling-line grid detection for
-  SCANNED_OCR/MIXED (extract_scanned_tables.py). Both are bordered-table only --
-  borderless is a real, disclosed gap (see docs/ai1-decisions.md D5/D7). The
-  separate, tested `contract_ocr.table_reconstruct` package (word/bbox-based) still
-  has no caller here.
+  SCANNED_OCR/MIXED with a non-Mistral engine (extract_scanned_tables.py, bordered-
+  table only -- borderless is a real, disclosed gap, see docs/ai1-decisions.md
+  D5/D7), and Mistral OCR's own markdown pipe-tables (infrastructure/ocr/
+  markdown_tables.py, borderless-capable since it reads Mistral's own table
+  segmentation rather than pixels) when `engine.name == "mistral_ocr"` -- see
+  ProcessDocument.run_ocr_job, which prefers an engine-supplied `OCRResult.tables`
+  over the pixel detector whenever one is present. The separate, tested
+  `contract_ocr.table_reconstruct` package (word/bbox-based) still has no caller
+  here; it targets a different problem (native/OCR word-level fragments with no
+  ready-made row/column structure), not needed for the Mistral path.
 - `table_continuity[]` (document-level, added for task section 11) now links a
   page's last table to the next page's first when they look like one table split by
-  a page break -- deterministic only (hard guards + score; no LLM gray-zone agent
-  in this pass, by explicit choice, see docs/ai1-decisions.md D8). It records a
+  a page break -- hard guards (including a repeated-total-row / new-section-heading
+  / anchor-reset check, and a leading-column sequence-number continuity signal in
+  the rule score) then a deterministic score, with an opt-in DeepSeek gray-zone
+  agent for the remaining ambiguous middle (`table_continuity_agent`, off by
+  default -- see `application/use_cases/table_continuity.py`'s own docstring,
+  mirroring `backend/app/table_continuity.py`'s three-tier design). It records a
   MERGE/SPLIT/NEEDS_REVIEW decision, never merges rows/cells itself.
 - `nodes[]` (document-level clause/section hierarchy, added for task section 8) IS
   now populated via BuildStructure, but only within-page: a clause whose body is
@@ -91,10 +101,15 @@ class BuildSnapshot:
         renderer: PdfRenderer | None = None,
         image_dpi: int = 150,
         structure_builder: BuildStructure | None = None,
+        table_continuity_agent: bool = False,
     ) -> None:
         self.renderer = renderer or PdfRenderer()
         self.image_dpi = image_dpi
         self.structure_builder = structure_builder or BuildStructure()
+        # Opt-in DeepSeek gray-zone agent for table_continuity.link_continuities, off
+        # by default -- mirrors backend/app's per-job `table_continuity_agent` config,
+        # never a deployment-wide default (see table_continuity.py's own docstring).
+        self.table_continuity_agent = table_continuity_agent
 
     def execute(
         self,
@@ -148,7 +163,8 @@ class BuildSnapshot:
         )
         nodes = self.structure_builder.execute(document, line_id_map)
         continuity_links = link_continuities(
-            [(page.page_number, page.tables) for page in document.pages]
+            [(page.page_number, page.tables) for page in document.pages],
+            config={"table_continuity_agent": self.table_continuity_agent},
         )
         table_continuity = [
             TableContinuityLink(
