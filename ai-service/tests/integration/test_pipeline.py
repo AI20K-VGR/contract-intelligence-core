@@ -31,7 +31,7 @@ def test_native_routing_and_ocr(synthetic_pdf, tmp_path):
     result = processor.execute(
         str(synthetic_pdf),
         "SYNTHETIC",
-        Experiment(id="E1", engine="paddle"),
+        Experiment(id="E1", engine="mistral"),
         FakeEngine(),
         tmp_path / "raw",
         "TEST",
@@ -67,7 +67,7 @@ def test_mixed_page_is_ocred_not_silently_read_native_only(tmp_path):
     result = processor.execute(
         str(_mixed_page_pdf(tmp_path)),
         "MIXED_DOC",
-        Experiment(id="E1", engine="paddle"),
+        Experiment(id="E1", engine="mistral"),
         FakeEngine(),
         tmp_path / "raw",
         "TEST",
@@ -122,7 +122,7 @@ def test_benchmark_cli_reports_and_skips(manifest, tmp_path):
             "--manifest",
             str(manifest),
             "--engines",
-            "pymupdf,deepseek",
+            "pymupdf",
             "--output",
             str(output),
         ]
@@ -171,7 +171,7 @@ def test_page_exception_continues(synthetic_pdf, tmp_path):
     result = processor.execute(
         str(path),
         "TEST",
-        Experiment(id="E1", engine="paddle"),
+        Experiment(id="E1", engine="mistral"),
         FakeEngine(),
         tmp_path / "raw",
         "TEST",

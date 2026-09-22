@@ -145,7 +145,7 @@ def test_scanned_page_without_ruling_lines_is_not_present_not_failure(
     document = processor.execute(
         str(synthetic_pdf),
         "doc-1",
-        Experiment(id="E1", engine="paddle"),
+        Experiment(id="E1", engine="mistral"),
         FakeEngine(),
         tmp_path / "raw",
         "TEST",

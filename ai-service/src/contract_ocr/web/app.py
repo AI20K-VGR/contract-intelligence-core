@@ -21,11 +21,6 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any
 
-# PaddleX/PaddleOCR default to CPU mkldnn acceleration, which hits a PIR/oneDNN
-# executor bug on some CPUs (NotImplementedError: ConvertPirAttribute2RuntimeAttribute).
-# Must be set before paddlex is first imported anywhere in this process.
-os.environ.setdefault("PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT", "False")
-
 import pymupdf
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -49,12 +44,10 @@ from contract_ocr.infrastructure.image.renderer import PdfRenderer
 from contract_ocr.infrastructure.pdf.pymupdf_extractor import PyMuPDFExtractor
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
-ENGINE_IDS = {"pymupdf", "paddle", "deepseek", "openai", "gemini", "deepseek_api", "mistral"}
+ENGINE_IDS = {"pymupdf", "openai", "gemini", "mistral"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
-# Pages run concurrently only for stateless remote API engines. Paddle/DeepSeek(-local)
-# load one local model instance that isn't safe (or faster) for concurrent inference, so
-# they stay at the default max_workers=1 (sequential) in ProcessDocument.execute.
-PARALLEL_ENGINES = {"openai", "gemini", "deepseek_api", "mistral"}
+# Pages run concurrently only for stateless remote API engines.
+PARALLEL_ENGINES = {"openai", "gemini", "mistral"}
 WEB_MAX_WORKERS = 4
 
 app = FastAPI(title="Contract OCR Lab - Backend API")
@@ -85,48 +78,6 @@ def _engine_status() -> list[dict[str, Any]]:
             "note": "Đọc text có sẵn trong PDF, không cần OCR",
         }
     ]
-    paddle_ok = (
-        importlib.util.find_spec("paddleocr") is not None
-        and importlib.util.find_spec("paddle") is not None
-    )
-    engines.append(
-        {
-            "id": "paddle",
-            "label": "PaddleOCR",
-            "available": paddle_ok,
-            "note": (
-                "OCR thật trên CPU (PP-OCRv6), dùng cho PDF scan"
-                if paddle_ok
-                else "Chưa cài đặt. Chạy: uv sync --extra paddle"
-            ),
-        }
-    )
-    torch_ok = (
-        importlib.util.find_spec("torch") is not None
-        and importlib.util.find_spec("transformers") is not None
-    )
-    cuda_ok = False
-    if torch_ok:
-        try:
-            import torch
-
-            cuda_ok = bool(torch.cuda.is_available())
-        except Exception:
-            cuda_ok = False
-    engines.append(
-        {
-            "id": "deepseek",
-            "label": "DeepSeek-OCR",
-            "available": torch_ok and cuda_ok,
-            "note": (
-                "Sẵn sàng, chạy trên GPU NVIDIA"
-                if torch_ok and cuda_ok
-                else "Cần GPU NVIDIA CUDA"
-                if torch_ok
-                else "Chưa cài đặt. Chạy: uv sync --extra deepseek (cần Linux/WSL2 + GPU NVIDIA)"
-            ),
-        }
-    )
     openai_ok = importlib.util.find_spec("openai") is not None
     has_key = bool(os.environ.get("OPENAI_API_KEY"))
     engines.append(
@@ -161,22 +112,6 @@ def _engine_status() -> list[dict[str, Any]]:
             ),
         }
     )
-    has_deepseek_key = bool(os.environ.get("DEEPSEEK_API_KEY"))
-    engines.append(
-        {
-            "id": "deepseek_api",
-            "label": "DeepSeek Flash (API, Vision)",
-            "available": openai_ok and has_deepseek_key,
-            "external": True,
-            "note": (
-                "⚠️ Ảnh trang PDF được gửi lên DeepSeek — chỉ dùng file demo, không dùng tài liệu thật"
-                if openai_ok and has_deepseek_key
-                else "Chưa cài đặt. Chạy: uv sync --extra openai (dùng chung SDK, API tương thích OpenAI)"
-                if not openai_ok
-                else "Thiếu biến môi trường DEEPSEEK_API_KEY"
-            ),
-        }
-    )
     mistral_ok = importlib.util.find_spec("mistralai") is not None
     has_mistral_key = bool(os.environ.get("MISTRAL_API_KEY"))
     engines.append(
@@ -202,25 +137,7 @@ def _get_engine(engine_id: str) -> OCREngine | None:
         return None
     with _engine_lock:
         if engine_id not in _engine_cache:
-            if engine_id == "paddle":
-                from contract_ocr.infrastructure.ocr.paddle_ocr import PaddleOCREngine
-
-                _engine_cache[engine_id] = PaddleOCREngine(
-                    enabled=True, model="PP-OCRv6", device="cpu"
-                )
-            elif engine_id == "deepseek":
-                from contract_ocr.infrastructure.ocr.deepseek_ocr import DeepSeekOCRAdapter
-
-                _engine_cache[engine_id] = DeepSeekOCRAdapter(
-                    enabled=True,
-                    model="deepseek-ai/DeepSeek-OCR-2",
-                    backend="transformers",
-                    device="cuda:0",
-                    prompt="<image>\n<|grounding|>Convert the document to markdown.",
-                    allow_download=False,
-                    attention="flash_attention_2",
-                )
-            elif engine_id == "openai":
+            if engine_id == "openai":
                 from contract_ocr.infrastructure.ocr.openai_vision_ocr import (
                     OpenAIVisionOCREngine,
                 )
@@ -236,12 +153,6 @@ def _get_engine(engine_id: str) -> OCREngine | None:
                 from contract_ocr.infrastructure.ocr.mistral_ocr import MistralOCREngine
 
                 _engine_cache[engine_id] = MistralOCREngine(enabled=True)
-            else:
-                from contract_ocr.infrastructure.ocr.deepseek_vision_ocr import (
-                    DeepSeekVisionOCREngine,
-                )
-
-                _engine_cache[engine_id] = DeepSeekVisionOCREngine(enabled=True)
         return _engine_cache[engine_id]
 
 
@@ -322,7 +233,7 @@ def ocr_pdf(
         raise HTTPException(400, "Chỉ nhận file .pdf hoặc ảnh (jpg, png, webp, bmp, tiff)")
     if engine not in ENGINE_IDS:
         raise HTTPException(
-            400, "engine phải là pymupdf, paddle, deepseek, openai, gemini, deepseek_api hoặc mistral"
+            400, "engine phải là pymupdf, openai, gemini hoặc mistral"
         )
     if not 72 <= dpi <= 600:
         raise HTTPException(400, "DPI phải trong khoảng 72-600")
@@ -477,11 +388,11 @@ def ai2_analyze(
     appendices — see contract_ocr.application.use_cases.extract_ai2_facts) on
     one required Contract PDF plus any number of Appendix PDFs. Unlike the
     pdf.js-only path in scripts/demo_report_template.html, this goes through
-    the real OCR engines below (including Paddle for scanned pages), so it
+    the real OCR engines below (including Mistral for scanned pages), so it
     isn't limited to PDFs with a native text layer."""
     if engine not in ENGINE_IDS:
         raise HTTPException(
-            400, "engine phải là pymupdf, paddle, deepseek, openai, gemini, deepseek_api hoặc mistral"
+            400, "engine phải là pymupdf, openai, gemini hoặc mistral"
         )
     if not 72 <= dpi <= 600:
         raise HTTPException(400, "DPI phải trong khoảng 72-600")

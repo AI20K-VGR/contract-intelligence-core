@@ -10,10 +10,7 @@ requires-python = ">=3.11,<3.13"
 dependencies = ["pymupdf>=1.26", "pydantic>=2.10,<3", "pyyaml>=6", "numpy>=1.26", "opencv-python-headless>=4.10", "pillow>=11", "rapidfuzz>=3.10", "scipy>=1.14", "psutil>=6"]
 
 [project.optional-dependencies]
-paddle = ["paddleocr>=3.6,<4", "paddlepaddle>=3.2,<4"]
 vietocr = ["vietocr>=0.3"]
-deepseek = ["torch==2.6.0", "transformers==4.46.3", "einops", "addict", "easydict"]
-vllm = ["vllm>=0.16; sys_platform == 'linux'"]
 dev = ["pytest>=8", "ruff>=0.11"]
 web = [
     "fastapi>=0.136.3",
@@ -31,9 +28,6 @@ mistral = [
     "mistralai>=2.0",
 ]
 
-[tool.uv]
-conflicts = [[{extra = "deepseek"}, {extra = "vllm"}], [{extra = "deepseek"}, {extra = "paddle"}]]
-
 [project.scripts]
 contract-ocr = "contract_ocr.cli.main:main"
 
@@ -50,3 +44,9 @@ select = ["E4", "E7", "E9", "F", "I"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# `tests/integration/test_team_handoff_bundle.py` imports `scripts.export_snapshot_demo`
+# (a bare, non-package script directory) -- `uv run pytest`'s console-script entry point
+# does not add the repo root to sys.path the way `python -m pytest` does, so that import
+# fails on a plain checkout without this. Without it, `uv run pytest -q` (the command
+# ai-service/README.md documents) errors out during collection for everyone.
+pythonpath = ["."]

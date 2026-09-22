@@ -40,12 +40,6 @@ def load_settings(path: Path) -> Settings:
     settings.render["dpi"] = int(os.environ.get("OCR_DPI", settings.render.get("dpi", 300)))
     if not 72 <= settings.render["dpi"] <= 600:
         raise ValueError("render DPI must be 72..600")
-    for key in ("backend", "model"):
-        env = os.environ.get(f"OCR_DEEPSEEK_{key.upper()}")
-        if env:
-            settings.deepseek[key] = env
-    if settings.deepseek.get("backend", "transformers") not in {"transformers", "vllm"}:
-        raise ValueError("DeepSeek backend must be transformers or vllm")
     if settings.evaluation.get("unicode_normalization", "NFC") != "NFC":
         raise ValueError("evaluation must preserve Vietnamese accents using NFC")
     if not 0 <= settings.evaluation.get("bbox_iou_threshold", 0.5) <= 1:

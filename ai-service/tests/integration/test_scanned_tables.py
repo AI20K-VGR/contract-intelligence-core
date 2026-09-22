@@ -46,8 +46,8 @@ def _scanned_table_pdf(path: Path) -> None:
 class _GridAwareEngine:
     """A stand-in OCR engine that "recognizes" one line per real cell of
     `CELL_TEXT`, each with the cell's own true bbox -- mirrors what a real
-    line-granularity engine (Paddle) would report for single-line cell content,
-    without needing PaddleOCR installed in this test environment."""
+    line-granularity engine would report for single-line cell content, without
+    needing a real OCR engine installed in this test environment."""
 
     name, model, runtime_info = "MOCK", "MOCK", {}
 
@@ -82,7 +82,7 @@ def test_scanned_bordered_table_is_detected_with_cells_from_ocr_lines(tmp_path: 
     document = processor.execute(
         str(path),
         "doc-1",
-        Experiment(id="E1", engine="paddle"),
+        Experiment(id="E1", engine="mistral"),
         _GridAwareEngine(),
         tmp_path / "raw",
         "TEST",
@@ -145,7 +145,7 @@ def test_empty_cell_gets_empty_text_not_a_crash(tmp_path: Path):
     document = processor.execute(
         str(path),
         "doc-1",
-        Experiment(id="E1", engine="paddle"),
+        Experiment(id="E1", engine="mistral"),
         SparseEngine(),
         tmp_path / "raw",
         "TEST",

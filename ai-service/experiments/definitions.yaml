@@ -1,24 +1,3 @@
 experiments:
 - id: E0
   engine: pymupdf
-- id: E1
-  engine: paddle
-- id: E2
-  engine: deepseek
-- id: E3
-  engine: paddle
-  preprocessing:
-  - deskew
-- id: E4
-  engine: paddle
-  preprocessing:
-  - deskew
-  - denoise
-- id: E5
-  engine: paddle
-  preprocessing:
-  - contrast
-- id: E6
-  engine: paddle
-  preprocessing:
-  - threshold

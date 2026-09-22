@@ -1,13 +1,12 @@
 """Bordered-table grid detection from a rendered page image (section 9).
 
 Ruling-line morphology finds row/column boundaries directly from pixels, with no
-dependency on OCR word granularity. This matters because neither scanned-page word
-source currently wired into this codebase (`infrastructure.ocr.paddle_ocr.
-PaddleOCREngine`, `word_adapters.ocr.OcrAdapter`) produces word-level bbox -- both
-detect at line granularity only (see docs/ai1-decisions.md D5/D7) -- so
-`table_reconstruct`'s word-alignment column detection cannot work on today's scanned
-OCR output. Ruling-line detection sidesteps that: it needs no OCR output at all,
-only the rendered page image.
+dependency on OCR word granularity. This matters because no scanned-page word source
+currently wired into this codebase's live pipeline produces word-level bbox --
+`word_adapters.ocr.OcrAdapter` (dormant, no caller) detects at line granularity only
+(see docs/ai1-decisions.md D5/D7) -- so `table_reconstruct`'s word-alignment column
+detection cannot work on today's scanned OCR output. Ruling-line detection sidesteps
+that: it needs no OCR output at all, only the rendered page image.
 
 Deliberately NOT covered here: borderless tables (no ruling lines to detect at all --
 a real, disclosed gap; see section 9's "word bbox alignment" approach, which needs

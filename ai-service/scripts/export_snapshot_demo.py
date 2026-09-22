@@ -8,6 +8,7 @@ a real contract (see scripts/create_synthetic_demo.py for the same convention).
 Nothing under data/generated/ is committed (see .gitignore / CONTRIBUTING.md).
 """
 
+import argparse
 from pathlib import Path
 
 import pymupdf
@@ -40,8 +41,9 @@ class ReplayStubEngine(OCREngine):
     """Deterministic stand-in used only to make this demo dossier runnable without
     a real OCR engine installed: it replays the exact text/bbox baked into the
     synthetic scan (computed below from the pre-rasterized source page) instead of
-    performing recognition. Mirrors today's real Paddle path: line-level bbox and
-    confidence, no fabricated word-level geometry. Never wire this into production."""
+    performing recognition. Mirrors a generic line-level OCR engine's shape:
+    line-level bbox and confidence, no fabricated word-level geometry. Never wire
+    this into production."""
 
     name, model, runtime_info = "demo-replay-stub", "0.0", {}
 
@@ -56,7 +58,7 @@ class ReplayStubEngine(OCREngine):
                     text=text,
                     confidence=0.98,
                     bbox=box,
-                    geometry_provenance="MEASURED",  # mirrors Paddle's own line detector
+                    geometry_provenance="MEASURED",  # mirrors a real line-level detector
                 )
                 for i, (text, box) in enumerate(self._lines, 1)
             ]
@@ -88,6 +90,24 @@ def _build_contract(output_dir: Path) -> Path:
         for line in CONTRACT_LINES:
             page.insert_text((72, y), line, fontsize=14)
             y += 30
+        # Include a measured native table so Backend/Frontend can exercise the
+        # Table -> Row -> Cell path and overlay in the handoff bundle.
+        rows_y = [230, 260, 290, 320]
+        cols_x = [72, 172, 372, 500]
+        shape = page.new_shape()
+        for row_y in rows_y:
+            shape.draw_line((cols_x[0], row_y), (cols_x[-1], row_y))
+        for col_x in cols_x:
+            shape.draw_line((col_x, rows_y[0]), (col_x, rows_y[-1]))
+        shape.finish()
+        shape.commit()
+        for row_index, row in enumerate(
+            (("STT", "Hang muc", "So luong"), ("1", "Dich vu A", "2"), ("2", "Dich vu B", "3"))
+        ):
+            for col_index, value in enumerate(row):
+                page.insert_text(
+                    (cols_x[col_index] + 5, rows_y[row_index] + 20), value, fontsize=10
+                )
         pdf.save(path)
     return path
 
@@ -117,7 +137,7 @@ def _process(pdf_path: Path, document_id: str, engine: OCREngine | None, raw_dir
     return processor.execute(
         str(pdf_path),
         document_id,
-        Experiment(id="demo", engine="paddle" if engine else "pymupdf"),
+        Experiment(id="demo", engine="mistral" if engine else "pymupdf"),
         engine,
         raw_dir,
         "demo-dossier",
@@ -125,17 +145,18 @@ def _process(pdf_path: Path, document_id: str, engine: OCREngine | None, raw_dir
     )
 
 
-def main() -> None:
-    OUTPUT_ROOT.mkdir(parents=True, exist_ok=False)
-    source_dir = OUTPUT_ROOT / "_source_pdfs"
+def main(output_root: Path = OUTPUT_ROOT) -> None:
+    output_root = output_root.resolve()
+    output_root.mkdir(parents=True, exist_ok=False)
+    source_dir = output_root / "_source_pdfs"
     source_dir.mkdir()
 
     contract_path = _build_contract(source_dir)
     annex_path, annex_known = _build_annex(source_dir)
 
-    contract_doc = _process(contract_path, "contract-001", None, OUTPUT_ROOT / "_raw")
+    contract_doc = _process(contract_path, "contract-001", None, output_root / "_raw")
     annex_doc = _process(
-        annex_path, "annex-001", ReplayStubEngine(annex_known), OUTPUT_ROOT / "_raw"
+        annex_path, "annex-001", ReplayStubEngine(annex_known), output_root / "_raw"
     )
 
     builder = BuildSnapshot(PdfRenderer(), image_dpi=150)
@@ -144,7 +165,7 @@ def main() -> None:
         (annex_doc, "annex", "phu-luc-mau.pdf"),
     ]
     for document, role, filename in entries:
-        doc_dir = OUTPUT_ROOT / DOSSIER_ID / document.document_id
+        doc_dir = output_root / DOSSIER_ID / document.document_id
         snapshot_id = f"ocr-run-demo-{document.document_id}-001"
         snapshot = builder.execute(
             document,
@@ -170,10 +191,12 @@ def main() -> None:
             ("annex-001", "phu-luc-mau.pdf", "annex"),
         ],
     )
-    manifest_path = OUTPUT_ROOT / DOSSIER_ID / "dossier_manifest.json"
+    manifest_path = output_root / DOSSIER_ID / "dossier_manifest.json"
     write_json(manifest_path, manifest.model_dump(mode="json"))
     print(f"dossier manifest -> {manifest_path.resolve()}")
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output", type=Path, default=OUTPUT_ROOT)
+    main(parser.parse_args().output)

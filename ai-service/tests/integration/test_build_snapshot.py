@@ -20,8 +20,8 @@ from contract_ocr.infrastructure.pdf.pymupdf_extractor import PyMuPDFExtractor
 
 
 class GroundedEngine(OCREngine):
-    """Stands in for a future engine that returns line-level bbox + confidence,
-    unlike today's DeepSeek/vision engines (see docs/OUTPUT_SCHEMA.md)."""
+    """Stands in for an OCR engine that returns line-level bbox + confidence
+    (see docs/OUTPUT_SCHEMA.md)."""
 
     name, model, runtime_info = "grounded-mock", "1.0", {}
 
@@ -40,7 +40,7 @@ class GroundedEngine(OCREngine):
 
 
 class UngroundedEngine(OCREngine):
-    """Stands in for today's DeepSeek path: text but no grounding geometry."""
+    """Stands in for an OCR engine that returns text but no grounding geometry."""
 
     name, model, runtime_info = "ungrounded-mock", "1.0", {}
 
@@ -55,7 +55,7 @@ def _process(pdf_path: Path, tmp_path: Path, engine: OCREngine | None):
     return processor.execute(
         str(pdf_path),
         "contract-001",
-        Experiment(id="E1", engine="paddle" if engine else "pymupdf"),
+        Experiment(id="E1", engine="mistral" if engine else "pymupdf"),
         engine,
         tmp_path / "raw",
         "TEST",
@@ -126,7 +126,7 @@ def test_geometry_provenance_reflects_how_each_source_actually_got_its_bbox(
     # measured (section 6's own worked example).
     assert {w.geometry_provenance for w in native_page.words} == {"MEASURED"}
     assert {ln.geometry_provenance for ln in native_page.lines} == {"DERIVED"}
-    # GroundedEngine mirrors a line-level CV detector (like Paddle): MEASURED.
+    # GroundedEngine mirrors a line-level CV detector: MEASURED.
     assert {ln.geometry_provenance for ln in ocr_page.lines} == {"MEASURED"}
 
 

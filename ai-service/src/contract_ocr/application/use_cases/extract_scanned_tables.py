@@ -61,8 +61,8 @@ def build_scanned_tables(
             Table(
                 table_id=f"{document_id}-p{page_number:03d}-t{index:03d}",
                 bbox=table_bbox,
-                # A direct ruling-line detector output, same reasoning as Paddle's own
-                # line bbox (section 6): MEASURED, not derived from anything else.
+                # A direct ruling-line detector output (section 6): MEASURED, not
+                # derived from anything else.
                 geometry_provenance=GeometryProvenance.MEASURED,
                 header=header,
                 rows=[Row(cells=row) for row in built_rows[1:]],

@@ -191,13 +191,7 @@ class FileReporter:
         ]
         for item in summary:
             vi = item["mean_cer"] if item["language"] in {"vi", "vi-en", "bilingual"} else None
-            support = (
-                "native words/lines"
-                if item["engine"] == "pymupdf"
-                else "OCR lines; native words"
-                if item["engine"] == "paddle"
-                else "native pages only"
-            )
+            support = "native words/lines" if item["engine"] == "pymupdf" else "native pages only"
             label = "/".join(
                 str(item[k])
                 for k in (
@@ -210,7 +204,7 @@ class FileReporter:
                 )
             )
             lines.append(
-                f"| {label} | {display(item['mean_cer'], item['cer_n'])} | {display(item['pooled_critical_field_accuracy'], item['critical_fields_n'])} | {support} | {display(vi, item['cer_n'] if vi is not None else 0)} | {display(item['mean_processing_ms'], item['processing_ms_n'])} | {'NVIDIA CUDA' if item['engine'] == 'deepseek' else 'CPU'} | failed={item['failed_n']}, skipped={item['skipped_n']} (n={item['n']}) |"
+                f"| {label} | {display(item['mean_cer'], item['cer_n'])} | {display(item['pooled_critical_field_accuracy'], item['critical_fields_n'])} | {support} | {display(vi, item['cer_n'] if vi is not None else 0)} | {display(item['mean_processing_ms'], item['processing_ms_n'])} | CPU | failed={item['failed_n']}, skipped={item['skipped_n']} (n={item['n']}) |"
             )
         lines += [
             "",

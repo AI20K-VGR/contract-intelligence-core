@@ -44,8 +44,9 @@ own PDF to try the same classification/fact/citation layer on real content:
 
 Add `--annex path/to/phu-luc.pdf` (repeatable — pass it more than once for
 several appendices) only if you also want conflict detection against the
-contract; it's optional. `--engine paddle` OCRs pages with no native text
-layer (real scans); this can take tens of seconds per page on CPU.
+contract; it's optional. `--engine mistral` OCRs pages with no native text
+layer (real scans) via Mistral's OCR endpoint; needs `MISTRAL_API_KEY` set
+in the environment and `--extra mistral` installed.
 Fact/heading regexes only recognize the "Dieu N." / "Ben A:" / dd/mm/yyyy /
 "trong vong N ngay" / "N.NNN.NNN VND" style phrasing this demo was built
 around (diacritics-insensitive) — a real contract with different wording will
@@ -57,7 +58,7 @@ The generated demo_report.html also has its own drag-and-drop PDF uploader
 can skip the CLI entirely and drop it straight into the open report — analysis
 runs automatically on drop, client-side, via a vendored pdf.js
 (ai-service/frontend/vendor/pdfjs/), no server involved. Scanned PDFs still
-need this script with --engine paddle, since OCR only exists in Python.
+need this script with --engine mistral, since OCR only exists in Python.
 """
 
 import argparse
@@ -122,10 +123,11 @@ ANNEX_LINES = [
 class ReplayStubEngine(OCREngine):
     """Deterministic stand-in so this demo runs without a real OCR engine
     installed: replays the exact text/bbox baked into the synthetic scan
-    (computed below from the pre-rasterized source page). Mirrors the real
-    Paddle path's shape (line-level bbox and confidence, no word geometry) so
-    the annex ends up with line-level citations only — see _citation() below.
-    Never wire this into production. Copied from export_snapshot_demo.py."""
+    (computed below from the pre-rasterized source page). Mirrors a generic
+    line-level OCR engine's shape (line-level bbox and confidence, no word
+    geometry) so the annex ends up with line-level citations only — see
+    _citation() below. Never wire this into production. Copied from
+    export_snapshot_demo.py."""
 
     name, model, runtime_info = "demo-replay-stub", "0.0", {}
 
@@ -140,7 +142,7 @@ class ReplayStubEngine(OCREngine):
                     text=text,
                     confidence=0.98,
                     bbox=box,
-                    geometry_provenance="MEASURED",  # mirrors Paddle's own line detector
+                    geometry_provenance="MEASURED",  # mirrors a real line-level detector
                 )
                 for i, (text, box) in enumerate(self._lines, 1)
             ]
@@ -194,7 +196,7 @@ def _process(pdf_path: Path, document_id: str, engine: OCREngine | None, raw_dir
     return processor.execute(
         str(pdf_path),
         document_id,
-        Experiment(id="demo", engine="paddle" if engine else "pymupdf"),
+        Experiment(id="demo", engine="mistral" if engine else "pymupdf"),
         engine,
         raw_dir,
         "demo-ai2",
@@ -262,11 +264,11 @@ def build_dossier_snapshots_from_files(
     path in `annex_paths` (0..N) becomes its own appendix document."""
     engine = None
     engine_label = "pymupdf"
-    if engine_choice == "paddle":
-        from contract_ocr.infrastructure.ocr.paddle_ocr import PaddleOCREngine
+    if engine_choice == "mistral":
+        from contract_ocr.infrastructure.ocr.mistral_ocr import MistralOCREngine
 
-        engine = PaddleOCREngine()
-        engine_label = "pymupdf+paddleocr"
+        engine = MistralOCREngine()
+        engine_label = "pymupdf+mistral"
 
     raw_dir = OUTPUT_ROOT / "_raw"
 
@@ -394,13 +396,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--engine",
-        choices=["none", "paddle"],
+        choices=["none", "mistral"],
         default="none",
         help=(
             "OCR engine for pages with no native text layer (real scans). "
-            "'none' (default) only reads native text, fast; 'paddle' also OCRs "
-            "scanned pages, can take tens of seconds per page on CPU. Ignored "
-            "for the synthetic demo (no --contract)."
+            "'none' (default) only reads native text, fast; 'mistral' also OCRs "
+            "scanned pages via Mistral's OCR endpoint (needs MISTRAL_API_KEY set "
+            "and --extra mistral installed). Ignored for the synthetic demo "
+            "(no --contract)."
         ),
     )
     return parser.parse_args()
@@ -431,7 +434,7 @@ def main() -> None:
             if doc["page_count"] and not doc["clauses"] and not doc["facts"]:
                 print(
                     f"  Luu y: '{doc['filename']}' khong co clause/fact nao duoc nhan dien - "
-                    "neu day la file scan (anh) khong co text layer, chay lai voi --engine paddle."
+                    "neu day la file scan (anh) khong co text layer, chay lai voi --engine mistral."
                 )
 
 
