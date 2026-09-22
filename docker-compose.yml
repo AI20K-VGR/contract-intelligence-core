@@ -7,7 +7,7 @@
 # Services (tên service Compose — dùng với `docker compose up <service>`):
 #   keycloak-db    — PostgreSQL dedicated cho Keycloak (container: ci-keycloak-db)
 #   keycloak       — Keycloak 26 (Quarkus) + Phase Two (container: ci-keycloak)
-#   backend-db     — PostgreSQL cho backend (container: ci-backend-db, host :5432)
+#   backend-db     — PostgreSQL cho backend (container: ci-backend-db, host :5434)
 #   kafka          — Apache Kafka KRaft (container: ci-kafka, host :9093)
 #   backend        — FastAPI (container: ci-backend; depends_on db+keycloak+kafka+minio)
 #   minio          — MinIO S3-compatible (API 9000, Console 9001)
@@ -198,8 +198,8 @@ services:
       retries: 20
       start_period: 10s
     ports:
-      # 5432 cho backend — convention port PostgreSQL chuẩn, dev dùng pgAdmin / DBeaver.
-      - "${BACKEND_DB_HOST_PORT:-5432}:5432"
+      # Host 5434 tránh xung đột với Postgres local (5432). Trong mạng Docker vẫn là 5432.
+      - "${BACKEND_DB_HOST_PORT:-5434}:5432"
     networks:
       - ci-network
 
