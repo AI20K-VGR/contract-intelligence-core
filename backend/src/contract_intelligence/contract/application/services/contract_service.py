@@ -123,11 +123,12 @@ class ContractService:
         sha256 = hashlib.sha256(data).hexdigest()
         size_bytes = file_size_bytes if file_size_bytes is not None else len(data)
 
-        # Prefer caller-provided URI (e.g. MinIO s3:// path); else local storage.
-        if blob_uri is None:
-            blob_key = f"contracts/{dossier_id}/{sha256[:2]}/{filename}"
-            await self._storage.put(blob_key, _bytes_to_stream(data))
-            blob_uri = blob_key
+        # Always persist bytes in app FileStorage so content streaming works
+        # (tests use FakeFileStorage; prod may dual-write while MinIO is canonical).
+        local_key = f"contracts/{dossier_id}/{sha256[:2]}/{filename}"
+        storage_key = blob_uri if blob_uri is not None else local_key
+        await self._storage.put(storage_key, _bytes_to_stream(data))
+        stored_uri = blob_uri if blob_uri is not None else local_key
 
         document = Document(
             id=new_ulid("doc_"),
@@ -136,7 +137,7 @@ class ContractService:
             order_index=order_index,
             filename=filename,
             sha256=sha256,
-            blob_uri=blob_uri,
+            blob_uri=stored_uri,
             file_size_bytes=size_bytes,
         )
         await self._document_repo.add(document)
@@ -147,7 +148,7 @@ class ContractService:
             filename=filename,
             sha256=sha256,
             size_bytes=size_bytes,
-            blob_uri=blob_uri,
+            blob_uri=stored_uri,
         )
         return document
 

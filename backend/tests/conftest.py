@@ -9,7 +9,9 @@ Sau refactor Keycloak SSO:
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import jwt
 import pytest
@@ -214,3 +216,27 @@ def admin_user() -> AuthenticatedUser:
 
 # Re-export AuthenticationError cho test sử dụng
 __all__ = ["AuthenticationError"]
+
+
+@pytest.fixture(autouse=True)
+def mock_minio_and_kafka() -> Iterator[None]:
+    """Stub MinIO upload + Kafka publish for all tests (no live infra required).
+
+    Patches the infrastructure modules so callers that resolve
+    ``storage.upload_file`` / ``messaging.publish_event`` via attribute access
+    never hit real MinIO/Kafka.
+    """
+    with (
+        patch(
+            "contract_intelligence.infrastructure.storage.upload_file",
+            new_callable=AsyncMock,
+            return_value="s3://dossiers/mock-file.pdf",
+        ),
+        patch(
+            "contract_intelligence.infrastructure.messaging.publish_event",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+    ):
+        yield
+

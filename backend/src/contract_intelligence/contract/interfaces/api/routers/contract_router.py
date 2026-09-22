@@ -52,8 +52,7 @@ from contract_intelligence.contract.domain.entities.document import (
 from contract_intelligence.contract.interfaces.api.dependencies import (
     ContractServiceDep,
 )
-from contract_intelligence.infrastructure.messaging import publish_event
-from contract_intelligence.infrastructure.storage import upload_file
+from contract_intelligence.infrastructure import messaging, storage
 from contract_intelligence.shared.auth import (
     AuthenticatedUser,
     get_current_user,
@@ -124,7 +123,7 @@ async def _ingest_upload_file(
 
     filename = file.filename or f"{role.value.lower()}.pdf"
     object_key = f"{dossier_id}/{order_index:02d}_{filename}"
-    s3_path = await upload_file(object_key, raw_bytes)
+    s3_path = await storage.upload_file(object_key, raw_bytes)
 
     doc = await svc.upload_document(
         dossier_id=dossier_id,
@@ -237,7 +236,7 @@ async def create_dossier(
         )
 
     # Publish domain event for async downstream processing (OCR / extraction).
-    await publish_event(
+    await messaging.publish_event(
         "dossier_events",
         {
             "event": "dossier.uploaded",
