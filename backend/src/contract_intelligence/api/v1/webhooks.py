@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -66,6 +66,8 @@ async def _update_job_and_dossier_status(
 
     job.status = status_value
     job.updated_at = now
+    if run_id and not job.current_run_id:
+        job.current_run_id = run_id
     resolved_dossier_id = job.dossier_id
 
     await session.execute(
@@ -130,15 +132,14 @@ async def receive_ai1_snapshot(
     try:
         ai2_response = await submit_to_ai2(ai2_payload)
     except AiAdapterError as exc:
+        # Best-effort handoff — AI1 snapshot is already accepted; do not fail the
+        # webhook solely because AI2 is unreachable (local E2E / partial stack).
         logger.error(
             "webhooks.ai1.ai2_handoff_failed",
             snapshot_id=payload.snapshot_id,
             error=str(exc),
         )
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"AI2 handoff failed: {exc}",
-        ) from exc
+        ai2_response = {"status": "handoff_failed", "error": str(exc)}
 
     return {
         "status": "ok",

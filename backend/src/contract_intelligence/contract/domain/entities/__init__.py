@@ -7,7 +7,11 @@ ORM mapping được thực hiện trong ``infrastructure/persistence/``.
 from contract_intelligence.contract.domain.entities.document import Document, DocumentRole
 from contract_intelligence.contract.domain.entities.dossier import Dossier
 from contract_intelligence.contract.domain.entities.job import Job, JobStatus
-from contract_intelligence.contract.domain.entities.manifest import Manifest, ManifestItem
+from contract_intelligence.contract.domain.entities.manifest import (
+    Manifest,
+    ManifestItem,
+    ManifestRelation,
+)
 
 __all__ = [
     "Dossier",
@@ -17,4 +21,5 @@ __all__ = [
     "JobStatus",
     "Manifest",
     "ManifestItem",
+    "ManifestRelation",
 ]

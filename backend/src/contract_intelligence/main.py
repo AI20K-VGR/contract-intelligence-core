@@ -22,6 +22,7 @@ from fastapi.security import HTTPBearer
 
 from contract_intelligence.api.v1.dossiers import router as hitl_dossiers_router
 from contract_intelligence.api.v1.reviews import router as hitl_reviews_router
+from contract_intelligence.api.v1.users import router as users_router
 from contract_intelligence.api.v1.webhooks import router as ai_webhooks_router
 from contract_intelligence.config.logging import configure_logging, get_logger
 from contract_intelligence.config.settings import get_settings
@@ -307,6 +308,7 @@ def create_app() -> FastAPI:
     app.include_router(
         webhook_router, prefix="/api/v1/auth", tags=["Authentication"]
     )  # → /api/v1/auth/webhooks/keycloak
+    app.include_router(users_router, prefix="/api/v1")  # → /api/v1/users*
     app.include_router(contract_router, prefix="/api/v1", tags=["Contract"])
     app.include_router(contract_upload_router, prefix="/api/v1", tags=["Contract-Upload"])
     app.include_router(extraction_router, prefix="/api/v1", tags=["Extraction"])
@@ -345,6 +347,8 @@ def create_app() -> FastAPI:
 _domain_exc_to_http: dict[str, int] = {
     "NotFoundError": 404,
     "ValidationError": 422,
+    "ManifestValidationError": 422,
+    "ManifestVersionConflict": 409,
     "ReviewVersionConflict": 409,
     "InvalidStateTransition": 409,
     "InvariantViolation": 409,

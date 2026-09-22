@@ -28,7 +28,7 @@ def _get_or_create_item(item_id: str) -> dict[str, Any]:
     if item is None:
         item = {
             "id": item_id,
-            "version": 0,
+            "version": 1,  # align with ReviewItemORM server_default
             "status": "open",
             "revisions": [],
         }

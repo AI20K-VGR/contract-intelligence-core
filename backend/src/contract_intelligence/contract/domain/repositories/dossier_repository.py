@@ -20,6 +20,10 @@ class DossierRepository(Protocol):
 
     async def get(self, dossier_id: str) -> Dossier | None: ...
 
+    async def get_for_update(self, dossier_id: str) -> Dossier | None:
+        """Lock dossier row (SELECT … FOR UPDATE) within the current tenant."""
+        ...
+
     async def list(
         self,
         *,

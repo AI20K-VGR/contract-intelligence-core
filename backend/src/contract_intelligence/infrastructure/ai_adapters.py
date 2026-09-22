@@ -143,10 +143,36 @@ async def submit_to_ai2(payload: dict[str, Any]) -> dict[str, Any]:
     return await _post_json(url, payload, service="ai2")
 
 
+async def query_ai2(payload: dict[str, Any]) -> dict[str, Any]:
+    """Forward a dossier Q&A query to AI2.
+
+    Expected contract::
+
+        {
+            "query": str,
+            "dossier_id": str,
+            "snapshot_version": str,
+            "acl_context": str,
+            "policy_flags": dict,
+        }
+
+    POSTs to ``{AI2_BASE_URL}/query``.
+    """
+    _validate_keys(
+        payload,
+        {"query", "dossier_id", "snapshot_version", "acl_context", "policy_flags"},
+        "AI2.query",
+    )
+    settings = get_settings()
+    url = f"{settings.ai2_base_url.rstrip('/')}/query"
+    return await _post_json(url, payload, service="ai2.query")
+
+
 __all__ = [
     "AiAdapterError",
     "AiAdapterHTTPError",
     "AiAdapterTimeoutError",
+    "query_ai2",
     "submit_to_ai1",
     "submit_to_ai2",
 ]

@@ -27,6 +27,20 @@ class DomainErrorCode(StrEnum):
     REVIEW_VERSION_CONFLICT = "REVIEW_VERSION_CONFLICT"
     REVIEW_ITEM_NOT_OPEN = "REVIEW_ITEM_NOT_OPEN"
 
+    # Manifest confirmation
+    MANIFEST_VERSION_CONFLICT = "manifest_version_conflict"
+    MANIFEST_ALREADY_CONFIRMED = "manifest_already_confirmed"
+    RELATIONS_UNCONFIRMED = "relations_unconfirmed"
+    RELATION_MISSING = "relation_missing"
+    CONTRACT_REQUIRED = "contract_required"
+    MEMBER_MISSING = "member_missing"
+    MEMBER_UNKNOWN = "member_unknown"
+    MEMBER_ROLE_INVALID = "member_role_invalid"
+    RELATION_MEMBER_INVALID = "relation_member_invalid"
+    RELATION_SELF = "relation_self"
+    RELATION_DUPLICATE = "relation_duplicate"
+    RELATION_TYPE_INVALID = "relation_type_invalid"
+
     # Conflict
     INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
 
@@ -124,3 +138,34 @@ class ReviewVersionConflict(DomainException):
             details=details,
         )
         self.current_state = current_state
+
+
+class ManifestVersionConflict(DomainException):
+    """Optimistic concurrency fail trên ``manifest.version`` — HTTP 409."""
+
+    def __init__(
+        self,
+        *,
+        dossier_id: str,
+        expected_version: int,
+        current_version: int,
+    ) -> None:
+        super().__init__(
+            DomainErrorCode.MANIFEST_VERSION_CONFLICT,
+            (
+                f"Manifest version conflict for dossier {dossier_id!r}: "
+                f"client sent {expected_version}, current is {current_version}"
+            ),
+            details={
+                "dossier_id": dossier_id,
+                "expected_version": expected_version,
+                "current_version": current_version,
+            },
+        )
+
+
+class ManifestValidationError(DomainException):
+    """Manifest confirm rule violation — HTTP 422 with a specific error code."""
+
+    def __init__(self, code: DomainErrorCode, message: str, **details: Any) -> None:
+        super().__init__(code, message, details=details)

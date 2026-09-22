@@ -147,45 +147,45 @@ class TestSubmitAction:
         reset_review_store()
         resp = await client.post(
             "/api/v1/review-items/ri_1/actions",
-            json={"action": "CONFIRM", "base_version": 0, "reason": "looks good"},
+            json={"action": "CONFIRM", "base_version": 1, "reason": "looks good"},
         )
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "ok"
-        assert body["new_version"] == 1
+        assert body["new_version"] == 2
         assert body["item_status"] == "confirmed"
         assert body["revision"]["action"] == "CONFIRM"
         assert body["revision"]["reason"] == "looks good"
 
-    async def test_accepts_base_version_zero(self, client: AsyncClient) -> None:
+    async def test_accepts_base_version_one(self, client: AsyncClient) -> None:
         from contract_intelligence.api.v1.reviews import reset_review_store
 
         reset_review_store()
         resp = await client.post(
             "/api/v1/review-items/ri_zero/actions",
-            json={"action": "NEEDS_REVIEW", "base_version": 0},
+            json={"action": "NEEDS_REVIEW", "base_version": 1},
         )
         assert resp.status_code == 200
-        assert resp.json()["new_version"] == 1
+        assert resp.json()["new_version"] == 2
         assert resp.json()["item_status"] == "needs_review"
 
     async def test_returns_409_on_version_conflict(self, client: AsyncClient) -> None:
         from contract_intelligence.api.v1.reviews import reset_review_store
 
         reset_review_store()
-        # Seed version 0 → apply once → version becomes 1
+        # Seed version 1 → apply once → version becomes 2
         await client.post(
             "/api/v1/review-items/ri_conflict/actions",
-            json={"action": "CONFIRM", "base_version": 0},
+            json={"action": "CONFIRM", "base_version": 1},
         )
         resp = await client.post(
             "/api/v1/review-items/ri_conflict/actions",
-            json={"action": "CONFIRM", "base_version": 0},  # stale
+            json={"action": "CONFIRM", "base_version": 1},  # stale
         )
         assert resp.status_code == 409
         detail = resp.json()["detail"]
         assert detail["code"] == "VERSION_CONFLICT"
-        assert detail["current_state"]["version"] == 1
+        assert detail["current_state"]["version"] == 2
 
     async def test_invalid_action_returns_422(self, client: AsyncClient) -> None:
         resp = await client.post(

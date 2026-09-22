@@ -27,6 +27,9 @@ class SqlDossierRepository:
     async def get(self, dossier_id: str) -> Dossier | None:
         raise NotImplementedError("Sprint 2 — implement SQLAlchemy query")
 
+    async def get_for_update(self, dossier_id: str) -> Dossier | None:
+        raise NotImplementedError("Sprint 2 — implement SQLAlchemy query")
+
     async def list(
         self,
         *,

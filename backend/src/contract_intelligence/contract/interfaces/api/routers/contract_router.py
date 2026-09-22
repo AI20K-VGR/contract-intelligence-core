@@ -45,6 +45,10 @@ from contract_intelligence.contract.application.dtos.dossier_dtos import (
     DossierDetailDTO,
     DossierSummaryDTO,
 )
+from contract_intelligence.contract.application.dtos.manifest_dtos import (
+    ConfirmManifestRequest,
+    ManifestDTO,
+)
 from contract_intelligence.contract.domain.entities.document import (
     Document,
     DocumentRole,
@@ -390,6 +394,67 @@ async def list_dossier_documents(
     await svc.get_dossier(dossier_id)
     documents = await svc.list_documents(dossier_id)
     return ApiResponse(data=[DocumentListItemDTO.from_domain(d) for d in documents])
+
+
+# -----------------------------------------------------------------------------
+# GET /dossiers/{id}/manifest — current ManifestDTO
+# -----------------------------------------------------------------------------
+
+
+@router.get(
+    "/dossiers/{dossier_id}/manifest",
+    response_model=ApiResponse[ManifestDTO],
+    responses={
+        403: {"description": "Insufficient role (OPERATOR or ADMINISTRATOR required)"},
+        404: {"description": "Dossier not found in tenant"},
+    },
+)
+async def get_dossier_manifest(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ContractServiceDep,
+    _user: Annotated[
+        AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))
+    ],
+) -> ApiResponse[ManifestDTO]:
+    """Return the current ManifestDTO (creates a pending draft if none exists).
+
+    RBAC: OPERATOR, ADMINISTRATOR only — REVIEWER receives 403.
+    Wrong tenant / missing dossier → 404.
+    """
+    data = await svc.get_manifest(dossier_id)
+    return ApiResponse(data=data)
+
+
+# -----------------------------------------------------------------------------
+# POST /dossiers/{id}/manifest/confirm — confirm membership + relations
+# -----------------------------------------------------------------------------
+
+
+@router.post(
+    "/dossiers/{dossier_id}/manifest/confirm",
+    response_model=ApiResponse[ManifestDTO],
+    responses={
+        403: {"description": "Insufficient role (OPERATOR or ADMINISTRATOR required)"},
+        404: {"description": "Dossier not found in tenant"},
+        409: {"description": "manifest_version_conflict"},
+        422: {"description": "Manifest validation failed"},
+    },
+)
+async def confirm_dossier_manifest(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    body: ConfirmManifestRequest,
+    svc: ContractServiceDep,
+    user: Annotated[
+        AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))
+    ],
+) -> ApiResponse[ManifestDTO]:
+    """Confirm manifest within one DB transaction.
+
+    Validates version, membership, and relations; does not delete excluded
+    files and does not start a pipeline run.
+    """
+    data = await svc.confirm_manifest(dossier_id, user.user_id, body)
+    return ApiResponse(data=data)  # type: ignore[arg-type]
 
 
 # -----------------------------------------------------------------------------

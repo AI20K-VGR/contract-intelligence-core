@@ -271,6 +271,24 @@ class Settings(BaseSettings):
     )
 
     # -------------------------------------------------------------------------
+    # Keycloak invite email (execute-actions-email / UPDATE_PASSWORD)
+    # -------------------------------------------------------------------------
+    keycloak_invite_client_id: str = Field(
+        default="contract-intel-frontend",
+        description="OIDC client_id embedded in the invite / password-set email link.",
+    )
+    keycloak_invite_lifespan_seconds: int = Field(
+        default=43200,
+        ge=300,
+        le=604800,
+        description="Invite link lifespan in seconds (default 12h).",
+    )
+    keycloak_invite_redirect_uri: str = Field(
+        default="http://localhost:5173/auth/callback",
+        description="redirect_uri after the user completes UPDATE_PASSWORD.",
+    )
+
+    # -------------------------------------------------------------------------
     # Keycloak → backend webhook signature verification
     #
     # Phase Two keycloak-events extension ký mọi webhook payload bằng

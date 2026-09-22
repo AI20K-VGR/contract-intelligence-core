@@ -10,6 +10,14 @@ from typing import Any, BinaryIO, cast
 
 import structlog
 
+from contract_intelligence.contract.application.dtos.manifest_dtos import (
+    ConfirmManifestRequest,
+    ManifestDTO,
+)
+from contract_intelligence.contract.application.services.manifest_confirmation import (
+    build_manifest_dto,
+    validate_and_prepare_confirmation,
+)
 from contract_intelligence.contract.domain.entities.document import Document, DocumentRole
 from contract_intelligence.contract.domain.entities.dossier import Dossier
 from contract_intelligence.contract.domain.entities.job import Job, JobStatus
@@ -227,33 +235,104 @@ class ContractService:
         return data, doc.filename
 
     async def get_or_create_manifest(self, dossier_id: str) -> Manifest:
-        """Lấy hoặc tạo manifest draft cho dossier.
+        """Lấy hoặc tạo manifest pending cho dossier.
 
         Application layer gọi Protocol — infrastructure lo toàn bộ ORM.
         """
         existing = await self._manifest_repo.get_by_dossier(dossier_id)
         if existing:
             return existing
-        # Verify dossier tồn tại
+        # Verify dossier tồn tại (tenant-scoped → 404 cross-tenant)
         await self.get_dossier(dossier_id)
-        # Truyền plain dicts (id/filename/role/sha256) — không leak ORM lên application
         documents = await self._document_repo.list_by_dossier(dossier_id)
         documents_payload: list[dict[str, object]] = [
-            {"id": d.id, "filename": d.filename, "role": d.role.value, "sha256": d.sha256}
+            {
+                "id": d.id,
+                "filename": d.filename,
+                "role": d.role.value,
+                "sha256": d.sha256,
+                "order_index": d.order_index,
+                "page_count": d.page_count,
+                "file_size_bytes": d.file_size_bytes,
+            }
             for d in documents
         ]
-        return await self._manifest_repo.create_with_default_items(dossier_id, documents_payload)
+        return await self._manifest_repo.create_with_default_items(
+            dossier_id, documents_payload
+        )
 
-    async def confirm_manifest(self, dossier_id: str, user_id: str) -> Manifest:
-        manifest = await self._manifest_repo.get_by_dossier(dossier_id)
+    async def get_manifest(self, dossier_id: str) -> ManifestDTO:
+        """GET /dossiers/{id}/manifest — current ManifestDTO (create draft if needed)."""
+        dossier = await self.get_dossier(dossier_id)
+        manifest = await self.get_or_create_manifest(dossier_id)
+        documents = await self._document_repo.list_by_dossier(dossier_id)
+        latest = dossier.latest_job()
+        return build_manifest_dto(
+            manifest,
+            latest_job_status=latest.status.value if latest else None,
+            documents_by_id={d.id: d for d in documents},
+        )
+
+    async def confirm_manifest(
+        self,
+        dossier_id: str,
+        user_id: str,
+        request: ConfirmManifestRequest | None = None,
+    ) -> ManifestDTO | Manifest:
+        """Confirm manifest.
+
+        When ``request`` is provided (new API), run full validation + membership
+        persistence inside the request transaction. Without ``request``, keep the
+        legacy simple confirm used by older callers/tests.
+        """
+        # Lock dossier row (tenant-scoped) for the confirm transaction
+        locked = await self._dossier_repo.get_for_update(dossier_id)
+        if locked is None:
+            raise NotFoundError(entity_type="Dossier", entity_id=dossier_id)
+        await self._hydrate_latest_job(locked)
+
+        if request is None:
+            manifest = await self._manifest_repo.get_by_dossier_for_update(dossier_id)
+            if manifest is None:
+                raise NotFoundError(entity_type="Manifest", entity_id=dossier_id)
+            await self._manifest_repo.confirm(manifest.id, user_id)
+            await self._dossier_repo.update_status(dossier_id, "extracted")
+            refreshed = await self._manifest_repo.get_by_dossier(dossier_id)
+            return refreshed if refreshed is not None else manifest
+
+        manifest = await self._manifest_repo.get_by_dossier_for_update(dossier_id)
         if manifest is None:
-            raise NotFoundError(entity_type="Manifest", entity_id=dossier_id)
-        await self._manifest_repo.confirm(manifest.id, user_id)
-        # Cập nhật dossier status → ready for extraction
+            # Auto-create pending manifest then re-lock
+            await self.get_or_create_manifest(dossier_id)
+            manifest = await self._manifest_repo.get_by_dossier_for_update(dossier_id)
+            if manifest is None:
+                raise NotFoundError(entity_type="Manifest", entity_id=dossier_id)
+
+        documents = await self._document_repo.list_by_dossier(dossier_id)
+        members, relations = validate_and_prepare_confirmation(
+            manifest=manifest,
+            request=request,
+            dossier_documents=documents,
+        )
+
+        new_version = int(manifest.version or 1) + 1
+        # Persist membership/roles/relations — do NOT delete excluded files,
+        # do NOT start a new pipeline run.
+        confirmed = await self._manifest_repo.apply_confirmation(
+            manifest_id=manifest.id,
+            user_id=user_id,
+            new_version=new_version,
+            members=members,
+            relations=relations,
+        )
         await self._dossier_repo.update_status(dossier_id, "extracted")
-        # Refresh sau confirm
-        refreshed = await self._manifest_repo.get_by_dossier(dossier_id)
-        return refreshed if refreshed is not None else manifest
+
+        latest = locked.latest_job()
+        return build_manifest_dto(
+            confirmed,
+            latest_job_status=latest.status.value if latest else None,
+            documents_by_id={d.id: d for d in documents},
+        )
 
 
 # -----------------------------------------------------------------------------

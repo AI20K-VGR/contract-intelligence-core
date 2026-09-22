@@ -25,6 +25,16 @@ from contract_intelligence.contract.application.dtos.dossier_dtos import (
     DossierDetailDTO,
     DossierSummaryDTO,
 )
+from contract_intelligence.contract.application.dtos.manifest_dtos import (
+    ConfirmManifestRequest,
+    ManifestDTO,
+    ManifestDocumentRole,
+    ManifestMemberDTO,
+    ManifestRelationDTO,
+    ManifestStatus,
+    RelationConfirmation,
+    RelationType,
+)
 from contract_intelligence.contract.application.dtos.optimization_dtos import (
     CreateCampaignRequestDTO,
     CreateCandidateRequestDTO,
@@ -39,6 +49,7 @@ __all__ = [
     "BatchCreatedDTO",
     "BatchDetailDTO",
     "BatchListItemDTO",
+    "ConfirmManifestRequest",
     "ContractUploadRequest",
     "ContractStatusResponse",
     "CreateCampaignRequestDTO",
@@ -51,7 +62,14 @@ __all__ = [
     "DossierDetailDTO",
     "DossierSummaryDTO",
     "ExperimentResultDTO",
+    "ManifestDTO",
+    "ManifestDocumentRole",
+    "ManifestMemberDTO",
+    "ManifestRelationDTO",
+    "ManifestStatus",
     "OptimizationCampaignDTO",
     "OptimizationCandidateDTO",
     "OptimizationExperimentDTO",
+    "RelationConfirmation",
+    "RelationType",
 ]

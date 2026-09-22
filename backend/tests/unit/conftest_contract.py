@@ -26,6 +26,7 @@ from contract_intelligence.contract.domain.entities.dossier import Dossier
 from contract_intelligence.contract.domain.entities.manifest import (
     Manifest,
     ManifestItem,
+    ManifestRelation,
 )
 from contract_intelligence.contract.domain.repositories.document_repository import (
     DocumentRepository,
@@ -59,6 +60,9 @@ class FakeDossierRepository(DossierRepository):
         if not dossier_id.startswith("dos_"):
             return None
         return d
+
+    async def get_for_update(self, dossier_id: str) -> Dossier | None:
+        return await self.get(dossier_id)
 
     async def list(
         self,
@@ -215,6 +219,9 @@ class FakeManifestRepository:
     async def get_by_dossier(self, dossier_id: str) -> Manifest | None:
         return self._store.get(dossier_id)
 
+    async def get_by_dossier_for_update(self, dossier_id: str) -> Manifest | None:
+        return await self.get_by_dossier(dossier_id)
+
     async def create_with_default_items(
         self,
         dossier_id: str,
@@ -222,32 +229,63 @@ class FakeManifestRepository:
     ) -> Manifest:
         from ulid import ULID
 
-        m = Manifest(
-            id=f"mft_{ULID()}",
-            dossier_id=dossier_id,
-            status="DRAFT",
-            items=[
+        contract_ids: list[str] = []
+        annex_ids: list[str] = []
+        items: list[ManifestItem] = []
+        for idx, d in enumerate(documents):
+            role = str(d.get("role", "contract")).lower()
+            doc_id = str(d.get("id", ""))
+            items.append(
                 ManifestItem(
                     id=f"mfi_{ULID()}",
                     manifest_id="",
-                    document_id=str(d.get("id", "")),
+                    document_id=doc_id,
                     filename=str(d.get("filename", "")),
-                    doc_type=str(d.get("role", "")),
+                    doc_type=role,
                     sha256=str(d.get("sha256", "")),
                     confidence="1.0",
-                    order_index=idx,
+                    order_index=int(d.get("order_index", idx) or idx),
+                    included=True,
+                    page_count=int(d.get("page_count", 0) or 0),
+                    file_size_bytes=int(d.get("file_size_bytes", 0) or 0),
                 )
-                for idx, d in enumerate(documents)
-            ],
+            )
+            if role == "annex":
+                annex_ids.append(doc_id)
+            else:
+                contract_ids.append(doc_id)
+
+        relations: list[ManifestRelation] = []
+        if contract_ids:
+            primary = contract_ids[0]
+            for annex_id in annex_ids:
+                relations.append(
+                    ManifestRelation(
+                        id=f"mrel_{ULID()}",
+                        manifest_id="",
+                        source_document_id=annex_id,
+                        target_document_id=primary,
+                        relation_type="annex_of",
+                        confirmation="unconfirmed",
+                    )
+                )
+
+        m = Manifest(
+            id=f"mft_{ULID()}",
+            dossier_id=dossier_id,
+            status="pending",
+            version=1,
+            items=items,
+            relations=relations,
         )
-        # Wire manifest_id on each item
         for item in m.items:
             item.manifest_id = m.id
+        for rel in m.relations:
+            rel.manifest_id = m.id
         self._store[dossier_id] = m
         return m
 
     async def add_item(self, item: Any) -> None:
-        # No-op for in-memory fake
         return None
 
     async def confirm(self, manifest_id: str, user_id: str) -> None:
@@ -255,15 +293,47 @@ class FakeManifestRepository:
 
         for m in self._store.values():
             if m.id == manifest_id:
-                m.status = "CONFIRMED"
+                m.status = "confirmed"
                 m.confirmed_at = datetime.now(UTC)
                 m.confirmed_by = user_id
+                m.version = int(m.version or 1) + 1
                 return
+
+    async def apply_confirmation(
+        self,
+        *,
+        manifest_id: str,
+        user_id: str,
+        new_version: int,
+        members: list[Any],
+        relations: list[Any],
+    ) -> Manifest:
+        from datetime import UTC, datetime
+
+        for dossier_id, m in self._store.items():
+            if m.id != manifest_id:
+                continue
+            m.items = list(members)
+            m.relations = list(relations)
+            m.status = "confirmed"
+            m.version = new_version
+            m.confirmed_at = datetime.now(UTC)
+            m.confirmed_by = user_id
+            self._store[dossier_id] = m
+            return m
+        msg = f"Manifest {manifest_id} not found"
+        raise LookupError(msg)
 
     async def list_items(self, manifest_id: str) -> list[ManifestItem]:
         for m in self._store.values():
             if m.id == manifest_id:
                 return list(m.items)
+        return []
+
+    async def list_relations(self, manifest_id: str) -> list[Any]:
+        for m in self._store.values():
+            if m.id == manifest_id:
+                return list(m.relations)
         return []
 
 

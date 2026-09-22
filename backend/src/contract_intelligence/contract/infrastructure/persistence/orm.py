@@ -132,8 +132,9 @@ class ManifestORM(Base):
         Text, ForeignKey("dossier.id", ondelete="CASCADE"), nullable=False, unique=True
     )
     status: Mapped[str] = mapped_column(
-        Text, nullable=False, server_default="DRAFT"
-    )  # DRAFT | CONFIRMED
+        Text, nullable=False, server_default="pending"
+    )  # pending | confirmed (legacy: DRAFT | CONFIRMED)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     confirmed_by: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -160,8 +161,41 @@ class ManifestItemORM(Base):
         server_default="0.0",  # use String to avoid Float precision issues
     )
     order_index: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    included: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    page_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class ManifestRelationORM(Base):
+    """ORM cho bảng ``manifest_relation`` — quan hệ giữa documents trong manifest."""
+
+    __tablename__ = "manifest_relation"
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    manifest_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("manifest.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_document_id: Mapped[str] = mapped_column(Text, nullable=False)
+    target_document_id: Mapped[str] = mapped_column(Text, nullable=False)
+    relation_type: Mapped[str] = mapped_column(Text, nullable=False)  # annex_of | …
+    confirmation: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default="unconfirmed"
+    )  # unconfirmed | confirmed | rejected
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_manifest_relation_pair",
+            "manifest_id",
+            "source_document_id",
+            "target_document_id",
+            "relation_type",
+        ),
     )
 
 
@@ -171,4 +205,5 @@ __all__ = [
     "JobORM",
     "ManifestItemORM",
     "ManifestORM",
+    "ManifestRelationORM",
 ]

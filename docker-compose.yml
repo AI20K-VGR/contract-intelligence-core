@@ -4,15 +4,17 @@
 #
 # Enterprise-grade orchestration cho Contract Intelligence stack.
 #
-# Services:
-#   keycloak-db    — PostgreSQL dedicated cho Keycloak (port 5433 trên host)
-#   keycloak       — Keycloak 26 (Quarkus) ở dev mode, với Phase Two
-#                    keycloak-events extension baked-in (xem keycloak/Dockerfile)
-#   backend-db     — PostgreSQL cho backend (port 5432 trên host)
-#   kafka          — Apache Kafka (KRaft, no Zookeeper) — port 9093 trên host
-#   backend        — FastAPI backend (depends_on backend-db + keycloak + kafka + minio)
-#   minio          — MinIO S3-compatible object storage (API 9000, Console 9001)
+# Services (tên service Compose — dùng với `docker compose up <service>`):
+#   keycloak-db    — PostgreSQL dedicated cho Keycloak (container: ci-keycloak-db)
+#   keycloak       — Keycloak 26 (Quarkus) + Phase Two (container: ci-keycloak)
+#   backend-db     — PostgreSQL cho backend (container: ci-backend-db, host :5432)
+#   kafka          — Apache Kafka KRaft (container: ci-kafka, host :9093)
+#   backend        — FastAPI (container: ci-backend; depends_on db+keycloak+kafka+minio)
+#   minio          — MinIO S3-compatible (API 9000, Console 9001)
 #   minio-init     — one-shot: tạo bucket `dossiers` (private)
+#
+# Lưu ý: `docker compose` nhận diện theo TÊN SERVICE (backend-db, backend),
+# không phải container_name (ci-backend-db, ci-backend).
 #
 # Topology:
 #
@@ -61,7 +63,6 @@ services:
     image: postgres:16-alpine            # postgres:15-alpine trở lên đều OK
     container_name: ci-keycloak-db
     restart: unless-stopped
-    profiles: ["core"]                    # thuộc "core" group để lệnh CI có thể skip
     environment:
       POSTGRES_DB: keycloak
       POSTGRES_USER: keycloak
@@ -96,7 +97,6 @@ services:
     image: ci-keycloak:26
     container_name: ci-keycloak
     restart: unless-stopped
-    profiles: ["core"]
     depends_on:
       keycloak-db:
         condition: service_healthy        # ⬅ đợi pg_isready pass mới start
@@ -179,7 +179,6 @@ services:
     image: postgres:16-alpine
     container_name: ci-backend-db
     restart: unless-stopped
-    profiles: ["core"]
     environment:
       POSTGRES_DB: contract_intelligence
       POSTGRES_USER: ci
@@ -187,12 +186,10 @@ services:
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     volumes:
       # Named volume cho app data (batches, dossiers, users, audit logs, …).
+      # Schema migrations chạy qua `alembic upgrade head` trong entrypoint
+      # của service `backend` — KHÔNG mount alembic vào initdb.d (file .py
+      # không phải SQL; postgres chỉ chạy script trực tiếp trong initdb.d).
       - backend_pgdata:/var/lib/postgresql/data
-      # Alembic migration SQL files — postgres container auto-run *.sql trong
-      # /docker-entrypoint-initdb.d/ lúc FIRST init. Sau lần đầu, container
-      # skip (data dir đã tồn tại) → migrate qua `alembic upgrade head` lúc
-      # backend startup. KHÔNG dùng bind-mount cho data dir.
-      - ./backend/alembic/versions:/docker-entrypoint-initdb.d/migrations:ro
     healthcheck:
       # pg_isready trên user+db của backend. -q để log clean trong `compose ps`.
       test: ["CMD-SHELL", "pg_isready -U ci -d contract_intelligence -q"]
@@ -213,7 +210,6 @@ services:
     image: apache/kafka:3.7.0
     container_name: ci-kafka
     restart: unless-stopped
-    profiles: ["core"]
     environment:
       # ---- KRaft mode (combined controller + broker) ----
       KAFKA_NODE_ID: 1
@@ -242,7 +238,6 @@ services:
       dockerfile: Dockerfile
     container_name: ci-backend
     restart: unless-stopped
-    profiles: ["core"]
     depends_on:
       backend-db:
         condition: service_healthy        # ⬅ đợi pg_isready pass
@@ -253,8 +248,13 @@ services:
       minio:
         condition: service_started
     environment:
+      # ---- Runtime ----
+      ENV: ${ENV:-dev}
       # ---- DB ----
+      # Host = service name `backend-db` (Compose DNS), NOT container_name.
       DATABASE_URL: postgresql+asyncpg://ci:${BACKEND_DB_PASSWORD:-ci_secret_dev}@backend-db:5432/contract_intelligence
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-10}
+      DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-20}
       # ---- Keycloak SSO ----
       AUTH_MODE: keycloak
       # Issuer must match tokens minted from the Windows host (iss=localhost:8080).
@@ -327,7 +327,6 @@ services:
     image: quay.io/minio/minio:latest
     container_name: ci-minio
     restart: unless-stopped
-    profiles: ["core"]
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: admin
@@ -346,7 +345,6 @@ services:
   minio-init:
     image: quay.io/minio/mc:latest
     container_name: ci-minio-init
-    profiles: ["core"]
     depends_on:
       - minio
     entrypoint: /bin/sh -c "until (/usr/bin/mc config host add myminio http://minio:9000 admin password123) do echo 'waiting for minio...' && sleep 1; done; /usr/bin/mc mb myminio/dossiers || true; /usr/bin/mc anonymous set private myminio/dossiers; exit 0;"
