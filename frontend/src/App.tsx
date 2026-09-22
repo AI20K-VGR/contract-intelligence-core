@@ -6,6 +6,8 @@ import { RequireRole } from './auth/RequireRole'
 import { useAuth } from './auth/useAuth'
 import { AppShell } from './layouts/AppShell'
 import { LoginPage } from './pages/LoginPage'
+import { AuthCallbackPage } from './pages/AuthCallbackPage'
+import { SilentRenewPage } from './pages/SilentRenewPage'
 import { MyDossiersPage } from './pages/MyDossiersPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { AnalysisProgressPage } from './pages/AnalysisProgressPage'
@@ -19,7 +21,10 @@ import { PlaceholderPage } from './pages/PlaceholderPage'
 import { ReviewLayout } from './layouts/ReviewLayout'
 
 function AuthRedirect() {
-  const { user } = useAuth()
+  const { user, ready } = useAuth()
+  if (!ready) {
+    return null
+  }
   if (!user) {
     return <Navigate to="/" replace />
   }
@@ -32,6 +37,8 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/" element={<LoginPage />} />
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
+          <Route path="/auth/silent-callback" element={<SilentRenewPage />} />
           <Route element={<RequireAuth />}>
             <Route element={<AppShell />}>
               <Route

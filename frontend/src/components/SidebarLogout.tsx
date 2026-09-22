@@ -10,13 +10,19 @@ export function SidebarLogout({ className }: SidebarLogoutProps) {
   const { logout } = useAuth()
   const navigate = useNavigate()
 
-  function handleLogout() {
-    logout()
+  async function handleLogout() {
+    await logout()
     navigate('/')
   }
 
   return (
-    <button className={className} type="button" onClick={handleLogout}>
+    <button
+      className={className}
+      type="button"
+      onClick={() => {
+        void handleLogout()
+      }}
+    >
       <MaterialIcon name="logout" className="text-[20px]" />
       <span>Đăng xuất</span>
     </button>

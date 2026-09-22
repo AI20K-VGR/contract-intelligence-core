@@ -1,76 +1,38 @@
 import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { homePath, type AppRole } from '../auth/session'
+import { Navigate } from 'react-router-dom'
+import { homePath, validateWorkEmail } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
-import { GoogleIcon, MaterialIcon } from '../components/icons'
+import { MaterialIcon } from '../components/icons'
 import { usePageTitle } from '../hooks/usePageTitle'
-
-type LoginBusy = 'idle' | 'google' | 'sso' | 'admin' | 'user'
 
 export function LoginPage() {
   usePageTitle('Đăng nhập')
-  const navigate = useNavigate()
-  const { loginAs, loginWithEmail } = useAuth()
+  const { user, ready, configured, loginWithSso } = useAuth()
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
-  const [busy, setBusy] = useState<LoginBusy>('idle')
+  const [busy, setBusy] = useState(false)
 
-  async function finishLogin(role: AppRole) {
-    navigate(homePath(role))
-  }
-
-  async function handleQuickLogin(role: AppRole) {
-    if (busy !== 'idle') return
-    setError('')
-    setBusy(role)
-    try {
-      const user = await loginAs(role)
-      await finishLogin(user.role)
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Không đăng nhập được.')
-    } finally {
-      setBusy('idle')
-    }
-  }
-
-  async function handleGoogleContinue() {
-    if (busy !== 'idle') return
-    setError('')
-    setBusy('google')
-    try {
-      const user = email.trim()
-        ? await loginWithEmail(email)
-        : await loginAs('admin')
-      await finishLogin(user.role)
-    } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : 'Google Workspace chưa xác thực được tài khoản.',
-      )
-    } finally {
-      setBusy('idle')
-    }
+  if (ready && user) {
+    return <Navigate to={homePath(user.role)} replace />
   }
 
   async function handleSsoSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (busy !== 'idle') return
+    if (busy) return
     setError('')
-    setBusy('sso')
+    setBusy(true)
     try {
-      const user = await loginWithEmail(email)
-      await finishLogin(user.role)
+      const workEmail = validateWorkEmail(email)
+      await loginWithSso(workEmail)
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : 'SSO chưa xác thực được.',
       )
-    } finally {
-      setBusy('idle')
+      setBusy(false)
     }
   }
 
-  const locked = busy !== 'idle'
+  const locked = busy || !ready
 
   return (
     <div className="bg-background font-body-md text-on-surface min-h-screen flex flex-col justify-between selection:bg-secondary-container selection:text-on-secondary-fixed relative">
@@ -96,7 +58,7 @@ export function LoginPage() {
                 </div>
               </div>
 
-              <div className="flex flex-col mb-gutter-sm">
+              <div className="flex flex-col mb-space-md">
                 <h1 className="font-headline-md text-headline-md text-primary-container tracking-tight">
                   Đăng nhập
                 </h1>
@@ -105,148 +67,111 @@ export function LoginPage() {
                 </p>
               </div>
 
-              <div className="flex flex-col gap-space-md">
-                <button
-                  className="w-full bg-surface-container-lowest hover:bg-surface-container-low text-on-secondary-fixed font-title-sm text-title-sm py-3 px-4 rounded transition-colors shadow-sm flex items-center justify-center gap-space-md group disabled:opacity-70"
-                  disabled={locked}
-                  type="button"
-                  onClick={() => {
-                    void handleGoogleContinue()
-                  }}
+              <ol
+                aria-label="Tiến trình đăng nhập"
+                className="mb-gutter-sm flex items-center gap-space-sm"
+              >
+                <li
+                  aria-current="step"
+                  className="flex items-center gap-space-xs text-primary-container"
                 >
-                  <GoogleIcon />
-                  <span className="tracking-normal font-medium">
-                    {busy === 'google'
-                      ? 'Đang xác thực Google…'
-                      : 'Tiếp tục với Google Workspace'}
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-container font-label-sm text-label-sm text-on-primary">
+                    1
                   </span>
-                </button>
-
-                <div className="relative flex items-center justify-center my-space-xs">
-                  <div className="w-full bg-surface-container-high h-[1px]" />
-                  <span className="absolute bg-surface-container-lowest px-space-sm font-label-sm text-label-sm text-outline uppercase tracking-wider">
-                    hoặc
+                  <span className="font-label-sm text-label-sm font-semibold uppercase tracking-wider">
+                    Email
                   </span>
-                </div>
+                </li>
+                <li
+                  aria-hidden
+                  className="h-px min-w-6 flex-1 bg-outline-variant"
+                />
+                <li className="flex items-center gap-space-xs text-outline">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full border border-outline-variant font-label-sm text-label-sm">
+                    2
+                  </span>
+                  <span className="font-label-sm text-label-sm uppercase tracking-wider">
+                    Mật khẩu
+                  </span>
+                </li>
+              </ol>
 
-                <form
-                  className="flex flex-col gap-space-md"
-                  onSubmit={(event) => {
-                    void handleSsoSubmit(event)
-                  }}
-                >
-                  <div className="flex flex-col gap-1.5">
-                    <label
-                      className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant"
-                      htmlFor="work-email"
-                    >
-                      Email doanh nghiệp
-                    </label>
-                    <div className="relative flex items-center">
-                      <input
-                        autoComplete="email"
-                        className="w-full h-10 px-3 bg-surface-container-low text-on-surface font-body-md text-body-md placeholder:text-outline rounded transition-all focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-on-tertiary-container/30 disabled:opacity-70"
-                        disabled={locked}
-                        id="work-email"
-                        placeholder="ten@apexlaw.vn"
-                        type="email"
-                        value={email}
-                        onChange={(event) => {
-                          setEmail(event.target.value)
-                          if (error) setError('')
-                        }}
-                      />
-                      <MaterialIcon
-                        name="domain"
-                        className="absolute right-3 text-outline text-[18px] pointer-events-none"
-                      />
-                    </div>
-                    <p className="font-label-sm text-label-sm text-outline">
-                      Demo: cuong.nguyen@apexlaw.vn (Admin) ·
-                      mai.tran@apexlaw.vn (User)
-                    </p>
-                  </div>
-
-                  {error ? (
-                    <p className="font-body-sm text-body-sm text-error bg-error-container/40 px-space-sm py-space-xs rounded">
-                      {error}
-                    </p>
-                  ) : null}
-
-                  <button
-                    className="w-full h-10 bg-primary-container hover:bg-primary text-on-primary font-title-sm text-title-sm rounded transition-all flex items-center justify-center gap-space-xs active:scale-[0.99] shadow-sm disabled:opacity-70"
-                    disabled={locked}
-                    type="submit"
+              <form
+                className="flex flex-col gap-space-md"
+                onSubmit={(event) => {
+                  void handleSsoSubmit(event)
+                }}
+              >
+                <div className="flex flex-col gap-1.5">
+                  <label
+                    className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant"
+                    htmlFor="work-email"
                   >
-                    {busy === 'sso' ? (
-                      <>
-                        <MaterialIcon
-                          name="refresh"
-                          className="text-[16px] animate-spin"
-                        />
-                        <span>Đang xác thực SSO…</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Tiếp tục với SSO</span>
-                        <MaterialIcon
-                          name="arrow_forward"
-                          className="text-[16px]"
-                        />
-                      </>
-                    )}
-                  </button>
-                </form>
-
-                <div className="relative flex items-center justify-center my-space-xs">
-                  <div className="w-full bg-surface-container-high h-[1px]" />
-                  <span className="absolute bg-surface-container-lowest px-space-sm font-label-sm text-label-sm text-outline uppercase tracking-wider">
-                    đăng nhập nhanh
-                  </span>
-                </div>
-
-                <div className="flex flex-col gap-space-sm">
-                  <button
-                    className="w-full h-10 px-space-sm bg-primary-container hover:bg-primary text-on-primary font-title-sm text-title-sm rounded transition-all flex items-center justify-center gap-space-xs active:scale-[0.99] shadow-sm disabled:opacity-70"
-                    disabled={locked}
-                    type="button"
-                    onClick={() => {
-                      void handleQuickLogin('admin')
-                    }}
-                  >
-                    <MaterialIcon
-                      name="admin_panel_settings"
-                      className="text-[16px]"
+                    Email doanh nghiệp
+                  </label>
+                  <div className="relative flex items-center">
+                    <input
+                      autoComplete="email"
+                      className="w-full h-10 px-3 bg-surface-container-low text-on-surface font-body-md text-body-md placeholder:text-outline rounded transition-all focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-on-tertiary-container/30 disabled:opacity-70"
+                      disabled={locked}
+                      id="work-email"
+                      placeholder="admin@ci.local"
+                      type="email"
+                      value={email}
+                      onChange={(event) => {
+                        setEmail(event.target.value)
+                        if (error) setError('')
+                      }}
                     />
-                    <span>
-                      {busy === 'admin'
-                        ? 'Đang vào Admin…'
-                        : 'Đăng nhập với Admin'}
-                    </span>
-                  </button>
-                  <button
-                    className="w-full h-10 px-space-sm bg-surface-container-lowest hover:bg-surface-container-low text-on-secondary-fixed font-title-sm text-title-sm rounded transition-colors shadow-sm flex items-center justify-center gap-space-xs disabled:opacity-70"
-                    disabled={locked}
-                    type="button"
-                    onClick={() => {
-                      void handleQuickLogin('user')
-                    }}
-                  >
-                    <MaterialIcon name="person" className="text-[16px]" />
-                    <span>
-                      {busy === 'user'
-                        ? 'Đang vào User…'
-                        : 'Đăng nhập với User'}
-                    </span>
-                  </button>
-                </div>
-
-                <div className="pt-space-xs text-center">
-                  <p className="font-label-sm text-label-sm text-secondary">
-                    Trợ giúp? Dùng email demo Apex Law hoặc nút đăng nhập nhanh.
+                    <MaterialIcon
+                      name="domain"
+                      className="absolute right-3 text-outline text-[18px] pointer-events-none"
+                    />
+                  </div>
+                  <p className="font-label-sm text-label-sm text-outline">
+                    Local: admin@ci.local · reviewer@ci.local ·
+                    operator@ci.local — mật khẩu nhập trên trang Keycloak.
                   </p>
                 </div>
-              </div>
+
+                {!configured ? (
+                  <p className="font-body-sm text-body-sm text-error bg-error-container/40 px-space-sm py-space-xs rounded">
+                    Chưa cấu hình Keycloak. Thêm VITE_KEYCLOAK_URL,
+                    VITE_KEYCLOAK_REALM, VITE_KEYCLOAK_CLIENT_ID vào file
+                    .env.local (xem .env.example).
+                  </p>
+                ) : null}
+
+                {error ? (
+                  <p className="font-body-sm text-body-sm text-error bg-error-container/40 px-space-sm py-space-xs rounded">
+                    {error}
+                  </p>
+                ) : null}
+
+                <button
+                  className="w-full h-10 bg-primary-container hover:bg-primary text-on-primary font-title-sm text-title-sm rounded transition-all flex items-center justify-center gap-space-xs active:scale-[0.99] shadow-sm disabled:opacity-70"
+                  disabled={locked || !configured}
+                  type="submit"
+                >
+                  {busy ? (
+                    <>
+                      <MaterialIcon
+                        name="refresh"
+                        className="text-[16px] animate-spin"
+                      />
+                      <span>Đang chuyển tới SSO…</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Tiếp tục với SSO</span>
+                      <MaterialIcon
+                        name="arrow_forward"
+                        className="text-[16px]"
+                      />
+                    </>
+                  )}
+                </button>
+              </form>
             </div>
           </div>
         </div>

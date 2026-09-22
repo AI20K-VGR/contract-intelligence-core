@@ -1,11 +1,13 @@
 import { createContext } from 'react'
-import type { AppRole, SessionUser } from './session'
+import type { SessionUser } from './session'
 
 export type AuthContextValue = {
   user: SessionUser | null
-  loginAs: (role: AppRole) => Promise<SessionUser>
-  loginWithEmail: (email: string) => Promise<SessionUser>
-  logout: () => void
+  ready: boolean
+  configured: boolean
+  loginWithSso: (email: string) => Promise<void>
+  completeSsoCallback: () => Promise<SessionUser>
+  logout: () => Promise<void>
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null)
