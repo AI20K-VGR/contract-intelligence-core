@@ -1,3 +1,4 @@
+import concurrent.futures
 import logging
 import signal
 import threading
@@ -13,7 +14,7 @@ from app.domain import DomainError
 from app.evidence import citation, validate_result
 from app.facts import extract
 from app.models import Job, Snapshot, Task
-from app.orchestration import claim, finish, heartbeat
+from app.orchestration import claim_batch, finish, heartbeat
 from app.storage import ArtifactStore, canonical, digest
 from app.structure import clauses
 from app.tables import link_continuations
@@ -90,41 +91,63 @@ def publish_ready(db):
 
 def run_once(factory=Session, config=settings, processor=process_page):
     with factory.begin() as db:
-        task = claim(db, config)
-        if task:
-            task_id, token, payload = task.id, task.lease_token, task.payload
-            run_config = db.get(Job, task.job_id).config
-    if not task:
+        tasks = claim_batch(db, config, limit=max(1, config.page_concurrency))
+        claims = [
+            (task.id, task.lease_token, task.payload, db.get(Job, task.job_id).config)
+            for task in tasks
+        ]
+    if not claims:
         with factory.begin() as db:
             publish_ready(db)
         return False
+
     stop = threading.Event()
+    lock = threading.Lock()
+    # Leases still renew one at a time (each is its own claim/finish transaction) --
+    # only the OCR work itself (process_page) runs concurrently across threads.
+    active = {task_id: (token, run_config["lease_seconds"]) for task_id, token, _, run_config in claims}
+    tick = max(1, min(run_config["lease_seconds"] for *_, run_config in claims) / 3)
 
     def keep_alive():
-        while not stop.wait(max(1, run_config["lease_seconds"] / 3)):
-            try:
-                with factory.begin() as db:
-                    if not heartbeat(db, task_id, token, run_config["lease_seconds"]):
-                        return
-            except Exception:
-                log.warning("heartbeat_failed")
-                return
+        while not stop.wait(tick):
+            with lock:
+                items = list(active.items())
+            for task_id, (token, lease_seconds) in items:
+                try:
+                    with factory.begin() as db:
+                        if not heartbeat(db, task_id, token, lease_seconds):
+                            with lock:
+                                active.pop(task_id, None)
+                except Exception:
+                    log.warning("heartbeat_failed")
+                    with lock:
+                        active.pop(task_id, None)
 
     thread = threading.Thread(target=keep_alive, daemon=True)
     thread.start()
-    output, error = None, None
+
+    def process_one(task_id, token, payload, run_config):
+        output, error = None, None
+        try:
+            output = processor(payload, run_config, ArtifactStore(config.artifact_root))
+        except DomainError as exc:
+            error = exc.code
+        except Exception:
+            # Do not log exception text: OCR/provider errors may contain document content.
+            error = "PAGE_PROCESSING_FAILED"
+        with lock:
+            active.pop(task_id, None)
+        try:
+            with factory.begin() as db:
+                finish(db, task_id, token, output, error)
+        except DomainError:
+            log.warning("lease_lost")
+
     try:
-        output = processor(payload, run_config, ArtifactStore(config.artifact_root))
-    except DomainError as exc:
-        error = exc.code
-    except Exception:
-        # Do not log exception text: OCR/provider errors may contain document content.
-        error = "PAGE_PROCESSING_FAILED"
-    try:
-        with factory.begin() as db:
-            finish(db, task_id, token, output, error)
-    except DomainError:
-        log.warning("lease_lost")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(claims)) as pool:
+            futures = [pool.submit(process_one, *claim_args) for claim_args in claims]
+            for future in concurrent.futures.as_completed(futures):
+                future.result()
     finally:
         stop.set()
         thread.join(timeout=2)
