@@ -88,7 +88,7 @@ Chưa được cung cấp bản Product Vision, BRD, PRD, API Spec đã duyệt,
 | Lưu trữ | File tạm cho web, artifact local cho benchmark | PostgreSQL và object storage riêng tư |
 | Giao diện | HTML thử nghiệm | Web HITL với nguồn và kết quả song song |
 | Xử lý đồng thời | Web có khóa `_process_lock`; API OCR ngoài tối đa 4 trang đồng thời | Worker độc lập với HTTP, giới hạn theo tài nguyên/provider |
-| Citation geometry | Native/Paddle có geometry theo khả năng adapter; Vision hiện trả dòng text | Citation nhiều mức, tuyệt đối không tạo bbox giả |
+| Citation geometry | Native/Mistral có geometry theo khả năng adapter (Paddle đã bị gỡ khỏi codebase); Vision text-only hiện trả dòng text | Citation nhiều mức, tuyệt đối không tạo bbox giả |
 | IDP, conflict, review | Chưa thấy module sản phẩm tương ứng | Các module mới phải qua review kiến trúc |
 
 Các điểm lệch cần biết:
@@ -383,7 +383,7 @@ Ba mức hiển thị:
 - `TEXT_SPAN`: khớp dòng/offset nhưng chưa có bbox; mở đúng trang và hiển thị quote, không vẽ vùng giả.
 - `PAGE_ONLY`: chỉ có trang hoặc chưa align được text; là evidence tạm, chưa đạt gate trích dẫn cho field quan trọng.
 
-Đối với Vision text-only, dùng native/Paddle để align lại nếu muốn highlight. Matching gần đúng chỉ là candidate; trùng câu nhiều lần hoặc mismatch ở chữ số phải review. Không dùng LLM sinh tọa độ rồi coi như geometry đã xác minh.
+Đối với Vision text-only, dùng native/Mistral (Paddle đã bị gỡ khỏi codebase) để align lại nếu muốn highlight. Matching gần đúng chỉ là candidate; trùng câu nhiều lần hoặc mismatch ở chữ số phải review. Không dùng LLM sinh tọa độ rồi coi như geometry đã xác minh.
 
 ### 9.3 Ví dụ contract dữ liệu đề xuất
 

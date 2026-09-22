@@ -1,5 +1,10 @@
 # Validation on the development machine
 
+> **Update:** Paddle and DeepSeek (local and API) OCR adapters described below have since been
+> removed from the codebase — not used. E1/E2 (Paddle/DeepSeek) no longer exist; only E0
+> (PyMuPDF native) remains in the benchmark CLI. This file is kept as the point-in-time record
+> of the run described, not a claim about current adapter availability.
+
 Python 3.12 virtual environment at `D:\codebase_ocr\.venv`, with base and dev extras installed. Locked dependency versions are in `uv.lock`.
 
 Executed:

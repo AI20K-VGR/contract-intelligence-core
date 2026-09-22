@@ -10,6 +10,8 @@
 
 > Tài liệu này mô tả kiến trúc cho **toàn bộ sản phẩm** Contract Intelligence. Nó khác với [`docs/ARCHITECTURE.md`](ARCHITECTURE.md), vốn chỉ mô tả spike benchmark OCR nội bộ của Sprint 1 (không service, không DB, không frontend). Tài liệu này **mở rộng** codebase Sprint 1 (`src/contract_ocr/`) thành một hệ thống có backend service, database, hàng đợi xử lý bất đồng bộ và web UI HITL.
 
+> ⚠️ **Xung đột chưa giải quyết, cần chốt trước khi Mentor duyệt tài liệu này:** PaddleOCR — engine được tài liệu này chỉ định làm **fallback bắt buộc cho tài liệu nhạy cảm / on-prem** (§3, §4.1, §4.3, §8, §9, §13) — đã bị gỡ hoàn toàn khỏi codebase `contract-ocr-lab` (không dùng nữa, theo quyết định ngoài phạm vi tài liệu này). Hệ quả: **route bắt buộc "tài liệu nhạy cảm → PaddleOCR local" ở §9 hiện không có engine nào để trỏ tới.** Các đoạn nhắc tới PaddleOCR bên dưới được giữ nguyên làm bản ghi ý định kiến trúc gốc, đánh dấu ⚠️ tại từng chỗ — **chưa tự thay bằng engine khác**, vì mọi engine đang có (OpenAI/Gemini/Mistral) đều gửi ảnh ra ngoài, phá vỡ đúng thuộc tính "không rời máy" mà PaddleOCR được chọn để đảm bảo. Cần Mentor/team quyết định: dựng lại một engine local khác, chấp nhận gửi tài liệu nhạy cảm ra ngoài có kiểm soát (zero-retention, xem §9), hay chặn hẳn luồng tài liệu nhạy cảm cho tới khi có phương án.
+
 ---
 
 ## 1. Mục tiêu & phạm vi
@@ -66,7 +68,7 @@ flowchart TB
 
     subgraph External["External / Local Engines"]
         GPT[OpenAI GPT-5.6 Terra<br/>Vision OCR — primary]
-        PADDLE[PaddleOCR local<br/>fallback / tài liệu nhạy cảm]
+        PADDLE["⚠️ PaddleOCR local<br/>fallback / tài liệu nhạy cảm<br/>(ĐÃ GỠ khỏi codebase — xem cảnh báo đầu tài liệu)"]
         NATIVE[PyMuPDF native<br/>PDF có text-layer]
     end
 
@@ -102,7 +104,7 @@ flowchart TB
 | Engine | Vị trí chạy | Chi phí | Tốc độ | Ghi chú |
 |---|---|---|---|---|
 | PyMuPDF (native) | Local | Miễn phí | Rất nhanh | Chỉ dùng được khi PDF có text-layer thật; không phải OCR |
-| PaddleOCR PP-OCRv6 | Local CPU | Miễn phí (tốn compute) | Chậm trên CPU (vài chục giây–vài phút/trang) | Không rời máy → an toàn cho tài liệu nhạy cảm; là fallback bắt buộc |
+| ⚠️ PaddleOCR PP-OCRv6 (**đã gỡ khỏi codebase**) | Local CPU | Miễn phí (tốn compute) | Chậm trên CPU (vài chục giây–vài phút/trang) | Không rời máy → an toàn cho tài liệu nhạy cảm; là fallback bắt buộc — không còn engine local nào thay thế, xem cảnh báo đầu tài liệu |
 | DeepSeek-OCR-2 | Local GPU (CUDA) | Miễn phí (cần GPU) | Nhanh nếu có GPU | Team hiện không có máy GPU NVIDIA sẵn sàng → **không chọn làm chính** |
 | Gemini 3 Flash | API ngoài | Trả phí | ~30s/trang | Độ chính xác dấu tiếng Việt tốt trong test nội bộ, nhưng ngoài phạm vi quyết định lần này |
 | **GPT-5.6 Terra — ĐÃ CHỌN** | API ngoài | ~$2/1M input – $12/1M output | ~9s/trang (tuần tự), ~53s cho 6 trang chạy song song | Bản giữa dòng, đã dùng làm baseline Sprint 1; là `DEFAULT_MODEL` sẵn có trong adapter |
@@ -124,7 +126,7 @@ flowchart LR
     P[Trang PDF] --> CLS{Classifier:<br/>TEXT_LAYER / MIXED / SCANNED}
     CLS -->|TEXT_LAYER hoặc MIXED usable| NAT[PyMuPDF native]
     CLS -->|SCANNED hoặc MIXED unusable| SENS{Tài liệu nhạy cảm<br/>hoặc yêu cầu on-prem?}
-    SENS -->|Có| PADDLE[PaddleOCR local]
+    SENS -->|Có| PADDLE["⚠️ PaddleOCR local (ĐÃ GỠ)"]
     SENS -->|Không| TERRA[GPT-5.6 Terra Vision API]
     TERRA -->|Lỗi API / timeout / rate-limit| PADDLE
 ```
@@ -317,7 +319,7 @@ erDiagram
 | Database | PostgreSQL | Hỗ trợ JSON field (bbox, evidence) + quan hệ cây (Clause) |
 | Object Storage | Local disk (dev) → S3-compatible (MinIO/S3) khi lên staging | Không cần hạ tầng phức tạp cho quy mô OJT |
 | OCR engine chính | OpenAI GPT-5.6 Terra (vision) | Quyết định của dự án (mục tiêu tài liệu này) |
-| OCR engine fallback | PaddleOCR PP-OCRv6 (local) | Tài liệu nhạy cảm / khi API lỗi — đã có adapter |
+| OCR engine fallback | ⚠️ PaddleOCR PP-OCRv6 (local) — **đã gỡ adapter khỏi codebase, xem cảnh báo đầu tài liệu** | Tài liệu nhạy cảm / khi API lỗi |
 | Structuring/Citation/Conflict | LLM (cùng nhà cung cấp OpenAI để đơn giản hoá vận hành key/billing) | Tái dùng client OpenAI đã có, giảm số lượng tích hợp bên ngoài |
 | Frontend HITL | React + TypeScript (Vite) | Team Leader là Frontend Engineer; cần state phức tạp (diff viewer, review queue) hơn mức 1 file HTML tĩnh của Sprint 1 |
 | Kiến trúc code | Clean Architecture (domain/application/infrastructure) | Giữ nguyên pattern đã có trong `contract_ocr` |
@@ -329,7 +331,7 @@ erDiagram
 Đây là rủi ro lớn nhất khi chuyển từ spike sang production, vì **hợp đồng thương mại thật là dữ liệu nhạy cảm** và GPT-5.6 Terra là **API bên thứ ba** (ảnh trang rời khỏi hạ tầng nội bộ).
 
 - **Bắt buộc có cờ sensitivity ở cấp Document**, mặc định an toàn (coi là nhạy cảm) trừ khi người dùng/khách hàng xác nhận rõ ràng là được phép gửi ra ngoài.
-- Tài liệu đánh dấu nhạy cảm **luôn** route qua PaddleOCR local, không có ngoại lệ, không phụ thuộc lỗi cấu hình FE/BE (kiểm tra ở tầng OCR Worker, không chỉ ở UI).
+- Tài liệu đánh dấu nhạy cảm **luôn** route qua PaddleOCR local, không có ngoại lệ, không phụ thuộc lỗi cấu hình FE/BE (kiểm tra ở tầng OCR Worker, không chỉ ở UI). **⚠️ PaddleOCR đã bị gỡ khỏi codebase — route này hiện không có engine để trỏ tới; xem cảnh báo đầu tài liệu, cần chốt lại trước khi triển khai phần bảo mật này.**
 - Không log nội dung văn bản trong log vận hành (structured log chỉ chứa metadata: run/document/page/engine/status) — tái dùng nguyên tắc đã áp dụng ở Sprint 1.
 - API key OpenAI lưu qua secret manager/biến môi trường, không commit vào repo (đã có `.gitignore` cho `.env`).
 - Cân nhắc: cấu hình OpenAI ở chế độ không lưu dữ liệu để training (zero data retention), xác nhận với Mentor/khách hàng trước khi bật engine ngoài cho dữ liệu thật — **đây là câu hỏi mở, cần Mentor duyệt** (xem §13).
@@ -340,7 +342,7 @@ erDiagram
 ## 10. Hiệu năng, chi phí & khả năng mở rộng
 
 - **Kiểm soát chi phí:** native-first routing là cơ chế giảm chi phí chính; cache theo hash trang là cơ chế thứ hai (tránh OCR lại phụ lục lặp giữa nhiều hợp đồng mẫu cùng loại).
-- **Song song hoá:** các trang gọi GPT-5.6 Terra là API không trạng thái → xử lý song song nhiều trang/nhiều job (giới hạn qua số worker, tương tự `WEB_MAX_WORKERS` ở Sprint 1). PaddleOCR local chỉ có 1 model dùng chung → giữ tuần tự.
+- **Song song hoá:** các trang gọi GPT-5.6 Terra là API không trạng thái → xử lý song song nhiều trang/nhiều job (giới hạn qua số worker, tương tự `WEB_MAX_WORKERS` ở Sprint 1). Một engine local dùng chung 1 model instance (PaddleOCR trước đây) sẽ cần giữ tuần tự — không còn áp dụng cho engine nào hiện tại vì PaddleOCR đã bị gỡ.
 - **Giới hạn tốc độ (rate limit):** cần retry có backoff khi OpenAI trả lỗi 429; hàng đợi giúp hấp thụ burst khi nhiều hợp đồng được upload cùng lúc.
 - **Quy mô OJT:** không cần Kubernetes/microservices tách rời — 1 service backend + 1–2 loại worker process là đủ cho 5 tuần triển khai còn lại (Sprint 2–3) và đúng năng lực đội (1 backend engineer).
 
@@ -367,7 +369,7 @@ erDiagram
 | Rủi ro | Ảnh hưởng | Giảm thiểu |
 |---|---|---|
 | Chi phí GPT-5.6 Terra (~10x Luna) vượt ngân sách API khi khối lượng hợp đồng tăng ở Sprint 3 | Vượt ngân sách dự án, phải cắt giảm phạm vi | Theo dõi chi phí theo document (§12); native-first routing + cache theo hash trang là bắt buộc, không tùy chọn; có phương án đổi sang Luna qua config nếu cần, nhưng phải benchmark CER/WER trước khi đổi |
-| Gửi ảnh hợp đồng thật ra ngoài OpenAI | Rò rỉ dữ liệu khách hàng | Cờ sensitivity bắt buộc + route cứng qua PaddleOCR cho tài liệu nhạy cảm; xác nhận chính sách zero-retention với Mentor |
+| Gửi ảnh hợp đồng thật ra ngoài OpenAI | Rò rỉ dữ liệu khách hàng | Cờ sensitivity bắt buộc + route cứng qua PaddleOCR cho tài liệu nhạy cảm; xác nhận chính sách zero-retention với Mentor. **⚠️ PaddleOCR đã bị gỡ khỏi codebase — giảm thiểu này hiện không có engine để thực thi, cần phương án mới (xem cảnh báo đầu tài liệu).** |
 | LLM structuring/conflict detection "bịa" mâu thuẫn hoặc cấu trúc sai | Mất niềm tin người dùng, quyết định sai | Bắt buộc qua HITL trước khi coi là final; system prompt chống bịa dùng chung mọi engine |
 | Phụ thuộc một nhà cung cấp (OpenAI) cho cả OCR lẫn LLM structuring | Rủi ro downtime/đổi giá/đổi tên model (đã từng xảy ra với Gemini ở Sprint 1) | Engine đứng sau port/interface, đổi model qua config, không đổi orchestration |
 | Chi phí vượt ngân sách nếu không có native-first routing | Tốn tiền không cần thiết | Routing native-first là mặc định bắt buộc, không tùy chọn tắt ở production |
@@ -397,7 +399,7 @@ erDiagram
 
 ## 16. Câu hỏi mở cần Mentor duyệt trước khi code (theo quy tắc §III.5)
 
-1. Có được phép gửi ảnh hợp đồng thật (không chỉ dữ liệu demo) ra OpenAI API khi đã có xác nhận "không nhạy cảm" từ khách hàng/Mentor không, hay bắt buộc PaddleOCR-only cho mọi dữ liệu thật trong giai đoạn OJT?
+1. Có được phép gửi ảnh hợp đồng thật (không chỉ dữ liệu demo) ra OpenAI API khi đã có xác nhận "không nhạy cảm" từ khách hàng/Mentor không? **⚠️ Câu hỏi gốc còn nêu phương án "bắt buộc PaddleOCR-only cho mọi dữ liệu thật" — phương án đó không còn khả thi vì PaddleOCR đã bị gỡ khỏi codebase (xem cảnh báo đầu tài liệu). Nếu Mentor yêu cầu một đường xử lý không rời máy cho tài liệu nhạy cảm, cần chốt engine local thay thế trước khi Sprint 2 bắt đầu — đây là câu hỏi mở mới, chưa có câu trả lời trong tài liệu này.**
 2. Ngân sách API cho Sprint 2–3 là bao nhiêu — có đủ chạy Terra (đắt hơn Luna ~10x) trên toàn bộ hợp đồng thật, cộng chi phí structuring/conflict detection (cũng dùng LLM), hay cần chuyển sớm sang Luna?
 3. Hạ tầng triển khai staging/prod: dùng máy chủ nào (Mentor cấp hay tự dựng), có Docker sẵn không?
 4. Cấu trúc bảng phụ lục có bắt buộc giữ định dạng gốc (merged cells, v.v.) hay chỉ cần trích đúng nội dung theo hàng/cột logic?

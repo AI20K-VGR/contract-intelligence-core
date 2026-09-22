@@ -14,19 +14,43 @@
           "type": "string"
         },
         "bbox_normalized": {
-          "items": {
-            "type": "number"
-          },
-          "maxItems": 4,
-          "minItems": 4,
-          "title": "Bbox Normalized",
-          "type": "array"
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bbox Normalized"
+        },
+        "geometry_provenance": {
+          "anyOf": [
+            {
+              "enum": [
+                "MEASURED",
+                "DERIVED",
+                "CLAIMED"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Geometry Provenance"
         }
       },
       "required": [
         "cell_id",
-        "text",
-        "bbox_normalized"
+        "text"
       ],
       "title": "Cell",
       "type": "object"
@@ -134,6 +158,15 @@
           "minItems": 4,
           "title": "Bbox Normalized",
           "type": "array"
+        },
+        "geometry_provenance": {
+          "enum": [
+            "MEASURED",
+            "DERIVED",
+            "CLAIMED"
+          ],
+          "title": "Geometry Provenance",
+          "type": "string"
         }
       },
       "required": [
@@ -141,7 +174,8 @@
         "type",
         "line_ids",
         "reading_order",
-        "bbox_normalized"
+        "bbox_normalized",
+        "geometry_provenance"
       ],
       "title": "SnapshotBlock",
       "type": "object"
@@ -176,6 +210,15 @@
           "title": "Bbox Normalized",
           "type": "array"
         },
+        "geometry_provenance": {
+          "enum": [
+            "MEASURED",
+            "DERIVED",
+            "CLAIMED"
+          ],
+          "title": "Geometry Provenance",
+          "type": "string"
+        },
         "word_ids": {
           "items": {
             "type": "string"
@@ -189,7 +232,8 @@
         "text",
         "page_char_start",
         "page_char_end",
-        "bbox_normalized"
+        "bbox_normalized",
+        "geometry_provenance"
       ],
       "title": "SnapshotLine",
       "type": "object"
@@ -272,6 +316,16 @@
           "title": "Blocks",
           "type": "array"
         },
+        "table_status": {
+          "default": "NOT_CHECKED",
+          "enum": [
+            "NOT_CHECKED",
+            "NOT_PRESENT",
+            "DETECTED"
+          ],
+          "title": "Table Status",
+          "type": "string"
+        },
         "tables": {
           "items": {
             "$ref": "#/$defs/Table"
@@ -343,6 +397,15 @@
           "title": "Bbox Normalized",
           "type": "array"
         },
+        "geometry_provenance": {
+          "enum": [
+            "MEASURED",
+            "DERIVED",
+            "CLAIMED"
+          ],
+          "title": "Geometry Provenance",
+          "type": "string"
+        },
         "confidence": {
           "anyOf": [
             {
@@ -364,9 +427,120 @@
         "text",
         "line_char_start",
         "line_char_end",
-        "bbox_normalized"
+        "bbox_normalized",
+        "geometry_provenance"
       ],
       "title": "SnapshotWord",
+      "type": "object"
+    },
+    "StructuralNode": {
+      "additionalProperties": false,
+      "description": "One node of the document's clause hierarchy (section 8): Document ->\nSection/Article -> Clause -> Point. Built by `application.use_cases.\nbuild_structure.BuildStructure` from real OCR lines — every node resolves\nto the `line_ids` it was built from, which resolve to real `SnapshotLine`s\non a real page. See that module's docstring for the current limitation\n(no cross-page merging of a clause body split by a page break yet).",
+      "properties": {
+        "node_id": {
+          "minLength": 1,
+          "title": "Node Id",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "ARTICLE",
+            "CLAUSE",
+            "POINT",
+            "UNMARKED"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "label_raw": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label Raw"
+        },
+        "label_normalized": {
+          "minLength": 1,
+          "title": "Label Normalized",
+          "type": "string"
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Id"
+        },
+        "page_start": {
+          "minimum": 1,
+          "title": "Page Start",
+          "type": "integer"
+        },
+        "page_end": {
+          "minimum": 1,
+          "title": "Page End",
+          "type": "integer"
+        },
+        "line_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Line Ids",
+          "type": "array"
+        },
+        "bbox_normalized": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bbox Normalized"
+        },
+        "geometry_provenance": {
+          "anyOf": [
+            {
+              "enum": [
+                "MEASURED",
+                "DERIVED",
+                "CLAIMED"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Geometry Provenance"
+        }
+      },
+      "required": [
+        "node_id",
+        "type",
+        "label_normalized",
+        "page_start",
+        "page_end"
+      ],
+      "title": "StructuralNode",
       "type": "object"
     },
     "Table": {
@@ -385,6 +559,22 @@
           "title": "Bbox Normalized",
           "type": "array"
         },
+        "geometry_provenance": {
+          "enum": [
+            "MEASURED",
+            "DERIVED",
+            "CLAIMED"
+          ],
+          "title": "Geometry Provenance",
+          "type": "string"
+        },
+        "header": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Header",
+          "type": "array"
+        },
         "rows": {
           "items": {
             "$ref": "#/$defs/Row"
@@ -396,9 +586,66 @@
       "required": [
         "table_id",
         "bbox_normalized",
+        "geometry_provenance",
         "rows"
       ],
       "title": "Table",
+      "type": "object"
+    },
+    "TableContinuityLink": {
+      "additionalProperties": false,
+      "description": "One cross-page continuity decision (section 11) between the last table on one\npage and the first table on the next. Does not merge rows/cells -- only records the\ndecision and why, same as `backend/app/tables.py`'s own `link_continuations`\n(independently landing on the same \"link, don't merge\" answer). No LLM gray-zone\nagent produced this in the current build (deterministic only -- see\ndocs/ai1-decisions.md D8); MERGE/SPLIT come from hard guards and a deterministic\nscore, anything in between is NEEDS_REVIEW rather than a guess.",
+      "properties": {
+        "from_table_id": {
+          "title": "From Table Id",
+          "type": "string"
+        },
+        "from_page": {
+          "minimum": 1,
+          "title": "From Page",
+          "type": "integer"
+        },
+        "to_table_id": {
+          "title": "To Table Id",
+          "type": "string"
+        },
+        "to_page": {
+          "minimum": 1,
+          "title": "To Page",
+          "type": "integer"
+        },
+        "decision": {
+          "enum": [
+            "MERGE",
+            "SPLIT",
+            "NEEDS_REVIEW"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reason Codes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "from_table_id",
+        "from_page",
+        "to_table_id",
+        "to_page",
+        "decision",
+        "confidence"
+      ],
+      "title": "TableContinuityLink",
       "type": "object"
     }
   },
@@ -470,6 +717,20 @@
         "$ref": "#/$defs/SnapshotPage"
       },
       "title": "Pages",
+      "type": "array"
+    },
+    "nodes": {
+      "items": {
+        "$ref": "#/$defs/StructuralNode"
+      },
+      "title": "Nodes",
+      "type": "array"
+    },
+    "table_continuity": {
+      "items": {
+        "$ref": "#/$defs/TableContinuityLink"
+      },
+      "title": "Table Continuity",
       "type": "array"
     }
   },

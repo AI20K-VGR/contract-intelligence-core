@@ -3,14 +3,10 @@
 | ID | Engine | Transformations on rendered scan |
 |---|---|---|
 | E0 | PyMuPDF | Native text only; scan pages SKIPPED |
-| E1 | Paddle PP-OCRv6 | None; 300 DPI rendering |
-| E2 | DeepSeek-OCR-2 | None; configurable model/backend/prompt |
-| E3 | Paddle PP-OCRv6 | Deskew |
-| E4 | Paddle PP-OCRv6 | Deskew, then denoise |
-| E5 | Paddle PP-OCRv6 | CLAHE contrast enhancement |
-| E6 | Paddle PP-OCRv6 | Adaptive Gaussian threshold |
 
-Every selected experiment processes the exact same manifest entries. All pipelines use PyMuPDF on usable text layers; E0 cannot recover scan content. Use `actual_engines`, `ocr_pages`, `native_pages`, status and page evidence when comparing. Do not call native-page performance Paddle/DeepSeek accuracy. For clean comparisons, select paired complete samples from the same scan strata and inspect differences between E1 and E3–E6. Report both gains and regressions. The summary does not select a winner.
+E1–E6 (Paddle/DeepSeek OCR experiments, with and without preprocessing variants: deskew, denoise, contrast, adaptive threshold) were removed — no OCR engine adapter is currently wired into the benchmark CLI, only native PyMuPDF extraction. The preprocessing steps themselves (`deskew`, `denoise`, `contrast`, `threshold`, ...) still exist in `infrastructure/image/preprocessing.py` and remain available to any new experiment added against a future OCR engine (see `docs/ARCHITECTURE.md`); they just have nothing to preprocess for today, since E0 never renders a scan.
+
+Every selected experiment processes the exact same manifest entries. All pipelines use PyMuPDF on usable text layers; E0 cannot recover scan content. Use `actual_engines`, `ocr_pages`, `native_pages`, status and page evidence when comparing. Do not call native-page performance an OCR engine's own accuracy. The summary does not select a winner.
 
 Add a new experiment by adding `{id, engine, preprocessing}` to the selected config. IDs are unique, filesystem-safe strings. Supported steps: `orientation90`, `orientation180`, `orientation270`, `deskew`, `grayscale`, `contrast`, `denoise`, `threshold`. Orientation angles are explicit counterclockwise corrections; automatic upside-down detection is not claimed. Duplicate/unknown steps are rejected. Step order is significant.
 
@@ -32,7 +28,7 @@ Report correct fields / total annotated fields. Summary includes sample mean acc
 
 For each page and level (word/line), match boxes one-to-one using maximum total IoU assignment (Hungarian algorithm). IoU = intersection area / union area. Unmatched reference boxes get zero. Mean IoU and hit rate at IoU ≥ configured threshold (default 0.5) use reference-box n. Extra predictions do not reduce these recall-oriented metrics; precision is not implemented. Text content is not used to fabricate or align geometry.
 
-If no reliable predicted geometry is available for a level, leave metrics undefined. Paddle word metrics and DeepSeek OCR geometry metrics are N/A. This is distinct from missed reference boxes where the engine produced some geometry. Line/word counts and mean metrics are separate. Clause-level evaluation is outside scope.
+If no reliable predicted geometry is available for a level, leave metrics undefined rather than guessing — e.g. an engine that only reports line-level boxes has no word-level metric at all, not a zero one. This is distinct from missed reference boxes where the engine produced some geometry. Line/word counts and mean metrics are separate. Clause-level evaluation is outside scope.
 
 ## Aggregation and failure review
 

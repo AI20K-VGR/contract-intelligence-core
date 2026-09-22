@@ -4,6 +4,10 @@
 **Theo yêu cầu:** `AI1-OCR-SNAPSHOT-HANDOFF.md`
 **Trạng thái:** Đã code xong contract `ai1.snapshot.v1` + có dossier mẫu chạy được; còn 3 khoảng trống đã liệt kê rõ, chưa chặn AI2 bắt đầu tích hợp.
 
+> **Cập nhật (sau ngày báo cáo):** khoảng trống #1 dưới đây (`tables[]` luôn rỗng) đã được lấp —
+> xem [AI1 team handoff](AI1_TEAM_HANDOFF.md) mục 4 để biết trạng thái hiện tại. Phần còn lại
+> của báo cáo giữ nguyên làm biên bản tại thời điểm gửi.
+
 ## Đã hoàn thành
 
 - Contract JSON `ai1.snapshot.v1` đúng field/kiểu theo tài liệu bàn giao gốc (document/page/line/word, `bbox_normalized`, char offset, dossier manifest).
@@ -15,7 +19,7 @@
 
 ## Còn mở (không che giấu, cần AI2 xác nhận trước khi chốt)
 
-1. `blocks[]` và `tables[]` luôn rỗng — chưa có logic gộp heading/paragraph, chưa có module nhận diện bảng. Schema đã sẵn sàng để AI2 code song song phần đọc.
+1. `blocks[]` luôn rỗng — chưa có logic gộp heading/paragraph. Schema đã sẵn sàng để AI2 code song song phần đọc. (`tables[]` từng rỗng ở bản này — đã lấp sau ngày báo cáo, xem ghi chú cập nhật đầu file.)
 2. Trang scan qua Paddle hiện chỉ có bbox **cấp dòng**, chưa có bbox cấp từ (word).
 3. Trạng thái `PARTIAL` ("OCR một phần") hiện dùng 2 heuristic tạm của AI1, chưa có tín hiệu thật từ engine — cần AI2 xác nhận có chấp nhận được không.
 4. Quy ước `page_image_ref.uri` (`storage://ocr/...`) và ID dòng/từ — cần đối chiếu với layout storage đã phác thảo ở `architecture.md` trước khi 2 bên code cứng vào từng chỗ.

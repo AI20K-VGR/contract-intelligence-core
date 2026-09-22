@@ -3,6 +3,13 @@
 **Từ:** AI1 (AI Engineer, OCR) | **Gửi:** AI2 | **Phiên bản:** v0.1
 **Tài liệu gốc:** `AI1-OCR-SNAPSHOT-HANDOFF.md`
 
+> **Cập nhật (sau v0.1):** mục 4 dưới đây (`blocks[]`/`tables[]` luôn rỗng) chỉ còn đúng cho
+> `blocks[]`. `tables[]` **đã được dựng** — xem [AI1 team handoff](AI1_TEAM_HANDOFF.md) để biết
+> trạng thái hiện tại (bảng native PyMuPDF, bảng scan có đường kẻ, bảng scan bất kỳ dạng nào
+> qua engine `mistral`, cộng `table_continuity[]` 3 tầng nối bảng qua trang). Phần còn lại của
+> tài liệu này giữ nguyên làm biên bản trao đổi gốc với AI2; không sửa lại như thể đã đúng từ
+> đầu.
+
 ---
 
 ## 0. Tóm tắt
@@ -43,10 +50,10 @@ Mỗi lần chạy lại (`snapshot` CLI hoặc gọi `BuildSnapshot` trực ti�
 
 **Quy ước ID** (không có trong tài liệu gốc, cần AI2 xác nhận ở §9): `{document_id}:s{major}:p{page:03d}:l{seq:03d}` / `...:w{seq:04d}`, trong đó `{major}` lấy từ số hiệu chính của `schema_version` (`ai1.snapshot.v1` → `s1`) — mục đích để một ID tự nói lên nó thuộc phiên bản schema nào kể cả khi tách rời khỏi document bao quanh. Word/line ID chỉ để trỏ ngược trong cùng document, **không** phải khoá ổn định giữa các lần OCR khác nhau — mỗi `snapshot_id` có bộ ID riêng.
 
-## 4. Block/clause region và bảng (mục 4 tài liệu gốc) — chưa xong, không giả lập
+## 4. Block/clause region và bảng (mục 4 tài liệu gốc)
 
-- `blocks[]`: **luôn rỗng** ở bản này. Không dựng heading/paragraph vì hiện chưa có logic gộp dòng đáng tin cậy (rủi ro nhóm sai Điều/Khoản nếu làm ẩu). Tài liệu gốc đã cho phép AI2 tự gộp line bbox thành clause-region ở giai đoạn đầu — đề nghị dùng đường đó cho tới khi AI1 có bản blocks thật.
-- `tables[]`: **luôn rỗng** ở bản này. Chưa có module nhận diện cấu trúc bảng trong pipeline (PyMuPDF chỉ trả word/line, Paddle chỉ trả line) — đây là hạng mục mới cần làm từ đầu, giống ghi nhận ở `docs/BACKEND_CONTRACT_RESPONSE_v0.1.md` mục 6.7 ("Format bảng phụ lục... chưa chốt"). Schema `Table → Row → Cell` đã sẵn sàng để AI2 code song song phần đọc, nhưng AI1 chưa có gì đổ vào đó.
+- `blocks[]`: **luôn rỗng** ở bản này. Không dựng heading/paragraph vì hiện chưa có logic gộp dòng đáng tin cậy (rủi ro nhóm sai Điều/Khoản nếu làm ẩu). Tài liệu gốc đã cho phép AI2 tự gộp line bbox thành clause-region ở giai đoạn đầu — đề nghị dùng đường đó cho tới khi AI1 có bản blocks thật. (`nodes[]` — cây Điều/Khoản/Điểm trong trang — đã dựng được sau v0.1 qua `BuildStructure`, nhưng đó là mục 8 tài liệu gốc, không phải `blocks[]`.)
+- `tables[]`: **đã dựng được, sau v0.1** (bản v0.1 gốc từng để rỗng — xem ghi chú cập nhật đầu file). Ba đường phát hiện: `find_tables()` native cho TEXT_LAYER, detector pixel đường kẻ cho SCANNED/MIXED qua engine `paddle`/`deepseek`, và đọc trực tiếp bảng markdown Mistral trả về (không cần đường kẻ) qua engine `mistral`. Cộng `table_continuity[]` ở mức document nối bảng bị cắt ngang trang (hard guard → rule score → agent DeepSeek tùy chọn cho vùng mơ hồ). Xem [AI1 team handoff](AI1_TEAM_HANDOFF.md) để biết chi tiết/giới hạn hiện tại (bảng scan không viền qua `paddle`/`deepseek` vẫn có thể bị bỏ sót).
 
 ## 5. Các trường hợp cần thể hiện (mục 5 tài liệu gốc)
 
@@ -58,10 +65,10 @@ Mỗi lần chạy lại (`snapshot` CLI hoặc gọi `BuildSnapshot` trực ti�
 | OCR một phần | `PARTIAL`, giữ phần đọc được + warning | ✅ nhưng theo 2 tín hiệu tạm thời tự định nghĩa, **cần AI2 xác nhận** (§9): (a) `missing_line_geometry` — một số dòng có text nhưng engine không trả bbox (ví dụ DeepSeek hiện tại, xem mục 6 dưới); (b) `low_confidence_lines` — có dòng confidence < 0.5. Chưa có tín hiệu "OCR một phần" thật từ bản thân engine. |
 | OCR lỗi | `FAILED`, error code/message, job không biến mất | ✅ kể cả khi trang gốc không đọc lại được (lỗi PDF) — không làm rơi cả document, chỉ trang đó `FAILED` (test `test_broken_page_load_does_not_drop_the_whole_document`) |
 | Trang xoay | `rotation_degrees`, bbox theo frame đã xoay | ✅ kế thừa từ pipeline hiện có |
-| Trang có bảng | Table/row/cell + bbox | ❌ chưa có, xem mục 4 |
+| Trang có bảng | Table/row/cell + bbox | ✅ sau v0.1, xem mục 4 |
 | Re-OCR | Snapshot mới, cũ vẫn truy vấn được | ✅ |
 
-**Lưu ý về engine hiện tại:** DeepSeek/Vision (GPT-5.6 Terra Light theo `docs/BACKEND_CONTRACT_RESPONSE_v0.1.md`) hiện **không có grounding geometry** — khi dùng engine này, mọi dòng rơi vào nhánh "missing_line_geometry" ở trên (`status: PARTIAL`, `lines: []`, chỉ còn `text`). Route này **chưa dùng được cho citation cần bbox**; chỉ Paddle (line-level) và PyMuPDF (word-level đầy đủ) mới cho geometry dùng được ngay.
+**Lưu ý về engine hiện tại:** DeepSeek/Vision hiện **không có grounding geometry** — khi dùng engine này, mọi dòng rơi vào nhánh "missing_line_geometry" ở trên (`status: PARTIAL`, `lines: []`, chỉ còn `text`). Route này **chưa dùng được cho citation cần bbox**. Geometry dùng được ngay cho citation: PyMuPDF (word-level, `MEASURED`) và Mistral (`--engine mistral`, sau v0.1 — block-level THẬT cho line/bảng, `MEASURED`; riêng bbox từng ô trong bảng là chia đều trong bbox block, `CLAIMED`, không dùng để trích dẫn chính xác vị trí ô). Paddle (nhắc tới ở mục 5 dưới như tại thời điểm v0.1) đã bị gỡ khỏi codebase sau đó, không còn là lựa chọn.
 
 ## 6. Tiêu chí AI2 nghiệm thu (mục 6 tài liệu gốc)
 
@@ -83,8 +90,8 @@ Không đổi — AI1 xác nhận lại: trích fact nghiệp vụ, ghép contra
 
 ## 8. Việc AI2 có thể bắt đầu ngay
 
-- Đọc/parse `ai1.snapshot.v1` bằng dossier mẫu (`scripts/export_snapshot_demo.py`) — không cần chờ tài liệu thật.
-- Code đường đọc `tables[]`/`blocks[]` với schema rỗng (không lỗi khi rỗng, chỉ không có dữ liệu) để không phải đổi contract khi AI1 đổ dữ liệu vào sau.
+- Đọc/parse `ai1.snapshot.v1` bằng dossier mẫu (`scripts/export_snapshot_demo.py`) — không cần chờ tài liệu thật; dossier mẫu giờ có cả `tables[]` thật (bảng native trong `contract-001`).
+- Code đường đọc `tables[]` với dữ liệu thật (sau v0.1) và `blocks[]` với schema rỗng (vẫn không lỗi khi rỗng, chỉ không có dữ liệu) để không phải đổi contract khi AI1 đổ dữ liệu vào đó.
 - Validate JSON bằng `docs/ai1.snapshot.v1.schema.json` nếu AI2 không dùng Python/Pydantic; nếu dùng Python, import thẳng `contract_ocr.schemas.snapshot.DocumentSnapshot`.
 
 ## 9. Việc cần 2 bên chốt trước khi code song song
@@ -92,5 +99,6 @@ Không đổi — AI1 xác nhận lại: trích fact nghiệp vụ, ghép contra
 - [ ] Định nghĩa "OCR một phần" (`PARTIAL`) ở mục 5 hiện là heuristic tạm của AI1 (`missing_line_geometry`, `low_confidence_lines`, ngưỡng confidence 0.5) — AI2 có cần thêm/đổi tín hiệu khác không?
 - [ ] Quy ước ID `{document_id}:s{major}:p{page}:l{seq}` — AI2 xác nhận chỉ cần ID ổn định/duy nhất trong 1 snapshot (không parse cấu trúc bên trong), hay cần format khác để khớp DB/index phía Backend?
 - [ ] `page_image_ref.uri` hiện dùng `storage://ocr/{snapshot_id}/page-{n}.png` theo đúng ví dụ trong tài liệu gốc — cần đối chiếu với layout object storage đã phác thảo ở `architecture.md` (`runs/{run_id}/pages/{page_number}/...`) để không có 2 quy ước song song.
-- [ ] Timeline `blocks[]`/`tables[]` — ai làm, làm khi nào (xem mục 4).
+- [x] `tables[]` — AI1 đã làm, xem mục 4.
+- [ ] Timeline `blocks[]` — ai làm, làm khi nào (xem mục 4).
 - [ ] Word-level bbox cho SCANNED_OCR (hiện Paddle chỉ có line-level) — có bắt buộc phải có trước khi AI2 tích hợp, hay AI2 chấp nhận line-level trước?
