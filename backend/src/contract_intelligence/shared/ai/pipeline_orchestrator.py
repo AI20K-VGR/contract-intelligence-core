@@ -33,6 +33,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from contract_intelligence.config.settings import Settings, get_settings
+from contract_intelligence.shared.ai.ai1_adapter import adapt_ai1_snapshot_result
 from contract_intelligence.shared.ai.client import (
     AiServiceClient,
     get_ai_service_client,
@@ -328,7 +329,7 @@ class PipelineOrchestrator:
             raise RuntimeError(f"OCR job failed: {code}")
 
         result = report.result or {}
-        snapshot = Ai1SnapshotPayload.model_validate(result)
+        snapshot = adapt_ai1_snapshot_result(result)
 
         # Persist usage ledger
         if report.usage:
