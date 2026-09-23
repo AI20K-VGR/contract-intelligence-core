@@ -204,13 +204,26 @@ class TableContinuityLink(SnapshotEntity):
     reason_codes: list[str] = Field(default_factory=list)
 
 
+class StructuralRegion(SnapshotEntity):
+    """A lightweight geometry anchor for a clause, not a text container.
+
+    Only boundary anchors (normally the first and last positioned OCR line on
+    each page) are emitted.  This keeps geometry mapping independent from
+    clause extraction and avoids re-reading/cropping the whole clause bbox.
+    """
+
+    page_number: int = Field(ge=1)
+    bbox_normalized: NormalizedBBox
+    geometry_provenance: GeometryProvenance
+    anchor: Literal["START", "END"]
+
+
 class StructuralNode(SnapshotEntity):
     """One node of the document's clause hierarchy (section 8): Document ->
-    Section/Article -> Clause -> Point. Built by `application.use_cases.
-    build_structure.BuildStructure` from real OCR lines — every node resolves
-    to the `line_ids` it was built from, which resolve to real `SnapshotLine`s
-    on a real page. See that module's docstring for the current limitation
-    (no cross-page merging of a clause body split by a page break yet).
+    Section/Article -> Clause -> Point. ``text`` is built from the complete OCR
+    stream, including lines without geometry. ``line_ids`` and ``regions`` are
+    optional positional evidence and may cover only a subset of that text. See
+    ``BuildStructure`` for the text/geometry separation contract.
     """
 
     node_id: str = Field(min_length=1)
@@ -223,7 +236,11 @@ class StructuralNode(SnapshotEntity):
     parent_id: str | None = None
     page_start: int = Field(ge=1)
     page_end: int = Field(ge=1)
+    # Clause content comes from the OCR text stream.  Geometry is deliberately
+    # optional metadata and must never be used to reconstruct this field.
+    text: str = ""
     line_ids: list[str] = Field(default_factory=list)
+    regions: list[StructuralRegion] = Field(default_factory=list)
     bbox_normalized: NormalizedBBox | None = None
     geometry_provenance: GeometryProvenance | None = None
 

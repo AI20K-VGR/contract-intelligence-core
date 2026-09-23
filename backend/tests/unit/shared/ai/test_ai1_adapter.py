@@ -15,7 +15,29 @@ def test_adapts_ai1_snapshot_v1_at_service_boundary() -> None:
             "engine": {"name": "pymupdf", "version": "1"},
             "page_count": 1,
             "processing_ms": 12.0,
-            "nodes": [],
+            "nodes": [
+                {
+                    "node_id": "1",
+                    "type": "ARTICLE",
+                    "label_raw": "Article 1",
+                    "label_normalized": "ARTICLE_1",
+                    "parent_id": None,
+                    "page_start": 1,
+                    "page_end": 1,
+                    "text": "Payment terms plus OCR text without geometry",
+                    "line_ids": ["line-1"],
+                    "regions": [
+                        {
+                            "page_number": 1,
+                            "bbox_normalized": [0.1, 0.1, 0.4, 0.2],
+                            "geometry_provenance": "MEASURED",
+                            "anchor": "START",
+                        }
+                    ],
+                    "bbox_normalized": [0.1, 0.1, 0.4, 0.2],
+                    "geometry_provenance": "DERIVED",
+                }
+            ],
             "table_continuity": [],
             "pages": [
                 {
@@ -71,3 +93,5 @@ def test_adapts_ai1_snapshot_v1_at_service_boundary() -> None:
     assert payload.pages[0].kind.value == "native"
     assert payload.lines[0].words[0].text == "Payment"
     assert payload.full_text_nfc == "Payment terms"
+    assert payload.clauses[0].text == "Payment terms plus OCR text without geometry"
+    assert payload.clauses[0].regions[0].page_no == 1

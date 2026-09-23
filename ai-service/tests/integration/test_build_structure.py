@@ -10,9 +10,11 @@ from pydantic import ValidationError
 from contract_ocr.application.use_cases.build_snapshot import BuildSnapshot
 from contract_ocr.application.use_cases.build_structure import BuildStructure
 from contract_ocr.application.use_cases.classify_pdf import PdfPageClassifier
+from contract_ocr.application.use_cases.extract_ai2_facts import extract_clauses
 from contract_ocr.application.use_cases.process_document import ProcessDocument
-from contract_ocr.domain.entities import Document, Experiment, Line, Page
-from contract_ocr.domain.enums import Status
+from contract_ocr.domain.bbox import BBox
+from contract_ocr.domain.entities import Document, Experiment, Line, Page, Word
+from contract_ocr.domain.enums import GeometryProvenance, Status
 from contract_ocr.domain.snapshot import StructuralNode
 from contract_ocr.infrastructure.image.preprocessing import ImagePreprocessor
 from contract_ocr.infrastructure.image.renderer import PdfRenderer
@@ -115,6 +117,72 @@ def test_skipped_and_failed_pages_contribute_no_nodes():
     assert BuildStructure().execute(document) == []
 
 
+def test_clause_text_keeps_unpositioned_ocr_and_geometry_uses_boundary_anchors_only():
+    measured = GeometryProvenance.MEASURED
+    page_1 = Page(
+        page_number=1,
+        width=1,
+        height=1,
+        engine="ocr",
+        model="test",
+        status=Status.SUCCESS,
+        lines=[
+            Line(
+                line_id="l1",
+                text="Article 1. Scope",
+                bbox=BBox(x1=0.1, y1=0.1, x2=0.8, y2=0.2),
+                geometry_provenance=measured,
+                words=[
+                    Word(
+                        word_id="w1",
+                        text="Article",
+                        bbox=BBox(x1=0.1, y1=0.1, x2=0.2, y2=0.2),
+                        geometry_provenance=measured,
+                    )
+                ],
+            ),
+            Line(line_id="l2", text="This OCR line has no geometry."),
+            Line(
+                line_id="l3",
+                text="Still on page one.",
+                bbox=BBox(x1=0.1, y1=0.7, x2=0.8, y2=0.8),
+                geometry_provenance=measured,
+            ),
+        ],
+    )
+    page_2 = Page(
+        page_number=2,
+        width=1,
+        height=1,
+        engine="ocr",
+        model="test",
+        status=Status.SUCCESS,
+        lines=[
+            Line(
+                line_id="l4",
+                text="Continues on page two.",
+                bbox=BBox(x1=0.1, y1=0.1, x2=0.8, y2=0.2),
+                geometry_provenance=measured,
+            )
+        ],
+    )
+    document = Document(document_id="doc-1", source_file="unused.pdf", pages=[page_1, page_2])
+
+    node = BuildStructure().execute(document, {"l1": "out-1", "l3": "out-3", "l4": "out-4"})[0]
+
+    assert node.text == (
+        "Article 1. Scope\nThis OCR line has no geometry.\n"
+        "Still on page one.\nContinues on page two."
+    )
+    assert node.line_ids == ["out-1", "out-3", "out-4"]
+    assert [(r.page_number, r.anchor) for r in node.regions] == [
+        (1, "START"),
+        (1, "END"),
+        (2, "START"),
+    ]
+    assert node.regions[0].bbox_normalized == [0.1, 0.1, 0.2, 0.2]
+
+
 def test_structural_node_rejects_bbox_without_provenance_and_vice_versa():
     kwargs = dict(
         node_id="1", type="ARTICLE", label_normalized="ARTICLE_1", page_start=1, page_end=1
@@ -187,3 +255,9 @@ def test_real_pdf_produces_nodes_whose_line_ids_resolve_to_real_snapshot_lines(t
             assert node.bbox_normalized is not None
     types = {node.type for node in snap.nodes}
     assert types == {"ARTICLE", "CLAUSE", "POINT"}
+
+    # The API-facing extractor must consume the already-built text-first nodes,
+    # not re-extract clause content from bbox-backed lines.
+    api_clauses = extract_clauses(snap)
+    assert api_clauses[0]["text"] == snap.nodes[0].text
+    assert api_clauses[0]["regions"] == [r.model_dump() for r in snap.nodes[0].regions]

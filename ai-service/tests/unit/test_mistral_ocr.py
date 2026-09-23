@@ -150,6 +150,45 @@ def test_raw_markdown_is_written_to_raw_md(monkeypatch, tmp_path):
     assert result.raw_output_path == str(raw_path.resolve())
 
 
+def test_full_page_text_is_authoritative_even_when_block_geometry_is_missing(monkeypatch, tmp_path):
+    response = _response(
+        "Article 1. Scope\nA line missing from blocks",
+        [_block("text", "Article 1. Scope", bbox_px=(10, 10, 90, 20))],
+    )
+    engine, _ = _engine_with(monkeypatch, response)
+
+    result = engine.recognize_page(np.zeros((100, 100, 3), dtype=np.uint8), _context(tmp_path))
+
+    assert [line.text for line in result.lines] == [
+        "Article 1. Scope",
+        "A line missing from blocks",
+    ]
+    assert result.lines[0].bbox is not None
+    assert result.lines[1].bbox is None
+
+
+def test_table_text_remains_in_reading_order_for_clause_extraction(monkeypatch, tmp_path):
+    table_md = "| Item | Value |\n| --- | --- |\n| A | 10 |"
+    response = _response(
+        "Article 1. Price\n" + table_md,
+        [
+            _block("text", "Article 1. Price", bbox_px=(10, 10, 90, 20)),
+            _block("table", table_md, bbox_px=(10, 30, 90, 70)),
+        ],
+    )
+    engine, _ = _engine_with(monkeypatch, response)
+
+    result = engine.recognize_page(np.zeros((100, 100, 3), dtype=np.uint8), _context(tmp_path))
+
+    assert [line.text for line in result.lines] == [
+        "Article 1. Price",
+        "| Item | Value |",
+        "| --- | --- |",
+        "| A | 10 |",
+    ]
+    assert len(result.tables) == 1
+
+
 def test_no_blocks_returns_empty_result_without_crashing(monkeypatch, tmp_path):
     engine, _ = _engine_with(monkeypatch, _response("", []))
 
