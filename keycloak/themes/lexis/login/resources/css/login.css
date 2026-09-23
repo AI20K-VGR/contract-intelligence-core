@@ -1,0 +1,391 @@
+:root {
+  --color-background: #f8f9ff;
+  --color-surface-lowest: #ffffff;
+  --color-surface-low: #eff4ff;
+  --color-primary: #000615;
+  --color-primary-container: #0b1f3a;
+  --color-on-primary: #ffffff;
+  --color-on-surface: #0b1c30;
+  --color-secondary: #545f73;
+  --color-outline: #75777e;
+  --color-outline-variant: #c4c6ce;
+  --color-on-surface-variant: #44474d;
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+  --color-success: #0b1f3a;
+  --font: 'IBM Plex Sans', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+.lexis-body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: var(--color-background);
+  color: var(--color-on-surface);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 20px;
+  position: relative;
+}
+
+.lexis-grid {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.6;
+  background-size: 24px 24px;
+  background-image: radial-gradient(circle, #c4c6ce 0.75px, transparent 0.75px);
+}
+
+.lexis-header,
+.lexis-main,
+.lexis-footer {
+  position: relative;
+  z-index: 1;
+}
+
+.lexis-header {
+  padding: 2rem;
+}
+
+.lexis-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.lexis-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--color-surface-lowest);
+  border-radius: 8px;
+  box-shadow: 0 1px 8px rgba(11, 28, 48, 0.06);
+  padding: 2rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.lexis-card-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--color-primary-container);
+}
+
+.lexis-brand {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 1.25rem;
+}
+
+.lexis-brand-icon {
+  color: var(--color-primary-container);
+  font-size: 18px;
+}
+
+.lexis-brand-text {
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--color-primary-container);
+}
+
+.lexis-heading {
+  margin-bottom: 1rem;
+}
+
+.lexis-heading h1 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 24px;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+  color: var(--color-primary-container);
+}
+
+.lexis-subtitle,
+.lexis-info,
+.lexis-body-text {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--color-secondary);
+}
+
+.lexis-subtitle:empty {
+  display: none;
+}
+
+.lexis-steps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.lexis-step {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lexis-step-index {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+}
+
+.lexis-step-label {
+  font-size: 11px;
+  line-height: 14px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.lexis-step-line {
+  flex: 1;
+  min-width: 24px;
+  height: 1px;
+  background: var(--color-outline-variant);
+}
+
+.lexis-step-done {
+  color: var(--color-primary-container);
+}
+
+.lexis-step-done .lexis-step-index {
+  background: var(--color-surface-low);
+  color: var(--color-primary-container);
+}
+
+.lexis-step-done .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.lexis-step-done .lexis-step-label {
+  font-weight: 600;
+}
+
+.lexis-step-current {
+  color: var(--color-primary-container);
+}
+
+.lexis-step-current .lexis-step-index {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary);
+}
+
+.lexis-step-current .lexis-step-label {
+  font-weight: 600;
+}
+
+.lexis-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lexis-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lexis-label {
+  font-size: 11px;
+  line-height: 14px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--color-on-surface-variant);
+}
+
+.lexis-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.lexis-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 40px 0 12px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--color-surface-low);
+  color: var(--color-on-surface);
+  font-family: var(--font);
+  font-size: 14px;
+  outline: none;
+}
+
+.lexis-input::placeholder {
+  color: var(--color-outline);
+}
+
+.lexis-input:focus {
+  background: var(--color-surface-lowest);
+  box-shadow: 0 0 0 2px rgba(78, 127, 255, 0.3);
+}
+
+.lexis-input[aria-invalid='true'] {
+  box-shadow: 0 0 0 2px rgba(186, 26, 26, 0.35);
+}
+
+.lexis-input-icon {
+  position: absolute;
+  right: 12px;
+  font-size: 18px;
+  color: var(--color-outline);
+  pointer-events: none;
+}
+
+.lexis-field-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-error);
+}
+
+.lexis-alert {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.lexis-alert-error,
+.lexis-alert-warning {
+  color: var(--color-error);
+  background: rgba(255, 218, 214, 0.4);
+}
+
+.lexis-alert-success,
+.lexis-alert-info {
+  color: var(--color-primary-container);
+  background: var(--color-surface-low);
+}
+
+.lexis-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.lexis-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-secondary);
+  cursor: pointer;
+}
+
+.lexis-check input {
+  accent-color: var(--color-primary-container);
+}
+
+.lexis-link {
+  color: var(--color-primary-container);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.lexis-link:hover {
+  text-decoration: underline;
+}
+
+.lexis-submit {
+  width: 100%;
+  height: 40px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--color-primary-container);
+  color: var(--color-on-primary);
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(11, 28, 48, 0.12);
+}
+
+.lexis-submit:hover {
+  background: var(--color-primary);
+}
+
+.lexis-submit .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.lexis-back {
+  text-align: center;
+  margin: 4px 0 0;
+}
+
+.lexis-footer {
+  padding: 1rem 2rem;
+}
+
+.lexis-footer-inner {
+  max-width: 80rem;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--color-outline);
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.lexis-footer-links {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lexis-dot {
+  color: var(--color-outline-variant);
+}
+
+#kc-content,
+#kc-content-wrapper,
+#kc-form,
+#kc-form-wrapper {
+  width: 100%;
+}

@@ -16,7 +16,7 @@ Images and diagrams go in `assets/` (the only folder in the repo where image fil
 | `DOC-05b-frontend-backend-api-contract.md` | Frontend-Backend API Contract (v1.0.0) | Sprint 2 (04/10) | mentor / lead |
 | `DOC-05c-backend-ai-service-contract.md` | Backend–AI Service Contract (v1.0.0) | Sprint 2 (04/10) | mentor / lead |
 | `DOC-06-eval-report.md` | Evaluation Report | Sprint 3 (18/10) | mentor |
+| `DOC-07-khung-project.md` | Project Framework | Sprint 2 (22/09) | team |
 
 Changes to a document go through a PR like code (2 approvals). The sprint tracker on OneDrive
 holds the status of each document.
-
