@@ -1,0 +1,405 @@
+# =============================================================================
+# Docker Compose — Local / Staging CI Stack
+# =============================================================================
+#
+# Enterprise-grade orchestration cho Contract Intelligence stack.
+#
+# Services:
+#   keycloak-db    — PostgreSQL dedicated cho Keycloak (port 5433 trên host)
+#   keycloak       — Keycloak 26 (Quarkus) ở dev mode, với Phase Two
+#                    keycloak-events extension baked-in (xem keycloak/Dockerfile)
+#   backend-db     — PostgreSQL cho backend (port 5432 trên host)
+#   kafka          — Apache Kafka (KRaft, no Zookeeper) — port 9093 trên host
+#   backend        — FastAPI backend (depends_on backend-db + keycloak + kafka + minio)
+#   minio          — MinIO S3-compatible object storage (API 9000, Console 9001)
+#   minio-init     — one-shot: tạo bucket `dossiers` (private)
+#
+# Topology:
+#
+#   ┌──────────────┐    internal    ┌──────────────┐
+#   │  keycloak    │◄──────────────►│ keycloak-db  │   (no public port)
+#   └──────┬───────┘                └──────────────┘
+#          │ 8080 (host)
+#          ▼
+#   ┌──────────────┐    internal    ┌──────────────┐
+#   │   backend    │◄──────────────►│  backend-db  │
+#   └──────┬───────┘                └──────────────┘
+#          │ 8000 (host)            ┌──────────────┐
+#          ├───────────────────────►│    kafka     │  9093 (host EXTERNAL)
+#          ▼                        └──────────────┘  29092 (internal PLAINTEXT)
+#       end user
+#
+# Services on custom bridge network `ci-network` → resolve nhau bằng tên
+# container (keycloak-db, backend-db, keycloak, kafka, backend).
+#
+# MỌI host port đều override được qua env: ví dụ `KC_HTTP_PORT=9080 docker
+# compose up`.
+#
+# Notes:
+#   - Data persistence: named volumes (keycloak_pgdata, backend_pgdata,
+#     kafka_data_v2). KHÔNG mất user / contract / Kafka data khi restart.
+#   - Startup order: pg_isready healthcheck đảm bảo DB ready trước khi
+#     keycloak / backend start.
+#   - Keycloak auto-import realm từ keycloak/realm-export.json (mount ro).
+#   - Backend reach Keycloak qua `host.docker.internal:8080` (Mac/Win native,
+#     Linux dùng extra_hosts:host-gateway).
+#   - Nếu đổi tên volume từ version cũ (`keycloak-db-data` /
+#     `backend-db-data`): chạy `docker compose down -v` trước.
+#
+# Frontend (Vite — không nằm trong Compose, chạy terminal riêng):
+#
+#   1. Bật stack này trước (Keycloak :8080, API :8000):
+#        docker compose up -d --build
+#
+#   2. Trong frontend/:
+#        cd frontend
+#        copy .env.example .env.local
+#        npm install
+#        npm run dev
+#
+#   3. Mở http://localhost:5173
+#
+#   .env.local (không commit):
+#        VITE_API_BASE_URL=http://127.0.0.1:8000
+#        VITE_KEYCLOAK_URL=http://localhost:8080
+#        VITE_KEYCLOAK_REALM=contract-intelligence
+#        VITE_KEYCLOAK_CLIENT_ID=contract-intel-frontend
+#
+#   Giữ đúng cổng 5173. Keycloak chỉ nhận redirect
+#   http://localhost:5173/auth/callback và CORS chỉ mở origin đó.
+#   Nếu Vite báo port 5173 bận, tắt process cũ rồi chạy lại — đừng dùng 5174.
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Compose project metadata
+# -----------------------------------------------------------------------------
+name: contract-intelligence-stack
+
+services:
+  # =============================================================================
+  # SERVICE 1 — Keycloak PostgreSQL (isolated)
+  # =============================================================================
+  keycloak-db:
+    image: postgres:16-alpine            # postgres:15-alpine trở lên đều OK
+    container_name: ci-keycloak-db
+    restart: unless-stopped
+    profiles: ["core"]                    # thuộc "core" group để lệnh CI có thể skip
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak_secret_dev}
+      # Tăng connection limit + statement_timeout cho Keycloak workload.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      # Named volume (không phải bind-mount) → persistent giữa các lần restart
+      - keycloak_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready -U $POSTGRES_USER -d $POSTGRES_DB trả về exit 0 khi DB
+      # sẵn sàng nhận connection. -q flag cho clean output (không log success).
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak -q"]
+      interval: 5s                        # check mỗi 5s
+      timeout: 3s                         # mỗi lần tối đa 3s
+      retries: 20                         # tổng cộng ~100s chờ DB ready
+      start_period: 10s                   # grace period cho initdb
+    # Chỉ expose host port để debug/migrations (KHÔNG cần trong prod — internal only).
+    # Override qua env: KC_DB_HOST_PORT=5433 docker compose up
+    ports:
+      - "${KEYCLOAK_DB_HOST_PORT:-5433}:5432"
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 2 — Keycloak SSO Server
+  # =============================================================================
+  keycloak:
+    build:
+      context: ./keycloak
+      dockerfile: Dockerfile
+    image: ci-keycloak:26
+    container_name: ci-keycloak
+    restart: unless-stopped
+    profiles: ["core"]
+    depends_on:
+      keycloak-db:
+        condition: service_healthy        # ⬅ đợi pg_isready pass mới start
+    command:
+      - start-dev
+      - --import-realm                    # load realm-export.json vào startup
+      - --health-enabled=true             # bật /health endpoint cho healthcheck
+    environment:
+      # ---- JDBC ----
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak    # ⬅ dùng service name (internal DNS)
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak_secret_dev}
+
+      # ---- HTTP ----
+      KC_HTTP_PORT: 8080
+      KC_HTTPS_ENABLED: "false"
+      KC_HOSTNAME_STRICT: "false"
+      KC_PROXY: edge                      # honor X-Forwarded-* headers
+
+      # ---- Logging ----
+      KC_LOG_LEVEL: INFO,org.keycloak.events:DEBUG,io.phasetwo:INFO
+
+      # ---- Admin bootstrap (chỉ dev — staging/prod xoá 2 var này) ----
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+
+      # ---- Jackson strict-mode OFF for realm import ----
+      # The realm JSON was exported from a newer Keycloak build and contains
+      # forward-compat fields (e.g. postLogoutRedirectUris, RAR token
+      # statements) that 26.6.3's strict Jackson unmarshaller rejects on
+      # `--import-realm`. Setting this globally disables
+      # `fail-on-unknown-properties` so the import drops unknown fields
+      # silently instead of erroring out — same as what Keycloak has done
+      # on import since 17.x for realm objects. Safe here because we're
+      # only discarding *fields the running version doesn't understand*,
+      # not modifying semantics.
+      QUARKUS_JACKSON_FAIL_ON_UNKNOWN_PROPERTIES: "false"
+
+      # ---- Phase Two ext-event-http / ext-event-webhook ----
+      # Catch-all webhook: mọi event được POST tới backend. Backend verify
+      # HMAC với cùng secret. Xem docs/KEYCLOAK-SETUP.md §Webhook Delivery.
+      WEBHOOK_URI: http://host.docker.internal:8000/api/v1/auth/webhooks/keycloak
+      WEBHOOK_AUTH_TYPE: hmac
+      WEBHOOK_SECRET: ${KEYCLOAK_WEBHOOK_SECRET:-ci_webhook_shared_secret_dev}
+
+      # ---- Optional Phase Two knobs ----
+      # Persist webhook failures cho /sends REST endpoint (disabled mặc định).
+      KC_SPI_EVENTS_LISTENER_EXT_EVENT_WEBHOOK_STORE_WEBHOOK_EVENTS: "false"
+      # Emit structured log line per send attempt (disabled mặc định).
+      KC_SPI_EVENTS_LISTENER_EXT_EVENT_WEBHOOK_LOG_WEBHOOK_EVENTS: "false"
+
+      # Theme hot-reload in start-dev
+      KC_SPI_THEME_CACHE_THEMES: "false"
+      KC_SPI_THEME_CACHE_TEMPLATES: "false"
+
+    ports:
+      - "${KEYCLOAK_HTTP_HOST_PORT:-8080}:8080"
+      # 8443 (HTTPS) chỉ nếu KC_HTTPS_ENABLED=true; map để debug TLS.
+      - "${KEYCLOAK_HTTPS_HOST_PORT:-8443}:8443"
+    volumes:
+      # Mount realm export read-only. Keycloak auto-import khi `--import-realm`
+      # được set; subsequent edits cần restart container.
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      - ./keycloak/themes/lexis:/opt/keycloak/themes/lexis:ro
+    # healthcheck: disabled — Keycloak 26 image has no curl/wget/bash to probe
+    # /health/ready, and the bash /dev/tcp probe is unreliable in Docker's
+    # health-check shell. Keycloak is running (verify with
+    # `docker logs ci-keycloak`); remove this block once the startup
+    # health probe is confirmed working.
+    # test:
+    #   - CMD-SHELL
+    #   - 'bash -c ''exec 3<>/dev/tcp/localhost/8080 && printf "GET /health/ready HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3 && grep -q "200 OK" <&3'' || exit 1'
+    # interval: 15s
+    # timeout: 5s
+    # retries: 10
+    # start_period: 90s
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 3 — Backend PostgreSQL (isolated)
+  # =============================================================================
+  backend-db:
+    image: postgres:16-alpine
+    container_name: ci-backend-db
+    restart: unless-stopped
+    profiles: ["core"]
+    environment:
+      POSTGRES_DB: contract_intelligence
+      POSTGRES_USER: ci
+      POSTGRES_PASSWORD: ${BACKEND_DB_PASSWORD:-ci_secret_dev}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      # Named volume cho app data (batches, dossiers, users, audit logs, …).
+      - backend_pgdata:/var/lib/postgresql/data
+      # Alembic migration SQL files — postgres container auto-run *.sql trong
+      # /docker-entrypoint-initdb.d/ lúc FIRST init. Sau lần đầu, container
+      # skip (data dir đã tồn tại) → migrate qua `alembic upgrade head` lúc
+      # backend startup. KHÔNG dùng bind-mount cho data dir.
+      - ./backend/alembic/versions:/docker-entrypoint-initdb.d/migrations:ro
+    healthcheck:
+      # pg_isready trên user+db của backend. -q để log clean trong `compose ps`.
+      test: ["CMD-SHELL", "pg_isready -U ci -d contract_intelligence -q"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    ports:
+      # 5432 cho backend — convention port PostgreSQL chuẩn, dev dùng pgAdmin / DBeaver.
+      - "${BACKEND_DB_HOST_PORT:-5432}:5432"
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 4 — Apache Kafka (KRaft — no Zookeeper)
+  # =============================================================================
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: ci-kafka
+    restart: unless-stopped
+    profiles: ["core"]
+    environment:
+      # ---- KRaft mode (combined controller + broker) ----
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      CLUSTER_ID: ci-kafka-cluster-id-01
+      # ---- Listeners ----
+      # PLAINTEXT  : inter-container (backend → kafka:29092)
+      # CONTROLLER : KRaft controller quorum
+      # EXTERNAL   : host access via localhost:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,EXTERNAL://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,EXTERNAL://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+    ports:
+      - "${KAFKA_HOST_PORT:-9093}:9093"
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 5 — Contract Intelligence Backend (FastAPI)
+  # =============================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ci-backend
+    restart: unless-stopped
+    profiles: ["core"]
+    depends_on:
+      backend-db:
+        condition: service_healthy        # ⬅ đợi pg_isready pass
+      keycloak:
+        condition: service_started        # ⬅ keycloak đã chạy (healthcheck tạm disabled)
+      kafka:
+        condition: service_started        # ⬅ Kafka broker đã start (KRaft)
+      minio:
+        condition: service_started
+    environment:
+      # ---- DB ----
+      DATABASE_URL: postgresql+asyncpg://ci:${BACKEND_DB_PASSWORD:-ci_secret_dev}@backend-db:5432/contract_intelligence
+      # ---- Keycloak SSO ----
+      AUTH_MODE: keycloak
+      # Issuer must match tokens minted from the Windows host (iss=localhost:8080).
+      KEYCLOAK_SERVER_URL: http://localhost:${KEYCLOAK_HTTP_HOST_PORT:-8080}
+      # JWKS must be reachable from inside the container (Keycloak service DNS).
+      KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/contract-intelligence/protocol/openid-connect/certs
+      KEYCLOAK_REALM: contract-intelligence
+      KEYCLOAK_CLIENT_ID: contract-intel-backend
+      KEYCLOAK_AUDIENCE: contract-intel-backend
+      # Realm-export uses OPERATOR/REVIEWER/ADMINISTRATOR; keep ci_* aliases too.
+      KEYCLOAK_ROLE_MAP: ${KEYCLOAK_ROLE_MAP:-{"OPERATOR":"OPERATOR","REVIEWER":"REVIEWER","ADMINISTRATOR":"ADMINISTRATOR","ci_operator":"OPERATOR","ci_reviewer":"REVIEWER","ci_administrator":"ADMINISTRATOR"}}
+
+      # ---- Admin REST API (Client Credentials Grant) ----
+      # Service account "contract-intel-backend" phải có realm-management
+      # client role view-users — xem realm-export.json.
+      KEYCLOAK_ADMIN_CLIENT_ID: contract-intel-backend
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${BACKEND_KEYCLOAK_ADMIN_SECRET:-backend_secret_dev}
+
+      # ---- Webhook signature verification ----
+      KEYCLOAK_WEBHOOK_SECRET: ${KEYCLOAK_WEBHOOK_SECRET:-ci_webhook_shared_secret_dev}
+      KEYCLOAK_WEBHOOK_VERIFY_SIGNATURE: "true"
+
+      # ---- Kafka (event-driven) ----
+      # Internal listener: containers resolve `kafka` via ci-network DNS.
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+
+      # ---- MinIO / S3-compatible object storage ----
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY: admin
+      S3_SECRET_KEY: password123
+      S3_BUCKET_NAME: dossiers
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: admin
+      MINIO_SECRET_KEY: password123
+
+      # ---- AI service ----
+      AI_SERVICE_MODE: stub               # set 'http' khi chạy ai-service thật
+
+      # ---- CORS ----
+      CORS_ALLOW_ORIGINS: "http://localhost:3000,http://localhost:5173"
+
+      # ---- Logging ----
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${BACKEND_HOST_PORT:-8000}:8000"
+    volumes:
+      # Source hot-reload (optional) — comment out khi ship production.
+      - ./backend/src:/app/src:ro
+    extra_hosts:
+      # host.docker.internal → host-gateway IP (trên cả Linux và Mac/Windows).
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      # /health trả {"status":"ok",...} khi app + DB ready.
+      # Slim image KHÔNG có curl → dùng Python urllib thay thế.
+      # `start_period` 30s cho FastAPI startup (load ORM models, build index, init AI stub).
+      test:
+        - CMD-SHELL
+        - 'python -c "import urllib.request, json, sys; r = urllib.request.urlopen(''http://localhost:8000/health'', timeout=3); sys.exit(0 if json.loads(r.read()).get(''status'') == ''ok'' else 1)"'
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 6 — MinIO S3-compatible object storage
+  # =============================================================================
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: ci-minio
+    restart: unless-stopped
+    profiles: ["core"]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password123
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"     # S3 API
+      - "9001:9001"     # Web UI (http://localhost:9001)
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 7 — MinIO bucket initialization (create `dossiers`, private)
+  # =============================================================================
+  minio-init:
+    image: quay.io/minio/mc:latest
+    container_name: ci-minio-init
+    profiles: ["core"]
+    depends_on:
+      - minio
+    entrypoint: /bin/sh -c "until (/usr/bin/mc alias set myminio http://minio:9000 admin password123) do echo 'waiting for minio...' && sleep 1; done; /usr/bin/mc mb --ignore-existing myminio/dossiers; exit 0;"
+    networks:
+      - ci-network
+
+
+# -----------------------------------------------------------------------------
+# Volumes — named, local driver
+# -----------------------------------------------------------------------------
+volumes:
+  keycloak_pgdata:
+    driver: local
+  backend_pgdata:
+    driver: local
+  kafka_data_v2:
+    driver: local
+  minio_data:
+    driver: local
+
+
+# -----------------------------------------------------------------------------
+# Networks — custom bridge để container resolve nhau bằng service name
+# -----------------------------------------------------------------------------
+networks:
+  ci-network:
+    name: ci-network
+    driver: bridge

@@ -1,15 +1,56 @@
-import { useState } from 'react'
+import { useRef, useState, type DragEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import {
+  createDossier,
+  createDossierErrorMessage,
+  patchDossier,
+} from '../api/dossiers'
+import { manifestConfirmPath } from '../api/manifest'
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
-import { dossierCategories, uploadParts, type UploadPart } from '../data/upload'
+import { dossierCategories } from '../data/upload'
 import { usePageTitle } from '../hooks/usePageTitle'
 
 type PrivacyTier = 'private' | 'shared'
 type UploadStatus = 'idle' | 'uploading'
+type PickedFile = {
+  key: string
+  role: 'contract' | 'annex'
+  file: File
+}
 
-function UploadPartCard({ part }: { part: UploadPart }) {
+type UploadResult = {
+  dossierId: string
+  jobId: string | null
+}
+
+function isPdf(file: File) {
+  return (
+    file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+  )
+}
+
+function formatSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function FileCard({
+  item,
+  disabled,
+  onPreview,
+  onReplace,
+  onRemove,
+}: {
+  item: PickedFile
+  disabled: boolean
+  onPreview: () => void
+  onReplace: () => void
+  onRemove: () => void
+}) {
+  const contract = item.role === 'contract'
   return (
     <div className="p-space-lg rounded-xl bg-surface-container-lowest border-t border-surface-container hover:bg-surface-container-low transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-space-md shadow-sm">
       <div className="flex items-start gap-space-md min-w-0">
@@ -19,43 +60,60 @@ function UploadPartCard({ part }: { part: UploadPart }) {
         <div className="flex flex-col min-w-0">
           <div className="flex items-center gap-space-sm flex-wrap">
             <span
-              className={`font-label-sm text-label-sm px-space-sm py-0.5 rounded font-semibold uppercase tracking-wider ${part.badgeClass}`}
+              className={`font-label-sm text-label-sm px-space-sm py-0.5 rounded font-semibold uppercase tracking-wider ${
+                contract
+                  ? 'bg-primary-container text-primary-fixed'
+                  : 'bg-secondary-container text-on-secondary-container'
+              }`}
             >
-              {part.badge}
+              {contract ? 'Hợp đồng chính' : 'Phụ lục'}
             </span>
             <span
               className="font-body-md text-body-md font-semibold text-primary truncate max-w-sm"
-              title={part.fileName}
+              title={item.file.name}
             >
-              {part.fileName}
+              {item.file.name}
             </span>
           </div>
           <div className="flex items-center gap-space-md font-code-sm text-code-sm text-on-surface-variant mt-1">
-            <span className="text-primary font-medium">{part.size}</span>
-            <span>•</span>
-            <span>{part.pages} trang</span>
+            <span className="text-primary font-medium">
+              {formatSize(item.file.size)}
+            </span>
             <span>•</span>
             <span className="text-emerald-700 font-semibold flex items-center gap-1">
               <MaterialIcon name="check_circle" className="text-[14px]" /> Đã
-              sẵn sàng
+              chọn
             </span>
           </div>
         </div>
       </div>
       <div className="flex items-center gap-space-sm shrink-0 self-end sm:self-center">
         <button
-          className="w-8 h-8 rounded bg-surface hover:bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors"
+          className="w-8 h-8 rounded bg-surface hover:bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors disabled:opacity-50"
+          disabled={disabled}
           title="Xem trước tài liệu"
           type="button"
+          onClick={onPreview}
         >
           <MaterialIcon name="visibility" className="text-[18px]" />
         </button>
         <button
-          className="w-8 h-8 rounded bg-surface hover:bg-error-container hover:text-error flex items-center justify-center text-on-surface-variant transition-colors"
+          className="w-8 h-8 rounded bg-surface hover:bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors disabled:opacity-50"
+          disabled={disabled}
           title="Thay thế tệp"
           type="button"
+          onClick={onReplace}
         >
           <MaterialIcon name="sync" className="text-[18px]" />
+        </button>
+        <button
+          className="w-8 h-8 rounded bg-surface hover:bg-error-container hover:text-error flex items-center justify-center text-on-surface-variant transition-colors disabled:opacity-50"
+          disabled={disabled}
+          title="Gỡ tệp"
+          type="button"
+          onClick={onRemove}
+        >
+          <MaterialIcon name="delete" className="text-[18px]" />
         </button>
       </div>
     </div>
@@ -68,25 +126,197 @@ export function CreateDossierPage() {
   const navigate = useNavigate()
   const backTo = user ? dossiersPath(user.role) : '/'
   const backLabel = user ? dossiersLabel(user.role) : 'Hồ sơ'
+  const canUpload =
+    user?.backendRole === 'OPERATOR' || user?.backendRole === 'ADMINISTRATOR'
 
-  const [name, setName] = useState(
-    'Hợp đồng Tổng thầu EPC - Dự án Điện gió Nam Định 2024',
-  )
-  const [code, setCode] = useState('LX-2024-EPC-092')
+  const contractInputRef = useRef<HTMLInputElement>(null)
+  const annexInputRef = useRef<HTMLInputElement>(null)
+  const replaceKeyRef = useRef<string | null>(null)
+
+  const [name, setName] = useState('')
+  const [code, setCode] = useState('')
   const [category, setCategory] = useState(dossierCategories[0])
   const [privacy, setPrivacy] = useState<PrivacyTier>('private')
+  const [contract, setContract] = useState<PickedFile | null>(null)
+  const [annexes, setAnnexes] = useState<PickedFile[]>([])
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle')
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<UploadResult | null>(null)
+  const [dragOver, setDragOver] = useState(false)
+
+  const files = contract ? [contract, ...annexes] : annexes
+  const busy = uploadStatus === 'uploading'
+  const totalBytes = files.reduce((sum, item) => sum + item.file.size, 0)
 
   function handleCancel() {
     navigate(backTo)
   }
 
-  function handleUpload() {
-    if (uploadStatus !== 'idle') return
+  function resetForm() {
+    setResult(null)
+    setError(null)
+    setUploadStatus('idle')
+    setContract(null)
+    setAnnexes([])
+    setName('')
+    setCode('')
+    setCategory(dossierCategories[0])
+    setPrivacy('private')
+  }
+
+  function takePdf(list: FileList | File[] | null): File | null {
+    const file = list?.[0]
+    if (!file) return null
+    if (!isPdf(file)) {
+      setError('Chỉ nhận tệp PDF.')
+      return null
+    }
+    setError(null)
+    return file
+  }
+
+  function addContract(file: File) {
+    setContract({
+      key: `contract-${file.name}-${file.size}-${file.lastModified}`,
+      role: 'contract',
+      file,
+    })
+  }
+
+  function addAnnexes(list: FileList | File[]) {
+    const next: PickedFile[] = []
+    for (const file of Array.from(list)) {
+      if (!isPdf(file)) {
+        setError('Chỉ nhận tệp PDF.')
+        return
+      }
+      next.push({
+        key: `annex-${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
+        role: 'annex',
+        file,
+      })
+    }
+    setError(null)
+    setAnnexes((current) => [...current, ...next])
+  }
+
+  function onContractChosen(list: FileList | null) {
+    const replacing = replaceKeyRef.current
+    replaceKeyRef.current = null
+    const file = takePdf(list)
+    if (!file) return
+    if (replacing && contract?.key === replacing) {
+      addContract(file)
+      return
+    }
+    addContract(file)
+  }
+
+  function onAnnexChosen(list: FileList | null) {
+    const replacing = replaceKeyRef.current
+    replaceKeyRef.current = null
+    if (replacing) {
+      const file = takePdf(list)
+      if (!file) return
+      setAnnexes((current) =>
+        current.map((item) =>
+          item.key === replacing
+            ? {
+                ...item,
+                file,
+                key: `annex-${file.name}-${file.size}-${file.lastModified}`,
+              }
+            : item,
+        ),
+      )
+      return
+    }
+    if (!list?.length) return
+    addAnnexes(list)
+  }
+
+  function previewFile(file: File) {
+    const url = URL.createObjectURL(file)
+    window.open(url, '_blank', 'noopener,noreferrer')
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  }
+
+  function replaceFile(item: PickedFile) {
+    replaceKeyRef.current = item.key
+    if (item.role === 'contract') {
+      contractInputRef.current?.click()
+    } else {
+      annexInputRef.current?.click()
+    }
+  }
+
+  function onDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    setDragOver(false)
+    if (busy || result) return
+    const dropped = Array.from(event.dataTransfer.files)
+    if (dropped.length === 0) return
+    if (!contract) {
+      const file = takePdf(dropped)
+      if (file) addContract(file)
+      if (dropped.length > 1) addAnnexes(dropped.slice(1))
+      return
+    }
+    addAnnexes(dropped)
+  }
+
+  async function handleUpload() {
+    if (busy || result) return
+    const trimmedName = name.trim()
+    if (!trimmedName) {
+      setError('Nhập tên bộ hồ sơ.')
+      return
+    }
+    if (trimmedName.length > 255) {
+      setError('Tên bộ hồ sơ tối đa 255 ký tự.')
+      return
+    }
+    if (!contract) {
+      setError('Chọn tệp PDF hợp đồng.')
+      return
+    }
+    if (!canUpload) {
+      setError('Chỉ vận hành và quản trị mới tải hồ sơ được.')
+      return
+    }
+
+    setError(null)
     setUploadStatus('uploading')
-    window.setTimeout(() => {
-      navigate('/tien-trinh-phan-tich', { state: { name } })
-    }, 1200)
+    try {
+      const created = await createDossier({
+        contract: contract.file,
+        metadata: { name: trimmedName },
+        annexes: annexes.map((item) => item.file),
+      })
+      if (!created?.dossier_id) {
+        setError('Backend không trả dossier_id.')
+        setUploadStatus('idle')
+        return
+      }
+
+      const extra: Record<string, unknown> = { privacy, category }
+      if (code.trim()) extra.code = code.trim()
+      try {
+        await patchDossier(created.dossier_id, { metadata: extra })
+      } catch {
+        // POST đã tạo hồ sơ. PATCH chỉ ghi field UI thừa so với OpenAPI.
+      }
+
+      setResult({
+        dossierId: created.dossier_id,
+        jobId: created.job_id ?? null,
+      })
+      setUploadStatus('idle')
+    } catch (cause) {
+      const message = createDossierErrorMessage(cause)
+      if (message) setError(message)
+      setUploadStatus('idle')
+    }
   }
 
   return (
@@ -97,273 +327,432 @@ export function CreateDossierPage() {
             {backLabel}
           </Link>
           <MaterialIcon name="chevron_right" className="text-[14px]" />
-          <span className="text-on-surface font-semibold">
-            Tạo hồ sơ mới & Phân tích tự động
-          </span>
+          <span className="text-on-surface font-semibold">Tạo hồ sơ mới</span>
         </nav>
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
           <div className="flex flex-col gap-space-xs max-w-3xl">
             <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">
-              Tải lên tài liệu & Thiết lập xử lý AI
+              Tải lên tài liệu
             </h1>
             <p className="font-body-md text-body-md text-on-surface-variant">
-              Tải lên các tài liệu thuộc bộ hợp đồng để hệ thống phân tích và
-              đối chiếu tự động.
+              Tải PDF hợp đồng và metadata. Hệ thống tạo hồ sơ, chưa chạy
+              pipeline phân tích.
             </p>
           </div>
-          <div className="flex items-center gap-space-sm self-start md:self-auto shrink-0 bg-surface-container-low px-space-md py-space-xs rounded-lg shadow-sm">
-            <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
-            <span className="font-code-sm text-code-sm text-on-surface font-semibold">
-              Lexis Legal-Core v4.2
-            </span>
-            <span className="text-outline-variant">•</span>
-            <span className="font-label-sm text-label-sm text-on-surface-variant">
-              SOC 2 Type II
-            </span>
-          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter-lg items-start">
-        <div className="lg:col-span-4 flex flex-col gap-gutter">
-          <section className="bg-surface-container-lowest p-space-xl rounded-xl shadow-sm flex flex-col gap-space-lg">
-            <div className="flex items-center justify-between pb-space-xs">
-              <div className="flex items-center gap-space-sm">
-                <MaterialIcon
-                  name="assignment"
-                  className="text-primary text-[20px]"
-                />
-                <h2 className="font-title-sm text-title-sm text-primary uppercase tracking-wider">
-                  Thông tin hồ sơ
-                </h2>
-              </div>
-              <span className="font-label-sm text-label-sm bg-surface-container px-space-sm py-0.5 rounded text-on-secondary-container font-semibold">
-                Bắt buộc
-              </span>
-            </div>
-
-            <div className="flex flex-col gap-space-md">
-              <div className="flex flex-col gap-space-xs">
-                <label
-                  className="font-label-sm text-label-sm text-primary tracking-wider uppercase font-semibold"
-                  htmlFor="dossier-name"
-                >
-                  Tên bộ hồ sơ hợp đồng
-                </label>
-                <input
-                  className="h-10 px-space-md bg-surface text-on-surface font-body-sm text-body-sm rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-on-tertiary-container focus:bg-surface-container-lowest transition-all"
-                  id="dossier-name"
-                  type="text"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 gap-space-md">
-                <div className="flex flex-col gap-space-xs">
-                  <label
-                    className="font-label-sm text-label-sm text-primary tracking-wider uppercase font-semibold"
-                    htmlFor="dossier-code"
-                  >
-                    Mã vụ việc / Dự án liên kết
-                  </label>
-                  <div className="relative flex items-center">
-                    <MaterialIcon
-                      name="tag"
-                      className="absolute left-space-md text-on-surface-variant text-[18px]"
-                    />
-                    <input
-                      className="w-full h-10 pl-10 pr-space-md bg-surface font-code-sm text-code-sm text-on-surface rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-on-tertiary-container transition-all"
-                      id="dossier-code"
-                      type="text"
-                      value={code}
-                      onChange={(event) => setCode(event.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-space-xs">
-                  <label
-                    className="font-label-sm text-label-sm text-primary tracking-wider uppercase font-semibold"
-                    htmlFor="dossier-category"
-                  >
-                    Phân loại lĩnh vực pháp lý
-                  </label>
-                  <div className="relative flex items-center">
-                    <select
-                      className="w-full h-10 px-space-md appearance-none bg-surface text-on-surface font-body-sm text-body-sm rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-on-tertiary-container cursor-pointer"
-                      id="dossier-category"
-                      value={category}
-                      onChange={(event) => setCategory(event.target.value)}
-                    >
-                      {dossierCategories.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                    <MaterialIcon
-                      name="expand_more"
-                      className="absolute right-space-md pointer-events-none text-on-surface-variant text-[18px]"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-space-xs pt-space-xs">
-                <span className="font-label-sm text-label-sm text-primary tracking-wider uppercase font-semibold">
-                  Quyền riêng tư mặc định
-                </span>
-                <div className="flex flex-col gap-space-xs">
-                  <label className="flex items-center justify-between p-space-md rounded-lg bg-surface hover:bg-surface-container-low transition-colors cursor-pointer group">
-                    <div className="flex items-center gap-space-md">
-                      <input
-                        checked={privacy === 'private'}
-                        className="w-4 h-4 accent-primary-container"
-                        name="privacy-tier"
-                        type="radio"
-                        onChange={() => setPrivacy('private')}
-                      />
-                      <div className="flex flex-col">
-                        <span className="font-body-sm text-body-sm font-semibold text-primary">
-                          Riêng tư (Chỉ mình tôi)
-                        </span>
-                        <span className="font-code-sm text-code-sm text-on-surface-variant">
-                          Không truy cập chéo giữa các tổ chức vụ việc
-                        </span>
-                      </div>
-                    </div>
-                    <MaterialIcon
-                      name="lock"
-                      className="text-primary text-[18px]"
-                    />
-                  </label>
-                  <label className="flex items-center justify-between p-space-md rounded-lg bg-surface hover:bg-surface-container-low transition-colors cursor-pointer group">
-                    <div className="flex items-center gap-space-md">
-                      <input
-                        checked={privacy === 'shared'}
-                        className="w-4 h-4 accent-primary-container"
-                        name="privacy-tier"
-                        type="radio"
-                        onChange={() => setPrivacy('shared')}
-                      />
-                      <div className="flex flex-col">
-                        <span className="font-body-sm text-body-sm font-semibold text-primary">
-                          Chia sẻ với Trưởng ban Pháp chế
-                        </span>
-                        <span className="font-code-sm text-code-sm text-on-surface-variant">
-                          Tự động báo cáo rủi ro cấp điều hành
-                        </span>
-                      </div>
-                    </div>
-                    <MaterialIcon
-                      name="groups"
-                      className="text-on-surface-variant text-[18px]"
-                    />
-                  </label>
-                </div>
-              </div>
-            </div>
-          </section>
+      {!canUpload ? (
+        <div className="mb-space-lg px-space-md py-space-sm rounded bg-surface-container text-on-surface font-body-sm text-body-sm">
+          Tài khoản thẩm định không tải hồ sơ. Chỉ vận hành và quản trị gọi được
+          API này.
         </div>
+      ) : null}
 
-        <div className="lg:col-span-8 flex flex-col gap-gutter">
-          <div className="p-space-xl bg-surface-container-lowest rounded-xl shadow-sm flex flex-col gap-space-lg">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm pb-space-xs border-t border-surface-container pt-0">
+      {result ? (
+        <section className="mb-space-lg bg-surface-container-lowest p-space-xl rounded-xl shadow-sm flex flex-col gap-space-lg">
+          <div className="flex items-start justify-between gap-space-md flex-wrap">
+            <div className="flex items-start gap-space-md">
+              <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                <MaterialIcon name="check_circle" className="text-[22px]" />
+              </div>
               <div className="flex flex-col gap-space-xs">
-                <div className="flex items-center gap-space-sm">
-                  <MaterialIcon
-                    name="splitscreen"
-                    className="text-primary text-[20px]"
-                  />
-                  <h2 className="font-title-sm text-title-sm text-primary uppercase tracking-wider">
-                    Tải lên theo phần (Multipart Upload 3 Slot)
-                  </h2>
-                  <span className="font-label-sm text-label-sm bg-emerald-50 text-emerald-700 px-space-sm py-0.5 rounded font-semibold">
-                    Đã nạp đủ 3/3
-                  </span>
-                </div>
+                <h2 className="font-title-sm text-title-sm text-primary">
+                  Đã nhận hồ sơ
+                </h2>
                 <p className="font-body-sm text-body-sm text-on-surface-variant">
-                  Bộ hồ sơ lớn được chia thành tối đa 3 phần (≤50MB/phần, tổng
-                  150MB) để nạp song song và gộp xử lý OCR/AI đồng bộ.
+                  File đã vào hệ thống, chưa chạy pipeline phân tích. Bước tiếp
+                  theo là xác nhận tài liệu thuộc hồ sơ, vai trò và quan hệ.
                 </p>
               </div>
-              <div className="flex flex-col sm:items-end text-on-surface-variant font-code-sm text-code-sm shrink-0">
-                <span className="text-body-md font-semibold text-primary">
-                  139.5 / 150 MB
-                </span>
-                <span className="text-label-sm text-emerald-700 font-medium flex items-center gap-1">
-                  <MaterialIcon name="speed" className="text-[14px]" /> Tối ưu
-                  OCR song song
-                </span>
-              </div>
+            </div>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-label-sm text-label-sm font-semibold bg-amber-100 text-amber-900">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
+              UPLOADED
+            </span>
+          </div>
+          <dl className="grid grid-cols-1 md:grid-cols-2 gap-space-md">
+            <div className="flex flex-col gap-space-xs p-space-md rounded-lg bg-surface">
+              <dt className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
+                Mã hồ sơ
+              </dt>
+              <dd className="font-code-sm text-code-sm text-on-surface break-all">
+                {result.dossierId}
+              </dd>
+            </div>
+            <div className="flex flex-col gap-space-xs p-space-md rounded-lg bg-surface">
+              <dt className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
+                Mã job
+              </dt>
+              <dd className="font-code-sm text-code-sm text-on-surface break-all">
+                {result.jobId ?? '—'}
+              </dd>
+            </div>
+          </dl>
+          <div className="flex items-center gap-space-sm flex-wrap">
+            <Link
+              className="h-10 px-space-lg bg-primary text-on-primary hover:bg-primary-container transition-all font-body-sm text-body-sm font-semibold rounded-lg shadow-sm flex items-center gap-space-sm"
+              to={manifestConfirmPath(result.dossierId)}
+            >
+              <MaterialIcon name="fact_check" className="text-[18px]" />
+              Xác nhận vai trò và quan hệ
+            </Link>
+            <Link
+              className="h-10 px-space-lg font-body-sm text-body-sm font-medium text-on-surface-variant hover:text-primary transition-colors rounded-lg hover:bg-surface-container-low flex items-center"
+              to={backTo}
+            >
+              Về {backLabel.toLowerCase()}
+            </Link>
+            <button
+              className="h-10 px-space-lg font-body-sm text-body-sm font-medium text-on-surface-variant hover:text-primary transition-colors cursor-pointer rounded-lg hover:bg-surface-container-low"
+              type="button"
+              onClick={resetForm}
+            >
+              Tải hồ sơ khác
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {error ? (
+        <div
+          className="mb-space-lg px-space-md py-space-sm rounded bg-error-container text-on-error-container font-body-sm text-body-sm"
+          role="alert"
+        >
+          {error}
+        </div>
+      ) : null}
+
+      {!result ? (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter-lg items-start">
+            <div className="lg:col-span-4 flex flex-col gap-gutter">
+              <section className="bg-surface-container-lowest p-space-xl rounded-xl shadow-sm flex flex-col gap-space-lg">
+                <div className="flex items-center justify-between pb-space-xs">
+                  <div className="flex items-center gap-space-sm">
+                    <MaterialIcon
+                      name="assignment"
+                      className="text-primary text-[20px]"
+                    />
+                    <h2 className="font-title-sm text-title-sm text-primary uppercase tracking-wider">
+                      Thông tin hồ sơ
+                    </h2>
+                  </div>
+                  <span className="font-label-sm text-label-sm bg-surface-container px-space-sm py-0.5 rounded text-on-secondary-container font-semibold">
+                    Bắt buộc
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-space-md">
+                  <div className="flex flex-col gap-space-xs">
+                    <label
+                      className="font-label-sm text-label-sm text-primary tracking-wider uppercase font-semibold"
+                      htmlFor="dossier-name"
+                    >
+                      Tên bộ hồ sơ hợp đồng
+                      <span className="text-error" aria-hidden="true">
+                        {' '}
+                        *
+                      </span>
+                    </label>
+                    <input
+                      className="h-10 px-space-md bg-surface text-on-surface font-body-sm text-body-sm rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-on-tertiary-container focus:bg-surface-container-lowest transition-all"
+                      aria-required="true"
+                      disabled={busy}
+                      id="dossier-name"
+                      placeholder="Hợp đồng EPC — Dự án Điện gió"
+                      type="text"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-space-md">
+                    <div className="flex flex-col gap-space-xs">
+                      <label
+                        className="font-label-sm text-label-sm text-primary tracking-wider uppercase font-semibold"
+                        htmlFor="dossier-code"
+                      >
+                        Mã vụ việc / Dự án liên kết
+                      </label>
+                      <div className="relative flex items-center">
+                        <MaterialIcon
+                          name="tag"
+                          className="absolute left-space-md text-on-surface-variant text-[18px]"
+                        />
+                        <input
+                          className="w-full h-10 pl-10 pr-space-md bg-surface font-code-sm text-code-sm text-on-surface rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-on-tertiary-container transition-all"
+                          disabled={busy}
+                          id="dossier-code"
+                          placeholder="LX-2024-EPC-092"
+                          type="text"
+                          value={code}
+                          onChange={(event) => setCode(event.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-space-xs">
+                      <label
+                        className="font-label-sm text-label-sm text-primary tracking-wider uppercase font-semibold"
+                        htmlFor="dossier-category"
+                      >
+                        Phân loại lĩnh vực pháp lý
+                      </label>
+                      <div className="relative flex items-center">
+                        <select
+                          className="w-full h-10 px-space-md appearance-none bg-surface text-on-surface font-body-sm text-body-sm rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-on-tertiary-container cursor-pointer"
+                          disabled={busy}
+                          id="dossier-category"
+                          value={category}
+                          onChange={(event) => setCategory(event.target.value)}
+                        >
+                          {dossierCategories.map((item) => (
+                            <option key={item} value={item}>
+                              {item}
+                            </option>
+                          ))}
+                        </select>
+                        <MaterialIcon
+                          name="expand_more"
+                          className="absolute right-space-md pointer-events-none text-on-surface-variant text-[18px]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-space-xs pt-space-xs">
+                    <span className="font-label-sm text-label-sm text-primary tracking-wider uppercase font-semibold">
+                      Quyền riêng tư mặc định
+                    </span>
+                    <div className="flex flex-col gap-space-xs">
+                      <label className="flex items-center justify-between p-space-md rounded-lg bg-surface hover:bg-surface-container-low transition-colors cursor-pointer group">
+                        <div className="flex items-center gap-space-md">
+                          <input
+                            checked={privacy === 'private'}
+                            className="w-4 h-4 accent-primary-container"
+                            disabled={busy}
+                            name="privacy-tier"
+                            type="radio"
+                            onChange={() => setPrivacy('private')}
+                          />
+                          <div className="flex flex-col">
+                            <span className="font-body-sm text-body-sm font-semibold text-primary">
+                              Riêng tư (Chỉ mình tôi)
+                            </span>
+                            <span className="font-code-sm text-code-sm text-on-surface-variant">
+                              Không truy cập chéo giữa các tổ chức vụ việc
+                            </span>
+                          </div>
+                        </div>
+                        <MaterialIcon
+                          name="lock"
+                          className="text-primary text-[18px]"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between p-space-md rounded-lg bg-surface hover:bg-surface-container-low transition-colors cursor-pointer group">
+                        <div className="flex items-center gap-space-md">
+                          <input
+                            checked={privacy === 'shared'}
+                            className="w-4 h-4 accent-primary-container"
+                            disabled={busy}
+                            name="privacy-tier"
+                            type="radio"
+                            onChange={() => setPrivacy('shared')}
+                          />
+                          <div className="flex flex-col">
+                            <span className="font-body-sm text-body-sm font-semibold text-primary">
+                              Chia sẻ với Trưởng ban Pháp chế
+                            </span>
+                            <span className="font-code-sm text-code-sm text-on-surface-variant">
+                              Tự động báo cáo rủi ro cấp điều hành
+                            </span>
+                          </div>
+                        </div>
+                        <MaterialIcon
+                          name="groups"
+                          className="text-on-surface-variant text-[18px]"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </section>
             </div>
 
-            <div className="w-full bg-surface-container rounded-full h-2 overflow-hidden">
-              <div
-                className="bg-primary h-2 rounded-full transition-all duration-300"
-                style={{ width: '93%' }}
-              />
-            </div>
+            <div className="lg:col-span-8 flex flex-col gap-gutter">
+              <div className="p-space-xl bg-surface-container-lowest rounded-xl shadow-sm flex flex-col gap-space-lg">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm pb-space-xs">
+                  <div className="flex flex-col gap-space-xs">
+                    <div className="flex items-center gap-space-sm">
+                      <MaterialIcon
+                        name="upload_file"
+                        className="text-primary text-[20px]"
+                      />
+                      <h2 className="font-title-sm text-title-sm text-primary uppercase tracking-wider">
+                        Tệp PDF
+                        <span className="text-error" aria-hidden="true">
+                          {' '}
+                          *
+                        </span>
+                      </h2>
+                      <span className="font-label-sm text-label-sm bg-surface-container text-on-secondary-container px-space-sm py-0.5 rounded font-semibold">
+                        {contract ? `${files.length} tệp` : 'Chưa chọn tệp'}
+                      </span>
+                    </div>
+                    <p className="font-body-sm text-body-sm text-on-surface-variant">
+                      Một tệp hợp đồng chính (bắt buộc) và phụ lục PDF tùy chọn.
+                    </p>
+                  </div>
+                  {files.length > 0 ? (
+                    <div className="flex flex-col sm:items-end text-on-surface-variant font-code-sm text-code-sm shrink-0">
+                      <span className="text-body-md font-semibold text-primary">
+                        {formatSize(totalBytes)}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
 
-            <div className="grid grid-cols-1 gap-space-md">
-              {uploadParts.map((part) => (
-                <UploadPartCard key={part.id} part={part} />
-              ))}
-            </div>
-
-            <div className="px-space-md py-space-sm bg-surface-container-low rounded-lg flex items-center justify-between gap-space-sm text-on-surface-variant">
-              <div className="flex items-center gap-space-xs font-label-sm text-label-sm">
-                <MaterialIcon
-                  name="verified"
-                  className="text-[16px] text-primary"
+                <input
+                  ref={contractInputRef}
+                  accept="application/pdf,.pdf"
+                  aria-label="Chọn tệp hợp đồng"
+                  className="sr-only"
+                  disabled={busy}
+                  type="file"
+                  onChange={(event) => {
+                    onContractChosen(event.target.files)
+                    event.target.value = ''
+                  }}
                 />
-                <span>
-                  Đã hoàn tất nạp 3 phần tài liệu. Công cụ phân tích sẽ liên kết
-                  chỉ mục các phần thành một cây hồ sơ duy nhất.
-                </span>
+                <input
+                  ref={annexInputRef}
+                  accept="application/pdf,.pdf"
+                  aria-label="Chọn phụ lục"
+                  className="sr-only"
+                  disabled={busy}
+                  multiple
+                  type="file"
+                  onChange={(event) => {
+                    onAnnexChosen(event.target.files)
+                    event.target.value = ''
+                  }}
+                />
+
+                <div
+                  className={`rounded-lg px-space-lg py-12 flex flex-col items-center gap-space-sm text-center ${
+                    dragOver
+                      ? 'bg-surface-container'
+                      : 'bg-surface-container-low'
+                  }`}
+                  onDragLeave={() => setDragOver(false)}
+                  onDragOver={(event) => {
+                    event.preventDefault()
+                    if (!busy) setDragOver(true)
+                  }}
+                  onDrop={onDrop}
+                >
+                  <MaterialIcon
+                    name="picture_as_pdf"
+                    className="text-secondary text-[28px]"
+                  />
+                  {!contract ? (
+                    <>
+                      <p className="font-title-sm text-title-sm text-on-surface">
+                        Chưa chọn tệp PDF
+                        <span className="text-error" aria-hidden="true">
+                          {' '}
+                          *
+                        </span>
+                      </p>
+                      <p className="font-body-sm text-body-sm text-on-surface-variant max-w-md">
+                        Kéo thả hoặc chọn hợp đồng chính để tạo hồ sơ. Có thể
+                        thêm phụ lục sau.
+                      </p>
+                      <button
+                        className="mt-space-xs h-10 px-space-lg bg-primary text-on-primary hover:bg-primary-container font-body-sm text-body-sm font-semibold rounded-lg shadow-sm"
+                        disabled={busy}
+                        type="button"
+                        onClick={() => contractInputRef.current?.click()}
+                      >
+                        Chọn tệp hợp đồng
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-body-sm text-body-sm text-on-surface-variant">
+                        Thêm phụ lục PDF nếu hồ sơ có nhiều tệp.
+                      </p>
+                      <button
+                        className="h-10 px-space-lg bg-surface-container-lowest text-on-surface hover:bg-surface-container font-body-sm text-body-sm font-semibold rounded-lg shadow-sm"
+                        disabled={busy}
+                        type="button"
+                        onClick={() => {
+                          replaceKeyRef.current = null
+                          annexInputRef.current?.click()
+                        }}
+                      >
+                        Thêm phụ lục
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {files.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-space-md">
+                    {files.map((item) => (
+                      <FileCard
+                        key={item.key}
+                        disabled={busy}
+                        item={item}
+                        onPreview={() => previewFile(item.file)}
+                        onReplace={() => replaceFile(item)}
+                        onRemove={() => {
+                          if (item.role === 'contract') setContract(null)
+                          else
+                            setAnnexes((current) =>
+                              current.filter((row) => row.key !== item.key),
+                            )
+                        }}
+                      />
+                    ))}
+                  </div>
+                ) : null}
               </div>
-              <span className="font-code-sm text-code-sm font-semibold text-primary shrink-0">
-                3 / 3 Slot
-              </span>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className="sticky bottom-4 mt-space-xl p-space-lg bg-surface-container-lowest rounded-xl shadow-xl z-30 flex flex-col md:flex-row items-center justify-between gap-space-md">
-        <div className="flex items-center justify-end gap-space-md w-full">
-          <button
-            className="h-10 px-space-lg font-body-sm text-body-sm font-medium text-on-surface-variant hover:text-primary transition-colors cursor-pointer rounded-lg hover:bg-surface-container-low"
-            type="button"
-            onClick={handleCancel}
-          >
-            Hủy bỏ
-          </button>
-          <button
-            className="h-10 px-space-lg bg-surface hover:bg-surface-container-low transition-colors font-body-sm text-body-sm font-semibold rounded-lg shadow-sm text-on-surface cursor-pointer"
-            type="button"
-          >
-            Lưu nháp
-          </button>
-          <button
-            className="h-10 px-space-lg bg-primary text-on-primary hover:bg-primary-container active:bg-tertiary transition-all font-body-sm text-body-sm font-semibold rounded-lg shadow-sm flex items-center gap-space-sm cursor-pointer disabled:opacity-80"
-            disabled={uploadStatus !== 'idle'}
-            type="button"
-            onClick={handleUpload}
-          >
-            {uploadStatus === 'idle' ? (
-              <>
-                <MaterialIcon name="cloud_upload" className="text-[18px]" />
-                <span>Upload</span>
-              </>
-            ) : null}
-            {uploadStatus === 'uploading' ? (
-              <span>Đang khởi tạo Pipeline AI...</span>
-            ) : null}
-          </button>
-        </div>
-      </div>
+          <div className="sticky bottom-4 mt-space-xl p-space-lg bg-surface-container-lowest rounded-xl shadow-xl z-30 flex flex-col md:flex-row items-center justify-between gap-space-md">
+            <div className="flex items-center justify-end gap-space-md w-full">
+              <button
+                className="h-10 px-space-lg font-body-sm text-body-sm font-medium text-on-surface-variant hover:text-primary transition-colors cursor-pointer rounded-lg hover:bg-surface-container-low"
+                disabled={busy}
+                type="button"
+                onClick={handleCancel}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                className="h-10 px-space-lg bg-primary text-on-primary hover:bg-primary-container active:bg-tertiary transition-all font-body-sm text-body-sm font-semibold rounded-lg shadow-sm flex items-center gap-space-sm cursor-pointer disabled:opacity-80"
+                disabled={busy || !canUpload}
+                type="button"
+                onClick={() => {
+                  void handleUpload()
+                }}
+              >
+                {busy ? (
+                  <span>Đang tải lên…</span>
+                ) : (
+                  <>
+                    <MaterialIcon name="cloud_upload" className="text-[18px]" />
+                    <span>Upload</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </>
+      ) : null}
     </div>
   )
 }

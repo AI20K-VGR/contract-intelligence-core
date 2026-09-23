@@ -1,0 +1,679 @@
+{
+  "id": "contract-intelligence",
+  "enabled": true,
+  "displayName": "Contract Intelligence",
+  "displayNameHtml": "Lexis Contract Intelligence",
+  "loginTheme": "lexis",
+  "accountTheme": "keycloak.v2",
+  "adminTheme": "keycloak.v2",
+  "emailTheme": "base",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["vi", "en"],
+  "defaultLocale": "vi",
+  "accessTokenLifespan": 300,
+  "accessTokenLifespanForImplicitFlow": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "accessCodeLifespan": 60,
+  "accessCodeLifespanUserAction": 300,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "registrationEmailAsUsername": false,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "OPERATOR",
+        "description": "Vận hành nhập liệu và xử lý tài liệu",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "REVIEWER",
+        "description": "Thẩm định và xác nhận hồ sơ hợp đồng",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "ADMINISTRATOR",
+        "description": "Quản trị hệ thống toàn diện",
+        "composite": false,
+        "clientRole": false
+      }
+    ],
+    "client": {
+      "contract-intel-backend": [
+        {
+          "name": "OPERATOR",
+          "description": "Backend OPERATOR role",
+          "composite": false
+        },
+        {
+          "name": "REVIEWER",
+          "description": "Backend REVIEWER role",
+          "composite": false
+        },
+        {
+          "name": "ADMINISTRATOR",
+          "description": "Backend ADMINISTRATOR role",
+          "composite": false
+        }
+      ],
+      "contract-intel-frontend": [
+        {
+          "name": "OPERATOR",
+          "description": "Frontend OPERATOR role",
+          "composite": false
+        },
+        {
+          "name": "REVIEWER",
+          "description": "Frontend REVIEWER role",
+          "composite": false
+        },
+        {
+          "name": "ADMINISTRATOR",
+          "description": "Frontend ADMINISTRATOR role",
+          "composite": false
+        }
+      ]
+    }
+  },
+  "defaultDefaultClientScopes": [
+    "role_list",
+    "profile",
+    "email"
+  ],
+  "clients": [
+    {
+      "id": "contract-intel-backend",
+      "clientId": "contract-intel-backend",
+      "name": "CI Backend — Resource Server",
+      "description": "Backend FastAPI — validates JWT access tokens",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "backend_secret_dev",
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "publicClient": false,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "fullScopeAllowed": true,
+      "defaultClientScopes": [
+        "role_list",
+        "profile",
+        "email"
+      ],
+      "optionalClientScopes": [],
+      "protocolMappers": [
+        {
+          "name": "tenant_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "tenant_id",
+            "claim.value": "tenant_vgr_01",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "access.tokenResponse.claim": "true"
+          }
+        },
+        {
+          "name": "ci_role_mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "contract-intel-backend",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "access.tokenResponse.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "id": "contract-intel-frontend",
+      "clientId": "contract-intel-frontend",
+      "name": "Contract Intelligence SPA",
+      "enabled": true,
+      "publicClient": true,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect",
+      "fullScopeAllowed": true,
+      "redirectUris": [
+        "http://localhost:5173/auth/callback",
+        "http://localhost:5173/auth/silent-callback"
+      ],
+      "webOrigins": [
+        "http://localhost:5173"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5173/"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "role_list",
+        "roles",
+        "profile",
+        "email",
+        "web-origins"
+      ],
+      "optionalClientScopes": [],
+      "protocolMappers": [
+        {
+          "name": "realm_roles_mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "realmRoles",
+            "claim.name": "realm_access",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        },
+        {
+          "name": "tenant_id_mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "tenant_id",
+            "claim.value": "tenant_vgr_01",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "id": "dev-admin-keycloak-id",
+      "username": "admin@ci.local",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "admin@ci.local",
+      "firstName": "Admin",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Admin@CI123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "ADMINISTRATOR"
+      ],
+      "clientRoles": {
+        "contract-intel-backend": [
+          "ADMINISTRATOR"
+        ],
+        "contract-intel-frontend": [
+          "ADMINISTRATOR"
+        ]
+      },
+      "attributes": {
+        "tenant_id": [
+          "tenant_vgr_01"
+        ]
+      }
+    },
+    {
+      "id": "dev-reviewer-keycloak-id",
+      "username": "reviewer@ci.local",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "reviewer@ci.local",
+      "firstName": "Reviewer",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Reviewer@CI123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "REVIEWER"
+      ],
+      "clientRoles": {
+        "contract-intel-backend": [
+          "REVIEWER"
+        ],
+        "contract-intel-frontend": [
+          "REVIEWER"
+        ]
+      },
+      "attributes": {
+        "tenant_id": [
+          "tenant_vgr_01"
+        ]
+      }
+    },
+    {
+      "id": "dev-operator-keycloak-id",
+      "username": "operator@ci.local",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "operator@ci.local",
+      "firstName": "Operator",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Operator@CI123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "OPERATOR"
+      ],
+      "clientRoles": {
+        "contract-intel-backend": [
+          "OPERATOR"
+        ],
+        "contract-intel-frontend": [
+          "OPERATOR"
+        ]
+      },
+      "attributes": {
+        "tenant_id": [
+          "tenant_vgr_01"
+        ]
+      }
+    },
+    {
+      "id": "sa-ci-backend",
+      "username": "sa-ci-backend",
+      "enabled": true,
+      "emailVerified": false,
+      "serviceAccountClientId": "contract-intel-backend",
+      "clientRoles": {
+        "realm-management": [
+          "view-users",
+          "view-realm",
+          "view-clients",
+          "view-events",
+          "manage-events"
+        ]
+      }
+    }
+  ],
+  "eventsListeners": [
+    "jboss-logging",
+    "ext-event-http",
+    "ext-event-webhook"
+  ],
+  "eventsEnabled": true,
+  "eventsExpiration": 2592000,
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true,
+  "otpPolicyType": "totp",
+  "webAuthnPolicySignatureAlgorithms": [
+    "ES256"
+  ],
+  "webAuthnPolicyRpId": "",
+  "webAuthnPolicyAttestationConveyancePreference": "not specified",
+  "webAuthnPolicyAuthenticatorAttachment": "not specified",
+  "webAuthnPolicyRequireResidentKey": "not specified",
+  "webAuthnPolicyUserVerificationRequirement": "not specified",
+  "keycloakVersion": "26.0",
+  "userManagedAccessAllowed": false,
+  "realm": "contract-intelligence",
+  "ssoSessionMaxLifespan": 36000,
+  "offlineSessionIdleTimeout": 2592000,
+  "offlineSessionMaxLifespan": 5184000,
+  "accessCodeLifespanLogin": 1800,
+  "actionTokenGeneratedByAdminLifespan": 43200,
+  "actionTokenGeneratedByUserLifespan": 300,
+  "clientScopeMappings": {},
+  "otpPolicyAlgorithm": "HOTP",
+  "otpPolicyInitialCounter": 6,
+  "otpPolicyDigits": 6,
+  "otpPolicyLookAheadWindow": 1,
+  "otpPolicyPeriod": 30,
+  "webAuthnPolicyRpEntityName": "keycloak",
+  "authenticationFlows": [
+    {
+      "alias": "account-console",
+      "description": "Browser-based authentication is supported",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "invalid-grant-response-error",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "browser",
+      "description": "Browser based authentication",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-cookie",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-spnego",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 20,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "ALTERNATIVE",
+          "priority": 30,
+          "flowAlias": "forms",
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "conditional-otp-form",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 40,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "direct-grant",
+      "description": "OpenID Connect Resource Owner Grant",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-otp-form",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 10,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "direct-grant-validate-username",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "direct-grant-validate-password",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 30,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "direct-grant-validate-otp",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 40,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "docker-auth",
+      "description": "Used by Docker clients to authenticate against the IDP",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "docker-http-basic-authenticator",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "first-broker-login",
+      "description": "Actions taken after first broker login with identity provider",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "idp-review-profile",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "idp-email-verification",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 20,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "idp-account-email-verification",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 30,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "forms",
+      "description": "Username, password, otp and other auth forms.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-username-password-form",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-password-compare",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 20,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-otp-form",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 30,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "registration",
+      "description": "Registration flow",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "registration-page-form",
+          "authenticatorFlow": true,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "flowAlias": "registration-form",
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "registration-recaptcha-action",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 20,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "registration-terms-and-conditions",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 50,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "registration-user-creation",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 60,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "registration-profile-action",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 70,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "registration-password-action",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 80,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "registration-recaptcha-verify",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 90,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "registration-email-verification",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 100,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "registration-form",
+      "description": "Registration form",
+      "providerId": "form-flow",
+      "topLevel": false,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "registration-user-creation",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "registration-validation",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 40,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "registration-profile-action",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 50,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "registration-password-action",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 60,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "reset-credentials",
+      "description": "Reset credentials for a user if they forgot their password or something",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "reset-credentials-choose-username",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "reset-credentials-email",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "reset-password",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 30,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "reset-otp",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 40,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "saml-ecp-flow",
+      "description": "SAML ECP Profile Authentication Flow",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "http-basic-authenticator",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false
+        }
+      ]
+    }
+  ]
+}

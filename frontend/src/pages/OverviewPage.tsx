@@ -127,13 +127,20 @@ export function OverviewPage() {
             />
             <span>Xuất báo cáo</span>
           </button>
-          <button
+          <Link
             className="flex items-center gap-space-xs px-space-lg py-2 rounded bg-primary-container text-on-primary hover:bg-inverse-surface transition-colors shadow-sm font-label-md text-label-md"
-            type="button"
+            to="/tao-ho-so"
+          >
+            <MaterialIcon name="add" className="text-[18px]" />
+            <span>Tạo hồ sơ mới</span>
+          </Link>
+          <Link
+            className="flex items-center gap-space-xs px-space-lg py-2 rounded bg-primary-container text-on-primary hover:bg-inverse-surface transition-colors shadow-sm font-label-md text-label-md"
+            to="/nguoi-dung-phan-quyen"
           >
             <MaterialIcon name="person_add" className="text-[18px]" />
             <span>Mời thành viên</span>
-          </button>
+          </Link>
         </div>
       </div>
 

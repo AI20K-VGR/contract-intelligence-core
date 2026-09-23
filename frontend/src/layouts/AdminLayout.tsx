@@ -11,6 +11,7 @@ const navItems = [
     label: 'Người dùng & Phân quyền',
   },
   { to: '/ho-so', icon: 'folder_shared', label: 'Hồ sơ', locked: true },
+  { to: '/tao-ho-so', icon: 'cloud_upload', label: 'Tải lên' },
   { to: '/nhat-ky-hoat-dong', icon: 'history_edu', label: 'Nhật ký hoạt động' },
   { to: '/cai-dat', icon: 'settings', label: 'Cài đặt' },
 ] as const
@@ -28,7 +29,6 @@ export function AdminLayout() {
   const location = useLocation()
   const dossierSection = [
     '/ho-so',
-    '/tao-ho-so',
     '/tien-trinh-phan-tich',
     '/doi-soat-xung-dot',
   ].includes(location.pathname)
@@ -68,9 +68,15 @@ export function AdminLayout() {
             <NavLink
               key={item.to}
               to={item.to}
-              className={({ isActive }) => {
+              end
+              className={() => {
                 const active =
-                  item.to === '/ho-so' ? isActive || dossierSection : isActive
+                  item.to === '/ho-so'
+                    ? location.pathname === '/ho-so' || dossierSection
+                    : item.to === '/tao-ho-so'
+                      ? location.pathname === '/tao-ho-so' ||
+                        location.pathname.startsWith('/xac-nhan-manifest')
+                      : location.pathname === item.to
                 return 'locked' in item && item.locked
                   ? `${navClassName(active)} justify-between`
                   : navClassName(active)

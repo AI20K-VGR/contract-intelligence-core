@@ -12,12 +12,14 @@ import { MyDossiersPage } from './pages/MyDossiersPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { AnalysisProgressPage } from './pages/AnalysisProgressPage'
 import { CreateDossierPage } from './pages/CreateDossierPage'
+import { ManifestConfirmPage } from './pages/ManifestConfirmPage'
 import { DossierReviewPage } from './pages/DossierReviewPage'
 import { CitationComparePage } from './pages/CitationComparePage'
 import { CitationSplitViewPage } from './pages/CitationSplitViewPage'
 import { CitationEditPage } from './pages/CitationEditPage'
 import { ClauseConflictPage } from './pages/ClauseConflictPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
+import { UsersPage } from './pages/UsersPage'
 import { ReviewLayout } from './layouts/ReviewLayout'
 
 function AuthRedirect() {
@@ -53,7 +55,7 @@ export default function App() {
                 path="/nguoi-dung-phan-quyen"
                 element={
                   <RequireRole allow="admin">
-                    <PlaceholderPage title="Người dùng & Phân quyền" />
+                    <UsersPage />
                   </RequireRole>
                 }
               />
@@ -102,6 +104,10 @@ export default function App() {
                 element={<ClauseConflictPage />}
               />
               <Route path="/tao-ho-so" element={<CreateDossierPage />} />
+              <Route
+                path="/xac-nhan-manifest/:dossierId"
+                element={<ManifestConfirmPage />}
+              />
               <Route
                 path="/tien-trinh-phan-tich"
                 element={<AnalysisProgressPage />}
