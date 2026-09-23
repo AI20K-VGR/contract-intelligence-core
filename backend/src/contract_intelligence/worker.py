@@ -127,9 +127,7 @@ async def _mark_status(
     await session.flush()
 
 
-async def _load_contract_document(
-    session: AsyncSession, dossier_id: str
-) -> DocumentORM | None:
+async def _load_contract_document(session: AsyncSession, dossier_id: str) -> DocumentORM | None:
     result = await session.execute(
         select(DocumentORM)
         .where(
@@ -241,24 +239,27 @@ async def handle_dossier_uploaded(session: AsyncSession, event: dict[str, Any]) 
 async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> None:
     """Persist AI1 OCR result and update job/dossier status."""
     event_id = str(message.get("event_id") or "")
-    payload = message.get("payload") if isinstance(message.get("payload"), dict) else {}
+    raw_payload = message.get("payload")
+    payload: dict[str, Any] = raw_payload if isinstance(raw_payload, dict) else {}
     job_id = str(payload.get("job_id") or "")
     dedupe_key = event_id or job_id
     if dedupe_key and dedupe_key in _seen_result_ids:
         logger.info("worker.ai1_result.duplicate", event_id=event_id, job_id=job_id)
         return
 
-    correlation = message.get("correlation") if isinstance(message.get("correlation"), dict) else {}
+    raw_correlation = message.get("correlation")
+    correlation: dict[str, Any] = raw_correlation if isinstance(raw_correlation, dict) else {}
     dossier_id = correlation.get("dossier_id")
     run_id = correlation.get("run_id")
     tenant_id = str(message.get("tenant_id") or correlation.get("tenant_id") or "")
     event_type = message.get("event_type")
 
     if event_type == EVENT_OCR_FAILED or str(payload.get("status")) == "failed":
-        error = payload.get("error") if isinstance(payload.get("error"), dict) else {}
+        raw_error = payload.get("error")
+        error: dict[str, Any] = raw_error if isinstance(raw_error, dict) else {}
         await _mark_status(
             session,
-                    status_value=JobStatus.FAILED.value,
+            status_value=JobStatus.FAILED.value,
             dossier_id=str(dossier_id) if dossier_id else None,
             run_id=str(run_id) if run_id else None,
             error_code=str(error.get("code") or "AI1_OCR_FAILED"),
