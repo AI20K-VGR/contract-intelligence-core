@@ -1,0 +1,210 @@
+html,
+body,
+.pf-v5-c-login,
+.pf-v5-theme-dark,
+.pf-v5-theme-dark body {
+  background: #f8f9ff !important;
+  background-image: radial-gradient(circle, #c4c6ce 0.75px, transparent 0.75px) !important;
+  background-size: 24px 24px !important;
+  color: #0b1c30 !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+  min-height: 100vh;
+}
+
+#kc-header {
+  display: none !important;
+}
+
+.pf-v5-c-login {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px 16px 72px;
+}
+
+.pf-v5-c-login__container {
+  width: 100%;
+  max-width: 420px;
+  grid-template-columns: 1fr !important;
+}
+
+.pf-v5-c-login__main {
+  position: relative;
+  background: #ffffff !important;
+  border-radius: 8px !important;
+  box-shadow: 0 1px 8px rgba(11, 28, 48, 0.06) !important;
+  padding: 32px !important;
+  overflow: hidden;
+}
+
+.pf-v5-c-login__main::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: #0b1f3a;
+}
+
+.lexis-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 20px;
+  color: #0b1f3a;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.lexis-brand-mark {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+}
+
+#kc-page-title {
+  margin: 0 !important;
+  color: #0b1f3a !important;
+  font-size: 18px !important;
+  line-height: 24px !important;
+  font-weight: 600 !important;
+}
+
+.lexis-subtitle {
+  margin: 4px 0 0;
+  color: #545f73;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.lexis-steps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  list-style: none;
+  margin: 16px 0 20px;
+  padding: 0;
+}
+
+.lexis-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #75777e;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.lexis-step-current {
+  color: #0b1f3a;
+  font-weight: 600;
+}
+
+.lexis-step-done .lexis-step-index {
+  background: #e5eeff;
+  color: #0b1f3a;
+}
+
+.lexis-step-index {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #c4c6ce;
+  font-size: 11px;
+}
+
+.lexis-step-current .lexis-step-index {
+  background: #0b1f3a;
+  color: #ffffff;
+  border-color: #0b1f3a;
+}
+
+.lexis-step-line {
+  height: 1px;
+  flex: 1;
+  min-width: 24px;
+  background: #c4c6ce;
+}
+
+.pf-v5-c-form__label-text {
+  color: #44474d !important;
+  font-size: 11px !important;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-weight: 500 !important;
+}
+
+.pf-v5-c-form-control,
+.pf-v5-c-form-control:focus-within {
+  background: #eff4ff !important;
+  border: none !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+  min-height: 40px;
+}
+
+.pf-v5-c-form-control input {
+  color: #0b1c30 !important;
+  font-size: 14px !important;
+}
+
+#kc-login.pf-v5-c-button {
+  width: 100%;
+  height: 40px;
+  background: #0b1f3a !important;
+  border: none !important;
+  border-radius: 2px !important;
+  color: #ffffff !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+}
+
+#kc-login.pf-v5-c-button:hover {
+  background: #000615 !important;
+}
+
+.pf-v5-c-check__label,
+.pf-v5-c-helper-text a {
+  color: #545f73 !important;
+  font-size: 13px !important;
+}
+
+.pf-v5-c-helper-text a {
+  text-decoration: none;
+}
+
+.pf-v5-c-button.pf-m-control {
+  background: transparent !important;
+  border: none !important;
+  color: #75777e !important;
+}
+
+.pf-v5-c-alert,
+#input-error,
+.pf-m-danger {
+  color: #ba1a1a !important;
+}
+
+.lexis-sso-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px;
+  color: #75777e;
+  font-size: 11px;
+}

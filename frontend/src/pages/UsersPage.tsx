@@ -39,12 +39,8 @@ const roleOptions: {
     label: 'Thẩm định',
     hint: 'Rà soát trích dẫn và xung đột. Dùng giao diện người dùng.',
   },
-  {
-    value: 'ADMINISTRATOR',
-    label: 'Quản trị',
-    hint: 'Quản lý người dùng và toàn bộ hệ thống.',
-  },
 ]
+
 
 const roleLabel: Record<ManagedUserRole, string> = {
   OPERATOR: 'Vận hành',
@@ -96,6 +92,12 @@ export function UsersPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(null), 4000)
+    return () => window.clearTimeout(timer)
+  }, [notice])
   const [createOpen, setCreateOpen] = useState(false)
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [lockTarget, setLockTarget] = useState<ManagedUser | null>(null)
@@ -257,10 +259,14 @@ export function UsersPage() {
       </div>
 
       {notice ? (
-        <div className="px-space-lg py-space-md rounded bg-surface-container text-on-surface font-body-sm text-body-sm flex items-start justify-between gap-space-md">
-          <span>{notice}</span>
+        <div
+          className="fixed top-20 right-6 z-[70] w-[min(24rem,calc(100vw-3rem))] px-space-lg py-space-md rounded bg-surface-container-lowest text-on-surface font-body-sm text-body-sm shadow-sm border border-surface-container flex items-start gap-space-md"
+          role="status"
+        >
+          <MaterialIcon name="check_circle" className="text-primary text-[20px] shrink-0" />
+          <span className="flex-1">{notice}</span>
           <button
-            className="text-secondary hover:text-on-surface"
+            className="text-secondary hover:text-on-surface shrink-0"
             type="button"
             aria-label="Đóng thông báo"
             onClick={() => setNotice(null)}
@@ -519,10 +525,19 @@ function UserRow({
             id={`role-${member.id}`}
             className="appearance-none bg-surface-container text-on-surface font-body-sm text-body-sm py-1.5 pl-3 pr-8 rounded focus:outline-none focus:ring-1 focus:ring-secondary disabled:opacity-60 disabled:cursor-not-allowed"
             value={member.role}
-            disabled={busy || self}
-            title={self ? 'Không đổi vai trò của chính bạn' : 'Đổi vai trò'}
+            disabled={busy || self || member.role === 'ADMINISTRATOR'}
+            title={
+              member.role === 'ADMINISTRATOR'
+                ? 'Quản trị được tạo trên Keycloak'
+                : self
+                  ? 'Không đổi vai trò của chính bạn'
+                  : 'Đổi vai trò'
+            }
             onChange={(event) => onRole(event.target.value as ManagedUserRole)}
           >
+            {member.role === 'ADMINISTRATOR' ? (
+              <option value="ADMINISTRATOR">{roleLabel.ADMINISTRATOR}</option>
+            ) : null}
             {roleOptions.map((role) => (
               <option key={role.value} value={role.value}>
                 {role.label}
@@ -735,7 +750,7 @@ function CreateUserDialog({
         </div>
 
         <div className="flex flex-col gap-space-md">
-          <Field label="Email" htmlFor="new-user-email">
+          <Field label="Email" htmlFor="new-user-email" required>
             <input
               id="new-user-email"
               className="h-10 px-space-md bg-surface text-on-surface font-body-sm text-body-sm rounded focus:outline-none focus:ring-2 focus:ring-on-tertiary-container focus:bg-surface-container-lowest"
@@ -747,7 +762,7 @@ function CreateUserDialog({
               onChange={(event) => setEmail(event.target.value)}
             />
           </Field>
-          <Field label="Tên (bắt buộc)" htmlFor="new-user-name">
+          <Field label="Tên" htmlFor="new-user-name" required>
             <input
               id="new-user-name"
               name="displayName"
@@ -838,10 +853,12 @@ function CreateUserDialog({
 function Field({
   label,
   htmlFor,
+  required = false,
   children,
 }: {
   label: string
   htmlFor: string
+  required?: boolean
   children: ReactNode
 }) {
   return (
@@ -851,6 +868,7 @@ function Field({
         htmlFor={htmlFor}
       >
         {label}
+        {required ? <span className="text-error"> *</span> : null}
       </label>
       {children}
     </div>

@@ -34,8 +34,14 @@ export function getUserManager(): UserManager | null {
   }
 
   const origin = window.location.origin
+  // localtunnel shows an IP gate to the browser. Dev server proxies /keycloak
+  // and adds the bypass header, so the SPA never calls loca.lt directly.
+  const keycloakBase = config.url.includes('loca.lt')
+    ? `${origin}/keycloak`
+    : config.url
+  const authority = `${keycloakBase}/realms/${config.realm}`
   manager = new UserManager({
-    authority: `${config.url}/realms/${config.realm}`,
+    authority,
     client_id: config.clientId,
     redirect_uri: `${origin}/auth/callback`,
     silent_redirect_uri: `${origin}/auth/silent-callback`,
