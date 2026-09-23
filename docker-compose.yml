@@ -347,7 +347,7 @@ services:
     container_name: ci-minio-init
     depends_on:
       - minio
-    entrypoint: /bin/sh -c "until (/usr/bin/mc config host add myminio http://minio:9000 admin password123) do echo 'waiting for minio...' && sleep 1; done; /usr/bin/mc mb myminio/dossiers || true; /usr/bin/mc anonymous set private myminio/dossiers; exit 0;"
+    entrypoint: /bin/sh -c "until (/usr/bin/mc alias set myminio http://minio:9000 admin password123) do echo 'waiting for minio...' && sleep 1; done; /usr/bin/mc mb myminio/dossiers || true; /usr/bin/mc anonymous set private myminio/dossiers; exit 0;"
     networks:
       - ci-network
 
