@@ -12,9 +12,15 @@ from contract_intelligence.infrastructure.messaging import (
     start_producer,
     stop_producer,
 )
-from contract_intelligence.infrastructure.storage import upload_file
+from contract_intelligence.infrastructure.storage import (
+    generate_presigned_get_url,
+    generate_presigned_put_url,
+    upload_file,
+)
 
 __all__ = [
+    "generate_presigned_get_url",
+    "generate_presigned_put_url",
     "publish_event",
     "query_ai2",
     "start_producer",

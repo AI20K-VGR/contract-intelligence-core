@@ -1,0 +1,1074 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Contract Intelligence - AI2 pipeline demo</title>
+<style>
+  :root {
+    --bg: #f4f5f8;
+    --surface: #ffffff;
+    --surface-2: #fafbfc;
+    --border: #e3e6ec;
+    --text: #191c22;
+    --text-muted: #666e7d;
+    --primary: #2554e8;
+    --primary-soft: #eaf0ff;
+    --success: #0f7a55;
+    --success-soft: #e4f6ee;
+    --danger: #b7382c;
+    --danger-soft: #fbeae8;
+    --accent-b: #b3540a;
+    --accent-b-soft: #fdf0e0;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .08);
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --surface: #1d2025;
+      --surface-2: #21242a;
+      --border: #2c3037;
+      --text: #e8eaed;
+      --text-muted: #9aa1ac;
+      --primary: #7d9dff;
+      --primary-soft: #1c2740;
+      --success: #56d9a6;
+      --success-soft: #103226;
+      --danger: #ff9086;
+      --danger-soft: #3a1d1c;
+      --accent-b: #e8a35c;
+      --accent-b-soft: #3a2a12;
+      --shadow: 0 1px 3px rgba(0, 0, 0, .5);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    margin: 0; background: var(--bg); color: var(--text);
+    font-size: 14px; line-height: 1.45;
+  }
+  .app-bar {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 14px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .app-bar h1 { font-size: 16px; margin: 0; }
+  .app-bar .subtitle { font-size: 12px; color: var(--text-muted); }
+  .tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px;
+    background: var(--primary-soft); color: var(--primary); white-space: nowrap;
+  }
+  main { max-width: 1400px; margin: 0 auto; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .card-pad { padding: 16px; }
+
+  .dropzone {
+    border: 2px dashed var(--border); border-radius: var(--radius); padding: 18px;
+    text-align: center; cursor: pointer; background: var(--surface-2); transition: .15s;
+  }
+  .dropzone:hover, .dropzone.dragover { border-color: var(--primary); background: var(--primary-soft); }
+  .dropzone .label { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+  .dropzone .hint { font-size: 11px; color: var(--text-muted); }
+  .dropzone .filename { margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--primary); word-break: break-all; }
+  .dropzone input { display: none; }
+
+  .uploader-actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  button {
+    font: inherit; border-radius: 8px; padding: 9px 16px; cursor: pointer; border: 1px solid transparent;
+  }
+  button.primary { background: var(--primary); color: #fff; font-weight: 600; }
+  button.primary:disabled { opacity: .45; cursor: not-allowed; }
+  button.ghost { background: transparent; border-color: var(--border); color: var(--text); }
+  button.ghost:hover { border-color: var(--primary); color: var(--primary); }
+  .uploader-note { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+  .status-line { font-size: 12px; color: var(--primary); margin-top: 10px; min-height: 16px; }
+  .status-line.error { color: var(--danger); }
+
+  .workspace { display: grid; grid-template-columns: minmax(300px, 1.05fr) minmax(320px, 1fr); gap: 18px; align-items: start; }
+  @media (max-width: 980px) { .workspace { grid-template-columns: 1fr; } }
+
+  .doc-card h2 { font-size: 13px; margin: 0 0 2px; }
+  .doc-card { margin-bottom: 14px; }
+  .doc-card .meta { font-size: 11px; color: var(--text-muted); margin-bottom: 10px; }
+  .role-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+  .role-badge.contract { background: var(--primary-soft); color: var(--primary); }
+  .role-badge.annex { background: var(--accent-b-soft); color: var(--accent-b); }
+
+  .page-wrap { position: relative; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; line-height: 0; margin-bottom: 8px; }
+  .page-wrap img, .page-wrap canvas { width: 100%; display: block; }
+  .page-badge { position: absolute; top: 6px; left: 6px; font-size: 10px; background: rgba(0,0,0,.55); color: #fff; padding: 1px 6px; border-radius: 4px; z-index: 2; }
+  .bbox {
+    position: absolute; border: 1px dashed rgba(37, 84, 232, .4); border-radius: 2px;
+    pointer-events: none; transition: all .12s ease; background: transparent;
+  }
+  .bbox.active-a { border: 2px solid var(--primary); background: rgba(37, 84, 232, .18); }
+  .bbox.active-b { border: 2px solid var(--accent-b); background: rgba(179, 84, 10, .18); }
+
+  .panel-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+  .panel-tab { padding: 8px 4px; font-size: 13px; font-weight: 600; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; margin-right: 14px; }
+  .panel-tab.active { color: var(--primary); border-color: var(--primary); }
+  .panel-body[hidden] { display: none; }
+
+  .search-box { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; margin-bottom: 10px; }
+
+  .fact-row {
+    display: flex; align-items: baseline; gap: 8px; padding: 8px 6px; border-radius: 8px; cursor: pointer; font-size: 12px;
+  }
+  .fact-row:hover { background: var(--surface-2); }
+  .fact-row.selected { background: var(--primary-soft); }
+  .fact-row .fact-field { font-weight: 700; min-width: 130px; }
+  .fact-row .fact-value { font-family: ui-monospace, "SF Mono", Consolas, monospace; flex: 1; }
+  .fact-row .fact-clause { color: var(--text-muted); font-size: 11px; }
+
+  .empty-state { padding: 20px 10px; text-align: center; color: var(--text-muted); font-size: 12px; }
+
+  .finding-card { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; cursor: pointer; }
+  .finding-card:hover { border-color: var(--primary); }
+  .finding-card.selected { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+  .finding-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .finding-topic { font-weight: 700; font-size: 12px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+  .badge.match, .badge.conf-low { background: var(--success-soft); color: var(--success); }
+  .badge.diff, .badge.conf-high { background: var(--danger-soft); color: var(--danger); }
+  .badge.conf-medium { background: var(--accent-b-soft); color: var(--accent-b); }
+  .finding-values { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px; }
+  .value-block { font-size: 11px; border-radius: 6px; padding: 6px 8px; }
+  .value-block.a { background: var(--primary-soft); color: var(--primary); }
+  .value-block.b { background: var(--accent-b-soft); color: var(--accent-b); }
+  .value-block .value-label { font-weight: 700; display: block; margin-bottom: 2px; }
+  .finding-rationale { font-size: 11px; color: var(--text-muted); }
+
+  .clause-tree { margin-top: 8px; font-size: 11px; }
+  .clause-row { padding: 2px 0; color: var(--text-muted); }
+  .clause-row .clause-level-article { color: var(--text); font-weight: 700; }
+  .clause-row .clause-level-clause { color: var(--text); font-weight: 600; }
+  .clause-row .clause-level-preamble { font-style: italic; }
+
+  .annex-group-title { font-size: 12px; font-weight: 700; margin: 12px 0 6px; color: var(--text-muted); }
+  .annex-group-title:first-child { margin-top: 0; }
+
+  .fact-row-wrap { border-radius: 8px; }
+  .fact-row-wrap:hover .fact-row { background: var(--surface-2); }
+  .correct-btn { font-size: 10px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; }
+  .correct-btn:hover { border-color: var(--primary); color: var(--primary); }
+  .human-value { font-size: 11px; color: var(--success); padding: 0 6px 6px 6px; }
+
+  .eval-stat { display: flex; justify-content: space-between; padding: 7px 2px; border-bottom: 1px dashed var(--border); font-size: 12px; }
+
+  .detail-panel { margin-top: 10px; font-size: 12px; background: var(--surface-2); border: 1px dashed var(--border); border-radius: 8px; padding: 10px; white-space: pre-wrap; }
+  .detail-panel[hidden] { display: none; }
+  .quote-a { color: var(--primary); font-weight: 600; }
+  .quote-b { color: var(--accent-b); font-weight: 600; }
+
+  footer { text-align: center; font-size: 11px; color: var(--text-muted); padding: 6px 20px 26px; }
+
+  .overlay-loading {
+    position: fixed; inset: 0; background: rgba(20, 22, 26, .45); display: flex; align-items: center; justify-content: center; z-index: 50;
+  }
+  .overlay-loading[hidden] { display: none; }
+  .overlay-box { background: var(--surface); border-radius: var(--radius); padding: 20px 26px; box-shadow: var(--shadow); text-align: center; min-width: 220px; }
+  .spinner { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--primary); margin: 0 auto 10px; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="app-bar">
+  <div>
+    <h1>Contract Intelligence &mdash; AI2 pipeline demo</h1>
+    <div class="subtitle" id="disclaimer"></div>
+  </div>
+  <span class="tag" id="source-tag">nguon: demo mau</span>
+</div>
+
+<main>
+  <section class="card card-pad">
+    <label class="dropzone" id="dropzone-contract">
+      <div class="label">📄 Tai PDF can xu ly (bat buoc)</div>
+      <div class="hint">Keo tha 1 file PDF vao day, hoac bam de chon &mdash; phan tich chay tu dong ngay sau khi chon file</div>
+      <div class="filename" id="filename-contract"></div>
+      <input type="file" id="file-contract" accept="application/pdf" />
+    </label>
+
+    <label class="dropzone" id="dropzone-annex" style="margin-top: 12px;">
+      <div class="label">📎 Phu luc (0..N, tuy chon)</div>
+      <div class="hint">Keo tha hoac chon nhieu file cung luc de kiem tra mau thuan voi hop dong o tren</div>
+      <div class="filename" id="filename-annex"></div>
+      <input type="file" id="file-annex" accept="application/pdf" multiple />
+    </label>
+
+    <div class="uploader-actions">
+      <button class="ghost" id="btn-reset-sample">Dung du lieu mau co san</button>
+    </div>
+    <div class="uploader-note">Chi doc duoc PDF co text-layer (native) ngay trong trinh duyet. PDF scan/anh se ra 0 fact &mdash; dung script Python voi <code>--engine paddle</code>, hoac dung <code>frontend/index.html</code> qua backend that cho truong hop do.</div>
+    <div class="status-line" id="status-line"></div>
+  </section>
+
+  <section class="workspace">
+    <div id="docs"></div>
+    <div class="card card-pad">
+      <div class="panel-tabs">
+        <div class="panel-tab active" data-tab="facts">Facts</div>
+        <div class="panel-tab" data-tab="findings">Xung dot (Findings)</div>
+        <div class="panel-tab" data-tab="evaluation">Evaluation</div>
+      </div>
+      <div class="panel-body" data-tab-body="facts">
+        <input class="search-box" id="fact-search" placeholder="Loc theo field, gia tri, dieu khoan..." />
+        <div id="facts-list"></div>
+      </div>
+      <div class="panel-body" data-tab-body="findings" hidden>
+        <div id="findings-list"></div>
+      </div>
+      <div class="panel-body" data-tab-body="evaluation" hidden>
+        <div id="evaluation-body"></div>
+      </div>
+      <div class="detail-panel" id="detail-panel" hidden></div>
+    </div>
+  </section>
+</main>
+
+<footer>docs/architecture.md demo &mdash; khong ket noi may chu, PDF ban tai len duoc xu ly hoan toan trong trinh duyet (pdf.js), khong gui di dau. Xem repo root DOC-04 v0.2 de doi chieu thiet ke day du.</footer>
+
+<div class="overlay-loading" id="overlay-loading" hidden>
+  <div class="overlay-box">
+    <div class="spinner"></div>
+    <div id="overlay-text">Dang xu ly...</div>
+  </div>
+</div>
+
+<script src="vendor/pdfjs/pdf.min.js"></script>
+<script id="dossier-data" type="application/json">__DOSSIER_DATA_JSON__</script>
+<script>
+"use strict";
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "vendor/pdfjs/pdf.worker.min.js";
+}
+
+// --------------------------------------------------------------------------
+// Core fact/clause/citation/comparison pipeline - a JS mirror of
+// contract_ocr.application.use_cases.extract_ai2_facts (the module shared by
+// scripts/demo_ai2_pipeline.py and the backend). Kept deliberately close to
+// that file so the two stay easy to compare; if you change the regexes or
+// heuristics there, mirror the change here too.
+// --------------------------------------------------------------------------
+
+function foldDiacritics(text) {
+  return text
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "");
+}
+
+// Three heading levels, matching architecture.md section 8.1's node types
+// (article/clause/point). ARTICLE_RE only fires on a literal "Dieu N."/"Muc N.";
+// CLAUSE_RE/POINT_RE only get a chance once we're already inside an article,
+// otherwise an ordinary sentence that happens to start with "1. " or "a) " in
+// the preamble would be misread as a heading.
+const ARTICLE_RE = /^(Dieu|Muc)\s+(\d+)\.?\s*(.*)$/d;
+const CLAUSE_RE = /^(?:Khoan\s+)?(\d+)\.\s*(.*)$/d;
+const POINT_RE = /^([a-zA-Z])\)\s*(.*)$/d;
+
+// Field set matches architecture.md section 27.11's Sprint-1 MVP list
+// (parties, amount, date, payment term). Party names use PARTY_RE separately
+// because the field name ("party_a" vs "party_b") comes from a captured
+// group, not a fixed string like the others.
+const FACT_PATTERNS = [
+  ["money", "contract_value", /\d{1,3}(?:[.,]\d{3})+\s*(?:VND|dong)/id],
+  ["duration_days", "payment_term_days", /trong\s+vong\s+(\d+)\s*ngay/id],
+  ["date", "signing_date", /\d{1,2}\/\d{1,2}\/\d{4}/d],
+];
+const PARTY_RE = /^Ben\s+([AB])\s*[:\-]\s*(.+)$/d;
+
+// Stand-in for architecture.md section 27.2's "Classification" output
+// (contract/appendix/other + confirmed/needs_review) - first-page keyword
+// sniffing, same simplification as classify_document() in extract_ai2_facts.py.
+const CLASSIFICATION_KEYWORDS = [["PHU LUC", "appendix"], ["HOP DONG", "contract"]];
+
+function classifyDocument(snapshot) {
+  const firstPageText = snapshot.pages[0]
+    ? foldDiacritics(snapshot.pages[0].lines.map((l) => l.text).join(" ")).toUpperCase()
+    : "";
+  for (const [keyword, role] of CLASSIFICATION_KEYWORDS) {
+    if (firstPageText.includes(keyword)) return { predicted_role: role, status: "confirmed", evidence: keyword };
+  }
+  return { predicted_role: "other", status: "needs_review", evidence: null };
+}
+
+function clamp01(v) { return Math.min(1, Math.max(0, v)); }
+
+function unionBBox(boxes) {
+  if (!boxes.length) return null;
+  return [
+    Math.min(...boxes.map((b) => b[0])),
+    Math.min(...boxes.map((b) => b[1])),
+    Math.max(...boxes.map((b) => b[2])),
+    Math.max(...boxes.map((b) => b[3])),
+  ];
+}
+
+function computeItemBox(it, viewport) {
+  // Approximate a glyph-run box from its baseline + font size: pdf.js text
+  // items don't carry a tight bounding box, only baseline position/width, so
+  // this is a disclosed approximation for the overlay, same spirit as the
+  // "deliberate simplifications" noted in demo_ai2_pipeline.py.
+  return [
+    clamp01(it.x / viewport.width),
+    clamp01(1 - (it.y + it.fontSize * 0.25) / viewport.height),
+    clamp01((it.x + it.width) / viewport.width),
+    clamp01(1 - (it.y - it.fontSize * 0.8) / viewport.height),
+  ];
+}
+
+async function extractPageLines(page, linePrefix) {
+  const viewport = page.getViewport({ scale: 1 });
+  const textContent = await page.getTextContent();
+  const rawItems = textContent.items
+    .filter((it) => it.str !== undefined && it.transform)
+    .map((it) => ({
+      str: it.str,
+      x: it.transform[4],
+      y: it.transform[5],
+      width: it.width,
+      fontSize: Math.hypot(it.transform[2], it.transform[3]) || 10,
+    }));
+
+  const LINE_TOL = 2.5;
+  const rows = [];
+  for (const it of rawItems) {
+    let row = rows.find((r) => Math.abs(r.y - it.y) <= LINE_TOL);
+    if (!row) { row = { y: it.y, items: [] }; rows.push(row); }
+    row.items.push(it);
+  }
+  rows.sort((a, b) => b.y - a.y);
+  rows.forEach((r) => r.items.sort((a, b) => a.x - b.x));
+
+  const lines = [];
+  rows.forEach((row, index) => {
+    let text = "";
+    const spans = [];
+    let prevEnd = null;
+    let prevFontSize = 10;
+    for (const it of row.items) {
+      if (prevEnd !== null) {
+        const gap = it.x - prevEnd;
+        if (gap > prevFontSize * 0.2 && !text.endsWith(" ")) text += " ";
+      }
+      const start = text.length;
+      text += it.str;
+      spans.push({ start, end: text.length, box: computeItemBox(it, viewport) });
+      prevEnd = it.x + it.width;
+      prevFontSize = it.fontSize || prevFontSize;
+    }
+    if (!text.trim()) return;
+    lines.push({
+      line_id: `${linePrefix}:l${index + 1}`,
+      text,
+      spans,
+      bbox_normalized: unionBBox(spans.map((s) => s.box)) || [0, 0, 1, 1],
+    });
+  });
+  return lines;
+}
+
+async function buildClientSnapshot(pdfDocument, { documentId, filename, role }) {
+  const pages = [];
+  for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
+    const page = await pdfDocument.getPage(pageNum);
+    const lines = await extractPageLines(page, `${documentId}:p${pageNum}`);
+    pages.push({ page_number: pageNum, lines });
+  }
+  const hasText = pages.some((p) => p.lines.length > 0);
+  return {
+    document_id: documentId,
+    role,
+    filename,
+    input_type: hasText ? "TEXT_LAYER" : "SCANNED_OCR_UNSUPPORTED",
+    engine: { name: "pdfjs-client", version: (window.pdfjsLib && pdfjsLib.version) || "unknown" },
+    page_count: pages.length,
+    pages,
+  };
+}
+
+function buildCitation(snapshot, page, line, start, end) {
+  const overlapping = line.spans.filter((s) => s.end > start && s.start < end);
+  const bbox = overlapping.length ? unionBBox(overlapping.map((s) => s.box)) : line.bbox_normalized;
+  return {
+    citation_id: `cit-${snapshot.document_id}-${line.line_id}-${start}`,
+    schema_version: "1.0",
+    document_id: snapshot.document_id,
+    document_role: snapshot.role,
+    extraction_revision_id: "client-pdfjs",
+    segments: [{
+      page_number: page.page_number,
+      line_id: line.line_id,
+      char_start: start,
+      char_end: end,
+      quote: line.text.slice(start, end),
+      bbox,
+      coordinate_space: "canonical_normalized",
+      anchor_precision: overlapping.length ? "word" : "line",
+    }],
+    validation_status: "valid",
+  };
+}
+
+function extractClauses(snapshot) {
+  // Builds a 4-level structure: preamble (before any "Dieu N."/"Muc N.",
+  // where parties/signing date usually live) -> article -> clause -> point,
+  // each clause carrying parent_clause_id. Every line ends up in exactly one
+  // of these; nothing is dropped. Mirrors extract_clauses() in
+  // extract_ai2_facts.py.
+  const clauses = [];
+  let counter = 0;
+  function startClause(level, label, title, parentId, pageNumber) {
+    counter += 1;
+    const clause = {
+      clause_id: `${snapshot.document_id}:clause-${counter}`,
+      level, label, title,
+      parent_clause_id: parentId,
+      page_number: pageNumber,
+      line_ids: [],
+    };
+    clauses.push(clause);
+    return clause;
+  }
+
+  const firstPageNumber = snapshot.pages[0] ? snapshot.pages[0].page_number : 1;
+  let active = startClause("preamble", "Mo dau", "Truoc dieu khoan dau tien (ben, ngay ky...)", null, firstPageNumber);
+  let currentArticle = null;
+  let currentClause = null;
+
+  for (const page of snapshot.pages) {
+    for (const line of page.lines) {
+      const folded = foldDiacritics(line.text);
+      const articleMatch = ARTICLE_RE.exec(folded);
+      const clauseMatch = !articleMatch && currentArticle ? CLAUSE_RE.exec(folded) : null;
+      const pointMatch = !articleMatch && !clauseMatch && currentArticle ? POINT_RE.exec(folded) : null;
+
+      if (articleMatch) {
+        const [labelStart, labelEnd] = articleMatch.indices[1];
+        const [titleStart, titleEnd] = articleMatch.indices[3];
+        currentArticle = startClause(
+          "article",
+          `${line.text.slice(labelStart, labelEnd)} ${articleMatch[2]}`,
+          line.text.slice(titleStart, titleEnd).trim(),
+          null,
+          page.page_number
+        );
+        currentClause = null;
+        active = currentArticle;
+      } else if (clauseMatch) {
+        const [titleStart, titleEnd] = clauseMatch.indices[2];
+        currentClause = startClause(
+          "clause",
+          `Khoan ${clauseMatch[1]}`,
+          line.text.slice(titleStart, titleEnd).trim(),
+          currentArticle.clause_id,
+          page.page_number
+        );
+        active = currentClause;
+      } else if (pointMatch) {
+        const parent = currentClause || currentArticle;
+        const [titleStart, titleEnd] = pointMatch.indices[2];
+        active = startClause(
+          "point",
+          `Diem ${pointMatch[1].toLowerCase()}`,
+          line.text.slice(titleStart, titleEnd).trim(),
+          parent.clause_id,
+          page.page_number
+        );
+      }
+      active.line_ids.push(line.line_id);
+    }
+  }
+  return clauses.filter((c) => c.line_ids.length);
+}
+
+function normalizeFact(factType, raw, match) {
+  if (factType === "money") {
+    const digits = raw.match(/[\d.,]+/);
+    return { amount: digits ? digits[0].replace(/[.,]/g, "") : "", currency: "VND" };
+  }
+  if (factType === "duration_days") return { days: parseInt(match[1], 10) };
+  // "date": kept as the raw matched string, not parsed - dd/mm/yyyy vs
+  // mm/dd/yyyy is genuinely ambiguous without a locale (architecture.md
+  // section 8.3 warns against guessing that).
+  return { raw };
+}
+
+function factConfidence(anchorPrecision) {
+  // Signals, not a fabricated probability - section 27.8 is explicit that an
+  // unexplained confidence=0.98 shouldn't be read as 98% accurate.
+  const isWord = anchorPrecision === "word";
+  return {
+    score: null,
+    calibrated: false,
+    calibration_version: null,
+    signals: { source_resolved: true, span_exact_match: true, anchor_precision_word: isWord },
+    review_priority: isWord ? "low" : "medium",
+    reason_codes: isWord ? [] : ["LINE_LEVEL_ANCHOR_ONLY"],
+  };
+}
+
+function findingConfidence(isMatch, contractFact, annexFact) {
+  const priorities = new Set([contractFact.confidence.review_priority, annexFact.confidence.review_priority]);
+  const reasonCodes = [];
+  if (!isMatch) reasonCodes.push("VALUE_MISMATCH");
+  if (priorities.has("medium")) reasonCodes.push("LINE_LEVEL_ANCHOR_ONLY");
+  // A difference always gets reviewed regardless of anchor quality - section
+  // 27.8: critical money/date/MST disagreement is always reviewed.
+  const reviewPriority = !isMatch ? "high" : ([...priorities].some((p) => p !== "low") ? "medium" : "low");
+  return { score: null, calibrated: false, calibration_version: null, review_priority: reviewPriority, reason_codes: reasonCodes };
+}
+
+function extractFacts(snapshot, clauses) {
+  const linesById = new Map();
+  for (const page of snapshot.pages) {
+    for (const line of page.lines) linesById.set(line.line_id, { page, line });
+  }
+  const facts = [];
+  for (const clause of clauses) {
+    for (const lineId of clause.line_ids) {
+      const { page, line } = linesById.get(lineId);
+      const folded = foldDiacritics(line.text);
+      const context = { clause_id: clause.clause_id, clause_label: clause.label, clause_title: clause.title };
+
+      for (const [factType, fieldName, pattern] of FACT_PATTERNS) {
+        const match = pattern.exec(folded);
+        if (!match) continue;
+        const [start, end] = match.indices[0];
+        const raw = line.text.slice(start, end);
+        const citation = buildCitation(snapshot, page, line, start, end);
+        facts.push({
+          fact_id: `fact-${snapshot.document_id}-${fieldName}`,
+          type: factType,
+          field: fieldName,
+          raw,
+          normalized: normalizeFact(factType, raw, match),
+          context,
+          citation,
+          confidence: factConfidence(citation.segments[0].anchor_precision),
+          human_correction: null,
+        });
+      }
+
+      const partyMatch = PARTY_RE.exec(folded);
+      if (partyMatch) {
+        const fieldName = `party_${partyMatch[1].toLowerCase()}`;
+        const [nameStart, nameEnd] = partyMatch.indices[2];
+        const raw = line.text.slice(nameStart, nameEnd).trim();
+        const citation = buildCitation(snapshot, page, line, nameStart, nameEnd);
+        facts.push({
+          fact_id: `fact-${snapshot.document_id}-${fieldName}`,
+          type: "party",
+          field: fieldName,
+          raw,
+          normalized: { name: raw },
+          context,
+          citation,
+          confidence: factConfidence(citation.segments[0].anchor_precision),
+          human_correction: null,
+        });
+      }
+    }
+  }
+  return facts;
+}
+
+function compareFacts(contractFacts, annexFacts) {
+  const byField = new Map(annexFacts.map((f) => [f.field, f]));
+  const findings = [];
+  for (const cf of contractFacts) {
+    const af = byField.get(cf.field);
+    if (!af) continue;
+    const isMatch = JSON.stringify(cf.normalized) === JSON.stringify(af.normalized);
+    findings.push({
+      finding_id: `finding-${cf.field}`,
+      comparison_kind: "structured",
+      scope: "contract_annex",
+      topic: cf.field,
+      disposition: isMatch ? "comparable_match" : "comparable_difference",
+      rationale: isMatch
+        ? `'${cf.field}' khop giua hop dong va phu luc.`
+        : `'${cf.field}' khac nhau: hop dong ghi '${cf.raw}', phu luc ghi '${af.raw}'.`,
+      value_a: cf.raw,
+      value_b: af.raw,
+      citations_a: [cf.citation],
+      citations_b: [af.citation],
+      confidence: findingConfidence(isMatch, cf, af),
+    });
+  }
+  return findings;
+}
+
+function compareFactsMulti(contractFacts, annexes) {
+  // annexes: [{documentId, filename, facts}, ...] - one entry per appendix.
+  // Runs compareFacts() against each independently and tags every finding
+  // with which appendix it came from, mirroring compare_facts_multi() in
+  // extract_ai2_facts.py.
+  const findings = [];
+  for (const { documentId, filename, facts } of annexes) {
+    for (const finding of compareFacts(contractFacts, facts)) {
+      finding.annex_document_id = documentId;
+      finding.annex_filename = filename;
+      findings.push(finding);
+    }
+  }
+  return findings;
+}
+
+// --------------------------------------------------------------------------
+// Browser-only glue: render a PDF page to an image, wire up the uploader,
+// and assemble the same payload shape the Python script embeds so one
+// renderDossier() works for both a baked-in demo and freshly uploaded PDFs.
+// --------------------------------------------------------------------------
+
+async function renderPageImage(page) {
+  const viewport = page.getViewport({ scale: 1.5 });
+  const canvas = document.createElement("canvas");
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+  return canvas.toDataURL("image/png");
+}
+
+async function processOneFile(role, file, index, documents, images, onProgress) {
+  onProgress(`Dang doc ${role === "contract" ? "hop dong" : "phu luc"}: ${file.name}...`);
+  const buffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+  const documentId = `${role}-upload-${index}-${Date.now()}`;
+  const snapshot = await buildClientSnapshot(pdf, { documentId, filename: file.name, role });
+
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    onProgress(`${file.name}: dang render trang ${pageNum}/${pdf.numPages}...`);
+    const page = await pdf.getPage(pageNum);
+    images[`${documentId}:${pageNum}`] = await renderPageImage(page);
+  }
+
+  const clauses = extractClauses(snapshot);
+  const facts = extractFacts(snapshot, clauses);
+  documents.push({
+    document_id: documentId,
+    role,
+    filename: file.name,
+    input_type: snapshot.input_type,
+    engine: snapshot.engine,
+    page_count: snapshot.page_count,
+    classification: classifyDocument(snapshot),
+    clauses,
+    facts,
+  });
+  return facts;
+}
+
+async function buildPayloadFromFiles(contractFile, annexFiles, onProgress) {
+  const documents = [];
+  const images = {};
+
+  const contractFacts = await processOneFile("contract", contractFile, 0, documents, images, onProgress);
+
+  const annexRefs = [];
+  for (let i = 0; i < annexFiles.length; i++) {
+    const facts = await processOneFile("annex", annexFiles[i], i + 1, documents, images, onProgress);
+    const doc = documents[documents.length - 1];
+    annexRefs.push({ documentId: doc.document_id, filename: doc.filename, facts });
+  }
+
+  const findings = compareFactsMulti(contractFacts, annexRefs);
+  return {
+    dossier_id: "browser-upload",
+    generated_at: new Date().toISOString(),
+    disclaimer: (
+      "DEMO PIPELINE chay trong trinh duyet (pdf.js) tren file ban vua tai len - " +
+      "chi nhan dien dung mau cau demo nay dung, khong phai ket qua extraction da benchmark."
+    ),
+    documents,
+    findings,
+    images,
+  };
+}
+
+// --------------------------------------------------------------------------
+// Rendering
+// --------------------------------------------------------------------------
+
+const SAMPLE_DATA = JSON.parse(document.getElementById("dossier-data").textContent);
+const docsEl = document.getElementById("docs");
+const factsList = document.getElementById("facts-list");
+const findingsList = document.getElementById("findings-list");
+const evaluationBody = document.getElementById("evaluation-body");
+const detailPanel = document.getElementById("detail-panel");
+const sourceTag = document.getElementById("source-tag");
+const factSearch = document.getElementById("fact-search");
+
+let overlaysByDoc = {};
+let currentData = null;
+let allFactRows = [];
+
+function bboxStyle(bbox) {
+  const [x0, y0, x1, y1] = bbox;
+  return `left:${x0 * 100}%; top:${y0 * 100}%; width:${(x1 - x0) * 100}%; height:${(y1 - y0) * 100}%;`;
+}
+
+function clearActive() {
+  Object.values(overlaysByDoc).forEach((m) => m.forEach((el) => el.classList.remove("active-a", "active-b")));
+  document.querySelectorAll(".selected").forEach((el) => el.classList.remove("selected"));
+}
+
+function activateCitation(citationId, docId, cls) {
+  const el = overlaysByDoc[docId] && overlaysByDoc[docId].get(citationId);
+  if (el) {
+    el.classList.add(cls);
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+function clauseDepth(clause, byId) {
+  let depth = 0;
+  let parentId = clause.parent_clause_id;
+  while (parentId && byId.has(parentId)) {
+    depth++;
+    parentId = byId.get(parentId).parent_clause_id;
+  }
+  return depth;
+}
+
+function renderClauseTree(doc) {
+  const tree = document.createElement("div");
+  tree.className = "clause-tree";
+  const byId = new Map(doc.clauses.map((c) => [c.clause_id, c]));
+  doc.clauses.forEach((clause) => {
+    const row = document.createElement("div");
+    row.className = "clause-row";
+    row.style.paddingLeft = `${clauseDepth(clause, byId) * 14}px`;
+    row.innerHTML =
+      `<span class="clause-level-${clause.level}">${clause.label}</span>` +
+      (clause.title ? ` - ${clause.title}` : "");
+    tree.appendChild(row);
+  });
+  return tree;
+}
+
+function renderFactRow(doc, fact) {
+  const wrap = document.createElement("div");
+  wrap.className = "fact-row-wrap";
+  const conf = fact.confidence.review_priority;
+  const row = document.createElement("div");
+  row.className = "fact-row";
+  row.innerHTML =
+    `<span class="role-badge ${doc.role === "contract" ? "contract" : "annex"}">${doc.role}</span>` +
+    `<span class="fact-field">${fact.field}</span>` +
+    `<span class="fact-value">${fact.human_correction ? `<s>${fact.raw}</s>` : fact.raw}</span>` +
+    `<span class="fact-clause">${fact.context.clause_label}</span>` +
+    `<span class="badge conf-${conf}" title="review_priority">${conf}</span>` +
+    `<button class="correct-btn" type="button">Sua</button>`;
+  row.dataset.searchText = `${fact.field} ${fact.raw} ${fact.context.clause_label} ${fact.context.clause_title}`.toLowerCase();
+  row.addEventListener("click", (e) => {
+    if (e.target.closest(".correct-btn")) return;
+    clearActive();
+    row.classList.add("selected");
+    activateCitation(fact.citation.citation_id, fact.citation.document_id, "active-a");
+    detailPanel.hidden = false;
+    detailPanel.textContent =
+      `Citation (${doc.role}, trang ${fact.citation.segments[0].page_number}, anchor=${fact.citation.segments[0].anchor_precision}):\n"${fact.citation.segments[0].quote}"`;
+  });
+  row.querySelector(".correct-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    const value = prompt(
+      `Sua gia tri cho '${fact.field}' (machine: "${fact.raw}"). Chi luu trong phien lam viec nay, khong gui di dau.`,
+      fact.human_correction ? fact.human_correction.value : fact.raw
+    );
+    if (value === null) return;
+    fact.human_correction = value === fact.raw ? null : { value, actor: "reviewer (demo)", at: new Date().toLocaleString() };
+    renderDossier(currentData, sourceTag.textContent);
+  });
+  wrap.appendChild(row);
+  if (fact.human_correction) {
+    const humanRow = document.createElement("div");
+    humanRow.className = "human-value";
+    humanRow.textContent = `Da sua: "${fact.human_correction.value}" (${fact.human_correction.actor}, ${fact.human_correction.at})`;
+    wrap.appendChild(humanRow);
+  }
+  allFactRows.push(row);
+  return wrap;
+}
+
+function renderFindingCard(finding) {
+  const card = document.createElement("div");
+  card.className = "finding-card";
+  const badgeClass = finding.disposition === "comparable_match" ? "match" : "diff";
+  const conf = finding.confidence.review_priority;
+  card.innerHTML =
+    `<div class="finding-top"><span class="finding-topic">${finding.topic}</span>` +
+    `<span><span class="badge ${badgeClass}">${finding.disposition}</span> <span class="badge conf-${conf}">${conf}</span></span></div>` +
+    `<div class="finding-values">` +
+    `<div class="value-block a"><span class="value-label">A - Hop dong</span>${finding.value_a}</div>` +
+    `<div class="value-block b"><span class="value-label">B - ${finding.annex_filename || "Phu luc"}</span>${finding.value_b}</div>` +
+    `</div>` +
+    `<div class="finding-rationale">${finding.rationale}</div>`;
+  card.addEventListener("click", () => {
+    clearActive();
+    card.classList.add("selected");
+    const citA = finding.citations_a[0];
+    const citB = finding.citations_b[0];
+    activateCitation(citA.citation_id, citA.document_id, "active-a");
+    activateCitation(citB.citation_id, citB.document_id, "active-b");
+    detailPanel.hidden = false;
+    detailPanel.innerHTML =
+      `<strong>${finding.topic}</strong> - ${finding.disposition}\n${finding.rationale}\n` +
+      `<span class="quote-a">A (hop dong, trang ${citA.segments[0].page_number}): "${citA.segments[0].quote}"</span>\n` +
+      `<span class="quote-b">B (${finding.annex_filename || "phu luc"}, trang ${citB.segments[0].page_number}): "${citB.segments[0].quote}"</span>`;
+  });
+  return card;
+}
+
+function renderEvaluation(data) {
+  const totalFacts = data.documents.reduce((n, d) => n + d.facts.length, 0);
+  const byPriority = { low: 0, medium: 0, high: 0 };
+  data.documents.forEach((d) => d.facts.forEach((f) => byPriority[f.confidence.review_priority]++));
+  const correctedCount = data.documents.reduce(
+    (n, d) => n + d.facts.filter((f) => f.human_correction).length,
+    0
+  );
+  const rows = [
+    ["So tai lieu (hop dong + phu luc)", data.documents.length],
+    ["So fact trich duoc", totalFacts],
+    ["So finding (xung dot/khop) da phat hien", data.findings.length],
+    ["Fact review_priority = low (it can xem lai)", byPriority.low],
+    ["Fact review_priority = medium", byPriority.medium],
+    ["Fact review_priority = high (uu tien xem lai)", byPriority.high],
+    ["Fact da duoc reviewer sua trong phien nay", correctedCount],
+  ];
+  evaluationBody.innerHTML =
+    rows.map(([label, value]) => `<div class="eval-stat"><span>${label}</span><span>${value}</span></div>`).join("") +
+    '<div class="uploader-note" style="margin-top:10px;">Day la thong ke tren 1 lan chay, KHONG phai accuracy/F1 - chua co ground truth nap vao de doi chieu. Xem docs/architecture.md muc 16 cho thiet ke evaluation day du (can dataset da gan nhan).</div>';
+}
+
+function renderDossier(data, sourceLabel) {
+  currentData = data;
+  overlaysByDoc = {};
+  docsEl.innerHTML = "";
+  factsList.innerHTML = "";
+  findingsList.innerHTML = "";
+  detailPanel.hidden = true;
+  allFactRows = [];
+
+  document.getElementById("disclaimer").textContent =
+    `${data.disclaimer} | dossier: ${data.dossier_id}`;
+  sourceTag.textContent = sourceLabel;
+
+  data.documents.forEach((doc) => {
+    const card = document.createElement("div");
+    card.className = "card card-pad doc-card";
+    const roleClass = doc.role === "contract" ? "contract" : "annex";
+    const cls = doc.classification;
+    const clsBadgeClass = cls.status === "confirmed" ? "match" : "diff";
+    card.innerHTML =
+      `<span class="role-badge ${roleClass}">${doc.role}</span>` +
+      `<h2>${doc.filename}</h2>` +
+      `<div class="meta">input_type: ${doc.input_type} | engine: ${doc.engine.name} | pages: ${doc.page_count} | clauses: ${doc.clauses.length} | facts: ${doc.facts.length}</div>` +
+      `<div class="meta">phan loai: <span class="badge ${clsBadgeClass}">${cls.predicted_role} (${cls.status})</span>${cls.evidence ? ` - tu khoa: "${cls.evidence}"` : ""}</div>`;
+    card.appendChild(renderClauseTree(doc));
+    const overlays = new Map();
+    overlaysByDoc[doc.document_id] = overlays;
+
+    for (let pageNo = 1; pageNo <= doc.page_count; pageNo++) {
+      const key = `${doc.document_id}:${pageNo}`;
+      const wrap = document.createElement("div");
+      wrap.className = "page-wrap";
+      wrap.style.marginTop = "8px";
+      wrap.innerHTML = `<span class="page-badge">trang ${pageNo}</span>`;
+      if (data.images[key]) {
+        const img = document.createElement("img");
+        img.src = data.images[key];
+        wrap.appendChild(img);
+      }
+      card.appendChild(wrap);
+
+      doc.facts
+        .filter((f) => f.citation.segments[0].page_number === pageNo)
+        .forEach((f) => {
+          const seg = f.citation.segments[0];
+          const box = document.createElement("div");
+          box.className = "bbox";
+          box.style.cssText += bboxStyle(seg.bbox);
+          wrap.appendChild(box);
+          overlays.set(f.citation.citation_id, box);
+        });
+    }
+    docsEl.appendChild(card);
+  });
+
+  let factCount = 0;
+  data.documents.forEach((doc) => {
+    doc.facts.forEach((fact) => {
+      factCount++;
+      factsList.appendChild(renderFactRow(doc, fact));
+    });
+  });
+  if (!factCount) {
+    factsList.innerHTML = '<div class="empty-state">Khong nhan dien duoc fact nao (van ban khong khop mau cau demo, hoac trang chua co text-layer).</div>';
+  }
+
+  if (!data.findings.length) {
+    findingsList.innerHTML = '<div class="empty-state">Khong co finding (chua co phu luc nao duoc them, hoac khong co field nao trung ten voi hop dong).</div>';
+  } else {
+    const groups = new Map();
+    data.findings.forEach((finding) => {
+      const key = finding.annex_filename || finding.annex_document_id || "?";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(finding);
+    });
+    groups.forEach((findings, filename) => {
+      const heading = document.createElement("div");
+      heading.className = "annex-group-title";
+      heading.textContent = `So sanh voi: ${filename}`;
+      findingsList.appendChild(heading);
+      findings.forEach((finding) => findingsList.appendChild(renderFindingCard(finding)));
+    });
+  }
+
+  renderEvaluation(data);
+}
+
+factSearch.addEventListener("input", () => {
+  const q = factSearch.value.trim().toLowerCase();
+  allFactRows.forEach((row) => {
+    row.style.display = !q || row.dataset.searchText.includes(q) ? "" : "none";
+  });
+});
+
+document.querySelectorAll(".panel-tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".panel-tab").forEach((t) => t.classList.remove("active"));
+    tab.classList.add("active");
+    document.querySelectorAll(".panel-body").forEach((b) => {
+      b.hidden = b.dataset.tabBody !== tab.dataset.tab;
+    });
+  });
+});
+
+// --------------------------------------------------------------------------
+// Uploader wiring
+// --------------------------------------------------------------------------
+
+const state = { contract: null, annexes: [] };
+const overlayLoading = document.getElementById("overlay-loading");
+const overlayText = document.getElementById("overlay-text");
+const statusLine = document.getElementById("status-line");
+
+function isPdf(file) {
+  return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+}
+
+function renderAnnexFilenames() {
+  const el = document.getElementById("filename-annex");
+  if (!state.annexes.length) { el.textContent = ""; return; }
+  el.innerHTML = state.annexes
+    .map(
+      (f, i) =>
+        `<span style="margin-right:8px;">${f.name} <button type="button" class="correct-btn" data-remove="${i}">x</button></span>`
+    )
+    .join("");
+  el.querySelectorAll("[data-remove]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      state.annexes.splice(Number(btn.dataset.remove), 1);
+      renderAnnexFilenames();
+      if (state.contract) runAnalysis();
+    });
+  });
+}
+
+async function runAnalysis() {
+  if (!state.contract) return;
+  if (!window.pdfjsLib) {
+    statusLine.textContent = "Khong tai duoc pdf.js (vendor/pdfjs/pdf.min.js) - kiem tra file co nam dung canh demo_report.html khong.";
+    statusLine.classList.add("error");
+    return;
+  }
+  statusLine.textContent = "";
+  statusLine.classList.remove("error");
+  overlayLoading.hidden = false;
+  try {
+    const payload = await buildPayloadFromFiles(state.contract, state.annexes, (msg) => {
+      overlayText.textContent = msg;
+    });
+    renderDossier(payload, "nguon: PDF ban tai len");
+  } catch (err) {
+    statusLine.textContent = `Loi khi xu ly PDF: ${err.message}`;
+    statusLine.classList.add("error");
+  } finally {
+    overlayLoading.hidden = true;
+  }
+}
+
+function wireContractDropzone() {
+  const zone = document.getElementById("dropzone-contract");
+  const input = document.getElementById("file-contract");
+  const filenameEl = document.getElementById("filename-contract");
+
+  function setFile(file) {
+    if (!file) return;
+    if (!isPdf(file)) {
+      statusLine.textContent = "Chi nhan file PDF.";
+      statusLine.classList.add("error");
+      return;
+    }
+    state.contract = file;
+    filenameEl.textContent = file.name;
+    runAnalysis(); // "tu IDP" - phan tich ngay khi co file, khong can bam nut them
+  }
+
+  input.addEventListener("change", (e) => setFile(e.target.files[0]));
+  zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("dragover"); });
+  zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
+  zone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    zone.classList.remove("dragover");
+    setFile(e.dataTransfer.files[0]);
+  });
+}
+
+function wireAnnexDropzone() {
+  const zone = document.getElementById("dropzone-annex");
+  const input = document.getElementById("file-annex");
+
+  function addFiles(fileList) {
+    const files = Array.from(fileList || []).filter(isPdf);
+    if (!files.length) return;
+    state.annexes.push(...files);
+    renderAnnexFilenames();
+    if (state.contract) runAnalysis();
+  }
+
+  input.addEventListener("change", (e) => { addFiles(e.target.files); input.value = ""; });
+  zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("dragover"); });
+  zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
+  zone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    zone.classList.remove("dragover");
+    addFiles(e.dataTransfer.files);
+  });
+}
+
+wireContractDropzone();
+wireAnnexDropzone();
+
+document.getElementById("btn-reset-sample").addEventListener("click", () => {
+  state.contract = null;
+  state.annexes = [];
+  document.getElementById("filename-contract").textContent = "";
+  document.getElementById("filename-annex").textContent = "";
+  renderDossier(SAMPLE_DATA, "nguon: demo mau");
+});
+
+renderDossier(SAMPLE_DATA, "nguon: demo mau");
+</script>
+</body>
+</html>

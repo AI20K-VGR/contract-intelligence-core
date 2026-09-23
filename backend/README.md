@@ -118,6 +118,54 @@ uv run ruff check .
 uv run lint-imports          # alias cho `import-linter --config .importlinter`
 ```
 
+## Kết nối AI1 OCR service
+
+### Kafka (đường runtime — DOC-05d)
+
+Backend publish `dossier.uploaded` → orchestrator worker publish
+`ci.ai1.ocr.commands` → AI1 Kafka worker chạy OCR → `ci.ai1.ocr.results` →
+backend persist snapshot.
+
+```powershell
+# Terminal A — Kafka + MinIO + DB (từ repo root)
+docker compose up -d kafka minio minio-init backend-db backend backend-worker ai1-worker
+
+# Hoặc chạy worker local (Kafka đã up)
+cd backend
+uv run python -m contract_intelligence.worker
+```
+
+Chi tiết envelope/payload: `docs/DOC-05d-kafka-ai1-ocr-contract.md`.
+
+### HTTP job API (demo / manual only)
+
+Backend giữ quyền điều phối và lưu trữ; `ai-service` chỉ nhận một URL tải PDF có
+thời hạn, xử lý OCR, rồi trả về job có thể polling. Swagger của backend vẫn là
+`http://127.0.0.1:8000/docs`; nhóm vận hành kiểm tra kết nối qua nhóm endpoint
+**AI-Service** (`GET /api/v1/readyz`, `GET/DELETE /api/v1/ai/jobs/{job_id}`).
+
+Chạy AI1 ở terminal khác:
+
+```powershell
+cd ai-service
+uv sync --extra web
+uv run --extra web uvicorn contract_ocr.web.app:app --host 127.0.0.1 --port 8001
+```
+
+Sau đó đặt trong `backend/.env`:
+
+```dotenv
+AI_SERVICE_MODE=http
+AI_SERVICE_URL=http://127.0.0.1:8001
+AI_SERVICE_TIMEOUT_SECONDS=30
+```
+
+AI1 công bố contract riêng ở `http://127.0.0.1:8001/docs`: `POST /api/v1/jobs/ocr`,
+`GET/DELETE /api/v1/jobs/{job_id}` và `GET /healthz`. `source_blob_get_url` phải là
+URL tải PDF ngắn hạn và `source_sha256` phải khớp file. Nếu backend cấp
+`render_target.presigned_put_urls`, AI1 sẽ tải PNG render lên các URL đó; nếu không,
+snapshot đánh dấu rõ render chưa được lưu bền vững.
+
 ---
 
 ## Tài liệu liên quan
