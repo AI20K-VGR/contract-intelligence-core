@@ -1,7 +1,8 @@
 """Keycloak Admin integration for B2B SaaS User Management.
 
-Uses ``python-keycloak`` against the ``backend-service`` Service Account
-(manage-users + query-users). Sync SDK calls run in ``asyncio.to_thread``.
+Uses ``python-keycloak`` against the configured service account
+(``KEYCLOAK_ADMIN_CLIENT_ID``, manage-users + query-users).
+Sync SDK calls run in ``asyncio.to_thread``.
 """
 
 from __future__ import annotations
@@ -21,7 +22,6 @@ from contract_intelligence.schemas.users import UserDTO, UserRole, UserStatus
 
 logger = structlog.get_logger(__name__)
 
-_BACKEND_SERVICE_CLIENT_ID = "backend-service"
 _APP_ROLES: frozenset[str] = frozenset({"OPERATOR", "REVIEWER", "ADMINISTRATOR"})
 _ROLE_PRIORITY: tuple[str, ...] = ("ADMINISTRATOR", "REVIEWER", "OPERATOR")
 
@@ -110,8 +110,8 @@ class InvalidUserStateError(UserAdminError):
 def _build_keycloak_admin() -> KeycloakAdmin:
     settings = get_settings()
     return KeycloakAdmin(
-        server_url=settings.keycloak_server_url,
-        client_id=_BACKEND_SERVICE_CLIENT_ID,
+        server_url=settings.keycloak_admin_base_url(),
+        client_id=settings.keycloak_admin_client_id,
         client_secret_key=settings.keycloak_admin_client_secret,
         realm_name=settings.keycloak_realm,
     )
@@ -267,6 +267,18 @@ def _replace_app_role(admin: KeycloakAdmin, user_id: str, new_role: str) -> None
     _assign_app_role(admin, user_id, new_role)
 
 
+def _rollback_created_user(admin: KeycloakAdmin, user_id: str) -> None:
+    """Xóa user vừa tạo nếu gửi email mời thất bại, để lần sau không báo trùng."""
+    try:
+        admin.delete_user(user_id)
+    except KeycloakError as exc:
+        logger.warning(
+            "keycloak.create_user.rollback_failed",
+            user_id=user_id,
+            error=str(exc),
+        )
+
+
 def _send_update_password_email(admin: KeycloakAdmin, user_id: str) -> None:
     settings = get_settings()
     try:
@@ -371,8 +383,9 @@ def _create_user_sync(
     tenant_id: str,
 ) -> UserDTO:
     admin = _build_keycloak_admin()
+    user_id: str | None = None
     try:
-        user_id = admin.create_user(
+        created_id = admin.create_user(
             {
                 "username": email,
                 "email": email,
@@ -383,16 +396,29 @@ def _create_user_sync(
                 "attributes": {"tenant_id": [tenant_id]},
             }
         )
+        user_id = str(created_id or "")
+        if not user_id:
+            raise UserAdminError(
+                "keycloak_error",
+                "Keycloak did not return a user id",
+                status_code=502,
+            )
         _assign_app_role(admin, user_id, role)
         _send_update_password_email(admin, user_id)
         user = _get_user_or_raise(admin, user_id)
         logger.info("keycloak.create_user.ok", user_id=user_id, email=email, role=role)
         return _to_user_dto(user, role)
     except UserAdminError:
+        if user_id:
+            _rollback_created_user(admin, user_id)
         raise
     except KeycloakError as exc:
+        if user_id:
+            _rollback_created_user(admin, user_id)
         raise _translate_keycloak_error(exc, email=email) from exc
     except KeycloakConnectionError as exc:
+        if user_id:
+            _rollback_created_user(admin, user_id)
         raise KeycloakUnavailableError(str(exc)) from exc
 
 

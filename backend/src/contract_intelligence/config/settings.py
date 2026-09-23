@@ -253,6 +253,15 @@ class Settings(BaseSettings):
         default="backend_secret_dev",
         description="Client secret cho Service Account — lấy từ Keycloak Admin Console.",
     )
+    keycloak_admin_server_url: str | None = Field(
+        default=None,
+        description=(
+            "Base URL backend dùng để gọi Keycloak Admin API. "
+            "Để trống thì dùng keycloak_server_url. "
+            "Trong Docker, keycloak_server_url là issuer public (localhost) "
+            "nên đặt URL nội bộ, ví dụ http://keycloak:8080."
+        ),
+    )
     keycloak_admin_token_ttl_seconds: int = Field(
         default=300,
         ge=60,
@@ -309,6 +318,10 @@ class Settings(BaseSettings):
             "Production BẮT BUỘC phải bật."
         ),
     )
+
+    def keycloak_admin_base_url(self) -> str:
+        """URL gọi Admin API. Ưu tiên URL nội bộ khi chạy trong Docker."""
+        return (self.keycloak_admin_server_url or self.keycloak_server_url).rstrip("/")
 
 
 @lru_cache(maxsize=1)

@@ -346,7 +346,7 @@ def get_keycloak_admin_client() -> KeycloakAdminClient:
     if _admin_client is None:
         settings = get_settings()
         _admin_client = KeycloakAdminClient(
-            server_url=settings.keycloak_server_url,
+            server_url=settings.keycloak_admin_base_url(),
             realm=settings.keycloak_realm,
             client_id=settings.keycloak_admin_client_id,
             client_secret=settings.keycloak_admin_client_secret,

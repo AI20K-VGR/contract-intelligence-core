@@ -2,7 +2,14 @@
   "id": "contract-intelligence",
   "enabled": true,
   "displayName": "Contract Intelligence",
-  "displayNameHtml": "<div>Contract Intelligence SSO</div>",
+  "displayNameHtml": "Lexis Contract Intelligence",
+  "loginTheme": "lexis",
+  "accountTheme": "keycloak.v2",
+  "adminTheme": "keycloak.v2",
+  "emailTheme": "base",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["vi", "en"],
+  "defaultLocale": "vi",
   "accessTokenLifespan": 300,
   "accessTokenLifespanForImplicitFlow": 900,
   "ssoSessionIdleTimeout": 1800,
@@ -16,6 +23,15 @@
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "noreply@ci.local",
+    "fromDisplayName": "Lexis Contract Intelligence",
+    "ssl": "false",
+    "starttls": "false",
+    "auth": "false"
+  },
   "editUsernameAllowed": false,
   "bruteForceProtected": false,
   "roles": {
@@ -159,6 +175,7 @@
         "post.logout.redirect.uris": "http://localhost:5173/"
       },
       "defaultClientScopes": [
+        "basic",
         "role_list",
         "profile",
         "email",
@@ -301,6 +318,8 @@
       "clientRoles": {
         "realm-management": [
           "view-users",
+          "query-users",
+          "manage-users",
           "view-realm",
           "view-clients",
           "view-events",
