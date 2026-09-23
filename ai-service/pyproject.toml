@@ -27,6 +27,9 @@ gemini = [
 mistral = [
     "mistralai>=2.0",
 ]
+kafka = [
+    "aiokafka>=0.14.0",
+]
 
 [project.scripts]
 contract-ocr = "contract_ocr.cli.main:main"

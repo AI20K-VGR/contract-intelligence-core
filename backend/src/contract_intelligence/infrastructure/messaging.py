@@ -44,7 +44,12 @@ async def stop_producer() -> None:
     logger.info("kafka.producer.stopped")
 
 
-async def publish_event(topic: str, message: dict[str, Any]) -> None:
+async def publish_event(
+    topic: str,
+    message: dict[str, Any],
+    *,
+    key: str | None = None,
+) -> None:
     """Serialize ``message`` to JSON bytes and send it to ``topic``.
 
     In ``env=test`` (or when the producer was never started) this is a no-op so
@@ -56,7 +61,7 @@ async def publish_event(topic: str, message: dict[str, Any]) -> None:
             logger.debug(
                 "kafka.event.skipped",
                 topic=topic,
-                event_type=message.get("event"),
+                event_type=message.get("event_type") or message.get("event"),
                 reason="producer_not_started",
             )
             return
@@ -64,11 +69,13 @@ async def publish_event(topic: str, message: dict[str, Any]) -> None:
         raise RuntimeError(msg)
 
     payload = json.dumps(message, default=str).encode("utf-8")
-    await _producer.send_and_wait(topic, payload)
+    kafka_key = key.encode("utf-8") if key else None
+    await _producer.send_and_wait(topic, payload, key=kafka_key)
     logger.info(
         "kafka.event.published",
         topic=topic,
-        event_type=message.get("event"),
+        event_type=message.get("event_type") or message.get("event"),
+        key=key,
     )
 
 

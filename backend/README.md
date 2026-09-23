@@ -120,6 +120,25 @@ uv run lint-imports          # alias cho `import-linter --config .importlinter`
 
 ## Kết nối AI1 OCR service
 
+### Kafka (đường runtime — DOC-05d)
+
+Backend publish `dossier.uploaded` → orchestrator worker publish
+`ci.ai1.ocr.commands` → AI1 Kafka worker chạy OCR → `ci.ai1.ocr.results` →
+backend persist snapshot.
+
+```powershell
+# Terminal A — Kafka + MinIO + DB (từ repo root)
+docker compose up -d kafka minio minio-init backend-db backend backend-worker ai1-worker
+
+# Hoặc chạy worker local (Kafka đã up)
+cd backend
+uv run python -m contract_intelligence.worker
+```
+
+Chi tiết envelope/payload: `docs/DOC-05d-kafka-ai1-ocr-contract.md`.
+
+### HTTP job API (demo / manual only)
+
 Backend giữ quyền điều phối và lưu trữ; `ai-service` chỉ nhận một URL tải PDF có
 thời hạn, xử lý OCR, rồi trả về job có thể polling. Swagger của backend vẫn là
 `http://127.0.0.1:8000/docs`; nhóm vận hành kiểm tra kết nối qua nhóm endpoint

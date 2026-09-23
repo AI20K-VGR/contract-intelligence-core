@@ -48,6 +48,20 @@ Contract tại `http://127.0.0.1:8001/docs` gồm `GET /healthz`, `POST
 `result.snapshot`; backend tự adapter sang payload persistence của nó. Cấu hình
 backend: `AI_SERVICE_MODE=http`, `AI_SERVICE_URL=http://127.0.0.1:8001`.
 
+### Kafka worker (Backend ↔ AI1 OCR — production path)
+
+Runtime integration with Contract Intelligence backend uses Kafka (not HTTP).
+Contract: [`docs/DOC-05d-kafka-ai1-ocr-contract.md`](../docs/DOC-05d-kafka-ai1-ocr-contract.md).
+
+```powershell
+uv sync --extra kafka
+# Requires Kafka reachable (compose: kafka:29092 or localhost:9093)
+uv run --extra kafka python -m contract_ocr.infrastructure.kafka_worker
+```
+
+Env (see `.env.example`): `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_AI1_OCR_COMMANDS_TOPIC`,
+`KAFKA_AI1_OCR_RESULTS_TOPIC`, `KAFKA_AI1_OCR_GROUP_ID`. Compose service: `ai1-worker`.
+
 **Bước 3 — chạy frontend, ở một cửa sổ PowerShell khác:**
 
 ```powershell

@@ -65,6 +65,39 @@ class Settings(BaseSettings):
     # Kafka (event bus)
     # -------------------------------------------------------------------------
     kafka_bootstrap_servers: str = Field(default="localhost:9093")
+    kafka_ai1_ocr_commands_topic: str = Field(
+        default="ci.ai1.ocr.commands",
+        description="Backend → AI1 OCR command topic (DOC-05d).",
+    )
+    kafka_ai1_ocr_results_topic: str = Field(
+        default="ci.ai1.ocr.results",
+        description="AI1 → Backend OCR result topic (DOC-05d).",
+    )
+    kafka_backend_ai1_results_group_id: str = Field(
+        default="ci-backend-ai1-results",
+        description="Consumer group for AI1 OCR results.",
+    )
+    kafka_dossier_events_topic: str = Field(
+        default="dossier_events",
+        description="Internal domain events (dossier.uploaded).",
+    )
+    kafka_orchestrator_group_id: str = Field(
+        default="ci-backend-orchestrator",
+        description="Consumer group for dossier_events orchestrator.",
+    )
+    kafka_presign_expires_seconds: int = Field(
+        default=3600,
+        ge=60,
+        le=86400,
+        description="TTL for MinIO presigned GET/PUT URLs embedded in OCR commands.",
+    )
+    ai1_ocr_engine: str = Field(
+        default="mistral",
+        description=(
+            "OCR engine id sent in ci.ai1.ocr.commands options.engine "
+            "(pymupdf | openai | gemini | mistral)."
+        ),
+    )
 
     # -------------------------------------------------------------------------
     # AI Service (FastAPI bên ngoài — REST polling theo DOC-05c)
