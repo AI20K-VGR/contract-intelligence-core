@@ -37,6 +37,7 @@ from contract_intelligence.contract.domain.repositories.manifest_repository impo
 from contract_intelligence.shared.base import new_ulid
 from contract_intelligence.shared.exceptions import NotFoundError
 from contract_intelligence.shared.storage import FileStorage
+from contract_intelligence.shared.utils import safe_filename
 
 logger = structlog.get_logger(__name__)
 
@@ -133,7 +134,8 @@ class ContractService:
 
         # Always persist bytes in app FileStorage so content streaming works
         # (tests use FakeFileStorage; prod may dual-write while MinIO is canonical).
-        local_key = f"contracts/{dossier_id}/{sha256[:2]}/{filename}"
+        safe_name = safe_filename(filename, fallback=f"{role.value.lower()}.pdf")
+        local_key = f"contracts/{dossier_id}/{sha256[:2]}/{safe_name}"
         storage_key = blob_uri if blob_uri is not None else local_key
         await self._storage.put(storage_key, _bytes_to_stream(data))
         stored_uri = blob_uri if blob_uri is not None else local_key
@@ -143,7 +145,7 @@ class ContractService:
             dossier_id=dossier_id,
             role=role,
             order_index=order_index,
-            filename=filename,
+            filename=safe_name,
             sha256=sha256,
             blob_uri=stored_uri,
             file_size_bytes=size_bytes,
@@ -153,7 +155,7 @@ class ContractService:
             "document.uploaded",
             document_id=document.id,
             dossier_id=dossier_id,
-            filename=filename,
+            filename=safe_name,
             sha256=sha256,
             size_bytes=size_bytes,
             blob_uri=stored_uri,

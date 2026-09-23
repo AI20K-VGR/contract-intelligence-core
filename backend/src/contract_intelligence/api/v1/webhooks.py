@@ -126,7 +126,7 @@ async def receive_ai1_snapshot(
         "digest": payload.digest,
         "dossier_members": [],
         "role_relation_map": {},
-        "policy_flags": {"egress_allowed": True, "use_vector": True},
+        "policy_flags": {"egress_allowed": False, "use_vector": True},
     }
 
     try:

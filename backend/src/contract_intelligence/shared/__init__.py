@@ -4,36 +4,16 @@ Mọi bounded context đều được phép import từ ``shared/`` mà KHÔNG v
 Dependency Rule. Đây là **shared kernel** theo nghĩa DDD.
 
 Quy tắc:
-- **KHÔNG** import framework (FastAPI, SQLAlchemy) trực tiếp từ ``shared/``.
-  Riêng ``shared/auth/`` được phép import fastapi/jwt vì là cross-cutting.
-- Nếu cần ORM/Pydantic, đặt trong sub-module riêng (``shared/persistence/`` chẳng hạn)
-  và bounded context tự quyết định có dùng hay không.
+- Package initializer phải **framework-free** (không import FastAPI/JWT/SQLAlchemy).
+  Domain entities import ``shared.base`` / ``shared.exceptions``; nếu ``__init__``
+  kéo ``shared.auth`` thì mọi domain load FastAPI qua transitive import.
+- Auth sống trong ``shared.auth`` — callers import trực tiếp từ đó.
+- ORM/Pydantic đặt trong sub-module riêng (``shared/persistence/`` …).
 """
 
-# Auth cross-cutting (KHÔNG vi phạm shared kernel rule vì được phép)
-from contract_intelligence.shared.auth import (
-    AuthenticatedUser,
-    AuthenticationError,
-    KeycloakTokenClaims,
-    MeResponse,
-    TenantMismatchError,
-    UserProfilePayload,
-    get_current_user,
-    require_role,
-)
 from contract_intelligence.shared.base import BaseEntity, BaseRepository
 
 __all__ = [
-    # Base
     "BaseEntity",
     "BaseRepository",
-    # Auth
-    "AuthenticatedUser",
-    "AuthenticationError",
-    "KeycloakTokenClaims",
-    "MeResponse",
-    "UserProfilePayload",
-    "TenantMismatchError",
-    "get_current_user",
-    "require_role",
 ]

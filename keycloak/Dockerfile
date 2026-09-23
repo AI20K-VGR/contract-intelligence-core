@@ -58,18 +58,21 @@ RUN set -eux; \
 # ----------------------------------------------------------------------------
 FROM quay.io/keycloak/keycloak:26.7.4
 
+# Build args are scoped per stage — redeclare so --build-arg reaches COPY/LABEL.
+ARG PHASETWO_EVENTS_VERSION=0.62
+
 # Keycloak providers dir; the Quarkus distribution auto-loads every JAR
 # placed here on startup. Providers advertise themselves through the
 # standard java.util.ServiceLoader mechanism (META-INF/services/) so no
 # additional wiring is required.
 ENV KEYCLOAK_PROVIDERS_DIR=/opt/keycloak/providers
-ENV KEYCLOAK_EVENTS_JAR=keycloak-events-${PHASETWO_EVENTS_VERSION:-0.62}.jar
+ENV KEYCLOAK_EVENTS_JAR=keycloak-events-${PHASETWO_EVENTS_VERSION}.jar
 
 # Drop the verified JAR into the providers dir. Switch briefly to root
 # (the base image's USER keycloak can't write to /opt/keycloak/providers/),
 # then drop back.
 USER root
-COPY --from=fetcher /tmp/keycloak-events-${PHASETWO_EVENTS_VERSION:-0.62}.jar ${KEYCLOAK_PROVIDERS_DIR}/${KEYCLOAK_EVENTS_JAR}
+COPY --from=fetcher /tmp/keycloak-events-${PHASETWO_EVENTS_VERSION}.jar ${KEYCLOAK_PROVIDERS_DIR}/${KEYCLOAK_EVENTS_JAR}
 RUN chown -R keycloak:keycloak "${KEYCLOAK_PROVIDERS_DIR}" \
     && ls -lh "${KEYCLOAK_PROVIDERS_DIR}/${KEYCLOAK_EVENTS_JAR}"
 USER keycloak

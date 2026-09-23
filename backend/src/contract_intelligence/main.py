@@ -314,7 +314,7 @@ def create_app() -> FastAPI:
     app.include_router(extraction_router, prefix="/api/v1", tags=["Extraction"])
     app.include_router(conflict_router, prefix="/api/v1", tags=["Conflict"])
 
-    # HITL orchestration surface — CONFIRM/NEEDS_REVIEW/REJECT + dossier approve.
+    # HITL orchestration surface — confirm/correct/reject/needs_more_evidence + dossier approve.
     # Registered before Phase 3/5 routers so the tutorial contract is the live
     # match for POST /review-items/{id}/actions and POST /dossiers/{id}/approve.
     app.include_router(hitl_reviews_router, prefix="/api/v1")

@@ -143,10 +143,10 @@ Realm được auto-import từ `keycloak/realm-export.json` khi Keycloak khởi
 
 | Client ID | Loại | Mục đích |
 |---|---|---|
-| `contract-intel-frontend` | Confidential (Public-like flow) | React SPA — OIDC login, nhận tokens |
-| `contract-intel-backend` | Confidential | Backend FastAPI — verifies JWT |
+| `contract-intel-frontend` | Public (Authorization Code + PKCE S256) | React SPA — OIDC login, nhận tokens (không client secret) |
+| `contract-intel-backend` | Confidential | Backend FastAPI — verifies JWT / service account |
 
-> Lưu ý: `contract-intel-frontend` được export với `clientAuthenticatorType: client-secret` để Phase Two managed-webhook REST API (yêu cầu realm admin token) hoạt động trong dev. Khi đổi sang PKCE thuần cho production, regenerate realm export.
+> SPA **không** được cấu hình `clientAuthenticatorType: client-secret`. Client authentication phải tắt (`publicClient: true`), Standard flow bật, PKCE method `S256`.
 
 **Dev users pre-seeded:**
 
@@ -582,7 +582,7 @@ curl -s https://repo1.maven.org/maven2/io/phasetwo/keycloak/keycloak-events/0.62
 - [ ] `WEBHOOK_URI` trỏ tới public HTTPS backend URL
 - [ ] `WEBHOOK_SECRET` đã được rotate, không dùng dev value
 - [ ] Chuyển từ catch-all `WEBHOOK_URI` sang managed webhook subscription qua REST API để filter event types
-- [ ] Frontend client `contract-intel-frontend` chuyển sang PKCE thuần (không `client-secret`), set `publicClient: true`
+- [x] Frontend client `contract-intel-frontend` là PKCE thuần (không `client-secret`), `publicClient: true`
 - [ ] Backend client `contract-intel-backend` rotate `client-secret`, hoặc dùng `client-jwt` auth
 - [ ] User passwords đã đổi (3 dev users xoá)
 - [ ] Remove `KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD` env vars (dùng Service Account thay vì bootstrap admin)

@@ -66,19 +66,24 @@ class LocalFileStorage(FileStorage):
         logger.info("storage.local.init", root=str(self._root))
 
     def _resolve(self, blob_uri: str) -> Path:
-        """Resolve blob URI thành absolute path.
+        """Resolve blob URI thành absolute path under storage root.
 
-        Accepts:
-            ``local://key/path``
-            ``file:///abs/path``
-            bare key ``contracts/abc.pdf`` (relative to root)
+        Rejects keys that escape ``self._root`` (path traversal).
         """
         if blob_uri.startswith("local://"):
-            return self._root / blob_uri[len("local://") :]
-        if blob_uri.startswith("file://"):
-            return Path(blob_uri[len("file://") :])
-        # Bare key — relative to root
-        return self._root / blob_uri
+            candidate = self._root / blob_uri[len("local://") :]
+        elif blob_uri.startswith("file://"):
+            candidate = Path(blob_uri[len("file://") :])
+        else:
+            candidate = self._root / blob_uri
+
+        resolved = candidate.resolve()
+        try:
+            resolved.relative_to(self._root)
+        except ValueError as exc:
+            msg = f"Storage key escapes root: {blob_uri!r}"
+            raise ValueError(msg) from exc
+        return resolved
 
     @staticmethod
     def _to_uri(path: Path) -> str:
