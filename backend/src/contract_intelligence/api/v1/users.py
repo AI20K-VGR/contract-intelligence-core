@@ -123,6 +123,11 @@ async def create_user(
     repo: UserRepositoryDep,
 ) -> ApiResponse[UserDTO] | JSONResponse:
     """Create Keycloak user, assign role, send UPDATE_PASSWORD email, sync ``app_user``."""
+    if body.role == "ADMINISTRATOR":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrators are created in Keycloak",
+        )
     try:
         dto = await kc.create_user(
             email=str(body.email),
@@ -153,6 +158,11 @@ async def patch_user(
     id: Annotated[str, Path(min_length=1, description="Keycloak user id")],  # noqa: A002
 ) -> ApiResponse[UserDTO] | JSONResponse:
     """RBAC: ADMINISTRATOR. Blocks self-role-change and demoting the last admin."""
+    if body.role == "ADMINISTRATOR":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrators are created in Keycloak",
+        )
     _forbid_self(admin, id, "change the role of")
     try:
         dto = await kc.update_user_role(user_id=id, role=body.role)

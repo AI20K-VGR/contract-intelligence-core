@@ -293,8 +293,8 @@ class Settings(BaseSettings):
         description="Invite link lifespan in seconds (default 12h).",
     )
     keycloak_invite_redirect_uri: str = Field(
-        default="http://localhost:5173/auth/callback",
-        description="redirect_uri after the user completes UPDATE_PASSWORD.",
+        default="http://localhost:5173/",
+        description="Trang đăng nhập sau khi người dùng đặt mật khẩu xong.",
     )
 
     # -------------------------------------------------------------------------

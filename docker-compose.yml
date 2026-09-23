@@ -114,6 +114,9 @@ services:
       # ---- HTTP ----
       KC_HTTP_PORT: 8080
       KC_HTTPS_ENABLED: "false"
+      # Link trong email phải là localhost, không phải hostname Docker "keycloak".
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_HOSTNAME_STRICT: "false"
       KC_PROXY: edge                      # honor X-Forwarded-* headers
 
