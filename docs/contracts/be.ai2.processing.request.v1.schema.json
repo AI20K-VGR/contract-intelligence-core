@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractintel.internal/schemas/be.ai2.processing.request.v1.json",
+  "title": "Backend to AI2 Processing Request v1",
+  "description": "Backend-authorized asynchronous processing request containing the complete dossier snapshot set.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "service_envelope", "request_id", "idempotency_key", "attempt", "task_id", "dossier_id", "snapshots", "snapshot_identities", "dossier_members", "role_relation_map", "policy_flags"],
+  "$defs": {
+    "id": {"type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"},
+    "sha256": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"},
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshot_id", "snapshot_version", "source_digest", "snapshot_digest"],
+      "properties": {
+        "snapshot_id": {"$ref": "#/$defs/id"},
+        "snapshot_version": {"const": "ai1.snapshot.v1"},
+        "source_digest": {"$ref": "#/$defs/sha256"},
+        "snapshot_digest": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["member_id", "document_id", "snapshot_id", "role", "source_digest"],
+      "properties": {
+        "member_id": {"$ref": "#/$defs/id"},
+        "document_id": {"$ref": "#/$defs/id"},
+        "snapshot_id": {"$ref": "#/$defs/id"},
+        "role": {"enum": ["body", "annex"]},
+        "source_digest": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relation_id", "relation_type", "member_id", "dossier_id"],
+      "properties": {
+        "relation_id": {"$ref": "#/$defs/id"},
+        "relation_type": {"enum": ["MEMBER_OF", "ANNEX_OF"]},
+        "member_id": {"$ref": "#/$defs/id"},
+        "related_member_id": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+        "dossier_id": {"$ref": "#/$defs/id"}
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_processing_seconds", "max_llm_calls", "max_embedding_tokens"],
+      "properties": {
+        "max_processing_seconds": {"type": "integer", "minimum": 1},
+        "max_llm_calls": {"type": "integer", "minimum": 0},
+        "max_embedding_tokens": {"type": "integer", "minimum": 0}
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["egress_allowed", "use_vector", "budget_limits"],
+      "properties": {
+        "egress_allowed": {"type": "boolean"},
+        "use_vector": {"type": "boolean"},
+        "budget_limits": {"$ref": "#/$defs/budget"}
+      }
+    }
+  },
+  "properties": {
+    "schema_version": {"const": "be.ai2.processing.request.v1"},
+    "service_envelope": {"$ref": "ai2.service-envelope.v1.schema.json"},
+    "request_id": {"$ref": "#/$defs/id"},
+    "idempotency_key": {"$ref": "#/$defs/id"},
+    "attempt": {"type": "integer", "minimum": 1},
+    "task_id": {"$ref": "#/$defs/id"},
+    "dossier_id": {"$ref": "#/$defs/id"},
+    "snapshots": {"type": "array", "minItems": 1, "maxItems": 6, "items": {"$ref": "ai1.snapshot.v1.schema.json"}},
+    "snapshot_identities": {"type": "array", "minItems": 1, "maxItems": 6, "items": {"$ref": "#/$defs/identity"}},
+    "dossier_members": {
+      "type": "array", "minItems": 1, "maxItems": 6, "items": {"$ref": "#/$defs/member"},
+      "contains": {"type": "object", "properties": {"role": {"const": "body"}}, "required": ["role"]},
+      "minContains": 1, "maxContains": 1
+    },
+    "role_relation_map": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/relation"}},
+    "policy_flags": {"$ref": "#/$defs/policy"}
+  }
+}

@@ -1400,11 +1400,10 @@ def reason_case(case_id: str, body: ReasonBody) -> dict:
 
 @app.post("/jobs/idp", status_code=202)
 def create_idp_job(payload: dict, background_tasks: BackgroundTasks) -> dict:
-    """Accept the stable Backend → AI2 processing contract.
+    """Demo/lab HTTP entry for Backend → AI2 processing (HMAC required).
 
-    Processing is asynchronous for the public contract. The local demo uses
-    FastAPI background tasks; production may move the same worker function to
-    a durable queue without changing the payload or polling response.
+    Runtime production path is Kafka (DOC-05e): ``app.transport.kafka_idp_worker``.
+    This endpoint keeps FastAPI background tasks for local demos only.
     """
 
     try:

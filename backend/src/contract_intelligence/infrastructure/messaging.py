@@ -25,6 +25,8 @@ async def start_producer() -> None:
     producer = AIOKafkaProducer(
         bootstrap_servers=settings.kafka_bootstrap_servers,
         value_serializer=lambda v: v,  # publish_event already encodes JSON bytes
+        # AI1 OCR results / AI2 IDP commands can exceed the default 1 MiB limit.
+        max_request_size=10_485_760,  # 10 MiB
     )
     await producer.start()
     _producer = producer

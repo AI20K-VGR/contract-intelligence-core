@@ -10,10 +10,12 @@ ENV UV_COMPILE_BYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --extra web --no-dev --no-install-project
+# web = FastAPI demo HTTP; kafka = DOC-05e IDP worker (same image, different CMD).
+RUN uv sync --frozen --extra web --extra kafka --no-dev --no-install-project
 
 COPY app/ app/
 COPY fixtures/ fixtures/
 
 EXPOSE 8002
+# Default: demo HTTP API. Compose ``ai2-worker`` overrides CMD to kafka_idp_worker.
 CMD ["uv", "run", "--frozen", "--extra", "web", "uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8002"]
