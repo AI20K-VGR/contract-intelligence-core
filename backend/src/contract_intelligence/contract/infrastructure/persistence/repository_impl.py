@@ -5,7 +5,7 @@ Layer: infrastructure (persistence) — concrete impl cho Dossier/Document/Job/M
 
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from contract_intelligence.contract.domain.entities.document import Document, DocumentRole
@@ -24,6 +24,9 @@ from contract_intelligence.contract.domain.repositories.dossier_repository impor
 )
 from contract_intelligence.contract.domain.repositories.job_repository import (
     JobRepository,
+)
+from contract_intelligence.contract.infrastructure.persistence.deletion_ledger import (
+    DeletionLedgerORM,
 )
 from contract_intelligence.contract.infrastructure.persistence.orm import (
     DocumentORM,
@@ -86,9 +89,24 @@ class DossierRepositoryImpl(DossierRepository):
         self._session = session
         self._tenant_id = tenant_id
 
+    async def _ensure_ledger(self) -> None:
+        connection = await self._session.connection()
+        await connection.run_sync(DeletionLedgerORM.__table__.create, checkfirst=True)
+
+    def _visible(self):  # noqa: ANN202
+        return ~exists(
+            select(DeletionLedgerORM.id).where(
+                DeletionLedgerORM.dossier_id == DossierORM.id,
+                DeletionLedgerORM.tenant_id == DossierORM.tenant_id,
+            )
+        )
+
     async def get(self, dossier_id: str) -> Dossier | None:
+        await self._ensure_ledger()
         stmt = select(DossierORM).where(
-            DossierORM.id == dossier_id, DossierORM.tenant_id == self._tenant_id
+            DossierORM.id == dossier_id,
+            DossierORM.tenant_id == self._tenant_id,
+            self._visible(),
         )
         result = await self._session.execute(stmt)
         orm = result.scalar_one_or_none()
@@ -96,9 +114,14 @@ class DossierRepositoryImpl(DossierRepository):
 
     async def get_for_update(self, dossier_id: str) -> Dossier | None:
         """Lock dossier row for the current transaction (tenant-scoped)."""
+        await self._ensure_ledger()
         stmt = (
             select(DossierORM)
-            .where(DossierORM.id == dossier_id, DossierORM.tenant_id == self._tenant_id)
+            .where(
+                DossierORM.id == dossier_id,
+                DossierORM.tenant_id == self._tenant_id,
+                self._visible(),
+            )
             .with_for_update()
         )
         result = await self._session.execute(stmt)
@@ -115,7 +138,11 @@ class DossierRepositoryImpl(DossierRepository):
         limit: int = 50,
         offset: int = 0,
     ) -> Page[str]:
-        stmt = select(DossierORM).where(DossierORM.tenant_id == self._tenant_id)
+        await self._ensure_ledger()
+        stmt = select(DossierORM).where(
+            DossierORM.tenant_id == self._tenant_id,
+            self._visible(),
+        )
         if status:
             stmt = stmt.where(DossierORM.status == status)
         if has_conflicts is not None:
@@ -159,15 +186,235 @@ class DossierRepositoryImpl(DossierRepository):
         orm.updated_at = utcnow()
         await self._session.flush()
 
-    async def delete(self, dossier_id: str) -> None:
-        stmt = select(DossierORM).where(
-            DossierORM.id == dossier_id, DossierORM.tenant_id == self._tenant_id
+    async def begin_deletion(self, dossier_id: str, requested_by: str) -> bool:
+        """Tombstone the dossier and cancel in-flight jobs. Returns False if unknown."""
+        await self._ensure_ledger()
+        params = {"id": dossier_id, "tenant_id": self._tenant_id, "now": utcnow()}
+        row = await self._session.execute(
+            select(DossierORM.id).where(
+                DossierORM.id == dossier_id,
+                DossierORM.tenant_id == self._tenant_id,
+            )
         )
-        result = await self._session.execute(stmt)
-        orm = result.scalar_one_or_none()
-        if orm:
-            await self._session.delete(orm)
+        dossier_exists = row.scalar_one_or_none() is not None
+        ledger = await self._session.execute(
+            select(DeletionLedgerORM.id).where(
+                DeletionLedgerORM.dossier_id == dossier_id,
+                DeletionLedgerORM.tenant_id == self._tenant_id,
+            )
+        )
+        ledger_exists = ledger.scalar_one_or_none() is not None
+        if not dossier_exists and not ledger_exists:
+            return False
+        if not ledger_exists:
+            self._session.add(
+                DeletionLedgerORM(
+                    id=new_ulid("led_"),
+                    tenant_id=self._tenant_id,
+                    dossier_id=dossier_id,
+                    requested_by=requested_by,
+                    tombstoned_at=utcnow(),
+                    purge_status="pending",
+                )
+            )
             await self._session.flush()
+        await self._session.execute(
+            text(
+                "UPDATE job SET status = 'cancelled', lease_owner = NULL, "
+                "lease_expires_at = NULL, updated_at = :now "
+                "WHERE dossier_id = :id AND tenant_id = :tenant_id "
+                "AND status IN ('uploaded', 'processing')"
+            ),
+            params,
+        )
+        await self._session.execute(
+            text(
+                "UPDATE pipeline_run SET status = 'cancelled' "
+                "WHERE dossier_id = :id AND tenant_id = :tenant_id "
+                "AND status IN ('queued', 'running')"
+            ),
+            params,
+        )
+        return True
+
+    async def has_deletion(self, dossier_id: str) -> bool:
+        await self._ensure_ledger()
+        result = await self._session.execute(
+            select(DeletionLedgerORM.id).where(
+                DeletionLedgerORM.dossier_id == dossier_id,
+                DeletionLedgerORM.tenant_id == self._tenant_id,
+            )
+        )
+        return result.scalar_one_or_none() is not None
+
+    async def dossier_row_exists(self, dossier_id: str) -> bool:
+        result = await self._session.execute(
+            select(DossierORM.id).where(
+                DossierORM.id == dossier_id,
+                DossierORM.tenant_id == self._tenant_id,
+            )
+        )
+        return result.scalar_one_or_none() is not None
+
+    async def mark_purged(self, dossier_id: str, evidence: dict[str, int]) -> None:
+        await self._ensure_ledger()
+        result = await self._session.execute(
+            select(DeletionLedgerORM).where(
+                DeletionLedgerORM.dossier_id == dossier_id,
+                DeletionLedgerORM.tenant_id == self._tenant_id,
+            )
+        )
+        ledger = result.scalar_one_or_none()
+        if ledger is None:
+            return
+        ledger.purge_status = "purged"
+        ledger.purged_at = utcnow()
+        ledger.evidence = evidence
+        await self._session.flush()
+
+    async def mark_purge_failed(self, dossier_id: str) -> None:
+        await self._ensure_ledger()
+        result = await self._session.execute(
+            select(DeletionLedgerORM).where(
+                DeletionLedgerORM.dossier_id == dossier_id,
+                DeletionLedgerORM.tenant_id == self._tenant_id,
+            )
+        )
+        ledger = result.scalar_one_or_none()
+        if ledger is None or ledger.purge_status == "purged":
+            return
+        ledger.purge_status = "failed"
+        await self._session.flush()
+
+    async def related_blob_uris(self, dossier_id: str) -> list[str]:
+        """Page renders and approval snapshots stored outside the document row."""
+        params = {"id": dossier_id, "tenant_id": self._tenant_id}
+        docs = (
+            "SELECT id FROM document WHERE dossier_id = :id AND tenant_id = :tenant_id"
+        )
+        result = await self._session.execute(
+            text(
+                "SELECT render_blob_uri AS uri FROM page "
+                f"WHERE document_id IN ({docs}) "
+                "AND render_blob_uri IS NOT NULL AND render_blob_uri <> '' "
+                "UNION "
+                "SELECT preview_blob_uri FROM page "
+                f"WHERE document_id IN ({docs}) "
+                "AND preview_blob_uri IS NOT NULL AND preview_blob_uri <> '' "
+                "UNION "
+                "SELECT snapshot_uri FROM dossier_approval "
+                "WHERE dossier_id = :id AND tenant_id = :tenant_id "
+                "AND snapshot_uri IS NOT NULL AND snapshot_uri <> ''"
+            ),
+            params,
+        )
+        return [str(row[0]) for row in result if row[0]]
+
+    async def delete(self, dossier_id: str) -> None:
+        """Purge contract content. Keep usage_ledger, review_action, and job_event."""
+        params = {"id": dossier_id, "tenant_id": self._tenant_id, "now": utcnow()}
+        docs = "SELECT id FROM document WHERE dossier_id = :id AND tenant_id = :tenant_id"
+        runs = "SELECT id FROM pipeline_run WHERE dossier_id = :id AND tenant_id = :tenant_id"
+        content_tables = (
+            "finding_side",
+            "finding",
+            "annex_link",
+            "ocr_line",
+            "citation",
+            "clause_node",
+            "fact",
+            "doc_table",
+            "document_text",
+            "clause_region",
+            "table_cell",
+            "page",
+            "pipeline_step",
+        )
+        present_rows = await self._session.execute(
+            text(
+                "SELECT tablename FROM pg_tables "
+                "WHERE schemaname = 'public' AND tablename = ANY(:names)"
+            ),
+            {"names": list(content_tables)},
+        )
+        present = {str(row[0]) for row in present_rows}
+        trigger_names = [f"trg_immutable_{table}" for table in present]
+        disabled: list[tuple[str, str]] = []
+        if trigger_names:
+            trigger_rows = await self._session.execute(
+                text(
+                    "SELECT c.relname, t.tgname FROM pg_trigger AS t "
+                    "JOIN pg_class AS c ON c.oid = t.tgrelid "
+                    "WHERE t.tgname = ANY(:names)"
+                ),
+                {"names": trigger_names},
+            )
+            disabled = [(str(row[0]), str(row[1])) for row in trigger_rows]
+            for table, trigger in disabled:
+                await self._session.execute(
+                    text(f'ALTER TABLE "{table}" DISABLE TRIGGER "{trigger}"')
+                )
+        statements = {
+            "finding_side": (
+                "DELETE FROM finding_side WHERE finding_id IN "
+                "(SELECT id FROM finding WHERE dossier_id = :id AND tenant_id = :tenant_id)"
+            ),
+            "finding": "DELETE FROM finding WHERE dossier_id = :id AND tenant_id = :tenant_id",
+            "annex_link": "DELETE FROM annex_link WHERE dossier_id = :id AND tenant_id = :tenant_id",
+            "ocr_line": f"DELETE FROM ocr_line WHERE document_id IN ({docs})",
+            "citation": f"DELETE FROM citation WHERE document_id IN ({docs})",
+            "clause_node": f"DELETE FROM clause_node WHERE document_id IN ({docs})",
+            "fact": f"DELETE FROM fact WHERE document_id IN ({docs})",
+            "doc_table": f"DELETE FROM doc_table WHERE document_id IN ({docs})",
+            "document_text": f"DELETE FROM document_text WHERE document_id IN ({docs})",
+            "clause_region": f"DELETE FROM clause_region WHERE document_id IN ({docs})",
+            "table_cell": (
+                "DELETE FROM table_cell WHERE table_id IN "
+                f"(SELECT id FROM doc_table WHERE document_id IN ({docs}))"
+            ),
+            "page": f"DELETE FROM page WHERE document_id IN ({docs})",
+            "pipeline_step": f"DELETE FROM pipeline_step WHERE run_id IN ({runs})",
+        }
+        for table in (
+            "table_cell",
+            "finding_side",
+            "finding",
+            "annex_link",
+            "ocr_line",
+            "citation",
+            "clause_node",
+            "fact",
+            "doc_table",
+            "document_text",
+            "clause_region",
+            "page",
+            "pipeline_step",
+        ):
+            if table not in present:
+                continue
+            if table == "table_cell" and "doc_table" not in present:
+                continue
+            await self._session.execute(text(statements[table]), params)
+        for table, trigger in disabled:
+            await self._session.execute(text(f'ALTER TABLE "{table}" ENABLE TRIGGER "{trigger}"'))
+        shell_updates = (
+            "UPDATE document SET filename = '', blob_uri = '', "
+            "signing_date = NULL, effective_date = NULL "
+            "WHERE dossier_id = :id AND tenant_id = :tenant_id",
+            "UPDATE dossier SET name = '', metadata = NULL, checksum = NULL, "
+            "updated_at = :now WHERE id = :id AND tenant_id = :tenant_id",
+            "UPDATE job SET error_detail = NULL "
+            "WHERE dossier_id = :id AND tenant_id = :tenant_id",
+            "UPDATE pipeline_run SET error_detail = NULL, config_snapshot = NULL "
+            "WHERE dossier_id = :id AND tenant_id = :tenant_id",
+            "UPDATE review_item SET reason = '' "
+            "WHERE dossier_id = :id AND tenant_id = :tenant_id",
+            "UPDATE manifest_item SET filename = '' WHERE manifest_id IN "
+            "(SELECT id FROM manifest WHERE dossier_id = :id AND tenant_id = :tenant_id)",
+        )
+        for statement in shell_updates:
+            await self._session.execute(text(statement), params)
+        await self._session.flush()
 
     async def update_status(self, dossier_id: str, status: str) -> None:
         stmt = select(DossierORM).where(

@@ -114,6 +114,7 @@ def _build_keycloak_admin() -> KeycloakAdmin:
         client_id=settings.keycloak_admin_client_id,
         client_secret_key=settings.keycloak_admin_client_secret,
         realm_name=settings.keycloak_realm,
+        user_realm_name=settings.keycloak_realm,
     )
 
 

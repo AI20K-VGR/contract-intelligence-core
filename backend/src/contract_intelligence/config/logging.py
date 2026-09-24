@@ -39,7 +39,14 @@ def configure_logging() -> None:
     ]
 
     if is_dev:
-        processors.append(structlog.dev.ConsoleRenderer(colors=True))
+        # structlog chỉ tô màu trên Windows khi đã cài colorama.
+        use_colors = True
+        if sys.platform == "win32":
+            try:
+                import colorama  # noqa: F401
+            except ImportError:
+                use_colors = False
+        processors.append(structlog.dev.ConsoleRenderer(colors=use_colors))
     else:
         processors.append(structlog.processors.JSONRenderer())
 

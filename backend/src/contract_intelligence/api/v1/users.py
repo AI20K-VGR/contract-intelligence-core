@@ -11,7 +11,9 @@ from typing import Annotated
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from fastapi.responses import JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from contract_intelligence.admin.activity_feed import record_activity
 from contract_intelligence.identity.interfaces.api.dependencies import UserRepositoryDep
 from contract_intelligence.infrastructure import keycloak_admin as kc
 from contract_intelligence.schemas.users import (
@@ -22,6 +24,7 @@ from contract_intelligence.schemas.users import (
     UserStatus,
 )
 from contract_intelligence.shared.auth import AuthenticatedUser, require_role
+from contract_intelligence.shared.persistence import get_async_session
 from contract_intelligence.shared.responses import ApiMeta, ApiResponse, ErrorPayload, ErrorResponse
 
 logger = structlog.get_logger(__name__)
@@ -29,6 +32,35 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/users", tags=["Users"])
 
 AdminUser = Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))]
+
+_ROLE_VI = {
+    "OPERATOR": "Vận hành",
+    "REVIEWER": "Thẩm định",
+    "ADMINISTRATOR": "Quản trị",
+}
+
+
+async def _record(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    title: str,
+    actor_display_name: str,
+    detail: str | None,
+    kind: str,
+) -> None:
+    """Best-effort overview event. A feed failure must not undo the admin action."""
+    try:
+        await record_activity(
+            session,
+            tenant_id=tenant_id,
+            title=title,
+            actor_display_name=actor_display_name,
+            detail=detail,
+            kind=kind,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("activity.record_failed", kind=kind, error=str(exc))
 
 
 def _error_response(exc: kc.UserAdminError) -> JSONResponse:
@@ -121,6 +153,7 @@ async def create_user(
     body: UserCreateRequest,
     admin: AdminUser,
     repo: UserRepositoryDep,
+    session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> ApiResponse[UserDTO] | JSONResponse:
     """Create Keycloak user, assign role, send UPDATE_PASSWORD email, sync ``app_user``."""
     if body.role == "ADMINISTRATOR":
@@ -143,6 +176,14 @@ async def create_user(
     except Exception as exc:  # noqa: BLE001 — Keycloak succeeded; log local sync failure
         logger.exception("users.create.app_user_sync_failed", user_id=dto.id, error=str(exc))
 
+    await _record(
+        session,
+        tenant_id=admin.tenant_id,
+        title=f"Mời thành viên {dto.display_name}",
+        actor_display_name=admin.display_name,
+        detail=dto.email,
+        kind="user.invited",
+    )
     return ApiResponse(data=dto)
 
 
@@ -155,6 +196,7 @@ async def patch_user(
     body: UserPatchRequest,
     admin: AdminUser,
     repo: UserRepositoryDep,
+    session: Annotated[AsyncSession, Depends(get_async_session)],
     id: Annotated[str, Path(min_length=1, description="Keycloak user id")],  # noqa: A002
 ) -> ApiResponse[UserDTO] | JSONResponse:
     """RBAC: ADMINISTRATOR. Blocks self-role-change and demoting the last admin."""
@@ -174,6 +216,14 @@ async def patch_user(
     except Exception as exc:  # noqa: BLE001
         logger.exception("users.patch.app_user_sync_failed", user_id=dto.id, error=str(exc))
 
+    await _record(
+        session,
+        tenant_id=admin.tenant_id,
+        title=f"Đổi vai trò của {dto.display_name} thành {_ROLE_VI.get(dto.role, dto.role)}",
+        actor_display_name=admin.display_name,
+        detail=dto.email,
+        kind="user.role_changed",
+    )
     return ApiResponse(data=dto)
 
 
@@ -185,6 +235,7 @@ async def patch_user(
 async def disable_user(
     admin: AdminUser,
     repo: UserRepositoryDep,
+    session: Annotated[AsyncSession, Depends(get_async_session)],
     id: Annotated[str, Path(min_length=1)],  # noqa: A002
 ) -> ApiResponse[UserDTO] | JSONResponse:
     """RBAC: ADMINISTRATOR. Blocks self-disable and disabling the last admin."""
@@ -199,6 +250,14 @@ async def disable_user(
     except Exception as exc:  # noqa: BLE001
         logger.exception("users.disable.app_user_sync_failed", user_id=dto.id, error=str(exc))
 
+    await _record(
+        session,
+        tenant_id=admin.tenant_id,
+        title=f"Khóa tài khoản {dto.display_name}",
+        actor_display_name=admin.display_name,
+        detail=dto.email,
+        kind="user.disabled",
+    )
     return ApiResponse(data=dto)
 
 
@@ -210,6 +269,7 @@ async def disable_user(
 async def enable_user(
     admin: AdminUser,
     repo: UserRepositoryDep,
+    session: Annotated[AsyncSession, Depends(get_async_session)],
     id: Annotated[str, Path(min_length=1)],  # noqa: A002
 ) -> ApiResponse[UserDTO] | JSONResponse:
     """RBAC: ADMINISTRATOR."""
@@ -224,6 +284,14 @@ async def enable_user(
     except Exception as exc:  # noqa: BLE001
         logger.exception("users.enable.app_user_sync_failed", user_id=dto.id, error=str(exc))
 
+    await _record(
+        session,
+        tenant_id=admin.tenant_id,
+        title=f"Mở khóa tài khoản {dto.display_name}",
+        actor_display_name=admin.display_name,
+        detail=dto.email,
+        kind="user.enabled",
+    )
     return ApiResponse(data=dto)
 
 
@@ -234,13 +302,21 @@ async def enable_user(
 )
 async def resend_invite(
     admin: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_async_session)],
     id: Annotated[str, Path(min_length=1)],  # noqa: A002
 ) -> ApiResponse[UserDTO] | JSONResponse:
     """RBAC: ADMINISTRATOR. Only allowed when user status is ``invited``."""
-    _ = admin  # authz already enforced by AdminUser dependency
     try:
         dto = await kc.resend_invite(user_id=id)
     except kc.UserAdminError as exc:
         return _error_response(exc)
 
+    await _record(
+        session,
+        tenant_id=admin.tenant_id,
+        title=f"Gửi lại lời mời cho {dto.display_name}",
+        actor_display_name=admin.display_name,
+        detail=dto.email,
+        kind="user.invite_resent",
+    )
     return ApiResponse(data=dto)

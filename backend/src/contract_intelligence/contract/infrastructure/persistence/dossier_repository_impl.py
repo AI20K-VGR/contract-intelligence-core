@@ -46,6 +46,24 @@ class SqlDossierRepository:
     async def save(self, dossier: Dossier) -> None:
         raise NotImplementedError
 
+    async def begin_deletion(self, dossier_id: str, requested_by: str) -> bool:
+        raise NotImplementedError
+
+    async def has_deletion(self, dossier_id: str) -> bool:
+        raise NotImplementedError
+
+    async def dossier_row_exists(self, dossier_id: str) -> bool:
+        raise NotImplementedError
+
+    async def mark_purged(self, dossier_id: str, evidence: dict[str, int]) -> None:
+        raise NotImplementedError
+
+    async def mark_purge_failed(self, dossier_id: str) -> None:
+        raise NotImplementedError
+
+    async def related_blob_uris(self, dossier_id: str) -> list[str]:
+        raise NotImplementedError
+
     async def delete(self, dossier_id: str) -> None:
         raise NotImplementedError
 

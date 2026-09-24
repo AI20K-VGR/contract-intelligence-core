@@ -33,8 +33,9 @@ import hmac
 from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from contract_intelligence.config.settings import get_settings
 from contract_intelligence.identity.infrastructure.keycloak_admin_client import (
@@ -43,11 +44,13 @@ from contract_intelligence.identity.infrastructure.keycloak_admin_client import 
 )
 from contract_intelligence.identity.interfaces.api.dependencies import (
     KeycloakSyncServiceDep,
+    UserRepositoryDep,
 )
 from contract_intelligence.identity.interfaces.api.keycloak_user_sync_service import (
     KeycloakUserEvent,
     WebhookResponse,
 )
+from contract_intelligence.shared.persistence import get_async_session
 from contract_intelligence.shared.responses import ApiResponse
 
 router = APIRouter(tags=["Authentication"])
@@ -109,6 +112,8 @@ async def keycloak_webhook(
     request: Request,
     x_keycloak_signature: Annotated[str | None, Header(alias=SIGNATURE_HEADER)] = None,
     svc: KeycloakSyncServiceDep = ...,  # type: ignore[assignment]
+    repo: UserRepositoryDep = ...,  # type: ignore[assignment]
+    session: Annotated[AsyncSession, Depends(get_async_session)] = ...,  # type: ignore[assignment]
 ) -> ApiResponse[WebhookResponse]:
     """Receive user lifecycle events từ Keycloak và sync vào local app_user table.
 
@@ -214,6 +219,23 @@ async def keycloak_webhook(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Keycloak Admin API unavailable — caller should retry",
         ) from exc
+
+    if result.synced and result.action == "LOGIN":
+        try:
+            from contract_intelligence.admin.activity_feed import record_activity
+
+            user = await repo.get_by_id(result.user_id)
+            if user is not None:
+                await record_activity(
+                    session,
+                    tenant_id=user.tenant_id,
+                    title="Đăng nhập",
+                    actor_display_name=user.display_name,
+                    detail=None,
+                    kind="user.login",
+                )
+        except Exception as exc:  # noqa: BLE001 — login sync already succeeded
+            logger.exception("activity.login_record_failed", error=str(exc))
 
     return ApiResponse(data=result)
 

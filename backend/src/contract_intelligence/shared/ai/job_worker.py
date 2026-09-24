@@ -102,6 +102,11 @@ class JobQueueWorker:
                     await session.commit()
                     if count:
                         logger.info("job_queue.reaper_ok", count=count)
+                from contract_intelligence.contract.application.dossier_deletion import (
+                    sweep_pending_purges,
+                )
+
+                await sweep_pending_purges()
             except asyncio.CancelledError:
                 raise
             except Exception:

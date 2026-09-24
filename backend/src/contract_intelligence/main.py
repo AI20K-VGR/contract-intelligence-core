@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer
 
+from contract_intelligence.api.v1.admin_overview import router as admin_overview_router
 from contract_intelligence.api.v1.dossiers import router as hitl_dossiers_router
 from contract_intelligence.api.v1.reviews import router as hitl_reviews_router
 from contract_intelligence.api.v1.users import router as users_router
@@ -166,6 +167,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Postgres job queue worker + lease reaper (no Redis/Celery).
     # Skip in test env — ASGI integration clients manage their own DB and would
     # hang forever on the worker/reaper asyncio loops.
+    if settings.env != "test":
+        from contract_intelligence.contract.application.dossier_deletion import (
+            sweep_pending_purges,
+        )
+
+        await sweep_pending_purges()
     if settings.job_queue_enabled and settings.env != "test":
         start_job_queue_worker(engine)
         logger.info("job_queue.worker_ready", enabled=True)
@@ -309,6 +316,7 @@ def create_app() -> FastAPI:
         webhook_router, prefix="/api/v1/auth", tags=["Authentication"]
     )  # → /api/v1/auth/webhooks/keycloak
     app.include_router(users_router, prefix="/api/v1")  # → /api/v1/users*
+    app.include_router(admin_overview_router, prefix="/api/v1")  # → /api/v1/admin/*
     app.include_router(contract_router, prefix="/api/v1", tags=["Contract"])
     app.include_router(contract_upload_router, prefix="/api/v1", tags=["Contract-Upload"])
     app.include_router(extraction_router, prefix="/api/v1", tags=["Extraction"])

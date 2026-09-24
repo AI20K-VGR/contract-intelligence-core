@@ -69,6 +69,15 @@ async def upload_file(file_name: str, file_data: bytes) -> str:
     return object_path
 
 
+async def delete_object(object_path: str) -> None:
+    """Delete one object. Missing keys are ignored."""
+    bucket, key = parse_s3_uri(object_path)
+    session = aioboto3.Session()
+    async with session.client(**_s3_client_kwargs()) as s3:
+        await s3.delete_object(Bucket=bucket, Key=key)
+    logger.info("storage.delete_ok", bucket=bucket, key=key)
+
+
 async def generate_presigned_get_url(
     object_path: str,
     *,

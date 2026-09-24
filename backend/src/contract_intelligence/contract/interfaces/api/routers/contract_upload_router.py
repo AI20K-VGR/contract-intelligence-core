@@ -56,6 +56,7 @@ from contract_intelligence.shared.ai.pipeline_orchestrator import (
     DocumentJob,
     get_pipeline_orchestrator,
 )
+from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user
 from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.shared.base import new_ulid
 from contract_intelligence.shared.persistence import get_async_session
@@ -120,6 +121,7 @@ async def upload_dossier(
     background_tasks: BackgroundTasks,
     session: Annotated[AsyncSession, Depends(get_async_session)],
     tenant_id: Annotated[str, Depends(get_tenant_id)],
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     contract_file: Annotated[UploadFile, File(description="PDF hợp đồng chính")],
     name: Annotated[str, Form(min_length=1, max_length=255)],
     batch_id: Annotated[str | None, Form()] = None,
@@ -168,7 +170,14 @@ async def upload_dossier(
     )
 
     # ── 3. Create dossier + ingest contract ─────────────────────────────────
-    dossier = await contract_svc.create_dossier(name=name, batch_id=batch_id)
+    dossier = await contract_svc.create_dossier(
+        name=name,
+        batch_id=batch_id,
+        metadata={
+            "created_by": user.user_id,
+            "created_by_name": user.display_name,
+        },
+    )
 
     contract_doc = await _ingest_file(
         contract_svc=contract_svc,

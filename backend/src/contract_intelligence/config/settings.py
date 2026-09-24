@@ -274,6 +274,15 @@ class Settings(BaseSettings):
     # Service account phải có realm-management client role `view-users` —
     # xem ``keycloak/realm-export.json`` (servicesAccountsEnabled + role grant).
     # -------------------------------------------------------------------------
+    keycloak_admin_server_url: str | None = Field(
+        default=None,
+        description=(
+            "Base URL process backend dùng để gọi token + Admin API. "
+            "Để trống thì dùng keycloak_server_url. Trong Docker, đặt địa chỉ "
+            "nội bộ (http://keycloak:8080) trong khi keycloak_server_url giữ "
+            "issuer public (http://localhost:8080) để JWT từ trình duyệt vẫn khớp."
+        ),
+    )
     keycloak_admin_client_id: str = Field(
         default="contract-intel-backend",
         description=(
@@ -311,6 +320,10 @@ class Settings(BaseSettings):
         le=60,
         description="Timeout cho HTTP call tới Keycloak Admin REST API (giây).",
     )
+
+    def keycloak_admin_base_url(self) -> str:
+        """URL reachable from this process for Keycloak token + Admin API."""
+        return (self.keycloak_admin_server_url or self.keycloak_server_url).rstrip("/")
 
     # -------------------------------------------------------------------------
     # Keycloak invite email (execute-actions-email / UPDATE_PASSWORD)

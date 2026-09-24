@@ -26,7 +26,7 @@ from datetime import datetime
 from typing import Any
 
 import structlog
-from sqlalchemy import text
+from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from contract_intelligence.extraction.infrastructure.persistence.orm import (
@@ -167,6 +167,14 @@ async def persist_ai1_snapshot(
 
     document_id = payload.document_id
     inserted = 0
+
+    # OCR lại: trang/dòng/điều khoản cũ phải được thay, không insert chồng.
+    # Unique (document_id, page_no) sẽ chặn bản SUCCESS và để lại lỗi cũ.
+    await session.execute(delete(DocTableORM).where(DocTableORM.document_id == document_id))
+    await session.execute(delete(ClauseNodeORM).where(ClauseNodeORM.document_id == document_id))
+    await session.execute(delete(OcrLineORM).where(OcrLineORM.document_id == document_id))
+    await session.execute(delete(PageORM).where(PageORM.document_id == document_id))
+    await session.flush()
 
     # ── Pages ──────────────────────────────────────────────────────────────
     for page in payload.pages:

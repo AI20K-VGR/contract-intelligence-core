@@ -48,7 +48,8 @@ COPY alembic.ini ./
 COPY alembic/ alembic/
 COPY scripts/ scripts/
 
-RUN chmod +x /app/scripts/entrypoint.sh
+# Strip CR so a Windows checkout (CRLF) does not break the shebang (`sh\r`).
+RUN sed -i 's/\r$//' /app/scripts/entrypoint.sh && chmod +x /app/scripts/entrypoint.sh
 
 EXPOSE 8000
 

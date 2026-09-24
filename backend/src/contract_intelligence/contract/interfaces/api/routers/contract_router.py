@@ -19,11 +19,15 @@ Layer: interfaces/api — composes application services, never directly hits ORM
 from __future__ import annotations
 
 import json
+import asyncio
 from io import BytesIO
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
+from urllib.parse import quote
 
+import structlog
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Body,
     Depends,
     File,
@@ -34,7 +38,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from contract_intelligence.contract.application.dtos.document_dtos import (
     DocumentDetailDTO,
@@ -53,9 +57,11 @@ from contract_intelligence.contract.domain.entities.document import (
     Document,
     DocumentRole,
 )
+from contract_intelligence.contract.application.dossier_deletion import purge_dossier
 from contract_intelligence.contract.interfaces.api.dependencies import (
     ContractServiceDep,
 )
+from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.infrastructure import messaging, storage
 from contract_intelligence.shared.auth import (
     AuthenticatedUser,
@@ -66,6 +72,7 @@ from contract_intelligence.shared.responses import ApiMeta, ApiResponse
 from contract_intelligence.shared.utils import safe_filename
 
 router = APIRouter(tags=["Contract"])
+logger = structlog.get_logger(__name__)
 
 
 # -----------------------------------------------------------------------------
@@ -104,6 +111,60 @@ class DossierUpdateBody(BaseModel):
 
     name: str | None = None
     metadata: dict[str, Any] | None = None
+
+
+class AccessGrantBody(BaseModel):
+    id: str
+    email: str = ""
+    display_name: str = ""
+
+
+class DossierAccessBody(BaseModel):
+    """Quyền truy cập hồ sơ: của tôi, đã chia sẻ, được chia sẻ."""
+
+    scope: Literal["mine", "shared_out", "shared_in"]
+    shared_with: list[AccessGrantBody] = []
+
+
+class DossierAccessDTO(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    dossier_id: str
+    scope: Literal["mine", "shared_out", "shared_in"]
+    shared_with: list[AccessGrantBody]
+
+
+def _send_share_emails(
+    *,
+    dossier_name: str,
+    dossier_id: str,
+    sender_name: str,
+    recipients: list[dict[str, Any]],
+) -> None:
+    """Gửi mail thông báo chia sẻ. SMTP mặc định là Mailpit trên máy host."""
+    import os
+    import smtplib
+    from email.message import EmailMessage
+
+    host = os.environ.get("SMTP_HOST", "host.docker.internal")
+    port = int(os.environ.get("SMTP_PORT", "1025"))
+    sender = os.environ.get("SMTP_FROM", "lexis@localhost")
+    base = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+    link = f"{base}/cau-truc/{dossier_id}"
+    with smtplib.SMTP(host, port, timeout=5) as smtp:
+        for person in recipients:
+            address = str(person.get("email") or "").strip()
+            if not address:
+                continue
+            message = EmailMessage()
+            message["Subject"] = f"Bạn được chia sẻ hồ sơ {dossier_name}"
+            message["From"] = sender
+            message["To"] = address
+            message.set_content(
+                f"{sender_name} đã chia sẻ hồ sơ \"{dossier_name}\" với bạn.\n\n"
+                f"Đăng nhập rồi mở liên kết này để xem:\n{link}\n"
+            )
+            smtp.send_message(message)
 
 
 async def _ingest_upload_file(
@@ -207,8 +268,10 @@ async def create_dossier(
         meta_payload["notes"] = meta.notes
     extras = getattr(meta, "model_extra", None) or {}
     for key, value in extras.items():
-        if key not in ("name", "tags", "notes") and value is not None:
+        if key not in ("name", "tags", "notes", "created_by", "created_by_name") and value is not None:
             meta_payload[key] = value
+    meta_payload["created_by"] = user.user_id
+    meta_payload["created_by_name"] = user.display_name
 
     # Create dossier + initial Job (UPLOADED) — per openapi.yaml createDossier
     dossier = await svc.create_dossier(
@@ -259,6 +322,40 @@ async def create_dossier(
     )
 
 
+class OcrRestartDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    dossier_id: str
+    status: str
+
+
+@router.post(
+    "/dossiers/{dossier_id}/ocr",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ApiResponse[OcrRestartDTO],
+    summary="Chạy lại OCR cho hồ sơ đã tải",
+    responses={404: {"description": "Dossier or document not found"}},
+)
+async def restart_dossier_ocr(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ContractServiceDep,
+    _user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+) -> ApiResponse[OcrRestartDTO]:
+    """Đăng lại dossier.uploaded để worker gửi lệnh OCR."""
+    await svc.get_dossier(dossier_id)
+    documents = await svc.list_documents(dossier_id)
+    if not documents:
+        raise HTTPException(status_code=404, detail="Dossier has no document to OCR")
+    await messaging.publish_event(
+        "dossier_events",
+        {
+            "event": "dossier.uploaded",
+            "dossier_id": str(dossier_id),
+        },
+    )
+    return ApiResponse(data=OcrRestartDTO(dossier_id=dossier_id, status="queued"))
+
+
 # -----------------------------------------------------------------------------
 # GET /dossiers — List (Per openapi.yaml line 150)
 # -----------------------------------------------------------------------------
@@ -305,6 +402,26 @@ async def list_dossiers(
             page_size=limit,
         ),
     )
+
+
+@router.delete(
+    "/dossiers/{dossier_id}",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ApiResponse[dict[str, str]],
+    summary="Tombstone a dossier, then purge files and extracted text",
+    responses={404: {"description": "Dossier not found"}},
+)
+async def delete_dossier(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    background_tasks: BackgroundTasks,
+    svc: ContractServiceDep,
+    tenant_id: Annotated[str, Depends(get_tenant_id)],
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+) -> ApiResponse[dict[str, str]]:
+    """Chặn truy cập ngay. File và nội dung trích được xóa sau khi request này commit."""
+    await svc.request_deletion(dossier_id, requested_by=user.user_id)
+    background_tasks.add_task(purge_dossier, tenant_id, dossier_id)
+    return ApiResponse(data={"id": dossier_id, "status": "tombstoned"})
 
 
 # -----------------------------------------------------------------------------
@@ -371,6 +488,60 @@ async def patch_dossier(
             documents=documents,
             latest_job_id=latest.id if latest else None,
             latest_job_status=latest.status if latest else None,
+        )
+    )
+
+
+@router.put(
+    "/dossiers/{dossier_id}/access",
+    response_model=ApiResponse[DossierAccessDTO],
+    responses={404: {"description": "Dossier not found"}},
+)
+async def update_dossier_access(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    body: DossierAccessBody,
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+) -> ApiResponse[DossierAccessDTO]:
+    """Đặt quyền hồ sơ. Gộp vào metadata, giữ created_by."""
+    dossier = await svc.get_dossier(dossier_id)
+    current = dict(dossier.metadata or {})
+    previous_ids = {
+        str(item.get("id"))
+        for item in (current.get("shared_with") or [])
+        if isinstance(item, dict) and item.get("id")
+    }
+    current.setdefault("created_by", user.user_id)
+    current.setdefault("created_by_name", user.display_name)
+    grants = [] if body.scope == "mine" else [item.model_dump() for item in body.shared_with]
+    if body.scope == "shared_in" and user.user_id not in {item["id"] for item in grants}:
+        grants.append(
+            {
+                "id": user.user_id,
+                "email": user.email or "",
+                "display_name": user.display_name or "",
+            }
+        )
+    current["access_scope"] = body.scope
+    current["shared_with"] = grants
+    await svc.patch_dossier(dossier_id, name=None, metadata=current)
+    fresh = [item for item in grants if item["id"] not in previous_ids and item.get("email")]
+    if fresh:
+        try:
+            await asyncio.to_thread(
+                _send_share_emails,
+                dossier_name=dossier.name,
+                dossier_id=dossier_id,
+                sender_name=user.display_name or user.email or "Một người dùng",
+                recipients=fresh,
+            )
+        except Exception:
+            logger.warning("dossiers.access.email_failed", dossier_id=dossier_id, exc_info=True)
+    return ApiResponse(
+        data=DossierAccessDTO(
+            dossier_id=dossier_id,
+            scope=body.scope,
+            shared_with=[AccessGrantBody.model_validate(item) for item in grants],
         )
     )
 
@@ -474,6 +645,15 @@ async def get_document(
     return ApiResponse(data=DocumentDetailDTO.from_domain(doc))
 
 
+def _content_disposition(filename: str) -> str:
+    """Giá trị header phải là latin-1. Tên tiếng Việt đi ở filename*."""
+    fallback = "".join(ch if ord(ch) < 128 else "_" for ch in filename).replace('"', "")
+    if not fallback.strip("._"):
+        fallback = "document.pdf"
+    encoded = quote(filename, safe="")
+    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{encoded}"
+
+
 @router.get(
     "/documents/{document_id}/content",
     summary="Stream PDF binary từ MinIO/local storage",
@@ -496,7 +676,7 @@ async def get_document_content(
         iter([data]),
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Disposition": _content_disposition(filename),
             "Content-Length": str(len(data)),
         },
     )

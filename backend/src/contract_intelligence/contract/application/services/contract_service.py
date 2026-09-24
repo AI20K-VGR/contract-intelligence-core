@@ -213,6 +213,57 @@ class ContractService:
         await self._dossier_repo.save(dossier)
         return dossier
 
+    async def request_deletion(self, dossier_id: str, *, requested_by: str) -> None:
+        """Block access and cancel jobs. File purge runs after this commits."""
+        started = await self._dossier_repo.begin_deletion(dossier_id, requested_by)
+        if not started:
+            raise NotFoundError(entity_type="Dossier", entity_id=dossier_id)
+
+    async def purge_dossier(self, dossier_id: str) -> None:
+        """Delete files and contract text for a dossier already on the ledger."""
+        if not await self._dossier_repo.has_deletion(dossier_id):
+            return
+        if not await self._dossier_repo.dossier_row_exists(dossier_id):
+            await self._dossier_repo.mark_purged(dossier_id, {"documents": 0, "objects": 0})
+            return
+        documents = await self._document_repo.list_by_dossier(dossier_id)
+        uris = [document.blob_uri for document in documents if document.blob_uri]
+        uris.extend(await self._dossier_repo.related_blob_uris(dossier_id))
+        for blob_uri in uris:
+            await self._purge_blob(dossier_id, blob_uri)
+        await self._dossier_repo.delete(dossier_id)
+        await self._dossier_repo.mark_purged(
+            dossier_id,
+            {"documents": len(documents), "objects": len(uris)},
+        )
+
+    async def _purge_blob(self, dossier_id: str, blob_uri: str) -> None:
+        """Best-effort removal of a local copy and the MinIO object."""
+        if not blob_uri.strip():
+            return
+        try:
+            await self._storage.delete(blob_uri)
+        except Exception as exc:  # noqa: BLE001 — object storage is the other copy
+            logger.warning(
+                "dossier.delete.blob_failed",
+                dossier_id=dossier_id,
+                blob_uri=blob_uri,
+                error=str(exc),
+            )
+        if blob_uri.startswith(("file://", "local://")):
+            return
+        try:
+            from contract_intelligence.infrastructure.storage import delete_object
+
+            await delete_object(blob_uri)
+        except Exception as exc:  # noqa: BLE001 — DB purge still has to proceed
+            logger.warning(
+                "dossier.delete.object_failed",
+                dossier_id=dossier_id,
+                blob_uri=blob_uri,
+                error=str(exc),
+            )
+
     async def _hydrate_latest_job(self, dossier: Dossier) -> None:
         """Load latest Job onto dossier.jobs for navigation / DTO mapping."""
         if dossier.jobs:
@@ -222,12 +273,14 @@ class ContractService:
             dossier.jobs = [cast(Job, page.items[0])]
 
     async def list_documents(self, dossier_id: str) -> list[Document]:
+        await self.get_dossier(dossier_id)
         return await self._document_repo.list_by_dossier(dossier_id)
 
     async def get_document(self, document_id: str) -> Document:
         doc = await self._document_repo.get(document_id)
         if doc is None:
             raise NotFoundError(entity_type="Document", entity_id=document_id)
+        await self.get_dossier(doc.dossier_id)
         return doc
 
     async def get_document_blob(self, document_id: str) -> tuple[bytes, str]:

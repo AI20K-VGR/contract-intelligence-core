@@ -18,6 +18,8 @@ def import_all_models() -> None:
     import contract_intelligence.conflict.infrastructure.persistence.orm  # noqa: F401
     import contract_intelligence.review.infrastructure.persistence.orm  # noqa: F401
     import contract_intelligence.review.infrastructure.persistence.orm_approval  # noqa: F401
+    import contract_intelligence.contract.infrastructure.persistence.deletion_ledger  # noqa: F401
+    import contract_intelligence.admin.activity_feed  # noqa: F401
     # isort: on
 
 

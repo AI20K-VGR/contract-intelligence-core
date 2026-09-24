@@ -73,7 +73,12 @@ ENV KEYCLOAK_EVENTS_JAR=keycloak-events-${PHASETWO_EVENTS_VERSION}.jar
 # then drop back.
 USER root
 COPY --from=fetcher /tmp/keycloak-events-${PHASETWO_EVENTS_VERSION}.jar ${KEYCLOAK_PROVIDERS_DIR}/${KEYCLOAK_EVENTS_JAR}
-RUN chown -R keycloak:keycloak "${KEYCLOAK_PROVIDERS_DIR}" \
+# Bake the login UI into the image under both names. `lexis` is the realm
+# setting. `keycloak` replaces the built-in default, so a missing loginTheme
+# or a vanished bind-mount still renders this UI.
+COPY themes/lexis /opt/keycloak/themes/lexis
+COPY themes/lexis /opt/keycloak/themes/keycloak
+RUN chown -R keycloak:keycloak "${KEYCLOAK_PROVIDERS_DIR}" /opt/keycloak/themes/lexis /opt/keycloak/themes/keycloak \
     && ls -lh "${KEYCLOAK_PROVIDERS_DIR}/${KEYCLOAK_EVENTS_JAR}"
 USER keycloak
 
