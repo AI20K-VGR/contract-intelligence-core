@@ -295,8 +295,6 @@ services:
       # client role view-users — xem realm-export.json.
       KEYCLOAK_ADMIN_CLIENT_ID: contract-intel-backend
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${BACKEND_KEYCLOAK_ADMIN_SECRET:-backend_secret_dev}
-      # Admin API từ trong container. KEYCLOAK_SERVER_URL giữ localhost để khớp issuer JWT.
-      KEYCLOAK_ADMIN_SERVER_URL: http://keycloak:8080
 
       # ---- Webhook signature verification ----
       KEYCLOAK_WEBHOOK_SECRET: ${KEYCLOAK_WEBHOOK_SECRET:-ci_webhook_shared_secret_dev}

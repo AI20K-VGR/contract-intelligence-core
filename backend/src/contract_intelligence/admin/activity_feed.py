@@ -99,7 +99,10 @@ def _sources(tenant_id: str) -> Any:
         _creator_name().label("actor_display_name"),
         func.concat("Tạo hồ sơ ", DossierORM.name).label("title"),
         _blank().label("detail"),
-    ).where(DossierORM.tenant_id == tenant_id)
+    ).where(
+        DossierORM.tenant_id == tenant_id,
+        DossierORM.deleted_at.is_(None),
+    )
 
     document = (
         select(
@@ -110,7 +113,10 @@ def _sources(tenant_id: str) -> Any:
             func.concat("Hồ sơ ", DossierORM.name).label("detail"),
         )
         .join(DossierORM, DossierORM.id == DocumentORM.dossier_id)
-        .where(DocumentORM.tenant_id == tenant_id)
+        .where(
+            DocumentORM.tenant_id == tenant_id,
+            DossierORM.deleted_at.is_(None),
+        )
     )
 
     member = select(

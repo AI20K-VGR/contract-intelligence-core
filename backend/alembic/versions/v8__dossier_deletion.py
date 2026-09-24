@@ -9,6 +9,9 @@ Two-step dossier deletion (mentor + FE contract):
   2. Purge — remove contract content via SECURITY DEFINER function;
      never DELETE dossier / job / pipeline_run shells; never touch
      usage_ledger / review_action / job_event / deletion_ledger rows
+
+deletion_ledger is one row per dossier (updatable purge_status). It is NOT
+append-only — purge completion updates the same row.
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 revision: str = "v8__dossier_deletion"
 down_revision: str | None = "v7__copilot_review_hardening"
@@ -73,65 +77,38 @@ def upgrade() -> None:
             with op.batch_alter_table("document") as batch:
                 batch.alter_column("blob_uri", existing_type=sa.Text(), nullable=True)
 
-    # ---- deletion_ledger ----
+    # ---- deletion_ledger (one row / dossier; purge_status is updated in place) ----
     if "deletion_ledger" not in tables:
         op.create_table(
             "deletion_ledger",
             sa.Column("id", sa.Text(), primary_key=True),
             sa.Column("tenant_id", sa.Text(), nullable=False),
             sa.Column("dossier_id", sa.Text(), nullable=False),
-            sa.Column("actor_user_id", sa.Text(), nullable=False),
-            sa.Column("phase", sa.Text(), nullable=False),
-            sa.Column("detail", sa.JSON(), nullable=True),
+            sa.Column("requested_by", sa.Text(), nullable=False),
             sa.Column(
-                "created_at",
+                "tombstoned_at",
                 sa.DateTime(timezone=True),
                 nullable=False,
                 server_default=sa.text("now()"),
             ),
+            sa.Column(
+                "purge_status",
+                sa.Text(),
+                nullable=False,
+                server_default="pending",
+            ),
+            sa.Column("purged_at", sa.DateTime(timezone=True), nullable=True),
+            sa.Column(
+                "evidence",
+                sa.JSON().with_variant(postgresql.JSONB(), "postgresql"),
+                nullable=True,
+            ),
+            sa.UniqueConstraint("tenant_id", "dossier_id", name="uq_deletion_ledger_dossier"),
         )
-        op.create_index(
-            "ix_deletion_ledger_dossier_created",
-            "deletion_ledger",
-            ["dossier_id", "created_at"],
-        )
-        op.create_index(
-            "ix_deletion_ledger_tenant",
-            "deletion_ledger",
-            ["tenant_id"],
-        )
-
-    # Append-only trigger on deletion_ledger (same pattern as v7)
-    op.execute(
-        sa.text(
-            """
-            CREATE OR REPLACE FUNCTION forbid_mutation() RETURNS trigger AS $$
-            BEGIN
-                RAISE EXCEPTION
-                    'Bảng % là bất biến (append-only), không được phép UPDATE hoặc DELETE',
-                    TG_TABLE_NAME;
-            END;
-            $$ LANGUAGE plpgsql;
-            """
-        )
-    )
-    op.execute(
-        sa.text("DROP TRIGGER IF EXISTS trg_immutable_deletion_ledger ON deletion_ledger")
-    )
-    op.execute(
-        sa.text(
-            """
-            CREATE TRIGGER trg_immutable_deletion_ledger
-            BEFORE UPDATE OR DELETE ON deletion_ledger
-            FOR EACH ROW EXECUTE PROCEDURE forbid_mutation()
-            """
-        )
-    )
+        op.create_index("ix_deletion_ledger_tenant_id", "deletion_ledger", ["tenant_id"])
+        op.create_index("ix_deletion_ledger_dossier_id", "deletion_ledger", ["dossier_id"])
 
     # ---- SECURITY DEFINER purge function (Postgres) ----
-    # Disable content immutability triggers, delete/redact content, re-enable.
-    # Never touches usage_ledger, review_action, job_event, deletion_ledger,
-    # dossier_approval rows; never DELETE dossier / job / pipeline_run shells.
     disable_blocks = "\n".join(
         f"    IF to_regclass('public.{t}') IS NOT NULL THEN "
         f"EXECUTE 'ALTER TABLE {t} DISABLE TRIGGER trg_immutable_{t}'; END IF;"
@@ -162,7 +139,6 @@ def upgrade() -> None:
 
             {disable_blocks}
 
-                -- finding_side before finding
                 IF to_regclass('public.finding_side') IS NOT NULL THEN
                     DELETE FROM finding_side
                      WHERE finding_id IN (
@@ -233,7 +209,6 @@ def upgrade() -> None:
                  WHERE id = p_dossier_id;
 
                 IF to_regclass('public.manifest') IS NOT NULL THEN
-                    -- clear member filenames (notes live on metadata / items)
                     UPDATE manifest_item
                        SET filename = '[purged]'
                      WHERE manifest_id IN (
@@ -271,12 +246,6 @@ def upgrade() -> None:
                      WHERE document_id = ANY(doc_ids);
                 END IF;
 
-                -- Redact approval comment text only (keep row)
-                IF to_regclass('public.dossier_approval') IS NOT NULL THEN
-                    -- append-only: cannot UPDATE — leave comment as historical audit
-                    NULL;
-                END IF;
-
             {enable_blocks}
             END;
             $$;
@@ -293,11 +262,8 @@ def downgrade() -> None:
     op.execute(sa.text("DROP FUNCTION IF EXISTS purge_dossier_contract_content(text)"))
 
     if "deletion_ledger" in tables:
-        op.execute(
-            sa.text("DROP TRIGGER IF EXISTS trg_immutable_deletion_ledger ON deletion_ledger")
-        )
-        op.drop_index("ix_deletion_ledger_tenant", table_name="deletion_ledger")
-        op.drop_index("ix_deletion_ledger_dossier_created", table_name="deletion_ledger")
+        op.drop_index("ix_deletion_ledger_dossier_id", table_name="deletion_ledger")
+        op.drop_index("ix_deletion_ledger_tenant_id", table_name="deletion_ledger")
         op.drop_table("deletion_ledger")
 
     if "dossier" in tables:
