@@ -98,6 +98,7 @@ export function AccessPage() {
               id: person.id,
               email: person.email,
               display_name: person.display_name,
+              status: person.status,
             }))
     try {
       const saved = await updateDossierAccess(dossier.id, nextScope, shares)

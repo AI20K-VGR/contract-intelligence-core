@@ -88,8 +88,7 @@ export function CitationPane({
     if (region.pageNo !== pageNo) return false
     const [x0, y0, x1, y1] = region.bbox
     const area = Math.max(0, x1 - x0) * Math.max(0, y1 - y0)
-    // Một khung gần kín trang (bảng không có bbox từng dòng) che mất nội dung.
-    return area > 0 && area < 0.7
+    return area > 0 && area <= 1
   })
 
   return (

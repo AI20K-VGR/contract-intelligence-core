@@ -154,6 +154,7 @@ export type DossierShareGrant = {
   id: string
   email: string
   display_name: string
+  status?: 'invited' | 'active' | 'disabled'
 }
 
 export async function updateDossierAccess(

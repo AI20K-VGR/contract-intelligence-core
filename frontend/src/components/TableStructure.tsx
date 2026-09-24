@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   listDocumentTables,
   structureErrorMessage,
+  type ClauseNode,
   type DocumentTable,
   type DocumentTableCell,
 } from '../api/structure'
@@ -20,6 +21,29 @@ function covered(table: DocumentTable, row: number, column: number) {
       column < cell.column + cell.colSpan &&
       !(cell.row === row && cell.column === column),
   )
+}
+
+function tableNode(table: DocumentTable, citeNo: number): ClauseNode {
+  const pageNo = table.pageNo || 1
+  const cellBoxes = table.cells.flatMap((cell) =>
+    cell.bbox ? [{ pageNo, bbox: cell.bbox }] : [],
+  )
+  const regions = table.bbox
+    ? [{ pageNo, bbox: table.bbox }, ...cellBoxes]
+    : cellBoxes
+  return {
+    id: table.id,
+    nodeType: 'table',
+    label: `Bảng ${citeNo}`,
+    number: String(citeNo),
+    title: `Bảng ${citeNo}`,
+    text: table.cells.map((cell) => cell.text).filter(Boolean).join(' '),
+    pageStart: table.pageNo || 1,
+    pageEnd: table.pageNo || 1,
+    confidence: null,
+    regions,
+    children: [],
+  }
 }
 
 function TableGrid({ table }: { table: DocumentTable }) {
@@ -77,9 +101,13 @@ function Cell({ cell }: { cell: DocumentTableCell | undefined }) {
 export function TableStructure({
   documentId,
   query,
+  activeId,
+  onCite,
 }: {
   documentId: string
   query: string
+  activeId?: string | null
+  onCite?: (node: ClauseNode, citeNo: number) => void
 }) {
   const [tables, setTables] = useState<DocumentTable[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -146,6 +174,19 @@ export function TableStructure({
             <h2 className="font-title-sm text-title-sm text-on-surface">
               Bảng {index + 1}
             </h2>
+            {onCite ? (
+              <button
+                className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full border px-1 text-[11px] font-semibold leading-none ${
+                  activeId === table.id
+                    ? 'border-[#0b1f3a] bg-[#0b1f3a] text-white'
+                    : 'border-slate-300 bg-white text-slate-700 hover:border-slate-500'
+                }`}
+                type="button"
+                onClick={() => onCite(tableNode(table, index + 1), index + 1)}
+              >
+                {index + 1}
+              </button>
+            ) : null}
             <span className="font-body-sm text-body-sm text-on-surface-variant">
               Trang {table.pageNo || '—'}
               {table.continued ? ' · nối trang' : ''}

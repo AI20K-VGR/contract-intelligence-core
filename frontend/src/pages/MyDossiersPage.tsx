@@ -14,6 +14,7 @@ import { ApiError } from '../api/client'
 import { MaterialIcon } from '../components/icons'
 import {
   dossierOpenTo,
+  progressPath,
   type Dossier,
   type DossierStatus,
 } from '../data/dossiers'
@@ -110,6 +111,11 @@ function accessScope(
   userId: string | undefined,
 ): Dossier['access'] {
   const metadata = summary.metadata
+  const owner = metadataText(metadata, 'created_by')
+  const shares = sharesOf(metadata)
+  if (userId && owner && owner !== userId) {
+    return shares.some((item) => item.id === userId) ? 'shared_in' : 'mine'
+  }
   const explicit = metadata?.access_scope
   if (
     explicit === 'mine' ||
@@ -118,13 +124,7 @@ function accessScope(
   ) {
     return explicit
   }
-  const owner = metadataText(summary.metadata, 'created_by')
-  const shares = sharesOf(metadata)
-  if (!owner || (userId && owner === userId)) {
-    return shares.length > 0 ? 'shared_out' : 'mine'
-  }
-  if (userId && shares.some((item) => item.id === userId)) return 'shared_in'
-  return 'mine'
+  return shares.length > 0 ? 'shared_out' : 'mine'
 }
 
 export function dossierFromSummary(
@@ -197,7 +197,7 @@ function StatusCell({
       <div className="flex flex-col gap-1">
         <Link
           className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-label-sm text-label-sm font-semibold bg-amber-100 text-amber-900 w-fit hover:opacity-80"
-          to={`/ocr/${dossier.id}`}
+          to={progressPath(dossier.id)}
         >
           <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
           Đang OCR
@@ -219,7 +219,7 @@ function StatusCell({
                 ? 'bg-amber-100 text-amber-950'
                 : 'bg-error-container text-on-error-container'
             }`}
-            to={`/ocr/${dossier.id}`}
+            to={progressPath(dossier.id)}
           >
             {label}
           </Link>
@@ -532,7 +532,7 @@ export function MyDossiersPage() {
   }, [dossiers, ocrById, query, restartAt, status])
 
   function retryOcr(dossierId: string) {
-    navigate(`/ocr/${dossierId}`, { state: { restart: true } })
+    navigate(progressPath(dossierId), { state: { restart: true } })
   }
 
   return (
@@ -683,7 +683,7 @@ export function MyDossiersPage() {
                   }`}
                   onClick={() => {
                     if (ocrOf(dossier) === 'running') {
-                      navigate(`/ocr/${dossier.id}`)
+                      navigate(progressPath(dossier.id))
                     }
                   }}
                 >
@@ -702,7 +702,7 @@ export function MyDossiersPage() {
                           }}
                           to={
                             ocrOf(dossier) === 'running'
-                              ? `/ocr/${dossier.id}`
+                              ? progressPath(dossier.id)
                               : dossierOpenTo(dossier)
                           }
                         >

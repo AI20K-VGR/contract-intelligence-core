@@ -4,7 +4,7 @@ import {
   type OcrLine,
   type StructureMode,
 } from '../structure/types'
-import { ApiError, apiFetch, getJson } from './client'
+import { ApiError, apiFetch, getJson, requestJson } from './client'
 import { patchDossier } from './dossiers'
 
 export type StructureDocument = {
@@ -393,6 +393,7 @@ export type DocumentTableCell = {
   colSpan: number
   text: string
   header: boolean
+  bbox: [number, number, number, number] | null
 }
 
 export type DocumentTable = {
@@ -401,6 +402,7 @@ export type DocumentTable = {
   rows: number
   columns: number
   continued: boolean
+  bbox: [number, number, number, number] | null
   cells: DocumentTableCell[]
 }
 
@@ -429,6 +431,7 @@ export async function listDocumentTables(
               colSpan: Math.max(1, asNumber(record.col_span) || 1),
               text: asString(record.text),
               header: record.is_header === true,
+              bbox: asBBox(record.bbox, 612, 792),
             },
           ]
         })
@@ -440,6 +443,7 @@ export async function listDocumentTables(
         rows: asNumber(row.rows_count),
         columns: asNumber(row.cols_count),
         continued: row.is_multi_page === true || Boolean(row.continued_from),
+        bbox: asBBox(row.bbox, 612, 792),
         cells,
       },
     ]
@@ -457,6 +461,46 @@ export async function listClauses(documentId: string, signal?: AbortSignal) {
   return data.map(asClause).filter((node): node is ClauseNode => node !== null)
 }
 
+export type DossierSearchHit = {
+  text: string
+  pageNo: number | null
+}
+
+export type DossierSearchResult = {
+  query: string
+  answer: string | null
+  connected: boolean
+  hits: DossierSearchHit[]
+}
+
+export async function searchDossier(dossierId: string, query: string) {
+  const { data } = await requestJson<unknown>(
+    `/api/v1/dossiers/${encodeURIComponent(dossierId)}/search`,
+    { method: 'POST', json: { query } },
+  )
+  const row = asRecord(data)
+  const hits = Array.isArray(row?.hits)
+    ? row.hits.flatMap((item): DossierSearchHit[] => {
+        const hit = asRecord(item)
+        const text = asString(hit?.text)
+        if (!hit || !text) return []
+        const page = hit.page_no
+        return [
+          {
+            text,
+            pageNo: typeof page === 'number' ? page : null,
+          },
+        ]
+      })
+    : []
+  return {
+    query: asString(row?.query) || query,
+    answer: asString(row?.answer) || null,
+    connected: row?.connected === true,
+    hits,
+  } satisfies DossierSearchResult
+}
+
 export function structureErrorMessage(error: unknown) {
   if (error instanceof DOMException && error.name === 'AbortError') {
     return null
@@ -464,7 +508,7 @@ export function structureErrorMessage(error: unknown) {
   if (error instanceof ApiError) {
     if (error.status === 401) return 'Phiên đăng nhập hết hạn. Đăng nhập lại.'
     if (error.status === 403)
-      return 'Bạn không có quyền xem cấu trúc hồ sơ này.'
+      return 'Quyền xem hồ sơ này đã bị thu hồi. Chờ email chia sẻ mới để mở lại.'
     if (error.status === 404) return 'Không tìm thấy hồ sơ hoặc cây điều khoản.'
     return error.message
   }

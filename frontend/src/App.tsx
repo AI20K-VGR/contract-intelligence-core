@@ -23,6 +23,7 @@ import { CitationSplitViewPage } from './pages/CitationSplitViewPage'
 import { CitationEditPage } from './pages/CitationEditPage'
 import { ClauseConflictPage } from './pages/ClauseConflictPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
+import { SettingsPage } from './pages/SettingsPage'
 import { UsersPage } from './pages/UsersPage'
 import { ReviewLayout } from './layouts/ReviewLayout'
 
@@ -135,7 +136,7 @@ export default function App() {
               />
               <Route
                 path="/cai-dat"
-                element={<PlaceholderPage title="Cài đặt" />}
+                element={<SettingsPage />}
               />
             </Route>
             <Route element={<ReviewLayout />}>

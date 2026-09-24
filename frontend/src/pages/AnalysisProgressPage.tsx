@@ -134,6 +134,20 @@ export function AnalysisProgressPage() {
   }, [backTo, dossierId, navigate])
 
   useEffect(() => {
+    const restart = Boolean(
+      (location.state as { restart?: boolean } | null)?.restart,
+    )
+    if (!restart || !dossierId) return
+    navigate(location.pathname, { replace: true, state: null })
+    setBusy(true)
+    setError(null)
+    void restartDossierOcr(dossierId)
+      .then(() => setAttempt((value) => value + 1))
+      .catch((cause: unknown) => setError(restartOcrErrorMessage(cause)))
+      .finally(() => setBusy(false))
+  }, [dossierId, location.pathname, location.state, navigate])
+
+  useEffect(() => {
     if (!dossierId) return
     const controller = new AbortController()
     let timer: number | undefined

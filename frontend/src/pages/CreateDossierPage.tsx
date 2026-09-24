@@ -17,7 +17,6 @@ import {
   type StructureMode,
 } from '../structure'
 
-type PrivacyTier = 'private' | 'shared'
 type UploadStatus = 'idle' | 'uploading'
 type PickedFile = {
   key: string
@@ -137,7 +136,6 @@ export function CreateDossierPage() {
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [category, setCategory] = useState(dossierCategories[0])
-  const [privacy, setPrivacy] = useState<PrivacyTier>('private')
   const [structureMode, setStructureMode] = useState<StructureMode | null>(null)
   const [contract, setContract] = useState<PickedFile | null>(null)
   const [annexes, setAnnexes] = useState<PickedFile[]>([])
@@ -293,7 +291,7 @@ export function CreateDossierPage() {
       }
 
       const extra: Record<string, unknown> = {
-        privacy,
+        privacy: 'private',
         category,
         [STRUCTURE_MODE_KEY]: structureMode,
       }
@@ -511,62 +509,6 @@ export function CreateDossierPage() {
                   })}
                 </div>
               </fieldset>
-
-              <div className="flex flex-col gap-space-xs pt-space-xs">
-                <span className="font-label-sm text-label-sm text-primary tracking-wider uppercase font-semibold">
-                  Quyền riêng tư mặc định
-                </span>
-                <div className="flex flex-col gap-space-xs">
-                  <label className="flex items-center justify-between p-space-md rounded-lg bg-surface hover:bg-surface-container-low transition-colors cursor-pointer group">
-                    <div className="flex items-center gap-space-md">
-                      <input
-                        checked={privacy === 'private'}
-                        className="w-4 h-4 accent-primary-container"
-                        disabled={busy}
-                        name="privacy-tier"
-                        type="radio"
-                        onChange={() => setPrivacy('private')}
-                      />
-                      <div className="flex flex-col">
-                        <span className="font-body-sm text-body-sm font-semibold text-primary">
-                          Riêng tư (Chỉ mình tôi)
-                        </span>
-                        <span className="font-code-sm text-code-sm text-on-surface-variant">
-                          Không truy cập chéo giữa các tổ chức vụ việc
-                        </span>
-                      </div>
-                    </div>
-                    <MaterialIcon
-                      name="lock"
-                      className="text-primary text-[18px]"
-                    />
-                  </label>
-                  <label className="flex items-center justify-between p-space-md rounded-lg bg-surface hover:bg-surface-container-low transition-colors cursor-pointer group">
-                    <div className="flex items-center gap-space-md">
-                      <input
-                        checked={privacy === 'shared'}
-                        className="w-4 h-4 accent-primary-container"
-                        disabled={busy}
-                        name="privacy-tier"
-                        type="radio"
-                        onChange={() => setPrivacy('shared')}
-                      />
-                      <div className="flex flex-col">
-                        <span className="font-body-sm text-body-sm font-semibold text-primary">
-                          Chia sẻ với Trưởng ban Pháp chế
-                        </span>
-                        <span className="font-code-sm text-code-sm text-on-surface-variant">
-                          Tự động báo cáo rủi ro cấp điều hành
-                        </span>
-                      </div>
-                    </div>
-                    <MaterialIcon
-                      name="groups"
-                      className="text-on-surface-variant text-[18px]"
-                    />
-                  </label>
-                </div>
-              </div>
             </div>
           </section>
         </div>
@@ -707,12 +649,8 @@ export function CreateDossierPage() {
                 ))}
               </div>
             ) : null}
-          </div>
-        </div>
-      </div>
 
-      <div className="sticky bottom-4 mt-space-xl p-space-lg bg-surface-container-lowest rounded-xl shadow-xl z-30 flex flex-col md:flex-row items-center justify-between gap-space-md">
-        <div className="flex items-center justify-end gap-space-md w-full">
+            <div className="flex items-center justify-end gap-space-md pt-space-sm">
           <button
             className="h-10 px-space-lg font-body-sm text-body-sm font-medium text-on-surface-variant hover:text-primary transition-colors cursor-pointer rounded-lg hover:bg-surface-container-low"
             disabled={busy}
@@ -738,6 +676,8 @@ export function CreateDossierPage() {
               </>
             )}
           </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
