@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import os
 from pathlib import Path
 from uuid import uuid4
@@ -12,10 +12,11 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from app.contracts.models import HandoffIssue, JobResult, JobStatus, ReviewItem, ReviewState, ToolEnvelope
-from app.contracts.wire import BeAi2ProcessingRequest, job_result_to_wire
 from app.compat_legacy import cancel_job as cancel_legacy_job
-from app.compat_legacy import create_completed_job, create_failed_job, get_job as get_legacy_job
+from app.compat_legacy import create_completed_job, create_failed_job
+from app.compat_legacy import get_job as get_legacy_job
+from app.contracts.models import HandoffIssue, JobResult, ReviewItem, ReviewState, ToolEnvelope
+from app.contracts.wire import BeAi2ProcessingRequest, job_result_to_wire
 from app.llm.client import NineRouterClient
 from app.llm.embeddings import OpenAICompatibleEmbeddingClient
 from app.pipeline.ai1_ingest import ingest_files
@@ -28,8 +29,8 @@ from app.pipeline.ai1_snapshot_adapter import (
 from app.pipeline.citations import CitationResolver
 from app.pipeline.grounding import repair_active_nodes
 from app.pipeline.idp import run_idp
-from app.pipeline.outline import build_tree, locate
 from app.pipeline.ocr_json_demo_adapter import is_ocr_json_demo, normalize_ocr_json
+from app.pipeline.outline import build_tree, locate
 from app.pipeline.runtime import ProcessingRuntime
 from app.reasoning.gold import adhoc_tasks, tasks_from_outline
 from app.reasoning.query import classify_ask
@@ -38,8 +39,14 @@ from app.reasoning.stack import FourLayerReasoner
 from app.reasoning.vector_recall import VectorRecallService
 from app.security.service_envelope import ServiceEnvelopeError, verify_service_envelope
 from app.tools.gateway import ToolGateway
-from app.tools.jobs import JobNonceReplayConflict, JobOwnershipConflict, JobPayloadConflict, SQLiteJobStore
+from app.tools.jobs import (
+    JobNonceReplayConflict,
+    JobOwnershipConflict,
+    JobPayloadConflict,
+    SQLiteJobStore,
+)
 from app.tools.persist import DATA, load_session, save_session
+from app.tools.query_store import load_query_snapshot
 from app.tools.store import DossierRecord, InMemorySnapshotStore
 from fixtures.case_pdf import attach_case_pdf
 from fixtures.catalog import load_case
@@ -657,13 +664,8 @@ def process_from_backend(payload: dict, request: Request) -> dict:
 
 
 @app.post("/query")
-def query_from_backend(payload: dict) -> dict:
-    """Return a grounded answer envelope for the current Backend query shape.
-
-    The current Backend query contract does not carry dossier evidence and the
-    local AI2 process does not own durable Backend dossier storage. Therefore a
-    query cannot be answered authoritatively from this boundary.
-    """
+def query_from_backend(payload: dict, request: Request) -> dict:
+    """Answer a production query from AI2's durable citation read model."""
 
     query = str(payload.get("query") or "").strip()
     if not query:
@@ -671,17 +673,68 @@ def query_from_backend(payload: dict) -> dict:
     dossier_id = str(payload.get("dossier_id") or "")
     if not dossier_id:
         raise HTTPException(status_code=422, detail={"code": "DOSSIER_ID_REQUIRED"})
+    policy_flags = payload.get("policy_flags")
+    if not isinstance(policy_flags, dict):
+        policy_flags = {}
+    tenant_id = str(payload.get("tenant_id") or request.headers.get("X-Tenant-Id") or "").strip() or None
+    stored = load_query_snapshot(dossier_id, tenant_id=tenant_id)
+    if stored is None:
+        return {
+            "state": "INSUFFICIENT_EVIDENCE",
+            "answer": "AI2 chưa có snapshot/citation đã persist cho hồ sơ này.",
+            "citations": [],
+            "retrieval_layer": {"dossier_id": dossier_id, "snapshot_version": payload.get("snapshot_version")},
+            "reasoning_trace": [
+                {
+                    "code": "AI2_QUERY_SNAPSHOT_NOT_FOUND",
+                    "message": "Hãy chờ AI2 hoàn tất IDP hoặc chạy lại handoff snapshot.",
+                }
+            ],
+        }
+
+    record, envelope = stored
+    if record.dossier_id != dossier_id:
+        raise HTTPException(status_code=409, detail={"code": "QUERY_DOSSIER_SCOPE_MISMATCH"})
+    STORE.put(record)
+    egress_allowed = bool(policy_flags.get("egress_allowed", False))
+    use_llm = bool(policy_flags.get("use_llm", True)) and egress_allowed
+    use_vector = bool(policy_flags.get("use_vector", False))
+    record.egress_approved = egress_allowed
+    task = classify_ask(query)
+    task["use_llm"] = use_llm
+    llm = NineRouterClient() if use_llm else None
+    if llm and not llm.configured():
+        llm = None
+        use_llm = False
+        task["use_llm"] = False
+    llm_error: dict[str, str] | None = None
+    try:
+        out = _reason_output(record, envelope, task, use_llm=use_llm, use_vector=use_vector)
+    except Exception as exc:  # pragma: no cover - provider-specific failures are integration concerns
+        if not use_llm:
+            raise
+        # A provider outage or invalid credential must not turn into an
+        # ungrounded answer. Re-run deterministic retrieval and expose the
+        # degraded state to the caller instead of returning HTTP 500.
+        llm_error = {
+            "code": "AI2_LLM_UNAVAILABLE",
+            "message": f"LLM provider unavailable: {type(exc).__name__}",
+        }
+        task["use_llm"] = False
+        out = _reason_output(record, envelope, task, use_llm=False, use_vector=use_vector)
     return {
-        "state": "INSUFFICIENT_EVIDENCE",
-        "answer": "AI2 chưa nhận được snapshot/citation có thẩm quyền cho hồ sơ này.",
-        "citations": [],
-        "retrieval_layer": {"dossier_id": dossier_id, "snapshot_version": payload.get("snapshot_version")},
-        "reasoning_trace": [
-            {
-                "code": "AI2_QUERY_EVIDENCE_REQUIRED",
-                "message": "Query chỉ được trả lời sau khi AI2 nhận canonical snapshot và citation map",
-            }
-        ],
+        "state": out.get("review_state") or "INSUFFICIENT_EVIDENCE",
+        "answer": out.get("answer"),
+        "citations": out.get("citations") or [],
+        "retrieval_layer": {
+            "dossier_id": dossier_id,
+            "snapshot_version": payload.get("snapshot_version"),
+            "layers_used": out.get("layers_used") or [],
+            "retrieval_trace": out.get("retrieval_trace") or {},
+            "used_llm": out.get("used_llm", False),
+            "llm_error": llm_error,
+        },
+        "reasoning_trace": [*(out.get("steps") or []), *([llm_error] if llm_error else [])],
     }
 
 
