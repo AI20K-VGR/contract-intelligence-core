@@ -85,7 +85,7 @@ class L1Retrieval:
             structured_keys_used = keys
             for key in keys:
                 hits.extend(self.gateway.call("search_structured", envelope, key=key) or [])
-            if ttype in EXPAND_SEMANTIC or (not hits and ttype == "lookup_term"):
+            if ttype in EXPAND_SEMANTIC or (not hits and ttype in {"lookup_term", "unscoped", "raw_fact_check"}):
                 sem = self.gateway.call("search_semantic", envelope, query=expand_query(q), k=8) or []
                 hits.extend(sem)
             if ttype in COMPARE_TYPES:

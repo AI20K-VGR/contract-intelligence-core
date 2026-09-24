@@ -10,6 +10,7 @@ from app.reasoning.l2_plan import L2Planner
 from app.reasoning.l3_ground import L3Ground
 from app.reasoning.relations import doc_side, render_related_answer
 from app.reasoning.vector_recall import VectorRecallService
+from app.tools.gateway import ToolGateway
 
 
 class FourLayerReasoner:
@@ -47,7 +48,7 @@ class FourLayerReasoner:
         layers: list[str] = []
 
         l0 = self.l0.run(envelope, task)
-        if l0:
+        if l0 and not task.get("use_llm"):
             layers.append("L0")
             grounded = self.l3.run(
                 envelope,
@@ -96,7 +97,12 @@ class FourLayerReasoner:
                 "relation_issues": l1.get("relation_issues") or [],
                 "retrieval_trace": l1.get("retrieval_trace") or {},
             }
-        need_l2 = ttype in COMPARE_TYPES and not query_too_broad(task.get("query") or "")
+        # Free-form production queries may opt into a grounded LLM draft.
+        # Retrieval still runs first and broad questions remain fail-closed.
+        need_l2 = (
+            (ttype in COMPARE_TYPES or bool(task.get("use_llm")))
+            and not query_too_broad(task.get("query") or "")
+        )
         draft = None
         steps: list = []
         if need_l2:
