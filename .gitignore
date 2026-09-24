@@ -38,8 +38,6 @@ desktop.ini
 *.pem
 *.key
 secrets/
-ngrok.yml
-ngrok.exe
 
 # ---------- Python (Backend & AI Service) ----------
 __pycache__/
