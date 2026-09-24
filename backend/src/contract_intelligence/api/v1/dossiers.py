@@ -191,12 +191,17 @@ async def query_dossier(
     await _acl_check_dossier_access(session, dossier_id=id, user=user)
 
     snapshot_version = "latest"
+    snapshot_digest = str(dossier.checksum or "")
     ai2_payload: dict[str, Any] = {
         "query": body.query,
         "dossier_id": id,
         "snapshot_version": snapshot_version,
+        "snapshot_digest": snapshot_digest,
+        "query_contract_version": "ai2.query.v1",
         "acl_context": "operator",
         "policy_flags": body.policy_flags,
+        "tenant_id": user.tenant_id,
+        "actor_id": "backend",
     }
 
     try:
