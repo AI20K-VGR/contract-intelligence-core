@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Mapping
 from urllib.parse import urljoin
@@ -11,7 +12,9 @@ from app.contracts.errors import ContractValidationError
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-CONTRACT_ROOT = REPO_ROOT / "docs" / "contracts"
+CONTRACT_ROOT = Path(os.environ["AI2_CONTRACT_ROOT"]) if os.environ.get("AI2_CONTRACT_ROOT") else (
+    REPO_ROOT / "docs" / "contracts"
+)
 
 
 def load_contract_schema(filename: str) -> dict[str, Any]:

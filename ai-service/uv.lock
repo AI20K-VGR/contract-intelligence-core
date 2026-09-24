@@ -325,6 +325,7 @@ vietocr = [
 ]
 web = [
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -333,6 +334,7 @@ requires-dist = [
     { name = "aiokafka", marker = "extra == 'kafka'", specifier = ">=0.14.0" },
     { name = "fastapi", marker = "extra == 'web'", specifier = ">=0.136.3" },
     { name = "google-genai", marker = "extra == 'gemini'", specifier = ">=1.0" },
+    { name = "httpx", marker = "extra == 'web'", specifier = ">=0.27" },
     { name = "jsonschema", specifier = ">=4.23,<5" },
     { name = "mistralai", marker = "extra == 'mistral'", specifier = ">=2.0" },
     { name = "numpy", specifier = ">=1.26" },
