@@ -22,6 +22,8 @@ Bounded retry (DOC-05c §7.3):
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any
 
@@ -142,6 +144,61 @@ async def update_pipeline_step(
 # AI1 snapshot — OCR + Layout + Clauses + Tables
 # ──────────────────────────────────────────────────────────────────────────────
 
+# Append-only (v7 trg_immutable_*) — must disable briefly for OCR re-run replace.
+_AI1_REPLACE_TABLES: tuple[str, ...] = (
+    "doc_table",
+    "table_cell",
+    "clause_node",
+    "clause_region",
+    "ocr_line",
+    "page",
+)
+
+
+@asynccontextmanager
+async def _mutable_extraction_tables(
+    session: AsyncSession,
+    tables: Sequence[str] = _AI1_REPLACE_TABLES,
+) -> AsyncIterator[None]:
+    """Temporarily disable append-only triggers so OCR evidence can be replaced.
+
+    No-op on non-Postgres dialects (e.g. SQLite integration tests) where the
+    v7 ``trg_immutable_*`` triggers do not exist.
+    """
+    bind = session.get_bind()
+    dialect = bind.dialect.name if bind is not None else "postgresql"
+    if dialect != "postgresql":
+        yield
+        return
+
+    present_rows = await session.execute(
+        text(
+            "SELECT tablename FROM pg_tables "
+            "WHERE schemaname = 'public' AND tablename = ANY(:names)"
+        ),
+        {"names": list(tables)},
+    )
+    present = {str(row[0]) for row in present_rows}
+    trigger_names = [f"trg_immutable_{table}" for table in present]
+    disabled: list[tuple[str, str]] = []
+    if trigger_names:
+        trigger_rows = await session.execute(
+            text(
+                "SELECT c.relname, t.tgname FROM pg_trigger AS t "
+                "JOIN pg_class AS c ON c.oid = t.tgrelid "
+                "WHERE NOT t.tgisinternal AND t.tgname = ANY(:names)"
+            ),
+            {"names": trigger_names},
+        )
+        disabled = [(str(row[0]), str(row[1])) for row in trigger_rows]
+        for table, trigger in disabled:
+            await session.execute(text(f'ALTER TABLE "{table}" DISABLE TRIGGER "{trigger}"'))
+    try:
+        yield
+    finally:
+        for table, trigger in disabled:
+            await session.execute(text(f'ALTER TABLE "{table}" ENABLE TRIGGER "{trigger}"'))
+
 
 async def persist_ai1_snapshot(
     session: AsyncSession,
@@ -170,11 +227,13 @@ async def persist_ai1_snapshot(
 
     # OCR lại: trang/dòng/điều khoản cũ phải được thay, không insert chồng.
     # Unique (document_id, page_no) sẽ chặn bản SUCCESS và để lại lỗi cũ.
-    await session.execute(delete(DocTableORM).where(DocTableORM.document_id == document_id))
-    await session.execute(delete(ClauseNodeORM).where(ClauseNodeORM.document_id == document_id))
-    await session.execute(delete(OcrLineORM).where(OcrLineORM.document_id == document_id))
-    await session.execute(delete(PageORM).where(PageORM.document_id == document_id))
-    await session.flush()
+    # doc_table/ocr_line/clause_node are append-only — disable triggers for replace.
+    async with _mutable_extraction_tables(session):
+        await session.execute(delete(DocTableORM).where(DocTableORM.document_id == document_id))
+        await session.execute(delete(ClauseNodeORM).where(ClauseNodeORM.document_id == document_id))
+        await session.execute(delete(OcrLineORM).where(OcrLineORM.document_id == document_id))
+        await session.execute(delete(PageORM).where(PageORM.document_id == document_id))
+        await session.flush()
 
     # ── Pages ──────────────────────────────────────────────────────────────
     for page in payload.pages:
@@ -294,6 +353,18 @@ async def persist_ai1_snapshot(
         lines=len(payload.lines),
         clauses=len(payload.clauses),
         tables=len(payload.tables),
+    )
+    # Keep document.page_count in sync for API / FE polling (upload often leaves 0).
+    await session.execute(
+        text(
+            "UPDATE document SET page_count = :page_count "
+            "WHERE id = :document_id AND tenant_id = :tenant_id"
+        ),
+        {
+            "page_count": len(payload.pages),
+            "document_id": document_id,
+            "tenant_id": tenant_id,
+        },
     )
     return inserted
 

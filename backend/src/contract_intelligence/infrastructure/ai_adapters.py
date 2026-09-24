@@ -219,6 +219,11 @@ async def query_ai2(payload: dict[str, Any]) -> dict[str, Any]:
     return await _post_json(url, payload, service="ai2.query")
 
 
+def _normalize_wire_digest(value: str) -> str:
+    """AI2 wire schemas expect bare 64-hex; AI1 snapshots often use ``sha256:`` prefix."""
+    return value.strip().removeprefix("sha256:").removeprefix("SHA256:").strip().lower()
+
+
 def build_idp_request(
     *,
     tenant_id: str,
@@ -247,8 +252,11 @@ def build_idp_request(
     snap["dossier_id"] = dossier_id
     if not snap.get("document_id"):
         snap["document_id"] = document_id
-    if not snap.get("source_digest"):
-        snap["source_digest"] = source_digest
+    wire_digest = _normalize_wire_digest(str(snap.get("source_digest") or source_digest or ""))
+    if not wire_digest:
+        msg = "source_digest is required for AI2 IDP"
+        raise ValueError(msg)
+    snap["source_digest"] = wire_digest
 
     digest = snapshot_payload_digest(snap)
     member_id = f"mem_{document_id}"
@@ -267,7 +275,7 @@ def build_idp_request(
             {
                 "snapshot_id": snapshot_id,
                 "snapshot_version": "ai1.snapshot.v1",
-                "source_digest": str(snap.get("source_digest") or source_digest),
+                "source_digest": wire_digest,
                 "snapshot_digest": digest,
             }
         ],
@@ -277,7 +285,7 @@ def build_idp_request(
                 "document_id": document_id,
                 "snapshot_id": snapshot_id,
                 "role": role if role in ("body", "annex") else "body",
-                "source_digest": str(snap.get("source_digest") or source_digest),
+                "source_digest": wire_digest,
             }
         ],
         "role_relation_map": [
