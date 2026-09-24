@@ -134,12 +134,17 @@ def adapt_ai1_snapshot_result(result: dict[str, Any]) -> Ai1SnapshotPayload:
         else:
             start = end = 0
         node_bbox = node.get("bbox_normalized")
+        source_id = str(node.get("node_id") or "").strip() or None
+        parent_raw = node.get("parent_id")
+        parent_source_id = str(parent_raw).strip() if parent_raw else None
         clauses.append(
             {
                 "node_type": str(node.get("type", "UNMARKED")).lower(),
                 "label": str(node.get("label_normalized", "")),
                 "number": str(node.get("label_raw") or ""),
                 "title": str(node.get("label_normalized", "")),
+                "source_id": source_id,
+                "parent_source_id": parent_source_id,
                 "text": "\n".join(
                     next((line["text"] for line in lines if line["doc_char_start"] == item[0]), "")
                     for item in positioned

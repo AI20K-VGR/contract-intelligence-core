@@ -115,6 +115,9 @@ class ClauseNodeItem(BaseModel):
     doc_char_start: int
     doc_char_end: int
     regions: list[ClauseRegionItem] = Field(default_factory=list)
+    # AI1 snapshot ids. Used only to rebuild parent_id before insert.
+    source_id: str | None = None
+    parent_source_id: str | None = None
 
 
 class TableCellItem(BaseModel):

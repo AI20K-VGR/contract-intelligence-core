@@ -15,7 +15,32 @@ def test_adapts_ai1_snapshot_v1_at_service_boundary() -> None:
             "engine": {"name": "pymupdf", "version": "1"},
             "page_count": 1,
             "processing_ms": 12.0,
-            "nodes": [],
+            "nodes": [
+                {
+                    "node_id": "art-1",
+                    "type": "ARTICLE",
+                    "label_raw": "Điều 1",
+                    "label_normalized": "Điều 1",
+                    "parent_id": None,
+                    "page_start": 1,
+                    "page_end": 1,
+                    "line_ids": ["line-1"],
+                    "bbox_normalized": [0.1, 0.1, 0.4, 0.2],
+                    "geometry_provenance": "MEASURED",
+                },
+                {
+                    "node_id": "cl-1",
+                    "type": "CLAUSE",
+                    "label_raw": "1.1",
+                    "label_normalized": "Khoản 1",
+                    "parent_id": "art-1",
+                    "page_start": 1,
+                    "page_end": 1,
+                    "line_ids": ["line-1"],
+                    "bbox_normalized": [0.1, 0.2, 0.4, 0.3],
+                    "geometry_provenance": "MEASURED",
+                },
+            ],
             "table_continuity": [],
             "pages": [
                 {
@@ -71,3 +96,7 @@ def test_adapts_ai1_snapshot_v1_at_service_boundary() -> None:
     assert payload.pages[0].kind.value == "native"
     assert payload.lines[0].words[0].text == "Payment"
     assert payload.full_text_nfc == "Payment terms"
+    assert payload.clauses[0].source_id == "art-1"
+    assert payload.clauses[0].parent_source_id is None
+    assert payload.clauses[1].source_id == "cl-1"
+    assert payload.clauses[1].parent_source_id == "art-1"

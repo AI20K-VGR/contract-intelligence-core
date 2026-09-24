@@ -214,16 +214,18 @@ async def persist_ai1_snapshot(
         inserted += 1
 
     # ── Clauses ────────────────────────────────────────────────────────────
-    # Map clause_text_offset_to_id để gắn parent_id
-    clause_id_map: dict[int, str] = {}
+    # AI1 parent_id is a snapshot node id, not a DB id. Map source → row id first.
+    source_to_row: dict[str, str] = {}
+    clause_rows: list[tuple[ClauseNodeORM, str | None]] = []
     for clause in payload.clauses:
         clause_id = new_ulid("cl_")
-        clause_id_map[id(clause)] = clause_id
+        if clause.source_id:
+            source_to_row[clause.source_id] = clause_id
         clause_orm = ClauseNodeORM(
             id=clause_id,
             tenant_id=tenant_id,
             document_id=document_id,
-            parent_id=None,  # Sẽ set sau khi đã có đầy đủ
+            parent_id=None,
             node_type=clause.node_type,
             label=clause.label,
             number=clause.number,
@@ -244,7 +246,12 @@ async def persist_ai1_snapshot(
             else None,
         )
         session.add(clause_orm)
+        clause_rows.append((clause_orm, clause.parent_source_id))
         inserted += 1
+
+    for clause_orm, parent_source_id in clause_rows:
+        if parent_source_id and parent_source_id in source_to_row:
+            clause_orm.parent_id = source_to_row[parent_source_id]
 
     # ── Tables ─────────────────────────────────────────────────────────────
     for tbl in payload.tables:
