@@ -112,12 +112,30 @@ class DossierRepositoryImpl(DossierRepository):
         meta = DossierORM.metadata_json
         owner = meta["created_by"].as_string()
         scope = meta["access_scope"].as_string()
-        shared = text(
-            "EXISTS (SELECT 1 FROM json_array_elements("
-            "CASE WHEN json_typeof(COALESCE(dossier.metadata, '{}'::json)->'shared_with') = 'array' "
-            "THEN COALESCE(dossier.metadata, '{}'::json)->'shared_with' ELSE '[]'::json END"
-            ") AS share_grant WHERE share_grant->>'id' = :viewer_id)"
-        ).bindparams(viewer_id=viewer_id)
+        bind = self._session.get_bind()
+        dialect = bind.dialect.name if bind is not None else "postgresql"
+        if dialect == "sqlite":
+            # SQLite JSON1 — no Postgres ::json / json_array_elements / ->>
+            shared = text(
+                "EXISTS (SELECT 1 FROM json_each("
+                "CASE WHEN json_type("
+                "json_extract(COALESCE(dossier.metadata, '{}'), '$.shared_with')"
+                ") = 'array' "
+                "THEN json_extract(COALESCE(dossier.metadata, '{}'), '$.shared_with') "
+                "ELSE json('[]') END"
+                ") AS share_grant "
+                "WHERE json_extract(share_grant.value, '$.id') = :viewer_id)"
+            ).bindparams(viewer_id=viewer_id)
+        else:
+            shared = text(
+                "EXISTS (SELECT 1 FROM json_array_elements("
+                "CASE WHEN json_typeof("
+                "COALESCE(dossier.metadata, '{}'::json)->'shared_with'"
+                ") = 'array' "
+                "THEN COALESCE(dossier.metadata, '{}'::json)->'shared_with' "
+                "ELSE '[]'::json END"
+                ") AS share_grant WHERE share_grant->>'id' = :viewer_id)"
+            ).bindparams(viewer_id=viewer_id)
         return or_(
             meta.is_(None),
             owner.is_(None),
