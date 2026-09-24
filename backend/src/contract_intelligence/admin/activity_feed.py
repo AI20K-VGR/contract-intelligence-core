@@ -9,7 +9,7 @@ login) are appended to ``activity_event``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import DateTime, Text, case, func, literal, or_, select, union_all
@@ -35,6 +35,13 @@ from contract_intelligence.shared.persistence.base import Base
 
 def _blank() -> Any:
     return literal(None, type_=Text())
+
+
+def _as_utc(value: datetime) -> datetime:
+    """SQLite returns naive datetimes; the feed contract is timezone-aware UTC."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 class ActivityEventORM(Base):
@@ -99,7 +106,10 @@ def _sources(tenant_id: str) -> Any:
         _creator_email().label("actor_display_name"),
         func.concat("Tạo hồ sơ ", DossierORM.name).label("title"),
         _blank().label("detail"),
-    ).where(DossierORM.tenant_id == tenant_id)
+    ).where(
+        DossierORM.tenant_id == tenant_id,
+        DossierORM.deleted_at.is_(None),
+    )
 
     document = (
         select(
@@ -110,7 +120,10 @@ def _sources(tenant_id: str) -> Any:
             func.concat("Hồ sơ ", DossierORM.name).label("detail"),
         )
         .join(DossierORM, DossierORM.id == DocumentORM.dossier_id)
-        .where(DocumentORM.tenant_id == tenant_id)
+        .where(
+            DocumentORM.tenant_id == tenant_id,
+            DossierORM.deleted_at.is_(None),
+        )
     )
 
     member = select(
@@ -279,7 +292,7 @@ async def list_activity(
     items = [
         ActivityEvent(
             id=str(row.id),
-            occurred_at=row.occurred_at,
+            occurred_at=_as_utc(row.occurred_at),
             actor_display_name=row.actor_display_name,
             title=str(row.title),
             detail=row.detail,

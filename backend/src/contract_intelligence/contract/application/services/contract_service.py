@@ -302,7 +302,10 @@ class ContractService:
                     blob_uri=doc.blob_uri,
                     error=str(exc),
                 )
-                raise NotFoundError(entity_type="Document", entity_id=document_id) from exc
+                try:
+                    data = await self._storage.get(doc.blob_uri)
+                except FileNotFoundError:
+                    raise NotFoundError(entity_type="Document", entity_id=document_id) from exc
         else:
             try:
                 data = await self._storage.get(doc.blob_uri)

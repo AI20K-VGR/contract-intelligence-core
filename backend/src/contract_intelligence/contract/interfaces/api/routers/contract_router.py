@@ -40,7 +40,6 @@ from fastapi import (
 )
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from contract_intelligence.admin.activity_feed import record_activity
 from contract_intelligence.contract.application.dtos.deletion_dtos import DossierDeletedDTO
@@ -75,7 +74,8 @@ from contract_intelligence.shared.auth import (
     require_role,
 )
 from contract_intelligence.shared.auth.tenant import get_tenant_id
-from contract_intelligence.shared.persistence import get_async_session
+from contract_intelligence.shared.exceptions import NotFoundError
+from contract_intelligence.shared.persistence import get_session_factory
 from contract_intelligence.shared.responses import ApiMeta, ApiResponse
 from contract_intelligence.shared.utils import safe_filename
 
@@ -84,7 +84,6 @@ logger = structlog.get_logger(__name__)
 
 
 async def _record(
-    session: AsyncSession,
     *,
     tenant_id: str,
     title: str,
@@ -92,16 +91,25 @@ async def _record(
     detail: str | None,
     kind: str,
 ) -> None:
-    """Best-effort journal row. A feed failure must not undo the dossier action."""
+    """Best-effort journal row. A feed failure must not undo the dossier action.
+
+    Unit tests call these routes without a bound engine. Skip the row then.
+    """
     try:
-        await record_activity(
-            session,
-            tenant_id=tenant_id,
-            title=title,
-            actor_display_name=actor_display_name,
-            detail=detail,
-            kind=kind,
-        )
+        factory = get_session_factory()
+    except RuntimeError:
+        return
+    try:
+        async with factory() as session:
+            await record_activity(
+                session,
+                tenant_id=tenant_id,
+                title=title,
+                actor_display_name=actor_display_name,
+                detail=detail,
+                kind=kind,
+            )
+            await session.commit()
     except Exception as exc:  # noqa: BLE001
         logger.exception("activity.record_failed", kind=kind, error=str(exc))
 
@@ -373,7 +381,6 @@ class OcrRestartDTO(BaseModel):
 async def restart_dossier_ocr(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ContractServiceDep,
-    session: Annotated[AsyncSession, Depends(get_async_session)],
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
 ) -> ApiResponse[OcrRestartDTO]:
     """Đăng lại dossier.uploaded để worker gửi lệnh OCR."""
@@ -389,7 +396,6 @@ async def restart_dossier_ocr(
         },
     )
     await _record(
-        session,
         tenant_id=user.tenant_id,
         title=f"Chạy lại OCR hồ sơ {dossier.name}",
         actor_display_name=user.email or user.display_name,
@@ -462,7 +468,6 @@ async def delete_dossier(
     svc: ContractServiceDep,
     deletion_svc: DossierDeletionServiceDep,
     background_tasks: BackgroundTasks,
-    session: Annotated[AsyncSession, Depends(get_async_session)],
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
     tenant_id: Annotated[str, Depends(get_tenant_id)],
 ) -> ApiResponse[DossierDeletedDTO]:
@@ -471,7 +476,11 @@ async def delete_dossier(
     Không DELETE cascade dossier/job/pipeline_run — giữ usage_ledger và audit.
     RBAC: OPERATOR, ADMINISTRATOR.
     """
-    dossier = await svc.get_dossier(dossier_id)
+    dossier_name: str | None = None
+    try:
+        dossier_name = (await svc.get_dossier(dossier_id)).name
+    except NotFoundError:
+        dossier_name = None
     result = await deletion_svc.tombstone(dossier_id, actor_user_id=user.user_id)
     if not result.already_tombstoned:
         background_tasks.add_task(
@@ -479,10 +488,10 @@ async def delete_dossier(
             dossier_id=dossier_id,
             tenant_id=tenant_id,
         )
+        title = f"Xóa hồ sơ {dossier_name}" if dossier_name else "Xóa hồ sơ"
         await _record(
-            session,
             tenant_id=tenant_id,
-            title=f"Xóa hồ sơ {dossier.name}",
+            title=title,
             actor_display_name=user.email or user.display_name,
             detail=None,
             kind=f"dossier.deleted:{dossier_id}",
@@ -541,7 +550,6 @@ async def get_dossier(
 async def patch_dossier(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ContractServiceDep,
-    session: Annotated[AsyncSession, Depends(get_async_session)],
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
     body: DossierUpdateBody | None = Body(default=None),
 ) -> ApiResponse[DossierDetailDTO]:
@@ -554,7 +562,6 @@ async def patch_dossier(
         body = DossierUpdateBody()
     dossier = await svc.patch_dossier(dossier_id, name=body.name, metadata=body.metadata)
     await _record(
-        session,
         tenant_id=user.tenant_id,
         title=f"Sửa hồ sơ {dossier.name}",
         actor_display_name=user.email or user.display_name,
@@ -582,7 +589,6 @@ async def update_dossier_access(
     dossier_id: Annotated[str, Path(min_length=1)],
     body: DossierAccessBody,
     svc: ContractServiceDep,
-    session: Annotated[AsyncSession, Depends(get_async_session)],
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
 ) -> ApiResponse[DossierAccessDTO]:
     """Đặt quyền hồ sơ. Gộp vào metadata, giữ created_by."""
@@ -609,7 +615,6 @@ async def update_dossier_access(
     await svc.patch_dossier(dossier_id, name=None, metadata=current)
     scope_label = "Chỉ mình tôi" if body.scope == "mine" else "Chia sẻ với người khác"
     await _record(
-        session,
         tenant_id=user.tenant_id,
         title=f"Cập nhật quyền hồ sơ {dossier.name}",
         actor_display_name=user.email or user.display_name,
