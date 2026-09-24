@@ -280,6 +280,61 @@ def _rollback_created_user(admin: KeycloakAdmin, user_id: str) -> None:
         )
 
 
+def _user_attributes(user: dict[str, Any]) -> dict[str, list[str]]:
+    raw = user.get("attributes") or {}
+    if not isinstance(raw, dict):
+        return {}
+    cleaned: dict[str, list[str]] = {}
+    for key, value in raw.items():
+        if isinstance(value, list):
+            cleaned[str(key)] = [str(item) for item in value]
+        elif value is not None:
+            cleaned[str(key)] = [str(value)]
+    return cleaned
+
+
+def send_share_login_email_sync(
+    *,
+    user_id: str,
+    dossier_name: str,
+    sender_name: str,
+    email: str = "",
+    require_password: bool = False,
+) -> bool:
+    """Gửi thư đặt mật khẩu khi user còn trạng thái được mời hoặc chưa có mật khẩu."""
+    admin = _build_keycloak_admin()
+    user = _get_user_or_raise(admin, user_id)
+    invited = _derive_status(user) == "invited" or require_password
+    if not invited:
+        return False
+    address = (user.get("email") or email or user.get("username") or "").strip()
+    required = list(user.get("requiredActions") or [])
+    if "UPDATE_PASSWORD" not in required:
+        required.append("UPDATE_PASSWORD")
+    attributes = _user_attributes(user)
+    attributes["share_dossier_name"] = [dossier_name]
+    attributes["share_sender_name"] = [sender_name]
+    profile = {
+        "email": address,
+        "emailVerified": True,
+        "requiredActions": required,
+        "attributes": attributes,
+    }
+    if user.get("username"):
+        profile["username"] = user.get("username")
+    if user.get("firstName"):
+        profile["firstName"] = user.get("firstName")
+    admin.update_user(user_id, profile)
+    try:
+        _send_update_password_email(admin, user_id)
+    finally:
+        attributes.pop("share_dossier_name", None)
+        attributes.pop("share_sender_name", None)
+        profile["attributes"] = attributes
+        admin.update_user(user_id, profile)
+    return True
+
+
 def _send_update_password_email(admin: KeycloakAdmin, user_id: str) -> None:
     settings = get_settings()
     try:

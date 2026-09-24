@@ -156,6 +156,7 @@ class AccessGrantBody(BaseModel):
     id: str
     email: str = ""
     display_name: str = ""
+    status: Literal["invited", "active", "disabled"] | None = None
 
 
 class DossierAccessBody(BaseModel):
@@ -173,6 +174,30 @@ class DossierAccessDTO(BaseModel):
     shared_with: list[AccessGrantBody]
 
 
+def _can_read_dossier(metadata: dict[str, Any] | None, user_id: str) -> bool:
+    """Chủ hồ sơ luôn xem được. Người được chia sẻ chỉ xem khi quyền đang bật."""
+    meta = metadata or {}
+    owner = meta.get("created_by")
+    if not isinstance(owner, str) or not owner:
+        return True
+    if owner == user_id:
+        return True
+    if meta.get("access_scope") == "mine":
+        return False
+    shares = meta.get("shared_with") or []
+    return any(isinstance(item, dict) and item.get("id") == user_id for item in shares)
+
+
+async def _require_readable(svc: Any, dossier_id: str, user_id: str) -> Any:
+    dossier = await svc.get_dossier(dossier_id)
+    if not _can_read_dossier(dossier.metadata, user_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Quyền xem hồ sơ này đã bị thu hồi.",
+        )
+    return dossier
+
+
 def _send_share_emails(
     *,
     dossier_name: str,
@@ -180,18 +205,75 @@ def _send_share_emails(
     sender_name: str,
     recipients: list[dict[str, Any]],
 ) -> None:
-    """Gửi mail thông báo chia sẻ. SMTP mặc định là Mailpit trên máy host."""
+    """Người chưa đăng nhập nhận lại thư đặt mật khẩu. Người đã đăng nhập nhận thư mở hồ sơ."""
     import os
     import smtplib
+    import ssl
     from email.message import EmailMessage
+    from html import escape
 
-    host = os.environ.get("SMTP_HOST", "host.docker.internal")
+    from contract_intelligence.infrastructure.keycloak_admin import send_share_login_email_sync
+
+    pending: list[dict[str, Any]] = []
+    for person in recipients:
+        user_id = str(person.get("id") or "").strip()
+        must_set_password = person.get("status") == "invited"
+        if user_id:
+            try:
+                if send_share_login_email_sync(
+                    user_id=user_id,
+                    email=str(person.get("email") or ""),
+                    dossier_name=dossier_name,
+                    sender_name=sender_name,
+                    require_password=must_set_password,
+                ):
+                    continue
+            except Exception:
+                logger.warning("dossiers.access.login_email_failed", user_id=user_id, exc_info=True)
+                if must_set_password:
+                    continue
+        elif must_set_password:
+            continue
+        pending.append(person)
+    if not pending:
+        return
+
+    host = os.environ.get("SMTP_HOST", "mailpit")
     port = int(os.environ.get("SMTP_PORT", "1025"))
     sender = os.environ.get("SMTP_FROM", "lexis@localhost")
+    user = (os.environ.get("SMTP_USER") or "").strip()
+    password = os.environ.get("SMTP_PASSWORD") or ""
+    starttls = os.environ.get("SMTP_STARTTLS", "").lower() in {"1", "true", "yes"}
     base = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
     link = f"{base}/cau-truc/{dossier_id}"
-    with smtplib.SMTP(host, port, timeout=5) as smtp:
-        for person in recipients:
+    safe_sender = escape(sender_name)
+    safe_name = escape(dossier_name)
+    safe_link = escape(link, quote=True)
+    html = f"""<!DOCTYPE html>
+<html lang="vi"><body style="margin:0;padding:0;background-color:#f8f9ff;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8f9ff;padding:32px 16px;"><tr><td align="center">
+<table role="presentation" width="420" cellpadding="0" cellspacing="0" style="width:100%;max-width:420px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
+<tr><td style="height:4px;background-color:#0b1f3a;font-size:0;line-height:0;">&nbsp;</td></tr>
+<tr><td style="padding:32px;font-family:Arial,Helvetica,sans-serif;color:#0b1c30;">
+<p style="margin:0 0 24px;font-size:12px;line-height:16px;letter-spacing:0.08em;font-weight:600;color:#0b1f3a;">LEXIS CONTRACT INTELLIGENCE</p>
+<h1 style="margin:0 0 8px;font-size:18px;line-height:24px;font-weight:600;color:#0b1c30;">Bạn được chia sẻ hồ sơ</h1>
+<p style="margin:0 0 24px;font-size:14px;line-height:20px;color:#545f73;">{safe_sender} đã chia sẻ hồ sơ "{safe_name}" với bạn.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;"><tr>
+<td align="center" style="background-color:#0b1f3a;border-radius:4px;">
+<a href="{safe_link}" style="display:block;padding:12px 24px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;font-weight:600;color:#ffffff;text-decoration:none;">Mở hồ sơ</a>
+</td></tr></table>
+<p style="margin:0;font-size:12px;line-height:16px;color:#75777e;word-break:break-all;">{safe_link}</p>
+</td></tr></table>
+<p style="margin:16px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:16px;color:#545f73;">© 2025 Lexis Contract Intelligence</p>
+</td></tr></table></body></html>"""
+    with smtplib.SMTP(host, port, timeout=20) as smtp:
+        smtp.ehlo()
+        if starttls:
+            smtp.starttls(context=ssl.create_default_context())
+            smtp.ehlo()
+        if user and password:
+            smtp.login(user, password)
+        for person in pending:
             address = str(person.get("email") or "").strip()
             if not address:
                 continue
@@ -200,9 +282,9 @@ def _send_share_emails(
             message["From"] = sender
             message["To"] = address
             message.set_content(
-                f'{sender_name} đã chia sẻ hồ sơ "{dossier_name}" với bạn.\n\n'
-                f"Đăng nhập rồi mở liên kết này để xem:\n{link}\n"
+                f'{sender_name} đã chia sẻ hồ sơ "{dossier_name}" với bạn.\n\nMở hồ sơ:\n{link}\n'
             )
+            message.add_alternative(html, subtype="html")
             smtp.send_message(message)
 
 
@@ -417,7 +499,7 @@ async def restart_dossier_ocr(
 )
 async def list_dossiers(
     svc: ContractServiceDep,
-    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     status_filter: Annotated[str | None, Query(alias="status")] = None,
     has_conflicts: Annotated[bool | None, Query()] = None,
     batch_id: Annotated[str | None, Query()] = None,
@@ -431,6 +513,7 @@ async def list_dossiers(
         has_conflicts=has_conflicts,
         q=q,
         batch_id=batch_id,
+        viewer_id=user.user_id,
         limit=limit,
         offset=offset,
     )
@@ -483,6 +566,16 @@ async def delete_dossier(
         dossier_name = None
     result = await deletion_svc.tombstone(dossier_id, actor_user_id=user.user_id)
     if not result.already_tombstoned:
+        title = "Xóa hồ sơ" if result.name == "[deleted]" else f"Xóa hồ sơ {result.name}"
+        await record_activity(
+            deletion_svc.session,
+            tenant_id=tenant_id,
+            title=title,
+            actor_display_name=user.email or user.display_name,
+            detail=None,
+            kind=f"dossier.deleted:{dossier_id}",
+        )
+        await deletion_svc.commit()
         background_tasks.add_task(
             run_dossier_purge,
             dossier_id=dossier_id,
@@ -505,6 +598,98 @@ async def delete_dossier(
     )
 
 
+class DossierSearchBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    query: str
+
+
+class DossierSearchHit(BaseModel):
+    text: str
+    page_no: int | None = None
+
+
+class DossierSearchDTO(BaseModel):
+    query: str
+    answer: str | None
+    connected: bool
+    hits: list[DossierSearchHit]
+
+
+def _hits_from_ai2(payload: dict[str, Any]) -> list[DossierSearchHit]:
+    raw = payload.get("hits") or payload.get("citations") or []
+    if not isinstance(raw, list):
+        return []
+    hits: list[DossierSearchHit] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        text = item.get("text") or item.get("quote") or item.get("snippet")
+        if not isinstance(text, str) or not text.strip():
+            continue
+        page = item.get("page_no") or item.get("page")
+        hits.append(
+            DossierSearchHit(
+                text=text.strip(),
+                page_no=page if isinstance(page, int) else None,
+            )
+        )
+    return hits
+
+
+@router.post(
+    "/dossiers/{dossier_id}/search",
+    response_model=ApiResponse[DossierSearchDTO],
+    responses={404: {"description": "Dossier not found"}},
+    summary="Hỏi đáp trên hồ sơ (AI2)",
+)
+async def search_dossier(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    body: DossierSearchBody,
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> ApiResponse[DossierSearchDTO]:
+    """Nhận câu hỏi từ thanh search. AI2 trả câu trả lời khi đã nối."""
+    question = body.query.strip()
+    if not question:
+        raise HTTPException(status_code=422, detail="Thiếu câu hỏi.")
+    await _require_readable(svc, dossier_id, user.user_id)
+    from contract_intelligence.infrastructure.ai_adapters import (
+        AiAdapterError,
+        query_ai2,
+    )
+
+    try:
+        payload = await asyncio.wait_for(
+            query_ai2(
+                {
+                    "query": question,
+                    "dossier_id": dossier_id,
+                    "snapshot_version": "current",
+                    "acl_context": user.user_id,
+                    "policy_flags": {},
+                }
+            ),
+            timeout=3,
+        )
+    except (AiAdapterError, TimeoutError, OSError) as exc:
+        logger.info("dossier.search.ai2_unavailable", dossier_id=dossier_id, error=str(exc))
+        return ApiResponse(
+            data=DossierSearchDTO(query=question, answer=None, connected=False, hits=[])
+        )
+    if not isinstance(payload, dict):
+        payload = {}
+    answer = payload.get("answer") or payload.get("text")
+    return ApiResponse(
+        data=DossierSearchDTO(
+            query=question,
+            answer=answer.strip() if isinstance(answer, str) and answer.strip() else None,
+            connected=True,
+            hits=_hits_from_ai2(payload),
+        )
+    )
+
+
 # -----------------------------------------------------------------------------
 # GET /dossiers/{id} — Detail (Per openapi.yaml line 185)
 # -----------------------------------------------------------------------------
@@ -521,7 +706,7 @@ async def get_dossier(
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> ApiResponse[DossierDetailDTO]:
     """Dossier detail kèm documents list."""
-    dossier = await svc.get_dossier(dossier_id)
+    dossier = await _require_readable(svc, dossier_id, _user.user_id)
     documents = await svc.list_documents(dossier_id)
     latest = dossier.latest_job()
     return ApiResponse(
@@ -622,7 +807,7 @@ async def update_dossier_access(
         kind="dossier.access",
     )
     fresh = [item for item in grants if item["id"] not in previous_ids and item.get("email")]
-    if fresh:
+    if body.scope == "shared_out" and fresh:
         try:
             await asyncio.to_thread(
                 _send_share_emails,
@@ -659,7 +844,7 @@ async def list_dossier_documents(
 ) -> ApiResponse[list[DocumentListItemDTO]]:
     """Danh sách toàn bộ văn bản trong dossier (contract + annexes)."""
     # Verify dossier exists for proper 404 semantics
-    await svc.get_dossier(dossier_id)
+    await _require_readable(svc, dossier_id, _user.user_id)
     documents = await svc.list_documents(dossier_id)
     return ApiResponse(data=[DocumentListItemDTO.from_domain(d) for d in documents])
 
