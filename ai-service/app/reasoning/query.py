@@ -6,9 +6,9 @@ from typing import Any
 
 from app.contracts.models import LifecycleState, ReviewState, ToolEnvelope
 from app.llm.client import NineRouterClient
+from app.pipeline.ai1_snapshot_adapter import fold_for_match
 from app.reasoning.l0_rules import query_too_broad
 from app.reasoning.stack import FourLayerReasoner
-from app.pipeline.ai1_snapshot_adapter import fold_for_match
 from app.tools.gateway import ToolBlocked, ToolGateway
 from app.tools.store import InMemorySnapshotStore
 
@@ -24,6 +24,22 @@ def classify_ask(text: str) -> dict[str, Any]:
     }
     folded = fold_for_match(q)
     relationship_text = _plain_query(q)
+    money_cues = (
+        "phi ",
+        "tuyen dung",
+        "so tien",
+        "bao nhieu tien",
+        "gia tri",
+        "don gia",
+        "thanh tien",
+        "trieu",
+        "vnd",
+        "usd",
+    )
+    if any(cue in folded for cue in money_cues):
+        spec["type"] = "raw_fact_check"
+        spec["fact_intent"] = "money"
+        return spec
     relation_cues = (
         "moi quan he",
         "lien quan",
