@@ -1508,6 +1508,7 @@ RETURNING version, status;
 | 15 | Conflict là **view** `v_conflict` | 2026-09-17 | Theo DOC-03; không tạo bảng `conflict` riêng |
 | 16 | Effective value dùng `review_item.version` | 2026-09-17 | `v_fact_effective` join theo `review_item`, expose `current_item_version` cho client echo |
 | 17 | Alembic migration V1 | 2026-09-17 | Sinh từ `DOC-04b-postgres-schema.sql` — chưa sinh, backlog Sprint 2 |
+| 18 | **Xóa hồ sơ 2 bước** (tombstone + purge) | 2026-09-24 | `DELETE /dossiers/{id}` → tombstone sync + purge async. Giữ `usage_ledger` / `review_action` / `job_event` / `deletion_ledger` và vỏ `dossier`/`job`/`pipeline_run`. Migration `v8__dossier_deletion`. |
 
 ### 9.3 Đang chờ xác nhận ⏳ (chưa resolve)
 

@@ -50,3 +50,7 @@ class DossierRepository(Protocol):
     async def get_flags(self, dossier_id: str) -> dict[str, object] | None:
         """Return ``{is_locked, is_approved, status}`` or None if missing."""
         ...
+
+    async def is_tombstoned(self, dossier_id: str) -> bool:
+        """True when the dossier exists but has been soft-deleted (tombstoned)."""
+        ...

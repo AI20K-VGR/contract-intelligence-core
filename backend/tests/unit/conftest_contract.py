@@ -59,6 +59,8 @@ class FakeDossierRepository(DossierRepository):
         # Tenant isolation — refuse cross-tenant access
         if not dossier_id.startswith("dos_"):
             return None
+        if getattr(d, "deleted_at", None) is not None:
+            return None
         return d
 
     async def get_for_update(self, dossier_id: str) -> Dossier | None:
@@ -75,7 +77,7 @@ class FakeDossierRepository(DossierRepository):
         offset: int = 0,
     ) -> Page[Any]:
         items = sorted(
-            self._store.values(),
+            [d for d in self._store.values() if getattr(d, "deleted_at", None) is None],
             key=lambda d: d.created_at,
             reverse=True,
         )
@@ -118,11 +120,19 @@ class FakeDossierRepository(DossierRepository):
         d = self._store.get(dossier_id)
         if d is None:
             return None
+        if getattr(d, "deleted_at", None) is not None:
+            return None
         return {
             "is_locked": bool(getattr(d, "_is_locked", False)),
             "is_approved": bool(getattr(d, "_is_approved", False)),
             "status": str(getattr(d, "_status", "uploaded")),
         }
+
+    async def is_tombstoned(self, dossier_id: str) -> bool:
+        d = self._store.get(dossier_id)
+        if d is None:
+            return False
+        return getattr(d, "deleted_at", None) is not None
 
 
 class FakeDocumentRepository(DocumentRepository):

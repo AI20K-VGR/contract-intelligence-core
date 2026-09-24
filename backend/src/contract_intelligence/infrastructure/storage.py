@@ -137,6 +137,15 @@ def rewrite_presigned_host(url: str, *, public_endpoint: str | None = None) -> s
     ).geturl()
 
 
+async def delete_object(object_path: str) -> None:
+    """Best-effort delete of an S3/MinIO object (``s3://bucket/key`` or bare key)."""
+    bucket, key = parse_s3_uri(object_path)
+    session = aioboto3.Session()
+    async with session.client(**_s3_client_kwargs()) as s3:
+        await s3.delete_object(Bucket=bucket, Key=key.lstrip("/"))
+    logger.info("storage.delete_ok", bucket=bucket, key=key)
+
+
 def _guess_content_type(key: str) -> str:
     lower = key.lower()
     if lower.endswith(".pdf"):

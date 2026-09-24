@@ -46,6 +46,15 @@ class DossierORM(Base):
     metadata_json: Mapped[dict[str, object] | None] = mapped_column(
         "metadata", JSON, nullable=True, default=None
     )
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
+    deleted_by: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    purge_status: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    purge_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
+    purge_error: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -53,7 +62,10 @@ class DossierORM(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    __table_args__ = (Index("ix_dossier_tenant_status", "tenant_id", "status"),)
+    __table_args__ = (
+        Index("ix_dossier_tenant_status", "tenant_id", "status"),
+        Index("ix_dossier_tenant_deleted_at", "tenant_id", "deleted_at"),
+    )
 
 
 class DocumentORM(Base):
@@ -70,7 +82,7 @@ class DocumentORM(Base):
     order_index: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     filename: Mapped[str] = mapped_column(Text, nullable=False)
     sha256: Mapped[str] = mapped_column(Text, nullable=False)
-    blob_uri: Mapped[str] = mapped_column(Text, nullable=False)
+    blob_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
     file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     page_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     lang_detected: Mapped[str] = mapped_column(Text, nullable=False, server_default="vi")
@@ -199,7 +211,27 @@ class ManifestRelationORM(Base):
     )
 
 
+class DeletionLedgerORM(Base):
+    """Append-only sổ xóa — ai yêu cầu xóa / purge phase. Không cascade từ dossier."""
+
+    __tablename__ = "deletion_ledger"
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    dossier_id: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    actor_user_id: Mapped[str] = mapped_column(Text, nullable=False)
+    # tombstone | purge_completed | purge_failed
+    phase: Mapped[str] = mapped_column(Text, nullable=False)
+    detail: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True, default=None)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (Index("ix_deletion_ledger_dossier_created", "dossier_id", "created_at"),)
+
+
 __all__ = [
+    "DeletionLedgerORM",
     "DocumentORM",
     "DossierORM",
     "JobORM",

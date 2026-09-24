@@ -88,7 +88,9 @@ class DossierRepositoryImpl(DossierRepository):
 
     async def get(self, dossier_id: str) -> Dossier | None:
         stmt = select(DossierORM).where(
-            DossierORM.id == dossier_id, DossierORM.tenant_id == self._tenant_id
+            DossierORM.id == dossier_id,
+            DossierORM.tenant_id == self._tenant_id,
+            DossierORM.deleted_at.is_(None),
         )
         result = await self._session.execute(stmt)
         orm = result.scalar_one_or_none()
@@ -98,7 +100,11 @@ class DossierRepositoryImpl(DossierRepository):
         """Lock dossier row for the current transaction (tenant-scoped)."""
         stmt = (
             select(DossierORM)
-            .where(DossierORM.id == dossier_id, DossierORM.tenant_id == self._tenant_id)
+            .where(
+                DossierORM.id == dossier_id,
+                DossierORM.tenant_id == self._tenant_id,
+                DossierORM.deleted_at.is_(None),
+            )
             .with_for_update()
         )
         result = await self._session.execute(stmt)
@@ -115,7 +121,10 @@ class DossierRepositoryImpl(DossierRepository):
         limit: int = 50,
         offset: int = 0,
     ) -> Page[str]:
-        stmt = select(DossierORM).where(DossierORM.tenant_id == self._tenant_id)
+        stmt = select(DossierORM).where(
+            DossierORM.tenant_id == self._tenant_id,
+            DossierORM.deleted_at.is_(None),
+        )
         if status:
             stmt = stmt.where(DossierORM.status == status)
         if has_conflicts is not None:
@@ -206,7 +215,9 @@ class DossierRepositoryImpl(DossierRepository):
 
     async def get_flags(self, dossier_id: str) -> dict[str, object] | None:
         stmt = select(DossierORM).where(
-            DossierORM.id == dossier_id, DossierORM.tenant_id == self._tenant_id
+            DossierORM.id == dossier_id,
+            DossierORM.tenant_id == self._tenant_id,
+            DossierORM.deleted_at.is_(None),
         )
         result = await self._session.execute(stmt)
         orm = result.scalar_one_or_none()
@@ -217,6 +228,15 @@ class DossierRepositoryImpl(DossierRepository):
             "is_approved": bool(orm.is_approved),
             "status": str(orm.status),
         }
+
+    async def is_tombstoned(self, dossier_id: str) -> bool:
+        """True when dossier exists for tenant but has been tombstoned."""
+        stmt = select(DossierORM.deleted_at).where(
+            DossierORM.id == dossier_id, DossierORM.tenant_id == self._tenant_id
+        )
+        result = await self._session.execute(stmt)
+        deleted_at = result.scalar_one_or_none()
+        return deleted_at is not None
 
 
 # ============================================================================
@@ -232,7 +252,7 @@ def _document_to_domain(orm: DocumentORM) -> Document:
         order_index=orm.order_index,
         filename=orm.filename,
         sha256=orm.sha256,
-        blob_uri=orm.blob_uri,
+        blob_uri=orm.blob_uri or "",
         file_size_bytes=orm.file_size_bytes,
         page_count=orm.page_count,
         lang_detected=orm.lang_detected,
