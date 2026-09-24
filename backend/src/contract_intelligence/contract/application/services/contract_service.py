@@ -290,7 +290,24 @@ class ContractService:
             raise NotFoundError(entity_type="Document", entity_id=document_id)
         if not doc.blob_uri:
             raise NotFoundError(entity_type="Document", entity_id=document_id)
-        data = await self._storage.get(doc.blob_uri)
+        if doc.blob_uri.startswith("s3://"):
+            from contract_intelligence.infrastructure.storage import download_object
+
+            try:
+                data = await download_object(doc.blob_uri)
+            except Exception as exc:
+                logger.warning(
+                    "document.content.missing",
+                    document_id=document_id,
+                    blob_uri=doc.blob_uri,
+                    error=str(exc),
+                )
+                raise NotFoundError(entity_type="Document", entity_id=document_id) from exc
+        else:
+            try:
+                data = await self._storage.get(doc.blob_uri)
+            except FileNotFoundError as exc:
+                raise NotFoundError(entity_type="Document", entity_id=document_id) from exc
         return data, doc.filename
 
     async def get_or_create_manifest(self, dossier_id: str) -> Manifest:

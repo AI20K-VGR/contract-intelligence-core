@@ -230,7 +230,7 @@ async def keycloak_webhook(
                     session,
                     tenant_id=user.tenant_id,
                     title="Đăng nhập",
-                    actor_display_name=user.display_name,
+                    actor_display_name=user.email or user.display_name,
                     detail=None,
                     kind="user.login",
                 )

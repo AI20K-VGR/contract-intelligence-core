@@ -72,10 +72,10 @@ class StorageUsage:
     quota_bytes: None = None
 
 
-def _actor_name(actor_id_column: object) -> Any:
-    """Display name for a user id or Keycloak sub stored on another row."""
+def _actor_email(actor_id_column: object) -> Any:
+    """Email for a user id or Keycloak sub stored on another row."""
     return (
-        select(AppUserORM.display_name)
+        select(AppUserORM.email)
         .where(
             or_(
                 AppUserORM.id == actor_id_column,
@@ -87,16 +87,16 @@ def _actor_name(actor_id_column: object) -> Any:
     )
 
 
-def _creator_name() -> Any:
-    """Name saved on the dossier when it was created."""
-    return DossierORM.metadata_json["created_by_name"].as_string()
+def _creator_email() -> Any:
+    """Email of the user id saved on the dossier when it was created."""
+    return _actor_email(DossierORM.metadata_json["created_by"].as_string())
 
 
 def _sources(tenant_id: str) -> Any:
     dossier = select(
         func.concat("dossier:", DossierORM.id).label("id"),
         DossierORM.created_at.label("occurred_at"),
-        _creator_name().label("actor_display_name"),
+        _creator_email().label("actor_display_name"),
         func.concat("Tạo hồ sơ ", DossierORM.name).label("title"),
         _blank().label("detail"),
     ).where(DossierORM.tenant_id == tenant_id)
@@ -105,7 +105,7 @@ def _sources(tenant_id: str) -> Any:
         select(
             func.concat("document:", DocumentORM.id).label("id"),
             DocumentORM.created_at.label("occurred_at"),
-            _creator_name().label("actor_display_name"),
+            _creator_email().label("actor_display_name"),
             func.concat("Tải lên ", DocumentORM.filename).label("title"),
             func.concat("Hồ sơ ", DossierORM.name).label("detail"),
         )
@@ -116,9 +116,9 @@ def _sources(tenant_id: str) -> Any:
     member = select(
         func.concat("user:", AppUserORM.id).label("id"),
         AppUserORM.created_at.label("occurred_at"),
-        _blank().label("actor_display_name"),
+        AppUserORM.email.label("actor_display_name"),
         func.concat("Thêm thành viên ", AppUserORM.display_name).label("title"),
-        AppUserORM.email.label("detail"),
+        _blank().label("detail"),
     ).where(AppUserORM.tenant_id == tenant_id)
 
     review_title = case(
@@ -132,7 +132,7 @@ def _sources(tenant_id: str) -> Any:
         select(
             func.concat("review:", ReviewActionORM.id).label("id"),
             ReviewActionORM.created_at.label("occurred_at"),
-            _actor_name(ReviewActionORM.reviewer_id).label("actor_display_name"),
+            _actor_email(ReviewActionORM.reviewer_id).label("actor_display_name"),
             review_title.label("title"),
             func.concat("Hồ sơ ", DossierORM.name).label("detail"),
         )
@@ -145,7 +145,7 @@ def _sources(tenant_id: str) -> Any:
         select(
             func.concat("approval:", DossierApprovalORM.id).label("id"),
             DossierApprovalORM.approved_at.label("occurred_at"),
-            _actor_name(DossierApprovalORM.approved_by).label("actor_display_name"),
+            _actor_email(DossierApprovalORM.approved_by).label("actor_display_name"),
             func.concat("Phê duyệt hồ sơ ", DossierORM.name).label("title"),
             _blank().label("detail"),
         )
@@ -157,7 +157,7 @@ def _sources(tenant_id: str) -> Any:
         select(
             func.concat("manifest:", ManifestORM.id).label("id"),
             ManifestORM.confirmed_at.label("occurred_at"),
-            _actor_name(ManifestORM.confirmed_by).label("actor_display_name"),
+            _actor_email(ManifestORM.confirmed_by).label("actor_display_name"),
             literal("Xác nhận cấu trúc hồ sơ", type_=Text()).label("title"),
             func.concat("Hồ sơ ", DossierORM.name).label("detail"),
         )
@@ -176,7 +176,7 @@ def _sources(tenant_id: str) -> Any:
         select(
             func.concat("run:", PipelineRunORM.id).label("id"),
             PipelineRunORM.finished_at.label("occurred_at"),
-            _creator_name().label("actor_display_name"),
+            _creator_email().label("actor_display_name"),
             pipeline_title.label("title"),
             func.concat("Hồ sơ ", DossierORM.name).label("detail"),
         )
@@ -188,13 +188,31 @@ def _sources(tenant_id: str) -> Any:
         )
     )
 
+    delete_title = case(
+        (DossierORM.name == "[deleted]", literal("Xóa hồ sơ", type_=Text())),
+        else_=func.concat("Xóa hồ sơ ", DossierORM.name),
+    )
+    deletion = select(
+        func.concat("deleted:", DossierORM.id).label("id"),
+        DossierORM.deleted_at.label("occurred_at"),
+        _actor_email(DossierORM.deleted_by).label("actor_display_name"),
+        delete_title.label("title"),
+        _blank().label("detail"),
+    ).where(
+        DossierORM.tenant_id == tenant_id,
+        DossierORM.deleted_at.is_not(None),
+    )
+
     recorded = select(
         ActivityEventORM.id.label("id"),
         ActivityEventORM.occurred_at.label("occurred_at"),
         ActivityEventORM.actor_display_name.label("actor_display_name"),
         ActivityEventORM.title.label("title"),
         ActivityEventORM.detail.label("detail"),
-    ).where(ActivityEventORM.tenant_id == tenant_id)
+    ).where(
+        ActivityEventORM.tenant_id == tenant_id,
+        ~ActivityEventORM.kind.like("dossier.deleted:%"),
+    )
 
     return union_all(
         dossier,
@@ -204,6 +222,7 @@ def _sources(tenant_id: str) -> Any:
         approval,
         manifest,
         pipeline,
+        deletion,
         recorded,
     )
 

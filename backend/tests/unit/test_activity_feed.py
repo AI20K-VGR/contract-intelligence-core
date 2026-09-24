@@ -106,3 +106,37 @@ async def test_recorded_admin_action_is_newest(session) -> None:
     assert page.items[0].title == "Khóa tài khoản An"
     assert page.items[0].actor_display_name == "Admin"
     assert page.items[0].detail == "a@ci.local"
+
+
+async def test_feed_includes_dossier_deletion(session) -> None:
+    when = datetime(2026, 9, 24, 4, 0, tzinfo=UTC)
+    session.add_all(
+        [
+            AppUserORM(
+                id="usr_admin",
+                tenant_id="tenant_a",
+                email="admin@ci.local",
+                display_name="Quản trị",
+                role="ADMINISTRATOR",
+                keycloak_sub="kc_admin",
+                created_at=when,
+                updated_at=when,
+            ),
+            DossierORM(
+                id="dos_gone",
+                tenant_id="tenant_a",
+                name="Hợp đồng cũ",
+                created_at=when,
+                updated_at=when,
+                deleted_at=when,
+                deleted_by="usr_admin",
+            ),
+        ]
+    )
+    await session.flush()
+
+    page = await list_activity(session, tenant_id="tenant_a", limit=20, offset=0)
+    deleted = next(item for item in page.items if item.title.startswith("Xóa hồ sơ"))
+    assert deleted.title == "Xóa hồ sơ Hợp đồng cũ"
+    assert deleted.actor_display_name == "admin@ci.local"
+    assert deleted.occurred_at == when

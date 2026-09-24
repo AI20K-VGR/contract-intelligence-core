@@ -69,6 +69,17 @@ async def upload_file(file_name: str, file_data: bytes) -> str:
     return object_path
 
 
+async def download_object(object_path: str) -> bytes:
+    """Download an object stored as ``s3://bucket/key`` or a bare key."""
+    bucket, key = parse_s3_uri(object_path)
+    session = aioboto3.Session()
+    async with session.client(**_s3_client_kwargs()) as s3:
+        response = await s3.get_object(Bucket=bucket, Key=key)
+        body = response["Body"]
+        data: bytes = await body.read()
+    return data
+
+
 async def delete_object(object_path: str) -> None:
     """Best-effort delete of an S3/MinIO object (``s3://bucket/key`` or bare key)."""
     bucket, key = parse_s3_uri(object_path)

@@ -180,7 +180,7 @@ async def create_user(
         session,
         tenant_id=admin.tenant_id,
         title=f"Mời thành viên {dto.display_name}",
-        actor_display_name=admin.display_name,
+        actor_display_name=admin.email or admin.display_name,
         detail=dto.email,
         kind="user.invited",
     )
@@ -220,7 +220,7 @@ async def patch_user(
         session,
         tenant_id=admin.tenant_id,
         title=f"Đổi vai trò của {dto.display_name} thành {_ROLE_VI.get(dto.role, dto.role)}",
-        actor_display_name=admin.display_name,
+        actor_display_name=admin.email or admin.display_name,
         detail=dto.email,
         kind="user.role_changed",
     )
@@ -254,7 +254,7 @@ async def disable_user(
         session,
         tenant_id=admin.tenant_id,
         title=f"Khóa tài khoản {dto.display_name}",
-        actor_display_name=admin.display_name,
+        actor_display_name=admin.email or admin.display_name,
         detail=dto.email,
         kind="user.disabled",
     )
@@ -288,7 +288,7 @@ async def enable_user(
         session,
         tenant_id=admin.tenant_id,
         title=f"Mở khóa tài khoản {dto.display_name}",
-        actor_display_name=admin.display_name,
+        actor_display_name=admin.email or admin.display_name,
         detail=dto.email,
         kind="user.enabled",
     )
@@ -315,7 +315,7 @@ async def resend_invite(
         session,
         tenant_id=admin.tenant_id,
         title=f"Gửi lại lời mời cho {dto.display_name}",
-        actor_display_name=admin.display_name,
+        actor_display_name=admin.email or admin.display_name,
         detail=dto.email,
         kind="user.invite_resent",
     )

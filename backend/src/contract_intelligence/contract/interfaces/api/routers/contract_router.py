@@ -40,7 +40,9 @@ from fastapi import (
 )
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from contract_intelligence.admin.activity_feed import record_activity
 from contract_intelligence.contract.application.dtos.deletion_dtos import DossierDeletedDTO
 from contract_intelligence.contract.application.dtos.document_dtos import (
     DocumentDetailDTO,
@@ -73,11 +75,35 @@ from contract_intelligence.shared.auth import (
     require_role,
 )
 from contract_intelligence.shared.auth.tenant import get_tenant_id
+from contract_intelligence.shared.persistence import get_async_session
 from contract_intelligence.shared.responses import ApiMeta, ApiResponse
 from contract_intelligence.shared.utils import safe_filename
 
 router = APIRouter(tags=["Contract"])
 logger = structlog.get_logger(__name__)
+
+
+async def _record(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    title: str,
+    actor_display_name: str | None,
+    detail: str | None,
+    kind: str,
+) -> None:
+    """Best-effort journal row. A feed failure must not undo the dossier action."""
+    try:
+        await record_activity(
+            session,
+            tenant_id=tenant_id,
+            title=title,
+            actor_display_name=actor_display_name,
+            detail=detail,
+            kind=kind,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("activity.record_failed", kind=kind, error=str(exc))
 
 
 # -----------------------------------------------------------------------------
@@ -347,10 +373,11 @@ class OcrRestartDTO(BaseModel):
 async def restart_dossier_ocr(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ContractServiceDep,
-    _user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    session: Annotated[AsyncSession, Depends(get_async_session)],
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
 ) -> ApiResponse[OcrRestartDTO]:
     """Đăng lại dossier.uploaded để worker gửi lệnh OCR."""
-    await svc.get_dossier(dossier_id)
+    dossier = await svc.get_dossier(dossier_id)
     documents = await svc.list_documents(dossier_id)
     if not documents:
         raise HTTPException(status_code=404, detail="Dossier has no document to OCR")
@@ -360,6 +387,14 @@ async def restart_dossier_ocr(
             "event": "dossier.uploaded",
             "dossier_id": str(dossier_id),
         },
+    )
+    await _record(
+        session,
+        tenant_id=user.tenant_id,
+        title=f"Chạy lại OCR hồ sơ {dossier.name}",
+        actor_display_name=user.email or user.display_name,
+        detail=None,
+        kind="dossier.ocr_restart",
     )
     return ApiResponse(data=OcrRestartDTO(dossier_id=dossier_id, status="queued"))
 
@@ -424,8 +459,10 @@ async def list_dossiers(
 )
 async def delete_dossier(
     dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ContractServiceDep,
     deletion_svc: DossierDeletionServiceDep,
     background_tasks: BackgroundTasks,
+    session: Annotated[AsyncSession, Depends(get_async_session)],
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
     tenant_id: Annotated[str, Depends(get_tenant_id)],
 ) -> ApiResponse[DossierDeletedDTO]:
@@ -434,12 +471,21 @@ async def delete_dossier(
     Không DELETE cascade dossier/job/pipeline_run — giữ usage_ledger và audit.
     RBAC: OPERATOR, ADMINISTRATOR.
     """
+    dossier = await svc.get_dossier(dossier_id)
     result = await deletion_svc.tombstone(dossier_id, actor_user_id=user.user_id)
     if not result.already_tombstoned:
         background_tasks.add_task(
             run_dossier_purge,
             dossier_id=dossier_id,
             tenant_id=tenant_id,
+        )
+        await _record(
+            session,
+            tenant_id=tenant_id,
+            title=f"Xóa hồ sơ {dossier.name}",
+            actor_display_name=user.email or user.display_name,
+            detail=None,
+            kind=f"dossier.deleted:{dossier_id}",
         )
     return ApiResponse(
         data=DossierDeletedDTO(
@@ -495,7 +541,8 @@ async def get_dossier(
 async def patch_dossier(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ContractServiceDep,
-    _user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    session: Annotated[AsyncSession, Depends(get_async_session)],
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
     body: DossierUpdateBody | None = Body(default=None),
 ) -> ApiResponse[DossierDetailDTO]:
     """Cập nhật metadata (name, metadata, tags, notes). RBAC: OPERATOR, ADMINISTRATOR.
@@ -506,6 +553,14 @@ async def patch_dossier(
     if body is None:
         body = DossierUpdateBody()
     dossier = await svc.patch_dossier(dossier_id, name=body.name, metadata=body.metadata)
+    await _record(
+        session,
+        tenant_id=user.tenant_id,
+        title=f"Sửa hồ sơ {dossier.name}",
+        actor_display_name=user.email or user.display_name,
+        detail=None,
+        kind="dossier.updated",
+    )
     documents = await svc.list_documents(dossier_id)
     latest = dossier.latest_job()
     return ApiResponse(
@@ -527,6 +582,7 @@ async def update_dossier_access(
     dossier_id: Annotated[str, Path(min_length=1)],
     body: DossierAccessBody,
     svc: ContractServiceDep,
+    session: Annotated[AsyncSession, Depends(get_async_session)],
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
 ) -> ApiResponse[DossierAccessDTO]:
     """Đặt quyền hồ sơ. Gộp vào metadata, giữ created_by."""
@@ -551,6 +607,15 @@ async def update_dossier_access(
     current["access_scope"] = body.scope
     current["shared_with"] = grants
     await svc.patch_dossier(dossier_id, name=None, metadata=current)
+    scope_label = "Chỉ mình tôi" if body.scope == "mine" else "Chia sẻ với người khác"
+    await _record(
+        session,
+        tenant_id=user.tenant_id,
+        title=f"Cập nhật quyền hồ sơ {dossier.name}",
+        actor_display_name=user.email or user.display_name,
+        detail=scope_label,
+        kind="dossier.access",
+    )
     fresh = [item for item in grants if item["id"] not in previous_ids and item.get("email")]
     if fresh:
         try:

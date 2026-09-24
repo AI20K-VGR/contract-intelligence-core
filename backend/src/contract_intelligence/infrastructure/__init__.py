@@ -14,6 +14,7 @@ from contract_intelligence.infrastructure.messaging import (
 )
 from contract_intelligence.infrastructure.storage import (
     delete_object,
+    download_object,
     generate_presigned_get_url,
     generate_presigned_put_url,
     upload_file,
@@ -21,6 +22,7 @@ from contract_intelligence.infrastructure.storage import (
 
 __all__ = [
     "delete_object",
+    "download_object",
     "generate_presigned_get_url",
     "generate_presigned_put_url",
     "publish_event",
