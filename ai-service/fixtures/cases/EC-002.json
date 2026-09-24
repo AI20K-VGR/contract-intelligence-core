@@ -1,0 +1,215 @@
+{
+  "case_id": "EC-002",
+  "title": "Điều khoản dài 4 trang, chunk theo bullet",
+  "tenant_id": "tenant_a",
+  "dossier_id": "d_clause_long",
+  "expected_state": "PASS",
+  "expected_no_claims": [
+    "single_32k_clause"
+  ],
+  "n_pages": 4,
+  "n_nodes": 4,
+  "n_tables": 0,
+  "lifecycle": "ACTIVE",
+  "query": null,
+  "notes": "",
+  "tags": [
+    "edge",
+    "clause"
+  ],
+  "pins": {
+    "manifest_version": 2,
+    "source_snapshot_digest": "sha256:aaa",
+    "tenant_profile_version": 5,
+    "policy_version": 2,
+    "ocr_run_version": 3,
+    "reconstruction_version": 2,
+    "extraction_version": 7,
+    "index_version": "idx_14"
+  },
+  "profile": {
+    "version": 5,
+    "aliases": {
+      "Công ty ABC": [
+        "ABC Co.",
+        "ABC"
+      ],
+      "Công ty XYZ": [
+        "XYZ Ltd",
+        "XYZ"
+      ]
+    },
+    "field_keys": [
+      "party_a",
+      "party_b",
+      "mst_seller",
+      "contract_value",
+      "payment_term"
+    ]
+  },
+  "acl_revision": 12,
+  "legal_hold": false,
+  "egress_approved": true,
+  "budget_exceeded": false,
+  "index_status": "READY",
+  "active_index_version": null,
+  "processing_index": false,
+  "envelope": {
+    "auth": {
+      "actor_id": "user_001",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_clause_long",
+      "acl_revision": 12,
+      "permissions": [
+        "READ_CONTENT"
+      ],
+      "lifecycle": "ACTIVE"
+    },
+    "pins": {
+      "manifest_version": 2,
+      "source_snapshot_digest": "sha256:aaa",
+      "tenant_profile_version": 5,
+      "policy_version": 2,
+      "ocr_run_version": 3,
+      "reconstruction_version": 2,
+      "extraction_version": 7,
+      "index_version": "idx_14"
+    }
+  },
+  "pages": [
+    {
+      "page_revision_id": "p18_rev1",
+      "page_number": 18,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p18_b1"
+      ],
+      "text": "Điều 12 phần trang 18",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p19_rev1",
+      "page_number": 19,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p19_b1"
+      ],
+      "text": "Điều 12 phần trang 19",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p20_rev1",
+      "page_number": 20,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p20_b1"
+      ],
+      "text": "Điều 12 phần trang 20",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p21_rev1",
+      "page_number": 21,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p21_b1"
+      ],
+      "text": "Điều 12 phần trang 21",
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "n12",
+      "type": "CLAUSE",
+      "raw_label": "Điều 12",
+      "parent_id": null,
+      "order": 1,
+      "has_children": true,
+      "status": "CONFIRMED",
+      "text": "Điều 12. Thanh toán",
+      "page_range": [
+        18,
+        19,
+        20,
+        21
+      ],
+      "page_revision_id": "p18_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "n12_a",
+      "type": "CLAUSE",
+      "raw_label": "(a)",
+      "parent_id": "n12",
+      "order": 1,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "a) Tạm ứng 30%.",
+      "page_range": [
+        18
+      ],
+      "page_revision_id": "p18_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "n12_b",
+      "type": "CLAUSE",
+      "raw_label": "(b)",
+      "parent_id": "n12",
+      "order": 2,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "b) Thanh toán khối lượng.",
+      "page_range": [
+        19
+      ],
+      "page_revision_id": "p19_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "n12_c",
+      "type": "CLAUSE",
+      "raw_label": "(c)",
+      "parent_id": "n12",
+      "order": 3,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "c) Quyết toán sau nghiệm thu.",
+      "page_range": [
+        21
+      ],
+      "page_revision_id": "p21_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "tables": []
+}

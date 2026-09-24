@@ -71,6 +71,11 @@ _DOSSIER_STATUS_UPDATE = text(
     "WHERE id = :dossier_id AND tenant_id = :tenant_id"
 )
 
+_JOB_STATUS_UPDATE = text(
+    "UPDATE job SET status = :status, updated_at = CURRENT_TIMESTAMP "
+    "WHERE dossier_id = :dossier_id AND tenant_id = :tenant_id"
+)
+
 _DOSSIER_CONFLICTS_UPDATE = text(
     "UPDATE dossier SET has_conflicts = :has_conflicts, updated_at = CURRENT_TIMESTAMP "
     "WHERE id = :dossier_id AND tenant_id = :tenant_id"
@@ -212,6 +217,8 @@ class PipelineOrchestrator:
             for doc in ctx.documents:
                 await self._mark_step(ctx, "S4", "running")
                 try:
+                    ctx.snapshot_digest = snapshot_digests.get(doc.document_id, "")
+                    ctx.full_text_nfc = full_text_per_doc.get(doc.document_id, "")
                     extraction = await self._run_extract(ctx, doc)
                     all_facts[doc.document_id] = [
                         f.model_dump(mode="json") for f in extraction.facts
@@ -281,7 +288,7 @@ class PipelineOrchestrator:
                 run_id=ctx.run_id,
                 status="succeeded",
             )
-            await self._mark_dossier_status(ctx, "extracted")
+            await self._mark_dossier_status(ctx, "pending_review")
             logger.info("pipeline.succeeded", run_id=ctx.run_id, dossier_id=ctx.dossier_id)
 
         except Exception as exc:
@@ -537,17 +544,16 @@ class PipelineOrchestrator:
             logger.warning("pipeline.mark_failed_error", error=str(exc))
 
     async def _mark_dossier_status(self, ctx: PipelineContext, status: str) -> None:
-        """Update dossier.status — dùng raw SQL để tránh cross-BC ORM import."""
+        """Update dossier + job status — raw SQL to avoid cross-BC ORM import."""
         try:
             async with self._session_factory() as session:
-                await session.execute(
-                    _DOSSIER_STATUS_UPDATE,
-                    {
-                        "status": status,
-                        "dossier_id": ctx.dossier_id,
-                        "tenant_id": ctx.tenant_id,
-                    },
-                )
+                params = {
+                    "status": status,
+                    "dossier_id": ctx.dossier_id,
+                    "tenant_id": ctx.tenant_id,
+                }
+                await session.execute(_DOSSIER_STATUS_UPDATE, params)
+                await session.execute(_JOB_STATUS_UPDATE, params)
                 await session.commit()
         except Exception as exc:
             logger.warning(

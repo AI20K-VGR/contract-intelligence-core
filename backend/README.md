@@ -120,22 +120,26 @@ uv run lint-imports          # alias cho `import-linter --config .importlinter`
 
 ## Kết nối AI1 OCR service
 
-### Kafka (đường runtime — DOC-05d)
+### Kafka (đường runtime — DOC-05d / DOC-05e)
 
 Backend publish `dossier.uploaded` → orchestrator worker publish
 `ci.ai1.ocr.commands` → AI1 Kafka worker chạy OCR → `ci.ai1.ocr.results` →
-backend persist snapshot.
+backend persist snapshot → (nếu `AI2_WIRE_ENABLED=true`) publish
+`ci.ai2.idp.commands` → AI2 Kafka worker → `ci.ai2.idp.results` →
+backend persist findings / `PENDING_REVIEW`.
 
 ```powershell
 # Terminal A — Kafka + MinIO + DB (từ repo root)
-docker compose up -d kafka minio minio-init backend-db backend backend-worker ai1-worker
+docker compose up -d kafka minio minio-init backend-db backend backend-worker ai1-worker ai2-worker
 
 # Hoặc chạy worker local (Kafka đã up)
 cd backend
 uv run python -m contract_intelligence.worker
 ```
 
-Chi tiết envelope/payload: `docs/DOC-05d-kafka-ai1-ocr-contract.md`.
+Chi tiết:
+- AI1 OCR: `docs/DOC-05d-kafka-ai1-ocr-contract.md`
+- AI2 IDP (MVP body-only): `docs/DOC-05e-kafka-ai2-idp-contract.md`
 
 ### HTTP job API (demo / manual only)
 

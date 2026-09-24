@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI2 · Phòng thử</title>
+  <link rel="stylesheet" href="/static/demo.css" />
+  <style>
+    .lab { display: grid; grid-template-columns: 310px 1fr; min-height: calc(100vh - 58px); }
+    .rail { background: #efe8dc; padding: 0.8rem; border-right: 1px solid var(--line); }
+    .cases { display: flex; flex-direction: column; gap: 0.3rem; max-height: calc(100vh - 190px); overflow: auto; margin-top: 0.55rem; }
+    .case { text-align: left; width: 100%; }
+    .case small { display: block; color: var(--muted); margin-top: 0.2rem; }
+    .filters { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; margin-top: 0.4rem; }
+    .filters select, .filters input { min-width: 0; padding: 0.38rem; border: 1px solid var(--line); border-radius: 7px; }
+    .stage { padding: 1rem; overflow: auto; }
+    .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+    .result-grid > div { min-width: 0; }
+    @media (max-width: 900px) { .lab { grid-template-columns: 1fr; } .result-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="appbar">
+    <div class="brand"><span class="logo">VSF</span><div><p class="kicker">Phòng thử</p><h1>95 kịch bản + tra cứu</h1></div></div>
+    <div class="health" id="health">Đang kiểm tra model…</div>
+    <a class="ghost" href="/">← Không gian hồ sơ</a>
+  </header>
+  <main class="lab">
+    <aside class="rail">
+      <input id="filter" type="search" placeholder="Lọc mã hoặc mô tả…" />
+      <div class="filters">
+        <select id="group-filter"><option value="">Tất cả nhóm</option><option value="synthetic">Synthetic</option><option value="existing">Catalog</option></select>
+        <select id="state-filter"><option value="">Tất cả state</option><option value="ANSWERED">ANSWERED</option><option value="NEEDS_REVIEW">NEEDS_REVIEW</option><option value="BLOCKED">BLOCKED</option><option value="INSUFFICIENT_EVIDENCE">INSUFFICIENT_EVIDENCE</option></select>
+      </div>
+      <p id="count" class="muted"></p>
+      <div id="cases" class="cases"></div>
+    </aside>
+    <section class="stage">
+      <div id="meta" class="pane"><p class="muted">Chọn kịch bản.</p></div>
+      <div class="toolbar">
+        <button id="runL0" disabled>Chạy deterministic</button>
+        <button id="runLlm" class="primary" disabled>Chạy live LLM</button>
+        <label class="toggle"><input id="use-llm" type="checkbox" /> LLM khi tra cứu</label>
+        <label class="toggle"><input id="use-vector" type="checkbox" /> Vector recall</label>
+        <form id="qform" style="display:flex;gap:0.4rem;flex:1;min-width:280px">
+          <input id="q" placeholder="Câu hỏi…" style="flex:1" />
+          <button type="submit" disabled id="runQ">Tra cứu</button>
+        </form>
+      </div>
+      <div id="result" class="pane"><p class="muted">Kết quả chạy case sẽ hiển thị answer, citation, graph, evidence issue và trace.</p></div>
+    </section>
+  </main>
+  <script src="/static/lab.js?v=ai2-95"></script>
+</body>
+</html>
