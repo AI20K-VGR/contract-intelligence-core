@@ -296,7 +296,7 @@ async def _ingest_upload_file(
     role: DocumentRole,
     order_index: int,
 ) -> tuple[Document, int, str]:
-    """Đọc UploadFile → MinIO → persist Document.
+    """Đọc UploadFile → MinIO → persist Document (compensate MinIO on DB failure).
 
     Returns:
         (Document entity, size_bytes, s3_path) — s3_path dùng cho Kafka event.
@@ -310,18 +310,43 @@ async def _ingest_upload_file(
 
     filename = safe_filename(file.filename, fallback=f"{role.value.lower()}.pdf")
     object_key = f"{dossier_id}/{order_index:02d}_{filename}"
-    s3_path = await storage.upload_file(object_key, raw_bytes)
+    s3_path: str | None = None
+    try:
+        s3_path = await storage.upload_file(object_key, raw_bytes)
+        doc = await svc.upload_document(
+            dossier_id=dossier_id,
+            filename=filename,
+            content=BytesIO(raw_bytes),
+            role=role,
+            order_index=order_index,
+            file_size_bytes=total_size,
+            blob_uri=s3_path,
+        )
+        return doc, total_size, s3_path
+    except Exception:
+        if s3_path:
+            try:
+                await storage.delete_object(s3_path)
+            except Exception:
+                logger.warning(
+                    "dossier.ingest.compensate_minio_failed",
+                    dossier_id=dossier_id,
+                    s3_path=s3_path,
+                    exc_info=True,
+                )
+        raise
 
-    doc = await svc.upload_document(
-        dossier_id=dossier_id,
-        filename=filename,
-        content=BytesIO(raw_bytes),
-        role=role,
-        order_index=order_index,
-        file_size_bytes=total_size,
-        blob_uri=s3_path,
+
+async def _publish_dossier_uploaded(*, dossier_id: str, file_path: str) -> None:
+    """Post-commit Kafka publish — runs via BackgroundTasks after DB commit."""
+    await messaging.publish_event(
+        "dossier_events",
+        {
+            "event": "dossier.uploaded",
+            "dossier_id": str(dossier_id),
+            "file_path": file_path,
+        },
     )
-    return doc, total_size, s3_path
 
 
 # -----------------------------------------------------------------------------
@@ -348,6 +373,7 @@ async def _ingest_upload_file(
 async def create_dossier(
     svc: ContractServiceDep,
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    background_tasks: BackgroundTasks,
     contract: Annotated[UploadFile, File(description="PDF hợp đồng chính (required)")],
     metadata: Annotated[str, File(description="JSON string: {name, tags?, notes?}")],
     annexes: Annotated[list[UploadFile] | None, File(description="PDF phụ lục (0..n)")] = None,
@@ -427,14 +453,11 @@ async def create_dossier(
             order_index=idx,
         )
 
-    # Publish domain event for async downstream processing (OCR / extraction).
-    await messaging.publish_event(
-        "dossier_events",
-        {
-            "event": "dossier.uploaded",
-            "dossier_id": str(dossier.id),
-            "file_path": s3_path,
-        },
+    # Publish after the request session commits (BackgroundTasks run post-response).
+    background_tasks.add_task(
+        _publish_dossier_uploaded,
+        dossier_id=str(dossier.id),
+        file_path=s3_path,
     )
 
     # ApiEnvelopeDossierCreated — dossier_id + job_id (openapi.yaml line 2320)
