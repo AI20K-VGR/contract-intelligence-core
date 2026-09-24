@@ -132,13 +132,15 @@ class ContractService:
         sha256 = hashlib.sha256(data).hexdigest()
         size_bytes = file_size_bytes if file_size_bytes is not None else len(data)
 
-        # Always persist bytes in app FileStorage so content streaming works
-        # (tests use FakeFileStorage; prod may dual-write while MinIO is canonical).
+        # Prefer caller-supplied blob_uri (MinIO s3://…). Only write local FileStorage
+        # when no remote URI is provided (tests / legacy local-only path).
         safe_name = safe_filename(filename, fallback=f"{role.value.lower()}.pdf")
         local_key = f"contracts/{dossier_id}/{sha256[:2]}/{safe_name}"
-        storage_key = blob_uri if blob_uri is not None else local_key
-        await self._storage.put(storage_key, _bytes_to_stream(data))
-        stored_uri = blob_uri if blob_uri is not None else local_key
+        if blob_uri is not None:
+            stored_uri = blob_uri
+        else:
+            await self._storage.put(local_key, _bytes_to_stream(data))
+            stored_uri = local_key
 
         document = Document(
             id=new_ulid("doc_"),

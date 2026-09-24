@@ -10,8 +10,10 @@
 #   backend-db     — PostgreSQL cho backend (container: ci-backend-db, host :5434)
 #   kafka          — Apache Kafka KRaft (container: ci-kafka, host :9093)
 #   backend        — FastAPI (container: ci-backend; depends_on db+keycloak+kafka+minio)
-#   backend-worker — Kafka orchestrator: dossier.uploaded → AI1 commands + results
+#   backend-worker — Kafka orchestrator: dossier → AI1 OCR → AI2 IDP (DOC-05d/05e)
 #   ai1-worker     — AI1 OCR Kafka consumer/producer (DOC-05d)
+#   ai2            — AI2 HTTP demo (POST /jobs/idp) — lab only
+#   ai2-worker     — AI2 IDP Kafka consumer/producer (DOC-05e)
 #   minio          — MinIO S3-compatible (API 9000, Console 9001)
 #   minio-init     — one-shot: tạo bucket `dossiers` + `ci-render` (private)
 #
@@ -363,7 +365,7 @@ services:
       - ci-network
 
   # =============================================================================
-  # SERVICE 5b — Backend Kafka orchestrator (dossier events + AI1 results)
+  # SERVICE 5b — Backend Kafka orchestrator (dossier + AI1 results + AI2 results)
   # =============================================================================
   backend-worker:
     build:
@@ -388,6 +390,9 @@ services:
       KAFKA_AI1_OCR_COMMANDS_TOPIC: ci.ai1.ocr.commands
       KAFKA_AI1_OCR_RESULTS_TOPIC: ci.ai1.ocr.results
       KAFKA_BACKEND_AI1_RESULTS_GROUP_ID: ci-backend-ai1-results
+      KAFKA_AI2_IDP_COMMANDS_TOPIC: ci.ai2.idp.commands
+      KAFKA_AI2_IDP_RESULTS_TOPIC: ci.ai2.idp.results
+      KAFKA_BACKEND_AI2_RESULTS_GROUP_ID: ci-backend-ai2-results
       KAFKA_PRESIGN_EXPIRES_SECONDS: "3600"
       S3_ENDPOINT_URL: http://minio:9000
       S3_ACCESS_KEY: admin
@@ -398,6 +403,12 @@ services:
       MINIO_SECRET_KEY: password123
       MINIO_BUCKET_RENDER: ci-render
       AI1_OCR_ENGINE: ${AI1_OCR_ENGINE:-mistral}
+      AI2_BASE_URL: http://ai2:8002
+      AI2_WIRE_ENABLED: "true"
+      AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-dev-ai2-hmac-secret}
+      AI2_SERVICE_ISSUER: ${AI2_SERVICE_ISSUER:-backend-service}
+      AI2_SERVICE_AUDIENCE: ${AI2_SERVICE_AUDIENCE:-vsf-ai2}
+      AI2_SERVICE_KEY_ID: ${AI2_SERVICE_KEY_ID:-default}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     volumes:
       - ./backend/src:/app/src:ro
@@ -429,6 +440,73 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     volumes:
       - ./ai-service/src:/app/src:ro
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 5d — AI2 Semantics HTTP service (demo /jobs/idp only)
+  # =============================================================================
+  ai2:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile.ai2
+    container_name: ci-ai2
+    restart: unless-stopped
+    depends_on:
+      minio:
+        condition: service_started
+    environment:
+      AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-dev-ai2-hmac-secret}
+      AI2_SERVICE_ISSUER: ${AI2_SERVICE_ISSUER:-backend-service}
+      AI2_SERVICE_AUDIENCE: ${AI2_SERVICE_AUDIENCE:-vsf-ai2}
+      AI2_SERVICE_KEY_ID: ${AI2_SERVICE_KEY_ID:-default}
+      AI2_CONTRACT_ROOT: /docs/contracts
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./ai-service/app:/app/app:ro
+      - ./ai-service/fixtures:/app/fixtures:ro
+      - ./docs/contracts:/docs/contracts:ro
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 5e — AI2 IDP Kafka worker (DOC-05e runtime path)
+  # =============================================================================
+  ai2-worker:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile.ai2
+    container_name: ci-ai2-worker
+    restart: unless-stopped
+    command:
+      [
+        "uv",
+        "run",
+        "--frozen",
+        "--extra",
+        "web",
+        "--extra",
+        "kafka",
+        "python",
+        "-m",
+        "app.transport.kafka_idp_worker",
+      ]
+    depends_on:
+      kafka:
+        condition: service_started
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_AI2_IDP_COMMANDS_TOPIC: ci.ai2.idp.commands
+      KAFKA_AI2_IDP_RESULTS_TOPIC: ci.ai2.idp.results
+      KAFKA_AI2_IDP_GROUP_ID: ci-ai2-idp
+      AI2_CONTRACT_ROOT: /docs/contracts
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ./ai-service/app:/app/app:ro
+      - ./ai-service/fixtures:/app/fixtures:ro
+      - ./docs/contracts:/docs/contracts:ro
     networks:
       - ci-network
 

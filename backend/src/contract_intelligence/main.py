@@ -322,13 +322,15 @@ def create_app() -> FastAPI:
     app.include_router(extraction_router, prefix="/api/v1", tags=["Extraction"])
     app.include_router(conflict_router, prefix="/api/v1", tags=["Conflict"])
 
-    # HITL orchestration surface — confirm/correct/reject/needs_more_evidence + dossier approve.
-    # Registered before Phase 3/5 routers so the tutorial contract is the live
-    # match for POST /review-items/{id}/actions and POST /dossiers/{id}/approve.
+    # Phase 3 HITL Review BC (DB-backed OCC + append-only review_action) MUST
+    # register before the tutorial/in-memory hitl_reviews stub so
+    # POST /review-items/{id}/actions hits ReviewService + Postgres.
+    app.include_router(review_router, prefix="/api/v1", tags=["Review"])
+
+    # HITL tutorial surfaces — dossier approve + query (not review POST actions).
     app.include_router(hitl_reviews_router, prefix="/api/v1")
     app.include_router(hitl_dossiers_router, prefix="/api/v1")
 
-    app.include_router(review_router, prefix="/api/v1", tags=["Review"])
     app.include_router(approval_router, prefix="/api/v1", tags=["Approval"])
     app.include_router(reocr_router, prefix="/api/v1", tags=["ReOCR"])
     app.include_router(admin_router, prefix="/api/v1", tags=["Admin/Ops"])

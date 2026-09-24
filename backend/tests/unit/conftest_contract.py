@@ -73,9 +73,11 @@ class FakeDossierRepository(DossierRepository):
         has_conflicts: bool | None = None,
         q: str | None = None,
         batch_id: str | None = None,
+        viewer_id: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> Page[Any]:
+        del viewer_id  # share/ACL filtering is covered by integration/SQL tests
         items = sorted(
             [d for d in self._store.values() if getattr(d, "deleted_at", None) is None],
             key=lambda d: d.created_at,
