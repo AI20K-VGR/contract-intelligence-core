@@ -1,0 +1,116 @@
+{
+  "case_id": "EC-052",
+  "title": "Re-OCR page — citation revision mới, cũ stale",
+  "tenant_id": "tenant_a",
+  "dossier_id": "d_reocr",
+  "expected_state": "REVIEW",
+  "expected_no_claims": [
+    "cite_old_revision"
+  ],
+  "n_pages": 1,
+  "n_nodes": 1,
+  "n_tables": 0,
+  "lifecycle": "ACTIVE",
+  "query": null,
+  "notes": "",
+  "tags": [
+    "edge",
+    "lineage"
+  ],
+  "pins": {
+    "manifest_version": 2,
+    "source_snapshot_digest": "sha256:aaa",
+    "tenant_profile_version": 5,
+    "policy_version": 2,
+    "ocr_run_version": 4,
+    "reconstruction_version": 2,
+    "extraction_version": 8,
+    "index_version": "idx_14"
+  },
+  "profile": {
+    "version": 5,
+    "aliases": {
+      "Công ty ABC": [
+        "ABC Co.",
+        "ABC"
+      ],
+      "Công ty XYZ": [
+        "XYZ Ltd",
+        "XYZ"
+      ]
+    },
+    "field_keys": [
+      "party_a",
+      "party_b",
+      "mst_seller",
+      "contract_value",
+      "payment_term"
+    ]
+  },
+  "acl_revision": 12,
+  "legal_hold": false,
+  "egress_approved": true,
+  "budget_exceeded": false,
+  "index_status": "READY",
+  "active_index_version": null,
+  "processing_index": false,
+  "envelope": {
+    "auth": {
+      "actor_id": "user_001",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_reocr",
+      "acl_revision": 12,
+      "permissions": [
+        "READ_CONTENT"
+      ],
+      "lifecycle": "ACTIVE"
+    },
+    "pins": {
+      "manifest_version": 2,
+      "source_snapshot_digest": "sha256:aaa",
+      "tenant_profile_version": 5,
+      "policy_version": 2,
+      "ocr_run_version": 4,
+      "reconstruction_version": 2,
+      "extraction_version": 8,
+      "index_version": "idx_14"
+    }
+  },
+  "pages": [
+    {
+      "page_revision_id": "p3_rev2",
+      "page_number": 3,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p3_b1"
+      ],
+      "text": "MST 0312345678",
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "mst",
+      "type": "FIELD",
+      "raw_label": "MST",
+      "parent_id": null,
+      "order": 0,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "MST 0312345678",
+      "page_range": [
+        3
+      ],
+      "page_revision_id": "p3_rev2",
+      "bbox": [],
+      "structured_key": "mst_seller",
+      "structured_value": "0312345678",
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "tables": []
+}

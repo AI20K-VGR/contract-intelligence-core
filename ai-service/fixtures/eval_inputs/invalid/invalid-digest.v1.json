@@ -1,0 +1,12 @@
+{
+  "schema_version": "ai1.snapshot.v1",
+  "snapshot_id": "invalid-digest",
+  "dossier_id": "invalid_digest",
+  "document_id": "doc-invalid-digest",
+  "run_id": "run-invalid-digest",
+  "source_digest": "not-a-sha256",
+  "execution": {"ocr_engine": "fixture", "attempt": 1},
+  "producer": {"name": "AI1 coverage fixture", "version": "1"},
+  "status": "SUCCESS",
+  "pages": [{"page_no": 1, "status": "SUCCESS", "table_coverage": {"status": "NOT_PRESENT"}, "lines": [], "tables": []}]
+}
