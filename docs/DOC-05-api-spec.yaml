@@ -230,6 +230,33 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [dossiers]
+      summary: Xóa hồ sơ (tombstone sync + purge nội dung async)
+      description: |
+        Hai bước đã chốt với FE/mentor:
+        1. **Tombstone (sync):** hồ sơ biến khỏi list, không tải được file, hủy job OCR
+           đang chạy, ghi `deletion_ledger` (ai / hồ sơ / lúc nào).
+        2. **Purge (async):** chỉ bỏ dữ liệu hợp đồng (PDF, ảnh trang, OCR, điều khoản,
+           citation, bảng, tên hồ sơ, filename, notes, lỗi pipeline). **Không** DELETE
+           cascade `dossier` / `job` / `pipeline_run`. Giữ `usage_ledger`, `review_action`,
+           `job_event`, dòng sổ xóa.
+        Idempotent nếu đã tombstone. Response `202` với `purge_status=pending`.
+      operationId: deleteDossier
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      responses:
+        '202':
+          description: Tombstone accepted; purge scheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeDossierDeleted'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /dossiers/{dossier_id}/lock:
     parameters:
@@ -1685,8 +1712,8 @@ components:
     # ── Shared enums ───────────────────────────────────────────────────────
     JobStatus:
       type: string
-      enum: [uploaded, processing, extracted, pending_review, reviewed, approved, failed]
-      description: Trạng thái job (BRD §14)
+      enum: [uploaded, processing, extracted, pending_review, reviewed, approved, failed, cancelled]
+      description: Trạng thái job (BRD §14); cancelled khi dossier bị xóa (tombstone)
 
     PageKind:
       type: string
@@ -2325,6 +2352,20 @@ components:
           properties:
             dossier_id: { type: string }
             job_id: { type: string }
+        meta: { $ref: '#/components/schemas/ApiEnvelope/properties/meta' }
+
+    ApiEnvelopeDossierDeleted:
+      type: object
+      properties:
+        data:
+          type: object
+          required: [dossier_id, deleted_at, purge_status]
+          properties:
+            dossier_id: { type: string }
+            deleted_at: { type: string, format: date-time }
+            purge_status:
+              type: string
+              enum: [pending, running, completed, failed]
         meta: { $ref: '#/components/schemas/ApiEnvelope/properties/meta' }
 
     ApiEnvelopeDossier:

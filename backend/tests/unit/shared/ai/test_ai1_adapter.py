@@ -24,7 +24,16 @@ def test_adapts_ai1_snapshot_v1_at_service_boundary() -> None:
                     "parent_id": None,
                     "page_start": 1,
                     "page_end": 1,
+                    "text": "Payment terms plus OCR text without geometry",
                     "line_ids": ["line-1"],
+                    "regions": [
+                        {
+                            "page_number": 1,
+                            "bbox_normalized": [0.1, 0.1, 0.4, 0.2],
+                            "geometry_provenance": "MEASURED",
+                            "anchor": "START",
+                        }
+                    ],
                     "bbox_normalized": [0.1, 0.1, 0.4, 0.2],
                     "geometry_provenance": "MEASURED",
                 },
@@ -36,6 +45,7 @@ def test_adapts_ai1_snapshot_v1_at_service_boundary() -> None:
                     "parent_id": "art-1",
                     "page_start": 1,
                     "page_end": 1,
+                    "text": "Nested clause text",
                     "line_ids": ["line-1"],
                     "bbox_normalized": [0.1, 0.2, 0.4, 0.3],
                     "geometry_provenance": "MEASURED",
@@ -98,5 +108,7 @@ def test_adapts_ai1_snapshot_v1_at_service_boundary() -> None:
     assert payload.full_text_nfc == "Payment terms"
     assert payload.clauses[0].source_id == "art-1"
     assert payload.clauses[0].parent_source_id is None
+    assert payload.clauses[0].text == "Payment terms plus OCR text without geometry"
+    assert payload.clauses[0].regions[0].page_no == 1
     assert payload.clauses[1].source_id == "cl-1"
     assert payload.clauses[1].parent_source_id == "art-1"

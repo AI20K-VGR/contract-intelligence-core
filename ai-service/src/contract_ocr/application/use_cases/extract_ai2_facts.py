@@ -87,6 +87,25 @@ def extract_clauses(snapshot: DocumentSnapshot) -> list[dict]:
     -> article -> clause -> point, each clause dict carrying `parent_clause_id`
     so callers can reconstruct the tree. Every line ends up in exactly one of
     these; nothing is dropped."""
+    # BuildSnapshot has already run the text-first boundary detector. Reuse
+    # those nodes instead of deriving content again from positioned lines (a
+    # second derivation would lose OCR lines for which geometry is absent).
+    if snapshot.nodes:
+        return [
+            {
+                "clause_id": node.node_id,
+                "level": node.type.lower(),
+                "label": node.label_raw or node.label_normalized,
+                "title": node.label_normalized,
+                "parent_clause_id": node.parent_id,
+                "page_number": node.page_start,
+                "text": node.text,
+                "line_ids": list(node.line_ids),
+                "regions": [region.model_dump() for region in node.regions],
+            }
+            for node in snapshot.nodes
+        ]
+
     clauses: list[dict] = []
     counter = 0
 

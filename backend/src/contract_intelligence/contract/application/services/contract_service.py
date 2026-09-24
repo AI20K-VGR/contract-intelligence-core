@@ -286,6 +286,10 @@ class ContractService:
     async def get_document_blob(self, document_id: str) -> tuple[bytes, str]:
         """Trả về (file_bytes, filename) — cho content endpoint streaming."""
         doc = await self.get_document(document_id)
+        if await self._dossier_repo.is_tombstoned(doc.dossier_id):
+            raise NotFoundError(entity_type="Document", entity_id=document_id)
+        if not doc.blob_uri:
+            raise NotFoundError(entity_type="Document", entity_id=document_id)
         data = await self._storage.get(doc.blob_uri)
         return data, doc.filename
 

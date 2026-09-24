@@ -13,12 +13,14 @@ from contract_intelligence.infrastructure.messaging import (
     stop_producer,
 )
 from contract_intelligence.infrastructure.storage import (
+    delete_object,
     generate_presigned_get_url,
     generate_presigned_put_url,
     upload_file,
 )
 
 __all__ = [
+    "delete_object",
     "generate_presigned_get_url",
     "generate_presigned_put_url",
     "publish_event",

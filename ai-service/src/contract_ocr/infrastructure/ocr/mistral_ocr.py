@@ -127,7 +127,11 @@ class MistralOCREngine(OCREngine):
         path = directory / "raw.md"
         path.write_text(text, encoding="utf-8")
 
-        lines: list[Line] = []
+        # Content and geometry deliberately take separate paths.  The full-page
+        # markdown is the content source of truth; blocks are used only to map
+        # positions onto that text.  A markdown line that cannot be matched to
+        # a block is retained with no bbox instead of being dropped.
+        block_lines: list[tuple[str, BBox, float | None]] = []
         tables: list[Table] = []
         last_heading: str | None = None
         for block in (page.blocks if page else None) or []:
@@ -135,6 +139,10 @@ class MistralOCREngine(OCREngine):
             scores = block.confidence_scores
             confidence = scores.average_content_confidence_score if scores else None
             content = block.content or ""
+
+            clean_lines = [clean_markdown_text(line) for line in content.splitlines()]
+            clean_lines = [line for line in clean_lines if line]
+            block_lines.extend((line, bbox, confidence) for line in clean_lines)
 
             if block.type == "table":
                 table = build_table_from_block(
@@ -147,20 +155,41 @@ class MistralOCREngine(OCREngine):
                     tables.append(table)
                 continue
 
-            clean_lines = [clean_markdown_text(line) for line in content.splitlines()]
-            clean_lines = [line for line in clean_lines if line]
-            for line_text in clean_lines:
+            last_heading = next(
+                (line for line in reversed(clean_lines) if is_annex_heading(line)), last_heading
+            )
+
+        lines: list[Line] = []
+        unused_block_lines = list(block_lines)
+        for raw_line in text.splitlines():
+            line_text = clean_markdown_text(raw_line)
+            if not line_text:
+                continue
+            match_index = next(
+                (
+                    i
+                    for i, (candidate, _, _) in enumerate(unused_block_lines)
+                    if candidate == line_text
+                ),
+                None,
+            )
+            if match_index is None:
                 lines.append(
                     Line(
                         line_id=f"{context.document_id}-p{context.page:03d}-l{len(lines) + 1:04d}",
                         text=line_text,
-                        bbox=bbox,
-                        geometry_provenance=GeometryProvenance.MEASURED,
-                        confidence=confidence,
                     )
                 )
-            last_heading = next(
-                (line for line in reversed(clean_lines) if is_annex_heading(line)), last_heading
+                continue
+            _, bbox, confidence = unused_block_lines.pop(match_index)
+            lines.append(
+                Line(
+                    line_id=f"{context.document_id}-p{context.page:03d}-l{len(lines) + 1:04d}",
+                    text=line_text,
+                    bbox=bbox,
+                    geometry_provenance=GeometryProvenance.MEASURED,
+                    confidence=confidence,
+                )
             )
 
         return OCRResult(

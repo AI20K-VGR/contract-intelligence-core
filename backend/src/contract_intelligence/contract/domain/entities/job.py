@@ -21,6 +21,7 @@ class JobStatus(StrEnum):
     REVIEWED = "reviewed"
     APPROVED = "approved"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 @dataclass(eq=False)

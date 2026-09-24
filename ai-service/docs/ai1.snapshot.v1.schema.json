@@ -435,7 +435,7 @@
     },
     "StructuralNode": {
       "additionalProperties": false,
-      "description": "One node of the document's clause hierarchy (section 8): Document ->\nSection/Article -> Clause -> Point. Built by `application.use_cases.\nbuild_structure.BuildStructure` from real OCR lines — every node resolves\nto the `line_ids` it was built from, which resolve to real `SnapshotLine`s\non a real page. See that module's docstring for the current limitation\n(no cross-page merging of a clause body split by a page break yet).",
+      "description": "One node of the document's clause hierarchy (section 8): Document ->\nSection/Article -> Clause -> Point. ``text`` is built from the complete OCR\nstream, including lines without geometry. ``line_ids`` and ``regions`` are\noptional positional evidence and may cover only a subset of that text. See\n``BuildStructure`` for the text/geometry separation contract.",
       "properties": {
         "node_id": {
           "minLength": 1,
@@ -491,11 +491,23 @@
           "title": "Page End",
           "type": "integer"
         },
+        "text": {
+          "default": "",
+          "title": "Text",
+          "type": "string"
+        },
         "line_ids": {
           "items": {
             "type": "string"
           },
           "title": "Line Ids",
+          "type": "array"
+        },
+        "regions": {
+          "items": {
+            "$ref": "#/$defs/StructuralRegion"
+          },
+          "title": "Regions",
           "type": "array"
         },
         "bbox_normalized": {
@@ -541,6 +553,51 @@
         "page_end"
       ],
       "title": "StructuralNode",
+      "type": "object"
+    },
+    "StructuralRegion": {
+      "additionalProperties": false,
+      "description": "A lightweight geometry anchor for a clause, not a text container.\n\nOnly boundary anchors (normally the first and last positioned OCR line on\neach page) are emitted.  This keeps geometry mapping independent from\nclause extraction and avoids re-reading/cropping the whole clause bbox.",
+      "properties": {
+        "page_number": {
+          "minimum": 1,
+          "title": "Page Number",
+          "type": "integer"
+        },
+        "bbox_normalized": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "title": "Bbox Normalized",
+          "type": "array"
+        },
+        "geometry_provenance": {
+          "enum": [
+            "MEASURED",
+            "DERIVED",
+            "CLAIMED"
+          ],
+          "title": "Geometry Provenance",
+          "type": "string"
+        },
+        "anchor": {
+          "enum": [
+            "START",
+            "END"
+          ],
+          "title": "Anchor",
+          "type": "string"
+        }
+      },
+      "required": [
+        "page_number",
+        "bbox_normalized",
+        "geometry_provenance",
+        "anchor"
+      ],
+      "title": "StructuralRegion",
       "type": "object"
     },
     "Table": {

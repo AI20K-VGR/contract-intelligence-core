@@ -5,12 +5,13 @@ Endpoints (Phase 1: Core Document Ingestion):
     GET    /dossiers                     — List dossiers (spec line 150-183)
     GET    /dossiers/{id}                — Dossier detail (spec line 185-204)
     PATCH  /dossiers/{id}                — Update metadata (spec line 204-228)
+    DELETE /dossiers/{id}                — Tombstone + schedule content purge
     GET    /dossiers/{id}/documents      — List documents (spec line 262-277)
     GET    /documents/{id}               — Document detail (spec line ~759)
     GET    /documents/{id}/content       — Stream PDF binary
 
 RBAC matrix (DOC-05b §2.3):
-    OPERATOR, ADMINISTRATOR  → write ops (POST, PATCH, upload, manifest confirm)
+    OPERATOR, ADMINISTRATOR  → write ops (POST, PATCH, DELETE, upload, manifest confirm)
     OPERATOR, REVIEWER, ADMINISTRATOR  → read ops
 
 Layer: interfaces/api — composes application services, never directly hits ORM.
@@ -40,6 +41,7 @@ from fastapi import (
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
 
+from contract_intelligence.contract.application.dtos.deletion_dtos import DossierDeletedDTO
 from contract_intelligence.contract.application.dtos.document_dtos import (
     DocumentDetailDTO,
     DocumentListItemDTO,
@@ -57,17 +59,20 @@ from contract_intelligence.contract.domain.entities.document import (
     Document,
     DocumentRole,
 )
-from contract_intelligence.contract.application.dossier_deletion import purge_dossier
+from contract_intelligence.contract.infrastructure.persistence.dossier_deletion_service import (
+    run_dossier_purge,
+)
 from contract_intelligence.contract.interfaces.api.dependencies import (
     ContractServiceDep,
+    DossierDeletionServiceDep,
 )
-from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.infrastructure import messaging, storage
 from contract_intelligence.shared.auth import (
     AuthenticatedUser,
     get_current_user,
     require_role,
 )
+from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.shared.responses import ApiMeta, ApiResponse
 from contract_intelligence.shared.utils import safe_filename
 
@@ -406,22 +411,40 @@ async def list_dossiers(
 
 @router.delete(
     "/dossiers/{dossier_id}",
+    response_model=ApiResponse[DossierDeletedDTO],
     status_code=status.HTTP_202_ACCEPTED,
-    response_model=ApiResponse[dict[str, str]],
-    summary="Tombstone a dossier, then purge files and extracted text",
-    responses={404: {"description": "Dossier not found"}},
+    responses={
+        404: {"description": "Dossier not found"},
+        403: {"description": "Insufficient role"},
+    },
+    summary="Xóa hồ sơ (tombstone + purge async)",
 )
 async def delete_dossier(
     dossier_id: Annotated[str, Path(min_length=1)],
+    deletion_svc: DossierDeletionServiceDep,
     background_tasks: BackgroundTasks,
-    svc: ContractServiceDep,
-    tenant_id: Annotated[str, Depends(get_tenant_id)],
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
-) -> ApiResponse[dict[str, str]]:
-    """Chặn truy cập ngay. File và nội dung trích được xóa sau khi request này commit."""
-    await svc.request_deletion(dossier_id, requested_by=user.user_id)
-    background_tasks.add_task(purge_dossier, tenant_id, dossier_id)
-    return ApiResponse(data={"id": dossier_id, "status": "tombstoned"})
+    tenant_id: Annotated[str, Depends(get_tenant_id)],
+) -> ApiResponse[DossierDeletedDTO]:
+    """Bước 1: tombstone sync. Bước 2: purge nội dung chạy sau commit (BackgroundTasks).
+
+    Không DELETE cascade dossier/job/pipeline_run — giữ usage_ledger và audit.
+    RBAC: OPERATOR, ADMINISTRATOR.
+    """
+    result = await deletion_svc.tombstone(dossier_id, actor_user_id=user.user_id)
+    if not result.already_tombstoned:
+        background_tasks.add_task(
+            run_dossier_purge,
+            dossier_id=dossier_id,
+            tenant_id=tenant_id,
+        )
+    return ApiResponse(
+        data=DossierDeletedDTO(
+            dossier_id=result.dossier_id,
+            deleted_at=result.deleted_at,
+            purge_status=result.purge_status,
+        )
+    )
 
 
 # -----------------------------------------------------------------------------

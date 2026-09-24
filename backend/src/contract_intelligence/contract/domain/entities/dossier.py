@@ -66,9 +66,14 @@ class Dossier(BaseEntity[str]):
 # State machine
 # -----------------------------------------------------------------------------
 _ALLOWED_TRANSITIONS: dict[JobStatus, frozenset[JobStatus]] = {
-    JobStatus.UPLOADED: frozenset({JobStatus.PROCESSING, JobStatus.FAILED}),
+    JobStatus.UPLOADED: frozenset({JobStatus.PROCESSING, JobStatus.FAILED, JobStatus.CANCELLED}),
     JobStatus.PROCESSING: frozenset(
-        {JobStatus.EXTRACTED, JobStatus.PENDING_REVIEW, JobStatus.FAILED}
+        {
+            JobStatus.EXTRACTED,
+            JobStatus.PENDING_REVIEW,
+            JobStatus.FAILED,
+            JobStatus.CANCELLED,
+        }
     ),
     JobStatus.EXTRACTED: frozenset({JobStatus.PENDING_REVIEW, JobStatus.FAILED}),
     JobStatus.PENDING_REVIEW: frozenset(
@@ -77,4 +82,5 @@ _ALLOWED_TRANSITIONS: dict[JobStatus, frozenset[JobStatus]] = {
     JobStatus.REVIEWED: frozenset({JobStatus.APPROVED, JobStatus.FAILED}),
     JobStatus.APPROVED: frozenset(),  # trạng thái cuối
     JobStatus.FAILED: frozenset({JobStatus.PROCESSING}),  # retry
+    JobStatus.CANCELLED: frozenset(),  # terminal after dossier delete
 }

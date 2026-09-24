@@ -10,12 +10,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from contract_intelligence.contract.application.services.contract_service import (
     ContractService,
 )
+from contract_intelligence.contract.infrastructure.persistence.dossier_deletion_service import (
+    DossierDeletionService,
+)
 from contract_intelligence.contract.infrastructure.persistence.repository_impl import (
     DocumentRepositoryImpl,
     DossierRepositoryImpl,
     JobRepositoryImpl,
     ManifestRepositoryImpl,
 )
+from contract_intelligence.shared.ai.client import AiServiceClient, get_ai_service_client
 from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.shared.persistence import get_async_session
 from contract_intelligence.shared.storage import FileStorage, get_file_storage
@@ -37,7 +41,27 @@ async def get_contract_service(
     )
 
 
+async def get_dossier_deletion_service(
+    session: Annotated[AsyncSession, Depends(get_async_session)],
+    tenant_id: Annotated[str, Depends(get_tenant_id)],
+    storage: Annotated[FileStorage, Depends(get_file_storage)],
+    ai_client: Annotated[AiServiceClient, Depends(get_ai_service_client)],
+) -> DossierDeletionService:
+    return DossierDeletionService(
+        session=session,
+        storage=storage,
+        ai_client=ai_client,
+        tenant_id=tenant_id,
+    )
+
+
 ContractServiceDep = Annotated[ContractService, Depends(get_contract_service)]
+DossierDeletionServiceDep = Annotated[DossierDeletionService, Depends(get_dossier_deletion_service)]
 
 
-__all__ = ["ContractServiceDep", "get_contract_service"]
+__all__ = [
+    "ContractServiceDep",
+    "DossierDeletionServiceDep",
+    "get_contract_service",
+    "get_dossier_deletion_service",
+]

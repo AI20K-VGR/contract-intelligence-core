@@ -1,5 +1,10 @@
-"""Builds the document's clause/section hierarchy (`StructuralNode`, section 8)
-from real OCR lines.
+"""Build the clause hierarchy from OCR text, then map optional geometry.
+
+OCR text is the source of truth for clause content.  Bounding boxes are only
+the source of truth for position: lines without geometry still participate in
+boundary detection and remain in ``StructuralNode.text``.  After the text tree
+is complete, a separate geometry pass selects only the first/last positioned
+line on each page as anchors.  It never crops a clause bbox or re-OCRs that crop.
 
 This reuses `contract_ocr.reconstruction`'s marker parser
 (`clause_parser.parse_marker`) and tree builder (`hierarchy_builder.
@@ -9,15 +14,9 @@ machinery. Every line of every successfully-processed page becomes one
 `LogicalSegment` in document reading order; `build_hierarchy` places each
 segment under whichever clause marker is currently open.
 
-Known, disclosed limitation: this does **not** run the reconstruction
-pipeline's cross-page boundary resolver (`reconstruction.pipeline.
-reconstruct_document`). A clause whose body is genuinely split across a page
-break is not spliced back together — it surfaces as two separate segments
-under whichever clause was open on each page, rather than one continuous
-node. Cross-page structural continuity is the same class of problem as
-cross-page table continuity (section 11) and is deferred to that pass. This
-still satisfies the section-8 requirement that "every node must be
-resolvable to evidence": every node's `line_ids` are real OCR line ids.
+The hierarchy builder keeps its active clause across page boundaries, so body
+text on the next page remains in that clause until a new marker opens. This is
+deterministic reading-order continuation; it does not use bbox proximity.
 """
 
 from __future__ import annotations
@@ -26,7 +25,7 @@ from contract_ocr.domain.bbox import BBox
 from contract_ocr.domain.entities import Document as InternalDocument
 from contract_ocr.domain.entities import Line as InternalLine
 from contract_ocr.domain.enums import Status
-from contract_ocr.domain.snapshot import NormalizedBBox, StructuralNode
+from contract_ocr.domain.snapshot import NormalizedBBox, StructuralNode, StructuralRegion
 from contract_ocr.reconstruction.hierarchy_builder import LogicalSegment, build_hierarchy
 from contract_ocr.reconstruction.models import ResolutionMethod, SourceBlockRef
 from contract_ocr.reconstruction.schemas.document import Clause
@@ -59,6 +58,7 @@ class BuildStructure:
         """
         segments: list[LogicalSegment] = []
         lines_by_id: dict[str, InternalLine] = {}
+        pages_by_line_id: dict[str, int] = {}
         for page in document.pages:
             if page.status is not Status.SUCCESS:
                 continue
@@ -66,6 +66,7 @@ class BuildStructure:
                 if not line.text.strip():
                     continue
                 lines_by_id[line.line_id] = line
+                pages_by_line_id[line.line_id] = page.page_number
                 segments.append(
                     LogicalSegment(
                         text=line.text,
@@ -85,12 +86,16 @@ class BuildStructure:
                     )
                 )
         _, flat_clauses = build_hierarchy(segments)
-        return [self._to_node(clause, lines_by_id, line_id_map) for clause in flat_clauses]
+        return [
+            self._to_node(clause, lines_by_id, pages_by_line_id, line_id_map)
+            for clause in flat_clauses
+        ]
 
     def _to_node(
         self,
         clause: Clause,
         lines_by_id: dict[str, InternalLine],
+        pages_by_line_id: dict[str, int],
         line_id_map: dict[str, str] | None,
     ) -> StructuralNode:
         internal_line_ids = [ref.block_id for ref in clause.source_blocks if ref.block_id]
@@ -100,8 +105,13 @@ class BuildStructure:
             external_line_ids = [
                 line_id_map[lid] for lid in internal_line_ids if lid in line_id_map
             ]
-        bbox_normalized, provenance = self._union_bbox(internal_line_ids, lines_by_id)
+        regions = self._map_geometry(internal_line_ids, lines_by_id, pages_by_line_id)
+        bbox_normalized, provenance = self._legacy_bbox(regions)
         node_type = _node_type(clause)
+        # Preserve the OCR stream verbatim at line granularity. The hierarchy
+        # builder joins parts with spaces for its generic reconstruction model,
+        # but clause payloads should not erase source line boundaries.
+        clause_text = "\n".join(lines_by_id[line_id].text for line_id in internal_line_ids)
         return StructuralNode(
             node_id=clause.clause_id,
             type=node_type,
@@ -110,29 +120,74 @@ class BuildStructure:
             parent_id=clause.parent_id,
             page_start=clause.page_start,
             page_end=clause.page_end,
+            text=clause_text,
             line_ids=external_line_ids,
+            regions=regions,
             bbox_normalized=bbox_normalized,
             geometry_provenance=provenance,
         )
 
     @staticmethod
-    def _union_bbox(
-        line_ids: list[str], lines_by_id: dict[str, InternalLine]
-    ) -> tuple[NormalizedBBox | None, str | None]:
-        boxes = [
-            lines_by_id[line_id].bbox
+    def _map_geometry(
+        line_ids: list[str],
+        lines_by_id: dict[str, InternalLine],
+        pages_by_line_id: dict[str, int],
+    ) -> list[StructuralRegion]:
+        """Map clause boundaries to geometry using sparse start/end anchors."""
+        positioned = [
+            lines_by_id[line_id]
             for line_id in line_ids
             if line_id in lines_by_id and lines_by_id[line_id].bbox is not None
         ]
-        if not boxes:
+        by_page: dict[int, list[InternalLine]] = {}
+        for line in positioned:
+            page_number = pages_by_line_id[line.line_id]
+            by_page.setdefault(page_number, []).append(line)
+
+        regions: list[StructuralRegion] = []
+        for page_number, page_lines in by_page.items():
+            start_box, start_provenance = BuildStructure._anchor_geometry(page_lines[0], False)
+            end_box, end_provenance = BuildStructure._anchor_geometry(page_lines[-1], True)
+            anchors = [("START", start_box, start_provenance)]
+            if end_box != start_box:
+                anchors.append(("END", end_box, end_provenance))
+            for anchor, box, provenance in anchors:
+                regions.append(
+                    StructuralRegion(
+                        page_number=page_number,
+                        bbox_normalized=[box.x1, box.y1, box.x2, box.y2],
+                        geometry_provenance=provenance,
+                        anchor=anchor,
+                    )
+                )
+        return regions
+
+    @staticmethod
+    def _anchor_geometry(line: InternalLine, use_last: bool) -> tuple[BBox, str]:
+        """Prefer one boundary word; fall back to the containing OCR line/block."""
+        positioned_words = [word for word in line.words if word.bbox is not None]
+        if positioned_words:
+            word = positioned_words[-1] if use_last else positioned_words[0]
+            return word.bbox, word.geometry_provenance
+        return line.bbox, line.geometry_provenance
+
+    @staticmethod
+    def _legacy_bbox(
+        regions: list[StructuralRegion],
+    ) -> tuple[NormalizedBBox | None, str | None]:
+        """Keep the v1 single bbox for old consumers; new code uses regions."""
+        if not regions:
             return None, None
+        # A single normalized bbox cannot truthfully represent coordinates on
+        # multiple pages.  Multi-page nodes expose only their page-scoped
+        # regions; legacy consumers receive no fabricated document-wide box.
+        if len({region.page_number for region in regions}) != 1:
+            return None, None
+        boxes = [region.bbox_normalized for region in regions]
         box = BBox(
-            x1=min(b.x1 for b in boxes),
-            y1=min(b.y1 for b in boxes),
-            x2=max(b.x2 for b in boxes),
-            y2=max(b.y2 for b in boxes),
+            x1=min(b[0] for b in boxes),
+            y1=min(b[1] for b in boxes),
+            x2=max(b[2] for b in boxes),
+            y2=max(b[3] for b in boxes),
         )
-        # A region bbox unioning other trusted geometry is DERIVED, never
-        # MEASURED (section 6) -- even when every constituent line was itself
-        # MEASURED, the union itself was not independently measured.
         return [box.x1, box.y1, box.x2, box.y2], "DERIVED"

@@ -137,6 +137,7 @@ def adapt_ai1_snapshot_result(result: dict[str, Any]) -> Ai1SnapshotPayload:
         source_id = str(node.get("node_id") or "").strip() or None
         parent_raw = node.get("parent_id")
         parent_source_id = str(parent_raw).strip() if parent_raw else None
+        node_regions = node.get("regions") or []
         clauses.append(
             {
                 "node_type": str(node.get("type", "UNMARKED")).lower(),
@@ -145,9 +146,18 @@ def adapt_ai1_snapshot_result(result: dict[str, Any]) -> Ai1SnapshotPayload:
                 "title": str(node.get("label_normalized", "")),
                 "source_id": source_id,
                 "parent_source_id": parent_source_id,
-                "text": "\n".join(
-                    next((line["text"] for line in lines if line["doc_char_start"] == item[0]), "")
-                    for item in positioned
+                # New snapshots carry authoritative clause text. Rebuilding
+                # it from positioned lines would silently discard OCR text
+                # whose bbox could not be mapped.
+                "text": str(
+                    node.get("text")
+                    or "\n".join(
+                        next(
+                            (line["text"] for line in lines if line["doc_char_start"] == item[0]),
+                            "",
+                        )
+                        for item in positioned
+                    )
                 ),
                 "page_start": int(node.get("page_start", 1)),
                 "page_end": int(node.get("page_end", 1)),
@@ -157,13 +167,24 @@ def adapt_ai1_snapshot_result(result: dict[str, Any]) -> Ai1SnapshotPayload:
                 "regions": (
                     [
                         {
-                            "page_no": int(node.get("page_start", 1)),
-                            "bbox": list(node_bbox),
-                            "bbox_source": str(node.get("geometry_provenance") or "derived"),
+                            "page_no": int(region["page_number"]),
+                            "bbox": list(region["bbox_normalized"]),
+                            "bbox_source": str(region.get("geometry_provenance") or "derived"),
                         }
+                        for region in node_regions
                     ]
-                    if node_bbox is not None
-                    else []
+                    if node_regions
+                    else (
+                        [
+                            {
+                                "page_no": int(node.get("page_start", 1)),
+                                "bbox": list(node_bbox),
+                                "bbox_source": str(node.get("geometry_provenance") or "derived"),
+                            }
+                        ]
+                        if node_bbox is not None
+                        else []
+                    )
                 ),
             }
         )

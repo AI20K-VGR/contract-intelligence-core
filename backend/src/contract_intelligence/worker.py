@@ -150,6 +150,9 @@ async def _build_ocr_command_payload(
     page_count = int(document.page_count or 0)
     pages = list(range(1, page_count + 1)) if page_count > 0 else [1]
 
+    if not document.blob_uri:
+        msg = f"Document {document.id} has no blob_uri"
+        raise ValueError(msg)
     get_url = await storage.generate_presigned_get_url(document.blob_uri)
     put_urls: dict[str, str] = {}
     for page_no in pages:

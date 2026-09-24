@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI1 OCR Snapshot (ai1.snapshot.v1) - Dossier manifest",
+  "$defs": {
+    "DossierDocumentRef": {
+      "additionalProperties": false,
+      "properties": {
+        "document_id": {
+          "title": "Document Id",
+          "type": "string"
+        },
+        "filename": {
+          "title": "Filename",
+          "type": "string"
+        },
+        "document_role": {
+          "enum": [
+            "contract",
+            "annex"
+          ],
+          "title": "Document Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "document_id",
+        "filename",
+        "document_role"
+      ],
+      "title": "DossierDocumentRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "dossier_id": {
+      "minLength": 1,
+      "title": "Dossier Id",
+      "type": "string"
+    },
+    "documents": {
+      "items": {
+        "$ref": "#/$defs/DossierDocumentRef"
+      },
+      "title": "Documents",
+      "type": "array"
+    }
+  },
+  "required": [
+    "dossier_id",
+    "documents"
+  ],
+  "type": "object"
+}
