@@ -5,6 +5,7 @@ Triển khai cụ thể ở ``infrastructure/persistence/dossier_repository_impl
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Protocol, runtime_checkable
 
 from contract_intelligence.contract.domain.entities.dossier import Dossier
@@ -49,7 +50,7 @@ class DossierRepository(Protocol):
 
     async def mark_purge_failed(self, dossier_id: str) -> None: ...
 
-    async def related_blob_uris(self, dossier_id: str) -> list[str]:
+    async def related_blob_uris(self, dossier_id: str) -> Sequence[str]:
         """Blob URIs for page renders and approval snapshots of this dossier."""
         ...
 

@@ -10,10 +10,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import DateTime, Text, case, func, literal, or_, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql.schema import Table
 
 from contract_intelligence.contract.infrastructure.persistence.orm import (
     DocumentORM,
@@ -30,7 +32,8 @@ from contract_intelligence.review.infrastructure.persistence.orm_approval import
 from contract_intelligence.shared.base import new_ulid, utcnow
 from contract_intelligence.shared.persistence.base import Base
 
-def _blank() -> object:
+
+def _blank() -> Any:
     return literal(None, type_=Text())
 
 
@@ -69,7 +72,7 @@ class StorageUsage:
     quota_bytes: None = None
 
 
-def _actor_name(actor_id_column: object) -> object:
+def _actor_name(actor_id_column: object) -> Any:
     """Display name for a user id or Keycloak sub stored on another row."""
     return (
         select(AppUserORM.display_name)
@@ -84,12 +87,12 @@ def _actor_name(actor_id_column: object) -> object:
     )
 
 
-def _creator_name() -> object:
+def _creator_name() -> Any:
     """Name saved on the dossier when it was created."""
     return DossierORM.metadata_json["created_by_name"].as_string()
 
 
-def _sources(tenant_id: str) -> object:
+def _sources(tenant_id: str) -> Any:
     dossier = select(
         func.concat("dossier:", DossierORM.id).label("id"),
         DossierORM.created_at.label("occurred_at"),
@@ -208,7 +211,9 @@ def _sources(tenant_id: str) -> object:
 async def ensure_activity_table(session: AsyncSession) -> None:
     """Create ``activity_event`` when the image's Alembic copy is still behind."""
     connection = await session.connection()
-    await connection.run_sync(ActivityEventORM.__table__.create, checkfirst=True)
+    table = ActivityEventORM.__table__
+    assert isinstance(table, Table)
+    await connection.run_sync(table.create, checkfirst=True)
 
 
 async def record_activity(
@@ -249,10 +254,7 @@ async def list_activity(
     total = await session.scalar(select(func.count()).select_from(events))
     rows = (
         await session.execute(
-            select(events)
-            .order_by(events.c.occurred_at.desc())
-            .limit(limit)
-            .offset(offset)
+            select(events).order_by(events.c.occurred_at.desc()).limit(limit).offset(offset)
         )
     ).all()
     items = [

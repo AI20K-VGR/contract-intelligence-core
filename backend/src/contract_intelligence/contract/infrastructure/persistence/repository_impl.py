@@ -5,8 +5,12 @@ Layer: infrastructure (persistence) — concrete impl cho Dossier/Document/Job/M
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from sqlalchemy import exists, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy.sql.schema import Table
 
 from contract_intelligence.contract.domain.entities.document import Document, DocumentRole
 from contract_intelligence.contract.domain.entities.dossier import Dossier
@@ -91,9 +95,11 @@ class DossierRepositoryImpl(DossierRepository):
 
     async def _ensure_ledger(self) -> None:
         connection = await self._session.connection()
-        await connection.run_sync(DeletionLedgerORM.__table__.create, checkfirst=True)
+        table = DeletionLedgerORM.__table__
+        assert isinstance(table, Table)
+        await connection.run_sync(table.create, checkfirst=True)
 
-    def _visible(self):  # noqa: ANN202
+    def _visible(self) -> ColumnElement[bool]:
         return ~exists(
             select(DeletionLedgerORM.id).where(
                 DeletionLedgerORM.dossier_id == DossierORM.id,
@@ -289,12 +295,10 @@ class DossierRepositoryImpl(DossierRepository):
         ledger.purge_status = "failed"
         await self._session.flush()
 
-    async def related_blob_uris(self, dossier_id: str) -> list[str]:
+    async def related_blob_uris(self, dossier_id: str) -> Sequence[str]:
         """Page renders and approval snapshots stored outside the document row."""
         params = {"id": dossier_id, "tenant_id": self._tenant_id}
-        docs = (
-            "SELECT id FROM document WHERE dossier_id = :id AND tenant_id = :tenant_id"
-        )
+        docs = "SELECT id FROM document WHERE dossier_id = :id AND tenant_id = :tenant_id"
         result = await self._session.execute(
             text(
                 "SELECT render_blob_uri AS uri FROM page "
@@ -363,7 +367,9 @@ class DossierRepositoryImpl(DossierRepository):
                 "(SELECT id FROM finding WHERE dossier_id = :id AND tenant_id = :tenant_id)"
             ),
             "finding": "DELETE FROM finding WHERE dossier_id = :id AND tenant_id = :tenant_id",
-            "annex_link": "DELETE FROM annex_link WHERE dossier_id = :id AND tenant_id = :tenant_id",
+            "annex_link": (
+                "DELETE FROM annex_link WHERE dossier_id = :id AND tenant_id = :tenant_id"
+            ),
             "ocr_line": f"DELETE FROM ocr_line WHERE document_id IN ({docs})",
             "citation": f"DELETE FROM citation WHERE document_id IN ({docs})",
             "clause_node": f"DELETE FROM clause_node WHERE document_id IN ({docs})",
@@ -406,12 +412,10 @@ class DossierRepositoryImpl(DossierRepository):
             "WHERE dossier_id = :id AND tenant_id = :tenant_id",
             "UPDATE dossier SET name = '', metadata = NULL, checksum = NULL, "
             "updated_at = :now WHERE id = :id AND tenant_id = :tenant_id",
-            "UPDATE job SET error_detail = NULL "
-            "WHERE dossier_id = :id AND tenant_id = :tenant_id",
+            "UPDATE job SET error_detail = NULL WHERE dossier_id = :id AND tenant_id = :tenant_id",
             "UPDATE pipeline_run SET error_detail = NULL, config_snapshot = NULL "
             "WHERE dossier_id = :id AND tenant_id = :tenant_id",
-            "UPDATE review_item SET reason = '' "
-            "WHERE dossier_id = :id AND tenant_id = :tenant_id",
+            "UPDATE review_item SET reason = '' WHERE dossier_id = :id AND tenant_id = :tenant_id",
             "UPDATE manifest_item SET filename = '' WHERE manifest_id IN "
             "(SELECT id FROM manifest WHERE dossier_id = :id AND tenant_id = :tenant_id)",
         )

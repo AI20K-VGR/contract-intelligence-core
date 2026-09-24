@@ -485,4 +485,32 @@ async def run_dossier_purge(*, dossier_id: str, tenant_id: str) -> None:
             raise
 
 
-__all__ = ["DossierDeletionService", "TombstoneResult", "run_dossier_purge"]
+async def sweep_pending_purges() -> None:
+    """Retry tombstones whose purge did not finish, including after a restore."""
+    from contract_intelligence.shared.persistence.session import get_session_factory
+
+    factory = get_session_factory()
+    async with factory() as session:
+        result = await session.execute(
+            select(DeletionLedgerORM.tenant_id, DeletionLedgerORM.dossier_id).where(
+                DeletionLedgerORM.purge_status.in_(("pending", "failed"))
+            )
+        )
+        pending = list(result.all())
+    for tenant_id, dossier_id in pending:
+        try:
+            await run_dossier_purge(dossier_id=str(dossier_id), tenant_id=str(tenant_id))
+        except Exception:
+            logger.exception(
+                "dossier.purge_sweep_item_failed",
+                dossier_id=dossier_id,
+                tenant_id=tenant_id,
+            )
+
+
+__all__ = [
+    "DossierDeletionService",
+    "TombstoneResult",
+    "run_dossier_purge",
+    "sweep_pending_purges",
+]

@@ -6,6 +6,8 @@ bắt đầu, thay bằng SQLAlchemy 2.x mapping.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from contract_intelligence.contract.domain.entities.dossier import Dossier
@@ -61,7 +63,7 @@ class SqlDossierRepository:
     async def mark_purge_failed(self, dossier_id: str) -> None:
         raise NotImplementedError
 
-    async def related_blob_uris(self, dossier_id: str) -> list[str]:
+    async def related_blob_uris(self, dossier_id: str) -> Sequence[str]:
         raise NotImplementedError
 
     async def delete(self, dossier_id: str) -> None:

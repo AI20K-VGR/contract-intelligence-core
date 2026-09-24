@@ -70,11 +70,11 @@ async def upload_file(file_name: str, file_data: bytes) -> str:
 
 
 async def delete_object(object_path: str) -> None:
-    """Delete one object. Missing keys are ignored."""
+    """Best-effort delete of an S3/MinIO object (``s3://bucket/key`` or bare key)."""
     bucket, key = parse_s3_uri(object_path)
     session = aioboto3.Session()
     async with session.client(**_s3_client_kwargs()) as s3:
-        await s3.delete_object(Bucket=bucket, Key=key)
+        await s3.delete_object(Bucket=bucket, Key=key.lstrip("/"))
     logger.info("storage.delete_ok", bucket=bucket, key=key)
 
 
@@ -144,15 +144,6 @@ def rewrite_presigned_host(url: str, *, public_endpoint: str | None = None) -> s
         scheme=target.scheme or parsed.scheme,
         netloc=target.netloc or parsed.netloc,
     ).geturl()
-
-
-async def delete_object(object_path: str) -> None:
-    """Best-effort delete of an S3/MinIO object (``s3://bucket/key`` or bare key)."""
-    bucket, key = parse_s3_uri(object_path)
-    session = aioboto3.Session()
-    async with session.client(**_s3_client_kwargs()) as s3:
-        await s3.delete_object(Bucket=bucket, Key=key.lstrip("/"))
-    logger.info("storage.delete_ok", bucket=bucket, key=key)
 
 
 def _guess_content_type(key: str) -> str:

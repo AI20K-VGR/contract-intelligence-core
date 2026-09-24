@@ -168,11 +168,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Skip in test env — ASGI integration clients manage their own DB and would
     # hang forever on the worker/reaper asyncio loops.
     if settings.env != "test":
-        from contract_intelligence.contract.application.dossier_deletion import (
-            sweep_pending_purges,
+        from contract_intelligence.contract.infrastructure.persistence import (
+            dossier_deletion_service,
         )
 
-        await sweep_pending_purges()
+        await dossier_deletion_service.sweep_pending_purges()
     if settings.job_queue_enabled and settings.env != "test":
         start_job_queue_worker(engine)
         logger.info("job_queue.worker_ready", enabled=True)

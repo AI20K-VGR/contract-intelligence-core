@@ -19,8 +19,8 @@ Layer: interfaces/api — composes application services, never directly hits ORM
 
 from __future__ import annotations
 
-import json
 import asyncio
+import json
 from io import BytesIO
 from typing import Annotated, Any, Literal
 from urllib.parse import quote
@@ -166,7 +166,7 @@ def _send_share_emails(
             message["From"] = sender
             message["To"] = address
             message.set_content(
-                f"{sender_name} đã chia sẻ hồ sơ \"{dossier_name}\" với bạn.\n\n"
+                f'{sender_name} đã chia sẻ hồ sơ "{dossier_name}" với bạn.\n\n'
                 f"Đăng nhập rồi mở liên kết này để xem:\n{link}\n"
             )
             smtp.send_message(message)
@@ -273,7 +273,10 @@ async def create_dossier(
         meta_payload["notes"] = meta.notes
     extras = getattr(meta, "model_extra", None) or {}
     for key, value in extras.items():
-        if key not in ("name", "tags", "notes", "created_by", "created_by_name") and value is not None:
+        if (
+            key not in ("name", "tags", "notes", "created_by", "created_by_name")
+            and value is not None
+        ):
             meta_payload[key] = value
     meta_payload["created_by"] = user.user_id
     meta_payload["created_by_name"] = user.display_name

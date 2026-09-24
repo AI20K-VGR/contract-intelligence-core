@@ -12,11 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from tests.unit.conftest_contract import FakeFileStorage
 
 from contract_intelligence.contract.domain.entities.dossier import Dossier
-from contract_intelligence.contract.infrastructure.persistence.dossier_deletion_service import (
-    DossierDeletionService,
-)
 from contract_intelligence.contract.infrastructure.persistence.deletion_ledger import (
     DeletionLedgerORM,
+)
+from contract_intelligence.contract.infrastructure.persistence.dossier_deletion_service import (
+    DossierDeletionService,
 )
 from contract_intelligence.contract.infrastructure.persistence.orm import (
     DocumentORM,
