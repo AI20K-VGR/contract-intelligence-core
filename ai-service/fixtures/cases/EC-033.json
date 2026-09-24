@@ -1,0 +1,148 @@
+{
+  "case_id": "EC-033",
+  "title": "Defined-term cascade không legal winner",
+  "tenant_id": "tenant_a",
+  "dossier_id": "d_cascade",
+  "expected_state": "REVIEW",
+  "expected_no_claims": [
+    "legal_winner"
+  ],
+  "n_pages": 2,
+  "n_nodes": 2,
+  "n_tables": 0,
+  "lifecycle": "ACTIVE",
+  "query": null,
+  "notes": "",
+  "tags": [
+    "edge",
+    "compare"
+  ],
+  "pins": {
+    "manifest_version": 2,
+    "source_snapshot_digest": "sha256:aaa",
+    "tenant_profile_version": 5,
+    "policy_version": 2,
+    "ocr_run_version": 3,
+    "reconstruction_version": 2,
+    "extraction_version": 7,
+    "index_version": "idx_14"
+  },
+  "profile": {
+    "version": 5,
+    "aliases": {
+      "Công ty ABC": [
+        "ABC Co.",
+        "ABC"
+      ],
+      "Công ty XYZ": [
+        "XYZ Ltd",
+        "XYZ"
+      ]
+    },
+    "field_keys": [
+      "party_a",
+      "party_b",
+      "mst_seller",
+      "contract_value",
+      "payment_term"
+    ]
+  },
+  "acl_revision": 12,
+  "legal_hold": false,
+  "egress_approved": true,
+  "budget_exceeded": false,
+  "index_status": "READY",
+  "active_index_version": null,
+  "processing_index": false,
+  "envelope": {
+    "auth": {
+      "actor_id": "user_001",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_cascade",
+      "acl_revision": 12,
+      "permissions": [
+        "READ_CONTENT"
+      ],
+      "lifecycle": "ACTIVE"
+    },
+    "pins": {
+      "manifest_version": 2,
+      "source_snapshot_digest": "sha256:aaa",
+      "tenant_profile_version": 5,
+      "policy_version": 2,
+      "ocr_run_version": 3,
+      "reconstruction_version": 2,
+      "extraction_version": 7,
+      "index_version": "idx_14"
+    }
+  },
+  "pages": [
+    {
+      "page_revision_id": "p1_rev1",
+      "page_number": 1,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p1_b1"
+      ],
+      "text": "Định nghĩa Ngày làm việc đổi thành gồm thứ bảy.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p8_rev1",
+      "page_number": 8,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p8_b1"
+      ],
+      "text": "Thanh toán trong 05 Ngày làm việc.",
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "def2",
+      "type": "CLAUSE",
+      "raw_label": "Định nghĩa mới",
+      "parent_id": null,
+      "order": 1,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Ngày làm việc gồm cả thứ bảy.",
+      "page_range": [
+        1
+      ],
+      "page_revision_id": "p1_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "pay2",
+      "type": "CLAUSE",
+      "raw_label": "Điều 8",
+      "parent_id": null,
+      "order": 2,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Thanh toán trong 05 Ngày làm việc.",
+      "page_range": [
+        8
+      ],
+      "page_revision_id": "p8_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "tables": []
+}

@@ -132,13 +132,15 @@ class ContractService:
         sha256 = hashlib.sha256(data).hexdigest()
         size_bytes = file_size_bytes if file_size_bytes is not None else len(data)
 
-        # Always persist bytes in app FileStorage so content streaming works
-        # (tests use FakeFileStorage; prod may dual-write while MinIO is canonical).
+        # Prefer caller-supplied blob_uri (MinIO s3://…). Only write local FileStorage
+        # when no remote URI is provided (tests / legacy local-only path).
         safe_name = safe_filename(filename, fallback=f"{role.value.lower()}.pdf")
         local_key = f"contracts/{dossier_id}/{sha256[:2]}/{safe_name}"
-        storage_key = blob_uri if blob_uri is not None else local_key
-        await self._storage.put(storage_key, _bytes_to_stream(data))
-        stored_uri = blob_uri if blob_uri is not None else local_key
+        if blob_uri is not None:
+            stored_uri = blob_uri
+        else:
+            await self._storage.put(local_key, _bytes_to_stream(data))
+            stored_uri = local_key
 
         document = Document(
             id=new_ulid("doc_"),
@@ -169,7 +171,6 @@ class ContractService:
         has_conflicts: bool | None = None,
         q: str | None = None,
         batch_id: str | None = None,
-        viewer_id: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[Dossier], int]:
@@ -182,7 +183,6 @@ class ContractService:
                 has_conflicts=has_conflicts,
                 q=q,
                 batch_id=batch_id,
-                viewer_id=viewer_id,
                 limit=limit,
                 offset=offset,
             ),
@@ -295,24 +295,9 @@ class ContractService:
         if doc.blob_uri.startswith("s3://"):
             from contract_intelligence.infrastructure.storage import download_object
 
-            try:
-                data = await download_object(doc.blob_uri)
-            except Exception as exc:
-                logger.warning(
-                    "document.content.missing",
-                    document_id=document_id,
-                    blob_uri=doc.blob_uri,
-                    error=str(exc),
-                )
-                try:
-                    data = await self._storage.get(doc.blob_uri)
-                except FileNotFoundError:
-                    raise NotFoundError(entity_type="Document", entity_id=document_id) from exc
+            data = await download_object(doc.blob_uri)
         else:
-            try:
-                data = await self._storage.get(doc.blob_uri)
-            except FileNotFoundError as exc:
-                raise NotFoundError(entity_type="Document", entity_id=document_id) from exc
+            data = await self._storage.get(doc.blob_uri)
         return data, doc.filename
 
     async def get_or_create_manifest(self, dossier_id: str) -> Manifest:

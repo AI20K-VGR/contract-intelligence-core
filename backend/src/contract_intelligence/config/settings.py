@@ -85,6 +85,27 @@ class Settings(BaseSettings):
         default="ci-backend-orchestrator",
         description="Consumer group for dossier_events orchestrator.",
     )
+    kafka_ai2_idp_commands_topic: str = Field(
+        default="ci.ai2.idp.commands",
+        description="Backend → AI2 IDP command topic (DOC-05e; full body-only request).",
+    )
+    kafka_ai2_idp_results_topic: str = Field(
+        default="ci.ai2.idp.results",
+        description="AI2 → Backend IDP result topic (DOC-05e).",
+    )
+    kafka_ai2_idp_group_id: str = Field(
+        default="ci-ai2-idp",
+        description="Consumer group for AI2 IDP Kafka worker.",
+    )
+    kafka_backend_ai2_results_group_id: str = Field(
+        default="ci-backend-ai2-results",
+        description="Consumer group for AI2 IDP results on backend-worker.",
+    )
+    # Legacy alias kept so older env files still load without error.
+    kafka_backend_ai2_commands_group_id: str = Field(
+        default="ci-backend-ai2-idp",
+        description="Deprecated — use kafka_backend_ai2_results_group_id.",
+    )
     kafka_presign_expires_seconds: int = Field(
         default=3600,
         ge=60,
@@ -123,9 +144,27 @@ class Settings(BaseSettings):
         description="AI1 OCR service base URL (POST {AI1_BASE_URL}/jobs).",
     )
     ai2_base_url: str = Field(
-        default="http://localhost:8002/api/v1",
-        description="AI2 Semantics service base URL (POST {AI2_BASE_URL}/process).",
+        default="http://localhost:8002",
+        description=(
+            "AI2 Semantics service root URL (demo HTTP only). "
+            "Runtime IDP uses Kafka DOC-05e; lab may still POST {AI2_BASE_URL}/jobs/idp."
+        ),
     )
+    ai2_wire_enabled: bool = Field(
+        default=False,
+        description=(
+            "When true, after AI1 OCR persist publish ai2.idp.command on Kafka (DOC-05e)."
+        ),
+    )
+    ai2_service_hmac_secret: str = Field(
+        default="dev-ai2-hmac-secret",
+        description="Shared HMAC secret for ai2.service-envelope.v1 (must match AI2).",
+    )
+    ai2_service_issuer: str = Field(default="backend-service")
+    ai2_service_audience: str = Field(default="vsf-ai2")
+    ai2_service_key_id: str = Field(default="default")
+    ai2_idp_poll_interval_seconds: float = Field(default=0.5, ge=0.1, le=30.0)
+    ai2_idp_max_polls: int = Field(default=120, ge=1, le=10_000)
     # Background dispatcher tuning
     ai_dispatcher_poll_interval_seconds: float = Field(default=1.5, ge=0.1, le=60.0)
     ai_dispatcher_max_polls: int = Field(default=200, ge=10, le=10_000)

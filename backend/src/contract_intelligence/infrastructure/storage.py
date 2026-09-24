@@ -70,13 +70,14 @@ async def upload_file(file_name: str, file_data: bytes) -> str:
 
 
 async def download_object(object_path: str) -> bytes:
-    """Download an object stored as ``s3://bucket/key`` or a bare key."""
+    """Download object bytes from S3/MinIO (``s3://bucket/key`` or bare key)."""
     bucket, key = parse_s3_uri(object_path)
     session = aioboto3.Session()
     async with session.client(**_s3_client_kwargs()) as s3:
-        response = await s3.get_object(Bucket=bucket, Key=key)
+        response = await s3.get_object(Bucket=bucket, Key=key.lstrip("/"))
         body = response["Body"]
         data: bytes = await body.read()
+    logger.info("storage.download_ok", bucket=bucket, key=key, size_bytes=len(data))
     return data
 
 
