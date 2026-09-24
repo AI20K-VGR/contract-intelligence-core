@@ -27,7 +27,8 @@ from app.pipeline.ai1_snapshot_adapter import (
 )
 from app.pipeline.idp import run_idp
 from app.pipeline.runtime import ProcessingRuntime
-from app.tools.store import InMemorySnapshotStore
+from app.tools.query_store import save_query_snapshot
+from app.tools.store import DossierRecord, InMemorySnapshotStore
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,35 @@ EVENT_FAILED = "ai2.idp.failed"
 
 # In-process idempotency for at-least-once redelivery (event_id → result envelope).
 _processed: dict[str, dict[str, Any]] = {}
+
+
+class RetryableAI2Error(RuntimeError):
+    """A transient AI2 failure that must be redelivered by Kafka."""
+
+
+_RETRYABLE_EXCEPTION_NAMES = frozenset(
+    {
+        "APIConnectionError",
+        "APITimeoutError",
+        "InternalServerError",
+        "RateLimitError",
+        "ServiceUnavailableError",
+    }
+)
+
+
+def _is_retryable_exception(exc: BaseException) -> bool:
+    """Classify provider/transport failures without hiding contract failures."""
+    if isinstance(exc, RetryableAI2Error):
+        return True
+    if isinstance(exc, (TimeoutError, ConnectionError)):
+        return True
+    if bool(getattr(exc, "retryable", False)):
+        return True
+    if type(exc).__name__ in _RETRYABLE_EXCEPTION_NAMES:
+        return True
+    status_code = getattr(exc, "status_code", None)
+    return isinstance(status_code, int) and status_code in {408, 425, 429, 500, 502, 503, 504}
 
 
 def _env(name: str, default: str) -> str:
@@ -138,6 +168,10 @@ def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
             max_embedding_tokens=request.policy_flags.budget_limits.max_embedding_tokens,
         )
         store = InMemorySnapshotStore()
+        # The HTTP query API is a separate process. Preserve the adapted
+        # citation-bearing snapshot before the in-memory IDP run is discarded.
+        if isinstance(adapted.record, DossierRecord):
+            save_query_snapshot(adapted.record, adapted.envelope)
         result = run_idp(
             adapted.record,
             adapted.envelope,
@@ -177,6 +211,8 @@ def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
         )
     except Exception as exc:
         logger.exception("ai2.kafka.pipeline_failed event_id=%s", event_id)
+        if _is_retryable_exception(exc):
+            raise RetryableAI2Error(str(exc)) from exc
         envelope = _build_result_envelope(
             event_type=EVENT_FAILED,
             command=message,
@@ -250,7 +286,26 @@ async def run_worker() -> None:
                     envelope.get("event_type"),
                     (envelope.get("payload") or {}).get("job_id"),
                 )
-            except Exception:
+            except RetryableAI2Error:
+                # Do not publish a terminal result or commit the offset. Kafka
+                # will redeliver the command after a transient AI2/provider
+                # failure.
+                logger.warning(
+                    "ai2.kafka.retryable_failure event_id=%s",
+                    message.get("event_id"),
+                    exc_info=True,
+                )
+                continue
+            except Exception as exc:
+                if _is_retryable_exception(exc):
+                    # A failed result publish is also retryable: without a
+                    # committed offset Kafka will redeliver the command.
+                    logger.warning(
+                        "ai2.kafka.retryable_publish_failure event_id=%s",
+                        message.get("event_id"),
+                        exc_info=True,
+                    )
+                    continue
                 logger.exception(
                     "ai2.kafka.command_failed event_id=%s",
                     message.get("event_id"),
