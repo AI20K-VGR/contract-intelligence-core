@@ -7,7 +7,7 @@ echo "[entrypoint] waiting for database..."
 # password-ready races even when depends_on healthcheck already passed).
 i=0
 max_attempts=30
-until uv run alembic upgrade head; do
+until uv run alembic upgrade heads; do
   i=$((i + 1))
   if [ "$i" -ge "$max_attempts" ]; then
     echo "[entrypoint] alembic upgrade head failed after ${max_attempts} attempts" >&2

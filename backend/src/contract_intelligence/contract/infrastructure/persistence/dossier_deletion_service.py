@@ -56,6 +56,7 @@ class TombstoneResult:
     dossier_id: str
     deleted_at: datetime
     purge_status: str
+    name: str
     already_tombstoned: bool = False
 
 
@@ -75,6 +76,10 @@ class DossierDeletionService:
         self._ai_client = ai_client
         self._tenant_id = tenant_id
 
+    @property
+    def session(self) -> AsyncSession:
+        return self._session
+
     async def tombstone(self, dossier_id: str, *, actor_user_id: str) -> TombstoneResult:
         orm = await self._load_dossier_orm(dossier_id, for_update=True)
         if orm is None:
@@ -85,6 +90,7 @@ class DossierDeletionService:
                 dossier_id=orm.id,
                 deleted_at=orm.deleted_at,
                 purge_status=orm.purge_status or "pending",
+                name=orm.name,
                 already_tombstoned=True,
             )
 
@@ -121,8 +127,13 @@ class DossierDeletionService:
             dossier_id=dossier_id,
             deleted_at=now,
             purge_status="pending",
+            name=orm.name,
             already_tombstoned=False,
         )
+
+    async def commit(self) -> None:
+        """Commit before background purge. FastAPI runs that task before the request session commits."""
+        await self._session.commit()
 
     async def purge(self, dossier_id: str) -> None:
         """Purge contract content. Caller must use a dedicated session + commit."""

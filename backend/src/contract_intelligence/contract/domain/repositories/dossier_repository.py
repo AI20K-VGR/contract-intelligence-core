@@ -32,6 +32,7 @@ class DossierRepository(Protocol):
         has_conflicts: bool | None = None,
         q: str | None = None,
         batch_id: str | None = None,
+        viewer_id: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> Page[str]: ...

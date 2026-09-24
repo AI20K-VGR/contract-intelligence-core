@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from sqlalchemy import exists, func, select, text
+from sqlalchemy import and_, exists, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.sql.schema import Table
@@ -107,6 +107,25 @@ class DossierRepositoryImpl(DossierRepository):
             )
         )
 
+    def _readable_by(self, viewer_id: str) -> ColumnElement[bool]:
+        """Chủ hồ sơ luôn thấy. Người được chia sẻ chỉ thấy khi quyền còn hiệu lực."""
+        meta = DossierORM.metadata_json
+        owner = meta["created_by"].as_string()
+        scope = meta["access_scope"].as_string()
+        shared = text(
+            "EXISTS (SELECT 1 FROM json_array_elements("
+            "CASE WHEN json_typeof(COALESCE(dossier.metadata, '{}'::json)->'shared_with') = 'array' "
+            "THEN COALESCE(dossier.metadata, '{}'::json)->'shared_with' ELSE '[]'::json END"
+            ") AS share_grant WHERE share_grant->>'id' = :viewer_id)"
+        ).bindparams(viewer_id=viewer_id)
+        return or_(
+            meta.is_(None),
+            owner.is_(None),
+            owner == "",
+            owner == viewer_id,
+            and_(or_(scope.is_(None), scope != "mine"), shared),
+        )
+
     async def get(self, dossier_id: str) -> Dossier | None:
         await self._ensure_ledger()
         stmt = select(DossierORM).where(
@@ -143,6 +162,7 @@ class DossierRepositoryImpl(DossierRepository):
         has_conflicts: bool | None = None,
         q: str | None = None,
         batch_id: str | None = None,
+        viewer_id: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> Page[str]:
@@ -152,6 +172,8 @@ class DossierRepositoryImpl(DossierRepository):
             DossierORM.deleted_at.is_(None),
             self._visible(),
         )
+        if viewer_id:
+            stmt = stmt.where(self._readable_by(viewer_id))
         if status:
             stmt = stmt.where(DossierORM.status == status)
         if has_conflicts is not None:

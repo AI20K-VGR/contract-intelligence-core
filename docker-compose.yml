@@ -329,11 +329,22 @@ services:
 
       # ---- Logging ----
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+      # ---- SMTP: cùng hộp thư với thư mời Keycloak. Mặc định Mailpit nếu chưa cấu hình. ----
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_FROM: ${SMTP_FROM:-lexis@localhost}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:5173}
     ports:
       - "${BACKEND_HOST_PORT:-8000}:8000"
     volumes:
       # Source hot-reload (optional) — comment out khi ship production.
       - ./backend/src:/app/src:ro
+      - ./backend/alembic:/app/alembic:ro
+      - ./backend/scripts/entrypoint.sh:/app/scripts/entrypoint.sh:ro
     extra_hosts:
       # host.docker.internal → host-gateway IP (trên cả Linux và Mac/Windows).
       - "host.docker.internal:host-gateway"

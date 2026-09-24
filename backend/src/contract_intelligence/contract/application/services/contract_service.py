@@ -169,6 +169,7 @@ class ContractService:
         has_conflicts: bool | None = None,
         q: str | None = None,
         batch_id: str | None = None,
+        viewer_id: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[Dossier], int]:
@@ -181,6 +182,7 @@ class ContractService:
                 has_conflicts=has_conflicts,
                 q=q,
                 batch_id=batch_id,
+                viewer_id=viewer_id,
                 limit=limit,
                 offset=offset,
             ),
