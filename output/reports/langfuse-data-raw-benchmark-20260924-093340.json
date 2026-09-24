@@ -1,0 +1,104 @@
+{
+  "generated_at": "2026-09-24T09:34:04.142600+00:00",
+  "summary": {
+    "file_count": 7,
+    "successful_files": 7,
+    "failed_files": 0,
+    "total_pages": 49,
+    "native_pages": 49,
+    "scanned_pages": 0,
+    "total_wall_seconds": 14.469,
+    "average_file_latency_seconds": 2.067,
+    "p50_file_latency_seconds": 2.252,
+    "p95_file_latency_seconds": 3.117,
+    "max_file_latency_seconds": 3.117,
+    "estimated_mistral_cost_usd": 0.0,
+    "mistral_price_usd_per_page": 0.004
+  },
+  "files": [
+    {
+      "file": "data/raw/digital/01_Bien_ban_ghi_nho_MOU.pdf",
+      "page_count": 4,
+      "native_pages": 4,
+      "scanned_pages": 0,
+      "status": "completed",
+      "latency_seconds": 0.954,
+      "estimated_cost_usd": 0.0,
+      "trace_id": "26aa01ee154fb4564b10a4ba682f980b",
+      "trace_url": "https://us.cloud.langfuse.com/project/cmudva300014fad0c07vqhqca/traces/26aa01ee154fb4564b10a4ba682f980b",
+      "error": ""
+    },
+    {
+      "file": "data/raw/digital/03_Hop_dong_mua_ban_hang_hoa.pdf",
+      "page_count": 8,
+      "native_pages": 8,
+      "scanned_pages": 0,
+      "status": "completed",
+      "latency_seconds": 2.738,
+      "estimated_cost_usd": 0.0,
+      "trace_id": "ccc19f951cb53ebee3948b8e28b5a9bf",
+      "trace_url": "https://us.cloud.langfuse.com/project/cmudva300014fad0c07vqhqca/traces/ccc19f951cb53ebee3948b8e28b5a9bf",
+      "error": ""
+    },
+    {
+      "file": "data/raw/digital/05_Hop_dong_thue_mat_bang.pdf",
+      "page_count": 10,
+      "native_pages": 10,
+      "scanned_pages": 0,
+      "status": "completed",
+      "latency_seconds": 2.252,
+      "estimated_cost_usd": 0.0,
+      "trace_id": "72bc7fe8f9e3be6a830b78902a699ed1",
+      "trace_url": "https://us.cloud.langfuse.com/project/cmudva300014fad0c07vqhqca/traces/72bc7fe8f9e3be6a830b78902a699ed1",
+      "error": ""
+    },
+    {
+      "file": "data/raw/digital/08_Hop_dong_chuyen_nhuong_co_phan.pdf",
+      "page_count": 6,
+      "native_pages": 6,
+      "scanned_pages": 0,
+      "status": "completed",
+      "latency_seconds": 1.588,
+      "estimated_cost_usd": 0.0,
+      "trace_id": "ea63d014ffc196c17ad1f9ec917472b6",
+      "trace_url": "https://us.cloud.langfuse.com/project/cmudva300014fad0c07vqhqca/traces/ea63d014ffc196c17ad1f9ec917472b6",
+      "error": ""
+    },
+    {
+      "file": "data/raw/digital/09_Hop_dong_chuyen_nhuong_phan_von_gop.pdf",
+      "page_count": 6,
+      "native_pages": 6,
+      "scanned_pages": 0,
+      "status": "completed",
+      "latency_seconds": 1.513,
+      "estimated_cost_usd": 0.0,
+      "trace_id": "21c9728e387ddeceaab21836c708702b",
+      "trace_url": "https://us.cloud.langfuse.com/project/cmudva300014fad0c07vqhqca/traces/21c9728e387ddeceaab21836c708702b",
+      "error": ""
+    },
+    {
+      "file": "data/raw/digital/14_Hop_dong_mua_ban_hang_hoa_qua_mang.pdf",
+      "page_count": 10,
+      "native_pages": 10,
+      "scanned_pages": 0,
+      "status": "completed",
+      "latency_seconds": 3.117,
+      "estimated_cost_usd": 0.0,
+      "trace_id": "925edb200cae126f88349e3147ca1e0f",
+      "trace_url": "https://us.cloud.langfuse.com/project/cmudva300014fad0c07vqhqca/traces/925edb200cae126f88349e3147ca1e0f",
+      "error": ""
+    },
+    {
+      "file": "data/raw/digital/15_Hop_dong_dao_tao_nghe_giua_NLD_va_NSDLĐ.pdf",
+      "page_count": 5,
+      "native_pages": 5,
+      "scanned_pages": 0,
+      "status": "completed",
+      "latency_seconds": 2.307,
+      "estimated_cost_usd": 0.0,
+      "trace_id": "d0dfcf0ce141e377d9025118da3347a4",
+      "trace_url": "https://us.cloud.langfuse.com/project/cmudva300014fad0c07vqhqca/traces/d0dfcf0ce141e377d9025118da3347a4",
+      "error": ""
+    }
+  ]
+}

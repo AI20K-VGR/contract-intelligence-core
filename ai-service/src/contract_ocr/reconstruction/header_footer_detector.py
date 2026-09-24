@@ -24,9 +24,7 @@ from .schemas.block import FIGURE, FOOTER, HEADER, PAGE_NUMBER, TABLE_ROW, WATER
 from .schemas.page import Page
 
 _DIGIT_RE = re.compile(r"\d+")
-_PAGE_NUMBER_RE = re.compile(
-    r"^(?:page\s*)?-?\s*\d+\s*(?:(?:of|/)\s*\d+)?\s*-?$", re.IGNORECASE
-)
+_PAGE_NUMBER_RE = re.compile(r"^(?:page\s*)?-?\s*\d+\s*(?:(?:of|/)\s*\d+)?\s*-?$", re.IGNORECASE)
 
 
 def _normalize_for_repeat_matching(text: str) -> str:

@@ -10,7 +10,9 @@ def test_merge_texts_joins_with_single_space():
     merged = merge_texts(
         "Bên mua phải thanh toán trong vòng", "30 ngày kể từ ngày nhận được hóa đơn hợp lệ."
     )
-    assert merged == "Bên mua phải thanh toán trong vòng 30 ngày kể từ ngày nhận được hóa đơn hợp lệ."
+    assert (
+        merged == "Bên mua phải thanh toán trong vòng 30 ngày kể từ ngày nhận được hóa đơn hợp lệ."
+    )
 
 
 def test_merge_texts_never_alters_the_words_themselves():
@@ -47,7 +49,9 @@ def test_merge_fragments_case1_paragraph_across_pages():
     ]
     merged, refs = merge_fragments(fragments)
 
-    assert merged == "Bên mua phải thanh toán trong vòng 30 ngày kể từ ngày nhận được hóa đơn hợp lệ."
+    assert (
+        merged == "Bên mua phải thanh toán trong vòng 30 ngày kể từ ngày nhận được hóa đơn hợp lệ."
+    )
     assert [r.page for r in refs] == [10, 11]
     assert [r.block_id for r in refs] == ["p10_b02", "p11_b01"]
 

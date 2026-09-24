@@ -33,7 +33,10 @@ def test_case1_continue_paragraph_across_pages():
     assert action.entity_type == EntityType.PARAGRAPH
     assert action.confidence >= 0.85
     assert not action.requires_review
-    assert [(b.page, b.block_id) for b in action.source_blocks] == [(10, "p10_b02"), (11, "p11_b01")]
+    assert [(b.page, b.block_id) for b in action.source_blocks] == [
+        (10, "p10_b02"),
+        (11, "p11_b01"),
+    ]
 
 
 def test_case2_new_clause():
@@ -198,14 +201,18 @@ def test_case7_header_footer_blocks_excluded_from_boundary():
         "doc1",
         12,
         [
-            make_block("p12_body", "Nội dung chính của trang mười hai.", bbox=(100, 300, 1000, 400)),
+            make_block(
+                "p12_body", "Nội dung chính của trang mười hai.", bbox=(100, 300, 1000, 400)
+            ),
             make_block(
                 "p12_footer",
                 "ABC CORPORATION - CONFIDENTIAL",
                 type="footer",
                 bbox=(100, 2270, 1000, 2310),
             ),
-            make_block("p12_pgnum", "Page 12 of 100", type="page_number", bbox=(700, 2310, 900, 2330)),
+            make_block(
+                "p12_pgnum", "Page 12 of 100", type="page_number", bbox=(700, 2310, 900, 2330)
+            ),
         ],
     )
     next_page = make_page(
@@ -218,7 +225,9 @@ def test_case7_header_footer_blocks_excluded_from_boundary():
                 type="header",
                 bbox=(100, 20, 1000, 60),
             ),
-            make_block("p13_body", "Nội dung tiếp tục ở trang mười ba.", bbox=(100, 300, 1000, 400)),
+            make_block(
+                "p13_body", "Nội dung tiếp tục ở trang mười ba.", bbox=(100, 300, 1000, 400)
+            ),
         ],
     )
     profile = detect_header_footer([previous_page, next_page])

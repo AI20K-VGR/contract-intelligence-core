@@ -76,7 +76,9 @@ def slice_line_into_columns(line: PhysicalLine, bounds: Sequence[float]) -> list
 def slice_lines(lines: Sequence[PhysicalLine], bounds: Sequence[float]) -> list[SlicedLine]:
     """`slice_line_into_columns` applied over a whole fragment's lines."""
     return [
-        SlicedLine(page=line.page, y0=line.y0, y1=line.y1, columns=slice_line_into_columns(line, bounds))
+        SlicedLine(
+            page=line.page, y0=line.y0, y1=line.y1, columns=slice_line_into_columns(line, bounds)
+        )
         for line in lines
     ]
 

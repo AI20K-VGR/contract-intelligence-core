@@ -69,7 +69,9 @@ def extend_merge(
     if not refs:
         merged = fragment.text.strip()
         return merged, [
-            SourceBlockRef(page=fragment.page, block_id=fragment.block_id, char_start=0, char_end=len(merged))
+            SourceBlockRef(
+                page=fragment.page, block_id=fragment.block_id, char_start=0, char_end=len(merged)
+            )
         ]
 
     hyphenated = is_hyphenated_break(text, fragment.text)
@@ -83,7 +85,10 @@ def extend_merge(
         new_refs[-1] = previous.model_copy(update={"char_end": previous.char_end - 1})
     new_refs.append(
         SourceBlockRef(
-            page=fragment.page, block_id=fragment.block_id, char_start=next_start, char_end=len(merged)
+            page=fragment.page,
+            block_id=fragment.block_id,
+            char_start=next_start,
+            char_end=len(merged),
         )
     )
     return merged, new_refs

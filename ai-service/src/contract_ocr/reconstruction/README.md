@@ -88,10 +88,10 @@ Parser    Merger        (clause_parser.py, hierarchy_builder.py, table_merger.py
 from contract_ocr.reconstruction import reconstruct_document, resolve_boundary
 
 document = reconstruct_document(pages)  # list[Page] -> ReconstructedDocument
-print(document.sections)       # nested clause tree, one root per Điều/Article/Section
-print(document.clauses)        # every clause node flattened (for chunking/RAG)
-print(document.tables)         # cross-page tables already stitched
-print(document.review_items)   # boundaries the pipeline refused to guess
+print(document.sections)  # nested clause tree, one root per Điều/Article/Section
+print(document.clauses)  # every clause node flattened (for chunking/RAG)
+print(document.tables)  # cross-page tables already stitched
+print(document.review_items)  # boundaries the pipeline refused to guess
 
 action = resolve_boundary(previous_page, next_page)  # Page, Page -> ReconstructionAction
 ```

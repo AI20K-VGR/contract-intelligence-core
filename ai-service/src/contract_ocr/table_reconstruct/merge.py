@@ -97,7 +97,9 @@ def should_merge(
 
     if _starts_near_top(frag_b, lines_b, config):
         score += weights.next_fragment_starts_near_top
-        reasons.append(f"+{weights.next_fragment_starts_near_top} next fragment starts near bbox top")
+        reasons.append(
+            f"+{weights.next_fragment_starts_near_top} next fragment starts near bbox top"
+        )
 
     return score >= weights.merge_threshold, score, reasons
 
@@ -107,7 +109,9 @@ def _numeric_anchor(text: str, config: Config) -> int | None:
     return int(normalized) if _looks_like_anchor_value(normalized) else None
 
 
-def _first_numeric_anchor(rows: Sequence[SlicedLine], anchor_col: int, config: Config) -> int | None:
+def _first_numeric_anchor(
+    rows: Sequence[SlicedLine], anchor_col: int, config: Config
+) -> int | None:
     for row in rows:
         if anchor_col < len(row.columns):
             value = _numeric_anchor(row.columns[anchor_col].text, config)
@@ -134,8 +138,10 @@ def _signatures_match(sig_a: Sequence[float], sig_b: Sequence[float], config: Co
 def _has_continued_marker(
     sliced_a: Sequence[SlicedLine], sliced_b: Sequence[SlicedLine], config: Config
 ) -> bool:
-    edge_text = " ".join(c.text for c in sliced_a[-1].columns) + " " + " ".join(
-        c.text for c in sliced_b[0].columns
+    edge_text = (
+        " ".join(c.text for c in sliced_a[-1].columns)
+        + " "
+        + " ".join(c.text for c in sliced_b[0].columns)
     )
     lowered = edge_text.lower()
     return any(marker.lower() in lowered for marker in config.continued_markers)

@@ -109,8 +109,10 @@ class HierarchyBuilder:
         # "Dieu"/"Article" prefix — don't re-prefix it with the parent id.
         # Letter/roman markers only carry their own local token ("a", "i")
         # and must be joined onto the parent's path.
-        clause_id = marker.normalized if tier == 0 else _node_id(
-            parent.clause_id if parent else None, marker.normalized
+        clause_id = (
+            marker.normalized
+            if tier == 0
+            else _node_id(parent.clause_id if parent else None, marker.normalized)
         )
         node = _MutableNode(
             clause_id=clause_id,

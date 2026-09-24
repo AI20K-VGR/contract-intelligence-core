@@ -47,7 +47,9 @@ def build_tables(fragments: Sequence[Fragment], config: Config = Config()) -> li
         sliced = slice_lines(lines, bounds)
         header_row, data_rows = sliced[0], sliced[1:]
 
-        merged = open_table is not None and should_merge(open_table.last_fragment, fragment, config)[0]
+        merged = (
+            open_table is not None and should_merge(open_table.last_fragment, fragment, config)[0]
+        )
 
         if merged:
             assert open_table is not None

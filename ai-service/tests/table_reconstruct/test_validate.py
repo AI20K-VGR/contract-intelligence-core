@@ -70,7 +70,9 @@ class TestValidate:
 
     def test_sum_check_is_vacuously_true_without_a_total_row(self):
         frag = fragment(
-            "doc1", 1, [["STT", "Tên", "Tiền"], ["1", "Hàng A", "1.500.000"], ["2", "Hàng B", "2.000.000"]]
+            "doc1",
+            1,
+            [["STT", "Tên", "Tiền"], ["1", "Hàng A", "1.500.000"], ["2", "Hàng B", "2.000.000"]],
         )
         table = build_tables([frag])[0]
         checks = validate(table)
@@ -113,7 +115,9 @@ class TestValidate:
 
     def test_arity_ok_flags_rows_with_wrong_column_count(self):
         frag = fragment(
-            "doc1", 1, [["STT", "Tên", "Tiền"], ["1", "Hàng A", "1.000.000"], ["2", "Hàng B", "2.000.000"]]
+            "doc1",
+            1,
+            [["STT", "Tên", "Tiền"], ["1", "Hàng A", "1.000.000"], ["2", "Hàng B", "2.000.000"]],
         )
         table = build_tables([frag])[0]
         table.rows[1].cells.pop()  # corrupt one row's arity

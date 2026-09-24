@@ -50,6 +50,8 @@ def group_physical_lines(words: Sequence[Word], config: Config = Config()) -> li
             cluster.sort(key=lambda w: w.x0)
             y0 = min(w.y0 for w in cluster)
             y1 = max(w.y1 for w in cluster)
-            lines.append(PhysicalLine(page=page, words=cluster, y0=y0, y1=y1, y_center=(y0 + y1) / 2))
+            lines.append(
+                PhysicalLine(page=page, words=cluster, y0=y0, y1=y1, y_center=(y0 + y1) / 2)
+            )
 
     return lines

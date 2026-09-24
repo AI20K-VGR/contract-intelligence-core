@@ -8,15 +8,24 @@ def test_detect_boundary_excludes_headers_footers_and_page_numbers():
     pages = []
     for page_number in range(1, 6):
         blocks = [
-            make_block(f"p{page_number}_hdr", "ABC CORPORATION", type="header", bbox=(100, 20, 900, 60)),
             make_block(
-                f"p{page_number}_body1", f"Nội dung điều khoản trang {page_number} phần một.", bbox=(100, 300, 1000, 400)
+                f"p{page_number}_hdr", "ABC CORPORATION", type="header", bbox=(100, 20, 900, 60)
             ),
             make_block(
-                f"p{page_number}_body2", f"Nội dung điều khoản trang {page_number} phần hai.", bbox=(100, 420, 1000, 500)
+                f"p{page_number}_body1",
+                f"Nội dung điều khoản trang {page_number} phần một.",
+                bbox=(100, 300, 1000, 400),
             ),
             make_block(
-                f"p{page_number}_pgnum", f"Page {page_number} of 5", type="page_number", bbox=(700, 2270, 900, 2310)
+                f"p{page_number}_body2",
+                f"Nội dung điều khoản trang {page_number} phần hai.",
+                bbox=(100, 420, 1000, 500),
+            ),
+            make_block(
+                f"p{page_number}_pgnum",
+                f"Page {page_number} of 5",
+                type="page_number",
+                bbox=(700, 2270, 900, 2310),
             ),
         ]
         pages.append(make_page("doc1", page_number, blocks))
@@ -38,8 +47,16 @@ def test_detect_boundary_excludes_headers_footers_and_page_numbers():
 
 
 def test_detect_boundary_limits_to_window_size():
-    blocks_prev = [make_block(f"a{i}", f"Đoạn văn số {i}.", bbox=(100, 100 + i * 50, 1000, 140 + i * 50)) for i in range(6)]
-    blocks_next = [make_block(f"b{i}", f"Đoạn văn tiếp theo số {i}.", bbox=(100, 100 + i * 50, 1000, 140 + i * 50)) for i in range(6)]
+    blocks_prev = [
+        make_block(f"a{i}", f"Đoạn văn số {i}.", bbox=(100, 100 + i * 50, 1000, 140 + i * 50))
+        for i in range(6)
+    ]
+    blocks_next = [
+        make_block(
+            f"b{i}", f"Đoạn văn tiếp theo số {i}.", bbox=(100, 100 + i * 50, 1000, 140 + i * 50)
+        )
+        for i in range(6)
+    ]
     previous_page = make_page("doc1", 1, blocks_prev)
     next_page = make_page("doc1", 2, blocks_next)
 

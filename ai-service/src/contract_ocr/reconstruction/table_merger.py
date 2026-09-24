@@ -168,9 +168,10 @@ def build_table(
 
     for fragment in fragments[1:]:
         fragment_rows = list(fragment.rows)
-        if fragment_rows and _header_similarity(
-            fragment_rows[0].cells, columns
-        ) >= header_similarity_threshold:
+        if (
+            fragment_rows
+            and _header_similarity(fragment_rows[0].cells, columns) >= header_similarity_threshold
+        ):
             repeated_header_blocks.append(
                 SourceBlockRef(page=fragment.page, block_id=fragment_rows[0].block.block_id)
             )

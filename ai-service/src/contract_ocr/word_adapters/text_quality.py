@@ -27,8 +27,12 @@ _CONSONANTS = "bcdđghklmnpqrstvx"
 _VIETNAMESE_LETTERS = _VOWELS + _VOWELS.upper() + _CONSONANTS + _CONSONANTS.upper()
 _IN_WORD_PUNCTUATION = r".,;:!?()\-\/%\"'@"
 
-_ALLOWED_CHAR_RE = re.compile(r"[" + re.escape(_VIETNAMESE_LETTERS) + r"0-9\s" + _IN_WORD_PUNCTUATION + r"]")
-_VALID_TOKEN_RE = re.compile(r"^[" + re.escape(_VIETNAMESE_LETTERS) + r"0-9" + _IN_WORD_PUNCTUATION + r"]+$")
+_ALLOWED_CHAR_RE = re.compile(
+    r"[" + re.escape(_VIETNAMESE_LETTERS) + r"0-9\s" + _IN_WORD_PUNCTUATION + r"]"
+)
+_VALID_TOKEN_RE = re.compile(
+    r"^[" + re.escape(_VIETNAMESE_LETTERS) + r"0-9" + _IN_WORD_PUNCTUATION + r"]+$"
+)
 # A token of punctuation alone (e.g. "@@@", "---") matches _VALID_TOKEN_RE
 # but isn't a word — require at least one real letter or digit too.
 _HAS_ALNUM_RE = re.compile(r"[" + re.escape(_VIETNAMESE_LETTERS) + r"0-9]")
