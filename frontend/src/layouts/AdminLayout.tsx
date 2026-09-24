@@ -9,7 +9,7 @@ import {
 
 const navItems = [
   { to: '/tong-quan', icon: 'dashboard', label: 'Tổng quan' },
-  { to: '/ho-so', icon: 'folder_shared', label: 'Hồ sơ', locked: true },
+  { to: '/ho-so', icon: 'folder_shared', label: 'Hồ sơ' },
   { to: '/quyen-truy-cap', icon: 'lock', label: 'Quyền truy cập' },
   { to: '/nhat-ky-hoat-dong', icon: 'history_edu', label: 'Nhật ký hoạt động' },
   {
@@ -92,22 +92,13 @@ export function AdminLayout() {
                   item.to === '/ho-so'
                     ? location.pathname === '/ho-so' || dossierSection
                     : location.pathname === item.to
-                return 'locked' in item && item.locked
-                  ? `${navClassName(active)} justify-between`
-                  : navClassName(active)
+                return navClassName(active)
               }}
             >
               <span className="flex items-center gap-space-md">
                 <MaterialIcon name={item.icon} className="text-[20px]" />
                 <span>{item.label}</span>
               </span>
-              {'locked' in item && item.locked ? (
-                <MaterialIcon
-                  name="lock"
-                  className="text-[16px] text-primary-fixed-dim"
-                  title="Privacy-First Encrypted Storage"
-                />
-              ) : null}
             </NavLink>
           ))}
         </nav>

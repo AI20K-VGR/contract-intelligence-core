@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import {
   contractDocument,
@@ -9,7 +9,9 @@ import {
   listReviewSpots,
   loadDocumentLines,
   saveStructureMode,
+  searchDossier,
   structureErrorMessage,
+  type DossierSearchResult,
   type ClauseNode,
   type DossierStructure,
   type ReviewSpot,
@@ -17,7 +19,6 @@ import {
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { CitationPane } from '../components/CitationPane'
-import { filterClauses } from '../components/ClauseTree'
 import { StructureMindmap } from '../components/StructureMindmap'
 import { TableStructure } from '../components/TableStructure'
 import { MaterialIcon } from '../components/icons'
@@ -63,6 +64,10 @@ export function DossierStructurePage() {
   const [filename, setFilename] = useState<string | null>(null)
   const [documentId, setDocumentId] = useState<string | null>(null)
   const [citeId, setCiteId] = useState<string | null>(null)
+  const [tableCite, setTableCite] = useState<{
+    node: ClauseNode
+    citeNo: number
+  } | null>(null)
   // Dòng OCR thô: cây được dựng trên trình duyệt theo loại tài liệu.
   const [lines, setLines] = useState<OcrLine[] | null>(null)
   const [showLines, setShowLines] = useState(false)
@@ -73,6 +78,9 @@ export function DossierStructurePage() {
   )
   const [spots, setSpots] = useState<ReviewSpot[]>([])
   const [query, setQuery] = useState('')
+  const [searching, setSearching] = useState(false)
+  const [searchResult, setSearchResult] = useState<DossierSearchResult | null>(null)
+  const [searchError, setSearchError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   usePageTitle(detail?.name ?? 'Cấu trúc hợp đồng')
 
@@ -81,15 +89,29 @@ export function DossierStructurePage() {
     () => (lines ? buildStructureTree(lines, activeMode) : fallbackNodes),
     [lines, activeMode, fallbackNodes],
   )
-  const needle = query.trim().toLowerCase()
-  const visibleNodes = useMemo(
-    () => filterClauses(nodes, needle),
-    [needle, nodes],
-  )
-
   useEffect(() => {
     setQuery('')
+    setSearchResult(null)
+    setSearchError(null)
   }, [dossierId])
+
+  async function submitSearch(event: FormEvent) {
+    event.preventDefault()
+    const question = query.trim()
+    if (!dossierId || !question || searching) return
+    setSearching(true)
+    setSearchError(null)
+    try {
+      setSearchResult(await searchDossier(dossierId, question))
+    } catch (cause: unknown) {
+      setSearchResult(null)
+      setSearchError(
+        structureErrorMessage(cause) ?? 'Không hỏi được hồ sơ này. Thử lại.',
+      )
+    } finally {
+      setSearching(false)
+    }
+  }
 
   function changeMode(next: StructureMode) {
     if (next === activeMode) return
@@ -205,6 +227,7 @@ export function DossierStructurePage() {
   const needsCheck = status === 'pending_review' || spots.length > 0
   const citeOf = useMemo(() => citationNumbers(nodes), [nodes])
   const cited = citeId ? findClause(nodes, citeId) : null
+  const splitView = Boolean(cited || tableCite || showLines)
   const frameRef = useRef<HTMLDivElement>(null)
   const [frameHeight, setFrameHeight] = useState<number | null>(null)
 
@@ -233,14 +256,14 @@ export function DossierStructurePage() {
     >
       <div
         className={
-          cited || showLines
+          splitView
             ? 'flex min-h-0 flex-1'
             : 'min-h-0 flex-1 overflow-y-auto'
         }
       >
         <div
           className={
-            cited || showLines
+            splitView
               ? 'min-h-0 min-w-0 flex-1 overflow-y-auto'
               : 'contents'
           }
@@ -416,24 +439,23 @@ export function DossierStructurePage() {
                 </div>
               </div>
               <div className="flex flex-col sm:flex-row sm:items-center gap-space-sm sm:ml-auto">
-                <div className="relative w-full sm:w-80">
+                <form
+                  className="relative w-full sm:w-96"
+                  onSubmit={(event) => void submitSearch(event)}
+                >
                   <MaterialIcon
                     name="search"
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]"
                   />
                   <input
-                    aria-label="Tìm trong cấu trúc"
+                    aria-label="Hỏi về hợp đồng"
                     className="w-full h-9 pl-9 pr-space-md bg-surface-container-lowest text-on-surface placeholder:text-outline font-body-sm text-body-sm rounded shadow-[0_1px_2px_rgba(15,23,42,0.06)] focus:outline-none focus:ring-1 focus:ring-secondary"
-                    placeholder={
-                      activeMode === 'tables'
-                        ? 'Tìm trong bảng...'
-                        : 'Tìm điều, khoản, điểm...'
-                    }
+                    placeholder="Hỏi về hợp đồng này..."
                     type="search"
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                   />
-                </div>
+                </form>
                 {lines ? (
                   <button
                     aria-expanded={showLines}
@@ -459,32 +481,76 @@ export function DossierStructurePage() {
             </div>
           ) : null}
 
+          {phase === 'ready' && (searching || searchError || searchResult) ? (
+            <section className="mb-space-md rounded-xl bg-surface-container-lowest px-space-md py-space-md shadow-sm">
+              {searching ? (
+                <p className="font-body-sm text-body-sm text-on-surface-variant">
+                  Đang hỏi backend…
+                </p>
+              ) : null}
+              {searchError ? (
+                <p className="font-body-sm text-body-sm text-on-error-container">
+                  {searchError}
+                </p>
+              ) : null}
+              {searchResult ? (
+                <div className="flex flex-col gap-space-xs">
+                  <p className="font-label-sm text-label-sm text-on-surface-variant">
+                    {searchResult.query}
+                  </p>
+                  <p className="font-body-sm text-body-sm text-on-surface">
+                    {searchResult.answer
+                      ? searchResult.answer
+                      : searchResult.connected
+                        ? 'AI2 không trả lời cho câu hỏi này.'
+                        : 'AI2 chưa nối. Câu hỏi đã gửi tới backend, chưa có câu trả lời.'}
+                  </p>
+                  {searchResult.hits.length > 0 ? (
+                    <ul className="flex flex-col gap-1">
+                      {searchResult.hits.map((hit) => (
+                        <li
+                          key={`${hit.pageNo ?? ''}-${hit.text}`}
+                          className="font-body-sm text-body-sm text-on-surface-variant"
+                        >
+                          {hit.pageNo ? `Trang ${hit.pageNo} · ` : ''}
+                          {hit.text}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+
           {phase === 'ready' && activeMode === 'tables' && documentId ? (
-            <TableStructure documentId={documentId} query={query} />
+            <TableStructure
+              activeId={tableCite?.node.id}
+              documentId={documentId}
+              query=""
+              onCite={(node, citeNo) => {
+                setShowLines(false)
+                setCiteId(null)
+                setTableCite({ node, citeNo })
+              }}
+            />
           ) : null}
 
           {phase === 'ready' && activeMode !== 'tables' ? (
             <div className="pb-16">
-              {visibleNodes.length === 0 ? (
-                <div className="flex h-48 items-center rounded-xl bg-surface-container-lowest px-6 shadow-sm">
-                  <p className="font-body-sm text-body-sm text-on-surface-variant">
-                    Không có điều khoản khớp “{query.trim()}”.
-                  </p>
-                </div>
-              ) : (
-                <StructureMindmap
-                  attentionIds={attentionIds}
-                  citationOf={citeOf}
-                  focusId={citeId}
-                  nodes={visibleNodes}
-                  subtitle={filename}
-                  title={detail?.name ?? 'Hợp đồng'}
-                  onCite={(id) => {
-                    setShowLines(false)
-                    setCiteId(id)
-                  }}
-                />
-              )}
+              <StructureMindmap
+                attentionIds={attentionIds}
+                citationOf={citeOf}
+                focusId={citeId}
+                nodes={nodes}
+                subtitle={filename}
+                title={detail?.name ?? 'Hợp đồng'}
+                onCite={(id) => {
+                  setShowLines(false)
+                  setTableCite(null)
+                  setCiteId(id)
+                }}
+              />
             </div>
           ) : null}
         </div>
@@ -498,6 +564,14 @@ export function DossierStructurePage() {
             documentId={documentId}
             node={cited}
             onClose={() => setCiteId(null)}
+          />
+        ) : tableCite && documentId && activeMode === 'tables' ? (
+          <CitationPane
+            key={tableCite.node.id}
+            citeNo={tableCite.citeNo}
+            documentId={documentId}
+            node={tableCite.node}
+            onClose={() => setTableCite(null)}
           />
         ) : null}
       </div>
