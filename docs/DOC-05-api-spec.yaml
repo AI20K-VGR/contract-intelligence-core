@@ -1,285 +1,1207 @@
-openapi: 3.0.3
+openapi: 3.1.0
 
 info:
   title: Contract Intelligence API
+  version: 0.3.0
+  status: enterprise-ready — đã chốt kiến trúc Bearer JWT, x-rbac & Tenant Isolation (Sprint 1)
   description: |
-    REST API for Contract Intelligence — OCR/IDP system for commercial contracts.
+    REST API cho Contract Intelligence — hệ thống trích xuất, so sánh và review hợp đồng cấp Enterprise.
 
-    ## Overview
-    - **Contract module**: upload, status tracking, metadata
-    - **Extraction module**: clause tree, bounding boxes, appendix tables
-    - **Conflict module**: conflict detection and resolution
-    - **Review module**: HITL review, approval
+    **Khớp kiến trúc:** `docs/DOC-04-architecture.md` (v0.1, 2026-09-16)
+    **Khớp schema:** `docs/DOC-04b-postgres-schema.sql` (PostgreSQL v1.0 đã chốt 2026-09-17)
 
-    ## Response Format
-    All endpoints return a wrapped response:
+    ## Cơ chế Xác thực & Phân quyền Enterprise
+    - **Xác thực (Bearer JWT):** Mọi request (trừ probe `/healthz`, `/readyz`) bắt buộc mang header:
+      `Authorization: Bearer <jwt_token>`
+      JWT payload mang các claims: `sub` (user_id), `tenant_id`, `role` (`OPERATOR` | `REVIEWER` | `ADMINISTRATOR`).
+    - **Tenant Isolation (`X-Tenant-Id`):** Client bắt buộc gửi header `X-Tenant-Id`.
+      Backend enforce tenant boundary nghiêm ngặt: `X-Tenant-Id` phải trùng khớp với claim `tenant_id` trong JWT. Mọi thao tác ghi/đọc dữ liệu đều bị cô lập theo tenant.
+    - **Phân quyền Role-Based Access Control (`x-rbac`):** Mỗi endpoint quy định chặt chẽ danh sách role hợp lệ qua extension property `x-rbac`:
+      - `OPERATOR`: Khởi tạo dossier/batch, upload văn bản, xác nhận manifest, kích hoạt run, tạo yêu cầu Re-OCR.
+      - `REVIEWER`: Xem dossier/documents/facts/conflicts/citations, thực hiện review actions, xem lịch sử revision, đề xuất khóa dossier.
+      - `ADMINISTRATOR`: Toàn quyền hệ thống + quản lý External Approval Grants, chạy Optimization Campaigns/Experiments, promote prompt candidates, xem Audit/Ops KPI.
 
-    ```json
-    {
-      "data": { ... },
-      "error": null,
-      "meta": {
-        "page": 1,
-        "size": 20,
-        "total": 100,
-        "timestamp": "2026-09-15T10:36:00Z"
-      }
-    }
-    ```
-  version: 0.1.0
+    ## Đơn vị xử lý & Nghiệp vụ cốt lõi (9 Phân hệ Enterprise)
+    1. **Dossiers:** Quản lý vòng đời dossier (1 hợp đồng chính + 0..n phụ lục), khóa thẩm định, cập nhật metadata, phê duyệt.
+    2. **Documents:** Quản lý văn bản vật lý, tải/stream PDF, cấu trúc trang, bbox OCR, cây điều khoản, bảng biểu.
+    3. **Manifest Confirmation:** Quy trình xác nhận manifest tài liệu sau upload/OCR (phân loại hợp đồng/phụ lục, số hiệu, ngày ký).
+    4. **Runs (Pipeline Runs):** Snapshot thực thi độc lập của pipeline với metrics, stage tracking, huỷ run.
+    5. **Batches:** Tải lên ZIP + manifest hàng loạt, tiến độ xử lý song song, retry / resume batch, huỷ batch.
+    6. **Re-OCR Requests:** Đặt hàng OCR lại trang hoặc tài liệu với hồ sơ tối ưu riêng (high-res binarization, table mode).
+    7. **External Approval Grants:** Tích hợp phê duyệt ngoài (DocuSign, SAP, ERP, Corporate Approval Gate) kèm webhook callback.
+    8. **Review Revisions (Append-Only):** Quản lý chuỗi lịch sử phiên bản thẩm tra bất biến (immutable audit log) cho review items.
+    9. **Optimization (Campaigns / Candidates / Experiments):** Vòng lặp tự tối ưu hóa prompt, heuristic extraction và benchmark thử nghiệm.
+
+    ## Quy ước chung
+    - Tất cả endpoint có tiền tố `/api/v1`
+    - Định dạng: JSON UTF-8, thời gian ISO 8601 kèm timezone
+    - Lỗi trả về `application/problem+json` (RFC 9457) kèm `code` nội bộ và `trace_id`
+    - Phân trang: cursor (`?cursor=&limit=`), mặc định limit=50, tối đa 200
+    - Header phản hồi `X-Trace-Id` để debug
+    - Header `Idempotency-Key` cho các mutation POST quan trọng
+    - Tài liệu OpenAPI UI: `GET /docs` (Swagger UI), `GET /redoc`
+
+    ## Optimistic concurrency cho review
+    Mọi API trả về fact/finding/clause… ở chế độ "effective" đều kèm `current_version`.
+    Khi reviewer submit action, client phải gửi `base_version`.
+    Mismatch giữa `base_version` của client và version hiện tại trong DB → API trả `409 Conflict` kèm state mới nhất để client refetch/retry.
+
   contact:
-    name: Contract Intelligence Team
+    name: Contract Intelligence Team — VSF OJT Batch 3
+    email: dev@local.test
   license:
-    name: Proprietary
+    name: Proprietary (OJT)
 
 servers:
-  - url: http://localhost:8080
-    description: Local development
-  - url: https://api.contractintel.internal
-    description: Internal staging/production (TBD)
+  - url: http://localhost:8000/api/v1
+    description: Local development (docker compose)
+  - url: https://api.contractintel.internal/api/v1
+    description: Internal staging (TBD)
 
-# ─── Tags ────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
+# TAGS
+# ═══════════════════════════════════════════════════════════════════════════
 tags:
-  - name: contracts
-    description: Contract upload and management
+  - name: dossiers
+    description: Quản lý dossier (1 hợp đồng + phụ lục)
+  - name: documents
+    description: Tài liệu trong dossier, streaming content & metadata
+  - name: manifest
+    description: Xác nhận manifest tài liệu sau upload / OCR sơ bộ
+  - name: runs
+    description: Quản lý và theo dõi pipeline execution runs
+  - name: jobs
+    description: Theo dõi job và retry
+  - name: batches
+    description: Upload hàng loạt và tóm tắt tiến độ batch
+  - name: re-ocr
+    description: Yêu cầu OCR lại trang hoặc tài liệu với profile tối ưu
+  - name: pages
+    description: Trang, ảnh, text layer
   - name: clauses
-    description: Clause extraction and structure
+    description: Cây điều khoản
+  - name: tables
+    description: Bảng có cấu trúc
+  - name: facts
+    description: Fact (giá trị trích) + giá trị hiệu lực
+  - name: findings
+    description: Finding (kết quả so sánh kỹ thuật)
   - name: conflicts
-    description: Conflict detection and resolution
+    description: View lấy ra các finding cần reviewer xử lý
+  - name: citations
+    description: Citation (Tài liệu → Trang → Dòng OCR → Char span → BBox)
   - name: review
-    description: Human-in-the-loop review and approval
+    description: Review item và review action (HITL)
+  - name: revisions
+    description: Lịch sử phiên bản thẩm tra bất biến (append-only review audit log)
+  - name: approval
+    description: Khóa và phê duyệt nội bộ dossier
+  - name: external-approvals
+    description: Cấp quyền và xác nhận phê duyệt từ hệ thống bên ngoài (DocuSign, SAP, ERP)
+  - name: optimization
+    description: Tối ưu hóa prompt / heuristic extraction (Campaigns, Candidates, Experiments)
+  - name: audit
+    description: Audit trail
+  - name: ops
+    description: KPI vận hành (throughput, cost, failures)
+  - name: health
+    description: Health / readiness probe (liveness & readiness)
 
-# ─── Paths ────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
+# PATHS
+# ═══════════════════════════════════════════════════════════════════════════
 paths:
 
-  # ── Contract ──────────────────────────────────────────────────────────────
-  /contracts:
+  # ─── Dossiers ────────────────────────────────────────────────────────────
+  /dossiers:
     post:
-      tags: [contracts]
-      summary: Upload a single contract
-      description: Upload a contract file (PDF/image), create a Contract record with status UPLOADED.
-      operationId: uploadContract
+      tags: [dossiers]
+      summary: Tạo dossier + upload file hợp đồng/phụ lục
+      description: |
+        Multipart upload: trường `contract` bắt buộc (1 file), trường `annexes` tuỳ chọn (0..n file).
+        Operator gán vai trò bằng thứ tự upload. Toàn bộ dossier/document/job/task được tạo trong **một transaction**.
+        Trả `202 Accepted` kèm `dossier_id` và `job_id`.
+      operationId: createDossier
+      x-rbac: [OPERATOR, ADMINISTRATOR]
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/ContractUploadRequest'
+              $ref: '#/components/schemas/DossierUploadRequest'
             encoding:
-              file:
-                contentType: application/pdf,image/*
+              contract:
+                contentType: application/pdf
+              annexes:
+                contentType: application/pdf
+              metadata:
+                contentType: application/json
       responses:
-        '201':
-          description: Contract created
+        '202':
+          description: Dossier accepted, processing async
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponseContract'
+                $ref: '#/components/schemas/ApiEnvelopeDossierCreated'
         '400':
           $ref: '#/components/responses/BadRequest'
         '413':
           $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
     get:
-      tags: [contracts]
-      summary: List contracts
-      operationId: listContracts
+      tags: [dossiers]
+      summary: Danh sách dossier
+      operationId: listDossiers
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
       parameters:
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/SizeParam'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
         - name: status
           in: query
-          schema:
-            $ref: '#/components/schemas/ContractStatus'
+          schema: { $ref: '#/components/schemas/JobStatus' }
+        - name: has_conflicts
+          in: query
+          schema: { type: boolean }
+        - name: batch_id
+          in: query
+          schema: { type: string }
+        - name: q
+          in: query
+          description: Tìm theo tên dossier
+          schema: { type: string, maxLength: 200 }
       responses:
         '200':
-          description: Paginated contract list
+          description: Paginated dossier list
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponseContractList'
+                $ref: '#/components/schemas/ApiEnvelopeDossierList'
 
-  /contracts/batch:
+  /dossiers/{dossier_id}:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    get:
+      tags: [dossiers]
+      summary: Chi tiết dossier (tài liệu, job mới nhất, tóm tắt)
+      operationId: getDossier
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Dossier detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeDossier'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [dossiers]
+      summary: Cập nhật metadata dossier
+      description: Cho phép Operator hoặc Admin sửa tên dossier, ghi chú hoặc custom tags.
+      operationId: updateDossier
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DossierUpdateRequest'
+      responses:
+        '200':
+          description: Dossier updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeDossier'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [dossiers]
+      summary: Xóa hồ sơ (tombstone sync + purge nội dung async)
+      description: |
+        Hai bước đã chốt với FE/mentor:
+        1. **Tombstone (sync):** hồ sơ biến khỏi list, không tải được file, hủy job OCR
+           đang chạy, ghi `deletion_ledger` (ai / hồ sơ / lúc nào).
+        2. **Purge (async):** chỉ bỏ dữ liệu hợp đồng (PDF, ảnh trang, OCR, điều khoản,
+           citation, bảng, tên hồ sơ, filename, notes, lỗi pipeline). **Không** DELETE
+           cascade `dossier` / `job` / `pipeline_run`. Giữ `usage_ledger`, `review_action`,
+           `job_event`, dòng sổ xóa.
+        Idempotent nếu đã tombstone. Response `202` với `purge_status=pending`.
+      operationId: deleteDossier
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      responses:
+        '202':
+          description: Tombstone accepted; purge scheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeDossierDeleted'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /dossiers/{dossier_id}/lock:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
     post:
-      tags: [contracts]
-      summary: Batch upload multiple contracts
-      operationId: batchUploadContracts
+      tags: [dossiers]
+      summary: Khóa dossier để thẩm tra (ngăn chặn reprocess hoặc sửa đổi song song)
+      operationId: lockDossier
+      x-rbac: [REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Dossier locked successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeDossier'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Dossier already locked or cannot be locked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /dossiers/{dossier_id}/documents:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    get:
+      tags: [documents]
+      summary: Danh sách toàn bộ văn bản trong dossier (Hợp đồng chính và các phụ lục)
+      operationId: listDossierDocuments
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Document list in dossier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeDocumentList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /dossiers/{dossier_id}/manifest:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    get:
+      tags: [manifest]
+      summary: Lấy manifest dự thảo của dossier sau upload và trích xuất sơ bộ
+      operationId: getDossierManifest
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Manifest details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeManifest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /dossiers/{dossier_id}/manifest/confirm:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema: { type: string, format: uuid }
+    post:
+      tags: [manifest]
+      summary: Operator xác nhận cấu trúc manifest (chốt vai trò hợp đồng/phụ lục, số hiệu, ngày ký)
+      description: |
+        Quy trình chuẩn Enterprise: Sau khi hệ thống OCR trang bìa và phát hiện số hiệu,
+        Operator thẩm định và chốt lại cấu trúc tài liệu trước khi kích hoạt pipeline so sánh điều khoản.
+      operationId: confirmDossierManifest
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmManifestRequest'
+      responses:
+        '200':
+          description: Manifest confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeManifest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Manifest conflict or already confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /dossiers/{dossier_id}/runs:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    post:
+      tags: [runs]
+      summary: Khởi tạo pipeline execution run mới cho dossier
+      description: Tạo snapshot thực thi mới với config override tuỳ chọn (prompt version, OCR profile, confidence threshold).
+      operationId: triggerDossierRun
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRunRequest'
+      responses:
+        '202':
+          description: Pipeline run accepted and queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopePipelineRun'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Pipeline run conflict (run currently active)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /dossiers/{dossier_id}/external-approvals:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    get:
+      tags: [external-approvals]
+      summary: Danh sách external approval grants và trạng thái ký duyệt từ hệ thống bên ngoài
+      operationId: listExternalApprovals
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: List of external approval grants
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeExternalApprovalList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [external-approvals]
+      summary: Tạo yêu cầu phê duyệt chuyển tiếp sang hệ thống bên ngoài (DocuSign, SAP, ERP Portal)
+      operationId: requestExternalApproval
+      x-rbac: [ADMINISTRATOR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExternalApprovalRequest'
+      responses:
+        '201':
+          description: External approval grant created and dispatched
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeExternalApproval'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Dossier is not in approved state or grant already pending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /dossiers/{dossier_id}/reprocess:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    post:
+      tags: [dossiers]
+      summary: Tạo job mới cho dossier (chạy lại với cấu hình hiện tại)
+      description: |
+        Tạo job mới + `pipeline_run` mới, kết quả cũ vẫn còn (bất biến).
+        Khi job mới chạy xong, UI sẽ hiển thị kết quả mới nhất; kết quả cũ có thể xem qua `/dossiers/{id}/audit`.
+      operationId: reprocessDossier
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      responses:
+        '202':
+          description: Reprocess accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeDossierCreated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Dossier đang có job chạy, không thể reprocess
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ─── Runs ────────────────────────────────────────────────────────────────
+  /runs:
+    get:
+      tags: [runs]
+      summary: Danh sách tất cả các pipeline execution runs trong tenant
+      operationId: listRuns
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: dossier_id
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string, enum: [queued, running, completed, failed, cancelled] }
+      responses:
+        '200':
+          description: List of pipeline runs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopePipelineRunList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /runs/{run_id}:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+    get:
+      tags: [runs]
+      summary: Chi tiết snapshot pipeline run (metrics, stage tracking, config snapshot, logs)
+      operationId: getRunDetail
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Run detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopePipelineRunDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /runs/{run_id}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+    post:
+      tags: [runs]
+      summary: Huỷ bỏ pipeline run đang chạy
+      operationId: cancelRun
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Pipeline run cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopePipelineRun'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Run cannot be cancelled (already completed or failed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ─── Jobs ────────────────────────────────────────────────────────────────
+  /jobs/{job_id}:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+    get:
+      tags: [jobs]
+      summary: Trạng thái job, tiến độ theo bước, lỗi, link trace
+      operationId: getJob
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Job detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeJob'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /jobs/{job_id}/retry:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+    post:
+      tags: [jobs]
+      summary: Retry từ bước lỗi (cùng run)
+      operationId: retryJob
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      responses:
+        '202':
+          description: Retry accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeJob'
+        '409':
+          description: Job không ở trạng thái failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ─── Batches ─────────────────────────────────────────────────────────────
+  /batches:
+    post:
+      tags: [batches]
+      summary: Tạo batch từ ZIP + manifest.csv
+      description: |
+        Manifest CSV có cột: `dossier_name, file, role, order`.
+        Mỗi dossier trong batch tạo một job độc lập.
+      operationId: createBatch
+      x-rbac: [OPERATOR, ADMINISTRATOR]
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
               type: object
+              required: [manifest, archive]
               properties:
-                files:
-                  type: array
-                  items:
-                    type: string
-                    format: binary
-                  description: Multiple PDF/image files (max 50)
+                manifest:
+                  type: string
+                  format: binary
+                  description: File manifest.csv
+                archive:
+                  type: string
+                  format: binary
+                  description: File ZIP chứa tất cả dossier
       responses:
         '202':
-          description: Batch upload accepted, processing async
+          description: Batch accepted
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponseBatchUpload'
-
-  /contracts/{id}:
+                $ref: '#/components/schemas/ApiEnvelopeBatchCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     get:
-      tags: [contracts]
-      summary: Get contract details
-      operationId: getContract
+      tags: [batches]
+      summary: Danh sách các batch xử lý hàng loạt trong tenant
+      operationId: listBatches
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
       parameters:
-        - $ref: '#/components/parameters/ContractId'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          schema: { type: string, enum: [processing, completed, partial_failed, failed, cancelled] }
       responses:
         '200':
-          description: Contract details
+          description: Paginated batch list
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponseContract'
+                $ref: '#/components/schemas/ApiEnvelopeBatchList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /batches/{batch_id}:
+    parameters:
+      - name: batch_id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [batches]
+      summary: Chi tiết thông tin batch và danh sách các dossier bên trong
+      operationId: getBatchDetail
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Batch detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeBatchDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /contracts/{id}/status:
-    get:
-      tags: [contracts]
-      summary: Get contract processing status
-      operationId: getContractStatus
-      parameters:
-        - $ref: '#/components/parameters/ContractId'
+  /batches/{batch_id}/cancel:
+    parameters:
+      - name: batch_id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [batches]
+      summary: Huỷ bỏ xử lý batch (dừng toàn bộ các job đang chờ chạy)
+      operationId: cancelBatch
+      x-rbac: [OPERATOR, ADMINISTRATOR]
       responses:
         '200':
-          description: Current contract status
+          description: Batch cancelled
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponseContractStatus'
+                $ref: '#/components/schemas/ApiEnvelopeBatchDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Batch already completed or cannot be cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /batches/{batch_id}/summary:
+    parameters:
+      - name: batch_id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [batches]
+      summary: Tóm tắt batch (Done/Needs Review/Failed/In progress + chi phí)
+      operationId: getBatchSummary
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Batch summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeBatchSummary'
         '404':
           $ref: '#/components/responses/NotFound'
 
-  # ── Clauses ────────────────────────────────────────────────────────────────
-  /contracts/{id}/clauses:
+  /batches/{batch_id}/resume:
+    parameters:
+      - name: batch_id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [batches]
+      summary: Bỏ auto_paused của batch
+      operationId: resumeBatch
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Batch resumed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeBatchSummary'
+
+  # ─── Documents & Pages ───────────────────────────────────────────────────
+  /documents/{document_id}:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [documents]
+      summary: Chi tiết tài liệu văn bản (metadata, checksum, số trang, vai trò)
+      operationId: getDocument
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Document detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /documents/{document_id}/content:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [documents]
+      summary: Tải về hoặc stream file PDF gốc của tài liệu từ Object Storage
+      operationId: getDocumentContent
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Binary PDF stream
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /documents/{document_id}/re-ocr:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    post:
+      tags: [re-ocr]
+      summary: Tạo yêu cầu OCR lại tài liệu hoặc dải trang với profile chuyên sâu
+      description: |
+        Áp dụng khi chất lượng OCR mặc định thấp, trang bị mờ, chữ viết tay hoặc chứa bảng phức tạp.
+        Profiles hỗ trợ: `high_res_binarize`, `table_optimized`, `handwritten_vietnamese`.
+      operationId: requestDocumentReOcr
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReOcrRequestPayload'
+      responses:
+        '202':
+          description: Re-OCR request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeReOcrRequest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /documents/{document_id}/re-ocr-requests:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [re-ocr]
+      summary: Danh sách lịch sử các yêu cầu re-OCR của văn bản
+      operationId: listDocumentReOcrRequests
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: List of re-OCR requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeReOcrRequestList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /documents/{document_id}/pages:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [pages]
+      summary: Metadata các trang (loại, kích thước, rotation, chỉ số chất lượng)
+      operationId: listPages
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Page metadata list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopePageList'
+
+  /documents/{document_id}/pages/{page_no}/image:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+      - name: page_no
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+      - name: variant
+        in: query
+        schema:
+          type: string
+          enum: [preview, render]
+          default: preview
+    get:
+      tags: [pages]
+      summary: Ảnh trang (PNG 300 DPI hoặc WebP preview)
+      operationId: getPageImage
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Page image
+          content:
+            image/png: {}
+            image/webp: {}
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /documents/{document_id}/pages/{page_no}/ocr:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+      - name: page_no
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+      - name: level
+        in: query
+        schema:
+          type: string
+          enum: [line, word]
+          default: line
+      - name: run_id
+        in: query
+        description: Mặc định dùng latest run
+        schema: { type: string }
+    get:
+      tags: [pages]
+      summary: OCR text + bbox (line hoặc word)
+      operationId: getPageOcr
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: OCR data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopePageOcr'
+
+  /documents/{document_id}/clauses:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+      - name: run_id
+        in: query
+        schema: { type: string }
     get:
       tags: [clauses]
-      summary: Get clause tree for a contract
-      description: Returns the full clause hierarchy (Điều > Khoản > Điểm) with bounding boxes.
-      operationId: getClauses
-      parameters:
-        - $ref: '#/components/parameters/ContractId'
+      summary: Cây điều khoản (Điều → Khoản → Điểm) + region bbox
+      operationId: getClauseTree
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
       responses:
         '200':
           description: Clause tree
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponseClauseTree'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: '#/components/schemas/ApiEnvelopeClauseTree'
 
-  /contracts/{id}/clauses/{clauseId}:
-    patch:
-      tags: [review]
-      summary: Update a single clause (HITL review)
-      description: Reviewer edits clause text or confirms extraction.
-      operationId: updateClause
-      parameters:
-        - $ref: '#/components/parameters/ContractId'
-        - name: clauseId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ClauseUpdateRequest'
+  /documents/{document_id}/tables:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+      - name: run_id
+        in: query
+        schema: { type: string }
+    get:
+      tags: [tables]
+      summary: Bảng có cấu trúc (không flatten)
+      operationId: getTables
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
       responses:
         '200':
-          description: Clause updated
+          description: Tables
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponseClause'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: '#/components/schemas/ApiEnvelopeTableList'
 
-  # ── Conflicts ──────────────────────────────────────────────────────────────
-  /contracts/{id}/conflicts:
+  # ─── Facts ───────────────────────────────────────────────────────────────
+  /dossiers/{dossier_id}/facts:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+      - name: effective
+        in: query
+        description: Nếu true, trả kèm `current_version` cho optimistic concurrency
+        schema: { type: boolean, default: true }
+      - name: key
+        in: query
+        description: Lọc theo fact key (vd. `price.total`)
+        schema: { type: string }
+    get:
+      tags: [facts]
+      summary: Danh sách fact + giá trị hiệu lực (kèm version cho concurrency)
+      operationId: listFacts
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Fact list with effective values
+          headers:
+            ETag:
+              description: ETag cho optimistic concurrency ở cấp dossier
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeFactList'
+
+  # ─── Findings & Conflicts ────────────────────────────────────────────────
+  /dossiers/{dossier_id}/findings:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+      - name: disposition
+        in: query
+        schema:
+          type: string
+          enum: [comparable_match, comparable_difference, candidate_amendment, not_comparable, insufficient_evidence]
+      - name: scope
+        in: query
+        schema:
+          type: string
+          enum: [within_document, contract_annex, annex_annex]
+    get:
+      tags: [findings]
+      summary: Toàn bộ finding (mọi disposition, kể cả match)
+      operationId: listFindings
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Finding list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeFindingList'
+
+  /dossiers/{dossier_id}/conflicts:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
     get:
       tags: [conflicts]
-      summary: Get all conflicts for a contract
-      operationId: getConflicts
-      parameters:
-        - $ref: '#/components/parameters/ContractId'
-        - name: status
-          in: query
-          schema:
-            $ref: '#/components/schemas/ConflictStatus'
+      summary: Finding cần reviewer xử lý (= view v_conflict)
+      operationId: listConflicts
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
       responses:
         '200':
           description: Conflict list
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponseConflictList'
+                $ref: '#/components/schemas/ApiEnvelopeFindingList'
 
-  /contracts/{id}/conflicts/{conflictId}/resolve:
+  # ─── Citations ───────────────────────────────────────────────────────────
+  /citations/{citation_id}:
+    parameters:
+      - name: citation_id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [citations]
+      summary: Resolve citation — trả URL ảnh trang + bbox để UI highlight một thao tác (BR-07)
+      operationId: getCitation
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Citation resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeCitationResolved'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─── Review ──────────────────────────────────────────────────────────────
+  /dossiers/{dossier_id}/review-items:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum: [open, awaiting_evidence, resolved]
+      - name: priority
+        in: query
+        schema: { type: string, enum: [P1, P2, P3] }
+    get:
+      tags: [review]
+      summary: Hàng đợi review
+      operationId: listReviewItems
+      x-rbac: [REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Review item list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeReviewItemList'
+
+  /review-items/{review_item_id}:
+    parameters:
+      - name: review_item_id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [review]
+      summary: Chi tiết review item (kèm version & target snapshot)
+      operationId: getReviewItem
+      x-rbac: [REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Review item detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeReviewItem'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /review-items/{review_item_id}/actions:
+    parameters:
+      - name: review_item_id
+        in: path
+        required: true
+        schema: { type: string }
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema: { type: string, format: uuid }
     post:
-      tags: [conflicts]
-      summary: Resolve a conflict
-      description: Mark conflict as RESOLVED or IGNORED with optional note.
-      operationId: resolveConflict
-      parameters:
-        - $ref: '#/components/parameters/ContractId'
-        - name: conflictId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      tags: [review]
+      summary: Submit review action (Confirm / Correct / Reject / Needs more evidence)
+      description: |
+        **Optimistic concurrency bắt buộc:**
+        - Client gửi `base_version` (là `current_version` đã đọc trước đó, hoặc `0` nếu dựa trên máy).
+        - Nếu DB hiện đang ở version khác → API trả **`409 Conflict`** kèm state mới nhất để client refetch.
+        - Trong vòng 60s sau lần submit đầu, request lặp lại với cùng `Idempotency-Key` sẽ trả cùng kết quả (retry an toàn).
+        - Với `correct`, `corrected_value` hoặc `corrected_bbox` phải có (CHECK constraint).
+      operationId: submitReviewAction
+      x-rbac: [REVIEWER, ADMINISTRATOR]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ConflictResolveRequest'
+              $ref: '#/components/schemas/ReviewActionRequest'
       responses:
         '200':
-          description: Conflict resolved
+          description: Action recorded
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponseConflict'
+                $ref: '#/components/schemas/ApiEnvelopeReviewAction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Revision conflict — concurrent update detected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeReviewConflict'
 
-  # ── Review & Approve ───────────────────────────────────────────────────────
-  /contracts/{id}/review:
+  /review-items/{review_item_id}/revisions:
+    parameters:
+      - name: review_item_id
+        in: path
+        required: true
+        schema: { type: string }
     get:
-      tags: [review]
-      summary: Get review summary and audit log for a contract
-      operationId: getReviewSummary
-      parameters:
-        - $ref: '#/components/parameters/ContractId'
+      tags: [revisions]
+      summary: Lấy chuỗi lịch sử phiên bản thẩm tra bất biến (append-only review revisions)
+      description: |
+        Tuân thủ quy chuẩn kiểm toán Enterprise: Mọi thao tác review (confirm, correct, reject)
+        đều tạo một revision bất biến mới (append-only) chứ không ghi đè, kèm diff, author và version.
+      operationId: listReviewItemRevisions
+      x-rbac: [REVIEWER, ADMINISTRATOR]
       responses:
         '200':
-          description: Review summary with audit log
+          description: Append-only review revisions trail
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponseReviewSummary'
+                $ref: '#/components/schemas/ApiEnvelopeReviewRevisions'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
-  /contracts/{id}/approve:
+  # ─── Approval ────────────────────────────────────────────────────────────
+  /dossiers/{dossier_id}/approve:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
     post:
-      tags: [review]
-      summary: Final approval of a contract
-      description: Approve contract — all clauses reviewed, conflicts resolved/ignored.
-      operationId: approveContract
-      parameters:
-        - $ref: '#/components/parameters/ContractId'
+      tags: [approval]
+      summary: Approve dossier (chỉ khi job ở reviewed, mọi review item đã xử lý)
+      operationId: approveDossier
+      x-rbac: [ADMINISTRATOR]
       requestBody:
         required: false
         content:
@@ -288,444 +1210,1879 @@ paths:
               $ref: '#/components/schemas/ApproveRequest'
       responses:
         '200':
-          description: Contract approved
+          description: Dossier approved
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponseContract'
+                $ref: '#/components/schemas/ApiEnvelopeDossier'
         '409':
-          description: Preconditions not met (unresolved conflicts, unreviewed clauses)
+          description: Preconditions not met
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponseError'
+                $ref: '#/components/schemas/Problem'
 
-# ─── Components ───────────────────────────────────────────────────────────────
+  # ─── External Approvals Callback ─────────────────────────────────────────
+  /external-approvals/callback:
+    post:
+      tags: [external-approvals]
+      summary: Webhook tiếp nhận kết quả ký duyệt từ hệ thống bên ngoài (DocuSign, SAP, ERP Portal)
+      description: Nhận grant status (approved / rejected), chữ ký số hoặc certificate chứng thực.
+      operationId: handleExternalApprovalCallback
+      x-rbac: [ADMINISTRATOR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExternalApprovalCallbackPayload'
+      responses:
+        '200':
+          description: Callback processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeExternalApproval'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─── Optimization Loop (Self-Improving Engine) ───────────────────────────
+  /optimization/campaigns:
+    get:
+      tags: [optimization]
+      summary: Danh sách các chiến dịch tối ưu hóa trích xuất
+      operationId: listOptimizationCampaigns
+      x-rbac: [ADMINISTRATOR]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: List of optimization campaigns
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeCampaignList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [optimization]
+      summary: Khởi tạo chiến dịch tối ưu hóa mới
+      operationId: createOptimizationCampaign
+      x-rbac: [ADMINISTRATOR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCampaignRequest'
+      responses:
+        '201':
+          description: Campaign created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeCampaign'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /optimization/campaigns/{campaign_id}:
+    parameters:
+      - $ref: '#/components/parameters/CampaignId'
+    get:
+      tags: [optimization]
+      summary: Chi tiết chiến dịch tối ưu hóa kèm danh sách thử nghiệm
+      operationId: getOptimizationCampaign
+      x-rbac: [ADMINISTRATOR]
+      responses:
+        '200':
+          description: Campaign detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeCampaignDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /optimization/candidates:
+    get:
+      tags: [optimization]
+      summary: Danh sách các ứng viên prompt / heuristic rule trích xuất
+      operationId: listOptimizationCandidates
+      x-rbac: [ADMINISTRATOR]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: campaign_id
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: List of candidates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeCandidateList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [optimization]
+      summary: Tạo mới ứng viên prompt hoặc heuristic extraction rule
+      operationId: createOptimizationCandidate
+      x-rbac: [ADMINISTRATOR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCandidateRequest'
+      responses:
+        '201':
+          description: Candidate registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeCandidate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /optimization/candidates/{candidate_id}:
+    parameters:
+      - $ref: '#/components/parameters/CandidateId'
+    get:
+      tags: [optimization]
+      summary: Chi tiết ứng viên prompt (nội dung prompt, tham số LLM, benchmark score)
+      operationId: getOptimizationCandidate
+      x-rbac: [ADMINISTRATOR]
+      responses:
+        '200':
+          description: Candidate detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeCandidate'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /optimization/candidates/{candidate_id}/promote:
+    parameters:
+      - $ref: '#/components/parameters/CandidateId'
+    post:
+      tags: [optimization]
+      summary: Thăng hạng candidate thành production prompt chính thức cho pipeline
+      operationId: promoteOptimizationCandidate
+      x-rbac: [ADMINISTRATOR]
+      responses:
+        '200':
+          description: Candidate promoted to active production prompt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeCandidate'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Candidate does not meet promotion threshold or is already active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /optimization/experiments:
+    get:
+      tags: [optimization]
+      summary: Danh sách các thực nghiệm đánh giá benchmark
+      operationId: listOptimizationExperiments
+      x-rbac: [ADMINISTRATOR]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: campaign_id
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: List of experiments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeExperimentList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [optimization]
+      summary: Thiết lập thực nghiệm so sánh candidate trên tập Golden Dataset
+      operationId: createOptimizationExperiment
+      x-rbac: [ADMINISTRATOR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateExperimentRequest'
+      responses:
+        '201':
+          description: Experiment configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeExperiment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /optimization/experiments/{experiment_id}/run:
+    parameters:
+      - $ref: '#/components/parameters/ExperimentId'
+    post:
+      tags: [optimization]
+      summary: Kích hoạt chạy thực nghiệm đánh giá benchmark
+      operationId: runOptimizationExperiment
+      x-rbac: [ADMINISTRATOR]
+      responses:
+        '202':
+          description: Experiment execution started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeExperiment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Experiment is already running or finished
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /optimization/experiments/{experiment_id}/results:
+    parameters:
+      - $ref: '#/components/parameters/ExperimentId'
+    get:
+      tags: [optimization]
+      summary: Kết quả chi tiết của thực nghiệm (F1-score, Precision, Recall, Latency, Token Cost)
+      operationId: getOptimizationExperimentResults
+      x-rbac: [ADMINISTRATOR]
+      responses:
+        '200':
+          description: Detailed benchmark results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeExperimentResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─── Audit & Export ──────────────────────────────────────────────────────
+  /dossiers/{dossier_id}/audit:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    get:
+      tags: [audit]
+      summary: Dòng thời gian job_event + review_action + approval
+      operationId: getAuditTrail
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Audit trail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeAudit'
+
+  /dossiers/{dossier_id}/export:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+      - name: run_id
+        in: query
+        schema: { type: string }
+    get:
+      tags: [dossiers]
+      summary: Export JSON kết quả máy + giá trị hiệu lực
+      operationId: exportDossier
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Export JSON (gzip được)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeExport'
+
+  # ─── Ops ─────────────────────────────────────────────────────────────────
+  /ops/summary:
+    parameters:
+      - name: from
+        in: query
+        schema: { type: string, format: date-time }
+      - name: to
+        in: query
+        schema: { type: string, format: date-time }
+    get:
+      tags: [ops]
+      summary: KPI throughput, cost, failure (NFR-02/03)
+      operationId: getOpsSummary
+      x-rbac: [ADMINISTRATOR]
+      responses:
+        '200':
+          description: Ops summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeOpsSummary'
+
+  # ─── Health ──────────────────────────────────────────────────────────────
+  /healthz:
+    get:
+      tags: [health]
+      summary: Liveness probe
+      operationId: healthz
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [ok] }
+
+  /readyz:
+    get:
+      tags: [health]
+      summary: Readiness probe (DB + data dir)
+      operationId: readyz
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Readiness'
+        '503':
+          description: Not ready (DB down, disk full, ...)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Readiness'
+
+# ═══════════════════════════════════════════════════════════════════════════
+# COMPONENTS
+# ═══════════════════════════════════════════════════════════════════════════
 components:
 
+  # ── Headers ──────────────────────────────────────────────────────────────
+  headers:
+    TraceId:
+      description: ID trace OpenTelemetry (hex 32 ký tự)
+      schema: { type: string, pattern: "^[0-9a-f]{32}$" }
+
+  # ── Parameters ───────────────────────────────────────────────────────────
   parameters:
-    ContractId:
-      name: id
+    TenantIdHeader:
+      name: X-Tenant-Id
+      in: header
+      required: true
+      schema: { type: string, pattern: "^tnt_[0-9A-HJKMNP-TV-Z]{26}$" }
+      description: Định danh tenant phục vụ phân lập dữ liệu (Tenant Isolation)
+    RunId:
+      name: run_id
       in: path
       required: true
-      description: Contract UUID
-      schema:
-        type: string
-        format: uuid
-
-    PageParam:
-      name: page
+      schema: { type: string, pattern: "^run_[0-9A-HJKMNP-TV-Z]{26}$" }
+    CampaignId:
+      name: campaign_id
+      in: path
+      required: true
+      schema: { type: string, pattern: "^cmp_[0-9A-HJKMNP-TV-Z]{26}$" }
+    CandidateId:
+      name: candidate_id
+      in: path
+      required: true
+      schema: { type: string, pattern: "^cnd_[0-9A-HJKMNP-TV-Z]{26}$" }
+    ExperimentId:
+      name: experiment_id
+      in: path
+      required: true
+      schema: { type: string, pattern: "^exp_[0-9A-HJKMNP-TV-Z]{26}$" }
+    DossierId:
+      name: dossier_id
+      in: path
+      required: true
+      schema: { type: string, pattern: "^dos_[0-9A-HJKMNP-TV-Z]{26}$" }
+    JobId:
+      name: job_id
+      in: path
+      required: true
+      schema: { type: string, pattern: "^job_[0-9A-HJKMNP-TV-Z]{26}$" }
+    DocumentId:
+      name: document_id
+      in: path
+      required: true
+      schema: { type: string, pattern: "^doc_[0-9A-HJKMNP-TV-Z]{26}$" }
+    Cursor:
+      name: cursor
       in: query
-      schema:
-        type: integer
-        default: 0
-        minimum: 0
-
-    SizeParam:
-      name: size
+      schema: { type: string }
+    Limit:
+      name: limit
       in: query
-      schema:
-        type: integer
-        default: 20
-        minimum: 1
-        maximum: 100
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
 
+  # ── Schemas ──────────────────────────────────────────────────────────────
   schemas:
 
-    # ── Shared ──────────────────────────────────────────────────────────────
-    ApiResponse:
+    # ── Problem Details (RFC 9457) ──────────────────────────────────────────
+    Problem:
       type: object
+      required: [type, title, status, code]
       properties:
-        data:
-          type: object
-          nullable: true
-        error:
-          type: object
-          nullable: true
-          properties:
-            code:
-              type: string
-            message:
-              type: string
-            details:
-              type: array
-              items:
-                type: string
-        meta:
-          type: object
-          properties:
-            timestamp:
-              type: string
-              format: date-time
-            page:
-              type: integer
-            size:
-              type: integer
-            total:
-              type: integer
+        type: { type: string, format: uri, default: "about:blank" }
+        title: { type: string }
+        status: { type: integer }
+        code:
+          type: string
+          description: |
+            Mã lỗi nội bộ (xem DOC-04 mục 8.6).
+            Ví dụ: `PDF_INVALID`, `OCR_RATE_LIMITED`, `DB_ERROR`, `INTERNAL_ERROR`.
+        detail: { type: string }
+        instance: { type: string }
+        trace_id:
+          type: string
+          description: ID trace OpenTelemetry để debug
 
-    ApiResponseError:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
-          properties:
-            error:
-              type: object
-              properties:
-                code:
-                  type: string
-                message:
-                  type: string
+    Readiness:
+      type: object
+      required: [status, checks]
+      properties:
+        status: { type: string, enum: [ready, not_ready] }
+        checks:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              ok: { type: boolean }
+              detail: { type: string }
 
-    # ── Contract ────────────────────────────────────────────────────────────
-    ContractStatus:
+    # ── Shared enums ───────────────────────────────────────────────────────
+    JobStatus:
+      type: string
+      enum: [uploaded, processing, extracted, pending_review, reviewed, approved, failed, cancelled]
+      description: Trạng thái job (BRD §14); cancelled khi dossier bị xóa (tombstone)
+
+    PageKind:
+      type: string
+      enum: [native, scanned, hybrid]
+
+    Disposition:
       type: string
       enum:
-        - UPLOADED
-        - PROCESSING
-        - EXTRACTED
-        - CONFLICT_DETECTED
-        - PENDING_REVIEW
-        - REVIEWED
-        - APPROVED
+        - comparable_match
+        - comparable_difference
+        - candidate_amendment
+        - not_comparable
+        - insufficient_evidence
 
-    ContractUploadRequest:
+    Severity:
+      type: string
+      enum: [high, medium, low]
+
+    FindingType:
+      type: string
+      enum: [structured, semantic]
+
+    FindingScope:
+      type: string
+      enum: [within_document, contract_annex, annex_annex]
+
+    ReviewActionType:
+      type: string
+      enum: [confirm, correct, reject, needs_more_evidence]
+
+    ReviewItemStatus:
+      type: string
+      enum: [open, awaiting_evidence, resolved]
+
+    ReviewItemPriority:
+      type: string
+      enum: [P1, P2, P3]
+
+    TargetType:
+      type: string
+      enum: [fact, finding, annex_link, clause_node, table_cell, citation]
+
+    # ── Geometry ───────────────────────────────────────────────────────────
+    BBox:
       type: object
-      required:
-        - file
+      description: Canonical Page Space (CPS) — `[x0,y0,x1,y1]` chuẩn hóa 0..1
+      required: [x0, y0, x1, y1]
       properties:
-        file:
+        x0: { type: number, minimum: 0, maximum: 1 }
+        y0: { type: number, minimum: 0, maximum: 1 }
+        x1: { type: number, minimum: 0, maximum: 1 }
+        y1: { type: number, minimum: 0, maximum: 1 }
+
+    BBoxLevel:
+      type: string
+      enum: [word_union, line, clause_region]
+
+    BBoxSource:
+      type: string
+      enum: [native, detector, estimated, human]
+
+    CoordSystem:
+      type: object
+      required: [space, range, origin, format]
+      properties:
+        space: { type: string, enum: [CPS] }
+        range: { type: string, enum: ["0..1"] }
+        origin: { type: string, enum: ["top-left"] }
+        format: { type: string, enum: ["x0,y0,x1,y1"] }
+
+    # ── Dossier ────────────────────────────────────────────────────────────
+    Dossier:
+      type: object
+      required: [id, name, has_conflicts, created_at]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        batch_id: { type: string, nullable: true }
+        has_conflicts: { type: boolean }
+        latest_job_id: { type: string, nullable: true }
+        latest_job_status: { $ref: '#/components/schemas/JobStatus' }
+        documents:
+          type: array
+          items: { $ref: '#/components/schemas/Document' }
+        open_review_items: { type: integer, description: Tổng review_item chưa resolved }
+        pending_conflicts: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    DossierSummary:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        batch_id: { type: string, nullable: true }
+        has_conflicts: { type: boolean }
+        latest_job_status: { $ref: '#/components/schemas/JobStatus' }
+        open_review_items: { type: integer }
+        pending_conflicts: { type: integer }
+        created_at: { type: string, format: date-time }
+
+    DossierUploadRequest:
+      type: object
+      required: [contract, metadata]
+      properties:
+        contract:
           type: string
           format: binary
-          description: Contract PDF or image file
-        filename:
-          type: string
-          description: Optional original filename
+          description: File PDF hợp đồng chính
+        annexes:
+          type: array
+          items: { type: string, format: binary }
+          description: Các file PDF phụ lục theo thứ tự
         metadata:
           type: object
-          additionalProperties:
-            type: string
+          description: |
+            JSON object. Khuyến nghị: `{"name": "...", "tags": [...], "notes": "..."}`.
+            Tên nếu thiếu sẽ lấy từ file hợp đồng.
 
-    Contract:
+    # ── Document & Pages ───────────────────────────────────────────────────
+    Document:
       type: object
       properties:
-        id:
-          type: string
-          format: uuid
-        filename:
-          type: string
-        status:
-          $ref: '#/components/schemas/ContractStatus'
-        pageCount:
-          type: integer
-        extractedClauseCount:
-          type: integer
-        conflictCount:
-          type: integer
-        pendingConflictCount:
-          type: integer
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-        metadata:
-          type: object
-          additionalProperties:
-            type: string
-
-    ApiResponseContract:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
-          properties:
-            data:
-              $ref: '#/components/schemas/Contract'
-
-    ApiResponseContractList:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
-          properties:
-            data:
-              type: array
-              items:
-                $ref: '#/components/schemas/Contract'
-
-    ApiResponseContractStatus:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
-          properties:
-            data:
-              type: object
-              properties:
-                id:
-                  type: string
-                  format: uuid
-                status:
-                  $ref: '#/components/schemas/ContractStatus'
-                updatedAt:
-                  type: string
-                  format: date-time
-
-    ApiResponseBatchUpload:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
-          properties:
-            data:
-              type: object
-              properties:
-                acceptedCount:
-                  type: integer
-                contractIds:
-                  type: array
-                  items:
-                    type: string
-                    format: uuid
-
-    # ── Clause ──────────────────────────────────────────────────────────────
-    ClauseLevel:
-      type: string
-      enum: [ARTICLE, SECTION, SUBSECTION]
-
-    BoundingBox:
-      type: object
-      properties:
-        pageNumber:
-          type: integer
-        x:
-          type: number
-        y:
-          type: number
-        width:
-          type: number
-        height:
-          type: number
-
-    Clause:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        contractId:
-          type: string
-          format: uuid
-        level:
-          $ref: '#/components/schemas/ClauseLevel'
-        title:
-          type: string
-        content:
-          type: string
-        parentClauseId:
-          type: string
-          format: uuid
+        id: { type: string }
+        dossier_id: { type: string }
+        role: { type: string, enum: [contract, annex] }
+        order_index: { type: integer }
+        filename: { type: string }
+        sha256: { type: string }
+        page_count: { type: integer }
+        lang_detected: { type: string, nullable: true }
+        annex_link_status:
+          $ref: '#/components/schemas/AnnexLinkStatus'
           nullable: true
-        orderIndex:
-          type: integer
-        boundingBox:
-          $ref: '#/components/schemas/BoundingBox'
-        confidence:
-          type: number
-          format: float
-          minimum: 0
-          maximum: 1
-        isReviewed:
-          type: boolean
+
+    AnnexLinkStatus:
+      type: string
+      enum: [linked, linked_needs_review, unlinked]
+
+    Page:
+      type: object
+      properties:
+        id: { type: string }
+        document_id: { type: string }
+        page_no: { type: integer }
+        kind: { $ref: '#/components/schemas/PageKind' }
+        width_pt: { type: number }
+        height_pt: { type: number }
+        rotation: { type: integer, enum: [0, 90, 180, 270] }
+        render_dpi: { type: integer }
+        preview_uri: { type: string, nullable: true }
+        render_uri: { type: string, nullable: true }
+        quality:
+          type: object
+          additionalProperties: true
+          description: 'Chỉ số chất lượng: blur_score, skew_deg, contrast, ...'
+
+    PageOcrLine:
+      type: object
+      properties:
+        line_id: { type: string }
+        line_no: { type: integer }
+        text: { type: string }
+        bbox: { $ref: '#/components/schemas/BBox' }
+        bbox_source: { $ref: '#/components/schemas/BBoxSource' }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        flags:
+          type: object
+          properties:
+            numeric_mismatch: { type: boolean }
+            unaligned: { type: boolean }
+            region: { type: string, enum: [body, header, footer, table] }
+        char_span_doc: { type: array, items: { type: integer }, minItems: 2, maxItems: 2 }
+
+    PageOcr:
+      type: object
+      properties:
+        page_id: { type: string }
+        run_id: { type: string }
+        kind: { $ref: '#/components/schemas/PageKind' }
+        cps:
+          type: object
+          properties:
+            width_pt: { type: number }
+            height_pt: { type: number }
+            rotation: { type: integer }
+        lines:
+          type: array
+          items: { $ref: '#/components/schemas/PageOcrLine' }
+
+    # ── Clauses ────────────────────────────────────────────────────────────
+    ClauseNode:
+      type: object
+      properties:
+        id: { type: string }
+        document_id: { type: string }
+        node_type: { type: string, enum: [annex, article, clause, point, preamble, signature_block] }
+        label: { type: string, description: 'VD: "Điều 5"' }
+        number: { type: string, nullable: true }
+        title: { type: string, nullable: true }
+        text: { type: string }
+        lang: { type: string, nullable: true }
+        parent_id: { type: string, nullable: true }
+        stable_path: { type: string, description: 'VD: "annex-01/art-5/cl-2/pt-a"' }
+        page_start: { type: integer }
+        page_end: { type: integer }
+        confidence: { type: number }
+        regions:
+          type: array
+          items:
+            type: object
+            properties:
+              page_no: { type: integer }
+              bbox: { $ref: '#/components/schemas/BBox' }
+              bbox_source: { $ref: '#/components/schemas/BBoxSource' }
         children:
           type: array
-          items:
-            $ref: '#/components/schemas/Clause'
+          items: { $ref: '#/components/schemas/ClauseNode' }
 
-    ClauseUpdateRequest:
+    # ── Tables ─────────────────────────────────────────────────────────────
+    TableCell:
       type: object
       properties:
-        title:
-          type: string
-        content:
-          type: string
-        isConfirmed:
-          type: boolean
-          description: Confirm this clause extraction is correct
+        row_idx: { type: integer }
+        col_idx: { type: integer }
+        row_span: { type: integer, default: 1 }
+        col_span: { type: integer, default: 1 }
+        text: { type: string }
+        bbox: { $ref: '#/components/schemas/BBox' }
+        is_header: { type: boolean }
+        confidence: { type: number }
 
-    ApiResponseClause:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
-          properties:
-            data:
-              $ref: '#/components/schemas/Clause'
-
-    ApiResponseClauseTree:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
-          properties:
-            data:
-              type: array
-              items:
-                $ref: '#/components/schemas/Clause'
-
-    # ── Conflict ───────────────────────────────────────────────────────────
-    ConflictType:
-      type: string
-      enum:
-        - CONTRADICTION
-        - OVERLAP
-        - REDUNDANCY
-        - AMBIGUITY
-
-    ConflictStatus:
-      type: string
-      enum: [PENDING, RESOLVED, IGNORED]
-
-    Conflict:
+    DocTable:
       type: object
       properties:
-        id:
-          type: string
-          format: uuid
-        contractId:
-          type: string
-          format: uuid
-        clauseIdA:
-          type: string
-          format: uuid
-        clauseIdB:
-          type: string
-          format: uuid
-        conflictType:
-          $ref: '#/components/schemas/ConflictType'
-        description:
-          type: string
-        status:
-          $ref: '#/components/schemas/ConflictStatus'
-        resolutionNote:
-          type: string
-          nullable: true
-        resolvedBy:
-          type: string
-          nullable: true
-        resolvedAt:
-          type: string
-          format: date-time
-          nullable: true
-        createdAt:
-          type: string
-          format: date-time
-
-    ConflictResolveRequest:
-      type: object
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          enum: [RESOLVED, IGNORED]
-        resolutionNote:
-          type: string
-
-    ApiResponseConflict:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
-          properties:
-            data:
-              $ref: '#/components/schemas/Conflict'
-
-    ApiResponseConflictList:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
-          properties:
-            data:
-              type: array
-              items:
-                $ref: '#/components/schemas/Conflict'
-
-    # ── Review ──────────────────────────────────────────────────────────────
-    ReviewLog:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        contractId:
-          type: string
-          format: uuid
-        reviewerId:
-          type: string
-        action:
-          type: string
-          enum: [CLAUSE_UPDATED, CONFLICT_RESOLVED, CONFLICT_IGNORED, APPROVED, REJECTED]
-        entityType:
-          type: string
-          enum: [CLAUSE, CONFLICT, CONTRACT]
-        entityId:
-          type: string
-          format: uuid
-        note:
-          type: string
-          nullable: true
-        timestamp:
-          type: string
-          format: date-time
-
-    ReviewSummary:
-      type: object
-      properties:
-        contractId:
-          type: string
-          format: uuid
-        totalClauses:
-          type: integer
-        reviewedClauses:
-          type: integer
-        totalConflicts:
-          type: integer
-        pendingConflicts:
-          type: integer
-        logs:
+        id: { type: string }
+        document_id: { type: string }
+        page_no: { type: integer }
+        bbox: { $ref: '#/components/schemas/BBox' }
+        rows_count: { type: integer }
+        cols_count: { type: integer }
+        has_borders: { type: boolean }
+        is_multi_page: { type: boolean }
+        continued_from: { type: string, nullable: true }
+        cells:
           type: array
-          items:
-            $ref: '#/components/schemas/ReviewLog'
+          items: { $ref: '#/components/schemas/TableCell' }
 
-    ApiResponseReviewSummary:
-      allOf:
-        - $ref: '#/components/schemas/ApiResponse'
-        - type: object
+    # ── Citation ───────────────────────────────────────────────────────────
+    CitationSegment:
+      type: object
+      required: [page_no, char_start, char_end, bbox]
+      properties:
+        page_no: { type: integer }
+        line_id: { type: string }
+        char_start: { type: integer }
+        char_end: { type: integer }
+        bbox: { $ref: '#/components/schemas/BBox' }
+        bbox_level: { $ref: '#/components/schemas/BBoxLevel' }
+
+    Citation:
+      type: object
+      properties:
+        id: { type: string }
+        document_id: { type: string }
+        run_id: { type: string }
+        quote: { type: string }
+        quote_sha256: { type: string }
+        segments:
+          type: array
+          items: { $ref: '#/components/schemas/CitationSegment' }
+        doc_char_span:
+          type: array
+          items: { type: integer }
+          minItems: 2
+          maxItems: 2
+        coord_system: { $ref: '#/components/schemas/CoordSystem' }
+
+    CitationResolved:
+      type: object
+      description: Output của GET /citations/{id} — đủ thông tin để UI highlight một thao tác
+      properties:
+        citation: { $ref: '#/components/schemas/Citation' }
+        page_images:
+          type: array
+          description: Một URL ảnh preview cho mỗi trang có segment
+          items:
+            type: object
+            properties:
+              page_no: { type: integer }
+              preview_url: { type: string }
+
+    # ── Fact ───────────────────────────────────────────────────────────────
+    Fact:
+      type: object
+      properties:
+        id: { type: string }
+        document_id: { type: string }
+        run_id: { type: string }
+        key: { type: string, description: 'VD: "price.total", "party.name"' }
+        fact_type: { type: string }
+        raw_text: { type: string }
+        normalized_value: {}
+        context_clause_id: { type: string, nullable: true }
+        context_text: { type: string, nullable: true }
+        confidence: { type: number }
+        extractor: { type: string }
+        validation_status: { type: string, enum: [passed, failed, skipped] }
+        citation: { $ref: '#/components/schemas/Citation' }
+        trace_id: { type: string, nullable: true }
+
+    FactEffective:
+      type: object
+      description: Fact kèm giá trị hiệu lực sau review + ETag cho optimistic concurrency
+      properties:
+        fact: { $ref: '#/components/schemas/Fact' }
+        machine_value: {}
+        effective_value: { nullable: true }
+        review_state:
+          type: string
+          enum: [unreviewed, confirmed, corrected, rejected, awaiting_evidence]
+        reviewer_id: { type: string, nullable: true }
+        reviewed_at: { type: string, format: date-time, nullable: true }
+        review_item_id:
+          type: string
+          nullable: true
+          description: ID của review_item tương ứng (NULL = chưa sinh item)
+        current_version:
+          type: integer
+          minimum: 0
+          description: |
+            Version hiện tại của review_item (0 = giá trị máy, 1..N = sau N lần action).
+            **Client PHẢI gửi lại giá trị này trong `base_version` khi submit action.**
+
+    # ── Finding ────────────────────────────────────────────────────────────
+    FindingSide:
+      type: object
+      properties:
+        side: { type: string, enum: [a, b] }
+        document_id: { type: string }
+        document_role: { type: string, enum: [contract, annex] }
+        fact_id: { type: string, nullable: true }
+        clause_node_id: { type: string, nullable: true }
+        citation: { $ref: '#/components/schemas/Citation' }
+        value_snapshot: { nullable: true }
+
+    Finding:
+      type: object
+      properties:
+        id: { type: string }
+        dossier_id: { type: string }
+        run_id: { type: string }
+        finding_type: { $ref: '#/components/schemas/FindingType' }
+        scope: { $ref: '#/components/schemas/FindingScope' }
+        key_or_topic: { type: string }
+        disposition: { $ref: '#/components/schemas/Disposition' }
+        severity: { $ref: '#/components/schemas/Severity' }
+        confidence: { type: number }
+        rationale: { type: string }
+        method: { type: string }
+        sides:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items: { $ref: '#/components/schemas/FindingSide' }
+        disclaimer:
+          type: string
+          default: "Kết quả so sánh kỹ thuật, không phải kết luận pháp lý."
+        review:
+          type: object
+          nullable: true
           properties:
-            data:
-              $ref: '#/components/schemas/ReviewSummary'
+            item_id: { type: string }
+            status: { $ref: '#/components/schemas/ReviewItemStatus' }
+            current_version: { type: integer }
+
+    # ── Review item & action ───────────────────────────────────────────────
+    ReviewItem:
+      type: object
+      properties:
+        id: { type: string }
+        dossier_id: { type: string }
+        run_id: { type: string }
+        target_type: { $ref: '#/components/schemas/TargetType' }
+        target_id: { type: string }
+        reason: { type: string }
+        priority: { $ref: '#/components/schemas/ReviewItemPriority' }
+        status: { $ref: '#/components/schemas/ReviewItemStatus' }
+        version:
+          type: integer
+          minimum: 1
+          description: Version hiện tại của item — client gửi lại trong `base_version` khi submit action
+        source_trace_id: { type: string, nullable: true }
+        source_observation_id: { type: string, nullable: true }
+        target_snapshot:
+          description: Snapshot target để reviewer thấy ngay không cần join
+          oneOf:
+            - $ref: '#/components/schemas/FactEffective'
+            - $ref: '#/components/schemas/Finding'
+            - $ref: '#/components/schemas/ClauseNode'
+        created_at: { type: string, format: date-time }
+
+    ReviewActionRequest:
+      type: object
+      required: [action, base_version]
+      properties:
+        action: { $ref: '#/components/schemas/ReviewActionType' }
+        base_version:
+          type: integer
+          minimum: 0
+          description: |
+            Version hiện tại của review_item mà client đang thấy. **0** = dựa trên máy.
+            **1, 2, ...** = sau N lần action.
+            Mismatch với DB → 409 Conflict.
+        corrected_value:
+          description: Bắt buộc nếu action=correct và không có corrected_bbox
+        corrected_bbox:
+          type: array
+          description: Bắt buộc nếu action=correct và không có corrected_value (cho citation)
+          items:
+            type: object
+            properties:
+              page_no: { type: integer }
+              bbox: { $ref: '#/components/schemas/BBox' }
+        comment: { type: string, maxLength: 2000 }
+
+    ReviewActionResponse:
+      type: object
+      properties:
+        review_action_id: { type: string }
+        item_status: { $ref: '#/components/schemas/ReviewItemStatus' }
+        new_version: { type: integer }
+        effective_value: { nullable: true }
+        machine_value: { nullable: true }
+        job_status: { $ref: '#/components/schemas/JobStatus' }
+        open_items_remaining: { type: integer }
+        idempotent_replay:
+          type: boolean
+          description: True nếu response này từ Idempotency-Key replay (60s window)
+
+    ReviewConflictResponse:
+      type: object
+      description: Trả về khi `base_version` không khớp DB
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string, enum: [VERSION_CONFLICT] }
+            message: { type: string, example: "Version conflict: another action was submitted before yours (current version: 4)." }
+        current_state:
+          description: Trạng thái hiện tại của target để client refetch và reconcile
+          oneOf:
+            - $ref: '#/components/schemas/FactEffective'
+            - $ref: '#/components/schemas/Finding'
+        your_submitted_action:
+          type: object
+          nullable: true
+          description: Nếu action của bạn vẫn được ghi nhận dù version mismatch (server policy), thông tin action ở đây
 
     ApproveRequest:
       type: object
       properties:
-        note:
+        comment: { type: string, maxLength: 2000 }
+
+    # ── Job ────────────────────────────────────────────────────────────────
+    JobStepProgress:
+      type: object
+      properties:
+        step: { type: string, description: 'S0..S10' }
+        status: { type: string, enum: [queued, running, succeeded, failed, retrying, skipped] }
+        attempt: { type: integer }
+        duration_ms: { type: integer, nullable: true }
+        pages: { type: integer, nullable: true }
+        error_code: { type: string, nullable: true }
+
+    Job:
+      type: object
+      properties:
+        id: { type: string }
+        dossier_id: { type: string }
+        batch_id: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/JobStatus' }
+        current_run_id: { type: string, nullable: true }
+        has_conflicts: { type: boolean }
+        error_code: { type: string, nullable: true }
+        error_detail: { nullable: true }
+        trace_url: { type: string, nullable: true, description: Link "Mở trace" trên Langfuse }
+        progress:
+          type: object
+          properties:
+            total_steps: { type: integer }
+            done_steps: { type: integer }
+            current_step: { type: string, nullable: true }
+            current_step_detail: { type: string, nullable: true, description: 'VD: "OCR trang 5/12 — Hợp đồng"' }
+            open_review_items: { type: integer, nullable: true }
+        steps:
+          type: array
+          items: { $ref: '#/components/schemas/JobStepProgress' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    # ── Batch ──────────────────────────────────────────────────────────────
+    BatchCreated:
+      type: object
+      properties:
+        batch_id: { type: string }
+        dossier_count: { type: integer }
+        dossier_ids:
+          type: array
+          items: { type: string }
+        job_ids:
+          type: array
+          items: { type: string }
+
+    BatchSummary:
+      type: object
+      properties:
+        batch_id: { type: string }
+        name: { type: string }
+        auto_paused: { type: boolean }
+        auto_pause_reason: { type: string, nullable: true }
+        total: { type: integer }
+        done: { type: integer, description: "reviewed + approved" }
+        needs_review: { type: integer }
+        failed: { type: integer }
+        in_progress: { type: integer }
+        total_pages: { type: integer }
+        total_cost_usd: { type: number }
+        wall_clock_seconds: { type: number }
+        dossiers_per_hour: { type: number }
+        error_code_distribution:
+          type: object
+          additionalProperties:
+            type: integer
+          description: 'VD: {"OCR_RATE_LIMITED": 3, "DB_ERROR": 1}'
+
+    # ── Audit ──────────────────────────────────────────────────────────────
+    AuditEvent:
+      type: object
+      properties:
+        id: { type: string, description: 'job_event.id | review_action.id | approval.id' }
+        event_type:
           type: string
-          description: Optional approval note
+          enum: [job_status_changed, review_action_recorded, dossier_approved]
+        job_id: { type: string, nullable: true }
+        from_status: { type: string, nullable: true }
+        to_status: { type: string, nullable: true }
+        actor: { type: string, description: '"system" hoặc user_id' }
+        target_type: { $ref: '#/components/schemas/TargetType' }
+        target_id: { type: string, nullable: true }
+        version: { type: integer, nullable: true }
+        comment: { type: string, nullable: true }
+        trace_id: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
 
+    # ── Export ─────────────────────────────────────────────────────────────
+    ExportPayload:
+      type: object
+      properties:
+        dossier: { $ref: '#/components/schemas/Dossier' }
+        run_id: { type: string }
+        facts:
+          type: array
+          items: { $ref: '#/components/schemas/FactEffective' }
+        findings:
+          type: array
+          items: { $ref: '#/components/schemas/Finding' }
+        review_items:
+          type: array
+          items: { $ref: '#/components/schemas/ReviewItem' }
+        snapshot_sha256: { type: string }
+        generated_at: { type: string, format: date-time }
+
+    # ── Ops ────────────────────────────────────────────────────────────────
+    OpsSummary:
+      type: object
+      properties:
+        window: { type: object, properties: { from: { type: string, format: date-time }, to: { type: string, format: date-time } } }
+        jobs_by_status:
+          type: object
+          additionalProperties: { type: integer }
+        throughput:
+          type: object
+          properties:
+            dossiers_per_hour: { type: number }
+            pages_per_minute: { type: number }
+            median_dossier_minutes: { type: number }
+            p95_dossier_minutes: { type: number }
+        cost:
+          type: object
+          properties:
+            mean_usd_per_dossier: { type: number }
+            p95_usd_per_dossier: { type: number }
+            projected_usd_per_1000: { type: number }
+            by_model:
+              type: object
+              additionalProperties: { type: number }
+        failures:
+          type: object
+          properties:
+            by_error_code:
+              type: object
+              additionalProperties: { type: integer }
+            batch_paused_count: { type: integer }
+            worker_lost_count: { type: integer }
+
+    # ── Envelopes (data wrapper) ────────────────────────────────────────────
+    ApiEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          nullable: true
+        meta:
+          type: object
+          properties:
+            request_id: { type: string }
+            trace_id: { type: string }
+            timestamp: { type: string, format: date-time }
+
+    Pagination:
+      type: object
+      properties:
+        next_cursor: { type: string, nullable: true }
+        has_more: { type: boolean }
+        total:
+          type: integer
+          nullable: true
+          description: Có thể null nếu không đếm được (cursor-based)
+
+    ApiEnvelopeDossierCreated:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            dossier_id: { type: string }
+            job_id: { type: string }
+        meta: { $ref: '#/components/schemas/ApiEnvelope/properties/meta' }
+
+    ApiEnvelopeDossierDeleted:
+      type: object
+      properties:
+        data:
+          type: object
+          required: [dossier_id, deleted_at, purge_status]
+          properties:
+            dossier_id: { type: string }
+            deleted_at: { type: string, format: date-time }
+            purge_status:
+              type: string
+              enum: [pending, running, completed, failed]
+        meta: { $ref: '#/components/schemas/ApiEnvelope/properties/meta' }
+
+    ApiEnvelopeDossier:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/Dossier' }
+
+    ApiEnvelopeDossierList:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/DossierSummary' }
+            pagination: { $ref: '#/components/schemas/Pagination' }
+
+    ApiEnvelopeJob:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/Job' }
+
+    ApiEnvelopeBatchCreated:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/BatchCreated' }
+
+    ApiEnvelopeBatchSummary:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/BatchSummary' }
+
+    ApiEnvelopePageList:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/Page' }
+
+    ApiEnvelopePageOcr:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/PageOcr' }
+
+    ApiEnvelopeClauseTree:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/ClauseNode' }
+
+    ApiEnvelopeTableList:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/DocTable' }
+
+    ApiEnvelopeFactList:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/FactEffective' }
+            pagination: { $ref: '#/components/schemas/Pagination' }
+
+    ApiEnvelopeFindingList:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/Finding' }
+            pagination: { $ref: '#/components/schemas/Pagination' }
+
+    ApiEnvelopeCitationResolved:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/CitationResolved' }
+
+    ApiEnvelopeReviewItem:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/ReviewItem' }
+
+    ApiEnvelopeReviewItemList:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/ReviewItem' }
+            pagination: { $ref: '#/components/schemas/Pagination' }
+
+    ApiEnvelopeReviewAction:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/ReviewActionResponse' }
+
+    ApiEnvelopeReviewConflict:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/ReviewConflictResponse' }
+
+    ApiEnvelopeAudit:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/AuditEvent' }
+            pagination: { $ref: '#/components/schemas/Pagination' }
+
+    ApiEnvelopeExport:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/ExportPayload' }
+
+    ApiEnvelopeOpsSummary:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/OpsSummary' }
+
+    # ── Dossier & Document Schemas ──────────────────────────────────────────
+    DossierUpdateRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        metadata:
+          type: object
+          additionalProperties: true
+
+    DocumentListItem:
+      type: object
+      required: [id, dossier_id, role, filename, file_size_bytes, page_count]
+      properties:
+        id: { type: string }
+        dossier_id: { type: string }
+        role: { type: string, enum: [CONTRACT, ANNEX] }
+        filename: { type: string }
+        file_size_bytes: { type: integer }
+        page_count: { type: integer }
+        signing_date: { type: string, format: date, nullable: true }
+        document_number: { type: string, nullable: true }
+        sha256: { type: string }
+
+    DocumentDetail:
+      allOf:
+        - $ref: '#/components/schemas/DocumentListItem'
+        - type: object
+          properties:
+            storage_path: { type: string }
+            ocr_status: { type: string, enum: [pending, completed, failed] }
+            created_at: { type: string, format: date-time }
+
+    # ── Manifest Schemas ────────────────────────────────────────────────────
+    ManifestDocumentItem:
+      type: object
+      required: [document_id, role, display_order]
+      properties:
+        document_id: { type: string }
+        role: { type: string, enum: [CONTRACT, ANNEX] }
+        display_order: { type: integer }
+        title: { type: string }
+        document_number: { type: string, nullable: true }
+        signing_date: { type: string, format: date, nullable: true }
+        annex_type: { type: string, nullable: true }
+        parent_document_id: { type: string, nullable: true }
+
+    DossierManifest:
+      type: object
+      required: [dossier_id, status, documents]
+      properties:
+        dossier_id: { type: string }
+        status: { type: string, enum: [draft, confirmed, locked] }
+        confirmed_by: { type: string, nullable: true }
+        confirmed_at: { type: string, format: date-time, nullable: true }
+        documents:
+          type: array
+          items: { $ref: '#/components/schemas/ManifestDocumentItem' }
+
+    ConfirmManifestRequest:
+      type: object
+      required: [documents]
+      properties:
+        documents:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/ManifestDocumentItem' }
+        notes: { type: string, nullable: true }
+
+    # ── Pipeline Run Schemas ────────────────────────────────────────────────
+    CreateRunRequest:
+      type: object
+      properties:
+        config_override:
+          type: object
+          properties:
+            ocr_profile: { type: string, enum: [standard, high_res_binarize, table_optimized] }
+            prompt_candidate_id: { type: string }
+            confidence_threshold: { type: number, minimum: 0, maximum: 1 }
+
+    PipelineRunSummary:
+      type: object
+      required: [run_id, dossier_id, status, created_at]
+      properties:
+        run_id: { type: string }
+        dossier_id: { type: string }
+        status: { type: string, enum: [queued, running, completed, failed, cancelled] }
+        triggered_by: { type: string }
+        duration_seconds: { type: number, nullable: true }
+        created_at: { type: string, format: date-time }
+        finished_at: { type: string, format: date-time, nullable: true }
+
+    PipelineRunDetail:
+      allOf:
+        - $ref: '#/components/schemas/PipelineRunSummary'
+        - type: object
+          properties:
+            stages:
+              type: array
+              items:
+                type: object
+                required: [stage_name, status]
+                properties:
+                  stage_name: { type: string }
+                  status: { type: string, enum: [pending, running, completed, failed, skipped] }
+                  duration_seconds: { type: number, nullable: true }
+                  error_message: { type: string, nullable: true }
+            metrics:
+              type: object
+              properties:
+                pages_processed: { type: integer }
+                facts_extracted: { type: integer }
+                conflicts_found: { type: integer }
+                tokens_consumed: { type: integer }
+                cost_estimate_usd: { type: number }
+
+    # ── Batch Schemas ───────────────────────────────────────────────────────
+    BatchListItem:
+      type: object
+      required: [batch_id, status, total_dossiers, created_at]
+      properties:
+        batch_id: { type: string }
+        status: { type: string, enum: [processing, completed, partial_failed, failed, cancelled] }
+        total_dossiers: { type: integer }
+        completed_dossiers: { type: integer }
+        failed_dossiers: { type: integer }
+        created_at: { type: string, format: date-time }
+
+    BatchDetail:
+      allOf:
+        - $ref: '#/components/schemas/BatchListItem'
+        - type: object
+          properties:
+            dossiers:
+              type: array
+              items:
+                type: object
+                required: [dossier_id, status]
+                properties:
+                  dossier_id: { type: string }
+                  status: { type: string }
+                  job_id: { type: string, nullable: true }
+
+    # ── Re-OCR Schemas ──────────────────────────────────────────────────────
+    ReOcrRequestPayload:
+      type: object
+      required: [profile]
+      properties:
+        page_numbers:
+          type: array
+          items: { type: integer }
+          description: Danh sách trang cần OCR lại (rỗng = toàn bộ văn bản)
+        profile:
+          type: string
+          enum: [high_res_binarize, table_optimized, handwritten_vietnamese]
+        reason: { type: string }
+
+    ReOcrRequestRecord:
+      type: object
+      required: [id, document_id, profile, status, created_at]
+      properties:
+        id: { type: string }
+        document_id: { type: string }
+        profile: { type: string }
+        page_numbers:
+          type: array
+          items: { type: integer }
+        status: { type: string, enum: [pending, processing, completed, failed] }
+        requested_by: { type: string }
+        created_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time, nullable: true }
+
+    # ── External Approval Schemas ───────────────────────────────────────────
+    ExternalApprovalRequest:
+      type: object
+      required: [provider, approver_email]
+      properties:
+        provider:
+          type: string
+          enum: [docusign, sap_ariba, corporate_sso]
+        approver_email: { type: string, format: email }
+        approver_name: { type: string }
+        expires_in_hours: { type: integer, default: 72 }
+        notes: { type: string }
+
+    ExternalApprovalGrant:
+      type: object
+      required: [id, dossier_id, provider, status, created_at]
+      properties:
+        id: { type: string }
+        dossier_id: { type: string }
+        provider: { type: string }
+        status: { type: string, enum: [pending, approved, rejected, expired] }
+        approver_email: { type: string }
+        external_reference_id: { type: string, nullable: true }
+        digital_signature_hash: { type: string, nullable: true }
+        granted_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    ExternalApprovalCallbackPayload:
+      type: object
+      required: [grant_id, status]
+      properties:
+        grant_id: { type: string }
+        status: { type: string, enum: [approved, rejected] }
+        external_reference_id: { type: string }
+        digital_signature_hash: { type: string, nullable: true }
+        signature_certificate: { type: string, nullable: true }
+        signed_at: { type: string, format: date-time }
+
+    # ── Review Revision Schemas (Append-only) ────────────────────────────────
+    ReviewItemRevision:
+      type: object
+      required: [revision_number, action, author_user_id, created_at]
+      properties:
+        revision_number: { type: integer }
+        action:
+          type: string
+          enum: [confirm, correct, reject, needs_more_evidence]
+        author_user_id: { type: string }
+        author_role: { type: string }
+        comment: { type: string, nullable: true }
+        corrected_value: { type: object, nullable: true }
+        corrected_bbox:
+          type: array
+          items: { type: number }
+          nullable: true
+        previous_version: { type: integer }
+        created_at: { type: string, format: date-time }
+
+    # ── Optimization Schemas ────────────────────────────────────────────────
+    OptimizationCampaign:
+      type: object
+      required: [campaign_id, name, target_metric, status, created_at]
+      properties:
+        campaign_id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        target_metric: { type: string, enum: [f1_score, precision, latency, cost] }
+        baseline_score: { type: number }
+        current_best_score: { type: number, nullable: true }
+        status: { type: string, enum: [active, completed, archived] }
+        created_at: { type: string, format: date-time }
+
+    CreateCampaignRequest:
+      type: object
+      required: [name, target_metric, baseline_score]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        target_metric: { type: string, enum: [f1_score, precision, latency, cost] }
+        baseline_score: { type: number }
+
+    OptimizationCandidate:
+      type: object
+      required: [candidate_id, campaign_id, prompt_template, is_active_production, created_at]
+      properties:
+        candidate_id: { type: string }
+        campaign_id: { type: string }
+        name: { type: string }
+        prompt_template: { type: string }
+        model_name: { type: string }
+        temperature: { type: number }
+        is_active_production: { type: boolean }
+        benchmark_f1: { type: number, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    CreateCandidateRequest:
+      type: object
+      required: [campaign_id, name, prompt_template, model_name]
+      properties:
+        campaign_id: { type: string }
+        name: { type: string }
+        prompt_template: { type: string }
+        model_name: { type: string }
+        temperature: { type: number, default: 0.0 }
+
+    OptimizationExperiment:
+      type: object
+      required: [experiment_id, campaign_id, candidate_id, golden_dataset_version, status, created_at]
+      properties:
+        experiment_id: { type: string }
+        campaign_id: { type: string }
+        candidate_id: { type: string }
+        golden_dataset_version: { type: string }
+        status: { type: string, enum: [configured, running, completed, failed] }
+        created_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time, nullable: true }
+
+    CreateExperimentRequest:
+      type: object
+      required: [campaign_id, candidate_id, golden_dataset_version]
+      properties:
+        campaign_id: { type: string }
+        candidate_id: { type: string }
+        golden_dataset_version: { type: string }
+        sample_size: { type: integer, default: 100 }
+
+    ExperimentResult:
+      type: object
+      required: [experiment_id, f1_score, precision, recall, avg_latency_ms, total_cost_usd]
+      properties:
+        experiment_id: { type: string }
+        f1_score: { type: number }
+        precision: { type: number }
+        recall: { type: number }
+        avg_latency_ms: { type: number }
+        total_cost_usd: { type: number }
+        eval_items_count: { type: integer }
+        breakdown_by_clause_type:
+          type: object
+          additionalProperties: { type: number }
+
+    # ── Enterprise Envelopes ────────────────────────────────────────────────
+    ApiEnvelopeDocument:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/DocumentDetail' }
+
+    ApiEnvelopeDocumentList:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/DocumentListItem' }
+
+    ApiEnvelopeManifest:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/DossierManifest' }
+
+    ApiEnvelopePipelineRun:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/PipelineRunSummary' }
+
+    ApiEnvelopePipelineRunList:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/PipelineRunSummary' }
+            pagination: { $ref: '#/components/schemas/Pagination' }
+
+    ApiEnvelopePipelineRunDetail:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/PipelineRunDetail' }
+
+    ApiEnvelopeBatchList:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/BatchListItem' }
+            pagination: { $ref: '#/components/schemas/Pagination' }
+
+    ApiEnvelopeBatchDetail:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/BatchDetail' }
+
+    ApiEnvelopeReOcrRequest:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/ReOcrRequestRecord' }
+
+    ApiEnvelopeReOcrRequestList:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/ReOcrRequestRecord' }
+
+    ApiEnvelopeExternalApproval:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/ExternalApprovalGrant' }
+
+    ApiEnvelopeExternalApprovalList:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/ExternalApprovalGrant' }
+
+    ApiEnvelopeReviewRevisions:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/ReviewItemRevision' }
+
+    ApiEnvelopeCampaign:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/OptimizationCampaign' }
+
+    ApiEnvelopeCampaignList:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/OptimizationCampaign' }
+            pagination: { $ref: '#/components/schemas/Pagination' }
+
+    ApiEnvelopeCampaignDetail:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/OptimizationCampaign' }
+
+    ApiEnvelopeCandidate:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/OptimizationCandidate' }
+
+    ApiEnvelopeCandidateList:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/OptimizationCandidate' }
+            pagination: { $ref: '#/components/schemas/Pagination' }
+
+    ApiEnvelopeExperiment:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/OptimizationExperiment' }
+
+    ApiEnvelopeExperimentList:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/OptimizationExperiment' }
+            pagination: { $ref: '#/components/schemas/Pagination' }
+
+    ApiEnvelopeExperimentResult:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/ExperimentResult' }
+
+  # ── Responses ───────────────────────────────────────────────────────────
   responses:
+    Unauthorized:
+      description: Token JWT không hợp lệ, đã hết hạn hoặc không được cung cấp (401)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: Không có quyền truy cập theo vai trò x-rbac hoặc không khớp X-Tenant-Id (403)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
     BadRequest:
-      description: Invalid request payload
+      description: Request không hợp lệ (validation, schema)
       content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ApiResponseError'
-
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
     NotFound:
-      description: Resource not found
+      description: Resource không tồn tại
       content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ApiResponseError'
-
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
     PayloadTooLarge:
-      description: File exceeds maximum size limit
+      description: File vượt quá giới hạn (mặc định 50 MB)
       content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ApiResponseError'
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    RateLimited:
+      description: Bị rate limit (429)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  # ── Security Schemes ─────────────────────────────────────────────────────
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token chuẩn RFC 7519 chứa các claims:
+        - `sub`: User ID (ULID)
+        - `tenant_id`: Định danh Tenant (bắt buộc khớp với header X-Tenant-Id)
+        - `role`: OPERATOR | REVIEWER | ADMINISTRATOR
+    tenantHeader:
+      type: apiKey
+      in: header
+      name: X-Tenant-Id
+      description: |
+        Header định danh Tenant phục vụ phân lập đa khách hàng (Tenant Isolation).
+        Bắt buộc phải trùng khớp với claim `tenant_id` trong Bearer JWT.
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SECURITY, WEBHOOKS, CALLBACKS
+# ═══════════════════════════════════════════════════════════════════════════
+security:
+  - bearerAuth: []
+    tenantHeader: []
+
+
+webhooks:
+  jobStatusChanged:
+    post:
+      summary: (Tuỳ chọn) Webhook khi job chuyển trạng thái
+      description: |
+        Internal webhook cho integration test hoặc external system.
+        Mặc định client dùng polling `/jobs/{id}` 2-3s/lần (xem DOC-04 8.0).
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                job_id: { type: string }
+                dossier_id: { type: string }
+                from_status: { $ref: '#/components/schemas/JobStatus' }
+                to_status: { $ref: '#/components/schemas/JobStatus' }
+                trace_id: { type: string }
+      responses:
+        '200':
+          description: Accepted

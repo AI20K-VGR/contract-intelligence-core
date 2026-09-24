@@ -1,0 +1,807 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI1 OCR Snapshot (ai1.snapshot.v1) - Document",
+  "$defs": {
+    "Cell": {
+      "additionalProperties": false,
+      "properties": {
+        "cell_id": {
+          "title": "Cell Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "bbox_normalized": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bbox Normalized"
+        },
+        "geometry_provenance": {
+          "anyOf": [
+            {
+              "enum": [
+                "MEASURED",
+                "DERIVED",
+                "CLAIMED"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Geometry Provenance"
+        }
+      },
+      "required": [
+        "cell_id",
+        "text"
+      ],
+      "title": "Cell",
+      "type": "object"
+    },
+    "EngineInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "EngineInfo",
+      "type": "object"
+    },
+    "PageImageRef": {
+      "additionalProperties": false,
+      "properties": {
+        "uri": {
+          "title": "Uri",
+          "type": "string"
+        },
+        "width_px": {
+          "exclusiveMinimum": 0,
+          "title": "Width Px",
+          "type": "integer"
+        },
+        "height_px": {
+          "exclusiveMinimum": 0,
+          "title": "Height Px",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "uri",
+        "width_px",
+        "height_px"
+      ],
+      "title": "PageImageRef",
+      "type": "object"
+    },
+    "Row": {
+      "additionalProperties": false,
+      "properties": {
+        "row_id": {
+          "title": "Row Id",
+          "type": "string"
+        },
+        "cells": {
+          "items": {
+            "$ref": "#/$defs/Cell"
+          },
+          "title": "Cells",
+          "type": "array"
+        }
+      },
+      "required": [
+        "row_id",
+        "cells"
+      ],
+      "title": "Row",
+      "type": "object"
+    },
+    "SnapshotBlock": {
+      "additionalProperties": false,
+      "description": "Recommended (not required) heading/paragraph grouping; see handoff §4.\n\nNot yet populated by BuildSnapshot in this version — AI2 may merge line\nbboxes into clause-region bboxes itself in the interim, as the handoff\nrequest explicitly allows.",
+      "properties": {
+        "block_id": {
+          "title": "Block Id",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "heading",
+            "paragraph"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "line_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Line Ids",
+          "type": "array"
+        },
+        "reading_order": {
+          "minimum": 0,
+          "title": "Reading Order",
+          "type": "integer"
+        },
+        "bbox_normalized": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "title": "Bbox Normalized",
+          "type": "array"
+        },
+        "geometry_provenance": {
+          "enum": [
+            "MEASURED",
+            "DERIVED",
+            "CLAIMED"
+          ],
+          "title": "Geometry Provenance",
+          "type": "string"
+        }
+      },
+      "required": [
+        "block_id",
+        "type",
+        "line_ids",
+        "reading_order",
+        "bbox_normalized",
+        "geometry_provenance"
+      ],
+      "title": "SnapshotBlock",
+      "type": "object"
+    },
+    "SnapshotLine": {
+      "additionalProperties": false,
+      "properties": {
+        "line_id": {
+          "title": "Line Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "page_char_start": {
+          "minimum": 0,
+          "title": "Page Char Start",
+          "type": "integer"
+        },
+        "page_char_end": {
+          "minimum": 0,
+          "title": "Page Char End",
+          "type": "integer"
+        },
+        "bbox_normalized": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "title": "Bbox Normalized",
+          "type": "array"
+        },
+        "geometry_provenance": {
+          "enum": [
+            "MEASURED",
+            "DERIVED",
+            "CLAIMED"
+          ],
+          "title": "Geometry Provenance",
+          "type": "string"
+        },
+        "word_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Word Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "line_id",
+        "text",
+        "page_char_start",
+        "page_char_end",
+        "bbox_normalized",
+        "geometry_provenance"
+      ],
+      "title": "SnapshotLine",
+      "type": "object"
+    },
+    "SnapshotPage": {
+      "additionalProperties": false,
+      "properties": {
+        "page_number": {
+          "minimum": 1,
+          "title": "Page Number",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "SUCCESS",
+            "PARTIAL",
+            "FAILED"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "input_type": {
+          "enum": [
+            "TEXT_LAYER",
+            "SCANNED_OCR",
+            "MIXED"
+          ],
+          "title": "Input Type",
+          "type": "string"
+        },
+        "source_page_width": {
+          "exclusiveMinimum": 0,
+          "title": "Source Page Width",
+          "type": "number"
+        },
+        "source_page_height": {
+          "exclusiveMinimum": 0,
+          "title": "Source Page Height",
+          "type": "number"
+        },
+        "rotation_degrees": {
+          "default": 0,
+          "title": "Rotation Degrees",
+          "type": "integer"
+        },
+        "page_image_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PageImageRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "default": "",
+          "title": "Text",
+          "type": "string"
+        },
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/SnapshotLine"
+          },
+          "title": "Lines",
+          "type": "array"
+        },
+        "words": {
+          "items": {
+            "$ref": "#/$defs/SnapshotWord"
+          },
+          "title": "Words",
+          "type": "array"
+        },
+        "blocks": {
+          "items": {
+            "$ref": "#/$defs/SnapshotBlock"
+          },
+          "title": "Blocks",
+          "type": "array"
+        },
+        "table_status": {
+          "default": "NOT_CHECKED",
+          "enum": [
+            "NOT_CHECKED",
+            "NOT_PRESENT",
+            "DETECTED"
+          ],
+          "title": "Table Status",
+          "type": "string"
+        },
+        "tables": {
+          "items": {
+            "$ref": "#/$defs/Table"
+          },
+          "title": "Tables",
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        }
+      },
+      "required": [
+        "page_number",
+        "status",
+        "input_type",
+        "source_page_width",
+        "source_page_height"
+      ],
+      "title": "SnapshotPage",
+      "type": "object"
+    },
+    "SnapshotWord": {
+      "additionalProperties": false,
+      "properties": {
+        "word_id": {
+          "title": "Word Id",
+          "type": "string"
+        },
+        "line_id": {
+          "title": "Line Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "line_char_start": {
+          "minimum": 0,
+          "title": "Line Char Start",
+          "type": "integer"
+        },
+        "line_char_end": {
+          "minimum": 0,
+          "title": "Line Char End",
+          "type": "integer"
+        },
+        "bbox_normalized": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "title": "Bbox Normalized",
+          "type": "array"
+        },
+        "geometry_provenance": {
+          "enum": [
+            "MEASURED",
+            "DERIVED",
+            "CLAIMED"
+          ],
+          "title": "Geometry Provenance",
+          "type": "string"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        }
+      },
+      "required": [
+        "word_id",
+        "line_id",
+        "text",
+        "line_char_start",
+        "line_char_end",
+        "bbox_normalized",
+        "geometry_provenance"
+      ],
+      "title": "SnapshotWord",
+      "type": "object"
+    },
+    "StructuralNode": {
+      "additionalProperties": false,
+      "description": "One node of the document's clause hierarchy (section 8): Document ->\nSection/Article -> Clause -> Point. ``text`` is built from the complete OCR\nstream, including lines without geometry. ``line_ids`` and ``regions`` are\noptional positional evidence and may cover only a subset of that text. See\n``BuildStructure`` for the text/geometry separation contract.",
+      "properties": {
+        "node_id": {
+          "minLength": 1,
+          "title": "Node Id",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "ARTICLE",
+            "CLAUSE",
+            "POINT",
+            "UNMARKED"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "label_raw": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label Raw"
+        },
+        "label_normalized": {
+          "minLength": 1,
+          "title": "Label Normalized",
+          "type": "string"
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Id"
+        },
+        "page_start": {
+          "minimum": 1,
+          "title": "Page Start",
+          "type": "integer"
+        },
+        "page_end": {
+          "minimum": 1,
+          "title": "Page End",
+          "type": "integer"
+        },
+        "text": {
+          "default": "",
+          "title": "Text",
+          "type": "string"
+        },
+        "line_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Line Ids",
+          "type": "array"
+        },
+        "regions": {
+          "items": {
+            "$ref": "#/$defs/StructuralRegion"
+          },
+          "title": "Regions",
+          "type": "array"
+        },
+        "bbox_normalized": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bbox Normalized"
+        },
+        "geometry_provenance": {
+          "anyOf": [
+            {
+              "enum": [
+                "MEASURED",
+                "DERIVED",
+                "CLAIMED"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Geometry Provenance"
+        }
+      },
+      "required": [
+        "node_id",
+        "type",
+        "label_normalized",
+        "page_start",
+        "page_end"
+      ],
+      "title": "StructuralNode",
+      "type": "object"
+    },
+    "StructuralRegion": {
+      "additionalProperties": false,
+      "description": "A lightweight geometry anchor for a clause, not a text container.\n\nOnly boundary anchors (normally the first and last positioned OCR line on\neach page) are emitted.  This keeps geometry mapping independent from\nclause extraction and avoids re-reading/cropping the whole clause bbox.",
+      "properties": {
+        "page_number": {
+          "minimum": 1,
+          "title": "Page Number",
+          "type": "integer"
+        },
+        "bbox_normalized": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "title": "Bbox Normalized",
+          "type": "array"
+        },
+        "geometry_provenance": {
+          "enum": [
+            "MEASURED",
+            "DERIVED",
+            "CLAIMED"
+          ],
+          "title": "Geometry Provenance",
+          "type": "string"
+        },
+        "anchor": {
+          "enum": [
+            "START",
+            "END"
+          ],
+          "title": "Anchor",
+          "type": "string"
+        }
+      },
+      "required": [
+        "page_number",
+        "bbox_normalized",
+        "geometry_provenance",
+        "anchor"
+      ],
+      "title": "StructuralRegion",
+      "type": "object"
+    },
+    "Table": {
+      "additionalProperties": false,
+      "properties": {
+        "table_id": {
+          "title": "Table Id",
+          "type": "string"
+        },
+        "bbox_normalized": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "title": "Bbox Normalized",
+          "type": "array"
+        },
+        "geometry_provenance": {
+          "enum": [
+            "MEASURED",
+            "DERIVED",
+            "CLAIMED"
+          ],
+          "title": "Geometry Provenance",
+          "type": "string"
+        },
+        "header": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Header",
+          "type": "array"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/Row"
+          },
+          "title": "Rows",
+          "type": "array"
+        }
+      },
+      "required": [
+        "table_id",
+        "bbox_normalized",
+        "geometry_provenance",
+        "rows"
+      ],
+      "title": "Table",
+      "type": "object"
+    },
+    "TableContinuityLink": {
+      "additionalProperties": false,
+      "description": "One cross-page continuity decision (section 11) between the last table on one\npage and the first table on the next. Does not merge rows/cells -- only records the\ndecision and why, same as `backend/app/tables.py`'s own `link_continuations`\n(independently landing on the same \"link, don't merge\" answer). No LLM gray-zone\nagent produced this in the current build (deterministic only -- see\ndocs/ai1-decisions.md D8); MERGE/SPLIT come from hard guards and a deterministic\nscore, anything in between is NEEDS_REVIEW rather than a guess.",
+      "properties": {
+        "from_table_id": {
+          "title": "From Table Id",
+          "type": "string"
+        },
+        "from_page": {
+          "minimum": 1,
+          "title": "From Page",
+          "type": "integer"
+        },
+        "to_table_id": {
+          "title": "To Table Id",
+          "type": "string"
+        },
+        "to_page": {
+          "minimum": 1,
+          "title": "To Page",
+          "type": "integer"
+        },
+        "decision": {
+          "enum": [
+            "MERGE",
+            "SPLIT",
+            "NEEDS_REVIEW"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reason Codes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "from_table_id",
+        "from_page",
+        "to_table_id",
+        "to_page",
+        "decision",
+        "confidence"
+      ],
+      "title": "TableContinuityLink",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "ai1.snapshot.v1",
+      "default": "ai1.snapshot.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "snapshot_id": {
+      "minLength": 1,
+      "title": "Snapshot Id",
+      "type": "string"
+    },
+    "source_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Source Digest",
+      "type": "string"
+    },
+    "dossier_id": {
+      "minLength": 1,
+      "title": "Dossier Id",
+      "type": "string"
+    },
+    "document_id": {
+      "minLength": 1,
+      "title": "Document Id",
+      "type": "string"
+    },
+    "filename": {
+      "minLength": 1,
+      "title": "Filename",
+      "type": "string"
+    },
+    "document_role": {
+      "enum": [
+        "contract",
+        "annex"
+      ],
+      "title": "Document Role",
+      "type": "string"
+    },
+    "input_type": {
+      "enum": [
+        "TEXT_LAYER",
+        "SCANNED_OCR",
+        "MIXED"
+      ],
+      "title": "Input Type",
+      "type": "string"
+    },
+    "engine": {
+      "$ref": "#/$defs/EngineInfo"
+    },
+    "page_count": {
+      "minimum": 0,
+      "title": "Page Count",
+      "type": "integer"
+    },
+    "processing_ms": {
+      "minimum": 0,
+      "title": "Processing Ms",
+      "type": "number"
+    },
+    "pages": {
+      "items": {
+        "$ref": "#/$defs/SnapshotPage"
+      },
+      "title": "Pages",
+      "type": "array"
+    },
+    "nodes": {
+      "items": {
+        "$ref": "#/$defs/StructuralNode"
+      },
+      "title": "Nodes",
+      "type": "array"
+    },
+    "table_continuity": {
+      "items": {
+        "$ref": "#/$defs/TableContinuityLink"
+      },
+      "title": "Table Continuity",
+      "type": "array"
+    }
+  },
+  "required": [
+    "snapshot_id",
+    "source_digest",
+    "dossier_id",
+    "document_id",
+    "filename",
+    "document_role",
+    "input_type",
+    "engine",
+    "page_count",
+    "processing_ms"
+  ],
+  "type": "object"
+}

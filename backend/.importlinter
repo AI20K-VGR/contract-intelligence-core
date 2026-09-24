@@ -1,0 +1,167 @@
+# -----------------------------------------------------------------------------
+# import-linter configuration
+#
+# Enforce DDD Dependency Rule:
+#   interfaces -> application -> domain
+#   infrastructure -> domain (impl interface from domain)
+#   Cross-module: only via shared kernel / domain event / public service
+#
+# Run:    lint-imports
+# CI:     fail PR on violation
+# Docs:   https://import-linter.readthedocs.io/
+# -----------------------------------------------------------------------------
+[importlinter]
+root_package = contract_intelligence
+include_external_packages = True
+
+[importlinter:contract:domain_purity]
+name = Domain purity
+type = forbidden
+source_modules =
+    contract_intelligence.contract.domain
+    contract_intelligence.extraction.domain
+    contract_intelligence.conflict.domain
+    contract_intelligence.review.domain
+    contract_intelligence.identity.domain
+forbidden_modules =
+    fastapi
+    sqlalchemy
+    alembic
+    minio
+    aiokafka
+    aioboto3
+    httpx
+    jwt
+    passlib
+    contract_intelligence.contract.application
+    contract_intelligence.contract.infrastructure
+    contract_intelligence.contract.interfaces
+    contract_intelligence.extraction.application
+    contract_intelligence.extraction.infrastructure
+    contract_intelligence.extraction.interfaces
+    contract_intelligence.conflict.application
+    contract_intelligence.conflict.infrastructure
+    contract_intelligence.conflict.interfaces
+    contract_intelligence.review.application
+    contract_intelligence.review.infrastructure
+    contract_intelligence.review.interfaces
+    contract_intelligence.identity.infrastructure
+    contract_intelligence.identity.interfaces
+    contract_intelligence.infrastructure
+
+[importlinter:contract:application_no_infra_or_interfaces]
+name = Application no infra or interfaces
+type = forbidden
+source_modules =
+    contract_intelligence.contract.application
+    contract_intelligence.extraction.application
+    contract_intelligence.conflict.application
+    contract_intelligence.review.application
+forbidden_modules =
+    contract_intelligence.contract.infrastructure
+    contract_intelligence.contract.interfaces
+    contract_intelligence.extraction.infrastructure
+    contract_intelligence.extraction.interfaces
+    contract_intelligence.conflict.infrastructure
+    contract_intelligence.conflict.interfaces
+    contract_intelligence.review.infrastructure
+    contract_intelligence.review.interfaces
+    contract_intelligence.identity.infrastructure
+    contract_intelligence.identity.interfaces
+ignore_imports =
+    # ApprovalService is a CRUD facade over ORM. The orchestration logic
+    # naturally lives in infrastructure (where ORM belongs). Wrapping via Protocol does not
+    # justify the refactor cost; tracked as technical debt for a dedicated refactor sprint.
+    contract_intelligence.review.application.services.approval_service -> contract_intelligence.contract.infrastructure.persistence.repository_impl
+    contract_intelligence.review.application.services.approval_service -> contract_intelligence.review.infrastructure.persistence.orm_approval
+    contract_intelligence.review.application.services.approval_service -> contract_intelligence.review.infrastructure.persistence.orm
+    # ReOcrService interacts directly with ReOcrRequestORM. A Protocol wrapper adds
+    # complexity without runtime value. Service can be moved to infrastructure in a
+    # follow-up refactor sprint.
+    contract_intelligence.extraction.application.services.reocr_service -> contract_intelligence.extraction.infrastructure.persistence.orm_reocr
+    # ExtractionService binds to PipelineOrchestrator (shared.ai) for async dispatch,
+    # which transitively imports extraction.infrastructure.persistence.orm.
+    contract_intelligence.extraction.application.services.extraction_service -> contract_intelligence.shared.ai.pipeline_orchestrator
+
+[importlinter:contract:infrastructure_no_interfaces]
+name = Infrastructure no interfaces
+type = forbidden
+source_modules =
+    contract_intelligence.contract.infrastructure
+    contract_intelligence.extraction.infrastructure
+    contract_intelligence.conflict.infrastructure
+    contract_intelligence.review.infrastructure
+    contract_intelligence.identity.infrastructure
+forbidden_modules =
+    contract_intelligence.contract.interfaces
+    contract_intelligence.extraction.interfaces
+    contract_intelligence.conflict.interfaces
+    contract_intelligence.review.interfaces
+    contract_intelligence.identity.interfaces
+
+[importlinter:contract:cross_module_independence]
+name = Cross module independence
+type = forbidden
+source_modules =
+    contract_intelligence.contract.application
+    contract_intelligence.extraction.application
+    contract_intelligence.conflict.application
+    contract_intelligence.review.application
+forbidden_modules =
+    contract_intelligence.extraction.infrastructure
+    contract_intelligence.extraction.interfaces
+    contract_intelligence.conflict.infrastructure
+    contract_intelligence.conflict.interfaces
+    contract_intelligence.review.infrastructure
+    contract_intelligence.review.interfaces
+    contract_intelligence.identity.infrastructure
+    contract_intelligence.identity.interfaces
+ignore_imports =
+    # ExtractionService binds to PipelineOrchestrator (shared.ai) for background dispatch,
+    # which transitively imports extraction.infrastructure.persistence.orm. This dependency
+    # is acceptable (orchestrator is cross-cutting shared kernel).
+    contract_intelligence.extraction.application.services.extraction_service -> contract_intelligence.shared.ai.pipeline_orchestrator
+    # ReOcrService, ApprovalService -- see comments in
+    # application_no_infra_or_interfaces section.
+    contract_intelligence.extraction.application.services.reocr_service -> contract_intelligence.extraction.infrastructure.persistence.orm_reocr
+    contract_intelligence.review.application.services.approval_service -> contract_intelligence.review.infrastructure.persistence.orm_approval
+    contract_intelligence.review.application.services.approval_service -> contract_intelligence.review.infrastructure.persistence.orm
+
+[importlinter:contract:contract_layers]
+name = Contract layers
+type = layers
+layers =
+    contract_intelligence.contract.interfaces
+    contract_intelligence.contract.application
+    contract_intelligence.contract.domain
+
+[importlinter:contract:extraction_layers]
+name = Extraction layers
+type = layers
+layers =
+    contract_intelligence.extraction.interfaces
+    contract_intelligence.extraction.application
+    contract_intelligence.extraction.domain
+
+[importlinter:contract:conflict_layers]
+name = Conflict layers
+type = layers
+layers =
+    contract_intelligence.conflict.interfaces
+    contract_intelligence.conflict.application
+    contract_intelligence.conflict.domain
+
+[importlinter:contract:review_layers]
+name = Review layers
+type = layers
+layers =
+    contract_intelligence.review.interfaces
+    contract_intelligence.review.application
+    contract_intelligence.review.domain
+
+[importlinter:contract:identity_layers]
+name = Identity layers
+type = layers
+layers =
+    contract_intelligence.identity.interfaces
+    contract_intelligence.identity.domain

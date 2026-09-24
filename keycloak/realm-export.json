@@ -6,7 +6,10 @@
   "loginTheme": "lexis",
   "accountTheme": "keycloak.v2",
   "adminTheme": "keycloak.v2",
-  "emailTheme": "base",
+  "emailTheme": "lexis",
+  "attributes": {
+    "frontendUrl": "http://localhost:8080"
+  },
   "internationalizationEnabled": true,
   "supportedLocales": ["vi", "en"],
   "defaultLocale": "vi",
@@ -23,6 +26,15 @@
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "noreply@ci.local",
+    "fromDisplayName": "Lexis Contract Intelligence",
+    "ssl": "false",
+    "starttls": "false",
+    "auth": "false"
+  },
   "editUsernameAllowed": false,
   "bruteForceProtected": false,
   "roles": {
@@ -145,6 +157,7 @@
       "id": "contract-intel-frontend",
       "clientId": "contract-intel-frontend",
       "name": "Contract Intelligence SPA",
+      "description": "React SPA — public OIDC client (Authorization Code + PKCE S256, no client secret)",
       "enabled": true,
       "publicClient": true,
       "bearerOnly": false,
@@ -152,9 +165,12 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "frontchannelLogout": true,
       "protocol": "openid-connect",
       "fullScopeAllowed": true,
       "redirectUris": [
+        "http://localhost:5173/",
         "http://localhost:5173/auth/callback",
         "http://localhost:5173/auth/silent-callback"
       ],
@@ -163,12 +179,13 @@
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:5173/"
+        "post.logout.redirect.uris": "http://localhost:5173/*",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "oidc.ciba.grant.enabled": "false"
       },
       "defaultClientScopes": [
         "basic",
         "role_list",
-        "roles",
         "profile",
         "email",
         "web-origins"
@@ -310,6 +327,8 @@
       "clientRoles": {
         "realm-management": [
           "view-users",
+          "query-users",
+          "manage-users",
           "view-realm",
           "view-clients",
           "view-events",

@@ -4,15 +4,19 @@
 #
 # Enterprise-grade orchestration cho Contract Intelligence stack.
 #
-# Services:
-#   keycloak-db    — PostgreSQL dedicated cho Keycloak (port 5433 trên host)
-#   keycloak       — Keycloak 26 (Quarkus) ở dev mode, với Phase Two
-#                    keycloak-events extension baked-in (xem keycloak/Dockerfile)
-#   backend-db     — PostgreSQL cho backend (port 5432 trên host)
-#   kafka          — Apache Kafka (KRaft, no Zookeeper) — port 9093 trên host
-#   backend        — FastAPI backend (depends_on backend-db + keycloak + kafka + minio)
-#   minio          — MinIO S3-compatible object storage (API 9000, Console 9001)
-#   minio-init     — one-shot: tạo bucket `dossiers` (private)
+# Services (tên service Compose — dùng với `docker compose up <service>`):
+#   keycloak-db    — PostgreSQL dedicated cho Keycloak (container: ci-keycloak-db)
+#   keycloak       — Keycloak 26 (Quarkus) + Phase Two (container: ci-keycloak)
+#   backend-db     — PostgreSQL cho backend (container: ci-backend-db, host :5434)
+#   kafka          — Apache Kafka KRaft (container: ci-kafka, host :9093)
+#   backend        — FastAPI (container: ci-backend; depends_on db+keycloak+kafka+minio)
+#   backend-worker — Kafka orchestrator: dossier.uploaded → AI1 commands + results
+#   ai1-worker     — AI1 OCR Kafka consumer/producer (DOC-05d)
+#   minio          — MinIO S3-compatible (API 9000, Console 9001)
+#   minio-init     — one-shot: tạo bucket `dossiers` + `ci-render` (private)
+#
+# Lưu ý: `docker compose` nhận diện theo TÊN SERVICE (backend-db, backend),
+# không phải container_name (ci-backend-db, ci-backend).
 #
 # Topology:
 #
@@ -46,29 +50,6 @@
 #   - Nếu đổi tên volume từ version cũ (`keycloak-db-data` /
 #     `backend-db-data`): chạy `docker compose down -v` trước.
 #
-# Frontend (Vite — không nằm trong Compose, chạy terminal riêng):
-#
-#   1. Bật stack này trước (Keycloak :8080, API :8000):
-#        docker compose up -d --build
-#
-#   2. Trong frontend/:
-#        cd frontend
-#        copy .env.example .env.local
-#        npm install
-#        npm run dev
-#
-#   3. Mở http://localhost:5173
-#
-#   .env.local (không commit):
-#        VITE_API_BASE_URL=http://127.0.0.1:8000
-#        VITE_KEYCLOAK_URL=http://localhost:8080
-#        VITE_KEYCLOAK_REALM=contract-intelligence
-#        VITE_KEYCLOAK_CLIENT_ID=contract-intel-frontend
-#
-#   Giữ đúng cổng 5173. Keycloak chỉ nhận redirect
-#   http://localhost:5173/auth/callback và CORS chỉ mở origin đó.
-#   Nếu Vite báo port 5173 bận, tắt process cũ rồi chạy lại — đừng dùng 5174.
-#
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -84,7 +65,6 @@ services:
     image: postgres:16-alpine            # postgres:15-alpine trở lên đều OK
     container_name: ci-keycloak-db
     restart: unless-stopped
-    profiles: ["core"]                    # thuộc "core" group để lệnh CI có thể skip
     environment:
       POSTGRES_DB: keycloak
       POSTGRES_USER: keycloak
@@ -119,7 +99,6 @@ services:
     image: ci-keycloak:26
     container_name: ci-keycloak
     restart: unless-stopped
-    profiles: ["core"]
     depends_on:
       keycloak-db:
         condition: service_healthy        # ⬅ đợi pg_isready pass mới start
@@ -137,6 +116,9 @@ services:
       # ---- HTTP ----
       KC_HTTP_PORT: 8080
       KC_HTTPS_ENABLED: "false"
+      # Link trong email phải là localhost, không phải hostname Docker "keycloak".
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_HOSTNAME_STRICT: "false"
       KC_PROXY: edge                      # honor X-Forwarded-* headers
 
@@ -207,7 +189,6 @@ services:
     image: postgres:16-alpine
     container_name: ci-backend-db
     restart: unless-stopped
-    profiles: ["core"]
     environment:
       POSTGRES_DB: contract_intelligence
       POSTGRES_USER: ci
@@ -215,12 +196,10 @@ services:
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     volumes:
       # Named volume cho app data (batches, dossiers, users, audit logs, …).
+      # Schema migrations chạy qua `alembic upgrade head` trong entrypoint
+      # của service `backend` — KHÔNG mount alembic vào initdb.d (file .py
+      # không phải SQL; postgres chỉ chạy script trực tiếp trong initdb.d).
       - backend_pgdata:/var/lib/postgresql/data
-      # Alembic migration SQL files — postgres container auto-run *.sql trong
-      # /docker-entrypoint-initdb.d/ lúc FIRST init. Sau lần đầu, container
-      # skip (data dir đã tồn tại) → migrate qua `alembic upgrade head` lúc
-      # backend startup. KHÔNG dùng bind-mount cho data dir.
-      - ./backend/alembic/versions:/docker-entrypoint-initdb.d/migrations:ro
     healthcheck:
       # pg_isready trên user+db của backend. -q để log clean trong `compose ps`.
       test: ["CMD-SHELL", "pg_isready -U ci -d contract_intelligence -q"]
@@ -229,8 +208,8 @@ services:
       retries: 20
       start_period: 10s
     ports:
-      # 5432 cho backend — convention port PostgreSQL chuẩn, dev dùng pgAdmin / DBeaver.
-      - "${BACKEND_DB_HOST_PORT:-5432}:5432"
+      # Host 5434 tránh xung đột với Postgres local (5432). Trong mạng Docker vẫn là 5432.
+      - "5434:5432"
     networks:
       - ci-network
 
@@ -241,7 +220,6 @@ services:
     image: apache/kafka:3.7.0
     container_name: ci-kafka
     restart: unless-stopped
-    profiles: ["core"]
     environment:
       # ---- KRaft mode (combined controller + broker) ----
       KAFKA_NODE_ID: 1
@@ -256,6 +234,17 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,EXTERNAL://localhost:9093
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # Single-broker KRaft — required so __consumer_offsets / group coordinator can form
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      # Allow large OCR result payloads (~1.6MB+); default broker limit is 1 MiB
+      KAFKA_MESSAGE_MAX_BYTES: 10485760
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 10485760
+      # Must be >= message.max.bytes so the broker accepts the full request frame
+      KAFKA_SOCKET_REQUEST_MAX_BYTES: 10485760
     ports:
       - "${KAFKA_HOST_PORT:-9093}:9093"
     networks:
@@ -270,7 +259,6 @@ services:
       dockerfile: Dockerfile
     container_name: ci-backend
     restart: unless-stopped
-    profiles: ["core"]
     depends_on:
       backend-db:
         condition: service_healthy        # ⬅ đợi pg_isready pass
@@ -281,12 +269,19 @@ services:
       minio:
         condition: service_started
     environment:
+      # ---- Runtime ----
+      ENV: ${ENV:-dev}
       # ---- DB ----
+      # Host = service name `backend-db` (Compose DNS), NOT container_name.
       DATABASE_URL: postgresql+asyncpg://ci:${BACKEND_DB_PASSWORD:-ci_secret_dev}@backend-db:5432/contract_intelligence
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-10}
+      DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-20}
       # ---- Keycloak SSO ----
       AUTH_MODE: keycloak
       # Issuer must match tokens minted from the Windows host (iss=localhost:8080).
       KEYCLOAK_SERVER_URL: http://localhost:${KEYCLOAK_HTTP_HOST_PORT:-8080}
+      # Admin/token calls run inside the container, where localhost is not Keycloak.
+      KEYCLOAK_ADMIN_SERVER_URL: http://keycloak:8080
       # JWKS must be reachable from inside the container (Keycloak service DNS).
       KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/contract-intelligence/protocol/openid-connect/certs
       KEYCLOAK_REALM: contract-intelligence
@@ -300,6 +295,8 @@ services:
       # client role view-users — xem realm-export.json.
       KEYCLOAK_ADMIN_CLIENT_ID: contract-intel-backend
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${BACKEND_KEYCLOAK_ADMIN_SECRET:-backend_secret_dev}
+      # Admin API từ trong container. KEYCLOAK_SERVER_URL giữ localhost để khớp issuer JWT.
+      KEYCLOAK_ADMIN_SERVER_URL: http://keycloak:8080
 
       # ---- Webhook signature verification ----
       KEYCLOAK_WEBHOOK_SECRET: ${KEYCLOAK_WEBHOOK_SECRET:-ci_webhook_shared_secret_dev}
@@ -308,6 +305,12 @@ services:
       # ---- Kafka (event-driven) ----
       # Internal listener: containers resolve `kafka` via ci-network DNS.
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_DOSSIER_EVENTS_TOPIC: dossier_events
+      KAFKA_ORCHESTRATOR_GROUP_ID: ci-backend-orchestrator
+      KAFKA_AI1_OCR_COMMANDS_TOPIC: ci.ai1.ocr.commands
+      KAFKA_AI1_OCR_RESULTS_TOPIC: ci.ai1.ocr.results
+      KAFKA_BACKEND_AI1_RESULTS_GROUP_ID: ci-backend-ai1-results
+      KAFKA_PRESIGN_EXPIRES_SECONDS: "3600"
 
       # ---- MinIO / S3-compatible object storage ----
       S3_ENDPOINT_URL: http://minio:9000
@@ -317,9 +320,11 @@ services:
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: admin
       MINIO_SECRET_KEY: password123
+      MINIO_BUCKET_RENDER: ci-render
 
       # ---- AI service ----
-      AI_SERVICE_MODE: stub               # set 'http' khi chạy ai-service thật
+      # OCR runtime path is Kafka (DOC-05d). HTTP mode is demo-only.
+      AI_SERVICE_MODE: stub
 
       # ---- CORS ----
       CORS_ALLOW_ORIGINS: "http://localhost:3000,http://localhost:5173"
@@ -349,13 +354,82 @@ services:
       - ci-network
 
   # =============================================================================
+  # SERVICE 5b — Backend Kafka orchestrator (dossier events + AI1 results)
+  # =============================================================================
+  backend-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ci-backend-worker
+    restart: unless-stopped
+    command: ["uv", "run", "python", "-m", "contract_intelligence.worker"]
+    depends_on:
+      backend-db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      minio:
+        condition: service_started
+    environment:
+      ENV: ${ENV:-dev}
+      DATABASE_URL: postgresql+asyncpg://ci:${BACKEND_DB_PASSWORD:-ci_secret_dev}@backend-db:5432/contract_intelligence
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_DOSSIER_EVENTS_TOPIC: dossier_events
+      KAFKA_ORCHESTRATOR_GROUP_ID: ci-backend-orchestrator
+      KAFKA_AI1_OCR_COMMANDS_TOPIC: ci.ai1.ocr.commands
+      KAFKA_AI1_OCR_RESULTS_TOPIC: ci.ai1.ocr.results
+      KAFKA_BACKEND_AI1_RESULTS_GROUP_ID: ci-backend-ai1-results
+      KAFKA_PRESIGN_EXPIRES_SECONDS: "3600"
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY: admin
+      S3_SECRET_KEY: password123
+      S3_BUCKET_NAME: dossiers
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: admin
+      MINIO_SECRET_KEY: password123
+      MINIO_BUCKET_RENDER: ci-render
+      AI1_OCR_ENGINE: ${AI1_OCR_ENGINE:-mistral}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ./backend/src:/app/src:ro
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 5c — AI1 OCR Kafka worker
+  # =============================================================================
+  ai1-worker:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: ci-ai1-worker
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_started
+      minio:
+        condition: service_started
+    env_file:
+      - ./ai-service/.env
+    environment:
+      # Compose network overrides host defaults from ai-service/.env
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_AI1_OCR_COMMANDS_TOPIC: ci.ai1.ocr.commands
+      KAFKA_AI1_OCR_RESULTS_TOPIC: ci.ai1.ocr.results
+      KAFKA_AI1_OCR_GROUP_ID: ci-ai1-ocr
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ./ai-service/src:/app/src:ro
+    networks:
+      - ci-network
+
+  # =============================================================================
   # SERVICE 6 — MinIO S3-compatible object storage
   # =============================================================================
   minio:
     image: quay.io/minio/minio:latest
     container_name: ci-minio
     restart: unless-stopped
-    profiles: ["core"]
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: admin
@@ -369,15 +443,29 @@ services:
       - ci-network
 
   # =============================================================================
-  # SERVICE 7 — MinIO bucket initialization (create `dossiers`, private)
+  # SERVICE 7 — Mailpit (SMTP bắt thư mời đặt mật khẩu, chỉ local)
+  # Web UI: http://localhost:8025
+  # =============================================================================
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: ci-mailpit
+    restart: unless-stopped
+    profiles: ["core"]
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 8 — MinIO bucket initialization (create `dossiers`, private)
   # =============================================================================
   minio-init:
     image: quay.io/minio/mc:latest
     container_name: ci-minio-init
-    profiles: ["core"]
     depends_on:
       - minio
-    entrypoint: /bin/sh -c "until (/usr/bin/mc alias set myminio http://minio:9000 admin password123) do echo 'waiting for minio...' && sleep 1; done; /usr/bin/mc mb --ignore-existing myminio/dossiers; exit 0;"
+    entrypoint: /bin/sh -c "until (/usr/bin/mc alias set myminio http://minio:9000 admin password123) do echo 'waiting for minio...' && sleep 1; done; /usr/bin/mc mb --ignore-existing myminio/dossiers; /usr/bin/mc mb --ignore-existing myminio/ci-render; /usr/bin/mc anonymous set private myminio/dossiers; /usr/bin/mc anonymous set private myminio/ci-render; exit 0;"
     networks:
       - ci-network
 
