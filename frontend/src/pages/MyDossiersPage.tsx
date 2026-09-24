@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   deleteDossier,
   inspectDossierOcr,
@@ -23,6 +23,12 @@ import { useAuth } from '../auth/useAuth'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 
 type StatusFilter = 'all' | OcrState
+
+function stateNotice(state: unknown): string | null {
+  if (!state || typeof state !== 'object') return null
+  const notice = (state as { notice?: unknown }).notice
+  return typeof notice === 'string' && notice.trim() ? notice : null
+}
 
 const filters: { id: StatusFilter; label: string }[] = [
   { id: 'all', label: 'Tất cả' },
@@ -87,7 +93,9 @@ function reviewNote(summary: DossierSummary) {
   return undefined
 }
 
-function sharesOf(metadata: Record<string, unknown> | null): DossierShareGrant[] {
+function sharesOf(
+  metadata: Record<string, unknown> | null,
+): DossierShareGrant[] {
   const raw = metadata?.shared_with
   if (!Array.isArray(raw)) return []
   return raw.flatMap((item) => {
@@ -239,7 +247,9 @@ function StatusCell({
           </button>
         </div>
         {detail ? (
-          <span className="font-code-sm text-label-sm text-error">{detail}</span>
+          <span className="font-code-sm text-label-sm text-error">
+            {detail}
+          </span>
         ) : null}
         {note}
       </div>
@@ -278,10 +288,7 @@ function AccessBadge({ dossier }: { dossier: Dossier }) {
       to={`/quyen-truy-cap?dossier=${encodeURIComponent(dossier.id)}`}
       onClick={(event) => event.stopPropagation()}
     >
-      <MaterialIcon
-        name={shared ? 'share' : 'lock'}
-        className="text-[14px]"
-      />
+      <MaterialIcon name={shared ? 'share' : 'lock'} className="text-[14px]" />
       <span>{accessLabels[dossier.access]}</span>
     </Link>
   )
@@ -350,6 +357,7 @@ export function MyDossiersPage() {
   const { user } = useAuth()
   const heading = user ? dossiersLabel(user.role) : 'Hồ sơ'
   const navigate = useNavigate()
+  const location = useLocation()
   usePageTitle(heading)
   const titleInHeader = useHeaderShowsPageTitle()
   const [query, setQuery] = useState('')
@@ -364,6 +372,22 @@ export function MyDossiersPage() {
   const [deleting, setDeleting] = useState(false)
   const [ocrById, setOcrById] = useState<Record<string, OcrInspection>>({})
   const [restartAt, setRestartAt] = useState<Record<string, number>>({})
+  /** Thông báo kết quả thao tác (đã xóa…), tự ẩn sau vài giây. */
+  const [notice, setNotice] = useState<string | null>(null)
+
+  // Trang khác (tiến trình phân tích) xóa xong rồi chuyển về đây kèm thông báo.
+  useEffect(() => {
+    const incoming = stateNotice(location.state)
+    if (!incoming) return
+    setNotice(incoming)
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.state, location.pathname, navigate])
+
+  useEffect(() => {
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(null), 4000)
+    return () => window.clearTimeout(timer)
+  }, [notice])
 
   function ocrOf(dossier: Dossier): OcrState | 'checking' {
     const started = restartAt[dossier.id]
@@ -387,7 +411,9 @@ export function MyDossiersPage() {
     listDossiers({ limit: 100, offset: 0, signal: controller.signal })
       .then((result) => {
         if (controller.signal.aborted) return
-        setDossiers(result.items.map((item) => dossierFromSummary(item, user?.id)))
+        setDossiers(
+          result.items.map((item) => dossierFromSummary(item, user?.id)),
+        )
         setTotal(result.total)
       })
       .catch((cause: unknown) => {
@@ -471,9 +497,11 @@ export function MyDossiersPage() {
     try {
       await deleteDossier(pendingDelete.id)
       const removedId = pendingDelete.id
+      const removedTitle = textOf(pendingDelete.title) || 'hồ sơ'
       setDossiers((current) => current.filter((item) => item.id !== removedId))
       setTotal((current) => Math.max(0, current - 1))
       setPendingDelete(null)
+      setNotice(`Đã xóa hồ sơ “${removedTitle}”.`)
     } catch (cause: unknown) {
       if (cause instanceof ApiError && cause.status === 403) {
         setError('Bạn không có quyền xóa hồ sơ này.')
@@ -770,6 +798,26 @@ export function MyDossiersPage() {
           </div>
         ) : null}
       </div>
+      {notice ? (
+        <div
+          className="fixed top-20 right-6 z-[70] flex w-[min(24rem,calc(100vw-3rem))] items-start gap-space-md rounded border border-surface-container bg-surface-container-lowest px-space-lg py-space-md font-body-sm text-body-sm text-on-surface shadow-md"
+          role="status"
+        >
+          <MaterialIcon
+            name="check_circle"
+            className="shrink-0 text-[20px] text-emerald-600"
+          />
+          <span className="flex-1">{notice}</span>
+          <button
+            aria-label="Đóng thông báo"
+            className="shrink-0 text-secondary hover:text-on-surface"
+            type="button"
+            onClick={() => setNotice(null)}
+          >
+            <MaterialIcon name="close" className="text-[18px]" />
+          </button>
+        </div>
+      ) : null}
       {pendingDelete ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-space-md">
           <div

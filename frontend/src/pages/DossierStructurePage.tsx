@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import {
   contractDocument,
@@ -19,16 +26,22 @@ import {
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { CitationPane } from '../components/CitationPane'
+import { StructureDocument } from '../components/StructureDocument'
 import { StructureMindmap } from '../components/StructureMindmap'
+import { StructureOutline } from '../components/StructureOutline'
 import { TableStructure } from '../components/TableStructure'
 import { MaterialIcon } from '../components/icons'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 import {
   buildStructureTree,
   parseStructureMode,
+  parseStructureView,
+  STRUCTURE_VIEW_KEY,
   structureModes,
+  structureViews,
   type OcrLine,
   type StructureMode,
+  type StructureView,
 } from '../structure'
 import { citationNumbers, findClause } from '../structure/citations'
 
@@ -49,6 +62,18 @@ function stateStructureMode(state: unknown): StructureMode | null {
   return parseStructureMode(
     (state as { structureMode?: unknown }).structureMode,
   )
+}
+
+/** Kiểu xem nhớ theo trình duyệt; mặc định sơ đồ tư duy. */
+function storedStructureView(): StructureView {
+  try {
+    return (
+      parseStructureView(window.localStorage.getItem(STRUCTURE_VIEW_KEY)) ??
+      'mindmap'
+    )
+  } catch {
+    return 'mindmap'
+  }
 }
 
 export function DossierStructurePage() {
@@ -76,10 +101,13 @@ export function DossierStructurePage() {
   const [mode, setMode] = useState<StructureMode | null>(
     stateStructureMode(location.state),
   )
+  const [view, setView] = useState<StructureView>(storedStructureView)
   const [spots, setSpots] = useState<ReviewSpot[]>([])
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
-  const [searchResult, setSearchResult] = useState<DossierSearchResult | null>(null)
+  const [searchResult, setSearchResult] = useState<DossierSearchResult | null>(
+    null,
+  )
   const [searchError, setSearchError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   usePageTitle(detail?.name ?? 'Cấu trúc hợp đồng')
@@ -110,6 +138,15 @@ export function DossierStructurePage() {
       )
     } finally {
       setSearching(false)
+    }
+  }
+
+  function changeView(next: StructureView) {
+    setView(next)
+    try {
+      window.localStorage.setItem(STRUCTURE_VIEW_KEY, next)
+    } catch {
+      // Không lưu được cũng không sao; chỉ mất ghi nhớ giữa các phiên.
     }
   }
 
@@ -251,20 +288,20 @@ export function DossierStructurePage() {
     <div
       ref={frameRef}
       data-structure-frame
-      className="relative flex w-full flex-col overflow-hidden"
+      className="relative flex w-full flex-col overflow-hidden bg-surface"
       style={frameHeight ? { height: frameHeight } : undefined}
     >
       <div
         className={
           splitView
-            ? 'flex min-h-0 flex-1'
-            : 'min-h-0 flex-1 overflow-y-auto'
+            ? 'flex min-h-0 flex-1 overflow-auto'
+            : 'flex min-h-0 flex-1 flex-col overflow-auto'
         }
       >
         <div
           className={
             splitView
-              ? 'min-h-0 min-w-0 flex-1 overflow-y-auto'
+              ? 'flex min-h-0 min-w-0 flex-1 flex-col overflow-auto'
               : 'contents'
           }
         >
@@ -281,35 +318,106 @@ export function DossierStructurePage() {
                 Cấu trúc cây
               </span>
             </nav>
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
-              <div className="flex flex-col gap-space-xs max-w-3xl">
+            <div className="flex flex-col gap-space-sm md:flex-row md:items-start md:justify-between">
+              <div className="flex min-w-0 flex-col gap-space-xs">
                 {titleInHeader ? null : (
                   <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">
                     {detail?.name ?? 'Cấu trúc hợp đồng'}
                   </h1>
                 )}
-                <p className="font-body-md text-body-md text-on-surface-variant">
-                  {activeMode === 'tables'
-                    ? filename
-                      ? `${filename} · các bảng OCR đã trích`
-                      : 'Các bảng mà OCR đã trích từ hợp đồng.'
-                    : filename
-                      ? `${filename} · ${clauseCount} nút`
-                      : 'Hệ thống OCR hợp đồng rồi dựng cây điều khoản.'}
-                </p>
+                {/* Dòng meta: tệp · số nút · nguồn OCR · trạng thái */}
+                <div className="flex flex-wrap items-center gap-x-space-sm gap-y-1 font-body-sm text-body-sm text-on-surface-variant">
+                  {filename ? (
+                    <span className="inline-flex min-w-0 items-center gap-1.5">
+                      <MaterialIcon
+                        name="description"
+                        className="text-outline"
+                        style={{ fontSize: 16 }}
+                      />
+                      <span className="truncate font-medium text-on-surface">
+                        {filename}
+                      </span>
+                    </span>
+                  ) : (
+                    <span>
+                      {activeMode === 'tables'
+                        ? 'Các bảng mà OCR đã trích từ hợp đồng.'
+                        : 'Hệ thống OCR hợp đồng rồi dựng cây điều khoản.'}
+                    </span>
+                  )}
+                  {filename && phase === 'ready' ? (
+                    <>
+                      <MetaDot />
+                      <span>
+                        {activeMode === 'tables'
+                          ? 'các bảng OCR đã trích'
+                          : `${clauseCount} nút`}
+                      </span>
+                    </>
+                  ) : null}
+                  {phase === 'ready' ? (
+                    <>
+                      <MetaDot />
+                      {lines ? (
+                        <button
+                          aria-expanded={showLines}
+                          className={`inline-flex items-center gap-1 underline-offset-2 transition-colors hover:text-primary hover:underline ${
+                            showLines ? 'text-primary' : ''
+                          }`}
+                          title="Xem các dòng OCR đang dùng để dựng cây"
+                          type="button"
+                          onClick={() => {
+                            setCiteId(null)
+                            setShowLines((open) => !open)
+                          }}
+                        >
+                          {lines.length} dòng OCR
+                          <MaterialIcon
+                            name={showLines ? 'close' : 'open_in_new'}
+                            style={{ fontSize: 14 }}
+                          />
+                        </button>
+                      ) : (
+                        <span title="Backend không trả dòng OCR">
+                          cây AI1 trả sẵn
+                        </span>
+                      )}
+                    </>
+                  ) : null}
+                  <MetaDot />
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-container px-2 py-0.5 font-label-sm text-label-sm font-semibold text-secondary">
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        phase === 'ready'
+                          ? 'bg-emerald-600'
+                          : phase === 'failed' || phase === 'error'
+                            ? 'bg-error'
+                            : 'bg-amber-600'
+                      }`}
+                    />
+                    {statusLabel}
+                  </span>
+                </div>
               </div>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-label-sm text-label-sm font-semibold bg-surface-container text-secondary self-start">
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    phase === 'ready'
-                      ? 'bg-emerald-600'
-                      : phase === 'failed' || phase === 'error'
-                        ? 'bg-error'
-                        : 'bg-amber-600'
-                  }`}
-                />
-                {statusLabel}
-              </span>
+              {phase === 'ready' ? (
+                <form
+                  className="relative w-full shrink-0 md:w-80 lg:w-96"
+                  onSubmit={(event) => void submitSearch(event)}
+                >
+                  <MaterialIcon
+                    name="search"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-outline"
+                  />
+                  <input
+                    aria-label="Hỏi về hợp đồng"
+                    className="h-10 w-full rounded-full border border-outline-variant/30 bg-surface-container-lowest pl-9 pr-space-md font-body-sm text-body-sm text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-secondary"
+                    placeholder="Hỏi về hợp đồng này…"
+                    type="search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                  />
+                </form>
+              ) : null}
             </div>
           </div>
 
@@ -403,81 +511,52 @@ export function DossierStructurePage() {
           ) : null}
 
           {phase === 'ready' ? (
-            <div className="mb-space-sm flex shrink-0 flex-col sm:flex-row sm:items-center justify-between gap-space-sm">
-              <div className="flex items-center gap-space-sm">
-                <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
-                  Loại cấu trúc
-                </span>
+            <div className="mb-space-sm flex shrink-0 flex-wrap items-stretch gap-x-space-lg gap-y-space-sm rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-space-md py-space-sm shadow-sm">
+              <ToolbarGroup label="Loại cấu trúc">
                 <div
-                  className="inline-flex items-center bg-surface-container p-1 gap-1"
-                  role="radiogroup"
                   aria-label="Loại cấu trúc tài liệu"
-                  style={{ borderRadius: '9999px' }}
+                  className="inline-flex items-center gap-0.5 rounded-full bg-surface-container p-1"
+                  role="radiogroup"
                 >
-                  {structureModes.map((item) => {
-                    const active = item.value === activeMode
-                    return (
-                      <button
-                        key={item.value}
-                        aria-checked={active}
-                        className={`h-8 px-space-md font-body-sm text-body-sm font-semibold transition-colors ${
-                          active
-                            ? 'bg-primary text-on-primary shadow-sm'
-                            : 'text-on-surface-variant hover:text-primary'
-                        }`}
-                        disabled={item.value === 'tables' ? !documentId : !lines}
-                        role="radio"
-                        style={{ borderRadius: '9999px' }}
-                        title={item.hint}
-                        type="button"
-                        onClick={() => changeMode(item.value)}
-                      >
-                        {item.label}
-                      </button>
-                    )
-                  })}
+                  {structureModes.map((item) => (
+                    <SegmentButton
+                      key={item.value}
+                      active={item.value === activeMode}
+                      disabled={item.value === 'tables' ? !documentId : !lines}
+                      hint={item.hint}
+                      icon={item.icon}
+                      label={item.short}
+                      onClick={() => changeMode(item.value)}
+                    />
+                  ))}
                 </div>
-              </div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-space-sm sm:ml-auto">
-                <form
-                  className="relative w-full sm:w-96"
-                  onSubmit={(event) => void submitSearch(event)}
-                >
-                  <MaterialIcon
-                    name="search"
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]"
+              </ToolbarGroup>
+              {activeMode !== 'tables' ? (
+                <>
+                  <span
+                    aria-hidden
+                    className="hidden w-px self-stretch bg-outline-variant/30 sm:block"
                   />
-                  <input
-                    aria-label="Hỏi về hợp đồng"
-                    className="w-full h-9 pl-9 pr-space-md bg-surface-container-lowest text-on-surface placeholder:text-outline font-body-sm text-body-sm rounded shadow-[0_1px_2px_rgba(15,23,42,0.06)] focus:outline-none focus:ring-1 focus:ring-secondary"
-                    placeholder="Hỏi về hợp đồng này..."
-                    type="search"
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                  />
-                </form>
-                {lines ? (
-                  <button
-                    aria-expanded={showLines}
-                    className={`font-code-sm text-code-sm underline-offset-2 hover:underline text-left ${
-                      showLines
-                        ? 'text-primary'
-                        : 'text-on-surface-variant hover:text-primary'
-                    }`}
-                    type="button"
-                    onClick={() => {
-                      setCiteId(null)
-                      setShowLines((open) => !open)
-                    }}
-                  >
-                    Dựng từ {lines.length} dòng OCR trên trình duyệt
-                  </button>
-                ) : (
-                  <span className="font-code-sm text-code-sm text-on-surface-variant">
-                    Backend không trả dòng OCR, đang dùng cây AI1 trả sẵn
-                  </span>
-                )}
-              </div>
+                  <ToolbarGroup label="Kiểu xem">
+                    <div
+                      aria-label="Kiểu xem cấu trúc"
+                      className="inline-flex items-center gap-0.5 rounded-full bg-surface-container p-1"
+                      role="radiogroup"
+                    >
+                      {structureViews.map((item) => (
+                        <SegmentButton
+                          key={item.value}
+                          active={item.value === view}
+                          hint={item.hint}
+                          icon={item.icon}
+                          label={item.label}
+                          onClick={() => changeView(item.value)}
+                        />
+                      ))}
+                    </div>
+                  </ToolbarGroup>
+                </>
+              ) : null}
             </div>
           ) : null}
 
@@ -537,20 +616,45 @@ export function DossierStructurePage() {
           ) : null}
 
           {phase === 'ready' && activeMode !== 'tables' ? (
-            <div className="pb-16">
-              <StructureMindmap
-                attentionIds={attentionIds}
-                citationOf={citeOf}
-                focusId={citeId}
-                nodes={nodes}
-                subtitle={filename}
-                title={detail?.name ?? 'Hợp đồng'}
-                onCite={(id) => {
-                  setShowLines(false)
-                  setTableCite(null)
-                  setCiteId(id)
-                }}
-              />
+            <div className="flex min-h-[520px] flex-1 flex-col pb-space-md">
+              {(() => {
+                const shared = {
+                  attentionIds,
+                  citationOf: citeOf,
+                  focusId: citeId,
+                  nodes,
+                  title: detail?.name ?? 'Hợp đồng',
+                  onCite: (id: string) => {
+                    setShowLines(false)
+                    setTableCite(null)
+                    setCiteId(id)
+                  },
+                }
+                switch (view) {
+                  case 'outline':
+                    return <StructureOutline {...shared} />
+                  case 'document':
+                    return <StructureDocument {...shared} />
+                  case 'tree':
+                    return (
+                      <StructureMindmap
+                        key="tree"
+                        {...shared}
+                        orientation="vertical"
+                        subtitle={filename}
+                      />
+                    )
+                  default:
+                    // key để đổi hướng thì dựng lại, tự căn vừa khung.
+                    return (
+                      <StructureMindmap
+                        key="mindmap"
+                        {...shared}
+                        subtitle={filename}
+                      />
+                    )
+                }
+              })()}
             </div>
           ) : null}
         </div>
@@ -576,6 +680,67 @@ export function DossierStructurePage() {
         ) : null}
       </div>
     </div>
+  )
+}
+
+function MetaDot() {
+  return (
+    <span aria-hidden className="h-1 w-1 rounded-full bg-outline-variant" />
+  )
+}
+
+/** Một nhóm trong thanh công cụ: nhãn nhỏ phía trên, điều khiển bên dưới. */
+function ToolbarGroup({
+  label,
+  children,
+}: {
+  label: string
+  children: ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">
+        {label}
+      </span>
+      {children}
+    </div>
+  )
+}
+
+function SegmentButton({
+  active,
+  disabled,
+  icon,
+  label,
+  hint,
+  onClick,
+}: {
+  active: boolean
+  disabled?: boolean
+  icon: string
+  label: string
+  hint?: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      aria-checked={active}
+      className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 font-body-sm text-body-sm font-semibold transition-colors ${
+        active
+          ? 'bg-primary text-on-primary shadow-sm'
+          : disabled
+            ? 'cursor-not-allowed text-on-surface-variant/40'
+            : 'text-on-surface-variant hover:bg-surface-container-high hover:text-primary'
+      }`}
+      disabled={disabled}
+      role="radio"
+      title={hint}
+      type="button"
+      onClick={onClick}
+    >
+      <MaterialIcon name={icon} className="text-[18px]" />
+      <span className="hidden sm:inline">{label}</span>
+    </button>
   )
 }
 

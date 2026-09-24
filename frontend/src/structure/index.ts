@@ -4,11 +4,14 @@ import type { ClauseNode, OcrLine, StructureMode } from './types'
 
 export {
   STRUCTURE_MODE_KEY,
+  STRUCTURE_VIEW_KEY,
   parseStructureMode,
+  parseStructureView,
   structureModeLabel,
   structureModes,
+  structureViews,
 } from './types'
-export type { OcrLine, StructureMode } from './types'
+export type { OcrLine, StructureMode, StructureView } from './types'
 export { parseMarker } from './markers'
 export { buildNumberedTree } from './numbered'
 export { buildFreeformTree } from './freeform'

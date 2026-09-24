@@ -1,5 +1,9 @@
 import type { ClauseNode, ClauseRegion, OpenNode } from './types'
 
+/** Cây hiển thị ít nhất một cấp và không sâu hơn mười cấp. */
+export const MIN_TREE_LEVELS = 1
+export const MAX_TREE_LEVELS = 10
+
 type Draft = {
   node: ClauseNode
   level: number
@@ -28,6 +32,9 @@ export class TreeBuilder {
       this.stack.length > 0 &&
       this.stack[this.stack.length - 1].level >= input.level
     ) {
+      this.stack.pop()
+    }
+    while (this.stack.length >= MAX_TREE_LEVELS) {
       this.stack.pop()
     }
     const draft: Draft = {
@@ -74,6 +81,30 @@ export class TreeBuilder {
     for (const draft of this.created) {
       draft.node.text = draft.parts.join(' ').replace(/\s+/g, ' ').trim()
     }
-    return this.roots.map((draft) => draft.node)
+    return capToMaxLevels(this.roots.map((draft) => draft.node))
   }
+}
+
+/**
+ * Giữ đúng độ sâu OCR trả về, nhưng không quá 10 cấp.
+ * Nút sâu hơn được kéo lên cùng cấp 10, không bị bỏ.
+ */
+export function capToMaxLevels(
+  nodes: ClauseNode[],
+  depth = MIN_TREE_LEVELS,
+): ClauseNode[] {
+  return nodes.flatMap((node) => {
+    if (depth >= MAX_TREE_LEVELS) {
+      return [
+        { ...node, children: [] },
+        ...capToMaxLevels(node.children, depth),
+      ]
+    }
+    return [
+      {
+        ...node,
+        children: capToMaxLevels(node.children, depth + 1),
+      },
+    ]
+  })
 }

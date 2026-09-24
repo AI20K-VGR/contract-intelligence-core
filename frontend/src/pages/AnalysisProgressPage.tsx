@@ -84,7 +84,10 @@ function fileModel(
       label: 'Hoàn thành',
     }
   }
-  if (current && (jobStatus === 'processing' || jobStatus === 'uploaded' || done > 0)) {
+  if (
+    current &&
+    (jobStatus === 'processing' || jobStatus === 'uploaded' || done > 0)
+  ) {
     const percent = total > 0 ? Math.round((done / total) * 100) : null
     return {
       id: document.id,
@@ -297,7 +300,12 @@ export function AnalysisProgressPage() {
     setBusy(true)
     try {
       await deleteDossier(dossierId)
-      navigate(backTo)
+      const name = (detail?.name ?? passedName)?.trim()
+      navigate(backTo, {
+        state: {
+          notice: name ? `Đã xóa hồ sơ “${name}”.` : 'Đã xóa hồ sơ.',
+        },
+      })
     } catch {
       setError('Không hủy được tiến trình.')
       setBusy(false)
@@ -624,7 +632,9 @@ function PhaseCard({
         ? 'bg-surface-container-high'
         : 'bg-surface-container-lowest opacity-75'
   return (
-    <div className={`flex flex-col p-space-md rounded-lg transition-all ${shell}`}>
+    <div
+      className={`flex flex-col p-space-md rounded-lg transition-all ${shell}`}
+    >
       <div className="flex items-center justify-between mb-space-xs">
         <span className="font-title-sm text-title-sm text-on-surface font-bold">
           {title}
@@ -716,7 +726,9 @@ function FileRow({ file }: { file: FileRowModel }) {
         <span className="font-title-sm text-title-sm text-on-surface truncate font-semibold">
           {file.name}
         </span>
-        <span className="text-body-sm text-on-surface-variant">{file.meta}</span>
+        <span className="text-body-sm text-on-surface-variant">
+          {file.meta}
+        </span>
       </div>
       <span
         className={`font-body-sm text-body-sm font-semibold px-space-sm py-0.5 rounded shrink-0 ${
@@ -750,7 +762,10 @@ function LogRow({ log }: { log: LogRowModel }) {
           className="text-emerald-700 text-[18px] shrink-0"
         />
       ) : log.status === 'failed' ? (
-        <MaterialIcon name="error" className="text-error text-[18px] shrink-0" />
+        <MaterialIcon
+          name="error"
+          className="text-error text-[18px] shrink-0"
+        />
       ) : (
         <MaterialIcon
           name="progress_activity"

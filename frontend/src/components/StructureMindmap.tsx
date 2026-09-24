@@ -1,246 +1,403 @@
 import {
+  useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type ReactNode,
+  type PointerEvent as ReactPointerEvent,
 } from 'react'
-import { createPortal } from 'react-dom'
 import type { ClauseNode } from '../api/structure'
 import { citationNumbers } from '../structure/citations'
+import {
+  branchTones,
+  countOf,
+  dataDepth,
+  downloadBlob,
+  expandableIds,
+  exportOutlineText,
+  fullLabel,
+  hasVisibleContent,
+  nodeLabel,
+  parentMap,
+  visibleChildren,
+  type BranchTone,
+} from '../structure/display'
+import { capToMaxLevels } from '../structure/tree'
 import { MaterialIcon } from './icons'
 
-const typeLabels: Record<string, string> = {
-  part: 'Phần',
-  chapter: 'Chương',
-  section: 'Mục',
-  article: 'Điều',
-  clause: 'Khoản',
-  point: 'Điểm',
-  item: 'Ý',
-  heading: 'Mục',
-  unmarked: 'Đoạn',
-  annex: 'Phụ lục',
-  preamble: 'Mở đầu',
-  signature_block: 'Chữ ký',
+/*
+ * Sơ đồ tư duy theo kiểu NotebookLM:
+ * - Cây ngang, gốc bên trái, mỗi nút là một hộp bo góc mang màu nhánh.
+ * - Mỗi nút có con mang một nút tròn mũi tên ở mép phải để mở / thu riêng.
+ * - Kéo nền để di chuyển, cuộn để thu phóng, nút +/−/vừa khung ở góc dưới.
+ */
+
+const tones = branchTones
+
+const rootTone: BranchTone = {
+  line: '#475569',
+  bg: '#0b1f3a',
+  bgSoft: '#0b1f3a',
+  border: '#0b1f3a',
+  text: '#ffffff',
 }
 
-const palette = [
-  {
-    color: '#1e3a8a',
-    bg: 'bg-blue-50',
-    border: 'border-blue-200',
-    text: 'text-blue-950',
-    link: 'border-blue-800',
-    hover: 'hover:text-blue-900',
-    tone: 'sky' as const,
-  },
-  {
-    color: '#0284c7',
-    bg: 'bg-sky-50',
-    border: 'border-sky-200',
-    text: 'text-sky-950',
-    link: 'border-sky-600',
-    hover: 'hover:text-sky-800',
-    tone: 'sky' as const,
-  },
-  {
-    color: '#059669',
-    bg: 'bg-emerald-50',
-    border: 'border-emerald-200',
-    text: 'text-emerald-950',
-    link: 'border-emerald-600',
-    hover: 'hover:text-emerald-800',
-    tone: 'emerald' as const,
-  },
-  {
-    color: '#d97706',
-    bg: 'bg-amber-50',
-    border: 'border-amber-200',
-    text: 'text-amber-950',
-    link: 'border-amber-500',
-    hover: 'hover:text-amber-800',
-    tone: 'emerald' as const,
-  },
-  {
-    color: '#e11d48',
-    bg: 'bg-rose-50',
-    border: 'border-rose-200',
-    text: 'text-rose-950',
-    link: 'border-rose-600',
-    hover: 'hover:text-rose-800',
-    tone: 'rose' as const,
-  },
-]
+const FONT_FAMILY = "'IBM Plex Sans', sans-serif"
+const NODE_FONT = `500 13px ${FONT_FAMILY}`
+const ROOT_FONT = `700 14px ${FONT_FAMILY}`
+const NODE_LINE = 18
+const ROOT_LINE = 20
+const NODE_PAD_X = 12
+const NODE_PAD_Y = 8
+const ROOT_PAD_X = 16
+const ROOT_PAD_Y = 10
+const NODE_TEXT_MAX = 220
+const ROOT_TEXT_MAX = 200
+const NODE_MIN_WIDTH = 96
+const MAX_LINES = 3
+const GAP_X = 64
+const GAP_Y = 10
+const BRANCH_GAP_Y = 20
+/** Cây dọc: hộp hẹp hơn để xếp nhiều anh em cạnh nhau. */
+const NODE_TEXT_MAX_V = 170
+const LEVEL_GAP_Y = 56
+const SIBLING_GAP_X = 14
+const BRANCH_GAP_X = 32
+const TOGGLE = 22
+const MARGIN = 40
+const MIN_ZOOM = 0.2
+const MAX_ZOOM = 2.5
+const FIT_PAD = 48
 
-const annexTones = {
-  sky: 'text-sky-800 bg-sky-100/80 border-sky-200',
-  emerald: 'text-emerald-800 bg-emerald-100/80 border-emerald-200',
-  rose: 'text-rose-800 bg-rose-100/80 border-rose-200',
-}
+// ---------------------------------------------------------------------------
+// Đo chữ và xuống dòng
+// ---------------------------------------------------------------------------
 
-function cleanToken(value: string) {
-  return value
-    .replace(/^(article|clause|point|unmarked|section|annex)[_\s-]*/i, '')
-    .replace(/unnumbered[_\s-]*/i, '')
-    .replace(/_/g, ' ')
-    .trim()
-}
+let measureCtx: CanvasRenderingContext2D | null | undefined
 
-function shortText(text: string, max = 68) {
-  const line = text.replace(/\s+/g, ' ').trim()
-  if (!line) return ''
-  if (line.length <= max) return line
-  return `${line.slice(0, max - 1)}…`
-}
-
-function chipLabel(node: ClauseNode) {
-  const kind = typeLabels[node.nodeType] ?? 'Mục'
-  const number = cleanToken(node.number ?? '')
-  if (number) {
-    return number.toLowerCase().startsWith(kind.toLowerCase())
-      ? number
-      : `${kind} ${number}`
+function textWidth(text: string, font: string) {
+  if (measureCtx === undefined) {
+    measureCtx =
+      typeof document === 'undefined'
+        ? null
+        : document.createElement('canvas').getContext('2d')
   }
-  return shortText(node.title ?? '', 36) || shortText(node.text, 36) || kind
+  if (!measureCtx) return text.length * 7
+  measureCtx.font = font
+  return measureCtx.measureText(text).width
 }
 
-function linkLabel(node: ClauseNode) {
-  const kind = typeLabels[node.nodeType] ?? 'Mục'
-  const number = cleanToken(node.number ?? '')
-  const title = cleanToken(node.title ?? '')
-  const excerpt = shortText(node.text)
-  const head = number || (title && title !== excerpt ? title : '')
-  if (head && excerpt && !excerpt.startsWith(head)) {
-    const prefix = head.toLowerCase().startsWith(kind.toLowerCase())
-      ? head
-      : `${kind} ${head}`
-    return `${prefix}: ${excerpt}`
-  }
-  if (excerpt) return excerpt
-  return chipLabel(node)
-}
-
-function fullLabel(node: ClauseNode) {
-  const kind = typeLabels[node.nodeType] ?? 'Mục'
-  const number = cleanToken(node.number ?? '')
-  const title = cleanToken(node.title ?? '')
-  const body = node.text.replace(/\s+/g, ' ').trim()
-  const head = number || (title && title !== body ? title : '')
-  if (head && body && !body.toLowerCase().startsWith(head.toLowerCase())) {
-    const prefix = head.toLowerCase().startsWith(kind.toLowerCase())
-      ? head
-      : `${kind} ${head}`
-    return `${prefix}: ${body}`
-  }
-  if (body) return body
-  if (title) return title
-  if (number) {
-    return number.toLowerCase().startsWith(kind.toLowerCase())
-      ? number
-      : `${kind} ${number}`
-  }
-  return kind
-}
-
-function countOf(nodes: ClauseNode[], type: string): number {
-  return nodes.reduce(
-    (total, node) =>
-      total + (node.nodeType === type ? 1 : 0) + countOf(node.children, type),
-    0,
-  )
-}
-
-type Placed = { node: ClauseNode; y: number }
-
-function layoutBranches(nodes: ClauseNode[]) {
-  const branches: { node: ClauseNode; y: number; children: Placed[] }[] = []
-  let cursor = 56
-  for (const node of nodes) {
-    const kids = node.children
-    if (kids.length === 0) {
-      branches.push({ node, y: cursor, children: [] })
-      cursor += 72
-      continue
-    }
-    const children = kids.map((child) => {
-      const placed = { node: child, y: cursor }
-      cursor += 40
-      return placed
-    })
-    const y = (children[0].y + children[children.length - 1].y) / 2
-    branches.push({ node, y, children })
-    cursor += 22
-  }
-  return { branches, height: Math.max(620, cursor + 48) }
-}
-
-function curve(x1: number, y1: number, x2: number, y2: number) {
-  const mid = (x1 + x2) / 2
-  return `M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`
-}
-
-const chipPaint = [
-  {
-    color: '#1e3a8a',
-    bg: '#eff6ff',
-    border: '#bfdbfe',
-    text: '#172554',
-    link: '#1e3a8a',
-    annexBg: '#e0f2fe',
-    annexBorder: '#bae6fd',
-    annexText: '#075985',
-  },
-  {
-    color: '#0284c7',
-    bg: '#f0f9ff',
-    border: '#bae6fd',
-    text: '#082f49',
-    link: '#0284c7',
-    annexBg: '#e0f2fe',
-    annexBorder: '#bae6fd',
-    annexText: '#075985',
-  },
-  {
-    color: '#059669',
-    bg: '#ecfdf5',
-    border: '#a7f3d0',
-    text: '#022c22',
-    link: '#059669',
-    annexBg: '#d1fae5',
-    annexBorder: '#a7f3d0',
-    annexText: '#065f46',
-  },
-  {
-    color: '#d97706',
-    bg: '#fffbeb',
-    border: '#fde68a',
-    text: '#451a03',
-    link: '#d97706',
-    annexBg: '#d1fae5',
-    annexBorder: '#a7f3d0',
-    annexText: '#065f46',
-  },
-  {
-    color: '#e11d48',
-    bg: '#fff1f2',
-    border: '#fecdd3',
-    text: '#4c0519',
-    link: '#e11d48',
-    annexBg: '#ffe4e6',
-    annexBorder: '#fecdd3',
-    annexText: '#9f1239',
-  },
-]
-
-function fitText(ctx: CanvasRenderingContext2D, text: string, max: number) {
-  if (ctx.measureText(text).width <= max) return text
+function ellipsize(text: string, font: string, max: number) {
+  if (textWidth(text, font) <= max) return text
   let next = text
-  while (next.length > 1 && ctx.measureText(`${next}…`).width > max) {
+  while (next.length > 1 && textWidth(`${next}…`, font) > max) {
     next = next.slice(0, -1)
   }
-  return `${next}…`
+  return `${next.trimEnd()}…`
 }
+
+function wrapText(text: string, font: string, max: number, maxLines: number) {
+  const words = text.replace(/\s+/g, ' ').trim().split(' ')
+  const lines: string[] = []
+  let current = ''
+  for (const word of words) {
+    const probe = current ? `${current} ${word}` : word
+    if (!current || textWidth(probe, font) <= max) {
+      current = probe
+    } else {
+      lines.push(current)
+      current = word
+    }
+  }
+  if (current) lines.push(current)
+  if (lines.length > maxLines) {
+    const rest = lines.slice(maxLines - 1).join(' ')
+    lines.length = maxLines - 1
+    lines.push(rest)
+  }
+  return lines.map((line) => ellipsize(line, font, max))
+}
+
+// ---------------------------------------------------------------------------
+// Bố cục cây: ngang (gốc trái, nhánh sang phải) hoặc dọc (gốc trên, xoè xuống)
+// ---------------------------------------------------------------------------
+
+export type TreeOrientation = 'horizontal' | 'vertical'
+
+type Box = {
+  id: string
+  node: ClauseNode | null
+  depth: number
+  branch: number
+  lines: string[]
+  x: number
+  y: number
+  width: number
+  height: number
+  /** Bề rộng cả nhánh con đang mở theo trục xếp anh em (dọc khi cây ngang, ngang khi cây dọc). */
+  span: number
+  expandable: boolean
+  open: boolean
+  flagged: boolean
+  children: Box[]
+}
+
+type Layout = {
+  root: Box
+  boxes: Box[]
+  byId: Map<string, Box>
+  width: number
+  height: number
+  levels: number
+}
+
+function gapFor(depth: number, orientation: TreeOrientation) {
+  if (orientation === 'vertical') {
+    return depth <= 1 ? BRANCH_GAP_X : SIBLING_GAP_X
+  }
+  return depth <= 1 ? BRANCH_GAP_Y : GAP_Y
+}
+
+/** Kích thước hộp theo trục xếp anh em. */
+function extentOf(box: Box, orientation: TreeOrientation) {
+  return orientation === 'vertical' ? box.width : box.height
+}
+
+function buildLayout(
+  title: string,
+  nodes: ClauseNode[],
+  expanded: ReadonlySet<string>,
+  rootOpen: boolean,
+  attentionIds: ReadonlySet<string> | undefined,
+  orientation: TreeOrientation,
+): Layout {
+  const boxes: Box[] = []
+  const byId = new Map<string, Box>()
+  const vertical = orientation === 'vertical'
+  let levels = 0
+  /** Cây dọc: chiều cao hàng theo cấp = hộp cao nhất của cấp đó. */
+  const rowHeights: number[] = []
+
+  function measure(node: ClauseNode, depth: number, branch: number): Box {
+    levels = Math.max(levels, depth)
+    const flagged = attentionIds?.has(node.id) === true
+    const lines = wrapText(
+      nodeLabel(node),
+      NODE_FONT,
+      vertical ? NODE_TEXT_MAX_V : NODE_TEXT_MAX,
+      MAX_LINES,
+    )
+    const textW = Math.max(
+      0,
+      ...lines.map((line) => textWidth(line, NODE_FONT)),
+    )
+    const width = Math.max(
+      NODE_MIN_WIDTH,
+      Math.ceil(textW) + 2 + NODE_PAD_X * 2 + (flagged ? 22 : 0),
+    )
+    const height = Math.max(1, lines.length) * NODE_LINE + NODE_PAD_Y * 2
+    const kids = visibleChildren(node)
+    const expandable = kids.length > 0
+    const open = expandable && expanded.has(node.id)
+    const box: Box = {
+      id: node.id,
+      node,
+      depth,
+      branch,
+      lines,
+      x: 0,
+      y: 0,
+      width,
+      height,
+      span: 0,
+      expandable,
+      open,
+      flagged,
+      children: [],
+    }
+    box.span = extentOf(box, orientation)
+    rowHeights[depth] = Math.max(rowHeights[depth] ?? 0, height)
+    if (open) {
+      box.children = kids.map((kid) => measure(kid, depth + 1, branch))
+      const gap = gapFor(depth + 1, orientation)
+      const childrenSpan =
+        box.children.reduce((sum, kid) => sum + kid.span, 0) +
+        gap * (box.children.length - 1)
+      box.span = Math.max(box.span, childrenSpan)
+    }
+    boxes.push(box)
+    byId.set(box.id, box)
+    return box
+  }
+
+  const rootLines = wrapText(
+    title.trim() || 'Hợp đồng',
+    ROOT_FONT,
+    ROOT_TEXT_MAX,
+    2,
+  )
+  const rootTextW = Math.max(
+    0,
+    ...rootLines.map((line) => textWidth(line, ROOT_FONT)),
+  )
+  const roots = nodes.filter(hasVisibleContent)
+  const root: Box = {
+    id: '__root__',
+    node: null,
+    depth: 0,
+    branch: -1,
+    lines: rootLines,
+    x: 0,
+    y: 0,
+    width: Math.max(140, Math.ceil(rootTextW) + 2 + ROOT_PAD_X * 2),
+    height: Math.max(1, rootLines.length) * ROOT_LINE + ROOT_PAD_Y * 2,
+    span: 0,
+    expandable: roots.length > 0,
+    open: rootOpen && roots.length > 0,
+    flagged: false,
+    children: [],
+  }
+  root.span = extentOf(root, orientation)
+  rowHeights[0] = root.height
+  if (root.open) {
+    root.children = roots.map((node, index) =>
+      measure(node, 1, index % tones.length),
+    )
+    const childrenSpan =
+      root.children.reduce((sum, kid) => sum + kid.span, 0) +
+      gapFor(1, orientation) * (root.children.length - 1)
+    root.span = Math.max(root.span, childrenSpan)
+  }
+  boxes.push(root)
+  byId.set(root.id, root)
+
+  // Cây ngang: x theo cấp (cha + khe), y xếp anh em. Cây dọc: ngược lại,
+  // y theo hàng cấp (cao bằng hộp cao nhất cấp đó), x xếp anh em.
+  const rowTops: number[] = []
+  let cursorY = MARGIN
+  rowHeights.forEach((rowHeight, depth) => {
+    rowTops[depth] = cursorY
+    cursorY += rowHeight + LEVEL_GAP_Y
+  })
+
+  let maxRight = 0
+  let maxBottom = 0
+  function place(box: Box, along: number, start: number) {
+    // along: toạ độ theo trục cấp (x khi ngang, y khi dọc);
+    // start: mép đầu của khoảng span theo trục anh em.
+    if (vertical) {
+      box.y = rowTops[box.depth] ?? along
+    } else {
+      box.x = along
+    }
+    const gap = gapFor(box.depth + 1, orientation)
+    if (box.children.length === 0) {
+      if (vertical) box.x = start
+      else box.y = start
+    } else {
+      const childrenSpan =
+        box.children.reduce((sum, kid) => sum + kid.span, 0) +
+        gap * (box.children.length - 1)
+      let cursor = start + (box.span - childrenSpan) / 2
+      const nextAlong = vertical
+        ? (rowTops[box.depth + 1] ?? along)
+        : along + box.width + GAP_X
+      for (const kid of box.children) {
+        place(kid, nextAlong, cursor)
+        cursor += kid.span + gap
+      }
+      const first = box.children[0]
+      const last = box.children[box.children.length - 1]
+      if (vertical) {
+        const mid = (first.x + first.width / 2 + last.x + last.width / 2) / 2
+        box.x = Math.min(
+          Math.max(start, mid - box.width / 2),
+          start + box.span - box.width,
+        )
+      } else {
+        const mid = (first.y + first.height / 2 + last.y + last.height / 2) / 2
+        box.y = Math.min(
+          Math.max(start, mid - box.height / 2),
+          start + box.span - box.height,
+        )
+      }
+    }
+    maxRight = Math.max(maxRight, box.x + box.width)
+    maxBottom = Math.max(maxBottom, box.y + box.height)
+  }
+  place(root, MARGIN, MARGIN)
+
+  return {
+    root,
+    boxes,
+    byId,
+    width: maxRight + TOGGLE + MARGIN,
+    height: maxBottom + TOGGLE + MARGIN,
+    levels,
+  }
+}
+
+type Edge = { key: string; d: string; color: string }
+
+/** Hai đầu đường nối: mép phải cha → mép trái con (ngang) hoặc đáy cha → đỉnh con (dọc). */
+function edgeEnds(parent: Box, child: Box, orientation: TreeOrientation) {
+  if (orientation === 'vertical') {
+    return {
+      x1: parent.x + parent.width / 2,
+      y1: parent.y + parent.height,
+      x2: child.x + child.width / 2,
+      y2: child.y,
+    }
+  }
+  return {
+    x1: parent.x + parent.width,
+    y1: parent.y + parent.height / 2,
+    x2: child.x,
+    y2: child.y + child.height / 2,
+  }
+}
+
+function edgeControls(
+  ends: ReturnType<typeof edgeEnds>,
+  orientation: TreeOrientation,
+) {
+  const { x1, y1, x2, y2 } = ends
+  if (orientation === 'vertical') {
+    const mid = (y1 + y2) / 2
+    return { c1x: x1, c1y: mid, c2x: x2, c2y: mid }
+  }
+  const mid = (x1 + x2) / 2
+  return { c1x: mid, c1y: y1, c2x: mid, c2y: y2 }
+}
+
+function edgePath(parent: Box, child: Box, orientation: TreeOrientation) {
+  const ends = edgeEnds(parent, child, orientation)
+  const c = edgeControls(ends, orientation)
+  return `M ${ends.x1} ${ends.y1} C ${c.c1x} ${c.c1y}, ${c.c2x} ${c.c2y}, ${ends.x2} ${ends.y2}`
+}
+
+function toneOf(box: Box) {
+  return box.depth === 0 ? rootTone : tones[box.branch % tones.length]
+}
+
+function layoutEdges(layout: Layout, orientation: TreeOrientation): Edge[] {
+  const edges: Edge[] = []
+  for (const box of layout.boxes) {
+    for (const child of box.children) {
+      edges.push({
+        key: `${box.id}->${child.id}`,
+        d: edgePath(box, child, orientation),
+        color: toneOf(child).line,
+      })
+    }
+  }
+  return edges
+}
+
+// ---------------------------------------------------------------------------
+// Xuất PDF từ cùng bố cục đang hiển thị
+// ---------------------------------------------------------------------------
 
 function roundRect(
   ctx: CanvasRenderingContext2D,
@@ -258,25 +415,6 @@ function roundRect(
   ctx.arcTo(x, y + h, x, y, radius)
   ctx.arcTo(x, y, x + w, y, radius)
   ctx.closePath()
-}
-
-function strokeFan(
-  ctx: CanvasRenderingContext2D,
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-  color: string,
-  width: number,
-) {
-  const mid = (x1 + x2) / 2
-  ctx.beginPath()
-  ctx.moveTo(x1, y1)
-  ctx.bezierCurveTo(mid, y1, mid, y2, x2, y2)
-  ctx.strokeStyle = color
-  ctx.lineWidth = width
-  ctx.lineCap = 'round'
-  ctx.stroke()
 }
 
 function jpegPdf(
@@ -330,27 +468,21 @@ function jpegPdf(
 }
 
 async function mindmapPdf({
-  title,
-  subtitle,
-  nodes,
-  attentionIds,
-  articleCount,
-  annexCount,
+  layout,
+  orientation,
+  heading,
+  caption,
+  numbers,
 }: {
-  title: string
-  subtitle?: string | null
-  nodes: ClauseNode[]
-  attentionIds?: ReadonlySet<string>
-  articleCount: number
-  annexCount: number
+  layout: Layout
+  orientation: TreeOrientation
+  heading: string
+  caption: string
+  numbers?: ReadonlyMap<string, number>
 }) {
-  const layout = layoutBranches(nodes)
-  const mapWidth = 1120
-  const rootY = layout.branches.length
-    ? (layout.branches[0].y + layout.branches[layout.branches.length - 1].y) / 2
-    : layout.height / 2
-  const pageWidth = mapWidth + 64
-  const pageHeight = 52 + 32 + layout.height + 32
+  const HEADER = 52
+  const pageWidth = Math.max(720, layout.width)
+  const pageHeight = HEADER + layout.height
   const scale = Math.min(2, 16000 / pageWidth, 16000 / pageHeight)
   const canvas = document.createElement('canvas')
   canvas.width = Math.max(1, Math.floor(pageWidth * scale))
@@ -361,17 +493,16 @@ async function mindmapPdf({
   ctx.fillStyle = '#fafbff'
   ctx.fillRect(0, 0, pageWidth, pageHeight)
   ctx.fillStyle = '#f8fafc'
-  ctx.fillRect(0, 0, pageWidth, 52)
+  ctx.fillRect(0, 0, pageWidth, HEADER)
   ctx.strokeStyle = '#e2e8f0'
   ctx.beginPath()
-  ctx.moveTo(0, 52)
-  ctx.lineTo(pageWidth, 52)
+  ctx.moveTo(0, HEADER)
+  ctx.lineTo(pageWidth, HEADER)
   ctx.stroke()
   ctx.fillStyle = '#0f172a'
-  ctx.font = '600 15px "Segoe UI", sans-serif'
-  ctx.fillText('Sơ Đồ Mindmap Cấu Trúc Hợp Đồng & Phụ Lục', 24, 32)
-  const caption = `Dạng cây nhánh cong • ${articleCount} điều khoản${annexCount > 0 ? ` • ${annexCount} phụ lục` : ''}`
-  ctx.font = '500 11px "Segoe UI", sans-serif'
+  ctx.font = `600 15px ${FONT_FAMILY}`
+  ctx.fillText(heading, 24, 32)
+  ctx.font = `500 11px ${FONT_FAMILY}`
   const captionWidth = ctx.measureText(caption).width + 20
   roundRect(ctx, pageWidth - 24 - captionWidth, 16, captionWidth, 22, 11)
   ctx.fillStyle = '#eef2f7'
@@ -380,116 +511,64 @@ async function mindmapPdf({
   ctx.fillText(caption, pageWidth - 14 - captionWidth, 31)
 
   ctx.save()
-  ctx.translate(32, 84)
-  for (const [index, branch] of layout.branches.entries()) {
-    const paint = chipPaint[index % chipPaint.length]
-    strokeFan(ctx, 210, rootY, 340, branch.y + 16, paint.color, 2.5)
-    if (branch.children.length === 0) {
-      strokeFan(ctx, 520, branch.y + 16, 620, branch.y + 10, paint.color, 1.75)
-    } else {
-      for (const child of branch.children) {
-        strokeFan(ctx, 520, branch.y + 16, 620, child.y + 10, paint.color, 1.75)
-      }
+  ctx.translate(0, HEADER)
+  ctx.lineCap = 'round'
+  for (const box of layout.boxes) {
+    for (const child of box.children) {
+      const ends = edgeEnds(box, child, orientation)
+      const c = edgeControls(ends, orientation)
+      ctx.beginPath()
+      ctx.moveTo(ends.x1, ends.y1)
+      ctx.bezierCurveTo(c.c1x, c.c1y, c.c2x, c.c2y, ends.x2, ends.y2)
+      ctx.strokeStyle = toneOf(child).line
+      ctx.lineWidth = 1.6
+      ctx.stroke()
     }
   }
 
-  ctx.font = '700 14px "Segoe UI", sans-serif'
-  const rootTitle = fitText(ctx, title, 200)
-  const rootWidth = Math.min(
-    250,
-    Math.max(140, ctx.measureText(rootTitle).width + 40),
-  )
-  roundRect(ctx, 20, rootY - 28, rootWidth, subtitle ? 52 : 44, 26)
-  ctx.fillStyle = '#0b1f3a'
-  ctx.fill()
-  ctx.lineWidth = 2
-  ctx.strokeStyle = 'rgba(51,65,85,0.35)'
-  ctx.stroke()
-  ctx.fillStyle = '#ffffff'
-  ctx.fillText(rootTitle, 40, rootY - (subtitle ? 6 : 2))
-  if (subtitle) {
-    ctx.font = '500 10px ui-monospace, monospace'
-    ctx.fillStyle = '#cbd5e1'
-    ctx.fillText(fitText(ctx, subtitle, rootWidth - 40), 40, rootY + 12)
-  }
-
-  const numbers = citationNumbers(nodes)
-  const drawBadge = (x: number, y: number, n: number | undefined) => {
-    if (!n) return
-    const badge = String(n)
-    ctx.font = '600 11px "Segoe UI", sans-serif'
-    const badgeWidth = Math.max(18, ctx.measureText(badge).width + 10)
-    roundRect(ctx, x, y, badgeWidth, 18, 9)
-    ctx.fillStyle = '#ffffff'
+  ctx.textBaseline = 'middle'
+  for (const box of layout.boxes) {
+    const tone = toneOf(box)
+    const isRoot = box.depth === 0
+    roundRect(ctx, box.x, box.y, box.width, box.height, isRoot ? 12 : 8)
+    ctx.fillStyle = isRoot ? tone.bg : box.depth === 1 ? tone.bg : tone.bgSoft
     ctx.fill()
     ctx.lineWidth = 1
-    ctx.strokeStyle = '#94a3b8'
+    ctx.strokeStyle = tone.border
     ctx.stroke()
-    ctx.fillStyle = '#0f172a'
-    ctx.fillText(badge, x + 5, y + 13)
-  }
-
-  for (const [index, branch] of layout.branches.entries()) {
-    const paint = chipPaint[index % chipPaint.length]
-    ctx.font = '600 13px "Segoe UI", sans-serif'
-    const label = fitText(ctx, chipLabel(branch.node), 140)
-    const chipWidth = Math.min(190, ctx.measureText(label).width + 36)
-    roundRect(ctx, 340, branch.y, chipWidth, 30, 15)
-    ctx.fillStyle = paint.bg
-    ctx.fill()
-    ctx.lineWidth = 1
-    ctx.strokeStyle = paint.border
-    ctx.stroke()
-    ctx.beginPath()
-    ctx.arc(354, branch.y + 15, 4, 0, Math.PI * 2)
-    ctx.fillStyle = paint.color
-    ctx.fill()
-    ctx.fillStyle = paint.text
-    ctx.fillText(label, 364, branch.y + 20)
-    if (attentionIds?.has(branch.node.id)) {
+    ctx.fillStyle = tone.text
+    ctx.font = isRoot ? ROOT_FONT : NODE_FONT
+    const lineH = isRoot ? ROOT_LINE : NODE_LINE
+    const padX = isRoot ? ROOT_PAD_X : NODE_PAD_X
+    const padY = isRoot ? ROOT_PAD_Y : NODE_PAD_Y
+    box.lines.forEach((line, index) => {
+      ctx.fillText(line, box.x + padX, box.y + padY + index * lineH + lineH / 2)
+    })
+    if (box.flagged) {
       ctx.fillStyle = '#f59e0b'
-      ctx.fillText('★', 364 + ctx.measureText(label).width + 4, branch.y + 20)
+      ctx.font = `600 13px ${FONT_FAMILY}`
+      ctx.fillText(
+        '★',
+        box.x + box.width - padX - 10,
+        box.y + padY + NODE_LINE / 2,
+      )
     }
-    drawBadge(346 + chipWidth, branch.y + 6, numbers.get(branch.node.id))
-
-    const leaves =
-      branch.children.length === 0
-        ? [{ node: branch.node, y: branch.y }]
-        : branch.children
-    for (const child of leaves) {
-      const flagged = attentionIds?.has(child.node.id) === true
-      if (child.node.nodeType === 'annex' && branch.children.length > 0) {
-        ctx.font = '500 11px "Segoe UI", sans-serif'
-        const annexLabel = fitText(ctx, chipLabel(child.node), 190)
-        const annexWidth = Math.min(220, ctx.measureText(annexLabel).width + 16)
-        roundRect(ctx, 860, child.y, annexWidth, 18, 4)
-        ctx.fillStyle = paint.annexBg
-        ctx.fill()
-        ctx.strokeStyle = paint.annexBorder
-        ctx.stroke()
-        ctx.fillStyle = paint.annexText
-        ctx.fillText(annexLabel, 868, child.y + 13)
-        drawBadge(866 + annexWidth, child.y, numbers.get(child.node.id))
-      } else {
-        ctx.font = '500 12px "Segoe UI", sans-serif'
-        const text = fitText(ctx, linkLabel(child.node), 280)
-        ctx.fillStyle = '#334155'
-        ctx.fillText(text, 620, child.y + 14)
-        const textWidth = ctx.measureText(text).width
-        ctx.strokeStyle = paint.link
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.moveTo(620, child.y + 18)
-        ctx.lineTo(620 + textWidth, child.y + 18)
-        ctx.stroke()
-        if (flagged) {
-          ctx.fillStyle = '#f59e0b'
-          ctx.fillText('★', 624 + textWidth, child.y + 14)
-        }
-        if (child.node.id !== branch.node.id) {
-          drawBadge(628 + textWidth, child.y - 2, numbers.get(child.node.id))
-        }
-      }
+    const n = box.node ? numbers?.get(box.node.id) : undefined
+    if (n) {
+      const badge = String(n)
+      ctx.font = `600 10px ${FONT_FAMILY}`
+      const badgeWidth = Math.max(16, ctx.measureText(badge).width + 8)
+      roundRect(ctx, box.x - 6, box.y - 8, badgeWidth, 16, 8)
+      ctx.fillStyle = '#ffffff'
+      ctx.fill()
+      ctx.strokeStyle = tone.line
+      ctx.stroke()
+      ctx.fillStyle = '#0f172a'
+      ctx.fillText(
+        badge,
+        box.x - 6 + (badgeWidth - ctx.measureText(badge).width) / 2,
+        box.y,
+      )
     }
   }
   ctx.restore()
@@ -511,6 +590,16 @@ async function mindmapPdf({
   )
 }
 
+// ---------------------------------------------------------------------------
+// Thành phần chính
+// ---------------------------------------------------------------------------
+
+type View = { x: number; y: number; scale: number }
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value))
+}
+
 export function StructureMindmap({
   title,
   subtitle,
@@ -518,6 +607,7 @@ export function StructureMindmap({
   attentionIds,
   citationOf,
   focusId,
+  orientation = 'horizontal',
   onCite,
 }: {
   title: string
@@ -526,46 +616,275 @@ export function StructureMindmap({
   attentionIds?: ReadonlySet<string>
   citationOf?: ReadonlyMap<string, number>
   focusId?: string | null
+  /** 'horizontal': sơ đồ tư duy gốc trái; 'vertical': cây từ trên xuống. */
+  orientation?: TreeOrientation
   onCite?: (id: string) => void
 }) {
-  const [zoom, setZoom] = useState(1)
+  const vertical = orientation === 'vertical'
+  const heading = vertical ? 'Cây từ trên xuống' : 'Sơ đồ tư duy'
+  const source = useMemo(() => capToMaxLevels(nodes), [nodes])
+  const parents = useMemo(() => parentMap(source), [source])
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set())
+  const [rootOpen, setRootOpen] = useState(true)
   const [selected, setSelected] = useState<string | null>(null)
+  const [view, setView] = useState<View>({ x: MARGIN, y: MARGIN, scale: 1 })
+  const [dragging, setDragging] = useState(false)
+  const [fullscreen, setFullscreen] = useState(false)
   const shellRef = useRef<HTMLDivElement | null>(null)
-  const [frame, setFrame] = useState<HTMLElement | null>(null)
-
-  function bindShell(node: HTMLDivElement | null) {
-    shellRef.current = node
-    const host = node?.closest('[data-structure-frame]')
-    const next = host instanceof HTMLElement ? host : null
-    setFrame((current) => (current === next ? current : next))
-  }
-  const layout = useMemo(() => layoutBranches(nodes), [nodes])
-  const articleCount = countOf(nodes, 'article') || nodes.length
-  const annexCount = countOf(nodes, 'annex')
+  const viewportRef = useRef<HTMLDivElement | null>(null)
+  const dragRef = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    originX: number
+    originY: number
+  } | null>(null)
+  /** Tự căn vừa khung cho tới khi người dùng tự kéo / thu phóng. */
+  const autoFit = useRef(true)
+  const pendingFocus = useRef<string | null>(null)
+  /** Tăng khi font web tải xong để đo lại chữ; đo sớm bằng font thay thế sẽ lệch. */
+  const [fontsVersion, setFontsVersion] = useState(0)
 
   useEffect(() => {
-    if (!focusId) return
-    const target = shellRef.current?.querySelector(
-      `[data-node-id="${CSS.escape(focusId)}"]`,
-    )
-    target?.scrollIntoView({
-      block: 'center',
-      inline: 'nearest',
-      behavior: 'smooth',
-    })
-  }, [focusId])
-  const width = 1120
-  const rootY = layout.branches.length
-    ? (layout.branches[0].y + layout.branches[layout.branches.length - 1].y) / 2
-    : layout.height / 2
+    const fonts = document.fonts
+    if (!fonts) return
+    let alive = true
+    const bump = () => {
+      if (alive) setFontsVersion((version) => version + 1)
+    }
+    void fonts.ready.then(bump)
+    fonts.addEventListener('loadingdone', bump)
+    return () => {
+      alive = false
+      fonts.removeEventListener('loadingdone', bump)
+    }
+  }, [])
 
-  function updateZoom(next: number) {
-    setZoom(Math.max(0.1, Math.min(1.4, next)))
+  const layout = useMemo(() => {
+    // Chỉ để ép đo lại chữ khi font web tải xong.
+    void fontsVersion
+    return buildLayout(
+      title,
+      source,
+      expanded,
+      rootOpen,
+      attentionIds,
+      orientation,
+    )
+  }, [
+    title,
+    source,
+    expanded,
+    rootOpen,
+    attentionIds,
+    orientation,
+    fontsVersion,
+  ])
+  const edges = useMemo(
+    () => layoutEdges(layout, orientation),
+    [layout, orientation],
+  )
+  const numbers = useMemo(
+    () => citationOf ?? citationNumbers(nodes),
+    [citationOf, nodes],
+  )
+  const articleCount = countOf(nodes, 'article') || nodes.length
+  const annexCount = countOf(nodes, 'annex')
+  const maxDepth = useMemo(() => dataDepth(source), [source])
+  const caption = `${layout.levels}/${maxDepth} cấp • ${articleCount} điều khoản${
+    annexCount > 0 ? ` • ${annexCount} phụ lục` : ''
+  }`
+
+  // Dữ liệu đổi (đổi loại cấu trúc, tải lại): về trạng thái mặc định.
+  useEffect(() => {
+    setExpanded(new Set())
+    setRootOpen(true)
+    setSelected(null)
+    autoFit.current = true
+  }, [source])
+
+  const fitToView = useCallback(() => {
+    const el = viewportRef.current
+    if (!el) return
+    const w = el.clientWidth
+    const h = el.clientHeight
+    if (!w || !h) return
+    const scale = clamp(
+      Math.min(1, (w - FIT_PAD) / layout.width, (h - FIT_PAD) / layout.height),
+      MIN_ZOOM,
+      MAX_ZOOM,
+    )
+    setView({
+      scale,
+      x: (w - layout.width * scale) / 2,
+      y: (h - layout.height * scale) / 2,
+    })
+  }, [layout.width, layout.height])
+
+  useLayoutEffect(() => {
+    if (autoFit.current) fitToView()
+  }, [fitToView])
+
+  // Khung đổi kích thước (toàn màn hình, thu bảng bên) → căn lại nếu chưa ai chạm.
+  useEffect(() => {
+    const el = viewportRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => {
+      if (autoFit.current) fitToView()
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [fitToView])
+
+  useEffect(() => {
+    function onChange() {
+      setFullscreen(Boolean(document.fullscreenElement))
+    }
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
+  const zoomAt = useCallback((px: number, py: number, factor: number) => {
+    autoFit.current = false
+    setView((current) => {
+      const scale = clamp(current.scale * factor, MIN_ZOOM, MAX_ZOOM)
+      const ratio = scale / current.scale
+      return {
+        scale,
+        x: px - (px - current.x) * ratio,
+        y: py - (py - current.y) * ratio,
+      }
+    })
+  }, [])
+
+  // Cuộn để thu phóng quanh con trỏ (React gắn onWheel dạng passive nên dùng listener thô).
+  useEffect(() => {
+    const el = viewportRef.current
+    if (!el) return
+    function onWheel(event: WheelEvent) {
+      event.preventDefault()
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      const delta = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY
+      zoomAt(
+        event.clientX - rect.left,
+        event.clientY - rect.top,
+        Math.exp(-delta * 0.0012),
+      )
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [zoomAt])
+
+  function zoomBy(factor: number) {
+    const el = viewportRef.current
+    if (!el) return
+    zoomAt(el.clientWidth / 2, el.clientHeight / 2, factor)
   }
 
-  function recenter() {
-    updateZoom(1)
-    shellRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  // Trích dẫn từ nơi khác: mở các cấp cha rồi kéo nút vào khung nếu đang khuất.
+  useEffect(() => {
+    if (!focusId) return
+    pendingFocus.current = focusId
+    setRootOpen(true)
+    setExpanded((current) => {
+      const next = new Set(current)
+      let changed = false
+      let cursor = parents.get(focusId) ?? null
+      while (cursor) {
+        if (!next.has(cursor)) {
+          next.add(cursor)
+          changed = true
+        }
+        cursor = parents.get(cursor) ?? null
+      }
+      return changed ? next : current
+    })
+  }, [focusId, parents])
+
+  useLayoutEffect(() => {
+    const id = pendingFocus.current
+    if (!id) return
+    const box = layout.byId.get(id)
+    const el = viewportRef.current
+    if (!box || !el) return
+    pendingFocus.current = null
+    const w = el.clientWidth
+    const h = el.clientHeight
+    setView((current) => {
+      const left = current.x + box.x * current.scale
+      const top = current.y + box.y * current.scale
+      const right = left + box.width * current.scale
+      const bottom = top + box.height * current.scale
+      if (left >= 0 && top >= 0 && right <= w && bottom <= h) return current
+      autoFit.current = false
+      return {
+        ...current,
+        x: w / 2 - (box.x + box.width / 2) * current.scale,
+        y: h / 2 - (box.y + box.height / 2) * current.scale,
+      }
+    })
+  }, [layout])
+
+  function toggleNode(id: string) {
+    if (id === layout.root.id) {
+      setRootOpen((open) => !open)
+      return
+    }
+    setExpanded((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function expandAll() {
+    setRootOpen(true)
+    setExpanded(expandableIds(source))
+  }
+
+  function collapseAll() {
+    setRootOpen(true)
+    setExpanded(new Set())
+  }
+
+  function pickNode(id: string) {
+    setSelected(id)
+    onCite?.(id)
+  }
+
+  function startDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return
+    if ((event.target as HTMLElement).closest('button')) return
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: view.x,
+      originY: view.y,
+    }
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setDragging(true)
+  }
+
+  function moveDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    autoFit.current = false
+    const dx = event.clientX - drag.startX
+    const dy = event.clientY - drag.startY
+    setView((current) => ({
+      ...current,
+      x: drag.originX + dx,
+      y: drag.originY + dy,
+    }))
+  }
+
+  function endDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (dragRef.current?.pointerId !== event.pointerId) return
+    dragRef.current = null
+    setDragging(false)
   }
 
   function toggleFullscreen() {
@@ -579,45 +898,19 @@ export function StructureMindmap({
     }
   }
 
-  function downloadText(filename: string, lines: string[]) {
-    const blob = new Blob([lines.join('\n')], {
-      type: 'text/plain;charset=utf-8',
-    })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = filename
-    anchor.click()
-    URL.revokeObjectURL(url)
-  }
-
   async function exportStructure() {
     const blob = await mindmapPdf({
-      title,
-      subtitle,
-      nodes,
-      attentionIds,
-      articleCount,
-      annexCount,
+      layout,
+      orientation,
+      heading: `${heading} cấu trúc hợp đồng`,
+      caption: subtitle ? `${subtitle} • ${caption}` : caption,
+      numbers,
     })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = 'cau-truc-cay.pdf'
-    anchor.click()
-    URL.revokeObjectURL(url)
+    downloadBlob(vertical ? 'cay-cau-truc.pdf' : 'so-do-tu-duy.pdf', blob)
   }
 
   function exportData() {
-    const lines: string[] = [title]
-    function walk(list: ClauseNode[], depth: number) {
-      for (const node of list) {
-        lines.push(`${'  '.repeat(depth)}${fullLabel(node)}`)
-        walk(node.children, depth + 1)
-      }
-    }
-    walk(nodes, 0)
-    downloadText('du-lieu-hop-dong.txt', lines)
+    exportOutlineText(title, nodes)
   }
 
   if (nodes.length === 0) {
@@ -632,433 +925,280 @@ export function StructureMindmap({
 
   return (
     <div
-      ref={bindShell}
-      className="relative flex w-full flex-col overflow-hidden rounded-xl border border-outline-variant/20 bg-surface-container-lowest shadow-sm"
+      ref={shellRef}
+      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-outline-variant/20 bg-surface-container-lowest shadow-sm"
     >
-      <div className="px-6 py-3 bg-surface-container-low/60 border-b border-outline-variant/20 flex items-center justify-between z-10 gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="flex items-center gap-2 text-primary font-title-sm text-title-sm min-w-0">
+      <div className="z-10 flex items-center justify-between gap-3 border-b border-outline-variant/20 bg-surface-container-low/60 px-4 py-2">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex min-w-0 items-center gap-2 font-title-sm text-title-sm text-primary">
             <MaterialIcon
-              name="account_tree"
-              className="text-[20px] text-primary shrink-0"
+              name={vertical ? 'lan' : 'account_tree'}
+              className="shrink-0 text-[20px] text-primary"
             />
-            <span className="font-semibold truncate">
-              Sơ Đồ Mindmap Cấu Trúc Hợp Đồng & Phụ Lục
-            </span>
+            <span className="truncate font-semibold">{heading}</span>
           </div>
           <span
-            className="hidden xl:inline font-label-sm text-[11px] text-secondary bg-surface-container px-2.5 py-0.5 font-mono shrink-0"
+            className="hidden shrink-0 bg-surface-container px-2.5 py-0.5 font-mono text-[11px] text-secondary xl:inline"
             style={{ borderRadius: '9999px' }}
           >
-            Dạng cây nhánh cong • {articleCount} điều khoản
-            {annexCount > 0 ? ` • ${annexCount} phụ lục` : ''}
+            {caption}
           </span>
         </div>
-        <span
-          className="flex items-center gap-1.5 text-xs text-secondary bg-surface-container px-2.5 py-1 shrink-0"
-          style={{ borderRadius: '9999px' }}
-        >
-          <span
-            className="w-2 h-2 bg-[#059669]"
-            style={{ borderRadius: '9999px' }}
+        <div className="flex shrink-0 items-center gap-0.5">
+          <IconButton
+            icon="unfold_more"
+            label="Mở rộng tất cả"
+            onClick={expandAll}
           />
-          Sơ đồ trực quan tương tác
-        </span>
-      </div>
-
-      <div className="relative w-full bg-[#fafbff] p-8">
-        <div
-          className="relative mx-auto"
-          style={{ width: width * zoom, height: layout.height * zoom }}
-        >
-          <div
-            className="relative origin-top-left select-none transition-transform duration-200"
-            style={{
-              width,
-              height: layout.height,
-              transform: `scale(${zoom})`,
-            }}
-          >
-            <svg
-              className="absolute inset-0 w-full h-full pointer-events-none z-0"
-              viewBox={`0 0 ${width} ${layout.height}`}
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              {layout.branches.map((branch, index) => {
-                const color = palette[index % palette.length].color
-                return (
-                  <g key={branch.node.id}>
-                    <path
-                      d={curve(210, rootY, 340, branch.y + 16)}
-                      fill="none"
-                      stroke={color}
-                      strokeLinecap="round"
-                      strokeWidth="2.5"
-                    />
-                    {branch.children.map((child) => (
-                      <path
-                        key={child.node.id}
-                        d={curve(520, branch.y + 16, 620, child.y + 10)}
-                        fill="none"
-                        stroke={color}
-                        strokeLinecap="round"
-                        strokeWidth="1.75"
-                      />
-                    ))}
-                    {branch.children.length === 0 ? (
-                      <path
-                        d={curve(520, branch.y + 16, 620, branch.y + 10)}
-                        fill="none"
-                        stroke={color}
-                        strokeLinecap="round"
-                        strokeWidth="1.75"
-                      />
-                    ) : null}
-                  </g>
-                )
-              })}
-            </svg>
-
-            <button
-              className="absolute z-20 cursor-pointer"
-              style={{ left: 20, top: rootY - 28 }}
-              type="button"
-              onClick={() => setSelected(null)}
-            >
-              <div
-                className="bg-[#0b1f3a] text-white px-5 py-3 shadow-lg flex items-center gap-2.5 border-2 border-slate-700/30 hover:scale-105 transition-transform max-w-[250px]"
-                style={{ borderRadius: '9999px' }}
-              >
-                <MaterialIcon
-                  name="folder_special"
-                  className="text-[20px] text-amber-300 shrink-0"
-                />
-                <div className="flex flex-col text-left min-w-0">
-                  <span className="font-bold text-[14px] leading-tight tracking-wide truncate">
-                    {title}
-                  </span>
-                  {subtitle ? (
-                    <span className="text-[10px] text-slate-300 font-mono truncate">
-                      {subtitle}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            </button>
-
-            {layout.branches.map((branch, index) => {
-              const tone = palette[index % palette.length]
-              const flagged = attentionIds?.has(branch.node.id) === true
-              return (
-                <div key={branch.node.id}>
-                  <div
-                    className="absolute z-10 flex items-center"
-                    data-node-id={branch.node.id}
-                    style={{ left: 340, top: branch.y }}
-                  >
-                    <button
-                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 ${tone.bg} border ${tone.border} ${tone.text} shadow-sm font-semibold text-[13px] max-w-[190px] ${
-                        selected === branch.node.id ||
-                        focusId === branch.node.id
-                          ? 'ring-2 ring-[#0b1f3a] ring-offset-2'
-                          : ''
-                      }`}
-                      style={{ borderRadius: '9999px' }}
-                      type="button"
-                      onClick={() => setSelected(branch.node.id)}
-                    >
-                      <span
-                        className="w-2 h-2 shrink-0"
-                        style={{
-                          borderRadius: '9999px',
-                          backgroundColor: tone.color,
-                        }}
-                      />
-                      <span className="truncate">{chipLabel(branch.node)}</span>
-                      {flagged ? (
-                        <MaterialIcon
-                          name="star"
-                          className="text-[14px] text-amber-500"
-                        />
-                      ) : null}
-                    </button>
-                    <CiteMark
-                      active={focusId === branch.node.id}
-                      n={citationOf?.get(branch.node.id)}
-                      onCite={onCite ? () => onCite(branch.node.id) : undefined}
-                    />
-                  </div>
-                  {branch.children.map((child) => {
-                    const childFlagged =
-                      attentionIds?.has(child.node.id) === true
-                    const annex = child.node.nodeType === 'annex'
-                    return (
-                      <div
-                        key={child.node.id}
-                        className="absolute z-10 flex items-start"
-                        data-node-id={child.node.id}
-                        style={{ left: annex ? 860 : 620, top: child.y }}
-                      >
-                        {annex ? (
-                          <button
-                            className={`text-[11px] font-medium px-2 py-0.5 border flex items-center gap-1 max-w-[220px] ${annexTones[tone.tone]} ${
-                              selected === child.node.id ||
-                              focusId === child.node.id
-                                ? 'ring-2 ring-[#0b1f3a] ring-offset-2'
-                                : ''
-                            }`}
-                            style={{ borderRadius: '0.25rem' }}
-                            type="button"
-                            onClick={() => setSelected(child.node.id)}
-                          >
-                            <MaterialIcon
-                              name="attachment"
-                              className="text-[13px]"
-                            />
-                            <span className="truncate">
-                              {chipLabel(child.node)}
-                            </span>
-                          </button>
-                        ) : (
-                          <ClauseButton
-                            active={
-                              selected === child.node.id ||
-                              focusId === child.node.id
-                            }
-                            border={tone.link}
-                            hover={tone.hover}
-                            emphasize={childFlagged}
-                            onClick={() => setSelected(child.node.id)}
-                          >
-                            {childFlagged ? (
-                              <MaterialIcon
-                                name="star"
-                                className="text-[14px] text-amber-500"
-                              />
-                            ) : null}
-                            {linkLabel(child.node)}
-                          </ClauseButton>
-                        )}
-                        <CiteMark
-                          active={focusId === child.node.id}
-                          n={citationOf?.get(child.node.id)}
-                          onCite={
-                            onCite ? () => onCite(child.node.id) : undefined
-                          }
-                        />
-                      </div>
-                    )
-                  })}
-                  {branch.children.length === 0 ? (
-                    <div
-                      className="absolute z-10 max-w-[420px]"
-                      style={{ left: 620, top: branch.y }}
-                    >
-                      <ClauseButton
-                        active={selected === branch.node.id}
-                        border={tone.link}
-                        hover={tone.hover}
-                        emphasize={flagged}
-                        onClick={() => setSelected(branch.node.id)}
-                      >
-                        {linkLabel(branch.node)}
-                      </ClauseButton>
-                    </div>
-                  ) : null}
-                </div>
-              )
-            })}
-          </div>
+          <IconButton
+            icon="unfold_less"
+            label="Thu gọn tất cả"
+            onClick={collapseAll}
+          />
+          <span className="mx-1 h-4 w-px bg-outline-variant/40" />
+          <IconButton
+            icon="picture_as_pdf"
+            label="Xuất sơ đồ (PDF)"
+            onClick={() => void exportStructure()}
+          />
+          <IconButton
+            icon="download"
+            label="Xuất dữ liệu (TXT)"
+            onClick={exportData}
+          />
+          <IconButton
+            icon={fullscreen ? 'fullscreen_exit' : 'fullscreen'}
+            label={fullscreen ? 'Thoát toàn màn hình' : 'Toàn màn hình'}
+            onClick={toggleFullscreen}
+          />
         </div>
       </div>
 
-      <PinnedToFrame frame={frame}>
-        <ViewToolbar
-          zoom={zoom}
-          onExportData={exportData}
-          onExportStructure={exportStructure}
-          onFullscreen={toggleFullscreen}
-          onRecenter={recenter}
-          onZoom={updateZoom}
-        />
-      </PinnedToFrame>
-    </div>
-  )
-}
-
-function PinnedToFrame({
-  frame,
-  children,
-}: {
-  frame: HTMLElement | null
-  children: ReactNode
-}) {
-  if (!frame) return children
-  return createPortal(children, frame)
-}
-
-function ViewToolbar({
-  zoom,
-  onZoom,
-  onRecenter,
-  onFullscreen,
-  onExportStructure,
-  onExportData,
-}: {
-  zoom: number
-  onZoom: (next: number) => void
-  onRecenter: () => void
-  onFullscreen: () => void
-  onExportStructure: () => void
-  onExportData: () => void
-}) {
-  const [open, setOpen] = useState(false)
-
-  return (
-    <div
-      aria-label="Cấu hình hiển thị"
-      className="absolute bottom-3 left-1/2 z-40 flex -translate-x-1/2 items-center justify-center px-20 py-3"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-    >
       <div
-        className={`origin-center overflow-hidden transition-all duration-200 ease-out ${
-          open
-            ? 'max-w-[56rem] translate-y-0 opacity-100'
-            : 'pointer-events-none max-w-0 translate-y-1 opacity-0'
+        ref={viewportRef}
+        className={`relative min-h-[420px] flex-1 touch-none overflow-hidden bg-[#fafbff] ${
+          dragging ? 'cursor-grabbing' : 'cursor-grab'
         }`}
+        onPointerCancel={endDrag}
+        onPointerDown={startDrag}
+        onPointerMove={moveDrag}
+        onPointerUp={endDrag}
       >
         <div
-          className="flex items-center gap-2 whitespace-nowrap border border-slate-200/80 bg-white/95 px-3 py-1.5 text-slate-700 shadow-lg backdrop-blur"
-          style={{ borderRadius: '9999px' }}
+          className="absolute left-0 top-0 origin-top-left select-none"
+          style={{
+            width: layout.width,
+            height: layout.height,
+            transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
+          }}
         >
-          <div
-            className="mr-1 flex items-center gap-1 bg-slate-100 px-2 py-1 text-xs font-medium"
-            style={{ borderRadius: '9999px' }}
+          <svg
+            className="pointer-events-none absolute inset-0"
+            height={layout.height}
+            width={layout.width}
+            xmlns="http://www.w3.org/2000/svg"
           >
-            <span>Việt</span>
-            <MaterialIcon name="keyboard_arrow_down" className="text-[14px]" />
-          </div>
-          <div className="h-4 w-px bg-slate-200" />
-          <button
-            className="flex h-7 w-7 items-center justify-center text-slate-600 transition-colors hover:bg-slate-100"
-            style={{ borderRadius: '9999px' }}
-            title="Thu nhỏ"
-            type="button"
-            onClick={() => onZoom(zoom - 0.1)}
-          >
-            <MaterialIcon name="remove" className="text-[18px]" />
-          </button>
-          <span className="min-w-[42px] px-1 text-center font-mono text-xs font-medium text-slate-800">
-            {Math.round(zoom * 100)}%
-          </span>
-          <button
-            className="flex h-7 w-7 items-center justify-center text-slate-600 transition-colors hover:bg-slate-100"
-            style={{ borderRadius: '9999px' }}
-            title="Phóng to"
-            type="button"
-            onClick={() => onZoom(zoom + 0.1)}
-          >
-            <MaterialIcon name="add" className="text-[18px]" />
-          </button>
-          <div className="h-4 w-px bg-slate-200" />
-          <button
-            className="flex h-7 w-7 items-center justify-center text-slate-600 transition-colors hover:bg-slate-100"
-            style={{ borderRadius: '9999px' }}
-            title="Căn giữa sơ đồ"
-            type="button"
-            onClick={onRecenter}
-          >
-            <MaterialIcon name="center_focus_strong" className="text-[16px]" />
-          </button>
-          <button
-            className="flex h-7 w-7 items-center justify-center text-slate-600 transition-colors hover:bg-slate-100"
-            style={{ borderRadius: '9999px' }}
-            title="Toàn màn hình"
-            type="button"
-            onClick={onFullscreen}
-          >
-            <MaterialIcon name="fullscreen" className="text-[16px]" />
-          </button>
-          <div className="h-4 w-px bg-slate-200" />
-          <button
-            className="flex items-center gap-1.5 bg-primary px-3 py-1 text-xs font-semibold text-white shadow-sm transition-all hover:bg-primary-container"
-            style={{ borderRadius: '9999px' }}
-            type="button"
-            onClick={onExportStructure}
-          >
-            <MaterialIcon name="account_tree" className="text-[15px]" />
-            <span>Xuất cấu trúc cây</span>
-          </button>
-          <button
-            className="flex items-center gap-1.5 border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-800 shadow-sm transition-all hover:bg-slate-50"
-            style={{ borderRadius: '9999px' }}
-            type="button"
-            onClick={onExportData}
-          >
-            <MaterialIcon name="download" className="text-[15px]" />
-            <span>Xuất dữ liệu</span>
-          </button>
+            {edges.map((edge) => (
+              <path
+                key={edge.key}
+                d={edge.d}
+                fill="none"
+                stroke={edge.color}
+                strokeLinecap="round"
+                strokeWidth={1.6}
+              />
+            ))}
+          </svg>
+          {layout.boxes.map((box) => (
+            <NodeBox
+              key={box.id}
+              active={
+                box.node !== null && (selected === box.id || focusId === box.id)
+              }
+              box={box}
+              cite={box.node ? numbers.get(box.node.id) : undefined}
+              orientation={orientation}
+              onPick={
+                box.node ? () => pickNode(box.id) : () => setSelected(null)
+              }
+              onToggle={() => toggleNode(box.id)}
+            />
+          ))}
         </div>
+
+        <div
+          className="absolute bottom-3 right-3 z-20 flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md"
+          aria-label="Thu phóng"
+        >
+          <IconButton
+            icon="add"
+            label="Phóng to"
+            square
+            onClick={() => zoomBy(1.25)}
+          />
+          <span className="h-px w-full bg-slate-200" />
+          <IconButton
+            icon="remove"
+            label="Thu nhỏ"
+            square
+            onClick={() => zoomBy(0.8)}
+          />
+          <span className="h-px w-full bg-slate-200" />
+          <IconButton
+            icon="fit_screen"
+            label="Vừa khung"
+            square
+            onClick={() => {
+              autoFit.current = true
+              fitToView()
+            }}
+          />
+        </div>
+        <p className="pointer-events-none absolute bottom-3 left-3 z-20 select-none text-[11px] text-slate-400">
+          Kéo để di chuyển • Cuộn để thu phóng • Bấm mũi tên để mở nhánh
+        </p>
       </div>
     </div>
   )
 }
 
-function CiteMark({
-  n,
+function NodeBox({
+  box,
   active,
-  onCite,
+  cite,
+  orientation,
+  onPick,
+  onToggle,
 }: {
-  n: number | undefined
+  box: Box
   active: boolean
-  onCite?: () => void
+  cite: number | undefined
+  orientation: TreeOrientation
+  onPick: () => void
+  onToggle: () => void
 }) {
-  if (!n || !onCite) return null
+  const tone = toneOf(box)
+  const isRoot = box.depth === 0
+  const vertical = orientation === 'vertical'
+  const background = isRoot || box.depth === 1 ? tone.bg : tone.bgSoft
   return (
-    <button
-      className={`ml-1 inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full border px-1 text-[11px] font-semibold leading-none ${
-        active
-          ? 'border-[#0b1f3a] bg-[#0b1f3a] text-white'
-          : 'border-slate-300 bg-white text-slate-700 hover:border-slate-500'
-      }`}
-      type="button"
-      onClick={(event) => {
-        event.stopPropagation()
-        onCite()
-      }}
+    <div
+      className="absolute"
+      data-node-id={box.node ? box.id : undefined}
+      style={{ left: box.x, top: box.y, width: box.width, height: box.height }}
     >
-      {n}
-    </button>
+      <button
+        className={`block h-full w-full text-left shadow-sm transition-shadow hover:shadow-md ${
+          active ? 'ring-2 ring-[#0b1f3a] ring-offset-1' : ''
+        }`}
+        style={{
+          backgroundColor: background,
+          border: `1px solid ${tone.border}`,
+          borderRadius: isRoot ? 12 : 8,
+          color: tone.text,
+          fontFamily: FONT_FAMILY,
+          fontSize: isRoot ? 14 : 13,
+          fontWeight: isRoot ? 700 : 500,
+          lineHeight: `${isRoot ? ROOT_LINE : NODE_LINE}px`,
+          padding: isRoot
+            ? `${ROOT_PAD_Y - 1}px ${ROOT_PAD_X - 1}px`
+            : `${NODE_PAD_Y - 1}px ${NODE_PAD_X - 1}px`,
+        }}
+        title={box.node ? fullLabel(box.node) : undefined}
+        type="button"
+        onClick={onPick}
+      >
+        <span className="flex items-start gap-1.5">
+          <span className="min-w-0 flex-1">
+            {box.lines.map((line, index) => (
+              <span
+                key={index}
+                className="block overflow-hidden text-ellipsis whitespace-nowrap"
+              >
+                {line}
+              </span>
+            ))}
+          </span>
+          {box.flagged ? (
+            <span
+              className="flex shrink-0 items-center justify-center overflow-hidden text-amber-500"
+              style={{ width: 16, height: NODE_LINE, fontSize: 15 }}
+              title="Có chỗ cần kiểm tra"
+            >
+              <MaterialIcon name="star" className="!text-[15px]" />
+            </span>
+          ) : null}
+        </span>
+      </button>
+      {cite ? (
+        <span
+          className="pointer-events-none absolute -left-1.5 -top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full border bg-white px-1 text-[10px] font-semibold leading-none text-slate-800"
+          style={{ borderColor: tone.line }}
+        >
+          {cite}
+        </span>
+      ) : null}
+      {box.expandable ? (
+        <button
+          aria-expanded={box.open}
+          aria-label={box.open ? 'Thu nhánh' : 'Mở nhánh'}
+          className={`absolute flex items-center justify-center rounded-full border bg-white shadow-sm transition-colors hover:bg-slate-50 ${
+            vertical ? 'left-1/2 -translate-x-1/2' : 'top-1/2 -translate-y-1/2'
+          }`}
+          style={{
+            ...(vertical ? { bottom: -TOGGLE / 2 } : { right: -TOGGLE / 2 }),
+            width: TOGGLE,
+            height: TOGGLE,
+            borderColor: tone.line,
+            color: tone.line,
+          }}
+          title={box.open ? 'Thu nhánh' : 'Mở nhánh'}
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation()
+            onToggle()
+          }}
+        >
+          <MaterialIcon
+            name={
+              vertical
+                ? box.open
+                  ? 'expand_less'
+                  : 'expand_more'
+                : box.open
+                  ? 'chevron_left'
+                  : 'chevron_right'
+            }
+            className="text-[16px]"
+          />
+        </button>
+      ) : null}
+    </div>
   )
 }
 
-function ClauseButton({
-  active,
-  border,
-  hover,
-  emphasize,
+function IconButton({
+  icon,
+  label,
+  square,
   onClick,
-  children,
 }: {
-  active: boolean
-  border: string
-  hover: string
-  emphasize?: boolean
+  icon: string
+  label: string
+  square?: boolean
   onClick: () => void
-  children: ReactNode
 }) {
   return (
     <button
-      className={`text-left text-xs pb-0.5 border-b-2 ${border} ${hover} cursor-pointer max-w-[280px] ${
-        emphasize
-          ? 'font-semibold text-slate-900'
-          : 'font-medium text-slate-700'
-      } ${active ? 'ring-2 ring-[#0b1f3a] ring-offset-2' : ''}`}
+      aria-label={label}
+      className={`flex items-center justify-center text-slate-600 transition-colors hover:bg-slate-200/70 hover:text-slate-900 ${
+        square ? 'h-9 w-9' : 'h-8 w-8 rounded-full'
+      }`}
+      title={label}
       type="button"
       onClick={onClick}
     >
-      <span className="inline-flex items-start gap-1.5">{children}</span>
+      <MaterialIcon name={icon} className="text-[20px]" />
     </button>
   )
 }

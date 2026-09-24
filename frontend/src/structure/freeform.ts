@@ -1,5 +1,5 @@
 import { cleanLines, lineHeightPt, median } from './lines'
-import { TreeBuilder } from './tree'
+import { MAX_TREE_LEVELS, TreeBuilder } from './tree'
 import type { ClauseNode, ClauseRegion, OcrLine } from './types'
 
 function lineRegion(line: OcrLine): ClauseRegion | null {
@@ -39,7 +39,7 @@ function count(text: string, re: RegExp) {
  * cỡ chữ so với cỡ chữ phổ biến, viết hoa, ngắn, không kết thúc bằng dấu câu,
  * khoảng trống phía trên lớn, canh giữa, bắt đầu bằng từ khóa mục. Dòng đạt
  * ngưỡng là tiêu đề. Cấp của tiêu đề suy từ cỡ chữ: gom các cỡ gần nhau thành
- * một cấp, cỡ lớn nhất là cấp cao nhất. Số cấp không giới hạn.
+ * một cấp, cỡ lớn nhất là cấp cao nhất. Nhiều cấp thì hiện nhiều cấp, tối đa 10.
  */
 export function buildFreeformTree(input: OcrLine[]): ClauseNode[] {
   const lines = cleanLines(input)
@@ -179,7 +179,8 @@ function assignLevels(headings: Scored[]) {
   }
   const levelByKey = new Map<number, number>()
   clusters.forEach((cluster, level) => {
-    for (const key of cluster) levelByKey.set(key, level)
+    const capped = Math.min(level, MAX_TREE_LEVELS - 1)
+    for (const key of cluster) levelByKey.set(key, capped)
   })
   for (const item of headings) {
     levels.set(item, levelByKey.get(item.sizeKey) ?? clusters.length)
