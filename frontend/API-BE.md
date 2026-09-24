@@ -22,7 +22,7 @@ Prefix mọi path JSON: `/api/v1`. Base URL: `VITE_API_BASE_URL` (mặc định 
 | Route FE | Page / layout | Nối mục |
 |---|---|---|
 | `/` | `LoginPage` | [1. Auth](#1-auth) |
-| `/tong-quan` | `OverviewPage` | [15. Chưa có trên BE](#15-fe-có--be-chưa-có-endpoint) |
+| `/tong-quan` | `OverviewPage` | [18](#18-quản-lý-người-dùng) · [2](#2-list-dossier) · phần chưa có: [`BE-OVERVIEW.md`](./BE-OVERVIEW.md) |
 | `/nguoi-dung-phan-quyen` | `UsersPage` | [18. Quản lý người dùng](#18-quản-lý-người-dùng) |
 | `/ho-so` · `/ho-so-cua-toi` | `MyDossiersPage` | [2. List dossier](#2-list-dossier) |
 | `/tao-ho-so` | `CreateDossierPage` | [3. Upload dossier](#3-upload-dossier) |
@@ -56,7 +56,7 @@ Prefix mọi path JSON: `/api/v1`. Base URL: `VITE_API_BASE_URL` (mặc định 
 | `src/data/citationSplitView.ts` | [7](#7-clause-tree) + [8](#8-fact--citation) |
 | `src/data/dossierSearch.ts` | **Không có search API** — [15](#15-fe-có--be-chưa-có-endpoint) |
 | `src/data/auditLog.ts` | Gần nhất: review revisions — [10](#10-review-hitl) · còn lại [15](#15-fe-có--be-chưa-có-endpoint) |
-| `src/data/overview.ts` | Bảng thành viên Tổng quan vẫn mock. Quản lý user thật: [18](#18-quản-lý-người-dùng) |
+| `src/data/overview.ts` | Đã bỏ. Tổng quan gọi `GET /users` và `GET /dossiers`. Phần chưa có API: [`BE-OVERVIEW.md`](./BE-OVERVIEW.md) |
 | `src/api/client.ts` (stub) | [0. Client](#0-client--quy-ước) |
 
 `CitationComparePage` còn mock **inline** (`relatedCitations`), không nằm trong `src/data/`.
@@ -1048,7 +1048,7 @@ Giữ mock hoặc ẩn màn cho đến khi BE bổ sung. Đừng bịa API.
 | UI | File | Lý do |
 |---|---|---|
 | Login Google / SSO / quick admin-user | `LoginPage` | Auth = Keycloak ngoài OpenAPI; API chỉ `/auth/me` |
-| Tổng quan team + activity | `overview.ts` | Không có list users / invite / share |
+| Tổng quan: dung lượng, hoạt động tenant, số hồ sơ chia sẻ, xuất báo cáo | `BE-OVERVIEW.md` | User list và dossier list đã nối. Các phần còn lại chưa có endpoint |
 | Người dùng & phân quyền | `UsersPage` | FE đã gọi. BE làm theo `BE-USER-ADMIN.md` — [18](#18-quản-lý-người-dùng) |
 | Được chia sẻ với tôi | Placeholder | Không có share grant |
 | Tìm kiếm xuyên hồ sơ | Placeholder | `GET /dossiers?q=` chỉ search **tên** dossier |

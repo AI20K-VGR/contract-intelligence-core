@@ -19,7 +19,7 @@ import { ApiError } from '../api/client'
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
-import { usePageTitle } from '../hooks/usePageTitle'
+import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 
 type MemberFilter = 'all' | 'included' | 'excluded'
 type RoleFilter = 'all' | DocumentRole
@@ -222,6 +222,7 @@ function confirmInput(draft: Draft): ManifestConfirmInput {
 
 export function ManifestConfirmPage() {
   usePageTitle('Xác nhận vai trò và quan hệ')
+  const titleInHeader = useHeaderShowsPageTitle()
   const { dossierId = '' } = useParams()
   const { user } = useAuth()
   const backTo = user ? dossiersPath(user.role) : '/'
@@ -521,9 +522,11 @@ export function ManifestConfirmPage() {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
           <div className="flex flex-col gap-space-xs max-w-3xl">
             <div className="flex items-center gap-space-sm flex-wrap">
-              <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">
-                Xác nhận vai trò và quan hệ
-              </h1>
+              {titleInHeader ? null : (
+                <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">
+                  Xác nhận vai trò và quan hệ
+                </h1>
+              )}
               {draft ? (
                 <span
                   className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-label-sm text-label-sm font-semibold ${

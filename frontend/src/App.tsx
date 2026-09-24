@@ -9,9 +9,12 @@ import { LoginPage } from './pages/LoginPage'
 import { AuthCallbackPage } from './pages/AuthCallbackPage'
 import { SilentRenewPage } from './pages/SilentRenewPage'
 import { MyDossiersPage } from './pages/MyDossiersPage'
+import { AccessPage } from './pages/AccessPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { AnalysisProgressPage } from './pages/AnalysisProgressPage'
 import { CreateDossierPage } from './pages/CreateDossierPage'
+import { DossierStructurePage } from './pages/DossierStructurePage'
+import { OcrProgressPage } from './pages/OcrProgressPage'
 import { ManifestConfirmPage } from './pages/ManifestConfirmPage'
 import { DossierReviewPage } from './pages/DossierReviewPage'
 import { CitationComparePage } from './pages/CitationComparePage'
@@ -68,6 +71,14 @@ export default function App() {
                 }
               />
               <Route
+                path="/quyen-truy-cap"
+                element={
+                  <RequireRole allow="admin">
+                    <AccessPage />
+                  </RequireRole>
+                }
+              />
+              <Route
                 path="/nhat-ky-hoat-dong"
                 element={
                   <RequireRole allow="admin">
@@ -104,6 +115,11 @@ export default function App() {
                 element={<ClauseConflictPage />}
               />
               <Route path="/tao-ho-so" element={<CreateDossierPage />} />
+              <Route
+                path="/cau-truc/:dossierId"
+                element={<DossierStructurePage />}
+              />
+              <Route path="/ocr/:dossierId" element={<OcrProgressPage />} />
               <Route
                 path="/xac-nhan-manifest/:dossierId"
                 element={<ManifestConfirmPage />}

@@ -1,5 +1,5 @@
-export type DossierStatus = 'processing' | 'ready' | 'review'
-export type DossierAccess = 'private' | 'shared-admin'
+export type DossierStatus = 'processing' | 'ready' | 'review' | 'failed'
+export type DossierAccess = 'mine' | 'shared_out' | 'shared_in'
 
 export type Dossier = {
   id: string
@@ -11,15 +11,20 @@ export type Dossier = {
   progressLabel?: string
   progress?: number
   reviewNote?: string
-  documents: number
+  documents: number | null
   updated: string
   access: DossierAccess
+  shares?: { id: string; email: string; display_name: string }[]
+  jobStatus?: string | null
+  uploadedAt?: string
+}
+
+export function structurePath(dossierId: string) {
+  return `/cau-truc/${encodeURIComponent(dossierId)}`
 }
 
 export function dossierOpenTo(dossier: Dossier) {
-  if (dossier.status === 'processing') return '/tien-trinh-phan-tich'
-  if (dossier.status === 'review') return '/doi-soat-xung-dot'
-  return '/ho-so-hop-dong'
+  return structurePath(dossier.id)
 }
 
 export const myDossiers: Dossier[] = [
@@ -34,7 +39,7 @@ export const myDossiers: Dossier[] = [
     progress: 68,
     documents: 12,
     updated: '2 phút trước',
-    access: 'private',
+    access: 'mine',
   },
   {
     id: 'HS-2024-MED-0034',
@@ -45,7 +50,7 @@ export const myDossiers: Dossier[] = [
     status: 'ready',
     documents: 4,
     updated: 'Hôm nay, 09:45',
-    access: 'shared-admin',
+    access: 'shared_out',
   },
   {
     id: 'HS-2024-CLD-0112',
@@ -57,7 +62,7 @@ export const myDossiers: Dossier[] = [
     reviewNote: '2 điều khoản bất thường',
     documents: 3,
     updated: 'Hôm qua',
-    access: 'private',
+    access: 'mine',
   },
   {
     id: 'HS-2024-BCC-0045',
@@ -68,7 +73,7 @@ export const myDossiers: Dossier[] = [
     status: 'ready',
     documents: 6,
     updated: '14/05/2024',
-    access: 'shared-admin',
+    access: 'shared_out',
   },
   {
     id: 'HS-2024-BID-0201',
@@ -81,7 +86,7 @@ export const myDossiers: Dossier[] = [
     progress: 40,
     documents: 18,
     updated: 'Hôm nay, 11:20',
-    access: 'private',
+    access: 'mine',
   },
   {
     id: 'HS-2024-NDA-0331',
@@ -92,7 +97,7 @@ export const myDossiers: Dossier[] = [
     status: 'ready',
     documents: 2,
     updated: '12/05/2024',
-    access: 'private',
+    access: 'mine',
   },
   {
     id: 'HS-2024-HR-0156',
@@ -103,7 +108,7 @@ export const myDossiers: Dossier[] = [
     status: 'ready',
     documents: 2,
     updated: '10/05/2024',
-    access: 'private',
+    access: 'mine',
   },
   {
     id: 'HS-2024-DIS-0078',
@@ -114,6 +119,6 @@ export const myDossiers: Dossier[] = [
     status: 'ready',
     documents: 3,
     updated: '08/05/2024',
-    access: 'shared-admin',
+    access: 'shared_out',
   },
 ]

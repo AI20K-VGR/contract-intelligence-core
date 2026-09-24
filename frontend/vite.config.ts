@@ -102,6 +102,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), tailwindcss()],
+    resolve: {
+      // .js emit sitting next to sources must not win. A second AuthContext
+      // makes useAuth throw even while the shell is still signed in.
+      extensions: ['.mjs', '.mts', '.ts', '.tsx', '.jsx', '.js', '.json'],
+    },
     server: { proxy },
   }
 })

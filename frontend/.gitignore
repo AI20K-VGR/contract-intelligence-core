@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# tsc emit next to sources. Vite would load these instead of the .ts files.
+src/**/*.js
+src/**/*.js.map
+
 .vscode/*
 !.vscode/extensions.json
 .idea

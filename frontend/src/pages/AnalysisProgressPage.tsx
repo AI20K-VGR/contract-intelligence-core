@@ -12,7 +12,7 @@ import {
   type ProgressFile,
   type ProgressLog,
 } from '../data/analysisProgress'
-import { usePageTitle } from '../hooks/usePageTitle'
+import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 
 type LocationState = {
   name?: string
@@ -174,6 +174,7 @@ function LogRow({ log }: { log: ProgressLog }) {
 
 export function AnalysisProgressPage() {
   usePageTitle('Tiến trình phân tích')
+  const titleInHeader = useHeaderShowsPageTitle()
   const { user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -249,9 +250,11 @@ export function AnalysisProgressPage() {
 
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-space-md mt-space-xs">
           <div className="flex flex-col gap-space-xs">
-            <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">
-              Tiến trình phân tích hợp đồng
-            </h1>
+            {titleInHeader ? null : (
+              <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">
+                Tiến trình phân tích hợp đồng
+              </h1>
+            )}
             <div className="flex flex-wrap items-center gap-x-space-md gap-y-space-xs text-on-surface-variant font-body-sm text-body-sm">
               <span className="font-title-sm text-title-sm text-on-surface font-semibold">
                 {dossierName}

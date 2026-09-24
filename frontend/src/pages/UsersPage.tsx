@@ -20,7 +20,7 @@ import {
 } from '../api/users'
 import { useAuth } from '../auth/useAuth'
 import { validateWorkEmail } from '../auth/session'
-import { usePageTitle } from '../hooks/usePageTitle'
+import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 
 const PAGE_SIZE = 20
 
@@ -78,6 +78,7 @@ function sameAccount(user: ManagedUser, email: string | undefined) {
 
 export function UsersPage() {
   usePageTitle('Người dùng & Phân quyền')
+  const titleInHeader = useHeaderShowsPageTitle()
   const { user: sessionUser } = useAuth()
   const [queryInput, setQueryInput] = useState('')
   const [query, setQuery] = useState('')
@@ -225,9 +226,11 @@ export function UsersPage() {
     <div className="flex flex-col w-full gap-space-lg">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
         <div className="flex flex-col gap-space-xs">
-          <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight">
-            Người dùng & Phân quyền
-          </h1>
+          {titleInHeader ? null : (
+            <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight">
+              Người dùng & Phân quyền
+            </h1>
+          )}
           <p className="font-body-sm text-body-sm text-secondary max-w-2xl">
             Tạo tài khoản và gán vai trò. Người dùng tự đặt mật khẩu qua email,
             rồi đăng nhập SSO.

@@ -61,7 +61,9 @@ export function UserLayout() {
                           location.pathname === '/doi-soat-xung-dot' ||
                           location.pathname === '/tao-ho-so' ||
                           location.pathname.startsWith('/xac-nhan-manifest') ||
-                          location.pathname === '/tien-trinh-phan-tich'
+                          location.pathname === '/tien-trinh-phan-tich' ||
+                          location.pathname.startsWith('/cau-truc/') ||
+                          location.pathname.startsWith('/ocr/')
                       : isActive,
                   )
                 }
@@ -95,21 +97,7 @@ export function UserLayout() {
       </aside>
 
       <div className="pl-72">
-        <header className="fixed top-0 left-72 right-0 h-16 bg-surface/90 backdrop-blur-md z-40 flex items-center justify-between px-margin">
-          <div className="flex-1 max-w-xl">
-            <div className="relative flex items-center">
-              <MaterialIcon
-                name="search"
-                className="absolute left-space-md text-on-surface-variant text-[20px]"
-              />
-              <input
-                className="w-full h-10 pl-10 pr-space-md bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant font-body-sm text-body-sm rounded-lg shadow-[0_1px_2px_rgba(15,23,42,0.05)] focus:outline-none focus:ring-1 focus:ring-on-tertiary-container"
-                placeholder="Tra cứu điều khoản, hợp đồng toàn hệ thống..."
-                type="search"
-              />
-            </div>
-          </div>
-
+        <header className="fixed top-0 left-72 right-0 h-16 bg-surface/90 backdrop-blur-md z-40 flex items-center justify-end px-margin">
           <div className="flex items-center gap-space-lg">
             <button
               aria-label="Thông báo"

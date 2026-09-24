@@ -2,38 +2,55 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { AccountMenu } from '../components/AccountMenu'
 import { MaterialIcon } from '../components/icons'
 import { SidebarLogout } from '../components/SidebarLogout'
+import {
+  PageTitleProvider,
+  useCurrentPageTitle,
+} from '../hooks/usePageTitle'
 
 const navItems = [
   { to: '/tong-quan', icon: 'dashboard', label: 'Tổng quan' },
+  { to: '/ho-so', icon: 'folder_shared', label: 'Hồ sơ', locked: true },
+  { to: '/quyen-truy-cap', icon: 'lock', label: 'Quyền truy cập' },
+  { to: '/nhat-ky-hoat-dong', icon: 'history_edu', label: 'Nhật ký hoạt động' },
   {
     to: '/nguoi-dung-phan-quyen',
     icon: 'manage_accounts',
     label: 'Người dùng & Phân quyền',
   },
-  { to: '/ho-so', icon: 'folder_shared', label: 'Hồ sơ', locked: true },
-  { to: '/tao-ho-so', icon: 'cloud_upload', label: 'Tải lên' },
-  { to: '/nhat-ky-hoat-dong', icon: 'history_edu', label: 'Nhật ký hoạt động' },
   { to: '/cai-dat', icon: 'settings', label: 'Cài đặt' },
 ] as const
 
+function HeaderPageTitle() {
+  const title = useCurrentPageTitle()
+  if (!title) return null
+  return (
+    <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight">
+      {title}
+    </h1>
+  )
+}
+
 function navClassName(isActive: boolean) {
   return [
-    'flex items-center gap-space-md px-space-md py-space-sm rounded transition-colors',
+    'flex items-center gap-space-md px-space-md py-space-sm rounded transition-colors whitespace-nowrap',
     isActive
-      ? 'bg-inverse-surface text-surface font-title-sm'
+      ? 'bg-inverse-surface text-surface font-title-sm text-body-md'
       : 'text-surface-container-highest hover:bg-tertiary-container hover:text-surface font-body-md text-body-md',
   ].join(' ')
 }
 
 export function AdminLayout() {
   const location = useLocation()
-  const dossierSection = [
-    '/ho-so',
-    '/tien-trinh-phan-tich',
-    '/doi-soat-xung-dot',
-  ].includes(location.pathname)
+  const dossierSection =
+    ['/ho-so', '/tao-ho-so', '/tien-trinh-phan-tich', '/doi-soat-xung-dot'].includes(
+      location.pathname,
+    ) ||
+    location.pathname.startsWith('/cau-truc/') ||
+    location.pathname.startsWith('/ocr/') ||
+    location.pathname.startsWith('/xac-nhan-manifest')
 
   return (
+    <PageTitleProvider>
     <div className="bg-background font-body-md text-on-surface antialiased min-h-screen">
       <aside className="fixed left-0 top-0 h-full w-64 bg-primary-container text-surface flex flex-col z-50 shadow-[0_1px_8px_rgba(0,0,0,0.08)]">
         <div className="h-16 flex items-center px-space-lg gap-space-sm">
@@ -73,10 +90,7 @@ export function AdminLayout() {
                 const active =
                   item.to === '/ho-so'
                     ? location.pathname === '/ho-so' || dossierSection
-                    : item.to === '/tao-ho-so'
-                      ? location.pathname === '/tao-ho-so' ||
-                        location.pathname.startsWith('/xac-nhan-manifest')
-                      : location.pathname === item.to
+                    : location.pathname === item.to
                 return 'locked' in item && item.locked
                   ? `${navClassName(active)} justify-between`
                   : navClassName(active)
@@ -104,33 +118,7 @@ export function AdminLayout() {
 
       <div className="pl-64">
         <header className="fixed top-0 left-64 right-0 h-16 bg-surface/90 backdrop-blur-md z-40 flex items-center justify-between px-gutter shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
-          <div className="flex items-center gap-space-lg">
-            <div className="flex items-center gap-space-xs cursor-pointer py-space-xs px-space-sm rounded hover:bg-surface-container">
-              <MaterialIcon
-                name="corporate_fare"
-                className="text-secondary text-[20px]"
-              />
-              <span className="font-title-sm text-title-sm text-on-surface">
-                Tập đoàn Luật Apex & Đối tác
-              </span>
-              <MaterialIcon
-                name="expand_more"
-                className="text-outline text-[18px]"
-              />
-            </div>
-            <div className="h-5 w-[1px] bg-outline-variant" />
-            <div className="relative flex items-center">
-              <MaterialIcon
-                name="search"
-                className="absolute left-3 text-outline text-[18px]"
-              />
-              <input
-                className="w-96 pl-9 pr-space-md py-1.5 bg-surface-container-lowest text-on-surface rounded placeholder:text-outline font-body-sm text-body-sm focus:outline-none focus:ring-1 focus:ring-secondary"
-                placeholder="Tra cứu hợp đồng, điều khoản, vụ việc..."
-                type="search"
-              />
-            </div>
-          </div>
+          <HeaderPageTitle />
 
           <div className="flex items-center gap-space-md">
             <button
@@ -154,5 +142,6 @@ export function AdminLayout() {
         </main>
       </div>
     </div>
+    </PageTitleProvider>
   )
 }

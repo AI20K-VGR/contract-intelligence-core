@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { listReviewSpots, type ReviewSpot } from '../api/structure'
 import { dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
+import { structurePath } from '../data/dossiers'
 import {
   clauseConflicts,
   conflictDossier,
@@ -10,7 +12,7 @@ import {
   type ConflictChoice,
   type ConflictSource,
 } from '../data/clauseConflicts'
-import { usePageTitle } from '../hooks/usePageTitle'
+import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 
 type Decision = 'none' | 'confirm' | 'overlay' | 'reject'
 type CompleteState = 'idle' | 'done'
@@ -155,12 +157,65 @@ function QueueItem({
   )
 }
 
+function sourceFromSpot(
+  id: 'source1' | 'source2',
+  spot: ReviewSpot,
+  side: ReviewSpot['sides'][number] | undefined,
+  fallback: string,
+): ConflictSource {
+  const value = side?.value || '—'
+  return {
+    id,
+    label: side?.label || fallback,
+    value,
+    unit: '',
+    context: spot.topic,
+    location: spot.topic,
+    quoteBefore: '',
+    highlight: side?.quote || value,
+    quoteAfter: '',
+    field: spot.topic,
+  }
+}
+
+function spotToConflict(spot: ReviewSpot, index: number): ClauseConflict {
+  return {
+    id: spot.id,
+    code: `#${String(index + 1).padStart(2, '0')}`,
+    title: spot.topic,
+    field: spot.topic,
+    comparison:
+      spot.sides
+        .map((side) => side.value)
+        .filter((value) => value && value !== '—')
+        .join(' vs ') || spot.topic,
+    location: spot.topic,
+    risk: 'high',
+    badge: 'Cần xử lý',
+    diagnosis:
+      spot.rationale || 'Nội dung này cần được kiểm tra trước khi chốt hồ sơ.',
+    source1: sourceFromSpot('source1', spot, spot.sides[0], 'Nguồn 1'),
+    source2: sourceFromSpot('source2', spot, spot.sides[1], 'Nguồn 2'),
+  }
+}
+
 export function ClauseConflictPage() {
   usePageTitle('Đối soát xung đột điều khoản')
+  const titleInHeader = useHeaderShowsPageTitle()
   const navigate = useNavigate()
+  const location = useLocation()
+  const reviewState = location.state as {
+    dossierId?: string
+    name?: string
+  } | null
+  const dossierId = reviewState?.dossierId ?? ''
+  const dossierName = reviewState?.name?.trim() || conflictDossier.title
   const { user } = useAuth()
-  const [items, setItems] = useState(clauseConflicts)
-  const [activeId, setActiveId] = useState(clauseConflicts[0].id)
+  const [items, setItems] = useState(dossierId ? [] : clauseConflicts)
+  const [loadingReview, setLoadingReview] = useState(Boolean(dossierId))
+  const [activeId, setActiveId] = useState(
+    dossierId ? '' : clauseConflicts[0].id,
+  )
   const [selectedSource, setSelectedSource] = useState<
     'source1' | 'source2' | null
   >(null)
@@ -169,10 +224,33 @@ export function ClauseConflictPage() {
   const [overlay, setOverlay] = useState('')
   const [complete, setComplete] = useState<CompleteState>('idle')
 
+  useEffect(() => {
+    if (!dossierId) return
+    const controller = new AbortController()
+    setLoadingReview(true)
+    listReviewSpots(dossierId, controller.signal)
+      .then((spots) => {
+        if (controller.signal.aborted) return
+        const mapped = spots.map(spotToConflict)
+        setItems(mapped)
+        setActiveId(mapped[0]?.id ?? '')
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return
+        setItems([])
+        setActiveId('')
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingReview(false)
+      })
+    return () => controller.abort()
+  }, [dossierId])
+
   const active = items.find((item) => item.id === activeId) ?? items[0]
   const resolvedCount = items.filter((item) => item.choice).length
   const pendingCount = items.length - resolvedCount
-  const progress = Math.round((resolvedCount / items.length) * 100)
+  const progress =
+    items.length === 0 ? 0 : Math.round((resolvedCount / items.length) * 100)
   const queueIndex = items.findIndex((item) => item.id === activeId) + 1
 
   const diagnosis = useMemo(() => {
@@ -259,9 +337,11 @@ export function ClauseConflictPage() {
       <header className="py-space-lg flex flex-col md:flex-row md:items-center justify-between gap-space-md">
         <div className="flex flex-col gap-space-xs">
           <div className="flex items-center gap-space-sm flex-wrap">
-            <span className="font-headline-lg text-headline-lg text-on-surface">
-              Đối soát xung đột điều khoản
-            </span>
+            {titleInHeader ? null : (
+              <span className="font-headline-lg text-headline-lg text-on-surface">
+                Đối soát xung đột điều khoản
+              </span>
+            )}
             <span className="px-space-sm py-0.5 rounded bg-surface-container-high text-on-secondary-fixed font-code-sm text-code-sm font-semibold">
               {queueIndex} / {items.length} xung đột
             </span>
@@ -271,10 +351,10 @@ export function ClauseConflictPage() {
               name="description"
               className="text-[15px] text-secondary"
             />
-            <span>Hồ sơ: {conflictDossier.title}</span>
+            <span>Hồ sơ: {dossierName}</span>
             <span className="text-outline">/</span>
             <span className="font-code-sm text-code-sm text-on-secondary-container">
-              {conflictDossier.code}
+              {dossierId || conflictDossier.code}
             </span>
           </p>
         </div>
@@ -300,174 +380,200 @@ export function ClauseConflictPage() {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter-lg pb-margin-lg items-start">
-        <div className="lg:col-span-8 flex flex-col gap-gutter">
-          <div className="bg-surface-container-lowest rounded-xl p-gutter shadow-[0_1px_3px_rgba(15,23,42,0.06)] flex flex-col gap-space-lg">
-            <div className="flex flex-col gap-space-xs">
-              <div>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-surface-container-high text-on-primary-fixed-variant font-label-sm text-label-sm font-semibold uppercase tracking-wider">
-                  <span className="w-1.5 h-1.5 rounded-[9999px] bg-error" />
-                  Khác biệt so được
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-space-sm flex-wrap">
-                <h2 className="font-title-sm text-title-sm text-on-surface font-semibold flex items-center gap-space-xs">
-                  <span>Trong cùng tài liệu</span>
-                  <span className="text-outline">·</span>
-                  <span className="font-code-sm text-code-sm text-on-secondary-container">
-                    {active.field}
+      {loadingReview ? (
+        <p className="font-body-sm text-body-sm text-on-surface-variant pb-margin-lg">
+          Đang tải các chỗ cần kiểm tra…
+        </p>
+      ) : null}
+
+      {!loadingReview && dossierId && items.length === 0 ? (
+        <section className="bg-surface-container-lowest rounded-xl p-space-xl mb-margin-lg flex flex-col items-start gap-space-sm">
+          <h2 className="font-title-sm text-title-sm text-on-surface">
+            Không có mục đối soát
+          </h2>
+          <p className="font-body-sm text-body-sm text-on-surface-variant">
+            Hồ sơ này không có xung đột cần chọn nguồn. Các chỗ cần xử lý, nếu
+            có, nằm trên cây cấu trúc.
+          </p>
+          <Link
+            className="h-10 px-space-lg bg-primary text-on-primary rounded-lg font-body-sm text-body-sm font-semibold flex items-center"
+            to={structurePath(dossierId)}
+          >
+            Về cấu trúc cây
+          </Link>
+        </section>
+      ) : null}
+
+      {!loadingReview && active ? (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter-lg pb-margin-lg items-start">
+          <div className="lg:col-span-8 flex flex-col gap-gutter">
+            <div className="bg-surface-container-lowest rounded-xl p-gutter shadow-[0_1px_3px_rgba(15,23,42,0.06)] flex flex-col gap-space-lg">
+              <div className="flex flex-col gap-space-xs">
+                <div>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-surface-container-high text-on-primary-fixed-variant font-label-sm text-label-sm font-semibold uppercase tracking-wider">
+                    <span className="w-1.5 h-1.5 rounded-[9999px] bg-error" />
+                    Khác biệt so được
                   </span>
-                </h2>
-                <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
-                  Mã xung đột: #{active.id}
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
-              <SourceCard
-                source={active.source1}
-                selected={selectedSource === 'source1'}
-                flash={flash === 'source1'}
-                onSelect={() => setSelectedSource('source1')}
-              />
-              <SourceCard
-                source={active.source2}
-                selected={selectedSource === 'source2'}
-                flash={flash === 'source2'}
-                onSelect={() => setSelectedSource('source2')}
-              />
-            </div>
-
-            <div className="bg-surface-container-low rounded-lg p-space-md flex items-start gap-space-md">
-              <MaterialIcon
-                name="balance"
-                className="text-[20px] text-secondary mt-0.5 flex-shrink-0"
-              />
-              <div className="flex flex-col gap-space-xs">
-                <span className="font-label-sm text-label-sm uppercase tracking-wider font-semibold text-on-secondary-container">
-                  Nhận định hệ thống
-                </span>
-                <p className="font-body-md text-body-md text-on-surface leading-relaxed">
-                  {diagnosis}
-                </p>
-              </div>
-            </div>
-
-            <div className="pt-space-xs flex flex-wrap items-center gap-space-sm">
-              <button
-                className="h-9 px-space-lg bg-primary hover:bg-primary-container text-on-primary rounded font-body-sm text-body-sm font-semibold transition-colors flex items-center gap-space-xs shadow-sm"
-                type="button"
-                onClick={handleConfirm}
-              >
-                <MaterialIcon name="check" className="text-[16px]" />
-                <span>Xác nhận</span>
-              </button>
-              <button
-                className={`h-9 px-space-md rounded font-body-sm text-body-sm font-medium transition-colors flex items-center gap-space-xs ${
-                  decision === 'overlay'
-                    ? 'bg-primary-container text-on-primary'
-                    : 'bg-surface-container hover:bg-surface-container-high text-on-surface'
-                }`}
-                type="button"
-                onClick={() =>
-                  setDecision((current) =>
-                    current === 'overlay' ? 'none' : 'overlay',
-                  )
-                }
-              >
-                <MaterialIcon name="edit_note" className="text-[16px]" />
-                <span>Sửa overlay</span>
-              </button>
-              <button
-                className="h-9 px-space-md bg-surface-container hover:bg-surface-container-high text-error rounded font-body-sm text-body-sm font-medium transition-colors flex items-center gap-space-xs"
-                type="button"
-                onClick={handleReject}
-              >
-                <MaterialIcon name="close" className="text-[16px]" />
-                <span>Từ chối</span>
-              </button>
-              {decision === 'confirm' && !selectedSource ? (
-                <span className="font-label-sm text-label-sm text-error">
-                  Chọn Nguồn 1 hoặc Nguồn 2 trước khi xác nhận.
-                </span>
-              ) : null}
-            </div>
-
-            {decision === 'overlay' ? (
-              <div className="flex flex-col gap-space-xs">
-                <label className="font-label-sm text-label-sm text-on-surface font-medium uppercase tracking-wide">
-                  Overlay hiệu đính
-                </label>
-                <textarea
-                  className="w-full p-space-sm bg-surface-container-low text-on-surface font-body-sm text-body-sm rounded outline-none focus:bg-surface-container-lowest focus:ring-1 focus:ring-outline-variant resize-none"
-                  placeholder="Nhập giá trị hoặc diễn giải ưu tiên để ghi đè cả hai nguồn..."
-                  rows={3}
-                  value={overlay}
-                  onChange={(event) => setOverlay(event.target.value)}
-                />
-                <div className="flex justify-end">
-                  <button
-                    className="h-8 px-space-md bg-primary-container text-on-primary rounded font-label-sm text-label-sm font-semibold"
-                    type="button"
-                    onClick={handleSaveOverlay}
-                  >
-                    Lưu overlay
-                  </button>
+                </div>
+                <div className="flex items-center justify-between gap-space-sm flex-wrap">
+                  <h2 className="font-title-sm text-title-sm text-on-surface font-semibold flex items-center gap-space-xs">
+                    <span>Trong cùng tài liệu</span>
+                    <span className="text-outline">·</span>
+                    <span className="font-code-sm text-code-sm text-on-secondary-container">
+                      {active.field}
+                    </span>
+                  </h2>
+                  <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
+                    Mã xung đột: #{active.id}
+                  </span>
                 </div>
               </div>
-            ) : null}
-          </div>
-        </div>
 
-        <aside className="lg:col-span-4 flex flex-col gap-space-md">
-          <div className="bg-surface-container-lowest rounded-xl p-space-lg shadow-[0_1px_3px_rgba(15,23,42,0.06)] flex flex-col gap-space-md">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-space-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
+                <SourceCard
+                  source={active.source1}
+                  selected={selectedSource === 'source1'}
+                  flash={flash === 'source1'}
+                  onSelect={() => setSelectedSource('source1')}
+                />
+                <SourceCard
+                  source={active.source2}
+                  selected={selectedSource === 'source2'}
+                  flash={flash === 'source2'}
+                  onSelect={() => setSelectedSource('source2')}
+                />
+              </div>
+
+              <div className="bg-surface-container-low rounded-lg p-space-md flex items-start gap-space-md">
                 <MaterialIcon
-                  name="view_list"
-                  className="text-[18px] text-secondary"
+                  name="balance"
+                  className="text-[20px] text-secondary mt-0.5 flex-shrink-0"
                 />
-                <span className="font-title-sm text-title-sm text-on-surface font-semibold">
-                  Hàng chờ review
-                </span>
+                <div className="flex flex-col gap-space-xs">
+                  <span className="font-label-sm text-label-sm uppercase tracking-wider font-semibold text-on-secondary-container">
+                    Nhận định hệ thống
+                  </span>
+                  <p className="font-body-md text-body-md text-on-surface leading-relaxed">
+                    {diagnosis}
+                  </p>
+                </div>
               </div>
-              <span className="font-label-sm text-label-sm px-2 py-0.5 rounded-full bg-surface-container-high text-on-primary-fixed-variant font-semibold">
-                {items.length} mục
-              </span>
-            </div>
 
-            <div className="flex flex-col gap-space-xs">
-              {items.map((conflict) => (
-                <QueueItem
-                  key={conflict.id}
-                  conflict={conflict}
-                  active={conflict.id === activeId}
-                  onSelect={() => selectItem(conflict)}
-                />
-              ))}
-            </div>
+              <div className="pt-space-xs flex flex-wrap items-center gap-space-sm">
+                <button
+                  className="h-9 px-space-lg bg-primary hover:bg-primary-container text-on-primary rounded font-body-sm text-body-sm font-semibold transition-colors flex items-center gap-space-xs shadow-sm"
+                  type="button"
+                  onClick={handleConfirm}
+                >
+                  <MaterialIcon name="check" className="text-[16px]" />
+                  <span>Xác nhận</span>
+                </button>
+                <button
+                  className={`h-9 px-space-md rounded font-body-sm text-body-sm font-medium transition-colors flex items-center gap-space-xs ${
+                    decision === 'overlay'
+                      ? 'bg-primary-container text-on-primary'
+                      : 'bg-surface-container hover:bg-surface-container-high text-on-surface'
+                  }`}
+                  type="button"
+                  onClick={() =>
+                    setDecision((current) =>
+                      current === 'overlay' ? 'none' : 'overlay',
+                    )
+                  }
+                >
+                  <MaterialIcon name="edit_note" className="text-[16px]" />
+                  <span>Sửa overlay</span>
+                </button>
+                <button
+                  className="h-9 px-space-md bg-surface-container hover:bg-surface-container-high text-error rounded font-body-sm text-body-sm font-medium transition-colors flex items-center gap-space-xs"
+                  type="button"
+                  onClick={handleReject}
+                >
+                  <MaterialIcon name="close" className="text-[16px]" />
+                  <span>Từ chối</span>
+                </button>
+                {decision === 'confirm' && !selectedSource ? (
+                  <span className="font-label-sm text-label-sm text-error">
+                    Chọn Nguồn 1 hoặc Nguồn 2 trước khi xác nhận.
+                  </span>
+                ) : null}
+              </div>
 
-            <div className="pt-space-sm flex flex-col gap-space-xs">
-              <div className="flex justify-between font-label-sm text-label-sm text-on-surface-variant font-medium">
-                <span>Tiến độ đối soát hồ sơ</span>
-                <span className="font-code-sm text-code-sm text-on-surface font-semibold">
-                  {progress}%
-                </span>
-              </div>
-              <div className="w-full bg-surface-container h-1.5 rounded-full overflow-hidden">
-                <div
-                  className="bg-primary h-full rounded-full transition-all"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              <span className="font-code-sm text-code-sm text-on-surface-variant text-right">
-                {resolvedCount} đã xử lý · {pendingCount} còn lại
-              </span>
+              {decision === 'overlay' ? (
+                <div className="flex flex-col gap-space-xs">
+                  <label className="font-label-sm text-label-sm text-on-surface font-medium uppercase tracking-wide">
+                    Overlay hiệu đính
+                  </label>
+                  <textarea
+                    className="w-full p-space-sm bg-surface-container-low text-on-surface font-body-sm text-body-sm rounded outline-none focus:bg-surface-container-lowest focus:ring-1 focus:ring-outline-variant resize-none"
+                    placeholder="Nhập giá trị hoặc diễn giải ưu tiên để ghi đè cả hai nguồn..."
+                    rows={3}
+                    value={overlay}
+                    onChange={(event) => setOverlay(event.target.value)}
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      className="h-8 px-space-md bg-primary-container text-on-primary rounded font-label-sm text-label-sm font-semibold"
+                      type="button"
+                      onClick={handleSaveOverlay}
+                    >
+                      Lưu overlay
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
-        </aside>
-      </div>
+
+          <aside className="lg:col-span-4 flex flex-col gap-space-md">
+            <div className="bg-surface-container-lowest rounded-xl p-space-lg shadow-[0_1px_3px_rgba(15,23,42,0.06)] flex flex-col gap-space-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-space-xs">
+                  <MaterialIcon
+                    name="view_list"
+                    className="text-[18px] text-secondary"
+                  />
+                  <span className="font-title-sm text-title-sm text-on-surface font-semibold">
+                    Hàng chờ review
+                  </span>
+                </div>
+                <span className="font-label-sm text-label-sm px-2 py-0.5 rounded-full bg-surface-container-high text-on-primary-fixed-variant font-semibold">
+                  {items.length} mục
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-space-xs">
+                {items.map((conflict) => (
+                  <QueueItem
+                    key={conflict.id}
+                    conflict={conflict}
+                    active={conflict.id === activeId}
+                    onSelect={() => selectItem(conflict)}
+                  />
+                ))}
+              </div>
+
+              <div className="pt-space-sm flex flex-col gap-space-xs">
+                <div className="flex justify-between font-label-sm text-label-sm text-on-surface-variant font-medium">
+                  <span>Tiến độ đối soát hồ sơ</span>
+                  <span className="font-code-sm text-code-sm text-on-surface font-semibold">
+                    {progress}%
+                  </span>
+                </div>
+                <div className="w-full bg-surface-container h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className="bg-primary h-full rounded-full transition-all"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <span className="font-code-sm text-code-sm text-on-surface-variant text-right">
+                  {resolvedCount} đã xử lý · {pendingCount} còn lại
+                </span>
+              </div>
+            </div>
+          </aside>
+        </div>
+      ) : null}
     </div>
   )
 }

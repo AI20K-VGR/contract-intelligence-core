@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { MaterialIcon } from '../components/icons'
-import { usePageTitle } from '../hooks/usePageTitle'
+import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 
 export function PlaceholderPage({
   title,
@@ -12,13 +12,16 @@ export function PlaceholderPage({
   actionLabel?: string
 }) {
   usePageTitle(title)
+  const titleInHeader = useHeaderShowsPageTitle()
 
   return (
     <div className="flex flex-col gap-space-sm">
       <div className="flex items-center justify-between gap-space-md">
-        <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight">
-          {title}
-        </h1>
+        {titleInHeader ? null : (
+          <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight">
+            {title}
+          </h1>
+        )}
         {actionTo && actionLabel ? (
           <Link
             className="flex items-center gap-space-xs px-space-md py-2 bg-primary-container text-on-primary font-title-sm text-body-sm rounded shadow-sm hover:bg-tertiary-container transition-colors"
