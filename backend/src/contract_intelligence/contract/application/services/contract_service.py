@@ -175,17 +175,21 @@ class ContractService:
     ) -> tuple[list[Dossier], int]:
         from typing import cast
 
+        list_kwargs: dict[str, Any] = {
+            "status": status,
+            "has_conflicts": has_conflicts,
+            "q": q,
+            "batch_id": batch_id,
+            "limit": limit,
+            "offset": offset,
+        }
+        # Keep older repository test doubles and adapters compatible when the
+        # optional viewer scope is not used.
+        if viewer_id is not None:
+            list_kwargs["viewer_id"] = viewer_id
         page = cast(
             Any,  # Page is generic with bound=str — runtime carries Dossier entities
-            await self._dossier_repo.list(
-                status=status,
-                has_conflicts=has_conflicts,
-                q=q,
-                batch_id=batch_id,
-                viewer_id=viewer_id,
-                limit=limit,
-                offset=offset,
-            ),
+            await self._dossier_repo.list(**list_kwargs),
         )
         items = list(page.items)
         # Hydrate latest job onto each dossier for DossierSummary.latest_job_status

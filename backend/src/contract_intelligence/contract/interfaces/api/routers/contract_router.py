@@ -1,3 +1,5 @@
+# ruff: noqa: E501
+
 r"""Contract bounded context router — Phase 1 endpoints per DOC-05-api-spec.yaml.
 
 Endpoints (Phase 1: Core Document Ingestion):
@@ -39,7 +41,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from contract_intelligence.admin.activity_feed import record_activity
 from contract_intelligence.contract.application.dtos.deletion_dtos import DossierDeletedDTO
@@ -607,6 +609,9 @@ class DossierSearchBody(BaseModel):
 class DossierSearchHit(BaseModel):
     text: str
     page_no: int | None = None
+    source_file_id: str | None = None
+    line_id: str | None = None
+    bbox: list[float] = Field(default_factory=list)
 
 
 class DossierSearchDTO(BaseModel):
@@ -624,17 +629,36 @@ def _hits_from_ai2(payload: dict[str, Any]) -> list[DossierSearchHit]:
     for item in raw:
         if not isinstance(item, dict):
             continue
-        text = item.get("text") or item.get("quote") or item.get("snippet")
+        text = (
+            item.get("text")
+            or item.get("quote")
+            or item.get("snippet")
+            or item.get("text_span")
+        )
         if not isinstance(text, str) or not text.strip():
             continue
         page = item.get("page_no") or item.get("page")
+        line_ids = item.get("line_ids")
+        line_id = item.get("line_id")
+        if not isinstance(line_id, str) and isinstance(line_ids, list):
+            line_id = next((value for value in line_ids if isinstance(value, str)), None)
+        source_file_id = item.get("source_file_id") or item.get("document_id")
+        bbox = item.get("bbox")
         hits.append(
             DossierSearchHit(
                 text=text.strip(),
                 page_no=page if isinstance(page, int) else None,
+                source_file_id=source_file_id if isinstance(source_file_id, str) else None,
+                line_id=line_id if isinstance(line_id, str) else None,
+                bbox=bbox if isinstance(bbox, list) else [],
             )
         )
     return hits
+
+
+def _ai2_snapshot_digest(dossier: Any) -> str:
+    metadata = dossier.metadata if isinstance(getattr(dossier, "metadata", None), dict) else {}
+    return str(metadata.get("ai2_snapshot_digest") or dossier.checksum or "").strip()
 
 
 @router.post(
@@ -653,7 +677,7 @@ async def search_dossier(
     question = body.query.strip()
     if not question:
         raise HTTPException(status_code=422, detail="Thiếu câu hỏi.")
-    await _require_readable(svc, dossier_id, user.user_id)
+    dossier = await _require_readable(svc, dossier_id, user.user_id)
     from contract_intelligence.infrastructure.ai_adapters import (
         AiAdapterError,
         query_ai2,
@@ -665,9 +689,13 @@ async def search_dossier(
                 {
                     "query": question,
                     "dossier_id": dossier_id,
-                    "snapshot_version": "current",
+                    "snapshot_version": "latest",
+                    "snapshot_digest": _ai2_snapshot_digest(dossier),
+                    "query_contract_version": "ai2.query.v1",
                     "acl_context": user.user_id,
                     "policy_flags": {},
+                    "tenant_id": user.tenant_id,
+                    "actor_id": "backend",
                 }
             ),
             timeout=3,
@@ -903,6 +931,16 @@ async def confirm_dossier_manifest(
     files and does not start a pipeline run.
     """
     data = await svc.confirm_manifest(dossier_id, user.user_id, body)
+    await messaging.publish_event(
+        "dossier_events",
+        {
+            "event": "dossier.manifest.confirmed",
+            "dossier_id": dossier_id,
+            "tenant_id": user.tenant_id,
+            "manifest_version": data.version,
+        },
+        key=dossier_id,
+    )
     return ApiResponse(data=data)
 
 
