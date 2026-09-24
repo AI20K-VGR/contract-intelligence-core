@@ -8,7 +8,7 @@ import {
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
-import { structurePath } from '../data/dossiers'
+import { progressPath } from '../data/dossiers'
 import { dossierCategories } from '../data/upload'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 import {
@@ -305,8 +305,8 @@ export function CreateDossierPage() {
         // Loại cấu trúc vẫn được truyền qua state để trang cây dùng ngay.
       }
 
-      navigate(structurePath(created.dossier_id), {
-        state: { structureMode },
+      navigate(progressPath(created.dossier_id), {
+        state: { structureMode, name: trimmedName },
       })
     } catch (cause) {
       const message = createDossierErrorMessage(cause)
@@ -464,7 +464,9 @@ export function CreateDossierPage() {
                   </span>
                 </legend>
                 <div className="flex flex-col gap-space-xs">
-                  {structureModes.map((item) => {
+                  {structureModes
+                    .filter((item) => item.value !== 'tables')
+                    .map((item) => {
                     const active = structureMode === item.value
                     return (
                       <label

@@ -42,9 +42,10 @@ function navClassName(isActive: boolean) {
 export function AdminLayout() {
   const location = useLocation()
   const dossierSection =
-    ['/ho-so', '/tao-ho-so', '/tien-trinh-phan-tich', '/doi-soat-xung-dot'].includes(
+    ['/ho-so', '/tao-ho-so', '/doi-soat-xung-dot'].includes(
       location.pathname,
     ) ||
+    location.pathname.startsWith('/tien-trinh-phan-tich') ||
     location.pathname.startsWith('/cau-truc/') ||
     location.pathname.startsWith('/ocr/') ||
     location.pathname.startsWith('/xac-nhan-manifest')

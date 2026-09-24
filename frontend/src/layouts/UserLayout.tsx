@@ -61,7 +61,7 @@ export function UserLayout() {
                           location.pathname === '/doi-soat-xung-dot' ||
                           location.pathname === '/tao-ho-so' ||
                           location.pathname.startsWith('/xac-nhan-manifest') ||
-                          location.pathname === '/tien-trinh-phan-tich' ||
+                          location.pathname.startsWith('/tien-trinh-phan-tich') ||
                           location.pathname.startsWith('/cau-truc/') ||
                           location.pathname.startsWith('/ocr/')
                       : isActive,

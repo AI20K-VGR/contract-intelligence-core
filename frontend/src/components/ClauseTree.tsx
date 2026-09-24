@@ -36,7 +36,7 @@ function nodeMatches(node: ClauseNode, needle: string) {
   return haystack.includes(needle)
 }
 
-function filterClauses(nodes: ClauseNode[], needle: string): ClauseNode[] {
+export function filterClauses(nodes: ClauseNode[], needle: string): ClauseNode[] {
   if (!needle) return nodes
   return nodes.flatMap((node) => {
     const children = filterClauses(node.children, needle)

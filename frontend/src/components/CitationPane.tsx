@@ -34,6 +34,7 @@ export function CitationPane({
     if (!canvas) return
     const controller = new AbortController()
     let cancelled = false
+    let renderTask: { cancel: () => void } | null = null
     setError(null)
     setReady(false)
 
@@ -51,7 +52,16 @@ export function CitationPane({
         canvas.height = viewport.height
         const context = canvas.getContext('2d')
         if (!context) throw new Error('Trình duyệt không vẽ được trang.')
-        await page.render({ canvas, canvasContext: context, viewport }).promise
+        context.setTransform(1, 0, 0, 1, 0, 0)
+        context.clearRect(0, 0, canvas.width, canvas.height)
+        const task = page.render({ canvas, viewport })
+        renderTask = task
+        try {
+          await task.promise
+        } catch (cause) {
+          if (cancelled) return
+          throw cause
+        }
         if (!cancelled) setReady(true)
       } finally {
         await loadingTask.destroy().catch(() => undefined)
@@ -69,11 +79,18 @@ export function CitationPane({
 
     return () => {
       cancelled = true
+      renderTask?.cancel()
       controller.abort()
     }
   }, [documentId, pageNo])
 
-  const boxes = node.regions.filter((region) => region.pageNo === pageNo)
+  const boxes = node.regions.filter((region) => {
+    if (region.pageNo !== pageNo) return false
+    const [x0, y0, x1, y1] = region.bbox
+    const area = Math.max(0, x1 - x0) * Math.max(0, y1 - y0)
+    // Một khung gần kín trang (bảng không có bbox từng dòng) che mất nội dung.
+    return area > 0 && area < 0.7
+  })
 
   return (
     <aside className="flex min-h-0 w-1/2 min-w-0 flex-col border-l border-outline-variant/30 bg-white">

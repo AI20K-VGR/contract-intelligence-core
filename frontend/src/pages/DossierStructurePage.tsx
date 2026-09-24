@@ -17,7 +17,9 @@ import {
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { CitationPane } from '../components/CitationPane'
+import { filterClauses } from '../components/ClauseTree'
 import { StructureMindmap } from '../components/StructureMindmap'
+import { TableStructure } from '../components/TableStructure'
 import { MaterialIcon } from '../components/icons'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 import {
@@ -70,6 +72,7 @@ export function DossierStructurePage() {
     stateStructureMode(location.state),
   )
   const [spots, setSpots] = useState<ReviewSpot[]>([])
+  const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   usePageTitle(detail?.name ?? 'Cấu trúc hợp đồng')
 
@@ -78,6 +81,15 @@ export function DossierStructurePage() {
     () => (lines ? buildStructureTree(lines, activeMode) : fallbackNodes),
     [lines, activeMode, fallbackNodes],
   )
+  const needle = query.trim().toLowerCase()
+  const visibleNodes = useMemo(
+    () => filterClauses(nodes, needle),
+    [needle, nodes],
+  )
+
+  useEffect(() => {
+    setQuery('')
+  }, [dossierId])
 
   function changeMode(next: StructureMode) {
     if (next === activeMode) return
@@ -254,9 +266,13 @@ export function DossierStructurePage() {
                   </h1>
                 )}
                 <p className="font-body-md text-body-md text-on-surface-variant">
-                  {filename
-                    ? `${filename} · ${clauseCount} nút`
-                    : 'Hệ thống OCR hợp đồng rồi dựng cây điều khoản.'}
+                  {activeMode === 'tables'
+                    ? filename
+                      ? `${filename} · các bảng OCR đã trích`
+                      : 'Các bảng mà OCR đã trích từ hợp đồng.'
+                    : filename
+                      ? `${filename} · ${clauseCount} nút`
+                      : 'Hệ thống OCR hợp đồng rồi dựng cây điều khoản.'}
                 </p>
               </div>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-label-sm text-label-sm font-semibold bg-surface-container text-secondary self-start">
@@ -386,7 +402,7 @@ export function DossierStructurePage() {
                             ? 'bg-primary text-on-primary shadow-sm'
                             : 'text-on-surface-variant hover:text-primary'
                         }`}
-                        disabled={!lines}
+                        disabled={item.value === 'tables' ? !documentId : !lines}
                         role="radio"
                         style={{ borderRadius: '9999px' }}
                         title={item.hint}
@@ -399,44 +415,76 @@ export function DossierStructurePage() {
                   })}
                 </div>
               </div>
-              {lines ? (
-                <button
-                  aria-expanded={showLines}
-                  className={`font-code-sm text-code-sm underline-offset-2 hover:underline ${
-                    showLines
-                      ? 'text-primary'
-                      : 'text-on-surface-variant hover:text-primary'
-                  }`}
-                  type="button"
-                  onClick={() => {
-                    setCiteId(null)
-                    setShowLines((open) => !open)
-                  }}
-                >
-                  Dựng từ {lines.length} dòng OCR trên trình duyệt
-                </button>
-              ) : (
-                <span className="font-code-sm text-code-sm text-on-surface-variant">
-                  Backend không trả dòng OCR, đang dùng cây AI1 trả sẵn
-                </span>
-              )}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-space-sm sm:ml-auto">
+                <div className="relative w-full sm:w-80">
+                  <MaterialIcon
+                    name="search"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]"
+                  />
+                  <input
+                    aria-label="Tìm trong cấu trúc"
+                    className="w-full h-9 pl-9 pr-space-md bg-surface-container-lowest text-on-surface placeholder:text-outline font-body-sm text-body-sm rounded shadow-[0_1px_2px_rgba(15,23,42,0.06)] focus:outline-none focus:ring-1 focus:ring-secondary"
+                    placeholder={
+                      activeMode === 'tables'
+                        ? 'Tìm trong bảng...'
+                        : 'Tìm điều, khoản, điểm...'
+                    }
+                    type="search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                  />
+                </div>
+                {lines ? (
+                  <button
+                    aria-expanded={showLines}
+                    className={`font-code-sm text-code-sm underline-offset-2 hover:underline text-left ${
+                      showLines
+                        ? 'text-primary'
+                        : 'text-on-surface-variant hover:text-primary'
+                    }`}
+                    type="button"
+                    onClick={() => {
+                      setCiteId(null)
+                      setShowLines((open) => !open)
+                    }}
+                  >
+                    Dựng từ {lines.length} dòng OCR trên trình duyệt
+                  </button>
+                ) : (
+                  <span className="font-code-sm text-code-sm text-on-surface-variant">
+                    Backend không trả dòng OCR, đang dùng cây AI1 trả sẵn
+                  </span>
+                )}
+              </div>
             </div>
           ) : null}
 
-          {phase === 'ready' ? (
+          {phase === 'ready' && activeMode === 'tables' && documentId ? (
+            <TableStructure documentId={documentId} query={query} />
+          ) : null}
+
+          {phase === 'ready' && activeMode !== 'tables' ? (
             <div className="pb-16">
-              <StructureMindmap
-                attentionIds={attentionIds}
-                citationOf={citeOf}
-                focusId={citeId}
-                nodes={nodes}
-                subtitle={filename}
-                title={detail?.name ?? 'Hợp đồng'}
-                onCite={(id) => {
-                  setShowLines(false)
-                  setCiteId(id)
-                }}
-              />
+              {visibleNodes.length === 0 ? (
+                <div className="flex h-48 items-center rounded-xl bg-surface-container-lowest px-6 shadow-sm">
+                  <p className="font-body-sm text-body-sm text-on-surface-variant">
+                    Không có điều khoản khớp “{query.trim()}”.
+                  </p>
+                </div>
+              ) : (
+                <StructureMindmap
+                  attentionIds={attentionIds}
+                  citationOf={citeOf}
+                  focusId={citeId}
+                  nodes={visibleNodes}
+                  subtitle={filename}
+                  title={detail?.name ?? 'Hợp đồng'}
+                  onCite={(id) => {
+                    setShowLines(false)
+                    setCiteId(id)
+                  }}
+                />
+              )}
             </div>
           ) : null}
         </div>

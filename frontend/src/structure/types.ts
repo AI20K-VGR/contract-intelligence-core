@@ -5,7 +5,7 @@ import type { ClauseNode, ClauseRegion } from '../api/structure'
  * - numbered: tài liệu có Điều / Khoản / Điểm (hoặc 1. / 1.1 / a) ...).
  * - freeform: tài liệu tự do, phân cấp theo tiêu đề (cỡ chữ, viết hoa, khoảng trống).
  */
-export type StructureMode = 'numbered' | 'freeform'
+export type StructureMode = 'numbered' | 'freeform' | 'tables'
 
 export const STRUCTURE_MODE_KEY = 'structure_mode'
 
@@ -24,10 +24,17 @@ export const structureModes: {
     label: 'Cấu trúc tự do',
     hint: 'Văn bản không đánh số. Phân cấp theo tiêu đề in lớn, viết hoa.',
   },
+  {
+    value: 'tables',
+    label: 'Bảng',
+    hint: 'Hiện mọi bảng mà OCR đã trích từ hợp đồng.',
+  },
 ]
 
 export function parseStructureMode(value: unknown): StructureMode | null {
-  return value === 'numbered' || value === 'freeform' ? value : null
+  return value === 'numbered' || value === 'freeform' || value === 'tables'
+    ? value
+    : null
 }
 
 export function structureModeLabel(mode: StructureMode) {

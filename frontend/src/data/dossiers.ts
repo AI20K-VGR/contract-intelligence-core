@@ -23,7 +23,21 @@ export function structurePath(dossierId: string) {
   return `/cau-truc/${encodeURIComponent(dossierId)}`
 }
 
+export function progressPath(dossierId: string) {
+  return `/tien-trinh-phan-tich/${encodeURIComponent(dossierId)}`
+}
+
 export function dossierOpenTo(dossier: Dossier) {
+  const job = dossier.jobStatus
+  if (
+    dossier.status === 'processing' ||
+    dossier.status === 'failed' ||
+    job === 'uploaded' ||
+    job === 'processing' ||
+    job === 'failed'
+  ) {
+    return progressPath(dossier.id)
+  }
   return structurePath(dossier.id)
 }
 

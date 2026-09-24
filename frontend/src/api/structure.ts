@@ -386,6 +386,66 @@ export async function listReviewSpots(dossierId: string, signal?: AbortSignal) {
     .filter((spot): spot is ReviewSpot => spot !== null)
 }
 
+export type DocumentTableCell = {
+  row: number
+  column: number
+  rowSpan: number
+  colSpan: number
+  text: string
+  header: boolean
+}
+
+export type DocumentTable = {
+  id: string
+  pageNo: number
+  rows: number
+  columns: number
+  continued: boolean
+  cells: DocumentTableCell[]
+}
+
+export async function listDocumentTables(
+  documentId: string,
+  signal?: AbortSignal,
+) {
+  const data = await getJson<unknown>(
+    `/api/v1/documents/${encodeURIComponent(documentId)}/tables`,
+    { signal },
+  )
+  if (!Array.isArray(data)) return []
+  return data.flatMap((item): DocumentTable[] => {
+    const row = asRecord(item)
+    const id = asString(row?.id)
+    if (!row || !id) return []
+    const cells = Array.isArray(row.cells)
+      ? row.cells.flatMap((cell): DocumentTableCell[] => {
+          const record = asRecord(cell)
+          if (!record) return []
+          return [
+            {
+              row: asNumber(record.row_idx),
+              column: asNumber(record.col_idx),
+              rowSpan: Math.max(1, asNumber(record.row_span) || 1),
+              colSpan: Math.max(1, asNumber(record.col_span) || 1),
+              text: asString(record.text),
+              header: record.is_header === true,
+            },
+          ]
+        })
+      : []
+    return [
+      {
+        id,
+        pageNo: asNumber(row.page_no),
+        rows: asNumber(row.rows_count),
+        columns: asNumber(row.cols_count),
+        continued: row.is_multi_page === true || Boolean(row.continued_from),
+        cells,
+      },
+    ]
+  })
+}
+
 export async function listClauses(documentId: string, signal?: AbortSignal) {
   const data = await getJson<unknown>(
     `/api/v1/documents/${encodeURIComponent(documentId)}/clauses`,

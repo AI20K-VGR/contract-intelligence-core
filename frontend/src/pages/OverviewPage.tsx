@@ -175,7 +175,7 @@ export function OverviewPage() {
     setStorageLoading(true)
     setStorageMissing(false)
 
-    listActivity(controller.signal)
+    listActivity({ signal: controller.signal })
       .then((result) => {
         if (controller.signal.aborted) return
         setActivity(result.events)
@@ -418,6 +418,12 @@ export function OverviewPage() {
                 Hoạt động gần đây
               </h2>
             </div>
+            <Link
+              className="font-label-sm text-label-sm text-primary hover:underline"
+              to="/nhat-ky-hoat-dong"
+            >
+              Xem tất cả
+            </Link>
           </div>
           {activityLoading ? (
             <p className="font-body-sm text-body-sm text-secondary py-space-md">

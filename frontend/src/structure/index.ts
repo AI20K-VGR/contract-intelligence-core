@@ -18,6 +18,7 @@ export function buildStructureTree(
   lines: OcrLine[],
   mode: StructureMode,
 ): ClauseNode[] {
+  if (mode === 'tables') return []
   return mode === 'freeform'
     ? buildFreeformTree(lines)
     : buildNumberedTree(lines)

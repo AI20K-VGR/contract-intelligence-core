@@ -10,6 +10,7 @@ import { AuthCallbackPage } from './pages/AuthCallbackPage'
 import { SilentRenewPage } from './pages/SilentRenewPage'
 import { MyDossiersPage } from './pages/MyDossiersPage'
 import { AccessPage } from './pages/AccessPage'
+import { ActivityLogPage } from './pages/ActivityLogPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { AnalysisProgressPage } from './pages/AnalysisProgressPage'
 import { CreateDossierPage } from './pages/CreateDossierPage'
@@ -82,7 +83,7 @@ export default function App() {
                 path="/nhat-ky-hoat-dong"
                 element={
                   <RequireRole allow="admin">
-                    <PlaceholderPage title="Nhật ký hoạt động" />
+                    <ActivityLogPage />
                   </RequireRole>
                 }
               />
@@ -123,6 +124,10 @@ export default function App() {
               <Route
                 path="/xac-nhan-manifest/:dossierId"
                 element={<ManifestConfirmPage />}
+              />
+              <Route
+                path="/tien-trinh-phan-tich/:dossierId"
+                element={<AnalysisProgressPage />}
               />
               <Route
                 path="/tien-trinh-phan-tich"
