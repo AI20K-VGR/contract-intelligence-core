@@ -1,0 +1,25 @@
+{
+  "schema_version": "ai1.snapshot.v1",
+  "snapshot_id": "eval-failed-page",
+  "dossier_id": "eval_failed_page",
+  "document_id": "doc-failed-page",
+  "run_id": "run-eval-failed",
+  "source_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "execution": {"ocr_engine": "mock", "attempt": 2},
+  "producer": {"name": "AI1 eval fixture", "version": "1"},
+  "status": "FAILED",
+  "pages": [
+    {
+      "page_no": 1,
+      "input_type": "SCANNED_OCR",
+      "status": "FAILED",
+      "raw_text_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "render": {},
+      "transform": {"rotation_degrees": 90, "profile_version": "eval"},
+      "lines": [],
+      "tables": [],
+      "warnings": [{"code": "ocr_failed"}],
+      "text": ""
+    }
+  ]
+}

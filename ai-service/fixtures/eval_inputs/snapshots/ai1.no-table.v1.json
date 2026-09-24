@@ -1,0 +1,26 @@
+{
+  "schema_version": "ai1.snapshot.v1",
+  "snapshot_id": "eval-no-table-v1",
+  "dossier_id": "eval_no_table_v1",
+  "document_id": "doc-no-table-v1",
+  "run_id": "run-no-table-v1",
+  "source_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+  "execution": {"ocr_engine": "fixture", "attempt": 1},
+  "producer": {"name": "AI1 coverage fixture", "version": "1"},
+  "status": "SUCCESS",
+  "pages": [
+    {
+      "page_no": 1,
+      "page_revision_id": "eval-no-table-v1:p1:r1",
+      "input_type": "PDF_TEXT",
+      "status": "SUCCESS",
+      "raw_text_digest": "4444444444444444444444444444444444444444444444444444444444444444",
+      "transform": {"rotation_degrees": 0, "profile_version": "coverage"},
+      "table_coverage": {"status": "NOT_PRESENT", "method": "layout-v1"},
+      "lines": [
+        {"line_id": "p1-l1", "raw_text": "DIEU 7. Nghia vu bao mat.", "bbox": [0.1, 0.1, 0.9, 0.2], "words": []}
+      ],
+      "tables": []
+    }
+  ]
+}
