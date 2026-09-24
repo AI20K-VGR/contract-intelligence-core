@@ -1,6 +1,7 @@
 import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from pathlib import Path
 from time import perf_counter
 
@@ -12,6 +13,7 @@ from contract_ocr.application.use_cases.classify_pdf import PdfPageClassifier
 from contract_ocr.application.use_cases.extract_scanned_tables import build_scanned_tables
 from contract_ocr.domain.entities import Context, Document, Experiment, Page
 from contract_ocr.domain.enums import Status
+from contract_ocr.infrastructure.observability import observation
 
 logger = logging.getLogger("contract_ocr.pages")
 
@@ -122,65 +124,91 @@ class ProcessDocument:
 
             def run_ocr_job(job: tuple) -> None:
                 index, page_result, image, transform, original_shape, context, start = job
-                try:
-                    recognized = engine.recognize_page(image, context)
-                    self.preprocessor.restore(
-                        recognized.lines, transform, image.shape, original_shape
-                    )
-                    page_result.lines = recognized.lines
-                    if recognized.tables:
-                        # The engine's own response already segments tables from prose
-                        # (currently only Mistral OCR -- see infrastructure/ocr/
-                        # markdown_tables.py) -- its tables are the real, parsed
-                        # content, so the pixel-based bordered-grid detector below
-                        # would only ever add noise (it cannot see markdown at all)
-                        # and never runs for this page.
-                        page_result.tables = recognized.tables
-                    else:
-                        # Bordered-table grid detection runs on the same (pre-restore)
-                        # image/transform the OCR call itself used, then inverse-maps
-                        # cell geometry the identical way `restore()` just did for lines
-                        # (section 9/17) -- see extract_scanned_tables.py for why this
-                        # reuses already-recognized line text instead of re-OCRing cells.
-                        # A detection failure must not fail an otherwise-successful page.
-                        try:
-                            page_result.tables = build_scanned_tables(
-                                image,
-                                page_result.lines,
-                                document_id=document_id,
-                                page_number=index + 1,
-                                inverse_transform=np.linalg.inv(transform),
-                                original_shape=original_shape,
+                with observation(
+                    "process-page",
+                    input={
+                        "document_id": document_id,
+                        "page_number": index + 1,
+                        "engine": engine.name,
+                    },
+                    metadata={"feature": "document-ocr", "experiment": experiment.id},
+                ) as page_span:
+                    try:
+                        recognized = engine.recognize_page(image, context)
+                        self.preprocessor.restore(
+                            recognized.lines, transform, image.shape, original_shape
+                        )
+                        page_result.lines = recognized.lines
+                        if recognized.tables:
+                            # The engine's own response already segments tables from prose
+                            # (currently only Mistral OCR -- see infrastructure/ocr/
+                            # markdown_tables.py) -- its tables are the real, parsed
+                            # content, so the pixel-based bordered-grid detector below
+                            # would only ever add noise (it cannot see markdown at all)
+                            # and never runs for this page.
+                            page_result.tables = recognized.tables
+                        else:
+                            # A detection failure must not fail an otherwise-successful page.
+                            try:
+                                page_result.tables = build_scanned_tables(
+                                    image,
+                                    page_result.lines,
+                                    document_id=document_id,
+                                    page_number=index + 1,
+                                    inverse_transform=np.linalg.inv(transform),
+                                    original_shape=original_shape,
+                                )
+                            except Exception:
+                                page_result.tables = []
+                        page_result.raw_markdown = recognized.raw_markdown
+                        page_result.raw_output_path = recognized.raw_output_path
+                        page_result.width, page_result.height = original_shape[1], original_shape[0]
+                        page_result.dimension_unit = "px"
+                        page_result.preprocessing = experiment.preprocessing
+                        page_result.transform = transform.tolist()
+                        page_result.geometry_available = any(
+                            line.bbox is not None for line in recognized.lines
+                        )
+                        if not any(line.text.strip() for line in page_result.lines):
+                            page_result.status, page_result.error = (
+                                Status.FAILED,
+                                "Empty extraction result",
                             )
-                        except Exception:
-                            page_result.tables = []
-                    page_result.raw_markdown = recognized.raw_markdown
-                    page_result.raw_output_path = recognized.raw_output_path
-                    page_result.width, page_result.height = original_shape[1], original_shape[0]
-                    page_result.dimension_unit = "px"
-                    page_result.preprocessing = experiment.preprocessing
-                    page_result.transform = transform.tolist()
-                    page_result.geometry_available = any(
-                        line.bbox is not None for line in recognized.lines
-                    )
-                    if not any(line.text.strip() for line in page_result.lines):
+                    except EngineUnavailable as exc:
+                        page_result.status, page_result.error = Status.SKIPPED, str(exc)
+                    except Exception as exc:
                         page_result.status, page_result.error = (
                             Status.FAILED,
-                            "Empty extraction result",
+                            f"{type(exc).__name__}: {exc}",
                         )
-                except EngineUnavailable as exc:
-                    page_result.status, page_result.error = Status.SKIPPED, str(exc)
-                except Exception as exc:
-                    page_result.status, page_result.error = (
-                        Status.FAILED,
-                        f"{type(exc).__name__}: {exc}",
-                    )
+                    if page_span is not None:
+                        page_span.update(
+                            output={
+                                "status": str(page_result.status),
+                                "line_count": len(page_result.lines),
+                                "table_count": len(page_result.tables),
+                                "geometry_available": page_result.geometry_available,
+                            },
+                            level="ERROR" if page_result.status == Status.FAILED else "DEFAULT",
+                            status_message=(
+                                "OCR page failed; inspect application logs"
+                                if page_result.status == Status.FAILED
+                                else None
+                            ),
+                        )
                 self._finish_page(pages, index, page_result, start, experiment, run_id, document_id)
 
             if ocr_jobs:
                 if max_workers > 1 and len(ocr_jobs) > 1:
                     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-                        list(pool.map(run_ocr_job, ocr_jobs))
+                        # OpenTelemetry context is not copied into worker threads by
+                        # ThreadPoolExecutor. Give every page its own context copy so
+                        # page/model observations stay under the document OCR trace.
+                        futures = [
+                            pool.submit(copy_context().run, run_ocr_job, job) for job in ocr_jobs
+                        ]
+                        for future in futures:
+                            future.result()
                 else:
                     for job in ocr_jobs:
                         run_ocr_job(job)

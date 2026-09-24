@@ -10,6 +10,7 @@ from PIL import Image
 
 from contract_ocr.application.ports.ocr_engine import EngineUnavailable, OCREngine
 from contract_ocr.domain.entities import Context, Line, OCRResult
+from contract_ocr.infrastructure.observability import observation, response_usage
 from contract_ocr.infrastructure.ocr.prompts import OCR_SYSTEM_PROMPT
 
 # gpt-5.6-terra is OpenAI's mid-tier GPT-5.6 model (~$2.00/1M input, $12.00/1M output as
@@ -72,20 +73,41 @@ class OpenAIVisionOCREngine(OCREngine):
         }
         if "temperature" in self.config:
             kwargs["temperature"] = self.config["temperature"]
-        response = self._client.chat.completions.create(
+        with observation(
+            "transcribe-page",
+            as_type="generation",
+            input={
+                "document_id": context.document_id,
+                "page_number": context.page,
+                "image_width": image.width,
+                "image_height": image.height,
+            },
+            metadata={"provider": "openai", "feature": "document-ocr"},
             model=self.model,
-            messages=[
-                {"role": "system", "content": self.prompt},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "image_url", "image_url": {"url": data_url, "detail": "high"}},
-                    ],
-                },
-            ],
-            **kwargs,
-        )
-        text = response.choices[0].message.content or ""
+            model_parameters=kwargs,
+        ) as generation:
+            response = self._client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": self.prompt},
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": data_url, "detail": "high"},
+                            },
+                        ],
+                    },
+                ],
+                **kwargs,
+            )
+            text = response.choices[0].message.content or ""
+            if generation is not None:
+                generation.update(
+                    output={"character_count": len(text)},
+                    usage_details=response_usage(response),
+                )
 
         directory = Path(context.output_dir)
         directory.mkdir(parents=True, exist_ok=True)

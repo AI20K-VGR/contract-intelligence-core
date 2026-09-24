@@ -7,7 +7,18 @@ name = "contract-ocr-lab"
 version = "0.1.0"
 description = "Local, page-aware OCR experiments for Vietnamese and English contracts"
 requires-python = ">=3.11,<3.13"
-dependencies = ["pymupdf>=1.26", "pydantic>=2.10,<3", "pyyaml>=6", "numpy>=1.26", "opencv-python-headless>=4.10", "pillow>=11", "rapidfuzz>=3.10", "scipy>=1.14", "psutil>=6"]
+dependencies = [
+    "pymupdf>=1.26",
+    "pydantic>=2.10,<3",
+    "pyyaml>=6",
+    "numpy>=1.26",
+    "opencv-python-headless>=4.10",
+    "pillow>=11",
+    "rapidfuzz>=3.10",
+    "scipy>=1.14",
+    "psutil>=6",
+    "langfuse==4.15.4",
+]
 
 [project.optional-dependencies]
 vietocr = ["vietocr>=0.3"]

@@ -38,6 +38,7 @@ from io import BytesIO
 from typing import Any, Literal
 
 from contract_ocr.application.ports.ocr_engine import EngineUnavailable
+from contract_ocr.infrastructure.observability import observation, response_usage
 from contract_ocr.infrastructure.ocr.openai_vision_ocr import DEFAULT_MODEL
 from contract_ocr.infrastructure.ocr.prompts import OCR_SYSTEM_PROMPT
 from contract_ocr.table_reconstruct.types import Bbox, Word
@@ -119,7 +120,9 @@ class VisionAdapter:
             if value is None:
                 continue
             x0, y0, x1, y1 = cell_bbox
-            words.append(Word(text=value, x0=x0, y0=y0, x1=x1, y1=y1, page=region.page, source="vision"))
+            words.append(
+                Word(text=value, x0=x0, y0=y0, x1=x1, y1=y1, page=region.page, source="vision")
+            )
         return words
 
 
@@ -228,15 +231,29 @@ class _OpenAIVisionClient:
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
 
-        response = client.chat.completions.create(
+        with observation(
+            "transcribe-region",
+            as_type="generation",
+            input={"image_count": len(images), "json_mode": json_mode},
+            metadata={"provider": "openai", "feature": "region-ocr"},
             model=self.model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": content},
-            ],
-            **kwargs,
-        )
-        return response.choices[0].message.content or ""
+            model_parameters=kwargs,
+        ) as generation:
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": content},
+                ],
+                **kwargs,
+            )
+            text = response.choices[0].message.content or ""
+            if generation is not None:
+                generation.update(
+                    output={"character_count": len(text)},
+                    usage_details=response_usage(response),
+                )
+            return text
 
 
 def _to_data_url(image: Any) -> str:

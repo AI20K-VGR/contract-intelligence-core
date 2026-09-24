@@ -30,6 +30,7 @@ from typing import Literal
 
 from contract_ocr.domain.entities import Row, Table
 from contract_ocr.domain.headings import is_annex_heading
+from contract_ocr.infrastructure.observability import observation, response_usage
 
 Decision = Literal["MERGE", "SPLIT", "NEEDS_REVIEW"]
 
@@ -184,17 +185,31 @@ def _ask_agent(payload: dict) -> tuple[Decision, list[str]] | None:
             api_key=api_key,
             base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
         )
-        response = client.chat.completions.create(
-            model=os.environ.get("DEEPSEEK_MODEL", "deepseek-flash"),
-            temperature=0,
-            max_tokens=512,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": _AGENT_SYSTEM_PROMPT},
-                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
-            ],
-        )
-        data = json.loads(response.choices[0].message.content or "{}")
+        model = os.environ.get("DEEPSEEK_MODEL", "deepseek-flash")
+        with observation(
+            "judge-table-continuity",
+            as_type="generation",
+            input={"evidence_fields": sorted(payload)},
+            metadata={"provider": "deepseek", "feature": "table-continuity"},
+            model=model,
+            model_parameters={"temperature": 0, "max_tokens": 512},
+        ) as generation:
+            response = client.chat.completions.create(
+                model=model,
+                temperature=0,
+                max_tokens=512,
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": _AGENT_SYSTEM_PROMPT},
+                    {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+                ],
+            )
+            data = json.loads(response.choices[0].message.content or "{}")
+            if generation is not None:
+                generation.update(
+                    output={"decision": data.get("decision")},
+                    usage_details=response_usage(response),
+                )
         decision = {"merge": "MERGE", "split": "SPLIT", "needs_review": "NEEDS_REVIEW"}.get(
             str(data.get("decision", "")).lower()
         )

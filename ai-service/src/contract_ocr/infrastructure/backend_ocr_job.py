@@ -27,6 +27,7 @@ from contract_ocr.application.use_cases.process_document import ProcessDocument
 from contract_ocr.domain.entities import Experiment
 from contract_ocr.infrastructure.image.preprocessing import ImagePreprocessor
 from contract_ocr.infrastructure.image.renderer import PdfRenderer
+from contract_ocr.infrastructure.observability import observation
 from contract_ocr.infrastructure.pdf.pymupdf_extractor import PyMuPDFExtractor
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
@@ -173,18 +174,74 @@ def _get_engine(engine_id: str) -> OCREngine | None:
         return _engine_cache[engine_id]
 
 
-def run_backend_ocr(job_id: str, request: BackendOcrJobRequest) -> None:
-    """Execute one OCR job and store the pollable / Kafka-publishable result."""
+def run_backend_ocr(
+    job_id: str,
+    request: BackendOcrJobRequest,
+    *,
+    trace_seed: str | None = None,
+) -> None:
+    """Execute one OCR job with a privacy-safe Langfuse trace when configured."""
+    engine_id = str(request.options.get("engine", "pymupdf"))
+    with observation(
+        "process-ocr-job",
+        input={
+            "job_id": job_id,
+            "task_id": request.task_id,
+            "attempt_id": request.attempt_id,
+            "document_id": request.document_id,
+            "requested_page_count": len(request.pages_to_process),
+            "engine": engine_id,
+        },
+        metadata={
+            "tenant_id": request.tenant_id,
+            "feature": "document-ocr",
+            "schema_version": "ai1.snapshot.v1",
+        },
+        trace_seed=trace_seed or job_id,
+        session_id=f"ocr-document:{request.document_id}",
+        tags=["ai1", "ocr", engine_id],
+    ) as root_span:
+        _run_backend_ocr(job_id, request)
+        if root_span is not None:
+            job = get_backend_job(job_id) or {}
+            snapshot = (job.get("result") or {}).get("snapshot") or {}
+            pages = snapshot.get("pages") or []
+            root_span.update(
+                output={
+                    "status": job.get("status"),
+                    "page_count": snapshot.get("page_count", 0),
+                    "line_count": sum(len(page.get("lines") or []) for page in pages),
+                    "table_count": sum(len(page.get("tables") or []) for page in pages),
+                    "node_count": len(snapshot.get("nodes") or []),
+                },
+                level="ERROR" if job.get("status") == "failed" else "DEFAULT",
+                status_message=(
+                    "OCR job failed; inspect application logs"
+                    if job.get("status") == "failed"
+                    else None
+                ),
+            )
+
+
+def _run_backend_ocr(job_id: str, request: BackendOcrJobRequest) -> None:
+    """Internal OCR execution; public callers should use :func:`run_backend_ocr`."""
     update_backend_job(job_id, status="processing", progress_pct=5, current_stage="download")
     try:
-        content = read_source_blob(request.source_blob_get_url, request.source_sha256)
-        with pymupdf.open(stream=content, filetype="pdf") as source_pdf:
-            available_pages = list(range(1, source_pdf.page_count + 1))
+        with observation(
+            "download-source",
+            input={"document_id": request.document_id},
+            metadata={"transport": "presigned-url"},
+        ) as download_span:
+            content = read_source_blob(request.source_blob_get_url, request.source_sha256)
+            with pymupdf.open(stream=content, filetype="pdf") as source_pdf:
+                available_pages = list(range(1, source_pdf.page_count + 1))
+            if download_span is not None:
+                download_span.update(
+                    output={"size_bytes": len(content), "page_count": len(available_pages)}
+                )
         requested_pages = sorted(set(request.pages_to_process))
         if requested_pages != available_pages:
-            raise RuntimeError(
-                "AI1 OCR job currently supports only the full document page range"
-            )
+            raise RuntimeError("AI1 OCR job currently supports only the full document page range")
         engine_id = str(request.options.get("engine", "pymupdf"))
         if engine_id not in ENGINE_IDS:
             raise RuntimeError(f"unsupported OCR engine: {engine_id}")
@@ -199,31 +256,72 @@ def run_backend_ocr(job_id: str, request: BackendOcrJobRequest) -> None:
             pdf_path.write_bytes(content)
             engine = _get_engine(engine_id)
             max_workers = WEB_MAX_WORKERS if engine_id in PARALLEL_ENGINES else 1
-            with _process_lock:
-                document = _processor.execute(
-                    source=str(pdf_path),
-                    document_id=request.document_id,
-                    experiment=Experiment(id="BACKEND_API", engine=engine_id, preprocessing=[]),
-                    engine=engine,
-                    output=tmp_path / "output",
-                    run_id=job_id,
-                    dpi=dpi,
-                    max_workers=max_workers,
-                )
+            with observation(
+                "process-document",
+                as_type="chain",
+                input={
+                    "document_id": request.document_id,
+                    "page_count": len(available_pages),
+                    "engine": engine_id,
+                    "dpi": dpi,
+                },
+            ) as process_span:
+                with _process_lock:
+                    document = _processor.execute(
+                        source=str(pdf_path),
+                        document_id=request.document_id,
+                        experiment=Experiment(id="BACKEND_API", engine=engine_id, preprocessing=[]),
+                        engine=engine,
+                        output=tmp_path / "output",
+                        run_id=job_id,
+                        dpi=dpi,
+                        max_workers=max_workers,
+                    )
+                if process_span is not None:
+                    process_span.update(
+                        output={
+                            "page_count": len(document.pages),
+                            "failed_pages": sum(
+                                1 for page in document.pages if str(page.status) == "FAILED"
+                            ),
+                        }
+                    )
             update_backend_job(job_id, progress_pct=80, current_stage="build_snapshot")
             image_dir = tmp_path / "images" / request.document_id
-            snapshot = BuildSnapshot(PdfRenderer(), image_dpi=dpi).execute(
-                document,
-                snapshot_id=f"ocr-run-{job_id}",
-                dossier_id=f"backend-task-{request.task_id}",
-                document_role=str(request.options.get("document_role", "contract")),
-                filename=str(request.options.get("filename", "source.pdf")),
-                engine_name="pymupdf" if engine is None else f"pymupdf+{engine_id}",
-                engine_version=pymupdf.VersionBind,
-                image_output_dir=image_dir,
-                image_uri_prefix=f"storage://ai1/{request.document_id}",
-            )
-            _upload_rendered_pages(image_dir, snapshot, request.render_target)
+            with observation(
+                "build-snapshot",
+                as_type="chain",
+                input={"document_id": request.document_id, "page_count": len(document.pages)},
+            ) as snapshot_span:
+                snapshot = BuildSnapshot(PdfRenderer(), image_dpi=dpi).execute(
+                    document,
+                    snapshot_id=f"ocr-run-{job_id}",
+                    dossier_id=f"backend-task-{request.task_id}",
+                    document_role=str(request.options.get("document_role", "contract")),
+                    filename=str(request.options.get("filename", "source.pdf")),
+                    engine_name="pymupdf" if engine is None else f"pymupdf+{engine_id}",
+                    engine_version=pymupdf.VersionBind,
+                    image_output_dir=image_dir,
+                    image_uri_prefix=f"storage://ai1/{request.document_id}",
+                )
+                if snapshot_span is not None:
+                    snapshot_span.update(
+                        output={
+                            "page_count": snapshot.page_count,
+                            "node_count": len(snapshot.nodes),
+                            "table_count": sum(len(page.tables) for page in snapshot.pages),
+                        }
+                    )
+            with observation(
+                "upload-renders",
+                input={"page_count": snapshot.page_count},
+                metadata={"transport": "presigned-url"},
+            ) as upload_span:
+                _upload_rendered_pages(image_dir, snapshot, request.render_target)
+                if upload_span is not None:
+                    upload_span.update(
+                        output={"warning_count": sum(len(page.warnings) for page in snapshot.pages)}
+                    )
             result = {
                 "schema_version": "ai1.snapshot.v1",
                 "snapshot": snapshot.model_dump(mode="json"),

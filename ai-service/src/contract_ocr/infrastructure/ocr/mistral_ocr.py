@@ -13,6 +13,7 @@ from contract_ocr.domain.bbox import BBox
 from contract_ocr.domain.entities import Context, Line, OCRResult, Table
 from contract_ocr.domain.enums import GeometryProvenance
 from contract_ocr.domain.headings import is_annex_heading
+from contract_ocr.infrastructure.observability import observation, response_usage
 from contract_ocr.infrastructure.ocr.markdown_tables import (
     build_table_from_block,
     clean_markdown_text,
@@ -112,15 +113,40 @@ class MistralOCREngine(OCREngine):
         image.save(buffer, format="PNG")
         data_url = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
 
-        response = self._client.ocr.process(
+        with observation(
+            "transcribe-page",
+            as_type="generation",
+            input={
+                "document_id": context.document_id,
+                "page_number": context.page,
+                "image_width": image.width,
+                "image_height": image.height,
+            },
+            metadata={"provider": "mistral", "feature": "document-ocr"},
             model=self.model,
-            document={"type": "image_url", "image_url": data_url},
-            table_format=self.table_format,
-            include_blocks=True,
-            confidence_scores_granularity="block",
-        )
-        page = response.pages[0] if response.pages else None
-        text = (page.markdown if page else "") or ""
+            model_parameters={
+                "include_blocks": True,
+                "confidence_scores_granularity": "block",
+            },
+        ) as generation:
+            response = self._client.ocr.process(
+                model=self.model,
+                document={"type": "image_url", "image_url": data_url},
+                table_format=self.table_format,
+                include_blocks=True,
+                confidence_scores_granularity="block",
+            )
+            page = response.pages[0] if response.pages else None
+            text = (page.markdown if page else "") or ""
+            if generation is not None:
+                generation.update(
+                    output={
+                        "page_count": len(response.pages or []),
+                        "character_count": len(text),
+                        "block_count": len((page.blocks if page else None) or []),
+                    },
+                    usage_details=response_usage(response),
+                )
 
         directory = Path(context.output_dir)
         directory.mkdir(parents=True, exist_ok=True)

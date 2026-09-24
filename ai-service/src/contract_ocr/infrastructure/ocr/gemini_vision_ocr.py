@@ -8,6 +8,7 @@ from PIL import Image
 
 from contract_ocr.application.ports.ocr_engine import EngineUnavailable, OCREngine
 from contract_ocr.domain.entities import Context, Line, OCRResult
+from contract_ocr.infrastructure.observability import observation, response_usage
 from contract_ocr.infrastructure.ocr.prompts import OCR_SYSTEM_PROMPT
 
 # Model naming moves fast; override with GEMINI_MODEL or the `model` config key if this
@@ -55,16 +56,35 @@ class GeminiVisionOCREngine(OCREngine):
         from google.genai import types
 
         image = Image.fromarray(page_image).convert("RGB")
-        response = self._client.models.generate_content(
+        max_output_tokens = self.config.get("max_tokens", 4096)
+        with observation(
+            "transcribe-page",
+            as_type="generation",
+            input={
+                "document_id": context.document_id,
+                "page_number": context.page,
+                "image_width": image.width,
+                "image_height": image.height,
+            },
+            metadata={"provider": "google", "feature": "document-ocr"},
             model=self.model,
-            contents=[image],
-            config=types.GenerateContentConfig(
-                system_instruction=self.prompt,
-                temperature=0,
-                max_output_tokens=self.config.get("max_tokens", 4096),
-            ),
-        )
-        text = response.text or ""
+            model_parameters={"temperature": 0, "max_output_tokens": max_output_tokens},
+        ) as generation:
+            response = self._client.models.generate_content(
+                model=self.model,
+                contents=[image],
+                config=types.GenerateContentConfig(
+                    system_instruction=self.prompt,
+                    temperature=0,
+                    max_output_tokens=max_output_tokens,
+                ),
+            )
+            text = response.text or ""
+            if generation is not None:
+                generation.update(
+                    output={"character_count": len(text)},
+                    usage_details=response_usage(response),
+                )
 
         directory = Path(context.output_dir)
         directory.mkdir(parents=True, exist_ok=True)

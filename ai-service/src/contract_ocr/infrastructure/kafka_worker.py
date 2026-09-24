@@ -25,6 +25,7 @@ from contract_ocr.infrastructure.backend_ocr_job import (
     new_backend_job,
     run_backend_ocr,
 )
+from contract_ocr.infrastructure.observability import flush_langfuse
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,11 @@ def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
     request = BackendOcrJobRequest.model_validate(raw_payload)
     request = align_pages_to_pdf(request)
     job_id, _job = new_backend_job("ocr")
-    run_backend_ocr(job_id, request)
+    run_backend_ocr(
+        job_id,
+        request,
+        trace_seed=str(message.get("trace_id") or event_id or job_id),
+    )
     job = get_backend_job(job_id)
     if job is None:
         raise RuntimeError(f"OCR job disappeared: {job_id}")
@@ -205,6 +210,7 @@ async def run_worker() -> None:
     finally:
         await consumer.stop()
         await producer.stop()
+        flush_langfuse()
         logger.info("ai1.kafka.worker.stopped")
 
 

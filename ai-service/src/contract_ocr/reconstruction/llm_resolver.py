@@ -19,6 +19,8 @@ import json
 import os
 from typing import Any, Protocol
 
+from contract_ocr.infrastructure.observability import observation, response_usage
+
 from .models import (
     Action,
     BoundaryContext,
@@ -149,7 +151,9 @@ def _parse_response(context: BoundaryContext, raw: str) -> ReconstructionAction:
     try:
         payload = json.loads(raw)
         action = Action(payload["action"])
-        relationship = Relationship(payload["relationship"]) if payload.get("relationship") else None
+        relationship = (
+            Relationship(payload["relationship"]) if payload.get("relationship") else None
+        )
         entity_type = EntityType(payload["entity_type"])
         source_blocks = [
             SourceBlockRef(
@@ -165,7 +169,9 @@ def _parse_response(context: BoundaryContext, raw: str) -> ReconstructionAction:
         target = ReconstructionTarget(**target_payload) if target_payload else None
         model_confidence = max(0.0, min(1.0, float(payload.get("confidence", 0.0))))
         reason_codes = [
-            ReasonCode(code) for code in payload.get("reason_codes", []) if code in ReasonCode.__members__
+            ReasonCode(code)
+            for code in payload.get("reason_codes", [])
+            if code in ReasonCode.__members__
         ]
     except (json.JSONDecodeError, KeyError, ValueError, TypeError):
         return _fallback_needs_review(context)
@@ -234,14 +240,31 @@ class OpenAIBoundaryResolver:
 
     def resolve(self, context: BoundaryContext) -> ReconstructionAction:
         client = self._load()
-        response = client.chat.completions.create(
+        with observation(
+            "resolve-document-boundary",
+            as_type="generation",
+            input={
+                "previous_page": context.previous_page,
+                "next_page": context.next_page,
+            },
+            metadata={"provider": "openai", "feature": "document-reconstruction"},
             model=self.model,
-            temperature=0,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": json.dumps(context_payload(context))},
-            ],
-        )
-        raw = response.choices[0].message.content or "{}"
-        return _parse_response(context, raw)
+            model_parameters={"temperature": 0, "response_format": "json_object"},
+        ) as generation:
+            response = client.chat.completions.create(
+                model=self.model,
+                temperature=0,
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": json.dumps(context_payload(context))},
+                ],
+            )
+            raw = response.choices[0].message.content or "{}"
+            action = _parse_response(context, raw)
+            if generation is not None:
+                generation.update(
+                    output={"action": action.action.value},
+                    usage_details=response_usage(response),
+                )
+            return action
