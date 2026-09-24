@@ -132,7 +132,10 @@ class DossierDeletionService:
         )
 
     async def commit(self) -> None:
-        """Commit before background purge. FastAPI runs that task before the request session commits."""
+        """Commit before background purge.
+
+        FastAPI runs that task before the request session commits.
+        """
         await self._session.commit()
 
     async def purge(self, dossier_id: str) -> None:
