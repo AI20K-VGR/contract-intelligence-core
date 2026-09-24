@@ -37,4 +37,6 @@ def make_page(
     width: float = 1654.0,
     height: float = 2339.0,
 ) -> Page:
-    return Page(document_id=document_id, page=page, width=width, height=height, blocks=tuple(blocks))
+    return Page(
+        document_id=document_id, page=page, width=width, height=height, blocks=tuple(blocks)
+    )

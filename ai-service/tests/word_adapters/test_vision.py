@@ -178,7 +178,9 @@ class TestOpenAIVisionClientNeverSendsTemperature:
         client = _OpenAIVisionClient(api_key="test")
         sdk = _FakeOpenAISDK("some text")
         client._client = sdk
-        client.complete(images=[blank_image()], system_prompt="sys", user_prompt="", json_mode=False)
+        client.complete(
+            images=[blank_image()], system_prompt="sys", user_prompt="", json_mode=False
+        )
         assert "temperature" not in sdk.captured_kwargs
 
     def test_json_mode_sends_no_temperature_either(self):

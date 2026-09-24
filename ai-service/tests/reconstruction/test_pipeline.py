@@ -149,10 +149,14 @@ def test_reconstruct_document_requires_at_least_one_page():
 
 def test_ambiguous_boundary_is_not_merged_and_becomes_a_review_item():
     page1 = make_page(
-        "doc2", 1, [make_block("p1_b01", "Các bên đồng ý về nguyên tắc chung.", bbox=(100, 300, 1000, 360))]
+        "doc2",
+        1,
+        [make_block("p1_b01", "Các bên đồng ý về nguyên tắc chung.", bbox=(100, 300, 1000, 360))],
     )
     page2 = make_page(
-        "doc2", 2, [make_block("p2_b01", "hợp tác lâu dài trong tương lai.", bbox=(100, 300, 1000, 360))]
+        "doc2",
+        2,
+        [make_block("p2_b01", "hợp tác lâu dài trong tương lai.", bbox=(100, 300, 1000, 360))],
     )
 
     document = reconstruct_document([page1, page2])
@@ -219,10 +223,14 @@ def test_ambiguous_boundary_with_no_rule_signal_stays_needs_review_even_with_llm
     # reach the "strong" threshold. This is deliberate: an LLM's
     # self-reported confidence is never trusted as the sole signal.
     page1 = make_page(
-        "doc2", 1, [make_block("p1_b01", "Các bên đồng ý về nguyên tắc chung.", bbox=(100, 300, 1000, 360))]
+        "doc2",
+        1,
+        [make_block("p1_b01", "Các bên đồng ý về nguyên tắc chung.", bbox=(100, 300, 1000, 360))],
     )
     page2 = make_page(
-        "doc2", 2, [make_block("p2_b01", "hợp tác lâu dài trong tương lai.", bbox=(100, 300, 1000, 360))]
+        "doc2",
+        2,
+        [make_block("p2_b01", "hợp tác lâu dài trong tương lai.", bbox=(100, 300, 1000, 360))],
     )
     resolver = MockLLMResolver({(1, 2): _llm_action(Relationship.NEW_PARAGRAPH, 1.0)})
 

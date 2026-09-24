@@ -10,7 +10,9 @@ from .factories import fragment
 class TestBuildTables:
     def test_single_fragment_produces_one_table(self):
         frag = fragment(
-            "doc1", 1, [["STT", "Tên", "Tiền"], ["1", "Hàng A", "1.000.000"], ["2", "Hàng B", "2.000.000"]]
+            "doc1",
+            1,
+            [["STT", "Tên", "Tiền"], ["1", "Hàng A", "1.000.000"], ["2", "Hàng B", "2.000.000"]],
         )
         tables = build_tables([frag])
         assert len(tables) == 1
@@ -82,7 +84,9 @@ class TestBuildTables:
 
     def test_each_finalized_table_carries_its_own_checks(self):
         frag = fragment(
-            "doc1", 1, [["STT", "Tên", "Tiền"], ["1", "Hàng A", "1.000.000"], ["2", "Hàng B", "2.000.000"]]
+            "doc1",
+            1,
+            [["STT", "Tên", "Tiền"], ["1", "Hàng A", "1.000.000"], ["2", "Hàng B", "2.000.000"]],
         )
         tables = build_tables([frag])
         assert set(tables[0].checks) == {

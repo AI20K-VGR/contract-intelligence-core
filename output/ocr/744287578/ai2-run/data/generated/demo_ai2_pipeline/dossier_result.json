@@ -1,0 +1,2117 @@
+{
+  "dossier_id": "demo-dossier-ai2",
+  "generated_at": "2026-09-23T08:44:10.081779+00:00",
+  "disclaimer": "DEMO PIPELINE tren file ban tai len - regex fact/clause chi nhan dien dung mau cau demo nay dung, khong phai ket qua extraction da benchmark.",
+  "documents": [
+    {
+      "document_id": "contract-001",
+      "role": "contract",
+      "filename": "744287578-Hợp-đồng.pdf",
+      "input_type": "TEXT_LAYER",
+      "engine": {
+        "name": "pymupdf+mistral",
+        "version": "1.28.2"
+      },
+      "page_count": 11,
+      "classification": {
+        "predicted_role": "contract",
+        "status": "confirmed",
+        "evidence": "HOP DONG"
+      },
+      "clauses": [
+        {
+          "clause_id": "_unnumbered_1",
+          "level": "unmarked",
+          "label": "UNMARKED__unnumbered_1",
+          "title": "UNMARKED__unnumbered_1",
+          "parent_clause_id": null,
+          "page_number": 1,
+          "text": "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập - Tự do- Hạnh phúc\nHỢP ĐỒNG MUA BÁN\nSố: /2024/HĐMB\n- Căn cứ luật thương mại số 36/2005/QH11 đã được Quốc hội nước Cộng hòa xã\nhội chủ nghĩa Việt Nam khóa XI kỳ họp thứ 7 thông qua ngày 14/06/2005 có hiệu lực\nthi hành kể từ ngày 01/01/2006.\nCăn cứ Bộ luật Dân sự số 91/2015/QH13 được Quốc hội nước Cộng hòa xã hội\nChủ nghĩa Việt Nam ban hành ngày 24/11/2015 và có hiệu lực thi hành từ ngày\n01/1/2017\nCăn cứ vào nhu cầu và khả năng của hai bên,\nHôm nay, ngày 20 tháng 4 năm 2024, chúng tôi gồm có :\nBÊN A (BÊN MUA):TRƯỜNG TIỂU HỌC VÀ TRUNG HỌC CƠ SỞ LÊ LỢI\nĐịa chỉ:Buôn Chính Hòa, Xã Ia Mláh, Huyện Krông Pa, Tỉnh Gia Lai\nMã số thuế: 5900985976\nSố tài khoản: 9523.3.1129620\nTại : Kho bạc Nhà nước huyện Krông Pa\nĐại diện:\nÔng:Lê Hữu Duẩn\nChức vụ: Hiệu trưởng\nBÊN B (BÊN BÁN): HỘ KINH DOANH LÊ TOÀN\nÔng: Lê Văn Toàn Chứcvụ: Chủ hộ kinh doanh\nĐịachỉ: 39 Kpă Klơng, Thị trấn PhúTúc, Huyện Krông Pa, Tỉnh Gia Lai\nMã số thuế: 8567406687\n* Thông tin chuyển khoản:\nChủ tài khoản: Lê Văn Toàn. Tài khoảnsố :5007205033781.Mở tại ngân hàng:\nAgribank Huyện Krông Pa\nSau khi bàn bạc , hai bên đã thỏa thuận và đi đến ký kết hợp đồng mua bán với\nđiều khoản chi tiết như sau:\nĐiều 1: Bên B bán cho bên A những hàng hóa sau:\nS\nĐV\nGhi\nStt\nTên hàng\nĐơn giá\nThành tiền\nL\nT\nChú\nBảng phòng Tư vấn học đường\nKích thước: 1,2m x 1,2 m\n- Quy cách: Hàn khung sắt bao bằng\nsắt hộp 3x3 dày 1,2 ly , Sơn trắng,\n01\n04 Cái 1,000,000\nNền alu 0.5mm , dán Alu.\n4,000,000\n02 Bảng tên phòng, thư mục sách\n20 Cái\n100,000\n2,000,000\nKích thước: 0,15m x 0,3 m\n- Quy cách: Mica\nBảng khẩu hiệu đoàn & đội\nKích thước: 1,2m x 2,4 m\n- Quy cách: Hàn khung sắt bao bằng\nsắt hộp 3x3 dày 1,2 ly, Nền alu\n03\n06 Cái 2,000,000 12,000,000\n0.5mm , dán Đềcan.\nBảng hình hoạt động, điều lệ\nđội 1, điều lệ đội 2\nKích thước: 2,4m x 5,2 m\n04\n- Quy cách: Hàn khung sắt bao\n02\nCái\n1,500,000\n3,000,000\nbằng sắt hộp 3x3 dày 1,2 ly , dán\nBạt 2 da\nCổng thư viện thân thiện\nKíchthước: 2m x 6 m\n- Quy cách: Hàn khung sắt bao\n05\nbằng sắt hộp 3x6 dày 1,2 ly , Sơn\n01\nCái\n4,900,000\n4,900,000\ntrắng, Nền alu xanh 0.5mm có\nkhung sắt vuông 2, dán đecan cáng\nmàng\nBảng trang trí phòng thư\nviện\nKíchthước: 1,2m x 2,4 m\n06\n- Quy cách: Hàn khung sắt bao\n04\nCái\n2,000,000\n8,000,000\nbằng sắt hộp 3x3 dày 1,2 ly , Sơn\ntrắng, Nền alu xanh 0.5mm có\nkhung sắt vuông 2, dán Đêcan\nBảng trang trí phòng truyền\nthống nhà trường\nKíchthước: 2m x 2,4 m\n- Quy cách: Hàn khung sắt bao\n07\n08\nCái\nbằng sắt hộp 3x3 dày 1,2 ly , Sơn\n2,000,000\n16,000,000\ntrắng, Nền alu xanh 0.5mm , dán\nĐềcan.\nTổng cộng\n49,900,000\nBằngchữ: Bốn mươi chín triệu chín trăm nghìn đồng\nSản phẩm bàn giao đảm bảo yêu cầu kĩ thuật, kết cấu chắc chắn, chất lượng bền\nđẹp.\nĐiều 2: Giá bán hànghóa\nGiá bán hàng hóa: 49.900.000 đồng . Số tiền bằng chữ: (Bốn mươi chín triệu chín\ntrăm nghìn đồng)\nĐiều 3: Phương thức và thời hạn thanh toán",
+          "line_ids": [
+            "contract-001:s1:p001:l001",
+            "contract-001:s1:p001:l002",
+            "contract-001:s1:p001:l003",
+            "contract-001:s1:p001:l004",
+            "contract-001:s1:p001:l005",
+            "contract-001:s1:p001:l006",
+            "contract-001:s1:p001:l007",
+            "contract-001:s1:p001:l008",
+            "contract-001:s1:p001:l009",
+            "contract-001:s1:p001:l010",
+            "contract-001:s1:p001:l011",
+            "contract-001:s1:p001:l012",
+            "contract-001:s1:p001:l013",
+            "contract-001:s1:p001:l014",
+            "contract-001:s1:p001:l015",
+            "contract-001:s1:p001:l016",
+            "contract-001:s1:p001:l017",
+            "contract-001:s1:p001:l018",
+            "contract-001:s1:p001:l019",
+            "contract-001:s1:p001:l020",
+            "contract-001:s1:p001:l021",
+            "contract-001:s1:p001:l022",
+            "contract-001:s1:p001:l023",
+            "contract-001:s1:p001:l024",
+            "contract-001:s1:p001:l025",
+            "contract-001:s1:p001:l026",
+            "contract-001:s1:p001:l027",
+            "contract-001:s1:p001:l028",
+            "contract-001:s1:p001:l029",
+            "contract-001:s1:p001:l030",
+            "contract-001:s1:p001:l031",
+            "contract-001:s1:p001:l032",
+            "contract-001:s1:p001:l033",
+            "contract-001:s1:p001:l034",
+            "contract-001:s1:p001:l035",
+            "contract-001:s1:p001:l036",
+            "contract-001:s1:p001:l037",
+            "contract-001:s1:p001:l038",
+            "contract-001:s1:p001:l039",
+            "contract-001:s1:p001:l040",
+            "contract-001:s1:p001:l041",
+            "contract-001:s1:p001:l042",
+            "contract-001:s1:p001:l043",
+            "contract-001:s1:p001:l044",
+            "contract-001:s1:p001:l045",
+            "contract-001:s1:p001:l046",
+            "contract-001:s1:p001:l047",
+            "contract-001:s1:p001:l048",
+            "contract-001:s1:p001:l049",
+            "contract-001:s1:p001:l050",
+            "contract-001:s1:p001:l051",
+            "contract-001:s1:p001:l052",
+            "contract-001:s1:p002:l001",
+            "contract-001:s1:p002:l002",
+            "contract-001:s1:p002:l003",
+            "contract-001:s1:p002:l004",
+            "contract-001:s1:p002:l005",
+            "contract-001:s1:p002:l006",
+            "contract-001:s1:p002:l007",
+            "contract-001:s1:p002:l008",
+            "contract-001:s1:p002:l009",
+            "contract-001:s1:p002:l010",
+            "contract-001:s1:p002:l011",
+            "contract-001:s1:p002:l012",
+            "contract-001:s1:p002:l013",
+            "contract-001:s1:p002:l014",
+            "contract-001:s1:p002:l015",
+            "contract-001:s1:p002:l016",
+            "contract-001:s1:p002:l017",
+            "contract-001:s1:p002:l018",
+            "contract-001:s1:p002:l019",
+            "contract-001:s1:p002:l020",
+            "contract-001:s1:p002:l021",
+            "contract-001:s1:p002:l022",
+            "contract-001:s1:p002:l023",
+            "contract-001:s1:p002:l024",
+            "contract-001:s1:p002:l025",
+            "contract-001:s1:p002:l026",
+            "contract-001:s1:p002:l027",
+            "contract-001:s1:p002:l028",
+            "contract-001:s1:p002:l029",
+            "contract-001:s1:p002:l030",
+            "contract-001:s1:p002:l031",
+            "contract-001:s1:p002:l032",
+            "contract-001:s1:p002:l033",
+            "contract-001:s1:p002:l034",
+            "contract-001:s1:p002:l035",
+            "contract-001:s1:p002:l036",
+            "contract-001:s1:p002:l037",
+            "contract-001:s1:p002:l038",
+            "contract-001:s1:p002:l039",
+            "contract-001:s1:p002:l040",
+            "contract-001:s1:p002:l041",
+            "contract-001:s1:p002:l042",
+            "contract-001:s1:p002:l043",
+            "contract-001:s1:p002:l044",
+            "contract-001:s1:p002:l045",
+            "contract-001:s1:p002:l046",
+            "contract-001:s1:p002:l047",
+            "contract-001:s1:p002:l048",
+            "contract-001:s1:p002:l049",
+            "contract-001:s1:p002:l050",
+            "contract-001:s1:p002:l051",
+            "contract-001:s1:p002:l052",
+            "contract-001:s1:p002:l053",
+            "contract-001:s1:p002:l054",
+            "contract-001:s1:p002:l055",
+            "contract-001:s1:p002:l056",
+            "contract-001:s1:p002:l057",
+            "contract-001:s1:p002:l058",
+            "contract-001:s1:p002:l059",
+            "contract-001:s1:p002:l060",
+            "contract-001:s1:p002:l061",
+            "contract-001:s1:p002:l062",
+            "contract-001:s1:p003:l001",
+            "contract-001:s1:p003:l002",
+            "contract-001:s1:p003:l003"
+          ],
+          "regions": [
+            {
+              "page_number": 1,
+              "bbox_normalized": [
+                0.30253453646193246,
+                0.043500062021867944,
+                0.37052164052551606,
+                0.061251198207390396
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 1,
+              "bbox_normalized": [
+                0.7874128770713162,
+                0.9257681975640449,
+                0.8949209818874533,
+                0.94680655165519
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            },
+            {
+              "page_number": 2,
+              "bbox_normalized": [
+                0.1827637833138189,
+                0.04402922799557647,
+                0.2239494497337355,
+                0.06112291335019439
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 2,
+              "bbox_normalized": [
+                0.3317364043119057,
+                0.9144626731301838,
+                0.417998202689097,
+                0.9328712420221609
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            },
+            {
+              "page_number": 3,
+              "bbox_normalized": [
+                0.16705751087306453,
+                0.04350542232795946,
+                0.20096960463261243,
+                0.06191400934438644
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 3,
+              "bbox_normalized": [
+                0.5662619214104533,
+                0.08175272421358373,
+                0.6106862590301287,
+                0.10016131123001072
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "1",
+          "level": "article",
+          "label": "1.",
+          "title": "ARTICLE_1",
+          "parent_clause_id": null,
+          "page_number": 3,
+          "text": "1. Phương thức thanh toán: Chuyển khoản",
+          "line_ids": [
+            "contract-001:s1:p003:l004"
+          ],
+          "regions": [
+            {
+              "page_number": 3,
+              "bbox_normalized": [
+                0.16705751087306453,
+                0.10087633890749585,
+                0.18469555931946202,
+                0.11928492592392284
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 3,
+              "bbox_normalized": [
+                0.5131261111441479,
+                0.10087633890749585,
+                0.5705791073116617,
+                0.11928492592392284
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "2",
+          "level": "article",
+          "label": "2.",
+          "title": "ARTICLE_2",
+          "parent_clause_id": null,
+          "page_number": 3,
+          "text": "2. Thời hạn thanh toán: Bên A sẽ thanh toán cho Bên B trong vòng 30 ngày làm\nviệc, kể từ ngày hai bên nghiệm thu thanh lý hợp đồng và có hóa đơn tài chính.",
+          "line_ids": [
+            "contract-001:s1:p003:l005",
+            "contract-001:s1:p003:l006"
+          ],
+          "regions": [
+            {
+              "page_number": 3,
+              "bbox_normalized": [
+                0.16705751087306453,
+                0.12000002609920803,
+                0.18469555931946202,
+                0.13840861311563502
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 3,
+              "bbox_normalized": [
+                0.8077485835795707,
+                0.14197439928685365,
+                0.8658365339069417,
+                0.16038298630328063
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "4",
+          "level": "article",
+          "label": "Điều 4",
+          "title": "ARTICLE_4",
+          "parent_clause_id": null,
+          "page_number": 3,
+          "text": "Điều 4. Thời gian, địa điểm giao, nhận hàng hóa",
+          "line_ids": [
+            "contract-001:s1:p003:l007"
+          ],
+          "regions": [
+            {
+              "page_number": 3,
+              "bbox_normalized": [
+                0.16705751087306453,
+                0.16394877247449927,
+                0.2140654444679119,
+                0.18235735949092624
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 3,
+              "bbox_normalized": [
+                0.6113717080912825,
+                0.16394877247449927,
+                0.6479647735265229,
+                0.18235735949092624
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "1",
+          "level": "article",
+          "label": "1.",
+          "title": "ARTICLE_1",
+          "parent_clause_id": null,
+          "page_number": 3,
+          "text": "1. Thời gian giao, nhận hàng hóa: 30 ngày kể từ ngày ký hợp đồng.",
+          "line_ids": [
+            "contract-001:s1:p003:l008"
+          ],
+          "regions": [
+            {
+              "page_number": 3,
+              "bbox_normalized": [
+                0.16705751087306453,
+                0.18592314566214488,
+                0.18469555931946202,
+                0.20433173267857188
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 3,
+              "bbox_normalized": [
+                0.7467513067157706,
+                0.18592314566214488,
+                0.7996654520549631,
+                0.20433173267857188
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "2",
+          "level": "article",
+          "label": "2.",
+          "title": "ARTICLE_2",
+          "parent_clause_id": null,
+          "page_number": 3,
+          "text": "2. Địa điểm giao, nhận hàng hóa: Tại địa điểm Bên A.\nĐiều 5: Điều khoản chung\n- Sau khi lắp đặt xong các bên cùng tiến hành làm biên bản nghiệm thu bàn giao\nvà thanh toán như điều 3 đã ghi rõ.\n- Trong quá trình thực hiện nếu có phát sinh vướng mắc các bên cùng nhau giải\nquyết trên tinh thần hợp tác, nếu không giải quyết được sẽ khiếu nại tới cơ quan có\nthẩm quyền giải quyết những tranh chấp trong hợp đồng này. Luật áp dụng là luật\npháp nước Cộng hoà xã hội chủ nghĩa Việt Nam. Mọi sự thay đổi liên quan đến hợp\nđồng phải được thành lập văn bản và được sự đồng ý của hai bên.\n- Chi phí cho hoạt động kiểm tra xác minh và làm rõ do bên có lỗi chịu.\n- Hợp đồng có hiệu lực kể từ ngày ký kết và được thành lập 02 bản có giá trị như\nnhau mỗi bên giữ 01 bản để thực hiện.\nĐẠI DIỆN BÊN A\nĐẠI DIỆN BÊN B\n(Ký, ghi rõ họ tên và đóng dấu)\n(Ký, ghi rõ họ tên và đóng dấu)\nCỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập - Tự do - Hạnh phúc\nBIÊN BẢN NGHIỆM THU VÀ THANH LÝ HỢP ĐỒNG\nSố: /BBNT-TLHĐ\nCăn cứ Hợp đồng mua bán số08/2024/HĐMB, ký ngày 20 tháng 04năm 2024\nký giữa Trường Tiểu học và Trung học cơ sở Lê Lợi với Hộ kinh doanh Lê Toàn.\nHôm nay , ngày tháng năm 2024 tiến hành nghiệm thu thanh lý hợp đồng giữa\nbên A và bên B như sau:\nBÊN A (BÊN MUA):TRƯỜNG TIỂU HỌC VÀ TRUNG HỌC CƠ SỞ LÊ LỢI\nĐịachỉ:Buôn Chính Hòa, Xã Ia Mláh, Huyện Krông Pa, Tỉnh Gia Lai\nMã số thuế: 5900985976\nSố tài khoản: 9523.3.1129620\nTại : Kho bạc Nhà nước huyện Krông Pa\nĐại diện:\nÔng:Lê Hữu Duẩn\nChức vụ: Hiệu trưởng\nBÊN B (BÊN BÁN): HỘ KINH DOANH LÊ TOÀN\nÔng: Lê Văn ToànChứcvụ: Chủ hộ kinh doanh\nĐịachỉ: 39 KpăKlơng, Thị trấn PhúTúc, Huyện KrôngPa, Tỉnh Gia Lai\nMã số thuế: 8567406687\n* Thông tin chuyển khoản:\nChủ tài khoản: Lê Văn Toàn\nTài khoản số :5007205033781 Mở tại ngân hàng: Agribank Huyện Krông Pa",
+          "line_ids": [
+            "contract-001:s1:p003:l009",
+            "contract-001:s1:p003:l010",
+            "contract-001:s1:p003:l011",
+            "contract-001:s1:p003:l012",
+            "contract-001:s1:p003:l013",
+            "contract-001:s1:p003:l014",
+            "contract-001:s1:p003:l015",
+            "contract-001:s1:p003:l016",
+            "contract-001:s1:p003:l017",
+            "contract-001:s1:p003:l018",
+            "contract-001:s1:p003:l019",
+            "contract-001:s1:p003:l020",
+            "contract-001:s1:p003:l021",
+            "contract-001:s1:p003:l022",
+            "contract-001:s1:p003:l023",
+            "contract-001:s1:p003:l024",
+            "contract-001:s1:p003:l025",
+            "contract-001:s1:p004:l001",
+            "contract-001:s1:p004:l002",
+            "contract-001:s1:p004:l003",
+            "contract-001:s1:p004:l004",
+            "contract-001:s1:p004:l005",
+            "contract-001:s1:p004:l006",
+            "contract-001:s1:p004:l007",
+            "contract-001:s1:p004:l008",
+            "contract-001:s1:p004:l009",
+            "contract-001:s1:p004:l010",
+            "contract-001:s1:p004:l011",
+            "contract-001:s1:p004:l012",
+            "contract-001:s1:p004:l013",
+            "contract-001:s1:p004:l014",
+            "contract-001:s1:p004:l015",
+            "contract-001:s1:p004:l016",
+            "contract-001:s1:p004:l017",
+            "contract-001:s1:p004:l018",
+            "contract-001:s1:p004:l019",
+            "contract-001:s1:p004:l020",
+            "contract-001:s1:p004:l021",
+            "contract-001:s1:p004:l022"
+          ],
+          "regions": [
+            {
+              "page_number": 3,
+              "bbox_normalized": [
+                0.16705751087306453,
+                0.2078975188497905,
+                0.18469555931946202,
+                0.2263061058662175
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 3,
+              "bbox_normalized": [
+                0.7142972852710731,
+                0.9354868176525183,
+                0.7704333128961415,
+                0.9538953865444953
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            },
+            {
+              "page_number": 4,
+              "bbox_normalized": [
+                0.379805986798531,
+                0.04350542232795946,
+                0.4189489934853888,
+                0.06191400934438644
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 4,
+              "bbox_normalized": [
+                0.8271740490041483,
+                0.5008099454222061,
+                0.8506679168213126,
+                0.5192185143141831
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "1",
+          "level": "article",
+          "label": "Điều 1",
+          "title": "ARTICLE_1",
+          "parent_clause_id": null,
+          "page_number": 4,
+          "text": "Điều 1: Nội dung công việc.\nHai bên cùng thống nhất lập bản nghiệm thu và thanh lý Hợp đồng mua bán số\n…../2024 /HĐMB ký ngày 20 tháng 04 năm 2024 với những điều khoản và điều\nkiện cụ thể như sau:\nSt\nGhi\nTên hàng\nSL\nĐVT\nĐơn giá\nThành tiền\nt\nChú\nBảng phòng Tư vấn\nhọc đường\nKích thước: 1,2m x 1,2 m\n- Quy cách: Hàn khung sắt\n01\nbao bằng sắt hộp 3x3 dày\n04\nCái\n1,000,000\n4,000,000\n1,2 ly , Sơn trắng, Nền alu\n0.5mm , dán Alu.\nBảng tên phòng, thư\n2,000,000\nmục sách\n02\n20\nCái\n100,000\nKích thước: 0,15m x 0,3 m\n- Quy cách: Mica\nBảng khẩu hiệu đoàn\n& đội\nKích thước: 1,2m x 2,4 m\n- Quy cách: Hàn khung sắt\n03\nbao bằng sắt hộp 3x3 dày\n06\nCái\n2,000,000\n12,000,000\n1,2 ly, Nền alu 0.5mm , dán\nĐềcan.\nBảng hình hoạt động,\nđiều lệ đội 1, điều lệ\nđội 2\nKích thước: 2,4m x 5,2 m\n04\n02\nCái\n1,500,000\n3,000,000\n- Quy cách: Hàn khung sắt\nbao bằng sắt hộp 3x3 dày\n1,2 ly , dán Bạt 2 da\nCổng thư viện thân\nthiện\nKíchthước: 2m x 6 m\n- Quy cách: Hàn khung sắt\n05\nbao bằng sắt hộp 3x6 dày\n01\nCái\n4,900,000\n4,900,000\n1,2 ly , Sơn trắng, Nền alu\nxanh 0.5mm có khung sắt\nvuông 2, dán đecan cáng\nmàng\nBảng trang trí phòng\nthư viện\nKíchthước: 1,2m x 2,4 m\n- Quy cách: Hàn khung sắt\n06\n04\nCái\n2,000,000\nbao bằng sắt hộp 3x3 dày\n8,000,000\n1,2 ly , Sơn trắng, Nền alu\nxanh 0.5mm có khung sắt\nvuông 2, dán Đêcan\nBảng trang trí phòng\ntruyền thống nhà\ntrường\nKíchthước: 2m x 2,4 m\n07\n- Quy cách: Hàn khung sắt\n08\nCái\n2,000,000\n16,000,000\nbao bằng sắt hộp 3x3 dày\n1,2 ly , Sơn trắng, Nền alu\nxanh 0.5mm , dán Đềcan.\nTổng cộng\n49,900,000\nBằngchữ: Bốn mươi chín triệu chín trăm nghìn đồng",
+          "line_ids": [
+            "contract-001:s1:p004:l023",
+            "contract-001:s1:p004:l024",
+            "contract-001:s1:p004:l025",
+            "contract-001:s1:p004:l026",
+            "contract-001:s1:p004:l027",
+            "contract-001:s1:p004:l028",
+            "contract-001:s1:p004:l029",
+            "contract-001:s1:p004:l030",
+            "contract-001:s1:p004:l031",
+            "contract-001:s1:p004:l032",
+            "contract-001:s1:p004:l033",
+            "contract-001:s1:p004:l034",
+            "contract-001:s1:p004:l035",
+            "contract-001:s1:p004:l036",
+            "contract-001:s1:p004:l037",
+            "contract-001:s1:p004:l038",
+            "contract-001:s1:p004:l039",
+            "contract-001:s1:p004:l040",
+            "contract-001:s1:p004:l041",
+            "contract-001:s1:p004:l042",
+            "contract-001:s1:p004:l043",
+            "contract-001:s1:p004:l044",
+            "contract-001:s1:p004:l045",
+            "contract-001:s1:p004:l046",
+            "contract-001:s1:p004:l047",
+            "contract-001:s1:p004:l048",
+            "contract-001:s1:p004:l049",
+            "contract-001:s1:p004:l050",
+            "contract-001:s1:p004:l051",
+            "contract-001:s1:p004:l052",
+            "contract-001:s1:p004:l053",
+            "contract-001:s1:p004:l054",
+            "contract-001:s1:p004:l055",
+            "contract-001:s1:p004:l056",
+            "contract-001:s1:p005:l001",
+            "contract-001:s1:p005:l002",
+            "contract-001:s1:p005:l003",
+            "contract-001:s1:p005:l004",
+            "contract-001:s1:p005:l005",
+            "contract-001:s1:p005:l006",
+            "contract-001:s1:p005:l007",
+            "contract-001:s1:p005:l008",
+            "contract-001:s1:p005:l009",
+            "contract-001:s1:p005:l010",
+            "contract-001:s1:p005:l011",
+            "contract-001:s1:p005:l012",
+            "contract-001:s1:p005:l013",
+            "contract-001:s1:p005:l014",
+            "contract-001:s1:p005:l015",
+            "contract-001:s1:p005:l016",
+            "contract-001:s1:p005:l017",
+            "contract-001:s1:p005:l018",
+            "contract-001:s1:p005:l019",
+            "contract-001:s1:p005:l020",
+            "contract-001:s1:p005:l021",
+            "contract-001:s1:p005:l022",
+            "contract-001:s1:p005:l023",
+            "contract-001:s1:p005:l024",
+            "contract-001:s1:p005:l025",
+            "contract-001:s1:p005:l026",
+            "contract-001:s1:p005:l027",
+            "contract-001:s1:p005:l028",
+            "contract-001:s1:p005:l029",
+            "contract-001:s1:p005:l030",
+            "contract-001:s1:p005:l031",
+            "contract-001:s1:p005:l032",
+            "contract-001:s1:p005:l033",
+            "contract-001:s1:p005:l034",
+            "contract-001:s1:p005:l035",
+            "contract-001:s1:p005:l036",
+            "contract-001:s1:p005:l037",
+            "contract-001:s1:p005:l038",
+            "contract-001:s1:p005:l039",
+            "contract-001:s1:p005:l040",
+            "contract-001:s1:p005:l041",
+            "contract-001:s1:p005:l042",
+            "contract-001:s1:p005:l043",
+            "contract-001:s1:p005:l044",
+            "contract-001:s1:p005:l045",
+            "contract-001:s1:p005:l046",
+            "contract-001:s1:p005:l047",
+            "contract-001:s1:p005:l048",
+            "contract-001:s1:p005:l049",
+            "contract-001:s1:p005:l050",
+            "contract-001:s1:p005:l051",
+            "contract-001:s1:p005:l052",
+            "contract-001:s1:p005:l053",
+            "contract-001:s1:p005:l054",
+            "contract-001:s1:p005:l055",
+            "contract-001:s1:p005:l056",
+            "contract-001:s1:p005:l057",
+            "contract-001:s1:p005:l058",
+            "contract-001:s1:p005:l059",
+            "contract-001:s1:p005:l060",
+            "contract-001:s1:p005:l061",
+            "contract-001:s1:p005:l062",
+            "contract-001:s1:p005:l063",
+            "contract-001:s1:p005:l064",
+            "contract-001:s1:p005:l065",
+            "contract-001:s1:p005:l066",
+            "contract-001:s1:p006:l001"
+          ],
+          "regions": [
+            {
+              "page_number": 4,
+              "bbox_normalized": [
+                0.12111459676873643,
+                0.5199335963650183,
+                0.1681225303635838,
+                0.5383421652569953
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 4,
+              "bbox_normalized": [
+                0.2911756187035165,
+                0.9032866297672197,
+                0.3360081704338768,
+                0.9203803060596126
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            },
+            {
+              "page_number": 5,
+              "bbox_normalized": [
+                0.18267978748054536,
+                0.04418006419970186,
+                0.23936341564942082,
+                0.0652184500086345
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 5,
+              "bbox_normalized": [
+                0.7504569660407692,
+                0.8900747031831319,
+                0.8714035839589233,
+                0.911113057274277
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            },
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.12111459676873643,
+                0.04350542232795946,
+                0.21356149510020034,
+                0.06191400934438644
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.5879886727376746,
+                0.04350542232795946,
+                0.63634043713718,
+                0.06191400934438644
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "2",
+          "level": "article",
+          "label": "Điều 2",
+          "title": "ARTICLE_2",
+          "parent_clause_id": null,
+          "page_number": 6,
+          "text": "Điều 2 : Thực hiện.\nCăn cứ nội dung Hợp đồng mua bán số /2024 /HĐMB ký ngày 20 tháng\n04 năm 2024 bên B đã hoàn thành đặc tính kỹ thuật, tất cả đều theo tiêu chuẩn. Kết\nquả cho thấy đáp ứng đúng và đầy đủ theo nội dung hợp đồng.\nBên B đã bàn giao và bên A đã nhận bàn giao tất cả số lượng và chất lượng.",
+          "line_ids": [
+            "contract-001:s1:p006:l002",
+            "contract-001:s1:p006:l003",
+            "contract-001:s1:p006:l004",
+            "contract-001:s1:p006:l005",
+            "contract-001:s1:p006:l006"
+          ],
+          "regions": [
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.12111459676873643,
+                0.06452956685029393,
+                0.1681225303635838,
+                0.08293815386672092
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.8408779551051627,
+                0.14815092186027615,
+                0.9019291615488247,
+                0.16655950887670315
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "3",
+          "level": "article",
+          "label": "Điều 3",
+          "title": "ARTICLE_3",
+          "parent_clause_id": null,
+          "page_number": 6,
+          "text": "Điều 3: Giá trị thanh lý hợp đồng.",
+          "line_ids": [
+            "contract-001:s1:p006:l007"
+          ],
+          "regions": [
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.12111459676873643,
+                0.17083802092025518,
+                0.1681225303635838,
+                0.18924660793668216
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.4065049479876885,
+                0.17083802092025518,
+                0.4620530560437014,
+                0.18924660793668216
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "3.1",
+          "level": "clause",
+          "label": "3.1",
+          "title": "CLAUSE_3.1",
+          "parent_clause_id": "3",
+          "page_number": 6,
+          "text": "3.1 Giá trị hợp đồng.\nGiá trị hợp đồng đã thực hiện:49.900.000 (Bốn mươi chín triệu chín trăm nghìn đồng)",
+          "line_ids": [
+            "contract-001:s1:p006:l008",
+            "contract-001:s1:p006:l009"
+          ],
+          "regions": [
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.12111459676873643,
+                0.19352504748243415,
+                0.1505113441793989,
+                0.21193363449886113
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.8757878742518039,
+                0.21621214654241316,
+                0.930653942293299,
+                0.23462073355884017
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "3.2",
+          "level": "clause",
+          "label": "3.2",
+          "title": "CLAUSE_3.2",
+          "parent_clause_id": "3",
+          "page_number": 6,
+          "text": "3.2 Nghĩa vụ thanh toán.\nBên A có trách nhiệm thanh toán cho bên B đủ 100% giá trị hợp đồng theo đúng\nquy định trong hợp đồng, số tiền cụ thể như sau:\nTổng giá trị hợp đồng: 49.900.000 (Bốn mươi chín triệu chín trăm nghìn đồng)\nSố tiền bên B đã tạm ứng: 0 đồng\nSố tiền phải thanh toán cho bên B là: 49.900.000 (Bốn mươi chín triệu chín\ntrăm nghìn đồng)\nHình thức thanh toán: Chuyển khoản",
+          "line_ids": [
+            "contract-001:s1:p006:l010",
+            "contract-001:s1:p006:l011",
+            "contract-001:s1:p006:l012",
+            "contract-001:s1:p006:l013",
+            "contract-001:s1:p006:l014",
+            "contract-001:s1:p006:l015",
+            "contract-001:s1:p006:l016",
+            "contract-001:s1:p006:l017"
+          ],
+          "regions": [
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.12111459676873643,
+                0.24079963043521443,
+                0.1505113441793989,
+                0.2592082174516414
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.4718026731026733,
+                0.3924822101273337,
+                0.5292556692701872,
+                0.41089077901931065
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "4",
+          "level": "article",
+          "label": "Điều 4",
+          "title": "ARTICLE_4",
+          "parent_clause_id": null,
+          "page_number": 6,
+          "text": "Điều 4: Kết luận.",
+          "line_ids": [
+            "contract-001:s1:p006:l018"
+          ],
+          "regions": [
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.12111459676873643,
+                0.41516927293841266,
+                0.1681225303635838,
+                0.43357784183038967
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.24061994410188794,
+                0.41516927293841266,
+                0.2910009114714163,
+                0.43357784183038967
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "1",
+          "level": "article",
+          "label": "1.",
+          "title": "ARTICLE_1",
+          "parent_clause_id": null,
+          "page_number": 6,
+          "text": "1. Hai bên thống nhất nghiệm thu Hợp đồng mua bán số /2024/HĐMB ký ngày 20\ntháng 04 năm2024.",
+          "line_ids": [
+            "contract-001:s1:p006:l019",
+            "contract-001:s1:p006:l020"
+          ],
+          "regions": [
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.12111459676873643,
+                0.4378563357494917,
+                0.13875264521513392,
+                0.4562649046414686
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.20863291078243004,
+                0.45697998669230383,
+                0.3020305870942209,
+                0.4753885555842808
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "2",
+          "level": "article",
+          "label": "2.",
+          "title": "ARTICLE_2",
+          "parent_clause_id": null,
+          "page_number": 6,
+          "text": "2. Biên bản nghiệm thu và thanh lý hợp đồng này là căn cứ kết thúc Hợp đồng mua\nbán số /2024/HĐMB ký ngày 20 tháng 04 năm2024.",
+          "line_ids": [
+            "contract-001:s1:p006:l021",
+            "contract-001:s1:p006:l022"
+          ],
+          "regions": [
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.12111459676873643,
+                0.47966704950338285,
+                0.13875264521513392,
+                0.4980756183953598
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.5515669823836874,
+                0.49879066419729495,
+                0.6449646586954784,
+                0.517199233089272
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "3",
+          "level": "article",
+          "label": "3.",
+          "title": "ARTICLE_3",
+          "parent_clause_id": null,
+          "page_number": 6,
+          "text": "3. Bên A thanh toán toàn bộ số tiền cho bên B khi nhận được hóa đơn hợp lệ theo\nđúng hợp đồng giữa 2 bên.",
+          "line_ids": [
+            "contract-001:s1:p006:l023",
+            "contract-001:s1:p006:l024"
+          ],
+          "regions": [
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.12111459676873643,
+                0.5214777270083739,
+                0.13875264521513392,
+                0.5398862959003509
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.33368837827806747,
+                0.5406013779511861,
+                0.3735033259991839,
+                0.5590099468431631
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "4",
+          "level": "article",
+          "label": "4.",
+          "title": "ARTICLE_4",
+          "parent_clause_id": null,
+          "page_number": 6,
+          "text": "4. Hai bên đồng ý ký biên bản nghiệm thu và thanh lý hợp đồng với các điều khoản\ntrên không bên nào được tự ý sửa chữa thay đổi biên bản nghiệm thu và thanh lý hợp\nđồng. Biên bản nghiệm thu và thanh lý hợp đồng được lập thành 02 bản mỗi bên giữ 1\nbản có giá trị pháp lý như nhau.\nĐẠI DIỆN BÊN A\nĐẠI DIỆN BÊN B\n(Ký, ghi rõ họ tên và đóng dấu)\n(Ký, ghi rõ họ tên và đóng dấu)\nCỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập – Tự do – Hạnh phúc\nBIÊN BẢN BÀN GIAO, TIẾP NHẬN TÀI SẢN\nHôm nay, ngày tháng năm 2024 tại Trường Tiểu học và Trung học cơ sở Lê\nLợi đã tiến hành cuộc họp bàn giao tài sản giữa :Hộ kinh doanh Lê Toàn (Bên giao) và\nTrường Tiểu học và Trung học cơ sở Lê Lợi (bên nhận).\nI/ THÀNH PHẦN:\nBÊN A (BÊN NHẬN):TRƯỜNG TIỂU HỌC VÀ TRUNG HỌC CƠ SỞ LÊ LỢI\nĐịachỉ:Buôn Chính Hòa, Xã Ia Mláh, Huyện Krông Pa, Tỉnh Gia Lai\nMã số thuế: 5900985976\nSố tài khoản: 9523.3.1129620\nTại : Kho bạc Nhà nước huyện Krông Pa\nĐại diện:\nÔng: Lê Hữu Duẩn\nChức vụ: Hiệu trưởng\nBÊN B (BÊN GIAO): HỘ KINH DOANH LÊ TOÀN\nÔng: Lê Văn Toàn Chứcvụ: Chủ hộ kinh doanh\nĐịachỉ: 39 Kpă Klơng, Thị trấn PhúTúc, Huyện Krông Pa, Tỉnh Gia Lai\nMã số thuế: 8567406687\n* Thông tin chuyển khoản:\nChủ tài khoản: Lê Văn Toàn\nTài khoản số :5007205033781 Mở tại ngân hàng: Agribank Huyện Krông Pa\nII/ NỘI DUNG BÀN GIAO:\nBên B đã tiến hành bàn giao tài sản cho bên A theo biểu thống kê sau:\nBẢN THỐNG KÊ TÀI SẢN BÀN GIAO\nSố\nStt\nTên hàng\nĐơn vị tính\nGhi Chú\nlượng\nBảng phòng Tư vấn học đường\nKích thước: 1,2m x 1,2 m\n- Quy cách: Hàn khung sắt bao bằng sắt\nhộp 3x3 dày 1,2 ly , Sơn trắng, Nền alu\n01\n04\nCái\n0.5mm , dán Alu.\nBảng tên phòng, thư mục sách\n02\nKích thước: 0,15m x 0,3 m\n20\nCái\n- Quy cách: Mica\nBảng khẩu hiệu đoàn & đội\nKích thước: 1,2m x 2,4 m\n- Quy cách: Hàn khung sắt bao bằng sắt\nhộp 3x3 dày 1,2 ly, Nền alu 0.5mm , dán\n03\n06\nCái\nĐềcan.\nBảng hình hoạt động, điều lệ đội\n1, điều lệ đội 2\nKích thước: 2,4m x 5,2 m\n04\n02\nCái\n- Quy cách: Hàn khung sắt bao bằng sắt\nhộp 3x3 dày 1,2 ly , dán Bạt 2 da\nCổng thư viện thân thiện\nKíchthước: 2m x 6 m\n- Quy cách: Hàn khung sắt bao bằng sắt\n05\n01\nCái\nhộp 3x6 dày 1,2 ly , Sơn trắng, Nền alu\nxanh 0.5mm có khung sắt vuông 2, dán\nđecan cáng màng\nBảng trang trí phòng thư viện\nKíchthước: 1,2m x 2,4 m\n- Quy cách: Hàn khung sắt bao bằng sắt\n06\n04\nCái\nhộp 3x3 dày 1,2 ly , Sơn trắng, Nền alu\nxanh 0.5mm có khung sắt vuông 2, dán\nĐêcan\nBảng trang trí phòng truyền\nthống nhà trường\nKíchthước: 2m x 2,4 m\n07\n- Quy cách: Hàn khung sắt bao bằng sắt\n08\nCái\nhộp 3x3 dày 1,2 ly , Sơn trắng, Nền alu\nxanh 0.5mm , dán Đềcan.\nKể từ ngày tháng năm 2024 bên B đã hoàn tất việc cung cấp hàng hóa theo đúng\nhợp đồng và bàn giao cho bên A quản lý, sử dụng.\nBiên bản này lập thành 2 bản có giá trị như nhau. Bên giao giữ 1 bản, bên nhận\ngiữ 1 bản\nĐẠI DIỆN BÊN A\nĐẠI DIỆN BÊN B\n(Ký, ghi rõ họ tên và đóng dấu)\n(Ký, ghi rõ họ tên và đóng dấu)\nMẫusố 08a\nMãhiệu:............\nSố: ....................\nBẢNG XÁC ĐỊNH GIÁ TRỊ KHỐI LƯỢNG CÔNG VIỆC HOÀN THÀNH\n(Áp dụng đối với các khoản chi thường xuyên, chi sự nghiệp có tính chất thường\nxuyên,chi chương trình mục tiêu quốc gia, chương trình mục tiêu sử dụng kinh phí sự\nnghiệp)\n-----------------------------------------------",
+          "line_ids": [
+            "contract-001:s1:p006:l025",
+            "contract-001:s1:p006:l026",
+            "contract-001:s1:p006:l027",
+            "contract-001:s1:p006:l028",
+            "contract-001:s1:p006:l029",
+            "contract-001:s1:p006:l030",
+            "contract-001:s1:p006:l031",
+            "contract-001:s1:p006:l032",
+            "contract-001:s1:p006:l033",
+            "contract-001:s1:p007:l001",
+            "contract-001:s1:p007:l002",
+            "contract-001:s1:p007:l003",
+            "contract-001:s1:p007:l004",
+            "contract-001:s1:p007:l005",
+            "contract-001:s1:p007:l006",
+            "contract-001:s1:p007:l007",
+            "contract-001:s1:p007:l008",
+            "contract-001:s1:p007:l009",
+            "contract-001:s1:p007:l010",
+            "contract-001:s1:p007:l011",
+            "contract-001:s1:p007:l012",
+            "contract-001:s1:p007:l013",
+            "contract-001:s1:p007:l014",
+            "contract-001:s1:p007:l015",
+            "contract-001:s1:p007:l016",
+            "contract-001:s1:p007:l017",
+            "contract-001:s1:p007:l018",
+            "contract-001:s1:p007:l019",
+            "contract-001:s1:p007:l020",
+            "contract-001:s1:p007:l021",
+            "contract-001:s1:p007:l022",
+            "contract-001:s1:p007:l023",
+            "contract-001:s1:p007:l024",
+            "contract-001:s1:p007:l025",
+            "contract-001:s1:p007:l026",
+            "contract-001:s1:p007:l027",
+            "contract-001:s1:p007:l028",
+            "contract-001:s1:p007:l029",
+            "contract-001:s1:p007:l030",
+            "contract-001:s1:p007:l031",
+            "contract-001:s1:p007:l032",
+            "contract-001:s1:p007:l033",
+            "contract-001:s1:p007:l034",
+            "contract-001:s1:p007:l035",
+            "contract-001:s1:p007:l036",
+            "contract-001:s1:p007:l037",
+            "contract-001:s1:p007:l038",
+            "contract-001:s1:p007:l039",
+            "contract-001:s1:p007:l040",
+            "contract-001:s1:p007:l041",
+            "contract-001:s1:p007:l042",
+            "contract-001:s1:p007:l043",
+            "contract-001:s1:p007:l044",
+            "contract-001:s1:p008:l001",
+            "contract-001:s1:p008:l002",
+            "contract-001:s1:p008:l003",
+            "contract-001:s1:p008:l004",
+            "contract-001:s1:p008:l005",
+            "contract-001:s1:p008:l006",
+            "contract-001:s1:p008:l007",
+            "contract-001:s1:p008:l008",
+            "contract-001:s1:p008:l009",
+            "contract-001:s1:p008:l010",
+            "contract-001:s1:p008:l011",
+            "contract-001:s1:p008:l012",
+            "contract-001:s1:p008:l013",
+            "contract-001:s1:p008:l014",
+            "contract-001:s1:p008:l015",
+            "contract-001:s1:p008:l016",
+            "contract-001:s1:p008:l017",
+            "contract-001:s1:p008:l018",
+            "contract-001:s1:p008:l019",
+            "contract-001:s1:p008:l020",
+            "contract-001:s1:p008:l021",
+            "contract-001:s1:p008:l022",
+            "contract-001:s1:p008:l023",
+            "contract-001:s1:p008:l024",
+            "contract-001:s1:p008:l025",
+            "contract-001:s1:p008:l026",
+            "contract-001:s1:p008:l027",
+            "contract-001:s1:p008:l028",
+            "contract-001:s1:p008:l029",
+            "contract-001:s1:p008:l030",
+            "contract-001:s1:p008:l031",
+            "contract-001:s1:p008:l032",
+            "contract-001:s1:p008:l033",
+            "contract-001:s1:p008:l034",
+            "contract-001:s1:p008:l035",
+            "contract-001:s1:p008:l036",
+            "contract-001:s1:p008:l037",
+            "contract-001:s1:p008:l038",
+            "contract-001:s1:p008:l039",
+            "contract-001:s1:p008:l040",
+            "contract-001:s1:p008:l041",
+            "contract-001:s1:p008:l042",
+            "contract-001:s1:p008:l043",
+            "contract-001:s1:p008:l044",
+            "contract-001:s1:p008:l045",
+            "contract-001:s1:p008:l046",
+            "contract-001:s1:p008:l047",
+            "contract-001:s1:p008:l048",
+            "contract-001:s1:p008:l049",
+            "contract-001:s1:p008:l050",
+            "contract-001:s1:p008:l051",
+            "contract-001:s1:p009:l001",
+            "contract-001:s1:p009:l002",
+            "contract-001:s1:p009:l003",
+            "contract-001:s1:p009:l004",
+            "contract-001:s1:p009:l005",
+            "contract-001:s1:p009:l006",
+            "contract-001:s1:p009:l007",
+            "contract-001:s1:p009:l008"
+          ],
+          "regions": [
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.12111459676873643,
+                0.563288440762265,
+                0.13875264521513392,
+                0.5816970096542421
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 6,
+              "bbox_normalized": [
+                0.7195047193508766,
+                0.9274691409489179,
+                0.775640746975945,
+                0.9458777098408949
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            },
+            {
+              "page_number": 7,
+              "bbox_normalized": [
+                0.3825776698730502,
+                0.04350542232795946,
+                0.42172070219183755,
+                0.06191400934438644
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 7,
+              "bbox_normalized": [
+                0.29125961453679,
+                0.8943781000965526,
+                0.3360921662671503,
+                0.9114717763889455
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            },
+            {
+              "page_number": 8,
+              "bbox_normalized": [
+                0.1827637833138189,
+                0.04418006419970186,
+                0.23944743711462393,
+                0.0652184500086345
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 8,
+              "bbox_normalized": [
+                0.8987005636973956,
+                0.86219929906227,
+                0.9418079327746256,
+                0.880607867954247
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            },
+            {
+              "page_number": 9,
+              "bbox_normalized": [
+                0.7480212150354848,
+                0.07361622361569438,
+                0.8159394717361839,
+                0.09202481063212137
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 9,
+              "bbox_normalized": [
+                0.3465456617446527,
+                0.25873551367083764,
+                0.7146157363643261,
+                0.27714410068726464
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "1",
+          "level": "article",
+          "label": "1.",
+          "title": "ARTICLE_1",
+          "parent_clause_id": null,
+          "page_number": 9,
+          "text": "1. Đơn vị sử dụng ngân sách:TRƯỜNG TIỂU HỌC VÀ TRUNG HỌC CƠ SỞ LÊ LỢI",
+          "line_ids": [
+            "contract-001:s1:p009:l009"
+          ],
+          "regions": [
+            {
+              "page_number": 9,
+              "bbox_normalized": [
+                0.12111459676873643,
+                0.2944883837499951,
+                0.13875264521513392,
+                0.3128969526419721
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 9,
+              "bbox_normalized": [
+                0.877807772831385,
+                0.2960758862022332,
+                0.9166115409300905,
+                0.3125121343192841
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "2",
+          "level": "article",
+          "label": "2.",
+          "title": "ARTICLE_2",
+          "parent_clause_id": null,
+          "page_number": 9,
+          "text": "2. Mã đơn vị: 1129620 Mã nguồn: 13",
+          "line_ids": [
+            "contract-001:s1:p009:l010"
+          ],
+          "regions": [
+            {
+              "page_number": 9,
+              "bbox_normalized": [
+                0.12111459676873643,
+                0.3136120709417073,
+                0.13875264521513392,
+                0.33202063983368424
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 9,
+              "bbox_normalized": [
+                0.45103009598644994,
+                0.3136120709417073,
+                0.4745474939149799,
+                0.33202063983368424
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "3",
+          "level": "article",
+          "label": "3.",
+          "title": "ARTICLE_3",
+          "parent_clause_id": null,
+          "page_number": 9,
+          "text": "3. Mã CTMTQG, Dự án ODA : 00000",
+          "line_ids": [
+            "contract-001:s1:p009:l011"
+          ],
+          "regions": [
+            {
+              "page_number": 9,
+              "bbox_normalized": [
+                0.12111459676873643,
+                0.3327356856356194,
+                0.13875264521513392,
+                0.35114425452759634
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 9,
+              "bbox_normalized": [
+                0.4257959483096255,
+                0.3327356856356194,
+                0.48458946876288006,
+                0.35114425452759634
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "4",
+          "level": "article",
+          "label": "4.",
+          "title": "ARTICLE_4",
+          "parent_clause_id": null,
+          "page_number": 9,
+          "text": "4. Căn cứ Hợp đồng mua bán số /2024/HĐMB ký ngày 20 tháng 03năm 2024 giữa\nTrường Tiểu học và Trung học cơ sở Lê Lợi với Hộ kinh doanh Lê Toàn,\ngiátrịhợpđồngđãký:49.900.000đồng (Viết bằng chữ: Bốn mươi chín triệu chín trăm\nnghìn đồng).",
+          "line_ids": [
+            "contract-001:s1:p009:l012",
+            "contract-001:s1:p009:l013",
+            "contract-001:s1:p009:l014",
+            "contract-001:s1:p009:l015"
+          ],
+          "regions": [
+            {
+              "page_number": 9,
+              "bbox_normalized": [
+                0.12111459676873643,
+                0.3518593003295315,
+                0.13875264521513392,
+                0.37026786922150845
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 9,
+              "bbox_normalized": [
+                0.1805430585658833,
+                0.4092302531579679,
+                0.2412885017214404,
+                0.4276388220499449
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "5",
+          "level": "article",
+          "label": "5.",
+          "title": "ARTICLE_5",
+          "parent_clause_id": null,
+          "page_number": 9,
+          "text": "5. Căn cứ Biên bản nghiệm thuvà thanh lý hợp đồng số /BBNT - TLHĐ ngày\ntháng năm 2024giữa Trường THCS Lê Lợi và Hộ kinh doanh Lê Toàn.\nSt\nGhi\nTên hàng\nSL\nĐVT\nĐơn giá\nThành tiền\nt\nChú\nBảng phòng Tư vấn\nhọc đường\nKích thước: 1,2m x 1,2 m\n- Quy cách: Hàn khung sắt\n01\nbao bằng sắt hộp 3x3 dày\n04\nCái\n1,000,000\n4,000,000\n1,2 ly , Sơn trắng, Nền alu\n0.5mm , dán Alu.\nBảng tên phòng, thư\nmục sách\n02\nKích thước: 0,15m x 0,3 m\n20\nCái\n100,000\n2,000,000\n- Quy cách: Mica\n03 Bảng khẩu hiệu đoàn\n06\nCái\n2,000,000\n12,000,000\n& đội\nKích thước: 1,2m x 2,4 m\n- Quy cách: Hàn khung sắt\nbao bằng sắt hộp 3x3 dày\n1,2 ly, Nền alu 0.5mm , dán\nĐềcan.\nBảng hình hoạt động,\nđiều lệ đội 1, điều lệ\nđội 2\nKích thước: 2,4m x 5,2 m\n04\n02\nCái\n1,500,000\n3,000,000\n- Quy cách: Hàn khung sắt\nbao bằng sắt hộp 3x3 dày\n1,2 ly , dán Bạt 2 da\nCổng thư viện thân\nthiện\nKíchthước: 2m x 6 m\n- Quy cách: Hàn khung sắt\n05\nbao bằng sắt hộp 3x6 dày\n01\nCái\n4,900,000\n4,900,000\n1,2 ly , Sơn trắng, Nền alu\nxanh 0.5mm có khung sắt\nvuông 2, dán đecan cáng\nmàng\nBảng trang trí phòng\nthư viện\nKíchthước: 1,2m x 2,4 m\n- Quy cách: Hàn khung sắt\n06\n04\nCái\n2,000,000\nbao bằng sắt hộp 3x3 dày\n8,000,000\n1,2 ly , Sơn trắng, Nền alu\nxanh 0.5mm có khung sắt\nvuông 2, dán Đêcan\nBảng trang trí phòng\ntruyền thống nhà\ntrường\nKíchthước: 2m x 2,4 m\n07\n- Quy cách: Hàn khung sắt\n08\nCái\n2,000,000\n16,000,000\nbao bằng sắt hộp 3x3 dày\n1,2 ly , Sơn trắng, Nền alu\nxanh 0.5mm , dán Đềcan.\nTổng cộng\n49,900,000\nBằng chữ: Bốn mươi chín triệu chín trăm nghìn đồng",
+          "line_ids": [
+            "contract-001:s1:p009:l016",
+            "contract-001:s1:p009:l017",
+            "contract-001:s1:p009:l018",
+            "contract-001:s1:p009:l019",
+            "contract-001:s1:p009:l020",
+            "contract-001:s1:p009:l021",
+            "contract-001:s1:p009:l022",
+            "contract-001:s1:p009:l023",
+            "contract-001:s1:p009:l024",
+            "contract-001:s1:p009:l025",
+            "contract-001:s1:p009:l026",
+            "contract-001:s1:p009:l027",
+            "contract-001:s1:p009:l028",
+            "contract-001:s1:p009:l029",
+            "contract-001:s1:p009:l030",
+            "contract-001:s1:p009:l031",
+            "contract-001:s1:p009:l032",
+            "contract-001:s1:p009:l033",
+            "contract-001:s1:p009:l034",
+            "contract-001:s1:p009:l035",
+            "contract-001:s1:p009:l036",
+            "contract-001:s1:p009:l037",
+            "contract-001:s1:p009:l038",
+            "contract-001:s1:p009:l039",
+            "contract-001:s1:p009:l040",
+            "contract-001:s1:p009:l041",
+            "contract-001:s1:p009:l042",
+            "contract-001:s1:p009:l043",
+            "contract-001:s1:p009:l044",
+            "contract-001:s1:p009:l045",
+            "contract-001:s1:p009:l046",
+            "contract-001:s1:p009:l047",
+            "contract-001:s1:p009:l048",
+            "contract-001:s1:p009:l049",
+            "contract-001:s1:p009:l050",
+            "contract-001:s1:p009:l051",
+            "contract-001:s1:p009:l052",
+            "contract-001:s1:p009:l053",
+            "contract-001:s1:p009:l054",
+            "contract-001:s1:p009:l055",
+            "contract-001:s1:p009:l056",
+            "contract-001:s1:p009:l057",
+            "contract-001:s1:p009:l058",
+            "contract-001:s1:p010:l001",
+            "contract-001:s1:p010:l002",
+            "contract-001:s1:p010:l003",
+            "contract-001:s1:p010:l004",
+            "contract-001:s1:p010:l005",
+            "contract-001:s1:p010:l006",
+            "contract-001:s1:p010:l007",
+            "contract-001:s1:p010:l008",
+            "contract-001:s1:p010:l009",
+            "contract-001:s1:p010:l010",
+            "contract-001:s1:p010:l011",
+            "contract-001:s1:p010:l012",
+            "contract-001:s1:p010:l013",
+            "contract-001:s1:p010:l014",
+            "contract-001:s1:p010:l015",
+            "contract-001:s1:p010:l016",
+            "contract-001:s1:p010:l017",
+            "contract-001:s1:p010:l018",
+            "contract-001:s1:p010:l019",
+            "contract-001:s1:p010:l020",
+            "contract-001:s1:p010:l021",
+            "contract-001:s1:p010:l022",
+            "contract-001:s1:p010:l023",
+            "contract-001:s1:p010:l024",
+            "contract-001:s1:p010:l025",
+            "contract-001:s1:p010:l026",
+            "contract-001:s1:p010:l027",
+            "contract-001:s1:p010:l028",
+            "contract-001:s1:p010:l029",
+            "contract-001:s1:p010:l030",
+            "contract-001:s1:p010:l031",
+            "contract-001:s1:p010:l032",
+            "contract-001:s1:p010:l033",
+            "contract-001:s1:p010:l034",
+            "contract-001:s1:p010:l035",
+            "contract-001:s1:p010:l036",
+            "contract-001:s1:p010:l037",
+            "contract-001:s1:p010:l038",
+            "contract-001:s1:p010:l039",
+            "contract-001:s1:p010:l040",
+            "contract-001:s1:p010:l041",
+            "contract-001:s1:p010:l042",
+            "contract-001:s1:p010:l043",
+            "contract-001:s1:p010:l044",
+            "contract-001:s1:p010:l045",
+            "contract-001:s1:p010:l046",
+            "contract-001:s1:p010:l047",
+            "contract-001:s1:p010:l048",
+            "contract-001:s1:p010:l049",
+            "contract-001:s1:p010:l050",
+            "contract-001:s1:p010:l051",
+            "contract-001:s1:p010:l052",
+            "contract-001:s1:p010:l053",
+            "contract-001:s1:p010:l054",
+            "contract-001:s1:p010:l055"
+          ],
+          "regions": [
+            {
+              "page_number": 9,
+              "bbox_normalized": [
+                0.12111459676873643,
+                0.42835390410078006,
+                0.13875264521513392,
+                0.446762472992757
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 9,
+              "bbox_normalized": [
+                0.18267978748054536,
+                0.9366045162359549,
+                0.2450916136427483,
+                0.9536981925283478
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            },
+            {
+              "page_number": 10,
+              "bbox_normalized": [
+                0.18267978748054536,
+                0.09264252813748367,
+                0.23936341564942082,
+                0.11368090941530379
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 10,
+              "bbox_normalized": [
+                0.60726280724994,
+                0.7896244338465549,
+                0.6569315401918909,
+                0.8080330027385318
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "6",
+          "level": "article",
+          "label": "6.",
+          "title": "ARTICLE_6",
+          "parent_clause_id": null,
+          "page_number": 10,
+          "text": "6. Lũy kế thanh toán khối lượng hoàn thành đến cuối kỳ trước:\n- Thanh toán tạm ứng: 0 đồng - Thanh toán trực tiếp: 0 đồng",
+          "line_ids": [
+            "contract-001:s1:p010:l056",
+            "contract-001:s1:p010:l057"
+          ],
+          "regions": [
+            {
+              "page_number": 10,
+              "bbox_normalized": [
+                0.12111459676873643,
+                0.8087481210382671,
+                0.13875264521513392,
+                0.827156689930244
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 10,
+              "bbox_normalized": [
+                0.7481892067020319,
+                0.8278718082299793,
+                0.7952240025590919,
+                0.8462803771219563
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "7",
+          "level": "article",
+          "label": "7.",
+          "title": "ARTICLE_7",
+          "parent_clause_id": null,
+          "page_number": 10,
+          "text": "7. Số dư tạm ứng đến cuối kỳ trước :0 đồng",
+          "line_ids": [
+            "contract-001:s1:p010:l058"
+          ],
+          "regions": [
+            {
+              "page_number": 10,
+              "bbox_normalized": [
+                0.12111459676873643,
+                0.8469954229238914,
+                0.13875264521513392,
+                0.8654039918158684
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 10,
+              "bbox_normalized": [
+                0.4847103489428367,
+                0.8469954229238914,
+                0.5317451447998967,
+                0.8654039918158684
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        },
+        {
+          "clause_id": "8",
+          "level": "article",
+          "label": "8.",
+          "title": "ARTICLE_8",
+          "parent_clause_id": null,
+          "page_number": 10,
+          "text": "8. Số đề nghị thanh toán kỳ này 49.900.000 đồng\n- Thanh toán tạm ứng: 0 đồng - Thanh toán trực tiếp: 49.900.000 đồng\nNgày tháng năm 2024\nĐẠI DIỆN NHÀ CUNG CẤP HÀNG HÓA,\nĐẠI DIỆN ĐƠN VỊ SỬ DỤNG NGÂN\nDỊCH VỤ\nSÁCH\n(Ký, ghi rõ họ tên và đóng dấu)\n(Ký, ghi rõ họ tên và đóng dấu)",
+          "line_ids": [
+            "contract-001:s1:p010:l059",
+            "contract-001:s1:p010:l060",
+            "contract-001:s1:p010:l061",
+            "contract-001:s1:p011:l001",
+            "contract-001:s1:p011:l002",
+            "contract-001:s1:p011:l003",
+            "contract-001:s1:p011:l004",
+            "contract-001:s1:p011:l005",
+            "contract-001:s1:p011:l006"
+          ],
+          "regions": [
+            {
+              "page_number": 10,
+              "bbox_normalized": [
+                0.12111459676873643,
+                0.8661190376178035,
+                0.13875264521513392,
+                0.8845276065097805
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 10,
+              "bbox_normalized": [
+                0.8191613540220599,
+                0.9228960522192954,
+                0.866196201142979,
+                0.9413046211112723
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            },
+            {
+              "page_number": 11,
+              "bbox_normalized": [
+                0.08642643866894414,
+                0.0461779812291596,
+                0.12953382697012136,
+                0.06458656824558659
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "START"
+            },
+            {
+              "page_number": 11,
+              "bbox_normalized": [
+                0.8674560617462931,
+                0.09202718493507314,
+                0.9105634308235231,
+                0.11043577195150013
+              ],
+              "geometry_provenance": "MEASURED",
+              "anchor": "END"
+            }
+          ]
+        }
+      ],
+      "facts": [
+        {
+          "fact_id": "fact-contract-001-signing_date",
+          "type": "date",
+          "field": "signing_date",
+          "raw": "gày 14/06/",
+          "normalized": {
+            "raw": "gày 14/06/"
+          },
+          "context": {
+            "clause_id": "_unnumbered_1",
+            "clause_label": "UNMARKED__unnumbered_1",
+            "clause_title": "UNMARKED__unnumbered_1"
+          },
+          "citation": {
+            "citation_id": "cit-contract-001-contract-001:s1:p001:l006-59",
+            "schema_version": "1.0",
+            "document_id": "contract-001",
+            "document_role": "contract",
+            "document_sha256": "sha256:c193ca9067ce20e56dedab2d6fa40dba7262eb7a9630791a4065377f6c807536",
+            "extraction_revision_id": "ocr-run-demo-contract-001-001",
+            "segments": [
+              {
+                "page_number": 1,
+                "line_id": "contract-001:s1:p001:l006",
+                "char_start": 59,
+                "char_end": 69,
+                "quote": "gày 14/06/",
+                "word_ids": [
+                  "contract-001:s1:p001:w0051",
+                  "contract-001:s1:p001:w0052"
+                ],
+                "bbox": [
+                  0.6673767565561349,
+                  0.18503229269507818,
+                  0.8265895384817286,
+                  0.20344087971150515
+                ],
+                "coordinate_space": "canonical_normalized",
+                "anchor_precision": "word"
+              }
+            ],
+            "validation_status": "valid"
+          },
+          "confidence": {
+            "score": null,
+            "calibrated": false,
+            "calibration_version": null,
+            "signals": {
+              "source_resolved": true,
+              "span_exact_match": true,
+              "anchor_precision_word": true
+            },
+            "review_priority": "low",
+            "reason_codes": []
+          },
+          "human_correction": null
+        },
+        {
+          "fact_id": "fact-contract-001-signing_date",
+          "type": "date",
+          "field": "signing_date",
+          "raw": "01/01/2006",
+          "normalized": {
+            "raw": "01/01/2006"
+          },
+          "context": {
+            "clause_id": "_unnumbered_1",
+            "clause_label": "UNMARKED__unnumbered_1",
+            "clause_title": "UNMARKED__unnumbered_1"
+          },
+          "citation": {
+            "citation_id": "cit-contract-001-contract-001:s1:p001:l007-20",
+            "schema_version": "1.0",
+            "document_id": "contract-001",
+            "document_role": "contract",
+            "document_sha256": "sha256:c193ca9067ce20e56dedab2d6fa40dba7262eb7a9630791a4065377f6c807536",
+            "extraction_revision_id": "ocr-run-demo-contract-001-001",
+            "segments": [
+              {
+                "page_number": 1,
+                "line_id": "contract-001:s1:p001:l007",
+                "char_start": 20,
+                "char_end": 30,
+                "quote": "01/01/2006",
+                "word_ids": [
+                  "contract-001:s1:p001:w0061"
+                ],
+                "bbox": [
+                  0.3081014327223365,
+                  0.20415590738899028,
+                  0.421297390874623,
+                  0.22256449440541726
+                ],
+                "coordinate_space": "canonical_normalized",
+                "anchor_precision": "word"
+              }
+            ],
+            "validation_status": "valid"
+          },
+          "confidence": {
+            "score": null,
+            "calibrated": false,
+            "calibration_version": null,
+            "signals": {
+              "source_resolved": true,
+              "span_exact_match": true,
+              "anchor_precision_word": true
+            },
+            "review_priority": "low",
+            "reason_codes": []
+          },
+          "human_correction": null
+        },
+        {
+          "fact_id": "fact-contract-001-signing_date",
+          "type": "date",
+          "field": "signing_date",
+          "raw": "24/11/2015",
+          "normalized": {
+            "raw": "24/11/2015"
+          },
+          "context": {
+            "clause_id": "_unnumbered_1",
+            "clause_label": "UNMARKED__unnumbered_1",
+            "clause_title": "UNMARKED__unnumbered_1"
+          },
+          "citation": {
+            "citation_id": "cit-contract-001-contract-001:s1:p001:l009-33",
+            "schema_version": "1.0",
+            "document_id": "contract-001",
+            "document_role": "contract",
+            "document_sha256": "sha256:c193ca9067ce20e56dedab2d6fa40dba7262eb7a9630791a4065377f6c807536",
+            "extraction_revision_id": "ocr-run-demo-contract-001-001",
+            "segments": [
+              {
+                "page_number": 1,
+                "line_id": "contract-001:s1:p001:l009",
+                "char_start": 33,
+                "char_end": 43,
+                "quote": "24/11/2015",
+                "word_ids": [
+                  "contract-001:s1:p001:w0085"
+                ],
+                "bbox": [
+                  0.49727527462049365,
+                  0.24240320927461456,
+                  0.6043734736185928,
+                  0.26081179629104156
+                ],
+                "coordinate_space": "canonical_normalized",
+                "anchor_precision": "word"
+              }
+            ],
+            "validation_status": "valid"
+          },
+          "confidence": {
+            "score": null,
+            "calibrated": false,
+            "calibration_version": null,
+            "signals": {
+              "source_resolved": true,
+              "span_exact_match": true,
+              "anchor_precision_word": true
+            },
+            "review_priority": "low",
+            "reason_codes": []
+          },
+          "human_correction": null
+        },
+        {
+          "fact_id": "fact-contract-001-signing_date",
+          "type": "date",
+          "field": "signing_date",
+          "raw": "01/1/2017",
+          "normalized": {
+            "raw": "01/1/2017"
+          },
+          "context": {
+            "clause_id": "_unnumbered_1",
+            "clause_label": "UNMARKED__unnumbered_1",
+            "clause_title": "UNMARKED__unnumbered_1"
+          },
+          "citation": {
+            "citation_id": "cit-contract-001-contract-001:s1:p001:l010-0",
+            "schema_version": "1.0",
+            "document_id": "contract-001",
+            "document_role": "contract",
+            "document_sha256": "sha256:c193ca9067ce20e56dedab2d6fa40dba7262eb7a9630791a4065377f6c807536",
+            "extraction_revision_id": "ocr-run-demo-contract-001-001",
+            "segments": [
+              {
+                "page_number": 1,
+                "line_id": "contract-001:s1:p001:l010",
+                "char_start": 0,
+                "char_end": 9,
+                "quote": "01/1/2017",
+                "word_ids": [
+                  "contract-001:s1:p001:w0094"
+                ],
+                "bbox": [
+                  0.12111459676873643,
+                  0.26152682396852667,
+                  0.21645410961853537,
+                  0.27993541098495367
+                ],
+                "coordinate_space": "canonical_normalized",
+                "anchor_precision": "word"
+              }
+            ],
+            "validation_status": "valid"
+          },
+          "confidence": {
+            "score": null,
+            "calibrated": false,
+            "calibration_version": null,
+            "signals": {
+              "source_resolved": true,
+              "span_exact_match": true,
+              "anchor_precision_word": true
+            },
+            "review_priority": "low",
+            "reason_codes": []
+          },
+          "human_correction": null
+        },
+        {
+          "fact_id": "fact-contract-001-contract_value",
+          "type": "money",
+          "field": "contract_value",
+          "raw": "49.900.000 đồng",
+          "normalized": {
+            "amount": "49900000",
+            "currency": "VND"
+          },
+          "context": {
+            "clause_id": "_unnumbered_1",
+            "clause_label": "UNMARKED__unnumbered_1",
+            "clause_title": "UNMARKED__unnumbered_1"
+          },
+          "citation": {
+            "citation_id": "cit-contract-001-contract-001:s1:p003:l001-18",
+            "schema_version": "1.0",
+            "document_id": "contract-001",
+            "document_role": "contract",
+            "document_sha256": "sha256:c193ca9067ce20e56dedab2d6fa40dba7262eb7a9630791a4065377f6c807536",
+            "extraction_revision_id": "ocr-run-demo-contract-001-001",
+            "segments": [
+              {
+                "page_number": 3,
+                "line_id": "contract-001:s1:p003:l001",
+                "char_start": 18,
+                "char_end": 33,
+                "quote": "49.900.000 đồng",
+                "word_ids": [
+                  "contract-001:s1:p003:w0005",
+                  "contract-001:s1:p003:w0006"
+                ],
+                "bbox": [
+                  0.345453767175956,
+                  0.04350542232795946,
+                  0.5043641948600804,
+                  0.06191400934438644
+                ],
+                "coordinate_space": "canonical_normalized",
+                "anchor_precision": "word"
+              }
+            ],
+            "validation_status": "valid"
+          },
+          "confidence": {
+            "score": null,
+            "calibrated": false,
+            "calibration_version": null,
+            "signals": {
+              "source_resolved": true,
+              "span_exact_match": true,
+              "anchor_precision_word": true
+            },
+            "review_priority": "low",
+            "reason_codes": []
+          },
+          "human_correction": null
+        },
+        {
+          "fact_id": "fact-contract-001-payment_term_days",
+          "type": "duration_days",
+          "field": "payment_term_days",
+          "raw": "trong vòng 30 ngày",
+          "normalized": {
+            "days": 30
+          },
+          "context": {
+            "clause_id": "2",
+            "clause_label": "2.",
+            "clause_title": "ARTICLE_2"
+          },
+          "citation": {
+            "citation_id": "cit-contract-001-contract-001:s1:p003:l005-54",
+            "schema_version": "1.0",
+            "document_id": "contract-001",
+            "document_role": "contract",
+            "document_sha256": "sha256:c193ca9067ce20e56dedab2d6fa40dba7262eb7a9630791a4065377f6c807536",
+            "extraction_revision_id": "ocr-run-demo-contract-001-001",
+            "segments": [
+              {
+                "page_number": 3,
+                "line_id": "contract-001:s1:p003:l005",
+                "char_start": 54,
+                "char_end": 72,
+                "quote": "trong vòng 30 ngày",
+                "word_ids": [
+                  "contract-001:s1:p003:w0049",
+                  "contract-001:s1:p003:w0050",
+                  "contract-001:s1:p003:w0051",
+                  "contract-001:s1:p003:w0052"
+                ],
+                "bbox": [
+                  0.7086564665257252,
+                  0.12000002609920803,
+                  0.8965101615221676,
+                  0.13840861311563502
+                ],
+                "coordinate_space": "canonical_normalized",
+                "anchor_precision": "word"
+              }
+            ],
+            "validation_status": "valid"
+          },
+          "confidence": {
+            "score": null,
+            "calibrated": false,
+            "calibration_version": null,
+            "signals": {
+              "source_resolved": true,
+              "span_exact_match": true,
+              "anchor_precision_word": true
+            },
+            "review_priority": "low",
+            "reason_codes": []
+          },
+          "human_correction": null
+        },
+        {
+          "fact_id": "fact-contract-001-contract_value",
+          "type": "money",
+          "field": "contract_value",
+          "raw": "49.900.000đồng",
+          "normalized": {
+            "amount": "49900000",
+            "currency": "VND"
+          },
+          "context": {
+            "clause_id": "4",
+            "clause_label": "4.",
+            "clause_title": "ARTICLE_4"
+          },
+          "citation": {
+            "citation_id": "cit-contract-001-contract-001:s1:p009:l014-18",
+            "schema_version": "1.0",
+            "document_id": "contract-001",
+            "document_role": "contract",
+            "document_sha256": "sha256:c193ca9067ce20e56dedab2d6fa40dba7262eb7a9630791a4065377f6c807536",
+            "extraction_revision_id": "ocr-run-demo-contract-001-001",
+            "segments": [
+              {
+                "page_number": 9,
+                "line_id": "contract-001:s1:p009:l014",
+                "char_start": 18,
+                "char_end": 32,
+                "quote": "49.900.000đồng",
+                "word_ids": [
+                  "contract-001:s1:p009:w0115"
+                ],
+                "bbox": [
+                  0.12111459676873643,
+                  0.3901066022151558,
+                  0.45884122147422557,
+                  0.40851517110713276
+                ],
+                "coordinate_space": "canonical_normalized",
+                "anchor_precision": "word"
+              }
+            ],
+            "validation_status": "valid"
+          },
+          "confidence": {
+            "score": null,
+            "calibrated": false,
+            "calibration_version": null,
+            "signals": {
+              "source_resolved": true,
+              "span_exact_match": true,
+              "anchor_precision_word": true
+            },
+            "review_priority": "low",
+            "reason_codes": []
+          },
+          "human_correction": null
+        },
+        {
+          "fact_id": "fact-contract-001-contract_value",
+          "type": "money",
+          "field": "contract_value",
+          "raw": "49.900.000 đồng",
+          "normalized": {
+            "amount": "49900000",
+            "currency": "VND"
+          },
+          "context": {
+            "clause_id": "8",
+            "clause_label": "8.",
+            "clause_title": "ARTICLE_8"
+          },
+          "citation": {
+            "citation_id": "cit-contract-001-contract-001:s1:p010:l059-32",
+            "schema_version": "1.0",
+            "document_id": "contract-001",
+            "document_role": "contract",
+            "document_sha256": "sha256:c193ca9067ce20e56dedab2d6fa40dba7262eb7a9630791a4065377f6c807536",
+            "extraction_revision_id": "ocr-run-demo-contract-001-001",
+            "segments": [
+              {
+                "page_number": 10,
+                "line_id": "contract-001:s1:p010:l059",
+                "char_start": 32,
+                "char_end": 47,
+                "quote": "49.900.000 đồng",
+                "word_ids": [
+                  "contract-001:s1:p010:w0233",
+                  "contract-001:s1:p010:w0234"
+                ],
+                "bbox": [
+                  0.4249089810180182,
+                  0.8661190376178035,
+                  0.5836514426675251,
+                  0.8845276065097805
+                ],
+                "coordinate_space": "canonical_normalized",
+                "anchor_precision": "word"
+              }
+            ],
+            "validation_status": "valid"
+          },
+          "confidence": {
+            "score": null,
+            "calibrated": false,
+            "calibration_version": null,
+            "signals": {
+              "source_resolved": true,
+              "span_exact_match": true,
+              "anchor_precision_word": true
+            },
+            "review_priority": "low",
+            "reason_codes": []
+          },
+          "human_correction": null
+        },
+        {
+          "fact_id": "fact-contract-001-contract_value",
+          "type": "money",
+          "field": "contract_value",
+          "raw": "49.900.000 đồng",
+          "normalized": {
+            "amount": "49900000",
+            "currency": "VND"
+          },
+          "context": {
+            "clause_id": "8",
+            "clause_label": "8.",
+            "clause_title": "ARTICLE_8"
+          },
+          "citation": {
+            "citation_id": "cit-contract-001-contract-001:s1:p010:l060-53",
+            "schema_version": "1.0",
+            "document_id": "contract-001",
+            "document_role": "contract",
+            "document_sha256": "sha256:c193ca9067ce20e56dedab2d6fa40dba7262eb7a9630791a4065377f6c807536",
+            "extraction_revision_id": "ocr-run-demo-contract-001-001",
+            "segments": [
+              {
+                "page_number": 10,
+                "line_id": "contract-001:s1:p010:l060",
+                "char_start": 53,
+                "char_end": 68,
+                "quote": "49.900.000 đồng",
+                "word_ids": [
+                  "contract-001:s1:p010:w0247",
+                  "contract-001:s1:p010:w0248"
+                ],
+                "bbox": [
+                  0.7481892067020319,
+                  0.887143182140138,
+                  0.9069316939834684,
+                  0.9055517510321149
+                ],
+                "coordinate_space": "canonical_normalized",
+                "anchor_precision": "word"
+              }
+            ],
+            "validation_status": "valid"
+          },
+          "confidence": {
+            "score": null,
+            "calibrated": false,
+            "calibration_version": null,
+            "signals": {
+              "source_resolved": true,
+              "span_exact_match": true,
+              "anchor_precision_word": true
+            },
+            "review_priority": "low",
+            "reason_codes": []
+          },
+          "human_correction": null
+        }
+      ]
+    }
+  ],
+  "findings": []
+}

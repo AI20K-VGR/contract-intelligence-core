@@ -167,7 +167,9 @@ def _check_vn_words(table: LogicalTable, anchor_col: int, config: Config) -> dic
     return {"passed": True, "expected": None, "actual": None, "offending_rows": []}
 
 
-def _evaluate_vn_words_cell(table: LogicalTable, row: LogicalRow, phrase: str, anchor_col: int) -> dict:
+def _evaluate_vn_words_cell(
+    table: LogicalTable, row: LogicalRow, phrase: str, anchor_col: int
+) -> dict:
     try:
         words_value = vn_words_to_number(phrase)
     except ValueError:

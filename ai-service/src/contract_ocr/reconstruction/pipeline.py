@@ -47,7 +47,9 @@ from .table_merger import RawTable, build_table, extract_raw_tables, tables_cont
 
 __all__ = ["reconstruct_document", "resolve_boundary"]
 
-_TABLE_CONTINUATION_RELATIONSHIPS = frozenset({Relationship.TABLE_CONTINUE, Relationship.ROW_CONTINUE})
+_TABLE_CONTINUATION_RELATIONSHIPS = frozenset(
+    {Relationship.TABLE_CONTINUE, Relationship.ROW_CONTINUE}
+)
 
 
 def _resolve(context: BoundaryContext, resolver: BoundaryLLMResolver) -> ReconstructionAction:
@@ -157,9 +159,7 @@ def resolve_boundary(
 
 
 def _content_blocks(page: Page, header_footer: HeaderFooterProfile) -> list[Block]:
-    return [
-        b for b in page.blocks if not header_footer.is_noise(b, page) and b.type != TABLE_ROW
-    ]
+    return [b for b in page.blocks if not header_footer.is_noise(b, page) and b.type != TABLE_ROW]
 
 
 class _DocumentStateTracker:
@@ -411,7 +411,8 @@ def reconstruct_document(
                     ReviewItem(
                         previous_page=previous_page.page,
                         next_page=page.page,
-                        possible_relationships=action.possible_relationships or [Relationship.UNKNOWN],
+                        possible_relationships=action.possible_relationships
+                        or [Relationship.UNKNOWN],
                         source_blocks=[
                             SourceBlockRef(page=previous_page.page, block_id=b.block_id)
                             for b in context.previous_blocks[-1:]
@@ -438,7 +439,9 @@ def reconstruct_document(
             header_footer_action = header_footer.action_for(block, page)
             if header_footer_action is not None:
                 log_event(
-                    "header.ignored" if header_footer_action.action == Action.IGNORE_HEADER else "footer.ignored",
+                    "header.ignored"
+                    if header_footer_action.action == Action.IGNORE_HEADER
+                    else "footer.ignored",
                     document_id=document_id,
                     page=page.page,
                     block_id=block.block_id,

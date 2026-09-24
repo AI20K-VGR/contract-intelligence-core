@@ -41,9 +41,7 @@ TIER: dict[str, int] = {
     ROMAN_PAREN: 2,
 }
 
-_SECTION_RE = re.compile(
-    r"^(?:Điều|ĐIỀU|Article|ARTICLE|Section|SECTION)\s+(\d+)\b", re.UNICODE
-)
+_SECTION_RE = re.compile(r"^(?:Điều|ĐIỀU|Article|ARTICLE|Section|SECTION)\s+(\d+)\b", re.UNICODE)
 _KHOAN_RE = re.compile(r"^(?:Khoản|KHOẢN)\s+(\d+)\b", re.UNICODE)
 # Multi-segment ("5.1", "12.3.4") is unambiguous on its own. A bare single
 # integer ("1", "30") is NOT treated as a marker unless immediately followed

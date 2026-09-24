@@ -46,9 +46,26 @@ _NUMBER_FAMILY = {NUMBER_PAREN}
 _CLAUSE_TIER0_TYPES = {DECIMAL, KHOAN_LABEL}
 
 _ROMAN_VALUES = {
-    "i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7, "viii": 8, "ix": 9, "x": 10,
-    "xi": 11, "xii": 12, "xiii": 13, "xiv": 14, "xv": 15, "xvi": 16, "xvii": 17, "xviii": 18,
-    "xix": 19, "xx": 20,
+    "i": 1,
+    "ii": 2,
+    "iii": 3,
+    "iv": 4,
+    "v": 5,
+    "vi": 6,
+    "vii": 7,
+    "viii": 8,
+    "ix": 9,
+    "x": 10,
+    "xi": 11,
+    "xii": 12,
+    "xiii": 13,
+    "xiv": 14,
+    "xv": 15,
+    "xvi": 16,
+    "xvii": 17,
+    "xviii": 18,
+    "xix": 19,
+    "xx": 20,
 }
 
 
@@ -193,8 +210,12 @@ def _resolve_table(context: BoundaryContext) -> ReconstructionAction | None:
         # more precise ROW_CONTINUE/CONTINUE_ROW signal, scoped to that row.
         reason_codes.append(ReasonCode.INCOMPLETE_TABLE_ROW)
         source_blocks = [
-            SourceBlockRef(page=context.previous_page, table_id=table_id, row_id=last_row.block.block_id),
-            SourceBlockRef(page=context.next_page, table_id=table_id, row_id=first_row.block.block_id),
+            SourceBlockRef(
+                page=context.previous_page, table_id=table_id, row_id=last_row.block.block_id
+            ),
+            SourceBlockRef(
+                page=context.next_page, table_id=table_id, row_id=first_row.block.block_id
+            ),
         ]
         return _decision(
             Action.CONTINUE_ROW,
@@ -212,7 +233,10 @@ def _resolve_table(context: BoundaryContext) -> ReconstructionAction | None:
     # page that simply extends an already-unified table (`active_table`
     # already set — section 6's "previous active structural node").
     action = Action.CONTINUE_TABLE if table_id else Action.MERGE_TABLE
-    source_blocks = [_block_ref(context.previous_page, last_row.block), _block_ref(context.next_page, first_row.block)]
+    source_blocks = [
+        _block_ref(context.previous_page, last_row.block),
+        _block_ref(context.next_page, first_row.block),
+    ]
     return _decision(
         action,
         Relationship.TABLE_CONTINUE,
@@ -266,21 +290,38 @@ def _resolve_new_marker(
         rule_score=1.0, layout_score=1.0, numbering_score=1.0, text_continuity_score=1.0
     )
     reason_codes = [ReasonCode.NEW_NUMBERING]
-    source_blocks = [_block_ref(context.previous_page, previous), _block_ref(context.next_page, next_block)]
+    source_blocks = [
+        _block_ref(context.previous_page, previous),
+        _block_ref(context.next_page, next_block),
+    ]
     state = context.document_state
 
     if next_marker.marker_type == SECTION:
         target = ReconstructionTarget(node_id=next_marker.normalized, parent_id=None)
         return _decision(
-            Action.NEW_SECTION, Relationship.NEW_SECTION, EntityType.SECTION, context, scores,
-            [*reason_codes, ReasonCode.NEW_HEADING], source_blocks, target,
+            Action.NEW_SECTION,
+            Relationship.NEW_SECTION,
+            EntityType.SECTION,
+            context,
+            scores,
+            [*reason_codes, ReasonCode.NEW_HEADING],
+            source_blocks,
+            target,
         )
 
     if next_marker.marker_type in _CLAUSE_TIER0_TYPES:
-        target = ReconstructionTarget(node_id=next_marker.normalized, parent_id=state.active_section)
+        target = ReconstructionTarget(
+            node_id=next_marker.normalized, parent_id=state.active_section
+        )
         return _decision(
-            Action.NEW_CLAUSE, Relationship.NEW_CLAUSE, EntityType.CLAUSE, context, scores,
-            reason_codes, source_blocks, target,
+            Action.NEW_CLAUSE,
+            Relationship.NEW_CLAUSE,
+            EntityType.CLAUSE,
+            context,
+            scores,
+            reason_codes,
+            source_blocks,
+            target,
         )
 
     # A list-family marker (alpha/roman/number-paren) that isn't a sequence
@@ -292,23 +333,37 @@ def _resolve_new_marker(
     node_id = f"{parent}.{next_marker.normalized}" if parent else next_marker.normalized
     target = ReconstructionTarget(node_id=node_id, parent_id=parent)
     return _decision(
-        Action.ATTACH_CHILD, Relationship.NEW_CLAUSE, EntityType.LIST_ITEM, context, scores,
-        reason_codes, source_blocks, target,
+        Action.ATTACH_CHILD,
+        Relationship.NEW_CLAUSE,
+        EntityType.LIST_ITEM,
+        context,
+        scores,
+        reason_codes,
+        source_blocks,
+        target,
     )
 
 
 def _resolve_continuation(
-    context: BoundaryContext, previous: Block, next_block: Block, previous_marker: ClauseMarker | None
+    context: BoundaryContext,
+    previous: Block,
+    next_block: Block,
+    previous_marker: ClauseMarker | None,
 ) -> ReconstructionAction | None:
     previous_terminal = ends_with_sentence_punctuation(previous.text)
     next_new_sentence = starts_like_new_sentence(next_block.text)
     typography_ok = _typography_compatible(previous, next_block)
-    source_blocks = [_block_ref(context.previous_page, previous), _block_ref(context.next_page, next_block)]
+    source_blocks = [
+        _block_ref(context.previous_page, previous),
+        _block_ref(context.next_page, next_block),
+    ]
     state = context.document_state
 
     if not previous_terminal and not next_new_sentence:
         reason_codes = [ReasonCode.NO_END_PUNCTUATION]
-        if _near_bottom(previous, context.previous_page_height) and _near_top(next_block, context.next_page_height):
+        if _near_bottom(previous, context.previous_page_height) and _near_top(
+            next_block, context.next_page_height
+        ):
             reason_codes.append(ReasonCode.BOTTOM_TO_TOP)
         if typography_ok:
             reason_codes.append(ReasonCode.SAME_STYLE)
@@ -319,7 +374,9 @@ def _resolve_continuation(
         # but is not zero: a confirming LLM call can still tip it over.
         confident = 1.0 if typography_ok else 0.89
         scores = ScoreBreakdown(
-            rule_score=confident, layout_score=confident, numbering_score=confident,
+            rule_score=confident,
+            layout_score=confident,
+            numbering_score=confident,
             text_continuity_score=confident,
         )
 
@@ -327,24 +384,48 @@ def _resolve_continuation(
             # The clause is still open (its own opening block is what we're
             # splicing onto) — same clause, tight text merge.
             reason_codes.append(ReasonCode.SAME_ACTIVE_CLAUSE)
-            target = ReconstructionTarget(node_id=state.active_clause, parent_id=state.active_section)
+            target = ReconstructionTarget(
+                node_id=state.active_clause, parent_id=state.active_section
+            )
             return _decision(
-                Action.MERGE_BLOCKS, Relationship.CONTINUE_CLAUSE, EntityType.CLAUSE, context,
-                scores, reason_codes, source_blocks, target,
+                Action.MERGE_BLOCKS,
+                Relationship.CONTINUE_CLAUSE,
+                EntityType.CLAUSE,
+                context,
+                scores,
+                reason_codes,
+                source_blocks,
+                target,
             )
         if state.active_clause is not None:
             # No marker on either block, but a clause is already open: still
             # a paragraph-level splice, scoped to that clause.
             reason_codes.append(ReasonCode.SAME_ACTIVE_CLAUSE)
-            target = ReconstructionTarget(node_id=state.active_clause, parent_id=state.active_section)
-            return _decision(
-                Action.MERGE_BLOCKS, Relationship.CONTINUE_CLAUSE, EntityType.CLAUSE, context,
-                scores, reason_codes, source_blocks, target,
+            target = ReconstructionTarget(
+                node_id=state.active_clause, parent_id=state.active_section
             )
-        target = ReconstructionTarget(node_id=state.active_section) if state.active_section else None
+            return _decision(
+                Action.MERGE_BLOCKS,
+                Relationship.CONTINUE_CLAUSE,
+                EntityType.CLAUSE,
+                context,
+                scores,
+                reason_codes,
+                source_blocks,
+                target,
+            )
+        target = (
+            ReconstructionTarget(node_id=state.active_section) if state.active_section else None
+        )
         return _decision(
-            Action.MERGE_BLOCKS, Relationship.CONTINUE_PARAGRAPH, EntityType.PARAGRAPH, context,
-            scores, reason_codes, source_blocks, target,
+            Action.MERGE_BLOCKS,
+            Relationship.CONTINUE_PARAGRAPH,
+            EntityType.PARAGRAPH,
+            context,
+            scores,
+            reason_codes,
+            source_blocks,
+            target,
         )
 
     if previous_terminal and next_new_sentence:
@@ -353,8 +434,13 @@ def _resolve_continuation(
         )
         reason_codes = [ReasonCode.HAS_END_PUNCTUATION, ReasonCode.NEW_HEADING]
         return _decision(
-            Action.NEW_PARAGRAPH, Relationship.NEW_PARAGRAPH, EntityType.PARAGRAPH, context,
-            scores, reason_codes, source_blocks,
+            Action.NEW_PARAGRAPH,
+            Relationship.NEW_PARAGRAPH,
+            EntityType.PARAGRAPH,
+            context,
+            scores,
+            reason_codes,
+            source_blocks,
         )
 
     # Mixed signals (e.g. terminal punctuation but lowercase-looking next

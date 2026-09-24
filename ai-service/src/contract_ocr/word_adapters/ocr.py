@@ -44,7 +44,15 @@ class OcrAdapter:
                 continue
             bbox = _to_absolute(local_bbox, region.bbox)
             words.append(
-                Word(text=text, x0=bbox[0], y0=bbox[1], x1=bbox[2], y1=bbox[3], page=region.page, source="ocr")
+                Word(
+                    text=text,
+                    x0=bbox[0],
+                    y0=bbox[1],
+                    x1=bbox[2],
+                    y1=bbox[3],
+                    page=region.page,
+                    source="ocr",
+                )
             )
         return words
 
