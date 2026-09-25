@@ -19,6 +19,23 @@ from contract_ocr.infrastructure.ocr.prompts import OCR_SYSTEM_PROMPT
 # longer matches https://developers.openai.com/api/docs/models.
 DEFAULT_MODEL = "gpt-5.6-terra"
 
+# USD per token, keyed by model id, used to compute `cost_details` for Langfuse. Langfuse
+# only auto-prices models it recognizes by name; a model id it doesn't know (any of this
+# module's, so far) shows $0 unless we compute and attach the cost ourselves. Update
+# alongside DEFAULT_MODEL's price comment above when OpenAI's pricing changes.
+_PRICE_PER_TOKEN_USD = {
+    "gpt-5.6-terra": {"input": 2.00 / 1_000_000, "output": 12.00 / 1_000_000},
+}
+
+
+def _cost_details(model: str, usage: dict[str, int] | None) -> dict[str, float] | None:
+    prices = _PRICE_PER_TOKEN_USD.get(model)
+    if not prices or not usage:
+        return None
+    input_cost = usage.get("input", 0) * prices["input"]
+    output_cost = usage.get("output", 0) * prices["output"]
+    return {"input": input_cost, "output": output_cost, "total": input_cost + output_cost}
+
 
 class OpenAIVisionOCREngine(OCREngine):
     """Sends the rendered page image to an OpenAI vision model. Not local: page images
@@ -104,9 +121,11 @@ class OpenAIVisionOCREngine(OCREngine):
             )
             text = response.choices[0].message.content or ""
             if generation is not None:
+                usage = response_usage(response)
                 generation.update(
                     output={"character_count": len(text)},
-                    usage_details=response_usage(response),
+                    usage_details=usage,
+                    cost_details=_cost_details(self.model, usage),
                 )
 
         directory = Path(context.output_dir)

@@ -168,15 +168,26 @@ def _get_engine(engine_id: str) -> OCREngine | None:
 
                 _engine_cache[engine_id] = GeminiVisionOCREngine(enabled=True)
             elif engine_id == "mistral":
+                # Text (prose) is read by OpenAI's vision model -- measurably more
+                # accurate on Vietnamese diacritics than Mistral's dedicated OCR
+                # endpoint on this codebase's documents (confirmed by re-running the
+                # same page image through both: Mistral produced "khà nang truy vét t
+                # ur du lieu..." where OpenAI read it correctly). Mistral stays the
+                # source of table structure and bbox geometry -- it is the only
+                # engine here whose blocks carry a real, measured pixel bbox and
+                # whose table markdown `markdown_tables.build_table_from_block` can
+                # parse. If OpenAI itself runs out of quota, FallbackOCREngine drops
+                # back to Mistral for text rather than failing the page outright.
                 from contract_ocr.infrastructure.ocr.fallback_ocr import FallbackOCREngine
+                from contract_ocr.infrastructure.ocr.hybrid_ocr import HybridOCREngine
                 from contract_ocr.infrastructure.ocr.mistral_ocr import MistralOCREngine
                 from contract_ocr.infrastructure.ocr.openai_vision_ocr import (
                     OpenAIVisionOCREngine,
                 )
 
-                _engine_cache[engine_id] = FallbackOCREngine(
-                    MistralOCREngine(enabled=True), OpenAIVisionOCREngine(enabled=True)
-                )
+                mistral = MistralOCREngine(enabled=True)
+                text_engine = FallbackOCREngine(OpenAIVisionOCREngine(enabled=True), mistral)
+                _engine_cache[engine_id] = HybridOCREngine(text_engine, mistral)
         return _engine_cache[engine_id]
 
 
