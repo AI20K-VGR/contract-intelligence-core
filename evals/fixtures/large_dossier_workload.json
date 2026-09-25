@@ -1,0 +1,16 @@
+{
+  "schema_version": "ai2.large-dossier.workload.v1",
+  "payload": "ai-service/fixtures/eval_inputs/snapshots/ai1.full.v1.json",
+  "profile": "deterministic_handoff_budget_probe",
+  "limits": {
+    "pages": 2000,
+    "members": 5000,
+    "chunks": 5000,
+    "edges": 5000,
+    "citations": 5000,
+    "seconds": 300,
+    "provider_calls": 20,
+    "tokens": 100000,
+    "rss_mb": 1024
+  }
+}

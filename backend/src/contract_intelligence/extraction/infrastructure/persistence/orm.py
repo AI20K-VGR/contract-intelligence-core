@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from contract_intelligence.shared.persistence.base import Base
@@ -42,6 +42,22 @@ class PipelineRunORM(Base):
     config_snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai2_result_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai2_result_digest: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
+    ai2_idempotency_key: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
+    ai2_job_status: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai2_review_state: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai2_completeness_state: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai2_reason_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai2_evidence_ready: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    ai2_input_counts: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai2_output_counts: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai2_dropped_records: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    ai2_evidence_issue_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -191,6 +207,8 @@ class DocTableORM(Base):
     rows_count: Mapped[int] = mapped_column(Integer, nullable=False)
     cols_count: Mapped[int] = mapped_column(Integer, nullable=False)
     has_borders: Mapped[bool] = mapped_column(String, nullable=False, server_default="true")
+    is_multi_page: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    continued_from: Mapped[str | None] = mapped_column(Text, nullable=True)
     cells: Mapped[str] = mapped_column(Text, nullable=False)  # JSON array
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from sqlalchemy import func, select
@@ -570,6 +571,110 @@ class ClauseNodeRepositoryImpl:
 # ============================================================================
 
 
+def _table_rows(raw_cells: str) -> dict[int, list[dict[str, Any]]]:
+    try:
+        cells = json.loads(raw_cells or "[]")
+    except (TypeError, json.JSONDecodeError):
+        return {}
+    rows: dict[int, list[dict[str, Any]]] = {}
+    for cell in cells if isinstance(cells, list) else []:
+        if not isinstance(cell, dict):
+            continue
+        try:
+            row_index = int(cell.get("row_idx", 0))
+        except (TypeError, ValueError):
+            continue
+        rows.setdefault(row_index, []).append(cell)
+    return rows
+
+
+def _row_text(row: list[dict[str, Any]]) -> str:
+    return " ".join(str(cell.get("text") or "").strip() for cell in row).strip().lower()
+
+
+def _row_anchor(row: list[dict[str, Any]]) -> int | None:
+    first = next((cell for cell in row if int(cell.get("col_idx", 0)) == 0), None)
+    if not first:
+        return None
+    match = re.fullmatch(r"\d{1,3}", str(first.get("text") or "").strip())
+    return int(match.group()) if match else None
+
+
+def _last_numeric_anchor(table: dict[str, Any]) -> int | None:
+    rows = _table_rows(str(table.get("cells") or ""))
+    for row_index in sorted(rows, reverse=True):
+        anchor = _row_anchor(rows[row_index])
+        if anchor is not None:
+            return anchor
+        if any(token in _row_text(rows[row_index]) for token in ("tổng", "total", "subtotal")):
+            return None
+    return None
+
+
+def _first_numeric_anchor(table: dict[str, Any]) -> int | None:
+    rows = _table_rows(str(table.get("cells") or ""))
+    for row_index in sorted(rows):
+        anchor = _row_anchor(rows[row_index])
+        if anchor is not None:
+            return anchor
+    return None
+
+
+def _numeric_row_shape(table: dict[str, Any], *, first: bool) -> int:
+    rows = _table_rows(str(table.get("cells") or ""))
+    indexes = sorted(rows) if first else sorted(rows, reverse=True)
+    for row_index in indexes:
+        if _row_anchor(rows[row_index]) is not None:
+            return len({int(cell.get("col_idx", 0)) for cell in rows[row_index]})
+    return 0
+
+
+def _infer_legacy_continuity(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Recover links for snapshots created before v10 lost table_continuity.
+
+    The only automatic legacy merge signal is a same-width table on the next
+    page whose first STT is exactly the previous fragment's last STT + 1. This
+    avoids joining unrelated tables that merely share a column count.
+    """
+    by_page: dict[int, list[dict[str, Any]]] = {}
+    for row in rows:
+        by_page.setdefault(int(row.get("page_no") or 0), []).append(row)
+    for page_rows in by_page.values():
+        page_rows.sort(key=lambda row: str(row.get("id") or ""))
+
+    for page_no in sorted(by_page):
+        previous = by_page.get(page_no - 1, [])
+        current = by_page[page_no]
+        if not previous or not current:
+            continue
+        prior = next(
+            (
+                candidate
+                for candidate in reversed(previous)
+                if _last_numeric_anchor(candidate) is not None
+            ),
+            None,
+        )
+        fragment = next(
+            (candidate for candidate in current if _first_numeric_anchor(candidate) is not None),
+            None,
+        )
+        if prior is None or fragment is None:
+            continue
+        if fragment.get("continued_from") or fragment.get("is_multi_page"):
+            continue
+        if _numeric_row_shape(prior, first=False) != _numeric_row_shape(fragment, first=True):
+            continue
+        last_anchor = _last_numeric_anchor(prior)
+        first_anchor = _first_numeric_anchor(fragment)
+        if last_anchor is None or first_anchor != last_anchor + 1:
+            continue
+        prior["is_multi_page"] = True
+        fragment["is_multi_page"] = True
+        fragment["continued_from"] = prior.get("id")
+    return rows
+
+
 class DocTableRepositoryImpl:
     def __init__(self, session: AsyncSession, tenant_id: str) -> None:
         self._session = session
@@ -585,7 +690,7 @@ class DocTableRepositoryImpl:
             .order_by(DocTableORM.page_no)
         )
         result = await self._session.execute(stmt)
-        return [
+        rows = [
             {
                 "id": t.id,
                 "document_id": t.document_id,
@@ -594,12 +699,13 @@ class DocTableRepositoryImpl:
                 "rows_count": t.rows_count,
                 "cols_count": t.cols_count,
                 "has_borders": t.has_borders,
-                "is_multi_page": False,
-                "continued_from": None,
+                "is_multi_page": t.is_multi_page,
+                "continued_from": t.continued_from,
                 "cells": t.cells,
             }
             for t in result.scalars().all()
         ]
+        return _infer_legacy_continuity(rows)
 
 
 __all__ = [

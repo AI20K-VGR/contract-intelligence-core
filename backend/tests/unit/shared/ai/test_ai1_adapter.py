@@ -112,3 +112,125 @@ def test_adapts_ai1_snapshot_v1_at_service_boundary() -> None:
     assert payload.clauses[0].regions[0].page_no == 1
     assert payload.clauses[1].source_id == "cl-1"
     assert payload.clauses[1].parent_source_id == "art-1"
+
+
+def test_adapts_table_continuation_graph_for_backend_persistence() -> None:
+    def page(number: int, table: dict) -> dict:
+        return {
+            "page_number": number,
+            "status": "SUCCESS",
+            "input_type": "TEXT_LAYER",
+            "source_page_width": 595.0,
+            "source_page_height": 842.0,
+            "rotation_degrees": 0,
+            "page_image_ref": {
+                "uri": f"storage://pages/{number}.png",
+                "width_px": 100,
+                "height_px": 100,
+            },
+            "text": "",
+            "lines": [],
+            "words": [],
+            "blocks": [],
+            "table_status": "SUCCESS",
+            "tables": [table],
+            "warnings": [],
+            "error": None,
+        }
+
+    result = adapt_ai1_snapshot_result(
+        {
+            "snapshot": {
+                "schema_version": "ai1.snapshot.v1",
+                "dossier_id": "dos-1",
+                "document_id": "doc-1",
+                "page_count": 2,
+                "pages": [
+                    page(
+                        1,
+                        {
+                            "id": "table-1",
+                            "bbox_normalized": [0.1, 0.1, 0.9, 0.5],
+                            "rows": [],
+                            "continued_by_table_id": "table-2",
+                        },
+                    ),
+                    page(
+                        2,
+                        {
+                            "id": "table-2",
+                            "bbox_normalized": [0.1, 0.1, 0.9, 0.5],
+                            "rows": [],
+                            "continues_table_id": "table-1",
+                        },
+                    ),
+                ],
+                "nodes": [],
+            }
+        }
+    )
+
+    assert [table.source_id for table in result.tables] == ["table-1", "table-2"]
+    assert result.tables[0].is_multi_page is True
+    assert result.tables[0].continued_from_source_id is None
+    assert result.tables[1].is_multi_page is True
+    assert result.tables[1].continued_from_source_id == "table-1"
+
+
+def test_adapts_snapshot_table_continuity_links_into_table_rows() -> None:
+    def page(number: int, table_id: str) -> dict:
+        return {
+            "page_number": number,
+            "status": "SUCCESS",
+            "input_type": "TEXT_LAYER",
+            "source_page_width": 595.0,
+            "source_page_height": 842.0,
+            "rotation_degrees": 0,
+            "page_image_ref": {
+                "uri": f"storage://pages/{number}.png",
+                "width_px": 100,
+                "height_px": 100,
+            },
+            "text": "content",
+            "lines": [],
+            "words": [],
+            "blocks": [],
+            "table_status": "SUCCESS",
+            "tables": [
+                {
+                    "id": table_id,
+                    "bbox_normalized": [0.1, 0.1, 0.9, 0.9],
+                    "rows": [],
+                }
+            ],
+            "warnings": [],
+            "error": None,
+        }
+
+    result = adapt_ai1_snapshot_result(
+        {
+            "snapshot": {
+                "schema_version": "ai1.snapshot.v1",
+                "dossier_id": "dos-1",
+                "document_id": "doc-1",
+                "page_count": 2,
+                "pages": [page(1, "table-1"), page(2, "table-2")],
+                "nodes": [],
+                "table_continuity": [
+                    {
+                        "from_table_id": "table-1",
+                        "from_page": 1,
+                        "to_table_id": "table-2",
+                        "to_page": 2,
+                        "decision": "MERGE",
+                        "confidence": 1.0,
+                        "reason_codes": ["ANCHOR_CONTINUOUS"],
+                    }
+                ],
+            }
+        }
+    )
+
+    assert result.tables[0].is_multi_page is True
+    assert result.tables[1].is_multi_page is True
+    assert result.tables[1].continued_from_source_id == "table-1"

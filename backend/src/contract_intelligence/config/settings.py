@@ -102,13 +102,12 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # AI Service (FastAPI bên ngoài — REST polling theo DOC-05c)
     # -------------------------------------------------------------------------
-    # Mode chọn client: "stub" (default — canned responses) hoặc "http" (gọi thật).
-    # Khi ai-service team ready, set AI_SERVICE_MODE=http qua env.
+    # Canonical production mode is HTTP. Stub remains an explicit compatibility
+    # setting for deterministic tests/demo only.
     ai_service_mode: Literal["stub", "http"] = Field(
-        default="stub",
+        default="http",
         description=(
-            '"stub" — in-memory canned responses (mặc định Sprint 3). '
-            '"http" — gọi HTTP thật tới ai_service_url khi ai-service sẵn sàng.'
+            '"http" — canonical AI service. "stub" — explicit compatibility only.'
         ),
     )
     ai_service_url: str = Field(default="http://localhost:8001")
@@ -123,9 +122,16 @@ class Settings(BaseSettings):
         description="AI1 OCR service base URL (POST {AI1_BASE_URL}/jobs).",
     )
     ai2_base_url: str = Field(
-        default="http://localhost:8002/api/v1",
-        description="AI2 Semantics service base URL (POST {AI2_BASE_URL}/process).",
+        default="http://localhost:8002",
+        description="AI2 canonical service base URL (POST {AI2_BASE_URL}/jobs/idp).",
     )
+    ai2_service_hmac_secret: str | None = Field(
+        default=None,
+        description="Shared local/service secret for the canonical AI2 envelope; never commit.",
+    )
+    ai2_service_issuer: str = Field(default="backend-service")
+    ai2_service_audience: str = Field(default="vsf-ai2")
+    ai2_service_key_id: str = Field(default="default")
     # Background dispatcher tuning
     ai_dispatcher_poll_interval_seconds: float = Field(default=1.5, ge=0.1, le=60.0)
     ai_dispatcher_max_polls: int = Field(default=200, ge=10, le=10_000)

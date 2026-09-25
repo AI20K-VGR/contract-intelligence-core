@@ -23,6 +23,9 @@ from contract_ocr.infrastructure.ocr.mistral_ocr import MistralOCREngine
 from contract_ocr.infrastructure.pdf.pymupdf_extractor import PyMuPDFExtractor
 from contract_ocr.infrastructure.reporting import FileReporter, write_csv, write_json
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_CONFIG = PROJECT_ROOT / "configs" / "default.yaml"
+
 
 def benchmark(args: argparse.Namespace) -> None:
     settings = load_settings(args.config)
@@ -239,14 +242,14 @@ def main(argv: list[str] | None = None) -> int:
     run = sub.add_parser("benchmark")
     run.add_argument("--manifest", type=Path, default=Path("data/manifest.csv"))
     run.add_argument("--root", type=Path, default=Path.cwd())
-    run.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
+    run.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     run.add_argument("--engines", default="pymupdf")
     run.add_argument("--experiments", default="")
     run.add_argument("--output", type=Path, required=True)
     run.set_defaults(func=benchmark)
     check = sub.add_parser("inspect")
     check.add_argument("--file", type=Path, required=True)
-    check.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
+    check.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     check.set_defaults(func=inspect)
     snap = sub.add_parser("snapshot")
     snap.add_argument("--file", type=Path, required=True)
@@ -254,7 +257,7 @@ def main(argv: list[str] | None = None) -> int:
     snap.add_argument("--dossier-id", required=True)
     snap.add_argument("--role", choices=["contract", "annex"], required=True)
     snap.add_argument("--filename", default="")
-    snap.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
+    snap.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     snap.add_argument("--engine", default="none", choices=["none", "mistral"])
     snap.add_argument("--dpi", type=int, default=300)
     snap.add_argument("--image-dpi", type=int, default=150)

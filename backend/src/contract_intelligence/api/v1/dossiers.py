@@ -6,15 +6,12 @@ from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from contract_intelligence.api.v1.reviews import list_unresolved_simulated
-from contract_intelligence.contract.domain.entities.job import JobStatus
-from contract_intelligence.contract.infrastructure.persistence.orm import DossierORM, JobORM
+from contract_intelligence.contract.infrastructure.persistence.orm import DossierORM
 from contract_intelligence.infrastructure.ai_adapters import AiAdapterError, query_ai2
-from contract_intelligence.review.infrastructure.persistence.orm import ReviewItemORM
 from contract_intelligence.schemas.queries import DossierQueryRequest, DossierQueryResponse
+from contract_intelligence.shared.acl import AclAction, dossier_access_decision
 from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user
 from contract_intelligence.shared.base import new_ulid, utcnow
 from contract_intelligence.shared.persistence import get_async_session
@@ -84,7 +81,13 @@ async def _acl_check_dossier_access(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "NOT_FOUND", "message": f"Dossier {dossier_id} not found"},
         )
-    if dossier.tenant_id != user.tenant_id:
+    if not dossier_access_decision(
+        action=AclAction.QUERY,
+        principal=user,
+        dossier_id=dossier_id,
+        dossier_tenant_id=dossier.tenant_id,
+        metadata=dossier.metadata_json,
+    ):
         logger.warning(
             "dossiers.query.acl_denied",
             dossier_id=dossier_id,
@@ -94,80 +97,9 @@ async def _acl_check_dossier_access(
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "code": "ACL_DENIED",
-                "message": "Caller tenant does not have access to this dossier",
-            },
+            detail={"code": "ACL_DENIED", "message": "Dossier access denied"},
         )
     return dossier
-
-
-@router.post(
-    "/{id}/approve",
-    status_code=status.HTTP_200_OK,
-    summary="Approve dossier after all review items are resolved",
-    responses={
-        404: {"description": "Dossier not found"},
-        409: {"description": "Unresolved review items remain"},
-    },
-)
-async def approve_dossier(
-    id: str,  # noqa: A002 — path param name per API contract
-    session: Annotated[AsyncSession, Depends(get_async_session)],
-) -> dict[str, Any]:
-    """Simulate HITL approval: require resolved review items, set status APPROVED."""
-    dossier = await session.get(DossierORM, id)
-    if dossier is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "NOT_FOUND", "message": f"Dossier {id} not found"},
-        )
-
-    # Prefer real DB open items when present; fall back to simulated store.
-    db_open = await session.execute(
-        select(ReviewItemORM.id).where(
-            ReviewItemORM.dossier_id == id,
-            ReviewItemORM.status.in_(["open", "needs_more_evidence", "needs_review"]),
-        )
-    )
-    open_ids = [row[0] for row in db_open.all()]
-    if not open_ids:
-        open_ids = list_unresolved_simulated(id)
-
-    if open_ids:
-        logger.warning(
-            "dossiers.approve.unresolved_items",
-            dossier_id=id,
-            open_count=len(open_ids),
-        )
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "code": "UNRESOLVED_REVIEW_ITEMS",
-                "message": "All review items must be resolved before approval",
-                "open_review_item_ids": open_ids,
-            },
-        )
-
-    now = utcnow()
-    approved = JobStatus.APPROVED.value
-    dossier.status = approved
-    dossier.is_approved = True
-    dossier.is_locked = True
-    dossier.updated_at = now
-
-    await session.execute(
-        update(JobORM).where(JobORM.dossier_id == id).values(status=approved, updated_at=now)
-    )
-    await session.flush()
-
-    logger.info("dossiers.approve.ok", dossier_id=id, status=approved)
-    return {
-        "status": "ok",
-        "message": "Dossier approved successfully",
-        "dossier_id": id,
-        "dossier_status": approved,
-    }
 
 
 @router.post(
@@ -188,10 +120,11 @@ async def query_dossier(
     user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> DossierQueryResponse:
     """ACL-gated Q&A: forward to AI2 ``/query`` and persist a QueryTrace."""
-    await _acl_check_dossier_access(session, dossier_id=id, user=user)
+    dossier = await _acl_check_dossier_access(session, dossier_id=id, user=user)
 
     snapshot_version = "latest"
-    snapshot_digest = str(dossier.checksum or "")
+    metadata = dossier.metadata_json if isinstance(dossier.metadata_json, dict) else {}
+    snapshot_digest = str(metadata.get("ai2_snapshot_digest") or dossier.checksum or "").strip()
     ai2_payload: dict[str, Any] = {
         "query": body.query,
         "dossier_id": id,

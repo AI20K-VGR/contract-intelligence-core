@@ -352,6 +352,35 @@ class TestPatchDossier:
         reloaded = await contract_service.get_dossier(dossier.id)
         assert reloaded.metadata == {"key": "value"}
 
+    async def test_partial_metadata_patch_preserves_acl_metadata(
+        self,
+        contract_service: ContractService,
+    ) -> None:
+        dossier = await contract_service.create_dossier(
+            name="D",
+            batch_id=None,
+            metadata={
+                "created_by": "dev-admin-keycloak-id",
+                "created_by_name": "Admin",
+                "access_scope": "mine",
+                "shared_with": [],
+            },
+        )
+
+        patched = await contract_service.patch_dossier(
+            dossier.id,
+            name=None,
+            metadata={"structure_mode": "numbered"},
+        )
+
+        assert patched.metadata == {
+            "created_by": "dev-admin-keycloak-id",
+            "created_by_name": "Admin",
+            "access_scope": "mine",
+            "shared_with": [],
+            "structure_mode": "numbered",
+        }
+
     async def test_metadata_none_does_not_overwrite(
         self,
         contract_service: ContractService,

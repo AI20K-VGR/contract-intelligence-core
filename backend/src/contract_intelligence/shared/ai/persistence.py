@@ -21,7 +21,9 @@ Bounded retry (DOC-05c §7.3):
 
 from __future__ import annotations
 
+import hashlib
 import json
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -45,6 +47,10 @@ from contract_intelligence.shared.ai.schemas import (
     Ai2ComparisonPayload,
     Ai2ExtractionPayload,
     CitationItem,
+    CitationSegmentItem,
+    FactItem,
+    FindingItem,
+    FindingSideItem,
     UsageLedgerReport,
 )
 from contract_intelligence.shared.base import new_ulid
@@ -56,6 +62,133 @@ logger = structlog.get_logger(__name__)
 _FACT_REVIEW_CONFIDENCE = 0.85
 _FINDING_REVIEW_CONFIDENCE = 0.80
 _FINDING_REVIEW_DISPOSITIONS = frozenset({"conflict", "needs_review", "uncertain", "ambiguous"})
+
+
+class Ai2PersistenceConflict(ValueError):
+    """The same idempotency key was reused with a different result digest."""
+
+
+@dataclass(frozen=True)
+class Ai2ReadModel:
+    """Process-reloadable AI2 projection exposed to Backend callers."""
+
+    payload: dict[str, Any]
+    job_status: str
+    review_state: str
+    completeness_state: str
+    reason_code: str | None
+    evidence_ready: bool
+    input_counts: dict[str, int]
+    output_counts: dict[str, int]
+    coverage: dict[str, Any]
+    dropped_records: int
+    evidence_issue_count: int
+
+
+def _result_digest(result: dict[str, Any]) -> str:
+    canonical = json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _result_body(result: dict[str, Any]) -> dict[str, Any]:
+    body = result.get("result")
+    return body if isinstance(body, dict) else {}
+
+
+def _as_dict_list(value: Any) -> list[dict[str, Any]]:
+    return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+
+def evaluate_ai2_completeness(result: dict[str, Any]) -> dict[str, Any]:
+    """Evaluate evidence readiness independently from the wire job status."""
+    body = _result_body(result)
+    facts = _as_dict_list(body.get("facts"))
+    findings = _as_dict_list(body.get("findings"))
+    context_findings = _as_dict_list(body.get("context_findings"))
+    citations = _as_dict_list(body.get("citations"))
+    events = _as_dict_list(body.get("events"))
+    index = body.get("index_contribution")
+    index = index if isinstance(index, dict) else {}
+    chunks = _as_dict_list(index.get("chunks"))
+    evidence_issues = _as_dict_list(index.get("evidence_issues"))
+    citation_ids = {str(item.get("citation_id")) for item in citations if item.get("citation_id")}
+    invalid_records = 0
+    invalid_record_ids: list[tuple[str, str, str, str]] = []
+    for fact in facts:
+        refs = [str(item) for item in fact.get("citation_ids") or []]
+        if not refs or any(ref not in citation_ids for ref in refs):
+            invalid_records += 1
+            invalid_record_ids.append(
+                (
+                    "fact",
+                    str(fact.get("fact_id") or fact.get("item_key") or "unknown"),
+                    "INVALID_CITATION_REFERENCE",
+                    "P1",
+                )
+            )
+    for finding in findings:
+        refs = [
+            str(item)
+            for item in (finding.get("evidence_left_citation_ids") or [])
+            + (finding.get("evidence_right_citation_ids") or [])
+        ]
+        if not refs or any(ref not in citation_ids for ref in refs):
+            invalid_records += 1
+            invalid_record_ids.append(
+                (
+                    "finding",
+                    str(finding.get("finding_id") or finding.get("item_key") or "unknown"),
+                    "INVALID_CITATION_REFERENCE",
+                    "P1",
+                )
+            )
+
+    if not (facts or findings or context_findings or citations or chunks or events):
+        reason_code = "NO_ELIGIBLE_DATA"
+        state = "NO_ELIGIBLE_DATA"
+    elif invalid_records:
+        reason_code = "INVALID_CITATION_REFERENCE"
+        state = "NEEDS_REVIEW"
+    elif not facts and not findings:
+        reason_code = "NO_FACTS_OR_FINDINGS"
+        state = "CONTEXT_ONLY"
+    elif result.get("status") != "SUCCEEDED":
+        reason_code = "JOB_NOT_SUCCEEDED"
+        state = "INCOMPLETE"
+    elif str(result.get("review_state") or "").upper() != "PASS":
+        reason_code = "REVIEW_REQUIRED"
+        state = "NEEDS_REVIEW"
+    else:
+        reason_code = None
+        state = "COMPLETE"
+
+    evidence_ready = state == "COMPLETE" and not evidence_issues
+    input_counts = {
+        str(key): int(value)
+        for key, value in (index.get("coverage", {}).get("input", {}) or {}).items()
+        if isinstance(value, (int, float))
+    }
+    output_counts = {
+        "chunks": len(chunks),
+        "citations": len(citations),
+        "facts": len(facts),
+        "findings": len(findings),
+        "context_findings": len(context_findings),
+        "events": len(events),
+        "evidence_issues": len(evidence_issues),
+        "annex_links": len(_as_dict_list(body.get("annex_links"))),
+    }
+    return {
+        "state": state,
+        "reason_code": reason_code,
+        "evidence_ready": evidence_ready,
+        "input_counts": input_counts,
+        "output_counts": output_counts,
+        "dropped_records": invalid_records,
+        "invalid_record_ids": invalid_record_ids,
+        "evidence_issue_count": len(evidence_issues),
+        "coverage": index.get("coverage") if isinstance(index.get("coverage"), dict) else {},
+    }
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -254,8 +387,14 @@ async def persist_ai1_snapshot(
             clause_orm.parent_id = source_to_row[parent_source_id]
 
     # ── Tables ─────────────────────────────────────────────────────────────
-    for tbl in payload.tables:
-        tbl_id = new_ulid("tb_")
+    table_ids: dict[str, str] = {}
+    for index, tbl in enumerate(payload.tables):
+        source_id = tbl.source_id or f"page:{tbl.page_no}:table:{index}"
+        table_ids[source_id] = new_ulid("tb_")
+
+    for index, tbl in enumerate(payload.tables):
+        source_id = tbl.source_id or f"page:{tbl.page_no}:table:{index}"
+        tbl_id = table_ids[source_id]
         tbl_orm = DocTableORM(
             id=tbl_id,
             tenant_id=tenant_id,
@@ -265,6 +404,8 @@ async def persist_ai1_snapshot(
             rows_count=tbl.rows_count,
             cols_count=tbl.cols_count,
             has_borders="true" if tbl.has_borders else "false",
+            is_multi_page=tbl.is_multi_page or bool(tbl.continued_from_source_id),
+            continued_from=table_ids.get(tbl.continued_from_source_id or ""),
             cells=json.dumps(
                 [
                     {
@@ -544,16 +685,17 @@ async def persist_ai2_comparison(
             text(
                 """
                 INSERT INTO finding_side (
-                    id, finding_id, side, document_id, fact_id, clause_node_id,
+                    id, tenant_id, finding_id, side, document_id, fact_id, clause_node_id,
                     citation_id, value_snapshot
                 ) VALUES (
-                    :id, :finding_id, :side, :document_id, :fact_id, :clause_node_id,
+                    :id, :tenant_id, :finding_id, :side, :document_id, :fact_id, :clause_node_id,
                     :citation_id, :value_snapshot
                 )
                 """
             ),
             {
                 "id": new_ulid("fs_"),
+                "tenant_id": tenant_id,
                 "finding_id": finding_id,
                 "side": "a",
                 "document_id": finding.side_a.document_id,
@@ -569,16 +711,17 @@ async def persist_ai2_comparison(
             text(
                 """
                 INSERT INTO finding_side (
-                    id, finding_id, side, document_id, fact_id, clause_node_id,
+                    id, tenant_id, finding_id, side, document_id, fact_id, clause_node_id,
                     citation_id, value_snapshot
                 ) VALUES (
-                    :id, :finding_id, :side, :document_id, :fact_id, :clause_node_id,
+                    :id, :tenant_id, :finding_id, :side, :document_id, :fact_id, :clause_node_id,
                     :citation_id, :value_snapshot
                 )
                 """
             ),
             {
                 "id": new_ulid("fs_"),
+                "tenant_id": tenant_id,
                 "finding_id": finding_id,
                 "side": "b",
                 "document_id": finding.side_b.document_id,
@@ -629,6 +772,259 @@ async def persist_ai2_comparison(
         review_items=len(finding_review_targets),
     )
     return inserted
+
+
+def _canonical_citation_item(raw: dict[str, Any]) -> CitationItem:
+    """Map one canonical AI2 citation to the legacy DB persistence DTO."""
+
+    page = int(raw.get("page") or (raw.get("page_range") or [1])[0] or 1)
+    line_ids = [str(item) for item in raw.get("line_ids") or []]
+    segment = CitationSegmentItem(
+        page_no=page,
+        line_id=line_ids[0] if line_ids else str(raw.get("node_id") or "ai2"),
+        char_start=int(raw.get("char_start") or 0),
+        char_end=int(raw.get("char_end") or 0),
+        bbox=tuple(float(item) for item in (raw.get("bbox") or [0, 0, 0, 0])),
+    )
+    return CitationItem(
+        quote=str(raw.get("text_span") or ""),
+        quote_sha256=str(raw.get("quote_sha256") or ""),
+        doc_char_start=int(raw.get("char_start") or 0),
+        doc_char_end=int(raw.get("char_end") or 0),
+        segments=[segment],
+    )
+
+
+async def persist_ai2_processing_result(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    dossier_id: str,
+    result: dict[str, Any],
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    """Persist canonical ``ai2.be.processing.result.v1`` into Backend tables.
+
+    The wire result remains the source contract. This adapter projects facts and
+    findings into the existing extraction/conflict read models used by the UI.
+    """
+
+    body = _result_body(result)
+    digest = _result_digest(result)
+    completeness = evaluate_ai2_completeness(result)
+    effective_review_state = (
+        "NEEDS_REVIEW"
+        if completeness["state"] == "NEEDS_REVIEW"
+        else str(result.get("review_state") or completeness["state"])
+    )
+    run = await session.get(PipelineRunORM, run_id) if run_id else None
+    if run is not None and run.tenant_id != tenant_id:
+        raise Ai2PersistenceConflict(f"Pipeline run {run_id!r} belongs to another tenant")
+    if run is not None and run.ai2_result_digest:
+        if run.ai2_result_digest != digest:
+            raise Ai2PersistenceConflict(
+                f"AI2 result digest conflict for idempotency key {run.ai2_idempotency_key!r}"
+            )
+        return {
+            "facts": completeness["output_counts"]["facts"],
+            "findings": completeness["output_counts"]["findings"],
+            "chunks": completeness["output_counts"]["chunks"],
+            "events": completeness["output_counts"]["events"],
+            "evidence_issues": completeness["evidence_issue_count"],
+            "annex_links": completeness["output_counts"]["annex_links"],
+            "dropped_records": int(run.ai2_dropped_records or 0),
+            "reason_code": run.ai2_reason_code,
+            "review_state": run.ai2_review_state,
+            "evidence_ready": bool(run.ai2_evidence_ready),
+            "job_status": run.ai2_job_status,
+            "idempotent_replay": True,
+        }
+    citation_by_id = {
+        str(item.get("citation_id")): item
+        for item in body.get("citations", [])
+        if isinstance(item, dict) and item.get("citation_id")
+    }
+    facts_by_document: dict[str, list[FactItem]] = {}
+    for raw_fact in body.get("facts", []):
+        if not isinstance(raw_fact, dict):
+            continue
+        citation = next(
+            (
+                citation_by_id[citation_id]
+                for citation_id in raw_fact.get("citation_ids", [])
+                if citation_id in citation_by_id
+            ),
+            None,
+        )
+        document_id = str((citation or {}).get("source_file_id") or "")
+        if not document_id:
+            continue
+        normalized = raw_fact.get("normalized_value")
+        if normalized is None:
+            normalized = {"value": raw_fact.get("raw_value")}
+        elif not isinstance(normalized, dict):
+            normalized = {"value": normalized}
+        facts_by_document.setdefault(document_id, []).append(
+            FactItem(
+                key=str(
+                    raw_fact.get("item_key") or raw_fact.get("role") or raw_fact.get("fact_id")
+                ),
+                fact_type=str(raw_fact.get("role") or raw_fact.get("subject") or "unknown"),
+                raw_text=str(raw_fact.get("raw_value") or ""),
+                normalized_value=normalized,
+                confidence=1.0 if raw_fact.get("review_state") == "PASS" else 0.6,
+                extractor=str(raw_fact.get("provenance") or "ai2.canonical"),
+                context_text=None,
+                citation=_canonical_citation_item(citation or {}),
+            )
+        )
+
+    facts_written = 0
+    for document_id, facts in facts_by_document.items():
+        facts_written += await persist_ai2_extraction(
+            session,
+            tenant_id=tenant_id,
+            extraction=Ai2ExtractionPayload(document_id=document_id, facts=facts).model_dump(
+                mode="json"
+            ),
+            run_id=run_id,
+        )
+
+    finding_items: list[FindingItem] = []
+    for raw_finding in body.get("findings", []):
+        if not isinstance(raw_finding, dict):
+            continue
+        left = next(
+            (
+                citation_by_id[item]
+                for item in raw_finding.get("evidence_left_citation_ids", [])
+                if item in citation_by_id
+            ),
+            None,
+        )
+        right = next(
+            (
+                citation_by_id[item]
+                for item in raw_finding.get("evidence_right_citation_ids", [])
+                if item in citation_by_id
+            ),
+            left,
+        )
+        if (
+            not left
+            or not right
+            or not left.get("source_file_id")
+            or not right.get("source_file_id")
+        ):
+            continue
+        finding_items.append(
+            FindingItem(
+                finding_type="semantic"
+                if raw_finding.get("finding_type") != "structured"
+                else "structured",
+                scope=str(raw_finding.get("scope") or "contract_annex"),
+                key_or_topic=str(raw_finding.get("item_key") or raw_finding.get("finding_id")),
+                disposition=str(
+                    raw_finding.get("disposition")
+                    or raw_finding.get("model_disposition")
+                    or "needs_review"
+                ),
+                severity="high" if raw_finding.get("review_state") == "NEEDS_REVIEW" else "medium",
+                confidence=0.6 if raw_finding.get("review_state") == "NEEDS_REVIEW" else 0.9,
+                rationale=str(raw_finding.get("reason") or ""),
+                method="ai2.canonical",
+                side_a=FindingSideItem(
+                    document_id=str(left["source_file_id"]),
+                    citation=_canonical_citation_item(left),
+                ),
+                side_b=FindingSideItem(
+                    document_id=str(right["source_file_id"]),
+                    citation=_canonical_citation_item(right),
+                ),
+            )
+        )
+
+    findings_written = 0
+    if finding_items:
+        findings_written = await persist_ai2_comparison(
+            session,
+            tenant_id=tenant_id,
+            comparison=Ai2ComparisonPayload(
+                dossier_id=dossier_id,
+                annex_links=[],
+                findings=finding_items,
+            ).model_dump(mode="json"),
+            run_id=run_id,
+        )
+    if run is not None:
+        invalid_targets = completeness["invalid_record_ids"]
+        if invalid_targets:
+            await _create_review_items(
+                session,
+                tenant_id=tenant_id,
+                dossier_id=dossier_id,
+                run_id=run_id or "",
+                targets=invalid_targets,
+            )
+        run.ai2_result_json = json.dumps(result, ensure_ascii=False, sort_keys=True)
+        run.ai2_result_digest = digest
+        run.ai2_idempotency_key = str(result.get("idempotency_key") or "") or None
+        run.ai2_job_status = str(result.get("status") or "UNKNOWN")
+        run.ai2_review_state = effective_review_state
+        run.ai2_completeness_state = str(completeness["state"])
+        run.ai2_reason_code = completeness["reason_code"]
+        run.ai2_evidence_ready = bool(completeness["evidence_ready"])
+        run.ai2_input_counts = json.dumps(completeness["input_counts"], sort_keys=True)
+        run.ai2_output_counts = json.dumps(completeness["output_counts"], sort_keys=True)
+        run.ai2_dropped_records = int(completeness["dropped_records"])
+        run.ai2_evidence_issue_count = int(completeness["evidence_issue_count"])
+        if str(result.get("status") or "").upper() == "SUCCEEDED":
+            run.status = "succeeded"
+        await session.flush()
+    return {
+        "facts": facts_written,
+        "findings": findings_written,
+        "chunks": completeness["output_counts"]["chunks"],
+        "events": completeness["output_counts"]["events"],
+        "evidence_issues": completeness["evidence_issue_count"],
+        "annex_links": completeness["output_counts"]["annex_links"],
+        "dropped_records": completeness["dropped_records"],
+        "reason_code": completeness["reason_code"],
+        "review_state": effective_review_state,
+        "evidence_ready": completeness["evidence_ready"],
+        "job_status": str(result.get("status") or "UNKNOWN"),
+        "idempotent_replay": False,
+    }
+
+
+async def load_ai2_read_model(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    run_id: str,
+) -> Ai2ReadModel:
+    """Load the complete AI2 projection after a process restart."""
+    run = await session.get(PipelineRunORM, run_id)
+    if run is None or run.tenant_id != tenant_id or not run.ai2_result_json:
+        raise LookupError(f"AI2 read model not found for run {run_id!r}")
+    payload = json.loads(run.ai2_result_json)
+    return Ai2ReadModel(
+        payload=payload,
+        job_status=str(run.ai2_job_status or payload.get("status") or "UNKNOWN"),
+        review_state=str(run.ai2_review_state or payload.get("review_state") or "UNKNOWN"),
+        completeness_state=str(run.ai2_completeness_state or "UNKNOWN"),
+        reason_code=run.ai2_reason_code,
+        evidence_ready=bool(run.ai2_evidence_ready),
+        input_counts=json.loads(run.ai2_input_counts or "{}"),
+        output_counts=json.loads(run.ai2_output_counts or "{}"),
+        coverage=(
+            _result_body(payload).get("index_contribution", {}).get("coverage", {})
+            if isinstance(_result_body(payload).get("index_contribution"), dict)
+            else {}
+        ),
+        dropped_records=int(run.ai2_dropped_records or 0),
+        evidence_issue_count=int(run.ai2_evidence_issue_count or 0),
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -802,7 +1198,12 @@ async def _build_citation_orm(
 
 
 __all__ = [
+    "Ai2PersistenceConflict",
+    "Ai2ReadModel",
+    "evaluate_ai2_completeness",
+    "load_ai2_read_model",
     "persist_ai1_snapshot",
+    "persist_ai2_processing_result",
     "persist_ai2_comparison",
     "persist_ai2_extraction",
     "persist_usage_ledger",

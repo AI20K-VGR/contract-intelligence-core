@@ -21,8 +21,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer
 
 from contract_intelligence.api.v1.admin_overview import router as admin_overview_router
-from contract_intelligence.api.v1.dossiers import router as hitl_dossiers_router
-from contract_intelligence.api.v1.reviews import router as hitl_reviews_router
+from contract_intelligence.api.v1.dossiers import router as dossier_query_router
 from contract_intelligence.api.v1.users import router as users_router
 from contract_intelligence.api.v1.webhooks import router as ai_webhooks_router
 from contract_intelligence.config.logging import configure_logging, get_logger
@@ -322,11 +321,9 @@ def create_app() -> FastAPI:
     app.include_router(extraction_router, prefix="/api/v1", tags=["Extraction"])
     app.include_router(conflict_router, prefix="/api/v1", tags=["Conflict"])
 
-    # HITL orchestration surface — confirm/correct/reject/needs_more_evidence + dossier approve.
-    # Registered before Phase 3/5 routers so the tutorial contract is the live
-    # match for POST /review-items/{id}/actions and POST /dossiers/{id}/approve.
-    app.include_router(hitl_reviews_router, prefix="/api/v1")
-    app.include_router(hitl_dossiers_router, prefix="/api/v1")
+    # Dossier query remains on its canonical route.  Simulated HITL mutation
+    # routers are intentionally not registered in the production app.
+    app.include_router(dossier_query_router, prefix="/api/v1")
 
     app.include_router(review_router, prefix="/api/v1", tags=["Review"])
     app.include_router(approval_router, prefix="/api/v1", tags=["Approval"])

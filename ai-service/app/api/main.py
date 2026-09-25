@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import logging
 import os
 from pathlib import Path
@@ -13,10 +13,18 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from app.contracts.models import AuthContext, HandoffIssue, JobResult, JobStatus, ReviewItem, ReviewState, ToolEnvelope
-from app.contracts.wire import BeAi2ProcessingRequest, job_result_to_wire
 from app.compat_legacy import cancel_job as cancel_legacy_job
-from app.compat_legacy import create_completed_job, create_failed_job, get_job as get_legacy_job
+from app.compat_legacy import create_completed_job, create_failed_job
+from app.compat_legacy import get_job as get_legacy_job
+from app.contracts.models import (
+    AuthContext,
+    HandoffIssue,
+    JobResult,
+    ReviewItem,
+    ReviewState,
+    ToolEnvelope,
+)
+from app.contracts.wire import BeAi2ProcessingRequest, job_result_to_wire
 from app.llm.client import NineRouterClient
 from app.llm.embeddings import OpenAICompatibleEmbeddingClient
 from app.pipeline.ai1_ingest import ingest_files
@@ -29,8 +37,8 @@ from app.pipeline.ai1_snapshot_adapter import (
 from app.pipeline.citations import CitationResolver
 from app.pipeline.grounding import repair_active_nodes
 from app.pipeline.idp import run_idp
-from app.pipeline.outline import build_tree, locate
 from app.pipeline.ocr_json_demo_adapter import is_ocr_json_demo, normalize_ocr_json
+from app.pipeline.outline import build_tree, locate
 from app.pipeline.runtime import ProcessingRuntime
 from app.reasoning.gold import adhoc_tasks, tasks_from_outline
 from app.reasoning.query import QueryRouter, classify_ask
@@ -39,7 +47,12 @@ from app.reasoning.stack import FourLayerReasoner
 from app.reasoning.vector_recall import VectorRecallService
 from app.security.service_envelope import ServiceEnvelopeError, verify_service_envelope
 from app.tools.gateway import ToolGateway
-from app.tools.jobs import JobNonceReplayConflict, JobOwnershipConflict, JobPayloadConflict, SQLiteJobStore
+from app.tools.jobs import (
+    JobNonceReplayConflict,
+    JobOwnershipConflict,
+    JobPayloadConflict,
+    SQLiteJobStore,
+)
 from app.tools.persist import DATA, load_session, save_session
 from app.tools.store import DossierRecord, InMemorySnapshotStore
 from fixtures.case_pdf import attach_case_pdf
@@ -85,9 +98,7 @@ def _hydrate_store_from_jobs() -> int:
             _request, adapted = adapt_be_ai2_processing_request(
                 payload,
                 tenant_id=str(job.get("tenant_id") or ""),
-                actor_id=str(
-                    (payload.get("service_envelope") or {}).get("actor_id") or "backend"
-                ),
+                actor_id=str((payload.get("service_envelope") or {}).get("actor_id") or "backend"),
             )
         except Exception as exc:  # pragma: no cover - corrupt historical job
             logger.warning(
@@ -356,7 +367,9 @@ def _session_view(sid: str) -> dict:
         "reviews_stale": bool(s.get("reviews_stale")),
         "published": bool(s.get("published")),
         "authoritative_publish_blocked": bool(s.get("authoritative_publish_blocked")),
-        "review_queue_status": "NOT_RUN" if job is None else ("EMPTY_QUEUE" if not rec.review_items else "HAS_REVIEW_ITEMS"),
+        "review_queue_status": "NOT_RUN"
+        if job is None
+        else ("EMPTY_QUEUE" if not rec.review_items else "HAS_REVIEW_ITEMS"),
         "review_items": [item.model_dump() for item in rec.review_items[:160]],
         "n_review_items": len(rec.review_items),
         "n_citations": len(rec.citation_index),
@@ -395,7 +408,8 @@ def _open_session(
         "review_basis": _review_basis(record),
         "reviews_stale": False,
         "published": False,
-        "authoritative_publish_blocked": source == "ai1_result" and bool(ai1.get("review_required", True)),
+        "authoritative_publish_blocked": source == "ai1_result"
+        and bool(ai1.get("review_required", True)),
     }
     save_session(sid, SESSIONS[sid], STORE)
     return _session_view(sid)
@@ -443,29 +457,37 @@ def _vector_service(
 def _policy_view(rec: DossierRecord) -> dict:
     gates = []
     if rec.processing_budget_hit():
-        gates.append({
-            "code": "PROCESSING_BUDGET_EXCEEDED",
-            "operation": "external_processing",
-            "deterministic_action": "ALLOW_PARTIAL_REVIEW",
-        })
+        gates.append(
+            {
+                "code": "PROCESSING_BUDGET_EXCEEDED",
+                "operation": "external_processing",
+                "deterministic_action": "ALLOW_PARTIAL_REVIEW",
+            }
+        )
     if rec.embedding_budget_hit():
-        gates.append({
-            "code": "EMBEDDING_BUDGET_EXCEEDED",
-            "operation": "embedding_vector_recall",
-            "deterministic_action": "ALLOW_WITHOUT_VECTOR",
-        })
+        gates.append(
+            {
+                "code": "EMBEDDING_BUDGET_EXCEEDED",
+                "operation": "embedding_vector_recall",
+                "deterministic_action": "ALLOW_WITHOUT_VECTOR",
+            }
+        )
     if not rec.egress_approved:
-        gates.append({
-            "code": "EGRESS_DENIED",
-            "operation": "llm_or_embedding",
-            "deterministic_action": "ALLOW_LOCAL_ONLY",
-        })
+        gates.append(
+            {
+                "code": "EGRESS_DENIED",
+                "operation": "llm_or_embedding",
+                "deterministic_action": "ALLOW_LOCAL_ONLY",
+            }
+        )
     if rec.index_status == "LEASED":
-        gates.append({
-            "code": "INDEX_LEASED",
-            "operation": "publish_or_index_write",
-            "deterministic_action": "BLOCK",
-        })
+        gates.append(
+            {
+                "code": "INDEX_LEASED",
+                "operation": "publish_or_index_write",
+                "deterministic_action": "BLOCK",
+            }
+        )
     return {
         "deterministic": "ALLOW" if rec.index_status != "LEASED" else "BLOCKED",
         "external": "BLOCKED" if gates else "ALLOWED",
@@ -482,8 +504,19 @@ def _reason_output(
     use_vector: bool,
     runtime: ProcessingRuntime | None = None,
 ) -> dict:
+    task = {
+        **task,
+        "policy_flags": {
+            **(task.get("policy_flags") or {}),
+            "use_llm": use_llm,
+            "use_vector": use_vector,
+            "egress_allowed": rec.egress_approved,
+        },
+    }
     policy = _policy_view(rec)
-    llm_gate = rec.index_status == "LEASED" or rec.processing_budget_hit() or not rec.egress_approved
+    llm_gate = (
+        rec.index_status == "LEASED" or rec.processing_budget_hit() or not rec.egress_approved
+    )
     if use_llm and llm_gate:
         return {
             "review_state": ReviewState.BLOCKED.value,
@@ -574,10 +607,7 @@ def _enrich_citations(citations: list[dict], rec: DossierRecord) -> list[dict]:
                 chosen is not None
                 and key in metadata_defaults
                 and chosen.validation_status == "VALID"
-                and (
-                    not raw.get("citation_id")
-                    or raw.get("citation_id") == chosen.citation_id
-                )
+                and (not raw.get("citation_id") or raw.get("citation_id") == chosen.citation_id)
             ):
                 continue
             merged[key] = value
@@ -634,7 +664,11 @@ def _table_view(rec: DossierRecord, table_id: str, offset: int, limit: int) -> d
         "offset": safe_offset,
         "limit": safe_limit,
         "rows": table.rows[safe_offset : safe_offset + safe_limit],
-        "cells": [cell.model_dump() for cell in table.cells if safe_offset <= cell.row_index < safe_offset + safe_limit],
+        "cells": [
+            cell.model_dump()
+            for cell in table.cells
+            if safe_offset <= cell.row_index < safe_offset + safe_limit
+        ],
         "cell_citations": citation_rows,
         "has_geometry": bool(table.cells or table.cell_citations),
     }
@@ -643,7 +677,12 @@ def _table_view(rec: DossierRecord, table_id: str, offset: int, limit: int) -> d
 @app.get("/health")
 def health() -> dict:
     llm = NineRouterClient()
-    if os.getenv("AI2_EMBEDDING_DISCOVERY_ENABLED", "false").casefold() in {"1", "true", "yes", "on"}:
+    if os.getenv("AI2_EMBEDDING_DISCOVERY_ENABLED", "false").casefold() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
         embedding = EMBEDDING_CLIENT.discover(egress_approved=True).as_dict()
     else:
         embedding = {"status": "NOT_RUN", "models": [], "selected_model": None, "dimensions": None}
@@ -701,8 +740,7 @@ def process_from_backend(payload: dict, request: Request) -> dict:
                 "code": "AI2_SNAPSHOT_CONTENT_REQUIRED",
                 "severity": "high",
                 "message": (
-                    "Backend handoff contains metadata but no canonical "
-                    "snapshot content/citations"
+                    "Backend handoff contains metadata but no canonical snapshot content/citations"
                 ),
             }
         ],
@@ -780,29 +818,38 @@ def query_from_backend(payload: dict) -> dict:
                 ),
                 pins=record.pins,
             )
+            policy_flags = payload.get("policy_flags")
+            policy_flags = policy_flags if isinstance(policy_flags, dict) else {}
             result = QueryRouter(STORE, ToolGateway(STORE)).query(
                 envelope,
                 query,
                 classify_ask(query),
+                policy_flags=policy_flags,
             )
             citations = _enrich_citations(result.get("citations") or [], record)
             answer = result.get("answer")
             if answer is not None and not isinstance(answer, str):
                 answer = json.dumps(answer, ensure_ascii=False)
             return {
-                "state": result.get("review_state") or result.get("state") or "INSUFFICIENT_EVIDENCE",
+                "state": result.get("review_state")
+                or result.get("state")
+                or "INSUFFICIENT_EVIDENCE",
+                "connected": True,
                 "answer": answer,
                 "citations": citations,
                 "retrieval_layer": {
+                    **(result.get("retrieval_layer") or {}),
                     "dossier_id": dossier_id,
                     "snapshot_version": payload.get("snapshot_version"),
                     "snapshot_digest": expected_digest,
                     "source": "ai2.canonical.store",
                 },
-                "reasoning_trace": result.get("steps") or [],
+                "reasoning_trace": result.get("reasoning_trace") or result.get("steps") or [],
+                "used_llm": bool(result.get("used_llm", False)),
             }
     return {
         "state": "INSUFFICIENT_EVIDENCE",
+        "connected": True,
         "answer": "AI2 chưa nhận được snapshot/citation có thẩm quyền cho hồ sơ này.",
         "citations": [],
         "retrieval_layer": {
@@ -814,11 +861,11 @@ def query_from_backend(payload: dict) -> dict:
             {
                 "code": "AI2_QUERY_EVIDENCE_REQUIRED",
                 "message": (
-                    "Query chỉ được trả lời sau khi AI2 nhận canonical snapshot "
-                    "và citation map"
+                    "Query chỉ được trả lời sau khi AI2 nhận canonical snapshot và citation map"
                 ),
             }
         ],
+        "used_llm": False,
     }
 
 
@@ -978,12 +1025,16 @@ def workspace_ai1_snapshot(snapshot: dict) -> dict:
     input_payload = snapshot
     if is_ocr_json_demo(snapshot):
         source_digest = hashlib.sha256(
-            json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+                "utf-8"
+            )
         ).hexdigest()
         try:
             input_payload, demo_meta = normalize_ocr_json(snapshot, source_digest=source_digest)
         except ValueError as exc:
-            raise HTTPException(422, {"code": "OCR_JSON_DEMO_INVALID", "message": str(exc)}) from exc
+            raise HTTPException(
+                422, {"code": "OCR_JSON_DEMO_INVALID", "message": str(exc)}
+            ) from exc
     try:
         adapted = adapt_ai1_input(input_payload)
         if demo_meta:
@@ -1000,7 +1051,9 @@ def workspace_ai1_snapshot(snapshot: dict) -> dict:
 
 
 @app.post("/api/workspace/ai1-result")
-async def workspace_ai1_result(request: Request, dossier_id: str | None = None, scope_id: str | None = None) -> dict:
+async def workspace_ai1_result(
+    request: Request, dossier_id: str | None = None, scope_id: str | None = None
+) -> dict:
     """Open the current AI1 result envelope without confusing it with the canonical v1 snapshot.
 
     JSON is sufficient. A multipart request may additionally carry the source
@@ -1021,12 +1074,16 @@ async def workspace_ai1_result(request: Request, dossier_id: str | None = None, 
             try:
                 payload = json.loads(raw.decode("utf-8"))
             except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-                raise HTTPException(422, {"code": "RESULT_JSON_INVALID", "message": str(exc)}) from exc
+                raise HTTPException(
+                    422, {"code": "RESULT_JSON_INVALID", "message": str(exc)}
+                ) from exc
         elif isinstance(artifact, str):
             try:
                 payload = json.loads(artifact)
             except json.JSONDecodeError as exc:
-                raise HTTPException(422, {"code": "RESULT_JSON_INVALID", "message": str(exc)}) from exc
+                raise HTTPException(
+                    422, {"code": "RESULT_JSON_INVALID", "message": str(exc)}
+                ) from exc
         else:
             raise HTTPException(400, "multipart request requires artifact JSON")
         pdf = form.get("pdf")
@@ -1038,7 +1095,9 @@ async def workspace_ai1_result(request: Request, dossier_id: str | None = None, 
         except Exception as exc:
             raise HTTPException(422, {"code": "RESULT_JSON_INVALID", "message": str(exc)}) from exc
     if not isinstance(payload, dict):
-        raise HTTPException(422, {"code": "RESULT_CONTRACT_INVALID", "message": "result root must be an object"})
+        raise HTTPException(
+            422, {"code": "RESULT_CONTRACT_INVALID", "message": "result root must be an object"}
+        )
     machine = payload.get("machine")
     if not isinstance(machine, dict) or str(machine.get("schema_version")) != "0.1":
         raise HTTPException(
@@ -1138,7 +1197,11 @@ async def workspace_upload(request: Request) -> dict:
         if len(data) > 12 * 1024 * 1024:
             raise HTTPException(400, "file too large")
         name = f.filename or f"file_{i}.bin"
-        role = "annex" if (i > 0 or "annex" in name.lower() or "phu" in name.lower() or "phụ" in name.lower()) else "body"
+        role = (
+            "annex"
+            if (i > 0 or "annex" in name.lower() or "phu" in name.lower() or "phụ" in name.lower())
+            else "body"
+        )
         if len(uploads) == 1:
             role = "annex" if any(x in name.lower() for x in ("annex", "phu", "phụ")) else "body"
         items.append((name, data, role))
@@ -1159,7 +1222,11 @@ def workspace_file(session_id: str, file_id: str):
     src = next((f for f in rec.source_files if f.file_id == file_id), None)
     name = src.filename if src else f"{file_id}.pdf"
     media = "application/pdf" if name.lower().endswith(".pdf") else "application/octet-stream"
-    return Response(content=blob, media_type=media, headers={"Content-Disposition": f'inline; filename="{name}"'})
+    return Response(
+        content=blob,
+        media_type=media,
+        headers={"Content-Disposition": f'inline; filename="{name}"'},
+    )
 
 
 @app.get("/api/workspace/{session_id}")
@@ -1172,7 +1239,12 @@ def workspace_tree(session_id: str) -> dict:
     s = _require_session(session_id)
     rec: DossierRecord = s["record"]
     nodes = rec.evidence_nodes()
-    return {"session_id": session_id, "tree": build_tree(nodes), "n_nodes": len(nodes), "n_raw_nodes": len(rec.nodes)}
+    return {
+        "session_id": session_id,
+        "tree": build_tree(nodes),
+        "n_nodes": len(nodes),
+        "n_raw_nodes": len(rec.nodes),
+    }
 
 
 @app.get("/api/workspace/{session_id}/locate/{node_id}")
@@ -1230,7 +1302,9 @@ def workspace_review_items(session_id: str) -> dict:
     rec: DossierRecord = s["record"]
     return {
         "session_id": session_id,
-        "status": "NOT_RUN" if s.get("job") is None else ("EMPTY_QUEUE" if not rec.review_items else "HAS_REVIEW_ITEMS"),
+        "status": "NOT_RUN"
+        if s.get("job") is None
+        else ("EMPTY_QUEUE" if not rec.review_items else "HAS_REVIEW_ITEMS"),
         "items": [item.model_dump() for item in rec.review_items],
     }
 
@@ -1308,8 +1382,7 @@ def workspace_review(session_id: str, body: ReviewBody) -> dict:
         raise HTTPException(400, "reject requires reason")
     job = s.get("job")
     candidate_ids = {
-        c.candidate_id
-        for c in (job.contribution.candidates if job and job.contribution else [])
+        c.candidate_id for c in (job.contribution.candidates if job and job.contribution else [])
     }
     if body.candidate_id not in candidate_ids:
         raise HTTPException(404, "candidate not found in current contribution")
@@ -1370,7 +1443,10 @@ def workspace_reason(session_id: str, body: ReasonBody) -> dict:
         workspace_extract(session_id, RunBody(use_llm=False))
         rec = SESSIONS[session_id]["record"]
     s["step"] = "reason"
-    return {"task_id": task["id"], **_reason_output(rec, env, task, use_llm=body.use_llm, use_vector=body.use_vector)}
+    return {
+        "task_id": task["id"],
+        **_reason_output(rec, env, task, use_llm=body.use_llm, use_vector=body.use_vector),
+    }
 
 
 @app.post("/api/workspace/{session_id}/ask")
@@ -1401,7 +1477,9 @@ def list_cases() -> list[dict]:
                 "n_pages": len(pack.record.pages),
                 "n_nodes": len(pack.record.nodes),
                 "n_tables": len(pack.record.tables),
-                "input_kind": "synthetic_fixture" if "synthetic" in pack.tags else "catalog_fixture",
+                "input_kind": "synthetic_fixture"
+                if "synthetic" in pack.tags
+                else "catalog_fixture",
                 "scenario": pack.notes,
                 "query": pack.query,
             }
@@ -1434,7 +1512,10 @@ def get_case(case_id: str) -> dict:
         "lifecycle": rec.lifecycle.value,
         "tenant_id": rec.tenant_id,
         "envelope_tenant": pack.envelope.auth.tenant_id,
-        "pages": [{"page": p.page_number, "quality": p.quality, "text": p.text[:400]} for p in rec.pages[:8]],
+        "pages": [
+            {"page": p.page_number, "quality": p.quality, "text": p.text[:400]}
+            for p in rec.pages[:8]
+        ],
         "n_pages_hidden": max(0, len(rec.pages) - 8),
         "nodes": [
             {
@@ -1502,7 +1583,9 @@ def query_case(case_id: str, body: AskBody) -> dict:
         "case_id": case_id,
         "query": body.query,
         "task": task,
-        **_reason_output(rec, pack.envelope, task, use_llm=body.use_llm, use_vector=body.use_vector),
+        **_reason_output(
+            rec, pack.envelope, task, use_llm=body.use_llm, use_vector=body.use_vector
+        ),
     }
 
 
@@ -1531,7 +1614,12 @@ def hd_reason(body: ReasonBody) -> dict:
         run_idp(pack.record, pack.envelope, llm=None, store=STORE)
         rec = STORE.get(pack.record.tenant_id, pack.record.dossier_id) or pack.record
         STORE.put(rec)
-    return {"task_id": task["id"], **_reason_output(rec, pack.envelope, task, use_llm=body.use_llm, use_vector=body.use_vector)}
+    return {
+        "task_id": task["id"],
+        **_reason_output(
+            rec, pack.envelope, task, use_llm=body.use_llm, use_vector=body.use_vector
+        ),
+    }
 
 
 @app.post("/api/cases/{case_id}/reason")
@@ -1553,7 +1641,9 @@ def create_idp_job(payload: dict, background_tasks: BackgroundTasks) -> dict:
     try:
         service_envelope = verify_service_envelope(payload)
     except ServiceEnvelopeError as exc:
-        raise HTTPException(status_code=401, detail={"code": exc.code, "message": str(exc)}) from exc
+        raise HTTPException(
+            status_code=401, detail={"code": exc.code, "message": str(exc)}
+        ) from exc
 
     try:
         request, _ = adapt_be_ai2_processing_request(
@@ -1562,7 +1652,9 @@ def create_idp_job(payload: dict, background_tasks: BackgroundTasks) -> dict:
             actor_id=service_envelope.actor_id,
         )
     except SnapshotContractError as exc:
-        raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc
+        raise HTTPException(
+            status_code=422, detail={"code": exc.code, "message": str(exc)}
+        ) from exc
 
     queued = _queued_wire_result(request, "pending")
     try:
@@ -1594,7 +1686,9 @@ def create_idp_job(payload: dict, background_tasks: BackgroundTasks) -> dict:
     job_id = stored["job_id"]
     wire = dict(stored["wire"])
     wire["job_id"] = job_id
-    WIRE_IDEMPOTENCY[(service_envelope.tenant_id, request.idempotency_key, request.attempt)] = job_id
+    WIRE_IDEMPOTENCY[(service_envelope.tenant_id, request.idempotency_key, request.attempt)] = (
+        job_id
+    )
     WIRE_JOBS[job_id] = wire
     if created or stored["status"] in {"QUEUED", "RUNNING"}:
         background_tasks.add_task(_run_wire_job, job_id, request.model_dump())
@@ -1602,14 +1696,19 @@ def create_idp_job(payload: dict, background_tasks: BackgroundTasks) -> dict:
 
 
 @app.get("/jobs/{job_id}")
-def get_job(job_id: str, x_ai2_service_envelope: str | None = Header(default=None)) -> dict | JobResult:
+def get_job(
+    job_id: str, x_ai2_service_envelope: str | None = Header(default=None)
+) -> dict | JobResult:
     stored = JOB_STORE.get(job_id)
     if stored is None:
         raise HTTPException(404, job_id)
     if not x_ai2_service_envelope:
         raise HTTPException(
             status_code=401,
-            detail={"code": "SERVICE_ENVELOPE_MISSING", "message": "polling requires a signed service envelope"},
+            detail={
+                "code": "SERVICE_ENVELOPE_MISSING",
+                "message": "polling requires a signed service envelope",
+            },
         )
     try:
         raw_envelope = json.loads(x_ai2_service_envelope)
@@ -1627,7 +1726,10 @@ def get_job(job_id: str, x_ai2_service_envelope: str | None = Header(default=Non
     if envelope.tenant_id != stored["tenant_id"] or envelope.dossier_id != stored["dossier_id"]:
         raise HTTPException(
             status_code=403,
-            detail={"code": "JOB_OWNER_MISMATCH", "message": "job does not belong to this service principal"},
+            detail={
+                "code": "JOB_OWNER_MISMATCH",
+                "message": "job does not belong to this service principal",
+            },
         )
     wire = dict(stored["wire"])
     wire["job_id"] = job_id

@@ -215,7 +215,17 @@ class ContractService:
         if name:
             dossier.name = name
         if metadata is not None:
-            dossier.metadata = metadata
+            # Metadata updates from the UI are partial. Merge them instead of
+            # replacing the server-owned ACL fields. Replacing the object made
+            # an otherwise visible dossier fail the fail-closed read ACL on
+            # the next structure/query request.
+            merged_metadata = dict(dossier.metadata or {})
+            incoming_metadata = dict(metadata)
+            for key in ("created_by", "created_by_name", "access_scope", "shared_with"):
+                if key in merged_metadata:
+                    incoming_metadata.pop(key, None)
+            merged_metadata.update(incoming_metadata)
+            dossier.metadata = merged_metadata
         await self._dossier_repo.save(dossier)
         return dossier
 

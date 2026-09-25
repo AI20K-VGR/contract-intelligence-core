@@ -1,0 +1,168 @@
+{
+  "case_id": "HAPPY-002",
+  "title": "Bảng đủ ô, không missing",
+  "tenant_id": "tenant_a",
+  "dossier_id": "d_happy_table",
+  "expected_state": "PASS",
+  "expected_no_claims": [
+    "complete_total_without_rows"
+  ],
+  "n_pages": 1,
+  "n_nodes": 1,
+  "n_tables": 1,
+  "lifecycle": "ACTIVE",
+  "query": null,
+  "notes": "",
+  "tags": [
+    "happy",
+    "table"
+  ],
+  "pins": {
+    "manifest_version": 2,
+    "source_snapshot_digest": "sha256:aaa",
+    "tenant_profile_version": 5,
+    "policy_version": 2,
+    "ocr_run_version": 3,
+    "reconstruction_version": 2,
+    "extraction_version": 7,
+    "index_version": "idx_14"
+  },
+  "profile": {
+    "version": 5,
+    "aliases": {
+      "Công ty ABC": [
+        "ABC Co.",
+        "ABC"
+      ],
+      "Công ty XYZ": [
+        "XYZ Ltd",
+        "XYZ"
+      ]
+    },
+    "field_keys": [
+      "party_a",
+      "party_b",
+      "mst_seller",
+      "contract_value",
+      "payment_term"
+    ]
+  },
+  "acl_revision": 12,
+  "legal_hold": false,
+  "egress_approved": true,
+  "budget_exceeded": false,
+  "index_status": "READY",
+  "active_index_version": null,
+  "processing_index": false,
+  "envelope": {
+    "auth": {
+      "actor_id": "user_001",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_happy_table",
+      "acl_revision": 12,
+      "permissions": [
+        "READ_CONTENT"
+      ],
+      "lifecycle": "ACTIVE"
+    },
+    "pins": {
+      "manifest_version": 2,
+      "source_snapshot_digest": "sha256:aaa",
+      "tenant_profile_version": 5,
+      "policy_version": 2,
+      "ocr_run_version": 3,
+      "reconstruction_version": 2,
+      "extraction_version": 7,
+      "index_version": "idx_14"
+    }
+  },
+  "pages": [
+    {
+      "page_revision_id": "p1_rev1",
+      "page_number": 1,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p1_b1"
+      ],
+      "text": "Bảng thanh toán Q1-Q4",
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "tbl_pay",
+      "type": "TABLE",
+      "raw_label": "Bảng 1",
+      "parent_id": null,
+      "order": 1,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Bảng thanh toán",
+      "page_range": [
+        1
+      ],
+      "page_revision_id": "p1_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "tables": [
+    {
+      "table_id": "table_pay",
+      "title": "Thanh toán",
+      "header": [
+        "period",
+        "amount"
+      ],
+      "n_rows": 4,
+      "n_cols": 2,
+      "continuation": false,
+      "node_id": "tbl_pay",
+      "first_rows": [
+        [
+          "Q1",
+          "100"
+        ],
+        [
+          "Q2",
+          "200"
+        ]
+      ],
+      "last_rows": [
+        [
+          "Q3",
+          "150"
+        ],
+        [
+          "Q4",
+          "50"
+        ]
+      ],
+      "rows": [
+        [
+          "Q1",
+          "100"
+        ],
+        [
+          "Q2",
+          "200"
+        ],
+        [
+          "Q3",
+          "150"
+        ],
+        [
+          "Q4",
+          "50"
+        ]
+      ],
+      "rows_omitted": false
+    }
+  ]
+}

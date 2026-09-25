@@ -70,6 +70,7 @@ from contract_intelligence.contract.interfaces.api.dependencies import (
     DossierDeletionServiceDep,
 )
 from contract_intelligence.infrastructure import messaging, storage
+from contract_intelligence.shared.acl import AclAction, dossier_access_decision
 from contract_intelligence.shared.auth import (
     AuthenticatedUser,
     get_current_user,
@@ -178,21 +179,37 @@ class DossierAccessDTO(BaseModel):
 
 def _can_read_dossier(metadata: dict[str, Any] | None, user_id: str) -> bool:
     """Chủ hồ sơ luôn xem được. Người được chia sẻ chỉ xem khi quyền đang bật."""
-    meta = metadata or {}
-    owner = meta.get("created_by")
-    if not isinstance(owner, str) or not owner:
-        return True
-    if owner == user_id:
-        return True
-    if meta.get("access_scope") == "mine":
-        return False
-    shares = meta.get("shared_with") or []
-    return any(isinstance(item, dict) and item.get("id") == user_id for item in shares)
+    principal = AuthenticatedUser(
+        user_id=user_id,
+        tenant_id="",
+        email="",
+        display_name="",
+        role="OPERATOR",
+    )
+    return dossier_access_decision(
+        action=AclAction.QUERY,
+        principal=principal,
+        dossier_id="legacy",
+        dossier_tenant_id="",
+        metadata=metadata,
+    )
 
 
-async def _require_readable(svc: Any, dossier_id: str, user_id: str) -> Any:
+async def _require_readable(
+    svc: Any,
+    dossier_id: str,
+    user: AuthenticatedUser,
+    *,
+    action: AclAction = AclAction.QUERY,
+) -> Any:
     dossier = await svc.get_dossier(dossier_id)
-    if not _can_read_dossier(dossier.metadata, user_id):
+    if not dossier_access_decision(
+        action=action,
+        principal=user,
+        dossier_id=dossier_id,
+        dossier_tenant_id=getattr(dossier, "tenant_id", user.tenant_id),
+        metadata=dossier.metadata,
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Quyền xem hồ sơ này đã bị thu hồi.",
@@ -618,6 +635,10 @@ class DossierSearchDTO(BaseModel):
     query: str
     answer: str | None
     connected: bool
+    state: str = "INSUFFICIENT_EVIDENCE"
+    used_llm: bool = False
+    retrieval_layer: dict[str, Any] = Field(default_factory=dict)
+    reasoning_trace: list[Any] = Field(default_factory=list)
     hits: list[DossierSearchHit]
 
 
@@ -629,12 +650,7 @@ def _hits_from_ai2(payload: dict[str, Any]) -> list[DossierSearchHit]:
     for item in raw:
         if not isinstance(item, dict):
             continue
-        text = (
-            item.get("text")
-            or item.get("quote")
-            or item.get("snippet")
-            or item.get("text_span")
-        )
+        text = item.get("text") or item.get("quote") or item.get("snippet") or item.get("text_span")
         if not isinstance(text, str) or not text.strip():
             continue
         page = item.get("page_no") or item.get("page")
@@ -654,6 +670,24 @@ def _hits_from_ai2(payload: dict[str, Any]) -> list[DossierSearchHit]:
             )
         )
     return hits
+
+
+def _search_dto_from_ai2(payload: dict[str, Any], *, fallback_query: str) -> DossierSearchDTO:
+    """Preserve server semantics; transport success never implies ANSWERED."""
+    answer = payload.get("answer") or payload.get("text")
+    state = str(payload.get("state") or payload.get("review_state") or "INSUFFICIENT_EVIDENCE")
+    if state not in {"PASS", "ANSWERED", "NEEDS_REVIEW", "INSUFFICIENT_EVIDENCE", "BLOCKED", "NOT_COMPARABLE"}:
+        state = "INSUFFICIENT_EVIDENCE"
+    return DossierSearchDTO(
+        query=str(payload.get("query") or fallback_query),
+        answer=answer.strip() if isinstance(answer, str) and answer.strip() else None,
+        connected=payload.get("connected") is not False,
+        state=state,
+        used_llm=bool(payload.get("used_llm", False)),
+        retrieval_layer=payload.get("retrieval_layer") if isinstance(payload.get("retrieval_layer"), dict) else {},
+        reasoning_trace=payload.get("reasoning_trace") if isinstance(payload.get("reasoning_trace"), list) else [],
+        hits=_hits_from_ai2(payload),
+    )
 
 
 def _ai2_snapshot_digest(dossier: Any) -> str:
@@ -677,7 +711,7 @@ async def search_dossier(
     question = body.query.strip()
     if not question:
         raise HTTPException(status_code=422, detail="Thiếu câu hỏi.")
-    dossier = await _require_readable(svc, dossier_id, user.user_id)
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.SEARCH)
     from contract_intelligence.infrastructure.ai_adapters import (
         AiAdapterError,
         query_ai2,
@@ -707,14 +741,8 @@ async def search_dossier(
         )
     if not isinstance(payload, dict):
         payload = {}
-    answer = payload.get("answer") or payload.get("text")
     return ApiResponse(
-        data=DossierSearchDTO(
-            query=question,
-            answer=answer.strip() if isinstance(answer, str) and answer.strip() else None,
-            connected=True,
-            hits=_hits_from_ai2(payload),
-        )
+        data=_search_dto_from_ai2(payload, fallback_query=question)
     )
 
 
@@ -734,7 +762,7 @@ async def get_dossier(
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> ApiResponse[DossierDetailDTO]:
     """Dossier detail kèm documents list."""
-    dossier = await _require_readable(svc, dossier_id, _user.user_id)
+    dossier = await _require_readable(svc, dossier_id, _user, action=AclAction.QUERY)
     documents = await svc.list_documents(dossier_id)
     latest = dossier.latest_job()
     return ApiResponse(
@@ -872,7 +900,7 @@ async def list_dossier_documents(
 ) -> ApiResponse[list[DocumentListItemDTO]]:
     """Danh sách toàn bộ văn bản trong dossier (contract + annexes)."""
     # Verify dossier exists for proper 404 semantics
-    await _require_readable(svc, dossier_id, _user.user_id)
+    await _require_readable(svc, dossier_id, _user, action=AclAction.CITATION_READ)
     documents = await svc.list_documents(dossier_id)
     return ApiResponse(data=[DocumentListItemDTO.from_domain(d) for d in documents])
 

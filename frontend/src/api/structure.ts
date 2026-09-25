@@ -6,6 +6,12 @@ import {
 } from '../structure/types'
 import { ApiError, apiFetch, getJson, requestJson } from './client'
 import { patchDossier } from './dossiers'
+import {
+  normalizeAi2SearchResult,
+  type Ai2SearchHit,
+  type Ai2SearchResult,
+} from './ai2'
+import { buildStructureTree, inferStructureMode } from '../structure'
 
 export type StructureDocument = {
   id: string
@@ -139,6 +145,63 @@ export function contractDocument(detail: DossierStructure) {
     detail.documents[0] ??
     null
   )
+}
+
+export type DossierStructurePreview = {
+  detail: DossierStructure
+  document: StructureDocument | null
+  mode: StructureMode
+  nodes: ClauseNode[]
+  lines: OcrLine[]
+  tableCount: number
+}
+
+/** Load the same dossier-grounded structure used by the full structure page. */
+export async function loadDossierStructurePreview(
+  dossierId: string,
+  signal?: AbortSignal,
+): Promise<DossierStructurePreview> {
+  const detail = await getDossierStructure(dossierId, signal)
+  const document = contractDocument(detail)
+  if (!document) {
+    return {
+      detail,
+      document: null,
+      mode: 'numbered',
+      nodes: [],
+      lines: [],
+      tableCount: 0,
+    }
+  }
+
+  const pages = await listPages(document.id, signal)
+  const lines = (
+    await Promise.all(pages.map((page) => getPageLines(page, signal)))
+  ).flat()
+  const explicitMode = detail.structureMode
+  let tableCount = 0
+  let mode = explicitMode
+  if (!mode) {
+    const numberedNodes = buildStructureTree(lines, 'numbered')
+    if (numberedNodes.length > 0) {
+      mode = 'numbered'
+    } else {
+      tableCount = (await listDocumentTables(document.id, signal)).length
+      mode = inferStructureMode(lines, tableCount > 0)
+    }
+  }
+  const nodes = mode === 'tables' ? [] : buildStructureTree(lines, mode)
+  if (nodes.length > 0 || mode === 'tables') {
+    return { detail, document, mode, nodes, lines, tableCount }
+  }
+  return {
+    detail,
+    document,
+    mode,
+    nodes: await listClauses(document.id, signal),
+    lines,
+    tableCount,
+  }
 }
 
 export async function getDossierStructure(
@@ -393,6 +456,7 @@ export type DocumentTableCell = {
   colSpan: number
   text: string
   header: boolean
+  pageNo: number
   bbox: [number, number, number, number] | null
 }
 
@@ -402,6 +466,7 @@ export type DocumentTable = {
   rows: number
   columns: number
   continued: boolean
+  continuedFrom: string | null
   bbox: [number, number, number, number] | null
   cells: DocumentTableCell[]
 }
@@ -431,6 +496,7 @@ export async function listDocumentTables(
               colSpan: Math.max(1, asNumber(record.col_span) || 1),
               text: asString(record.text),
               header: record.is_header === true,
+              pageNo: asNumber(row.page_no),
               bbox: asBBox(record.bbox, 612, 792),
             },
           ]
@@ -443,6 +509,8 @@ export async function listDocumentTables(
         rows: asNumber(row.rows_count),
         columns: asNumber(row.cols_count),
         continued: row.is_multi_page === true || Boolean(row.continued_from),
+        continuedFrom:
+          typeof row.continued_from === 'string' ? row.continued_from : null,
         bbox: asBBox(row.bbox, 612, 792),
         cells,
       },
@@ -461,44 +529,16 @@ export async function listClauses(documentId: string, signal?: AbortSignal) {
   return data.map(asClause).filter((node): node is ClauseNode => node !== null)
 }
 
-export type DossierSearchHit = {
-  text: string
-  pageNo: number | null
-}
-
-export type DossierSearchResult = {
-  query: string
-  answer: string | null
-  connected: boolean
-  hits: DossierSearchHit[]
-}
+export type DossierSearchHit = Ai2SearchHit
+export type DossierSearchResult = Ai2SearchResult
 
 export async function searchDossier(dossierId: string, query: string) {
   const { data } = await requestJson<unknown>(
     `/api/v1/dossiers/${encodeURIComponent(dossierId)}/search`,
     { method: 'POST', json: { query } },
   )
-  const row = asRecord(data)
-  const hits = Array.isArray(row?.hits)
-    ? row.hits.flatMap((item): DossierSearchHit[] => {
-        const hit = asRecord(item)
-        const text = asString(hit?.text)
-        if (!hit || !text) return []
-        const page = hit.page_no
-        return [
-          {
-            text,
-            pageNo: typeof page === 'number' ? page : null,
-          },
-        ]
-      })
-    : []
-  return {
-    query: asString(row?.query) || query,
-    answer: asString(row?.answer) || null,
-    connected: row?.connected === true,
-    hits,
-  } satisfies DossierSearchResult
+  const result = normalizeAi2SearchResult(data, dossierId)
+  return { ...result, query: result.query || query }
 }
 
 export function structureErrorMessage(error: unknown) {

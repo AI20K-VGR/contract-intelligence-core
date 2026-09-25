@@ -23,6 +23,10 @@ from contract_intelligence.review.application.dtos.approval_dtos import (
 )
 from contract_intelligence.review.interfaces.api.dependencies_approval import (
     ApprovalServiceDep,
+    require_approval_access,
+    require_external_approval_access,
+    require_external_approval_read_access,
+    require_lock_access,
 )
 from contract_intelligence.shared.auth import (
     AuthenticatedUser,
@@ -47,6 +51,7 @@ async def lock_dossier(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ApprovalServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(require_role("REVIEWER", "ADMINISTRATOR"))],
+    _acl: Annotated[None, Depends(require_lock_access)],
 ) -> ApiResponse[DossierDetailDTO]:
     """RBAC: REVIEWER, ADMINISTRATOR."""
     return ApiResponse(data=await svc.lock_dossier(dossier_id))
@@ -66,6 +71,7 @@ async def approve_dossier(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ApprovalServiceDep,
     user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
+    _acl: Annotated[None, Depends(require_approval_access)],
     body: Annotated[ApproveRequestDTO | None, Body()] = None,
 ) -> ApiResponse[DossierDetailDTO]:
     """RBAC: ADMINISTRATOR only."""
@@ -89,6 +95,7 @@ async def create_external_approval(
     body: Annotated[ExternalApprovalRequestDTO, Body()],
     svc: ApprovalServiceDep,
     user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
+    _acl: Annotated[None, Depends(require_external_approval_access)],
 ) -> ApiResponse[ExternalApprovalGrantDTO]:
     """RBAC: ADMINISTRATOR only."""
     return ApiResponse(
@@ -115,6 +122,7 @@ async def list_external_approvals(
     _user: Annotated[
         AuthenticatedUser, Depends(require_role("OPERATOR", "REVIEWER", "ADMINISTRATOR"))
     ],
+    _acl: Annotated[None, Depends(require_external_approval_read_access)],
 ) -> ApiResponse[list[ExternalApprovalGrantDTO]]:
     return ApiResponse(data=await svc.list_external_approvals(dossier_id))
 

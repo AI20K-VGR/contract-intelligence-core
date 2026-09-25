@@ -142,6 +142,9 @@ class DocTableItem(BaseModel):
     cols_count: int
     has_borders: bool
     cells: list[TableCellItem]
+    source_id: str | None = None
+    continued_from_source_id: str | None = None
+    is_multi_page: bool = False
 
 
 class PageItem(BaseModel):
