@@ -1,0 +1,12 @@
+{
+  "documents": [
+    {
+      "document_id": "DOC-001",
+      "file_name": "contract_001.pdf",
+      "language": ["vi"],
+      "source_type": "scan",
+      "scan_quality": "medium",
+      "test_cases": ["stamp", "normal_table", "multi_page_table"]
+    }
+  ]
+}
