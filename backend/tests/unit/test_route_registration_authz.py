@@ -101,12 +101,8 @@ def _dependency_calls(route: APIRoute) -> set[object]:
 
 def test_dossier_lock_and_external_approval_routes_have_dossier_acl_dependencies() -> None:
     lock_route = _routes("/api/v1/dossiers/{dossier_id}/lock", "POST")
-    create_external_route = _routes(
-        "/api/v1/dossiers/{dossier_id}/external-approvals", "POST"
-    )
-    list_external_route = _routes(
-        "/api/v1/dossiers/{dossier_id}/external-approvals", "GET"
-    )
+    create_external_route = _routes("/api/v1/dossiers/{dossier_id}/external-approvals", "POST")
+    list_external_route = _routes("/api/v1/dossiers/{dossier_id}/external-approvals", "GET")
 
     assert lock_route and create_external_route and list_external_route
     assert require_lock_access in _dependency_calls(lock_route[0])

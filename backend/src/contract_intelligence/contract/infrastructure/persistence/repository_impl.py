@@ -6,6 +6,7 @@ Layer: infrastructure (persistence) — concrete impl cho Dossier/Document/Job/M
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 from sqlalchemy import and_, exists, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -114,10 +115,13 @@ class DossierRepositoryImpl(DossierRepository):
         meta = DossierORM.metadata_json
         owner = meta["created_by"].as_string()
         scope = meta["access_scope"].as_string()
+        shared: Any
         if self._session.bind is not None and self._session.bind.dialect.name == "sqlite":
-            shared_rows = func.json_each(
-                func.coalesce(func.json_extract(meta, "$.shared_with"), "[]")
-            ).table_valued("key", "value").alias("share_grant")
+            shared_rows = (
+                func.json_each(func.coalesce(func.json_extract(meta, "$.shared_with"), "[]"))
+                .table_valued("key", "value")
+                .alias("share_grant")
+            )
             shared = exists(
                 select(1)
                 .select_from(shared_rows)

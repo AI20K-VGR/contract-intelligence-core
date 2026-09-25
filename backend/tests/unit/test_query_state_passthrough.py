@@ -44,4 +44,3 @@ def test_backend_query_dto_defaults_to_safe_state_without_server_state() -> None
 
     assert dto.state == "INSUFFICIENT_EVIDENCE"
     assert dto.connected is True
-

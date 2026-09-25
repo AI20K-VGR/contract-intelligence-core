@@ -711,7 +711,14 @@ def _search_dto_from_ai2(payload: dict[str, Any], *, fallback_query: str) -> Dos
     """Preserve server semantics; transport success never implies ANSWERED."""
     answer = payload.get("answer") or payload.get("text")
     state = str(payload.get("state") or payload.get("review_state") or "INSUFFICIENT_EVIDENCE")
-    if state not in {"PASS", "ANSWERED", "NEEDS_REVIEW", "INSUFFICIENT_EVIDENCE", "BLOCKED", "NOT_COMPARABLE"}:
+    if state not in {
+        "PASS",
+        "ANSWERED",
+        "NEEDS_REVIEW",
+        "INSUFFICIENT_EVIDENCE",
+        "BLOCKED",
+        "NOT_COMPARABLE",
+    }:
         state = "INSUFFICIENT_EVIDENCE"
     return DossierSearchDTO(
         query=str(payload.get("query") or fallback_query),
@@ -719,8 +726,12 @@ def _search_dto_from_ai2(payload: dict[str, Any], *, fallback_query: str) -> Dos
         connected=payload.get("connected") is not False,
         state=state,
         used_llm=bool(payload.get("used_llm", False)),
-        retrieval_layer=payload.get("retrieval_layer") if isinstance(payload.get("retrieval_layer"), dict) else {},
-        reasoning_trace=payload.get("reasoning_trace") if isinstance(payload.get("reasoning_trace"), list) else [],
+        retrieval_layer=payload.get("retrieval_layer")
+        if isinstance(payload.get("retrieval_layer"), dict)
+        else {},
+        reasoning_trace=payload.get("reasoning_trace")
+        if isinstance(payload.get("reasoning_trace"), list)
+        else [],
         hits=_hits_from_ai2(payload),
     )
 
@@ -776,9 +787,7 @@ async def search_dossier(
         )
     if not isinstance(payload, dict):
         payload = {}
-    return ApiResponse(
-        data=_search_dto_from_ai2(payload, fallback_query=question)
-    )
+    return ApiResponse(data=_search_dto_from_ai2(payload, fallback_query=question))
 
 
 # -----------------------------------------------------------------------------

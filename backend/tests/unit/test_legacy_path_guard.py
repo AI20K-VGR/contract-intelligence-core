@@ -9,4 +9,3 @@ def test_canonical_mode_rejects_implicit_stub() -> None:
 def test_explicit_compatibility_mode_is_the_only_stub_opt_in() -> None:
     assert canonical_ai_service_mode("compatibility") == "stub"
     assert canonical_ai_service_mode("http") == "http"
-

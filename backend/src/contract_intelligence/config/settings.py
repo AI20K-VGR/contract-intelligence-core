@@ -85,6 +85,11 @@ class Settings(BaseSettings):
         default="ci-backend-orchestrator",
         description="Consumer group for dossier_events orchestrator.",
     )
+    kafka_ai2_idp_commands_topic: str = Field(default="ci.ai2.idp.commands")
+    kafka_ai2_idp_results_topic: str = Field(default="ci.ai2.idp.results")
+    kafka_ai2_idp_group_id: str = Field(default="ci-ai2-idp")
+    kafka_backend_ai2_results_group_id: str = Field(default="ci-backend-ai2-results")
+    kafka_backend_ai2_commands_group_id: str = Field(default="ci-backend-ai2-idp")
     kafka_presign_expires_seconds: int = Field(
         default=3600,
         ge=60,
@@ -106,9 +111,7 @@ class Settings(BaseSettings):
     # setting for deterministic tests/demo only.
     ai_service_mode: Literal["stub", "http"] = Field(
         default="http",
-        description=(
-            '"http" — canonical AI service. "stub" — explicit compatibility only.'
-        ),
+        description=('"http" — canonical AI service. "stub" — explicit compatibility only.'),
     )
     ai_service_url: str = Field(default="http://localhost:8001")
     ai_service_api_key: str | None = Field(
@@ -125,6 +128,7 @@ class Settings(BaseSettings):
         default="http://localhost:8002",
         description="AI2 canonical service base URL (POST {AI2_BASE_URL}/jobs/idp).",
     )
+    ai2_wire_enabled: bool = Field(default=False)
     ai2_service_hmac_secret: str | None = Field(
         default=None,
         description="Shared local/service secret for the canonical AI2 envelope; never commit.",
@@ -132,6 +136,8 @@ class Settings(BaseSettings):
     ai2_service_issuer: str = Field(default="backend-service")
     ai2_service_audience: str = Field(default="vsf-ai2")
     ai2_service_key_id: str = Field(default="default")
+    ai2_idp_poll_interval_seconds: float = Field(default=0.5, ge=0.1, le=30.0)
+    ai2_idp_max_polls: int = Field(default=120, ge=1, le=10_000)
     # Background dispatcher tuning
     ai_dispatcher_poll_interval_seconds: float = Field(default=1.5, ge=0.1, le=60.0)
     ai_dispatcher_max_polls: int = Field(default=200, ge=10, le=10_000)

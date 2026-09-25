@@ -143,14 +143,17 @@ def test_same_tenant_without_owner_or_share_is_denied() -> None:
 
 def test_administrator_query_only_share_can_read_external_approvals() -> None:
     admin = _principal(user_id="admin", role="ADMINISTRATOR")
-    assert dossier_access_decision(
-        action=AclAction.QUERY,
-        principal=admin,
-        dossier_id="dos_1",
-        dossier_tenant_id="tenant_a",
-        metadata={
-            "created_by": "owner",
-            "access_scope": "shared_out",
-            "shared_with": [{"id": "admin", "actions": ["query"]}],
-        },
-    ) is True
+    assert (
+        dossier_access_decision(
+            action=AclAction.QUERY,
+            principal=admin,
+            dossier_id="dos_1",
+            dossier_tenant_id="tenant_a",
+            metadata={
+                "created_by": "owner",
+                "access_scope": "shared_out",
+                "shared_with": [{"id": "admin", "actions": ["query"]}],
+            },
+        )
+        is True
+    )

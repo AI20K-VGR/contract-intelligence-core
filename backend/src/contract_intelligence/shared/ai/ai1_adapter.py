@@ -192,7 +192,7 @@ def adapt_ai1_snapshot_result(result: dict[str, Any]) -> Ai1SnapshotPayload:
         else:
             start = end = 0
         node_bbox = node.get("bbox_normalized")
-        source_id = str(node.get("node_id") or "").strip() or None
+        node_source_id: str | None = str(node.get("node_id") or "").strip() or None
         parent_raw = node.get("parent_id")
         parent_source_id = str(parent_raw).strip() if parent_raw else None
         node_regions = node.get("regions") or []
@@ -202,7 +202,7 @@ def adapt_ai1_snapshot_result(result: dict[str, Any]) -> Ai1SnapshotPayload:
                 "label": str(node.get("label_normalized", "")),
                 "number": str(node.get("label_raw") or ""),
                 "title": str(node.get("label_normalized", "")),
-                "source_id": source_id,
+                "source_id": node_source_id,
                 "parent_source_id": parent_source_id,
                 # New snapshots carry authoritative clause text. Rebuilding
                 # it from positioned lines would silently discard OCR text

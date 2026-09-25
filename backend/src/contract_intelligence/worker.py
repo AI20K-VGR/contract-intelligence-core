@@ -364,7 +364,10 @@ async def _build_ocr_command_payload(
     page_count = int(document.page_count or 0)
     pages = list(range(1, page_count + 1)) if page_count > 0 else [1]
 
-    get_url = await storage.generate_presigned_get_url(document.blob_uri)
+    blob_uri = document.blob_uri
+    if not blob_uri:
+        raise ValueError(f"Document {document.id} has no blob URI")
+    get_url = await storage.generate_presigned_get_url(blob_uri)
     put_urls: dict[str, str] = {}
     for page_no in pages:
         put_key = f"{document.id}/page-{page_no:03d}.png"
@@ -707,8 +710,8 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
                 run_id=str(run_id) if run_id else None,
             )
         except Exception as exc:
-            message = str(exc).lower()
-            if "append-only" not in message and "bất biến" not in message:
+            error_message: Any = str(exc).lower()
+            if "append-only" not in error_message and "bất biến" not in error_message:
                 raise
             await session.rollback()
             logger.warning(

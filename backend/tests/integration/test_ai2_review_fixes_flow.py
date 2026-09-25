@@ -352,9 +352,7 @@ async def test_review_queue_rejects_stale_version_after_invalid_evidence(
     invalid_result["result"]["facts"][0]["citation_ids"] = ["citation-does-not-exist"]
 
     async with db_session_factory() as session:
-        session.add(
-            JobORM(id="job-vsf-ai2-review", tenant_id=TENANT_ID, dossier_id=DOSSIER_ID)
-        )
+        session.add(JobORM(id="job-vsf-ai2-review", tenant_id=TENANT_ID, dossier_id=DOSSIER_ID))
         session.add(
             PipelineRunORM(
                 id=REVIEW_RUN_ID,

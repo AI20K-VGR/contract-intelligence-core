@@ -26,9 +26,7 @@ def _fragment(table_id: str, page_no: int, start: int) -> dict:
 
 
 def test_infers_legacy_cross_page_table_from_continuous_stt() -> None:
-    rows = _infer_legacy_continuity(
-        [_fragment("t-1", 1, 1), _fragment("t-2", 2, 4)]
-    )
+    rows = _infer_legacy_continuity([_fragment("t-1", 1, 1), _fragment("t-2", 2, 4)])
 
     assert rows[0]["is_multi_page"] is True
     assert rows[1]["is_multi_page"] is True
@@ -36,9 +34,7 @@ def test_infers_legacy_cross_page_table_from_continuous_stt() -> None:
 
 
 def test_does_not_infer_when_sequence_resets() -> None:
-    rows = _infer_legacy_continuity(
-        [_fragment("t-1", 1, 1), _fragment("t-2", 2, 1)]
-    )
+    rows = _infer_legacy_continuity([_fragment("t-1", 1, 1), _fragment("t-2", 2, 1)])
 
     assert rows[0]["is_multi_page"] is False
     assert rows[1]["continued_from"] is None

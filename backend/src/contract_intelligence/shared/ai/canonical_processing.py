@@ -59,7 +59,8 @@ def _canonicalize_compact_snapshot(
 
     snapshot_id = str(snapshot["snapshot_id"])
     document_id = str(snapshot["document_id"])
-    engine = snapshot.get("engine") if isinstance(snapshot.get("engine"), dict) else {}
+    engine_raw = snapshot.get("engine")
+    engine: dict[str, Any] = engine_raw if isinstance(engine_raw, dict) else {}
     engine_name = str(engine.get("name") or "ai1")
     engine_version = str(engine.get("version") or "unknown")
     pages: list[dict[str, Any]] = []
