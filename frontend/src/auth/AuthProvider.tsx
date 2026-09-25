@@ -36,7 +36,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function hydrate() {
       try {
-        const oidcUser = await manager?.getUser()
+        let oidcUser = await manager?.getUser()
+        if (!oidcUser?.access_token || oidcUser.expired) {
+          try {
+            oidcUser = (await manager?.signinSilent()) ?? null
+          } catch {
+            oidcUser = null
+          }
+        }
         if (!oidcUser?.access_token || oidcUser.expired) {
           if (!cancelled) {
             setUser(null)
@@ -84,13 +91,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })()
     }
 
+    const onStorage = (event: StorageEvent) => {
+      if (!event.key?.startsWith('oidc.user:')) return
+      if (!event.newValue) {
+        setUser(null)
+        return
+      }
+      void hydrate()
+    }
+
     manager?.events.addUserSignedOut(onSignedOut)
     manager?.events.addAccessTokenExpired(onTokenExpired)
+    window.addEventListener('storage', onStorage)
 
     return () => {
       cancelled = true
       manager?.events.removeUserSignedOut(onSignedOut)
       manager?.events.removeAccessTokenExpired(onTokenExpired)
+      window.removeEventListener('storage', onStorage)
     }
   }, [])
 

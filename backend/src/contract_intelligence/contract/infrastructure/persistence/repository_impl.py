@@ -110,7 +110,7 @@ class DossierRepositoryImpl(DossierRepository):
             )
         )
 
-    def _readable_by(self, viewer_id: str) -> ColumnElement[bool]:
+    def _readable_by(self, viewer_id: str, viewer_email: str = "") -> ColumnElement[bool]:
         """Chủ hồ sơ luôn thấy. Người được chia sẻ chỉ thấy khi quyền còn hiệu lực."""
         meta = DossierORM.metadata_json
         owner = meta["created_by"].as_string()
@@ -122,10 +122,14 @@ class DossierRepositoryImpl(DossierRepository):
                 .table_valued("key", "value")
                 .alias("share_grant")
             )
+            share_match = [func.json_extract(shared_rows.c.value, "$.id") == viewer_id]
+            if viewer_email:
+                share_match.append(
+                    func.lower(func.json_extract(shared_rows.c.value, "$.email"))
+                    == viewer_email.lower()
+                )
             shared = exists(
-                select(1)
-                .select_from(shared_rows)
-                .where(func.json_extract(shared_rows.c.value, "$.id") == viewer_id)
+                select(1).select_from(shared_rows).where(or_(*share_match))
             )
         else:
             shared = text(
@@ -133,8 +137,9 @@ class DossierRepositoryImpl(DossierRepository):
                 "CASE WHEN json_typeof("
                 "COALESCE(dossier.metadata, '{}'::json)->'shared_with') = 'array' "
                 "THEN COALESCE(dossier.metadata, '{}'::json)->'shared_with' ELSE '[]'::json END"
-                ") AS share_grant WHERE share_grant->>'id' = :viewer_id)"
-            ).bindparams(viewer_id=viewer_id)
+                ") AS share_grant WHERE share_grant->>'id' = :viewer_id"
+                " OR (:viewer_email <> '' AND lower(share_grant->>'email') = lower(:viewer_email)))"
+            ).bindparams(viewer_id=viewer_id, viewer_email=viewer_email)
         return or_(
             meta.is_(None),
             owner.is_(None),
@@ -180,6 +185,7 @@ class DossierRepositoryImpl(DossierRepository):
         q: str | None = None,
         batch_id: str | None = None,
         viewer_id: str | None = None,
+        viewer_email: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> Page[str]:
@@ -190,7 +196,7 @@ class DossierRepositoryImpl(DossierRepository):
             self._visible(),
         )
         if viewer_id:
-            stmt = stmt.where(self._readable_by(viewer_id))
+            stmt = stmt.where(self._readable_by(viewer_id, viewer_email or ""))
         if status:
             stmt = stmt.where(DossierORM.status == status)
         if has_conflicts is not None:
@@ -454,7 +460,8 @@ class DossierRepositoryImpl(DossierRepository):
             "UPDATE job SET error_detail = NULL WHERE dossier_id = :id AND tenant_id = :tenant_id",
             "UPDATE pipeline_run SET error_detail = NULL, config_snapshot = NULL "
             "WHERE dossier_id = :id AND tenant_id = :tenant_id",
-            "UPDATE review_item SET reason = '' WHERE dossier_id = :id AND tenant_id = :tenant_id",
+            "UPDATE review_item SET reason = '', target_snapshot = NULL "
+            "WHERE dossier_id = :id AND tenant_id = :tenant_id",
             "UPDATE manifest_item SET filename = '' WHERE manifest_id IN "
             "(SELECT id FROM manifest WHERE dossier_id = :id AND tenant_id = :tenant_id)",
         )

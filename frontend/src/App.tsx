@@ -72,22 +72,8 @@ export default function App() {
                   </RequireRole>
                 }
               />
-              <Route
-                path="/quyen-truy-cap"
-                element={
-                  <RequireRole allow="admin">
-                    <AccessPage />
-                  </RequireRole>
-                }
-              />
-              <Route
-                path="/nhat-ky-hoat-dong"
-                element={
-                  <RequireRole allow="admin">
-                    <ActivityLogPage />
-                  </RequireRole>
-                }
-              />
+              <Route path="/quyen-truy-cap" element={<AccessPage />} />
+              <Route path="/nhat-ky-hoat-dong" element={<ActivityLogPage />} />
               <Route
                 path="/ho-so-cua-toi"
                 element={

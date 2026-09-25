@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { listDossiers, listDossiersErrorMessage } from '../api/dossiers'
@@ -17,6 +17,7 @@ import {
   type ManagedUserRole,
   type ManagedUserStatus,
 } from '../api/users'
+import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 
@@ -58,6 +59,8 @@ function formatCount(value: number | null) {
 }
 
 export function OverviewPage() {
+  const { user } = useAuth()
+  const isAdmin = user?.backendRole === 'ADMINISTRATOR'
   usePageTitle('Tổng quan hệ thống')
   const titleInHeader = useHeaderShowsPageTitle()
   const [queryInput, setQueryInput] = useState('')
@@ -79,6 +82,8 @@ export function OverviewPage() {
   const [activityLoading, setActivityLoading] = useState(true)
   const [activityMissing, setActivityMissing] = useState(false)
   const [activityError, setActivityError] = useState<string | null>(null)
+  const membersPanelRef = useRef<HTMLDivElement>(null)
+  const [activityHeight, setActivityHeight] = useState<number | null>(null)
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -89,6 +94,13 @@ export function OverviewPage() {
   }, [queryInput])
 
   useEffect(() => {
+    if (!isAdmin) {
+      setMembers([])
+      setMemberTotal(0)
+      setMembersLoading(false)
+      setMembersError(null)
+      return
+    }
     const controller = new AbortController()
     setMembersLoading(true)
     setMembersError(null)
@@ -117,19 +129,23 @@ export function OverviewPage() {
       })
 
     return () => controller.abort()
-  }, [query, role, offset])
+  }, [query, role, offset, isAdmin])
 
   useEffect(() => {
     const controller = new AbortController()
     setStatsError(null)
 
-    const users = listUsers({ limit: 1, offset: 0, signal: controller.signal })
-    const invites = listUsers({
-      status: 'invited',
-      limit: 1,
-      offset: 0,
-      signal: controller.signal,
-    })
+    const users = isAdmin
+      ? listUsers({ limit: 1, offset: 0, signal: controller.signal })
+      : Promise.resolve({ users: [], total: 0 })
+    const invites = isAdmin
+      ? listUsers({
+          status: 'invited' as const,
+          limit: 1,
+          offset: 0,
+          signal: controller.signal,
+        })
+      : Promise.resolve({ users: [], total: 0 })
     const dossiers = listDossiers({ limit: 1, offset: 0, signal: controller.signal })
 
     Promise.allSettled([users, invites, dossiers]).then((results) => {
@@ -165,7 +181,7 @@ export function OverviewPage() {
     })
 
     return () => controller.abort()
-  }, [])
+  }, [isAdmin])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -212,6 +228,23 @@ export function OverviewPage() {
     return () => controller.abort()
   }, [])
 
+  useEffect(() => {
+    const panel = membersPanelRef.current
+    if (!panel) return
+    const media = window.matchMedia('(min-width: 1024px)')
+    const sync = () => {
+      setActivityHeight(media.matches ? Math.round(panel.getBoundingClientRect().height) : null)
+    }
+    sync()
+    const observer = new ResizeObserver(sync)
+    observer.observe(panel)
+    media.addEventListener('change', sync)
+    return () => {
+      observer.disconnect()
+      media.removeEventListener('change', sync)
+    }
+  }, [])
+
   const from = members.length === 0 ? 0 : offset + 1
   const to = offset + members.length
   const hasPrev = offset > 0
@@ -232,12 +265,14 @@ export function OverviewPage() {
       ) : null}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-space-md">
-        <StatCard
-          icon="group"
-          label="Tổng người dùng"
-          to="/nguoi-dung-phan-quyen"
-          value={formatCount(userTotal)}
-        />
+        {isAdmin ? (
+          <StatCard
+            icon="group"
+            label="Tổng người dùng"
+            to="/nguoi-dung-phan-quyen"
+            value={formatCount(userTotal)}
+          />
+        ) : null}
         <StatCard
           icon="inventory_2"
           label="Hồ sơ hoạt động"
@@ -249,12 +284,14 @@ export function OverviewPage() {
           loading={storageLoading}
           missing={storageMissing}
         />
-        <StatCard
-          icon="mark_email_unread"
-          label="Lời mời chờ duyệt"
-          to="/nguoi-dung-phan-quyen"
-          value={formatCount(inviteTotal)}
-        />
+        {isAdmin ? (
+          <StatCard
+            icon="mark_email_unread"
+            label="Lời mời chờ duyệt"
+            to="/nguoi-dung-phan-quyen"
+            value={formatCount(inviteTotal)}
+          />
+        ) : null}
       </div>
 
       <div className="w-full bg-surface-container-low px-space-lg py-space-md rounded flex items-center justify-between gap-space-md">
@@ -272,7 +309,11 @@ export function OverviewPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
-        <div className="lg:col-span-8 flex flex-col bg-surface-container-lowest rounded shadow-sm overflow-hidden">
+        {isAdmin ? (
+        <div
+          ref={membersPanelRef}
+          className="lg:col-span-8 flex flex-col bg-surface-container-lowest rounded shadow-sm overflow-hidden"
+        >
           <div className="p-space-lg flex flex-col sm:flex-row sm:items-center justify-between gap-space-md bg-surface-container-lowest">
             <div>
               <h2 className="font-headline-md text-headline-md text-on-surface font-semibold">
@@ -409,64 +450,70 @@ export function OverviewPage() {
             </div>
           </div>
         </div>
+        ) : null}
 
-        <div className="lg:col-span-4 flex flex-col bg-surface-container-lowest rounded shadow-sm p-space-lg">
-          <div className="flex items-center justify-between mb-space-md">
-            <div className="flex items-center gap-space-xs">
-              <MaterialIcon name="history" className="text-[18px] text-secondary" />
-              <h2 className="font-headline-md text-headline-md text-on-surface font-semibold">
+        <div
+          className={`${isAdmin ? 'lg:col-span-4' : 'lg:col-span-12'} flex flex-col bg-surface-container-lowest rounded shadow-sm p-space-lg min-h-0 overflow-hidden`}
+          style={activityHeight != null ? { height: activityHeight } : undefined}
+        >
+          <div className="flex items-center justify-between mb-space-md shrink-0">
+            <div className="flex items-center gap-space-xs min-w-0">
+              <MaterialIcon name="history" className="text-[18px] text-secondary shrink-0" />
+              <h2 className="font-headline-md text-headline-md text-on-surface font-semibold truncate">
                 Hoạt động gần đây
               </h2>
             </div>
             <Link
-              className="font-label-sm text-label-sm text-primary hover:underline"
+              className="font-label-sm text-label-sm text-primary hover:underline shrink-0"
               to="/nhat-ky-hoat-dong"
             >
               Xem tất cả
             </Link>
           </div>
-          {activityLoading ? (
-            <p className="font-body-sm text-body-sm text-secondary py-space-md">
-              Đang tải hoạt động…
-            </p>
-          ) : null}
-          {!activityLoading && activityError ? (
-            <p className="font-body-sm text-body-sm text-error py-space-md">{activityError}</p>
-          ) : null}
-          {!activityLoading && !activityError && activity.length === 0 ? (
-            <div className="flex flex-col items-start gap-space-sm py-space-md">
-              <MaterialIcon name="history" className="text-secondary text-[28px]" />
-              <p className="font-title-sm text-title-sm text-on-surface">
-                Chưa có nhật ký hoạt động
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {activityLoading ? (
+              <p className="font-body-sm text-body-sm text-secondary py-space-md">
+                Đang tải hoạt động…
               </p>
-              <p className="font-body-sm text-body-sm text-secondary">
-                {activityMissing
-                  ? 'Backend chưa có API hoạt động toàn hệ thống. Nhật ký theo từng hồ sơ nằm ở màn rà soát.'
-                  : 'Tạo hồ sơ, mời thành viên hoặc rà soát để sự kiện hiện ở đây.'}
-              </p>
-            </div>
-          ) : null}
-          {!activityLoading && activity.length > 0 ? (
-            <ul className="flex flex-col divide-y divide-surface-container-low">
-              {activity.map((event) => (
-                <li key={event.id} className="flex flex-col gap-0.5 py-space-sm">
-                  <span className="font-title-sm text-title-sm text-on-surface">
-                    {event.actor_display_name
-                      ? `${event.actor_display_name} · ${event.title}`
-                      : event.title}
-                  </span>
-                  <span className="font-body-sm text-body-sm text-secondary">
-                    {formatWhen(event.occurred_at)}
-                  </span>
-                  {event.detail ? (
-                    <span className="font-body-sm text-body-sm text-secondary truncate">
-                      {event.detail}
+            ) : null}
+            {!activityLoading && activityError ? (
+              <p className="font-body-sm text-body-sm text-error py-space-md">{activityError}</p>
+            ) : null}
+            {!activityLoading && !activityError && activity.length === 0 ? (
+              <div className="flex flex-col items-start gap-space-sm py-space-md">
+                <MaterialIcon name="history" className="text-secondary text-[28px]" />
+                <p className="font-title-sm text-title-sm text-on-surface">
+                  Chưa có nhật ký hoạt động
+                </p>
+                <p className="font-body-sm text-body-sm text-secondary">
+                  {activityMissing
+                    ? 'Backend chưa có API hoạt động toàn hệ thống. Nhật ký theo từng hồ sơ nằm ở màn rà soát.'
+                    : 'Tạo hồ sơ, mời thành viên hoặc rà soát để sự kiện hiện ở đây.'}
+                </p>
+              </div>
+            ) : null}
+            {!activityLoading && activity.length > 0 ? (
+              <ul className="flex flex-col divide-y divide-surface-container-low">
+                {activity.map((event) => (
+                  <li key={event.id} className="flex flex-col gap-0.5 py-space-sm">
+                    <span className="font-title-sm text-title-sm text-on-surface">
+                      {event.actor_display_name
+                        ? `${event.actor_display_name} · ${event.title}`
+                        : event.title}
                     </span>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          ) : null}
+                    <span className="font-body-sm text-body-sm text-secondary">
+                      {formatWhen(event.occurred_at)}
+                    </span>
+                    {event.detail ? (
+                      <span className="font-body-sm text-body-sm text-secondary truncate">
+                        {event.detail}
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>

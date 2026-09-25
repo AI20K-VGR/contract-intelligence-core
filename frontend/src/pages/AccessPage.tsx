@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import {
   listDossiers,
   listDossiersErrorMessage,
   updateDossierAccess,
 } from '../api/dossiers'
 import { listUsers, type ManagedUser } from '../api/users'
+import { homePath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
-import type { Dossier } from '../data/dossiers'
+import { dossierOpenTo, type Dossier } from '../data/dossiers'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { accessLabels, dossierFromSummary } from './MyDossiersPage'
 
@@ -23,6 +24,7 @@ const filters: { id: AccessFilter; label: string; dot?: string }[] = [
 
 export function AccessPage() {
   const { user } = useAuth()
+  const sharedOnly = user?.backendRole !== 'ADMINISTRATOR'
   usePageTitle('Quyền truy cập')
   const [params, setParams] = useSearchParams()
   const selectedId = params.get('dossier')
@@ -30,10 +32,13 @@ export function AccessPage() {
   const [people, setPeople] = useState<ManagedUser[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<AccessFilter>('all')
+  const [filter, setFilter] = useState<AccessFilter>(
+    sharedOnly ? 'shared_in' : 'all',
+  )
   const [chosen, setChosen] = useState<string[]>([])
   const [savingId, setSavingId] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const selected = dossiers.find((item) => item.id === selectedId) ?? null
   const tenants = people.filter((person) => person.id !== user?.id)
@@ -52,7 +57,9 @@ export function AccessPage() {
       .then((result) => {
         if (controller.signal.aborted) return
         setDossiers(
-          result.items.map((item) => dossierFromSummary(item, user?.id)),
+          result.items.map((item) =>
+            dossierFromSummary(item, user?.id, user?.email),
+          ),
         )
         setError(null)
       })
@@ -71,12 +78,18 @@ export function AccessPage() {
         if (!controller.signal.aborted) setPeople([])
       })
     return () => controller.abort()
-  }, [user?.id])
+  }, [user?.id, user?.email])
 
   useEffect(() => {
     setChosen(selected?.shares?.map((item) => item.id) ?? [])
     setSaveError(null)
   }, [selected])
+
+  useEffect(() => {
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(null), 5000)
+    return () => window.clearTimeout(timer)
+  }, [notice])
 
   function select(id: string) {
     setParams({ dossier: id })
@@ -117,17 +130,26 @@ export function AccessPage() {
     }
   }
 
+  if (user?.backendRole === 'REVIEWER') {
+    return <Navigate to={homePath(user.role)} replace />
+  }
+
+  const shownFilters = sharedOnly
+    ? filters.filter((item) => item.id === 'shared_in')
+    : filters
+
   return (
     <div className="flex flex-col w-full pb-margin-lg">
       <p className="font-body-sm text-body-sm text-on-surface-variant pb-space-lg">
-        Phân loại hồ sơ bạn tải lên, hồ sơ bạn đã chia sẻ và hồ sơ người khác
-        chia sẻ cho bạn.
+        {sharedOnly
+          ? 'Hồ sơ người khác chia sẻ cho bạn.'
+          : 'Phân loại hồ sơ bạn tải lên, hồ sơ bạn đã chia sẻ và hồ sơ người khác chia sẻ cho bạn.'}
       </p>
 
       <div className="bg-surface-container-lowest rounded-lg shadow-[0_1px_3px_rgba(15,23,42,0.06)] flex flex-col">
         <div className="p-space-md bg-surface-container-lowest">
           <div className="inline-flex items-center bg-surface-container-low p-1 rounded-lg gap-1 flex-wrap">
-            {filters.map((item) => {
+            {shownFilters.map((item) => {
               const active = filter === item.id
               const count =
                 item.id === 'all'
@@ -169,13 +191,18 @@ export function AccessPage() {
               <tr className="bg-surface-container-low text-on-secondary-container font-label-sm text-label-sm uppercase tracking-wider">
                 <th className="py-3 px-space-md font-semibold">Tên hồ sơ</th>
                 <th className="py-3 px-space-md font-semibold">Quyền truy cập</th>
-                <th className="py-3 px-space-md font-semibold">Đổi quyền</th>
+                {sharedOnly ? null : (
+                  <th className="py-3 px-space-md font-semibold">Đổi quyền</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-container-low text-on-surface">
               {error ? (
                 <tr>
-                  <td className="py-10 px-space-md text-error" colSpan={3}>
+                  <td
+                    className="py-10 px-space-md text-error"
+                    colSpan={sharedOnly ? 2 : 3}
+                  >
                     {error}
                   </td>
                 </tr>
@@ -184,7 +211,7 @@ export function AccessPage() {
                 <tr>
                   <td
                     className="py-10 px-space-md text-on-surface-variant"
-                    colSpan={3}
+                    colSpan={sharedOnly ? 2 : 3}
                   >
                     Đang tải danh sách hồ sơ…
                   </td>
@@ -194,7 +221,7 @@ export function AccessPage() {
                 <tr>
                   <td
                     className="py-10 px-space-md text-on-surface-variant"
-                    colSpan={3}
+                    colSpan={sharedOnly ? 2 : 3}
                   >
                     Không có hồ sơ trong nhóm này.
                   </td>
@@ -212,40 +239,47 @@ export function AccessPage() {
                     }`}
                   >
                     <td className="py-3.5 px-space-md">
-                      <span className="font-title-sm text-title-sm font-semibold">
+                      <Link
+                        className="font-title-sm text-title-sm font-semibold text-on-surface hover:text-on-tertiary-container"
+                        state={{ dossierId: item.id, name: item.title }}
+                        to={dossierOpenTo(item)}
+                      >
                         {item.title}
-                      </span>
+                      </Link>
                       <span className="block font-code-sm text-label-sm text-on-surface-variant mt-1">
                         {item.code}
                       </span>
                     </td>
                     <td className="py-3.5 px-space-md whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-surface-container font-label-sm text-label-sm">
-                        <MaterialIcon
-                          name={item.access === 'mine' ? 'lock' : 'share'}
-                          className="text-[14px]"
-                        />
-                        {accessLabels[item.access]}
-                      </span>
+                      {pendingInvite(item, user?.id, user?.email) ? (
+                        <button
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-900 font-label-sm text-label-sm"
+                          type="button"
+                          onClick={() =>
+                            setNotice(
+                              'Vui lòng kiểm tra mail mời rồi làm theo hướng dẫn.',
+                            )
+                          }
+                        >
+                          <MaterialIcon name="mark_email_unread" className="text-[14px]" />
+                          Chưa mời
+                        </button>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-surface-container font-label-sm text-label-sm">
+                          <MaterialIcon
+                            name={item.access === 'mine' ? 'lock' : 'share'}
+                            className="text-[14px]"
+                          />
+                          {accessLabels[item.access]}
+                        </span>
+                      )}
                     </td>
+                    {sharedOnly ? null : (
                     <td className="py-3.5 px-space-md">
                       {item.access === 'shared_in' ? (
                         <span className="font-body-sm text-body-sm text-on-surface-variant">
                           Người khác chia sẻ
                         </span>
-                      ) : item.access === 'shared_out' ? (
-                        <button
-                          className="h-9 px-space-sm rounded bg-surface-container-low text-on-surface font-body-sm text-body-sm hover:bg-surface-container disabled:opacity-50"
-                          disabled={savingId === item.id}
-                          type="button"
-                          onClick={() => {
-                            void saveAccess(item, 'mine', [])
-                          }}
-                        >
-                          {savingId === item.id
-                            ? 'Đang lưu…'
-                            : 'Đổi thành hồ sơ của tôi'}
-                        </button>
                       ) : (
                         <div className="relative inline-flex items-center gap-space-sm">
                           <button
@@ -262,6 +296,20 @@ export function AccessPage() {
                           >
                             Chia sẻ với người khác
                           </button>
+                          {item.access === 'shared_out' ? (
+                            <button
+                              className="h-9 px-space-sm rounded bg-surface-container-low text-on-surface font-body-sm text-body-sm hover:bg-surface-container disabled:opacity-50"
+                              disabled={savingId === item.id}
+                              type="button"
+                              onClick={() => {
+                                void saveAccess(item, 'mine', [])
+                              }}
+                            >
+                              {savingId === item.id
+                                ? 'Đang lưu…'
+                                : 'Đổi thành hồ sơ của tôi'}
+                            </button>
+                          ) : null}
                           {active ? (
                             <div className="absolute left-0 top-10 z-50 w-72 rounded bg-surface-container-lowest shadow-[0_8px_24px_rgba(15,23,42,0.12)] border border-surface-container p-space-sm flex flex-col gap-space-sm">
                               <div className="flex flex-col gap-1 max-h-48 overflow-auto">
@@ -317,6 +365,7 @@ export function AccessPage() {
                         </div>
                       )}
                     </td>
+                    )}
                   </tr>
                 )
               })}
@@ -324,6 +373,37 @@ export function AccessPage() {
           </table>
         </div>
       </div>
+      {notice ? (
+        <div
+          className="fixed top-20 right-6 z-[70] flex w-[min(24rem,calc(100vw-3rem))] items-start gap-space-md rounded border border-surface-container bg-surface-container-lowest px-space-lg py-space-md font-body-sm text-body-sm text-on-surface shadow-md"
+          role="status"
+        >
+          <MaterialIcon name="mark_email_unread" className="shrink-0 text-[20px] text-amber-700" />
+          <span className="flex-1">{notice}</span>
+          <button
+            aria-label="Đóng thông báo"
+            className="shrink-0 text-secondary hover:text-on-surface"
+            type="button"
+            onClick={() => setNotice(null)}
+          >
+            <MaterialIcon name="close" className="text-[18px]" />
+          </button>
+        </div>
+      ) : null}
     </div>
+  )
+}
+
+function pendingInvite(
+  dossier: Dossier,
+  userId: string | undefined,
+  email: string | undefined,
+) {
+  const normalized = email?.trim().toLowerCase()
+  return dossier.shares?.some(
+    (item) =>
+      item.status === 'invited' &&
+      ((userId && item.id === userId) ||
+        (normalized && item.email.trim().toLowerCase() === normalized)),
   )
 }

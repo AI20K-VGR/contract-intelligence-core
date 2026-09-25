@@ -24,10 +24,13 @@ import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 
 type StatusFilter = 'all' | OcrState
 
-function stateNotice(state: unknown): string | null {
+function stateNotice(state: unknown): { text: string; tone: 'ok' | 'error' } | null {
   if (!state || typeof state !== 'object') return null
   const notice = (state as { notice?: unknown }).notice
-  return typeof notice === 'string' && notice.trim() ? notice : null
+  if (typeof notice !== 'string' || !notice.trim()) return null
+  const tone =
+    (state as { noticeTone?: unknown }).noticeTone === 'error' ? 'error' : 'ok'
+  return { text: notice, tone }
 }
 
 const filters: { id: StatusFilter; label: string }[] = [
@@ -109,20 +112,40 @@ function sharesOf(
         email: typeof row.email === 'string' ? row.email : '',
         display_name:
           typeof row.display_name === 'string' ? row.display_name : '',
+        status:
+          row.status === 'invited' ||
+          row.status === 'active' ||
+          row.status === 'disabled'
+            ? row.status
+            : undefined,
       },
     ]
   })
 }
 
+function grantFor(
+  shares: ReturnType<typeof sharesOf>,
+  userId: string | undefined,
+  email: string | undefined,
+) {
+  const normalized = email?.trim().toLowerCase()
+  return shares.find(
+    (item) =>
+      (userId && item.id === userId) ||
+      (normalized && item.email.trim().toLowerCase() === normalized),
+  )
+}
+
 function accessScope(
   summary: DossierSummary,
   userId: string | undefined,
+  email?: string,
 ): Dossier['access'] {
   const metadata = summary.metadata
   const owner = metadataText(metadata, 'created_by')
   const shares = sharesOf(metadata)
   if (userId && owner && owner !== userId) {
-    return shares.some((item) => item.id === userId) ? 'shared_in' : 'mine'
+    return grantFor(shares, userId, email) ? 'shared_in' : 'mine'
   }
   const explicit = metadata?.access_scope
   if (
@@ -138,6 +161,7 @@ function accessScope(
 export function dossierFromSummary(
   summary: DossierSummary,
   userId: string | undefined,
+  email?: string,
 ): Dossier {
   const code = metadataText(summary.metadata, 'code') || summary.id
   const job = summary.latest_job_status
@@ -155,7 +179,7 @@ export function dossierFromSummary(
     reviewNote: reviewNote(summary),
     documents: summary.document_count,
     updated: formatWhen(summary.created_at),
-    access: accessScope(summary, userId),
+    access: accessScope(summary, userId, email),
     shares: sharesOf(summary.metadata),
     jobStatus: job,
     uploadedAt: summary.created_at,
@@ -373,7 +397,10 @@ export function MyDossiersPage() {
   const [ocrById, setOcrById] = useState<Record<string, OcrInspection>>({})
   const [restartAt, setRestartAt] = useState<Record<string, number>>({})
   /** Thông báo kết quả thao tác (đã xóa…), tự ẩn sau vài giây. */
-  const [notice, setNotice] = useState<string | null>(null)
+  const [notice, setNotice] = useState<{
+    text: string
+    tone: 'ok' | 'error'
+  } | null>(null)
 
   // Trang khác (tiến trình phân tích) xóa xong rồi chuyển về đây kèm thông báo.
   useEffect(() => {
@@ -412,7 +439,9 @@ export function MyDossiersPage() {
       .then((result) => {
         if (controller.signal.aborted) return
         setDossiers(
-          result.items.map((item) => dossierFromSummary(item, user?.id)),
+          result.items.map((item) =>
+            dossierFromSummary(item, user?.id, user?.email),
+          ),
         )
         setTotal(result.total)
       })
@@ -501,7 +530,7 @@ export function MyDossiersPage() {
       setDossiers((current) => current.filter((item) => item.id !== removedId))
       setTotal((current) => Math.max(0, current - 1))
       setPendingDelete(null)
-      setNotice(`Đã xóa hồ sơ “${removedTitle}”.`)
+      setNotice({ text: `Đã xóa hồ sơ “${removedTitle}”.`, tone: 'ok' })
     } catch (cause: unknown) {
       if (cause instanceof ApiError && cause.status === 403) {
         setError('Bạn không có quyền xóa hồ sơ này.')
@@ -526,7 +555,9 @@ export function MyDossiersPage() {
       })
       setDossiers((current) => [
         ...current,
-        ...result.items.map((item) => dossierFromSummary(item, user?.id)),
+        ...result.items.map((item) =>
+          dossierFromSummary(item, user?.id, user?.email),
+        ),
       ])
       setTotal(result.total)
     } catch (cause) {
@@ -596,14 +627,16 @@ export function MyDossiersPage() {
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
-          <button
-            className="flex items-center gap-space-xs h-9 px-space-md bg-primary text-on-primary font-title-sm text-body-sm rounded shadow-sm hover:bg-primary-container transition-colors shrink-0"
-            type="button"
-            onClick={() => navigate('/tao-ho-so')}
-          >
-            <MaterialIcon name="cloud_upload" className="text-[18px]" />
-            <span>Tải hồ sơ lên</span>
-          </button>
+          {user?.backendRole === 'REVIEWER' ? null : (
+            <button
+              className="flex items-center gap-space-xs h-9 px-space-md bg-primary text-on-primary font-title-sm text-body-sm rounded shadow-sm hover:bg-primary-container transition-colors shrink-0"
+              type="button"
+              onClick={() => navigate('/tao-ho-so')}
+            >
+              <MaterialIcon name="cloud_upload" className="text-[18px]" />
+              <span>Tải hồ sơ lên</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -804,10 +837,12 @@ export function MyDossiersPage() {
           role="status"
         >
           <MaterialIcon
-            name="check_circle"
-            className="shrink-0 text-[20px] text-emerald-600"
+            name={notice.tone === 'error' ? 'error' : 'check_circle'}
+            className={`shrink-0 text-[20px] ${
+              notice.tone === 'error' ? 'text-error' : 'text-emerald-600'
+            }`}
           />
-          <span className="flex-1">{notice}</span>
+          <span className="flex-1">{notice.text}</span>
           <button
             aria-label="Đóng thông báo"
             className="shrink-0 text-secondary hover:text-on-surface"

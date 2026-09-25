@@ -1,207 +1,173 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { listReviewSpots, type ReviewSpot } from '../api/structure'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import {
+  contractDocument,
+  getDossierStructure,
+  listClauses,
+  listReviewSpots,
+  structureErrorMessage,
+  type ClauseNode,
+  type ClauseRegion,
+  type DossierStructure,
+  type ReviewSpot,
+  type ReviewSpotLink,
+  type StructureDocument,
+} from '../api/structure'
+import {
+  listReviewItems,
+  submitReviewAction,
+  type ReviewItem,
+} from '../api/review'
 import { dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
+import { ConflictDocumentPane } from '../components/ConflictDocumentPane'
 import { MaterialIcon } from '../components/icons'
+import { clauseConflicts } from '../data/clauseConflicts'
 import { structurePath } from '../data/dossiers'
-import {
-  clauseConflicts,
-  conflictDossier,
-  type ClauseConflict,
-  type ConflictChoice,
-  type ConflictSource,
-} from '../data/clauseConflicts'
-import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
+import { usePageTitle } from '../hooks/usePageTitle'
+import { findClause, findClauseByQuote } from '../structure/citations'
+import { bodyOf, headOf } from '../structure/display'
 
-type Decision = 'none' | 'confirm' | 'overlay' | 'reject'
-type CompleteState = 'idle' | 'done'
+type Verdict = 'correct' | 'deviation' | 'edit'
 
-function SourceCard({
-  source,
-  selected,
-  flash,
-  onSelect,
-}: {
-  source: ConflictSource
-  selected: boolean
-  flash: boolean
-  onSelect: () => void
-}) {
-  return (
-    <button
-      className={`text-left bg-surface-container-low rounded-lg p-space-md flex flex-col justify-between transition-all group ${
-        selected
-          ? 'ring-1 ring-primary-container bg-surface-container'
-          : 'hover:bg-surface-container-high/60'
-      } ${flash ? 'bg-surface-container' : ''}`}
-      type="button"
-      onClick={onSelect}
-    >
-      <div className="flex flex-col gap-space-sm">
-        <div className="flex items-center justify-between">
-          <span className="font-label-sm text-label-sm text-on-surface-variant uppercase font-medium tracking-wide">
-            {source.label}
-          </span>
-          <MaterialIcon
-            name="check_circle"
-            className={`text-[16px] ${
-              selected
-                ? 'text-primary'
-                : 'text-on-surface-variant/60 group-hover:text-primary'
-            }`}
-          />
-        </div>
-        <div className="font-display-lg text-display-lg text-on-surface tracking-tight">
-          {source.value}{' '}
-          <span className="font-headline-md text-headline-md font-normal text-on-surface-variant">
-            {source.unit}
-          </span>
-        </div>
-        <div className="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-space-xs">
-          <MaterialIcon name="feed" className="text-[15px] text-secondary" />
-          <span>{source.context}</span>
-        </div>
-        <div className="bg-surface-container-lowest p-space-sm rounded text-on-surface font-body-sm text-body-sm">
-          <span className="font-code-sm text-code-sm text-on-surface-variant block mb-1">
-            {source.location}
-          </span>
-          “{source.quoteBefore}
-          <strong className="text-error bg-error-container/40 px-1 py-0.5 rounded">
-            {source.highlight}
-          </strong>
-          {source.quoteAfter}”
-        </div>
-      </div>
-      <div className="mt-space-md pt-space-xs flex items-center justify-between">
-        <span className="px-space-sm py-0.5 rounded bg-surface-container-lowest text-on-secondary-container font-code-sm text-code-sm font-semibold shadow-xs">
-          {source.field}
-        </span>
-      </div>
-    </button>
-  )
+const REVIEW_ACTION = {
+  correct: 'confirm',
+  deviation: 'reject',
+  edit: 'correct',
+} as const
+type ReviewCard = {
+  id: string
+  title: string
+  quote: string
+  contrast: string
+  basis: string
+  pageNo: number | null
+  confidence: number | null
+  regions: ClauseRegion[]
+  review: ReviewSpotLink | null
 }
 
-function QueueItem({
-  conflict,
-  active,
-  onSelect,
-}: {
-  conflict: ClauseConflict
-  active: boolean
-  onSelect: () => void
-}) {
-  const resolved = Boolean(conflict.choice)
-  return (
-    <button
-      className={`p-space-md rounded-lg flex flex-col gap-space-xs transition-all text-left ${
-        active
-          ? 'bg-surface-container-high text-on-surface'
-          : 'hover:bg-surface-container'
-      }`}
-      type="button"
-      onClick={onSelect}
-    >
-      <div className="flex items-center justify-between">
-        <span
-          className={`font-label-sm text-label-sm font-semibold uppercase tracking-wider ${
-            active ? 'text-on-primary-fixed' : 'text-on-surface-variant'
-          }`}
-        >
-          {conflict.code} {active ? '· Đang chọn' : ''}
-        </span>
-        {resolved ? (
-          <span className="px-1.5 py-0.5 rounded bg-surface-container text-on-secondary-container font-code-sm text-code-sm font-semibold flex items-center gap-1">
-            <MaterialIcon name="check" className="text-[13px]" /> Đã giải quyết
-          </span>
-        ) : (
-          <span className="px-1.5 py-0.5 rounded bg-error-container text-on-error-container font-code-sm text-code-sm font-semibold">
-            {conflict.badge}
-          </span>
-        )}
-      </div>
-      <span className="font-title-sm text-title-sm font-semibold text-on-surface">
-        {conflict.title}
-      </span>
-      <div
-        className={`font-code-sm text-code-sm ${
-          active ? 'text-on-secondary-container' : 'text-on-surface-variant'
-        }`}
-      >
-        {conflict.comparison}
-      </div>
-      <div className="mt-1 flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm">
-        <span>{conflict.location}</span>
-        {active ? (
-          <MaterialIcon
-            name="arrow_forward"
-            className="text-[16px] text-on-surface"
-          />
-        ) : (
-          <span className="text-on-secondary-container font-code-sm text-code-sm">
-            {conflict.choice === 'source1'
-              ? 'Chọn Nguồn 1'
-              : conflict.choice === 'source2'
-                ? 'Chọn Nguồn 2'
-                : conflict.choice === 'rejected'
-                  ? 'Đã từ chối'
-                  : conflict.choice === 'skipped'
-                    ? 'Đã bỏ qua'
-                    : conflict.choice === 'overlay'
-                      ? 'Đã sửa overlay'
-                      : 'Chờ duyệt'}
-          </span>
-        )}
-      </div>
-    </button>
-  )
+function pageFromText(text: string) {
+  const match = text.match(/trang\s+(\d+)/i)
+  return match ? Number(match[1]) : null
 }
 
-function sourceFromSpot(
-  id: 'source1' | 'source2',
+function confidenceLabel(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return null
+  const percent = value <= 1 ? value * 100 : value
+  return `${percent.toFixed(1)}%`
+}
+
+function sideText(side: { value: string; quote: string }) {
+  const quote = side.quote.trim()
+  if (quote) return quote
+  const value = side.value.trim()
+  return value && value !== '—' ? value : ''
+}
+
+function basisOf(head: string, pageNo: number | null, pageCount: number) {
+  const page =
+    pageNo && pageNo > 0
+      ? `Trang ${pageNo}${pageCount > 0 ? `/${pageCount}` : ''}`
+      : ''
+  if (head && page) return `Căn cứ: ${head} (${page})`
+  if (head) return `Căn cứ: ${head}`
+  if (page) return `Căn cứ: ${page}`
+  return 'Căn cứ: trong hồ sơ'
+}
+
+function spotToCard(
   spot: ReviewSpot,
-  side: ReviewSpot['sides'][number] | undefined,
-  fallback: string,
-): ConflictSource {
-  const value = side?.value || '—'
-  return {
-    id,
-    label: side?.label || fallback,
-    value,
-    unit: '',
-    context: spot.topic,
-    location: spot.topic,
-    quoteBefore: '',
-    highlight: side?.quote || value,
-    quoteAfter: '',
-    field: spot.topic,
-  }
-}
-
-function spotToConflict(spot: ReviewSpot, index: number): ClauseConflict {
+  nodes: ClauseNode[],
+  pageCount: number,
+): ReviewCard {
+  const linked =
+    spot.clauseIds
+      .map((id) => findClause(nodes, id))
+      .find((node): node is ClauseNode => node !== null) ?? null
+  const texts = spot.sides.map(sideText).filter(Boolean)
+  const matched =
+    linked ??
+    (texts[0] ? findClauseByQuote(nodes, texts[0], null) : null)
+  const quote =
+    texts.find((text) => {
+      if (!matched) return false
+      const body = bodyOf(matched)
+      return body.includes(text) || text.includes(body.slice(0, 40))
+    }) ||
+    texts[0] ||
+    (matched ? bodyOf(matched) : '') ||
+    spot.rationale
+  const contrast = texts.find((text) => text !== quote) ?? ''
+  const pageNo =
+    (matched?.pageStart && matched.pageStart > 0 ? matched.pageStart : null) ??
+    pageFromText(spot.topic) ??
+    pageFromText(quote)
+  const head = matched ? headOf(matched) : ''
   return {
     id: spot.id,
-    code: `#${String(index + 1).padStart(2, '0')}`,
-    title: spot.topic,
-    field: spot.topic,
-    comparison:
-      spot.sides
-        .map((side) => side.value)
-        .filter((value) => value && value !== '—')
-        .join(' vs ') || spot.topic,
-    location: spot.topic,
-    risk: 'high',
-    badge: 'Cần xử lý',
-    diagnosis:
-      spot.rationale || 'Nội dung này cần được kiểm tra trước khi chốt hồ sơ.',
-    source1: sourceFromSpot('source1', spot, spot.sides[0], 'Nguồn 1'),
-    source2: sourceFromSpot('source2', spot, spot.sides[1], 'Nguồn 2'),
+    title: spot.topic || head || 'Chỗ cần đối soát',
+    quote,
+    contrast,
+    basis: basisOf(head, pageNo, pageCount),
+    pageNo,
+    confidence: matched?.confidence ?? null,
+    regions: matched?.regions ?? [],
+    review: spot.review,
   }
+}
+
+function demoCards(): ReviewCard[] {
+  return clauseConflicts.map((conflict) => {
+    const quote = `${conflict.source1.quoteBefore}${conflict.source1.highlight}${conflict.source1.quoteAfter}`.trim()
+    const contrast = `${conflict.source2.quoteBefore}${conflict.source2.highlight}${conflict.source2.quoteAfter}`.trim()
+    const pageNo =
+      pageFromText(conflict.source1.location) ?? pageFromText(conflict.location)
+    return {
+      id: conflict.id,
+      title: conflict.title,
+      quote,
+      contrast,
+      basis: basisOf('', pageNo, 0),
+      pageNo,
+      confidence: null,
+      regions: [],
+      review: null,
+    }
+  })
+}
+
+function VerdictButton({
+  active,
+  icon,
+  label,
+  iconClass,
+  onClick,
+}: {
+  active: boolean
+  icon: string
+  label: string
+  iconClass: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      className={`flex h-7 items-center justify-center gap-1 rounded px-2 font-label-sm text-label-sm transition-colors ${
+        active
+          ? 'bg-primary-container text-on-primary'
+          : 'border border-outline-variant/70 bg-surface-container-lowest text-on-surface hover:bg-surface-container'
+      }`}
+      type="button"
+      onClick={onClick}
+    >
+      <MaterialIcon name={icon} className={`text-[14px] ${active ? '' : iconClass}`} />
+      <span>{label}</span>
+    </button>
+  )
 }
 
 export function ClauseConflictPage() {
-  usePageTitle('Đối soát xung đột điều khoản')
-  const titleInHeader = useHeaderShowsPageTitle()
+  usePageTitle('Đối soát xung đột')
   const navigate = useNavigate()
   const location = useLocation()
   const reviewState = location.state as {
@@ -209,369 +175,521 @@ export function ClauseConflictPage() {
     name?: string
   } | null
   const dossierId = reviewState?.dossierId ?? ''
-  const dossierName = reviewState?.name?.trim() || conflictDossier.title
   const { user } = useAuth()
-  const [items, setItems] = useState(dossierId ? [] : clauseConflicts)
-  const [loadingReview, setLoadingReview] = useState(Boolean(dossierId))
-  const [activeId, setActiveId] = useState(
-    dossierId ? '' : clauseConflicts[0].id,
-  )
-  const [selectedSource, setSelectedSource] = useState<
-    'source1' | 'source2' | null
-  >(null)
-  const [flash, setFlash] = useState<'source1' | 'source2' | null>(null)
-  const [decision, setDecision] = useState<Decision>('none')
-  const [overlay, setOverlay] = useState('')
-  const [complete, setComplete] = useState<CompleteState>('idle')
+  const searchRef = useRef<HTMLInputElement>(null)
+  const [detail, setDetail] = useState<DossierStructure | null>(null)
+  const [document, setDocument] = useState<StructureDocument | null>(null)
+  const [spots, setSpots] = useState<ReviewSpot[]>([])
+  const [nodes, setNodes] = useState<ClauseNode[]>([])
+  const [pdfPages, setPdfPages] = useState(0)
+  const [loading, setLoading] = useState(Boolean(dossierId))
+  const [error, setError] = useState<string | null>(null)
+  const [activeId, setActiveId] = useState('')
+  const [pageNo, setPageNo] = useState(1)
+  const [query, setQuery] = useState('')
+  const [verdicts, setVerdicts] = useState<Record<string, Verdict>>({})
+  const [notes, setNotes] = useState<Record<string, string>>({})
+  const [reviewByFinding, setReviewByFinding] = useState<
+    Record<string, ReviewItem>
+  >({})
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const [savedIds, setSavedIds] = useState<Record<string, boolean>>({})
+  const [reviewVersions, setReviewVersions] = useState<Record<string, number>>({})
+  const [notice, setNotice] = useState<{
+    text: string
+    tone: 'ok' | 'error'
+  } | null>(null)
+  const backTo = dossierId
+    ? structurePath(dossierId)
+    : user
+      ? dossiersPath(user.role)
+      : '/'
 
   useEffect(() => {
     if (!dossierId) return
     const controller = new AbortController()
-    setLoadingReview(true)
-    listReviewSpots(dossierId, controller.signal)
-      .then((spots) => {
+    setLoading(true)
+    setError(null)
+    Promise.all([
+      getDossierStructure(dossierId, controller.signal),
+      listReviewSpots(dossierId, controller.signal),
+      listReviewItems(dossierId, controller.signal).catch(() => ({
+        items: [] as ReviewItem[],
+      })),
+    ])
+      .then(async ([nextDetail, nextSpots, queue]) => {
         if (controller.signal.aborted) return
-        const mapped = spots.map(spotToConflict)
-        setItems(mapped)
-        setActiveId(mapped[0]?.id ?? '')
+        const linked: Record<string, ReviewItem> = {}
+        for (const item of queue.items) {
+          if (item.targetType === 'finding' && item.targetId) {
+            linked[item.targetId] = item
+          }
+        }
+        setReviewByFinding(linked)
+        setDetail(nextDetail)
+        const nextDocument = contractDocument(nextDetail)
+        setDocument(nextDocument)
+        if (!nextDocument) {
+          setNodes([])
+          setSpots(nextSpots)
+          return
+        }
+        try {
+          const nextNodes = await listClauses(nextDocument.id, controller.signal)
+          if (controller.signal.aborted) return
+          setNodes(nextNodes)
+        } catch {
+          if (controller.signal.aborted) return
+          setNodes([])
+        }
+        setSpots(nextSpots)
       })
-      .catch(() => {
+      .catch((cause: unknown) => {
         if (controller.signal.aborted) return
-        setItems([])
-        setActiveId('')
+        setError(structureErrorMessage(cause))
       })
       .finally(() => {
-        if (!controller.signal.aborted) setLoadingReview(false)
+        if (!controller.signal.aborted) setLoading(false)
       })
     return () => controller.abort()
   }, [dossierId])
 
-  const active = items.find((item) => item.id === activeId) ?? items[0]
-  const resolvedCount = items.filter((item) => item.choice).length
-  const pendingCount = items.length - resolvedCount
-  const progress =
-    items.length === 0 ? 0 : Math.round((resolvedCount / items.length) * 100)
-  const queueIndex = items.findIndex((item) => item.id === activeId) + 1
+  const pageCount = document?.pageCount || pdfPages
+  const cards = useMemo(() => {
+    if (!dossierId) return demoCards()
+    return spots.map((spot) => spotToCard(spot, nodes, pageCount))
+  }, [dossierId, nodes, pageCount, spots])
 
-  const diagnosis = useMemo(() => {
-    if (!active) return ''
-    if (selectedSource === 'source1') {
-      return `Ưu tiên Nguồn 1: ${active.source1.value}. Nguồn 2 (${active.source2.value}) sẽ bị ghi đè.`
-    }
-    if (selectedSource === 'source2') {
-      return `Ưu tiên Nguồn 2: ${active.source2.value}. Nguồn 1 (${active.source1.value}) sẽ bị ghi đè.`
-    }
-    return active.diagnosis
-  }, [active, selectedSource])
+  const visible = useMemo(() => {
+    const term = query.trim().toLowerCase()
+    if (!term) return cards
+    return cards.filter((card) =>
+      `${card.title} ${card.quote} ${card.basis}`.toLowerCase().includes(term),
+    )
+  }, [cards, query])
+
+  const active =
+    cards.find((card) => card.id === activeId) ?? visible[0] ?? cards[0] ?? null
 
   useEffect(() => {
-    function handleKey(event: KeyboardEvent) {
-      const tag = (event.target as HTMLElement | null)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return
-      if (event.key === '1') {
-        setSelectedSource('source1')
-        setFlash('source1')
-        window.setTimeout(() => setFlash(null), 250)
-      }
-      if (event.key === '2') {
-        setSelectedSource('source2')
-        setFlash('source2')
-        window.setTimeout(() => setFlash(null), 250)
+    if (cards.length === 0) return
+    if (!cards.some((card) => card.id === activeId)) setActiveId(cards[0].id)
+  }, [activeId, cards])
+
+  useEffect(() => {
+    if (active?.pageNo) setPageNo(active.pageNo)
+  }, [active?.id, active?.pageNo])
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        searchRef.current?.focus()
       }
     }
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  function applyChoice(choice: ConflictChoice) {
-    const updated = items.map((item) =>
-      item.id === activeId ? { ...item, choice } : item,
-    )
-    setItems(updated)
-    setDecision('none')
-    setOverlay('')
-    const next = updated.find((item) => item.id !== activeId && !item.choice)
-    if (next) {
-      setActiveId(next.id)
-      setSelectedSource(null)
-    }
+  const onPageCount = useCallback((count: number) => {
+    setPdfPages((current) => (current === count ? current : count))
+  }, [])
+  const onPageChange = useCallback((page: number) => {
+    setPageNo(Math.max(1, page))
+  }, [])
+
+  const reviewed = cards.filter((card) => verdicts[card.id]).length
+  const confidences = cards
+    .map((card) => card.confidence)
+    .filter((value): value is number => value !== null)
+  const average =
+    confidences.length === 0
+      ? null
+      : confidences.reduce((sum, value) => sum + value, 0) / confidences.length
+  const dossierName =
+    detail?.name?.trim() || reviewState?.name?.trim() || 'Hồ sơ hợp đồng'
+
+  useEffect(() => {
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(null), 4000)
+    return () => window.clearTimeout(timer)
+  }, [notice])
+
+  function choose(id: string, verdict: Verdict) {
+    setVerdicts((current) => ({ ...current, [id]: verdict }))
+    setSavedIds((current) => ({ ...current, [id]: false }))
+    setNotice(null)
   }
 
-  function handleConfirm() {
-    if (!selectedSource) {
-      setDecision('confirm')
+  async function saveCard(id: string) {
+    const verdict = verdicts[id]
+    if (!verdict || savingId) return
+    const note = (notes[id] ?? '').trim()
+    if (verdict === 'edit' && !note) {
+      setNotice({
+        text: 'Sửa nhận định cần nhập ghi chú trước khi lưu.',
+        tone: 'error',
+      })
       return
     }
-    applyChoice(selectedSource)
-  }
-
-  function handleSkip() {
-    applyChoice('skipped')
-  }
-
-  function handleReject() {
-    applyChoice('rejected')
-  }
-
-  function handleSaveOverlay() {
-    applyChoice('overlay')
-  }
-
-  function handleComplete() {
-    setComplete('done')
-    window.setTimeout(() => navigate(user ? dossiersPath(user.role) : '/'), 900)
-  }
-
-  function selectItem(conflict: ClauseConflict) {
-    setActiveId(conflict.id)
-    setSelectedSource(
-      conflict.choice === 'source1' || conflict.choice === 'source2'
-        ? conflict.choice
-        : null,
-    )
-    setDecision('none')
+    const card = cards.find((item) => item.id === id)
+    let linked = reviewByFinding[id]
+    let itemId = card?.review?.itemId || linked?.id
+    let version =
+      reviewVersions[id] ?? card?.review?.version ?? linked?.version
+    setSavingId(id)
+    setNotice(null)
+    try {
+      if (!itemId && dossierId) {
+        const queue = await listReviewItems(dossierId)
+        const match = queue.items.find(
+          (item) => item.targetType === 'finding' && item.targetId === id,
+        )
+        if (match) {
+          linked = match
+          itemId = match.id
+          version = version ?? match.version
+          setReviewByFinding((current) => ({ ...current, [id]: match }))
+        }
+      }
+      if (!itemId || version === undefined) {
+        setNotice({
+          text: 'Mục này chưa có bản ghi thẩm định để lưu.',
+          tone: 'error',
+        })
+        return
+      }
+      const result = await submitReviewAction(itemId, {
+        baseVersion: version,
+        action: REVIEW_ACTION[verdict],
+        comment: note || null,
+        correctedValue: verdict === 'edit' ? { assessment: note } : null,
+      })
+      setReviewVersions((current) => ({ ...current, [id]: result.newVersion }))
+      if (linked) {
+        setReviewByFinding((current) => ({
+          ...current,
+          [id]: {
+            ...linked,
+            version: result.newVersion,
+            status: result.itemStatus,
+          },
+        }))
+      }
+      setSavedIds((current) => ({ ...current, [id]: true }))
+      setNotice({ text: 'Đã lưu nhận định.', tone: 'ok' })
+    } catch (cause: unknown) {
+      setNotice({
+        text: cause instanceof Error ? cause.message : 'Không lưu được nhận định.',
+        tone: 'error',
+      })
+    } finally {
+      setSavingId(null)
+    }
   }
 
   return (
-    <div className="flex flex-col w-full">
-      <header className="py-space-lg flex flex-col md:flex-row md:items-center justify-between gap-space-md">
-        <div className="flex flex-col gap-space-xs">
-          <div className="flex items-center gap-space-sm flex-wrap">
-            {titleInHeader ? null : (
-              <span className="font-headline-lg text-headline-lg text-on-surface">
-                Đối soát xung đột điều khoản
-              </span>
-            )}
-            <span className="px-space-sm py-0.5 rounded bg-surface-container-high text-on-secondary-fixed font-code-sm text-code-sm font-semibold">
-              {queueIndex} / {items.length} xung đột
-            </span>
-          </div>
-          <p className="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-space-xs flex-wrap">
-            <MaterialIcon
-              name="description"
-              className="text-[15px] text-secondary"
-            />
-            <span>Hồ sơ: {dossierName}</span>
-            <span className="text-outline">/</span>
-            <span className="font-code-sm text-code-sm text-on-secondary-container">
-              {dossierId || conflictDossier.code}
-            </span>
-          </p>
-        </div>
-        <div className="flex items-center gap-space-sm self-start md:self-auto">
-          <button
-            className="h-9 px-space-md bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface rounded-lg font-body-sm text-body-sm font-medium transition-colors flex items-center gap-space-xs shadow-sm"
-            type="button"
-            onClick={handleSkip}
-          >
-            <MaterialIcon name="redo" className="text-[17px]" />
-            <span>Bỏ qua mục này</span>
-          </button>
-          <button
-            className="h-9 px-space-md bg-primary hover:bg-primary-container text-on-primary rounded-lg font-body-sm text-body-sm font-semibold transition-colors flex items-center gap-space-xs shadow-sm"
-            type="button"
-            onClick={handleComplete}
-          >
-            <MaterialIcon name="check_circle" className="text-[17px]" />
-            <span>
-              {complete === 'done' ? 'Đã hoàn tất' : 'Hoàn tất đối soát'}
-            </span>
-          </button>
-        </div>
-      </header>
-
-      {loadingReview ? (
-        <p className="font-body-sm text-body-sm text-on-surface-variant pb-margin-lg">
-          Đang tải các chỗ cần kiểm tra…
-        </p>
-      ) : null}
-
-      {!loadingReview && dossierId && items.length === 0 ? (
-        <section className="bg-surface-container-lowest rounded-xl p-space-xl mb-margin-lg flex flex-col items-start gap-space-sm">
-          <h2 className="font-title-sm text-title-sm text-on-surface">
-            Không có mục đối soát
-          </h2>
-          <p className="font-body-sm text-body-sm text-on-surface-variant">
-            Hồ sơ này không có xung đột cần chọn nguồn. Các chỗ cần xử lý, nếu
-            có, nằm trên cây cấu trúc.
-          </p>
-          <Link
-            className="h-10 px-space-lg bg-primary text-on-primary rounded-lg font-body-sm text-body-sm font-semibold flex items-center"
-            to={structurePath(dossierId)}
-          >
-            Về cấu trúc cây
-          </Link>
-        </section>
-      ) : null}
-
-      {!loadingReview && active ? (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter-lg pb-margin-lg items-start">
-          <div className="lg:col-span-8 flex flex-col gap-gutter">
-            <div className="bg-surface-container-lowest rounded-xl p-gutter shadow-[0_1px_3px_rgba(15,23,42,0.06)] flex flex-col gap-space-lg">
-              <div className="flex flex-col gap-space-xs">
-                <div>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-surface-container-high text-on-primary-fixed-variant font-label-sm text-label-sm font-semibold uppercase tracking-wider">
-                    <span className="w-1.5 h-1.5 rounded-[9999px] bg-error" />
-                    Khác biệt so được
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-space-sm flex-wrap">
-                  <h2 className="font-title-sm text-title-sm text-on-surface font-semibold flex items-center gap-space-xs">
-                    <span>Trong cùng tài liệu</span>
-                    <span className="text-outline">·</span>
-                    <span className="font-code-sm text-code-sm text-on-secondary-container">
-                      {active.field}
-                    </span>
-                  </h2>
-                  <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
-                    Mã xung đột: #{active.id}
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
-                <SourceCard
-                  source={active.source1}
-                  selected={selectedSource === 'source1'}
-                  flash={flash === 'source1'}
-                  onSelect={() => setSelectedSource('source1')}
-                />
-                <SourceCard
-                  source={active.source2}
-                  selected={selectedSource === 'source2'}
-                  flash={flash === 'source2'}
-                  onSelect={() => setSelectedSource('source2')}
-                />
-              </div>
-
-              <div className="bg-surface-container-low rounded-lg p-space-md flex items-start gap-space-md">
-                <MaterialIcon
-                  name="balance"
-                  className="text-[20px] text-secondary mt-0.5 flex-shrink-0"
-                />
-                <div className="flex flex-col gap-space-xs">
-                  <span className="font-label-sm text-label-sm uppercase tracking-wider font-semibold text-on-secondary-container">
-                    Nhận định hệ thống
-                  </span>
-                  <p className="font-body-md text-body-md text-on-surface leading-relaxed">
-                    {diagnosis}
-                  </p>
-                </div>
-              </div>
-
-              <div className="pt-space-xs flex flex-wrap items-center gap-space-sm">
-                <button
-                  className="h-9 px-space-lg bg-primary hover:bg-primary-container text-on-primary rounded font-body-sm text-body-sm font-semibold transition-colors flex items-center gap-space-xs shadow-sm"
-                  type="button"
-                  onClick={handleConfirm}
-                >
-                  <MaterialIcon name="check" className="text-[16px]" />
-                  <span>Xác nhận</span>
-                </button>
-                <button
-                  className={`h-9 px-space-md rounded font-body-sm text-body-sm font-medium transition-colors flex items-center gap-space-xs ${
-                    decision === 'overlay'
-                      ? 'bg-primary-container text-on-primary'
-                      : 'bg-surface-container hover:bg-surface-container-high text-on-surface'
-                  }`}
-                  type="button"
-                  onClick={() =>
-                    setDecision((current) =>
-                      current === 'overlay' ? 'none' : 'overlay',
-                    )
-                  }
-                >
-                  <MaterialIcon name="edit_note" className="text-[16px]" />
-                  <span>Sửa overlay</span>
-                </button>
-                <button
-                  className="h-9 px-space-md bg-surface-container hover:bg-surface-container-high text-error rounded font-body-sm text-body-sm font-medium transition-colors flex items-center gap-space-xs"
-                  type="button"
-                  onClick={handleReject}
-                >
-                  <MaterialIcon name="close" className="text-[16px]" />
-                  <span>Từ chối</span>
-                </button>
-                {decision === 'confirm' && !selectedSource ? (
-                  <span className="font-label-sm text-label-sm text-error">
-                    Chọn Nguồn 1 hoặc Nguồn 2 trước khi xác nhận.
+    <div className="flex min-h-0 w-full flex-1 flex-col">
+      <section className="mb-space-sm w-full shrink-0 border-b border-outline-variant/40 bg-surface-container-lowest px-gutter py-space-sm">
+        <div className="flex flex-wrap items-center justify-between gap-space-sm">
+          <div className="flex flex-wrap items-center gap-space-md">
+            <div className="flex items-center gap-space-xs font-label-md text-label-md text-secondary">
+              <span>Hồ sơ Hợp đồng</span>
+              <span className="text-outline-variant">/</span>
+              <span className="font-semibold text-on-surface">{dossierName}</span>
+            </div>
+            {document ? (
+              <div className="hidden items-center gap-space-sm font-label-sm text-label-sm text-secondary lg:flex">
+                <span className="font-medium text-on-surface">
+                  {document.filename}
+                </span>
+                {pageCount > 0 ? (
+                  <span className="font-code-sm text-code-sm text-on-surface-variant">
+                    {pageCount} trang
                   </span>
                 ) : null}
               </div>
+            ) : null}
+          </div>
+        </div>
+      </section>
 
-              {decision === 'overlay' ? (
-                <div className="flex flex-col gap-space-xs">
-                  <label className="font-label-sm text-label-sm text-on-surface font-medium uppercase tracking-wide">
-                    Overlay hiệu đính
-                  </label>
-                  <textarea
-                    className="w-full p-space-sm bg-surface-container-low text-on-surface font-body-sm text-body-sm rounded outline-none focus:bg-surface-container-lowest focus:ring-1 focus:ring-outline-variant resize-none"
-                    placeholder="Nhập giá trị hoặc diễn giải ưu tiên để ghi đè cả hai nguồn..."
-                    rows={3}
-                    value={overlay}
-                    onChange={(event) => setOverlay(event.target.value)}
+      <div className="grid min-h-0 w-full flex-1 grid-cols-1 overflow-hidden rounded border border-outline-variant/50 bg-surface-container-low shadow-sm xl:grid-cols-12">
+          <div className="flex min-h-[420px] flex-col border-r border-outline-variant/60 xl:col-span-7 xl:min-h-0">
+            <ConflictDocumentPane
+              citeNo={active ? cards.findIndex((card) => card.id === active.id) + 1 : null}
+              documentId={document?.id ?? null}
+              filename={document?.filename ?? ''}
+              pageCount={pageCount}
+              pageNo={pageNo}
+              quote={active?.quote ?? ''}
+              regions={active?.regions ?? []}
+              title={active?.title ?? ''}
+              onBack={() => navigate(backTo)}
+              onPageChange={onPageChange}
+              onPageCount={onPageCount}
+            />
+          </div>
+          <div className="flex min-h-[420px] flex-col bg-surface-container-lowest xl:col-span-5 xl:min-h-0">
+            <div className="space-y-space-sm border-b border-outline-variant/40 bg-surface-bright p-space-md">
+              <div className="relative">
+                <MaterialIcon
+                  name="search"
+                  className="absolute left-2.5 top-2.5 text-[18px] text-secondary"
+                />
+                <input
+                  ref={searchRef}
+                  className="h-9 w-full rounded border border-outline-variant/60 bg-surface-container-low pl-9 pr-14 font-body-sm text-body-sm text-on-surface outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container"
+                  placeholder="Lọc trích dẫn cần đối soát..."
+                  type="text"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+                <span className="absolute right-2 top-2 rounded bg-surface-container px-1.5 py-0.5 font-code-sm text-code-sm text-secondary">
+                  Ctrl+K
+                </span>
+              </div>
+              <div className="flex items-center justify-between pt-0.5 font-label-sm text-label-sm">
+                <div className="flex items-center gap-1.5 font-semibold uppercase tracking-wider text-primary-container">
+                  <MaterialIcon
+                    name="fact_check"
+                    className="text-[16px] text-primary-container"
                   />
-                  <div className="flex justify-end">
-                    <button
-                      className="h-8 px-space-md bg-primary-container text-on-primary rounded font-label-sm text-label-sm font-semibold"
-                      type="button"
-                      onClick={handleSaveOverlay}
-                    >
-                      Lưu overlay
-                    </button>
-                  </div>
+                  <span>
+                    Câu trả lời tổng hợp & {cards.length} điểm trích dẫn
+                  </span>
+                </div>
+                {confidenceLabel(average) ? (
+                  <span className="font-code-sm text-code-sm text-secondary">
+                    Độ chuẩn xác {confidenceLabel(average)}
+                  </span>
+                ) : null}
+              </div>
+              {cards.length > 0 ? (
+                <div className="rounded border border-outline-variant/30 bg-surface-container-low p-space-sm font-body-sm text-body-sm leading-snug text-on-surface-variant">
+                  Hồ sơ cần đối soát{' '}
+                  {cards.map((card, index) => (
+                    <span key={card.id}>
+                      {index > 0
+                        ? index === cards.length - 1
+                          ? ' và '
+                          : ', '
+                        : ''}
+                      {card.title}{' '}
+                      <button
+                        className={`mx-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full font-code-sm text-[10px] font-bold ${
+                          card.id === active?.id
+                            ? 'bg-primary-container text-on-primary'
+                            : 'bg-secondary text-on-secondary'
+                        }`}
+                        type="button"
+                        onClick={() => setActiveId(card.id)}
+                      >
+                        {index + 1}
+                      </button>
+                    </span>
+                  ))}
+                  .
                 </div>
               ) : null}
             </div>
-          </div>
-
-          <aside className="lg:col-span-4 flex flex-col gap-space-md">
-            <div className="bg-surface-container-lowest rounded-xl p-space-lg shadow-[0_1px_3px_rgba(15,23,42,0.06)] flex flex-col gap-space-md">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-space-xs">
-                  <MaterialIcon
-                    name="view_list"
-                    className="text-[18px] text-secondary"
-                  />
-                  <span className="font-title-sm text-title-sm text-on-surface font-semibold">
-                    Hàng chờ review
-                  </span>
-                </div>
-                <span className="font-label-sm text-label-sm px-2 py-0.5 rounded-full bg-surface-container-high text-on-primary-fixed-variant font-semibold">
-                  {items.length} mục
-                </span>
-              </div>
-
-              <div className="flex flex-col gap-space-xs">
-                {items.map((conflict) => (
-                  <QueueItem
-                    key={conflict.id}
-                    conflict={conflict}
-                    active={conflict.id === activeId}
-                    onSelect={() => selectItem(conflict)}
-                  />
-                ))}
-              </div>
-
-              <div className="pt-space-sm flex flex-col gap-space-xs">
-                <div className="flex justify-between font-label-sm text-label-sm text-on-surface-variant font-medium">
-                  <span>Tiến độ đối soát hồ sơ</span>
-                  <span className="font-code-sm text-code-sm text-on-surface font-semibold">
-                    {progress}%
-                  </span>
-                </div>
-                <div className="w-full bg-surface-container h-1.5 rounded-full overflow-hidden">
-                  <div
-                    className="bg-primary h-full rounded-full transition-all"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-                <span className="font-code-sm text-code-sm text-on-surface-variant text-right">
-                  {resolvedCount} đã xử lý · {pendingCount} còn lại
-                </span>
-              </div>
+            <div className="flex-1 space-y-space-sm overflow-y-auto p-space-md">
+              {loading ? (
+                <p className="font-body-sm text-body-sm text-on-surface-variant">
+                  Đang tải các chỗ cần kiểm tra…
+                </p>
+              ) : null}
+              {error ? (
+                <p className="font-body-sm text-body-sm text-error">{error}</p>
+              ) : null}
+              {!loading && dossierId && cards.length === 0 ? (
+                <section className="flex flex-col items-start gap-space-sm rounded bg-surface-container-low p-space-md">
+                  <h2 className="font-title-sm text-title-sm text-on-surface">
+                    Không có mục đối soát
+                  </h2>
+                  <p className="font-body-sm text-body-sm text-on-surface-variant">
+                    Hồ sơ này không có chỗ cần chọn nguồn. Các chỗ cần xử lý,
+                    nếu có, nằm trên cây cấu trúc.
+                  </p>
+                  <button
+                    className="flex h-10 items-center rounded-lg bg-primary px-space-lg font-body-sm text-body-sm font-semibold text-on-primary"
+                    type="button"
+                    onClick={() => navigate(backTo)}
+                  >
+                    Về cấu trúc cây
+                  </button>
+                </section>
+              ) : null}
+              {visible.map((card) => {
+                const index = cards.findIndex((item) => item.id === card.id) + 1
+                const selected = card.id === active?.id
+                const verdict = verdicts[card.id]
+                return (
+                  <article
+                    key={card.id}
+                    className={
+                      selected
+                        ? 'relative rounded border-y border-r border-l-4 border-outline-variant/50 border-l-primary-container bg-blue-50/50 p-space-md shadow-sm'
+                        : 'rounded border border-outline-variant/50 bg-surface-container-lowest p-space-md hover:border-outline'
+                    }
+                  >
+                    <div className="mb-space-xs flex items-start justify-between gap-space-sm">
+                      <button
+                        className="flex items-center gap-space-sm text-left"
+                        type="button"
+                        onClick={() => setActiveId(card.id)}
+                      >
+                        <span
+                          className={`flex h-5 w-5 items-center justify-center rounded-full font-code-sm text-code-sm font-bold ${
+                            selected
+                              ? 'bg-primary-container text-on-primary shadow-sm'
+                              : 'bg-secondary text-on-secondary'
+                          }`}
+                        >
+                          {index}
+                        </span>
+                        <span
+                          className={`font-label-md text-label-md font-semibold ${
+                            selected ? 'text-primary-container' : 'text-on-surface'
+                          }`}
+                        >
+                          {card.title}
+                        </span>
+                      </button>
+                      {selected ? (
+                        <span className="inline-flex items-center gap-1 rounded bg-primary-container px-1.5 py-0.5 font-label-sm text-[10px] font-semibold uppercase text-on-primary">
+                          <MaterialIcon name="visibility" className="text-[12px]" />
+                          Đang xem trên PDF
+                        </span>
+                      ) : card.pageNo ? (
+                        <button
+                          className="flex items-center gap-0.5 font-label-sm text-label-sm text-secondary hover:text-primary-container"
+                          type="button"
+                          onClick={() => setActiveId(card.id)}
+                        >
+                          <span>Đến trang {card.pageNo}</span>
+                          <MaterialIcon name="arrow_forward" className="text-[14px]" />
+                        </button>
+                      ) : null}
+                    </div>
+                    <p
+                      className={`mb-space-sm rounded border p-2 font-body-sm text-body-sm leading-normal ${
+                        selected
+                          ? 'border-outline-variant/30 bg-white/80 font-medium text-on-surface'
+                          : 'border-outline-variant/20 bg-surface-container-low/60 text-on-surface-variant'
+                      }`}
+                    >
+                      “{card.quote || 'Không có trích dẫn.'}”
+                    </p>
+                    {card.contrast ? (
+                      <p className="mb-space-sm font-body-sm text-body-sm text-on-surface-variant">
+                        Đối chiếu: {card.contrast}
+                      </p>
+                    ) : null}
+                    <div className="mb-space-sm flex flex-wrap items-center justify-between gap-space-xs border-t border-outline-variant/30 pt-space-xs font-label-sm text-label-sm text-secondary">
+                      <span className="font-code-sm text-code-sm font-medium text-on-surface-variant">
+                        {card.basis}
+                      </span>
+                      {confidenceLabel(card.confidence) ? (
+                        <span className="font-code-sm text-code-sm font-semibold text-tertiary-container">
+                          Độ tin cậy: {confidenceLabel(card.confidence)}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <VerdictButton
+                        active={verdict === 'correct'}
+                        icon="check"
+                        iconClass="text-tertiary-container"
+                        label="Chính xác"
+                        onClick={() => choose(card.id, 'correct')}
+                      />
+                      <VerdictButton
+                        active={verdict === 'deviation'}
+                        icon="close"
+                        iconClass="text-error"
+                        label="Sai lệch"
+                        onClick={() => choose(card.id, 'deviation')}
+                      />
+                      <VerdictButton
+                        active={verdict === 'edit'}
+                        icon="edit"
+                        iconClass="text-secondary"
+                        label={selected ? 'Sửa nhận định' : 'Sửa'}
+                        onClick={() => choose(card.id, 'edit')}
+                      />
+                    </div>
+                    {verdict === 'edit' ? (
+                      <textarea
+                        className="mt-2 w-full resize-none rounded bg-surface-container-low p-2 font-body-sm text-body-sm text-on-surface outline-none focus:ring-1 focus:ring-outline-variant"
+                        placeholder="Ghi chú thẩm định..."
+                        rows={2}
+                        value={notes[card.id] ?? ''}
+                        onChange={(event) => {
+                          setSavedIds((current) => ({
+                            ...current,
+                            [card.id]: false,
+                          }))
+                          setNotes((current) => ({
+                            ...current,
+                            [card.id]: event.target.value,
+                          }))
+                        }}
+                      />
+                    ) : null}
+                    {verdict ? (
+                      <div className="mt-2 flex items-center justify-end">
+                        <button
+                          className="inline-flex items-center gap-1 rounded bg-primary px-3 py-1.5 font-label-sm text-label-sm font-semibold text-on-primary disabled:opacity-60"
+                          disabled={savingId === card.id}
+                          type="button"
+                          onClick={() => void saveCard(card.id)}
+                        >
+                          <MaterialIcon
+                            name={savedIds[card.id] ? 'check' : 'save'}
+                            className="text-[15px]"
+                          />
+                          {savingId === card.id
+                            ? 'Đang lưu...'
+                            : savedIds[card.id]
+                              ? 'Đã lưu'
+                              : 'Lưu mục này'}
+                        </button>
+                      </div>
+                    ) : null}
+                  </article>
+                )
+              })}
             </div>
-          </aside>
+            <div className="flex items-center justify-between border-t border-outline-variant/40 bg-surface-container-low p-space-sm font-label-sm text-label-sm text-secondary">
+              <span className="flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-tertiary-container" />
+                Đã thẩm định {reviewed}/{cards.length} trích dẫn
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      {notice ? (
+        <div
+          className="fixed top-20 right-6 z-[70] flex w-[min(24rem,calc(100vw-3rem))] items-start gap-space-md rounded border border-surface-container bg-surface-container-lowest px-space-lg py-space-md font-body-sm text-body-sm text-on-surface shadow-md"
+          role="status"
+        >
+          <MaterialIcon
+            name={notice.tone === 'error' ? 'error' : 'check_circle'}
+            className={`shrink-0 text-[20px] ${
+              notice.tone === 'error' ? 'text-error' : 'text-emerald-600'
+            }`}
+          />
+          <span className="flex-1">{notice.text}</span>
+          <button
+            aria-label="Đóng thông báo"
+            className="shrink-0 text-secondary hover:text-on-surface"
+            type="button"
+            onClick={() => setNotice(null)}
+          >
+            <MaterialIcon name="close" className="text-[18px]" />
+          </button>
         </div>
       ) : null}
     </div>

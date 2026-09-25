@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { dossiersLabel, dossiersPath, type AppRole } from '../auth/session'
+import { dossiersLabel, dossiersPath, type AppRole, type UserRole } from '../auth/session'
+import { useAuth } from '../auth/useAuth'
 import { AccountMenu } from '../components/AccountMenu'
 import { MaterialIcon } from '../components/icons'
 import { SidebarLogout } from '../components/SidebarLogout'
@@ -13,39 +14,41 @@ import { PageTitleProvider, useCurrentPageTitle } from '../hooks/usePageTitle'
 
 type NavItem = { to: string; icon: string; label: string }
 
-function navItemsFor(role: AppRole): NavItem[] {
-  if (role === 'admin') {
-    return [
-      { to: '/tong-quan', icon: 'dashboard', label: 'Tổng quan' },
-      { to: '/ho-so', icon: 'folder_shared', label: 'Hồ sơ' },
-      { to: '/quyen-truy-cap', icon: 'lock', label: 'Quyền truy cập' },
-      {
-        to: '/nhat-ky-hoat-dong',
-        icon: 'history_edu',
-        label: 'Nhật ký hoạt động',
-      },
-      {
-        to: '/nguoi-dung-phan-quyen',
-        icon: 'manage_accounts',
-        label: 'Người dùng & Phân quyền',
-      },
-      { to: '/cai-dat', icon: 'settings', label: 'Cài đặt' },
-    ]
-  }
-  return [
-    { to: '/ho-so-cua-toi', icon: 'folder_shared', label: 'Hồ sơ của tôi' },
+function navItemsFor(role: UserRole): NavItem[] {
+  const dossiers =
+    role === 'ADMINISTRATOR'
+      ? { to: '/ho-so', icon: 'folder_shared', label: 'Hồ sơ' }
+      : { to: '/ho-so-cua-toi', icon: 'folder_shared', label: 'Hồ sơ của tôi' }
+  const shared: NavItem[] = [
+    dossiers,
     {
-      to: '/duoc-chia-se-voi-toi',
-      icon: 'share',
-      label: 'Được chia sẻ với tôi',
+      to: '/nhat-ky-hoat-dong',
+      icon: 'history_edu',
+      label: 'Nhật ký hoạt động',
     },
-    {
-      to: '/tim-kiem-xuyen-ho-so',
-      icon: 'saved_search',
-      label: 'Tìm kiếm xuyên hồ sơ',
-    },
-    { to: '/cai-dat', icon: 'settings', label: 'Cài đặt' },
   ]
+  if (role === 'OPERATOR') {
+    shared.splice(1, 0, {
+      to: '/quyen-truy-cap',
+      icon: 'lock',
+      label: 'Quyền truy cập',
+    })
+  }
+  if (role === 'ADMINISTRATOR') {
+    shared.unshift({ to: '/tong-quan', icon: 'dashboard', label: 'Tổng quan' })
+    shared.splice(2, 0, {
+      to: '/quyen-truy-cap',
+      icon: 'lock',
+      label: 'Quyền truy cập',
+    })
+    shared.push({
+      to: '/nguoi-dung-phan-quyen',
+      icon: 'manage_accounts',
+      label: 'Người dùng & Phân quyền',
+    })
+  }
+  shared.push({ to: '/cai-dat', icon: 'settings', label: 'Cài đặt' })
+  return shared
 }
 
 /** Các trang con của luồng hồ sơ: vẫn sáng mục "Hồ sơ" trên sidebar. */
@@ -81,14 +84,24 @@ function navClassName(isActive: boolean) {
 }
 
 export function AppLayout({ role }: { role: AppRole }) {
+  const { user } = useAuth()
   const location = useLocation()
-  const navItems = navItemsFor(role)
+  const navItems = navItemsFor(
+    user?.backendRole ?? (role === 'admin' ? 'ADMINISTRATOR' : 'OPERATOR'),
+  )
   const dossiersTo = dossiersPath(role)
   const dossierSection = inDossierSection(location.pathname, role)
+  const structurePage = location.pathname.startsWith('/cau-truc/')
+  const fillViewport =
+    structurePage || location.pathname === '/doi-soat-xung-dot'
 
   return (
     <PageTitleProvider>
-      <div className="bg-background font-body-md text-on-surface antialiased min-h-screen">
+      <div
+        className={`bg-background font-body-md text-on-surface antialiased ${
+          fillViewport ? 'h-screen overflow-hidden' : 'min-h-screen'
+        }`}
+      >
         <aside
           aria-label="Điều hướng chính"
           className="fixed left-0 top-0 h-full w-64 bg-primary-container text-surface flex flex-col z-50 shadow-[0_1px_8px_rgba(0,0,0,0.08)]"
@@ -144,11 +157,11 @@ export function AppLayout({ role }: { role: AppRole }) {
           </nav>
 
           <div className="px-space-sm pb-space-md">
-            <SidebarLogout className="w-full flex items-center gap-space-md px-space-md py-space-sm rounded text-surface-container-highest hover:bg-tertiary-container hover:text-surface transition-colors font-body-md text-body-md" />
+            <SidebarLogout tone="inverse" />
           </div>
         </aside>
 
-        <div className="pl-64">
+        <div className={fillViewport ? 'h-full pl-64' : 'pl-64'}>
           <header className="fixed top-0 left-64 right-0 h-16 bg-surface/90 backdrop-blur-md z-40 flex items-center justify-between px-gutter shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
             <HeaderPageTitle />
 
@@ -170,7 +183,13 @@ export function AppLayout({ role }: { role: AppRole }) {
             </div>
           </header>
 
-          <main className="w-full pt-16 bg-background min-h-screen px-gutter py-space-lg">
+          <main
+            className={
+              fillViewport
+                ? 'flex h-screen flex-col overflow-hidden bg-background px-gutter pb-space-md pt-16'
+                : 'w-full min-h-screen bg-background px-gutter py-space-lg pt-16'
+            }
+          >
             <Outlet />
           </main>
         </div>

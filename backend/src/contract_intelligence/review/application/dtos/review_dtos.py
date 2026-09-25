@@ -5,7 +5,7 @@ from __future__ import annotations
 import contextlib
 import json
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -135,6 +135,111 @@ class ReviewItemRevisionDTO(BaseModel):
         )
 
 
+class ClauseNodeDescriptorDTO(BaseModel):
+    """Nút cây do frontend dựng từ dòng OCR (id ``n-{trang}-{dòng}``) — không có trong DB."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    node_type: str = Field(default="", max_length=64)
+    number: str = Field(default="", max_length=64)
+    label: str = Field(default="", max_length=256)
+    ordinal: int = Field(default=0, ge=0)
+    text: str = Field(default="", max_length=50_000)
+
+
+class ClauseReviewRequestDTO(BaseModel):
+    """POST /clause-nodes/{id}/review body.
+
+    ``base_version`` = ``version`` từ GET (0 khi điều khoản chưa có ai thẩm định).
+    ``node`` bắt buộc khi id là nút dựng từ dòng OCR.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    action: Literal["confirm", "reject", "correct"]
+    base_version: int = Field(..., ge=0)
+    comment: str | None = Field(default=None, max_length=2000)
+    corrected_value: dict[str, Any] | None = None
+    node: ClauseNodeDescriptorDTO | None = None
+
+
+class ClauseReviewEntryDTO(BaseModel):
+    """Một lần thẩm định: ai, lúc nào, chọn gì, ghi chú gì."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    revision_number: int
+    review_action_id: str
+    action: str
+    comment: str | None = None
+    corrected_value: Any = None
+    reviewer_id: str
+    reviewer_name: str | None = None
+    reviewer_email: str | None = None
+    base_version: int
+    created_at: datetime | None = None
+
+    @classmethod
+    def from_row(cls, row: dict[str, Any], *, revision_number: int) -> ClauseReviewEntryDTO:
+        created = row.get("created_at")
+        if isinstance(created, str):
+            with contextlib.suppress(ValueError):
+                created = datetime.fromisoformat(created.replace("Z", "+00:00"))
+        if not isinstance(created, datetime):
+            created = None
+        corrected_value = row.get("corrected_value")
+        if isinstance(corrected_value, str):
+            with contextlib.suppress(json.JSONDecodeError):
+                corrected_value = json.loads(corrected_value)
+        return cls(
+            revision_number=revision_number,
+            review_action_id=str(row["id"]),
+            action=str(row.get("action") or ""),
+            comment=row.get("comment"),
+            corrected_value=corrected_value,
+            reviewer_id=str(row.get("reviewer_id") or ""),
+            reviewer_name=row.get("reviewer_name"),
+            reviewer_email=row.get("reviewer_email"),
+            base_version=int(row.get("base_version") or 0),
+            created_at=created,
+        )
+
+
+class ClauseStaleReviewDTO(BaseModel):
+    """Thẩm định của cùng điều khoản ở lần phân tích trước — chỉ để tham khảo."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    review_item_id: str
+    run_id: str | None = None
+    text_changed: bool
+    reviewed_text: str | None = None
+    latest: ClauseReviewEntryDTO
+    history: list[ClauseReviewEntryDTO] = Field(default_factory=list)
+
+
+class ClauseReviewDTO(BaseModel):
+    """Trạng thái thẩm định hiện hành của một điều khoản + toàn bộ lịch sử.
+
+    ``stale`` chỉ có khi điều khoản hiện tại chưa được thẩm định nhưng lần phân tích
+    trước đã có; nó không được tính là kết quả hiện hành.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    node_id: str
+    document_id: str
+    dossier_id: str
+    review_item_id: str | None = None
+    run_id: str | None = None
+    version: int = 0
+    status: str = "unreviewed"
+    dossier_locked: bool = False
+    latest: ClauseReviewEntryDTO | None = None
+    history: list[ClauseReviewEntryDTO] = Field(default_factory=list)
+    stale: ClauseStaleReviewDTO | None = None
+
+
 class ReviewConflictErrorDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -153,6 +258,11 @@ class ReviewConflictResponseDTO(BaseModel):
 
 
 __all__ = [
+    "ClauseNodeDescriptorDTO",
+    "ClauseReviewDTO",
+    "ClauseReviewEntryDTO",
+    "ClauseReviewRequestDTO",
+    "ClauseStaleReviewDTO",
     "ReviewActionRequestDTO",
     "ReviewActionResponseDTO",
     "ReviewConflictErrorDTO",

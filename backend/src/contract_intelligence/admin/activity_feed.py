@@ -1,9 +1,10 @@
 """Tenant activity feed and storage usage for the admin overview.
 
 Historical rows come from tables that already record the fact (dossier,
-document, member, review, approval, manifest, pipeline). Actions that have
-no durable row of their own (lock, unlock, role change, resent invite,
-login) are appended to ``activity_event``.
+document, review, approval, manifest, pipeline). Invites, lock, unlock,
+role change, and login are appended to ``activity_event`` with the admin
+who performed them. A member row is not an invite: only an administrator
+can add someone.
 """
 
 from __future__ import annotations
@@ -80,13 +81,15 @@ class StorageUsage:
 
 
 def _actor_email(actor_id_column: object) -> Any:
-    """Email for a user id or Keycloak sub stored on another row."""
+    """Email for a user id, ``usr_<sub>`` id, or Keycloak sub stored on another row."""
     return (
         select(AppUserORM.email)
         .where(
             or_(
                 AppUserORM.id == actor_id_column,
                 AppUserORM.keycloak_sub == actor_id_column,
+                AppUserORM.id == func.concat("usr_", actor_id_column),
+                AppUserORM.keycloak_sub == func.replace(actor_id_column, "usr_", ""),
             )
         )
         .limit(1)
@@ -126,14 +129,6 @@ def _sources(tenant_id: str) -> Any:
         )
     )
 
-    member = select(
-        func.concat("user:", AppUserORM.id).label("id"),
-        AppUserORM.created_at.label("occurred_at"),
-        AppUserORM.email.label("actor_display_name"),
-        func.concat("Thêm thành viên ", AppUserORM.display_name).label("title"),
-        _blank().label("detail"),
-    ).where(AppUserORM.tenant_id == tenant_id)
-
     review_title = case(
         (ReviewActionORM.action == "confirm", "Xác nhận mục rà soát"),
         (ReviewActionORM.action == "correct", "Sửa nội dung rà soát"),
@@ -145,7 +140,10 @@ def _sources(tenant_id: str) -> Any:
         select(
             func.concat("review:", ReviewActionORM.id).label("id"),
             ReviewActionORM.created_at.label("occurred_at"),
-            _actor_email(ReviewActionORM.reviewer_id).label("actor_display_name"),
+            func.coalesce(
+                _actor_email(ReviewActionORM.reviewer_id),
+                _creator_email(),
+            ).label("actor_display_name"),
             review_title.label("title"),
             func.concat("Hồ sơ ", DossierORM.name).label("detail"),
         )
@@ -230,7 +228,6 @@ def _sources(tenant_id: str) -> Any:
     return union_all(
         dossier,
         document,
-        member,
         review,
         approval,
         manifest,
@@ -279,14 +276,23 @@ async def list_activity(
     tenant_id: str,
     limit: int,
     offset: int,
+    actors: list[str] | None = None,
 ) -> ActivityPage:
-    """Newest tenant events across persisted facts and recorded admin actions."""
+    """Newest tenant events. ``actors`` limits the feed to those names."""
     await ensure_activity_table(session)
     events = _sources(tenant_id).subquery("activity")
-    total = await session.scalar(select(func.count()).select_from(events))
+    actor = func.trim(events.c.actor_display_name)
+    clauses = [actor.is_not(None), func.length(actor) > 0]
+    if actors is not None:
+        wanted = [name.strip().lower() for name in actors if name and name.strip()]
+        clauses.append(func.lower(actor).in_(wanted or [""]))
+    visible = (
+        select(events).where(*clauses).subquery("activity_with_actor")
+    )
+    total = await session.scalar(select(func.count()).select_from(visible))
     rows = (
         await session.execute(
-            select(events).order_by(events.c.occurred_at.desc()).limit(limit).offset(offset)
+            select(visible).order_by(visible.c.occurred_at.desc()).limit(limit).offset(offset)
         )
     ).all()
     items = [

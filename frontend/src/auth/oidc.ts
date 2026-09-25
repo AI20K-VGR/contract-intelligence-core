@@ -22,6 +22,16 @@ export function isKeycloakConfigured(): boolean {
 
 let manager: UserManager | null | undefined
 
+function shareExistingSession() {
+  const prefix = 'oidc.user:'
+  for (let index = 0; index < window.sessionStorage.length; index += 1) {
+    const key = window.sessionStorage.key(index)
+    if (!key?.startsWith(prefix) || window.localStorage.getItem(key)) continue
+    const value = window.sessionStorage.getItem(key)
+    if (value) window.localStorage.setItem(key, value)
+  }
+}
+
 export function getUserManager(): UserManager | null {
   if (manager !== undefined) {
     return manager
@@ -33,6 +43,7 @@ export function getUserManager(): UserManager | null {
     return null
   }
 
+  shareExistingSession()
   const origin = window.location.origin
   // localtunnel shows an IP gate to the browser. Dev server proxies /keycloak
   // and adds the bypass header, so the SPA never calls loca.lt directly.
@@ -54,7 +65,7 @@ export function getUserManager(): UserManager | null {
     monitorSession: false,
     filterProtocolClaims: true,
     loadUserInfo: false,
-    userStore: new WebStorageStateStore({ store: window.sessionStorage }),
+    userStore: new WebStorageStateStore({ store: window.localStorage }),
   })
 
   return manager

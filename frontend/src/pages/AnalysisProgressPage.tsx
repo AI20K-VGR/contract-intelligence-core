@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { ApiError } from '../api/client'
 import {
   deleteDossier,
   loadDocumentOcrPages,
@@ -155,6 +156,7 @@ export function AnalysisProgressPage() {
     const controller = new AbortController()
     let timer: number | undefined
     let stopped = false
+    let notFoundTries = 0
 
     async function load() {
       try {
@@ -177,6 +179,7 @@ export function AnalysisProgressPage() {
         setDetail(next)
         setPagesByDoc(Object.fromEntries(pages))
         setError(null)
+        notFoundTries = 0
         if (isOcrComplete(next.latestJobStatus)) {
           const contract =
             next.documents.find(
@@ -201,6 +204,14 @@ export function AnalysisProgressPage() {
         if (controller.signal.aborted || stopped) return
         const message = structureErrorMessage(cause)
         if (!message) return
+        // POST commits just as this page opens. A 404 in that window is not final.
+        if (cause instanceof ApiError && cause.status === 404 && notFoundTries < 10) {
+          notFoundTries += 1
+          timer = window.setTimeout(() => {
+            void load()
+          }, 400)
+          return
+        }
         setError(message)
       }
     }

@@ -43,6 +43,14 @@ async def test_feed_uses_dossier_document_and_member_rows(session) -> None:
                 id="dos_1",
                 tenant_id="tenant_a",
                 name="Hợp đồng Apex",
+                metadata_json={"created_by": "usr_1"},
+                created_at=when,
+                updated_at=when,
+            ),
+            DossierORM(
+                id="dos_no_actor",
+                tenant_id="tenant_a",
+                name="Hồ sơ không người",
                 created_at=when,
                 updated_at=when,
             ),
@@ -81,10 +89,11 @@ async def test_feed_uses_dossier_document_and_member_rows(session) -> None:
     page = await list_activity(session, tenant_id="tenant_a", limit=8, offset=0)
     titles = [item.title for item in page.items]
 
-    assert page.total == 3
+    assert page.total == 2
     assert "Tạo hồ sơ Hợp đồng Apex" in titles
     assert "Tải lên apex.pdf" in titles
-    assert "Thêm thành viên An" in titles
+    assert "Thêm thành viên An" not in titles
+    assert "Tạo hồ sơ Hồ sơ không người" not in titles
     assert all("khác" not in title for title in titles)
 
     usage = await storage_usage(session, tenant_id="tenant_a")

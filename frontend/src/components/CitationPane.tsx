@@ -11,11 +11,15 @@ export function CitationPane({
   node,
   citeNo,
   onClose,
+  embedded = false,
+  filename,
 }: {
   documentId: string
   node: ClauseNode
   citeNo: number
-  onClose: () => void
+  onClose?: () => void
+  embedded?: boolean
+  filename?: string | null
 }) {
   const pages = [
     ...new Set(
@@ -92,16 +96,25 @@ export function CitationPane({
   })
 
   return (
-    <aside className="flex min-h-0 w-1/2 min-w-0 flex-col border-l border-outline-variant/30 bg-white">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-outline-variant/20 px-4 py-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-slate-900">
-            Trích dẫn {citeNo}
-          </p>
-          <p className="truncate text-xs text-slate-500">
-            Trang {pageNo} · file đã tải lên
-            {boxes.length === 0 ? ' · không có vùng tô' : ''}
-          </p>
+    <aside
+      className={
+        embedded
+          ? 'flex min-h-0 min-w-0 flex-1 flex-col bg-surface-container-lowest'
+          : 'flex min-h-0 w-1/2 min-w-0 flex-col border-l border-outline-variant/30 bg-white'
+      }
+    >
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-outline-variant/20 bg-surface-container px-4 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <MaterialIcon name="picture_as_pdf" className="text-[18px] text-error" />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-on-surface">
+              {filename || `Trích dẫn ${citeNo}`}
+            </p>
+            <p className="truncate text-xs text-secondary">
+              Trang {pageNo}
+              {boxes.length === 0 ? ' · không có vùng tô' : ' · vùng trích dẫn được khoanh'}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {pages.length > 1 ? (
@@ -122,13 +135,15 @@ export function CitationPane({
               ))}
             </div>
           ) : null}
-          <button
-            className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
-            type="button"
-            onClick={onClose}
-          >
-            <MaterialIcon name="close" className="text-[18px]" />
-          </button>
+          {onClose ? (
+            <button
+              className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
+              type="button"
+              onClick={onClose}
+            >
+              <MaterialIcon name="close" className="text-[18px]" />
+            </button>
+          ) : null}
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-4">

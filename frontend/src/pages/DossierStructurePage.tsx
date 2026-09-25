@@ -7,7 +7,9 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { ApiError } from '../api/client'
+import { clauseOrdinal } from '../api/clauseReview'
 import {
   contractDocument,
   countClauses,
@@ -28,6 +30,9 @@ import {
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { CitationPane } from '../components/CitationPane'
+import { UploadedPdfPane } from '../components/UploadedPdfPane'
+import { CitedAnswer } from '../components/CitedAnswer'
+import { SearchCitationReview } from '../components/SearchCitationReview'
 import { StructureDocument } from '../components/StructureDocument'
 import { StructureMindmap } from '../components/StructureMindmap'
 import { StructureOutline } from '../components/StructureOutline'
@@ -100,7 +105,12 @@ function readFocusedCitation(value: unknown): {
     },
   }
 }
-import { citationNumbers, findClause } from '../structure/citations'
+import {
+  citationNumbers,
+  findClause,
+  findClauseByQuote,
+  searchCites,
+} from '../structure/citations'
 
 const jobLabels: Record<string, string> = {
   uploaded: 'Đã tải lên',
@@ -137,6 +147,7 @@ export function DossierStructurePage() {
   const titleInHeader = useHeaderShowsPageTitle()
   const { dossierId = '' } = useParams()
   const location = useLocation()
+  const navigate = useNavigate()
   const { user } = useAuth()
   const backTo = user ? dossiersPath(user.role) : '/'
   const backLabel = user ? dossiersLabel(user.role) : 'Hồ sơ'
@@ -146,6 +157,7 @@ export function DossierStructurePage() {
   const [filename, setFilename] = useState<string | null>(null)
   const [documentId, setDocumentId] = useState<string | null>(null)
   const [citeId, setCiteId] = useState<string | null>(null)
+  const [reviewCiteId, setReviewCiteId] = useState<string | null>(null)
   const [tableCite, setTableCite] = useState<{
     node: ClauseNode
     citeNo: number
@@ -153,6 +165,7 @@ export function DossierStructurePage() {
   // Dòng OCR thô: cây được dựng trên trình duyệt theo loại tài liệu.
   const [lines, setLines] = useState<OcrLine[] | null>(null)
   const [showLines, setShowLines] = useState(false)
+  const [pdfDocumentId, setPdfDocumentId] = useState<string | null>(null)
   // Cây AI1 trả sẵn, chỉ dùng khi backend không trả được dòng OCR.
   const [fallbackNodes, setFallbackNodes] = useState<ClauseNode[]>([])
   const [mode, setMode] = useState<StructureMode | null>(
@@ -178,11 +191,17 @@ export function DossierStructurePage() {
     () => (lines ? buildStructureTree(lines, activeMode) : fallbackNodes),
     [lines, activeMode, fallbackNodes],
   )
+  // Câu trả lời AI2 không đi theo loại cấu trúc đang xem.
+  const answerNodes = useMemo(
+    () => (lines ? buildStructureTree(lines, 'numbered') : fallbackNodes),
+    [lines, fallbackNodes],
+  )
   useEffect(() => {
     setQuery('')
     setSearchResult(null)
     setSearchCite(null)
     setSearchError(null)
+    setReviewCiteId(null)
   }, [dossierId])
 
   async function submitSearch(event: FormEvent) {
@@ -325,6 +344,17 @@ export function DossierStructurePage() {
         }
       } catch (cause) {
         if (controller.signal.aborted || stopped) return
+        if (cause instanceof ApiError && cause.status === 403) {
+          navigate(backTo, {
+            replace: true,
+            state: {
+              notice:
+                'Quyền xem hồ sơ này đã bị thu hồi. Chờ email chia sẻ mới để mở lại.',
+              noticeTone: 'error',
+            },
+          })
+          return
+        }
         const message = structureErrorMessage(cause)
         if (!message) return
         setError(message)
@@ -338,7 +368,7 @@ export function DossierStructurePage() {
       controller.abort()
       if (timer !== undefined) window.clearTimeout(timer)
     }
-  }, [attempt, dossierId])
+  }, [attempt, backTo, dossierId, navigate])
 
   const status = detail?.latestJobStatus
   const statusLabel = status ? (jobLabels[status] ?? status) : 'Đang chờ'
@@ -350,13 +380,42 @@ export function DossierStructurePage() {
     }
     return ids
   }, [spots])
-  const needsCheck = status === 'pending_review' || spots.length > 0
   const citeOf = useMemo(() => citationNumbers(nodes), [nodes])
+  const answerCiteOf = useMemo(
+    () => citationNumbers(answerNodes),
+    [answerNodes],
+  )
   const cited = citeId ? findClause(nodes, citeId) : null
-  const splitView = Boolean(cited || tableCite || searchCite || showLines)
+  const pdfFile =
+    detail?.documents.find((document) => document.id === pdfDocumentId) ?? null
+  const splitView = Boolean(
+    cited || tableCite || searchCite || showLines || pdfFile,
+  )
+
+  const openTreeCite = useCallback((id: string) => {
+    setShowLines(false)
+    setPdfDocumentId(null)
+    setTableCite(null)
+    setSearchCite(null)
+    setCiteId(id)
+  }, [])
+
+  function openUploadedPdf(id: string) {
+    setShowLines(false)
+    setCiteId(null)
+    setSearchCite(null)
+    setTableCite(null)
+    setReviewCiteId(null)
+    setPdfDocumentId(id)
+  }
 
   const openSearchCitation = useCallback(
     (hit: DossierSearchResult['hits'][number], index: number) => {
+      const clause = findClauseByQuote(nodes, hit.text, hit.pageNo)
+      if (clause && citeOf.has(clause.id)) {
+        openTreeCite(clause.id)
+        return
+      }
       if (!documentId || hit.pageNo === null) return
       const node: ClauseNode = {
         id: hit.lineId || `search-citation-${index}`,
@@ -372,11 +431,12 @@ export function DossierStructurePage() {
         children: [],
       }
       setShowLines(false)
+      setPdfDocumentId(null)
       setCiteId(null)
       setTableCite(null)
       setSearchCite({ node, citeNo: index + 1 })
     },
-    [documentId],
+    [citeOf, documentId, nodes, openTreeCite],
   )
 
   useEffect(() => {
@@ -458,6 +518,27 @@ export function DossierStructurePage() {
                       <span className="truncate font-medium text-on-surface">
                         {filename}
                       </span>
+                      {phase === 'ready' && documentId ? (
+                        <button
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-label-sm text-label-sm font-semibold ${
+                            pdfFile
+                              ? 'bg-primary text-on-primary'
+                              : 'bg-surface-container text-primary hover:bg-primary/10'
+                          }`}
+                          type="button"
+                          onClick={() =>
+                            pdfFile
+                              ? setPdfDocumentId(null)
+                              : openUploadedPdf(documentId)
+                          }
+                        >
+                          <MaterialIcon
+                            name="picture_as_pdf"
+                            className="text-[14px]"
+                          />
+                          PDF gốc
+                        </button>
+                      ) : null}
                     </span>
                   ) : (
                     <span>
@@ -521,8 +602,20 @@ export function DossierStructurePage() {
                 </div>
               </div>
               {phase === 'ready' ? (
+                <div className="flex w-full shrink-0 items-center gap-space-sm md:w-auto">
+                <Link
+                  className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-outline-variant/30 bg-surface-container-lowest px-3 font-body-sm text-body-sm font-semibold text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] hover:bg-amber-50 hover:text-amber-950"
+                  state={{ dossierId, name: detail?.name }}
+                  to="/doi-soat-xung-dot"
+                >
+                  <MaterialIcon
+                    name="warning"
+                    className="text-[18px] text-amber-700"
+                  />
+                  Xem xung đột
+                </Link>
                 <form
-                  className="relative w-full shrink-0 md:w-80 lg:w-96"
+                  className="relative min-w-0 w-full shrink md:w-80 lg:w-96"
                   onSubmit={(event) => void submitSearch(event)}
                 >
                   <MaterialIcon
@@ -538,6 +631,7 @@ export function DossierStructurePage() {
                     onChange={(event) => setQuery(event.target.value)}
                   />
                 </form>
+                </div>
               ) : null}
             </div>
           </div>
@@ -593,42 +687,6 @@ export function DossierStructurePage() {
                 Thử lại
               </button>
             </section>
-          ) : null}
-
-          {phase === 'ready' && needsCheck ? (
-            <Link
-              className="mb-space-lg flex items-center justify-between gap-space-md rounded-xl bg-amber-50/80 px-space-lg py-space-md text-amber-950 hover:bg-amber-100 transition-colors"
-              state={{
-                dossierId,
-                name: detail?.name,
-              }}
-              to="/doi-soat-xung-dot"
-            >
-              <span className="flex items-start gap-space-sm min-w-0">
-                <MaterialIcon
-                  name="warning"
-                  className="text-[20px] mt-0.5 shrink-0"
-                />
-                <span className="flex flex-col gap-1 min-w-0">
-                  <span className="font-title-sm text-title-sm font-semibold">
-                    Cần kiểm tra
-                    {spots.length > 0 ? ` · ${spots.length} chỗ` : ''}
-                  </span>
-                  <span className="font-body-sm text-body-sm">
-                    {spots.length > 0
-                      ? `${spots
-                          .slice(0, 3)
-                          .map((spot) => spot.topic)
-                          .join(' · ')}. Bấm để mở giao diện kiểm tra.`
-                      : 'Hồ sơ đã OCR xong và còn nội dung chờ rà soát. Bấm để mở giao diện kiểm tra.'}
-                  </span>
-                </span>
-              </span>
-              <MaterialIcon
-                name="arrow_forward"
-                className="text-[18px] shrink-0"
-              />
-            </Link>
           ) : null}
 
           {phase === 'ready' ? (
@@ -694,20 +752,43 @@ export function DossierStructurePage() {
                 </p>
               ) : null}
               {searchResult ? (
-                <div className="flex flex-col gap-space-xs">
-                  <p className="font-label-sm text-label-sm text-on-surface-variant">
-                    {searchResult.query}
+                <div className="flex flex-col gap-space-sm">
+                  <p className="font-label-sm text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">
+                    Câu trả lời tổng hợp AI
                   </p>
-                  <p className="font-body-sm text-body-sm text-on-surface">
-                    {searchResult.answer
-                      ? searchResult.answer
-                      : searchResult.connected
+                  {searchResult.answer ? (
+                    <CitedAnswer
+                      activeId={reviewCiteId}
+                      answer={searchResult.answer}
+                      citationOf={answerCiteOf}
+                      hits={searchResult.hits}
+                      nodes={answerNodes}
+                      onCite={setReviewCiteId}
+                    />
+                  ) : (
+                    <p className="font-body-sm text-body-sm text-on-surface">
+                      {searchResult.connected
                         ? 'AI2 không trả lời cho câu hỏi này.'
                         : 'AI2 chưa nối. Câu hỏi đã gửi tới backend, chưa có câu trả lời.'}
-                  </p>
-                  {searchResult.hits.length > 0 ? (
+                    </p>
+                  )}
+                  {searchCites(
+                    answerNodes,
+                    searchResult.hits,
+                    answerCiteOf,
+                    searchResult.answer ?? '',
+                  ).length === 0 && searchResult.hits.length > 0 ? (
                     <ul className="flex flex-col gap-1">
-                      {searchResult.hits.map((hit, index) => (
+                      {searchResult.hits
+                        .filter((hit) => {
+                          const clause = findClauseByQuote(
+                            nodes,
+                            hit.text,
+                            hit.pageNo,
+                          )
+                          return !clause || !citeOf.has(clause.id)
+                        })
+                        .map((hit, index) => (
                         <li
                           key={`${hit.lineId ?? ''}-${hit.pageNo ?? ''}-${hit.text}`}
                           className="font-body-sm text-body-sm text-on-surface-variant"
@@ -756,7 +837,29 @@ export function DossierStructurePage() {
             />
           ) : null}
 
-          {phase === 'ready' && activeMode !== 'tables' ? (
+          {phase === 'ready' && reviewCiteId && documentId && findClause(answerNodes, reviewCiteId) ? (
+            <SearchCitationReview
+              citeNo={answerCiteOf.get(reviewCiteId) ?? 0}
+              documentId={documentId}
+              filename={filename}
+              node={findClause(answerNodes, reviewCiteId)!}
+              ordinal={clauseOrdinal(answerNodes, reviewCiteId)}
+              related={
+                searchResult
+                  ? searchCites(
+                      answerNodes,
+                      searchResult.hits,
+                      answerCiteOf,
+                      searchResult.answer ?? '',
+                    )
+                  : []
+              }
+              onBack={() => setReviewCiteId(null)}
+              onPick={setReviewCiteId}
+            />
+          ) : null}
+
+          {phase === 'ready' && !reviewCiteId && activeMode !== 'tables' ? (
             <div className="flex min-h-[520px] flex-1 flex-col pb-space-md">
               {(() => {
                 const shared = {
@@ -765,11 +868,7 @@ export function DossierStructurePage() {
                   focusId: citeId,
                   nodes,
                   title: detail?.name ?? 'Hợp đồng',
-                  onCite: (id: string) => {
-                    setShowLines(false)
-                    setTableCite(null)
-                    setCiteId(id)
-                  },
+                  onCite: openTreeCite,
                 }
                 switch (view) {
                   case 'outline':
@@ -799,6 +898,15 @@ export function DossierStructurePage() {
             </div>
           ) : null}
         </div>
+        {pdfFile ? (
+          <UploadedPdfPane
+            documentId={pdfFile.id}
+            filename={pdfFile.filename}
+            files={detail?.documents ?? []}
+            onClose={() => setPdfDocumentId(null)}
+            onSelect={openUploadedPdf}
+          />
+        ) : null}
         {showLines && lines ? (
           <OcrLinesPane lines={lines} onClose={() => setShowLines(false)} />
         ) : null}

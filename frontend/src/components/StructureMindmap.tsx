@@ -976,7 +976,7 @@ export function StructureMindmap({
 
       <div
         ref={viewportRef}
-        className={`relative min-h-[420px] flex-1 touch-none overflow-hidden bg-[#fafbff] ${
+        className={`relative min-h-0 flex-1 touch-none overflow-hidden bg-[#fafbff] ${
           dragging ? 'cursor-grabbing' : 'cursor-grab'
         }`}
         onPointerCancel={endDrag}

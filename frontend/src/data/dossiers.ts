@@ -14,7 +14,12 @@ export type Dossier = {
   documents: number | null
   updated: string
   access: DossierAccess
-  shares?: { id: string; email: string; display_name: string }[]
+  shares?: {
+    id: string
+    email: string
+    display_name: string
+    status?: 'invited' | 'active' | 'disabled'
+  }[]
   jobStatus?: string | null
   uploadedAt?: string
 }

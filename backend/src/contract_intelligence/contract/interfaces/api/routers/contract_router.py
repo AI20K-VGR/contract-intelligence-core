@@ -484,6 +484,14 @@ async def create_dossier(
             order_index=idx,
         )
 
+    # Vai trò hợp đồng/phụ lục đã chọn lúc tải lên. Xác nhận luôn để worker
+    # so sánh xung đột khi OCR của mọi tệp xong, không chờ màn manifest.
+    await svc.confirm_uploaded_manifest(dossier.id, user.user_id)
+
+    # Commit before the 202 is sent. Otherwise the next GET/PATCH and the
+    # dossier.uploaded consumer race an uncommitted transaction.
+    await svc.commit()
+
     # Publish after the request session commits (BackgroundTasks run post-response).
     background_tasks.add_task(
         _publish_dossier_uploaded,
@@ -568,6 +576,7 @@ async def list_dossiers(
         q=q,
         batch_id=batch_id,
         viewer_id=user.user_id,
+        viewer_email=user.email,
         limit=limit,
         offset=offset,
     )
@@ -764,6 +773,8 @@ async def search_dossier(
     )
 
     try:
+        from contract_intelligence.config.settings import get_settings
+
         payload = await asyncio.wait_for(
             query_ai2(
                 {
@@ -778,7 +789,7 @@ async def search_dossier(
                     "actor_id": "backend",
                 }
             ),
-            timeout=3,
+            timeout=get_settings().ai2_query_timeout_seconds,
         )
     except (AiAdapterError, TimeoutError, OSError) as exc:
         logger.info("dossier.search.ai2_unavailable", dossier_id=dossier_id, error=str(exc))

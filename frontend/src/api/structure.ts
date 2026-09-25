@@ -57,6 +57,12 @@ export type ClauseNode = {
   children: ClauseNode[]
 }
 
+export type ReviewSpotLink = {
+  itemId: string
+  status: string
+  version: number
+}
+
 export type ReviewSpot = {
   id: string
   topic: string
@@ -64,6 +70,7 @@ export type ReviewSpot = {
   severity: string
   clauseIds: string[]
   sides: { label: string; value: string; quote: string }[]
+  review: ReviewSpotLink | null
 }
 
 const DONE_STATUSES = new Set([
@@ -428,6 +435,8 @@ function asReviewSpot(value: unknown): ReviewSpot | null {
         return clauseId ? [clauseId] : []
       })
     : []
+  const reviewRow = asRecord(row.review)
+  const reviewId = asString(reviewRow?.item_id)
   return {
     id,
     topic: asString(row.key_or_topic) || 'Nội dung cần kiểm tra',
@@ -435,6 +444,16 @@ function asReviewSpot(value: unknown): ReviewSpot | null {
     severity: asString(row.severity),
     clauseIds,
     sides,
+    review: reviewId
+      ? {
+          itemId: reviewId,
+          status: asString(reviewRow?.status, 'open'),
+          version:
+            typeof reviewRow?.current_version === 'number'
+              ? reviewRow.current_version
+              : 1,
+        }
+      : null,
   }
 }
 

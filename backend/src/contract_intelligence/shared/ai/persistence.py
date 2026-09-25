@@ -774,6 +774,81 @@ async def persist_ai2_comparison(
     return inserted
 
 
+def _source_node_ref(node_id: str) -> tuple[str, int] | None:
+    """``line:15:doc_…:s1:p015:l001`` → (document_id, page)."""
+    parts = node_id.split(":")
+    if len(parts) < 3 or not parts[2].startswith("doc_"):
+        return None
+    page = int(parts[1]) if parts[1].isdigit() else 1
+    return parts[2], page
+
+
+def _context_findings_as_items(raw_findings: object) -> list[FindingItem]:
+    """Đưa tín hiệu phụ lục (context finding) vào hàng đối soát.
+
+    Wire ``findings`` chỉ chứa cặp fact đã khớp. Xung đột hợp đồng–phụ lục
+    thường nằm ở ``context_findings`` và không có citation id.
+    """
+    if not isinstance(raw_findings, list):
+        return []
+    items: list[FindingItem] = []
+    for raw in raw_findings:
+        if not isinstance(raw, dict):
+            continue
+        if raw.get("review_state") not in {None, "NEEDS_REVIEW", "INSUFFICIENT_EVIDENCE"}:
+            continue
+        by_document: dict[str, tuple[int, str]] = {}
+        for node_id in raw.get("source_node_ids") or []:
+            ref = _source_node_ref(str(node_id))
+            if ref is None:
+                continue
+            by_document.setdefault(ref[0], (ref[1], str(node_id)))
+        if not by_document:
+            continue
+        reason = str(raw.get("reason") or "Cần đối chiếu hợp đồng và phụ lục.")
+        documents = list(by_document.items())
+        left_id, (left_page, left_node) = documents[0]
+        right_id, (right_page, right_node) = documents[-1]
+        kind = str(raw.get("finding_type") or "")
+        disposition = (
+            "candidate_amendment"
+            if kind == "AMENDMENT_SIGNAL" or raw.get("relation_type") == "AMENDS"
+            else "insufficient_evidence"
+        )
+        quote_sha = hashlib.sha256(reason.encode("utf-8")).hexdigest()
+
+        def side(document_id: str, page: int, node_id: str) -> FindingSideItem:
+            return FindingSideItem(
+                document_id=document_id,
+                citation=_canonical_citation_item(
+                    {
+                        "page": page,
+                        "line_ids": [node_id],
+                        "text_span": reason,
+                        "quote_sha256": quote_sha,
+                        "node_id": node_id,
+                    }
+                ),
+                value_snapshot={"text": reason},
+            )
+
+        items.append(
+            FindingItem(
+                finding_type="semantic",
+                scope="contract_annex",
+                key_or_topic=str(raw.get("subject_key") or raw.get("finding_id") or kind),
+                disposition=disposition,
+                severity="high",
+                confidence=0.55,
+                rationale=reason,
+                method="ai2.context",
+                side_a=side(left_id, left_page, left_node),
+                side_b=side(right_id, right_page, right_node),
+            )
+        )
+    return items
+
+
 def _canonical_citation_item(raw: dict[str, Any]) -> CitationItem:
     """Map one canonical AI2 citation to the legacy DB persistence DTO."""
 
@@ -891,6 +966,7 @@ async def persist_ai2_processing_result(
         )
 
     finding_items: list[FindingItem] = []
+    finding_items.extend(_context_findings_as_items(body.get("context_findings") or []))
     for raw_finding in body.get("findings", []):
         if not isinstance(raw_finding, dict):
             continue

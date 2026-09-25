@@ -74,6 +74,16 @@ class ContractService:
         self._storage = storage
         self._tenant_id = tenant_id
 
+    async def commit(self) -> None:
+        """Ghi transaction trước khi trả response.
+
+        FastAPI commit dependency sau khi response đã gửi. GET/PATCH ngay sau
+        POST khi đó 404, và worker có thể chỉ thấy hợp đồng chính.
+        """
+        session = getattr(self._dossier_repo, "_session", None)
+        if session is not None:
+            await session.commit()
+
     async def create_dossier(
         self,
         *,
@@ -170,6 +180,7 @@ class ContractService:
         q: str | None = None,
         batch_id: str | None = None,
         viewer_id: str | None = None,
+        viewer_email: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[Dossier], int]:
@@ -187,6 +198,8 @@ class ContractService:
         # optional viewer scope is not used.
         if viewer_id is not None:
             list_kwargs["viewer_id"] = viewer_id
+        if viewer_email:
+            list_kwargs["viewer_email"] = viewer_email
         page = cast(
             Any,  # Page is generic with bound=str — runtime carries Dossier entities
             await self._dossier_repo.list(**list_kwargs),
@@ -353,6 +366,16 @@ class ContractService:
             for d in documents
         ]
         return await self._manifest_repo.create_with_default_items(dossier_id, documents_payload)
+
+    async def confirm_uploaded_manifest(self, dossier_id: str, user_id: str) -> None:
+        """Xác nhận vai trò đã chọn lúc tải lên để AI2 so sánh hợp đồng và phụ lục.
+
+        Không đổi trạng thái hồ sơ. OCR vẫn đang chạy.
+        """
+        manifest = await self.get_or_create_manifest(dossier_id)
+        if manifest.status == "confirmed":
+            return
+        await self._manifest_repo.confirm(manifest.id, user_id)
 
     async def get_manifest(self, dossier_id: str) -> ManifestDTO:
         """GET /dossiers/{id}/manifest — current ManifestDTO (create draft if needed)."""

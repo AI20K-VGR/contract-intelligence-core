@@ -560,3 +560,120 @@ class TestCreateDossierEndpoint:
         assert resp.status_code == 202
         # contract + 2 annexes
         assert mock_svc.upload_document.call_count == 3
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/dossiers/{dossier_id}/search  (AI2 /query)
+# ---------------------------------------------------------------------------
+
+
+_AI2_QUERY_TARGET = "contract_intelligence.infrastructure.ai_adapters.query_ai2"
+
+
+class TestSearchDossierEndpoint:
+    async def test_maps_ai2_citations_to_hits(
+        self, client: AsyncClient, mock_svc: AsyncMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AI2 ``Citation`` dùng ``text_span`` + ``page``; hit phải giữ node/citation id."""
+        mock_svc.get_dossier.return_value = _make_dossier()
+        seen: dict[str, Any] = {}
+
+        async def fake_query(payload: dict[str, Any]) -> dict[str, Any]:
+            seen.update(payload)
+            return {
+                "state": "PASS",
+                "answer": "Mức trần bồi thường là 100% giá trị dịch vụ.",
+                "citations": [
+                    {
+                        "node_id": "n_6_2",
+                        "citation_id": "cit_01",
+                        "text_span": "Mức trần bồi thường thiệt hại tối đa 100%",
+                        "page": 12,
+                        "bbox": [0.1, 0.2, 0.9, 0.3],
+                        "breadcrumb": ["Điều 6", "6.2"],
+                        "structure_path": "Điều 6 > 6.2",
+                        "validation_status": "VALID",
+                    },
+                    {"node_id": "n_empty", "text_span": "   "},
+                    {"text_span": "Phụ lục SLA", "page_range": [36, 37]},
+                ],
+                "retrieval_layer": {"used_llm": False},
+                "reasoning_trace": [{"code": "L1", "message": "Đã khớp 2 nút."}],
+            }
+
+        monkeypatch.setattr(_AI2_QUERY_TARGET, fake_query)
+
+        resp = await client.post(
+            "/api/v1/dossiers/dos_TEST_01/search",
+            json={"query": "Mức trần bồi thường?"},
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["connected"] is True
+        assert data["state"] == "PASS"
+        assert data["answer"].startswith("Mức trần")
+        assert data["used_llm"] is False
+        assert data["notes"] == ["L1: Đã khớp 2 nút."]
+        assert len(data["hits"]) == 2
+        first = data["hits"][0]
+        assert first["text"] == "Mức trần bồi thường thiệt hại tối đa 100%"
+        assert first["page_no"] == 12
+        assert first["node_id"] == "n_6_2"
+        assert first["citation_id"] == "cit_01"
+        assert first["breadcrumb"] == ["Điều 6", "6.2"]
+        assert first["bbox"] == [0.1, 0.2, 0.9, 0.3]
+        assert first["validation_status"] == "VALID"
+        assert data["hits"][1]["page_no"] == 36
+        # Backend phải chuyển tenant + policy fail-closed sang AI2.
+        assert seen["dossier_id"] == "dos_TEST_01"
+        assert seen["tenant_id"] == "tenant_test"
+        assert seen["policy_flags"]["egress_allowed"] is False
+
+    async def test_reports_not_connected_when_ai2_down(
+        self, client: AsyncClient, mock_svc: AsyncMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from contract_intelligence.infrastructure.ai_adapters import AiAdapterError
+
+        mock_svc.get_dossier.return_value = _make_dossier()
+
+        async def failing_query(payload: dict[str, Any]) -> dict[str, Any]:
+            raise AiAdapterError("connection refused")
+
+        monkeypatch.setattr(_AI2_QUERY_TARGET, failing_query)
+
+        resp = await client.post(
+            "/api/v1/dossiers/dos_TEST_01/search",
+            json={"query": "Điều 1 nói gì?"},
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data == {
+            "query": "Điều 1 nói gì?",
+            "answer": None,
+            "connected": False,
+            "hits": [],
+            "state": None,
+            "notes": [],
+            "used_llm": False,
+        }
+
+    async def test_rejects_blank_query(self, client: AsyncClient, mock_svc: AsyncMock) -> None:
+        resp = await client.post(
+            "/api/v1/dossiers/dos_TEST_01/search",
+            json={"query": "   "},
+        )
+        assert resp.status_code == 422
+
+    async def test_returns_404_when_dossier_missing(
+        self, client: AsyncClient, mock_svc: AsyncMock
+    ) -> None:
+        mock_svc.get_dossier.side_effect = NotFoundError(
+            entity_type="Dossier", entity_id="dos_MISSING"
+        )
+        resp = await client.post(
+            "/api/v1/dossiers/dos_MISSING/search",
+            json={"query": "abc"},
+        )
+        assert resp.status_code == 404

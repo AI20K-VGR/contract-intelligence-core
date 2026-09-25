@@ -58,6 +58,18 @@ export const structureViews: {
   hint: string
 }[] = [
   {
+    value: 'document',
+    label: 'Văn bản',
+    icon: 'article',
+    hint: 'Mục lục bên trái, toàn văn theo cấu trúc bên phải.',
+  },
+  {
+    value: 'outline',
+    label: 'Dàn bài',
+    icon: 'format_list_bulleted',
+    hint: 'Cây dọc thụt đầu dòng, mở/thu từng nút, lọc nhanh.',
+  },
+  {
     value: 'mindmap',
     label: 'Sơ đồ',
     icon: 'account_tree',
@@ -68,18 +80,6 @@ export const structureViews: {
     label: 'Cây dọc',
     icon: 'lan',
     hint: 'Cây từ trên xuống: gốc trên cùng, các cấp xoè xuống dưới.',
-  },
-  {
-    value: 'outline',
-    label: 'Dàn bài',
-    icon: 'format_list_bulleted',
-    hint: 'Cây dọc thụt đầu dòng, mở/thu từng nút, lọc nhanh.',
-  },
-  {
-    value: 'document',
-    label: 'Văn bản',
-    icon: 'article',
-    hint: 'Mục lục bên trái, toàn văn theo cấu trúc bên phải.',
   },
 ]
 

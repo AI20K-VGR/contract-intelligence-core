@@ -36,6 +36,7 @@ class ReviewItemORM(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     source_trace_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_observation_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    target_snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -43,7 +44,10 @@ class ReviewItemORM(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    __table_args__ = (Index("ix_review_item_priority", "tenant_id", "priority", "status"),)
+    __table_args__ = (
+        Index("ix_review_item_priority", "tenant_id", "priority", "status"),
+        Index("ix_review_item_target", "tenant_id", "target_type", "target_id"),
+    )
 
 
 class ReviewActionORM(Base):

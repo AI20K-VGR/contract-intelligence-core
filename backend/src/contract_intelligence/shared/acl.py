@@ -61,9 +61,13 @@ def dossier_access_decision(
     shared_with = meta.get("shared_with")
     if not isinstance(shared_with, list):
         return False
+    email = (principal.email or "").strip().lower()
     return any(
         isinstance(grant, dict)
-        and grant.get("id") == principal.user_id
+        and (
+            grant.get("id") == principal.user_id
+            or (email and str(grant.get("email") or "").strip().lower() == email)
+        )
         and _grant_allows(grant, action, principal.role)
         for grant in shared_with
     )

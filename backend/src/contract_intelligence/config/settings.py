@@ -138,6 +138,24 @@ class Settings(BaseSettings):
     ai2_service_key_id: str = Field(default="default")
     ai2_idp_poll_interval_seconds: float = Field(default=0.5, ge=0.1, le=30.0)
     ai2_idp_max_polls: int = Field(default=120, ge=1, le=10_000)
+    # Dossier Q&A (POST /dossiers/{id}/search → AI2 POST /query)
+    ai2_query_timeout_seconds: float = Field(
+        default=20.0,
+        gt=0,
+        le=120.0,
+        description="Max wait for AI2 /query before the search box reports AI2 as unavailable.",
+    )
+    ai2_query_egress_allowed: bool = Field(
+        default=False,
+        description=(
+            "Allow AI2 to call an external LLM for dossier Q&A. Fail-closed by default: "
+            "AI2 answers from deterministic citation retrieval only."
+        ),
+    )
+    ai2_query_use_vector: bool = Field(
+        default=False,
+        description="Ask AI2 to use vector recall for dossier Q&A (needs embeddings configured).",
+    )
     # Background dispatcher tuning
     ai_dispatcher_poll_interval_seconds: float = Field(default=1.5, ge=0.1, le=60.0)
     ai_dispatcher_max_polls: int = Field(default=200, ge=10, le=10_000)

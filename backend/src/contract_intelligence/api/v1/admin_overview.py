@@ -1,6 +1,6 @@
 """Admin overview — system activity feed and storage usage.
 
-RBAC: ADMINISTRATOR only.
+RBAC: OPERATOR, REVIEWER, ADMINISTRATOR.
 """
 
 from __future__ import annotations
@@ -19,7 +19,9 @@ from contract_intelligence.shared.responses import ApiMeta, ApiResponse
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
-AdminUser = Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))]
+Reader = Annotated[
+    AuthenticatedUser, Depends(require_role("OPERATOR", "REVIEWER", "ADMINISTRATOR"))
+]
 
 
 class ActivityEventDTO(BaseModel):
@@ -45,17 +47,21 @@ class StorageUsageDTO(BaseModel):
     summary="Recent tenant activity",
 )
 async def get_activity(
-    admin: AdminUser,
+    admin: Reader,
     session: Annotated[AsyncSession, Depends(get_async_session)],
     limit: Annotated[int, Query(ge=1, le=50)] = 8,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ApiResponse[list[ActivityEventDTO]]:
     """Dossier, upload, member, review, approval and admin actions for this tenant."""
+    own_names = None
+    if admin.role != "ADMINISTRATOR":
+        own_names = [admin.email, admin.display_name]
     page = await list_activity(
         session,
         tenant_id=admin.tenant_id,
         limit=limit,
         offset=offset,
+        actors=own_names,
     )
     return ApiResponse(
         data=[
@@ -78,7 +84,7 @@ async def get_activity(
     summary="Tenant storage usage",
 )
 async def get_storage(
-    admin: AdminUser,
+    admin: Reader,
     session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> ApiResponse[StorageUsageDTO]:
     """Sum of uploaded document bytes. ``quota_bytes`` is null until a quota exists."""
