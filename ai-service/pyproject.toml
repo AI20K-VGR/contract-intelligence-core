@@ -46,7 +46,7 @@ kafka = [
 contract-ocr = "contract_ocr.cli.main:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/contract_ocr", "app", "fixtures"]
+packages = ["src/contract_ocr", "src/benchmark", "app", "fixtures"]
 
 [tool.ruff]
 line-length = 100
