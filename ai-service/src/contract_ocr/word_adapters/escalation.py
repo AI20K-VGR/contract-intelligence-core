@@ -21,7 +21,7 @@ from typing import Any
 
 from contract_ocr.table_reconstruct.types import Word
 
-from .text_quality import valid_word_ratio
+from .text_quality import has_missing_diacritics_signature, valid_word_ratio
 from .types import Region
 from .vision import VisionAdapter
 
@@ -59,7 +59,13 @@ class EscalationController:
         return self._escalations_used.get(page, 0)
 
     def should_escalate_for_words(self, words: list[Word]) -> bool:
-        return valid_word_ratio([w.text for w in words]) < self._min_valid_word_ratio
+        texts = [w.text for w in words]
+        if valid_word_ratio(texts) < self._min_valid_word_ratio:
+            return True
+        # Catches diacritics silently dropped by OcrAdapter: the words still
+        # look shape-valid (see text_quality module docstring), so the ratio
+        # check above misses it.
+        return has_missing_diacritics_signature(" ".join(texts))
 
     def should_escalate_for_checks(self, checks: dict[str, Any]) -> bool:
         return any(not checks.get(name, {}).get("passed", True) for name in CHECKSUM_CHECKS)

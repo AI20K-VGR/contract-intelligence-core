@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from contract_ocr.word_adapters import garbage_char_ratio, valid_word_ratio
+from contract_ocr.word_adapters import (
+    garbage_char_ratio,
+    has_missing_diacritics_signature,
+    valid_word_ratio,
+)
 
 
 class TestGarbageCharRatio:
@@ -33,3 +37,21 @@ class TestValidWordRatio:
 
     def test_blank_only_tokens_are_ignored_not_counted_as_invalid(self):
         assert valid_word_ratio(["Hợp", "   ", "đồng"]) == 1.0
+
+
+class TestHasMissingDiacriticsSignature:
+    def test_clean_accented_text_has_no_signature(self):
+        assert not has_missing_diacritics_signature(
+            "Thông báo kịp thời các vấn đề kỹ thuật, dữ liệu không đọc được."
+        )
+
+    def test_bare_ascii_contract_word_is_detected(self):
+        assert has_missing_diacritics_signature("Cac ben ky ket hop dong nay.")
+
+    def test_english_text_without_signature_words_is_clean(self):
+        assert not has_missing_diacritics_signature("This is an English contract clause.")
+
+    def test_partial_diacritic_loss_in_a_mixed_sentence_is_detected(self):
+        assert has_missing_diacritics_signature(
+            "Thong bao kip thoi cac ván dé ký thuat, dū lieu khong doc duoc."
+        )

@@ -15,8 +15,13 @@ from contextlib import contextmanager
 from functools import lru_cache
 from typing import Any, Iterator
 
-from langfuse import Langfuse, propagate_attributes
-from langfuse.types import MaskOtelSpansParams, MaskOtelSpansResult, OtelSpanPatch
+try:
+    from langfuse import Langfuse, propagate_attributes
+    from langfuse.types import MaskOtelSpansParams, MaskOtelSpansResult, OtelSpanPatch
+except ImportError:  # pragma: no cover - exercised only when langfuse isn't installed
+    Langfuse = None  # type: ignore[assignment,misc]
+    propagate_attributes = None  # type: ignore[assignment]
+    MaskOtelSpansParams = MaskOtelSpansResult = OtelSpanPatch = None  # type: ignore[assignment,misc]
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +35,8 @@ _SECRET_PATTERN = re.compile(
 def _enabled() -> bool:
     explicit = os.environ.get("LANGFUSE_TRACING_ENABLED", "true").strip().lower()
     return (
-        explicit not in _FALSE_VALUES
+        Langfuse is not None
+        and explicit not in _FALSE_VALUES
         and bool(os.environ.get("LANGFUSE_PUBLIC_KEY"))
         and bool(os.environ.get("LANGFUSE_SECRET_KEY"))
         and bool(os.environ.get("LANGFUSE_BASE_URL") or os.environ.get("LANGFUSE_HOST"))

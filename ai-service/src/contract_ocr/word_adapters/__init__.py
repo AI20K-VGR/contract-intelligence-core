@@ -18,7 +18,7 @@ from .native import NativeAdapter
 from .ocr import OcrAdapter
 from .protocols import LineDetector, TextRecognizer, VisionClient, WordSource
 from .routing import choose_adapter
-from .text_quality import garbage_char_ratio, valid_word_ratio
+from .text_quality import garbage_char_ratio, has_missing_diacritics_signature, valid_word_ratio
 from .types import Region
 from .vision import VisionAdapter
 
@@ -35,5 +35,6 @@ __all__ = [
     "WordSource",
     "choose_adapter",
     "garbage_char_ratio",
+    "has_missing_diacritics_signature",
     "valid_word_ratio",
 ]

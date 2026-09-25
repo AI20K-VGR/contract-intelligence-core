@@ -168,9 +168,15 @@ def _get_engine(engine_id: str) -> OCREngine | None:
 
                 _engine_cache[engine_id] = GeminiVisionOCREngine(enabled=True)
             elif engine_id == "mistral":
+                from contract_ocr.infrastructure.ocr.fallback_ocr import FallbackOCREngine
                 from contract_ocr.infrastructure.ocr.mistral_ocr import MistralOCREngine
+                from contract_ocr.infrastructure.ocr.openai_vision_ocr import (
+                    OpenAIVisionOCREngine,
+                )
 
-                _engine_cache[engine_id] = MistralOCREngine(enabled=True)
+                _engine_cache[engine_id] = FallbackOCREngine(
+                    MistralOCREngine(enabled=True), OpenAIVisionOCREngine(enabled=True)
+                )
         return _engine_cache[engine_id]
 
 

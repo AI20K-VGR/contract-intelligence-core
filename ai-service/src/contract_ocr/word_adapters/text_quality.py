@@ -37,6 +37,35 @@ _VALID_TOKEN_RE = re.compile(
 # but isn't a word — require at least one real letter or digit too.
 _HAS_ALNUM_RE = re.compile(r"[" + re.escape(_VIETNAMESE_LETTERS) + r"0-9]")
 
+# Common Vietnamese contract words that are *never* written without their
+# diacritics in real text. `garbage_char_ratio`/`valid_word_ratio` treat bare
+# ASCII vowels as "valid" (see module docstring), so a page whose diacritics
+# were silently dropped — a legacy TCVN3/VNI-encoded native PDF text layer,
+# or a vision-model transcription that under-produced diacritics — passes
+# both heuristics undetected: the letters are all Vietnamese-alphabet shapes,
+# just missing their marks. Matching these bare-ASCII forms catches that
+# failure mode without needing a full dictionary.
+_UNACCENTED_SIGNATURE_WORDS = {
+    "hop dong", "dieu", "khoan", "ben a", "ben b", "cong ty", "trach nhiem",
+    "nghia vu", "thanh toan", "gia tri", "hieu luc", "cham dut", "vi pham",
+    "boi thuong", "thong bao", "chu ky", "ky ket", "quyen loi", "dieu khoan",
+    "phap luat", "giai quyet", "tranh chap", "van de", "ky thuat", "du lieu",
+    "rui ro", "anh huong", "ket qua", "kip thoi",
+}
+_UNACCENTED_SIGNATURE_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(w) for w in sorted(_UNACCENTED_SIGNATURE_WORDS, key=len, reverse=True)) + r")\b",
+    re.IGNORECASE,
+)
+
+
+def has_missing_diacritics_signature(text: str) -> bool:
+    """True when `text` contains the bare-ASCII form of a word that is
+    always accented in real Vietnamese contract text — a strong signal that
+    diacritics were lost somewhere upstream, even though `garbage_char_ratio`
+    and `valid_word_ratio` see nothing wrong (see comment above).
+    """
+    return bool(_UNACCENTED_SIGNATURE_RE.search(unicodedata.normalize("NFC", text)))
+
 
 def garbage_char_ratio(text: str) -> float:
     """Fraction of characters in `text` that fall outside Vietnamese

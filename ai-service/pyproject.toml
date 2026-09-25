@@ -24,6 +24,7 @@ dependencies = [
     "rapidfuzz>=3.10",
     "scipy>=1.14",
     "psutil>=6",
+    "langfuse>=4.15,<5",
 ]
 
 [project.optional-dependencies]

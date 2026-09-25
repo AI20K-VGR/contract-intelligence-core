@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # AI1 OCR service + Kafka worker image
 FROM ghcr.io/astral-sh/uv:0.7.13 AS uv_stage
 FROM python:3.11-slim
@@ -16,7 +17,8 @@ ENV UV_COMPILE_BYTECODE=1 \
 COPY pyproject.toml uv.lock ./
 
 # Base OCR + Kafka + cloud OCR SDKs (Mistral/OpenAI/Gemini).
-RUN uv sync --frozen --extra kafka --extra mistral --extra openai --extra gemini --no-dev --no-install-project
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --extra kafka --extra mistral --extra openai --extra gemini --no-dev --no-install-project
 
 COPY README.md ./
 COPY configs/ configs/
