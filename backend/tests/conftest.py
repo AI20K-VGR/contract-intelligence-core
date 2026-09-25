@@ -220,17 +220,42 @@ __all__ = ["AuthenticationError"]
 
 @pytest.fixture(autouse=True)
 def mock_minio_and_kafka() -> Iterator[None]:
-    """Stub MinIO upload + Kafka publish for all tests (no live infra required).
+    """Stub MinIO upload/download + Kafka publish for all tests (no live infra).
 
     Patches the infrastructure modules so callers that resolve
-    ``storage.upload_file`` / ``messaging.publish_event`` via attribute access
-    never hit real MinIO/Kafka.
+    ``storage.upload_file`` / ``storage.download_object`` /
+    ``messaging.publish_event`` via attribute access never hit real MinIO/Kafka.
+    Uploaded bytes are kept in-memory so content streaming tests still work.
     """
+    blobs: dict[str, bytes] = {}
+
+    async def _fake_upload(file_name: str, file_data: bytes) -> str:
+        key = file_name.lstrip("/")
+        path = f"s3://dossiers/{key}"
+        blobs[path] = file_data
+        return path
+
+    async def _fake_download(object_path: str) -> bytes:
+        if object_path not in blobs:
+            msg = f"Blob not found: {object_path}"
+            raise FileNotFoundError(msg)
+        return blobs[object_path]
+
+    async def _fake_delete(object_path: str) -> None:
+        blobs.pop(object_path, None)
+
     with (
         patch(
             "contract_intelligence.infrastructure.storage.upload_file",
-            new_callable=AsyncMock,
-            return_value="s3://dossiers/mock-file.pdf",
+            side_effect=_fake_upload,
+        ),
+        patch(
+            "contract_intelligence.infrastructure.storage.download_object",
+            side_effect=_fake_download,
+        ),
+        patch(
+            "contract_intelligence.infrastructure.storage.delete_object",
+            side_effect=_fake_delete,
         ),
         patch(
             "contract_intelligence.infrastructure.messaging.publish_event",

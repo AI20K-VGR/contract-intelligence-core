@@ -137,3 +137,36 @@ def test_build_table_merges_split_row_and_drops_repeated_header():
     assert len(table.repeated_header_blocks) == 1
     assert table.repeated_header_blocks[0].block_id == "p21_r0"
     assert table.repeated_header_blocks[0].page == 21
+
+
+def test_build_table_keeps_text_from_both_halves_of_the_same_cell():
+    page20 = make_page(
+        "doc1",
+        20,
+        [
+            _table_row("p20_h", "| STT | Hạng mục | Giá |", 200),
+            _table_row("p20_r", "| 2 | Thiết bị cấu hình | |", 240),
+        ],
+    )
+    page21 = make_page(
+        "doc1",
+        21,
+        [
+            _table_row("p21_h", "| STT | Hạng mục | Giá |", 100),
+            _table_row("p21_r", "| | cao, bảo hành 24 tháng | 200 |", 140),
+        ],
+    )
+    profile = detect_header_footer([page20, page21])
+    table = build_table(
+        "table_lossless",
+        [
+            extract_raw_tables(page20, profile)[0],
+            extract_raw_tables(page21, profile)[0],
+        ],
+    )
+
+    assert table.rows[0].values == [
+        "2",
+        "Thiết bị cấu hình cao, bảo hành 24 tháng",
+        "200",
+    ]

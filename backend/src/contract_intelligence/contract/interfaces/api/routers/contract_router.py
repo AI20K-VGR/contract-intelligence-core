@@ -270,20 +270,32 @@ def _send_share_emails(
     safe_link = escape(link, quote=True)
     html = f"""<!DOCTYPE html>
 <html lang="vi"><body style="margin:0;padding:0;background-color:#f8f9ff;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8f9ff;padding:32px 16px;"><tr><td align="center">
-<table role="presentation" width="420" cellpadding="0" cellspacing="0" style="width:100%;max-width:420px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
-<tr><td style="height:4px;background-color:#0b1f3a;font-size:0;line-height:0;">&nbsp;</td></tr>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+ style="background-color:#f8f9ff;padding:32px 16px;"><tr><td align="center">
+<table role="presentation" width="420" cellpadding="0" cellspacing="0"
+ style="width:100%;max-width:420px;background-color:#ffffff;border-radius:8px;
+ overflow:hidden;">
+<tr><td style="height:4px;background-color:#0b1f3a;font-size:0;line-height:0;">
+&nbsp;</td></tr>
 <tr><td style="padding:32px;font-family:Arial,Helvetica,sans-serif;color:#0b1c30;">
-<p style="margin:0 0 24px;font-size:12px;line-height:16px;letter-spacing:0.08em;font-weight:600;color:#0b1f3a;">LEXIS CONTRACT INTELLIGENCE</p>
-<h1 style="margin:0 0 8px;font-size:18px;line-height:24px;font-weight:600;color:#0b1c30;">Bạn được chia sẻ hồ sơ</h1>
-<p style="margin:0 0 24px;font-size:14px;line-height:20px;color:#545f73;">{safe_sender} đã chia sẻ hồ sơ "{safe_name}" với bạn.</p>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;"><tr>
+<p style="margin:0 0 24px;font-size:12px;line-height:16px;letter-spacing:0.08em;
+ font-weight:600;color:#0b1f3a;">LEXIS CONTRACT INTELLIGENCE</p>
+<h1 style="margin:0 0 8px;font-size:18px;line-height:24px;font-weight:600;
+ color:#0b1c30;">Bạn được chia sẻ hồ sơ</h1>
+<p style="margin:0 0 24px;font-size:14px;line-height:20px;color:#545f73;">
+{safe_sender} đã chia sẻ hồ sơ "{safe_name}" với bạn.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+ style="margin:0 0 24px;"><tr>
 <td align="center" style="background-color:#0b1f3a;border-radius:4px;">
-<a href="{safe_link}" style="display:block;padding:12px 24px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;font-weight:600;color:#ffffff;text-decoration:none;">Mở hồ sơ</a>
+<a href="{safe_link}" style="display:block;padding:12px 24px;
+ font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;
+ font-weight:600;color:#ffffff;text-decoration:none;">Mở hồ sơ</a>
 </td></tr></table>
-<p style="margin:0;font-size:12px;line-height:16px;color:#75777e;word-break:break-all;">{safe_link}</p>
+<p style="margin:0;font-size:12px;line-height:16px;color:#75777e;
+ word-break:break-all;">{safe_link}</p>
 </td></tr></table>
-<p style="margin:16px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:16px;color:#545f73;">© 2025 Lexis Contract Intelligence</p>
+<p style="margin:16px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;
+ line-height:16px;color:#545f73;">© 2025 Lexis Contract Intelligence</p>
 </td></tr></table></body></html>"""
     with smtplib.SMTP(host, port, timeout=20) as smtp:
         smtp.ehlo()
@@ -315,7 +327,7 @@ async def _ingest_upload_file(
     role: DocumentRole,
     order_index: int,
 ) -> tuple[Document, int, str]:
-    """Đọc UploadFile → MinIO → persist Document.
+    """Đọc UploadFile → MinIO → persist Document (compensate MinIO on DB failure).
 
     Returns:
         (Document entity, size_bytes, s3_path) — s3_path dùng cho Kafka event.
@@ -329,18 +341,43 @@ async def _ingest_upload_file(
 
     filename = safe_filename(file.filename, fallback=f"{role.value.lower()}.pdf")
     object_key = f"{dossier_id}/{order_index:02d}_{filename}"
-    s3_path = await storage.upload_file(object_key, raw_bytes)
+    s3_path: str | None = None
+    try:
+        s3_path = await storage.upload_file(object_key, raw_bytes)
+        doc = await svc.upload_document(
+            dossier_id=dossier_id,
+            filename=filename,
+            content=BytesIO(raw_bytes),
+            role=role,
+            order_index=order_index,
+            file_size_bytes=total_size,
+            blob_uri=s3_path,
+        )
+        return doc, total_size, s3_path
+    except Exception:
+        if s3_path:
+            try:
+                await storage.delete_object(s3_path)
+            except Exception:
+                logger.warning(
+                    "dossier.ingest.compensate_minio_failed",
+                    dossier_id=dossier_id,
+                    s3_path=s3_path,
+                    exc_info=True,
+                )
+        raise
 
-    doc = await svc.upload_document(
-        dossier_id=dossier_id,
-        filename=filename,
-        content=BytesIO(raw_bytes),
-        role=role,
-        order_index=order_index,
-        file_size_bytes=total_size,
-        blob_uri=s3_path,
+
+async def _publish_dossier_uploaded(*, dossier_id: str, file_path: str) -> None:
+    """Post-commit Kafka publish — runs via BackgroundTasks after DB commit."""
+    await messaging.publish_event(
+        "dossier_events",
+        {
+            "event": "dossier.uploaded",
+            "dossier_id": str(dossier_id),
+            "file_path": file_path,
+        },
     )
-    return doc, total_size, s3_path
 
 
 # -----------------------------------------------------------------------------
@@ -367,6 +404,7 @@ async def _ingest_upload_file(
 async def create_dossier(
     svc: ContractServiceDep,
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    background_tasks: BackgroundTasks,
     contract: Annotated[UploadFile, File(description="PDF hợp đồng chính (required)")],
     metadata: Annotated[str, File(description="JSON string: {name, tags?, notes?}")],
     annexes: Annotated[list[UploadFile] | None, File(description="PDF phụ lục (0..n)")] = None,
@@ -446,14 +484,11 @@ async def create_dossier(
             order_index=idx,
         )
 
-    # Publish domain event for async downstream processing (OCR / extraction).
-    await messaging.publish_event(
-        "dossier_events",
-        {
-            "event": "dossier.uploaded",
-            "dossier_id": str(dossier.id),
-            "file_path": s3_path,
-        },
+    # Publish after the request session commits (BackgroundTasks run post-response).
+    background_tasks.add_task(
+        _publish_dossier_uploaded,
+        dossier_id=str(dossier.id),
+        file_path=s3_path,
     )
 
     # ApiEnvelopeDossierCreated — dossier_id + job_id (openapi.yaml line 2320)

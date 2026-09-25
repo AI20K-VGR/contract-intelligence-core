@@ -69,9 +69,21 @@ def merge_into_logical_rows(
             open_cells = [Cell(text="", bboxes=[], pages=[]) for _ in line.columns]
             open_flags = flags
 
-        for cell, col in zip(open_cells, line.columns):
+        # Column detection can expose an extra column on a later wrapped line.
+        # ``zip`` used to truncate that suffix silently.  Grow the logical row so
+        # every OCR column remains represented; an arity mismatch is reviewable,
+        # but lost source text is not recoverable.
+        if len(line.columns) > len(open_cells):
+            open_cells.extend(
+                Cell(text="", bboxes=[], pages=[])
+                for _ in range(len(line.columns) - len(open_cells))
+            )
+            open_flags.add("needs_review")
+
+        for column_index, col in enumerate(line.columns):
             if not col.text:
                 continue
+            cell = open_cells[column_index]
             cell.text = f"{cell.text} {col.text}".strip() if cell.text else col.text
             if col.bbox is not None:
                 cell.bboxes.append(col.bbox)

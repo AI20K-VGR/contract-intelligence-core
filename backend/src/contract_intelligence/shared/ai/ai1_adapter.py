@@ -118,7 +118,41 @@ def adapt_ai1_snapshot_result(result: dict[str, Any]) -> Ai1SnapshotPayload:
                 or source_id in continuation_to_tables
             )
             cells: list[dict[str, Any]] = []
-            for row_index, row in enumerate(table.get("rows", [])):
+            header = [str(value or "") for value in table.get("header", [])]
+            table_rows = table.get("rows", [])
+            table_bbox = list(table["bbox_normalized"])
+            column_count = max(
+                len(header),
+                max((len(row.get("cells", [])) for row in table_rows), default=0),
+            )
+
+            # Snapshot v1 stores header text separately from body rows.  The old
+            # bridge never emitted it and incorrectly marked the first body row as
+            # header, losing real OCR content.  Preserve it as logical row 0 and use
+            # only derived geometry for transport to the legacy v3 schema.
+            if header and column_count:
+                x0, y0, x1, y1 = table_bbox
+                row_height = (y1 - y0) / (len(table_rows) + 1)
+                column_width = (x1 - x0) / column_count
+                for column_index, text in enumerate(header):
+                    cells.append(
+                        {
+                            "row_idx": 0,
+                            "col_idx": column_index,
+                            "text": text,
+                            "bbox": [
+                                x0 + column_index * column_width,
+                                y0,
+                                x0 + (column_index + 1) * column_width,
+                                y0 + row_height,
+                            ],
+                            "is_header": True,
+                            "confidence": 1.0,
+                        }
+                    )
+
+            body_row_offset = 1 if header else 0
+            for row_index, row in enumerate(table_rows, start=body_row_offset):
                 for column_index, cell in enumerate(row.get("cells", [])):
                     bbox = cell.get("bbox_normalized")
                     if bbox is None:
@@ -129,11 +163,10 @@ def adapt_ai1_snapshot_result(result: dict[str, Any]) -> Ai1SnapshotPayload:
                             "col_idx": column_index,
                             "text": str(cell.get("text", "")),
                             "bbox": list(bbox),
-                            "is_header": row_index == 0 and bool(table.get("header")),
+                            "is_header": False,
                             "confidence": 1.0,
                         }
                     )
-            rows = table.get("rows", [])
             tables.append(
                 {
                     "source_id": source_id,
@@ -141,8 +174,8 @@ def adapt_ai1_snapshot_result(result: dict[str, Any]) -> Ai1SnapshotPayload:
                     "is_multi_page": bool(continued_from or continued_by),
                     "page_no": page_no,
                     "bbox": list(table["bbox_normalized"]),
-                    "rows_count": len(rows),
-                    "cols_count": max((len(row.get("cells", [])) for row in rows), default=0),
+                    "rows_count": len(table_rows) + body_row_offset,
+                    "cols_count": column_count,
                     "has_borders": table.get("geometry_provenance") == "MEASURED",
                     "cells": cells,
                 }

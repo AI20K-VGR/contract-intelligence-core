@@ -106,7 +106,24 @@ def is_incomplete_row(cells: list[str]) -> bool:
 
 
 def _merge_row_cells(a: list[str], b: list[str]) -> list[str]:
-    return [cell_a if cell_a.strip() else cell_b for cell_a, cell_b in zip(a, b, strict=True)]
+    """Losslessly join the two physical halves of a row split by a page break.
+
+    The old implementation treated a non-empty cell in the first half as final and
+    silently discarded text from the same cell in the second half.  That is common
+    for wrapped descriptions.  Preserve both pieces, while avoiding duplication when
+    OCR repeated the exact same value (normally the row anchor).
+    """
+
+    merged: list[str] = []
+    for cell_a, cell_b in zip(a, b, strict=True):
+        left, right = cell_a.strip(), cell_b.strip()
+        if not left:
+            merged.append(cell_b)
+        elif not right or left == right:
+            merged.append(cell_a)
+        else:
+            merged.append(f"{left} {right}")
+    return merged
 
 
 def _dedup_pages(pages: list[int]) -> list[int]:

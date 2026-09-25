@@ -1,0 +1,150 @@
+{
+  "schema_version": "ocr-benchmark.v1",
+  "document_id": "DOC-102",
+  "experiment": "raw",
+  "provider": {
+    "name": "mistral",
+    "model": "mistral-ocr-4"
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "image": {
+        "width": 3308,
+        "height": 4678,
+        "dpi": 300,
+        "path": "ocr-benchmark\\artifacts\\_images\\raw\\DOC-102\\page_001.png"
+      },
+      "text": "HỢP ĐỒNG DỊCH VỤ\nSố: 05/2026/HD-DV/MH-TT\nCăn cứ Bộ luật Dân sự và nhu cầu hợp tác của các bên, hôm nay chúng tôi gồm có:\nBên A: CÔNG TY TNHH MINH HÒA. Đại diện: Nguyễn Văn A. Địa chỉ: Số 15, đường Trần Phú, Hà Nội. Mã số thuế: 0101234567.\nBên B: CÔNG TY CỔ PHẦN TIN HỌC TÂN TIẾN. Đại diện: Trần Thị B. Địa chỉ: Số 88, đường Lê Lợi, Hải Phòng. Mã số thuế: 0207654321.\nĐiều 1. Nội dung 1\nBên B cung cấp cho Bên A dịch vụ số hóa, OCR, trích xuất cấu trúc hợp đồng, đối chiếu phụ lục và hỗ trợ rà soát hồ sơ.\nĐiều 2. Điều khoản 2\nPhạm vi bao gồm đọc PDF scan, nhận diện điều khoản, bảng biểu, giá trị số, ngày tháng và hiển thị vị trí trên ảnh trang. Giá trị hợp đồng tạm tính là 125.000.000 đồng; thanh toán 30% tạm ứng, 40% sau bàn giao đợt 1, 30% sau nghiệm thu.\nĐiều 3. Điều khoản 3\nTiến độ thực hiện gồm 03 giai đoạn: khảo sát, triển khai thí điểm và bàn giao vận hành.\nĐiều 4. Điều khoản 4\nBên A có trách nhiệm cung cấp hồ sơ, phản hồi kết quả kiểm thử và phối hợp nghiệm thu theo từng mốc. Hệ thống vận hành theo SLA 99,90%; phiên bản v2.1.0; build-2026.09.24.01; IP whitelist 10.10.10.10 và 10.10.10.11.\nPhụ lục 02 dưới đây thể hiện các hạng mục nhưng không có cột STT, và một số trang phía sau không lặp lại header.\nCase: bằng không STT, continuation không header\nTrang 1",
+      "blocks": [],
+      "tables": [],
+      "latency_ms": 3289.279399905354,
+      "error": null
+    },
+    {
+      "page_number": 2,
+      "image": {
+        "width": 3308,
+        "height": 4678,
+        "dpi": 300,
+        "path": "ocr-benchmark\\artifacts\\_images\\raw\\DOC-102\\page_002.png"
+      },
+      "text": "PHỤ LỤC 02 - BẢNG HẠNG MỤC\n|  Mã hàng | Mô tả | DVT | Khối lượng | Đơn giá | Thành tiền  |\n| --- | --- | --- | --- | --- | --- |\n|  SRV-ALPHA | Khởi tạo môi trường UAT | gói | 1 | 3.500.000 | 3.500.000  |\n|  SRV-BETA | Chuyển đổi dữ liệu đợt 1 | gói | 1 | 6.750.000 | 6.750.000  |\n|  NOTE | Lưu ý: không có cột STT. Parser cần sinh row_id nội bộ từ cấu trúc bảng và nội dung.  |   |   |   |   |\n|  MAT-RACK | Tủ rack 20U kèm phụ kiện | bộ | 1 | 5.600.000 | 5.600.000  |\nPage đầu có header, không STT\nTrang 2",
+      "blocks": [],
+      "tables": [
+        {
+          "table_id": "DOC-102-p002-t001",
+          "rows": [
+            [
+              "Mã hàng",
+              "Mô tả",
+              "DVT",
+              "Khối lượng",
+              "Đơn giá",
+              "Thành tiền"
+            ],
+            [
+              "SRV-ALPHA",
+              "Khởi tạo môi trường UAT",
+              "gói",
+              "1",
+              "3.500.000",
+              "3.500.000"
+            ],
+            [
+              "SRV-BETA",
+              "Chuyển đổi dữ liệu đợt 1",
+              "gói",
+              "1",
+              "6.750.000",
+              "6.750.000"
+            ],
+            [
+              "NOTE",
+              "Lưu ý: không có cột STT. Parser cần sinh row_id nội bộ từ cấu trúc bảng và nội dung.",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "MAT-RACK",
+              "Tủ rack 20U kèm phụ kiện",
+              "bộ",
+              "1",
+              "5.600.000",
+              "5.600.000"
+            ]
+          ],
+          "pages": [
+            2
+          ],
+          "is_multi_page": false
+        }
+      ],
+      "latency_ms": 3277.032500016503,
+      "error": null
+    },
+    {
+      "page_number": 3,
+      "image": {
+        "width": 3308,
+        "height": 4678,
+        "dpi": 300,
+        "path": "ocr-benchmark\\artifacts\\_images\\raw\\DOC-102\\page_003.png"
+      },
+      "text": "PHỤ LỤC 02 (tiếp theo)\n|  MAT-CABLE | Cáp mạng cat6A bọc chống nhiễu, cuộn 305m | cuộn | 3 | 2.980.000 | 8.940.000  |\n| --- | --- | --- | --- | --- | --- |\n|  DISC-PRJ | Giảm giá dự án |  |  |  | -1.000.000  |\n|  VAT08 | VAT 8% |  |  |  | 2.101.200  |\n|  TOTAL | Tổng thanh toán |  |  |  | 28.391.200  |\nNguyễn Văn A\nTrần Thị B\nPage sau không lập header\nTrang 3",
+      "blocks": [],
+      "tables": [
+        {
+          "table_id": "DOC-102-p003-t001",
+          "rows": [
+            [
+              "MAT-CABLE",
+              "Cáp mạng cat6A bọc chống nhiễu, cuộn 305m",
+              "cuộn",
+              "3",
+              "2.980.000",
+              "8.940.000"
+            ],
+            [
+              "DISC-PRJ",
+              "Giảm giá dự án",
+              "",
+              "",
+              "",
+              "-1.000.000"
+            ],
+            [
+              "VAT08",
+              "VAT 8%",
+              "",
+              "",
+              "",
+              "2.101.200"
+            ],
+            [
+              "TOTAL",
+              "Tổng thanh toán",
+              "",
+              "",
+              "",
+              "28.391.200"
+            ]
+          ],
+          "pages": [
+            3
+          ],
+          "is_multi_page": false
+        }
+      ],
+      "latency_ms": 3640.3952999971807,
+      "error": null
+    }
+  ],
+  "runtime": {
+    "total_latency_ms": 10537.571500055492,
+    "pages_processed": 3,
+    "cost_usd": 0.012
+  }
+}

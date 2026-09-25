@@ -10,6 +10,13 @@ requires-python = ">=3.11,<3.13"
 dependencies = [
     "pymupdf>=1.26",
     "pydantic>=2.10,<3",
+    "pydantic-settings>=2.3",
+    "openai>=1.40",
+    "jsonschema>=4.23,<5",
+    "python-dotenv>=1.0",
+    "python-multipart>=0.0.32",
+    "pypdf>=5.0",
+    "reportlab>=4.2",
     "pyyaml>=6",
     "numpy>=1.26",
     "opencv-python-headless>=4.10",
@@ -17,21 +24,13 @@ dependencies = [
     "rapidfuzz>=3.10",
     "scipy>=1.14",
     "psutil>=6",
-    "langfuse==4.15.4",
 ]
 
 [project.optional-dependencies]
 vietocr = ["vietocr>=0.3"]
 dev = ["pytest>=8", "ruff>=0.11"]
-web = [
-    "fastapi>=0.136.3",
-    "python-dotenv>=1.0",
-    "python-multipart>=0.0.32",
-    "uvicorn[standard]>=0.53.0",
-]
-openai = [
-    "openai>=1.50",
-]
+web = ["fastapi>=0.136.3", "uvicorn[standard]>=0.53.0", "httpx>=0.27"]
+openai = ["openai>=1.50"]
 gemini = [
     "google-genai>=1.0",
 ]
@@ -46,7 +45,7 @@ kafka = [
 contract-ocr = "contract_ocr.cli.main:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/contract_ocr"]
+packages = ["src/contract_ocr", "src/benchmark", "app", "fixtures"]
 
 [tool.ruff]
 line-length = 100
