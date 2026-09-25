@@ -43,6 +43,13 @@ from contract_intelligence.shared.ai.schemas import (
 logger = structlog.get_logger(__name__)
 
 
+def canonical_ai_service_mode(value: str | None) -> str:
+    """Map legacy/default values to the canonical HTTP service mode."""
+
+    normalized = str(value or "").strip().lower()
+    return "stub" if normalized == "compatibility" else "http"
+
+
 # -----------------------------------------------------------------------------
 # Abstract Protocol
 # -----------------------------------------------------------------------------
@@ -415,7 +422,10 @@ def get_ai_service_client() -> AiServiceClient:
         logger.info("ai_client.http", url=settings.ai_service_url)
         _client = HttpAiServiceClient(settings)
     else:
-        logger.info("ai_client.stub", note="ai_service_mode=stub (default)")
+        logger.warning(
+            "ai_client.stub_compatibility",
+            note="stub is explicit compatibility mode; canonical worker uses AI2 HTTP",
+        )
         _client = StubAiServiceClient()
     return _client
 
@@ -428,6 +438,7 @@ def reset_ai_service_client() -> None:
 
 __all__ = [
     "AiServiceClient",
+    "canonical_ai_service_mode",
     "HttpAiServiceClient",
     "StubAiServiceClient",
     "get_ai_service_client",

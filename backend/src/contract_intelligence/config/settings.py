@@ -85,27 +85,11 @@ class Settings(BaseSettings):
         default="ci-backend-orchestrator",
         description="Consumer group for dossier_events orchestrator.",
     )
-    kafka_ai2_idp_commands_topic: str = Field(
-        default="ci.ai2.idp.commands",
-        description="Backend → AI2 IDP command topic (DOC-05e; full body-only request).",
-    )
-    kafka_ai2_idp_results_topic: str = Field(
-        default="ci.ai2.idp.results",
-        description="AI2 → Backend IDP result topic (DOC-05e).",
-    )
-    kafka_ai2_idp_group_id: str = Field(
-        default="ci-ai2-idp",
-        description="Consumer group for AI2 IDP Kafka worker.",
-    )
-    kafka_backend_ai2_results_group_id: str = Field(
-        default="ci-backend-ai2-results",
-        description="Consumer group for AI2 IDP results on backend-worker.",
-    )
-    # Legacy alias kept so older env files still load without error.
-    kafka_backend_ai2_commands_group_id: str = Field(
-        default="ci-backend-ai2-idp",
-        description="Deprecated — use kafka_backend_ai2_results_group_id.",
-    )
+    kafka_ai2_idp_commands_topic: str = Field(default="ci.ai2.idp.commands")
+    kafka_ai2_idp_results_topic: str = Field(default="ci.ai2.idp.results")
+    kafka_ai2_idp_group_id: str = Field(default="ci-ai2-idp")
+    kafka_backend_ai2_results_group_id: str = Field(default="ci-backend-ai2-results")
+    kafka_backend_ai2_commands_group_id: str = Field(default="ci-backend-ai2-idp")
     kafka_presign_expires_seconds: int = Field(
         default=3600,
         ge=60,
@@ -123,14 +107,11 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # AI Service (FastAPI bên ngoài — REST polling theo DOC-05c)
     # -------------------------------------------------------------------------
-    # Mode chọn client: "stub" (default — canned responses) hoặc "http" (gọi thật).
-    # Khi ai-service team ready, set AI_SERVICE_MODE=http qua env.
+    # Canonical production mode is HTTP. Stub remains an explicit compatibility
+    # setting for deterministic tests/demo only.
     ai_service_mode: Literal["stub", "http"] = Field(
-        default="stub",
-        description=(
-            '"stub" — in-memory canned responses (mặc định Sprint 3). '
-            '"http" — gọi HTTP thật tới ai_service_url khi ai-service sẵn sàng.'
-        ),
+        default="http",
+        description=('"http" — canonical AI service. "stub" — explicit compatibility only.'),
     )
     ai_service_url: str = Field(default="http://localhost:8001")
     ai_service_api_key: str | None = Field(
@@ -145,20 +126,12 @@ class Settings(BaseSettings):
     )
     ai2_base_url: str = Field(
         default="http://localhost:8002",
-        description=(
-            "AI2 Semantics service root URL (demo HTTP only). "
-            "Runtime IDP uses Kafka DOC-05e; lab may still POST {AI2_BASE_URL}/jobs/idp."
-        ),
+        description="AI2 canonical service base URL (POST {AI2_BASE_URL}/jobs/idp).",
     )
-    ai2_wire_enabled: bool = Field(
-        default=False,
-        description=(
-            "When true, after AI1 OCR persist publish ai2.idp.command on Kafka (DOC-05e)."
-        ),
-    )
-    ai2_service_hmac_secret: str = Field(
-        default="dev-ai2-hmac-secret",
-        description="Shared HMAC secret for ai2.service-envelope.v1 (must match AI2).",
+    ai2_wire_enabled: bool = Field(default=False)
+    ai2_service_hmac_secret: str | None = Field(
+        default=None,
+        description="Shared local/service secret for the canonical AI2 envelope; never commit.",
     )
     ai2_service_issuer: str = Field(default="backend-service")
     ai2_service_audience: str = Field(default="vsf-ai2")

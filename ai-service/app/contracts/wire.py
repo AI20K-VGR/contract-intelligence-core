@@ -119,6 +119,9 @@ class BeAi2ProcessingRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_membership(self) -> "BeAi2ProcessingRequest":
+        if any(snapshot.get("schema_version") != "ai1.snapshot.v1" for snapshot in self.snapshots):
+            raise ValueError("snapshots must use ai1.snapshot.v1")
+
         snapshots_by_id = {str(item.get("snapshot_id")): item for item in self.snapshots}
         if len(snapshots_by_id) != len(self.snapshots) or any(key == "None" for key in snapshots_by_id):
             raise ValueError("snapshots must have unique snapshot_id values")

@@ -61,7 +61,9 @@ def expand_query(query: str) -> str:
 
 
 class L1Retrieval:
-    def __init__(self, gateway: ToolGateway, vector_recall: VectorRecallService | None = None) -> None:
+    def __init__(
+        self, gateway: ToolGateway, vector_recall: VectorRecallService | None = None
+    ) -> None:
         self.gateway = gateway
         self.vector_recall = vector_recall or VectorRecallService()
 
@@ -76,7 +78,9 @@ class L1Retrieval:
             record = self.gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
             if record is not None and record.relation_graph is None:
                 record.relation_graph = build_relation_graph(record)
-            outline = self.gateway.call("list_structure", envelope, dossier_id=envelope.auth.dossier_id)
+            outline = self.gateway.call(
+                "list_structure", envelope, dossier_id=envelope.auth.dossier_id
+            )
             exact_ids = _exact_label_ids(q, outline)
             for nid in exact_ids:
                 node = self.gateway.call("get_node", envelope, node_id=nid)
@@ -85,8 +89,10 @@ class L1Retrieval:
             structured_keys_used = keys
             for key in keys:
                 hits.extend(self.gateway.call("search_structured", envelope, key=key) or [])
-            if ttype in EXPAND_SEMANTIC or (not hits and ttype in {"lookup_term", "unscoped", "raw_fact_check"}):
-                sem = self.gateway.call("search_semantic", envelope, query=expand_query(q), k=8) or []
+            if ttype in EXPAND_SEMANTIC or (not hits and ttype == "lookup_term"):
+                sem = (
+                    self.gateway.call("search_semantic", envelope, query=expand_query(q), k=8) or []
+                )
                 hits.extend(sem)
             if ttype in COMPARE_TYPES:
                 # Keep exact clause/annex targets even when their text does
@@ -100,7 +106,11 @@ class L1Retrieval:
             outline = attach_ancestors(list(outline))
             if ttype in COMPARE_TYPES:
                 extra_ids, rels = related_node_ids(
-                    [str(h.get("node_id") or h.get("chunk_id")) for h in hits if h.get("node_id") or h.get("chunk_id")],
+                    [
+                        str(h.get("node_id") or h.get("chunk_id"))
+                        for h in hits
+                        if h.get("node_id") or h.get("chunk_id")
+                    ],
                     outline,
                 )
                 for eid in extra_ids:
@@ -133,12 +143,23 @@ class L1Retrieval:
                     for eid in list(extra_graph_ids)[:12]:
                         node = self.gateway.call("get_node", envelope, node_id=eid)
                         hits.append(_hit_from_node(node))
-            vector_result = self.vector_recall.recall(
-                record,
-                expand_query(q),
-                k=12,
-                filters={"source_role": task.get("source_role")} if task.get("source_role") else None,
-            ) if record is not None and ttype in {"compare", "cascade", "lookup_term", "unscoped"} else None
+            if not hits and record is not None:
+                hits.extend(_lexical_hits(record, q))
+            policy_flags = task.get("policy_flags") or {}
+            vector_result = (
+                self.vector_recall.recall(
+                    record,
+                    expand_query(q),
+                    k=12,
+                    filters={"source_role": task.get("source_role")}
+                    if task.get("source_role")
+                    else None,
+                )
+                if record is not None
+                and policy_flags.get("use_vector") is True
+                and ttype in {"compare", "cascade", "lookup_term", "unscoped"}
+                else None
+            )
             if vector_result and vector_result.candidates:
                 for candidate in vector_result.candidates:
                     hits.append(
@@ -155,7 +176,13 @@ class L1Retrieval:
                 protected = [h for h in hits if str(h.get("node_id") or "") in set(exact_ids)]
                 hits = _merge_hits(protected, filtered)
         except ToolBlocked:
-            return {"resolved": False, "blocked": True, "hits": [], "outline_ids": [], "structured_keys": []}
+            return {
+                "resolved": False,
+                "blocked": True,
+                "hits": [],
+                "outline_ids": [],
+                "structured_keys": [],
+            }
 
         seen: set[str] = set()
         deduped = []
@@ -178,12 +205,17 @@ class L1Retrieval:
             "resolved": bool(enough_lookup and ttype in {"lookup"}),
             "blocked": False,
             "hits": deduped,
-            "outline_ids": [{"node_id": n["node_id"], "type": n["type"], "raw_label": n["raw_label"]} for n in outline],
+            "outline_ids": [
+                {"node_id": n["node_id"], "type": n["type"], "raw_label": n["raw_label"]}
+                for n in outline
+            ],
             "structured_keys": structured_keys_used,
             "relations": rels,
             "relation_edges": graph_edges,
             "relation_issues": graph_issues,
-            "retrieval_trace": vector_result.trace if vector_result else {"vector_status": "NOT_REQUESTED"},
+            "retrieval_trace": vector_result.trace
+            if vector_result
+            else {"vector_status": "NOT_REQUESTED"},
         }
 
 
@@ -245,6 +277,26 @@ def _merge_hits(*groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
             seen.add(key)
             merged.append(hit)
     return merged
+
+
+def _lexical_hits(record: Any, query: str) -> list[dict[str, Any]]:
+    """Bounded local fallback over the already scoped canonical evidence tree."""
+    folded = _plain_query(expand_query(query))
+    terms = [term for term in re.findall(r"[\w]+", folded) if len(term) >= 3]
+    scored: list[tuple[int, dict[str, Any]]] = []
+    for node in record.evidence_nodes():
+        blob = _plain_query(
+            " ".join(
+                str(value or "") for value in (node.raw_label, node.text, node.structured_value)
+            )
+        )
+        score = sum(1 for term in terms if term in blob)
+        if score:
+            scored.append((score, _hit_from_node(node.model_dump())))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [hit for _, hit in scored[:12]]
+
+
 def _plain_query(value: str) -> str:
     import unicodedata
 
@@ -296,7 +348,9 @@ def _filter_term_hits(query: str, hits: list[dict[str, Any]]) -> list[dict[str, 
     kept: list[dict[str, Any]] = []
     for hit in hits:
         citation = hit.get("citation") or {}
-        evidence = _plain_query(" ".join(str(value or "") for value in (hit.get("value"), citation.get("text_span"))))
+        evidence = _plain_query(
+            " ".join(str(value or "") for value in (hit.get("value"), citation.get("text_span")))
+        )
         if any(cue in evidence for cue in wanted):
             kept.append(hit)
     return kept

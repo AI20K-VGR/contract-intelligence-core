@@ -78,3 +78,22 @@ class InMemorySnapshotStore:
 
     def get(self, tenant_id: str, dossier_id: str) -> DossierRecord | None:
         return self._dossiers.get((tenant_id, dossier_id))
+
+    def get_for_scope(
+        self, tenant_id: str, dossier_id: str, snapshot_digest: str
+    ) -> DossierRecord | None:
+        """Return a record only when its immutable snapshot pin matches scope."""
+
+        record = self.get(tenant_id, dossier_id)
+        if record is None:
+            return None
+        record_digest = record.pins.snapshot_digest or record.pins.source_snapshot_digest
+        return record if _same_digest(record_digest, snapshot_digest) else None
+
+
+def _same_digest(left: str | None, right: str | None) -> bool:
+    def normalized(value: str | None) -> str:
+        text = str(value or "").strip().lower()
+        return text[7:] if text.startswith("sha256:") else text
+
+    return bool(normalized(left)) and normalized(left) == normalized(right)

@@ -134,10 +134,7 @@ export default function App() {
                 path="/tien-trinh-phan-tich"
                 element={<AnalysisProgressPage />}
               />
-              <Route
-                path="/cai-dat"
-                element={<SettingsPage />}
-              />
+              <Route path="/cai-dat" element={<SettingsPage />} />
             </Route>
             <Route element={<ReviewLayout />}>
               <Route path="/ho-so-hop-dong" element={<DossierReviewPage />} />

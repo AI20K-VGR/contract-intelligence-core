@@ -1,3 +1,5 @@
+# ruff: noqa: E501
+
 r"""Contract bounded context router — Phase 1 endpoints per DOC-05-api-spec.yaml.
 
 Endpoints (Phase 1: Core Document Ingestion):
@@ -39,7 +41,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from contract_intelligence.admin.activity_feed import record_activity
 from contract_intelligence.contract.application.dtos.deletion_dtos import DossierDeletedDTO
@@ -68,6 +70,7 @@ from contract_intelligence.contract.interfaces.api.dependencies import (
     DossierDeletionServiceDep,
 )
 from contract_intelligence.infrastructure import messaging, storage
+from contract_intelligence.shared.acl import AclAction, dossier_access_decision
 from contract_intelligence.shared.auth import (
     AuthenticatedUser,
     get_current_user,
@@ -176,21 +179,37 @@ class DossierAccessDTO(BaseModel):
 
 def _can_read_dossier(metadata: dict[str, Any] | None, user_id: str) -> bool:
     """Chủ hồ sơ luôn xem được. Người được chia sẻ chỉ xem khi quyền đang bật."""
-    meta = metadata or {}
-    owner = meta.get("created_by")
-    if not isinstance(owner, str) or not owner:
-        return True
-    if owner == user_id:
-        return True
-    if meta.get("access_scope") == "mine":
-        return False
-    shares = meta.get("shared_with") or []
-    return any(isinstance(item, dict) and item.get("id") == user_id for item in shares)
+    principal = AuthenticatedUser(
+        user_id=user_id,
+        tenant_id="",
+        email="",
+        display_name="",
+        role="OPERATOR",
+    )
+    return dossier_access_decision(
+        action=AclAction.QUERY,
+        principal=principal,
+        dossier_id="legacy",
+        dossier_tenant_id="",
+        metadata=metadata,
+    )
 
 
-async def _require_readable(svc: Any, dossier_id: str, user_id: str) -> Any:
+async def _require_readable(
+    svc: Any,
+    dossier_id: str,
+    user: AuthenticatedUser,
+    *,
+    action: AclAction = AclAction.QUERY,
+) -> Any:
     dossier = await svc.get_dossier(dossier_id)
-    if not _can_read_dossier(dossier.metadata, user_id):
+    if not dossier_access_decision(
+        action=action,
+        principal=user,
+        dossier_id=dossier_id,
+        dossier_tenant_id=getattr(dossier, "tenant_id", user.tenant_id),
+        metadata=dossier.metadata,
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Quyền xem hồ sơ này đã bị thu hồi.",
@@ -642,12 +661,19 @@ class DossierSearchBody(BaseModel):
 class DossierSearchHit(BaseModel):
     text: str
     page_no: int | None = None
+    source_file_id: str | None = None
+    line_id: str | None = None
+    bbox: list[float] = Field(default_factory=list)
 
 
 class DossierSearchDTO(BaseModel):
     query: str
     answer: str | None
     connected: bool
+    state: str = "INSUFFICIENT_EVIDENCE"
+    used_llm: bool = False
+    retrieval_layer: dict[str, Any] = Field(default_factory=dict)
+    reasoning_trace: list[Any] = Field(default_factory=list)
     hits: list[DossierSearchHit]
 
 
@@ -659,17 +685,60 @@ def _hits_from_ai2(payload: dict[str, Any]) -> list[DossierSearchHit]:
     for item in raw:
         if not isinstance(item, dict):
             continue
-        text = item.get("text") or item.get("quote") or item.get("snippet")
+        text = item.get("text") or item.get("quote") or item.get("snippet") or item.get("text_span")
         if not isinstance(text, str) or not text.strip():
             continue
         page = item.get("page_no") or item.get("page")
+        line_ids = item.get("line_ids")
+        line_id = item.get("line_id")
+        if not isinstance(line_id, str) and isinstance(line_ids, list):
+            line_id = next((value for value in line_ids if isinstance(value, str)), None)
+        source_file_id = item.get("source_file_id") or item.get("document_id")
+        bbox = item.get("bbox")
         hits.append(
             DossierSearchHit(
                 text=text.strip(),
                 page_no=page if isinstance(page, int) else None,
+                source_file_id=source_file_id if isinstance(source_file_id, str) else None,
+                line_id=line_id if isinstance(line_id, str) else None,
+                bbox=bbox if isinstance(bbox, list) else [],
             )
         )
     return hits
+
+
+def _search_dto_from_ai2(payload: dict[str, Any], *, fallback_query: str) -> DossierSearchDTO:
+    """Preserve server semantics; transport success never implies ANSWERED."""
+    answer = payload.get("answer") or payload.get("text")
+    state = str(payload.get("state") or payload.get("review_state") or "INSUFFICIENT_EVIDENCE")
+    if state not in {
+        "PASS",
+        "ANSWERED",
+        "NEEDS_REVIEW",
+        "INSUFFICIENT_EVIDENCE",
+        "BLOCKED",
+        "NOT_COMPARABLE",
+    }:
+        state = "INSUFFICIENT_EVIDENCE"
+    return DossierSearchDTO(
+        query=str(payload.get("query") or fallback_query),
+        answer=answer.strip() if isinstance(answer, str) and answer.strip() else None,
+        connected=payload.get("connected") is not False,
+        state=state,
+        used_llm=bool(payload.get("used_llm", False)),
+        retrieval_layer=payload.get("retrieval_layer")
+        if isinstance(payload.get("retrieval_layer"), dict)
+        else {},
+        reasoning_trace=payload.get("reasoning_trace")
+        if isinstance(payload.get("reasoning_trace"), list)
+        else [],
+        hits=_hits_from_ai2(payload),
+    )
+
+
+def _ai2_snapshot_digest(dossier: Any) -> str:
+    metadata = dossier.metadata if isinstance(getattr(dossier, "metadata", None), dict) else {}
+    return str(metadata.get("ai2_snapshot_digest") or dossier.checksum or "").strip()
 
 
 @router.post(
@@ -688,7 +757,7 @@ async def search_dossier(
     question = body.query.strip()
     if not question:
         raise HTTPException(status_code=422, detail="Thiếu câu hỏi.")
-    await _require_readable(svc, dossier_id, user.user_id)
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.SEARCH)
     from contract_intelligence.infrastructure.ai_adapters import (
         AiAdapterError,
         query_ai2,
@@ -700,9 +769,13 @@ async def search_dossier(
                 {
                     "query": question,
                     "dossier_id": dossier_id,
-                    "snapshot_version": "current",
+                    "snapshot_version": "latest",
+                    "snapshot_digest": _ai2_snapshot_digest(dossier),
+                    "query_contract_version": "ai2.query.v1",
                     "acl_context": user.user_id,
                     "policy_flags": {},
+                    "tenant_id": user.tenant_id,
+                    "actor_id": "backend",
                 }
             ),
             timeout=3,
@@ -714,15 +787,7 @@ async def search_dossier(
         )
     if not isinstance(payload, dict):
         payload = {}
-    answer = payload.get("answer") or payload.get("text")
-    return ApiResponse(
-        data=DossierSearchDTO(
-            query=question,
-            answer=answer.strip() if isinstance(answer, str) and answer.strip() else None,
-            connected=True,
-            hits=_hits_from_ai2(payload),
-        )
-    )
+    return ApiResponse(data=_search_dto_from_ai2(payload, fallback_query=question))
 
 
 # -----------------------------------------------------------------------------
@@ -741,7 +806,7 @@ async def get_dossier(
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> ApiResponse[DossierDetailDTO]:
     """Dossier detail kèm documents list."""
-    dossier = await _require_readable(svc, dossier_id, _user.user_id)
+    dossier = await _require_readable(svc, dossier_id, _user, action=AclAction.QUERY)
     documents = await svc.list_documents(dossier_id)
     latest = dossier.latest_job()
     return ApiResponse(
@@ -879,7 +944,7 @@ async def list_dossier_documents(
 ) -> ApiResponse[list[DocumentListItemDTO]]:
     """Danh sách toàn bộ văn bản trong dossier (contract + annexes)."""
     # Verify dossier exists for proper 404 semantics
-    await _require_readable(svc, dossier_id, _user.user_id)
+    await _require_readable(svc, dossier_id, _user, action=AclAction.CITATION_READ)
     documents = await svc.list_documents(dossier_id)
     return ApiResponse(data=[DocumentListItemDTO.from_domain(d) for d in documents])
 
@@ -938,6 +1003,16 @@ async def confirm_dossier_manifest(
     files and does not start a pipeline run.
     """
     data = await svc.confirm_manifest(dossier_id, user.user_id, body)
+    await messaging.publish_event(
+        "dossier_events",
+        {
+            "event": "dossier.manifest.confirmed",
+            "dossier_id": dossier_id,
+            "tenant_id": user.tenant_id,
+            "manifest_version": data.version,
+        },
+        key=dossier_id,
+    )
     return ApiResponse(data=data)
 
 

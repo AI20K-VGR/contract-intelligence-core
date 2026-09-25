@@ -31,7 +31,12 @@ from contract_intelligence.review.domain.entities.review_item import (
     ReviewItemStatus,
     ReviewPriority,
 )
-from contract_intelligence.review.interfaces.api.dependencies import ReviewServiceDep
+from contract_intelligence.review.interfaces.api.dependencies import (
+    ReviewServiceDep,
+    require_review_dossier_access,
+    require_review_item_access,
+    require_review_item_mutation_access,
+)
 from contract_intelligence.shared.auth import AuthenticatedUser, require_role
 from contract_intelligence.shared.exceptions import ReviewVersionConflict
 from contract_intelligence.shared.responses import ApiMeta, ApiResponse
@@ -50,6 +55,7 @@ async def list_review_items(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ReviewServiceDep,
     _user: Annotated[AuthenticatedUser, _REVIEWER_RBAC],
+    _acl: Annotated[None, Depends(require_review_dossier_access)],
     priority: Annotated[ReviewPriority | None, Query()] = None,
     status_filter: Annotated[ReviewItemStatus | None, Query(alias="status")] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
@@ -82,6 +88,7 @@ async def get_review_item(
     item_id: Annotated[str, Path(min_length=1)],
     svc: ReviewServiceDep,
     _user: Annotated[AuthenticatedUser, _REVIEWER_RBAC],
+    _acl: Annotated[None, Depends(require_review_item_access)],
 ) -> ApiResponse[ReviewItemDTO]:
     """Chi tiết review item kèm ``version`` cho optimistic concurrency."""
     return ApiResponse(data=await svc.get_review_item(item_id))
@@ -97,6 +104,7 @@ async def list_revisions(
     item_id: Annotated[str, Path(min_length=1)],
     svc: ReviewServiceDep,
     _user: Annotated[AuthenticatedUser, _REVIEWER_RBAC],
+    _acl: Annotated[None, Depends(require_review_item_access)],
 ) -> ApiResponse[list[ReviewItemRevisionDTO]]:
     """Lịch sử thao tác bất biến (confirm/correct/reject/…)."""
     return ApiResponse(data=await svc.list_revisions(item_id))
@@ -119,6 +127,7 @@ async def submit_action(
     body: Annotated[ReviewActionRequestDTO, Body()],
     svc: ReviewServiceDep,
     user: Annotated[AuthenticatedUser, Depends(require_role("REVIEWER", "ADMINISTRATOR"))],
+    _acl: Annotated[None, Depends(require_review_item_mutation_access)],
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> ApiResponse[ReviewActionResponseDTO] | JSONResponse:
     """Ghi nhận hành động review. RBAC: REVIEWER, ADMINISTRATOR.

@@ -1,52 +1,81 @@
 import { Link } from 'react-router-dom'
 import { useState } from 'react'
 import { MaterialIcon } from './icons'
-import {
-  searchAnswerText,
-  searchCitations,
-  type SearchCitation,
-} from '../data/dossierSearch'
+import type { Ai2SearchHit, Ai2SearchResult } from '../api/ai2'
+import type { CitationViewerScope } from './DynamicCitationViewer'
 
-function CitationMark({
-  citation,
-  active,
-  onSelect,
-}: {
-  citation: SearchCitation
-  active: boolean
-  onSelect: (id: number) => void
-}) {
-  return (
-    <button
-      className={`inline-flex items-center justify-center w-5 h-5 ml-1 text-xs rounded-[9999px] cursor-pointer align-baseline transition-all ${
-        active
-          ? 'font-bold text-on-tertiary-fixed-variant bg-surface-container-high ring-2 ring-primary shadow-xs'
-          : 'font-semibold text-secondary hover:text-primary bg-surface-container-low hover:bg-surface-container'
-      }`}
-      title={citation.title}
-      type="button"
-      onClick={() => onSelect(citation.id)}
-    >
-      <span className="text-[11px]">{citation.id}</span>
-    </button>
-  )
+export type CitationNavigationState = {
+  dossierId: string
+  documentId: string | null
+  citationId: string | null
+  sourceFileId: string | null
+  pageNo: number | null
+  lineId: string | null
+  bbox: [number, number, number, number] | null
+  scope: CitationViewerScope
+  status: Ai2SearchHit['citation']['status']
+  quote: string
+}
+
+export function buildCitationNavigationState(
+  result: Ai2SearchResult,
+  hit: Ai2SearchHit,
+  index: number,
+): CitationNavigationState {
+  void index
+  return {
+    dossierId: result.dossierId,
+    documentId: hit.citation.documentId ?? hit.citation.sourceFileId,
+    citationId:
+      hit.citation.citationId ?? hit.citation.lineId ?? hit.citation.nodeId,
+    sourceFileId: hit.citation.sourceFileId,
+    pageNo: hit.citation.pageNo ?? hit.pageNo,
+    lineId: hit.citation.lineId,
+    bbox: hit.citation.bbox,
+    scope: hit.citation.scope ?? 'body',
+    status: hit.citation.status,
+    quote: hit.citation.quote || hit.text,
+  }
+}
+
+type DossierSearchResultsProps = {
+  result: Ai2SearchResult
+  onSelectCitation: (hit: Ai2SearchHit, index: number) => void
+}
+
+function citationLabel(hit: Ai2SearchHit) {
+  if (hit.citation.status === 'LOCATABLE') return 'Đã định vị nguồn'
+  if (hit.citation.status === 'PARTIAL') return 'Nguồn chưa đủ tọa độ'
+  return 'Chưa định vị được nguồn'
 }
 
 function MatchRow({
-  citation,
+  result,
+  hit,
+  index,
   active,
   onSelect,
 }: {
-  citation: SearchCitation
+  result: Ai2SearchResult
+  hit: Ai2SearchHit
+  index: number
   active: boolean
-  onSelect: (id: number) => void
+  onSelect: () => void
 }) {
+  const source =
+    [hit.sourceFileId, hit.lineId].filter(Boolean).join(' · ') ||
+    'Chưa có source id'
+  const statusColor =
+    hit.citation.status === 'LOCATABLE'
+      ? 'bg-[#ECFDF5] text-[#065F46]'
+      : 'bg-amber-50 text-amber-900'
+
   return (
     <div className="p-space-md flex flex-col sm:flex-row sm:items-center justify-between gap-space-md hover:bg-surface-container-low transition-colors">
       <button
         className="flex items-start gap-space-md flex-1 min-w-0 text-left"
         type="button"
-        onClick={() => onSelect(citation.id)}
+        onClick={onSelect}
       >
         <span
           className={`w-6 h-6 rounded-[9999px] font-semibold text-[12px] flex items-center justify-center flex-shrink-0 mt-0.5 ${
@@ -55,32 +84,43 @@ function MatchRow({
               : 'bg-surface-container-high text-on-surface'
           }`}
         >
-          {citation.id}
+          {index + 1}
         </span>
         <div className="flex flex-col gap-1 min-w-0">
           <p className="font-body-md text-[14px] text-primary font-medium leading-relaxed">
-            {citation.quote}
+            {hit.text}
           </p>
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-label-sm text-[11px] font-semibold text-secondary uppercase tracking-wide">
               Căn cứ:
             </span>
             <span className="font-code-sm text-[12px] font-semibold text-on-surface bg-surface-container px-2 py-0.5 rounded border border-outline-variant/30">
-              {citation.source}
+              {source}
             </span>
+            {hit.pageNo !== null ? (
+              <span className="font-label-sm text-[11px] text-secondary">
+                Trang {hit.pageNo}
+              </span>
+            ) : null}
           </div>
         </div>
       </button>
       <div className="flex items-center gap-space-md flex-shrink-0 self-end sm:self-center">
-        <span className="inline-flex items-center gap-1 bg-[#ECFDF5] text-[#065F46] px-2 py-0.5 rounded font-label-sm text-[11px] font-semibold">
-          <MaterialIcon name="verified" className="text-[13px]" />
-          {citation.confidence}
+        <span
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-label-sm text-[11px] font-semibold ${statusColor}`}
+        >
+          <MaterialIcon
+            name={hit.citation.status === 'LOCATABLE' ? 'verified' : 'warning'}
+            className="text-[13px]"
+          />
+          {citationLabel(hit)}
         </span>
         <Link
           className="inline-flex items-center gap-1 text-primary hover:text-on-surface-variant font-label-sm text-label-sm font-semibold hover:underline"
+          state={{ citation: buildCitationNavigationState(result, hit, index) }}
           to="/doi-soat-trich-dan"
         >
-          <span>Đối soát trích dẫn</span>
+          <span>Đối soát</span>
           <MaterialIcon name="arrow_forward" className="text-[16px]" />
         </Link>
       </div>
@@ -88,11 +128,23 @@ function MatchRow({
   )
 }
 
-export function DossierSearchResults() {
-  const [activeId, setActiveId] = useState(1)
+export function DossierSearchResults({
+  result,
+  onSelectCitation,
+}: DossierSearchResultsProps) {
+  const [activeIndex, setActiveIndex] = useState(0)
+  const answer = result.answer ?? 'AI2 chưa đủ evidence để trả lời câu hỏi này.'
+  const reviewLabel =
+    result.reviewState === 'ANSWERED'
+      ? 'Đã trả lời từ snapshot'
+      : result.reviewState === 'NEEDS_REVIEW'
+        ? 'Cần rà soát evidence'
+        : 'Chưa đủ evidence'
 
-  async function copyAnswer() {
-    await navigator.clipboard.writeText(searchAnswerText)
+  function selectCitation(index: number) {
+    setActiveIndex(index)
+    const hit = result.hits[index]
+    if (hit) onSelectCitation(hit, index)
   }
 
   return (
@@ -105,78 +157,20 @@ export function DossierSearchResults() {
             </div>
             <div>
               <h2 className="font-title-sm text-title-sm font-semibold text-primary">
-                Câu trả lời tổng hợp AI
+                Câu trả lời AI2
               </h2>
               <p className="font-label-sm text-label-sm text-secondary">
-                Tổng hợp và đối chiếu tự động từ 4 điều khoản & phụ lục liên
-                quan
+                {reviewLabel} · {result.hits.length} đoạn evidence
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-space-xs">
-            <button
-              className="flex items-center gap-1 px-space-sm py-1 rounded hover:bg-surface-container-low text-secondary text-label-sm font-medium transition-colors"
-              title="Sao chép toàn bộ"
-              type="button"
-              onClick={() => {
-                void copyAnswer()
-              }}
-            >
-              <MaterialIcon name="content_copy" className="text-[16px]" />
-              Sao chép
-            </button>
-            <button
-              className="flex items-center gap-1 px-space-sm py-1 rounded hover:bg-surface-container-low text-secondary text-label-sm font-medium transition-colors"
-              title="Xuất báo cáo PDF"
-              type="button"
-            >
-              <MaterialIcon name="ios_share" className="text-[16px]" />
-              Chia sẻ
-            </button>
-          </div>
+          <span className="font-label-sm text-label-sm text-secondary">
+            {result.connected ? 'Snapshot đã kết nối' : 'AI2 chưa kết nối'}
+          </span>
         </div>
 
-        <div className="font-body-md text-on-surface leading-relaxed space-y-3">
-          <p>
-            Theo quy định tại hồ sơ hợp đồng dịch vụ viễn thông & CNTT, mức trần
-            bồi thường thiệt hại được giới hạn không vượt quá 100% tổng giá trị
-            dịch vụ thực tế mà bên sử dụng đã thanh toán trong 06 tháng liền kề
-            trước thời điểm xảy ra sự cố
-            <CitationMark
-              citation={searchCitations[0]}
-              active={activeId === 1}
-              onSelect={setActiveId}
-            />
-            . Đồng thời, các trường hợp đứt cáp quang biển hoặc sự kiện bất khả
-            kháng diện rộng sẽ được tạm hoãn áp dụng chế tài tính phạt vi phạm
-            SLA trong khoảng thời gian tối đa 72 giờ kể từ khi gửi thông báo
-            bằng văn bản hoặc email hợp lệ
-            <CitationMark
-              citation={searchCitations[1]}
-              active={activeId === 2}
-              onSelect={setActiveId}
-            />
-            .
-          </p>
-          <p>
-            Bên B được miễn trừ hoàn toàn trách nhiệm đối với các tổn thất gián
-            tiếp, thiệt hại hệ quả hoặc mất doanh thu cơ hội kinh doanh ngoài
-            phạm vi nghĩa vụ trực tiếp đã thỏa thuận
-            <CitationMark
-              citation={searchCitations[2]}
-              active={activeId === 3}
-              onSelect={setActiveId}
-            />
-            . Tỷ lệ khấu trừ cụ thể và tiêu chuẩn thời gian khắc phục sự cố
-            (MTTR) được quy định chi tiết tại Phụ lục cam kết chất lượng dịch vụ
-            SLA
-            <CitationMark
-              citation={searchCitations[3]}
-              active={activeId === 4}
-              onSelect={setActiveId}
-            />
-            .
-          </p>
+        <div className="font-body-md text-on-surface leading-relaxed whitespace-pre-wrap">
+          {answer}
         </div>
       </div>
 
@@ -188,30 +182,39 @@ export function DossierSearchResults() {
               className="text-[18px] text-secondary"
             />
             <h3 className="font-title-sm text-[14px] font-semibold text-primary uppercase tracking-wider">
-              DANH SÁCH CÂU TRẢ LỜI KHỚP
+              EVIDENCE TRẢ VỀ
             </h3>
             <span
               className="bg-surface-container-high text-secondary px-2 py-0.5 font-code-sm text-[11px] font-semibold"
               style={{ borderRadius: '9999px' }}
             >
-              4 câu trả lời khớp
+              {result.hits.length}
             </span>
           </div>
           <span className="font-code-sm text-[12px] text-secondary">
-            Nhấp vào từng câu trả lời để đối soát ngữ cảnh trong tài liệu
+            Nhấp vào evidence để mở nguồn trong hồ sơ
           </span>
         </div>
 
-        <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm divide-y divide-outline-variant/20 overflow-hidden">
-          {searchCitations.map((citation) => (
-            <MatchRow
-              key={citation.id}
-              citation={citation}
-              active={activeId === citation.id}
-              onSelect={setActiveId}
-            />
-          ))}
-        </div>
+        {result.hits.length > 0 ? (
+          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm divide-y divide-outline-variant/20 overflow-hidden">
+            {result.hits.map((hit, index) => (
+              <MatchRow
+                key={`${hit.lineId ?? hit.sourceFileId ?? 'hit'}-${index}`}
+                result={result}
+                hit={hit}
+                index={index}
+                active={activeIndex === index}
+                onSelect={() => selectCitation(index)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-space-lg text-amber-950">
+            Không có evidence locatable cho câu hỏi này. Hãy kiểm tra snapshot
+            hoặc chuyển sang rà soát HITL.
+          </div>
+        )}
       </div>
     </div>
   )

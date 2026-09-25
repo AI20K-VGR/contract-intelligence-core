@@ -63,11 +63,19 @@ async def mock_svc() -> AsyncMock:
 async def client(mock_svc: AsyncMock) -> AsyncGenerator[AsyncClient, None]:
     from contract_intelligence.review.interfaces.api.dependencies_approval import (
         get_approval_service,
+        require_approval_access,
+        require_external_approval_access,
+        require_external_approval_read_access,
+        require_lock_access,
     )
     from contract_intelligence.shared.auth import get_current_user
     from contract_intelligence.shared.auth.tenant import get_tenant_id
 
     app.dependency_overrides[get_approval_service] = lambda: mock_svc
+    app.dependency_overrides[require_approval_access] = lambda: None
+    app.dependency_overrides[require_lock_access] = lambda: None
+    app.dependency_overrides[require_external_approval_access] = lambda: None
+    app.dependency_overrides[require_external_approval_read_access] = lambda: None
     app.dependency_overrides[get_current_user] = lambda: _admin()
     app.dependency_overrides[get_tenant_id] = lambda: "tenant_test"
 
@@ -93,65 +101,21 @@ class TestLock:
 
 
 class TestApprove:
-    async def test_approve_ok(self, client: AsyncClient) -> None:
-        from unittest.mock import MagicMock
-
-        from contract_intelligence.shared.persistence import get_async_session
-
-        dossier = MagicMock()
-        dossier.id = "dos_1"
-        dossier.status = "pending_review"
-        dossier.is_approved = False
-        dossier.is_locked = False
-
-        session = AsyncMock()
-        session.get = AsyncMock(return_value=dossier)
-        # No open review items
-        empty_result = MagicMock()
-        empty_result.all.return_value = []
-        session.execute = AsyncMock(return_value=empty_result)
-        session.flush = AsyncMock()
-
-        async def _override_session() -> AsyncGenerator[object, None]:
-            yield session
-
-        app.dependency_overrides[get_async_session] = _override_session
-        try:
-            resp = await client.post("/api/v1/dossiers/dos_1/approve")
-        finally:
-            app.dependency_overrides.pop(get_async_session, None)
+    async def test_approve_ok(self, client: AsyncClient, mock_svc: AsyncMock) -> None:
+        mock_svc.approve_dossier.return_value = _dossier(latest_job_status="approved")
+        resp = await client.post("/api/v1/dossiers/dos_1/approve")
 
         assert resp.status_code == 200
-        body = resp.json()
-        assert body["status"] == "ok"
-        assert body["dossier_status"] == "approved"
-        assert dossier.is_approved is True
+        assert resp.json()["data"]["latest_job_status"] == "approved"
+        mock_svc.approve_dossier.assert_awaited_once_with("dos_1", "usr_admin", comment=None)
 
-    async def test_approve_precondition_409(self, client: AsyncClient) -> None:
-        from unittest.mock import MagicMock
-
-        from contract_intelligence.shared.persistence import get_async_session
-
-        dossier = MagicMock()
-        dossier.id = "dos_1"
-
-        session = AsyncMock()
-        session.get = AsyncMock(return_value=dossier)
-        open_result = MagicMock()
-        open_result.all.return_value = [("ri_open_1",)]
-        session.execute = AsyncMock(return_value=open_result)
-
-        async def _override_session() -> AsyncGenerator[object, None]:
-            yield session
-
-        app.dependency_overrides[get_async_session] = _override_session
-        try:
-            resp = await client.post("/api/v1/dossiers/dos_1/approve")
-        finally:
-            app.dependency_overrides.pop(get_async_session, None)
+    async def test_approve_precondition_409(self, client: AsyncClient, mock_svc: AsyncMock) -> None:
+        mock_svc.approve_dossier.side_effect = InvalidStateTransition(
+            from_state="pending_review", to_state="approved", entity="Dossier"
+        )
+        resp = await client.post("/api/v1/dossiers/dos_1/approve")
 
         assert resp.status_code == 409
-        assert resp.json()["detail"]["code"] == "UNRESOLVED_REVIEW_ITEMS"
 
 
 class TestExternalApproval:

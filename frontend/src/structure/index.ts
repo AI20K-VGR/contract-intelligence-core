@@ -26,3 +26,14 @@ export function buildStructureTree(
     ? buildFreeformTree(lines)
     : buildNumberedTree(lines)
 }
+
+/** Infer a safe first view when upload metadata did not specify a mode. */
+export function inferStructureMode(
+  lines: OcrLine[],
+  hasTables: boolean,
+): StructureMode {
+  if (buildNumberedTree(lines).length > 0) return 'numbered'
+  if (hasTables) return 'tables'
+  if (buildFreeformTree(lines).length > 0) return 'freeform'
+  return 'numbered'
+}

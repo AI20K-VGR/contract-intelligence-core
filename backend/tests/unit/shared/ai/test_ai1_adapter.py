@@ -114,57 +114,123 @@ def test_adapts_ai1_snapshot_v1_at_service_boundary() -> None:
     assert payload.clauses[1].parent_source_id == "art-1"
 
 
-def test_adapter_preserves_table_header_as_real_header_cells() -> None:
-    result = {
-        "snapshot": {
-            "schema_version": "ai1.snapshot.v1",
-            "document_id": "doc-1",
-            "page_count": 1,
-            "nodes": [],
-            "table_continuity": [],
-            "pages": [
-                {
-                    "page_number": 1,
-                    "source_page_width": 100,
-                    "source_page_height": 100,
-                    "input_type": "SCANNED_OCR",
-                    "text": "STT Tên hàng 1 Bút",
-                    "lines": [],
-                    "words": [],
-                    "tables": [
+def test_adapts_table_continuation_graph_for_backend_persistence() -> None:
+    def page(number: int, table: dict) -> dict:
+        return {
+            "page_number": number,
+            "status": "SUCCESS",
+            "input_type": "TEXT_LAYER",
+            "source_page_width": 595.0,
+            "source_page_height": 842.0,
+            "rotation_degrees": 0,
+            "page_image_ref": {
+                "uri": f"storage://pages/{number}.png",
+                "width_px": 100,
+                "height_px": 100,
+            },
+            "text": "",
+            "lines": [],
+            "words": [],
+            "blocks": [],
+            "table_status": "SUCCESS",
+            "tables": [table],
+            "warnings": [],
+            "error": None,
+        }
+
+    result = adapt_ai1_snapshot_result(
+        {
+            "snapshot": {
+                "schema_version": "ai1.snapshot.v1",
+                "dossier_id": "dos-1",
+                "document_id": "doc-1",
+                "page_count": 2,
+                "pages": [
+                    page(
+                        1,
                         {
-                            "bbox_normalized": [0.1, 0.2, 0.9, 0.8],
-                            "geometry_provenance": "MEASURED",
-                            "header": ["STT", "Tên hàng"],
-                            "rows": [
-                                {
-                                    "cells": [
-                                        {
-                                            "text": "1",
-                                            "bbox_normalized": [0.1, 0.5, 0.3, 0.8],
-                                        },
-                                        {
-                                            "text": "Bút",
-                                            "bbox_normalized": [0.3, 0.5, 0.9, 0.8],
-                                        },
-                                    ]
-                                }
-                            ],
-                        }
-                    ],
+                            "id": "table-1",
+                            "bbox_normalized": [0.1, 0.1, 0.9, 0.5],
+                            "rows": [],
+                            "continued_by_table_id": "table-2",
+                        },
+                    ),
+                    page(
+                        2,
+                        {
+                            "id": "table-2",
+                            "bbox_normalized": [0.1, 0.1, 0.9, 0.5],
+                            "rows": [],
+                            "continues_table_id": "table-1",
+                        },
+                    ),
+                ],
+                "nodes": [],
+            }
+        }
+    )
+
+    assert [table.source_id for table in result.tables] == ["table-1", "table-2"]
+    assert result.tables[0].is_multi_page is True
+    assert result.tables[0].continued_from_source_id is None
+    assert result.tables[1].is_multi_page is True
+    assert result.tables[1].continued_from_source_id == "table-1"
+
+
+def test_adapts_snapshot_table_continuity_links_into_table_rows() -> None:
+    def page(number: int, table_id: str) -> dict:
+        return {
+            "page_number": number,
+            "status": "SUCCESS",
+            "input_type": "TEXT_LAYER",
+            "source_page_width": 595.0,
+            "source_page_height": 842.0,
+            "rotation_degrees": 0,
+            "page_image_ref": {
+                "uri": f"storage://pages/{number}.png",
+                "width_px": 100,
+                "height_px": 100,
+            },
+            "text": "content",
+            "lines": [],
+            "words": [],
+            "blocks": [],
+            "table_status": "SUCCESS",
+            "tables": [
+                {
+                    "id": table_id,
+                    "bbox_normalized": [0.1, 0.1, 0.9, 0.9],
+                    "rows": [],
                 }
             ],
+            "warnings": [],
+            "error": None,
         }
-    }
 
-    payload = adapt_ai1_snapshot_result(result)
+    result = adapt_ai1_snapshot_result(
+        {
+            "snapshot": {
+                "schema_version": "ai1.snapshot.v1",
+                "dossier_id": "dos-1",
+                "document_id": "doc-1",
+                "page_count": 2,
+                "pages": [page(1, "table-1"), page(2, "table-2")],
+                "nodes": [],
+                "table_continuity": [
+                    {
+                        "from_table_id": "table-1",
+                        "from_page": 1,
+                        "to_table_id": "table-2",
+                        "to_page": 2,
+                        "decision": "MERGE",
+                        "confidence": 1.0,
+                        "reason_codes": ["ANCHOR_CONTINUOUS"],
+                    }
+                ],
+            }
+        }
+    )
 
-    table = payload.tables[0]
-    assert table.rows_count == 2
-    assert table.cols_count == 2
-    assert [(cell.row_idx, cell.text, cell.is_header) for cell in table.cells] == [
-        (0, "STT", True),
-        (0, "Tên hàng", True),
-        (1, "1", False),
-        (1, "Bút", False),
-    ]
+    assert result.tables[0].is_multi_page is True
+    assert result.tables[1].is_multi_page is True
+    assert result.tables[1].continued_from_source_id == "table-1"

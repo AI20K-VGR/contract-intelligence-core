@@ -1,25 +1,23 @@
-# AI2 HTTP demo + Kafka IDP worker (same image, different CMD)
-FROM ghcr.io/astral-sh/uv:0.7.13 AS uv_stage
-FROM python:3.11-slim
+FROM ghcr.io/astral-sh/uv:0.11.32 AS uv_stage
+FROM python:3.12-slim
 
 WORKDIR /app
 
 COPY --from=uv_stage /uv /usr/local/bin/uv
 
-ENV UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy \
-    VIRTUAL_ENV=/app/.venv \
-    PATH="/app/.venv/bin:$PATH" \
-    PYTHONPATH=/app \
-    PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
 
 COPY pyproject.toml uv.lock ./
-# web = FastAPI demo HTTP; kafka = DOC-05e IDP worker.
-RUN uv sync --frozen --extra web --extra kafka --no-dev --no-install-project
+RUN uv sync --frozen --extra web --extra openai --no-dev
+RUN uv pip install --python /app/.venv/bin/python pypdf reportlab jsonschema
 
 COPY app/ app/
 COPY fixtures/ fixtures/
+COPY data/ data/
 
 EXPOSE 8002
-# Default: demo HTTP API. Compose ``ai2-worker`` overrides CMD to kafka_idp_worker.
-CMD ["uv", "run", "--frozen", "--extra", "web", "uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8002"]
+
+CMD ["uv", "run", "--no-sync", "uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8002"]

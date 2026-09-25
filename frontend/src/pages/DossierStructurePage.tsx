@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -11,6 +12,7 @@ import {
   contractDocument,
   countClauses,
   getDossierStructure,
+  listDocumentTables,
   isOcrComplete,
   listClauses,
   listReviewSpots,
@@ -34,6 +36,7 @@ import { MaterialIcon } from '../components/icons'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 import {
   buildStructureTree,
+  inferStructureMode,
   parseStructureMode,
   parseStructureView,
   STRUCTURE_VIEW_KEY,
@@ -43,6 +46,60 @@ import {
   type StructureMode,
   type StructureView,
 } from '../structure'
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
+function readFocusedCitation(value: unknown): {
+  hit: DossierSearchResult['hits'][number]
+  index: number
+} | null {
+  const state = asRecord(value)
+  const row = asRecord(state?.focusCitation)
+  const text = typeof row?.text === 'string' ? row.text.trim() : ''
+  const pageNo = typeof row?.pageNo === 'number' ? row.pageNo : null
+  if (!text || pageNo === null) return null
+  const sourceFileId =
+    typeof row.sourceFileId === 'string' ? row.sourceFileId : null
+  const lineId = typeof row.lineId === 'string' ? row.lineId : null
+  const bbox =
+    Array.isArray(row.bbox) &&
+    row.bbox.length === 4 &&
+    row.bbox.every(
+      (item): item is number =>
+        typeof item === 'number' && Number.isFinite(item),
+    )
+      ? ([row.bbox[0], row.bbox[1], row.bbox[2], row.bbox[3]] as [
+          number,
+          number,
+          number,
+          number,
+        ])
+      : null
+  const status = sourceFileId && lineId ? 'LOCATABLE' : 'PARTIAL'
+  const index = typeof row.index === 'number' && row.index >= 0 ? row.index : 0
+  return {
+    index,
+    hit: {
+      text,
+      pageNo,
+      sourceFileId,
+      lineId,
+      bbox,
+      citation: {
+        status,
+        sourceFileId,
+        lineId,
+        pageNo,
+        bbox,
+        nodeId: null,
+        quote: text,
+      },
+    },
+  }
+}
 import { citationNumbers, findClause } from '../structure/citations'
 
 const jobLabels: Record<string, string> = {
@@ -108,6 +165,10 @@ export function DossierStructurePage() {
   const [searchResult, setSearchResult] = useState<DossierSearchResult | null>(
     null,
   )
+  const [searchCite, setSearchCite] = useState<{
+    node: ClauseNode
+    citeNo: number
+  } | null>(null)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   usePageTitle(detail?.name ?? 'Cấu trúc hợp đồng')
@@ -120,6 +181,7 @@ export function DossierStructurePage() {
   useEffect(() => {
     setQuery('')
     setSearchResult(null)
+    setSearchCite(null)
     setSearchError(null)
   }, [dossierId])
 
@@ -199,7 +261,14 @@ export function DossierStructurePage() {
           }, 2000)
           return
         }
-        const document = contractDocument(next)
+        const focusedCitation = readFocusedCitation(location.state)
+        const document =
+          (focusedCitation?.hit.sourceFileId
+            ? next.documents.find(
+                (candidate) =>
+                  candidate.id === focusedCitation.hit.sourceFileId,
+              )
+            : null) ?? contractDocument(next)
         if (!document) {
           setFilename(null)
           setDocumentId(null)
@@ -219,6 +288,26 @@ export function DossierStructurePage() {
         if (ocrLines.length > 0) {
           setLines(ocrLines)
           setFallbackNodes([])
+          // Table-first contracts often have no Điều/Khoản markers. When the
+          // upload did not persist a user-selected mode, infer the first view
+          // from the actual OCR/table payload instead of forcing numbered.
+          if (
+            !next.structureMode &&
+            stateStructureMode(location.state) === null
+          ) {
+            let hasTables = false
+            if (buildStructureTree(ocrLines, 'numbered').length === 0) {
+              try {
+                hasTables =
+                  (await listDocumentTables(document.id, controller.signal))
+                    .length > 0
+              } catch {
+                hasTables = false
+              }
+            }
+            if (stopped) return
+            setMode(inferStructureMode(ocrLines, hasTables))
+          }
         } else {
           const tree = await listClauses(document.id, controller.signal)
           if (stopped) return
@@ -264,7 +353,39 @@ export function DossierStructurePage() {
   const needsCheck = status === 'pending_review' || spots.length > 0
   const citeOf = useMemo(() => citationNumbers(nodes), [nodes])
   const cited = citeId ? findClause(nodes, citeId) : null
-  const splitView = Boolean(cited || tableCite || showLines)
+  const splitView = Boolean(cited || tableCite || searchCite || showLines)
+
+  const openSearchCitation = useCallback(
+    (hit: DossierSearchResult['hits'][number], index: number) => {
+      if (!documentId || hit.pageNo === null) return
+      const node: ClauseNode = {
+        id: hit.lineId || `search-citation-${index}`,
+        nodeType: 'line',
+        label: 'Citation',
+        number: null,
+        title: null,
+        text: hit.text,
+        pageStart: hit.pageNo,
+        pageEnd: hit.pageNo,
+        confidence: null,
+        regions: hit.bbox ? [{ pageNo: hit.pageNo, bbox: hit.bbox }] : [],
+        children: [],
+      }
+      setShowLines(false)
+      setCiteId(null)
+      setTableCite(null)
+      setSearchCite({ node, citeNo: index + 1 })
+    },
+    [documentId],
+  )
+
+  useEffect(() => {
+    if (phase !== 'ready' || !documentId || searchCite) return
+    const focused = readFocusedCitation(location.state)
+    if (!focused) return
+    openSearchCitation(focused.hit, focused.index)
+  }, [documentId, location.state, openSearchCitation, phase, searchCite])
+
   const frameRef = useRef<HTMLDivElement>(null)
   const [frameHeight, setFrameHeight] = useState<number | null>(null)
 
@@ -586,13 +707,33 @@ export function DossierStructurePage() {
                   </p>
                   {searchResult.hits.length > 0 ? (
                     <ul className="flex flex-col gap-1">
-                      {searchResult.hits.map((hit) => (
+                      {searchResult.hits.map((hit, index) => (
                         <li
-                          key={`${hit.pageNo ?? ''}-${hit.text}`}
+                          key={`${hit.lineId ?? ''}-${hit.pageNo ?? ''}-${hit.text}`}
                           className="font-body-sm text-body-sm text-on-surface-variant"
                         >
-                          {hit.pageNo ? `Trang ${hit.pageNo} · ` : ''}
-                          {hit.text}
+                          {hit.sourceFileId === documentId && hit.pageNo ? (
+                            <button
+                              className="group flex w-full items-start gap-2 rounded-md p-1 text-left hover:bg-primary/5 hover:text-primary"
+                              type="button"
+                              onClick={() => openSearchCitation(hit, index)}
+                              title="Mở trang nguồn"
+                            >
+                              <span className="shrink-0 font-medium">
+                                Trang {hit.pageNo} ·
+                              </span>
+                              <span className="min-w-0 flex-1">{hit.text}</span>
+                              <MaterialIcon
+                                name="open_in_new"
+                                className="shrink-0 text-[15px] opacity-60 group-hover:opacity-100"
+                              />
+                            </button>
+                          ) : (
+                            <span>
+                              {hit.pageNo ? `Trang ${hit.pageNo} · ` : ''}
+                              {hit.text}
+                            </span>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -661,7 +802,15 @@ export function DossierStructurePage() {
         {showLines && lines ? (
           <OcrLinesPane lines={lines} onClose={() => setShowLines(false)} />
         ) : null}
-        {cited && documentId ? (
+        {searchCite && documentId ? (
+          <CitationPane
+            key={searchCite.node.id}
+            citeNo={searchCite.citeNo}
+            documentId={documentId}
+            node={searchCite.node}
+            onClose={() => setSearchCite(null)}
+          />
+        ) : cited && documentId ? (
           <CitationPane
             key={cited.id}
             citeNo={citeOf.get(cited.id) ?? 0}

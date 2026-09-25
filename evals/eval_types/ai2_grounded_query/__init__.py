@@ -1,0 +1,1 @@
+"""Grounded-query evaluation domain."""

@@ -9,6 +9,7 @@ from app.llm.client import NineRouterClient
 from app.pipeline.ai1_snapshot_adapter import fold_for_match
 from app.reasoning.l0_rules import query_too_broad
 from app.reasoning.stack import FourLayerReasoner
+from app.reasoning.vector_recall import VectorRecallService
 from app.tools.gateway import ToolBlocked, ToolGateway
 from app.tools.store import InMemorySnapshotStore
 
@@ -24,22 +25,6 @@ def classify_ask(text: str) -> dict[str, Any]:
     }
     folded = fold_for_match(q)
     relationship_text = _plain_query(q)
-    money_cues = (
-        "phi ",
-        "tuyen dung",
-        "so tien",
-        "bao nhieu tien",
-        "gia tri",
-        "don gia",
-        "thanh tien",
-        "trieu",
-        "vnd",
-        "usd",
-    )
-    if any(cue in folded for cue in money_cues):
-        spec["type"] = "raw_fact_check"
-        spec["fact_intent"] = "money"
-        return spec
     relation_cues = (
         "moi quan he",
         "lien quan",
@@ -58,9 +43,19 @@ def classify_ask(text: str) -> dict[str, Any]:
         or "hop dong" in relationship_text
     )
     if any(cue in relationship_text for cue in relation_cues) and has_source_reference:
-        clause_labels = [f"Điều {match.group(1)}" for match in re.finditer(r"\bdieu\s+(\d+(?:\.\d+)?)", relationship_text)]
-        annex_numbers = [match.group(1) for match in re.finditer(r"\b(?:phu luc|annex)\s+(\d+)", relationship_text)]
-        spec["type"] = "cascade" if any(cue in relationship_text for cue in ("anh huong", "dinh nghia", "cascade")) else "compare"
+        clause_labels = [
+            f"Điều {match.group(1)}"
+            for match in re.finditer(r"\bdieu\s+(\d+(?:\.\d+)?)", relationship_text)
+        ]
+        annex_numbers = [
+            match.group(1)
+            for match in re.finditer(r"\b(?:phu luc|annex)\s+(\d+)", relationship_text)
+        ]
+        spec["type"] = (
+            "cascade"
+            if any(cue in relationship_text for cue in ("anh huong", "dinh nghia", "cascade"))
+            else "compare"
+        )
         spec["focus_clause_labels"] = clause_labels
         spec["annex_numbers"] = annex_numbers
         spec["relation_intent"] = relationship_text
@@ -100,7 +95,10 @@ def classify_ask(text: str) -> dict[str, Any]:
             "mục đích hợp đồng",
             "muc dich hop dong",
         )
-    ) or ("hợp đồng" in low and any(word in low for word in ("nội dung", "noi dung", "chính", "chinh"))):
+    ) or (
+        "hợp đồng" in low
+        and any(word in low for word in ("nội dung", "noi dung", "chính", "chinh"))
+    ):
         spec["type"] = "document_overview"
         spec["overview_mode"] = "bounded"
         return spec
@@ -134,7 +132,10 @@ def classify_ask(text: str) -> dict[str, Any]:
         spec["type"] = "field_card"
         spec["field_key"] = "mst_seller"
         return spec
-    if any(w in low for w in ("giá trị", "gia tri", "giá hợp đồng", "contract value")) or "gia tri" in folded:
+    if (
+        any(w in low for w in ("giá trị", "gia tri", "giá hợp đồng", "contract value"))
+        or "gia tri" in folded
+    ):
         spec["type"] = "field_card"
         spec["field_key"] = "contract_value"
         return spec
@@ -172,20 +173,55 @@ def _plain_query(value: str) -> str:
 
 
 class QueryRouter:
-    def __init__(self, store: InMemorySnapshotStore, gateway: ToolGateway, llm: NineRouterClient | None = None) -> None:
+    def __init__(
+        self,
+        store: InMemorySnapshotStore,
+        gateway: ToolGateway,
+        llm: NineRouterClient | None = None,
+        vector_recall: VectorRecallService | None = None,
+    ) -> None:
         self.store = store
         self.gateway = gateway
         self.llm = llm
-        self.stack = FourLayerReasoner(gateway, llm)
+        self.stack = FourLayerReasoner(gateway, llm, vector_recall=vector_recall)
 
-    def query(self, envelope: ToolEnvelope, text: str, task: dict[str, Any] | None = None) -> dict[str, Any]:
+    def query(
+        self,
+        envelope: ToolEnvelope,
+        text: str,
+        task: dict[str, Any] | None = None,
+        policy_flags: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         rec = self.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
         if rec is None:
             return {"review_state": ReviewState.BLOCKED.value, "hits": []}
         if rec.lifecycle != LifecycleState.ACTIVE:
             return {"review_state": ReviewState.BLOCKED.value, "hits": []}
-        spec = task or classify_ask(text)
+        spec = dict(task or classify_ask(text))
+        spec["policy_flags"] = dict(policy_flags or spec.get("policy_flags") or {})
         try:
-            return self.stack.run(envelope, spec)
+            result = self.stack.run(envelope, spec)
+            hits = result.get("citations") or result.get("hits") or []
+            retrieval = result.get("retrieval_trace") or {}
+            selected = (
+                "VECTOR"
+                if retrieval.get("vector_status") == "READY"
+                else ("LEXICAL" if hits else "NONE")
+            )
+            result["retrieval_layer"] = {
+                "selected": selected,
+                "vector_status": retrieval.get("vector_status", "NOT_REQUESTED"),
+            }
+            result["reasoning_trace"] = result.get("steps") or [
+                {"code": "QUERY_RETRIEVAL", "layer": selected}
+            ]
+            result["used_llm"] = bool(result.get("used_llm", False))
+            return result
         except ToolBlocked:
-            return {"review_state": ReviewState.BLOCKED.value, "hits": []}
+            return {
+                "review_state": ReviewState.BLOCKED.value,
+                "hits": [],
+                "retrieval_layer": {"selected": "POLICY"},
+                "reasoning_trace": [{"code": "TOOL_BLOCKED"}],
+                "used_llm": False,
+            }

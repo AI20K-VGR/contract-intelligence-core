@@ -28,6 +28,7 @@ class Dossier(BaseEntity[str]):
     batch_id: str | None = None
     has_conflicts: bool = False
     metadata: dict[str, Any] | None = None
+    checksum: str | None = None
 
     # Navigation (không persist)
     documents: list[Document] = field(default_factory=list, repr=False)

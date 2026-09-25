@@ -335,6 +335,18 @@ class SQLiteJobStore:
         finally:
             cx.close()
 
+    def list_succeeded(self) -> list[dict[str, Any]]:
+        """Return successful jobs in creation order for snapshot rehydration."""
+
+        cx = self._connect()
+        try:
+            rows = cx.execute(
+                "SELECT * FROM jobs WHERE status='SUCCEEDED' ORDER BY updated_ms ASC"
+            ).fetchall()
+            return [decoded for row in rows if (decoded := self._decode(row)) is not None]
+        finally:
+            cx.close()
+
     def clear(self) -> None:
         """Clear jobs for isolated tests and local development resets."""
 

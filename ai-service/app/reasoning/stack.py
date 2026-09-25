@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import unicodedata
 from typing import Any
 
 from app.contracts.models import ReviewState, ToolEnvelope
@@ -32,7 +33,9 @@ class FourLayerReasoner:
             known = set(envelope.auth.member_ids)
             if record is not None:
                 known.update(node.node_id for node in record.evidence_nodes())
-                known.update(node.source_file_id for node in record.evidence_nodes() if node.source_file_id)
+                known.update(
+                    node.source_file_id for node in record.evidence_nodes() if node.source_file_id
+                )
                 known.update(node.scope_id for node in record.evidence_nodes() if node.scope_id)
             if not selected.issubset(known):
                 return {
@@ -47,8 +50,17 @@ class FourLayerReasoner:
             envelope = envelope.model_copy(update={"auth": scoped_auth})
         layers: list[str] = []
 
-        l0 = self.l0.run(envelope, task)
-        if l0 and not task.get("use_llm"):
+        # An unscoped natural-language question still gets bounded lexical
+        # retrieval before the outline hint; the hint is the last resort.
+        # Explicit vector policy also bypasses the deterministic L0 shortcut,
+        # otherwise a vector request can incorrectly report NOT_REQUESTED.
+        policy_flags = task.get("policy_flags") or {}
+        l0 = (
+            None
+            if task.get("type") == "unscoped" or policy_flags.get("use_vector") is True
+            else self.l0.run(envelope, task)
+        )
+        if l0:
             layers.append("L0")
             grounded = self.l3.run(
                 envelope,
@@ -73,7 +85,12 @@ class FourLayerReasoner:
         outline_ids = [n["node_id"] for n in (l1.get("outline_ids") or [])]
         if l1.get("blocked"):
             grounded = self.l3.run(
-                envelope, task, review_state=ReviewState.BLOCKED.value, answer=None, citations=[], outline_ids=outline_ids
+                envelope,
+                task,
+                review_state=ReviewState.BLOCKED.value,
+                answer=None,
+                citations=[],
+                outline_ids=outline_ids,
             )
             layers.append("L3")
             return {**grounded, "layers_used": layers, "steps": []}
@@ -97,11 +114,17 @@ class FourLayerReasoner:
                 "relation_issues": l1.get("relation_issues") or [],
                 "retrieval_trace": l1.get("retrieval_trace") or {},
             }
-        # Free-form production queries may opt into a grounded LLM draft.
-        # Retrieval still runs first and broad questions remain fail-closed.
-        need_l2 = (
-            (ttype in COMPARE_TYPES or bool(task.get("use_llm")))
-            and not query_too_broad(task.get("query") or "")
+        allow_llm = (
+            policy_flags.get("use_llm") is True
+            and policy_flags.get("use_vector") is True
+            and policy_flags.get("egress_allowed") is True
+        )
+        # Unflagged direct stack callers retain the deterministic L2 fallback
+        # contract. API requests always carry policy flags and therefore stay
+        # fail-closed when external reasoning is not allowed.
+        legacy_unflagged = not policy_flags
+        need_l2 = ttype in COMPARE_TYPES and not query_too_broad(task.get("query") or "") and (
+            allow_llm or legacy_unflagged
         )
         draft = None
         steps: list = []
@@ -110,7 +133,12 @@ class FourLayerReasoner:
             l2 = self.l2.run(envelope, task, l1)
             if l2.get("blocked"):
                 grounded = self.l3.run(
-                    envelope, task, review_state=ReviewState.BLOCKED.value, answer=None, citations=[], outline_ids=outline_ids
+                    envelope,
+                    task,
+                    review_state=ReviewState.BLOCKED.value,
+                    answer=None,
+                    citations=[],
+                    outline_ids=outline_ids,
                 )
                 layers.append("L3")
                 return {**grounded, "layers_used": layers, "steps": l2.get("steps") or []}
@@ -118,7 +146,11 @@ class FourLayerReasoner:
             draft = l2.get("draft")
 
         if draft:
-            state = ReviewState.ANSWERED.value if draft.get("sufficient") else ReviewState.NEEDS_REVIEW.value
+            state = (
+                ReviewState.ANSWERED.value
+                if draft.get("sufficient")
+                else ReviewState.NEEDS_REVIEW.value
+            )
             if ttype in {"compare", "cascade"}:
                 state = ReviewState.NEEDS_REVIEW.value
             citations = draft.get("citations") or []
@@ -156,7 +188,9 @@ class FourLayerReasoner:
                     {
                         "node_id": nid,
                         "label": full.get("raw_label"),
-                        "path": " › ".join((full.get("ancestors") or []) + [full.get("raw_label") or ""]),
+                        "path": " › ".join(
+                            (full.get("ancestors") or []) + [full.get("raw_label") or ""]
+                        ),
                         "text": (full.get("text") or "")[:800],
                         "side": doc_side(full.get("ancestors"), full.get("raw_label")),
                     }
@@ -165,19 +199,45 @@ class FourLayerReasoner:
             rels = l1.get("relations") or []
             multi = len(packed) > 1 or bool(rels)
             answer = render_related_answer(packed, rels) if packed else {"hits": l1["hits"][:6]}
-            state = ReviewState.NEEDS_REVIEW.value if multi else (
-                ReviewState.ANSWERED.value if ttype == "lookup_term" else ReviewState.NEEDS_REVIEW.value
+            state = (
+                ReviewState.NEEDS_REVIEW.value
+                if multi
+                else (
+                    ReviewState.ANSWERED.value
+                    if ttype == "lookup_term"
+                    else ReviewState.NEEDS_REVIEW.value
+                )
             )
         elif not draft:
             state = ReviewState.INSUFFICIENT_EVIDENCE.value
             citations = []
             answer = None
 
+        normalized_query = "".join(
+            char
+            for char in unicodedata.normalize("NFD", str(task.get("query") or "").casefold())
+            if unicodedata.category(char) != "Mn"
+        )
+        if ttype == "unscoped" and any(
+            phrase in normalized_query
+            for phrase in ("on khong", "is it okay", "is this valid", "is this safe")
+        ):
+            state = ReviewState.INSUFFICIENT_EVIDENCE.value
+            citations = []
+            answer = None
+
         grounded = self.l3.run(
-            envelope, task, review_state=state, answer=answer, citations=citations, outline_ids=outline_ids
+            envelope,
+            task,
+            review_state=state,
+            answer=answer,
+            citations=citations,
+            outline_ids=outline_ids,
         )
         if ttype in COMPARE_TYPES and not (grounded.get("citations") or []) and l1.get("hits"):
-            fallback_cites = [h.get("citation") or {"node_id": h.get("node_id")} for h in l1["hits"][:6]]
+            fallback_cites = [
+                h.get("citation") or {"node_id": h.get("node_id")} for h in l1["hits"][:6]
+            ]
             grounded = self.l3.run(
                 envelope,
                 task,
@@ -200,7 +260,9 @@ class FourLayerReasoner:
         }
 
 
-def _restrict_selected_members(result: dict, task: dict, envelope: ToolEnvelope, gateway: ToolGateway) -> dict:
+def _restrict_selected_members(
+    result: dict, task: dict, envelope: ToolEnvelope, gateway: ToolGateway
+) -> dict:
     """Keep retrieval output inside the caller-selected dossier members."""
 
     selected = {str(item) for item in (task.get("selected_member_ids") or []) if item}
@@ -217,6 +279,12 @@ def _restrict_selected_members(result: dict, task: dict, envelope: ToolEnvelope,
         if node.node_id in selected or (node.source_file_id and node.source_file_id in selected)
     }
     bounded = dict(result)
-    bounded["outline_ids"] = [item for item in result.get("outline_ids") or [] if item.get("node_id") in allowed]
-    bounded["hits"] = [item for item in result.get("hits") or [] if (item.get("node_id") or item.get("chunk_id")) in allowed]
+    bounded["outline_ids"] = [
+        item for item in result.get("outline_ids") or [] if item.get("node_id") in allowed
+    ]
+    bounded["hits"] = [
+        item
+        for item in result.get("hits") or []
+        if (item.get("node_id") or item.get("chunk_id")) in allowed
+    ]
     return bounded

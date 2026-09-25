@@ -39,9 +39,15 @@ def money_decimal(value: str | None, *, unit: str | None = None) -> Decimal | No
     return Decimal(digits)
 
 
-def compare_facts(facts: list[Fact], *, annex_labels_present: set[str] | None = None) -> tuple[list[Candidate], list[EvidenceIssue]]:
+def compare_facts(
+    facts: list[Fact],
+    *,
+    annex_labels_present: set[str] | None = None,
+    relation_pairs: set[tuple[str, str]] | None = None,
+) -> tuple[list[Candidate], list[EvidenceIssue]]:
     """One finding = two sources in the same contract context. No legal winner."""
     annex_labels_present = annex_labels_present or set()
+    relation_pairs = {_relation_key(*pair) for pair in (relation_pairs or set())}
     issues = _missing_annex_issues(facts, annex_labels_present)
     keyed: dict[tuple, list[Fact]] = defaultdict(list)
     for f in facts:
@@ -55,7 +61,9 @@ def compare_facts(facts: list[Fact], *, annex_labels_present: set[str] | None = 
     out: list[Candidate] = []
     for ctx, group in keyed.items():
         item = ctx[0]
-        out.extend(_pair_two_sources(_dedupe_facts(group), item))
+        compact = _dedupe_facts(group)
+        issues.extend(_missing_pairing_evidence(compact, item, relation_pairs))
+        out.extend(_pair_two_sources(compact, item, relation_pairs))
 
     fee_keys = {ctx[0] for ctx in keyed if ctx[0] and not str(ctx[0]).startswith("mst")}
     scopes = [k for k in fee_keys if k in {"X", "Y"} or str(k).startswith("scope")]
@@ -90,7 +98,9 @@ def _context_key(f: Fact) -> tuple:
     return (f.item_key or f.scope,)
 
 
-def _pair_two_sources(group: list[Fact], item: str) -> list[Candidate]:
+def _pair_two_sources(
+    group: list[Fact], item: str, relation_pairs: set[tuple[str, str]]
+) -> list[Candidate]:
     """Body↔annex (and at most one within-doc pair). No N×N, no annex tournament."""
     bodies = [f for f in group if (f.source_role or "body") != "annex"]
     annexes: dict[str, list[Fact]] = defaultdict(list)
@@ -104,6 +114,8 @@ def _pair_two_sources(group: list[Fact], item: str) -> list[Candidate]:
         body_rep = _prefer_body(body_vals)
         for _pl, afs in annexes.items():
             for annex_rep in _unique_values(afs):
+                if not _pairing_allowed(body_rep, annex_rep, relation_pairs):
+                    continue
                 cand = _pair(body_rep, annex_rep, item)
                 if cand:
                     out.append(cand)
@@ -131,6 +143,47 @@ def _pair_two_sources(group: list[Fact], item: str) -> list[Candidate]:
             )
         ]
     return []
+
+
+def _relation_key(left: str, right: str) -> tuple[str, str]:
+    return tuple(sorted((str(left), str(right))))
+
+
+def _pairing_allowed(left: Fact, right: Fact, relation_pairs: set[tuple[str, str]]) -> bool:
+    left_file = left.citation.source_file_id
+    right_file = right.citation.source_file_id
+    if not left_file or not right_file or left_file == right_file:
+        return True
+    return _relation_key(left.citation.node_id, right.citation.node_id) in relation_pairs
+
+
+def _missing_pairing_evidence(
+    group: list[Fact], item: str, relation_pairs: set[tuple[str, str]]
+) -> list[EvidenceIssue]:
+    bodies = [fact for fact in group if (fact.source_role or "body") != "annex"]
+    annexes = [fact for fact in group if (fact.source_role or "body") == "annex"]
+    if not bodies or not annexes:
+        return []
+    missing: list[tuple[Fact, Fact]] = []
+    for body in bodies:
+        for annex in annexes:
+            if not _pairing_allowed(body, annex, relation_pairs):
+                missing.append((body, annex))
+    if not missing:
+        return []
+    body, annex = missing[0]
+    return [
+        EvidenceIssue(
+            issue_id=f"body-annex-relation:{body.fact_id}:{annex.fact_id}",
+            missing="BODY_ANNEX_RELATION",
+            reason=(
+                f"Thiếu relation evidence cho body/annex của {item}; "
+                "không tạo finding cross-document."
+            ),
+            citation=annex.citation,
+            review_state=ReviewState.INSUFFICIENT_EVIDENCE,
+        )
+    ]
 
 
 def _unique_values(facts: list[Fact]) -> list[Fact]:

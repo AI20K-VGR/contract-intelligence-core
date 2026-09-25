@@ -217,8 +217,17 @@ def run_idp(
         for line in page.line_texts.values():
             if fold_for_match(line).lstrip().startswith("phu luc"):
                 annex_labels.update(annex_keys_from_labels({line}))
+    relation_pairs = {
+        tuple(sorted((edge.from_node_id, edge.to_node_id)))
+        for edge in (record.relation_graph.edges if record.relation_graph else [])
+        if edge.relation_type.value in {"SAME_CLAUSE", "REFERENCES", "AMENDS"}
+    }
     pairer = CandidatePairer()
-    candidates, issues = pairer.pair_with_issues(facts, annex_labels=annex_labels)
+    candidates, issues = pairer.pair_with_issues(
+        facts,
+        annex_labels=annex_labels,
+        relation_pairs=relation_pairs,
+    )
     issues = [*record.relation_graph.issues, *issues] if record.relation_graph else issues
     issues.extend(_runtime_issues(runtime))
     issues.extend(_validate_output_citations(record, facts, candidates, events))

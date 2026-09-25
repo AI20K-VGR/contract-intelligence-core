@@ -41,6 +41,16 @@ def adapt_ai1_snapshot_result(result: dict[str, Any]) -> Ai1SnapshotPayload:
     page_items: list[dict[str, Any]] = []
     line_offsets: dict[str, tuple[int, int, int, list[float]]] = {}
     document_offset = 0
+    continuation_from_by_table: dict[str, str] = {}
+    continuation_to_tables: set[str] = set()
+    for link in snapshot.get("table_continuity", []):
+        if not isinstance(link, dict) or str(link.get("decision", "")).upper() != "MERGE":
+            continue
+        from_id = str(link.get("from_table_id") or "").strip()
+        to_id = str(link.get("to_table_id") or "").strip()
+        if from_id and to_id:
+            continuation_from_by_table[to_id] = from_id
+            continuation_to_tables.add(from_id)
 
     for page in pages:
         page_no = int(page["page_number"])
@@ -94,7 +104,19 @@ def adapt_ai1_snapshot_result(result: dict[str, Any]) -> Ai1SnapshotPayload:
                 }
             )
 
-        for table in page.get("tables", []):
+        for table_index, table in enumerate(page.get("tables", [])):
+            source_id = str(table.get("id") or f"page:{page_no}:table:{table_index}")
+            continued_from = (
+                table.get("continued_from_table_id")
+                or table.get("continues_table_id")
+                or table.get("continued_from")
+                or continuation_from_by_table.get(source_id)
+            )
+            continued_by = (
+                table.get("continued_by_table_id")
+                or table.get("continued_by")
+                or source_id in continuation_to_tables
+            )
             cells: list[dict[str, Any]] = []
             header = [str(value or "") for value in table.get("header", [])]
             table_rows = table.get("rows", [])
@@ -147,6 +169,9 @@ def adapt_ai1_snapshot_result(result: dict[str, Any]) -> Ai1SnapshotPayload:
                     )
             tables.append(
                 {
+                    "source_id": source_id,
+                    "continued_from_source_id": str(continued_from) if continued_from else None,
+                    "is_multi_page": bool(continued_from or continued_by),
                     "page_no": page_no,
                     "bbox": list(table["bbox_normalized"]),
                     "rows_count": len(table_rows) + body_row_offset,
@@ -167,7 +192,7 @@ def adapt_ai1_snapshot_result(result: dict[str, Any]) -> Ai1SnapshotPayload:
         else:
             start = end = 0
         node_bbox = node.get("bbox_normalized")
-        source_id = str(node.get("node_id") or "").strip() or None
+        node_source_id: str | None = str(node.get("node_id") or "").strip() or None
         parent_raw = node.get("parent_id")
         parent_source_id = str(parent_raw).strip() if parent_raw else None
         node_regions = node.get("regions") or []
@@ -177,7 +202,7 @@ def adapt_ai1_snapshot_result(result: dict[str, Any]) -> Ai1SnapshotPayload:
                 "label": str(node.get("label_normalized", "")),
                 "number": str(node.get("label_raw") or ""),
                 "title": str(node.get("label_normalized", "")),
-                "source_id": source_id,
+                "source_id": node_source_id,
                 "parent_source_id": parent_source_id,
                 # New snapshots carry authoritative clause text. Rebuilding
                 # it from positioned lines would silently discard OCR text

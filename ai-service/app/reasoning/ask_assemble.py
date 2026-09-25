@@ -35,14 +35,21 @@ def assemble_party(
     mst_for_role: list[dict[str, Any]] = []
     appearances: list[str] = []
 
-    def consider(nid: str | None, blob: str, value: str | None = None, citation: dict | None = None) -> None:
+    def consider(
+        nid: str | None,
+        blob: str,
+        value: str | None = None,
+        citation: dict | None = None,
+        *,
+        allow_name: bool = True,
+    ) -> None:
         if not nid or not role_pat.search(fold_for_match(blob)):
             return
         party_blob = _party_segment(blob, letter)
         if MENTION_SKIP.search(party_blob) and not re.search(r"\bMST\b|\d{8,14}|công ty", party_blob, re.I):
             return
         appearances.append(nid)
-        name = value or _name_from_blob(party_blob)
+        name = (value or _name_from_blob(party_blob)) if allow_name else _explicit_name_from_blob(party_blob)
         if name:
             names[name] = names.get(name, 0) + 1
         tax_match = re.search(r"\b(?:mst|ma so thue|tax\s*(?:id|code))\s*[:\-]?\s*(\d{10}(?:-?\d{3})?)(?!\d)", fold_for_match(party_blob), re.I)
@@ -67,16 +74,20 @@ def assemble_party(
         full = get_node(n.get("node_id")) if get_node and n.get("node_id") else None
         blob = f"{(full or {}).get('raw_label') or n.get('raw_label') or ''}\n{(full or {}).get('text') or n.get('text') or ''}"
         if role_pat.search(fold_for_match(blob)):
-            consider(n.get("node_id"), blob, citation=(full or {}).get("citation"))
+            consider(
+                n.get("node_id"),
+                blob,
+                citation=(full or {}).get("citation"),
+                allow_name=False,
+            )
     for h in party_hits or []:
         nid = h.get("node_id")
         blob = f"Bên {letter}: {h.get('value') or ''}"
         if nid:
             appearances.append(str(nid))
-        name = str(h.get("value") or "") or _name_from_blob(blob)
-        if name:
-            names[name] = names.get(name, 0) + 1
-        cites.append(h.get("citation") or {"node_id": nid, "text_span": name or blob[:200]})
+        # Generic role mentions are evidence of the role, not a legal name.
+        # Only explicit party_* fields above may establish an alias.
+        cites.append(h.get("citation") or {"node_id": nid, "text_span": blob[:200]})
     for h in mst_hits or []:
         if str(h.get("structured_key") or "") not in role_mst_keys:
             continue
@@ -102,7 +113,7 @@ def assemble_party(
         f"Bên {letter} trên snapshot (không khẳng định tư cách pháp lý, không chọn bên đúng):",
         f"- Tên/alias: {', '.join(uniq_names) if uniq_names else '(không tách được tên)'}",
         f"- MST: {'; '.join(mst_bits) if mst_bits else '(không gắn MST trên cùng dòng Bên ' + letter + ')'}",
-        f"- Xuất hiện: {', '.join(dict.fromkeys(appearances))}",
+        f"- Xuất hiện: {len(dict.fromkeys(appearances))} vị trí có citation",
     ]
     if len(groups) > 1:
         lines.append("- Nhiều MST cùng vai — NEEDS_REVIEW, không chọn MST đúng.")
@@ -413,6 +424,21 @@ def _name_from_blob(blob: str) -> str | None:
     if m and not re.search(r"[•·…]", m.group(1)):
         return re.sub(r"\s*(?:MST|Mã số thuế)[:\s]*\d{8,14}.*", "", m.group(1), flags=re.I).strip()[:80]
     return None
+
+
+def _explicit_name_from_blob(blob: str) -> str | None:
+    """Extract only a labelled company declaration from generic evidence."""
+
+    match = re.search(
+        r"(?:được\s+ghi|ghi\s+nhận|tên\s+(?:đơn\s+vị|công\s+ty))\s*:\s*"
+        r"((?:công\s+ty|cty)\s+[^,.;\n]+)",
+        blob,
+        flags=re.I,
+    )
+    if not match:
+        return None
+    value = re.sub(r"\s+", " ", match.group(1)).strip()
+    return value[:80] or None
 
 
 def _party_segment(blob: str, letter: str) -> str:

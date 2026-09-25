@@ -6,6 +6,7 @@ Layer: infrastructure (persistence) — concrete impl cho Dossier/Document/Job/M
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 from sqlalchemy import and_, exists, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -71,6 +72,7 @@ def _dossier_to_domain(orm: DossierORM) -> Dossier:
         batch_id=orm.batch_id,
         has_conflicts=orm.has_conflicts,
         metadata=orm.metadata_json,
+        checksum=orm.checksum,
         created_at=orm.created_at,
         updated_at=orm.updated_at,
     )
@@ -83,6 +85,7 @@ def _dossier_from_domain(d: Dossier) -> DossierORM:
         name=d.name,
         batch_id=d.batch_id,
         has_conflicts=d.has_conflicts,
+        checksum=d.checksum,
         metadata_json=d.metadata,
         status="uploaded",
     )
@@ -112,28 +115,24 @@ class DossierRepositoryImpl(DossierRepository):
         meta = DossierORM.metadata_json
         owner = meta["created_by"].as_string()
         scope = meta["access_scope"].as_string()
-        bind = self._session.get_bind()
-        dialect = bind.dialect.name if bind is not None else "postgresql"
-        if dialect == "sqlite":
-            # SQLite JSON1 — no Postgres ::json / json_array_elements / ->>
-            shared = text(
-                "EXISTS (SELECT 1 FROM json_each("
-                "CASE WHEN json_type("
-                "json_extract(COALESCE(dossier.metadata, '{}'), '$.shared_with')"
-                ") = 'array' "
-                "THEN json_extract(COALESCE(dossier.metadata, '{}'), '$.shared_with') "
-                "ELSE json('[]') END"
-                ") AS share_grant "
-                "WHERE json_extract(share_grant.value, '$.id') = :viewer_id)"
-            ).bindparams(viewer_id=viewer_id)
+        shared: Any
+        if self._session.bind is not None and self._session.bind.dialect.name == "sqlite":
+            shared_rows = (
+                func.json_each(func.coalesce(func.json_extract(meta, "$.shared_with"), "[]"))
+                .table_valued("key", "value")
+                .alias("share_grant")
+            )
+            shared = exists(
+                select(1)
+                .select_from(shared_rows)
+                .where(func.json_extract(shared_rows.c.value, "$.id") == viewer_id)
+            )
         else:
             shared = text(
                 "EXISTS (SELECT 1 FROM json_array_elements("
                 "CASE WHEN json_typeof("
-                "COALESCE(dossier.metadata, '{}'::json)->'shared_with'"
-                ") = 'array' "
-                "THEN COALESCE(dossier.metadata, '{}'::json)->'shared_with' "
-                "ELSE '[]'::json END"
+                "COALESCE(dossier.metadata, '{}'::json)->'shared_with') = 'array' "
+                "THEN COALESCE(dossier.metadata, '{}'::json)->'shared_with' ELSE '[]'::json END"
                 ") AS share_grant WHERE share_grant->>'id' = :viewer_id)"
             ).bindparams(viewer_id=viewer_id)
         return or_(

@@ -6,6 +6,10 @@ import {
   type DocumentTable,
   type DocumentTableCell,
 } from '../api/structure'
+import {
+  mergeDocumentTables,
+  type MergedDocumentTable,
+} from '../structure/tables'
 import { MaterialIcon } from './icons'
 
 function cellAt(table: DocumentTable, row: number, column: number) {
@@ -23,10 +27,10 @@ function covered(table: DocumentTable, row: number, column: number) {
   )
 }
 
-function tableNode(table: DocumentTable, citeNo: number): ClauseNode {
-  const pageNo = table.pageNo || 1
+function tableNode(table: MergedDocumentTable, citeNo: number): ClauseNode {
+  const pageNo = table.pageStart || table.pageNo || 1
   const cellBoxes = table.cells.flatMap((cell) =>
-    cell.bbox ? [{ pageNo, bbox: cell.bbox }] : [],
+    cell.bbox ? [{ pageNo: cell.pageNo || pageNo, bbox: cell.bbox }] : [],
   )
   const regions = table.bbox
     ? [{ pageNo, bbox: table.bbox }, ...cellBoxes]
@@ -37,16 +41,19 @@ function tableNode(table: DocumentTable, citeNo: number): ClauseNode {
     label: `Bảng ${citeNo}`,
     number: String(citeNo),
     title: `Bảng ${citeNo}`,
-    text: table.cells.map((cell) => cell.text).filter(Boolean).join(' '),
+    text: table.cells
+      .map((cell) => cell.text)
+      .filter(Boolean)
+      .join(' '),
     pageStart: table.pageNo || 1,
-    pageEnd: table.pageNo || 1,
+    pageEnd: table.pageEnd || pageNo,
     confidence: null,
     regions,
     children: [],
   }
 }
 
-function TableGrid({ table }: { table: DocumentTable }) {
+function TableGrid({ table }: { table: MergedDocumentTable }) {
   const rowCount = Math.max(
     table.rows,
     ...table.cells.map((cell) => cell.row + cell.rowSpan),
@@ -68,9 +75,7 @@ function TableGrid({ table }: { table: DocumentTable }) {
               {Array.from({ length: columnCount }, (_, column) => {
                 if (covered(table, row, column)) return null
                 const cell = cellAt(table, row, column)
-                return (
-                  <Cell key={`${row}-${column}`} cell={cell} />
-                )
+                return <Cell key={`${row}-${column}`} cell={cell} />
               })}
             </tr>
           ))}
@@ -128,12 +133,14 @@ export function TableStructure({
   }, [documentId])
 
   const needle = query.trim().toLowerCase()
-  const visible = (tables ?? [])
+  const visible = mergeDocumentTables(tables ?? [])
     .map((table, index) => ({ table, index }))
     .filter(({ table }) => table.cells.length > 0)
     .filter(({ table }) => {
       if (!needle) return true
-      return table.cells.some((cell) => cell.text.toLowerCase().includes(needle))
+      return table.cells.some((cell) =>
+        cell.text.toLowerCase().includes(needle),
+      )
     })
 
   if (error) {
@@ -170,7 +177,10 @@ export function TableStructure({
           className="overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm"
         >
           <div className="flex items-center gap-space-sm border-b border-outline-variant/20 px-space-md py-3">
-            <MaterialIcon name="table_chart" className="text-[18px] text-secondary" />
+            <MaterialIcon
+              name="table_chart"
+              className="text-[18px] text-secondary"
+            />
             <h2 className="font-title-sm text-title-sm text-on-surface">
               Bảng {index + 1}
             </h2>
@@ -188,7 +198,8 @@ export function TableStructure({
               </button>
             ) : null}
             <span className="font-body-sm text-body-sm text-on-surface-variant">
-              Trang {table.pageNo || '—'}
+              Trang {table.pageStart || '—'}
+              {table.pageEnd > table.pageStart ? `–${table.pageEnd}` : ''}
               {table.continued ? ' · nối trang' : ''}
               {table.rows > 0
                 ? ` · ${table.rows} dòng × ${table.columns} cột`

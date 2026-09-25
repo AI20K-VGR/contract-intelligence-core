@@ -1,0 +1,29 @@
+{
+  "schema_version": "ai2.mutation.mapping.v1",
+  "domains": {
+    "ai2_contract_package": {
+      "rules": [
+        {"rule_id": "contract-schema-envelope", "control_field": "state", "negative_fixture": "malformed_snapshot", "mutation": "remove_schema_version"},
+        {"rule_id": "contract-citation-validity", "control_field": "citations", "negative_fixture": "citation_geometry", "mutation": "drop_citation_identity"},
+        {"rule_id": "contract-fail-closed", "control_field": "state", "negative_fixture": "missing_annex", "mutation": "force_pass_state"},
+        {"rule_id": "contract-no-legal-winner", "control_field": "no_legal_winner", "negative_fixture": "body_annex_conflict", "mutation": "emit_legal_winner"},
+        {"rule_id": "contract-raw-preservation", "control_field": "no_unsupported_conversion", "negative_fixture": "fact_boundaries", "mutation": "convert_currency"},
+        {"rule_id": "contract-scope-isolation", "control_field": "no_leakage", "negative_fixture": "security_scope", "mutation": "mix_tenant"},
+        {"rule_id": "contract-relation-evidence", "control_field": "relations", "negative_fixture": "full_contract_annex", "mutation": "drop_relation_citation"},
+        {"rule_id": "contract-blocked-policy", "control_field": "blocked", "negative_fixture": "partial_budget", "mutation": "hide_budget_block"}
+      ]
+    },
+    "ai2_grounded_query": {
+      "rules": [
+        {"rule_id": "query-citation-required", "control_field": "citations", "negative_fixture": "structured_lookup", "mutation": "drop_claim_citation"},
+        {"rule_id": "query-fail-closed", "control_field": "state", "negative_fixture": "missing_annex_query", "mutation": "invent_answer"},
+        {"rule_id": "query-two-sided-comparison", "control_field": "two_sided_citations", "negative_fixture": "body_annex_compare", "mutation": "drop_right_side"},
+        {"rule_id": "query-policy-block", "control_field": "blocked", "negative_fixture": "egress_block", "mutation": "return_answer_on_egress"},
+        {"rule_id": "query-scope-isolation", "control_field": "no_cross_tenant_data", "negative_fixture": "wrong_dossier_scope", "mutation": "mix_dossier"},
+        {"rule_id": "query-relation-grounding", "control_field": "relation_edges", "negative_fixture": "relation_graph", "mutation": "invent_edge"},
+        {"rule_id": "query-forbidden-claims", "control_field": "no_legal_winner", "negative_fixture": "cascade_query", "mutation": "emit_legal_winner"},
+        {"rule_id": "query-unicode-preservation", "control_field": "diacritics", "negative_fixture": "unicode_query", "mutation": "strip_diacritics"}
+      ]
+    }
+  }
+}

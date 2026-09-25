@@ -5,9 +5,6 @@ The canonical Backend ↔ AI2 processing wire contracts are:
 - `be.ai2.processing.request.v1`: Backend submits the complete dossier snapshots, membership/role relations, and authoritative policy flags.
 - `ai2.be.processing.result.v1`: AI2 returns an asynchronous processing result with facts, findings, resolvable citations, and a proposed index contribution.
 
-Runtime transport (MVP body-only): Kafka — see [DOC-05e](../DOC-05e-kafka-ai2-idp-contract.md).
-HTTP `POST /jobs/idp` remains demo/lab only.
-
 See [BE-AI2-PROCESSING-CONTRACT.vi.md](BE-AI2-PROCESSING-CONTRACT.vi.md) for the lifecycle, idempotency, and ownership rules.
 
 The AI1 snapshot contract remains the evidence-level contract. The processing

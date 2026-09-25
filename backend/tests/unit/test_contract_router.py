@@ -27,11 +27,42 @@ from contract_intelligence.contract.application.services.contract_service import
 )
 from contract_intelligence.contract.domain.entities.document import Document, DocumentRole
 from contract_intelligence.contract.domain.entities.dossier import Dossier
+from contract_intelligence.contract.interfaces.api.routers.contract_router import _hits_from_ai2
 from contract_intelligence.main import app
 from contract_intelligence.shared.auth.schemas import AuthenticatedUser
 from contract_intelligence.shared.exceptions import NotFoundError
 
 pytestmark = pytest.mark.asyncio
+
+
+async def test_ai2_text_span_citation_is_projected_to_fe_hit() -> None:
+    hits = _hits_from_ai2(
+        {"citations": [{"text_span": "Giá hợp đồng: 1.000.000.000 VND", "page": 9}]}
+    )
+
+    assert len(hits) == 1
+    assert hits[0].text == "Giá hợp đồng: 1.000.000.000 VND"
+    assert hits[0].page_no == 9
+
+
+async def test_ai2_citation_projection_preserves_source_location() -> None:
+    hits = _hits_from_ai2(
+        {
+            "citations": [
+                {
+                    "text_span": "Bên A là bên giao thầu.",
+                    "source_file_id": "doc-1",
+                    "line_ids": ["doc-1:s1:p003:l002"],
+                    "page": 3,
+                    "bbox": [0.1, 0.2, 0.8, 0.3],
+                }
+            ]
+        }
+    )
+
+    assert hits[0].source_file_id == "doc-1"
+    assert hits[0].line_id == "doc-1:s1:p003:l002"
+    assert hits[0].bbox == [0.1, 0.2, 0.8, 0.3]
 
 
 # ---------------------------------------------------------------------------
@@ -184,7 +215,7 @@ class TestGetDossierEndpoint:
     async def test_returns_200_with_dossier_detail(
         self, client: AsyncClient, mock_svc: AsyncMock
     ) -> None:
-        dossier = _make_dossier(metadata={"tags": ["test"]})
+        dossier = _make_dossier(metadata={"tags": ["test"], "created_by": "usr_op_01"})
         mock_svc.get_dossier.return_value = dossier
         mock_svc.list_documents.return_value = []
 
@@ -194,7 +225,10 @@ class TestGetDossierEndpoint:
         body = resp.json()
         assert body["data"]["id"] == "dos_TEST_01"
         assert body["data"]["name"] == "Test Dossier"
-        assert body["data"]["metadata"] == {"tags": ["test"]}
+        assert body["data"]["metadata"] == {
+            "tags": ["test"],
+            "created_by": "usr_op_01",
+        }
         assert body["data"]["documents"] == []
 
     async def test_returns_404_when_not_found(
@@ -304,7 +338,7 @@ class TestListDossierDocumentsEndpoint:
     async def test_returns_200_with_document_list(
         self, client: AsyncClient, mock_svc: AsyncMock
     ) -> None:
-        mock_svc.get_dossier.return_value = _make_dossier()
+        mock_svc.get_dossier.return_value = _make_dossier(metadata={"created_by": "usr_op_01"})
         mock_svc.list_documents.return_value = [
             _make_document(id="doc_01", filename="contract.pdf", order_index=0),
             _make_document(
@@ -337,7 +371,7 @@ class TestListDossierDocumentsEndpoint:
     async def test_returns_empty_list_for_dossier_without_documents(
         self, client: AsyncClient, mock_svc: AsyncMock
     ) -> None:
-        mock_svc.get_dossier.return_value = _make_dossier()
+        mock_svc.get_dossier.return_value = _make_dossier(metadata={"created_by": "usr_op_01"})
         mock_svc.list_documents.return_value = []
 
         resp = await client.get("/api/v1/dossiers/dos_TEST_01/documents")

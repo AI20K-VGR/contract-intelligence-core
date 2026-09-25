@@ -129,7 +129,7 @@ def build_relation_graph(record: DossierRecord) -> RelationGraph:
     """Build a bounded, evidence-linked graph from one pinned snapshot."""
 
     digest = record.pins.source_snapshot_digest
-    evidence_nodes = record.evidence_nodes()
+    evidence_nodes = sorted(record.evidence_nodes(), key=lambda node: (node.order, node.node_id))
     graph_id = "graph:" + hashlib.sha256(
         f"{digest}|{','.join(node.node_id for node in evidence_nodes)}".encode("utf-8")
     ).hexdigest()[:24]
@@ -216,7 +216,9 @@ def build_relation_graph(record: DossierRecord) -> RelationGraph:
         )
 
     for child in evidence_nodes:
-        if child.parent_id and child.parent_id in by_id:
+        if not child.parent_id:
+            continue
+        if child.parent_id in by_id:
             add_edge(
                 child.parent_id,
                 child.node_id,
@@ -224,6 +226,14 @@ def build_relation_graph(record: DossierRecord) -> RelationGraph:
                 RelationSupport.STRUCTURAL,
                 [citation(child.node_id)],
                 ReviewState.PASS,
+            )
+        else:
+            issues.append(
+                _graph_issue(
+                    digest,
+                    f"missing parent {child.parent_id}",
+                    citation(child.node_id),
+                )
             )
 
     clause_groups: dict[str, list[str]] = {}

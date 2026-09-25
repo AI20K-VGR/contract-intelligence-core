@@ -132,15 +132,13 @@ class ContractService:
         sha256 = hashlib.sha256(data).hexdigest()
         size_bytes = file_size_bytes if file_size_bytes is not None else len(data)
 
-        # Prefer caller-supplied blob_uri (MinIO s3://…). Only write local FileStorage
-        # when no remote URI is provided (tests / legacy local-only path).
+        # Always persist bytes in app FileStorage so content streaming works
+        # (tests use FakeFileStorage; prod may dual-write while MinIO is canonical).
         safe_name = safe_filename(filename, fallback=f"{role.value.lower()}.pdf")
         local_key = f"contracts/{dossier_id}/{sha256[:2]}/{safe_name}"
-        if blob_uri is not None:
-            stored_uri = blob_uri
-        else:
-            await self._storage.put(local_key, _bytes_to_stream(data))
-            stored_uri = local_key
+        storage_key = blob_uri if blob_uri is not None else local_key
+        await self._storage.put(storage_key, _bytes_to_stream(data))
+        stored_uri = blob_uri if blob_uri is not None else local_key
 
         document = Document(
             id=new_ulid("doc_"),
@@ -177,17 +175,21 @@ class ContractService:
     ) -> tuple[list[Dossier], int]:
         from typing import cast
 
+        list_kwargs: dict[str, Any] = {
+            "status": status,
+            "has_conflicts": has_conflicts,
+            "q": q,
+            "batch_id": batch_id,
+            "limit": limit,
+            "offset": offset,
+        }
+        # Keep older repository test doubles and adapters compatible when the
+        # optional viewer scope is not used.
+        if viewer_id is not None:
+            list_kwargs["viewer_id"] = viewer_id
         page = cast(
             Any,  # Page is generic with bound=str — runtime carries Dossier entities
-            await self._dossier_repo.list(
-                status=status,
-                has_conflicts=has_conflicts,
-                q=q,
-                batch_id=batch_id,
-                viewer_id=viewer_id,
-                limit=limit,
-                offset=offset,
-            ),
+            await self._dossier_repo.list(**list_kwargs),
         )
         items = list(page.items)
         # Hydrate latest job onto each dossier for DossierSummary.latest_job_status
@@ -213,7 +215,17 @@ class ContractService:
         if name:
             dossier.name = name
         if metadata is not None:
-            dossier.metadata = metadata
+            # Metadata updates from the UI are partial. Merge them instead of
+            # replacing the server-owned ACL fields. Replacing the object made
+            # an otherwise visible dossier fail the fail-closed read ACL on
+            # the next structure/query request.
+            merged_metadata = dict(dossier.metadata or {})
+            incoming_metadata = dict(metadata)
+            for key in ("created_by", "created_by_name", "access_scope", "shared_with"):
+                if key in merged_metadata:
+                    incoming_metadata.pop(key, None)
+            merged_metadata.update(incoming_metadata)
+            dossier.metadata = merged_metadata
         await self._dossier_repo.save(dossier)
         return dossier
 

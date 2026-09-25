@@ -19,6 +19,8 @@ Schema authority:
 
 Endpoint demo: `POST /jobs/idp`. Backend gửi `snapshots[]` đầy đủ của dossier, không chỉ body. Đây là điều kiện để AI2 so sánh body–annex và tạo finding liên tài liệu.
 
+`service_envelope` là field bắt buộc của request canonical. Envelope có `payload_sha256`, nonce, thời hạn, scope và chữ ký HMAC; AI2 phải xác thực envelope trước khi nhận request hoặc chạy worker. `idempotency_key` được ghép với `attempt` để chống submit trùng và payload conflict.
+
 ```json
 {
   "schema_version": "be.ai2.processing.request.v1",
@@ -74,9 +76,7 @@ Backend phải gửi đúng một member `body`, mọi member phải trỏ tới
 
 ## 3. Async lifecycle và retry
 
-**Runtime production (DOC-05e):** Backend publish `ai2.idp.command` lên Kafka `ci.ai2.idp.commands` với payload = request này; AI2 worker xử lý và publish `ai2.idp.completed` / `ai2.idp.failed` lên `ci.ai2.idp.results`. HTTP không phải path runtime.
-
-**Demo HTTP:** `POST /jobs/idp` trả job envelope với `202 Accepted`; client/lab poll `GET /jobs/{job_id}`. Public job status là:
+`POST /jobs/idp` trả job envelope với `202 Accepted`; Backend poll `GET /jobs/{job_id}`. Public job status là:
 
 `QUEUED → RUNNING → SUCCEEDED | FAILED`
 
@@ -102,6 +102,24 @@ Khi thất bại, `result` là `null` và `errors[]` phải có `code`, `message
 ## 5. Compatibility và Definition of Done
 
 `ai2.idp.request.v1` vẫn được giữ trong code để chạy fixture/adapter tương thích, nhưng contract canonical của API processing là `be.ai2.processing.request.v1` và `ai2.be.processing.result.v1`.
+
+### 5.1 Compatibility boundary
+
+| Shape/version | Vai trò | Quy tắc |
+|---|---|---|
+| `be.ai2.processing.request.v1` + `ai1.snapshot.v1` | Canonical Backend → AI2 | Được validate ở wire boundary; đây là đường duy nhất cho `POST /jobs/idp`. |
+| `ai2.be.processing.result.v1` | Canonical AI2 → Backend | Result phải giữ snapshot identities, citation references và `index_contribution.state=propose`. |
+| `ai1.snapshot.v3` | Legacy/backend adapter | Chỉ được nhận tại `backend/src/contract_intelligence/shared/ai/ai1_adapter.py` để phục vụ persistence tương thích; không được nâng ngầm thành input canonical của AI2. |
+| `ai2.extraction.v2` / `ai2.comparison.v2` | Legacy endpoint/DTO | Không phải result của processing canonical; không dùng làm đường thay thế cho `/jobs/idp`. |
+| `ai2.idp.request.v1` | Compatibility adapter/fixture lane | Được chuyển vào canonical adapter hiện có, nhưng không thay thế transport contract `be.ai2.processing.request.v1`. |
+
+Không tự động đổi version giữa các lane. Mọi migration từ `ai1.snapshot.v3` hoặc legacy result v2 sang canonical phải có contract decision riêng và test parity trước khi mở rộng phạm vi.
+
+### 5.2 Fixture inventory và blocker
+
+- Fixture canonical đã có: `examples/ai1.snapshot.v1.body.example.json`, `examples/ai1.snapshot.v1.annex.example.json` và các JSON Schema v1 trong thư mục này.
+- Contract tests của AI2 dùng fixture sanitized trong `docs/contracts/examples`; không dùng PDF bytes hoặc output runtime làm fixture canonical.
+- Full-suite inventory hiện vẫn có test/import ngoài P1 tham chiếu module hỗ trợ không có trong checkout (ví dụ `scripts.validate_input_coverage`) và dependency môi trường thiếu (`langfuse`). Đây là blocker kiểm thử hiện hữu, không được xử lý bằng cách nới contract hoặc sửa fixture ngoài ownership P1.
 
 Đạt phase khi:
 

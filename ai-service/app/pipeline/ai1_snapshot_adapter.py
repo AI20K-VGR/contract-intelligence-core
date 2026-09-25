@@ -7,35 +7,35 @@ missing evidence explicit while adapting it to the current AI2 record model.
 
 from __future__ import annotations
 
+import re
 import hashlib
 import json
-import re
 import unicodedata
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from app.contracts.errors import ContractValidationError
 from app.contracts.models import (
     AI2IdpRequest,
     AuthContext,
     Citation,
-    Fact,
     HandoffIssue,
+    Fact,
     LifecycleState,
     PageSnapshot,
-    ReviewItem,
     ReviewState,
+    ReviewItem,
     SourceFile,
     StructuralNode,
-    TableCell,
     TableCoverage,
+    TableCell,
     TableSnapshot,
     TenantProfile,
     ToolEnvelope,
     VersionPins,
 )
-from app.contracts.schema_validation import validate_contract
+from app.contracts.errors import ContractValidationError
 from app.contracts.wire import BeAi2ProcessingRequest
+from app.contracts.schema_validation import validate_contract
 from app.pipeline.citations import CitationResolver, quote_digest
 from app.tools.store import DossierRecord
 
@@ -71,29 +71,6 @@ def adapt_be_ai2_processing_request(
     """
 
     _require_mapping(payload, "Backend → AI2 processing request")
-    compatibility = _prepare_ocr_lab_compatibility_payload(payload)
-    if compatibility is not None:
-        normalized_payload, original_snapshots = compatibility
-        try:
-            request = BeAi2ProcessingRequest.model_validate(normalized_payload)
-            from app.pipeline.ai1_ocr_lab_adapter import adapt_ocr_lab_snapshot
-
-            adapted = adapt_ocr_lab_snapshot(
-                original_snapshots[0],
-                tenant_id=tenant_id,
-                actor_id=actor_id,
-                profile=profile,
-                acl_revision=acl_revision,
-                scope_id=request.dossier_id,
-            )
-            return request, adapted
-        except SnapshotContractError:
-            raise
-        except Exception as exc:
-            raise SnapshotContractError(
-                f"invalid OCR-lab compatibility request: {exc}",
-                code="PROCESSING_REQUEST_COMPAT_INVALID",
-            ) from exc
     try:
         validate_contract(
             payload,
@@ -156,80 +133,6 @@ def adapt_be_ai2_processing_request(
         }
     )
     return request, result
-
-
-def _prepare_ocr_lab_compatibility_payload(
-    payload: Mapping[str, Any],
-) -> tuple[dict[str, Any], list[Mapping[str, Any]]] | None:
-    """Prepare the current AI1 OCR-lab shape for the legacy Kafka wire DTO.
-
-    AI1 currently emits the richer OCR-lab snapshot with the same
-    ``ai1.snapshot.v1`` label used by the canonical Kafka contract.  The
-    normalizer is intentionally restricted to that recognizable shape and only
-    normalizes digest prefixes; the existing OCR-lab adapter remains the owner
-    of page/layout semantics and evidence preservation.
-
-    This compatibility path is for the internal Kafka boundary only.  It does
-    not make an ambiguous or incomplete snapshot valid, and canonical payloads
-    continue through the strict JSON-Schema path below.
-    """
-    raw_snapshots = payload.get("snapshots")
-    if not isinstance(raw_snapshots, list) or not raw_snapshots:
-        return None
-
-    from app.pipeline.ai1_ocr_lab_adapter import is_ocr_lab_snapshot
-
-    if not any(is_ocr_lab_snapshot(item) for item in raw_snapshots if isinstance(item, Mapping)):
-        return None
-    if not all(isinstance(item, Mapping) and is_ocr_lab_snapshot(item) for item in raw_snapshots):
-        raise SnapshotContractError(
-            "mixed canonical and OCR-lab snapshots are not supported in one request",
-            code="PROCESSING_REQUEST_COMPAT_MIXED_SHAPES",
-        )
-
-    normalized = json.loads(json.dumps(payload, ensure_ascii=False))
-    normalized_snapshots: list[dict[str, Any]] = []
-    digest_by_snapshot: dict[str, str] = {}
-    for raw_snapshot in raw_snapshots:
-        snapshot = json.loads(json.dumps(raw_snapshot, ensure_ascii=False))
-        source_digest = str(snapshot.get("source_digest") or "")
-        digest = source_digest.removeprefix("sha256:").lower()
-        if not re.fullmatch(r"[0-9a-f]{64}", digest):
-            raise SnapshotContractError(
-                "OCR-lab source_digest must be sha256:<64 hex> or 64 hex",
-                code="OCR_LAB_DIGEST_INVALID",
-            )
-        snapshot["source_digest"] = digest
-        snapshot["dossier_id"] = str(payload.get("dossier_id") or snapshot.get("dossier_id") or "")
-        normalized_snapshots.append(snapshot)
-        digest_by_snapshot[str(snapshot.get("snapshot_id"))] = digest
-
-    normalized["snapshots"] = normalized_snapshots
-    identities = normalized.get("snapshot_identities")
-    if isinstance(identities, list):
-        for identity in identities:
-            if not isinstance(identity, dict):
-                continue
-            snapshot_id = str(identity.get("snapshot_id") or "")
-            snapshot = next(
-                (item for item in normalized_snapshots if str(item.get("snapshot_id")) == snapshot_id),
-                None,
-            )
-            if snapshot is None:
-                continue
-            identity["source_digest"] = digest_by_snapshot[snapshot_id]
-            identity["snapshot_digest"] = _canonical_digest(snapshot)
-
-    members = normalized.get("dossier_members")
-    if isinstance(members, list):
-        for member in members:
-            if not isinstance(member, dict):
-                continue
-            digest = digest_by_snapshot.get(str(member.get("snapshot_id") or ""))
-            if digest:
-                member["source_digest"] = digest
-
-    return normalized, raw_snapshots
 
 
 def adapt_ai2_request(
@@ -2139,10 +2042,11 @@ def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[S
         bbox = _bbox(line.get("bbox")) if _has_geometry(line) else []
         normalized = fold_for_match(raw)
         is_clause = bool(re.match(r"^(?:dieu|khoan|diem)\s+\d", normalized))
+        amount = _explicit_contract_value(raw)
         nodes.append(
             StructuralNode(
                 node_id=f"line:{page_no}:{line_id}",
-                type="CLAUSE" if is_clause else "UNNUMBERED_BLOCK",
+                type="FIELD" if amount else ("CLAUSE" if is_clause else "UNNUMBERED_BLOCK"),
                 raw_label=raw[:160],
                 text=raw,
                 page_range=[page_no],
@@ -2152,9 +2056,35 @@ def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[S
                 page_in_file=page.page_in_file,
                 status="PARTIAL" if page.quality != "OK" else "CONFIRMED",
                 order=order,
+                structured_key="contract_value" if amount else None,
+                structured_value=amount,
+                source_line_ids=[line_id],
             )
         )
     return nodes
+
+
+def _explicit_contract_value(raw: str) -> str | None:
+    """Extract only an explicitly labelled contract total from one OCR line.
+
+    Compact AI1 snapshots contain authoritative lines but do not always carry
+    AI1's optional structured fields.  Promote a value only when the line has
+    a contract-total label and an amount with an explicit currency/unit; an
+    arbitrary number in prose must remain unstructured evidence.
+    """
+
+    folded = fold_for_match(raw).replace("đ", "d")
+    if not re.search(
+        r"(?:tong\s+gia\s+tri(?:\s+tam\s+tinh)?|gia\s+(?:tri\s+)?hop\s+dong|tong\s+cong)",
+        folded,
+        re.I,
+    ):
+        return None
+    match = re.search(r"(\d[\d.,\s]*)\s*(?:vnd|dong)\b", folded, re.I)
+    if not match:
+        return None
+    digits = re.sub(r"\D", "", match.group(1))
+    return digits or None
 
 
 def _adapt_tables(value: Any, page: PageSnapshot, *, page_no: int, source_file_id: str) -> list[TableSnapshot]:
