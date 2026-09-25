@@ -8,6 +8,7 @@ from contract_ocr.table_reconstruct import (
     merge_into_logical_rows,
     slice_lines,
 )
+from contract_ocr.table_reconstruct.types import ColumnValue, SlicedLine
 
 from .factories import DEFAULT_COLUMNS, table_words
 
@@ -112,3 +113,36 @@ class TestMergeIntoLogicalRows:
             ]
         )
         assert rows[1].cells[anchor_col].text == ""
+
+    def test_later_continuation_column_is_not_truncated(self):
+        lines = [
+            SlicedLine(
+                page=1,
+                y0=10,
+                y1=20,
+                columns=[
+                    ColumnValue(text="1", bbox=(0, 10, 10, 20)),
+                    ColumnValue(text="Hàng hóa", bbox=(20, 10, 80, 20)),
+                ],
+            ),
+            SlicedLine(
+                page=1,
+                y0=21,
+                y1=31,
+                columns=[
+                    ColumnValue(text="", bbox=None),
+                    ColumnValue(text="bảo hành", bbox=(20, 21, 80, 31)),
+                    ColumnValue(text="12 tháng", bbox=(90, 21, 130, 31)),
+                ],
+            ),
+        ]
+
+        rows = merge_into_logical_rows(lines, anchor_col=0)
+
+        assert len(rows) == 1
+        assert [cell.text for cell in rows[0].cells] == [
+            "1",
+            "Hàng hóa bảo hành",
+            "12 tháng",
+        ]
+        assert "needs_review" in rows[0].flags

@@ -30,6 +30,7 @@ _TABLE_SEPARATOR_RE = re.compile(r"^[\s|:-]+$")
 _MARKDOWN_HEADING_RE = re.compile(r"^#{1,6}\s+")
 _MARKDOWN_IMAGE_RE = re.compile(r"!\[([^\]]*)\]\(([^)]*)\)")
 _MARKDOWN_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
+_HTML_BREAK_RE = re.compile(r"<br\s*/?>", re.IGNORECASE)
 _LATEX_ESCAPE_RE = re.compile(r"\\([%$_&#{}])")
 
 
@@ -43,6 +44,7 @@ def clean_markdown_text(text: str) -> str:
     text = _MARKDOWN_HEADING_RE.sub("", text)
     text = _MARKDOWN_IMAGE_RE.sub(lambda m: f"[image: {m.group(1) or m.group(2)}]", text)
     text = _MARKDOWN_BOLD_RE.sub(r"\1", text)
+    text = _HTML_BREAK_RE.sub("\n", text)
     text = text.replace("\\(", "").replace("\\)", "")
     text = _LATEX_ESCAPE_RE.sub(r"\1", text)
     return text.strip()
@@ -51,7 +53,10 @@ def clean_markdown_text(text: str) -> str:
 def _split_table_row(line: str) -> list[str]:
     match = _TABLE_ROW_RE.match(line)
     inner = match.group(1) if match else line
-    return [clean_markdown_text(cell) for cell in inner.split("|")]
+    # A literal pipe inside a cell is escaped as ``\|`` in GFM.  Splitting on
+    # every pipe created phantom columns and shifted/truncated the remaining text.
+    cells = re.split(r"(?<!\\)\|", inner)
+    return [clean_markdown_text(cell.replace(r"\|", "|")) for cell in cells]
 
 
 def parse_markdown_pipe_table(text: str) -> list[list[str]] | None:

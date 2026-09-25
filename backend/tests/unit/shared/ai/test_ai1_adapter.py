@@ -112,3 +112,59 @@ def test_adapts_ai1_snapshot_v1_at_service_boundary() -> None:
     assert payload.clauses[0].regions[0].page_no == 1
     assert payload.clauses[1].source_id == "cl-1"
     assert payload.clauses[1].parent_source_id == "art-1"
+
+
+def test_adapter_preserves_table_header_as_real_header_cells() -> None:
+    result = {
+        "snapshot": {
+            "schema_version": "ai1.snapshot.v1",
+            "document_id": "doc-1",
+            "page_count": 1,
+            "nodes": [],
+            "table_continuity": [],
+            "pages": [
+                {
+                    "page_number": 1,
+                    "source_page_width": 100,
+                    "source_page_height": 100,
+                    "input_type": "SCANNED_OCR",
+                    "text": "STT Tên hàng 1 Bút",
+                    "lines": [],
+                    "words": [],
+                    "tables": [
+                        {
+                            "bbox_normalized": [0.1, 0.2, 0.9, 0.8],
+                            "geometry_provenance": "MEASURED",
+                            "header": ["STT", "Tên hàng"],
+                            "rows": [
+                                {
+                                    "cells": [
+                                        {
+                                            "text": "1",
+                                            "bbox_normalized": [0.1, 0.5, 0.3, 0.8],
+                                        },
+                                        {
+                                            "text": "Bút",
+                                            "bbox_normalized": [0.3, 0.5, 0.9, 0.8],
+                                        },
+                                    ]
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+    }
+
+    payload = adapt_ai1_snapshot_result(result)
+
+    table = payload.tables[0]
+    assert table.rows_count == 2
+    assert table.cols_count == 2
+    assert [(cell.row_idx, cell.text, cell.is_header) for cell in table.cells] == [
+        (0, "STT", True),
+        (0, "Tên hàng", True),
+        (1, "1", False),
+        (1, "Bút", False),
+    ]

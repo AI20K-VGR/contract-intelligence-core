@@ -13,7 +13,7 @@
   "internationalizationEnabled": true,
   "supportedLocales": ["vi", "en"],
   "defaultLocale": "vi",
-  "accessTokenLifespan": 300,
+  "accessTokenLifespan": 900,
   "accessTokenLifespanForImplicitFlow": 900,
   "ssoSessionIdleTimeout": 1800,
   "accessCodeLifespan": 60,
@@ -180,11 +180,13 @@
       "attributes": {
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://localhost:5173/*",
+        "client.use.lightweight.access.token.enabled": "false",
         "oauth2.device.authorization.grant.enabled": "false",
         "oidc.ciba.grant.enabled": "false"
       },
       "defaultClientScopes": [
         "basic",
+        "roles",
         "role_list",
         "profile",
         "email",
@@ -193,16 +195,15 @@
       "optionalClientScopes": [],
       "protocolMappers": [
         {
-          "name": "realm_roles_mapper",
+          "name": "contract-intel-backend-audience",
           "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "protocolMapper": "oidc-audience-mapper",
           "consentRequired": false,
           "config": {
-            "user.attribute": "realmRoles",
-            "claim.name": "realm_access",
+            "included.client.audience": "contract-intel-backend",
             "access.token.claim": "true",
             "id.token.claim": "false",
-            "userinfo.token.claim": "false"
+            "access.tokenResponse.claim": "false"
           }
         },
         {

@@ -38,6 +38,21 @@ def test_parse_markdown_pipe_table_returns_none_without_a_pipe_table():
     assert parse_markdown_pipe_table("Just a paragraph of prose, no table here.") is None
 
 
+def test_parse_markdown_pipe_table_keeps_escaped_pipe_and_html_line_break():
+    text = (
+        "| STT | Nội dung | Ghi chú |\n"
+        "| --- | --- | --- |\n"
+        r"| 1 | Điều kiện A \| B | Dòng một<br>Dòng hai |"
+    )
+
+    rows = parse_markdown_pipe_table(text)
+
+    assert rows == [
+        ["STT", "Nội dung", "Ghi chú"],
+        ["1", "Điều kiện A | B", "Dòng một\nDòng hai"],
+    ]
+
+
 def test_rectangularize_pads_short_rows_without_shifting_columns():
     rows, col_count = rectangularize([["a", "b", "c"], ["d", "e"]])
     assert col_count == 3
