@@ -128,7 +128,7 @@ def classify_ask(text: str) -> dict[str, Any]:
     ):
         spec["type"] = "annex_list"
         return spec
-    if "mst" in low or "mã số thuế" in low or "tax id" in low:
+    if "mst" in low or "mã số thuế" in low or "tax id" in low or "tax code" in low:
         spec["type"] = "field_card"
         spec["field_key"] = "mst_seller"
         return spec

@@ -38,3 +38,22 @@ def test_big_table_is_not_truncated():
     run_idp(pack.record, pack.envelope)
     assert len(pack.record.tables) == 1
     assert len(pack.record.tables[0].rows) == 300
+
+
+def test_english_seller_tax_code_cites_the_mst():
+    from app.reasoning.query import classify_ask
+    from app.reasoning.stack import FourLayerReasoner
+    from app.tools.gateway import ToolGateway
+    from app.tools.store import InMemorySnapshotStore
+
+    pack = all_cases()["EC-037"]
+    spec = classify_ask(pack.query)
+    assert spec["type"] == "field_card"
+    assert spec["field_key"] == "mst_seller"
+    store = InMemorySnapshotStore()
+    store.put(pack.record)
+    out = FourLayerReasoner(ToolGateway(store), llm=None).run(pack.envelope, spec)
+    assert out["review_state"] != "INSUFFICIENT_EVIDENCE"
+    blob = str(out)
+    assert "0311111111" in blob
+    assert out.get("citations")
