@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 from io import BytesIO
 from pathlib import Path
@@ -139,3 +140,80 @@ class OpenAIVisionOCREngine(OCREngine):
             if line_text.strip()
         ]
         return OCRResult(lines=lines, raw_markdown=text, raw_output_path=str(path.resolve()))
+
+
+_REGION_INSTRUCTIONS = """\
+Each image below is a crop of one region of the same contract page, labelled with \
+its region id. Transcribe every crop independently under the rules above. Skip any \
+line that is cut off at the top or bottom edge of a crop -- transcribe only lines \
+fully inside it. Reply with JSON only, no prose, in exactly this shape:
+{"regions": [{"id": "<region id>", "text": "<transcription, line breaks as \\n>"}]}"""
+
+
+def _parse_regions(text: str) -> dict[str, str]:
+    start, end = text.find("{"), text.rfind("}")
+    if start < 0 or end <= start:
+        return {}
+    try:
+        payload = json.loads(text[start : end + 1])
+    except json.JSONDecodeError:
+        return {}
+    regions = payload.get("regions") if isinstance(payload, dict) else None
+    return {
+        str(item["id"]): str(item["text"])
+        for item in regions or []
+        if isinstance(item, dict) and "id" in item and isinstance(item.get("text"), str)
+    }
+
+
+class OpenAIRegionReader(OpenAIVisionOCREngine):
+    """Blind re-reads of a few page regions, batched into one request per page.
+
+    Used as the tie-breaking third reader: it is shown only the crops, never
+    another engine's transcription, so its reading stays independent.
+    """
+
+    name = "openai_region_reader"
+
+    def read_regions(self, crops: dict[str, np.ndarray], context: Context) -> dict[str, str]:
+        if not crops:
+            return {}
+        self._load()
+        content: list[dict[str, Any]] = [{"type": "text", "text": _REGION_INSTRUCTIONS}]
+        for region_id, crop in crops.items():
+            buffer = BytesIO()
+            Image.fromarray(crop).convert("RGB").save(buffer, format="PNG")
+            url = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
+            content.append({"type": "text", "text": f"Region {region_id}:"})
+            content.append({"type": "image_url", "image_url": {"url": url, "detail": "high"}})
+        kwargs: dict[str, Any] = {"max_completion_tokens": self.config.get("max_tokens", 4096)}
+        with observation(
+            "arbitrate-regions",
+            as_type="generation",
+            input={
+                "document_id": context.document_id,
+                "page_number": context.page,
+                "region_count": len(crops),
+            },
+            metadata={"provider": "openai", "feature": "document-ocr-arbitration"},
+            model=self.model,
+            model_parameters=kwargs,
+        ) as generation:
+            response = self._client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": self.prompt},
+                    {"role": "user", "content": content},
+                ],
+                **kwargs,
+            )
+            text = response.choices[0].message.content or ""
+            regions = _parse_regions(text)
+            if generation is not None:
+                usage = response_usage(response)
+                generation.update(
+                    output={"region_count": len(regions)},
+                    usage_details=usage,
+                    cost_details=_cost_details(self.model, usage),
+                )
+        return regions

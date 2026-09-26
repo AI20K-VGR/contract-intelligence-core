@@ -81,6 +81,10 @@ class MistralOCREngine(OCREngine):
         self.config = config
         self.model = config.get("model", DEFAULT_MODEL)
         self.table_format = config.get("table_format")
+        self.timeout_ms = config.get("timeout_ms")
+        # Langfuse only prices models it knows; Mistral OCR bills per page, so a
+        # configured per-page price is attached as explicit cost_details.
+        self.price_per_page_usd = config.get("price_per_page_usd")
         self.runtime_info = {"provider": "mistral", "model": self.model}
         self._client = None
         self._unavailable = None
@@ -129,23 +133,32 @@ class MistralOCREngine(OCREngine):
                 "confidence_scores_granularity": "block",
             },
         ) as generation:
+            extra: dict[str, Any] = {"timeout_ms": self.timeout_ms} if self.timeout_ms else {}
             response = self._client.ocr.process(
                 model=self.model,
                 document={"type": "image_url", "image_url": data_url},
                 table_format=self.table_format,
                 include_blocks=True,
                 confidence_scores_granularity="block",
+                **extra,
             )
             page = response.pages[0] if response.pages else None
             text = (page.markdown if page else "") or ""
             if generation is not None:
+                usage = response_usage(response)
+                pages = (usage or {}).get("pages_processed", len(response.pages or []))
                 generation.update(
                     output={
                         "page_count": len(response.pages or []),
                         "character_count": len(text),
                         "block_count": len((page.blocks if page else None) or []),
                     },
-                    usage_details=response_usage(response),
+                    usage_details=usage,
+                    cost_details=(
+                        {"total": pages * self.price_per_page_usd}
+                        if self.price_per_page_usd is not None
+                        else None
+                    ),
                 )
 
         directory = Path(context.output_dir)

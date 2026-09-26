@@ -168,26 +168,40 @@ def _get_engine(engine_id: str) -> OCREngine | None:
 
                 _engine_cache[engine_id] = GeminiVisionOCREngine(enabled=True)
             elif engine_id == "mistral":
-                # Text (prose) is read by OpenAI's vision model -- measurably more
-                # accurate on Vietnamese diacritics than Mistral's dedicated OCR
-                # endpoint on this codebase's documents (confirmed by re-running the
-                # same page image through both: Mistral produced "khà nang truy vét t
-                # ur du lieu..." where OpenAI read it correctly). Mistral stays the
-                # source of table structure and bbox geometry -- it is the only
-                # engine here whose blocks carry a real, measured pixel bbox and
-                # whose table markdown `markdown_tables.build_table_from_block` can
-                # parse. If OpenAI itself runs out of quota, FallbackOCREngine drops
-                # back to Mistral for text rather than failing the page outright.
-                from contract_ocr.infrastructure.ocr.fallback_ocr import FallbackOCREngine
-                from contract_ocr.infrastructure.ocr.hybrid_ocr import HybridOCREngine
+                # See verified_mistral_ocr.py for the measurements behind this
+                # split: 2512 reads Vietnamese correctly but has no geometry, 4-1
+                # has geometry but drops accents, GPT only breaks ties.
                 from contract_ocr.infrastructure.ocr.mistral_ocr import MistralOCREngine
                 from contract_ocr.infrastructure.ocr.openai_vision_ocr import (
+                    OpenAIRegionReader,
                     OpenAIVisionOCREngine,
                 )
+                from contract_ocr.infrastructure.ocr.verified_mistral_ocr import (
+                    VerifiedMistralOCREngine,
+                )
 
-                mistral = MistralOCREngine(enabled=True)
-                text_engine = FallbackOCREngine(OpenAIVisionOCREngine(enabled=True), mistral)
-                _engine_cache[engine_id] = HybridOCREngine(text_engine, mistral)
+                text_price = os.environ.get("AI1_TEXT_PRICE_PER_PAGE_USD", "0.002")
+                verifier_price = os.environ.get("AI1_VERIFIER_PRICE_PER_PAGE_USD")
+                _engine_cache[engine_id] = VerifiedMistralOCREngine(
+                    text_reader=MistralOCREngine(
+                        enabled=True,
+                        model=os.environ.get("AI1_TEXT_MODEL", "mistral-ocr-2512"),
+                        timeout_ms=int(os.environ.get("AI1_TEXT_TIMEOUT_MS", "20000")),
+                        price_per_page_usd=float(text_price) if text_price else None,
+                    ),
+                    verifier=MistralOCREngine(
+                        enabled=True,
+                        model=os.environ.get("AI1_VERIFIER_MODEL", "mistral-ocr-4-1"),
+                        timeout_ms=int(os.environ.get("AI1_VERIFIER_TIMEOUT_MS", "20000")),
+                        price_per_page_usd=float(verifier_price) if verifier_price else None,
+                    ),
+                    arbiter=OpenAIRegionReader(enabled=True),
+                    # Mistral out of quota/credits, timed out or down: read the
+                    # page with GPT instead of failing it.
+                    fallback_reader=OpenAIVisionOCREngine(enabled=True),
+                    verify_all_pages=os.environ.get("AI1_VERIFY_ALL_PAGES", "true").lower()
+                    not in ("0", "false", "no"),
+                )
         return _engine_cache[engine_id]
 
 
