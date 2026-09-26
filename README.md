@@ -8,7 +8,7 @@ Hệ thống **OCR / IDP (Intelligent Document Processing)** xử lý hợp đ�
 
 ```
 contract-intelligence/
-├── backend/        # Java Spring Boot — REST API, Clean Architecture + DDD
+├── backend/        # Python FastAPI — REST API, Clean Architecture + DDD
 ├── frontend/       # Web UI cho reviewer / operator (Vite + React + TypeScript)
 ├── ai-service/     # Python service cho OCR / IDP / LLM extraction (nếu tách riêng)
 ├── docs/           # Tài liệu sản phẩm & kỹ thuật (Product Vision, Architecture, API Spec)
@@ -19,7 +19,7 @@ contract-intelligence/
 
 | Thư mục | Mục đích | Công nghệ dự kiến |
 |---|---|---|
-| `backend/` | API server, xử lý nghiệp vụ chính, lưu trữ, quản lý luồng review | Java 17, Spring Boot 3.x, PostgreSQL, Flyway |
+| `backend/` | API server, xử lý nghiệp vụ chính, lưu trữ, quản lý luồng review | Python 3.11+, FastAPI, Kafka worker, PostgreSQL |
 | `frontend/` | Giao diện upload hợp đồng, review điều khoản, xử lý conflict | Node 20+, Vite, React 19, TypeScript, ESLint |
 | `ai-service/` | Worker OCR/IDP/LLM, tách riêng để scale độc lập với backend | Python (FastAPI / Celery worker) |
 | `docs/` | Product vision, system design, database schema, API spec, ADRs | Markdown + OpenAPI YAML |
@@ -59,8 +59,8 @@ feature branch  ──PR──▶  develop  ──release PR──▶  main
 git clone <repo-url>
 cd contract-intelligence
 
-# Mở backend
-cd backend && ./mvnw spring-boot:run
+# Mở backend worker
+cd backend && uv run python -m contract_intelligence.worker
 
 # Mở frontend
 cd ../frontend && npm i && npm run dev
