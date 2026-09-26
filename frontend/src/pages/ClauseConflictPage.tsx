@@ -668,7 +668,6 @@ export function ClauseConflictPage() {
               </span>
             </div>
           </div>
-        </div>
       </div>
       {notice ? (
         <div
