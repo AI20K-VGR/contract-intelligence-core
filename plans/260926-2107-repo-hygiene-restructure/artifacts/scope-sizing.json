@@ -1,0 +1,85 @@
+{
+  "sizing": {
+    "mode": "multi",
+    "projected_cells": 1600,
+    "pruned_cells": 1600,
+    "threshold": 60,
+    "sub_plan_count": 4,
+    "split_strategy": "hybrid"
+  },
+  "manifest": {
+    "subPlans": [
+      {
+        "id": "sub-1",
+        "scope": {
+          "features": [
+            "clone-without-vendored-node-modules",
+            "clone-without-generated-ocr-dumps",
+            "worktree-ignores-local-caches"
+          ],
+          "layers": ["ui", "api"]
+        },
+        "estimatedCells": 480
+      },
+      {
+        "id": "sub-2",
+        "scope": {
+          "features": [
+            "clone-without-vendored-node-modules",
+            "clone-without-generated-ocr-dumps",
+            "worktree-ignores-local-caches"
+          ],
+          "layers": ["data", "infra"]
+        },
+        "estimatedCells": 480
+      },
+      {
+        "id": "sub-3",
+        "scope": {
+          "features": [
+            "package-layout-moves-keep-runtime-behavior",
+            "readme-describes-the-python-monorepo"
+          ],
+          "layers": ["ui", "api"]
+        },
+        "estimatedCells": 320
+      },
+      {
+        "id": "sub-4",
+        "scope": {
+          "features": [
+            "package-layout-moves-keep-runtime-behavior",
+            "readme-describes-the-python-monorepo"
+          ],
+          "layers": ["data", "infra"]
+        },
+        "estimatedCells": 320
+      }
+    ],
+    "dependencies": [
+      {
+        "from": "sub-1",
+        "to": "sub-2",
+        "sharedLayers": ["ui", "api", "data", "infra"]
+      },
+      {
+        "from": "sub-2",
+        "to": "sub-3",
+        "sharedLayers": ["ui", "api", "data", "infra"]
+      },
+      {
+        "from": "sub-3",
+        "to": "sub-4",
+        "sharedLayers": ["ui", "api", "data", "infra"]
+      }
+    ],
+    "sharedContracts": [],
+    "masterRisk": [],
+    "intakeInheritance": {
+      "density_tier": "HIGH",
+      "threshold": 60
+    }
+  },
+  "decision": "proceed",
+  "reason": "User locked one plan with two sequential phases on 2026-09-26. The 1600-cell multi verdict comes from default axes (ui/api/data/infra x discover/design/build/ship/measure x four risk classes x four stakeholders) that this git-hygiene job does not have: one working tree, one git index, no separate UI/API/data ship. Splitting into four sub-plans would put two cooks on the same .gitignore and the same package moves. Hygiene must finish before any package move, which is an ordering inside one plan, not four plans."
+}

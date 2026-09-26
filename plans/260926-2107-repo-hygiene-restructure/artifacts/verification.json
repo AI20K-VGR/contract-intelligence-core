@@ -1,0 +1,27 @@
+{
+  "stage": "cook",
+  "plan": "260926-2107-repo-hygiene-restructure",
+  "checks": [
+    {
+      "name": "readme-stack",
+      "status": "PASS"
+    },
+    {
+      "name": "ai-import-lock",
+      "status": "PASS"
+    },
+    {
+      "name": "backend-import-lock",
+      "status": "PASS"
+    },
+    {
+      "name": "no-package-move",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P2",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-09-26T14:53:38+00:00",
+  "run_seq": null
+}

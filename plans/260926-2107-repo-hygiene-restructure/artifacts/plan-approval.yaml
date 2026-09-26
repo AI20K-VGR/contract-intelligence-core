@@ -1,0 +1,18 @@
+schema: plan-approval/v1
+plan: 260926-2107-repo-hygiene-restructure
+plan_hash: ea271d0479b9
+file_hashes:
+  plan.md: 6955e341ac39
+  phases/phase-1-hygiene.md: b49864547f0a
+  phases/phase-2-restructure.md: 5aa4f42afeaf
+  plan-graph.yaml: 4ae3eccb789f
+author: user:dungskbg2004@gmail.com
+reviewer: user:dungskbg2004@gmail.com
+verdict: APPROVED
+rationale: User approved 2026-09-26. Phase 1 untracks vendored deps and 
+  generated dumps with a backup first. Phase 2 fixes the README stack and locks 
+  imports in the owning test suites. Source trees stay put unless cook-time grep
+  shows a move whose import-lock test would fail. Red-team HIGH findings RT-01 
+  RT-02 RT-03 were folded into the phase files before approval.
+ts: '2026-09-26T14:32:21.055094+00:00'
+run_seq: null

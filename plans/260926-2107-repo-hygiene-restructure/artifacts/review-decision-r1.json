@@ -1,0 +1,8 @@
+{
+  "verdict": "BLOCKED",
+  "reviewer": "user:dungskbg2004@gmail.com",
+  "role": "reviewer",
+  "rationale": "Independent review blocked: README.md line 24 still called the ai-service a Celery worker, and neither pyproject.toml depends on Celery. The real worker extra is aiokafka.",
+  "rounds_run": 1,
+  "run_seq": null
+}

@@ -1,0 +1,9 @@
+verdict: PASS_WITH_RISK
+reviewer: user:dungskbg2004@gmail.com
+role: reviewer
+rationale: 'Commit 6962165 removed the Celery claim and the stack guard now fails
+  if Celery returns. python scripts/check_readme_stack.py exits 0. Residual: the guard
+  scans the whole README, and the hygiene negative check is tied to frontend/src.
+  Neither changes the untrack or the import locks.'
+rounds_run: 2
+run_seq: null

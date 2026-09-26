@@ -1,0 +1,17 @@
+edges:
+  - {from: P1, to: P2}      # P1 (hygiene) runs BEFORE P2 (restructure)
+subtasks:
+  P1:
+    files_to_create:
+      - scripts/check_repo_hygiene.py
+    files_to_modify:
+      - .gitignore
+    post: [verification-P1.json]
+  P2:
+    files_to_create:
+      - ai-service/tests/test_import_lock.py
+      - backend/tests/unit/test_package_import_lock.py
+      - scripts/check_readme_stack.py
+    files_to_modify:
+      - README.md
+    post: [verification-P2.json]
