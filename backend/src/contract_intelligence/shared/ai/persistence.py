@@ -797,7 +797,8 @@ def _context_findings_as_items(
             continue
         if raw.get("review_state") not in {None, "NEEDS_REVIEW", "INSUFFICIENT_EVIDENCE"}:
             continue
-        metadata = raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {}
+        raw_metadata = raw.get("metadata")
+        metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
         if metadata.get("candidate_id"):
             continue
         by_document: dict[str, dict[str, Any]] = {}

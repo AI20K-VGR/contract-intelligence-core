@@ -673,6 +673,11 @@ class DossierSearchHit(BaseModel):
     source_file_id: str | None = None
     line_id: str | None = None
     bbox: list[float] = Field(default_factory=list)
+    # Anchors the UI uses to open the cited clause.
+    node_id: str | None = None
+    citation_id: str | None = None
+    breadcrumb: list[str] = Field(default_factory=list)
+    validation_status: str | None = None
 
 
 class DossierSearchDTO(BaseModel):
@@ -698,6 +703,9 @@ def _hits_from_ai2(payload: dict[str, Any]) -> list[DossierSearchHit]:
         if not isinstance(text, str) or not text.strip():
             continue
         page = item.get("page_no") or item.get("page")
+        page_range = item.get("page_range")
+        if not isinstance(page, int) and isinstance(page_range, list) and page_range:
+            page = page_range[0]
         line_ids = item.get("line_ids")
         line_id = item.get("line_id")
         if not isinstance(line_id, str) and isinstance(line_ids, list):
@@ -711,9 +719,19 @@ def _hits_from_ai2(payload: dict[str, Any]) -> list[DossierSearchHit]:
                 source_file_id=source_file_id if isinstance(source_file_id, str) else None,
                 line_id=line_id if isinstance(line_id, str) else None,
                 bbox=bbox if isinstance(bbox, list) else [],
+                node_id=_optional_str(item.get("node_id")),
+                citation_id=_optional_str(item.get("citation_id")),
+                breadcrumb=[str(part) for part in breadcrumb]
+                if isinstance(breadcrumb := item.get("breadcrumb"), list)
+                else [],
+                validation_status=_optional_str(item.get("validation_status")),
             )
         )
     return hits
+
+
+def _optional_str(value: Any) -> str | None:
+    return value if isinstance(value, str) and value else None
 
 
 def _search_dto_from_ai2(payload: dict[str, Any], *, fallback_query: str) -> DossierSearchDTO:
@@ -784,7 +802,8 @@ async def search_dossier(
                     "snapshot_digest": _ai2_snapshot_digest(dossier),
                     "query_contract_version": "ai2.query.v1",
                     "acl_context": user.user_id,
-                    "policy_flags": {},
+                    # Fail-closed: search never lets AI2 send dossier text out.
+                    "policy_flags": {"egress_allowed": False},
                     "tenant_id": user.tenant_id,
                     "actor_id": "backend",
                 }
