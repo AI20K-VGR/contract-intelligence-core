@@ -53,7 +53,8 @@ def _numbering_gaps(record: DossierRecord) -> list[HandoffIssue]:
 def _header_boundaries(record: DossierRecord) -> list[HandoffIssue]:
     for page in record.pages:
         text = (page.text or "").lstrip()
-        if text.upper().startswith("HEADER") or text.upper().startswith("FOOTER"):
+        # Only the furniture token, not a table title that merely starts with "Header".
+        if text.startswith("HEADER ") or text.startswith("FOOTER "):
             return [_issue("RECONSTRUCTION_BOUNDARY", "page furniture sits between clause text; nodes were not joined")]
     return []
 

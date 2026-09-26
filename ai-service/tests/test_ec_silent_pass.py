@@ -27,6 +27,13 @@ def test_ec005_numbering_gap_is_review_and_does_not_invent_clause_3():
     assert any(issue.code == "NUMBERING_GAP" for issue in job.handoff_issues)
 
 
+def test_ec014_table_header_is_not_page_furniture():
+    pack = all_cases()["EC-014"]
+    job = run_idp(pack.record, pack.envelope)
+    assert pack.record.tables[0].header == ["Q1/amount", "Q1/qty", "Q2/amount", "Q2/qty"]
+    assert not any(issue.code == "RECONSTRUCTION_BOUNDARY" for issue in job.handoff_issues)
+
+
 def test_ec007_header_split_is_review_and_nodes_stay_separate():
     pack, job, before, after = _job("EC-007")
     assert after == before
