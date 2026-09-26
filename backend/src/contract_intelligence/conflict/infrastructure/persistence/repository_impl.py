@@ -169,9 +169,7 @@ class FindingRepositoryImpl:
                 CitationORM.tenant_id == self._tenant_id,
             )
             cit_rows = await self._session.execute(cit_stmt)
-            by_id = {
-                row.id: _citation_payload(row) for row in cit_rows.scalars().all()
-            }
+            by_id = {row.id: _citation_payload(row) for row in cit_rows.scalars().all()}
             for sides in sides_by_finding.values():
                 for side in sides:
                     payload = by_id.get(str(side.get("citation_id") or ""))
