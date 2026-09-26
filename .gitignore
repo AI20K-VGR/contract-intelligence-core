@@ -98,3 +98,16 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+
+# ---------- Repo hygiene (P1) ----------
+/node_modules/
+/apps/web/node_modules/
+/apps/web/.vite/
+/output/
+/ocr-result.json
+/result_khoiluong.json
+.pytest-*
+.uv-cache-*
+backend/backend/
+/tmp/
+.tmp-*
