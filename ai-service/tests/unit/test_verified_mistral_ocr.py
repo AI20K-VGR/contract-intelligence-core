@@ -215,6 +215,27 @@ def test_text_reader_failure_falls_back_to_the_fallback_reader(tmp_path):
     assert "ocr:text_reader_fallback:RuntimeError" in result.warnings
 
 
+def test_empty_reading_of_a_page_with_text_lines_is_reread_by_the_fallback(tmp_path):
+    fallback = FakeReader("\n".join(CLEAN_VN))
+    engine = VerifiedMistralOCREngine(
+        FakeReader(""), FakeReader("unused"), FakeArbiter("unused"), fallback_reader=fallback
+    )
+    result = engine.recognize_page(_page(["DIEU 4. YEU CAU", PARA, PARA_2]), _ctx(tmp_path))
+    assert fallback.calls == 1
+    assert [line.text for line in result.lines] == CLEAN_VN
+    assert "ocr:text_reader_empty_fallback" in result.warnings
+
+
+def test_empty_reading_of_an_inkless_page_costs_no_fallback_call(tmp_path):
+    fallback = FakeReader("\n".join(CLEAN_VN))
+    engine = VerifiedMistralOCREngine(
+        FakeReader(""), FakeReader(""), FakeArbiter("unused"), fallback_reader=fallback
+    )
+    result = engine.recognize_page(_page([]), _ctx(tmp_path))
+    assert fallback.calls == 0
+    assert result.lines == []
+
+
 def test_footer_emitted_first_is_realigned_to_the_bottom_of_the_page(tmp_path):
     # Measured on the real scan: 2512 put page 4's footer above its header.
     footer = ["25/2026/HDDV-MH-TT", "Trang 4/12"]

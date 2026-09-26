@@ -98,3 +98,67 @@ def test_repeated_table_header_row_is_not_running_text():
     pages = [_page(n, ["| STT | Hạng mục |", f"Điều {n}. A", "Nội dung"]) for n in (1, 2, 3)]
     running = detect_running_lines(Document(document_id="d", source_file="x", pages=pages))
     assert not any(line_id.endswith("-l1") for _, line_id in running)
+
+
+def test_every_clause_heading_survives_even_when_headings_share_a_template():
+    # "Điều N. Nội dung điều N" on page N looks like one line repeated on every
+    # page once digits are masked -- but a clause marker is never furniture.
+    doc = _twelve_page_contract()
+    running = detect_running_lines(doc)
+    markers = [
+        (page.page_number, line.line_id)
+        for page in doc.pages
+        for line in page.lines
+        if line.text.startswith("Điều ") or line.text.split(".")[0].isdigit()
+    ]
+    assert len(markers) == 24
+    assert not running.intersection(markers)
+    nodes = {node.node_id for node in BuildStructure().execute(doc)}
+    assert {"1", "2", "4", "4.3", "5", "5.1", "12", "12.1"} <= nodes
+
+
+def test_templated_body_lines_with_different_numbers_are_content():
+    pages = [
+        _page(n, [f"Bên B giao hàng đợt {n} theo lịch", f"Bên A thanh toán đợt {n + 2} trong 5 ngày"])
+        for n in range(1, 13)
+    ]
+    assert detect_running_lines(Document(document_id="d", source_file="x", pages=pages)) == set()
+
+
+def test_page_counter_inside_a_header_follows_printed_numbering_after_a_cover():
+    # PDF page 1 is an unnumbered cover; printed page 1 is PDF page 2.
+    pages = [_page(1, ["HỢP ĐỒNG", "Điều 1. Phạm vi", "Bên B cung cấp dịch vụ"])]
+    pages += [
+        _page(n, [f"HĐ số 25/2026/HĐDV - Trang {n - 1}/6", f"Điều {n}. Nội dung", "Chi tiết"])
+        for n in range(2, 8)
+    ]
+    running = detect_running_lines(Document(document_id="d", source_file="x", pages=pages))
+    assert {(n, f"p{n}-l1") for n in range(2, 8)} <= running
+    assert not any(line_id.endswith("-l2") for _, line_id in running)
+
+
+def _page_with_duplicate() -> Document:
+    body = ["Điều 2. Giá trị hợp đồng", "Tổng giá trị là 100.000.000 đồng", "Thanh toán trong 30 ngày"]
+    pages = [
+        _page(1, ["Điều 1. Phạm vi", "Bên B cung cấp dịch vụ", "Theo phụ lục đính kèm"]),
+        _page(2, body),
+        _page(3, body),
+    ]
+    pages[2].duplicate_of = 2
+    return Document(document_id="d", source_file="x", pages=pages)
+
+
+def test_lines_of_a_duplicated_page_are_not_evidence_of_a_running_header():
+    assert detect_running_lines(_page_with_duplicate()) == set()
+
+
+def test_structure_takes_a_verbatim_duplicate_page_once():
+    nodes = BuildStructure().execute(_page_with_duplicate())
+    assert [node.node_id for node in nodes] == ["1", "2"]
+    clause = nodes[1]
+    assert clause.text.splitlines() == [
+        "Điều 2. Giá trị hợp đồng",
+        "Tổng giá trị là 100.000.000 đồng",
+        "Thanh toán trong 30 ngày",
+    ]
+    assert (clause.page_start, clause.page_end) == (2, 2)

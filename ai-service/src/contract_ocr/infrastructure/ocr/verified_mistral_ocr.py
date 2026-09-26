@@ -199,6 +199,23 @@ class VerifiedMistralOCREngine(OCREngine):
             result = self.fallback_reader.recognize_page(image, self._sub(context, "fallback"))
             return result, [f"ocr:text_reader_fallback:{type(exc).__name__}"]
 
+    def _reread_empty(
+        self, image: np.ndarray, context: Context, read: OCRResult
+    ) -> tuple[OCRResult, list[str]]:
+        if self.fallback_reader is None:
+            return read, ["ocr:text_reader_empty"]
+        try:
+            result = self.fallback_reader.recognize_page(image, self._sub(context, "fallback"))
+        except Exception as exc:
+            logger.warning(
+                "ocr.empty_page_fallback_failed document_id=%s page=%s error=%s",
+                context.document_id,
+                context.page,
+                f"{type(exc).__name__}: {exc}",
+            )
+            return read, ["ocr:text_reader_empty", f"ocr:fallback_failed:{type(exc).__name__}"]
+        return result, ["ocr:text_reader_empty_fallback"]
+
     def _verify(self, image: np.ndarray, context: Context) -> tuple[OCRResult | None, str | None]:
         try:
             return self.verifier.recognize_page(image, self._sub(context, "verify")), None
@@ -246,6 +263,13 @@ class VerifiedMistralOCREngine(OCREngine):
 
             markdown = read.raw_markdown or "\n".join(line.text for line in read.lines)
             segments, md_tables = _parse_markdown(markdown)
+            # `warnings` is non-empty only when the fallback reader already read it.
+            if not segments and boxes and not warnings:
+                # Nothing read from a page with visible text lines (blank sheets
+                # never reach the engine): a silent miss, not an empty page.
+                read, warnings = self._reread_empty(page_image, context, read)
+                markdown = read.raw_markdown or "\n".join(line.text for line in read.lines)
+                segments, md_tables = _parse_markdown(markdown)
 
             # -- stage 2: geometry for tables and text --------------------------
             unmatched_tables = self._place_grid_tables(md_tables, grids, segments, width, height)

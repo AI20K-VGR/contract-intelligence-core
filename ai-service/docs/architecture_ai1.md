@@ -132,7 +132,8 @@ AI1 Kafka worker ── điều phối JOB OCR          infrastructure/kafka_wor
   │  tải PDF → ProcessDocument → BuildSnapshot → trả kết quả
   ▼
 ProcessDocument ─── điều phối TỪNG TRANG       application/use_cases/process_document.py
-  │  có lớp chữ → đọc native (0 API) │ scan/mixed → engine, song song 4 trang
+  │  có lớp chữ → đọc native (0 API) │ trắng / ít chữ / trùng pixel → không OCR (0 API)
+  │  scan/mixed còn lại → engine, song song 4 trang │ cuối cùng: đánh dấu trang trùng văn bản
   ▼
 VerifiedMistralOCREngine ─ "planner" TRONG MỘT TRANG   infrastructure/ocr/verified_mistral_ocr.py
      3 nguồn song song → căn chỉnh → cổng kiểm tra → GPT phân xử → nhận/thay/cờ review
@@ -158,12 +159,31 @@ File: `application/use_cases/process_document.py`, `classify_pdf.py`.
 
    - `TEXT_LAYER` (chữ dùng được, không bị ảnh phủ): đọc native bằng PyMuPDF, bbox từ glyph
      (DERIVED), bảng bằng `find_tables()` — **không gọi API nào**.
-   - `SCANNED` / `MIXED`: render ảnh ở DPI của job (150), `preprocessing=[]`, gửi engine OCR.
+   - Các trang còn lại được render ở DPI của job (150) rồi qua **router trước OCR**
+     (`infrastructure/image/page_ink.py`, chỉ OpenCV, không gọi mạng). Thứ tự kiểm tra:
+
+     | Kiểm tra | Điều kiện | Kết quả |
+     |---|---|---|
+     | Trang trắng | Không có lớp chữ **và** không có vết mực nào ≥ ~1 mm. Mực = điểm tối hơn nền giấy ≥ 60 mức xám, nên chữ mờ/bút chì vẫn tính, còn chữ in hằn từ mặt sau thì không. Bỏ dải mép 2% (bóng máy scan) | `SUCCESS` + `blank_page`, **không gọi OCR** |
+     | Trang ít chữ | Lớp chữ sạch nhưng dưới 20 ký tự / 3 từ (`SHORT_NATIVE_TEXT`), không có ảnh **và** mọi dòng mực trên ảnh render đều nằm trong bbox của dòng chữ gốc | `TEXT_LAYER`, đọc native (`SHORT_TEXT_COVERS_ALL_INK`), **không gọi OCR**. Còn dòng mực ngoài lớp chữ (chữ vẽ bằng vector, dán ảnh) → OCR |
+     | Trang trùng pixel | Ảnh (sau tiền xử lý) có sha256 trùng một trang đã xếp OCR | Dùng lại kết quả OCR của trang gốc, cấp lại id dòng/từ/bảng theo số trang mới, cảnh báo `ocr:reused_reading_of_pN`. **Không gọi OCR lần hai** |
+     | Còn lại | `SCANNED` / `MIXED` | `preprocessing=[]`, gửi engine OCR |
+
 2. Đọc PDF, phân loại, render luôn tuần tự (đối tượng trang PyMuPDF không an toàn đa luồng).
    Chỉ lời gọi engine được song song: `max_workers = 4` cho engine gọi API (`openai`, `gemini`,
    `mistral`).
 3. Nếu engine không trả bảng, `build_scanned_tables` dò bảng có kẻ viền bằng pixel làm dự phòng.
-4. Trang lỗi → `Status.FAILED` riêng trang đó; tài liệu vẫn tiếp tục.
+4. Engine không đọc ra chữ nào trên trang có mực (trang chỉ có chữ ký/con dấu/ảnh, hoặc đọc sót):
+   trang vẫn `SUCCESS` nội bộ kèm `no_text_found`, snapshot đánh `PARTIAL` để người kiểm tra. Không
+   còn `FAILED "Empty extraction result"`.
+5. Trang lỗi thật (engine ném lỗi, render lỗi) → `Status.FAILED` riêng trang đó; tài liệu vẫn tiếp tục.
+6. Sau khi mọi trang xong, `duplicate_pages.mark_duplicate_pages` so văn bản các trang, chỉ xét trang
+   có ≥ 20 từ. Trang "PHỤ LỤC" lặp lại là hai mốc phụ lục chứ không phải trang trùng.
+   - **Trùng nguyên văn** (sau khi chuẩn hoá khoảng trắng/markdown) → `Page.duplicate_of = N`: trang
+     vẫn giữ text, nhưng không đưa vào cây điều khoản lần hai.
+   - **Gần trùng** (cùng dãy chữ số, phần chữ giống ≥ 95%, vd bản scan lại) → `near_duplicate_of = N`:
+     vẫn giữ trong cây điều khoản, snapshot `PARTIAL` + `possible_duplicate_of:pN`. Trang mẫu chỉ
+     khác tên người cũng rơi vào đây, nên hệ thống không tự loại: loại nhầm là mất nội dung.
 
 ---
 
@@ -323,21 +343,44 @@ trong `text` của trang và của node. Trạng thái trang:
 
 | `status` | Khi nào |
 |---|---|
-| `SUCCESS` | Không có cảnh báo làm giảm độ tin cậy; trang trắng → `SUCCESS` + `blank_page` |
-| `PARTIAL` | Có `missing_line_geometry`, `low_confidence_lines` (confidence < 0.5), hoặc bất kỳ `needs_review:*` |
+| `SUCCESS` | Không có cảnh báo làm giảm độ tin cậy; trang trắng (router quyết định từ ảnh render, mục 5) → `SUCCESS` + `blank_page` |
+| `PARTIAL` | Có `missing_line_geometry`, `low_confidence_lines` (confidence < 0.5), bất kỳ `needs_review:*`, `no_text_found`, hoặc `possible_duplicate_of:pN` |
 | `FAILED` | Engine lỗi/không chạy được trang (`SKIPPED` nội bộ cũng thành `FAILED` kèm lý do) |
+
+"PDF không có chữ và không có ảnh" **không** còn được coi là trang trắng: chữ vẽ bằng đường vector
+cũng không có cả hai nhưng vẫn đọc được. Việc quyết định trang trắng nằm hoàn toàn ở router.
 
 Cờ `needs_review:<lý do>:<line_id nội bộ>` từ engine được `BuildSnapshot` đổi sang `line_id` của
 snapshot (dòng không có bbox → `unpositioned`) để HITL tìm đúng dòng.
 
-**Header/footer/số trang** (`running_text.detect_running_lines`). Một dòng là "đồ trang" khi nằm ở
-mép trang (bbox trong dải 10% trên/dưới, hoặc 3 dòng đầu/cuối nếu không có bbox) **và** là số trang
-hoặc lặp lại (so mờ ≥ 90, che chữ số) ở cùng mép trên ≥ 50% số trang. Dòng bảng `| … |` không bao
-giờ bị tính. Các dòng này bị loại khỏi cây điều khoản, vẫn giữ trong text trang.
+**Header/footer/số trang** (`running_text.detect_running_lines`). Một dòng là "đồ trang" khi thoả cả
+hai điều kiện:
+
+- **Nằm ở mép trang**: bbox trong dải 10% trên/dưới. Nếu không có bbox thì là tối đa 3 dòng
+  đầu/cuối, nhưng không quá 1/3 số dòng, để trang ngắn không bị coi toàn bộ là "mép".
+- **Là số trang, hoặc lặp lại** ở cùng mép trên ≥ 50% số trang *độc lập* (bỏ trang có `duplicate_of`
+  / `near_duplicate_of`, vì toàn bộ chữ của trang trùng đều "lặp lại" trên hai trang).
+
+Vì loại nhầm là mất nội dung, "lặp lại" được hiểu chặt:
+
+- Dòng là mốc điều khoản (`Điều N.`, `N.N.`, `a)`, `Khoản N`) **không bao giờ** là đồ trang.
+- Chữ số phải trùng khớp tuyệt đối. Ngoại lệ duy nhất là **bộ đếm trang**: con số đứng sau
+  "Trang/Page" hoặc ở đầu/cuối dòng (không phải tổng số trang sau `/`, `of`, `trên`) và bằng số trang
+  cộng độ lệch đánh số. Độ lệch (vd bìa không đánh số) được bầu từ chính các bộ đếm này trên các
+  trang, tối đa ±5.
+- Phần chữ so mờ ≥ 90 để chịu lỗi OCR nhỏ.
+
+Dòng bảng `| … |` không bao giờ bị tính. Các dòng này bị loại khỏi cây điều khoản, vẫn giữ trong text
+trang.
+
+Trước đây hệ thống che *mọi* chữ số và coi mọi dòng của trang ngắn là mép. Hệ quả là "Điều 5 …" và
+"Điều 6 …" trông như một dòng lặp lại, và một trang scan trùng làm cả Điều 2 biến mất khỏi cây điều
+khoản. Cả hai trường hợp đã có test hồi quy.
 
 **Cây điều khoản** (`BuildStructure`). Mốc lấy từ văn bản (`clause_parser.parse_marker`):
 `Điều N` / `ĐIỀU N` / `Article N` (cấp 1), `1.1` / `1.1.1` / `Khoản N` (cấp 2+), `a)` `(a)` `1)`
 `(i)`. Cây dựng tuần tự theo thứ tự đọc (`hierarchy_builder`), khoản còn mở tiếp tục sang trang sau.
+Trang có `duplicate_of` bị bỏ qua (nội dung đã có một lần).
 Vị trí node = mỏ neo dòng đầu/cuối trên từng trang (`regions`, START/END); không crop, không OCR lại.
 
 **Bảng qua trang** (`link_continuities`): chặn cứng (dòng tổng lặp lại, heading mục mới, số thứ tự
@@ -383,7 +426,13 @@ Mã cảnh báo trang:
 | `needs_review:recovered_text_unconfirmed:<line>` | PARTIAL | Chữ khôi phục chỉ khớp một phần với 4-1 |
 | `missing_line_geometry` | PARTIAL | Có dòng không gắn được bbox |
 | `low_confidence_lines` | PARTIAL | Có dòng confidence < 0.5 |
-| `blank_page` | Thông tin | Trang trắng |
+| `no_text_found` | PARTIAL | Trang có mực nhưng không bản đọc nào ra chữ |
+| `possible_duplicate_of:pN` | PARTIAL | Gần trùng trang N (vd bản scan lại); vẫn nằm trong cây điều khoản |
+| `blank_page` | Thông tin | Trang trắng (router, không gọi OCR) |
+| `duplicate_of:pN` | Thông tin | Trùng nguyên văn trang N; không đưa vào cây điều khoản lần hai |
+| `ocr:reused_reading_of_pN` | Thông tin | Ảnh trùng pixel với trang N, dùng lại kết quả OCR |
+| `ocr:text_reader_empty_fallback` | Thông tin | 2512 trả rỗng trên trang có dòng chữ, đã đọc lại bằng GPT cả trang |
+| `ocr:text_reader_empty` | Thông tin | 2512 trả rỗng, không có/không gọi được dự phòng |
 | `ocr:text_reader_fallback:<Exc>` | Thông tin | 2512 lỗi, đã đọc bằng GPT cả trang |
 | `ocr:verifier_failed:<Exc>` | Thông tin | 4-1 lỗi |
 | `ocr:unread_ink_lines:<n>` | Thông tin | Số dòng mực không được bản đọc chính đọc |
@@ -407,8 +456,9 @@ Gốc: `ai-service/src/contract_ocr/`.
 | application | `process_document.py` | Định tuyến trang, song song engine |
 | application | `classify_pdf.py` | TEXT_LAYER / SCANNED / MIXED |
 | application | `build_snapshot.py` | Dựng snapshot, dịch cờ review |
-| application | `build_structure.py` | Cây điều khoản, loại đồ trang |
+| application | `build_structure.py` | Cây điều khoản, loại đồ trang và trang trùng |
 | application | `running_text.py` | Header/footer/số trang |
+| application | `duplicate_pages.py` | Trang trùng nguyên văn / gần trùng |
 | application | `table_continuity.py` | Nối bảng qua trang |
 | infrastructure/ocr | `verified_mistral_ocr.py` | Planner một trang (mục 6) |
 | infrastructure/ocr | `mistral_ocr.py` | Gọi Mistral OCR; `timeout_ms`, `price_per_page_usd` |
@@ -417,6 +467,7 @@ Gốc: `ai-service/src/contract_ocr/`.
 | infrastructure/ocr | `markdown_tables.py` | Làm sạch markdown, parse bảng pipe |
 | infrastructure/ocr | `prompts.py` | Prompt OCR "không đoán, dùng [illegible]" |
 | infrastructure/image | `line_geometry.py` | Bbox dòng, khối cột |
+| infrastructure/image | `page_ink.py` | Router trước OCR: trang trắng, dòng mực ngoài lớp chữ gốc |
 | infrastructure/image | `table_grid.py` | Lưới bảng có viền |
 | infrastructure/image | `renderer.py` | Render trang PDF |
 | infrastructure | `backend_ocr_job.py` | Job OCR, lắp engine theo `engine_id` |
@@ -462,7 +513,9 @@ Liên quan trực tiếp đến AI1 ở chỗ khác:
 | Sự cố | Hành vi |
 |---|---|
 | 2512 lỗi / hết quota / quá timeout | GPT đọc cả trang (`fallback_reader`), cảnh báo `ocr:text_reader_fallback` |
+| 2512 trả rỗng trên trang có dòng chữ | GPT đọc cả trang, cảnh báo `ocr:text_reader_empty_fallback` |
 | Cả 2512 và GPT lỗi | Trang `FAILED`, tài liệu vẫn có snapshot |
+| Mọi bản đọc đều rỗng trên trang có mực | Trang `PARTIAL` + `no_text_found` (không còn `FAILED`) |
 | 4-1 lỗi | Cảnh báo `ocr:verifier_failed`; dòng có token quan trọng → `critical_field_unverified`; bbox căn kém giữ CLAIMED |
 | GPT trọng tài lỗi | Các dòng cần phân xử → `needs_review:arbiter_unavailable`, giữ bản 2512 |
 | OpenCV không tìm thấy dòng | Mọi dòng không có bbox → `missing_line_geometry`, văn bản vẫn đầy đủ |
@@ -524,6 +577,8 @@ Trên file scan thật `Hop_dong_dich_vu_12_trang_scan.pdf`:
 | 2512 bỏ sót tên người ký | "Nguyễn Văn An", "Trần Thu Bình" | Khôi phục mực bị bỏ sót có xác nhận |
 | 2512 đảo thứ tự footer | Footer xuất trước header ở trang 4, 9 | Xoay thứ tự đồ trang + mỏ neo nội dung |
 | Header/footer lọt vào điều khoản | Khoản 4.3 hiện "tr. 3-4" | `running_text` |
+| Che mọi chữ số làm mất nội dung | PDF tổng hợp: tài liệu ngắn mất sạch node; trang scan trùng làm mất cả Điều 2 | Mốc điều khoản không bao giờ là đồ trang; chỉ bộ đếm trang được bỏ qua; trang trùng không tính là lặp |
+| Trang trắng/ít chữ vẫn trả tiền OCR | Trang trắng tốn 2 lượt Mistral; tờ scan trắng ra `FAILED` | Router trước OCR theo mực trên ảnh render |
 
 Kết quả sau cùng trên cùng tài liệu: 0 dòng bị cờ chính tả; Khoản 4.1/4.3 đúng từng chữ; 100% dòng
 có bbox; 11/12 trang `SUCCESS`, 1 trang `PARTIAL` (tên người ký bị con dấu che, chờ người xác nhận);
@@ -533,7 +588,7 @@ có bbox; 11/12 trang `SUCCESS`, 1 trang `PARTIAL` (tên người ký bị con d
 
 ## 14. Kiểm thử
 
-| File (trong `ai-service/tests/unit/`) | Phủ |
+| File (trong `ai-service/tests/`, mặc định `unit/`) | Phủ |
 |---|---|
 | `test_vn_text.py` | Bản đọc sai/đúng thật của cùng trang; âm tiết; thiếu mũ/móc |
 | `test_critical_fields.py` | Token sống sót khi mất dấu; lệch một chữ số; "Bằng chữ" |
@@ -541,7 +596,10 @@ có bbox; 11/12 trang `SUCCESS`, 1 trang `PARTIAL` (tên người ký bị con d
 | `test_line_geometry.py` | Dòng, nét kẻ, mực con dấu, khối chữ ký 2 cột |
 | `test_text_geometry_alignment.py` | Đoạn nhiều dòng, mực bị bỏ, chữ không có mực, mỏ neo |
 | `test_verified_mistral_ocr.py` | Toàn engine với reader giả: vote 2/3, tranh chấp từ, chính tả, dự phòng, footer lệch thứ tự, khôi phục tên, bảng có viền |
-| `test_running_text.py` | Header/footer/số trang, không loại tiêu đề/điều khoản |
+| `test_running_text.py` | Header/footer/số trang, không loại tiêu đề/điều khoản, dòng mẫu khác số, bộ đếm trang lệch bìa, trang trùng |
+| `test_duplicate_pages.py` | Trùng nguyên văn / gần trùng / trang mẫu khác số / trang ngắn |
+| `test_page_ink.py` | Trang trắng có bụi và bóng mép, một chữ số, chữ mờ vs chữ hằn mặt sau, dòng mực ngoài lớp chữ |
+| `integration/test_page_routing.py` | Router: trang trắng/ít chữ/trùng pixel không gọi OCR; trang có mực không ra chữ → `PARTIAL` |
 | `test_mistral_ocr.py` | Engine Mistral với SDK giả |
 
 ```bash
@@ -582,8 +640,9 @@ docker logs -f ci-ai1-worker
 | Hạng mục | Hiện trạng | Hướng xử lý |
 |---|---|---|
 | Phụ lục bị gộp vào khoản cuối | Không có mốc "Phụ lục" trong `clause_parser` | Thêm loại node `ANNEX` — đổi schema snapshot và adapter AI2 (`app/pipeline/ai1_ocr_lab_adapter.py`) |
-| Cache / bỏ trang trắng / trang trùng | Chưa có (chỉ bỏ OCR cho trang có lớp chữ) | Fingerprint theo hash ảnh trang + phiên bản model; trang trắng theo tỉ lệ mực |
-| Chọn model rẻ hơn theo trang | Luôn dùng 2512 | Trang ít chữ/trang trắng gần như → model rẻ |
+| Cache giữa các lần chạy | Trang trắng, trang ít chữ và trang trùng pixel **trong cùng tài liệu** đã bỏ qua OCR (mục 5); chạy lại OCR vẫn đọc lại mọi trang | Fingerprint theo hash ảnh trang + phiên bản model, lưu kết quả giữa các job |
+| Trang scan lại (không trùng pixel) | Vẫn trả tiền OCR; sau đó đánh `possible_duplicate_of` | So hash cảm nhận trước OCR — chưa làm vì trang chữ ở độ phân giải thấp trông gần giống nhau, dễ nhận nhầm |
+| Chọn model rẻ hơn theo trang | Luôn dùng 2512 cho trang cần OCR | Trang scan rất ít chữ → model rẻ |
 | Lỗi nguyên âm cùng khung chữ | "HỌP ĐỒNG" (đúng: "HỢP") không bắt được | Người đọc thứ ba trên dòng nghi vấn, hoặc từ điển tần suất |
 | Tên người ký dưới con dấu | Có thể đọc sai → gắn cờ review | Tách màu con dấu tốt hơn trước khi crop |
 | Bảng không viền | Bbox bảng từ 4-1, ô chia đều (CLAIMED) | Căn cột theo box từ |

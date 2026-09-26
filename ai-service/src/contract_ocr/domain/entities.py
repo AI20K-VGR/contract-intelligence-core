@@ -129,6 +129,13 @@ class Page(Entity):
     # Engine-reported codes. "needs_review:<reason>:<line_id>" names an internal
     # line id; BuildSnapshot rewrites it to the emitted snapshot line id.
     warnings: list[str] = Field(default_factory=list)
+    # Set by duplicate_pages.mark_duplicate_pages. `duplicate_of`: an earlier page
+    # this page repeats verbatim -- its text is already in the clause structure
+    # once, so it is not added again. `near_duplicate_of`: an earlier page it only
+    # nearly repeats (a re-scan, or a template page with one name changed) -- kept
+    # in the structure and flagged for review, since guessing wrong loses content.
+    duplicate_of: int | None = Field(default=None, ge=1)
+    near_duplicate_of: int | None = Field(default=None, ge=1)
 
 
 class Document(Entity):

@@ -222,13 +222,10 @@ class BuildSnapshot:
             page_image_ref=image_ref,
         )
 
-        # A page with no text and no imagery at all is unambiguously blank in the
-        # source, regardless of how the classifier routed it (it still tries OCR,
-        # which then reports SKIPPED/FAILED on empty output). Ground truth wins:
-        # handoff §5 requires blank pages to be SUCCESS + "blank_page", not an error.
-        if not pdf_page.get_text().strip() and not pdf_page.get_image_info():
-            return SnapshotPage(**common, status="SUCCESS", text="", warnings=["blank_page"])
-
+        # Blank pages are decided by ProcessDocument from the rendered page, before
+        # any OCR call (they arrive as SUCCESS with no lines). "No text and no
+        # images in the PDF" is not proof of a blank page: text drawn as vector
+        # outlines has neither, yet is fully readable.
         if internal_page.status is Status.FAILED:
             return SnapshotPage(
                 **common, status="FAILED", error=internal_page.error or "OCR failed"
@@ -248,6 +245,9 @@ class BuildSnapshot:
     ) -> SnapshotPage:
         page_no = internal_page.page_number
         if not internal_page.lines or not any(line.text.strip() for line in internal_page.lines):
+            if "no_text_found" in internal_page.warnings:
+                # Ink on the page, but no text read from it (see ProcessDocument).
+                return SnapshotPage(**common, status="PARTIAL", text="", warnings=["no_text_found"])
             return SnapshotPage(**common, status="SUCCESS", text="", warnings=["blank_page"])
 
         lines_payload: list[SnapshotLine] = []
@@ -305,6 +305,12 @@ class BuildSnapshot:
                 review.append(f"needs_review:{reason}:{line_id_map.get(internal_id, 'unpositioned')}")
             else:
                 informational.append(code)
+        # A verbatim repeat is left out of the clause structure (its text is
+        # already there once); a near repeat stays in it, for a person to decide.
+        if internal_page.duplicate_of is not None:
+            informational.append(f"duplicate_of:p{internal_page.duplicate_of}")
+        if internal_page.near_duplicate_of is not None:
+            review.append(f"possible_duplicate_of:p{internal_page.near_duplicate_of}")
         status: PageStatus = "PARTIAL" if warnings or review else "SUCCESS"
         warnings = [*warnings, *review, *informational]
         table_status, tables_payload = self._build_tables(internal_page.tables, prefix, page_no)

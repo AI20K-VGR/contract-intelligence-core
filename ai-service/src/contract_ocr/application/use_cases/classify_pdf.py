@@ -76,6 +76,11 @@ class PdfPageClassifier:
         else:
             kind = InputType.SCANNED
             requires_ocr_regions = True
+            if spans_ok and text_length > 0 and not garbled and image_coverage == 0:
+                # Too little text to trust on counts alone ("PHỤ LỤC 01"), but clean
+                # and with no image beside it: ProcessDocument checks the rendered
+                # page for ink the text layer does not cover before paying for OCR.
+                reason_codes.append("SHORT_NATIVE_TEXT")
             if not reason_codes:
                 reason_codes.append("NO_USABLE_NATIVE_TEXT")
 

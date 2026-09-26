@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
@@ -10,9 +11,11 @@ import numpy as np
 from contract_ocr.application.ports.ocr_engine import EngineUnavailable, OCREngine
 from contract_ocr.application.ports.pdf_extractor import PdfExtractor, Preprocessor, Renderer
 from contract_ocr.application.use_cases.classify_pdf import PdfPageClassifier
+from contract_ocr.application.use_cases.duplicate_pages import mark_duplicate_pages
 from contract_ocr.application.use_cases.extract_scanned_tables import build_scanned_tables
 from contract_ocr.domain.entities import Context, Document, Experiment, Page
-from contract_ocr.domain.enums import Status
+from contract_ocr.domain.enums import InputType, Status
+from contract_ocr.infrastructure.image.page_ink import is_blank, unexplained_lines
 from contract_ocr.infrastructure.observability import observation
 
 logger = logging.getLogger("contract_ocr.pages")
@@ -55,6 +58,8 @@ class ProcessDocument:
                 raise ValueError("document has no pages")
             pages: list[Page | None] = [None] * len(pdf)
             ocr_jobs = []
+            first_page_with: dict[str, int] = {}
+            reused: list[tuple[int, Page, int, float]] = []
             for index in range(len(pdf)):
                 start = perf_counter()
                 page_result = Page(
@@ -81,7 +86,44 @@ class ProcessDocument:
                         self._finish_page(
                             pages, index, page_result, start, experiment, run_id, document_id
                         )
-                    elif engine is None:
+                        continue
+                    # Every other page is rendered: OCR needs the image, and a look at
+                    # it first can make the OCR call unnecessary.
+                    original = self.renderer.render(page, dpi)
+                    if evidence.native_text_length == 0 and is_blank(original):
+                        # Handoff §5: a blank page is SUCCESS + "blank_page". Decided
+                        # here, before a paid OCR call comes back empty and reads as
+                        # an extraction failure.
+                        page_result.engine, page_result.model = "pymupdf", "native"
+                        page_result.warnings = ["blank_page"]
+                        page_result.evidence = evidence.model_copy(
+                            update={"reason_codes": [*evidence.reason_codes, "BLANK_PAGE"]}
+                        )
+                        self._finish_page(
+                            pages, index, page_result, start, experiment, run_id, document_id
+                        )
+                        continue
+                    if "SHORT_NATIVE_TEXT" in evidence.reason_codes:
+                        native = self.extractor.extract(page, document_id)
+                        covered = [line.bbox for line in native.lines if line.bbox is not None]
+                        if covered and not unexplained_lines(original, covered):
+                            evidence = evidence.model_copy(
+                                update={
+                                    "input_type": InputType.TEXT_LAYER,
+                                    "usable_text": True,
+                                    "requires_ocr_regions": False,
+                                    "reason_codes": [
+                                        *evidence.reason_codes,
+                                        "SHORT_TEXT_COVERS_ALL_INK",
+                                    ],
+                                }
+                            )
+                            native.evidence, native.input_type = evidence, evidence.input_type
+                            self._finish_page(
+                                pages, index, native, start, experiment, run_id, document_id
+                            )
+                            continue
+                    if engine is None:
                         reason = (
                             "No usable native text layer"
                             if not evidence.usable_text
@@ -101,10 +143,18 @@ class ProcessDocument:
                         # page is strictly safer than the previous behaviour (silently
                         # keeping native-only text and dropping the image), but it is not yet
                         # the sub-page compositing the target architecture describes.
-                        original = self.renderer.render(page, dpi)
                         image, transform = self.preprocessor.apply(
                             original, experiment.preprocessing
                         )
+                        # The same sheet embedded twice renders to identical pixels, and
+                        # identical pixels get the same reading: pay for it once.
+                        digest = hashlib.sha256(
+                            f"{image.shape}".encode() + np.ascontiguousarray(image).tobytes()
+                        ).hexdigest()
+                        if digest in first_page_with:
+                            reused.append((index, page_result, first_page_with[digest], start))
+                            continue
+                        first_page_with[digest] = index
                         context = Context(
                             document_id=document_id,
                             page=index + 1,
@@ -171,10 +221,11 @@ class ProcessDocument:
                             line.bbox is not None for line in recognized.lines
                         )
                         if not any(line.text.strip() for line in page_result.lines):
-                            page_result.status, page_result.error = (
-                                Status.FAILED,
-                                "Empty extraction result",
-                            )
+                            # Blank sheets never reach the engine, so there is ink here
+                            # that no reader turned into text: a signature- or stamp-only
+                            # page, a photo -- or a misread. Neither blank nor a failed
+                            # page: kept, and flagged for a person to look at.
+                            page_result.warnings.append("no_text_found")
                     except EngineUnavailable as exc:
                         page_result.status, page_result.error = Status.SKIPPED, str(exc)
                     except Exception as exc:
@@ -214,8 +265,55 @@ class ProcessDocument:
                     for job in ocr_jobs:
                         run_ocr_job(job)
 
+            for index, page_result, source_index, start in reused:
+                self._reuse_reading(pages[source_index], page_result, document_id)
+                self._finish_page(pages, index, page_result, start, experiment, run_id, document_id)
+
         result.pages = pages
+        mark_duplicate_pages(result)
         return result
+
+    @staticmethod
+    def _reuse_reading(source: Page, target: Page, document_id: str) -> None:
+        """Give `target` the OCR reading of the pixel-identical `source` page.
+        Line, word and table ids are re-issued under the target's page number: an
+        id must resolve to exactly one page downstream."""
+        prefix = f"{document_id}-p{target.page_number:03d}"
+        renamed: dict[str, str] = {}
+        lines = []
+        word_seq = 0
+        for line_seq, line in enumerate(source.lines, 1):
+            line_id = f"{prefix}-l{line_seq:04d}"
+            renamed.setdefault(line.line_id, line_id)
+            words = []
+            for word in line.words:
+                word_seq += 1
+                words.append(word.model_copy(update={"word_id": f"{prefix}-w{word_seq:04d}"}))
+            lines.append(line.model_copy(update={"line_id": line_id, "words": words}))
+        warnings = []
+        for code in source.warnings:
+            if code.startswith("needs_review:"):
+                _, reason, line_id = code.split(":", 2)
+                code = f"needs_review:{reason}:{renamed.get(line_id, line_id)}"
+            warnings.append(code)
+        target.lines = lines
+        target.tables = [
+            table.model_copy(update={"table_id": f"{prefix}-t{seq:03d}"})
+            for seq, table in enumerate(source.tables, 1)
+        ]
+        target.warnings = [*warnings, f"ocr:reused_reading_of_p{source.page_number}"]
+        target.status, target.error = source.status, source.error
+        for name in (
+            "width",
+            "height",
+            "dimension_unit",
+            "raw_markdown",
+            "raw_output_path",
+            "geometry_available",
+            "preprocessing",
+            "transform",
+        ):
+            setattr(target, name, getattr(source, name))
 
     def _finish_page(
         self,
