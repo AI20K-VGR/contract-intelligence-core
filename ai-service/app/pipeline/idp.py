@@ -23,6 +23,7 @@ from app.pipeline.compare import annex_keys_from_labels
 from app.pipeline.contract_context import build_contract_context
 from app.pipeline.contract_events import extract_contract_events
 from app.pipeline.clause import ClauseChunker
+from app.pipeline.clause_compare import compare_clauses_across_files
 from app.pipeline.fact import FactExtractor
 from app.pipeline.handoff import HandoffValidator
 from app.pipeline.index import IndexStore
@@ -227,6 +228,12 @@ def run_idp(
         facts,
         annex_labels=annex_labels,
         relation_pairs=relation_pairs,
+    )
+    # Free-form clause prose never gets an ``item_key``; compare aligned
+    # clauses between the contract body and separately uploaded annex files.
+    known_pairs = {(c.left_id, c.right_id) for c in candidates}
+    candidates.extend(
+        c for c in compare_clauses_across_files(record) if (c.left_id, c.right_id) not in known_pairs
     )
     issues = [*record.relation_graph.issues, *issues] if record.relation_graph else issues
     issues.extend(_runtime_issues(runtime))

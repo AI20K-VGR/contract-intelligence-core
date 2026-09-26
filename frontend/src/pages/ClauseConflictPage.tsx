@@ -5,12 +5,14 @@ import {
   getDossierStructure,
   listClauses,
   listReviewSpots,
+  loadDocumentLines,
   structureErrorMessage,
   type ClauseNode,
   type ClauseRegion,
   type DossierStructure,
   type ReviewSpot,
   type ReviewSpotLink,
+  type ReviewSpotSide,
   type StructureDocument,
 } from '../api/structure'
 import {
@@ -20,13 +22,19 @@ import {
 } from '../api/review'
 import { dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
-import { ConflictDocumentPane } from '../components/ConflictDocumentPane'
+import {
+  ConflictDocumentPane,
+  type ConflictBox,
+} from '../components/ConflictDocumentPane'
 import { MaterialIcon } from '../components/icons'
 import { clauseConflicts } from '../data/clauseConflicts'
 import { structurePath } from '../data/dossiers'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { findClause, findClauseByQuote } from '../structure/citations'
 import { bodyOf, headOf } from '../structure/display'
+import { clauseForCitation, regionsOf } from '../structure/conflictCite'
+import { buildStructureTree } from '../structure'
+import type { OcrLine } from '../structure/types'
 
 type Verdict = 'correct' | 'deviation' | 'edit'
 
@@ -35,6 +43,12 @@ const REVIEW_ACTION = {
   deviation: 'reject',
   edit: 'correct',
 } as const
+type CardSource = {
+  label: string
+  quote: string
+  mark: 'amber' | 'sky'
+}
+
 type ReviewCard = {
   id: string
   title: string
@@ -44,7 +58,37 @@ type ReviewCard = {
   pageNo: number | null
   confidence: number | null
   regions: ClauseRegion[]
+  sources: CardSource[]
   review: ReviewSpotLink | null
+}
+
+type ComparePane = {
+  key: string
+  document: StructureDocument
+  pageNo: number
+  quote: string
+  label: string
+  mark: 'amber' | 'sky'
+  regions: ConflictBox[]
+  locating: boolean
+  linked: boolean
+  emptyNote: string
+}
+
+const MARKS = ['amber', 'sky'] as const
+
+function sourceLabel(label: string) {
+  const normalized = label.trim().toLowerCase()
+  if (normalized === 'contract' || normalized === 'a') return 'Hợp đồng'
+  if (normalized === 'annex' || normalized === 'b') return 'Phụ lục'
+  return label.trim() || 'Nguồn'
+}
+
+function sideQuote(side: { value: string; quote: string }) {
+  const quote = side.quote.trim()
+  if (quote) return quote
+  const value = side.value.trim()
+  return value && value !== '—' ? value : ''
 }
 
 function pageFromText(text: string) {
@@ -56,13 +100,6 @@ function confidenceLabel(value: number | null) {
   if (value === null || !Number.isFinite(value)) return null
   const percent = value <= 1 ? value * 100 : value
   return `${percent.toFixed(1)}%`
-}
-
-function sideText(side: { value: string; quote: string }) {
-  const quote = side.quote.trim()
-  if (quote) return quote
-  const value = side.value.trim()
-  return value && value !== '—' ? value : ''
 }
 
 function basisOf(head: string, pageNo: number | null, pageCount: number) {
@@ -85,7 +122,18 @@ function spotToCard(
     spot.clauseIds
       .map((id) => findClause(nodes, id))
       .find((node): node is ClauseNode => node !== null) ?? null
-  const texts = spot.sides.map(sideText).filter(Boolean)
+  const texts = spot.sides.map(sideQuote).filter(Boolean)
+  const sources = spot.sides.flatMap((side, index) => {
+    const quote = sideQuote(side)
+    if (!quote) return []
+    return [
+      {
+        label: sourceLabel(side.label),
+        quote,
+        mark: MARKS[index] ?? 'amber',
+      },
+    ]
+  })
   const matched =
     linked ??
     (texts[0] ? findClauseByQuote(nodes, texts[0], null) : null)
@@ -113,8 +161,114 @@ function spotToCard(
     pageNo,
     confidence: matched?.confidence ?? null,
     regions: matched?.regions ?? [],
+    sources,
     review: spot.review,
   }
+}
+
+const PANE_ROLES = [
+  { role: 'contract', label: 'Vàng · Hợp đồng', mark: 'amber' },
+  { role: 'annex', label: 'Xanh · Phụ lục', mark: 'sky' },
+] as const
+
+function documentByRole(documents: StructureDocument[], role: string) {
+  return (
+    documents.find((item) => item.role.toLowerCase() === role) ??
+    (role === 'contract' ? documents[0] : null) ??
+    null
+  )
+}
+
+function passageOf(node: ClauseNode) {
+  const head = headOf(node)
+  const body = bodyOf(node)
+  if (head && body) return `${head}. ${body}`
+  return head || body || node.text
+}
+
+function linkPane(
+  spot: ReviewSpot,
+  document: StructureDocument,
+  label: string,
+  mark: 'amber' | 'sky',
+  nodes: ClauseNode[],
+  lines: OcrLine[] | undefined,
+): ComparePane {
+  const side =
+    spot.sides.find((item) => item.documentId === document.id) ?? null
+  const clause =
+    lines && side
+      ? clauseForCitation(nodes, lines, side.pageNo, side.lineNo)
+      : null
+  const fromTree = regionsOf(clause).map((region) => ({ ...region, accent: mark }))
+  const fromCitation = (side?.regions ?? []).map((region) => ({
+    ...region,
+    accent: mark,
+  }))
+  const regions = fromTree.length > 0 ? fromTree : fromCitation
+  const pageNo =
+    (side?.pageNo && side.pageNo > 0 ? side.pageNo : null) ??
+    regions.find((region) => region.pageNo > 0)?.pageNo ??
+    (clause?.pageStart && clause.pageStart > 0 ? clause.pageStart : 1)
+  const linked = Boolean(side && (clause || regions.length > 0 || side.pageNo))
+  const quote = clause
+    ? passageOf(clause)
+    : linked
+      ? sideQuote(side as ReviewSpotSide)
+      : ''
+  const missing =
+    label.startsWith('Xanh')
+      ? 'Điểm này không có trích dẫn trên phụ lục.'
+      : 'Điểm này không có trích dẫn trên hợp đồng.'
+  return {
+    key: document.id,
+    document,
+    pageNo,
+    quote,
+    label,
+    mark,
+    regions,
+    locating: Boolean(side?.pageNo) && lines === undefined && regions.length === 0,
+    linked,
+    emptyNote: linked ? '' : missing,
+  }
+}
+
+function locatePanes(
+  spot: ReviewSpot | null,
+  documents: StructureDocument[],
+  nodesByDocument: Record<string, ClauseNode[]>,
+  linesByDocument: Record<string, OcrLine[] | undefined>,
+): ComparePane[] {
+  if (!spot || documents.length === 0) return []
+  const contract = documentByRole(documents, 'contract')
+  const annex =
+    documentByRole(documents, 'annex') ??
+    documents.find((item) => item.id !== contract?.id) ??
+    null
+  const pair = [
+    contract
+      ? linkPane(
+          spot,
+          contract,
+          PANE_ROLES[0].label,
+          PANE_ROLES[0].mark,
+          nodesByDocument[contract.id] ?? [],
+          linesByDocument[contract.id],
+        )
+      : null,
+    annex
+      ? linkPane(
+          spot,
+          annex,
+          PANE_ROLES[1].label,
+          PANE_ROLES[1].mark,
+          nodesByDocument[annex.id] ?? [],
+          linesByDocument[annex.id],
+        )
+      : null,
+  ].filter((pane): pane is ComparePane => pane !== null)
+  return pair
 }
 
 function demoCards(): ReviewCard[] {
@@ -132,6 +286,12 @@ function demoCards(): ReviewCard[] {
       pageNo,
       confidence: null,
       regions: [],
+      sources: [
+        { label: 'Nguồn 1', quote, mark: 'amber' },
+        ...(contrast
+          ? [{ label: 'Nguồn 2' as const, quote: contrast, mark: 'sky' as const }]
+          : []),
+      ],
       review: null,
     }
   })
@@ -177,15 +337,25 @@ export function ClauseConflictPage() {
   const dossierId = reviewState?.dossierId ?? ''
   const { user } = useAuth()
   const searchRef = useRef<HTMLInputElement>(null)
+  const loadedLines = useRef(new Set<string>())
   const [detail, setDetail] = useState<DossierStructure | null>(null)
   const [document, setDocument] = useState<StructureDocument | null>(null)
   const [spots, setSpots] = useState<ReviewSpot[]>([])
-  const [nodes, setNodes] = useState<ClauseNode[]>([])
+  const [nodesByDocument, setNodesByDocument] = useState<
+    Record<string, ClauseNode[]>
+  >({})
+  const [linesByDocument, setLinesByDocument] = useState<
+    Record<string, OcrLine[]>
+  >({})
   const [pdfPages, setPdfPages] = useState(0)
   const [loading, setLoading] = useState(Boolean(dossierId))
   const [error, setError] = useState<string | null>(null)
   const [activeId, setActiveId] = useState('')
   const [pageNo, setPageNo] = useState(1)
+  const [align, setAlign] = useState<{
+    mark: 'amber' | 'sky' | 'both'
+    tick: number
+  }>({ mark: 'both', tick: 0 })
   const [query, setQuery] = useState('')
   const [verdicts, setVerdicts] = useState<Record<string, Verdict>>({})
   const [notes, setNotes] = useState<Record<string, string>>({})
@@ -210,6 +380,9 @@ export function ClauseConflictPage() {
     const controller = new AbortController()
     setLoading(true)
     setError(null)
+    setLinesByDocument({})
+    setNodesByDocument({})
+    loadedLines.current.clear()
     Promise.all([
       getDossierStructure(dossierId, controller.signal),
       listReviewSpots(dossierId, controller.signal),
@@ -229,19 +402,18 @@ export function ClauseConflictPage() {
         setDetail(nextDetail)
         const nextDocument = contractDocument(nextDetail)
         setDocument(nextDocument)
-        if (!nextDocument) {
-          setNodes([])
-          setSpots(nextSpots)
-          return
-        }
-        try {
-          const nextNodes = await listClauses(nextDocument.id, controller.signal)
-          if (controller.signal.aborted) return
-          setNodes(nextNodes)
-        } catch {
-          if (controller.signal.aborted) return
-          setNodes([])
-        }
+        const trees = await Promise.all(
+          nextDetail.documents.map(async (item) => {
+            try {
+              const tree = await listClauses(item.id, controller.signal)
+              return [item.id, tree] as const
+            } catch {
+              return [item.id, [] as ClauseNode[]] as const
+            }
+          }),
+        )
+        if (controller.signal.aborted) return
+        setNodesByDocument(Object.fromEntries(trees))
         setSpots(nextSpots)
       })
       .catch((cause: unknown) => {
@@ -254,6 +426,11 @@ export function ClauseConflictPage() {
     return () => controller.abort()
   }, [dossierId])
 
+  const contractId = useMemo(
+    () => (detail ? contractDocument(detail)?.id ?? null : null),
+    [detail],
+  )
+  const nodes = nodesByDocument[contractId ?? ''] ?? []
   const pageCount = document?.pageCount || pdfPages
   const cards = useMemo(() => {
     if (!dossierId) return demoCards()
@@ -268,8 +445,34 @@ export function ClauseConflictPage() {
     )
   }, [cards, query])
 
+  const structureMode = detail?.structureMode ?? 'numbered'
+  const trees = useMemo(() => {
+    const map: Record<string, ClauseNode[]> = {}
+    for (const [id, lines] of Object.entries(linesByDocument)) {
+      map[id] =
+        lines.length > 0
+          ? buildStructureTree(lines, structureMode)
+          : (nodesByDocument[id] ?? [])
+    }
+    return map
+  }, [linesByDocument, nodesByDocument, structureMode])
   const active =
     cards.find((card) => card.id === activeId) ?? visible[0] ?? cards[0] ?? null
+  const linksById = useMemo(() => {
+    const map = new Map<string, ComparePane[]>()
+    const documents = detail?.documents ?? []
+    for (const spot of spots) {
+      map.set(spot.id, locatePanes(spot, documents, trees, linesByDocument))
+    }
+    return map
+  }, [detail?.documents, linesByDocument, spots, trees])
+  const located = linksById.get(active?.id ?? '') ?? []
+  const comparing = located.length > 1
+
+  useEffect(() => {
+    if (!active?.id) return
+    setAlign({ mark: 'both', tick: Date.now() })
+  }, [active?.id])
 
   useEffect(() => {
     if (cards.length === 0) return
@@ -277,8 +480,46 @@ export function ClauseConflictPage() {
   }, [activeId, cards])
 
   useEffect(() => {
-    if (active?.pageNo) setPageNo(active.pageNo)
-  }, [active?.id, active?.pageNo])
+    const documents = detail?.documents ?? []
+    const pending = documents.filter((item) => !loadedLines.current.has(item.id))
+    if (pending.length === 0) return
+    const controller = new AbortController()
+    for (const item of pending) {
+      loadedLines.current.add(item.id)
+      loadDocumentLines(item.id, controller.signal)
+        .then((lines) => {
+          if (controller.signal.aborted) return
+          setLinesByDocument((current) => ({ ...current, [item.id]: lines }))
+        })
+        .catch(() => {
+          if (controller.signal.aborted) {
+            loadedLines.current.delete(item.id)
+            return
+          }
+          setLinesByDocument((current) => ({ ...current, [item.id]: [] }))
+        })
+    }
+    return () => controller.abort()
+  }, [detail?.documents])
+
+  const focusKey =
+    located.length === 1
+      ? `${active?.id ?? ''}:${located[0].document.id}:${located[0].pageNo}`
+      : ''
+
+  useEffect(() => {
+    if (located.length !== 1 || !focusKey) return
+    setDocument(located[0].document)
+    setPageNo(located[0].pageNo)
+  }, [focusKey, located])
+
+  function selectDocument(id: string) {
+    const next = detail?.documents.find((item) => item.id === id) ?? null
+    if (!next || next.id === document?.id) return
+    setDocument(next)
+    setPdfPages(0)
+    setPageNo(1)
+  }
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -294,6 +535,7 @@ export function ClauseConflictPage() {
   const onPageCount = useCallback((count: number) => {
     setPdfPages((current) => (current === count ? current : count))
   }, [])
+  const ignorePageCount = useCallback((_count: number) => undefined, [])
   const onPageChange = useCallback((page: number) => {
     setPageNo(Math.max(1, page))
   }, [])
@@ -398,7 +640,13 @@ export function ClauseConflictPage() {
               <span className="text-outline-variant">/</span>
               <span className="font-semibold text-on-surface">{dossierName}</span>
             </div>
-            {document ? (
+            {comparing ? (
+              <div className="hidden items-center gap-space-sm font-label-sm text-label-sm text-secondary lg:flex">
+                <span className="font-medium text-on-surface">
+                  Đối chiếu {located.length} tài liệu
+                </span>
+              </div>
+            ) : document ? (
               <div className="hidden items-center gap-space-sm font-label-sm text-label-sm text-secondary lg:flex">
                 <span className="font-medium text-on-surface">
                   {document.filename}
@@ -415,20 +663,73 @@ export function ClauseConflictPage() {
       </section>
 
       <div className="grid min-h-0 w-full flex-1 grid-cols-1 overflow-hidden rounded border border-outline-variant/50 bg-surface-container-low shadow-sm xl:grid-cols-12">
-          <div className="flex min-h-[420px] flex-col border-r border-outline-variant/60 xl:col-span-7 xl:min-h-0">
-            <ConflictDocumentPane
-              citeNo={active ? cards.findIndex((card) => card.id === active.id) + 1 : null}
-              documentId={document?.id ?? null}
-              filename={document?.filename ?? ''}
-              pageCount={pageCount}
-              pageNo={pageNo}
-              quote={active?.quote ?? ''}
-              regions={active?.regions ?? []}
-              title={active?.title ?? ''}
-              onBack={() => navigate(backTo)}
-              onPageChange={onPageChange}
-              onPageCount={onPageCount}
-            />
+          <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-r border-outline-variant/60 xl:col-span-7">
+            {comparing ? (
+              <div className="grid h-full min-h-0 flex-1 grid-rows-2">
+                {located.map((pane, index) => (
+                  <div
+                    key={pane.key}
+                    className="flex h-full min-h-0 flex-col overflow-hidden border-b border-outline-variant/50 last:border-b-0"
+                  >
+                    <ConflictDocumentPane
+                      alignToken={
+                        align.mark === 'both' || align.mark === pane.mark
+                          ? align.tick
+                          : 0
+                      }
+                      citeNo={
+                        index === 0 && active
+                          ? cards.findIndex((card) => card.id === active.id) + 1
+                          : null
+                      }
+                      documentId={pane.document.id}
+                      filename={pane.document.filename}
+                      emptyNote={pane.emptyNote}
+                      locating={pane.locating}
+                      locked
+                      mark={pane.mark}
+                      pageCount={pane.document.pageCount}
+                      pageNo={pane.pageNo}
+                      quote={pane.quote}
+                      regions={pane.regions}
+                      sourceLabel={pane.label}
+                      title={active?.title ?? ''}
+                      onBack={index === 0 ? () => navigate(backTo) : undefined}
+                      onPageChange={onPageChange}
+                      onPageCount={index === 0 ? onPageCount : ignorePageCount}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <ConflictDocumentPane
+                citeNo={
+                  active
+                    ? cards.findIndex((card) => card.id === active.id) + 1
+                    : null
+                }
+                documentId={document?.id ?? null}
+                filename={document?.filename ?? ''}
+                files={detail?.documents ?? []}
+                locating={
+                  located.find((pane) => pane.document.id === document?.id)
+                    ?.locating ?? false
+                }
+                pageCount={pageCount}
+                pageNo={pageNo}
+                quote={active?.quote ?? ''}
+                regions={
+                  located.find((pane) => pane.document.id === document?.id)
+                    ?.regions ??
+                  (document?.id === contractId ? (active?.regions ?? []) : [])
+                }
+                title={active?.title ?? ''}
+                onBack={() => navigate(backTo)}
+                onPageChange={onPageChange}
+                onPageCount={onPageCount}
+                onSelectDocument={selectDocument}
+              />
+            )}
           </div>
           <div className="flex min-h-[420px] flex-col bg-surface-container-lowest xl:col-span-5 xl:min-h-0">
             <div className="space-y-space-sm border-b border-outline-variant/40 bg-surface-bright p-space-md">
@@ -459,7 +760,20 @@ export function ClauseConflictPage() {
                     Câu trả lời tổng hợp & {cards.length} điểm trích dẫn
                   </span>
                 </div>
-                {confidenceLabel(average) ? (
+                {comparing ? (
+                  <span className="flex items-center gap-2 font-label-sm text-label-sm text-secondary">
+                    {located.map((pane) => (
+                      <span key={pane.key} className="inline-flex items-center gap-1">
+                        <span
+                          className={`h-2 w-2 rounded-sm ${
+                            pane.mark === 'sky' ? 'bg-sky-500' : 'bg-amber-500'
+                          }`}
+                        />
+                        {pane.label}
+                      </span>
+                    ))}
+                  </span>
+                ) : confidenceLabel(average) ? (
                   <span className="font-code-sm text-code-sm text-secondary">
                     Độ chuẩn xác {confidenceLabel(average)}
                   </span>
@@ -572,20 +886,57 @@ export function ClauseConflictPage() {
                         </button>
                       ) : null}
                     </div>
-                    <p
-                      className={`mb-space-sm rounded border p-2 font-body-sm text-body-sm leading-normal ${
-                        selected
-                          ? 'border-outline-variant/30 bg-white/80 font-medium text-on-surface'
-                          : 'border-outline-variant/20 bg-surface-container-low/60 text-on-surface-variant'
-                      }`}
-                    >
-                      “{card.quote || 'Không có trích dẫn.'}”
-                    </p>
-                    {card.contrast ? (
-                      <p className="mb-space-sm font-body-sm text-body-sm text-on-surface-variant">
-                        Đối chiếu: {card.contrast}
-                      </p>
-                    ) : null}
+                    {(linksById.get(card.id)?.length ?? 0) > 1 ? (
+                      <div className="mb-space-sm space-y-1.5">
+                        <p className="font-body-sm text-body-sm leading-normal text-on-surface-variant">
+                          {card.quote}
+                        </p>
+                        {linksById.get(card.id)?.map((pane) => (
+                          <button
+                            key={pane.key}
+                            className={`w-full rounded border border-l-4 p-2 text-left font-body-sm text-body-sm leading-normal ${
+                              pane.mark === 'sky'
+                                ? 'border-sky-200 border-l-sky-600 bg-sky-50/80 hover:bg-sky-100'
+                                : 'border-amber-200 border-l-amber-500 bg-amber-50/80 hover:bg-amber-100'
+                            } ${selected ? 'text-on-surface' : 'text-on-surface-variant'}`}
+                            type="button"
+                            onClick={() => {
+                              setActiveId(card.id)
+                              setAlign({ mark: pane.mark, tick: Date.now() })
+                            }}
+                          >
+                            <span className="mb-0.5 block font-label-sm font-semibold text-on-surface">
+                              {pane.label}
+                              {pane.linked && pane.pageNo > 0
+                                ? ` · Trang ${pane.pageNo}`
+                                : ''}
+                            </span>
+                            {pane.locating
+                              ? 'Đang nối với cây cấu trúc…'
+                              : pane.linked
+                                ? `“${pane.quote}”`
+                                : pane.emptyNote}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <>
+                        <p
+                          className={`mb-space-sm rounded border p-2 font-body-sm text-body-sm leading-normal ${
+                            selected
+                              ? 'border-outline-variant/30 bg-white/80 font-medium text-on-surface'
+                              : 'border-outline-variant/20 bg-surface-container-low/60 text-on-surface-variant'
+                          }`}
+                        >
+                          “{card.quote || 'Không có trích dẫn.'}”
+                        </p>
+                        {card.contrast ? (
+                          <p className="mb-space-sm font-body-sm text-body-sm text-on-surface-variant">
+                            Đối chiếu: {card.contrast}
+                          </p>
+                        ) : null}
+                      </>
+                    )}
                     <div className="mb-space-sm flex flex-wrap items-center justify-between gap-space-xs border-t border-outline-variant/30 pt-space-xs font-label-sm text-label-sm text-secondary">
                       <span className="font-code-sm text-code-sm font-medium text-on-surface-variant">
                         {card.basis}

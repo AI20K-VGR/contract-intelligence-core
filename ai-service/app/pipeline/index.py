@@ -23,9 +23,7 @@ class IndexStore:
     ) -> IndexContribution:
         grounded_facts = [f for f in facts if f.review_state != ReviewState.INSUFFICIENT_EVIDENCE]
         grounded_ids = {f.fact_id for f in grounded_facts}
-        safe_candidates = [
-            c for c in candidates if c.left_id in grounded_ids and c.right_id in grounded_ids
-        ]
+        safe_candidates = [c for c in candidates if _grounded(c, grounded_ids)]
         coverage_data = dict(coverage or {})
         coverage_data["n_candidates_suppressed"] = len(candidates) - len(safe_candidates)
         contrib = IndexContribution(
@@ -43,3 +41,16 @@ class IndexStore:
         self.contributions.append(contrib)
         # AI2 must not flip the active pointer
         return contrib
+
+
+def _grounded(candidate: Candidate, grounded_fact_ids: set[str]) -> bool:
+    """Keep fact pairs built on grounded facts, or clause pairs whose every citation verified."""
+
+    if candidate.left_id in grounded_fact_ids and candidate.right_id in grounded_fact_ids:
+        return True
+    if not candidate.evidence_left or not candidate.evidence_right:
+        return False
+    return all(
+        citation.validation_status == "VALID"
+        for citation in [*candidate.evidence_left, *candidate.evidence_right]
+    )

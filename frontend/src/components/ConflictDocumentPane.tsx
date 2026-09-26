@@ -6,29 +6,67 @@ import { MaterialIcon } from './icons'
 
 GlobalWorkerOptions.workerSrc = workerUrl
 
+export type ConflictDocumentFile = {
+  id: string
+  filename: string
+  role: string
+}
+
+export type ConflictBox = ClauseRegion & { accent?: 'amber' | 'sky' }
+
+function boxClass(accent: 'amber' | 'sky') {
+  return accent === 'sky'
+    ? 'border-sky-600 bg-sky-300/45'
+    : 'border-amber-500 bg-amber-300/50'
+}
+
+function roleLabel(role: string) {
+  const normalized = role.toLowerCase()
+  if (normalized === 'contract') return 'Hợp đồng'
+  if (normalized === 'annex') return 'Phụ lục'
+  return 'Tài liệu'
+}
+
 export function ConflictDocumentPane({
   documentId,
   filename,
+  files = [],
   pageNo,
   regions,
   citeNo,
   quote,
   title,
+  sourceLabel,
+  mark = 'amber',
+  locked = false,
+  locating = false,
+  emptyNote = '',
+  alignToken = 0,
   onPageChange,
   onBack,
   onPageCount,
+  onSelectDocument,
 }: {
   documentId: string | null
   filename: string
+  files?: ConflictDocumentFile[]
   pageNo: number
   pageCount: number
-  regions: ClauseRegion[]
+  regions: ConflictBox[]
   citeNo: number | null
   quote: string
   title: string
+  sourceLabel?: string
+  mark?: 'amber' | 'sky'
+  locked?: boolean
+  locating?: boolean
+  emptyNote?: string
+  /** Tăng số này để kéo lại đúng vùng khoanh, kể cả khi vẫn đang ở trang đó. */
+  alignToken?: number
   onPageChange: (page: number) => void
-  onBack: () => void
+  onBack?: () => void
   onPageCount: (count: number) => void
+  onSelectDocument?: (id: string) => void
 }) {
   const canvasRefs = useRef<Array<HTMLCanvasElement | null>>([])
   const scrollerRef = useRef<HTMLDivElement>(null)
@@ -39,14 +77,15 @@ export function ConflictDocumentPane({
   const [finding, setFinding] = useState(false)
   const [findQuery, setFindQuery] = useState('')
   const [findNote, setFindNote] = useState<string | null>(null)
+  const [localPage, setLocalPage] = useState<number | null>(null)
 
   useEffect(() => {
     if (!documentId) return
     const controller = new AbortController()
     let cancelled = false
-    const tasks: Array<{ cancel: () => void }> = []
     setError(null)
     setReady(false)
+    setPageTotal(0)
 
     async function load() {
       const bytes = await loadDocumentPdf(documentId!, controller.signal)
@@ -129,11 +168,36 @@ export function ConflictDocumentPane({
   }, [documentId, pageTotal])
 
   useEffect(() => {
-    const node = scrollerRef.current?.querySelector(
-      `[data-page="${pageNo}"]`,
-    )
-    node?.scrollIntoView({ block: 'start' })
-  }, [pageNo, ready])
+    setLocalPage(null)
+  }, [documentId, pageNo])
+
+  useEffect(() => {
+    if (!ready) return
+    const scroller = scrollerRef.current
+    if (!scroller) return
+    const page = localPage ?? pageNo
+    let timer = 0
+    const align = () => {
+      const pageNode = scroller.querySelector<HTMLElement>(
+        `[data-page="${page}"]`,
+      )
+      if (!pageNode) return
+      const box = pageNode.querySelector<HTMLElement>('[data-citation-box]')
+      const target = box ?? pageNode
+      const delta =
+        target.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top
+      scroller.scrollTop += delta - 8
+    }
+    const frame = requestAnimationFrame(() => {
+      align()
+      timer = window.setTimeout(align, 60)
+    })
+    return () => {
+      cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
+    }
+  }, [alignToken, localPage, pageNo, ready, regions])
 
   async function download() {
     if (!documentId) return
@@ -163,6 +227,7 @@ export function ConflictDocumentPane({
           .join(' ')
           .toLowerCase()
         if (text.includes(needle)) {
+          setLocalPage(index)
           onPageChange(index)
           setFindNote(`Tìm thấy ở trang ${index}`)
           setFinding(false)
@@ -176,28 +241,69 @@ export function ConflictDocumentPane({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-slate-200/70">
+    <div className="flex h-full min-h-0 flex-1 flex-col bg-slate-200/70">
       <div className="flex h-11 shrink-0 items-center justify-between gap-space-sm border-b border-outline-variant/40 bg-surface-container-lowest px-space-md">
         <div className="flex min-w-0 items-center gap-space-sm">
-          <button
-            className="flex items-center gap-1 pr-space-xs font-label-sm text-label-sm text-secondary hover:text-on-surface"
-            type="button"
-            onClick={onBack}
-          >
-            <MaterialIcon name="arrow_back" className="text-[16px]" />
-            <span className="hidden md:inline">Danh sách</span>
-          </button>
-          <div className="h-4 w-px bg-outline-variant/50" />
-          <MaterialIcon
-            name="picture_as_pdf"
-            className="text-[18px] text-error"
-          />
-          <span
-            className="max-w-[210px] truncate font-body-sm text-body-sm font-semibold text-on-surface"
-            title={filename}
-          >
-            {filename || 'Hợp đồng'}
-          </span>
+          {onBack ? (
+            <button
+              className="flex items-center gap-1 pr-space-xs font-label-sm text-label-sm text-secondary hover:text-on-surface"
+              type="button"
+              onClick={onBack}
+            >
+              <MaterialIcon name="arrow_back" className="text-[16px]" />
+              <span className="hidden md:inline">Danh sách</span>
+            </button>
+          ) : null}
+          {onBack ? <div className="h-4 w-px bg-outline-variant/50" /> : null}
+          {sourceLabel ? (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded bg-surface-container px-1.5 py-0.5 font-label-sm text-label-sm font-semibold text-on-surface">
+              <span
+                className={`h-2.5 w-2.5 rounded-sm ${
+                  mark === 'sky' ? 'bg-sky-500' : 'bg-amber-500'
+                }`}
+              />
+              {sourceLabel}
+            </span>
+          ) : null}
+          {files.length > 0 && !locked ? (
+            <div className="flex min-w-0 items-center gap-1 overflow-x-auto">
+              {files.map((file) => {
+                const active = file.id === documentId
+                return (
+                  <button
+                    key={file.id}
+                    className={`flex h-7 max-w-[220px] shrink-0 items-center gap-1 rounded px-2 font-body-sm text-body-sm ${
+                      active
+                        ? 'bg-primary text-on-primary'
+                        : 'text-on-surface hover:bg-surface-container'
+                    }`}
+                    title={`${roleLabel(file.role)} · ${file.filename}`}
+                    type="button"
+                    onClick={() => onSelectDocument?.(file.id)}
+                  >
+                    <MaterialIcon
+                      name="picture_as_pdf"
+                      className={`text-[16px] ${active ? '' : 'text-error'}`}
+                    />
+                    <span className="truncate">{file.filename}</span>
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <>
+              <MaterialIcon
+                name="picture_as_pdf"
+                className="text-[18px] text-error"
+              />
+              <span
+                className="max-w-[210px] truncate font-body-sm text-body-sm font-semibold text-on-surface"
+                title={filename}
+              >
+                {filename || 'Hợp đồng'}
+              </span>
+            </>
+          )}
           {citeNo ? (
             <span className="hidden whitespace-nowrap rounded bg-primary-container px-1.5 py-0.5 font-label-sm text-label-sm text-on-primary 2xl:inline-block">
               [{citeNo}] Đang rà soát
@@ -277,6 +383,22 @@ export function ConflictDocumentPane({
                 Đang mở trang hợp đồng…
               </p>
             ) : null}
+            {ready && locating ? (
+              <p className="mb-3 font-body-sm text-body-sm text-secondary">
+                Đang khoanh câu trích trên trang…
+              </p>
+            ) : null}
+            {ready && !locating && regions.length === 0 && (emptyNote || quote) ? (
+              <p
+                className={`mb-3 rounded border px-2 py-1 font-body-sm text-body-sm ${
+                  mark === 'sky'
+                    ? 'border-sky-300 bg-sky-50 text-sky-950'
+                    : 'border-amber-300 bg-amber-50 text-amber-950'
+                }`}
+              >
+                {emptyNote || 'Chưa khoanh được câu trích trên tài liệu này.'}
+              </p>
+            ) : null}
             <div
               className={ready ? '' : 'hidden'}
               style={{ transform: `rotate(${rotation}deg)` }}
@@ -303,8 +425,9 @@ export function ConflictDocumentPane({
                     />
                     {boxes.map((region, boxIndex) => (
                       <div
-                        key={`${region.pageNo}-${boxIndex}`}
-                        className="pointer-events-none absolute border-2 border-amber-500 bg-amber-300/40"
+                        key={`${region.pageNo}-${boxIndex}-${region.accent ?? mark}`}
+                        data-citation-box
+                        className={`pointer-events-none absolute z-10 border-2 ${boxClass(region.accent ?? mark)}`}
                         style={{
                           left: `${region.bbox[0] * 100}%`,
                           top: `${region.bbox[1] * 100}%`,

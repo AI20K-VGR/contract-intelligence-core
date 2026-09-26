@@ -52,21 +52,37 @@ def build_contract_context(
 
     digest = record.pins.source_snapshot_digest
     annex_ranges = _annex_ranges(record)
+    # Files the dossier declares as annexes are whole ANNEX parts on their own;
+    # page numbers restart per file, so they must never be merged with the body
+    # by page number alone.
+    annex_files = {item.file_id: item for item in record.source_files if item.role == "annex"}
     parts: list[ContractPart] = []
     body_ids: list[str] = []
     body_pages: set[int] = set()
+    body_file_id: str | None = None
     annex_ids: dict[str, list[str]] = defaultdict(list)
     annex_pages: dict[str, set[int]] = defaultdict(set)
+    annex_file_ids: dict[str, list[str]] = defaultdict(list)
+    annex_file_pages: dict[str, set[int]] = defaultdict(set)
 
     for node in sorted(record.evidence_nodes(), key=lambda item: (item.order, item.node_id)):
-        matching = [number for number, pages in annex_ranges.items() if set(node.page_range).intersection(pages)]
+        if node.source_file_id and node.source_file_id in annex_files:
+            annex_file_ids[node.source_file_id].append(node.node_id)
+            annex_file_pages[node.source_file_id].update(node.page_range)
+            continue
+        matching = [
+            key
+            for key, pages in annex_ranges.items()
+            if key[0] == node.source_file_id and set(node.page_range).intersection(pages)
+        ]
         if matching:
-            number = matching[0]
-            annex_ids[number].append(node.node_id)
-            annex_pages[number].update(page for page in node.page_range if page in annex_ranges[number])
+            key = matching[0]
+            annex_ids[key[1]].append(node.node_id)
+            annex_pages[key[1]].update(page for page in node.page_range if page in annex_ranges[key])
         else:
             body_ids.append(node.node_id)
             body_pages.update(node.page_range)
+            body_file_id = body_file_id or node.source_file_id
 
     if body_ids or body_pages:
         parts.append(
@@ -76,7 +92,7 @@ def build_contract_context(
                 label="Thân hợp đồng",
                 node_ids=body_ids,
                 page_range=sorted(body_pages),
-                citation=_page_citation(record, min(body_pages) if body_pages else None),
+                citation=_page_citation(record, min(body_pages) if body_pages else None, body_file_id),
                 confidence=1.0,
             )
         )
@@ -90,7 +106,26 @@ def build_contract_context(
                 annex_number=number,
                 node_ids=annex_ids[number],
                 page_range=pages,
-                citation=_page_citation(record, pages[0] if pages else None),
+                citation=_page_citation(record, pages[0] if pages else None, body_file_id),
+                confidence=0.98,
+            )
+        )
+    for file_id in sorted(annex_file_ids):
+        pages = sorted(annex_file_pages[file_id])
+        file_markers = sorted(
+            ((min(pages_), key[1]) for key, pages_ in annex_ranges.items() if key[0] == file_id and pages_),
+        )
+        number = file_markers[0][1] if file_markers else None
+        filename = annex_files[file_id].filename or file_id
+        parts.append(
+            ContractPart(
+                part_id=f"annex:{number}:{file_id}" if number else f"annex:file:{file_id}",
+                kind="ANNEX",
+                label=f"Phụ lục {number}" if number else f"Phụ lục ({filename})",
+                annex_number=number,
+                node_ids=annex_file_ids[file_id],
+                page_range=pages,
+                citation=_page_citation(record, pages[0] if pages else None, file_id),
                 confidence=0.98,
             )
         )
@@ -156,12 +191,14 @@ def build_contract_context(
             )
 
     for candidate in candidates:
-        source_ids = [
-            *[citation.node_id for citation in candidate.evidence_left if citation.node_id],
-            *[citation.node_id for citation in candidate.evidence_right if citation.node_id],
-        ]
+        evidence = [*candidate.evidence_left, *candidate.evidence_right]
+        source_ids = [citation.node_id for citation in evidence if citation.node_id]
         distinct_parts = {node_part.get(node_id) for node_id in source_ids if node_part.get(node_id)}
         if len(distinct_parts) < 2:
+            continue
+        if len({citation.source_file_id for citation in evidence if citation.source_file_id}) > 1:
+            # Cross-file candidates are already first-class findings; this
+            # layer only describes context inside one snapshot.
             continue
         if candidate.disposition == Disposition.COMPARABLE_MATCH:
             continue
@@ -225,23 +262,33 @@ def build_contract_context(
     )
 
 
-def _annex_ranges(record: DossierRecord) -> dict[str, set[int]]:
-    markers: list[tuple[int, str]] = []
-    for page in sorted(record.pages, key=lambda item: item.page_number):
-        lines = list(page.line_texts.values())
-        for line in lines or [page.text.splitlines()[0] if page.text else ""]:
-            match = ANNEX_HEADING_RE.match(fold_for_match(line))
-            if match:
-                markers.append((page.page_number, match.group(1)))
-                break
-    first_markers: dict[str, int] = {}
-    for page_number, number in markers:
-        first_markers[number] = min(page_number, first_markers.get(number, page_number))
-    unique_markers = sorted((page_number, number) for number, page_number in first_markers.items())
-    result: dict[str, set[int]] = {}
-    for index, (start, number) in enumerate(unique_markers):
-        end = unique_markers[index + 1][0] - 1 if index + 1 < len(unique_markers) else max((p.page_number for p in record.pages), default=start)
-        result[number] = set(range(start, end + 1))
+def _annex_ranges(record: DossierRecord) -> dict[tuple[str | None, str], set[int]]:
+    """Map ``(source_file_id, annex_number)`` to the page numbers it spans.
+
+    Page numbers restart in every source file, so ranges are computed per file.
+    """
+
+    by_file: dict[str | None, list] = defaultdict(list)
+    for page in record.pages:
+        by_file[page.source_file_id].append(page)
+    result: dict[tuple[str | None, str], set[int]] = {}
+    for file_id, pages in by_file.items():
+        markers: list[tuple[int, str]] = []
+        for page in sorted(pages, key=lambda item: item.page_number):
+            lines = list(page.line_texts.values())
+            for line in lines or [page.text.splitlines()[0] if page.text else ""]:
+                match = ANNEX_HEADING_RE.match(fold_for_match(line))
+                if match:
+                    markers.append((page.page_number, match.group(1)))
+                    break
+        first_markers: dict[str, int] = {}
+        for page_number, number in markers:
+            first_markers[number] = min(page_number, first_markers.get(number, page_number))
+        unique_markers = sorted((page_number, number) for number, page_number in first_markers.items())
+        last_page = max((p.page_number for p in pages), default=0)
+        for index, (start, number) in enumerate(unique_markers):
+            end = unique_markers[index + 1][0] - 1 if index + 1 < len(unique_markers) else last_page
+            result[(file_id, number)] = set(range(start, end + 1))
     return result
 
 
@@ -302,10 +349,17 @@ def _node_citation(record: DossierRecord, node_id: str) -> Citation | None:
     )
 
 
-def _page_citation(record: DossierRecord, page_number: int | None) -> Citation | None:
+def _page_citation(record: DossierRecord, page_number: int | None, file_id: str | None = None) -> Citation | None:
     if page_number is None:
         return None
-    page = next((item for item in record.pages if item.page_number == page_number), None)
+    page = next(
+        (
+            item
+            for item in record.pages
+            if item.page_number == page_number and (file_id is None or item.source_file_id == file_id)
+        ),
+        None,
+    )
     if page is None:
         return None
     text = (page.text or "")[:240]

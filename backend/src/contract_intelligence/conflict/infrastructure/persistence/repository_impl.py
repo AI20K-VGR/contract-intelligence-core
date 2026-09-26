@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from sqlalchemy import and_, func, select
@@ -13,6 +14,7 @@ from contract_intelligence.conflict.infrastructure.persistence.orm import (
     FindingSideORM,
 )
 from contract_intelligence.contract.infrastructure.persistence.orm import DocumentORM
+from contract_intelligence.extraction.infrastructure.persistence.orm import CitationORM
 from contract_intelligence.review.infrastructure.persistence.orm import ReviewItemORM
 
 # disposition values that require reviewer attention (= v_conflict)
@@ -22,6 +24,23 @@ _CONFLICT_DISPOSITIONS = (
     "insufficient_evidence",
 )
 _CONFLICT_CONFIDENCE_THRESHOLD = 0.6
+
+
+def _citation_payload(orm: CitationORM) -> dict[str, Any]:
+    """Quote + segments bbox để UI khoanh đúng chỗ trên từng tài liệu."""
+    raw: object = orm.segments
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            raw = []
+    segments = raw if isinstance(raw, list) else []
+    return {
+        "id": orm.id,
+        "document_id": orm.document_id,
+        "quote": orm.quote,
+        "segments": segments,
+    }
 
 
 class FindingRepositoryImpl:
@@ -82,9 +101,15 @@ class FindingRepositoryImpl:
             .order_by(FindingORM.created_at.desc())
         )
         result = await self._session.execute(stmt)
+        rows = list(result.scalars().all())
+        # Findings are append-only; a re-run appends a fresh set. Only the
+        # latest run reflects the current documents, so older runs are hidden.
+        latest_run = next((f.run_id for f in rows if f.run_id), None)
+        if latest_run:
+            rows = [f for f in rows if f.run_id == latest_run]
         filtered = [
             f
-            for f in result.scalars().all()
+            for f in rows
             if f.disposition in _CONFLICT_DISPOSITIONS
             or float(f.confidence) < _CONFLICT_CONFIDENCE_THRESHOLD
         ]
@@ -131,6 +156,27 @@ class FindingRepositoryImpl:
                     "value_snapshot": snapshot,
                 }
             )
+
+        citation_ids = [
+            str(side["citation_id"])
+            for sides in sides_by_finding.values()
+            for side in sides
+            if side.get("citation_id")
+        ]
+        if citation_ids:
+            cit_stmt = select(CitationORM).where(
+                CitationORM.id.in_(citation_ids),
+                CitationORM.tenant_id == self._tenant_id,
+            )
+            cit_rows = await self._session.execute(cit_stmt)
+            by_id = {
+                row.id: _citation_payload(row) for row in cit_rows.scalars().all()
+            }
+            for sides in sides_by_finding.values():
+                for side in sides:
+                    payload = by_id.get(str(side.get("citation_id") or ""))
+                    if payload:
+                        side["citation"] = payload
 
         review_stmt = select(ReviewItemORM).where(
             ReviewItemORM.tenant_id == self._tenant_id,

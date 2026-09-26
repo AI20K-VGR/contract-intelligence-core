@@ -63,13 +63,26 @@ export type ReviewSpotLink = {
   version: number
 }
 
+export type ReviewSpotSide = {
+  label: string
+  value: string
+  quote: string
+  documentId: string
+  clauseId: string
+  /** Trang và dòng OCR của citation. Bbox 0,0,0,0 không dùng được. */
+  pageNo: number | null
+  lineNo: number | null
+  /** Bbox thật từ citation. Rỗng thì UI lấy region của nút cây cấu trúc. */
+  regions: ClauseRegion[]
+}
+
 export type ReviewSpot = {
   id: string
   topic: string
   rationale: string
   severity: string
   clauseIds: string[]
-  sides: { label: string; value: string; quote: string }[]
+  sides: ReviewSpotSide[]
   review: ReviewSpotLink | null
 }
 
@@ -396,6 +409,50 @@ export async function loadDocumentLines(
   return lines
 }
 
+function lineNoOf(row: Record<string, unknown>) {
+  const direct = asNumber(row.line_no)
+  if (direct > 0) return direct
+  const id = asString(row.line_id)
+  const match = id.match(/(?:^|:)l(\d+)$/i)
+  return match ? Number(match[1]) : null
+}
+
+function usableBBox(bbox: [number, number, number, number]) {
+  const area = Math.max(0, bbox[2] - bbox[0]) * Math.max(0, bbox[3] - bbox[1])
+  return area > 0.0001 && area <= 1
+}
+
+function citationAnchor(citation: Record<string, unknown> | null): {
+  regions: ClauseRegion[]
+  pageNo: number | null
+  lineNo: number | null
+} {
+  if (!citation) return { regions: [], pageNo: null, lineNo: null }
+  let segments: unknown = citation.segments
+  if (typeof segments === 'string') {
+    try {
+      segments = JSON.parse(segments) as unknown
+    } catch {
+      return { regions: [], pageNo: null, lineNo: null }
+    }
+  }
+  if (!Array.isArray(segments)) return { regions: [], pageNo: null, lineNo: null }
+  let pageNo: number | null = null
+  let lineNo: number | null = null
+  const regions: ClauseRegion[] = []
+  for (const item of segments) {
+    const row = asRecord(item)
+    if (!row) continue
+    const page = asNumber(row.page_no) || asNumber(row.page_number)
+    if (pageNo === null && page > 0) pageNo = page
+    if (lineNo === null) lineNo = lineNoOf(row)
+    const bbox = asBBox(row.bbox, 0, 0)
+    if (!bbox || !usableBBox(bbox) || page <= 0) continue
+    regions.push({ pageNo: page, bbox })
+  }
+  return { regions, pageNo, lineNo }
+}
+
 function snapshotText(value: unknown) {
   if (typeof value === 'string') return value.trim()
   if (typeof value === 'number' && Number.isFinite(value)) return String(value)
@@ -418,12 +475,19 @@ function asReviewSpot(value: unknown): ReviewSpot | null {
         const side = asRecord(item)
         if (!side) return []
         const citation = asRecord(side.citation)
+        const anchor = citationAnchor(citation)
         return [
           {
             label:
               asString(side.document_role) || asString(side.side) || 'Nguồn',
             value: snapshotText(side.value_snapshot) || '—',
             quote: asString(citation?.quote),
+            documentId:
+              asString(side.document_id) || asString(citation?.document_id),
+            clauseId: asString(side.clause_node_id),
+            pageNo: anchor.pageNo,
+            lineNo: anchor.lineNo,
+            regions: anchor.regions,
           },
         ]
       })
@@ -447,7 +511,7 @@ function asReviewSpot(value: unknown): ReviewSpot | null {
     review: reviewId
       ? {
           itemId: reviewId,
-          status: asString(reviewRow?.status, 'open'),
+          status: asString(reviewRow?.status) || 'open',
           version:
             typeof reviewRow?.current_version === 'number'
               ? reviewRow.current_version
