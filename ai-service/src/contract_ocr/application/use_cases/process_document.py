@@ -162,6 +162,7 @@ class ProcessDocument:
                                 page_result.tables = []
                         page_result.raw_markdown = recognized.raw_markdown
                         page_result.raw_output_path = recognized.raw_output_path
+                        page_result.warnings = list(recognized.warnings)
                         page_result.width, page_result.height = original_shape[1], original_shape[0]
                         page_result.dimension_unit = "px"
                         page_result.preprocessing = experiment.preprocessing

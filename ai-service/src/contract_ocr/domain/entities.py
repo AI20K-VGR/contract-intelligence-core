@@ -126,6 +126,9 @@ class Page(Entity):
     geometry_available: bool = False
     preprocessing: list[str] = Field(default_factory=list)
     transform: list[list[float]] | None = None
+    # Engine-reported codes. "needs_review:<reason>:<line_id>" names an internal
+    # line id; BuildSnapshot rewrites it to the emitted snapshot line id.
+    warnings: list[str] = Field(default_factory=list)
 
 
 class Document(Entity):
@@ -145,6 +148,7 @@ class OCRResult(Entity):
     tables: list[Table] = Field(default_factory=list)
     raw_markdown: str | None = None
     raw_output_path: str | None = None
+    warnings: list[str] = Field(default_factory=list)
 
 
 class Context(Entity):

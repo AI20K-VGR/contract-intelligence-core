@@ -296,7 +296,17 @@ class BuildSnapshot:
             warnings.append("missing_line_geometry")
         if low_confidence:
             warnings.append("low_confidence_lines")
-        status: PageStatus = "PARTIAL" if warnings else "SUCCESS"
+        # Engine review flags name internal line ids; rewrite them to the ids a
+        # consumer can resolve in `lines` (a line with no geometry has none).
+        review, informational = [], []
+        for code in internal_page.warnings:
+            if code.startswith("needs_review:"):
+                _, reason, internal_id = code.split(":", 2)
+                review.append(f"needs_review:{reason}:{line_id_map.get(internal_id, 'unpositioned')}")
+            else:
+                informational.append(code)
+        status: PageStatus = "PARTIAL" if warnings or review else "SUCCESS"
+        warnings = [*warnings, *review, *informational]
         table_status, tables_payload = self._build_tables(internal_page.tables, prefix, page_no)
 
         return SnapshotPage(
