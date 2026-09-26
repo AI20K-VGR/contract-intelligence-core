@@ -22,6 +22,7 @@ from app.pipeline.candidate import CandidatePairer
 from app.pipeline.compare import annex_keys_from_labels
 from app.pipeline.contract_context import build_contract_context
 from app.pipeline.contract_events import extract_contract_events
+from app.pipeline.edge_flags import dossier_edge_issues
 from app.pipeline.clause import ClauseChunker
 from app.pipeline.fact import FactExtractor
 from app.pipeline.handoff import HandoffValidator
@@ -65,15 +66,31 @@ def run_idp(
     # budget is exhausted; vector recall has its own equivalent gate. Keep the
     # issue on the result, but downgrade extraction to local-only instead of
     # failing the whole handoff.
-    if record.processing_budget_hit() and llm is not None:
+    if record.processing_budget_hit():
         policy_issues.append(
             HandoffIssue(code="BUDGET_EXCEEDED", message="processing budget exceeded; local partial extraction only", review_state=ReviewState.NEEDS_REVIEW)
         )
         llm = None
-    if not record.egress_approved and llm is not None:
-        policy_issues.append(
-            HandoffIssue(code="EGRESS_DENIED", message="external model access is not approved", review_state=ReviewState.BLOCKED)
+    # Embedding quota and missing egress stop external calls. Local extraction
+    # still runs, so these are not in the abort list below.
+    deferred_blocks: list[HandoffIssue] = []
+    if record.embedding_budget_hit():
+        deferred_blocks.append(
+            HandoffIssue(
+                code="EMBEDDING_BUDGET_EXCEEDED",
+                message="embedding quota exceeded; vector recall stays off",
+                review_state=ReviewState.BLOCKED,
+            )
         )
+    if not record.egress_approved:
+        deferred_blocks.append(
+            HandoffIssue(
+                code="EGRESS_DENIED",
+                message="external model access is not approved; local extraction only",
+                review_state=ReviewState.BLOCKED,
+            )
+        )
+        llm = None
     if any(issue.review_state == ReviewState.BLOCKED for issue in policy_issues):
         return JobResult(
             job_id=job_id,
@@ -92,8 +109,8 @@ def run_idp(
         profile=record.profile,
         lifecycle=record.lifecycle,
     )
-    if policy_issues:
-        handoff.issues = [*policy_issues, *handoff.issues]
+    if policy_issues or deferred_blocks:
+        handoff.issues = [*deferred_blocks, *policy_issues, *handoff.issues]
     if record.handoff_issues:
         handoff.issues = [*record.handoff_issues, *handoff.issues]
         handoff.blocked = handoff.blocked or any(
@@ -296,15 +313,20 @@ def run_idp(
             existing_review_ids.add(item_id)
     mem.put(record)
 
+    handoff.issues = [*handoff.issues, *dossier_edge_issues(record)]
+
     worst = ReviewState.PASS
-    for issue in handoff.issues:
-        if issue.review_state == ReviewState.NEEDS_REVIEW:
+    if any(issue.review_state == ReviewState.BLOCKED for issue in handoff.issues):
+        worst = ReviewState.BLOCKED
+    else:
+        for issue in handoff.issues:
+            if issue.review_state == ReviewState.NEEDS_REVIEW:
+                worst = ReviewState.NEEDS_REVIEW
+        for f in facts:
+            if f.review_state in {ReviewState.NEEDS_REVIEW, ReviewState.INSUFFICIENT_EVIDENCE}:
+                worst = ReviewState.NEEDS_REVIEW
+        if issues:
             worst = ReviewState.NEEDS_REVIEW
-    for f in facts:
-        if f.review_state in {ReviewState.NEEDS_REVIEW, ReviewState.INSUFFICIENT_EVIDENCE}:
-            worst = ReviewState.NEEDS_REVIEW
-    if issues:
-        worst = ReviewState.NEEDS_REVIEW
     return JobResult(
         job_id=job_id,
         status=JobStatus.SUCCEEDED,
