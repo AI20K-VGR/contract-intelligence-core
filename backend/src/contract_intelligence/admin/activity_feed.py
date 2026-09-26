@@ -286,9 +286,7 @@ async def list_activity(
     if actors is not None:
         wanted = [name.strip().lower() for name in actors if name and name.strip()]
         clauses.append(func.lower(actor).in_(wanted or [""]))
-    visible = (
-        select(events).where(*clauses).subquery("activity_with_actor")
-    )
+    visible = select(events).where(*clauses).subquery("activity_with_actor")
     total = await session.scalar(select(func.count()).select_from(visible))
     rows = (
         await session.execute(

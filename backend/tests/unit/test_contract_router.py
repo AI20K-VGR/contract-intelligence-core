@@ -575,7 +575,7 @@ class TestSearchDossierEndpoint:
         self, client: AsyncClient, mock_svc: AsyncMock, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """AI2 ``Citation`` dùng ``text_span`` + ``page``; hit phải giữ node/citation id."""
-        mock_svc.get_dossier.return_value = _make_dossier()
+        mock_svc.get_dossier.return_value = _make_dossier(metadata={"created_by": "usr_op_01"})
         seen: dict[str, Any] = {}
 
         async def fake_query(payload: dict[str, Any]) -> dict[str, Any]:
@@ -614,7 +614,7 @@ class TestSearchDossierEndpoint:
         assert data["state"] == "PASS"
         assert data["answer"].startswith("Mức trần")
         assert data["used_llm"] is False
-        assert data["notes"] == ["L1: Đã khớp 2 nút."]
+        assert data["reasoning_trace"] == [{"code": "L1", "message": "Đã khớp 2 nút."}]
         assert len(data["hits"]) == 2
         first = data["hits"][0]
         assert first["text"] == "Mức trần bồi thường thiệt hại tối đa 100%"
@@ -635,7 +635,7 @@ class TestSearchDossierEndpoint:
     ) -> None:
         from contract_intelligence.infrastructure.ai_adapters import AiAdapterError
 
-        mock_svc.get_dossier.return_value = _make_dossier()
+        mock_svc.get_dossier.return_value = _make_dossier(metadata={"created_by": "usr_op_01"})
 
         async def failing_query(payload: dict[str, Any]) -> dict[str, Any]:
             raise AiAdapterError("connection refused")
@@ -654,9 +654,10 @@ class TestSearchDossierEndpoint:
             "answer": None,
             "connected": False,
             "hits": [],
-            "state": None,
-            "notes": [],
+            "state": "INSUFFICIENT_EVIDENCE",
             "used_llm": False,
+            "retrieval_layer": {},
+            "reasoning_trace": [],
         }
 
     async def test_rejects_blank_query(self, client: AsyncClient, mock_svc: AsyncMock) -> None:

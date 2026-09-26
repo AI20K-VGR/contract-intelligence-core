@@ -308,3 +308,96 @@ async def test_invalid_citation_is_retained_with_stable_review_reason() -> None:
             assert read_model.reason_code == "INVALID_CITATION_REFERENCE"
     finally:
         await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_findings_project_real_two_sided_citations_and_skip_single_document_context() -> None:
+    from contract_intelligence.conflict.infrastructure.persistence.orm import (
+        FindingORM,
+        FindingSideORM,
+    )
+
+    engine, factory = await _session_factory()
+    try:
+        async with factory() as session:
+            await _seed_run(session)
+            result = complete_result()
+            body = result["result"]
+            body["findings"] = [
+                {
+                    "finding_id": "cand_clause_1",
+                    "left_id": "node-cit-body",
+                    "right_id": "node-cit-annex",
+                    "finding_type": "COMPARABLE_DIFFERENCE",
+                    "model_disposition": "UNCLEAR",
+                    "review_state": "NEEDS_REVIEW",
+                    "evidence_left_citation_ids": ["cit-body"],
+                    "evidence_right_citation_ids": ["cit-annex"],
+                    "reason": "08 tuần ↔ 10 tuần",
+                    "disposition": "COMPARABLE_DIFFERENCE",
+                    "scope": "CONTRACT_ANNEX",
+                    "item_key": "Điều 3.1 · Tiến độ",
+                }
+            ]
+            body["context_findings"] = [
+                {
+                    # Single-document signal: must not become a contract↔annex conflict.
+                    "finding_id": "context-gap",
+                    "finding_type": "CONTEXT_GAP",
+                    "relation_type": None,
+                    "subject_key": "annex:01",
+                    "source_node_ids": ["node-cit-body"],
+                    "review_state": "NEEDS_REVIEW",
+                    "reason": "Phát hiện Phụ lục 01 nhưng chưa thấy tham chiếu",
+                    "citation_ids": ["cit-body"],
+                    "metadata": {},
+                },
+                {
+                    # Already emitted as a canonical finding: must not be duplicated.
+                    "finding_id": "context-dup",
+                    "finding_type": "CONTEXT_CONFLICT",
+                    "relation_type": None,
+                    "subject_key": "Điều 3.1 · Tiến độ",
+                    "source_node_ids": ["node-cit-body", "node-cit-annex"],
+                    "review_state": "NEEDS_REVIEW",
+                    "reason": "duplicate",
+                    "citation_ids": ["cit-body", "cit-annex"],
+                    "metadata": {"candidate_id": "cand_clause_1"},
+                },
+                {
+                    # Genuine cross-document context signal with real citations on both sides.
+                    "finding_id": "context-cross",
+                    "finding_type": "AMENDMENT_SIGNAL",
+                    "relation_type": "AMENDS",
+                    "subject_key": "annex:02",
+                    "source_node_ids": ["node-cit-body", "node-cit-annex"],
+                    "review_state": "NEEDS_REVIEW",
+                    "reason": "Phụ lục có ngôn ngữ sửa đổi",
+                    "citation_ids": ["cit-body", "cit-annex"],
+                    "metadata": {},
+                },
+            ]
+            persisted = await persist_ai2_processing_result(
+                session,
+                tenant_id=TENANT_ID,
+                dossier_id=DOSSIER_ID,
+                result=result,
+                run_id=RUN_ID,
+            )
+            await session.commit()
+            # One canonical clause finding + one cross-document context signal.
+            assert persisted["findings"] == 2
+
+            findings = (await session.execute(select(FindingORM))).scalars().all()
+            by_topic = {f.key_or_topic: f for f in findings}
+            assert set(by_topic) == {"Điều 3.1 · Tiến độ", "annex:02"}
+            assert by_topic["Điều 3.1 · Tiến độ"].disposition == "comparable_difference"
+            assert by_topic["annex:02"].disposition == "candidate_amendment"
+            assert all(f.run_id == RUN_ID for f in findings)
+
+            sides = (await session.execute(select(FindingSideORM))).scalars().all()
+            for finding in findings:
+                documents = {s.document_id for s in sides if s.finding_id == finding.id}
+                assert documents == {"document-body", "document-annex"}
+    finally:
+        await engine.dispose()

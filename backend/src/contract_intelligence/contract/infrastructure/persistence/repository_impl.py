@@ -128,9 +128,7 @@ class DossierRepositoryImpl(DossierRepository):
                     func.lower(func.json_extract(shared_rows.c.value, "$.email"))
                     == viewer_email.lower()
                 )
-            shared = exists(
-                select(1).select_from(shared_rows).where(or_(*share_match))
-            )
+            shared = exists(select(1).select_from(shared_rows).where(or_(*share_match)))
         else:
             shared = text(
                 "EXISTS (SELECT 1 FROM json_array_elements("

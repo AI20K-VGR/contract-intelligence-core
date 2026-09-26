@@ -1,8 +1,7 @@
 # Kiến trúc AI1 — OCR & dựng snapshot hợp đồng
 
-> Tài liệu mô tả **trạng thái hiện tại của code** (nhánh `feature/code-full`, từ commit `ce7bed9`).
-> `docs/ARCHITECTURE.md` là tài liệu cũ của OCR lab (benchmark/engine lựa chọn); phần OCR production
-> dưới đây thay thế nó ở mọi điểm mâu thuẫn.
+> Tài liệu mô tả **trạng thái hiện tại của code** (nhánh `feature/code-full`, từ commit `415cca7`).
+> Đây là tài liệu kiến trúc duy nhất của AI1; `docs/ARCHITECTURE.md` cũ của OCR lab đã được xoá.
 
 ## Mục lục
 
@@ -22,6 +21,8 @@
 14. [Kiểm thử](#14-kiểm-thử)
 15. [Vận hành](#15-vận-hành)
 16. [Giới hạn đã biết và lộ trình](#16-giới-hạn-đã-biết-và-lộ-trình)
+17. [Tái dựng cấu trúc hợp đồng — từ dòng OCR đến điều khoản và bảng](#17-tái-dựng-cấu-trúc-hợp-đồng--từ-dòng-ocr-đến-điều-khoản-và-bảng)
+18. [Bản đồ kỹ thuật](#18-bản-đồ-kỹ-thuật)
 
 ---
 
@@ -377,7 +378,7 @@ Trước đây hệ thống che *mọi* chữ số và coi mọi dòng của tra
 "Điều 6 …" trông như một dòng lặp lại, và một trang scan trùng làm cả Điều 2 biến mất khỏi cây điều
 khoản. Cả hai trường hợp đã có test hồi quy.
 
-**Cây điều khoản** (`BuildStructure`). Mốc lấy từ văn bản (`clause_parser.parse_marker`):
+**Cây điều khoản** (`BuildStructure`, thuật toán chi tiết ở mục 17). Mốc lấy từ văn bản (`clause_parser.parse_marker`):
 `Điều N` / `ĐIỀU N` / `Article N` (cấp 1), `1.1` / `1.1.1` / `Khoản N` (cấp 2+), `a)` `(a)` `1)`
 `(i)`. Cây dựng tuần tự theo thứ tự đọc (`hierarchy_builder`), khoản còn mở tiếp tục sang trang sau.
 Trang có `duplicate_of` bị bỏ qua (nội dung đã có một lần).
@@ -643,6 +644,7 @@ docker logs -f ci-ai1-worker
 | Cache giữa các lần chạy | Trang trắng, trang ít chữ và trang trùng pixel **trong cùng tài liệu** đã bỏ qua OCR (mục 5); chạy lại OCR vẫn đọc lại mọi trang | Fingerprint theo hash ảnh trang + phiên bản model, lưu kết quả giữa các job |
 | Trang scan lại (không trùng pixel) | Vẫn trả tiền OCR; sau đó đánh `possible_duplicate_of` | So hash cảm nhận trước OCR — chưa làm vì trang chữ ở độ phân giải thấp trông gần giống nhau, dễ nhận nhầm |
 | Chọn model rẻ hơn theo trang | Luôn dùng 2512 cho trang cần OCR | Trang scan rất ít chữ → model rẻ |
+| Ngày ở đầu dòng bị nhận là mốc | Dòng mở đầu bằng `5.1.2026` thành khoản cấp 3 | Loại chuỗi số có đoạn cuối 4 chữ số (năm) khỏi `_DECIMAL_RE` |
 | Lỗi nguyên âm cùng khung chữ | "HỌP ĐỒNG" (đúng: "HỢP") không bắt được | Người đọc thứ ba trên dòng nghi vấn, hoặc từ điển tần suất |
 | Tên người ký dưới con dấu | Có thể đọc sai → gắn cờ review | Tách màu con dấu tốt hơn trước khi crop |
 | Bảng không viền | Bbox bảng từ 4-1, ô chia đều (CLAIMED) | Căn cột theo box từ |
@@ -651,3 +653,412 @@ docker logs -f ci-ai1-worker
 | Idempotency Kafka | Trong bộ nhớ, mất khi khởi động lại | Lưu `event_id` bền |
 | Trích dẫn AI2 bị `citation_guard` loại (`no_ocr_span`) | Vị trí trích dẫn đến backend là 0–0 | Sửa khâu chuyển vị trí AI2 → backend (ngoài AI1) |
 | Đánh giá định lượng | Mới đo trên 1 tài liệu | Benchmark CER / lỗi dấu / field quan trọng trên bộ ground truth `ocr-benchmark/data` |
+
+---
+
+## 17. Tái dựng cấu trúc hợp đồng — từ dòng OCR đến điều khoản và bảng
+
+Mục 7 nói snapshot có gì; mục này nói **thuật toán** biến luồng dòng OCR thành cây Điều → Khoản →
+Điểm và bảng. Toàn bộ là code xác định (deterministic): cùng đầu vào luôn cho cùng cây, không LLM
+nào tự viết lại chữ của hợp đồng.
+
+### 17.1 Hai tầng: đang chạy production và thư viện đã sẵn sàng
+
+| Tầng | Thành phần | Trạng thái | Kiểm thử |
+|---|---|---|---|
+| **Production** (job Kafka → `BuildSnapshot`) | `running_text` → bỏ trang `duplicate_of` → mỗi dòng một `LogicalSegment` → `clause_parser` + `hierarchy_builder` → `BuildStructure` → `nodes[]`; bảng từ engine / lưới kẻ; `link_continuities` | Chạy trên mọi tài liệu | `test_running_text.py`, `integration/test_build_structure.py`, `test_table_continuity.py` |
+| **Thư viện tái dựng theo ranh giới trang** | `reconstruction.reconstruct_document` — rule engine + LLM resolver (tuỳ chọn) + bộ thực thi xác định, làm việc trên `Block` có kiểu, font, bbox | Đã có test, **chưa nối vào job Kafka**. Production mới dùng lại `clause_parser` và `hierarchy_builder` của gói này | `tests/reconstruction/` (66 test) |
+| **Thư viện bảng theo từ** | `table_reconstruct` — từ word bbox ra bảng logic, nối bảng qua trang, kiểm tra tổng | Đã có test, chưa nối. Production dùng `numbers.parse_vn_number` / `vn_words_to_number` (đối chiếu "Bằng chữ") | `tests/table_reconstruct/` (60 test) |
+| **Nguồn từ đa engine** | `word_adapters` — Native / PaddleOCR+VietOCR / Vision, leo thang có trần | Đã có test, chưa nối. Production dùng `text_quality.garbage_char_ratio` (phát hiện lớp chữ TCVN3/VNI hỏng) | `tests/word_adapters/` (50 test) |
+
+Lý do production chưa dùng pipeline ranh giới trang: nó cần `Block` có font/đậm/kiểu khối, trong khi
+bản đọc chính (`mistral-ocr-2512`) chỉ trả markdown, không có block hay font. Luồng production vì thế
+làm việc ở mức **dòng** và để thứ tự đọc cùng đánh số quyết định; thư viện ranh giới trang dành cho
+nguồn có block đầy đủ (lớp chữ gốc, OCR có layout).
+
+### 17.2 Nhận diện mốc đánh số (`reconstruction/clause_parser.py`)
+
+Hàm thuần `parse_marker(text) -> ClauseMarker | None`, chỉ nhìn đầu dòng, không biết trang hay cây.
+
+| Dạng | Ví dụ | `marker_type` | Họ (tier) | Cấp gợi ý |
+|---|---|---|---|---|
+| Điều / Article / Section | `Điều 5`, `ĐIỀU 12`, `Article 3` | `section` | 0 — số | 1 |
+| Khoản | `Khoản 2` | `khoan_label` | 0 — số | 2 |
+| Thập phân | `5.`, `5.1`, `12.3.4` | `decimal` | 0 — số | số đoạn (`5.1` → 2) |
+| Chữ trong ngoặc | `(a)`, `(b)` | `alpha_paren` | 1 — chữ | theo cha |
+| Số + ngoặc đóng | `1)`, `2)` | `number_paren` | 1 — chữ | theo cha |
+| Chữ + ngoặc đóng | `a)`, `b)` | `alpha_close_paren` | 1 — chữ | theo cha |
+| La Mã trong ngoặc | `(i)`, `(iv)` | `roman_paren` | 2 — La Mã | theo cha |
+
+Các chốt chặn đọc nhầm:
+
+- **Số trần phải có dấu chấm**: `30 ngày kể từ…` không phải mốc; `3.` và `3.1` thì là mốc. Nhờ vậy
+  số lượng trong câu không mở nhầm Điều mới.
+- **Lookahead** sau mốc (khoảng trắng, dấu câu hoặc hết dòng): `a)b`, `1)x` không bị nhận.
+- **`(i)` `(v)` `(x)`** được hiểu là La Mã chứ không phải chữ cái thứ 9/22/24. `(ii)`, `(iv)` kiểm
+  bằng regex La Mã chặt `^x{0,3}(ix|iv|v?i{0,3})$`.
+
+Giới hạn đã biết (đã kiểm bằng code): dòng **mở đầu bằng ngày dạng `5.1.2026`** bị nhận là mốc thập
+phân cấp 3, vì regex nhiều đoạn không phân biệt ngày với số khoản. Hiếm trong hợp đồng (ngày thường
+đứng giữa câu), nhưng được ghi ở mục 16.
+
+### 17.3 Dựng cây bằng ngăn xếp theo họ mốc (`reconstruction/hierarchy_builder.py`)
+
+Vị trí trong cây do **đánh số** quyết định, không đoán nghĩa. Mỗi segment hoặc mở node mới (có mốc),
+hoặc là chữ nối tiếp của node sâu nhất đang mở.
+
+```
+với mỗi segment theo thứ tự đọc:
+  mốc = parse_marker(segment.text)
+  nếu không có mốc:
+      nếu ngăn xếp rỗng → tạo node gốc "_unnumbered_N" (không bỏ chữ nào)
+      ngược lại        → nối chữ vào node đỉnh ngăn xếp, kéo page_end, gộp source_blocks
+  nếu mốc thuộc họ số (tier 0), cấp L = level_hint:
+      bật ngăn xếp tới khi đỉnh là họ số và có cấp < L
+  nếu mốc thuộc họ chữ / La Mã (tier t):
+      bật ngăn xếp tới khi đỉnh có tier < t;  cấp = cấp của đỉnh + 1
+  cha = đỉnh ngăn xếp;  đẩy node mới vào ngăn xếp
+```
+
+- **`clause_id`**: mốc họ số đã mang đủ đường dẫn (`5.2.1`) nên dùng nguyên; mốc chữ/La Mã chỉ mang
+  token cục bộ nên nối vào cha (`5.2.a`, `5.2.a.ii`).
+- **Tiêu đề**: chỉ mốc `section` được tách tiêu đề (`Điều 4. YÊU CẦU CHẤT LƯỢNG` → `YÊU CẦU CHẤT
+  LƯỢNG`).
+- **Qua trang**: node mở ở cuối trang N tiếp tục nhận chữ ở trang N+1 cho tới khi gặp mốc mới, nên
+  `page_end` tự kéo dài. Đây là lý do header/footer phải bị loại trước (mục 7).
+- **Độ tin cậy lan truyền**: node lấy `min(confidence)` và `was_merged` của mọi segment ghép vào.
+- Kết quả trả về hai dạng: cây lồng nhau (`sections`) và danh sách phẳng pre-order (`clauses`), tiện
+  cho chunking/RAG.
+
+Ví dụ:
+
+| Dòng | Hành động | `clause_id` | Cha |
+|---|---|---|---|
+| `HỢP ĐỒNG CUNG CẤP DỊCH VỤ` | Chưa có node mở → gốc không đánh số | `_unnumbered_1` | — |
+| `Điều 5. Quyền của Bên A` | Mốc số cấp 1 | `5` | — |
+| `5.1. Bên A có quyền:` | Mốc số cấp 2 | `5.1` | `5` |
+| `a) Yêu cầu bàn giao…` | Mốc chữ | `5.1.a` | `5.1` |
+| `(i) đúng hạn;` | Mốc La Mã | `5.1.a.i` | `5.1.a` |
+| `b) Kiểm tra…` | Mốc chữ, bật `(i)` và `a)` | `5.1.b` | `5.1` |
+| `tài liệu trước khi nghiệm thu.` | Không mốc → nối vào `5.1.b` | — | — |
+| `Điều 6. …` | Mốc số cấp 1, bật hết | `6` | — |
+
+### 17.4 Từ cây ra `StructuralNode` (`application/use_cases/build_structure.py`)
+
+1. **Lọc đầu vào**: bỏ trang không `SUCCESS`, trang `duplicate_of`, dòng rỗng, dòng đồ trang
+   (`running_text`). Mỗi dòng còn lại thành một `LogicalSegment` mang `SourceBlockRef(page,
+   line_id, char 0..len)`.
+2. **Loại node**: cấp 1 → `ARTICLE`, cấp 2 → `CLAUSE`, cấp ≥ 3 → `POINT`, node không mốc →
+   `UNMARKED` (không giả làm Điều).
+3. **Văn bản node**: nối các dòng bằng `\n`, giữ nguyên ranh giới dòng OCR (không nối bằng khoảng
+   trắng như bản dựng chung).
+4. **`line_ids`**: dịch id dòng nội bộ sang id dòng snapshot qua `line_id_map`. Dòng không có bbox
+   (không có trong snapshot) bị bỏ khỏi `line_ids`: node không bao giờ trỏ tới bằng chứng không tồn
+   tại, nhưng chữ của dòng vẫn nằm trong `text`.
+5. **Vị trí — mỏ neo thưa**: mỗi trang node đi qua lấy một vùng `START` (từ đầu tiên của dòng có bbox
+   đầu tiên) và một vùng `END` (từ cuối cùng của dòng cuối). Không crop, không OCR lại, không hợp mọi
+   box thành một khung lớn dễ sai.
+6. **`bbox_normalized` kiểu cũ**: chỉ có khi node nằm gọn một trang (hợp các vùng, `DERIVED`). Node
+   nhiều trang để `None`, vì không có toạ độ nào đúng cho nhiều trang cùng lúc.
+
+### 17.5 Pipeline tái dựng theo ranh giới trang (`reconstruction/pipeline.py`)
+
+Nguyên tắc: **"LLM decides relationship. Code performs mutation."** Rule engine và LLM chỉ *đề xuất*
+một `ReconstructionAction`; chỉ bộ thực thi xác định mới được sửa trạng thái.
+
+```mermaid
+flowchart TD
+    P[Trang: danh sách Block<br/>text, type, bbox, font, bold, confidence] --> HF[header_footer_detector<br/>học mẫu lặp theo dải mép]
+    HF --> LOOP{Mỗi ranh giới trang N → N+1}
+    LOOP --> BD[boundary_detector<br/>3 block cuối trang N + 3 block đầu trang N+1<br/>đã lọc nhiễu]
+    ST[DocumentState<br/>Điều / khoản / danh sách /
+     bảng đang mở] --> BD
+    BD --> RE[rule_engine<br/>bảng → dãy liệt kê → mốc mới → câu nối tiếp]
+    RE -->|điểm ≥ 0.85| ACT[ReconstructionAction]
+    RE -->|chưa chắc| LLM[LLM resolver<br/>chỉ gửi cửa sổ ranh giới, temperature 0, JSON]
+    LLM --> MIX[Trộn điểm có trọng số]
+    MIX -->|≥ 0.85| ACT
+    MIX -->|< 0.85| REV[NEEDS_REVIEW → review_items]
+    ACT --> EX[Bộ thực thi xác định<br/>ghép chữ · gắn con · nối bảng]
+    EX --> H[hierarchy_builder] --> OUT[ReconstructedDocument<br/>sections · clauses · tables · review_items]
+```
+
+**Header/footer** (`header_footer_detector.py`). Quét toàn tài liệu một lần. Một mẫu (dải mép 12%
+trên/dưới, chữ đã che số) là đồ trang khi lặp trên ≥ 60% số trang; so mờ ≥ 90. Khối `table_row`
+không bao giờ bị tính (header bảng lặp là việc của `table_merger`). Chỉ phân loại, không xoá.
+Production dùng `running_text` với luật chặt hơn (mục 7).
+
+**Cửa sổ ranh giới** (`boundary_detector.py`). Resolver chỉ thấy 3 khối nội dung cuối trang N và 3 khối
+đầu trang N+1, đã bỏ header/footer/số trang/watermark/khối rỗng. Không bao giờ gửi cả trang.
+
+**Trạng thái tài liệu** (`_DocumentStateTracker`). Theo dõi Điều / khoản / danh sách / bảng đang mở,
+để ranh giới được quyết định trong ngữ cảnh cấu trúc hiện hành.
+
+**Rule engine** (`rule_engine.py`) — thử theo thứ tự, luật đầu tiên chắc chắn thì dừng:
+
+| Thứ tự | Luật | Tín hiệu | Hành động |
+|---|---|---|---|
+| 1 | Bảng nối tiếp | Hai bên đều là `table_row`, cùng số cột; header giống ≥ 85 → tin cậy ≥ 0.9, không giống → 0.75 | Có ô trống ở dòng cuối → `CONTINUE_ROW` (dòng bị cắt ngang trang); ngược lại `MERGE_TABLE` (lần đầu) / `CONTINUE_TABLE` (bảng đã hợp nhất) |
+| 2 | Dãy liệt kê kế tiếp | Cùng họ và đúng số kế: `a)→b)`, `(i)→(ii)` (bảng La Mã tới 20), `1)→2)` | `CONTINUE_LIST` |
+| 3 | Mốc mới | `parse_marker` nhận ra mốc ở khối đầu trang N+1 | `section` → `NEW_SECTION`; thập phân/Khoản → `NEW_CLAUSE`; chữ/La Mã không kế tiếp → `ATTACH_CHILD` dưới khoản đang mở |
+| 4 | Câu nối tiếp | Khối trước **không** kết thúc bằng dấu câu (dấu `…`/`...` coi là chưa hết câu) **và** khối sau **không** mở bằng chữ hoa; cộng dấu hiệu cuối trang → đầu trang (dải 20%), cùng cỡ chữ (±1pt) và cùng đậm | `MERGE_BLOCKS` (nối vào khoản đang mở, hoặc đoạn văn). Lệch kiểu chữ → tín hiệu 0.89, điểm cuối 0.80, dưới ngưỡng tự nối |
+| 5 | Câu mới rõ ràng | Có dấu kết câu **và** khối sau mở bằng chữ hoa | `NEW_PARAGRAPH` |
+| — | Tín hiệu trái chiều | Không luật nào chắc | Trả `None` → hỏi LLM |
+
+**Chấm điểm** (`config.py`): `final = 0.30·rule + 0.25·layout + 0.25·numbering + 0.10·text_continuity +
+0.10·model`.
+
+- Bốn tín hiệu xác định cộng tối đa 0.90, nên luật một mình đạt dải "strong" nhưng không bao giờ tới
+  "very strong" (≥ 0.95). Chỉ khi có thêm LLM đồng thuận mới lên được.
+- Tự nhận khi ≥ 0.85; từ 0.70 đến dưới 0.85 là mơ hồ; dưới 0.70 là thiếu bằng chứng. Hai dải dưới
+  đều ra `NEEDS_REVIEW`.
+- Độ tin cậy tự khai của LLM chỉ chiếm 10%, không bao giờ được tin một mình.
+
+**LLM resolver** (`llm_resolver.py`):
+
+- Là một `Protocol` nên đổi nhà cung cấp mà không sửa pipeline. Mặc định dùng `MockLLMResolver`
+  (không gọi mạng; câu trả lời mặc định là `NEEDS_REVIEW`).
+- `OpenAIBoundaryResolver`: temperature 0, `response_format=json_object`, có span Langfuse.
+- Prompt hệ thống cấm viết lại, diễn giải, tóm tắt, sửa, điền chữ thiếu, hay đổi số/ngày/tiền/tên bên.
+- Chỉ được dùng tập đóng `Action` / `Relationship` / `EntityType` / `ReasonCode`, không cho
+  chain-of-thought tự do. Mã lý do ngoài danh sách bị bỏ; JSON hỏng → `NEEDS_REVIEW`.
+
+**Bộ thực thi xác định** (`paragraph_merger.py`, `_build_segments`):
+
+- Phép biến đổi duy nhất là nối hai mảnh bằng **một khoảng trắng**. Ngoại lệ hẹp: bỏ gạch nối cuối
+  trang khi gạch dính liền một từ ≥ 2 chữ cái và mảnh sau mở bằng chữ thường. Gạch đầu dòng hay
+  gạch kết câu không bị bỏ.
+- **Provenance tới từng ký tự**: mỗi mảnh ghép mang `SourceBlockRef(page, block_id, char_start,
+  char_end)` trong chuỗi đã ghép, chỉnh lại khi bỏ gạch nối.
+- **Đoạn vắt qua 3+ trang**: phần đuôi chưa chốt (`_PendingSegment`) tích luỹ qua từng ranh giới,
+  không làm mất đóng góp của trang trước.
+- Ranh giới không chắc → `ReviewItem` (hai trang, các quan hệ có thể, khối nguồn, độ tin cậy) thay
+  vì nối.
+
+**Nhật ký sự kiện** (`logging_events.py`): JSON một dòng mỗi quyết định, ví dụ `boundary.rule_resolved`,
+`boundary.needs_review`, `table.continuation_detected`, `clause.parent_assigned`. Chỉ có id, số trang,
+quyết định; **không bao giờ ghi chữ hợp đồng**.
+
+### 17.6 Bảng
+
+**a) Bảng markdown của Mistral** (`infrastructure/ocr/markdown_tables.py`)
+
+- Làm sạch dấu vết Mistral mà không bỏ nội dung: heading `#`, LaTeX `\(30\%\)`, `**đậm**`, `<br>`,
+  ảnh `![..](..)` → `[image: …]`.
+- Parse bảng pipe và làm vuông hàng (`rectangularize`).
+- Bbox của bảng là đo thật (`MEASURED`). Bbox ô là chia đều → `CLAIMED`, để không ai trích dẫn vị trí
+  ô như thể đã đo.
+
+**b) Bảng có kẻ viền từ pixel** (`infrastructure/image/table_grid.py`, `extract_scanned_tables.py`)
+
+- Otsu nhị phân hoá, rồi *morphological opening* bằng kernel ngang/dọc dài `kích thước/15` để tách nét
+  kẻ khỏi nét chữ.
+- Contour ngoài → vùng bảng. *Chiếu (projection)* theo trục → toạ độ đường kẻ, gom nét dày N px về
+  tâm.
+- Chỉ nhận vùng ≥ 2×2 ô và ≥ 1% diện tích trang; bỏ lưới > 300 ô.
+- Chữ vào ô theo **tâm dòng nằm trong ô**, dùng lại kết quả OCR có sẵn, không OCR từng ô. Ô `MEASURED`.
+
+**c) Trong engine đọc trang** (mục 6): bảng markdown khớp với lưới kẻ thì lấy bbox ô thật. Bảng không
+viền lấy bbox từ block của 4-1, ô chia đều `CLAIMED`.
+
+**d) Nối bảng qua trang — production** (`application/use_cases/table_continuity.py`). "Liên kết, không
+gộp": chỉ ghi quyết định, không tự ghép ô.
+
+| Bước | Luật | Kết quả |
+|---|---|---|
+| Chặn cứng | Dòng cuối bảng trước là dòng tổng (`Tổng cộng`/`Cộng`/`Total`, so sau khi bỏ dấu) | `SPLIT` `PREVIOUS_TABLE_ALREADY_TOTALED` |
+| | Có heading Phụ lục/Điều/Chương/Biểu/Mục ngay trước bảng sau | `SPLIT` `NEW_SECTION_HEADING` |
+| | Cột STT bảng sau bắt đầu lại từ 1 trong khi bảng trước > 1 | `SPLIT` `ANCHOR_RESET` |
+| Lược đồ | Số cột khác nhau | `SPLIT` `INCOMPATIBLE_COLUMN_SCHEMA` |
+| Hình học | Thiếu bbox | `NEEDS_REVIEW` `MISSING_GEOMETRY` |
+| | Bảng trước không chạm mép dưới (≥ 0.85) hoặc bảng sau không chạm mép trên (≤ 0.15) | `SPLIT` `NOT_AT_PAGE_EDGES` |
+| Chấm điểm | Nền 0.5; header lặp lại +0.3 (không lặp +0.1); STT liên tục (đầu sau = cuối trước + 1) +0.3; trần 1.0 | ≥ 0.75 `MERGE`, ≤ 0.35 `SPLIT`, giữa → `NEEDS_REVIEW` |
+| Vùng xám | Tuỳ chọn (`table_continuity_agent`, mặc định tắt): DeepSeek chỉ nhận metadata và tối đa 2 dòng xem trước ≤ 60 ký tự, không bao giờ cả bảng hay ảnh | Lỗi/timeout/JSON hỏng → giữ `NEEDS_REVIEW` |
+
+**e) Ghép bảng trong pipeline ranh giới trang** (`reconstruction/table_merger.py`)
+
+- Các `table_row` liên tiếp gom thành bảng trang. Header lặp ở trang sau (giống ≥ 85) bị loại khỏi
+  bảng logic nhưng vẫn giữ provenance (`repeated_header_blocks`).
+- Dòng bị cắt ngang trang (còn ô trống) được ghép từng ô với dòng đầu trang sau, **không mất chữ**:
+  hai nửa khác nhau thì nối cả hai, trùng nhau thì giữ một.
+
+**f) Tái dựng bảng theo từ** (`table_reconstruct/`, thư viện). Thuần hàm, không LLM, không I/O; tiền dùng
+`Decimal`, không bao giờ `float`.
+
+1. **Dòng vật lý**: gom từ theo tâm y, dung sai 0.6 × chiều cao chữ trung vị, dùng tâm trung bình
+   chạy để dòng không trôi.
+2. **Biên cột**: *projection profile* trục x trên header + 5 dòng; khe ≥ 8pt là ranh cột (đặt ở giữa
+   khe).
+3. **Cột neo (STT)**: điểm = tỉ lệ có giá trị × độ nhất quán định dạng × 1.5 nếu tăng dần nghiêm ngặt.
+   Dòng tổng bị loại trước khi chấm.
+4. **Dòng logic**: có giá trị ở cột neo → mở dòng mới; không có → nối vào dòng đang mở (ô nhiều
+   dòng). Ba lớp dự phòng khi cột neo hỏng, đều gắn `needs_review`:
+   1. Sửa ký tự OCR hay nhầm (`l`/`I`/`|` → 1, `O` → 0, `S` → 5).
+   2. Khe dọc > 1.4 × khe trung vị.
+   3. Cột neo phụ, chỉ lấy cột số, không bao giờ cột mô tả.
+
+   Ô gộp dọc được điền xuống, trừ cột neo.
+5. **Nối qua trang** (`should_merge`):
+   - Chặn cứng: khác tài liệu, STT reset về 1, hoặc có heading `ĐIỀU` / `PHỤ LỤC` / `BIỂU` xen giữa.
+   - Cộng điểm: chữ ký cột trùng (vị trí cột chuẩn hoá theo bề rộng, lệch < 0.025) +3; STT liên tục +3;
+     trang sau không có header +2; có "(tiếp theo)" +2; bảng trước chạm đáy +1; bảng sau chạm đỉnh +1.
+   - Nối khi tổng ≥ 5. Dòng boilerplate "Trang 3/10" bị bỏ trước khi dò cột.
+6. **Kiểm tra** (`validate`), mỗi mục trả `passed` / `expected` / `actual` / `offending_rows`:
+   - số dòng khớp STT lớn nhất;
+   - STT liên tục;
+   - mọi dòng đủ số cột;
+   - **tổng các dòng = dòng "Tổng cộng"** (cột tiền chọn tự động, không nhầm với cột STT);
+   - **số tiền bằng chữ = bằng số**.
+
+   Phần đọc số hỗ trợ `parse_vn_number` (`.` nghìn, `,` thập phân) và `vn_words_to_number`: tỷ /
+   triệu / nghìn–ngàn / trăm, mươi–mười, mốt / lăm / tư, linh–lẻ, bỏ "đồng chẵn".
+
+### 17.7 Nguồn từ đa engine (`word_adapters/`, thư viện)
+
+- **Một giao diện `WordSource`** cho ba nguồn hoán đổi được, cùng trả `list[Word]` cho
+  `table_reconstruct`:
+  - `NativeAdapter` (PyMuPDF, bbox glyph chính xác);
+  - `OcrAdapter`: **tách detect và recognize**. PaddleOCR chỉ dò dòng, VietOCR (huấn luyện riêng
+    cho dấu tiếng Việt) đọc từng dòng;
+  - `VisionAdapter` (GPT), phương án cuối.
+- **Định tuyến** (`routing.choose_adapter`): trang số có lớp chữ sạch → Native. Scan, lớp chữ ngắn,
+  rác, hoặc **mất dấu âm thầm** (chữ không dấu của những từ luôn có dấu) → OCR.
+- **Chất lượng chữ** (`text_quality`): `garbage_char_ratio` bắt mojibake và font TCVN3/VNI;
+  `valid_word_ratio` dùng *hình dạng âm tiết* thay cho từ điển (repo không có từ điển tiếng Việt);
+  `has_missing_diacritics_signature`.
+- **Vision không bao giờ cho toạ độ**: bbox luôn lấy từ vùng/ô do code cắt. Chế độ `cells` gửi N ô
+  trong một lời gọi, khớp theo vị trí, giữ được phần đọc đúng dù phản hồi lệch một phần.
+- **Leo thang có trần** (`escalation`): chỉ đọc lại **một ô / một vùng nhỏ**, không bao giờ cả trang.
+  Điều kiện: tỉ lệ từ hợp lệ thấp, hoặc `validate` báo lệch tổng / lệch "bằng chữ". Có trần
+  `max_escalations_per_page` trên mỗi trang.
+
+---
+
+## 18. Bản đồ kỹ thuật
+
+Tổng hợp mọi kỹ thuật đã hiện thực trong AI1. Trạng thái: **P** = chạy trong production, **L** = thư
+viện đã có test nhưng chưa nối vào job Kafka.
+
+### 18.1 Kiến trúc và điều phối
+
+| Kỹ thuật | Ở đâu | TT |
+|---|---|---|
+| Clean / hexagonal architecture: domain không I/O, application qua port (`OCREngine`, `PdfExtractor`, `Renderer`), infrastructure cắm vào | `domain/`, `application/ports/`, `infrastructure/` | P |
+| Điều phối bốn tầng bằng luật cố định, không LLM agent (hồ sơ → job → trang → trong trang) | Mục 4 | P |
+| Hướng sự kiện qua Kafka: lệnh/kết quả, `event_id` chống xử lý lặp | `infrastructure/kafka_worker.py` | P |
+| Song song hoá chỉ ở lời gọi engine mạng (`max_workers=4`), PDF/render tuần tự vì không an toàn đa luồng; truyền OpenTelemetry context vào từng luồng | `process_document.py` | P |
+| Ba nguồn đọc một trang chạy song song trong cùng thời gian chờ mạng | `verified_mistral_ocr.py` | P |
+| "LLM đề xuất, code thực thi" — LLM chỉ chọn trong tập hành động đóng | `reconstruction/` | L |
+| Tách hợp đồng dữ liệu đông cứng (`ai1.snapshot.v1`) khỏi model nội bộ | `build_snapshot.py`, `domain/snapshot.py` | P |
+
+### 18.2 Định tuyến trang và tiết kiệm chi phí
+
+| Kỹ thuật | Ở đâu | TT |
+|---|---|---|
+| Phân loại TEXT_LAYER / SCANNED / MIXED; MIXED không bao giờ đọc native-only | `classify_pdf.py` | P |
+| Phát hiện lớp chữ hỏng (TCVN3/VNI, mojibake) bằng tỉ lệ ký tự rác | `text_quality.garbage_char_ratio` | P |
+| Diện tích ảnh phủ tính chính xác bằng hợp hình chữ nhật theo dải dọc (ảnh chồng nhau chỉ tính một lần) | `pymupdf_extractor.evidence` | P |
+| Router trước OCR: trang trắng theo mực tương đối nền giấy, bỏ bóng mép scan | `page_ink.is_blank` | P |
+| Trang ít chữ: chỉ đọc native khi mọi dòng mực nằm trong lớp chữ | `page_ink.unexplained_lines` | P |
+| Khử trùng lặp trang bằng sha256 ảnh (OCR một lần, cấp lại id) | `process_document._reuse_reading` | P |
+| Phát hiện trang trùng nguyên văn / gần trùng sau OCR (khớp dãy số + so mờ ≥ 95) | `duplicate_pages.py` | P |
+| Bản đọc thứ hai chạy cùng lúc (không tăng độ trễ); GPT chỉ đọc crop của dòng mâu thuẫn, gộp một request mỗi trang | Mục 6 | P |
+
+### 18.3 Thị giác máy tính (OpenCV, không gọi mạng)
+
+| Kỹ thuật | Ở đâu | TT |
+|---|---|---|
+| Nhị phân hoá Otsu, loại mực đỏ con dấu theo kênh màu | `line_geometry._ink_mask` | P |
+| Xoá nét kẻ bằng morphological opening ngang/dọc | `line_geometry._remove_rules`, `table_grid` | P |
+| Ước lượng chiều cao chữ bằng trung vị connected components; dilation theo chiều cao chữ để gom dòng | `line_geometry` | P |
+| Gắn dấu thanh tách rời vào dòng; gộp mảnh cùng hàng nhưng giữ cột xa (khe ≤ 4 × cao chữ) | `line_geometry` | P |
+| Thứ tự đọc theo cột cho khối chữ ký hai cột | `column_major_variant` | P |
+| Dò lưới bảng: contour + projection, gom nét dày về tâm | `table_grid.py` | P |
+| Đo mực tương đối nền giấy, lọc theo kích thước thành phần | `page_ink.py` | P |
+| Lọc crop có > 15% mực đỏ trước khi đọc lại | `verified_mistral_ocr` | P |
+
+### 18.4 OCR đa bản đọc và phân xử
+
+| Kỹ thuật | Ở đâu | TT |
+|---|---|---|
+| Chọn model theo đo đạc: 2512 đọc dấu, 4-1 chỉ dùng hình học và chữ số | Mục 6, 13 | P |
+| Dự phòng khi hết quota/timeout/lỗi, và khi trả rỗng trên trang có chữ → GPT cả trang | `_read_text`, `_reread_empty` | P |
+| Đọc mù (không cho thấy bản đọc khác) và bỏ phiếu 2/3; không đa số → `needs_review` | `_arbitrate`, `_blind_readings` | P |
+| Khôi phục chữ bị bỏ sót (tên người ký), chỉ xác nhận khi khớp liền mạch với bản đọc độc lập | `_recoverable_ink`, `_insert_recovered` | P |
+| Không đoán: prompt "dùng `[illegible]`", mọi chỗ không chắc gắn cờ | `prompts.py`, mục 8 | P |
+
+### 18.5 Ngôn ngữ tiếng Việt
+
+| Kỹ thuật | Ở đâu | TT |
+|---|---|---|
+| Khung chữ (skeleton) bỏ dấu để so hai bản đọc khác thế hệ | `vn_text.skeleton` | P |
+| Kiểm âm tiết hợp lệ, mật độ dấu, thiếu mũ/móc, chữ cái ngoại lai | `vn_text.line_issues` | P |
+| Token quan trọng (tiền, số, %, ngày, số hợp đồng, mã) sống sót khi mất dấu | `critical_fields.critical_tokens` | P |
+| Đối chiếu số tiền bằng chữ ↔ bằng số | `critical_fields.amount_words_mismatch`, `numbers.vn_words_to_number` | P |
+| Số kiểu Việt (`.` nghìn, `,` thập phân), `Decimal` cho tiền | `table_reconstruct/numbers.py` | P / L |
+| Phát hiện tranh chấp từ giữa hai bản đọc, bỏ qua rác của bản đọc kém | `reading_agreement.disputes` | P |
+| Nhận diện heading Phụ lục/Điều/Chương/Biểu/Mục có dấu | `domain/headings.py` | P |
+
+### 18.6 Thuật toán căn chỉnh
+
+| Kỹ thuật | Ở đâu | TT |
+|---|---|---|
+| Quy hoạch động gán chữ (mức đoạn) vào box dòng đo được: phạt bỏ box, dòng rỗng, khe, lệch mỏ neo; dò hệ số ký tự/pixel | `text_geometry_alignment.align` | P |
+| Mỏ neo nội dung từ block của 4-1 (SequenceMatcher trên khung chữ) | `_anchors` | P |
+| Xoay thứ tự "đồ trang" di động (số trang, mã) mà transcriber xuất lệch | `_best_order`, `_movable` | P |
+| Provenance hình học trung thực: MEASURED / DERIVED / CLAIMED, căn kém không được nâng cấp | `domain/enums.py` | P |
+
+### 18.7 Tái dựng cấu trúc
+
+| Kỹ thuật | Ở đâu | TT |
+|---|---|---|
+| Parser mốc 7 dạng, chặn số trần, phân biệt La Mã | `clause_parser.py` | P |
+| Dựng cây bằng ngăn xếp theo họ mốc, id theo đường dẫn, node không đánh số giữ nguyên chữ | `hierarchy_builder.py` | P |
+| Header/footer: chỉ mốc điều khoản được miễn, chỉ bộ đếm trang được bỏ qua số, độ lệch đánh số bầu từ tài liệu | `running_text.py` | P |
+| Mỏ neo START/END mỗi trang thay cho một bbox lớn | `build_structure._map_geometry` | P |
+| Rule engine ranh giới trang: bảng → dãy liệt kê → mốc → dấu câu / chữ hoa / kiểu chữ / vị trí | `rule_engine.py` | L |
+| Trộn điểm có trọng số, dải tin cậy, luật một mình tối đa 0.90 | `config.py` | L |
+| Ghép chữ có provenance tới ký tự, bỏ gạch nối có điều kiện, đoạn vắt 3+ trang | `paragraph_merger.py`, `pipeline.py` | L |
+| Review queue thay vì đoán | `ReviewItem` | L |
+
+### 18.8 Bảng
+
+| Kỹ thuật | Ở đâu | TT |
+|---|---|---|
+| Parse bảng markdown của Mistral, làm sạch LaTeX/markdown | `markdown_tables.py` | P |
+| Bảng có viền từ pixel, gán chữ theo tâm dòng, trần 300 ô | `table_grid.py`, `extract_scanned_tables.py` | P |
+| Nối bảng qua trang: chặn cứng → lược đồ → mép trang → điểm → agent vùng xám (tuỳ chọn) | `table_continuity.py` | P |
+| Ghép dòng bị cắt ngang trang không mất chữ, loại header lặp nhưng giữ provenance | `table_merger.py` | L |
+| Bảng theo từ: projection cột, cột neo STT, dòng logic với 3 lớp dự phòng, điền ô gộp | `table_reconstruct/` | L |
+| Kiểm tra bảng: số dòng, STT liên tục, đủ cột, tổng cộng, bằng chữ | `table_reconstruct/validate.py` | L |
+
+### 18.9 LLM an toàn
+
+| Kỹ thuật | Ở đâu | TT |
+|---|---|---|
+| LLM không bao giờ viết lại nội dung hợp đồng; chỉ đọc crop hoặc chọn quan hệ | Mục 6, 17.5 | P / L |
+| Đầu ra JSON, tập giá trị đóng, JSON hỏng → `NEEDS_REVIEW` | `llm_resolver._parse_response`, `openai_vision_ocr._parse_regions` | P / L |
+| Gửi tối thiểu: cửa sổ ranh giới, crop dòng, metadata bảng — không gửi cả tài liệu | Mục 6, 17 | P / L |
+| Vision không được cho toạ độ; bbox luôn do code cắt | `word_adapters/vision.py`, `OpenAIRegionReader` | P / L |
+| Nhà cung cấp là `Protocol`; mock mặc định để chạy offline, tái lập | `BoundaryLLMResolver`, `MockLLMResolver` | L |
+| Không bao giờ ném lỗi ra ngoài từ agent vùng xám: lỗi → giữ quyết định an toàn | `table_continuity._ask_agent` | P |
+
+### 18.10 Quan sát, chi phí, độ bền
+
+| Kỹ thuật | Ở đâu | TT |
+|---|---|---|
+| Langfuse span cho trang / engine / GPT, `cost_details` theo giá mỗi trang, `usage_details` | `observability.py`, `mistral_ocr.py` | P |
+| Trace không chứa chữ hợp đồng, ảnh, URL ký sẵn | `.env.example`, `logging_events.py` | P / L |
+| Import `langfuse` tuỳ chọn: thiếu thì tắt êm | `observability.py` | P |
+| Một trang lỗi không làm mất tài liệu; một trang snapshot lỗi không làm mất snapshot | `process_document.py`, `build_snapshot.py` | P |
+| Mã cảnh báo có cấu trúc, id dòng được dịch sang id snapshot để HITL tìm đúng chỗ | `build_snapshot.py` | P |
+
+### 18.11 Kiểm thử
+
+| Kỹ thuật | Ở đâu | TT |
+|---|---|---|
+| Reader / engine / LLM giả tiêm qua `Protocol` — test không cần mạng, không tốn tiền | `tests/unit`, `tests/reconstruction`, `tests/word_adapters` | P |
+| Ảnh trang tổng hợp bằng OpenCV/PIL để test hình học và router | `test_line_geometry.py`, `test_page_ink.py`, `test_page_routing.py` | P |
+| Test hồi quy từ lỗi thật (bản đọc sai dấu thật, Khoản 4.3 lọt footer, trang trùng mất Điều 2) | Mục 13, 14 | P |
+| Kiểm test bắt được lỗi: chạy test mới trên code cũ phải đỏ | Quy trình sửa `running_text` | P |
+| 392 test trong `tests/unit` (178), `integration` (38), `reconstruction` (66), `table_reconstruct` (60), `word_adapters` (50) | `ai-service/tests/` | P / L |
