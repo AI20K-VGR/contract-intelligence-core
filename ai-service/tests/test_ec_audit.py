@@ -33,6 +33,19 @@ def test_relative_date_is_not_rewritten_as_a_calendar_day():
     assert not any(value and value[:4].isdigit() and "-" in value for value in raw_values)
 
 
+def test_live_annex_boilerplate_is_not_an_annex_key():
+    from app.pipeline.compare import annex_keys_from_labels
+
+    keys = annex_keys_from_labels(
+        [
+            "PHỤ LỤC 01 - BẢNG KHỐI LƯỢNG, THIẾT BỊ VÀ DỊCH VỤ",
+            "Phụ lục này được lập thành 04 bản và có hiệu lực cùng ngày với hợp đồng.",
+            "Phụ lục 02",
+        ]
+    )
+    assert keys == {"Phụ lục 01", "Phụ lục 02"}
+
+
 def test_big_table_is_not_truncated():
     pack = all_cases()["EC-010"]
     run_idp(pack.record, pack.envelope)

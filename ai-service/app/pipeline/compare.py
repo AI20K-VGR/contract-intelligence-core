@@ -428,16 +428,23 @@ def _cand(
     )
 
 
+_ANNEX_NUMBER = re.compile(r"(?:phụ lục|phu luc)\s+(?:số\s+|so\s+)?(\d+)\b", re.I)
+
+
 def annex_keys_from_labels(labels: set[str] | list[str]) -> set[str]:
+    """Numbered annex identities only.
+
+    A sentence that merely starts with \"Phụ lục này\" is boilerplate, not an
+    annex. Live dossier dos_01M3BPQFSXW68FGZJ1RPFMYXTY stored that sentence as
+    an annex label and the coverage list treated it as a fifth annex.
+    """
+
     out: set[str] = set()
     for lab in labels:
         text = (lab or "").strip()
-        if not text:
-            continue
-        out.add(text)
-        m = re.match(r"(?:phụ lục|phu luc)\s+(\d+)", text, re.I)
-        if m:
-            out.add(f"Phụ lục {m.group(1)}")
+        match = _ANNEX_NUMBER.match(text)
+        if match:
+            out.add(f"Phụ lục {match.group(1)}")
     return out
 
 
