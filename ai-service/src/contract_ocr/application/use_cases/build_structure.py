@@ -17,10 +17,15 @@ segment under whichever clause marker is currently open.
 The hierarchy builder keeps its active clause across page boundaries, so body
 text on the next page remains in that clause until a new marker opens. This is
 deterministic reading-order continuation; it does not use bbox proximity.
+Running headers/footers/page numbers (`running_text.detect_running_lines`) are
+left out of the segment stream first -- otherwise a clause open at a page break
+would absorb the footer of its page and the header of the next one, and its
+page range would stretch onto a page its own text never reaches.
 """
 
 from __future__ import annotations
 
+from contract_ocr.application.use_cases.running_text import detect_running_lines
 from contract_ocr.domain.bbox import BBox
 from contract_ocr.domain.entities import Document as InternalDocument
 from contract_ocr.domain.entities import Line as InternalLine
@@ -59,11 +64,12 @@ class BuildStructure:
         segments: list[LogicalSegment] = []
         lines_by_id: dict[str, InternalLine] = {}
         pages_by_line_id: dict[str, int] = {}
+        running = detect_running_lines(document)
         for page in document.pages:
             if page.status is not Status.SUCCESS:
                 continue
             for line in page.lines:
-                if not line.text.strip():
+                if not line.text.strip() or (page.page_number, line.line_id) in running:
                     continue
                 lines_by_id[line.line_id] = line
                 pages_by_line_id[line.line_id] = page.page_number
