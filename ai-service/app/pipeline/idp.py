@@ -217,6 +217,7 @@ def run_idp(
     if extraction_units and not successful_extractions and unit_failures:
         first = unit_failures[0]
         return _failed_result(job_id, handoff.issues, first.code, first.message)
+    facts = _dedupe_same_published_key(facts)
     chunks = ClauseChunker().chunk(handoff)
     events: list[ContractEvent] = extract_contract_events(record)
     _downgrade_unreliable_outputs(facts, chunks, handoff)
@@ -334,6 +335,24 @@ def run_idp(
         handoff_issues=handoff.issues,
         contribution=contrib,
     )
+
+
+def _dedupe_same_published_key(facts: list) -> list:
+    """One published fact per item key and value. Source nodes stay on the record."""
+
+    seen: set[tuple[str, str]] = set()
+    kept = []
+    for fact in facts:
+        if not fact.item_key:
+            kept.append(fact)
+            continue
+        value = fact.normalized_value if fact.normalized_value is not None else fact.raw_value
+        key = (fact.item_key, str(value))
+        if key in seen:
+            continue
+        seen.add(key)
+        kept.append(fact)
+    return kept
 
 
 def _table_id_for(record: DossierRecord, node_id: str) -> str:

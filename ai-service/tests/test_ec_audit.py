@@ -40,6 +40,14 @@ def test_big_table_is_not_truncated():
     assert len(pack.record.tables[0].rows) == 300
 
 
+def test_duplicate_mst_is_published_once_and_both_nodes_remain():
+    pack = all_cases()["EC-038"]
+    run_idp(pack.record, pack.envelope)
+    assert [node.node_id for node in pack.record.nodes] == ["d1", "d2"]
+    published = [fact for fact in pack.record.facts if fact.item_key == "mst_seller" and fact.raw_value == "0312345678"]
+    assert len(published) == 1
+
+
 def test_english_seller_tax_code_cites_the_mst():
     from app.reasoning.query import classify_ask
     from app.reasoning.stack import FourLayerReasoner
