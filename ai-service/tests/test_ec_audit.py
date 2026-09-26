@@ -48,6 +48,50 @@ def test_duplicate_mst_is_published_once_and_both_nodes_remain():
     assert len(published) == 1
 
 
+def test_fixtures_missing_provenance_stay_in_review():
+    """Catalog PASS is not granted when the fixture citation cannot be verified."""
+
+    from app.contracts.models import ReviewState
+
+    held = [
+        "EC-001",
+        "EC-009",
+        "EC-010",
+        "EC-016",
+        "EC-022",
+        "EC-023",
+        "EC-025",
+        "EC-030",
+        "EC-034",
+        "EC-036",
+        "EC-037",
+        "EC-038",
+        "EC-051",
+    ]
+    for case_id in held:
+        pack = all_cases()[case_id]
+        job = run_idp(pack.record, pack.envelope)
+        assert job.review_state is not ReviewState.PASS, case_id
+        assert pack.record.review_items, case_id
+
+
+def test_injection_is_reviewed_on_the_question_not_by_rewriting_the_page():
+    from app.reasoning.query import classify_ask
+    from app.reasoning.stack import FourLayerReasoner
+    from app.tools.gateway import ToolGateway
+    from app.tools.store import InMemorySnapshotStore
+
+    pack = all_cases()["EC-035"]
+    before = [node.text for node in pack.record.nodes]
+    job = run_idp(pack.record, pack.envelope)
+    assert [node.text for node in pack.record.nodes] == before
+    assert job.status.value == "SUCCEEDED"
+    store = InMemorySnapshotStore()
+    store.put(pack.record)
+    out = FourLayerReasoner(ToolGateway(store), llm=None).run(pack.envelope, classify_ask(pack.query))
+    assert out["review_state"] == "NEEDS_REVIEW"
+
+
 def test_english_seller_tax_code_cites_the_mst():
     from app.reasoning.query import classify_ask
     from app.reasoning.stack import FourLayerReasoner
