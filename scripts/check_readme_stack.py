@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """README stack-claim guard (Phase 2).
 
-Verifies that the repo-root `README.md` no longer describes `backend/` as a
-Java Spring Boot service. The backend is Python (FastAPI + Celery worker,
-per `backend/pyproject.toml` dependencies), so the monorepo-structure
-section, the role table, and the quick-start block must not still contain
-`./mvnw`, `Java Spring Boot`, or `Java 17`.
+Verifies that the repo-root `README.md` no longer describes the stack as
+Java or Celery. The backend is Python FastAPI with a Kafka worker
+(`python -m contract_intelligence.worker`). ai-service uses aiokafka, not
+Celery. The structure section, role table, and quick start must not contain
+`./mvnw`, `Java Spring Boot`, `Java 17`, or `Celery`.
 
 Cross-platform (Windows/Linux/macOS); requires only stdlib. Does not call
 `git` and does not import any application package.
@@ -19,7 +19,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-STALE_TOKENS = ["./mvnw", "Java Spring Boot", "Java 17"]
+STALE_TOKENS = ["./mvnw", "Java Spring Boot", "Java 17", "Celery"]
 
 
 def find_repo_root(start: Path) -> Path | None:
@@ -44,13 +44,13 @@ def main() -> int:
 
     hits = [token for token in STALE_TOKENS if token in text]
     if hits:
-        print("FAIL: README.md still contains stale Java/mvnw stack claims:")
+        print("FAIL: README.md still contains stale Java/mvnw/Celery stack claims:")
         for token in hits:
             print(f"  - found token: {token!r}")
         print(f"  README path: {readme_path}")
         return 1
 
-    print("PASS: README.md stack claims are clean (no ./mvnw, Java Spring Boot, or Java 17).")
+    print("PASS: README.md stack claims are clean (no ./mvnw, Java, or Celery).")
     return 0
 
 

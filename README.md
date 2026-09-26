@@ -21,7 +21,7 @@ contract-intelligence/
 |---|---|---|
 | `backend/` | API server, xử lý nghiệp vụ chính, lưu trữ, quản lý luồng review | Python 3.11+, FastAPI, Kafka worker, PostgreSQL |
 | `frontend/` | Giao diện upload hợp đồng, review điều khoản, xử lý conflict | Node 20+, Vite, React 19, TypeScript, ESLint |
-| `ai-service/` | Worker OCR/IDP/LLM, tách riêng để scale độc lập với backend | Python (FastAPI / Celery worker) |
+| `ai-service/` | Worker OCR/IDP/LLM, tách riêng để scale độc lập với backend | Python (FastAPI / Kafka worker) |
 | `docs/` | Product vision, system design, database schema, API spec, ADRs | Markdown + OpenAPI YAML |
 
 > **Lưu ý:** `ai-service/` là *tuỳ chọn*. Phiên bản đầu có thể chạy OCR/IDP như một adapter trong `backend/` (gọi external service). Khi cần scale/đổi model độc lập, tách ra thư mục riêng.
