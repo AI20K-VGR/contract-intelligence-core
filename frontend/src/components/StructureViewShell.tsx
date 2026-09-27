@@ -1,4 +1,10 @@
 import type { ReactNode } from 'react'
+import { reviewerLabel } from '../review/reviewerLabel'
+import {
+  CONFLICT_STATE_LABEL,
+  VERDICT_LABEL,
+  type ConflictMarker,
+} from '../structure/conflictAnchors'
 import type { BranchTone } from '../structure/display'
 import { MaterialIcon } from './icons'
 
@@ -170,6 +176,93 @@ export function AttentionStar({ size = 15 }: { size?: number }) {
       title="Có chỗ cần kiểm tra"
     >
       <MaterialIcon name="star" style={{ fontSize: size }} />
+    </span>
+  )
+}
+
+/** Mô tả ngắn cho tooltip: trạng thái + ai thẩm định gần nhất. */
+export function conflictTitle(marker: ConflictMarker) {
+  if (marker.spots.length === 0) {
+    return `${marker.below} xung đột trong nhánh này`
+  }
+  const head =
+    marker.spots.length > 1
+      ? `${marker.spots.length} xung đột · ${CONFLICT_STATE_LABEL[marker.state]}`
+      : CONFLICT_STATE_LABEL[marker.state]
+  const latest = marker.spots
+    .map((spot) => spot.review?.latest ?? null)
+    .find((item) => item !== null)
+  if (!latest) return head
+  const when = latest.reviewedAt
+    ? new Date(latest.reviewedAt).toLocaleString('vi-VN')
+    : ''
+  return `${head}. ${VERDICT_LABEL[latest.action] ?? latest.action} · ${reviewerLabel(latest)}${when ? ` · ${when}` : ''}`
+}
+
+/**
+ * Chấm xung đột trên nút cây.
+ * - Vàng đậm: có xung đột, chưa ai thẩm định.
+ * - Vàng nhạt có dấu tick: đã thẩm định (Chính xác / Sửa nhận định).
+ * - Xám mờ: đã thẩm định là Sai lệch, không tính vào tổng.
+ * - Nút cha đang gấp: chấm vàng kèm số xung đột bên trong.
+ */
+export function ConflictBadge({
+  marker,
+  collapsed = false,
+  size = 16,
+}: {
+  marker: ConflictMarker
+  collapsed?: boolean
+  size?: number
+}) {
+  const title = conflictTitle(marker)
+  if (marker.spots.length === 0) {
+    if (!collapsed || marker.below === 0) return null
+    return (
+      <span
+        className="inline-flex shrink-0 items-center justify-center rounded-full bg-amber-400 px-1 font-semibold leading-none text-amber-950"
+        style={{ height: size, minWidth: size, fontSize: Math.max(9, size - 6) }}
+        title={title}
+      >
+        {marker.below}
+      </span>
+    )
+  }
+  const tone =
+    marker.state === 'open'
+      ? 'bg-amber-400 text-amber-950'
+      : marker.state === 'reviewed'
+        ? 'border border-amber-400 bg-amber-50 text-amber-800'
+        : 'bg-slate-200 text-slate-500 opacity-70'
+  const icon =
+    marker.state === 'open'
+      ? 'priority_high'
+      : marker.state === 'reviewed'
+        ? 'check'
+        : 'remove'
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center justify-center gap-px rounded-full leading-none ${tone}`}
+      data-conflict-state={marker.state}
+      style={{
+        height: size,
+        minWidth: size,
+        paddingLeft: marker.spots.length > 1 ? 3 : 0,
+        paddingRight: marker.spots.length > 1 ? 3 : 0,
+      }}
+      title={title}
+    >
+      <MaterialIcon name={icon} style={{ fontSize: size - 4 }} />
+      {marker.spots.length > 1 ? (
+        <span className="font-semibold" style={{ fontSize: Math.max(9, size - 6) }}>
+          {marker.spots.length}
+        </span>
+      ) : null}
+      {collapsed && marker.below > 0 ? (
+        <span className="font-semibold" style={{ fontSize: Math.max(9, size - 6) }}>
+          +{marker.below}
+        </span>
+      ) : null}
     </span>
   )
 }

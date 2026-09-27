@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { loadDocumentPdf, type ClauseNode } from '../api/structure'
@@ -13,6 +13,7 @@ export function CitationPane({
   onClose,
   embedded = false,
   filename,
+  banner,
 }: {
   documentId: string
   node: ClauseNode
@@ -20,6 +21,8 @@ export function CitationPane({
   onClose?: () => void
   embedded?: boolean
   filename?: string | null
+  /** Thông báo dính dưới header (vd. điều khoản này có xung đột). */
+  banner?: ReactNode
 }) {
   const pages = [
     ...new Set(
@@ -146,6 +149,7 @@ export function CitationPane({
           ) : null}
         </div>
       </div>
+      {banner}
       <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-4">
         {error ? <p className="mb-3 text-sm text-red-700">{error}</p> : null}
         {!ready && !error ? (

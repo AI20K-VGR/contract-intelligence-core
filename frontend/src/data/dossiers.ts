@@ -28,6 +28,15 @@ export function structurePath(dossierId: string) {
   return `/cau-truc/${encodeURIComponent(dossierId)}`
 }
 
+/** Trang đối soát xung đột; kèm finding để cuộn thẳng tới đúng xung đột. */
+export function conflictPagePath(dossierId: string, findingId?: string) {
+  const query = new URLSearchParams()
+  if (dossierId) query.set('dossier', dossierId)
+  if (findingId) query.set('finding', findingId)
+  const search = query.toString()
+  return `/doi-soat-xung-dot${search ? `?${search}` : ''}`
+}
+
 export function progressPath(dossierId: string) {
   return `/tien-trinh-phan-tich/${encodeURIComponent(dossierId)}`
 }

@@ -17,11 +17,12 @@ import {
   visibleChildren,
   visibleRoots,
 } from '../structure/display'
+import type { ConflictMarker } from '../structure/conflictAnchors'
 import { capToMaxLevels } from '../structure/tree'
 import { MaterialIcon } from './icons'
 import {
-  AttentionStar,
   CiteBadge,
+  ConflictBadge,
   EmptyStructure,
   FilterField,
   HeaderDivider,
@@ -101,14 +102,15 @@ function countAll(nodes: ClauseNode[]): number {
 export function StructureOutline({
   title,
   nodes,
-  attentionIds,
+  markers,
   citationOf,
   focusId,
   onCite,
 }: {
   title: string
   nodes: ClauseNode[]
-  attentionIds?: ReadonlySet<string>
+  /** id nút → xung đột neo vào nút và số xung đột trong nhánh con. */
+  markers?: ReadonlyMap<string, ConflictMarker>
   citationOf?: ReadonlyMap<string, number>
   focusId?: string | null
   onCite?: (id: string) => void
@@ -223,7 +225,7 @@ export function StructureOutline({
             key={row.node.id}
             active={selected === row.node.id || focusId === row.node.id}
             cite={citationOf?.get(row.node.id)}
-            flagged={attentionIds?.has(row.node.id) === true}
+            marker={markers?.get(row.node.id)}
             query={needle}
             row={row}
             onPick={() => pick(row.node.id)}
@@ -238,7 +240,7 @@ export function StructureOutline({
 function OutlineRow({
   row,
   active,
-  flagged,
+  marker,
   cite,
   query,
   onPick,
@@ -246,7 +248,7 @@ function OutlineRow({
 }: {
   row: Row
   active: boolean
-  flagged: boolean
+  marker: ConflictMarker | undefined
   cite: number | undefined
   query: string
   onPick: () => void
@@ -361,7 +363,9 @@ function OutlineRow({
           ) : null}
         </span>
         <span className="mt-0.5 flex shrink-0 items-center gap-1.5">
-          {flagged ? <AttentionStar /> : null}
+          {marker ? (
+            <ConflictBadge collapsed={!row.open} marker={marker} />
+          ) : null}
           {pages ? (
             <span className="font-mono text-[10px] text-slate-400">
               {pages}

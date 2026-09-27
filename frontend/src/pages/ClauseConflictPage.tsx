@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { clauseOrdinal } from '../api/clauseReview'
 import {
   contractDocument,
   getDossierStructure,
@@ -15,13 +16,12 @@ import {
   type ReviewSpotSide,
   type StructureDocument,
 } from '../api/structure'
-import {
-  listReviewItems,
-  submitReviewAction,
-  type ReviewItem,
-} from '../api/review'
 import { dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
+import {
+  ConflictFindingReview,
+  type LinkedClause,
+} from '../components/ConflictFindingReview'
 import {
   ConflictDocumentPane,
   type ConflictBox,
@@ -38,11 +38,6 @@ import type { OcrLine } from '../structure/types'
 
 type Verdict = 'correct' | 'deviation' | 'edit'
 
-const REVIEW_ACTION = {
-  correct: 'confirm',
-  deviation: 'reject',
-  edit: 'correct',
-} as const
 type CardSource = {
   label: string
   quote: string
@@ -73,6 +68,28 @@ type ComparePane = {
   locating: boolean
   linked: boolean
   emptyNote: string
+  /** Nút cây đang chứa trích dẫn, để nối với thẩm định trích dẫn cùng vị trí. */
+  clause: ClauseNode | null
+  ordinal: number
+}
+
+function paneRoleLabel(label: string) {
+  return label.startsWith('Xanh') ? 'Phụ lục' : 'Hợp đồng'
+}
+
+function linkedClausesOf(panes: ComparePane[]): LinkedClause[] {
+  return panes.flatMap((pane) =>
+    pane.clause
+      ? [
+          {
+            label: paneRoleLabel(pane.label),
+            documentId: pane.document.id,
+            node: pane.clause,
+            ordinal: pane.ordinal,
+          },
+        ]
+      : [],
+  )
 }
 
 const MARKS = ['amber', 'sky'] as const
@@ -231,6 +248,8 @@ function linkPane(
     locating: Boolean(side?.pageNo) && lines === undefined && regions.length === 0,
     linked,
     emptyNote: linked ? '' : missing,
+    clause,
+    ordinal: clause ? clauseOrdinal(nodes, clause.id) : 0,
   }
 }
 
@@ -330,14 +349,19 @@ export function ClauseConflictPage() {
   usePageTitle('Đối soát xung đột')
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams] = useSearchParams()
   const reviewState = location.state as {
     dossierId?: string
     name?: string
+    findingId?: string
   } | null
-  const dossierId = reviewState?.dossierId ?? ''
+  const dossierId = reviewState?.dossierId ?? searchParams.get('dossier') ?? ''
+  // Từ cây / banner nhảy sang: mở đúng xung đột đó và cuộn thẻ vào tầm nhìn.
+  const requestedId = searchParams.get('finding') ?? reviewState?.findingId ?? ''
   const { user } = useAuth()
   const searchRef = useRef<HTMLInputElement>(null)
   const loadedLines = useRef(new Set<string>())
+  const scrolledTo = useRef('')
   const [detail, setDetail] = useState<DossierStructure | null>(null)
   const [document, setDocument] = useState<StructureDocument | null>(null)
   const [spots, setSpots] = useState<ReviewSpot[]>([])
@@ -350,25 +374,15 @@ export function ClauseConflictPage() {
   const [pdfPages, setPdfPages] = useState(0)
   const [loading, setLoading] = useState(Boolean(dossierId))
   const [error, setError] = useState<string | null>(null)
-  const [activeId, setActiveId] = useState('')
+  const [activeId, setActiveId] = useState(requestedId)
   const [pageNo, setPageNo] = useState(1)
   const [align, setAlign] = useState<{
     mark: 'amber' | 'sky' | 'both'
     tick: number
   }>({ mark: 'both', tick: 0 })
   const [query, setQuery] = useState('')
+  const [reviewedIds, setReviewedIds] = useState<Record<string, boolean>>({})
   const [verdicts, setVerdicts] = useState<Record<string, Verdict>>({})
-  const [notes, setNotes] = useState<Record<string, string>>({})
-  const [reviewByFinding, setReviewByFinding] = useState<
-    Record<string, ReviewItem>
-  >({})
-  const [savingId, setSavingId] = useState<string | null>(null)
-  const [savedIds, setSavedIds] = useState<Record<string, boolean>>({})
-  const [reviewVersions, setReviewVersions] = useState<Record<string, number>>({})
-  const [notice, setNotice] = useState<{
-    text: string
-    tone: 'ok' | 'error'
-  } | null>(null)
   const backTo = dossierId
     ? structurePath(dossierId)
     : user
@@ -386,19 +400,9 @@ export function ClauseConflictPage() {
     Promise.all([
       getDossierStructure(dossierId, controller.signal),
       listReviewSpots(dossierId, controller.signal),
-      listReviewItems(dossierId, controller.signal).catch(() => ({
-        items: [] as ReviewItem[],
-      })),
     ])
-      .then(async ([nextDetail, nextSpots, queue]) => {
+      .then(async ([nextDetail, nextSpots]) => {
         if (controller.signal.aborted) return
-        const linked: Record<string, ReviewItem> = {}
-        for (const item of queue.items) {
-          if (item.targetType === 'finding' && item.targetId) {
-            linked[item.targetId] = item
-          }
-        }
-        setReviewByFinding(linked)
         setDetail(nextDetail)
         const nextDocument = contractDocument(nextDetail)
         setDocument(nextDocument)
@@ -480,6 +484,19 @@ export function ClauseConflictPage() {
   }, [activeId, cards])
 
   useEffect(() => {
+    if (!requestedId || scrolledTo.current === requestedId) return
+    if (!cards.some((card) => card.id === requestedId)) return
+    scrolledTo.current = requestedId
+    setActiveId(requestedId)
+    const frame = window.requestAnimationFrame(() => {
+      window.document
+        .querySelector(`[data-card-id="${CSS.escape(requestedId)}"]`)
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [cards, requestedId])
+
+  useEffect(() => {
     const documents = detail?.documents ?? []
     const pending = documents.filter((item) => !loadedLines.current.has(item.id))
     if (pending.length === 0) return
@@ -535,12 +552,14 @@ export function ClauseConflictPage() {
   const onPageCount = useCallback((count: number) => {
     setPdfPages((current) => (current === count ? current : count))
   }, [])
-  const ignorePageCount = useCallback((_count: number) => undefined, [])
+  const ignorePageCount = useCallback(() => undefined, [])
   const onPageChange = useCallback((page: number) => {
     setPageNo(Math.max(1, page))
   }, [])
 
-  const reviewed = cards.filter((card) => verdicts[card.id]).length
+  const reviewed = cards.filter((card) =>
+    dossierId ? reviewedIds[card.id] : verdicts[card.id],
+  ).length
   const confidences = cards
     .map((card) => card.confidence)
     .filter((value): value is number => value !== null)
@@ -551,83 +570,8 @@ export function ClauseConflictPage() {
   const dossierName =
     detail?.name?.trim() || reviewState?.name?.trim() || 'Hồ sơ hợp đồng'
 
-  useEffect(() => {
-    if (!notice) return
-    const timer = window.setTimeout(() => setNotice(null), 4000)
-    return () => window.clearTimeout(timer)
-  }, [notice])
-
   function choose(id: string, verdict: Verdict) {
     setVerdicts((current) => ({ ...current, [id]: verdict }))
-    setSavedIds((current) => ({ ...current, [id]: false }))
-    setNotice(null)
-  }
-
-  async function saveCard(id: string) {
-    const verdict = verdicts[id]
-    if (!verdict || savingId) return
-    const note = (notes[id] ?? '').trim()
-    if (verdict === 'edit' && !note) {
-      setNotice({
-        text: 'Sửa nhận định cần nhập ghi chú trước khi lưu.',
-        tone: 'error',
-      })
-      return
-    }
-    const card = cards.find((item) => item.id === id)
-    let linked = reviewByFinding[id]
-    let itemId = card?.review?.itemId || linked?.id
-    let version =
-      reviewVersions[id] ?? card?.review?.version ?? linked?.version
-    setSavingId(id)
-    setNotice(null)
-    try {
-      if (!itemId && dossierId) {
-        const queue = await listReviewItems(dossierId)
-        const match = queue.items.find(
-          (item) => item.targetType === 'finding' && item.targetId === id,
-        )
-        if (match) {
-          linked = match
-          itemId = match.id
-          version = version ?? match.version
-          setReviewByFinding((current) => ({ ...current, [id]: match }))
-        }
-      }
-      if (!itemId || version === undefined) {
-        setNotice({
-          text: 'Mục này chưa có bản ghi thẩm định để lưu.',
-          tone: 'error',
-        })
-        return
-      }
-      const result = await submitReviewAction(itemId, {
-        baseVersion: version,
-        action: REVIEW_ACTION[verdict],
-        comment: note || null,
-        correctedValue: verdict === 'edit' ? { assessment: note } : null,
-      })
-      setReviewVersions((current) => ({ ...current, [id]: result.newVersion }))
-      if (linked) {
-        setReviewByFinding((current) => ({
-          ...current,
-          [id]: {
-            ...linked,
-            version: result.newVersion,
-            status: result.itemStatus,
-          },
-        }))
-      }
-      setSavedIds((current) => ({ ...current, [id]: true }))
-      setNotice({ text: 'Đã lưu nhận định.', tone: 'ok' })
-    } catch (cause: unknown) {
-      setNotice({
-        text: cause instanceof Error ? cause.message : 'Không lưu được nhận định.',
-        tone: 'error',
-      })
-    } finally {
-      setSavingId(null)
-    }
   }
 
   return (
@@ -841,6 +785,7 @@ export function ClauseConflictPage() {
                 return (
                   <article
                     key={card.id}
+                    data-card-id={card.id}
                     className={
                       selected
                         ? 'relative rounded border-y border-r border-l-4 border-outline-variant/50 border-l-primary-container bg-blue-50/50 p-space-md shadow-sm'
@@ -947,67 +892,45 @@ export function ClauseConflictPage() {
                         </span>
                       ) : null}
                     </div>
-                    <div className="grid grid-cols-3 gap-1.5">
-                      <VerdictButton
-                        active={verdict === 'correct'}
-                        icon="check"
-                        iconClass="text-tertiary-container"
-                        label="Chính xác"
-                        onClick={() => choose(card.id, 'correct')}
+                    {dossierId ? (
+                      <ConflictFindingReview
+                        findingId={card.id}
+                        linkedClauses={linkedClausesOf(
+                          linksById.get(card.id) ?? [],
+                        )}
+                        onReviewed={(value) =>
+                          setReviewedIds((current) =>
+                            current[card.id] === value
+                              ? current
+                              : { ...current, [card.id]: value },
+                          )
+                        }
                       />
-                      <VerdictButton
-                        active={verdict === 'deviation'}
-                        icon="close"
-                        iconClass="text-error"
-                        label="Sai lệch"
-                        onClick={() => choose(card.id, 'deviation')}
-                      />
-                      <VerdictButton
-                        active={verdict === 'edit'}
-                        icon="edit"
-                        iconClass="text-secondary"
-                        label={selected ? 'Sửa nhận định' : 'Sửa'}
-                        onClick={() => choose(card.id, 'edit')}
-                      />
-                    </div>
-                    {verdict === 'edit' ? (
-                      <textarea
-                        className="mt-2 w-full resize-none rounded bg-surface-container-low p-2 font-body-sm text-body-sm text-on-surface outline-none focus:ring-1 focus:ring-outline-variant"
-                        placeholder="Ghi chú thẩm định..."
-                        rows={2}
-                        value={notes[card.id] ?? ''}
-                        onChange={(event) => {
-                          setSavedIds((current) => ({
-                            ...current,
-                            [card.id]: false,
-                          }))
-                          setNotes((current) => ({
-                            ...current,
-                            [card.id]: event.target.value,
-                          }))
-                        }}
-                      />
-                    ) : null}
-                    {verdict ? (
-                      <div className="mt-2 flex items-center justify-end">
-                        <button
-                          className="inline-flex items-center gap-1 rounded bg-primary px-3 py-1.5 font-label-sm text-label-sm font-semibold text-on-primary disabled:opacity-60"
-                          disabled={savingId === card.id}
-                          type="button"
-                          onClick={() => void saveCard(card.id)}
-                        >
-                          <MaterialIcon
-                            name={savedIds[card.id] ? 'check' : 'save'}
-                            className="text-[15px]"
-                          />
-                          {savingId === card.id
-                            ? 'Đang lưu...'
-                            : savedIds[card.id]
-                              ? 'Đã lưu'
-                              : 'Lưu mục này'}
-                        </button>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <VerdictButton
+                          active={verdict === 'correct'}
+                          icon="check"
+                          iconClass="text-tertiary-container"
+                          label="Chính xác"
+                          onClick={() => choose(card.id, 'correct')}
+                        />
+                        <VerdictButton
+                          active={verdict === 'deviation'}
+                          icon="close"
+                          iconClass="text-error"
+                          label="Sai lệch"
+                          onClick={() => choose(card.id, 'deviation')}
+                        />
+                        <VerdictButton
+                          active={verdict === 'edit'}
+                          icon="edit"
+                          iconClass="text-secondary"
+                          label="Sửa"
+                          onClick={() => choose(card.id, 'edit')}
+                        />
                       </div>
-                    ) : null}
+                    )}
                   </article>
                 )
               })}
@@ -1020,28 +943,6 @@ export function ClauseConflictPage() {
             </div>
           </div>
       </div>
-      {notice ? (
-        <div
-          className="fixed top-20 right-6 z-[70] flex w-[min(24rem,calc(100vw-3rem))] items-start gap-space-md rounded border border-surface-container bg-surface-container-lowest px-space-lg py-space-md font-body-sm text-body-sm text-on-surface shadow-md"
-          role="status"
-        >
-          <MaterialIcon
-            name={notice.tone === 'error' ? 'error' : 'check_circle'}
-            className={`shrink-0 text-[20px] ${
-              notice.tone === 'error' ? 'text-error' : 'text-emerald-600'
-            }`}
-          />
-          <span className="flex-1">{notice.text}</span>
-          <button
-            aria-label="Đóng thông báo"
-            className="shrink-0 text-secondary hover:text-on-surface"
-            type="button"
-            onClick={() => setNotice(null)}
-          >
-            <MaterialIcon name="close" className="text-[18px]" />
-          </button>
-        </div>
-      ) : null}
     </div>
   )
 }

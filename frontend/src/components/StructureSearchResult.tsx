@@ -1,12 +1,9 @@
-import type {
-  DossierSearchHit,
-  DossierSearchResult,
-  DossierSearchState,
-} from '../api/structure'
+import type { Ai2ReviewState } from '../api/ai2'
+import type { DossierSearchHit, DossierSearchResult } from '../api/structure'
 import { MaterialIcon } from './icons'
 
 const stateMeta: Record<
-  DossierSearchState,
+  Ai2ReviewState,
   { label: string; className: string; icon: string }
 > = {
   PASS: {
@@ -43,10 +40,22 @@ const stateMeta: Record<
 
 function hitLocation(hit: DossierSearchHit) {
   const parts: string[] = []
-  if (hit.breadcrumb.length > 0) parts.push(hit.breadcrumb.join(' › '))
+  if (hit.citation.nodeId) parts.push(hit.citation.nodeId)
   if (hit.pageNo) parts.push(`Trang ${hit.pageNo}`)
-  if (hit.tableId) parts.push('Bảng')
+  if (hit.citation.scope === 'annex') parts.push('Phụ lục')
   return parts.join(' · ')
+}
+
+function resultNotes(result: DossierSearchResult) {
+  return result.reasoningTrace.flatMap((item) => {
+    if (typeof item === 'string' && item.trim()) return [item.trim()]
+    if (!item || typeof item !== 'object') return []
+    const row = item as { code?: unknown; message?: unknown }
+    const code = typeof row.code === 'string' ? row.code : ''
+    const message = typeof row.message === 'string' ? row.message : ''
+    const text = [code, message].filter(Boolean).join(': ')
+    return text ? [text] : []
+  })
 }
 
 /**
@@ -68,7 +77,7 @@ export function StructureSearchResult({
   onSelectHit: (hit: DossierSearchHit) => void
   onClose: () => void
 }) {
-  const state = result?.state ? stateMeta[result.state] : null
+  const state = result?.reviewState ? stateMeta[result.reviewState] : null
 
   return (
     <section
@@ -98,7 +107,7 @@ export function StructureSearchResult({
           {state ? (
             <span
               className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-label-sm text-label-sm font-semibold ${state.className}`}
-              title={result?.state ?? undefined}
+              title={result?.reviewState ?? undefined}
             >
               <MaterialIcon name={state.icon} className="text-[14px]" />
               {state.label}
@@ -152,9 +161,9 @@ export function StructureSearchResult({
             </p>
           )}
 
-          {result.notes.length > 0 && !result.answer ? (
+          {resultNotes(result).length > 0 && !result.answer ? (
             <ul className="flex flex-col gap-0.5 rounded-lg bg-surface-container-low px-space-sm py-space-xs font-code-sm text-[12px] text-on-surface-variant">
-              {result.notes.map((note) => (
+              {resultNotes(result).map((note) => (
                 <li key={note}>{note}</li>
               ))}
             </ul>
@@ -167,11 +176,12 @@ export function StructureSearchResult({
                 {result.hits.length} trích dẫn · bấm để mở trong cây
               </p>
               <ol className="divide-y divide-outline-variant/20 overflow-hidden rounded-lg border border-outline-variant/20">
-                {result.hits.map((hit) => {
-                  const active = activeHit === hit.n
+                {result.hits.map((hit, index) => {
+                  const n = index + 1
+                  const active = activeHit === n
                   const location = hitLocation(hit)
                   return (
-                    <li key={`${hit.n}-${hit.citationId ?? hit.text}`}>
+                    <li key={`${n}-${hit.citation.citationId ?? hit.text}`}>
                       <button
                         className={`flex w-full items-start gap-space-sm px-space-sm py-space-xs text-left transition-colors ${
                           active
@@ -188,7 +198,7 @@ export function StructureSearchResult({
                               : 'bg-surface-container-high text-on-surface'
                           }`}
                         >
-                          {hit.n}
+                          {n}
                         </span>
                         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                           <span className="font-body-sm text-body-sm text-on-surface">
@@ -200,7 +210,7 @@ export function StructureSearchResult({
                             </span>
                           ) : null}
                         </span>
-                        {hit.validationStatus === 'VALID' ? (
+                        {hit.citation.status === 'LOCATABLE' ? (
                           <span
                             className="mt-0.5 inline-flex shrink-0 items-center gap-0.5 rounded bg-emerald-50 px-1.5 py-0.5 font-label-sm text-[11px] font-semibold text-emerald-800"
                             title="AI2 đã đối chiếu câu trích khớp nguồn OCR"

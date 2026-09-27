@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from contract_intelligence.conflict.infrastructure.persistence.orm import (
@@ -15,7 +15,11 @@ from contract_intelligence.conflict.infrastructure.persistence.orm import (
 )
 from contract_intelligence.contract.infrastructure.persistence.orm import DocumentORM
 from contract_intelligence.extraction.infrastructure.persistence.orm import CitationORM
-from contract_intelligence.review.infrastructure.persistence.orm import ReviewItemORM
+from contract_intelligence.identity.infrastructure.persistence.orm import AppUserORM
+from contract_intelligence.review.infrastructure.persistence.orm import (
+    ReviewActionORM,
+    ReviewItemORM,
+)
 
 # disposition values that require reviewer attention (= v_conflict)
 _CONFLICT_DISPOSITIONS = (
@@ -183,15 +187,59 @@ class FindingRepositoryImpl:
         )
         review_result = await self._session.execute(review_stmt)
         review_by_finding = {ri.target_id: ri for ri in review_result.scalars().all()}
+        latest_by_item = await self._latest_actions([ri.id for ri in review_by_finding.values()])
 
         return [
             self._finding_to_dict(
                 f,
                 sides=sides_by_finding.get(f.id, []),
                 review=review_by_finding.get(f.id),
+                latest=latest_by_item.get(
+                    review_by_finding[f.id].id if f.id in review_by_finding else ""
+                ),
             )
             for f in findings
         ]
+
+    async def _latest_actions(self, item_ids: list[str]) -> dict[str, dict[str, Any]]:
+        """Lượt thẩm định gần nhất của từng review item, kèm tên và email người thẩm định."""
+        if not item_ids:
+            return {}
+        stmt = (
+            select(
+                ReviewActionORM,
+                AppUserORM.display_name,
+                AppUserORM.email,
+                func.count(ReviewActionORM.id)
+                .over(partition_by=ReviewActionORM.review_item_id)
+                .label("action_count"),
+            )
+            .outerjoin(
+                AppUserORM,
+                or_(
+                    AppUserORM.id == ReviewActionORM.reviewer_id,
+                    AppUserORM.keycloak_sub == ReviewActionORM.reviewer_id,
+                ),
+            )
+            .where(
+                ReviewActionORM.tenant_id == self._tenant_id,
+                ReviewActionORM.review_item_id.in_(item_ids),
+            )
+            .order_by(ReviewActionORM.created_at.asc(), ReviewActionORM.id.asc())
+        )
+        rows = (await self._session.execute(stmt)).all()
+        latest: dict[str, dict[str, Any]] = {}
+        for action, name, email, action_count in rows:
+            latest[action.review_item_id] = {
+                "action": action.action,
+                "comment": action.comment,
+                "reviewer_id": action.reviewer_id,
+                "reviewer_name": name,
+                "reviewer_email": email,
+                "reviewed_at": action.created_at.isoformat() if action.created_at else None,
+                "action_count": int(action_count or 0),
+            }
+        return latest
 
     def _finding_to_dict(
         self,
@@ -199,6 +247,7 @@ class FindingRepositoryImpl:
         *,
         sides: list[dict[str, Any]] | None = None,
         review: ReviewItemORM | None = None,
+        latest: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         review_payload = None
         if review is not None:
@@ -206,6 +255,7 @@ class FindingRepositoryImpl:
                 "item_id": review.id,
                 "status": review.status,
                 "current_version": int(review.version or 0),
+                "latest": latest,
             }
         return {
             "id": orm.id,

@@ -10,6 +10,7 @@ from contract_intelligence.review.application.dtos.review_dtos import (
     ClauseReviewDTO,
     ClauseReviewEntryDTO,
     ClauseStaleReviewDTO,
+    FindingReviewDTO,
     ReviewActionResponseDTO,
     ReviewItemDTO,
     ReviewItemRevisionDTO,
@@ -84,10 +85,17 @@ class ReviewRepositoryPort(Protocol):
 
     async def list_orphan_clause_items(self, dossier_id: str) -> list[dict[str, Any]]: ...
 
+    async def get_finding_context(self, finding_id: str) -> dict[str, Any] | None: ...
+
+    async def list_prior_finding_reviews(
+        self, *, dossier_id: str, finding_id: str, topic: str
+    ) -> list[dict[str, Any]]: ...
+
     async def list_revisions_with_reviewer(self, item_id: str) -> list[dict[str, Any]]: ...
 
 
 CLAUSE_REVIEW_REASON = "Thẩm định trích dẫn thủ công"
+FINDING_REVIEW_REASON = "Thẩm định xung đột thủ công"
 
 _CLAUSE_KEY_FIELDS = ("document_id", "node_type", "number", "label", "ordinal")
 
@@ -358,5 +366,153 @@ class ReviewService:
             current_state=state.model_dump(mode="json"),
         ) from cause
 
+    async def get_finding_context(self, finding_id: str) -> dict[str, Any]:
+        ctx = await self._repo.get_finding_context(finding_id)
+        if ctx is None:
+            raise NotFoundError(entity_type="Finding", entity_id=finding_id)
+        return ctx
 
-__all__ = ["CLAUSE_REVIEW_REASON", "ReviewRepositoryPort", "ReviewService", "clause_snapshot"]
+    async def get_finding_review(self, ctx: dict[str, Any]) -> FindingReviewDTO:
+        item = await self._repo.find_item_for_target(
+            target_type=ReviewTargetType.FINDING.value,
+            target_id=ctx["finding_id"],
+        )
+        entries = await self._entries(item["id"]) if item is not None else []
+        stale = None if entries else await self._stale_finding_review(ctx)
+        return FindingReviewDTO(
+            finding_id=ctx["finding_id"],
+            dossier_id=ctx["dossier_id"],
+            review_item_id=item["id"] if item else None,
+            run_id=(item or {}).get("run_id") or ctx.get("run_id"),
+            version=int(item["version"]) if item else 0,
+            status=str(item["status"]) if item and entries else "unreviewed",
+            dossier_locked=bool(ctx.get("is_locked")),
+            latest=entries[-1] if entries else None,
+            history=entries,
+            stale=stale,
+        )
+
+    async def _stale_finding_review(self, ctx: dict[str, Any]) -> ClauseStaleReviewDTO | None:
+        topic = str(ctx.get("key_or_topic") or "").strip()
+        if not topic:
+            return None
+        current = str(ctx.get("rationale") or "")
+        priors = await self._repo.list_prior_finding_reviews(
+            dossier_id=ctx["dossier_id"],
+            finding_id=ctx["finding_id"],
+            topic=topic,
+        )
+        for old in priors:
+            entries = await self._entries(old["id"])
+            if not entries:
+                continue
+            return ClauseStaleReviewDTO(
+                review_item_id=old["id"],
+                run_id=old.get("run_id"),
+                text_changed=str(old.get("rationale") or "") != current,
+                reviewed_text=old.get("rationale"),
+                latest=entries[-1],
+                history=entries,
+            )
+        return None
+
+    async def submit_finding_review(
+        self,
+        *,
+        ctx: dict[str, Any],
+        action_type: ReviewActionType,
+        base_version: int,
+        reviewer_id: str,
+        comment: str | None = None,
+    ) -> FindingReviewDTO:
+        """Ghi một lượt thẩm định mới cho xung đột; không ghi đè lượt trước."""
+        if ctx.get("is_locked"):
+            raise InvariantViolation(
+                "Hồ sơ đã khóa, không thể thẩm định thêm.", dossier_id=ctx["dossier_id"]
+            )
+        comment = (comment or "").strip() or None
+        corrected_value = None
+        if action_type == ReviewActionType.CORRECT:
+            if not comment:
+                raise ValidationError("Sửa nhận định cần nội dung nhận định mới.", field="comment")
+            corrected_value = {"assessment": comment}
+
+        item = await self._repo.find_item_for_target(
+            target_type=ReviewTargetType.FINDING.value,
+            target_id=ctx["finding_id"],
+        )
+        if item is None:
+            if base_version != 0:
+                await self._raise_finding_conflict(ctx, "", base_version, 0)
+            if not ctx.get("run_id"):
+                raise InvariantViolation(
+                    "Hồ sơ chưa có lượt phân tích nào.", dossier_id=ctx["dossier_id"]
+                )
+            item, created = await self._repo.get_or_create_item_for_target(
+                dossier_id=ctx["dossier_id"],
+                run_id=ctx["run_id"],
+                target_type=ReviewTargetType.FINDING.value,
+                target_id=ctx["finding_id"],
+                reason=FINDING_REVIEW_REASON,
+                target_snapshot=finding_snapshot(ctx),
+            )
+            if not created:
+                await self._raise_finding_conflict(
+                    ctx, item["id"], base_version, int(item["version"])
+                )
+            base_version = int(item["version"])
+        elif not item.get("target_snapshot"):
+            await self._repo.ensure_target_snapshot(item["id"], finding_snapshot(ctx))
+
+        try:
+            await self._repo.submit_action(
+                item_id=item["id"],
+                action_type=action_type,
+                base_version=base_version,
+                reviewer_id=reviewer_id,
+                corrected_value=corrected_value,
+                comment=comment,
+            )
+        except ReviewVersionConflict as exc:
+            await self._raise_finding_conflict(
+                ctx,
+                item["id"],
+                base_version,
+                int(exc.details.get("current_version") or 0),
+                cause=exc,
+            )
+        return await self.get_finding_review(ctx)
+
+    async def _raise_finding_conflict(
+        self,
+        ctx: dict[str, Any],
+        item_id: str,
+        expected: int,
+        current: int,
+        *,
+        cause: Exception | None = None,
+    ) -> NoReturn:
+        state = await self.get_finding_review(ctx)
+        raise ReviewVersionConflict(
+            review_item_id=item_id,
+            expected_version=expected,
+            current_version=state.version or current,
+            current_state=state.model_dump(mode="json"),
+        ) from cause
+
+
+def finding_snapshot(ctx: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "key_or_topic": str(ctx.get("key_or_topic") or ""),
+        "rationale": str(ctx.get("rationale") or ""),
+    }
+
+
+__all__ = [
+    "CLAUSE_REVIEW_REASON",
+    "FINDING_REVIEW_REASON",
+    "ReviewRepositoryPort",
+    "ReviewService",
+    "clause_snapshot",
+    "finding_snapshot",
+]

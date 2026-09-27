@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ClauseReviewConflictError,
   getClauseReview,
@@ -7,11 +7,16 @@ import {
   type ClauseReviewAction,
   type ClauseReviewEntry,
 } from '../api/clauseReview'
-import type { ClauseNode } from '../api/structure'
+import { getFindingReview, type FindingReview } from '../api/findingReview'
+import type { ClauseNode, ReviewSpot } from '../api/structure'
+import { reviewerLabel } from '../review/reviewerLabel'
+import { mergeTimelines, timelineEntries } from '../review/timeline'
 import type { SearchCite } from '../structure/citations'
 import { bodyOf, headOf, nodeLabel } from '../structure/display'
 import { CitationPane } from './CitationPane'
+import { ConflictNotice } from './ConflictNotice'
 import { MaterialIcon } from './icons'
+import { ReviewTimeline } from './ReviewTimeline'
 
 type Verdict = 'correct' | 'deviation' | 'edit'
 
@@ -38,7 +43,7 @@ function entryNote(entry: ClauseReviewEntry) {
 }
 
 function entryWho(entry: ClauseReviewEntry) {
-  return entry.reviewerName || entry.reviewerEmail || entry.reviewerId
+  return reviewerLabel(entry)
 }
 
 function entryWhen(entry: ClauseReviewEntry) {
@@ -47,24 +52,33 @@ function entryWhen(entry: ClauseReviewEntry) {
     : ''
 }
 
+const NO_CONFLICTS: ReviewSpot[] = []
+
 export function SearchCitationReview({
   citeNo,
+  dossierId = '',
   documentId,
   filename,
   node,
   ordinal,
   related,
+  conflicts = NO_CONFLICTS,
   onBack,
   onPick,
+  onOpenConflict,
 }: {
   citeNo: number
+  dossierId?: string
   documentId: string
   filename: string | null
   node: ClauseNode
   ordinal: number
   related: SearchCite[]
+  /** Xung đột máy phát hiện neo vào đúng điều khoản này. */
+  conflicts?: ReviewSpot[]
   onBack: () => void
   onPick: (id: string) => void
+  onOpenConflict?: (findingId: string) => void
 }) {
   const [verdict, setVerdict] = useState<Verdict>('correct')
   const [note, setNote] = useState('')
@@ -73,12 +87,54 @@ export function SearchCitationReview({
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [findingReviews, setFindingReviews] = useState<
+    Record<string, FindingReview>
+  >({})
   const head = headOf(node)
   const body = bodyOf(node) || node.text.replace(/\s+/g, ' ').trim()
   const page = node.pageStart || node.regions[0]?.pageNo || 1
   const others = related.filter((item) => item.id !== node.id)
   const latest = review?.latest ?? null
   const locked = review?.dossierLocked ?? false
+  const conflictKey = conflicts.map((spot) => spot.id).join('|')
+
+  // Cùng vị trí: kéo lịch sử thẩm định xung đột về để dòng thời gian đủ hai phía.
+  useEffect(() => {
+    if (!conflictKey) {
+      setFindingReviews({})
+      return
+    }
+    const controller = new AbortController()
+    for (const spot of conflicts) {
+      getFindingReview(spot.id, controller.signal)
+        .then((next) => {
+          if (controller.signal.aborted) return
+          setFindingReviews((current) => ({ ...current, [spot.id]: next }))
+        })
+        .catch(() => {
+          // Thiếu lịch sử xung đột thì phần thẩm định trích dẫn vẫn dùng được.
+        })
+    }
+    return () => controller.abort()
+    // conflicts được nhận diện qua conflictKey để không gọi lại khi mảng đổi tham chiếu.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conflictKey])
+
+  const timeline = useMemo(
+    () =>
+      mergeTimelines(
+        timelineEntries('citation', '', `clause:${node.id}`, review?.history ?? []),
+        ...conflicts.map((spot) =>
+          timelineEntries(
+            'finding',
+            spot.topic,
+            `finding:${spot.id}`,
+            findingReviews[spot.id]?.history ?? [],
+          ),
+        ),
+      ),
+    [conflicts, findingReviews, node.id, review?.history],
+  )
 
   function adopt(next: ClauseReview) {
     setReview(next)
@@ -278,31 +334,40 @@ export function SearchCitationReview({
                 {saving ? 'Đang lưu...' : saved ? 'Đã lưu thẩm định' : 'Lưu thẩm định'}
               </button>
             </div>
-            {review && review.history.length > 0 ? (
+            {conflicts.length > 0 ? (
               <div className="mt-space-sm border-t border-surface-container pt-space-xs">
                 <p className="font-label-sm text-label-sm font-semibold uppercase text-secondary">
-                  Lịch sử thẩm định ({review.history.length})
+                  Xung đột liên quan ({conflicts.length})
                 </p>
                 <ul className="mt-1 flex flex-col gap-1">
-                  {[...review.history].reverse().map((entry) => (
-                    <li
-                      key={entry.revisionNumber}
-                      className="rounded bg-surface-container-low px-2 py-1 font-body-sm text-body-sm text-on-surface"
-                    >
-                      <span className="font-semibold">
-                        {VERDICT_LABEL[VERDICT_OF[entry.action] ?? 'correct']}
-                      </span>{' '}
-                      · {entryWho(entry)} · {entryWhen(entry)}
-                      {entryNote(entry) ? (
-                        <span className="block text-on-surface-variant">
-                          {entryNote(entry)}
-                        </span>
-                      ) : null}
-                    </li>
-                  ))}
+                  {conflicts.map((spot) => {
+                    const state = findingReviews[spot.id]?.latest ?? null
+                    return (
+                      <li key={spot.id}>
+                        <button
+                          className="flex w-full items-start justify-between gap-2 rounded bg-amber-50 px-2 py-1 text-left font-body-sm text-body-sm text-on-surface hover:bg-amber-100"
+                          type="button"
+                          onClick={() => onOpenConflict?.(spot.id)}
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className="font-semibold">{spot.topic}</span>
+                            <span className="block text-on-surface-variant">
+                              {state
+                                ? `Thẩm định xung đột: ${VERDICT_LABEL[VERDICT_OF[state.action] ?? 'correct']} · ${reviewerLabel(state)}`
+                                : 'Chưa ai thẩm định xung đột này.'}
+                            </span>
+                          </span>
+                          <span className="shrink-0 font-label-sm text-label-sm font-semibold text-amber-900">
+                            Đối soát
+                          </span>
+                        </button>
+                      </li>
+                    )
+                  })}
                 </ul>
               </div>
             ) : null}
+            <ReviewTimeline entries={timeline} />
           </section>
           <section className="rounded bg-surface-container-lowest p-space-sm shadow-sm">
             <div className="flex items-center justify-between px-1">
@@ -355,6 +420,17 @@ export function SearchCitationReview({
           <CitationPane
             key={node.id}
             embedded
+            banner={
+              dossierId && conflicts.length > 0 && onOpenConflict ? (
+                <ConflictNotice
+                  documentId={documentId}
+                  dossierId={dossierId}
+                  nodeId={node.id}
+                  spots={conflicts}
+                  onOpen={onOpenConflict}
+                />
+              ) : null
+            }
             citeNo={citeNo}
             documentId={documentId}
             filename={filename}

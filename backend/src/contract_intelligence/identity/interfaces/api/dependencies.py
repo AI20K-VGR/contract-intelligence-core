@@ -34,6 +34,8 @@ from contract_intelligence.identity.infrastructure.persistence.user_repository_i
 from contract_intelligence.identity.interfaces.api.keycloak_user_sync_service import (
     KeycloakUserSyncService,
 )
+from contract_intelligence.identity.interfaces.api.provision import ensure_app_user
+from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user
 from contract_intelligence.shared.persistence import get_async_session
 
 # -----------------------------------------------------------------------------
@@ -119,10 +121,19 @@ async def get_keycloak_sync_service(
 KeycloakSyncServiceDep = Annotated[KeycloakUserSyncService, Depends(get_keycloak_sync_service)]
 
 
+async def ensure_current_app_user(
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    repo: UserRepositoryDep,
+) -> None:
+    """Tạo app_user từ JWT trước khi đọc/ghi thẩm định, để join ra tên và email."""
+    await ensure_app_user(repo, user)
+
+
 __all__ = [
     "KeycloakAdminClientDep",
     "KeycloakSyncServiceDep",
     "UserRepositoryDep",
+    "ensure_current_app_user",
     "get_keycloak_admin_client",
     "get_keycloak_sync_service",
     "get_user_repository",

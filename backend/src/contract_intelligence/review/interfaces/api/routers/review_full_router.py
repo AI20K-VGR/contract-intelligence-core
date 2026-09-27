@@ -7,6 +7,8 @@ Endpoints:
     POST /review-items/{id}/actions        — Submit action (optimistic locking)
     GET  /clause-nodes/{id}/review         — Thẩm định hiện hành + lịch sử của điều khoản
     POST /clause-nodes/{id}/review         — Lưu thẩm định trích dẫn (confirm/reject/correct)
+    GET  /findings/{id}/review             — Thẩm định hiện hành + lịch sử của xung đột
+    POST /findings/{id}/review             — Lưu thẩm định xung đột (confirm/reject/correct)
 
 Optimistic locking (P0-05 / openapi.yaml):
     Client sends ``base_version`` (``current_version`` previously read, or ``0``).
@@ -20,9 +22,14 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Path, Query, status
 from fastapi.responses import JSONResponse
 
+from contract_intelligence.identity.interfaces.api.dependencies import (
+    ensure_current_app_user,
+)
 from contract_intelligence.review.application.dtos.review_dtos import (
     ClauseReviewDTO,
     ClauseReviewRequestDTO,
+    FindingReviewDTO,
+    FindingReviewRequestDTO,
     ReviewActionRequestDTO,
     ReviewActionResponseDTO,
     ReviewConflictErrorDTO,
@@ -50,6 +57,7 @@ from contract_intelligence.shared.responses import ApiMeta, ApiResponse
 router = APIRouter(tags=["Review"])
 
 _REVIEWER_RBAC = Depends(require_role("REVIEWER", "ADMINISTRATOR"))
+_ENSURE_USER = Depends(ensure_current_app_user)
 
 
 @router.get(
@@ -218,6 +226,7 @@ async def get_clause_review(
     node_id: Annotated[str, Path(min_length=1)],
     svc: ReviewServiceDep,
     user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    _provisioned: Annotated[None, _ENSURE_USER],
     document_id: Annotated[str | None, Query()] = None,
     node_type: Annotated[str | None, Query(max_length=64)] = None,
     number: Annotated[str | None, Query(max_length=64)] = None,
@@ -230,6 +239,7 @@ async def get_clause_review(
     Nút dựng từ dòng OCR (``n-{trang}-{dòng}``) cần ``document_id`` và mô tả nút
     để tìm thẩm định của lần phân tích trước.
     """
+    _ = _provisioned
     node = {
         "node_type": node_type,
         "number": number,
@@ -259,6 +269,7 @@ async def submit_clause_review(
     body: Annotated[ClauseReviewRequestDTO, Body()],
     svc: ReviewServiceDep,
     user: Annotated[AuthenticatedUser, _REVIEWER_RBAC],
+    _provisioned: Annotated[None, _ENSURE_USER],
     document_id: Annotated[str | None, Query()] = None,
 ) -> ApiResponse[ClauseReviewDTO] | JSONResponse:
     ctx = await _clause_with_access(
@@ -269,6 +280,7 @@ async def submit_clause_review(
         document_id=document_id,
         node=body.node.model_dump() if body.node else None,
     )
+    _ = _provisioned
     try:
         state = await svc.submit_clause_review(
             ctx=ctx,
@@ -292,3 +304,86 @@ async def submit_clause_review(
             content=conflict.model_dump(mode="json"),
         )
     return ApiResponse(data=state)
+
+
+@router.get(
+    "/findings/{finding_id}/review",
+    response_model=ApiResponse[FindingReviewDTO],
+    summary="Thẩm định hiện hành của xung đột + lịch sử ai sửa, lúc nào",
+    responses={404: {"description": "Finding not found"}},
+)
+async def get_finding_review(
+    finding_id: Annotated[str, Path(min_length=1)],
+    svc: ReviewServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    _provisioned: Annotated[None, _ENSURE_USER],
+) -> ApiResponse[FindingReviewDTO]:
+    """``version`` trả về là ``base_version`` client gửi lại khi lưu (0 = chưa ai thẩm định)."""
+    _ = _provisioned
+    ctx = await _finding_with_access(svc, finding_id, user, AclAction.CITATION_READ)
+    return ApiResponse(data=await svc.get_finding_review(ctx))
+
+
+@router.post(
+    "/findings/{finding_id}/review",
+    response_model=ApiResponse[FindingReviewDTO],
+    summary="Lưu thẩm định xung đột (append-only, optimistic concurrency)",
+    responses={
+        403: {"description": "Insufficient role or dossier access revoked"},
+        404: {"description": "Finding not found"},
+        409: {"description": "Người khác đã lưu trước, hoặc hồ sơ đã khóa"},
+        422: {"description": "Sửa nhận định thiếu nội dung"},
+    },
+)
+async def submit_finding_review(
+    finding_id: Annotated[str, Path(min_length=1)],
+    body: Annotated[FindingReviewRequestDTO, Body()],
+    svc: ReviewServiceDep,
+    user: Annotated[AuthenticatedUser, _REVIEWER_RBAC],
+    _provisioned: Annotated[None, _ENSURE_USER],
+) -> ApiResponse[FindingReviewDTO] | JSONResponse:
+    _ = _provisioned
+    ctx = await _finding_with_access(svc, finding_id, user, AclAction.REVIEW_MUTATE)
+    try:
+        state = await svc.submit_finding_review(
+            ctx=ctx,
+            action_type=ReviewActionType(body.action),
+            base_version=body.base_version,
+            reviewer_id=user.user_id,
+            comment=body.comment,
+        )
+    except ReviewVersionConflict as exc:
+        conflict = ReviewConflictResponseDTO(
+            error=ReviewConflictErrorDTO(
+                code="VERSION_CONFLICT",
+                message="Người khác vừa lưu thẩm định cho xung đột này. Đã tải lại bản mới nhất.",
+            ),
+            current_state=exc.current_state,
+            your_submitted_action=body.model_dump(mode="json"),
+        )
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content=conflict.model_dump(mode="json"),
+        )
+    return ApiResponse(data=state)
+
+
+async def _finding_with_access(
+    svc: ReviewService,
+    finding_id: str,
+    user: AuthenticatedUser,
+    action: AclAction,
+) -> dict[str, Any]:
+    ctx = await svc.get_finding_context(finding_id)
+    if not dossier_access_decision(
+        action=action,
+        principal=user,
+        dossier_id=ctx["dossier_id"],
+        dossier_tenant_id=str(ctx.get("dossier_tenant_id") or ""),
+        metadata=ctx.get("dossier_metadata"),
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "ACL_DENIED", "message": "Dossier access denied"},
+        )
+    return ctx

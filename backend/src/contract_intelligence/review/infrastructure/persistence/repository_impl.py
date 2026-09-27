@@ -321,6 +321,51 @@ class ReviewRepositoryImpl:
             {"snap": json.dumps(target_snapshot), "id": item_id, "tenant_id": self._tenant_id},
         )
 
+    async def get_finding_context(self, finding_id: str) -> dict[str, Any] | None:
+        return await self._context(
+            "SELECT f.id AS finding_id, f.dossier_id, f.key_or_topic, f.rationale, "
+            "ds.tenant_id AS dossier_tenant_id, ds.metadata AS dossier_metadata, ds.is_locked, "
+            "COALESCE(f.run_id, "
+            "(SELECT r.id FROM pipeline_run r "
+            " WHERE r.dossier_id = f.dossier_id AND r.tenant_id = :tenant_id "
+            " ORDER BY r.created_at DESC LIMIT 1)) AS run_id "
+            "FROM finding f "
+            "JOIN dossier ds ON ds.id = f.dossier_id "
+            "WHERE f.id = :finding_id AND f.tenant_id = :tenant_id "
+            "AND ds.deleted_at IS NULL",
+            {"finding_id": finding_id},
+        )
+
+    async def list_prior_finding_reviews(
+        self, *, dossier_id: str, finding_id: str, topic: str
+    ) -> list[dict[str, Any]]:
+        """Thẩm định của cùng chủ đề ở finding của lần chạy trước."""
+        rows = (
+            (
+                await self._session.execute(
+                    text(
+                        "SELECT ri.id, f.run_id, f.rationale, f.key_or_topic "
+                        "FROM finding f "
+                        "JOIN review_item ri ON ri.target_id = f.id "
+                        " AND ri.target_type = 'finding' AND ri.tenant_id = f.tenant_id "
+                        "WHERE f.tenant_id = :tenant_id AND f.dossier_id = :dossier_id "
+                        "AND f.key_or_topic = :topic AND f.id <> :finding_id "
+                        "AND ri.version > 1 "
+                        "ORDER BY f.created_at DESC"
+                    ),
+                    {
+                        "tenant_id": self._tenant_id,
+                        "dossier_id": dossier_id,
+                        "finding_id": finding_id,
+                        "topic": topic,
+                    },
+                )
+            )
+            .mappings()
+            .all()
+        )
+        return [dict(row) for row in rows]
+
     async def list_orphan_clause_items(self, dossier_id: str) -> list[dict[str, Any]]:
         """Item thẩm định mà điều khoản / dòng OCR neo đã bị thay khi chạy lại phân tích."""
         stmt = (

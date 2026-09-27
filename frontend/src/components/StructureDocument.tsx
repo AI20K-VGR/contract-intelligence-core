@@ -14,11 +14,12 @@ import {
   visibleChildren,
   visibleRoots,
 } from '../structure/display'
+import type { ConflictMarker } from '../structure/conflictAnchors'
 import { capToMaxLevels } from '../structure/tree'
 import { MaterialIcon } from './icons'
 import {
-  AttentionStar,
   CiteBadge,
+  ConflictBadge,
   EmptyStructure,
   HeaderDivider,
   IconButton,
@@ -63,14 +64,14 @@ function pageSpan(nodes: ClauseNode[]) {
 export function StructureDocument({
   title,
   nodes,
-  attentionIds,
+  markers,
   citationOf,
   focusId,
   onCite,
 }: {
   title: string
   nodes: ClauseNode[]
-  attentionIds?: ReadonlySet<string>
+  markers?: ReadonlyMap<string, ConflictMarker>
   citationOf?: ReadonlyMap<string, number>
   focusId?: string | null
   onCite?: (id: string) => void
@@ -221,8 +222,12 @@ export function StructureDocument({
                       <span className="line-clamp-2 min-w-0">
                         {label || kindOf(item.node)}
                       </span>
-                      {attentionIds?.has(item.node.id) ? (
-                        <AttentionStar size={13} />
+                      {markers?.get(item.node.id) ? (
+                        <ConflictBadge
+                          collapsed={item.depth >= TOC_DEPTH}
+                          marker={markers.get(item.node.id)!}
+                          size={14}
+                        />
                       ) : null}
                     </button>
                   </li>
@@ -239,7 +244,7 @@ export function StructureDocument({
             {visibleRoots(source).map((node) => (
               <Section
                 key={node.id}
-                attentionIds={attentionIds}
+                markers={markers}
                 branch={branches.get(node.id) ?? 0}
                 citationOf={citationOf}
                 depth={1}
@@ -260,7 +265,7 @@ function Section({
   node,
   depth,
   branch,
-  attentionIds,
+  markers,
   citationOf,
   focusId,
   selected,
@@ -269,7 +274,7 @@ function Section({
   node: ClauseNode
   depth: number
   branch: number
-  attentionIds?: ReadonlySet<string>
+  markers?: ReadonlyMap<string, ConflictMarker>
   citationOf?: ReadonlyMap<string, number>
   focusId?: string | null
   selected: string | null
@@ -282,7 +287,7 @@ function Section({
   const heading =
     titleOf(node) || (depth === 1 && rawBody.length <= 100 ? rawBody : '')
   const body = rawBody === heading ? '' : rawBody
-  const flagged = attentionIds?.has(node.id) === true
+  const marker = markers?.get(node.id)
   const active = selected === node.id || focusId === node.id
   const pages = pageRange(node)
   const cite = citationOf?.get(node.id)
@@ -338,7 +343,9 @@ function Section({
           ) : null}
         </button>
         <span className="mt-1 flex shrink-0 items-center gap-1.5">
-          {flagged ? <AttentionStar /> : null}
+          {marker && marker.spots.length > 0 ? (
+            <ConflictBadge marker={marker} />
+          ) : null}
           {pages ? (
             <span className="font-mono text-[10px] text-slate-400">
               {pages}
@@ -368,7 +375,7 @@ function Section({
       {kids.map((kid) => (
         <Section
           key={kid.id}
-          attentionIds={attentionIds}
+          markers={markers}
           branch={branch}
           citationOf={citationOf}
           depth={depth + 1}

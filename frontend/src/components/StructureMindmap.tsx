@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { ClauseNode } from '../api/structure'
 import { citationNumbers } from '../structure/citations'
+import type { ConflictMarker } from '../structure/conflictAnchors'
 import {
   branchTones,
   countOf,
@@ -25,6 +26,7 @@ import {
 } from '../structure/display'
 import { capToMaxLevels } from '../structure/tree'
 import { MaterialIcon } from './icons'
+import { ConflictBadge } from './StructureViewShell'
 
 /*
  * Sơ đồ tư duy theo kiểu NotebookLM:
@@ -139,8 +141,15 @@ type Box = {
   span: number
   expandable: boolean
   open: boolean
-  flagged: boolean
+  /** Xung đột neo vào nút hoặc nằm trong nhánh con (hiện khi đang gấp). */
+  marker: ConflictMarker | null
   children: Box[]
+}
+
+/** Chấm xung đột có chỗ trên hộp khi nút có xung đột trực tiếp hoặc đang gấp mà bên trong có. */
+function markerVisible(marker: ConflictMarker | null, open: boolean) {
+  if (!marker) return false
+  return marker.spots.length > 0 || (!open && marker.below > 0)
 }
 
 type Layout = {
@@ -169,7 +178,7 @@ function buildLayout(
   nodes: ClauseNode[],
   expanded: ReadonlySet<string>,
   rootOpen: boolean,
-  attentionIds: ReadonlySet<string> | undefined,
+  markers: ReadonlyMap<string, ConflictMarker> | undefined,
   orientation: TreeOrientation,
 ): Layout {
   const boxes: Box[] = []
@@ -181,7 +190,7 @@ function buildLayout(
 
   function measure(node: ClauseNode, depth: number, branch: number): Box {
     levels = Math.max(levels, depth)
-    const flagged = attentionIds?.has(node.id) === true
+    const marker = markers?.get(node.id) ?? null
     const lines = wrapText(
       nodeLabel(node),
       NODE_FONT,
@@ -192,14 +201,17 @@ function buildLayout(
       0,
       ...lines.map((line) => textWidth(line, NODE_FONT)),
     )
-    const width = Math.max(
-      NODE_MIN_WIDTH,
-      Math.ceil(textW) + 2 + NODE_PAD_X * 2 + (flagged ? 22 : 0),
-    )
-    const height = Math.max(1, lines.length) * NODE_LINE + NODE_PAD_Y * 2
     const kids = visibleChildren(node)
     const expandable = kids.length > 0
     const open = expandable && expanded.has(node.id)
+    const width = Math.max(
+      NODE_MIN_WIDTH,
+      Math.ceil(textW) +
+        2 +
+        NODE_PAD_X * 2 +
+        (markerVisible(marker, open) ? 30 : 0),
+    )
+    const height = Math.max(1, lines.length) * NODE_LINE + NODE_PAD_Y * 2
     const box: Box = {
       id: node.id,
       node,
@@ -213,7 +225,7 @@ function buildLayout(
       span: 0,
       expandable,
       open,
-      flagged,
+      marker,
       children: [],
     }
     box.span = extentOf(box, orientation)
@@ -255,7 +267,7 @@ function buildLayout(
     span: 0,
     expandable: roots.length > 0,
     open: rootOpen && roots.length > 0,
-    flagged: false,
+    marker: null,
     children: [],
   }
   root.span = extentOf(root, orientation)
@@ -544,14 +556,34 @@ async function mindmapPdf({
     box.lines.forEach((line, index) => {
       ctx.fillText(line, box.x + padX, box.y + padY + index * lineH + lineH / 2)
     })
-    if (box.flagged) {
-      ctx.fillStyle = '#f59e0b'
-      ctx.font = `600 13px ${FONT_FAMILY}`
-      ctx.fillText(
-        '★',
-        box.x + box.width - padX - 10,
-        box.y + padY + NODE_LINE / 2,
-      )
+    if (markerVisible(box.marker, box.open) && box.marker) {
+      const marker = box.marker
+      const direct = marker.spots.length > 0
+      const label = direct
+        ? marker.state === 'open'
+          ? '!'
+          : marker.state === 'reviewed'
+            ? '✓'
+            : '–'
+        : String(marker.below)
+      const cx = box.x + box.width - padX - 6
+      const cy = box.y + padY + NODE_LINE / 2
+      ctx.beginPath()
+      ctx.arc(cx, cy, 7, 0, Math.PI * 2)
+      ctx.fillStyle = !direct
+        ? '#fbbf24'
+        : marker.state === 'open'
+          ? '#fbbf24'
+          : marker.state === 'reviewed'
+            ? '#fffbeb'
+            : '#e2e8f0'
+      ctx.fill()
+      ctx.lineWidth = 1
+      ctx.strokeStyle = marker.state === 'dismissed' && direct ? '#cbd5e1' : '#f59e0b'
+      ctx.stroke()
+      ctx.fillStyle = marker.state === 'dismissed' && direct ? '#64748b' : '#78350f'
+      ctx.font = `700 9px ${FONT_FAMILY}`
+      ctx.fillText(label, cx - ctx.measureText(label).width / 2, cy)
     }
     const n = box.node ? numbers?.get(box.node.id) : undefined
     if (n) {
@@ -604,7 +636,7 @@ export function StructureMindmap({
   title,
   subtitle,
   nodes,
-  attentionIds,
+  markers,
   citationOf,
   focusId,
   orientation = 'horizontal',
@@ -613,7 +645,8 @@ export function StructureMindmap({
   title: string
   subtitle?: string | null
   nodes: ClauseNode[]
-  attentionIds?: ReadonlySet<string>
+  /** id nút → xung đột neo vào nút và số xung đột trong nhánh con. */
+  markers?: ReadonlyMap<string, ConflictMarker>
   citationOf?: ReadonlyMap<string, number>
   focusId?: string | null
   /** 'horizontal': sơ đồ tư duy gốc trái; 'vertical': cây từ trên xuống. */
@@ -668,7 +701,7 @@ export function StructureMindmap({
       source,
       expanded,
       rootOpen,
-      attentionIds,
+      markers,
       orientation,
     )
   }, [
@@ -676,7 +709,7 @@ export function StructureMindmap({
     source,
     expanded,
     rootOpen,
-    attentionIds,
+    markers,
     orientation,
     fontsVersion,
   ])
@@ -1119,13 +1152,12 @@ function NodeBox({
               </span>
             ))}
           </span>
-          {box.flagged ? (
+          {box.marker && markerVisible(box.marker, box.open) ? (
             <span
-              className="flex shrink-0 items-center justify-center overflow-hidden text-amber-500"
-              style={{ width: 16, height: NODE_LINE, fontSize: 15 }}
-              title="Có chỗ cần kiểm tra"
+              className="flex shrink-0 items-center"
+              style={{ height: NODE_LINE }}
             >
-              <MaterialIcon name="star" className="!text-[15px]" />
+              <ConflictBadge collapsed={!box.open} marker={box.marker} />
             </span>
           ) : null}
         </span>

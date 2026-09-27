@@ -30,6 +30,7 @@ import {
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { CitationPane } from '../components/CitationPane'
+import { ConflictNotice } from '../components/ConflictNotice'
 import { UploadedPdfPane } from '../components/UploadedPdfPane'
 import { CitedAnswer } from '../components/CitedAnswer'
 import { SearchCitationReview } from '../components/SearchCitationReview'
@@ -111,6 +112,12 @@ import {
   findClauseByQuote,
   searchCites,
 } from '../structure/citations'
+import {
+  anchorConflicts,
+  conflictMarkers,
+  openConflictCount,
+} from '../structure/conflictAnchors'
+import { conflictPagePath } from '../data/dossiers'
 
 const jobLabels: Record<string, string> = {
   uploaded: 'Đã tải lên',
@@ -373,13 +380,28 @@ export function DossierStructurePage() {
   const status = detail?.latestJobStatus
   const statusLabel = status ? (jobLabels[status] ?? status) : 'Đang chờ'
   const clauseCount = countClauses(nodes)
-  const attentionIds = useMemo(() => {
-    const ids = new Set<string>()
-    for (const spot of spots) {
-      for (const clauseId of spot.clauseIds) ids.add(clauseId)
-    }
-    return ids
-  }, [spots])
+  // Xung đột neo bằng trang + dòng OCR bên hợp đồng → nút cây đang chứa dòng đó.
+  const anchors = useMemo(
+    () => anchorConflicts(spots, nodes, lines ?? [], documentId),
+    [documentId, lines, nodes, spots],
+  )
+  const markers = useMemo(() => conflictMarkers(anchors, nodes), [anchors, nodes])
+  const answerAnchors = useMemo(
+    () =>
+      answerNodes === nodes
+        ? anchors
+        : anchorConflicts(spots, answerNodes, lines ?? [], documentId),
+    [anchors, answerNodes, documentId, lines, nodes, spots],
+  )
+  const openConflicts = openConflictCount(spots)
+  const openConflict = useCallback(
+    (findingId: string) => {
+      navigate(conflictPagePath(dossierId, findingId), {
+        state: { dossierId, name: detail?.name, findingId },
+      })
+    },
+    [detail?.name, dossierId, navigate],
+  )
   const citeOf = useMemo(() => citationNumbers(nodes), [nodes])
   const answerCiteOf = useMemo(
     () => citationNumbers(answerNodes),
@@ -606,13 +628,25 @@ export function DossierStructurePage() {
                 <Link
                   className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-outline-variant/30 bg-surface-container-lowest px-3 font-body-sm text-body-sm font-semibold text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] hover:bg-amber-50 hover:text-amber-950"
                   state={{ dossierId, name: detail?.name }}
-                  to="/doi-soat-xung-dot"
+                  title={
+                    openConflicts > 0
+                      ? `${openConflicts} xung đột chưa ai thẩm định`
+                      : spots.length > 0
+                        ? 'Mọi xung đột đã có người thẩm định'
+                        : 'Xem trang đối soát xung đột'
+                  }
+                  to={conflictPagePath(dossierId)}
                 >
                   <MaterialIcon
                     name="warning"
                     className="text-[18px] text-amber-700"
                   />
                   Xem xung đột
+                  {openConflicts > 0 ? (
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 font-label-sm text-[11px] font-bold text-amber-950">
+                      {openConflicts}
+                    </span>
+                  ) : null}
                 </Link>
                 <form
                   className="relative min-w-0 w-full shrink md:w-80 lg:w-96"
@@ -840,10 +874,13 @@ export function DossierStructurePage() {
           {phase === 'ready' && reviewCiteId && documentId && findClause(answerNodes, reviewCiteId) ? (
             <SearchCitationReview
               citeNo={answerCiteOf.get(reviewCiteId) ?? 0}
+              conflicts={answerAnchors.get(reviewCiteId)}
               documentId={documentId}
+              dossierId={dossierId}
               filename={filename}
               node={findClause(answerNodes, reviewCiteId)!}
               ordinal={clauseOrdinal(answerNodes, reviewCiteId)}
+              onOpenConflict={openConflict}
               related={
                 searchResult
                   ? searchCites(
@@ -863,7 +900,7 @@ export function DossierStructurePage() {
             <div className="flex min-h-[520px] flex-1 flex-col pb-space-md">
               {(() => {
                 const shared = {
-                  attentionIds,
+                  markers,
                   citationOf: citeOf,
                   focusId: citeId,
                   nodes,
@@ -921,6 +958,17 @@ export function DossierStructurePage() {
         ) : cited && documentId ? (
           <CitationPane
             key={cited.id}
+            banner={
+              anchors.get(cited.id)?.length ? (
+                <ConflictNotice
+                  documentId={documentId}
+                  dossierId={dossierId}
+                  nodeId={cited.id}
+                  spots={anchors.get(cited.id) ?? []}
+                  onOpen={openConflict}
+                />
+              ) : null
+            }
             citeNo={citeOf.get(cited.id) ?? 0}
             documentId={documentId}
             node={cited}
