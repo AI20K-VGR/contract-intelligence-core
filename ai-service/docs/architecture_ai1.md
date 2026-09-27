@@ -23,6 +23,7 @@
 16. [Giới hạn đã biết và lộ trình](#16-giới-hạn-đã-biết-và-lộ-trình)
 17. [Tái dựng cấu trúc hợp đồng — từ dòng OCR đến điều khoản và bảng](#17-tái-dựng-cấu-trúc-hợp-đồng--từ-dòng-ocr-đến-điều-khoản-và-bảng)
 18. [Bản đồ kỹ thuật](#18-bản-đồ-kỹ-thuật)
+19. [Benchmark OCR: chất lượng, hiệu năng, chi phí](#19-benchmark-ocr-chất-lượng-hiệu-năng-chi-phí)
 
 ---
 
@@ -438,6 +439,7 @@ Mã cảnh báo trang:
 | `ocr:verifier_failed:<Exc>` | Thông tin | 4-1 lỗi |
 | `ocr:unread_ink_lines:<n>` | Thông tin | Số dòng mực không được bản đọc chính đọc |
 | `ocr:recovered_unread_ink:<n>` | Thông tin | Số dòng đã khôi phục |
+| `ocr:dropped_unsupported_text:<n>` | Thông tin | Số dòng bị loại vì chỉ 2512 thấy (không mực, 4-1 không đọc, GPT đọc cả trang không có); bản thô vẫn trong `raw_markdown` |
 | `render_upload_failed:<Exc>` | Thông tin | Không upload được ảnh trang |
 
 ---
@@ -493,7 +495,10 @@ Engine theo `options.engine`: `pymupdf` (chỉ native), `openai`, `gemini`, `mis
 | `AI1_VERIFY_ALL_PAGES` | `true` | `false`: chỉ gọi 4-1 khi cổng nghi ngờ (rẻ hơn, có thể lọt lỗi thay từ) |
 | `AI1_TEXT_TIMEOUT_MS` / `AI1_VERIFIER_TIMEOUT_MS` | `20000` | Quá hạn → dự phòng/bỏ qua |
 | `AI1_TEXT_PRICE_PER_PAGE_USD` | `0.002` | Chi phí gắn vào Langfuse |
-| `AI1_VERIFIER_PRICE_PER_PAGE_USD` | trống | Điền khi đã xác nhận giá |
+| `AI1_VERIFIER_PRICE_PER_PAGE_USD` | `0.004` | Giá công bố Mistral OCR 4 ($4/1.000 trang) |
+| `AI1_COST_MODE` | `accuracy` | `budget`: 4-1 chỉ khi ≥ 25% dòng căn kém / mực bỏ sót / bảng không viền; critical field thành cờ review; GPT chỉ đọc crop (mục 19) |
+| `AI1_GPT_REASONING_EFFORT` | `none` | Mức suy luận ẩn của GPT; `none` rẻ hơn 17%, CER không đổi |
+| `AI1_MAX_PAGES_IN_FLIGHT` | `8` | Số trang OCR song song mỗi tài liệu |
 | `LANGFUSE_*` | tắt | Tracing và chi phí |
 
 Liên quan trực tiếp đến AI1 ở chỗ khác:
@@ -519,6 +524,7 @@ Liên quan trực tiếp đến AI1 ở chỗ khác:
 | Mọi bản đọc đều rỗng trên trang có mực | Trang `PARTIAL` + `no_text_found` (không còn `FAILED`) |
 | 4-1 lỗi | Cảnh báo `ocr:verifier_failed`; dòng có token quan trọng → `critical_field_unverified`; bbox căn kém giữ CLAIMED |
 | GPT trọng tài lỗi | Các dòng cần phân xử → `needs_review:arbiter_unavailable`, giữ bản 2512 |
+| 2512 bịa chữ (ảo giác) | Dòng không có mực, 4-1 không đọc ra, GPT đọc cả trang thành công mà không có → loại, `ocr:dropped_unsupported_text`. Thiếu một trong ba bằng chứng (vd GPT lỗi) → giữ + cờ review |
 | OpenCV không tìm thấy dòng | Mọi dòng không có bbox → `missing_line_geometry`, văn bản vẫn đầy đủ |
 | Exception khi dựng một trang snapshot | Trang đó `FAILED` (kích thước placeholder 1×1, không có ảnh trang), không làm mất cả snapshot |
 | Thiếu `langfuse` / chưa cấu hình | Tracing tắt êm, OCR vẫn chạy |
@@ -545,18 +551,9 @@ process-ocr-job (root, theo job)
 └─ upload-renders
 ```
 
-Chi phí ước tính cho **1000 trang scan** (`AI1_VERIFY_ALL_PAGES=true`):
-
-| Thành phần | 1000 trang | Độ tin cậy |
-|---|---|---|
-| mistral-ocr-2512 | ~$2 | Giá cấu hình $0.002/trang |
-| mistral-ocr-4-1 | ~$1–2 | Chưa xác nhận giá |
-| GPT phân xử (~0.5 lượt/trang × $0.005–0.012) | ~$2.5–6 | Đo trên 1 tài liệu 12 trang |
-| OpenCV, luật kiểm tra | $0 | — |
-| **Tổng** | **~$5.5–10** | Trang có lớp chữ gốc: $0 |
-
-Tham chiếu đã đo: GPT đọc cả trang $0.011 (3.336 token vào, 330–460 ra); GPT cho mọi trang
-≈ $11.4/1000 trang và không có bbox. Chưa gồm bước AI2 và hạ tầng.
+Chi phí và hiệu năng **đo thật** trên bộ hard case, theo từng chế độ chi phí, ở mục 19. Tóm tắt:
+chế độ `accuracy` **$10.1 / 1.000 trang scan**, chế độ `budget` **$4.4 / 1.000 trang scan**; trang có
+lớp chữ gốc $0. Giá: 2512 $2/1.000 trang, 4-1 $4/1.000 trang, GPT-5.6-terra $2/$12 mỗi 1M token vào/ra.
 
 Hiệu năng đo trên file scan 12 trang (4 trang song song): ~19 s cho cả tài liệu; 2512 ~2–3 s/trang
 (từng gặp 23 s → có timeout); 4-1 ~1–2 s chạy song song; OpenCV ~0.1–0.2 s/trang.
@@ -576,6 +573,7 @@ Trên file scan thật `Hop_dong_dich_vu_12_trang_scan.pdf`:
 | Ảnh không phải nguyên nhân | Trang render rất nét; GPT đọc đúng 100% cùng ảnh | Không cần tiền xử lý ảnh |
 | 2512 thay từ hợp lệ | "tồn tại tại thời điểm" → "tồn tại thì điểm" | Bản đọc thứ hai trên mọi trang |
 | 2512 bỏ sót tên người ký | "Nguyễn Văn An", "Trần Thu Bình" | Khôi phục mực bị bỏ sót có xác nhận |
+| 2512 bịa chữ trên trang giống hoá đơn | HC06 tr.3 (trang mở bằng bảng giá, hàng "TAM TINH"): "THANKS FOR SHOPPING" 3/3 lần; xoá watermark → "THANK YOU"; thêm tiêu đề hợp đồng → hết | Loại chữ không có bằng chứng nào ngoài 2512 |
 | 2512 đảo thứ tự footer | Footer xuất trước header ở trang 4, 9 | Xoay thứ tự đồ trang + mỏ neo nội dung |
 | Header/footer lọt vào điều khoản | Khoản 4.3 hiện "tr. 3-4" | `running_text` |
 | Che mọi chữ số làm mất nội dung | PDF tổng hợp: tài liệu ngắn mất sạch node; trang scan trùng làm mất cả Điều 2 | Mốc điều khoản không bao giờ là đồ trang; chỉ bộ đếm trang được bỏ qua; trang trùng không tính là lặp |
@@ -649,7 +647,7 @@ docker logs -f ci-ai1-worker
 | Tên người ký dưới con dấu | Có thể đọc sai → gắn cờ review | Tách màu con dấu tốt hơn trước khi crop |
 | Bảng không viền | Bbox bảng từ 4-1, ô chia đều (CLAIMED) | Căn cột theo box từ |
 | Chính sách PARTIAL cấp tài liệu | Trang lỗi không chặn tài liệu; lỗi AI2 làm cả job `failed` | Tách trạng thái OCR và phân tích |
-| Giá 4-1 | Chưa xác nhận | Điền `AI1_VERIFIER_PRICE_PER_PAGE_USD` |
+| Giá 4-1 | Theo giá công bố OCR 4 ($0.004/trang) | Đối chiếu với hoá đơn Mistral thật |
 | Idempotency Kafka | Trong bộ nhớ, mất khi khởi động lại | Lưu `event_id` bền |
 | Trích dẫn AI2 bị `citation_guard` loại (`no_ocr_span`) | Vị trí trích dẫn đến backend là 0–0 | Sửa khâu chuyển vị trí AI2 → backend (ngoài AI1) |
 | Đánh giá định lượng | Mới đo trên 1 tài liệu | Benchmark CER / lỗi dấu / field quan trọng trên bộ ground truth `ocr-benchmark/data` |
@@ -1062,3 +1060,80 @@ viện đã có test nhưng chưa nối vào job Kafka.
 | Test hồi quy từ lỗi thật (bản đọc sai dấu thật, Khoản 4.3 lọt footer, trang trùng mất Điều 2) | Mục 13, 14 | P |
 | Kiểm test bắt được lỗi: chạy test mới trên code cũ phải đỏ | Quy trình sửa `running_text` | P |
 | 392 test trong `tests/unit` (178), `integration` (38), `reconstruction` (66), `table_reconstruct` (60), `word_adapters` (50) | `ai-service/tests/` | P / L |
+---
+
+## 19. Benchmark OCR: chất lượng, hiệu năng, chi phí
+
+### 19.1 Phương pháp
+
+| Mục | Cách làm |
+|---|---|
+| Bộ dữ liệu | `data/raw/hard_cases/`: 4 hợp đồng scan, 19 trang (HC03–HC06): bảng liên trang, bảng đứt đoạn không lặp header, trang bìa, con dấu, chữ ký, watermark, văn bản cố tình viết không dấu. HC01–HC02 có lớp chữ gốc (PyMuPDF, $0) nên **không tính** vào benchmark OCR |
+| Ground truth | OCR nháp → sửa tay từng trang trong `data/ground_truth/review/*.md` (có ảnh trang bên cạnh) → `scripts/ground_truth_review.py import` ghi `text/*.txt` (trang ngăn bằng `\f`). Critical fields trích bằng regex **từ ground truth đã sửa**: tiền (kể cả số trong bảng), %, ngày dạng số, số hợp đồng, MST, số Điều |
+| Engine | `mistral_verified` đúng như job Kafka, 150 DPI, cấu hình qua biến `AI1_*` |
+| CER / WER | Levenshtein ký tự / từ chia độ dài ground truth, gộp có trọng số theo độ dài trên các trang. Bản "chuẩn hoá" gộp mọi khoảng trắng và xuống dòng, phản ánh lỗi chữ thật |
+| Lỗi dấu | Trên các chữ cái đã căn khớp phần chữ gốc, tỉ lệ chữ khác dấu |
+| Critical Field Accuracy | Tỉ lệ field của ground truth xuất hiện đúng (sau chuẩn hoá số/ngày) trong văn bản OCR của đúng trang đó |
+| Hiệu năng | Thời gian thực mỗi tài liệu và mỗi trang, số lời gọi và thời gian trung bình của từng model |
+| Chi phí | Số trang Mistral × giá mỗi trang; GPT tính từ token thật của lần chạy |
+
+Chạy lại (gọi API trả phí cho mọi trang scan, nên chạy trong container `ai1-worker`):
+
+```bash
+python scripts/benchmark_ocr_production.py --manifest data/manifest.csv --out reports/benchmark
+AI1_COST_MODE=budget python scripts/benchmark_ocr_production.py --out reports/benchmark/budget
+# dựng lại báo cáo từ kết quả đã lưu, không gọi API
+python scripts/benchmark_ocr_production.py --report-only reports/benchmark/budget/results.json
+```
+
+### 19.2 Kết quả (19 trang scan, đo ngày 2026-09-28)
+
+| Cấu hình | CER | WER | Lỗi dấu | Critical Field | Cờ review | Thời gian 4 tài liệu | **$ / 1.000 trang** |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Trước tối ưu | 1.00% | 0.88% | 0.01% | 99.50% (198/199) | 77 | 70 s | $18.8 |
+| **`accuracy`** (mặc định) | 1.00% | 0.88% | 0.01% | 99.50% (198/199) | 11 | 40 s | **$10.1** |
+| **`budget`** | 1.11% | 0.97% | 0.01% | 99.50% (198/199) | 67 | 28 s | **$4.4** |
+
+CER/WER ở bảng là bản chuẩn hoá khoảng trắng; bản thô chênh không quá 0.02 điểm.
+
+Theo tài liệu (`accuracy`):
+
+| Tài liệu | Trang | CER | WER | Critical Field | Ghi chú |
+|---|---:|---:|---:|---:|---|
+| HC03 bảng liên trang | 4 | 1.12% | 1.04% | 93.3% (14/15) | Field sai duy nhất: `HĐMB` → `HDMB` |
+| HC04 trang bìa | 6 | 2.58% | 1.94% | 100% (71/71) | Chủ yếu do đảo thứ tự 2 dòng chân trang; "dong dau" → "don't dau" (có cờ review) |
+| HC05 bảng không header | 5 | 0.00% | 0.00% | 100% (62/62) | |
+| HC06 bảng đứt đoạn + con dấu | 4 | 0.31% | 0.49% | 100% (51/51) | Dòng bịa "THANKS FOR SHOPPING" đã bị loại (mục 11) |
+
+Theo loại field: số tiền 156/156, % 18/18, MST 6/6, số Điều 11/11, ngày 2/2, số hợp đồng 5/6.
+
+Chi phí (`budget`, 19 trang): 2512 19 trang $0.038 · 4-1 7 trang $0.028 · GPT 6 request $0.018 → $0.084.
+Chi phí (`accuracy`): 2512 $0.038 · 4-1 19 trang $0.076 · GPT 13 request $0.078 → $0.192.
+
+Hiệu năng (`budget`, 8 trang song song): trung vị 3.8 s/trang, p95 10.2 s, thông lượng ~41 trang/phút.
+Mỗi lời gọi Mistral ~2–2.7 s; mỗi request GPT crop ~5 s.
+
+### 19.3 Các tối ưu đã đo
+
+| Thay đổi | Ảnh hưởng đo được | Chất lượng |
+|---|---|---|
+| `AI1_GPT_REASONING_EFFORT=none` | Bỏ ~5.9k token suy luận ẩn trên HC04, −17% tiền GPT (`low` gần như không giảm; `minimal` model không nhận) | CER không đổi |
+| Cổng chính tả nhận ra trang viết không dấu (mật độ dấu < 5% ở cả 2512 và 4-1) | HC04/HC06 hết gửi GPT vô ích; cờ review 77 → 11 | Không đổi |
+| Chế độ `budget`: bỏ 4-1 cho critical field | 4-1: 19 → 13 trang | CER 1.00 → 1.11%, field giữ nguyên; field thành `critical_field_unverified` |
+| `budget`: 4-1 cho hình học chỉ khi ≥ 25% dòng căn kém | 4-1: 13 → 7 trang (8/13 lời gọi trước đó chỉ để sửa bbox **1 dòng**); $6.0 → $4.4 | Không đổi |
+| 8 trang song song (trước 4) | 4 tài liệu: 33 s → 28 s | — |
+| Batch API của Mistral/OpenAI (−50% giá) | **Đã thử và gỡ bỏ**: 1–3.5 phút mỗi tài liệu thay vì vài giây; batch Mistral với ảnh gửi trực tiếp trong request bị lỗi 400 | — |
+
+Chọn chế độ: `accuracy` khi cần 4-1 xác minh mọi trang (bắt lỗi 2512 thay từ hợp lệ, tự loại chữ bịa, xác
+minh chữ số). `budget` rẻ hơn 2.3 lần và nhanh hơn, đổi lại số tiền/ngày chuyển thành cờ review cho người
+kiểm, và chữ bịa chỉ được gắn cờ chứ không tự loại.
+
+### 19.4 Giới hạn của lần đo
+
+- Mẫu nhỏ: 19 trang, phần lớn là tài liệu giả lập kiểm thử; HC04–HC06 viết không dấu nên "lỗi dấu 0.01%"
+  chưa đại diện cho scan tiếng Việt có dấu thật.
+- Critical fields trích bằng regex từ ground truth đã sửa, chưa gán nhãn tay từng field; ngày viết bằng chữ
+  không được tính (bộ chấm chỉ so ngày dạng số).
+- Giá 4-1 lấy theo giá công bố của Mistral OCR 4 ($4/1.000 trang); nên đối chiếu hoá đơn thật.
+- Chưa có bbox ground truth đã soát, nên chưa đo IoU.
+- Kết quả của từng lần chạy: `reports/benchmark/{accuracy,budget}/` (thư mục bị gitignore).
