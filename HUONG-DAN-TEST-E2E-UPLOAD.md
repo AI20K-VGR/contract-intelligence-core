@@ -8,13 +8,14 @@ Frontend upload PDF
   → Backend POST /api/v1/dossiers
   → Kafka dossier.uploaded
   → backend-worker → ci.ai1.ocr.commands
-  → ai1-worker (OCR)
+  → ai1-worker (OCR, mỗi tài liệu một lệnh)
   → ci.ai1.ocr.results
-  → backend-worker → ci.ai2.idp.commands   (AI2_WIRE_ENABLED=true)
-  → ai2-worker (IDP)
-  → ci.ai2.idp.results
+  → backend-worker: đủ snapshot mọi tài liệu → job EXTRACTED
+  → backend-worker gọi HTTP ai2-service: POST /jobs/idp + poll GET /jobs/{id}
   → dossier / job → PENDING_REVIEW
 ```
+
+AI1 đi Kafka, AI2 đi HTTP. Không có webhook và không có topic Kafka cho AI2.
 
 Cần Docker Desktop, Node.js 20+, và quyền OPERATOR/ADMINISTRATOR để upload.
 
@@ -38,12 +39,9 @@ git checkout merge/code-full-backend-setup
 | Biến | File / nơi set | Bắt buộc? | Ghi chú |
 |---|---|---|---|
 | `MISTRAL_API_KEY` | `ai-service/.env` | **Có** (nếu engine = mistral) | Compose mặc định `AI1_OCR_ENGINE=mistral` |
-| `AI2_WIRE_ENABLED` | compose `backend-worker` | Đã = `true` | Không set → dừng sau OCR, không gọi AI2 |
-| `AI2_SERVICE_HMAC_*` | compose | Không (Kafka) | Chỉ cần cho HTTP lab `/jobs/idp` |
-| LLM key AI2 | — | Không (MVP Kafka) | `egress_allowed=false` trên IDP command |
+| `AI2_SERVICE_HMAC_SECRET` | compose `backend-worker` + `ai2-service` | Có | Ký `service_envelope` khi worker gọi `/jobs/idp` |
+| LLM key AI2 | — | Không | `egress_allowed=false` mặc định (cấu hình server, client không đổi được) |
 | FE env | `frontend/.env.local` | Có | Xem mục 3 |
-
-Không cần bổ sung key AI2 cho path Kafka runtime.
 
 Tuỳ chọn (OCR không dùng cloud):
 
@@ -76,7 +74,7 @@ docker compose up -d --build `
   keycloak-db keycloak `
   backend-db kafka minio minio-init `
   backend backend-worker `
-  ai1-worker ai2-worker ai2
+  ai1-worker ai2-service
 ```
 
 Kiểm tra:
@@ -88,10 +86,9 @@ docker compose ps
 | Container | Kỳ vọng |
 |---|---|
 | `ci-backend` | healthy — http://127.0.0.1:8000/health → `"status":"ok"` |
-| `ci-backend-worker` | Up — log có `worker.ai1_results.started` + `worker.ai2_results.started` |
+| `ci-backend-worker` | Up — log có `worker.dossier_events.started` + `worker.ai1_results.started` |
 | `ci-ai1-worker` | Up — `ai1.kafka.worker.started` |
-| `ci-ai2-worker` | Up — `ai2.kafka.worker.started` |
-| `ci-ai2` | Up — http://127.0.0.1:8002/health (HTTP demo, không bắt buộc cho Kafka) |
+| `ci-ai2-service` | Up — http://127.0.0.1:8002/health (worker gọi AI2 qua HTTP) |
 | `ci-keycloak` | Up — http://localhost:8080/realms/contract-intelligence |
 | `ci-kafka` / `ci-minio` / DB | Up / healthy |
 
@@ -100,7 +97,7 @@ Log nhanh:
 ```powershell
 docker logs ci-backend-worker --tail 30
 docker logs ci-ai1-worker --tail 20
-docker logs ci-ai2-worker --tail 20
+docker logs ci-ai2-service --tail 20
 ```
 
 Nếu `ci-backend` fail migration (`Can't locate revision…`): rebuild image rồi up lại:
@@ -134,7 +131,7 @@ Role cần có: **OPERATOR** hoặc **ADMINISTRATOR**.
 ## 4. Kịch bản test UI (happy path)
 
 1. Vào trang **Tạo hồ sơ / Create dossier**.
-2. Chọn **1 file PDF hợp đồng** (CONTRACT). Annex tuỳ chọn — MVP Kafka hiện chỉ OCR **body/CONTRACT**.
+2. Chọn **1 file PDF hợp đồng** (CONTRACT), annex tuỳ chọn. AI2 chỉ chạy khi OCR xong **mọi** file.
 3. Nhập tên hồ sơ → Submit.
 4. Kỳ vọng:
    - API trả **202** (`dossier_id`, `job_id`).
@@ -177,27 +174,20 @@ docker logs ci-ai1-worker --tail 100
 Tìm consume command + publish result.  
 Backend-worker:
 
-Tìm: `worker.ai1_result.persisted`  
-→ status nội bộ **EXTRACTED**, rồi publish AI2 nếu wire bật.
+Tìm: `worker.ai1_result.persisted` với `all_extracted=true` ở file cuối  
+→ status nội bộ **EXTRACTED** (các file trước vẫn `processing`).  
+Nếu thấy `worker.ai1_result.rejected` → snapshot sai/thiếu, job chuyển **FAILED** (có audit `ai1.snapshot_rejected`).
 
-### Hop C — AI2 IDP
+### Hop C — AI2 IDP (HTTP)
 
 ```powershell
 docker logs ci-backend-worker --tail 100
+docker logs ci-ai2-service --tail 100
 ```
 
-Tìm: `ai2_handoff.command_published`  
-Nếu thấy `ai2_handoff.disabled` → `AI2_WIRE_ENABLED` chưa bật trên worker.
-
-```powershell
-docker logs ci-ai2-worker --tail 100
-```
-
-Tìm: xử lý command + `ai2.kafka.result_published` (completed/failed).
-
-Backend-worker:
-
-Tìm: consume `ci.ai2.idp.results` / apply result → **PENDING_REVIEW**.
+Tìm ở worker: `worker.ai2.completed` → **PENDING_REVIEW**.  
+Nếu thấy `worker.ai2.waiting_for_manifest` / `worker.ai2.waiting_for_snapshots` → chưa đủ điều kiện gọi AI2.  
+Nếu thấy `worker.ai2.failed` → job **FAILED** với `AI2_PROCESSING_FAILED`.
 
 ### Hop D — API / UI
 
@@ -218,10 +208,9 @@ Trên UI: dossier không kẹt `processing` / `extracted` mãi; chuyển sang ch
 | `dossier_events` | BE API → backend-worker (`dossier.uploaded`) |
 | `ci.ai1.ocr.commands` | backend-worker → ai1-worker |
 | `ci.ai1.ocr.results` | ai1-worker → backend-worker |
-| `ci.ai2.idp.commands` | backend-worker → ai2-worker |
-| `ci.ai2.idp.results` | ai2-worker → backend-worker |
 
-Contract: `docs/DOC-05d-kafka-ai1-ocr-contract.md`, `docs/DOC-05e-kafka-ai2-idp-contract.md`.
+AI2 không có topic: xem `docs/contracts/BE-AI2-PROCESSING-CONTRACT.vi.md` (HTTP).  
+Contract AI1: `docs/DOC-05d-kafka-ai1-ocr-contract.md`.
 
 ---
 
@@ -232,11 +221,9 @@ Contract: `docs/DOC-05d-kafka-ai1-ocr-contract.md`, `docs/DOC-05e-kafka-ai2-idp-
 | Upload 401/403 | Chưa login / sai role | Dùng `admin@ci.local`, role OPERATOR+ |
 | Upload OK nhưng không OCR | `backend-worker` / Kafka down | `docker compose ps`; xem log worker |
 | OCR fail | Thiếu `MISTRAL_API_KEY` | Điền `ai-service/.env`, restart `ai1-worker` |
-| OCR xong, không AI2 | `AI2_WIRE_ENABLED=false` hoặc thiếu snapshot | Compose worker phải `true`; log `ai2_handoff.disabled` |
+| OCR xong, không AI2 | Chưa đủ snapshot mọi file / manifest chưa xác nhận / `ai2-service` down | Log `worker.ai2.waiting_*`; `docker compose ps ai2-service` |
 | Backend unhealthy | Alembic revision cũ trong image | `docker compose build backend backend-worker` rồi up lại |
 | FE gọi sai host | `VITE_API_BASE_URL` trỏ 8080 | Đặt `http://127.0.0.1:8000` trong `.env.local` |
-| Annex không được phân tích | MVP body-only | Chỉ CONTRACT đi Kafka IDP giai này |
-
 ---
 
 ## 8. Dừng stack
@@ -253,9 +240,9 @@ Giữ data: **không** thêm `-v`. Xoá volume DB/Kafka: `docker compose down -v
 ## 9. Definition of Done cho lần test này
 
 - [ ] Health backend + Keycloak realm OK  
-- [ ] 3 worker Up: `backend-worker`, `ai1-worker`, `ai2-worker`  
+- [ ] Up: `backend-worker`, `ai1-worker`, `ai2-service`  
 - [ ] FE login + Create dossier với PDF  
-- [ ] Log có đủ: OCR command → AI1 result → AI2 command → AI2 result  
+- [ ] Log có đủ: OCR command → AI1 result (mọi file) → `worker.ai2.completed`  
 - [ ] Dossier/job kết thúc ở **PENDING_REVIEW** trên UI  
 
 Pass đủ 5 mục trên = full luồng upload E2E đã chạy đúng.

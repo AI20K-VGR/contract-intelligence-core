@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Active (integration) |
+| Status | **Not used** — the backend calls AI2 over HTTP (submit + poll). The backend no longer publishes `ci.ai2.idp.commands` nor consumes `ci.ai2.idp.results`; kept for reference only. |
 | Owner | Backend Lead / AI2 Lead |
 | Companion | [BE-AI2-PROCESSING-CONTRACT.vi.md](contracts/BE-AI2-PROCESSING-CONTRACT.vi.md), [DOC-05d](DOC-05d-kafka-ai1-ocr-contract.md) |
 

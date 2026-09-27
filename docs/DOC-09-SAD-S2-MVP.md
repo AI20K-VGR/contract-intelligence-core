@@ -314,7 +314,6 @@ Tất cả nằm dưới `/api/v1`, cần token trừ `/health`. Xem đầy đ�
 | Review | `GET /dossiers/{id}/review-items`, `GET /review-items/{id}`, `/revisions`, `POST /review-items/{id}/actions`, `GET/POST /clause-nodes/{id}/review`, `GET/POST /findings/{id}/review` | Gửi kèm `base_version`; sai phiên bản → 409 |
 | Duyệt | `POST /dossiers/{id}/lock`, `/approve`, `POST/GET /dossiers/{id}/external-approvals`, `POST /external-approvals/callback` | Admin |
 | OCR lại | `POST /documents/{id}/re-ocr`, `GET /documents/{id}/re-ocr-requests`, `GET /re-ocr-requests/{id}` | |
-| Nhận kết quả AI (webhook) | `POST /webhooks/ai1/snapshot`, `POST /webhooks/ai2/findings` | Đường dự phòng ngoài Kafka/HTTP-poll |
 | Admin / vận hành | `GET /admin/activity`, `/admin/storage`, `POST/GET /batches`, `/batches/{id}/summary|cancel|resume`, `GET /ops/metrics`, `/optimization/*` | `optimization/*` xem mục 14 |
 
 ---
@@ -415,7 +414,7 @@ Cả hai bên đều **chống xử lý trùng** theo `event_id`. AI1 chỉ comm
 | Hỏi kết quả | `GET {AI2_BASE_URL}/jobs/{job_id}` + header `X-AI2-Service-Envelope` | Trả `ai2.be.processing.result.v1`: `status`, `review_state`, `result{facts, findings, citations, annex_links, coverage}` |
 | Hỏi đáp | `POST {AI2_BASE_URL}/query` | `{ query, dossier_id, snapshot_digest, policy_flags }` → `{ state, answer, citations, retrieval_layer, reasoning_trace }` |
 
-Tài liệu DOC-05e mô tả thêm phương án đi Kafka cho AI2 (`ci.ai2.idp.commands/results`); **Sprint 2 đang chạy đường HTTP** như trên.
+AI2 chỉ có **một** đường: worker gọi HTTP như trên, sau khi mọi tài liệu của run đã có snapshot AI1. Phương án Kafka cho AI2 trong DOC-05e (`ci.ai2.idp.commands/results`) **không dùng** — backend không publish/consume các topic này.
 
 ### 9.3 Các điểm tích hợp khác
 
