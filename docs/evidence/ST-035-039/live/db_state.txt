@@ -1,0 +1,116 @@
+Pager usage is off.
+== ST-035: dossier + documents + job (one transaction at upload) ==
+               id               |   tenant_id   |     status     | is_locked | is_approved | has_conflicts | deleted_at |          created_at           
+--------------------------------+---------------+----------------+-----------+-------------+---------------+------------+-------------------------------
+ dos_01M3J729YZDD4F2CZ9XFNMHDCZ | tenant_vgr_01 | pending_review | t         | f           | f             |            | 2026-09-27 19:56:56.160301+00
+(1 row)
+
+               id               |   role   |       filename        | file_size_bytes |    sha256_16     |                               blob_uri                                
+--------------------------------+----------+-----------------------+-----------------+------------------+-----------------------------------------------------------------------
+ doc_01M3J72A6GFQ8NB2XW7YGB3PTK | contract | evidence-contract.pdf |           54038 | ace6724f675e7de6 | s3://dossiers/dos_01M3J729YZDD4F2CZ9XFNMHDCZ/00_evidence-contract.pdf
+ doc_01M3J72A8XF5CJX5PEZP62HS3K | annex    | evidence-annex.pdf    |           50376 | 70f4c0796d3194d0 | s3://dossiers/dos_01M3J729YZDD4F2CZ9XFNMHDCZ/01_evidence-annex.pdf
+(2 rows)
+
+               id               |     status     |         current_run_id         | error_code |          created_at           |          updated_at           
+--------------------------------+----------------+--------------------------------+------------+-------------------------------+-------------------------------
+ job_01M3J729Z16B05ZTXD3Q44X0YE | pending_review | run_01M3J72A9FJMEY75Y9K07VH499 |            | 2026-09-27 19:56:56.160301+00 | 2026-09-27 19:57:02.538594+00
+(1 row)
+
+== ST-036: pipeline run + steps (one run, AI1 via Kafka) ==
+               id               |  status   | pipeline_version | error_code |          created_at           |         finished_at          
+--------------------------------+-----------+------------------+------------+-------------------------------+------------------------------
+ run_01M3J72A9FJMEY75Y9K07VH499 | succeeded | v1.0.0           |            | 2026-09-27 19:56:56.494331+00 | 2026-09-27 19:57:02.53796+00
+(1 row)
+
+             run_id             | step |  status   | attempt | document_id | duration_ms 
+--------------------------------+------+-----------+---------+-------------+-------------
+ run_01M3J72A9FJMEY75Y9K07VH499 | S0   | succeeded |       1 |             |            
+ run_01M3J72A9FJMEY75Y9K07VH499 | S1   | succeeded |       1 |             |            
+ run_01M3J72A9FJMEY75Y9K07VH499 | S10  | succeeded |       1 |             |            
+ run_01M3J72A9FJMEY75Y9K07VH499 | S2   | succeeded |       1 |             |            
+ run_01M3J72A9FJMEY75Y9K07VH499 | S3   | succeeded |       1 |             |            
+ run_01M3J72A9FJMEY75Y9K07VH499 | S4   | succeeded |       1 |             |            
+ run_01M3J72A9FJMEY75Y9K07VH499 | S5   | succeeded |       1 |             |            
+ run_01M3J72A9FJMEY75Y9K07VH499 | S6   | succeeded |       1 |             |            
+ run_01M3J72A9FJMEY75Y9K07VH499 | S7   | succeeded |       1 |             |            
+ run_01M3J72A9FJMEY75Y9K07VH499 | S8   | succeeded |       1 |             |            
+ run_01M3J72A9FJMEY75Y9K07VH499 | S9   | succeeded |       1 |             |            
+(11 rows)
+
+== ST-036/037/038: audit_event timeline for the dossier ==
+          occurred_at          |         actor_id         |         action          | entity_type | from_state |    to_state    |                                                                              detail                                                                              
+-------------------------------+--------------------------+-------------------------+-------------+------------+----------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 2026-09-27 19:56:56.499885+00 | system:worker            | job.status_changed      | job         | uploaded   | processing     | {"trigger": "dossier.uploaded"}
+ 2026-09-27 19:57:00.614205+00 | system:worker            | ai1.snapshot_persisted  | job         | processing | processing     | {"ai1_job_id": "ai1_6655c2bddf374ff28fa349f2532962d3", "document_id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK", "event_id": "evt_01M3J72AJ1KGXV43TAJEE8141K", "extracted
+ 2026-09-27 19:57:00.670074+00 | system:worker            | ai1.snapshot_persisted  | job         | processing | extracted      | {"ai1_job_id": "ai1_c2e4bfbbfef24c43a3de19c3592b41cc", "document_id": "doc_01M3J72A8XF5CJX5PEZP62HS3K", "event_id": "evt_01M3J72AP3JNXYB1HVX4MBFHZP", "extracted
+ 2026-09-27 19:57:02.540625+00 | system:worker            | ai2.result_persisted    | job         | extracted  | pending_review | {"ai2_job_id": "job_e84150a739", "facts": 3, "findings": 0, "has_conflicts": false, "idempotent_replay": false, "index_contribution_state": "propose", "review_i
+ 2026-09-27 19:57:03.781429+00 | dev-reviewer-keycloak-id | review.action_submitted | review_item | open       | resolved       | {"action": "reject", "base_version": 1, "has_correction": false, "new_version": 2, "review_action_id": "ra_01M3J72HD56BJQ38REC2TYTQ94", "target_id": "cl_01M3J72
+ 2026-09-27 19:57:03.812493+00 | dev-reviewer-keycloak-id | review.action_submitted | review_item | open       | resolved       | {"action": "reject", "base_version": 1, "has_correction": false, "new_version": 2, "review_action_id": "ra_01M3J72HE4RM886GP6GSRB3HYV", "target_id": "cl_01M3J72
+ 2026-09-27 19:57:03.986804+00 | dev-reviewer-keycloak-id | review.action_submitted | review_item | resolved   | resolved       | {"action": "confirm", "base_version": 2, "has_correction": false, "new_version": 3, "review_action_id": "ra_01M3J72HKJ26HRBEE00VVVYAK3", "target_id": "cl_01M3J7
+(7 rows)
+
+== ST-037: facts persisted from AI2 (HTTP) ==
+   role   |  raw_text  |                           context                            | extractor 
+----------+------------+--------------------------------------------------------------+-----------
+ contract | 1200000000 | Tß╗òng gi├í trß╗ï hß╗úp ─æß╗ông l├á 1.200.000.000 VN─É (─æ├ú bao gß╗ôm VAT). | L0
+ contract | 1500000000 | Tß╗òng gi├í trß╗ï hß╗úp ─æß╗ông l├á 1.500.000.000 VN─É (─æ├ú bao gß╗ôm VAT). | L0
+ annex    | 1350000000 | Tß╗òng gi├í trß╗ï hß╗úp ─æß╗ông l├á 1.350.000.000 VN─É (─æ├ú bao gß╗ôm VAT). | L0
+(3 rows)
+
+ findings 
+----------
+        0
+(1 row)
+
+== ST-038: review items + append-only review_action ==
+              id               | target_type |  status  | version |          created_at           |          updated_at           
+-------------------------------+-------------+----------+---------+-------------------------------+-------------------------------
+ ri_01M3J72HCY1JR2PHDTPX8TQ2DH | clause_node | resolved |       3 | 2026-09-27 19:57:03.758148+00 | 2026-09-27 19:57:03.98675+00
+ ri_01M3J72HE1YS4NJPN5MK8QSE00 | clause_node | resolved |       2 | 2026-09-27 19:57:03.801334+00 | 2026-09-27 19:57:03.812466+00
+(2 rows)
+
+        review_item_id         | action  | base_version |       reviewer_id        |          created_at           
+-------------------------------+---------+--------------+--------------------------+-------------------------------
+ ri_01M3J72HCY1JR2PHDTPX8TQ2DH | reject  |            1 | dev-reviewer-keycloak-id | 2026-09-27 19:57:03.758148+00
+ ri_01M3J72HE1YS4NJPN5MK8QSE00 | reject  |            1 | dev-reviewer-keycloak-id | 2026-09-27 19:57:03.801334+00
+ ri_01M3J72HCY1JR2PHDTPX8TQ2DH | confirm |            2 | dev-reviewer-keycloak-id | 2026-09-27 19:57:03.976204+00
+(3 rows)
+
+== ST-039: query_trace (actor / snapshot / citations / ACL decision) ==
+ endpoint |         actor_id         |  state  | acl_decision | dropped_citations | snapshot_version |    digest_16     | query_contract_version | error_code | latency_ms | citations 
+----------+--------------------------+---------+--------------+-------------------+------------------+------------------+------------------------+------------+------------+-----------
+ search   | dev-reviewer-keycloak-id | BLOCKED | passed       |                 0 | latest           | 6831fafcf75e718e | ai2.query.v1           |            |         16 | []
+ query    | dev-reviewer-keycloak-id | BLOCKED | passed       |                 0 | latest           | 6831fafcf75e718e | ai2.query.v1           |            |         18 | []
+ ask      | dev-reviewer-keycloak-id | BLOCKED | passed       |                 0 | latest           | 6831fafcf75e718e | ai2.query.v1           |            |         14 | []
+ ask      | dev-reviewer-keycloak-id | BLOCKED | passed       |                 0 | latest           | 6831fafcf75e718e | ai2.query.v1           |            |         15 | []
+ search   | dev-reviewer-keycloak-id | BLOCKED | passed       |                 0 | latest           | 6831fafcf75e718e | ai2.query.v1           |            |         14 | []
+ ask      | dev-reviewer-keycloak-id | BLOCKED | passed       |                 0 | latest           | 6831fafcf75e718e | ai2.query.v1           |            |         19 | []
+ search   | dev-reviewer-keycloak-id | BLOCKED | passed       |                 0 | latest           | 6831fafcf75e718e | ai2.query.v1           |            |         24 | []
+ ask      | dev-reviewer-keycloak-id | BLOCKED | passed       |                 0 | latest           | 6831fafcf75e718e | ai2.query.v1           |            |         16 | []
+ search   | dev-reviewer-keycloak-id | BLOCKED | passed       |                 0 | latest           | 6831fafcf75e718e | ai2.query.v1           |            |         16 | []
+(9 rows)
+
+== Append-only enforcement on the live DB (each statement must fail) ==
+BEGIN
+psql:/tmp/db_state.sql:43: ERROR:  Bß║úng audit_event l├á bß║Ñt biß║┐n (append-only), kh├┤ng ─æ╞░ß╗úc ph├⌐p UPDATE hoß║╖c DELETE
+CONTEXT:  PL/pgSQL function forbid_mutation() line 3 at RAISE
+ROLLBACK
+BEGIN
+psql:/tmp/db_state.sql:44: ERROR:  Bß║úng query_trace l├á bß║Ñt biß║┐n (append-only), kh├┤ng ─æ╞░ß╗úc ph├⌐p UPDATE hoß║╖c DELETE
+CONTEXT:  PL/pgSQL function forbid_mutation() line 3 at RAISE
+ROLLBACK
+BEGIN
+psql:/tmp/db_state.sql:46: ERROR:  Bß║úng review_action l├á bß║Ñt biß║┐n (append-only), kh├┤ng ─æ╞░ß╗úc ph├⌐p UPDATE hoß║╖c DELETE
+CONTEXT:  PL/pgSQL function forbid_mutation() line 3 at RAISE
+ROLLBACK
+== Schema: migration head + review_action unique index ==
+        version_num        
+---------------------------
+ v14__review_item_snapshot
+(1 row)
+
+             indexname              |                                                         indexdef                                                          
+------------------------------------+---------------------------------------------------------------------------------------------------------------------------
+ uq_review_action_item_base_version | CREATE UNIQUE INDEX uq_review_action_item_base_version ON public.review_action USING btree (review_item_id, base_version)
+(1 row)
+

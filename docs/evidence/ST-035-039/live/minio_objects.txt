@@ -1,0 +1,11 @@
+[2026-09-27 19:56:56 UTC]  53KiB STANDARD 00_evidence-contract.pdf
+[2026-09-27 19:56:56 UTC]  49KiB STANDARD 01_evidence-annex.pdf
+Name      : 00_evidence-contract.pdf
+Date      : 2026-09-27 19:56:56 UTC 
+Size      : 53 KiB 
+ETag      : b00f8f5951fb3a2c4b30c4dd02b77a40 
+Type      : file 
+Checksum  : CRC32:Y+xXbQ==
+Metadata  :
+  Content-Type: application/pdf 
+
