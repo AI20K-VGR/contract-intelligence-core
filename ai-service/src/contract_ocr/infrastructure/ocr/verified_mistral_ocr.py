@@ -182,9 +182,10 @@ class VerifiedMistralOCREngine(OCREngine):
         2512's "tồn tại thì điểm" for "tồn tại tại thời điểm". False falls back to
         calling it only when the gate finds geometry/table/critical-field doubt.
 
-        `budget` trades verification for cost (~$2 per 1,000 pages instead of ~$10,
-        measured on the hard cases): the verifier runs only for geometry/table/
-        unread-ink doubt -- no longer for critical fields, which are then flagged
+        `budget` trades verification for cost ($4.4 per 1,000 scanned pages instead
+        of $10.1, measured on the hard cases): the verifier runs only when >=25% of
+        text lines lack measured geometry, ink went unread or a table did not match
+        a ruling-line grid -- no longer for critical fields, which are then flagged
         `critical_field_unverified` for a person -- and GPT only re-reads crops,
         never a whole page. Lost with it: catching a valid-word substitution by the
         text reader, and dropping text only the text reader saw (it is flagged

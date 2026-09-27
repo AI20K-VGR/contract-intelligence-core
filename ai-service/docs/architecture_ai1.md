@@ -135,7 +135,7 @@ AI1 Kafka worker ── điều phối JOB OCR          infrastructure/kafka_wor
   ▼
 ProcessDocument ─── điều phối TỪNG TRANG       application/use_cases/process_document.py
   │  có lớp chữ → đọc native (0 API) │ trắng / ít chữ / trùng pixel → không OCR (0 API)
-  │  scan/mixed còn lại → engine, song song 4 trang │ cuối cùng: đánh dấu trang trùng văn bản
+  │  scan/mixed còn lại → engine, song song 8 trang │ cuối cùng: đánh dấu trang trùng văn bản
   ▼
 VerifiedMistralOCREngine ─ "planner" TRONG MỘT TRANG   infrastructure/ocr/verified_mistral_ocr.py
      3 nguồn song song → căn chỉnh → cổng kiểm tra → GPT phân xử → nhận/thay/cờ review
@@ -172,8 +172,8 @@ File: `application/use_cases/process_document.py`, `classify_pdf.py`.
      | Còn lại | `SCANNED` / `MIXED` | `preprocessing=[]`, gửi engine OCR |
 
 2. Đọc PDF, phân loại, render luôn tuần tự (đối tượng trang PyMuPDF không an toàn đa luồng).
-   Chỉ lời gọi engine được song song: `max_workers = 4` cho engine gọi API (`openai`, `gemini`,
-   `mistral`).
+   Chỉ lời gọi engine được song song: `AI1_MAX_PAGES_IN_FLIGHT` trang (mặc định 8) cho engine gọi API
+   (`openai`, `gemini`, `mistral`).
 3. Nếu engine không trả bảng, `build_scanned_tables` dò bảng có kẻ viền bằng pixel làm dự phòng.
 4. Engine không đọc ra chữ nào trên trang có mực (trang chỉ có chữ ký/con dấu/ảnh, hoặc đọc sót):
    trang vẫn `SUCCESS` nội bộ kèm `no_text_found`, snapshot đánh `PARTIAL` để người kiểm tra. Không
@@ -230,6 +230,16 @@ flowchart TD
 **Bước 1 — đọc và đo song song** (`ThreadPoolExecutor(3)`, context Langfuse được copy vào luồng).
 Bộ đo local chạy xong trong lúc chờ API nên không cộng thêm thời gian. Với
 `AI1_VERIFY_ALL_PAGES=false`, 4-1 không chạy ở bước này mà chỉ chạy ở bước 4 khi cổng nghi ngờ.
+
+**Chế độ `budget`** (`AI1_COST_MODE=budget`, đang bật trong `.env`) đổi ba chỗ trong luồng này, còn lại giữ nguyên:
+
+- 4-1 không chạy song song ở bước 1 mà chỉ chạy ở bước 4, khi ≥ 25% dòng văn bản căn kém, có mực bị bỏ
+  sót, hoặc có bảng không khớp lưới. Trang cần 4-1 vì vậy chờ hai lượt Mistral nối tiếp.
+- Dòng có số tiền/ngày/số hợp đồng không còn là lý do gọi 4-1: chúng nhận `critical_field_unverified`.
+- GPT chỉ đọc vùng cắt; dòng không có bbox tin cậy không được đọc cả trang mà nhận `arbiter_unavailable`
+  (nên chữ bịa chỉ bị gắn cờ, không tự loại).
+
+Logic bảng không đổi: lưới kẻ, bảng không viền (vẫn gọi 4-1), chữ trong ô, nối bảng qua trang.
 
 **Bước 2 — hình học.**
 
@@ -496,7 +506,7 @@ Engine theo `options.engine`: `pymupdf` (chỉ native), `openai`, `gemini`, `mis
 | `AI1_TEXT_TIMEOUT_MS` / `AI1_VERIFIER_TIMEOUT_MS` | `20000` | Quá hạn → dự phòng/bỏ qua |
 | `AI1_TEXT_PRICE_PER_PAGE_USD` | `0.002` | Chi phí gắn vào Langfuse |
 | `AI1_VERIFIER_PRICE_PER_PAGE_USD` | `0.004` | Giá công bố Mistral OCR 4 ($4/1.000 trang) |
-| `AI1_COST_MODE` | `accuracy` | `budget`: 4-1 chỉ khi ≥ 25% dòng căn kém / mực bỏ sót / bảng không viền; critical field thành cờ review; GPT chỉ đọc crop (mục 19) |
+| `AI1_COST_MODE` | `accuracy` trong code; **`budget`** trong `.env` / `.env.example` | `budget`: 4-1 chỉ khi ≥ 25% dòng căn kém / mực bỏ sót / bảng không viền; critical field thành cờ review; GPT chỉ đọc crop (mục 19) |
 | `AI1_GPT_REASONING_EFFORT` | `none` | Mức suy luận ẩn của GPT; `none` rẻ hơn 17%, CER không đổi |
 | `AI1_MAX_PAGES_IN_FLIGHT` | `8` | Số trang OCR song song mỗi tài liệu |
 | `LANGFUSE_*` | tắt | Tracing và chi phí |
@@ -646,6 +656,7 @@ docker logs -f ci-ai1-worker
 | Lỗi nguyên âm cùng khung chữ | "HỌP ĐỒNG" (đúng: "HỢP") không bắt được | Người đọc thứ ba trên dòng nghi vấn, hoặc từ điển tần suất |
 | Tên người ký dưới con dấu | Có thể đọc sai → gắn cờ review | Tách màu con dấu tốt hơn trước khi crop |
 | Bảng không viền | Bbox bảng từ 4-1, ô chia đều (CLAIMED) | Căn cột theo box từ |
+| Chữ trong ô bảng không nhận sửa của bước phân xử | GPT sửa số trong dòng bảng thì văn bản trang đổi, nhưng ô bảng vẫn lấy từ markdown 2512 (cả hai chế độ) | Ghi lại bản đã phân xử vào ô tương ứng |
 | Chính sách PARTIAL cấp tài liệu | Trang lỗi không chặn tài liệu; lỗi AI2 làm cả job `failed` | Tách trạng thái OCR và phân tích |
 | Giá 4-1 | Theo giá công bố OCR 4 ($0.004/trang) | Đối chiếu với hoá đơn Mistral thật |
 | Idempotency Kafka | Trong bộ nhớ, mất khi khởi động lại | Lưu `event_id` bền |
@@ -1125,8 +1136,14 @@ Mỗi lời gọi Mistral ~2–2.7 s; mỗi request GPT crop ~5 s.
 | Batch API của Mistral/OpenAI (−50% giá) | **Đã thử và gỡ bỏ**: 1–3.5 phút mỗi tài liệu thay vì vài giây; batch Mistral với ảnh gửi trực tiếp trong request bị lỗi 400 | — |
 
 Chọn chế độ: `accuracy` khi cần 4-1 xác minh mọi trang (bắt lỗi 2512 thay từ hợp lệ, tự loại chữ bịa, xác
-minh chữ số). `budget` rẻ hơn 2.3 lần và nhanh hơn, đổi lại số tiền/ngày chuyển thành cờ review cho người
-kiểm, và chữ bịa chỉ được gắn cờ chứ không tự loại.
+minh chữ số). `budget` rẻ hơn 2.3 lần, đổi lại số tiền/ngày chuyển thành cờ review cho người kiểm, và chữ
+bịa chỉ được gắn cờ chứ không tự loại. Logic bảng (lưới, bảng không viền, chữ trong ô, nối bảng qua trang)
+giống hệt ở hai chế độ.
+
+Về tốc độ: `budget` nhanh hơn ở tài liệu cần GPT phân xử nhiều (HC05 11.0 → 4.5 s vì không đọc cả trang),
+nhưng có thể chậm hơn ở tài liệu nhiều trang cần 4-1, vì 4-1 chạy sau cổng kiểm tra thay vì song song
+(HC04 11.2 → 12.8 s). Hai lần đo cũng khác số trang song song (`accuracy` 4, `budget` 8) và mỗi chế độ chỉ
+đo một lần, nên chênh lệch thời gian chỉ mang tính tham khảo.
 
 ### 19.4 Giới hạn của lần đo
 
