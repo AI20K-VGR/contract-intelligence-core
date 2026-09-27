@@ -14,9 +14,6 @@ build/
 .idea/
 .vscode/
 
-# Migration auto-generate
-alembic/versions/*.py
-
 # Logs
 *.log
 

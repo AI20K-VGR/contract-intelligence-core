@@ -219,6 +219,16 @@ __all__ = ["AuthenticationError"]
 
 
 @pytest.fixture(autouse=True)
+def reset_query_rate_limiter() -> Iterator[None]:
+    """Per-actor Q&A rate limit is process-global; isolate it per test."""
+    from contract_intelligence.shared.query_policy import get_query_limiter
+
+    get_query_limiter().reset()
+    yield
+    get_query_limiter().reset()
+
+
+@pytest.fixture(autouse=True)
 def mock_minio_and_kafka() -> Iterator[None]:
     """Stub MinIO upload/download + Kafka publish for all tests (no live infra).
 

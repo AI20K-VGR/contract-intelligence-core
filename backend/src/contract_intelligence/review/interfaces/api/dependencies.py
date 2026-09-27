@@ -45,7 +45,7 @@ async def require_review_dossier_access(
     user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> None:
     dossier = await session.get(DossierORM, dossier_id)
-    if dossier is None:
+    if dossier is None or dossier.deleted_at is not None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "NOT_FOUND", "message": f"Dossier {dossier_id} not found"},
@@ -72,7 +72,7 @@ async def require_review_item_access(
             detail={"code": "NOT_FOUND", "message": f"Review item {item_id} not found"},
         )
     dossier = await session.get(DossierORM, item.dossier_id)
-    if dossier is None:
+    if dossier is None or dossier.deleted_at is not None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "NOT_FOUND", "message": f"Dossier {item.dossier_id} not found"},
@@ -99,7 +99,7 @@ async def require_review_item_mutation_access(
             detail={"code": "NOT_FOUND", "message": f"Review item {item_id} not found"},
         )
     dossier = await session.get(DossierORM, item.dossier_id)
-    if dossier is None:
+    if dossier is None or dossier.deleted_at is not None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "NOT_FOUND", "message": f"Dossier {item.dossier_id} not found"},

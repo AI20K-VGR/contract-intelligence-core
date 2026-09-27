@@ -23,7 +23,6 @@ from fastapi.security import HTTPBearer
 from contract_intelligence.api.v1.admin_overview import router as admin_overview_router
 from contract_intelligence.api.v1.dossiers import router as dossier_query_router
 from contract_intelligence.api.v1.users import router as users_router
-from contract_intelligence.api.v1.webhooks import router as ai_webhooks_router
 from contract_intelligence.config.logging import configure_logging, get_logger
 from contract_intelligence.config.settings import get_settings
 from contract_intelligence.conflict.interfaces.api.routers.conflict_full_router import (
@@ -336,10 +335,6 @@ def create_app() -> FastAPI:
     # AI service health + proxy — DOC-05c §4.7
     # /healthz + /readyz + /ai/jobs/{id}
     app.include_router(ai_health_router, prefix="/api/v1", tags=["AI-Service"])
-
-    # Inbound AI1 / AI2 webhooks — OCRSnapshot + CandidateFinding handoff
-    # → /api/v1/webhooks/ai1/snapshot, /api/v1/webhooks/ai2/findings
-    app.include_router(ai_webhooks_router, prefix="/api/v1")
 
     # Backend liveness (root — không qua /api/v1)
     @app.get("/health", tags=["health"])

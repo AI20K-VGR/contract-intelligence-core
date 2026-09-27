@@ -225,64 +225,6 @@ async def poll_ai2_processing(
     raise AiAdapterTimeoutError(f"AI2 job {job_id} exceeded polling budget")
 
 
-async def submit_to_ai1(payload: dict[str, Any]) -> dict[str, Any]:
-    """Submit an OCR job to AI1.
-
-    Expected contract::
-
-        {
-            "dossier_id": str,
-            "document_id": str,
-            "file_ref": str,
-            "ocr_profile": str,
-            "run_id": str,
-        }
-
-    POSTs to ``{AI1_BASE_URL}/jobs``.
-    """
-    _validate_keys(
-        payload,
-        {"dossier_id", "document_id", "file_ref", "ocr_profile", "run_id"},
-        "AI1",
-    )
-    settings = get_settings()
-    url = f"{settings.ai1_base_url.rstrip('/')}/jobs"
-    return await _post_json(url, payload, service="ai1")
-
-
-async def submit_to_ai2(payload: dict[str, Any]) -> dict[str, Any]:
-    """Submit a semantics job to AI2.
-
-    Expected contract::
-
-        {
-            "snapshot_id": str,
-            "snapshot_version": str | int,
-            "digest": str,
-            "dossier_members": list,
-            "role_relation_map": dict,
-            "policy_flags": dict,
-        }
-
-    POSTs to ``{AI2_BASE_URL}/process``.
-    """
-    _validate_keys(
-        payload,
-        {
-            "snapshot_id",
-            "snapshot_version",
-            "digest",
-            "dossier_members",
-            "role_relation_map",
-            "policy_flags",
-        },
-        "AI2",
-    )
-    settings = get_settings()
-    url = f"{settings.ai2_base_url.rstrip('/')}/process"
-    return await _post_json(url, payload, service="ai2")
-
-
 async def query_ai2(payload: dict[str, Any]) -> dict[str, Any]:
     """Forward a dossier Q&A query to AI2.
 
@@ -540,8 +482,6 @@ __all__ = [
     "query_ai2",
     "submit_ai2_processing",
     "submit_idp_job",
-    "submit_to_ai1",
-    "submit_to_ai2",
     "snapshot_payload_digest",
     "wire_result_to_findings_payload",
 ]

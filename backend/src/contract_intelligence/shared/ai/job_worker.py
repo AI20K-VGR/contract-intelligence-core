@@ -17,6 +17,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from contract_intelligence.config.settings import Settings, get_settings
+from contract_intelligence.shared.audit import add_audit_event
 from contract_intelligence.shared.base import new_ulid
 from contract_intelligence.shared.persistence.job_queue import (
     ClaimedJob,
@@ -146,6 +147,7 @@ class JobQueueWorker:
                         error_code="NO_DOCUMENTS",
                         error_detail="Job has no documents to process",
                     )
+                    self._audit(session, claimed, run_id, "failed", {"error_code": "NO_DOCUMENTS"})
                     await session.commit()
                 return
 
@@ -165,6 +167,7 @@ class JobQueueWorker:
                     worker_id=self._worker_id,
                     status="pending_review",
                 )
+                self._audit(session, claimed, run_id, "pending_review", None)
                 await session.commit()
             logger.info(
                 "job_queue.completed",
@@ -183,12 +186,41 @@ class JobQueueWorker:
                         error_code="PIPELINE_FAILED",
                         error_detail=str(exc)[:2000],
                     )
+                    self._audit(
+                        session,
+                        claimed,
+                        claimed.current_run_id,
+                        "failed",
+                        {"error_code": "PIPELINE_FAILED"},
+                    )
                     await session.commit()
             except Exception:
                 logger.exception("job_queue.fail_job_error", job_id=claimed.id)
         finally:
             heartbeat.cancel()
             await asyncio.gather(heartbeat, return_exceptions=True)
+
+    def _audit(
+        self,
+        session: AsyncSession,
+        claimed: ClaimedJob,
+        run_id: str | None,
+        to_state: str,
+        detail: dict[str, Any] | None,
+    ) -> None:
+        add_audit_event(
+            session,
+            tenant_id=claimed.tenant_id,
+            action="job.status_changed",
+            entity_type="job",
+            entity_id=claimed.id,
+            actor_id=f"system:{self._worker_id}",
+            dossier_id=claimed.dossier_id,
+            run_id=run_id,
+            from_state="processing",
+            to_state=to_state,
+            detail=detail,
+        )
 
     async def _heartbeat_loop(self, job_id: str, lease_seconds: int) -> None:
         # Renew at half the lease TTL.

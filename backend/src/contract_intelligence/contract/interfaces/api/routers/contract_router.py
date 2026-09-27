@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from io import BytesIO
 from typing import Annotated, Any, Literal
 from urllib.parse import quote
@@ -79,6 +80,13 @@ from contract_intelligence.shared.auth import (
 from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.shared.exceptions import NotFoundError
 from contract_intelligence.shared.persistence import get_session_factory
+from contract_intelligence.shared.query_policy import (
+    QueryLimitExceeded,
+    enforce_query_limits,
+    enforce_result_acl,
+    save_query_trace,
+    server_query_policy_flags,
+)
 from contract_intelligence.shared.responses import ApiMeta, ApiResponse
 from contract_intelligence.shared.utils import safe_filename
 
@@ -537,6 +545,7 @@ async def restart_dossier_ocr(
         {
             "event": "dossier.uploaded",
             "dossier_id": str(dossier_id),
+            "restart": True,
         },
     )
     await _record(
@@ -671,6 +680,7 @@ class DossierSearchHit(BaseModel):
     text: str
     page_no: int | None = None
     source_file_id: str | None = None
+    document_id: str | None = None
     line_id: str | None = None
     bbox: list[float] = Field(default_factory=list)
     # Anchors the UI uses to open the cited clause.
@@ -678,17 +688,25 @@ class DossierSearchHit(BaseModel):
     citation_id: str | None = None
     breadcrumb: list[str] = Field(default_factory=list)
     validation_status: str | None = None
+    scope: str | None = None
 
 
 class DossierSearchDTO(BaseModel):
     query: str
     answer: str | None
     connected: bool
-    state: str = "INSUFFICIENT_EVIDENCE"
+    state: str | None = "INSUFFICIENT_EVIDENCE"
     used_llm: bool = False
+    notes: list[str] = Field(default_factory=list)
     retrieval_layer: dict[str, Any] = Field(default_factory=dict)
     reasoning_trace: list[Any] = Field(default_factory=list)
     hits: list[DossierSearchHit]
+    trace_id: str | None = None
+    acl_decision: str | None = None
+
+
+def _optional_str(value: Any) -> str | None:
+    return value.strip() if isinstance(value, str) and value.strip() else None
 
 
 def _hits_from_ai2(payload: dict[str, Any]) -> list[DossierSearchHit]:
@@ -710,28 +728,43 @@ def _hits_from_ai2(payload: dict[str, Any]) -> list[DossierSearchHit]:
         line_id = item.get("line_id")
         if not isinstance(line_id, str) and isinstance(line_ids, list):
             line_id = next((value for value in line_ids if isinstance(value, str)), None)
-        source_file_id = item.get("source_file_id") or item.get("document_id")
+        source_file_id = _optional_str(item.get("source_file_id"))
+        document_id = _optional_str(item.get("document_id")) or source_file_id
         bbox = item.get("bbox")
+        breadcrumb = item.get("breadcrumb")
         hits.append(
             DossierSearchHit(
                 text=text.strip(),
                 page_no=page if isinstance(page, int) else None,
-                source_file_id=source_file_id if isinstance(source_file_id, str) else None,
+                source_file_id=source_file_id or document_id,
+                document_id=document_id,
                 line_id=line_id if isinstance(line_id, str) else None,
                 bbox=bbox if isinstance(bbox, list) else [],
                 node_id=_optional_str(item.get("node_id")),
                 citation_id=_optional_str(item.get("citation_id")),
                 breadcrumb=[str(part) for part in breadcrumb]
-                if isinstance(breadcrumb := item.get("breadcrumb"), list)
+                if isinstance(breadcrumb, list)
                 else [],
                 validation_status=_optional_str(item.get("validation_status")),
+                scope=_optional_str(item.get("scope") or item.get("document_role")),
             )
         )
     return hits
 
 
-def _optional_str(value: Any) -> str | None:
-    return value if isinstance(value, str) and value else None
+def _notes_from_trace(trace: list[Any]) -> list[str]:
+    notes: list[str] = []
+    for step in trace:
+        if isinstance(step, dict):
+            code = _optional_str(step.get("code"))
+            message = _optional_str(step.get("message"))
+            if code and message:
+                notes.append(f"{code}: {message}")
+            elif message or code:
+                notes.append(str(message or code))
+        elif isinstance(step, str) and step.strip():
+            notes.append(step.strip())
+    return notes
 
 
 def _search_dto_from_ai2(payload: dict[str, Any], *, fallback_query: str) -> DossierSearchDTO:
@@ -747,18 +780,19 @@ def _search_dto_from_ai2(payload: dict[str, Any], *, fallback_query: str) -> Dos
         "NOT_COMPARABLE",
     }:
         state = "INSUFFICIENT_EVIDENCE"
+    raw_trace = payload.get("reasoning_trace")
+    reasoning_trace: list[Any] = raw_trace if isinstance(raw_trace, list) else []
+    raw_layer = payload.get("retrieval_layer")
+    retrieval_layer: dict[str, Any] = raw_layer if isinstance(raw_layer, dict) else {}
     return DossierSearchDTO(
         query=str(payload.get("query") or fallback_query),
         answer=answer.strip() if isinstance(answer, str) and answer.strip() else None,
         connected=payload.get("connected") is not False,
         state=state,
-        used_llm=bool(payload.get("used_llm", False)),
-        retrieval_layer=payload.get("retrieval_layer")
-        if isinstance(payload.get("retrieval_layer"), dict)
-        else {},
-        reasoning_trace=payload.get("reasoning_trace")
-        if isinstance(payload.get("reasoning_trace"), list)
-        else [],
+        used_llm=bool(payload.get("used_llm", retrieval_layer.get("used_llm", False))),
+        notes=_notes_from_trace(reasoning_trace),
+        retrieval_layer=retrieval_layer,
+        reasoning_trace=reasoning_trace,
         hits=_hits_from_ai2(payload),
     )
 
@@ -766,6 +800,39 @@ def _search_dto_from_ai2(payload: dict[str, Any], *, fallback_query: str) -> Dos
 def _ai2_snapshot_digest(dossier: Any) -> str:
     metadata = dossier.metadata if isinstance(getattr(dossier, "metadata", None), dict) else {}
     return str(metadata.get("ai2_snapshot_digest") or dossier.checksum or "").strip()
+
+
+def _optional_session_factory() -> Any:
+    """Session factory when a DB is bound; None in offline router unit tests."""
+    try:
+        return get_session_factory()
+    except RuntimeError:
+        return None
+
+
+async def _enforce_search_limits(factory: Any, user: AuthenticatedUser) -> None:
+    try:
+        if factory is None:
+            await enforce_query_limits(None, tenant_id=user.tenant_id, actor_id=user.user_id)
+            return
+        async with factory() as session:
+            await enforce_query_limits(session, tenant_id=user.tenant_id, actor_id=user.user_id)
+    except QueryLimitExceeded as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"code": exc.code, "message": exc.message},
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
+
+
+async def _save_search_trace(factory: Any, **fields: Any) -> str | None:
+    if factory is None:
+        logger.warning("dossier.search.trace_skipped_no_db", dossier_id=fields.get("dossier_id"))
+        return None
+    async with factory() as session:
+        trace = await save_query_trace(session, **fields)
+        await session.commit()
+        return trace.id
 
 
 @router.post(
@@ -779,45 +846,115 @@ async def search_dossier(
     body: DossierSearchBody,
     svc: ContractServiceDep,
     user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    _tenant_id: Annotated[str, Depends(get_tenant_id)],
 ) -> ApiResponse[DossierSearchDTO]:
-    """Nhận câu hỏi từ thanh search. AI2 trả câu trả lời khi đã nối."""
+    """Nhận câu hỏi từ thanh search. AI2 trả câu trả lời khi đã nối.
+
+    ACL (search) → rate limit + quota → AI2 → ACL lần 2 (citation_read + phạm vi
+    tài liệu) → QueryTrace → FE.
+    """
     question = body.query.strip()
     if not question:
         raise HTTPException(status_code=422, detail="Thiếu câu hỏi.")
     dossier = await _require_readable(svc, dossier_id, user, action=AclAction.SEARCH)
+    factory = _optional_session_factory()
+    await _enforce_search_limits(factory, user)
+
+    from contract_intelligence.config.settings import get_settings
     from contract_intelligence.infrastructure.ai_adapters import (
         AiAdapterError,
         query_ai2,
     )
 
+    settings = get_settings()
+    snapshot_digest = _ai2_snapshot_digest(dossier)
+    trace_fields: dict[str, Any] = {
+        "tenant_id": user.tenant_id,
+        "dossier_id": dossier_id,
+        "actor_id": user.user_id,
+        "endpoint": "search",
+        "query": question,
+        "snapshot_version": "latest",
+        "snapshot_digest": snapshot_digest,
+        "query_contract_version": "ai2.query.v1",
+    }
+    started = time.monotonic()
     try:
-        from contract_intelligence.config.settings import get_settings
-
         payload = await asyncio.wait_for(
             query_ai2(
                 {
                     "query": question,
                     "dossier_id": dossier_id,
                     "snapshot_version": "latest",
-                    "snapshot_digest": _ai2_snapshot_digest(dossier),
+                    "snapshot_digest": snapshot_digest,
                     "query_contract_version": "ai2.query.v1",
                     "acl_context": user.user_id,
-                    # Fail-closed: search never lets AI2 send dossier text out.
-                    "policy_flags": {"egress_allowed": False},
+                    "policy_flags": server_query_policy_flags(),
                     "tenant_id": user.tenant_id,
-                    "actor_id": "backend",
+                    "actor_id": user.user_id,
                 }
             ),
-            timeout=get_settings().ai2_query_timeout_seconds,
+            timeout=settings.ai2_query_timeout_seconds,
         )
     except (AiAdapterError, TimeoutError, OSError) as exc:
         logger.info("dossier.search.ai2_unavailable", dossier_id=dossier_id, error=str(exc))
-        return ApiResponse(
-            data=DossierSearchDTO(query=question, answer=None, connected=False, hits=[])
+        trace_id = await _save_search_trace(
+            factory,
+            **trace_fields,
+            state=None,
+            citations=[],
+            acl=None,
+            error_code="AI2_UNAVAILABLE",
+            latency_ms=int((time.monotonic() - started) * 1000),
         )
+        return ApiResponse(
+            data=DossierSearchDTO(
+                query=question,
+                answer=None,
+                connected=False,
+                hits=[],
+                trace_id=trace_id,
+            )
+        )
+    latency_ms = int((time.monotonic() - started) * 1000)
     if not isinstance(payload, dict):
         payload = {}
-    return ApiResponse(data=_search_dto_from_ai2(payload, fallback_query=question))
+
+    # ACL lần 2: quyền có thể bị thu hồi trong lúc AI2 trả lời.
+    try:
+        fresh = await svc.get_dossier(dossier_id)
+        can_read = dossier_access_decision(
+            action=AclAction.CITATION_READ,
+            principal=user,
+            dossier_id=dossier_id,
+            dossier_tenant_id=getattr(fresh, "tenant_id", user.tenant_id),
+            metadata=fresh.metadata,
+        )
+        allowed = {str(doc.id) for doc in await svc.list_documents(dossier_id)}
+    except NotFoundError:
+        can_read, allowed = False, set()
+    filtered, acl = enforce_result_acl(
+        payload, can_read_citations=can_read, allowed_document_ids=allowed
+    )
+    dto = _search_dto_from_ai2(filtered, fallback_query=question)
+    if acl.decision != "passed":
+        logger.warning(
+            "dossier.search.acl_second_pass",
+            dossier_id=dossier_id,
+            actor_id=user.user_id,
+            decision=acl.decision,
+            dropped=acl.dropped,
+        )
+    dto.acl_decision = acl.decision
+    dto.trace_id = await _save_search_trace(
+        factory,
+        **trace_fields,
+        state=dto.state,
+        citations=list(filtered.get("citations") or filtered.get("hits") or []),
+        acl=acl,
+        latency_ms=latency_ms,
+    )
+    return ApiResponse(data=dto)
 
 
 # -----------------------------------------------------------------------------

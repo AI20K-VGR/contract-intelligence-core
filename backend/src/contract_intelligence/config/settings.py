@@ -6,7 +6,7 @@ Một số quy ước (xem ``docs/DOC-04-architecture.md`` §5 Technology stack)
 - ``S3_*`` / ``MINIO_*`` — endpoint, access key, secret, bucket cho file storage.
 - ``KAFKA_BOOTSTRAP_SERVERS`` — Kafka broker list cho event publishing.
 - ``AI_SERVICE_URL`` — base URL của ai-service (Sprint 1 polling).
-- ``AI1_BASE_URL`` / ``AI2_BASE_URL`` — OCR / Semantics HTTP adapters.
+- ``AI2_BASE_URL`` — AI2 processing/query HTTP adapter (AI1 is Kafka-only).
 - ``OTEL_*`` — OpenTelemetry exporter config.
 """
 
@@ -85,11 +85,6 @@ class Settings(BaseSettings):
         default="ci-backend-orchestrator",
         description="Consumer group for dossier_events orchestrator.",
     )
-    kafka_ai2_idp_commands_topic: str = Field(default="ci.ai2.idp.commands")
-    kafka_ai2_idp_results_topic: str = Field(default="ci.ai2.idp.results")
-    kafka_ai2_idp_group_id: str = Field(default="ci-ai2-idp")
-    kafka_backend_ai2_results_group_id: str = Field(default="ci-backend-ai2-results")
-    kafka_backend_ai2_commands_group_id: str = Field(default="ci-backend-ai2-idp")
     kafka_presign_expires_seconds: int = Field(
         default=3600,
         ge=60,
@@ -119,16 +114,11 @@ class Settings(BaseSettings):
         description="X-Internal-Service-Key cho internal auth (DOC-05c §3)",
     )
     ai_service_timeout_seconds: float = Field(default=30.0, gt=0)
-    # External AI1 (OCR) / AI2 (Semantics) base URLs for Kafka-worker HTTP adapters.
-    ai1_base_url: str = Field(
-        default="http://localhost:8001/api/v1",
-        description="AI1 OCR service base URL (POST {AI1_BASE_URL}/jobs).",
-    )
+    # AI1 is reached only over Kafka (DOC-05d); AI2 processing + query over HTTP.
     ai2_base_url: str = Field(
         default="http://localhost:8002",
         description="AI2 canonical service base URL (POST {AI2_BASE_URL}/jobs/idp).",
     )
-    ai2_wire_enabled: bool = Field(default=False)
     ai2_service_hmac_secret: str | None = Field(
         default=None,
         description="Shared local/service secret for the canonical AI2 envelope; never commit.",
@@ -155,6 +145,18 @@ class Settings(BaseSettings):
     ai2_query_use_vector: bool = Field(
         default=False,
         description="Ask AI2 to use vector recall for dossier Q&A (needs embeddings configured).",
+    )
+    query_rate_limit_per_minute: int = Field(
+        default=20,
+        ge=0,
+        le=10_000,
+        description="Max /search|/query|/ask calls per user per minute (0 = off).",
+    )
+    query_daily_quota_per_tenant: int = Field(
+        default=2000,
+        ge=0,
+        le=10_000_000,
+        description="Max dossier Q&A calls per tenant in a rolling 24h window (0 = off).",
     )
     # Background dispatcher tuning
     ai_dispatcher_poll_interval_seconds: float = Field(default=1.5, ge=0.1, le=60.0)

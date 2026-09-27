@@ -50,10 +50,20 @@ class ReviewItemORM(Base):
     )
 
 
+REVIEW_ACTION_BASE_VERSION_UNIQUE = "uq_review_action_item_base_version"
+
+
 class ReviewActionORM(Base):
-    """Append-only audit log — không bao giờ UPDATE / DELETE."""
+    """Append-only audit log — không bao giờ UPDATE / DELETE.
+
+    At most one action per (item, base_version): the DB backstop for the
+    optimistic lock on ``review_item.version``.
+    """
 
     __tablename__ = "review_action"
+    __table_args__ = (
+        Index(REVIEW_ACTION_BASE_VERSION_UNIQUE, "review_item_id", "base_version", unique=True),
+    )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True)
     tenant_id: Mapped[str] = mapped_column(Text, nullable=False, index=True)
@@ -73,4 +83,4 @@ class ReviewActionORM(Base):
     )
 
 
-__all__ = ["ReviewActionORM", "ReviewItemORM"]
+__all__ = ["REVIEW_ACTION_BASE_VERSION_UNIQUE", "ReviewActionORM", "ReviewItemORM"]

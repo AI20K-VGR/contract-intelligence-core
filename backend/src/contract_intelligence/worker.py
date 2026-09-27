@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import inspect
 import json
 from datetime import UTC, datetime
 from typing import Any
@@ -52,6 +51,7 @@ from contract_intelligence.shared.ai.persistence import (
     update_pipeline_run_status,
     update_pipeline_step,
 )
+from contract_intelligence.shared.audit import add_audit_event
 from contract_intelligence.shared.base import new_ulid
 
 logger = structlog.get_logger(__name__)
@@ -60,7 +60,6 @@ SCHEMA_VERSION = "ci.kafka.v1"
 EVENT_OCR_COMMAND = "ai1.ocr.command"
 EVENT_OCR_COMPLETED = "ai1.ocr.completed"
 EVENT_OCR_FAILED = "ai1.ocr.failed"
-
 # Idempotency for result events (event_id / job_id).
 _seen_result_ids: set[str] = set()
 _snapshot_cache: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
@@ -155,18 +154,19 @@ def _merge_snapshot_cache(
             target[str(snapshot.get("document_id") or document_id)] = snapshot
 
 
-async def _persist_durable_snapshot(
-    session: AsyncSession, *, run_id: str, snapshot: dict[str, Any]
-) -> None:
-    result = await session.execute(select(PipelineRunORM).where(PipelineRunORM.id == run_id))
-    scalar_one = getattr(result, "scalar_one_or_none", None)
-    if scalar_one is None:
-        return
-    run = scalar_one()
-    if inspect.isawaitable(run):
-        run = await run
+async def _record_ai1_document(
+    session: AsyncSession,
+    *,
+    run_id: str,
+    document_id: str,
+    snapshot: dict[str, Any] | None,
+) -> set[str]:
+    """Store the canonical snapshot (if any) on the run; return every document extracted in it."""
+    run = (
+        await session.execute(select(PipelineRunORM).where(PipelineRunORM.id == run_id))
+    ).scalar_one_or_none()
     if run is None:
-        return
+        return {document_id}
     try:
         payload = (
             json.loads(run.config_snapshot)
@@ -177,29 +177,128 @@ async def _persist_durable_snapshot(
         payload = {}
     if not isinstance(payload, dict):
         payload = {}
-    payload["ai1_snapshots"] = _durable_snapshots_from_run(run)
-    document_id = str(snapshot.get("document_id") or "").strip()
-    if not document_id:
-        return
-    payload["ai1_snapshots"][document_id] = snapshot
-    payload["ai1_snapshot_digests"] = {
-        key: _snapshot_digest(value) for key, value in payload["ai1_snapshots"].items()
-    }
+    if snapshot is not None:
+        payload["ai1_snapshots"] = _durable_snapshots_from_run(run)
+        payload["ai1_snapshots"][document_id] = snapshot
+        payload["ai1_snapshot_digests"] = {
+            key: _snapshot_digest(value) for key, value in payload["ai1_snapshots"].items()
+        }
+    extracted = {str(value) for value in payload.get("ai1_extracted_documents") or [] if value}
+    extracted.add(document_id)
+    payload["ai1_extracted_documents"] = sorted(extracted)
     run.config_snapshot = json.dumps(payload, ensure_ascii=False, sort_keys=True)
-    flush = getattr(session, "flush", None)
-    if flush is not None:
-        await flush()
+    await session.flush()
+    return extracted
 
 
-async def _mark_processing(session: AsyncSession, dossier_id: str) -> str | None:
-    """Set dossier + latest job to PROCESSING. Returns ``current_run_id``."""
+# Pipeline results may only move a job forward along this chain. FAILED and the
+# human-owned states (reviewed/approved/cancelled) are final for the worker; a
+# fresh run (upload/OCR restart) is the only way out of FAILED.
+_FORWARD_RANK = {
+    JobStatus.UPLOADED.value: 0,
+    JobStatus.PROCESSING.value: 1,
+    JobStatus.EXTRACTED.value: 2,
+    JobStatus.PENDING_REVIEW.value: 3,
+}
+_ACTIVE_RUN_STATUSES = frozenset({"queued", "running"})
+
+
+def _worker_transition_allowed(current: str | None, target: str) -> bool:
+    current_rank = _FORWARD_RANK.get(str(current or ""))
+    if current_rank is None:
+        return False
+    if target == JobStatus.FAILED.value:
+        return current_rank < _FORWARD_RANK[JobStatus.PENDING_REVIEW.value]
+    target_rank = _FORWARD_RANK.get(target)
+    return target_rank is not None and target_rank >= current_rank
+
+
+async def _job_for_run(session: AsyncSession, run_id: str) -> JobORM | None:
+    result = await session.execute(select(JobORM).where(JobORM.current_run_id == run_id).limit(1))
+    return result.scalar_one_or_none()
+
+
+def _forget_run(run_id: str | None) -> None:
+    if not run_id:
+        return
+    _submitted_ai2_runs.discard(run_id)
+    for key in [key for key in _snapshot_cache if key[1] == run_id]:
+        _snapshot_cache.pop(key, None)
+
+
+async def _resolve_result_job(
+    session: AsyncSession,
+    message: dict[str, Any],
+    *,
+    source: str,
+    dossier_id: str,
+    run_id: str,
+    tenant_id: str,
+) -> JobORM | None:
+    """Bind a result event to the job currently running ``run_id``.
+
+    The envelope's tenant/dossier are claims from another service; the job row
+    is the authority. Events for superseded runs, unknown runs or another
+    tenant's job are dropped without touching state.
+    """
+    event_id = str(message.get("event_id") or "")
+    if message.get("schema_version") != SCHEMA_VERSION:
+        logger.error(
+            "worker.result.schema_rejected",
+            source=source,
+            event_id=event_id,
+            schema_version=message.get("schema_version"),
+        )
+        return None
+    if not run_id:
+        logger.error("worker.result.missing_run_id", source=source, event_id=event_id)
+        return None
+    job = await _job_for_run(session, run_id)
+    if job is None:
+        logger.warning("worker.result.stale_run", source=source, event_id=event_id, run_id=run_id)
+        return None
+    mismatch = {
+        field: claimed
+        for field, claimed, actual in (
+            ("tenant_id", tenant_id, job.tenant_id),
+            ("dossier_id", dossier_id, job.dossier_id),
+        )
+        if claimed and claimed != actual
+    }
+    if mismatch:
+        logger.error(
+            "worker.result.scope_mismatch",
+            source=source,
+            event_id=event_id,
+            run_id=run_id,
+            job_id=job.id,
+            claimed=mismatch,
+        )
+        add_audit_event(
+            session,
+            tenant_id=job.tenant_id,
+            action=f"{source}.result_rejected",
+            entity_type="job",
+            entity_id=job.id,
+            dossier_id=job.dossier_id,
+            run_id=run_id,
+            detail={"event_id": event_id, "reason": "SCOPE_MISMATCH", "claimed": mismatch},
+        )
+        await session.commit()
+        return None
+    return job
+
+
+async def _mark_processing(
+    session: AsyncSession, dossier_id: str, *, restart: bool = False
+) -> str | None:
+    """Start (or resume) the OCR run of the dossier's latest job. Returns its run id.
+
+    A redelivered ``dossier.uploaded`` resumes the active run. ``restart`` (OCR
+    re-run) always opens a new run and supersedes the old one, so late results
+    of the old run can no longer change the job.
+    """
     now = datetime.now(tz=UTC)
-    await session.execute(
-        update(DossierORM)
-        .where(DossierORM.id == dossier_id)
-        .values(status=JobStatus.PROCESSING.value, updated_at=now)
-    )
-
     result = await session.execute(
         select(JobORM)
         .where(JobORM.dossier_id == dossier_id)
@@ -211,11 +310,43 @@ async def _mark_processing(session: AsyncSession, dossier_id: str) -> str | None
         logger.warning("worker.job_missing", dossier_id=dossier_id)
         return None
 
-    run_id = job.current_run_id or new_ulid("run_")
-    pipeline_run_result = await session.execute(
-        select(PipelineRunORM).where(PipelineRunORM.id == run_id)
-    )
-    pipeline_run = pipeline_run_result.scalar_one_or_none()
+    previous_status = job.status
+    if restart:
+        if previous_status in (JobStatus.APPROVED.value, JobStatus.CANCELLED.value):
+            logger.warning(
+                "worker.ocr_restart.rejected", dossier_id=dossier_id, status=previous_status
+            )
+            return None
+    elif previous_status not in (JobStatus.UPLOADED.value, JobStatus.PROCESSING.value):
+        logger.info(
+            "worker.dossier_uploaded.ignored", dossier_id=dossier_id, status=previous_status
+        )
+        return None
+
+    pipeline_run: PipelineRunORM | None = None
+    if job.current_run_id:
+        pipeline_run = (
+            await session.execute(
+                select(PipelineRunORM).where(PipelineRunORM.id == job.current_run_id)
+            )
+        ).scalar_one_or_none()
+    superseded_run_id: str | None = None
+    if (
+        not restart
+        and job.current_run_id
+        and (pipeline_run is None or pipeline_run.status in _ACTIVE_RUN_STATUSES)
+    ):
+        run_id = job.current_run_id
+    else:
+        superseded_run_id = job.current_run_id
+        if pipeline_run is not None and pipeline_run.status in _ACTIVE_RUN_STATUSES:
+            pipeline_run.status = "cancelled"
+            pipeline_run.error_code = "SUPERSEDED"
+            pipeline_run.finished_at = now
+        _forget_run(superseded_run_id)
+        run_id = new_ulid("run_")
+        pipeline_run = None
+
     if pipeline_run is None:
         pipeline_run = PipelineRunORM(
             id=run_id,
@@ -259,9 +390,31 @@ async def _mark_processing(session: AsyncSession, dossier_id: str) -> str | None
         await session.flush()
     elif pipeline_run.status == "queued":
         pipeline_run.status = "running"
+    await session.execute(
+        update(DossierORM)
+        .where(DossierORM.id == dossier_id)
+        .values(status=JobStatus.PROCESSING.value, updated_at=now)
+    )
     job.status = JobStatus.PROCESSING.value
     job.current_run_id = run_id
+    job.error_code = None
+    job.error_detail = None
     job.updated_at = now
+    detail: dict[str, Any] = {"trigger": "ocr.restart" if restart else "dossier.uploaded"}
+    if superseded_run_id:
+        detail["superseded_run_id"] = superseded_run_id
+    add_audit_event(
+        session,
+        tenant_id=job.tenant_id,
+        action="job.status_changed",
+        entity_type="job",
+        entity_id=job.id,
+        dossier_id=dossier_id,
+        run_id=run_id,
+        from_state=previous_status,
+        to_state=JobStatus.PROCESSING.value,
+        detail=detail,
+    )
     await session.flush()
     return run_id
 
@@ -274,15 +427,20 @@ async def _mark_status(
     run_id: str | None,
     error_code: str | None = None,
     error_detail: str | None = None,
-) -> None:
+    has_conflicts: bool | None = None,
+    audit_action: str = "job.status_changed",
+    audit_detail: dict[str, Any] | None = None,
+) -> bool:
+    """Apply a pipeline status to the job running ``run_id``; False when refused.
+
+    With a ``run_id`` only the job whose current run it is may change, so a
+    superseded run cannot touch the job. Transitions are forward-only.
+    """
     now = datetime.now(tz=UTC)
     job: JobORM | None = None
     if run_id:
-        result = await session.execute(
-            select(JobORM).where(JobORM.current_run_id == run_id).limit(1)
-        )
-        job = result.scalar_one_or_none()
-    if job is None and dossier_id:
+        job = await _job_for_run(session, run_id)
+    elif dossier_id:
         result = await session.execute(
             select(JobORM)
             .where(JobORM.dossier_id == dossier_id)
@@ -297,7 +455,18 @@ async def _mark_status(
             run_id=run_id,
             status=status_value,
         )
-        return
+        return False
+    previous_status = job.status
+    if not _worker_transition_allowed(previous_status, status_value):
+        logger.warning(
+            "worker.status_transition_refused",
+            job_id=job.id,
+            run_id=run_id,
+            from_state=previous_status,
+            to_state=status_value,
+            audit_action=audit_action,
+        )
+        return False
     job.status = status_value
     job.updated_at = now
     if error_code is not None:
@@ -305,12 +474,115 @@ async def _mark_status(
     if error_detail is not None:
         job.error_detail = error_detail
     resolved = job.dossier_id
+    dossier_values: dict[str, Any] = {"status": status_value, "updated_at": now}
+    if has_conflicts is not None:
+        dossier_values["has_conflicts"] = has_conflicts
     await session.execute(
-        update(DossierORM)
-        .where(DossierORM.id == resolved)
-        .values(status=status_value, updated_at=now)
+        update(DossierORM).where(DossierORM.id == resolved).values(**dossier_values)
+    )
+    detail = dict(audit_detail or {})
+    if error_code is not None:
+        detail["error_code"] = error_code
+    if has_conflicts is not None:
+        detail["has_conflicts"] = has_conflicts
+    add_audit_event(
+        session,
+        tenant_id=job.tenant_id,
+        action=audit_action,
+        entity_type="job",
+        entity_id=job.id,
+        dossier_id=resolved,
+        run_id=run_id or job.current_run_id,
+        from_state=previous_status,
+        to_state=status_value,
+        detail=detail or None,
     )
     await session.flush()
+    return True
+
+
+async def _fail_ai1_run(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    run_id: str,
+    code: str,
+    detail: str,
+    audit_action: str,
+    audit_detail: dict[str, Any],
+) -> None:
+    """Mark the job, the run and the OCR step FAILED (with audit) and commit.
+
+    Nothing is written when the job may no longer fail (e.g. already in review).
+    """
+    if not await _mark_status(
+        session,
+        status_value=JobStatus.FAILED.value,
+        dossier_id=None,
+        run_id=run_id,
+        error_code=code,
+        error_detail=detail,
+        audit_action=audit_action,
+        audit_detail=audit_detail,
+    ):
+        return
+    await update_pipeline_step(
+        session,
+        tenant_id=tenant_id,
+        run_id=run_id,
+        step="S2",
+        status="failed",
+        metrics={"service": "ai1", "error": detail[:500], **audit_detail},
+    )
+    await update_pipeline_run_status(
+        session,
+        tenant_id=tenant_id,
+        run_id=run_id,
+        status="failed",
+        error_code=code,
+        error_detail=detail,
+    )
+    await session.commit()
+
+
+async def _fail_ai2_run(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    run_id: str,
+    code: str,
+    detail: str,
+    audit_detail: dict[str, Any],
+) -> None:
+    """Mark the job, the run and the AI2 step FAILED (with audit) and commit."""
+    if not await _mark_status(
+        session,
+        status_value=JobStatus.FAILED.value,
+        dossier_id=None,
+        run_id=run_id,
+        error_code=code,
+        error_detail=detail,
+        audit_action="ai2.processing_failed",
+        audit_detail=audit_detail,
+    ):
+        return
+    await update_pipeline_step(
+        session,
+        tenant_id=tenant_id,
+        run_id=run_id,
+        step="S4",
+        status="failed",
+        metrics={"service": "ai2", "error": detail[:500], **audit_detail},
+    )
+    await update_pipeline_run_status(
+        session,
+        tenant_id=tenant_id,
+        run_id=run_id,
+        status="failed",
+        error_code=code,
+        error_detail=detail,
+    )
+    await session.commit()
 
 
 async def _load_documents(session: AsyncSession, dossier_id: str) -> list[DocumentORM]:
@@ -421,8 +693,10 @@ async def handle_dossier_uploaded(session: AsyncSession, event: dict[str, Any]) 
         logger.error("worker.dossier_uploaded.missing_dossier_id", event=event)
         return
 
-    run_id = await _mark_processing(session, dossier_id)
+    run_id = await _mark_processing(session, dossier_id, restart=bool(event.get("restart")))
     await session.commit()
+    if run_id is None:
+        return
 
     documents = await _load_documents(session, dossier_id)
     if not documents:
@@ -434,12 +708,11 @@ async def handle_dossier_uploaded(session: AsyncSession, event: dict[str, Any]) 
         logger.error("worker.dossier_uploaded.dossier_missing", dossier_id=dossier_id)
         return
 
-    resolved_run_id = run_id or new_ulid("run_")
     for document in documents:
         envelope = await _build_ocr_command_payload(
             document=document,
             dossier=dossier,
-            run_id=resolved_run_id,
+            run_id=run_id,
         )
         await messaging.publish_event(
             settings.kafka_ai1_ocr_commands_topic,
@@ -551,85 +824,128 @@ async def _run_ai2_if_ready(
                 str(errors[0].get("message") if isinstance(errors[0], dict) else errors[0])
             )
 
-        counts = await persist_ai2_processing_result(
+        await _finalize_ai2_success(
             session,
             tenant_id=tenant_id,
             dossier_id=dossier_id,
-            result=report,
             run_id=run_id,
-        )
-        await _persist_ai2_snapshot_identity(
-            session,
-            dossier_id=dossier_id,
+            report=report,
+            ai2_job_id=ai2_job_id,
             snapshot_digest=query_snapshot_digest,
             snapshot_id=str((request.get("snapshots") or [{}])[0].get("snapshot_id") or ""),
-        )
-        for step in ("S4", "S5", "S6", "S7", "S9", "S10"):
-            await update_pipeline_step(
-                session,
-                tenant_id=tenant_id,
-                run_id=run_id,
-                step=step,
-                status="succeeded",
-                metrics={
-                    "service": "ai2",
-                    "job_id": ai2_job_id,
-                    "facts": counts["facts"],
-                    "findings": counts["findings"],
-                    "review_state": report.get("review_state"),
-                },
-            )
-        await update_pipeline_run_status(
-            session,
-            tenant_id=tenant_id,
-            run_id=run_id,
-            status="succeeded",
-        )
-        await _mark_status(
-            session,
-            status_value=JobStatus.EXTRACTED.value,
-            dossier_id=dossier_id,
-            run_id=run_id,
-        )
-        await session.commit()
-        _submitted_ai2_runs.add(run_id)
-        logger.info(
-            "worker.ai2.completed",
-            dossier_id=dossier_id,
-            run_id=run_id,
-            job_id=ai2_job_id,
-            facts=counts["facts"],
-            findings=counts["findings"],
+            source="http_poll",
         )
     except Exception as exc:
         _submitted_ai2_runs.discard(run_id)
         await session.rollback()
+        await _fail_ai2_run(
+            session,
+            tenant_id=tenant_id,
+            run_id=run_id,
+            code="AI2_PROCESSING_FAILED",
+            detail=str(exc)[:1000],
+            audit_detail={"source": "http_poll"},
+        )
+        logger.exception("worker.ai2.failed", dossier_id=dossier_id, run_id=run_id)
+
+
+async def _finalize_ai2_success(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    dossier_id: str,
+    run_id: str,
+    report: dict[str, Any],
+    ai2_job_id: str,
+    snapshot_digest: str = "",
+    snapshot_id: str = "",
+    source: str,
+) -> dict[str, Any] | None:
+    """Persist a SUCCEEDED AI2 result and hand the dossier to HITL review.
+
+    Returns None (nothing written) when ``run_id`` is no longer the job's
+    current run or the job already left the pipeline (FAILED, reviewed, ...).
+    """
+    job = await _job_for_run(session, run_id)
+    if (
+        job is None
+        or job.tenant_id != tenant_id
+        or job.dossier_id != dossier_id
+        or not _worker_transition_allowed(job.status, JobStatus.PENDING_REVIEW.value)
+    ):
+        logger.warning(
+            "worker.ai2.result_refused",
+            dossier_id=dossier_id,
+            run_id=run_id,
+            job_status=job.status if job else None,
+            source=source,
+        )
+        return None
+    counts = await persist_ai2_processing_result(
+        session,
+        tenant_id=tenant_id,
+        dossier_id=dossier_id,
+        result=report,
+        run_id=run_id,
+    )
+    await _persist_ai2_snapshot_identity(
+        session,
+        dossier_id=dossier_id,
+        snapshot_digest=snapshot_digest,
+        snapshot_id=snapshot_id,
+    )
+    for step in ("S4", "S5", "S6", "S7", "S9", "S10"):
         await update_pipeline_step(
             session,
             tenant_id=tenant_id,
             run_id=run_id,
-            step="S4",
-            status="failed",
-            metrics={"service": "ai2", "error": str(exc)[:500]},
+            step=step,
+            status="succeeded",
+            metrics={
+                "service": "ai2",
+                "job_id": ai2_job_id,
+                "facts": counts["facts"],
+                "findings": counts["findings"],
+                "review_items": counts.get("review_items", 0),
+                "review_state": report.get("review_state"),
+            },
         )
-        await update_pipeline_run_status(
-            session,
-            tenant_id=tenant_id,
-            run_id=run_id,
-            status="failed",
-            error_code="AI2_PROCESSING_FAILED",
-            error_detail=str(exc)[:1000],
-        )
-        await _mark_status(
-            session,
-            status_value=JobStatus.FAILED.value,
-            dossier_id=dossier_id,
-            run_id=run_id,
-            error_code="AI2_PROCESSING_FAILED",
-            error_detail=str(exc)[:1000],
-        )
-        await session.commit()
-        logger.exception("worker.ai2.failed", dossier_id=dossier_id, run_id=run_id)
+    await update_pipeline_run_status(
+        session,
+        tenant_id=tenant_id,
+        run_id=run_id,
+        status="succeeded",
+    )
+    await _mark_status(
+        session,
+        status_value=JobStatus.PENDING_REVIEW.value,
+        dossier_id=dossier_id,
+        run_id=run_id,
+        has_conflicts=int(counts["findings"]) > 0,
+        audit_action="ai2.result_persisted",
+        audit_detail={
+            "source": source,
+            "ai2_job_id": ai2_job_id,
+            "facts": counts["facts"],
+            "findings": counts["findings"],
+            "review_items": counts.get("review_items", 0),
+            "review_state": counts.get("review_state"),
+            "index_contribution_state": counts.get("index_contribution_state"),
+            "idempotent_replay": counts.get("idempotent_replay", False),
+        },
+    )
+    await session.commit()
+    _submitted_ai2_runs.add(run_id)
+    logger.info(
+        "worker.ai2.completed",
+        dossier_id=dossier_id,
+        run_id=run_id,
+        job_id=ai2_job_id,
+        source=source,
+        facts=counts["facts"],
+        findings=counts["findings"],
+    )
+    return counts
 
 
 async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> None:
@@ -645,23 +961,40 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
 
     raw_correlation = message.get("correlation")
     correlation: dict[str, Any] = raw_correlation if isinstance(raw_correlation, dict) else {}
-    dossier_id = correlation.get("dossier_id")
-    run_id = correlation.get("run_id")
-    tenant_id = str(message.get("tenant_id") or correlation.get("tenant_id") or "")
+    claimed_document_id = str(correlation.get("document_id") or "")
     event_type = message.get("event_type")
+
+    job = await _resolve_result_job(
+        session,
+        message,
+        source="ai1",
+        dossier_id=str(correlation.get("dossier_id") or ""),
+        run_id=str(correlation.get("run_id") or ""),
+        tenant_id=str(message.get("tenant_id") or correlation.get("tenant_id") or ""),
+    )
+    if job is None:
+        if dedupe_key:
+            _seen_result_ids.add(dedupe_key)
+        return
+    # Captured as plain values: a rollback below expires the ORM instance.
+    tenant_id = job.tenant_id
+    dossier_id = job.dossier_id
+    run_id = str(job.current_run_id)
+    job_status = job.status
+    base_audit = {"event_id": event_id, "ai1_job_id": job_id, "document_id": claimed_document_id}
 
     if event_type == EVENT_OCR_FAILED or str(payload.get("status")) == "failed":
         raw_error = payload.get("error")
         error: dict[str, Any] = raw_error if isinstance(raw_error, dict) else {}
-        await _mark_status(
+        await _fail_ai1_run(
             session,
-            status_value=JobStatus.FAILED.value,
-            dossier_id=str(dossier_id) if dossier_id else None,
-            run_id=str(run_id) if run_id else None,
-            error_code=str(error.get("code") or "AI1_OCR_FAILED"),
-            error_detail=str(error.get("message") or "OCR failed"),
+            tenant_id=tenant_id,
+            run_id=run_id,
+            code=str(error.get("code") or "AI1_OCR_FAILED"),
+            detail=str(error.get("message") or "OCR failed"),
+            audit_action="ai1.ocr_failed",
+            audit_detail=base_audit,
         )
-        await session.commit()
         if dedupe_key:
             _seen_result_ids.add(dedupe_key)
         logger.warning(
@@ -676,27 +1009,66 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
         logger.debug("worker.ai1_result.ignored", event_type=event_type)
         return
 
-    result = payload.get("result")
-    if not isinstance(result, dict):
-        logger.error("worker.ai1_result.missing_result", event_id=event_id)
+    if not _worker_transition_allowed(job_status, JobStatus.EXTRACTED.value):
+        logger.info(
+            "worker.ai1_result.job_not_extracting",
+            event_id=event_id,
+            run_id=run_id,
+            job_status=job_status,
+        )
+        if dedupe_key:
+            _seen_result_ids.add(dedupe_key)
         return
 
-    if not tenant_id:
-        tenant_id = "unknown"
+    documents = await _load_documents(session, dossier_id)
+    dossier_document_ids = {str(document.id) for document in documents}
+
+    result = payload.get("result")
+    rejection: tuple[str, str] | None = None
+    snapshot: Any = None
+    canonical_snapshot: dict[str, Any] | None = None
+    document_id = ""
+    if not isinstance(result, dict):
+        rejection = ("AI1_RESULT_MISSING", "OCR completed event carries no result")
+    else:
+        try:
+            snapshot = adapt_ai1_snapshot_result(result)
+        except (ValueError, KeyError, TypeError) as exc:
+            rejection = ("AI1_SNAPSHOT_INVALID", str(exc)[:1000] or type(exc).__name__)
+        else:
+            raw_canonical = result.get("snapshot")
+            canonical_snapshot = raw_canonical if isinstance(raw_canonical, dict) else None
+            document_id = str(
+                (canonical_snapshot or {}).get("document_id")
+                or getattr(snapshot, "document_id", None)
+                or claimed_document_id
+            )
+            if document_id not in dossier_document_ids or (
+                claimed_document_id and claimed_document_id != document_id
+            ):
+                rejection = (
+                    "AI1_SNAPSHOT_INVALID",
+                    f"Snapshot document {document_id!r} does not belong to this dossier/command",
+                )
+    if rejection is not None:
+        code, detail = rejection
+        await _fail_ai1_run(
+            session,
+            tenant_id=tenant_id,
+            run_id=run_id,
+            code=code,
+            detail=detail,
+            audit_action="ai1.snapshot_rejected",
+            audit_detail=base_audit,
+        )
+        if dedupe_key:
+            _seen_result_ids.add(dedupe_key)
+        logger.error("worker.ai1_result.rejected", event_id=event_id, run_id=run_id, code=code)
+        return
 
     try:
-        snapshot = adapt_ai1_snapshot_result(result)
-        canonical_snapshot = result.get("snapshot")
-        if isinstance(canonical_snapshot, dict):
-            _snapshot_cache.setdefault((str(dossier_id), str(run_id)), {})[
-                str(canonical_snapshot.get("document_id") or correlation.get("document_id"))
-            ] = canonical_snapshot
-        document_id = str(
-            (canonical_snapshot or {}).get("document_id")
-            or getattr(snapshot, "document_id", None)
-            or correlation.get("document_id")
-            or ""
-        )
+        if canonical_snapshot is not None:
+            _snapshot_cache.setdefault((dossier_id, run_id), {})[document_id] = canonical_snapshot
         # A new OCR result is authoritative for a retry.  Older databases
         # may already contain immutable evidence rows for this document. In
         # that case the DB append-only trigger rejects the legacy replacement
@@ -707,7 +1079,7 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
                 session,
                 tenant_id=tenant_id,
                 snapshot=snapshot,
-                run_id=str(run_id) if run_id else None,
+                run_id=run_id,
             )
         except Exception as exc:
             error_message: Any = str(exc).lower()
@@ -721,33 +1093,51 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
                 run_id=run_id,
                 error=str(exc),
             )
-        if run_id and isinstance(canonical_snapshot, dict):
-            await _persist_durable_snapshot(
+        extracted = await _record_ai1_document(
+            session, run_id=run_id, document_id=document_id, snapshot=canonical_snapshot
+        )
+        page_count = len(
+            canonical_snapshot.get("pages", [])
+            if canonical_snapshot is not None
+            else getattr(snapshot, "pages", [])
+        )
+        all_extracted = dossier_document_ids <= extracted
+        steps = ("S2", "S3", "S8") if all_extracted else ("S2",)
+        for step in steps:
+            await update_pipeline_step(
                 session,
-                run_id=str(run_id),
-                snapshot=canonical_snapshot,
+                tenant_id=tenant_id,
+                run_id=run_id,
+                step=step,
+                status="succeeded" if all_extracted else "running",
+                pages=page_count,
+                metrics={
+                    "service": "ai1",
+                    "document_id": document_id,
+                    "extracted_documents": len(extracted & dossier_document_ids),
+                    "total_documents": len(dossier_document_ids),
+                },
             )
-        if dossier_id and run_id:
-            page_count = len(
-                (canonical_snapshot or {}).get("pages", [])
-                if isinstance(canonical_snapshot, dict)
-                else getattr(snapshot, "pages", [])
-            )
-            for step in ("S2", "S3", "S8"):
-                await update_pipeline_step(
-                    session,
-                    tenant_id=tenant_id,
-                    run_id=str(run_id),
-                    step=step,
-                    status="succeeded",
-                    pages=page_count,
-                    metrics={"service": "ai1", "document_id": correlation.get("document_id")},
-                )
         await _mark_status(
             session,
-            status_value=JobStatus.EXTRACTED.value,
-            dossier_id=str(dossier_id) if dossier_id else None,
-            run_id=str(run_id) if run_id else None,
+            status_value=(
+                JobStatus.EXTRACTED.value if all_extracted else JobStatus.PROCESSING.value
+            ),
+            dossier_id=dossier_id,
+            run_id=run_id,
+            audit_action="ai1.snapshot_persisted",
+            audit_detail={
+                **base_audit,
+                "document_id": document_id,
+                "schema_version": canonical_snapshot.get("schema_version")
+                if canonical_snapshot is not None
+                else "ai1.snapshot.v3",
+                "snapshot_digest": _snapshot_digest(canonical_snapshot)
+                if canonical_snapshot is not None
+                else None,
+                "extracted_documents": len(extracted & dossier_document_ids),
+                "total_documents": len(dossier_document_ids),
+            },
         )
         await session.commit()
         if dedupe_key:
@@ -755,16 +1145,17 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
         logger.info(
             "worker.ai1_result.persisted",
             dossier_id=dossier_id,
-            document_id=correlation.get("document_id"),
+            document_id=document_id,
             run_id=run_id,
             job_id=job_id,
+            all_extracted=all_extracted,
         )
-        if dossier_id and run_id:
+        if all_extracted:
             await _run_ai2_if_ready(
                 session,
-                dossier_id=str(dossier_id),
+                dossier_id=dossier_id,
                 tenant_id=tenant_id,
-                run_id=str(run_id),
+                run_id=run_id,
             )
     except Exception:
         await session.rollback()
@@ -796,7 +1187,7 @@ async def handle_dossier_event(session: AsyncSession, message: dict[str, Any]) -
             await _run_ai2_if_ready(
                 session,
                 dossier_id=dossier_id,
-                tenant_id=str(message.get("tenant_id") or job.tenant_id),
+                tenant_id=job.tenant_id,
                 run_id=str(job.current_run_id),
             )
         return
@@ -877,7 +1268,11 @@ async def run_ai1_results_consumer(session_factory: async_sessionmaker[AsyncSess
 
 
 async def run_consumer() -> None:
-    """Start producer + dossier_events and AI1 results consumers."""
+    """Start producer + dossier_events and AI1 results consumers.
+
+    AI2 is not on Kafka: the worker submits/polls it over HTTP once every
+    document of the run has an AI1 snapshot (``_run_ai2_if_ready``).
+    """
     settings = get_settings()
     engine = create_async_engine(settings.database_url, future=True)
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

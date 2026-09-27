@@ -502,12 +502,16 @@ class DossierRepositoryImpl(DossierRepository):
             orm.updated_at = utcnow()
             await self._session.flush()
 
-    async def get_flags(self, dossier_id: str) -> dict[str, object] | None:
+    async def get_flags(
+        self, dossier_id: str, *, for_update: bool = False
+    ) -> dict[str, object] | None:
         stmt = select(DossierORM).where(
             DossierORM.id == dossier_id,
             DossierORM.tenant_id == self._tenant_id,
             DossierORM.deleted_at.is_(None),
         )
+        if for_update:
+            stmt = stmt.with_for_update()
         result = await self._session.execute(stmt)
         orm = result.scalar_one_or_none()
         if orm is None:
