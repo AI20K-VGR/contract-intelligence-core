@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { clauseOrdinal } from '../api/clauseReview'
 import {
   contractDocument,
   getDossierStructure,
@@ -23,6 +24,10 @@ import {
 import { dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import {
+  ConflictFindingReview,
+  type LinkedClause,
+} from '../components/ConflictFindingReview'
+import {
   ConflictDocumentPane,
   type ConflictBox,
 } from '../components/ConflictDocumentPane'
@@ -32,7 +37,12 @@ import { structurePath } from '../data/dossiers'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { findClause, findClauseByQuote } from '../structure/citations'
 import { bodyOf, headOf } from '../structure/display'
-import { clauseForCitation, regionsOf } from '../structure/conflictCite'
+import {
+  clauseForCitation,
+  regionsOf,
+  sameFileCitationSides,
+} from '../structure/conflictCite'
+import { reviewTargetNode } from '../structure/reviewTarget'
 import { buildStructureTree } from '../structure'
 import type { OcrLine } from '../structure/types'
 
@@ -73,6 +83,10 @@ type ComparePane = {
   locating: boolean
   linked: boolean
   emptyNote: string
+  clause: ClauseNode | null
+  ordinal: number
+  reviewNode: ClauseNode | null
+  reviewOrdinal: number
 }
 
 const MARKS = ['amber', 'sky'] as const
@@ -82,6 +96,21 @@ function sourceLabel(label: string) {
   if (normalized === 'contract' || normalized === 'a') return 'Hợp đồng'
   if (normalized === 'annex' || normalized === 'b') return 'Phụ lục'
   return label.trim() || 'Nguồn'
+}
+
+function linkedClausesOf(panes: ComparePane[]): LinkedClause[] {
+  return panes.flatMap((pane) => {
+    const node = pane.reviewNode ?? pane.clause
+    if (!node) return []
+    return [
+      {
+        label: sourceLabel(pane.label),
+        documentId: pane.document.id,
+        node,
+        ordinal: pane.reviewNode ? pane.reviewOrdinal : pane.ordinal,
+      },
+    ]
+  })
 }
 
 function sideQuote(side: { value: string; quote: string }) {
@@ -193,6 +222,7 @@ function linkPane(
   mark: 'amber' | 'sky',
   nodes: ClauseNode[],
   lines: OcrLine[] | undefined,
+  numberedNodes: ClauseNode[],
 ): ComparePane {
   const side =
     spot.sides.find((item) => item.documentId === document.id) ?? null
@@ -200,6 +230,7 @@ function linkPane(
     lines && side
       ? clauseForCitation(nodes, lines, side.pageNo, side.lineNo)
       : null
+  const reviewTarget = side ? reviewTargetNode(numberedNodes, lines ?? [], side) : null
   const fromTree = regionsOf(clause).map((region) => ({ ...region, accent: mark }))
   const fromCitation = (side?.regions ?? []).map((region) => ({
     ...region,
@@ -231,6 +262,10 @@ function linkPane(
     locating: Boolean(side?.pageNo) && lines === undefined && regions.length === 0,
     linked,
     emptyNote: linked ? '' : missing,
+    clause,
+    ordinal: clause ? clauseOrdinal(nodes, clause.id) : 0,
+    reviewNode: reviewTarget?.node ?? null,
+    reviewOrdinal: reviewTarget?.ordinal ?? 0,
   }
 }
 
@@ -239,6 +274,7 @@ function locatePanes(
   documents: StructureDocument[],
   nodesByDocument: Record<string, ClauseNode[]>,
   linesByDocument: Record<string, OcrLine[] | undefined>,
+  numberedByDocument: Record<string, ClauseNode[]>,
 ): ComparePane[] {
   if (!spot || documents.length === 0) return []
   const contract = documentByRole(documents, 'contract')
@@ -246,6 +282,33 @@ function locatePanes(
     documentByRole(documents, 'annex') ??
     documents.find((item) => item.id !== contract?.id) ??
     null
+  const host = contract ?? documents[0] ?? null
+  const sameFile =
+    host && (!annex || annex.id === host.id)
+      ? sameFileCitationSides(
+          spot.sides.map((side) => ({
+            documentId: side.documentId,
+            label: side.label,
+            quote: side.quote,
+            pageNo: side.pageNo,
+          })),
+        )
+      : null
+  if (host && sameFile) {
+    return sameFile.map((side, index) =>
+      paneForSide(
+        spot.sides.find(
+          (item) => item.quote === side.quote && item.pageNo === side.pageNo,
+        ) ?? spot.sides[index],
+        host,
+        side.label || (index === 0 ? 'Nguồn 1' : 'Nguồn 2'),
+        index === 0 ? 'amber' : 'sky',
+        nodesByDocument[host.id] ?? [],
+        linesByDocument[host.id],
+        numberedByDocument[host.id] ?? [],
+      ),
+    )
+  }
   const pair = [
     contract
       ? linkPane(
@@ -255,6 +318,7 @@ function locatePanes(
           PANE_ROLES[0].mark,
           nodesByDocument[contract.id] ?? [],
           linesByDocument[contract.id],
+          numberedByDocument[contract.id] ?? [],
         )
       : null,
     annex
@@ -265,10 +329,68 @@ function locatePanes(
           PANE_ROLES[1].mark,
           nodesByDocument[annex.id] ?? [],
           linesByDocument[annex.id],
+          numberedByDocument[annex.id] ?? [],
         )
       : null,
   ].filter((pane): pane is ComparePane => pane !== null)
   return pair
+}
+
+function paneForSide(
+  side: ReviewSpotSide | undefined,
+  document: StructureDocument,
+  label: string,
+  mark: 'amber' | 'sky',
+  nodes: ClauseNode[],
+  lines: OcrLine[] | undefined,
+  numberedNodes: ClauseNode[],
+): ComparePane {
+  if (!side) {
+    return {
+      key: `${document.id}:${label}`,
+      document,
+      pageNo: 1,
+      quote: '',
+      label,
+      mark,
+      regions: [],
+      locating: false,
+      linked: false,
+      emptyNote: 'Điểm này không có trích dẫn.',
+      clause: null,
+      ordinal: 0,
+      reviewNode: null,
+      reviewOrdinal: 0,
+    }
+  }
+  const clause = lines
+    ? clauseForCitation(nodes, lines, side.pageNo, side.lineNo)
+    : null
+  const reviewTarget = reviewTargetNode(numberedNodes, lines ?? [], side)
+  const fromTree = regionsOf(clause).map((region) => ({ ...region, accent: mark }))
+  const fromCitation = side.regions.map((region) => ({ ...region, accent: mark }))
+  const regions = fromTree.length > 0 ? fromTree : fromCitation
+  const pageNo =
+    (side.pageNo && side.pageNo > 0 ? side.pageNo : null) ??
+    regions.find((region) => region.pageNo > 0)?.pageNo ??
+    (clause?.pageStart && clause.pageStart > 0 ? clause.pageStart : 1)
+  const quote = clause ? passageOf(clause) : side.quote
+  return {
+    key: `${document.id}:${label}:${pageNo}`,
+    document,
+    pageNo,
+    quote,
+    label,
+    mark,
+    regions,
+    locating: Boolean(side.pageNo) && lines === undefined && regions.length === 0,
+    linked: Boolean(quote || regions.length > 0 || side.pageNo),
+    emptyNote: quote ? '' : 'Điểm này không có trích dẫn.',
+    clause,
+    ordinal: clause ? clauseOrdinal(nodes, clause.id) : 0,
+    reviewNode: reviewTarget?.node ?? null,
+    reviewOrdinal: reviewTarget?.ordinal ?? 0,
+  }
 }
 
 function demoCards(): ReviewCard[] {
@@ -330,14 +452,18 @@ export function ClauseConflictPage() {
   usePageTitle('Đối soát xung đột')
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams] = useSearchParams()
   const reviewState = location.state as {
     dossierId?: string
     name?: string
+    findingId?: string
   } | null
-  const dossierId = reviewState?.dossierId ?? ''
+  const dossierId = reviewState?.dossierId ?? searchParams.get('dossier') ?? ''
+  const requestedId = searchParams.get('finding') ?? reviewState?.findingId ?? ''
   const { user } = useAuth()
   const searchRef = useRef<HTMLInputElement>(null)
   const loadedLines = useRef(new Set<string>())
+  const scrolledTo = useRef('')
   const [detail, setDetail] = useState<DossierStructure | null>(null)
   const [document, setDocument] = useState<StructureDocument | null>(null)
   const [spots, setSpots] = useState<ReviewSpot[]>([])
@@ -350,13 +476,14 @@ export function ClauseConflictPage() {
   const [pdfPages, setPdfPages] = useState(0)
   const [loading, setLoading] = useState(Boolean(dossierId))
   const [error, setError] = useState<string | null>(null)
-  const [activeId, setActiveId] = useState('')
+  const [activeId, setActiveId] = useState(requestedId)
   const [pageNo, setPageNo] = useState(1)
   const [align, setAlign] = useState<{
     mark: 'amber' | 'sky' | 'both'
     tick: number
   }>({ mark: 'both', tick: 0 })
   const [query, setQuery] = useState('')
+  const [reviewedIds, setReviewedIds] = useState<Record<string, boolean>>({})
   const [verdicts, setVerdicts] = useState<Record<string, Verdict>>({})
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [reviewByFinding, setReviewByFinding] = useState<
@@ -456,16 +583,29 @@ export function ClauseConflictPage() {
     }
     return map
   }, [linesByDocument, nodesByDocument, structureMode])
+  const numberedTrees = useMemo(() => {
+    const map: Record<string, ClauseNode[]> = {}
+    for (const [id, lines] of Object.entries(linesByDocument)) {
+      map[id] =
+        lines.length > 0
+          ? buildStructureTree(lines, 'numbered')
+          : (nodesByDocument[id] ?? [])
+    }
+    return map
+  }, [linesByDocument, nodesByDocument])
   const active =
     cards.find((card) => card.id === activeId) ?? visible[0] ?? cards[0] ?? null
   const linksById = useMemo(() => {
     const map = new Map<string, ComparePane[]>()
     const documents = detail?.documents ?? []
     for (const spot of spots) {
-      map.set(spot.id, locatePanes(spot, documents, trees, linesByDocument))
+      map.set(
+        spot.id,
+        locatePanes(spot, documents, trees, linesByDocument, numberedTrees),
+      )
     }
     return map
-  }, [detail?.documents, linesByDocument, spots, trees])
+  }, [detail?.documents, linesByDocument, numberedTrees, spots, trees])
   const located = linksById.get(active?.id ?? '') ?? []
   const comparing = located.length > 1
 
@@ -478,6 +618,19 @@ export function ClauseConflictPage() {
     if (cards.length === 0) return
     if (!cards.some((card) => card.id === activeId)) setActiveId(cards[0].id)
   }, [activeId, cards])
+
+  useEffect(() => {
+    if (!requestedId || scrolledTo.current === requestedId) return
+    if (!cards.some((card) => card.id === requestedId)) return
+    scrolledTo.current = requestedId
+    setActiveId(requestedId)
+    const frame = window.requestAnimationFrame(() => {
+      window.document
+        .querySelector(`[data-card-id="${CSS.escape(requestedId)}"]`)
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [cards, requestedId])
 
   useEffect(() => {
     const documents = detail?.documents ?? []
@@ -540,7 +693,9 @@ export function ClauseConflictPage() {
     setPageNo(Math.max(1, page))
   }, [])
 
-  const reviewed = cards.filter((card) => verdicts[card.id]).length
+  const reviewed = cards.filter((card) =>
+    dossierId ? reviewedIds[card.id] : verdicts[card.id],
+  ).length
   const confidences = cards
     .map((card) => card.confidence)
     .filter((value): value is number => value !== null)
@@ -841,6 +996,7 @@ export function ClauseConflictPage() {
                 return (
                   <article
                     key={card.id}
+                    data-card-id={card.id}
                     className={
                       selected
                         ? 'relative rounded border-y border-r border-l-4 border-outline-variant/50 border-l-primary-container bg-blue-50/50 p-space-md shadow-sm'
@@ -886,7 +1042,7 @@ export function ClauseConflictPage() {
                         </button>
                       ) : null}
                     </div>
-                    {(linksById.get(card.id)?.length ?? 0) > 1 ? (
+                    {(linksById.get(card.id)?.length ?? 0) >= 1 ? (
                       <div className="mb-space-sm space-y-1.5">
                         <p className="font-body-sm text-body-sm leading-normal text-on-surface-variant">
                           {card.quote}
@@ -947,6 +1103,21 @@ export function ClauseConflictPage() {
                         </span>
                       ) : null}
                     </div>
+                    {dossierId ? (
+                      <ConflictFindingReview
+                        findingId={card.id}
+                        linkedClauses={linkedClausesOf(
+                          linksById.get(card.id) ?? [],
+                        )}
+                        onReviewed={(value) =>
+                          setReviewedIds((current) =>
+                            current[card.id] === value
+                              ? current
+                              : { ...current, [card.id]: value },
+                          )
+                        }
+                      />
+                    ) : (
                     <div className="grid grid-cols-3 gap-1.5">
                       <VerdictButton
                         active={verdict === 'correct'}
@@ -970,7 +1141,8 @@ export function ClauseConflictPage() {
                         onClick={() => choose(card.id, 'edit')}
                       />
                     </div>
-                    {verdict === 'edit' ? (
+                    )}
+                    {verdict === 'edit' && !dossierId ? (
                       <textarea
                         className="mt-2 w-full resize-none rounded bg-surface-container-low p-2 font-body-sm text-body-sm text-on-surface outline-none focus:ring-1 focus:ring-outline-variant"
                         placeholder="Ghi chú thẩm định..."
@@ -988,7 +1160,7 @@ export function ClauseConflictPage() {
                         }}
                       />
                     ) : null}
-                    {verdict ? (
+                    {verdict && !dossierId ? (
                       <div className="mt-2 flex items-center justify-end">
                         <button
                           className="inline-flex items-center gap-1 rounded bg-primary px-3 py-1.5 font-label-sm text-label-sm font-semibold text-on-primary disabled:opacity-60"
