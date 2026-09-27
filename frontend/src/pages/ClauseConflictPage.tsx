@@ -53,12 +53,6 @@ const REVIEW_ACTION = {
   deviation: 'reject',
   edit: 'correct',
 } as const
-type CardSource = {
-  label: string
-  quote: string
-  mark: 'amber' | 'sky'
-}
-
 type ReviewCard = {
   id: string
   title: string
@@ -68,7 +62,6 @@ type ReviewCard = {
   pageNo: number | null
   confidence: number | null
   regions: ClauseRegion[]
-  sources: CardSource[]
   review: ReviewSpotLink | null
 }
 
@@ -88,8 +81,6 @@ type ComparePane = {
   reviewNode: ClauseNode | null
   reviewOrdinal: number
 }
-
-const MARKS = ['amber', 'sky'] as const
 
 function sourceLabel(label: string) {
   const normalized = label.trim().toLowerCase()
@@ -152,17 +143,6 @@ function spotToCard(
       .map((id) => findClause(nodes, id))
       .find((node): node is ClauseNode => node !== null) ?? null
   const texts = spot.sides.map(sideQuote).filter(Boolean)
-  const sources = spot.sides.flatMap((side, index) => {
-    const quote = sideQuote(side)
-    if (!quote) return []
-    return [
-      {
-        label: sourceLabel(side.label),
-        quote,
-        mark: MARKS[index] ?? 'amber',
-      },
-    ]
-  })
   const matched =
     linked ??
     (texts[0] ? findClauseByQuote(nodes, texts[0], null) : null)
@@ -190,7 +170,6 @@ function spotToCard(
     pageNo,
     confidence: matched?.confidence ?? null,
     regions: matched?.regions ?? [],
-    sources,
     review: spot.review,
   }
 }
@@ -408,12 +387,6 @@ function demoCards(): ReviewCard[] {
       pageNo,
       confidence: null,
       regions: [],
-      sources: [
-        { label: 'Nguồn 1', quote, mark: 'amber' },
-        ...(contrast
-          ? [{ label: 'Nguồn 2' as const, quote: contrast, mark: 'sky' as const }]
-          : []),
-      ],
       review: null,
     }
   })

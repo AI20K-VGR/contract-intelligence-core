@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ClauseNode } from '../api/structure'
+import type { ConflictMarker } from '../structure/conflictAnchors'
 import {
   bodyOf,
   branchMap,
@@ -18,6 +19,7 @@ import { capToMaxLevels } from '../structure/tree'
 import { MaterialIcon } from './icons'
 import {
   AttentionStar,
+  ConflictBadge,
   CiteBadge,
   EmptyStructure,
   HeaderDivider,
@@ -66,6 +68,7 @@ export function StructureDocument({
   attentionIds,
   citationOf,
   focusId,
+  markers,
   onCite,
 }: {
   title: string
@@ -73,6 +76,7 @@ export function StructureDocument({
   attentionIds?: ReadonlySet<string>
   citationOf?: ReadonlyMap<string, number>
   focusId?: string | null
+  markers?: ReadonlyMap<string, ConflictMarker>
   onCite?: (id: string) => void
 }) {
   const source = useMemo(() => capToMaxLevels(nodes), [nodes])
@@ -221,6 +225,13 @@ export function StructureDocument({
                       <span className="line-clamp-2 min-w-0">
                         {label || kindOf(item.node)}
                       </span>
+                      {markers?.get(item.node.id) ? (
+                        <ConflictBadge
+                          collapsed
+                          marker={markers.get(item.node.id)!}
+                          size={13}
+                        />
+                      ) : null}
                       {attentionIds?.has(item.node.id) ? (
                         <AttentionStar size={13} />
                       ) : null}
@@ -241,6 +252,7 @@ export function StructureDocument({
                 key={node.id}
                 attentionIds={attentionIds}
                 branch={branches.get(node.id) ?? 0}
+                markers={markers}
                 citationOf={citationOf}
                 depth={1}
                 focusId={focusId}
@@ -263,6 +275,7 @@ function Section({
   attentionIds,
   citationOf,
   focusId,
+  markers,
   selected,
   onPick,
 }: {
@@ -272,6 +285,7 @@ function Section({
   attentionIds?: ReadonlySet<string>
   citationOf?: ReadonlyMap<string, number>
   focusId?: string | null
+  markers?: ReadonlyMap<string, ConflictMarker>
   selected: string | null
   onPick: (id: string) => void
 }) {
@@ -338,6 +352,9 @@ function Section({
           ) : null}
         </button>
         <span className="mt-1 flex shrink-0 items-center gap-1.5">
+          {markers?.get(node.id) ? (
+            <ConflictBadge marker={markers.get(node.id)!} />
+          ) : null}
           {flagged ? <AttentionStar /> : null}
           {pages ? (
             <span className="font-mono text-[10px] text-slate-400">
@@ -373,6 +390,7 @@ function Section({
           citationOf={citationOf}
           depth={depth + 1}
           focusId={focusId}
+          markers={markers}
           node={kid}
           selected={selected}
           onPick={onPick}

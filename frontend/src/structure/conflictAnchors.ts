@@ -54,6 +54,13 @@ export type ConflictMarker = {
   state: ConflictState
   /** Số xung đột còn hiệu lực (chưa bị đánh Sai lệch) nằm trong nhánh con. */
   below: number
+  /** Trạng thái nặng nhất trong các xung đột thuộc nhánh con (không tính trực tiếp). */
+  belowState: ConflictState
+}
+
+/** Số xung đột trực tiếp còn hiệu lực (loại các xung đột đã đánh Sai lệch). */
+export function directCount(marker: ConflictMarker): number {
+  return marker.spots.filter((spot) => conflictState(spot) !== 'dismissed').length
 }
 
 function sidesOn(spot: ReviewSpot, documentId: string | null) {
@@ -88,17 +95,20 @@ export function anchorConflicts(
   const anchors = new Map<string, ReviewSpot[]>()
   if (nodes.length === 0) return anchors
   for (const spot of spots) {
-    let target: ClauseNode | null = null
+    const targets: ClauseNode[] = []
     for (const side of sidesOn(spot, documentId)) {
-      target = nodeForSide(side, nodes, lines)
-      if (target) break
+      const target = nodeForSide(side, nodes, lines)
+      if (target && !targets.some((item) => item.id === target.id)) {
+        targets.push(target)
+      }
     }
-    if (!target) continue
-    const list = anchors.get(target.id)
-    if (list) {
-      if (!list.some((item) => item.id === spot.id)) list.push(spot)
-    } else {
-      anchors.set(target.id, [spot])
+    for (const target of targets) {
+      const list = anchors.get(target.id)
+      if (list) {
+        if (!list.some((item) => item.id === spot.id)) list.push(spot)
+      } else {
+        anchors.set(target.id, [spot])
+      }
     }
   }
   return anchors
@@ -115,15 +125,31 @@ export function conflictMarkers(
   const markers = new Map<string, ConflictMarker>()
   if (anchors.size === 0) return markers
 
-  function visit(node: ClauseNode): number {
-    let below = 0
-    for (const child of node.children) below += visit(child)
-    const spots = anchors.get(node.id) ?? []
-    const live = spots.filter((spot) => conflictState(spot) !== 'dismissed').length
-    if (spots.length > 0 || below > 0) {
-      markers.set(node.id, { spots, state: worstState(spots), below })
+  function visit(node: ClauseNode): Map<string, ConflictState> {
+    const descendant = new Map<string, ConflictState>()
+    for (const child of node.children) {
+      for (const [id, state] of visit(child)) descendant.set(id, state)
     }
-    return below + live
+    const spots = anchors.get(node.id) ?? []
+    // Một xung đột neo cả vào nút này lẫn vào một hậu duệ chỉ đếm 1 lần —
+    // bỏ id trực tiếp khỏi tập hậu duệ trước khi ghi `below`.
+    for (const spot of spots) descendant.delete(spot.id)
+    if (spots.length > 0 || descendant.size > 0) {
+      let belowState: ConflictState = 'dismissed'
+      for (const state of descendant.values()) {
+        if (STATE_RANK[state] < STATE_RANK[belowState]) belowState = state
+      }
+      markers.set(node.id, {
+        spots,
+        state: worstState(spots),
+        below: descendant.size,
+        belowState,
+      })
+    }
+    for (const spot of spots) {
+      if (conflictState(spot) !== 'dismissed') descendant.set(spot.id, conflictState(spot))
+    }
+    return descendant
   }
   for (const node of nodes) visit(node)
   return markers
