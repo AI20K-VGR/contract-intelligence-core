@@ -33,7 +33,10 @@ from contract_ocr.infrastructure.pdf.pymupdf_extractor import PyMuPDFExtractor
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 ENGINE_IDS = {"pymupdf", "openai", "gemini", "mistral"}
 PARALLEL_ENGINES = {"openai", "gemini", "mistral"}
-WEB_MAX_WORKERS = 4
+# Pages OCR'd concurrently: every model call is network-bound, so more pages in
+# flight shortens a document almost linearly until provider rate limits bite.
+WEB_MAX_WORKERS = int(os.environ.get("AI1_MAX_PAGES_IN_FLIGHT", "8"))
+
 
 _processor = ProcessDocument(
     PyMuPDFExtractor(), PdfRenderer(), ImagePreprocessor(), PdfPageClassifier()
@@ -181,6 +184,8 @@ def _get_engine(engine_id: str) -> OCREngine | None:
                 )
 
                 text_price = os.environ.get("AI1_TEXT_PRICE_PER_PAGE_USD", "0.002")
+                gpt_effort = os.environ.get("AI1_GPT_REASONING_EFFORT", "none") or None
+                budget = os.environ.get("AI1_COST_MODE", "accuracy").lower() == "budget"
                 verifier_price = os.environ.get("AI1_VERIFIER_PRICE_PER_PAGE_USD")
                 _engine_cache[engine_id] = VerifiedMistralOCREngine(
                     text_reader=MistralOCREngine(
@@ -195,10 +200,13 @@ def _get_engine(engine_id: str) -> OCREngine | None:
                         timeout_ms=int(os.environ.get("AI1_VERIFIER_TIMEOUT_MS", "20000")),
                         price_per_page_usd=float(verifier_price) if verifier_price else None,
                     ),
-                    arbiter=OpenAIRegionReader(enabled=True),
+                    arbiter=OpenAIRegionReader(enabled=True, reasoning_effort=gpt_effort),
                     # Mistral out of quota/credits, timed out or down: read the
                     # page with GPT instead of failing it.
-                    fallback_reader=OpenAIVisionOCREngine(enabled=True),
+                    fallback_reader=OpenAIVisionOCREngine(
+                        enabled=True, reasoning_effort=gpt_effort
+                    ),
+                    budget=budget,
                     verify_all_pages=os.environ.get("AI1_VERIFY_ALL_PAGES", "true").lower()
                     not in ("0", "false", "no"),
                 )

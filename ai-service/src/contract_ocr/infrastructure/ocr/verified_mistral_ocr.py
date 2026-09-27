@@ -47,7 +47,7 @@ from contract_ocr.domain.entities import Cell, Context, Line, OCRResult, Row, Ta
 from contract_ocr.domain.enums import GeometryProvenance
 from contract_ocr.domain.headings import is_annex_heading
 from contract_ocr.domain.reading_agreement import disputes, implausible, tokens
-from contract_ocr.domain.vn_text import char_skeleton, line_issues, skeleton
+from contract_ocr.domain.vn_text import char_skeleton, diacritic_density, line_issues, skeleton
 from contract_ocr.infrastructure.image.line_geometry import (
     LineBox,
     column_major_variant,
@@ -73,6 +73,16 @@ _IMAGE_REF = re.compile(r"!\[[^\]]*\]\([^)]*\)|\[image: [^\]]*\]")
 # at least this well; below it a replacement could come from the wrong region.
 MIN_SAME_TEXT_RATIO = 80.0
 MIN_GEOMETRY_MATCH_RATIO = 70.0
+# Budget mode calls the verifier for geometry only when this share of text lines
+# could not be placed on measured ink.
+BUDGET_POOR_GEOMETRY_SHARE = 0.25
+# Below this share of accented syllables a whole page is typed without diacritics.
+UNACCENTED_PAGE_DENSITY = 0.05
+# On such a page these codes describe the source, not a misread; garbage
+# (foreign letters, impossible syllables) is still flagged.
+_ACCENT_ISSUES = frozenset({"LOW_DIACRITIC_DENSITY", "MISSING_VOWEL_MODIFIER"})
+# A full-page arbiter reading shorter than this is too thin to prove a line absent.
+MIN_PAGE_READING_CHARS = 40
 TRUSTED = (GeometryProvenance.MEASURED, GeometryProvenance.DERIVED)
 
 
@@ -84,6 +94,8 @@ class _Segment:
     bbox: BBox | None = None
     provenance: GeometryProvenance | None = None
     review: list[str] = field(default_factory=list)
+    # Text no evidence supports (see `_unsupported`): left out of the output.
+    dropped: bool = False
 
 
 @dataclass
@@ -162,17 +174,27 @@ class VerifiedMistralOCREngine(OCREngine):
         fallback_reader: OCREngine | None = None,
         *,
         verify_all_pages: bool = True,
+        budget: bool = False,
     ) -> None:
         """`verify_all_pages` runs the verifier on every page, concurrently with
         the text reader (no added latency, one extra Mistral page each): only an
         independent second reading can expose a valid-word substitution such as
         2512's "tồn tại thì điểm" for "tồn tại tại thời điểm". False falls back to
-        calling it only when the gate finds geometry/table/critical-field doubt."""
+        calling it only when the gate finds geometry/table/critical-field doubt.
+
+        `budget` trades verification for cost (~$2 per 1,000 pages instead of ~$10,
+        measured on the hard cases): the verifier runs only for geometry/table/
+        unread-ink doubt -- no longer for critical fields, which are then flagged
+        `critical_field_unverified` for a person -- and GPT only re-reads crops,
+        never a whole page. Lost with it: catching a valid-word substitution by the
+        text reader, and dropping text only the text reader saw (it is flagged
+        instead)."""
         self.text_reader = text_reader
         self.verifier = verifier
         self.arbiter = arbiter
         self.fallback_reader = fallback_reader
-        self.verify_all_pages = verify_all_pages
+        self.verify_all_pages = verify_all_pages and not budget
+        self.budget = budget
         self.model = "+".join(
             engine.model for engine in (text_reader, verifier) if engine is not None
         )
@@ -311,13 +333,30 @@ class VerifiedMistralOCREngine(OCREngine):
             # -- stage 3: gate ---------------------------------------------------
             poor_geometry = [i for i in text_indices if segments[i].provenance not in TRUSTED]
             critical = [i for i, s in enumerate(segments) if critical_tokens(s.text)]
-            spelling = {i: issues for i, s in enumerate(segments) if (issues := line_issues(s.text))}
+            unaccented = self._unaccented_source(segments, second)
+            spelling = {
+                i: issues
+                for i, s in enumerate(segments)
+                if (issues := [c for c in line_issues(s.text) if not (unaccented and c in _ACCENT_ISSUES)])
+            }
             reasons: dict[int, set[str]] = {i: {"spelling"} for i in spelling}
             for i, s in enumerate(segments):
                 if amount_words_mismatch(s.text):
                     reasons.setdefault(i, set()).add("amount")
+            # Budget mode does not buy a second reading to fix a stray line's
+            # box: measured on the hard cases, 8 of 13 verifier calls were for a
+            # single line (a title or footer), whose text is intact anyway and
+            # keeps an honest CLAIMED box.
+            geometry_doubt = (
+                len(poor_geometry) >= BUDGET_POOR_GEOMETRY_SHARE * max(1, len(text_indices))
+                if self.budget
+                else bool(poor_geometry)
+            )
             needs_verifier = bool(
-                poor_geometry or alignment.unread_ink or unmatched_tables or critical
+                geometry_doubt
+                or alignment.unread_ink
+                or unmatched_tables
+                or (critical and not self.budget)
             )
 
             # -- stage 4: second reader (geometry, digits, word agreement) -------
@@ -369,6 +408,12 @@ class VerifiedMistralOCREngine(OCREngine):
             )
             if inserted:
                 warnings.append(f"ocr:recovered_unread_ink:{inserted}")
+            dropped = [i for i in output_order if segments[i].dropped]
+            if dropped:
+                # The text reader's raw markdown (kept in `raw_markdown`) still
+                # has these lines, for anyone auditing the decision.
+                output_order = [i for i in output_order if not segments[i].dropped]
+                warnings.append(f"ocr:dropped_unsupported_text:{len(dropped)}")
 
             if span is not None:
                 span.update(
@@ -765,7 +810,7 @@ class VerifiedMistralOCREngine(OCREngine):
         """Decide every conflicting segment by blind vote; return the blind
         readings of `extra_crops` (skipped ink) for the caller to vet."""
         targets = sorted(reasons)
-        readings, extra = self._blind_readings(
+        readings, extra, not_found = self._blind_readings(
             image, context, segments, targets, line_height, extra_crops
         )
         verifier_text = (
@@ -780,7 +825,10 @@ class VerifiedMistralOCREngine(OCREngine):
             kinds = reasons[index]
             candidate = readings.get(index)
             if candidate is None:
-                segment.review.append("arbiter_unavailable")
+                if index in not_found and self._unsupported(segment, verifier_text):
+                    segment.dropped = True
+                else:
+                    segment.review.append("arbiter_unavailable")
                 continue
             same_text = fuzz.ratio(skeleton(candidate), skeleton(segment.text)) >= MIN_SAME_TEXT_RATIO
             mine, theirs = critical_tokens(segment.text), critical_tokens(candidate)
@@ -817,6 +865,40 @@ class VerifiedMistralOCREngine(OCREngine):
         return extra
 
     @staticmethod
+    def _unaccented_source(segments: list[_Segment], second: OCRResult | None) -> bool:
+        """The page itself is typed without diacritics (a draft, a test form),
+        rather than read without them: the text reader -- measured to keep accents
+        on 12/12 pages where 4.x dropped them -- found almost none, and so did the
+        verifier when it ran. A 4.x misread still leaves 20-39% of syllables
+        accented, so it never looks like this. Measured: HC04 sent 38 such lines
+        to GPT for nothing."""
+        density = diacritic_density(" ".join(s.text for s in segments if s.table_index is None))
+        if density is None or density >= UNACCENTED_PAGE_DENSITY:
+            return False
+        if second is None:
+            return True
+        other = diacritic_density(
+            second.raw_markdown or "\n".join(line.text for line in second.lines)
+        )
+        return other is None or other < UNACCENTED_PAGE_DENSITY
+
+    @staticmethod
+    def _unsupported(segment: _Segment, verifier_text: str) -> bool:
+        """Text that nothing but the text reader saw: no ink was matched to it,
+        the verifier did not read it, and a blind full-page reading (the caller
+        checked) does not contain it. Measured: on a continuation page opening
+        straight into a price table, mistral-ocr-2512 prints "THANKS FOR
+        SHOPPING" -- a receipt caption -- on 3/3 runs over a blank margin. One
+        missing signal alone is not enough: text the alignment could not place
+        is still real when either independent reader saw it."""
+        if segment.bbox is not None or segment.table_index is not None or not verifier_text:
+            return False
+        needle = char_skeleton(segment.text)
+        return bool(needle) and fuzz.partial_ratio(
+            needle, char_skeleton(verifier_text)
+        ) < MIN_SAME_TEXT_RATIO
+
+    @staticmethod
     def _closer_to_verifier(candidate: str, current: str, verifier_lines: list[str]) -> bool:
         """The arbiter's reading replaces the text reader's only when it is
         strictly closer (on skeletons) to what the verifier independently read."""
@@ -838,11 +920,13 @@ class VerifiedMistralOCREngine(OCREngine):
         targets: list[int],
         line_height: int,
         extra_crops: dict[str, np.ndarray],
-    ) -> tuple[dict[int, str], dict[str, str]]:
+    ) -> tuple[dict[int, str], dict[str, str], set[int]]:
         """Blind readings of the target segments (by segment index) and of the
-        extra crops (by their key), in as few arbiter requests as possible."""
+        extra crops (by their key), in as few arbiter requests as possible;
+        plus the targets a successful full-page reading does not contain at all
+        -- evidence of absence, unlike a failed or skipped call."""
         if self.arbiter is None:
-            return {}, {}
+            return {}, {}, set()
         height, width = image.shape[:2]
         # Boxes already include accents; a little margin keeps edge strokes
         # without pulling in the neighbouring lines (which the arbiter would
@@ -851,6 +935,10 @@ class VerifiedMistralOCREngine(OCREngine):
         pad_x = max(6, int(0.5 * line_height))
         try:
             crops: dict[str, np.ndarray] = dict(extra_crops)
+            if self.budget:
+                # No whole-page read: a target without a trustworthy box stays
+                # unread and is flagged `arbiter_unavailable`.
+                targets = [i for i in targets if segments[i].provenance in TRUSTED]
             croppable = all(segments[i].provenance in TRUSTED for i in targets)
             if croppable:
                 for i in targets:
@@ -862,14 +950,18 @@ class VerifiedMistralOCREngine(OCREngine):
                     crops[str(i)] = image[y0:y1, x0:x1]
             regions = self.arbiter.read_regions(crops, context) if crops else {}
             extra = {k: v for k, v in regions.items() if k in extra_crops}
+            not_found: set[int] = set()
             if croppable:
                 readings = {int(k): " ".join(v.split()) for k, v in regions.items() if k.isdigit()}
             else:
                 # Some target has no trustworthy box to crop: read the whole
                 # page once and locate each target's text in it.
                 page = self.arbiter.recognize_page(image, self._sub(context, "arbiter"))
-                readings = self._locate(page.raw_markdown or "", segments, targets)
-            return readings, extra
+                page_text = page.raw_markdown or ""
+                readings = self._locate(page_text, segments, targets)
+                if len(char_skeleton(page_text)) >= MIN_PAGE_READING_CHARS:
+                    not_found = set(targets) - set(readings)
+            return readings, extra, not_found
         except Exception as exc:
             logger.warning(
                 "ocr.arbiter_failed document_id=%s page=%s error=%s",
@@ -877,7 +969,7 @@ class VerifiedMistralOCREngine(OCREngine):
                 context.page,
                 f"{type(exc).__name__}: {exc}",
             )
-            return {}, {}
+            return {}, {}, set()
 
     @staticmethod
     def _locate(page_text: str, segments: list[_Segment], targets: list[int]) -> dict[int, str]:
