@@ -81,6 +81,9 @@ async def mock_svc() -> AsyncMock:
 
 @pytest_asyncio.fixture
 async def client(mock_svc: AsyncMock) -> AsyncGenerator[AsyncClient, None]:
+    from contract_intelligence.identity.interfaces.api.dependencies import (
+        ensure_current_app_user,
+    )
     from contract_intelligence.review.interfaces.api.dependencies import (
         get_review_service,
         require_review_dossier_access,
@@ -91,6 +94,8 @@ async def client(mock_svc: AsyncMock) -> AsyncGenerator[AsyncClient, None]:
     from contract_intelligence.shared.auth.tenant import get_tenant_id
 
     app.dependency_overrides[get_review_service] = lambda: mock_svc
+    # Provision hồ sơ người dùng cần DB thật; router test không bind engine.
+    app.dependency_overrides[ensure_current_app_user] = lambda: None
     app.dependency_overrides[require_review_dossier_access] = lambda: None
     app.dependency_overrides[require_review_item_access] = lambda: None
     app.dependency_overrides[require_review_item_mutation_access] = lambda: None
@@ -625,6 +630,59 @@ class TestClauseReviewService:
         state = await svc.get_clause_review(ctx)
         assert state.stale is not None
         assert state.stale.text_changed is False
+
+    async def test_finding_review_matches_clause_review_and_flags_rerun(self) -> None:
+        repo = _FakeClauseRepo(
+            orphans=[
+                {
+                    "id": "ri_prev",
+                    "run_id": "run_0",
+                    "rationale": "08 tuần",
+                }
+            ]
+        )
+        repo.orphan_rows = [
+            {
+                "id": "ra_prev",
+                "action": "confirm",
+                "base_version": 1,
+                "comment": None,
+                "corrected_value": None,
+                "reviewer_id": "usr_a",
+                "reviewer_name": "Reviewer A",
+            }
+        ]
+
+        async def priors(**_kw: object) -> list[dict[str, object]]:
+            return repo.orphans
+
+        repo.list_prior_finding_reviews = priors  # type: ignore[method-assign]
+        svc = ReviewService(repo=repo, tenant_id="t")  # type: ignore[arg-type]
+        ctx = {
+            "finding_id": "fd_new",
+            "dossier_id": "dos_1",
+            "key_or_topic": "Điều 3.1",
+            "rationale": "08 tuần ↔ 10 tuần",
+            "is_locked": False,
+            "run_id": "run_1",
+        }
+        before = await svc.get_finding_review(ctx)
+        assert before.latest is None
+        assert before.stale is not None
+        assert before.stale.latest.action == "confirm"
+        assert before.stale.text_changed is True
+
+        saved = await svc.submit_finding_review(
+            ctx=ctx,
+            action_type=ReviewActionType.CORRECT,
+            base_version=0,
+            reviewer_id="usr_b",
+            comment="Phụ lục thắng",
+        )
+        assert saved.latest is not None
+        assert saved.latest.action == "correct"
+        assert saved.latest.corrected_value == {"assessment": "Phụ lục thắng"}
+        assert saved.stale is None
 
     async def test_locked_dossier_is_rejected(self) -> None:
         svc = ReviewService(repo=_FakeClauseRepo(), tenant_id="t")  # type: ignore[arg-type]

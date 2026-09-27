@@ -8,7 +8,7 @@ LUỒNG CHUẨN (đã đối thoại với user):
     3. Frontend gửi access_token trong header ``Authorization: Bearer <token>``.
     4. ``get_current_user`` dependency verify token qua Keycloak JWKS,
        build AuthenticatedUser từ JWT claims.
-    5. Endpoint này đơn giản pass-through — trả về profile từ JWT claims.
+    5. Endpoint trả profile từ JWT và tạo dòng app_user nếu user chưa được sync.
 
 Backend KHÔNG issue token. Không có /login, /refresh, /logout trên backend
 (frontend gọi thẳng Keycloak cho các flow đó).
@@ -20,6 +20,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
+from contract_intelligence.identity.interfaces.api.dependencies import (
+    ensure_current_app_user,
+)
 from contract_intelligence.shared.auth.dependencies import get_current_user
 from contract_intelligence.shared.auth.schemas import (
     AuthenticatedUser,
@@ -42,8 +45,9 @@ router = APIRouter(tags=["Authentication"])
 )
 async def me(
     user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    _provisioned: Annotated[None, Depends(ensure_current_app_user)],
 ) -> ApiResponse[MeResponse]:
-    """Lấy thông tin user hiện tại — pass-through từ Keycloak JWT claims.
+    """Lấy thông tin user hiện tại từ Keycloak JWT và đảm bảo có dòng app_user.
 
     Args:
         user: AuthenticatedUser được inject từ ``get_current_user()``
@@ -51,8 +55,9 @@ async def me(
 
     Returns:
         UserProfilePayload chứa id, email, display_name, role, tenant_id
-        — tất cả từ JWT claims, KHÔNG query DB.
+        từ JWT claims. Lần đầu gọi cũng ghi app_user để thẩm định hiện tên.
     """
+    _ = _provisioned
     return ApiResponse(
         data=MeResponse(
             id=user.user_id,

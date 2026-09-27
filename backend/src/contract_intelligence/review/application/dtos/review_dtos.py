@@ -240,6 +240,37 @@ class ClauseReviewDTO(BaseModel):
     stale: ClauseStaleReviewDTO | None = None
 
 
+class FindingReviewRequestDTO(BaseModel):
+    """POST /findings/{id}/review — cùng hành động với thẩm định trích dẫn."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action: Literal["confirm", "reject", "correct"]
+    base_version: int = Field(..., ge=0)
+    comment: str | None = Field(default=None, max_length=2000)
+
+
+class FindingReviewDTO(BaseModel):
+    """Trạng thái thẩm định hiện hành của một xung đột + lịch sử.
+
+    ``stale`` là thẩm định của cùng chủ đề ở lần phân tích trước, khi mục hiện tại
+    chưa được thẩm định. Nó không được tính là kết quả hiện hành.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    finding_id: str
+    dossier_id: str
+    review_item_id: str | None = None
+    run_id: str | None = None
+    version: int = 0
+    status: str = "unreviewed"
+    dossier_locked: bool = False
+    latest: ClauseReviewEntryDTO | None = None
+    history: list[ClauseReviewEntryDTO] = Field(default_factory=list)
+    stale: ClauseStaleReviewDTO | None = None
+
+
 class ReviewConflictErrorDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -263,6 +294,8 @@ __all__ = [
     "ClauseReviewEntryDTO",
     "ClauseReviewRequestDTO",
     "ClauseStaleReviewDTO",
+    "FindingReviewDTO",
+    "FindingReviewRequestDTO",
     "ReviewActionRequestDTO",
     "ReviewActionResponseDTO",
     "ReviewConflictErrorDTO",
