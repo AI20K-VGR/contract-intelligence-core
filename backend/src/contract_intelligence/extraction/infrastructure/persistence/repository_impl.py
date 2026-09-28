@@ -155,9 +155,7 @@ class PipelineRunRepositoryImpl:
             offset=offset,
         )
 
-    async def get_latest_ai2_read_model(
-        self, dossier_id: str
-    ) -> tuple[PipelineRunORM, Any] | None:
+    async def get_latest_ai2_read_model(self, dossier_id: str) -> tuple[PipelineRunORM, Any] | None:
         """Return the newest persisted AI2 projection for a dossier."""
         stmt = (
             select(PipelineRunORM)

@@ -701,7 +701,10 @@ def _hits_from_ai2(payload: dict[str, Any]) -> list[DossierSearchHit]:
             continue
         nested = item.get("citation")
         if isinstance(nested, dict):
-            item = {**nested, **{key: value for key, value in item.items() if value not in (None, "", [])}}
+            item = {
+                **nested,
+                **{key: value for key, value in item.items() if value not in (None, "", [])},
+            }
         text = item.get("text") or item.get("quote") or item.get("snippet") or item.get("text_span")
         if not isinstance(text, str) or not text.strip():
             continue
