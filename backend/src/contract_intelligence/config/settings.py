@@ -89,7 +89,26 @@ class Settings(BaseSettings):
         default=3600,
         ge=60,
         le=86400,
-        description="TTL for MinIO presigned GET/PUT URLs embedded in OCR commands.",
+        description=(
+            "Minimum TTL for MinIO presigned GET/PUT URLs in OCR commands. The "
+            "actual TTL is stretched to outlive the run's AI1 deadline."
+        ),
+    )
+    ai1_deadline_base_seconds: int = Field(
+        default=600,
+        ge=60,
+        description="AI1 deadline per run = base + per_page x pages in the dossier.",
+    )
+    ai1_deadline_per_page_seconds: float = Field(
+        default=30.0,
+        ge=0.0,
+        description="Seconds of AI1 budget added per page (see ai1_deadline_base_seconds).",
+    )
+    worker_watchdog_interval_seconds: float = Field(
+        default=60.0,
+        ge=1.0,
+        le=3600.0,
+        description="How often the worker fails runs whose AI1 deadline has passed.",
     )
     ai1_ocr_engine: str = Field(
         default="mistral",

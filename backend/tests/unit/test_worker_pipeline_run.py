@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Iterator
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -179,10 +180,9 @@ async def test_redelivered_upload_resumes_active_run(
 async def test_ocr_command_asks_for_every_page_with_one_render_url_each(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        worker.storage, "generate_presigned_get_url", AsyncMock(return_value="http://get")
-    )
-    put_url = AsyncMock(side_effect=lambda *, key: f"http://put/{key}")
+    get_url = AsyncMock(return_value="http://get")
+    monkeypatch.setattr(worker.storage, "generate_presigned_get_url", get_url)
+    put_url = AsyncMock(side_effect=lambda *, key, expires_in: f"http://put/{key}")
     monkeypatch.setattr(worker.storage, "generate_presigned_put_url", put_url)
     document = DocumentORM(
         id=DOC_A,
@@ -205,6 +205,106 @@ async def test_ocr_command_asks_for_every_page_with_one_render_url_each(
     assert payload["pages_to_process"] == list(range(1, 201))
     urls = payload["render_target"]["presigned_put_urls"]
     assert len(urls) == 200 and urls["200"].endswith("/page-200.png")
+    # URLs outlive the run's AI1 deadline (default 600s + 30s x 200 pages) by 10 min.
+    expected_ttl = worker.ai1_deadline_seconds(200) + 600
+    assert expected_ttl == 7200
+    assert get_url.await_args.kwargs["expires_in"] == expected_ttl
+    assert {call.kwargs["expires_in"] for call in put_url.await_args_list} == {expected_ttl}
+
+
+def test_presign_ttl_never_exceeds_the_s3_limit() -> None:
+    assert worker._presign_ttl_seconds(1_000_000) == 7 * 24 * 3600
+
+
+# ---------------------------------------------------------------------------
+# AI1 watchdog
+# ---------------------------------------------------------------------------
+
+
+async def _age_run(factory: async_sessionmaker[AsyncSession], run_id: str, seconds: int) -> None:
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+        assert run is not None
+        run.created_at = datetime.now(tz=UTC) - timedelta(seconds=seconds)
+        await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_watchdog_fails_run_past_its_ai1_deadline(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    run_id = await _start(factory)
+    # Fixture documents have no page count: deadline = 600 + 30 x 1 page.
+    await _age_run(factory, run_id, worker.ai1_deadline_seconds(0) + 5)
+
+    async with factory() as session:
+        assert await worker.fail_overdue_ai1_runs(session) == [run_id]
+
+    job = await _job(factory)
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+    assert job.status == "failed" and job.error_code == "AI1_TIMEOUT"
+    assert run is not None and run.status == "failed"
+    (audit,) = await _audits(factory, "ai1.timeout")
+    assert audit.run_id == run_id
+
+
+@pytest.mark.asyncio
+async def test_watchdog_leaves_runs_within_deadline_and_finished_jobs(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    run_id = await _start(factory)
+    await _age_run(factory, run_id, worker.ai1_deadline_seconds(0) - 60)
+    async with factory() as session:
+        assert await worker.fail_overdue_ai1_runs(session) == []
+
+    # A job that already left PROCESSING is never touched, however old its run.
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.status = "pending_review"
+        await session.commit()
+    await _age_run(factory, run_id, 10 * worker.ai1_deadline_seconds(0))
+    async with factory() as session:
+        assert await worker.fail_overdue_ai1_runs(session) == []
+    assert (await _job(factory)).status == "pending_review"
+
+
+@pytest.mark.asyncio
+async def test_watchdog_deadline_grows_with_page_count(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with factory() as session:
+        for doc_id in (DOC_A, DOC_B):
+            document = await session.get(DocumentORM, doc_id)
+            assert document is not None
+            document.page_count = 100
+        await session.commit()
+    run_id = await _start(factory)
+    # Old enough for a 1-page dossier, well inside the 200-page deadline (6600s).
+    await _age_run(factory, run_id, 3600)
+    async with factory() as session:
+        assert await worker.fail_overdue_ai1_runs(session) == []
+    await _age_run(factory, run_id, worker.ai1_deadline_seconds(200) + 5)
+    async with factory() as session:
+        assert await worker.fail_overdue_ai1_runs(session) == [run_id]
+
+
+@pytest.mark.asyncio
+async def test_ocr_result_after_timeout_does_not_revive_the_job(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    await _age_run(factory, run_id, worker.ai1_deadline_seconds(0) + 5)
+    async with factory() as session:
+        await worker.fail_overdue_ai1_runs(session)
+
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+
+    job = await _job(factory)
+    assert job.status == "failed" and job.error_code == "AI1_TIMEOUT"
+    assert ai2_ready.call_count == 0
 
 
 @pytest.mark.asyncio

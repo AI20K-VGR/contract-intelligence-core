@@ -23,7 +23,7 @@ from typing import Any
 
 import structlog
 from aiokafka import AIOKafkaConsumer, TopicPartition
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from contract_intelligence.config.settings import get_settings
@@ -69,6 +69,12 @@ EVENT_OCR_FAILED = "ai1.ocr.failed"
 
 Handler = Callable[[AsyncSession, dict[str, Any]], Awaitable[None]]
 
+# S3 SigV4 presigned URLs cannot live longer than 7 days.
+_S3_MAX_PRESIGN_SECONDS = 7 * 24 * 3600
+# Presigned URLs outlive the AI1 deadline by this much, so the watchdog — not
+# an expired URL (403 deep inside AI1) — is what ends a slow run.
+_PRESIGN_MARGIN_SECONDS = 600
+
 # In-flight AI2 hand-offs, one per run. Only a concurrency guard: whether a
 # run still needs AI2 is always re-read from the DB (job status, result digest).
 _ai2_tasks: dict[str, asyncio.Task[None]] = {}
@@ -79,6 +85,26 @@ _session_factory: async_sessionmaker[AsyncSession] | None = None
 
 def _utcnow_iso() -> str:
     return datetime.now(tz=UTC).isoformat()
+
+
+def ai1_deadline_seconds(total_pages: int) -> int:
+    """How long a run may wait for AI1 before the watchdog fails it."""
+    settings = get_settings()
+    return int(
+        settings.ai1_deadline_base_seconds
+        + settings.ai1_deadline_per_page_seconds * max(1, total_pages)
+    )
+
+
+def _presign_ttl_seconds(total_pages: int) -> int:
+    floor = get_settings().kafka_presign_expires_seconds
+    wanted = ai1_deadline_seconds(total_pages) + _PRESIGN_MARGIN_SECONDS
+    return min(_S3_MAX_PRESIGN_SECONDS, max(floor, wanted))
+
+
+def _as_utc(value: datetime) -> datetime:
+    # SQLite hands back naive datetimes; every column is stored in UTC.
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def _task_id_from(document_id: str) -> int:
@@ -728,6 +754,7 @@ async def _build_ocr_command_payload(
     document: DocumentORM,
     dossier: DossierORM,
     run_id: str,
+    dossier_pages: int | None = None,
 ) -> dict[str, Any]:
     settings = get_settings()
     page_count = int(document.page_count or 0)
@@ -736,11 +763,16 @@ async def _build_ocr_command_payload(
     blob_uri = document.blob_uri
     if not blob_uri:
         raise ValueError(f"Document {document.id} has no blob URI")
-    get_url = await storage.generate_presigned_get_url(blob_uri)
+    # AI1 may reach this document only after the others of the dossier, so the
+    # URLs must last as long as the whole run's deadline.
+    ttl = _presign_ttl_seconds(dossier_pages if dossier_pages is not None else len(pages))
+    get_url = await storage.generate_presigned_get_url(blob_uri, expires_in=ttl)
     put_urls: dict[str, str] = {}
     for page_no in pages:
         put_key = f"{document.id}/page-{page_no:03d}.png"
-        put_urls[str(page_no)] = await storage.generate_presigned_put_url(key=put_key)
+        put_urls[str(page_no)] = await storage.generate_presigned_put_url(
+            key=put_key, expires_in=ttl
+        )
 
     task_id = _task_id_from(document.id)
     engine = (settings.ai1_ocr_engine or "mistral").strip().lower()
@@ -805,11 +837,13 @@ async def handle_dossier_uploaded(session: AsyncSession, event: dict[str, Any]) 
         logger.error("worker.dossier_uploaded.dossier_missing", dossier_id=dossier_id)
         return
 
+    dossier_pages = sum(int(document.page_count or 0) for document in documents)
     for document in documents:
         envelope = await _build_ocr_command_payload(
             document=document,
             dossier=dossier,
             run_id=run_id,
+            dossier_pages=dossier_pages,
         )
         await messaging.publish_event(
             settings.kafka_ai1_ocr_commands_topic,
@@ -1270,6 +1304,80 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
         raise
 
 
+async def fail_overdue_ai1_runs(session: AsyncSession, *, now: datetime | None = None) -> list[str]:
+    """Fail every run still waiting on AI1 past its deadline; return their ids.
+
+    Without this a lost OCR result (AI1 crash, result too large to publish)
+    leaves the job PROCESSING forever. A result arriving after the timeout is
+    dropped by the forward-only rule; the user restarts OCR.
+    """
+    now = now or datetime.now(tz=UTC)
+    rows = (
+        await session.execute(
+            select(
+                JobORM.tenant_id, JobORM.dossier_id, PipelineRunORM.id, PipelineRunORM.created_at
+            )
+            .join(PipelineRunORM, PipelineRunORM.id == JobORM.current_run_id)
+            .where(JobORM.status == JobStatus.PROCESSING.value)
+        )
+    ).all()
+    failed: list[str] = []
+    for tenant_id, dossier_id, run_id, started_at in rows:
+        pages = int(
+            (
+                await session.execute(
+                    select(func.coalesce(func.sum(DocumentORM.page_count), 0)).where(
+                        DocumentORM.dossier_id == dossier_id
+                    )
+                )
+            ).scalar_one()
+        )
+        deadline = ai1_deadline_seconds(pages)
+        waited = (now - _as_utc(started_at)).total_seconds()
+        if waited <= deadline:
+            continue
+        extracted = await _recorded_extractions(session, run_id) or set()
+        await _fail_ai1_run(
+            session,
+            tenant_id=tenant_id,
+            run_id=run_id,
+            code="AI1_TIMEOUT",
+            detail=(
+                f"AI1 did not return every document within {deadline}s "
+                f"({pages} pages); restart OCR to try again"
+            ),
+            audit_action="ai1.timeout",
+            audit_detail={
+                "deadline_seconds": deadline,
+                "waited_seconds": int(waited),
+                "pages": pages,
+                "extracted_documents": len(extracted),
+            },
+        )
+        failed.append(run_id)
+        logger.warning(
+            "worker.ai1.timeout",
+            dossier_id=dossier_id,
+            run_id=run_id,
+            deadline_seconds=deadline,
+            pages=pages,
+        )
+    return failed
+
+
+async def run_ai1_watchdog(session_factory: async_sessionmaker[AsyncSession]) -> None:
+    interval = get_settings().worker_watchdog_interval_seconds
+    while True:
+        try:
+            async with session_factory() as session:
+                await fail_overdue_ai1_runs(session)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("worker.ai1.watchdog_error")
+        await asyncio.sleep(interval)
+
+
 async def handle_dossier_event(session: AsyncSession, message: dict[str, Any]) -> None:
     event_type = message.get("event")
     if event_type == "dossier.uploaded":
@@ -1504,6 +1612,7 @@ async def run_consumer() -> None:
         await asyncio.gather(
             run_dossier_events_consumer(session_factory),
             run_ai1_results_consumer(session_factory),
+            run_ai1_watchdog(session_factory),
         )
     finally:
         pending = list(_ai2_tasks.values())
