@@ -679,3 +679,127 @@ async def test_ai2_not_submitted_unless_job_is_extracted(
         await worker._run_ai2_if_ready(session, dossier_id=DOSSIER, tenant_id=TENANT, run_id=run_id)
 
     submit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_ai2_deadline_miss_fails_run_as_ai2_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = SimpleNamespace(id="manifest_test", status="confirmed")
+    durable_run = SimpleNamespace(ai2_result_digest=None, config_snapshot='{"ai2_attempt": 2}')
+    documents = [SimpleNamespace(page_count=150), SimpleNamespace(page_count=50)]
+    session = SimpleNamespace(
+        execute=AsyncMock(
+            side_effect=[
+                _ScalarResult(SimpleNamespace(status="extracted")),
+                _ScalarResult(manifest),
+                _ScalarResult(durable_run),
+                _RowsResult([]),
+                _RowsResult([]),
+                _RowsResult(documents),
+            ]
+        ),
+        commit=AsyncMock(),
+        rollback=AsyncMock(),
+    )
+    build = MagicMock(return_value={"snapshots": [{"snapshot_id": "snap_test"}]})
+    monkeypatch.setattr(worker, "build_processing_request", build)
+    monkeypatch.setattr(worker, "update_pipeline_run_status", AsyncMock())
+    monkeypatch.setattr(worker, "update_pipeline_step", AsyncMock())
+    monkeypatch.setattr(worker, "submit_ai2_processing", AsyncMock(return_value={"job_id": "j9"}))
+    poll = AsyncMock(side_effect=worker.AiAdapterDeadlineExceeded("still running"))
+    monkeypatch.setattr(worker, "poll_ai2_processing", poll)
+    fail = AsyncMock()
+    monkeypatch.setattr(worker, "_fail_ai2_run", fail)
+
+    await worker._run_ai2_if_ready(
+        session, dossier_id="dos_test", tenant_id="tenant_test", run_id="run_x"
+    )
+
+    budget = worker.ai2_deadline_seconds(200)
+    assert budget == 700  # 300s + 2s x 200 pages
+    assert build.call_args.kwargs["attempt"] == 2
+    assert build.call_args.kwargs["max_processing_seconds"] == budget
+    assert poll.await_args.kwargs["timeout_seconds"] == budget + 60
+    assert fail.await_args.kwargs["code"] == "AI2_TIMEOUT"
+    assert fail.await_args.kwargs["audit_detail"]["ai2_job_id"] == "j9"
+
+
+# ---------------------------------------------------------------------------
+# AI2 retry without re-OCR
+# ---------------------------------------------------------------------------
+
+
+async def _fail_at_ai2(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock, code: str
+) -> str:
+    """Both documents OCR'd (EXTRACTED), then the AI2 step failed with ``code``."""
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+    assert (await _job(factory)).status == "extracted"
+    async with factory() as session:
+        await worker._fail_ai2_run(
+            session, tenant_id=TENANT, run_id=run_id, code=code, detail="x", audit_detail={}
+        )
+    ai2_ready.reset_mock()
+    return run_id
+
+
+def _retry_event(run_id: str) -> dict[str, Any]:
+    return {"event": "dossier.ai2.retry", "dossier_id": DOSSIER, "run_id": run_id}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("code", ["AI2_TIMEOUT", "AI2_PROCESSING_FAILED"])
+async def test_ai2_retry_reopens_run_with_next_attempt(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock, code: str
+) -> None:
+    run_id = await _fail_at_ai2(factory, ai2_ready, code)
+
+    async with factory() as session:
+        await worker.handle_dossier_event(session, _retry_event(run_id))
+
+    job = await _job(factory)
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+    assert job.status == "extracted" and job.error_code is None
+    assert job.current_run_id == run_id  # same run: no new OCR
+    assert run is not None and run.status == "running"
+    assert worker._ai2_attempt(run) == 2
+    ai2_ready.assert_called_once_with(dossier_id=DOSSIER, tenant_id=TENANT, run_id=run_id)
+    (audit,) = await _audits(factory, "ai2.retry_requested")
+    assert audit.detail is not None and '"attempt": 2' in str(audit.detail).replace("'", '"')
+
+
+@pytest.mark.asyncio
+async def test_ai2_retry_refused_when_ocr_failed(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A, event_type=worker.EVENT_OCR_FAILED))
+    assert (await _job(factory)).status == "failed"
+
+    async with factory() as session:
+        await worker.handle_dossier_event(session, _retry_event(run_id))
+
+    assert (await _job(factory)).status == "failed"
+    ai2_ready.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ai2_retry_is_a_no_op_once_the_run_is_back_in_flight(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    """A redelivered retry event must not bump the attempt a second time."""
+    run_id = await _fail_at_ai2(factory, ai2_ready, "AI2_TIMEOUT")
+
+    async with factory() as session:
+        await worker.handle_dossier_event(session, _retry_event(run_id))
+    async with factory() as session:
+        await worker.handle_dossier_event(session, _retry_event(run_id))
+
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+    assert worker._ai2_attempt(run) == 2
+    assert ai2_ready.call_count == 1

@@ -170,6 +170,33 @@ class Settings(BaseSettings):
     ai2_service_issuer: str = Field(default="backend-service")
     ai2_service_audience: str = Field(default="vsf-ai2")
     ai2_service_key_id: str = Field(default="default")
+    ai2_deadline_base_seconds: int = Field(
+        default=300,
+        ge=30,
+        description=(
+            "AI2 processing budget per run = base + per_page x pages; sent to AI2 as "
+            "max_processing_seconds and used as the worker's polling deadline."
+        ),
+    )
+    ai2_deadline_per_page_seconds: float = Field(
+        default=2.0,
+        ge=0.0,
+        description="Seconds of AI2 budget added per page (see ai2_deadline_base_seconds).",
+    )
+    ai2_poll_grace_seconds: int = Field(
+        default=60,
+        ge=0,
+        description="The worker keeps polling this long past AI2's own budget.",
+    )
+    ai2_max_consecutive_errors: int = Field(
+        default=5,
+        ge=1,
+        le=100,
+        description=(
+            "Transient AI2 errors (timeout, 429, 5xx, transport) tolerated in a row "
+            "while submitting or polling before the run fails."
+        ),
+    )
     ai2_idp_poll_interval_seconds: float = Field(default=0.5, ge=0.1, le=30.0)
     ai2_idp_max_polls: int = Field(default=120, ge=1, le=10_000)
     # Dossier Q&A (POST /dossiers/{id}/search → AI2 POST /query)

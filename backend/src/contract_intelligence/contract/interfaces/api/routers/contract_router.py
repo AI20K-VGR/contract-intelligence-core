@@ -65,6 +65,7 @@ from contract_intelligence.contract.domain.entities.document import (
     Document,
     DocumentRole,
 )
+from contract_intelligence.contract.domain.entities.job import JobStatus
 from contract_intelligence.contract.infrastructure.persistence.dossier_deletion_service import (
     run_dossier_purge,
 )
@@ -596,6 +597,59 @@ async def restart_dossier_ocr(
         actor_display_name=user.email or user.display_name,
         detail=None,
         kind="dossier.ocr_restart",
+    )
+    return ApiResponse(data=OcrRestartDTO(dossier_id=dossier_id, status="queued"))
+
+
+_AI2_RETRYABLE_ERRORS = frozenset({"AI2_PROCESSING_FAILED", "AI2_TIMEOUT"})
+
+
+@router.post(
+    "/dossiers/{dossier_id}/ai2/retry",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ApiResponse[OcrRestartDTO],
+    summary="Chạy lại AI2 (trích xuất/so sánh) mà không OCR lại",
+    responses={
+        404: {"description": "Dossier not found"},
+        409: {"description": "Latest job did not fail at the AI2 step"},
+    },
+)
+async def retry_dossier_ai2(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+) -> ApiResponse[OcrRestartDTO]:
+    """Gửi lại AI2 cho run hiện tại; kết quả OCR đã có được dùng lại.
+
+    Chỉ nhận khi job mới nhất FAILED ở bước AI2. Worker kiểm tra lại điều kiện
+    trước khi chạy (đủ snapshot OCR), rồi gửi AI2 với attempt kế tiếp.
+    """
+    dossier = await svc.get_dossier(dossier_id)
+    job = dossier.latest_job()
+    if (
+        job is None
+        or job.current_run_id is None
+        or job.status != JobStatus.FAILED
+        or job.error_code not in _AI2_RETRYABLE_ERRORS
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Chỉ chạy lại AI2 được khi hồ sơ lỗi ở bước AI2; lỗi OCR cần chạy lại OCR.",
+        )
+    await messaging.publish_event(
+        "dossier_events",
+        {
+            "event": "dossier.ai2.retry",
+            "dossier_id": str(dossier_id),
+            "run_id": job.current_run_id,
+        },
+    )
+    await _record(
+        tenant_id=user.tenant_id,
+        title=f"Chạy lại AI2 hồ sơ {dossier.name}",
+        actor_display_name=user.email or user.display_name,
+        detail=None,
+        kind="dossier.ai2_retry",
     )
     return ApiResponse(data=OcrRestartDTO(dossier_id=dossier_id, status="queued"))
 

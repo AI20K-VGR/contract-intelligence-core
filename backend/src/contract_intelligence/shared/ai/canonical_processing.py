@@ -239,8 +239,14 @@ def build_processing_request(
     documents: list[DocumentORM],
     members: list[ManifestItemORM],
     relations: list[ManifestRelationORM],
+    attempt: int = 1,
+    max_processing_seconds: int = 300,
 ) -> dict[str, Any] | None:
-    """Return a canonical request only when the confirmed manifest is complete."""
+    """Return a canonical request only when the confirmed manifest is complete.
+
+    ``attempt`` > 1 asks AI2 for a fresh job on the same idempotency key (a
+    retry after a failed AI2 run); the same attempt returns AI2's stored job.
+    """
 
     included = [item for item in members if item.included and item.document_id]
     by_document = {document.id: document for document in documents}
@@ -339,7 +345,7 @@ def build_processing_request(
         "schema_version": "be.ai2.processing.request.v1",
         "request_id": request_id,
         "idempotency_key": request_id,
-        "attempt": 1,
+        "attempt": attempt,
         "task_id": run_id,
         "dossier_id": dossier_id,
         "snapshots": [snapshot for _, snapshot in wire_selected],
@@ -350,7 +356,7 @@ def build_processing_request(
             "egress_allowed": False,
             "use_vector": True,
             "budget_limits": {
-                "max_processing_seconds": 300,
+                "max_processing_seconds": max_processing_seconds,
                 "max_llm_calls": 20,
                 "max_embedding_tokens": 50_000,
             },

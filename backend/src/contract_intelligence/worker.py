@@ -42,6 +42,7 @@ from contract_intelligence.extraction.infrastructure.persistence.orm import (
 )
 from contract_intelligence.infrastructure import messaging, storage
 from contract_intelligence.infrastructure.ai_adapters import (
+    AiAdapterDeadlineExceeded,
     AiAdapterError,
     poll_ai2_processing,
     submit_ai2_processing,
@@ -94,6 +95,25 @@ def ai1_deadline_seconds(total_pages: int) -> int:
         settings.ai1_deadline_base_seconds
         + settings.ai1_deadline_per_page_seconds * max(1, total_pages)
     )
+
+
+def ai2_deadline_seconds(total_pages: int) -> int:
+    """AI2 processing budget for a run: sent to AI2 and used as the poll deadline."""
+    settings = get_settings()
+    return int(
+        settings.ai2_deadline_base_seconds
+        + settings.ai2_deadline_per_page_seconds * max(1, total_pages)
+    )
+
+
+def _ai2_attempt(run: PipelineRunORM | None) -> int:
+    """AI2 attempt of the run: 1, bumped by every retry (stored on the run)."""
+    if run is None:
+        return 1
+    try:
+        return max(1, int(_run_payload(run).get("ai2_attempt") or 1))
+    except (TypeError, ValueError):
+        return 1
 
 
 def _presign_ttl_seconds(total_pages: int) -> int:
@@ -906,14 +926,19 @@ async def _run_ai2_if_ready(
     document_result = await session.execute(
         select(DocumentORM).where(DocumentORM.dossier_id == dossier_id)
     )
+    documents = list(document_result.scalars().all())
     snapshots = _durable_snapshots_from_run(durable_run)
+    budget = ai2_deadline_seconds(sum(int(d.page_count or 0) for d in documents))
+    attempt = _ai2_attempt(durable_run)
     request = build_processing_request(
         dossier_id=dossier_id,
         run_id=run_id,
         snapshots=snapshots,
-        documents=list(document_result.scalars().all()),
+        documents=documents,
         members=list(member_result.scalars().all()),
         relations=list(relation_result.scalars().all()),
+        attempt=attempt,
+        max_processing_seconds=budget,
     )
     if request is None:
         logger.info(
@@ -938,10 +963,16 @@ async def _run_ai2_if_ready(
         run_id=run_id,
         step="S4",
         status="running",
-        metrics={"service": "ai2", "contract": "be.ai2.processing.request.v1"},
+        metrics={
+            "service": "ai2",
+            "contract": "be.ai2.processing.request.v1",
+            "attempt": attempt,
+            "budget_seconds": budget,
+        },
     )
     await session.commit()
 
+    ai2_job_id = ""
     try:
         submission = await submit_ai2_processing(
             strip_internal_fields(request),
@@ -955,6 +986,7 @@ async def _run_ai2_if_ready(
             ai2_job_id,
             tenant_id=tenant_id,
             dossier_id=dossier_id,
+            timeout_seconds=budget + get_settings().ai2_poll_grace_seconds,
         )
         if str(report.get("status", "")).upper() != "SUCCEEDED":
             errors = report.get("errors") or [
@@ -977,13 +1009,22 @@ async def _run_ai2_if_ready(
         )
     except Exception as exc:
         await session.rollback()
+        # AI2 has no cancel API: a timed-out job may still finish on its side.
+        # Its id goes into the audit so an operator can find it; a retry sends
+        # the next attempt, so a late result of this one is never persisted.
+        timed_out = isinstance(exc, AiAdapterDeadlineExceeded)
         await _fail_ai2_run(
             session,
             tenant_id=tenant_id,
             run_id=run_id,
-            code="AI2_PROCESSING_FAILED",
+            code="AI2_TIMEOUT" if timed_out else "AI2_PROCESSING_FAILED",
             detail=str(exc)[:1000],
-            audit_detail={"source": "http_poll"},
+            audit_detail={
+                "source": "http_poll",
+                "ai2_job_id": ai2_job_id,
+                "attempt": attempt,
+                "budget_seconds": budget,
+            },
         )
         logger.exception("worker.ai2.failed", dossier_id=dossier_id, run_id=run_id)
 
@@ -1378,10 +1419,87 @@ async def run_ai1_watchdog(session_factory: async_sessionmaker[AsyncSession]) ->
         await asyncio.sleep(interval)
 
 
+AI2_RETRYABLE_ERRORS = frozenset({"AI2_PROCESSING_FAILED", "AI2_TIMEOUT"})
+
+
+async def _reopen_for_ai2_retry(session: AsyncSession, run_id: str) -> JobORM | None:
+    """Put a run whose AI2 step failed back to EXTRACTED with the next attempt.
+
+    The one deliberate exception to forward-only transitions: its OCR results
+    are complete and stored on the run, so only AI2 runs again (no re-OCR).
+    Returns the job, or None when the run is not in that state.
+    """
+    job = await _job_for_run(session, run_id)
+    run = await _load_run(session, run_id)
+    if (
+        job is None
+        or run is None
+        or job.status != JobStatus.FAILED.value
+        or job.error_code not in AI2_RETRYABLE_ERRORS
+    ):
+        logger.warning(
+            "worker.ai2.retry_refused",
+            run_id=run_id,
+            job_status=job.status if job else None,
+            error_code=job.error_code if job else None,
+        )
+        return None
+    document_ids = {str(d.id) for d in await _load_documents(session, job.dossier_id)}
+    if not document_ids <= (await _recorded_extractions(session, run_id) or set()):
+        logger.warning("worker.ai2.retry_refused", run_id=run_id, reason="ocr_incomplete")
+        return None
+
+    now = datetime.now(tz=UTC)
+    payload = _run_payload(run)
+    attempt = _ai2_attempt(run) + 1
+    payload["ai2_attempt"] = attempt
+    run.config_snapshot = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    run.status = "running"
+    run.error_code = None
+    run.error_detail = None
+    run.finished_at = None
+    previous_error = job.error_code
+    job.status = JobStatus.EXTRACTED.value
+    job.error_code = None
+    job.error_detail = None
+    job.updated_at = now
+    await session.execute(
+        update(DossierORM)
+        .where(DossierORM.id == job.dossier_id)
+        .values(status=JobStatus.EXTRACTED.value, updated_at=now)
+    )
+    await update_pipeline_step(
+        session, tenant_id=job.tenant_id, run_id=run_id, step="S4", status="queued"
+    )
+    add_audit_event(
+        session,
+        tenant_id=job.tenant_id,
+        action="ai2.retry_requested",
+        entity_type="job",
+        entity_id=job.id,
+        dossier_id=job.dossier_id,
+        run_id=run_id,
+        from_state=JobStatus.FAILED.value,
+        to_state=JobStatus.EXTRACTED.value,
+        detail={"attempt": attempt, "previous_error": previous_error},
+    )
+    await session.flush()
+    return job
+
+
 async def handle_dossier_event(session: AsyncSession, message: dict[str, Any]) -> None:
     event_type = message.get("event")
     if event_type == "dossier.uploaded":
         await handle_dossier_uploaded(session, message)
+        return
+    if event_type == "dossier.ai2.retry":
+        run_id = str(message.get("run_id") or "")
+        job = await _reopen_for_ai2_retry(session, run_id) if run_id else None
+        if job is None:
+            return
+        dossier_id, tenant_id = job.dossier_id, job.tenant_id
+        await session.commit()
+        _schedule_ai2(dossier_id=dossier_id, tenant_id=tenant_id, run_id=run_id)
         return
     if event_type == "dossier.manifest.confirmed":
         dossier_id = str(message.get("dossier_id") or "")

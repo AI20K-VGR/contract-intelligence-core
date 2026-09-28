@@ -26,7 +26,7 @@ def test_processing_request_normalizes_ai1_sha256_prefix_for_ai2_wire_contract()
     )
     document = SimpleNamespace(id="doc-1")
 
-    request = build_processing_request(
+    request = build_processing_request(  # defaults: attempt 1, 300s budget
         dossier_id="dos-1",
         run_id="run-1",
         snapshots={"doc-1": snapshot},

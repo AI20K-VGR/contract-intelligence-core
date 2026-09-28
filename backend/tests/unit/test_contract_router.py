@@ -602,6 +602,69 @@ class TestCreateDossierEndpoint:
 
 
 # ---------------------------------------------------------------------------
+# POST /api/v1/dossiers/{dossier_id}/ai2/retry
+# ---------------------------------------------------------------------------
+
+
+class TestRetryAi2Endpoint:
+    @staticmethod
+    def _dossier_with_job(**job_fields: Any) -> Dossier:
+        from contract_intelligence.contract.domain.entities.job import Job
+
+        dossier = _make_dossier(id="dos_AI2_01")
+        dossier.jobs = [Job(id="job_AI2_01", dossier_id="dos_AI2_01", **job_fields)]
+        return dossier
+
+    async def test_publishes_retry_for_the_current_run(
+        self, client: AsyncClient, mock_svc: AsyncMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from contract_intelligence.contract.domain.entities.job import JobStatus
+        from contract_intelligence.contract.interfaces.api.routers import contract_router
+
+        mock_svc.get_dossier.return_value = self._dossier_with_job(
+            status=JobStatus.FAILED, error_code="AI2_TIMEOUT", current_run_id="run_9"
+        )
+        publish = AsyncMock()
+        monkeypatch.setattr(contract_router.messaging, "publish_event", publish)
+        monkeypatch.setattr(contract_router, "_record", AsyncMock())
+
+        resp = await client.post("/api/v1/dossiers/dos_AI2_01/ai2/retry")
+
+        assert resp.status_code == 202
+        assert resp.json()["data"]["status"] == "queued"
+        publish.assert_awaited_once_with(
+            "dossier_events",
+            {"event": "dossier.ai2.retry", "dossier_id": "dos_AI2_01", "run_id": "run_9"},
+        )
+
+    @pytest.mark.parametrize(
+        ("status", "error_code"),
+        [("failed", "AI1_TIMEOUT"), ("pending_review", None), ("processing", None)],
+    )
+    async def test_rejects_when_ai2_did_not_fail(
+        self,
+        client: AsyncClient,
+        mock_svc: AsyncMock,
+        monkeypatch: pytest.MonkeyPatch,
+        status: str,
+        error_code: str | None,
+    ) -> None:
+        from contract_intelligence.contract.domain.entities.job import JobStatus
+        from contract_intelligence.contract.interfaces.api.routers import contract_router
+
+        mock_svc.get_dossier.return_value = self._dossier_with_job(
+            status=JobStatus(status), error_code=error_code, current_run_id="run_9"
+        )
+        publish = AsyncMock()
+        monkeypatch.setattr(contract_router.messaging, "publish_event", publish)
+
+        resp = await client.post("/api/v1/dossiers/dos_AI2_01/ai2/retry")
+
+        assert resp.status_code == 409
+        publish.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
 # POST /api/v1/dossiers/{dossier_id}/search  (AI2 /query)
 # ---------------------------------------------------------------------------
 
