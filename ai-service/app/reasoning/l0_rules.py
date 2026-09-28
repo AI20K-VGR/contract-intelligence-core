@@ -203,7 +203,10 @@ class L0Rules:
                 linked = assemble_mst(hits)
             else:
                 hits = _selected_hits(self.gateway.call("search_structured", envelope, key=key), selected)
-                linked = relate_mst(hits) if key == "mst_seller" else assemble_field(key, hits)
+                if key == "contract_value":
+                    linked = _contract_value_from_text(self.gateway, envelope)
+                else:
+                    linked = relate_mst(hits) if key == "mst_seller" else assemble_field(key, hits)
             return {
                 "resolved": True,
                 "review_state": linked["review_state"],
@@ -257,6 +260,31 @@ class L0Rules:
                 "notes": "jailbreak_ignored",
             }
 
+        if ttype == "relation_ask":
+            record = self.gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
+            if record is None:
+                return {
+                    "resolved": True,
+                    "review_state": ReviewState.BLOCKED.value,
+                    "answer": None,
+                    "citations": [],
+                    "notes": "missing_record",
+                }
+            from app.reasoning.relations import render_relation_verdict, render_same_item_relations
+
+            linked = render_same_item_relations(record) or render_relation_verdict(record)
+            folded_query = fold_for_match(task.get("query") or "")
+            if re.search(r"\bco\b.*\bkhong\b", folded_query) and isinstance(linked.get("answer"), str):
+                prefix = "Có. " if linked.get("review_state") != ReviewState.INSUFFICIENT_EVIDENCE.value else "Không rõ. "
+                linked = {**linked, "answer": prefix + linked["answer"]}
+            return {"resolved": True, **linked}
+
+        if ttype == "attribute_lookup":
+            return _attribute_in_scope(self.gateway, envelope, outline, task)
+
+        if ttype == "raw_fact_check":
+            return _raw_money_check(self.gateway, envelope, task)
+
         if ttype == "lookup_clause":
             label = task.get("clause_label") or _clause_label(task.get("query") or "")
             if label:
@@ -269,23 +297,16 @@ class L0Rules:
                         "citations": [],
                         "notes": "missing_clause",
                     }
-                from app.reasoning.relations import attach_ancestors, related_node_ids, render_related_answer
+                from app.reasoning.relations import attach_ancestors, render_related_answer
 
                 outline = attach_ancestors(list(outline))
-                extra_ids, rels = related_node_ids([h["node_id"] for h in hits], outline)
                 ordered_ids = []
                 for n in hits:
                     if n["node_id"] not in ordered_ids:
                         ordered_ids.append(n["node_id"])
-                    ordered_ids.extend(child["node_id"] for child in outline
-                                       if child.get("parent") == n["node_id"]
-                                       and child.get("type") in {"UNNUMBERED_BLOCK", "CLAUSE"}
-                                       and child["node_id"] not in ordered_ids)
-                for eid in extra_ids:
-                    if eid not in ordered_ids:
-                        ordered_ids.append(eid)
                 packed = []
                 cites = []
+                rels: list = []
                 for nid in ordered_ids[:8]:
                     full = self.gateway.call("get_node", envelope, node_id=nid)
                     side = None
@@ -452,6 +473,150 @@ class L0Rules:
                 }
 
         return None
+
+
+def _attribute_in_scope(gateway, envelope, outline, task: dict[str, Any]) -> dict[str, Any]:
+    attribute = task.get("attribute") or "none"
+    cues = {
+        "penalty": ("phạt", "phat", "penalty"),
+        "payment": ("thanh toán", "thanh toan", "payment"),
+        "mst": ("mst", "mã số thuế"),
+        "contract_value": ("giá trị", "gia tri"),
+    }.get(attribute, ())
+    scope = task.get("scope") or {}
+    label = scope.get("label") or task.get("clause_label")
+    nodes = outline
+    if label:
+        roots = [node for node in outline if _label_match(node.get("raw_label") or "", label)]
+        root_ids = {node["node_id"] for node in roots}
+        nodes = [
+            node
+            for node in outline
+            if node["node_id"] in root_ids or node.get("parent") in root_ids
+        ]
+        question = fold_for_match(task.get("query") or "")
+        if "phu luc" not in question and "annex" not in question:
+            nodes = [
+                node
+                for node in nodes
+                if "phu luc" not in fold_for_match(" ".join(node.get("breadcrumb") or []) + " " + (node.get("raw_label") or ""))
+            ]
+    lines: list[str] = []
+    citations = []
+    for node in nodes:
+        try:
+            loaded = gateway.call("get_node", envelope, node_id=node["node_id"])
+            text = str(loaded.get("text") or "")
+        except ToolBlocked:
+            text = str(node.get("text") or "")
+        folded = fold_for_match(text)
+        if cues and not any(cue in folded or cue in text.lower() for cue in cues):
+            continue
+        snippet = next((line.strip() for line in text.splitlines() if any(cue in fold_for_match(line) for cue in cues)), text[:240])
+        if not snippet:
+            continue
+        lines.append(snippet[:240])
+        citations.append({"node_id": node["node_id"], "text_span": snippet[:240]})
+    if not lines:
+        where = label or "hồ sơ"
+        return {
+            "resolved": True,
+            "review_state": ReviewState.INSUFFICIENT_EVIDENCE.value,
+            "answer": f"Không thấy {attribute} trong {where}.",
+            "citations": [],
+            "notes": "attribute_missing",
+        }
+    return {
+        "resolved": True,
+        "review_state": ReviewState.NEEDS_REVIEW.value,
+        "answer": "\n".join(lines[:4]),
+        "citations": citations[:4],
+        "notes": "attribute_in_scope",
+    }
+
+
+def _contract_value_from_text(gateway, envelope) -> dict[str, Any]:
+    from app.reasoning.ask_assemble import labelled_contract_values
+
+    record = gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
+    rows: list[tuple[str, str, dict[str, Any]]] = []
+    seen: set[tuple[str, str]] = set()
+    if record is not None:
+        for fact in record.facts:
+            key = str(fact.item_key or "")
+            structured = ""
+            if fact.citation and fact.citation.node_id:
+                node = next((item for item in record.evidence_nodes() if item.node_id == fact.citation.node_id), None)
+                structured = str(getattr(node, "structured_key", "") or "")
+            if key != "contract_value" and not structured.endswith("contract_value"):
+                continue
+            amount = fact.normalized_value or fact.raw_value
+            side = "Phụ lục" if fact.source_role == "annex" else "Thân hợp đồng"
+            label = (fact.subject or fact.citation.text_span or side)[:80]
+            marker = (side, str(amount))
+            if marker in seen:
+                continue
+            seen.add(marker)
+            rows.append((
+                side,
+                f"{label}: {amount}",
+                {
+                    "node_id": fact.citation.node_id,
+                    "text_span": (fact.citation.text_span or str(amount))[:240],
+                },
+            ))
+    if not rows and record is not None:
+        for item in labelled_contract_values(record):
+            marker = ("Chữ nguồn", item["amount"])
+            if marker in seen:
+                continue
+            seen.add(marker)
+            rows.append(("Chữ nguồn", f"{item['line']}: {item['amount']}", item["citation"]))
+    if not rows:
+        return {
+            "review_state": ReviewState.INSUFFICIENT_EVIDENCE.value,
+            "notes": "value_not_labelled",
+            "answer": "Không thấy dòng ghi giá trị hợp đồng. Số phạt hoặc đơn giá không được dùng thay.",
+            "citations": [],
+        }
+    lines = ["Giá trị hợp đồng đã trích (không chọn bản nào đúng):"]
+    citations = []
+    for side, text, citation in rows:
+        lines.append(f"- {side} · {text}")
+        citations.append(citation)
+    distinct = {marker[1] for marker in seen}
+    notes = "value_from_facts" if record and record.facts else "value_from_text_not_fact"
+    return {
+        "review_state": (
+            ReviewState.NEEDS_REVIEW.value
+            if len(distinct) > 1 or notes == "value_from_text_not_fact"
+            else ReviewState.PASS.value
+        ),
+        "notes": notes,
+        "answer": "\n".join(lines),
+        "citations": citations[:8],
+    }
+
+
+def _raw_money_check(gateway, envelope, task: dict[str, Any]) -> dict[str, Any]:
+    linked = _contract_value_from_text(gateway, envelope)
+    if linked["notes"] == "value_not_labelled":
+        hits = gateway.call("search_structured", envelope, key="contract_value") or []
+        if not hits:
+            return {
+                "resolved": True,
+                "review_state": ReviewState.INSUFFICIENT_EVIDENCE.value,
+                "answer": "Không đủ dòng giá trị hợp đồng để đối chiếu. Không trả lời có hay không.",
+                "citations": [],
+                "notes": "money_check_missing",
+            }
+        linked = {
+            "review_state": ReviewState.NEEDS_REVIEW.value,
+            "answer": "Có fact giá trị hợp đồng: " + "; ".join(str(hit.get("value") or "") for hit in hits),
+            "citations": [hit.get("citation") or {"node_id": hit.get("node_id")} for hit in hits],
+            "notes": "money_from_fact",
+        }
+    return {"resolved": True, **linked}
 
 
 def _clause_label(query: str) -> str | None:

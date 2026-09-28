@@ -104,8 +104,20 @@ class L3Ground:
             except ToolBlocked:
                 allowed = set()
 
-        if task.get("type") in {"count_entity", "too_broad", "party_card", "annex_card", "annex_list", "field_card", "unscoped"}:
+        if task.get("type") in {
+            "count_entity",
+            "too_broad",
+            "party_card",
+            "annex_card",
+            "annex_list",
+            "field_card",
+            "unscoped",
+            "attribute_lookup",
+            "relation_ask",
+            "raw_fact_check",
+        }:
             normalized = self._normalize_citations(envelope, citations, allowed)
+            review_state = _downgrade_if_attribute_missing(task, review_state, answer, normalized)
             return _finalize_grounding(review_state, answer, normalized)
 
         if review_state in {
@@ -191,6 +203,28 @@ class L3Ground:
             answer,
             valid_cites or self._normalize_citations(envelope, citations, allowed),
         )
+
+
+def _downgrade_if_attribute_missing(task: dict[str, Any], review_state: str, answer: Any, citations: list[dict[str, Any]]) -> str:
+    attribute = task.get("attribute") or "none"
+    if review_state != ReviewState.ANSWERED.value or attribute in {"none", "count", "fx", "money"}:
+        return review_state
+    from app.pipeline.ai1_snapshot_adapter import fold_for_match
+
+    folded = fold_for_match(str(answer or ""))
+    cues = {
+        "penalty": ("phat", "penalty"),
+        "payment": ("thanh toan", "payment"),
+        "mst": ("mst",),
+        "contract_value": ("gia tri", "dong", "vnd"),
+    }.get(attribute, ())
+    if any(cue in folded for cue in cues):
+        return review_state
+    for citation in citations:
+        span = fold_for_match(str(citation.get("text_span") or ""))[:24]
+        if span and span in folded:
+            return review_state
+    return ReviewState.NEEDS_REVIEW.value
 
 
 def _filter_cites(citations: list[dict[str, Any]] | None, allowed: set[str]) -> list[dict[str, Any]]:

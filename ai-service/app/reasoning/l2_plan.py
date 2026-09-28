@@ -269,6 +269,7 @@ class L2Planner:
             "last_prompt_chars": 0,
         }
 
+
     def _plan(self, task: dict, l1: dict, prior: list | None, table_ok: bool, envelope: ToolEnvelope) -> list[dict[str, Any]]:
         tools = "list_structure, get_node, list_tables, get_table_meta, search_structured, search_semantic"
         ids = [h.get("node_id") for h in (l1.get("hits") or []) if h.get("node_id")][:8]

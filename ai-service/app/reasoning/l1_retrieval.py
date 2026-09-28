@@ -137,6 +137,7 @@ class L1Retrieval:
                     extra_graph_ids = {
                         endpoint
                         for edge in record.relation_graph.edges
+                        if edge.relation_type.value != "PARENT_OF"
                         for endpoint in (edge.from_node_id, edge.to_node_id)
                         if endpoint not in seed_ids and endpoint in known_ids
                     }
@@ -326,7 +327,11 @@ def _merge_hits(*groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def _lexical_hits(record: Any, query: str) -> list[dict[str, Any]]:
     """Bounded local fallback over the already scoped canonical evidence tree."""
     folded = _plain_query(expand_query(query))
-    terms = [term for term in re.findall(r"[\w]+", folded) if len(term) >= 3]
+    stop = {
+        "hop", "dong", "dieu", "nao", "cac", "cua", "trong", "voi", "cho",
+        "the", "and", "are", "what", "when", "this", "that", "with", "for",
+    }
+    terms = [term for term in re.findall(r"[\w]+", folded) if len(term) >= 3 and term not in stop]
     scored: list[tuple[int, dict[str, Any]]] = []
     for node in record.evidence_nodes():
         blob = _plain_query(

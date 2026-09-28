@@ -181,7 +181,14 @@ class FourLayerReasoner:
                         nid = str(hit.get("node_id") or hit.get("chunk_id") or "")
                         if nid and nid not in cited_ids:
                             citations.append(hit.get("citation") or {"node_id": nid})
-        if not draft and l1.get("hits"):
+        if ttype == "unscoped" and len(l1.get("hits") or []) > 1:
+            from app.reasoning.ask_assemble import unscoped_hint
+
+            hint = unscoped_hint([{"type": "CLAUSE", "raw_label": item.get("raw_label")} for item in (l1.get("outline_ids") or [])])
+            state = ReviewState.INSUFFICIENT_EVIDENCE.value
+            citations = []
+            answer = hint["answer"]
+        elif not draft and l1.get("hits"):
             packed = []
             citations = []
             seen_ids: set[str] = set()
