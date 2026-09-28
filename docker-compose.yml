@@ -323,6 +323,7 @@ services:
       # ---- AI service ----
       # Canonical production path is AI2 HTTP; OCR runtime path is Kafka (DOC-05d).
       AI_SERVICE_MODE: http
+      AI2_WIRE_ENABLED: ${AI2_WIRE_ENABLED:-true}
       AI2_BASE_URL: ${AI2_BASE_URL:-http://ai2-service:8002}
       AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-}
       AI2_QUERY_EGRESS_ALLOWED: ${AI2_QUERY_EGRESS_ALLOWED:-true}
@@ -401,6 +402,7 @@ services:
       MINIO_ACCESS_KEY: admin
       MINIO_SECRET_KEY: password123
       MINIO_BUCKET_RENDER: ci-render
+      AI2_WIRE_ENABLED: ${AI2_WIRE_ENABLED:-true}
       AI2_BASE_URL: ${AI2_BASE_URL:-http://ai2-service:8002}
       AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-}
       AI2_QUERY_EGRESS_ALLOWED: ${AI2_QUERY_EGRESS_ALLOWED:-true}
