@@ -10,7 +10,7 @@ def _is_running_furniture(label: str) -> bool:
     """Page numbers and repeated contract codes are not clause text."""
 
     folded = fold(label).strip()
-    if re.match(r"^trang\s+\d+\s*/\s*\d+$", folded):
+    if re.match(r"^trang\s+\d+(?:\s*/\s*\d+)?$", folded):
         return True
     if re.match(r"^phan\s+\d+\s*/\s*\d+$", folded):
         return True

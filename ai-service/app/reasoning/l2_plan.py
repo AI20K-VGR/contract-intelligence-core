@@ -10,7 +10,10 @@ from app.reasoning.l0_rules import query_too_broad
 from app.reasoning.relations import render_related_answer
 from app.tools.gateway import ToolBlocked, ToolGateway
 
-MAX_STEPS = 8
+MAX_STEPS = 12
+# L1 hits that seed an evidence plan; the rest of MAX_STEPS goes to their
+# sub-clauses so a heading arrives with the text it governs.
+SEED_HITS = 4
 MAX_REPLAN = 2
 NODE_TEXT_CAP = 2000
 PROMPT_CHAR_CAP = 24_000
@@ -222,27 +225,29 @@ class L2Planner:
             node_id = hit.get("node_id") or hit.get("chunk_id")
             if node_id and str(node_id) not in ids:
                 ids.append(str(node_id))
-            if len(ids) >= 6:
+            if len(ids) >= SEED_HITS:
                 break
         # Child expansion is an optimisation over the gateway's backing store;
         # every expanded ID is still fetched through gateway.call below, so a
         # gateway without a store just plans the L1 hits themselves.
         store = getattr(self.gateway, "store", None)
         record = store.get(envelope.auth.tenant_id, envelope.auth.dossier_id) if store is not None else None
-        expanded: list[str] = []
-        for node_id in ids:
-            if node_id not in expanded:
-                expanded.append(node_id)
-            if record is None:
-                continue
-            for child in record.evidence_nodes():
-                if child.parent_id != node_id or child.node_id in expanded or _is_running_furniture(child.raw_label or ""):
-                    continue
-                expanded.append(child.node_id)
-                if len(expanded) >= MAX_STEPS:
-                    break
-            if len(expanded) >= MAX_STEPS:
-                break
+        expanded: list[str] = list(ids)
+        if record is not None:
+            children: dict[str, list[str]] = {node_id: [] for node_id in ids}
+            for child in sorted(record.evidence_nodes(), key=lambda item: item.order):
+                if child.parent_id in children and not _is_running_furniture(child.raw_label or ""):
+                    children[child.parent_id].append(child.node_id)
+            # Round-robin, not seed by seed: filling the first seed's children
+            # first let a 5-row annex table take every slot, so the body clause
+            # being compared never reached the model.
+            queues = [children[node_id] for node_id in ids]
+            while len(expanded) < MAX_STEPS and any(queues):
+                for queue in queues:
+                    while queue and queue[0] in expanded:
+                        queue.pop(0)
+                    if queue and len(expanded) < MAX_STEPS:
+                        expanded.append(queue.pop(0))
         ids = expanded[:MAX_STEPS]
         plan = [{"tool": "get_node", "args": {"node_id": node_id}} for node_id in ids]
         if table_ok:

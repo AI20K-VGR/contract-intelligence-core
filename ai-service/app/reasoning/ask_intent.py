@@ -30,9 +30,14 @@ def _annex_numbers(plain: str) -> list[str]:
     return [match.group(1) for match in re.finditer(r"\b(?:phu luc|annex)\s+(\d+)", plain)]
 
 
+def _party_roles(plain: str) -> list[str]:
+    """Every role named, in order: "Bên A và bên B là ai?" asks about both."""
+    return list(dict.fromkeys(m.upper() for m in re.findall(r"\b(?:ben|party)\s+([abcy])\b", plain)))
+
+
 def _party_role(plain: str) -> str | None:
-    match = re.search(r"\b(?:ben|party)\s+([abcy])\b", plain)
-    return match.group(1).upper() if match else None
+    roles = _party_roles(plain)
+    return roles[0] if roles else None
 
 
 def _attribute(plain: str, low: str) -> str:
@@ -166,6 +171,7 @@ def parse_ask(text: str) -> dict[str, Any]:
     if role and attribute == "none":
         spec["type"] = "party_card"
         spec["role"] = role
+        spec["roles"] = _party_roles(plain)
         return spec
 
     if clause and attribute == "none":
@@ -207,7 +213,17 @@ def parse_ask(text: str) -> dict[str, Any]:
         return spec
 
     if any(word in low for word in ("ngày làm việc", "working day", "nghiệm thu", "định nghĩa", "acceptance")) or any(
-        word in plain for word in ("thoi han", "hieu luc", "ngay ky", "tu ngay", "thanh toan")
+        word in plain
+        for word in (
+            "thoi han",
+            "hieu luc",
+            "ngay ky",
+            "tu ngay",
+            "thanh toan",
+            "tien do",
+            "thoi gian trien khai",
+            "bao lau",
+        )
     ):
         spec["type"] = "lookup_term"
         return spec

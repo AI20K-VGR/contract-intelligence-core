@@ -171,7 +171,13 @@ class FourLayerReasoner:
                     for c in citations
                     if isinstance(c, dict) and c.get("node_id")
                 }
-                covered = required_ids & cited_ids
+                # Citing "M1" or "4.2" covers the heading L1 retrieved; the
+                # model quotes the sub-clause that carries the value.
+                record = self.l1.gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
+                parent_of = {n.node_id: n.parent_id for n in record.evidence_nodes()} if record else {}
+                # Each citation covers one source: itself, else its parent.
+                # Counting both would let a single quote pass as a comparison.
+                covered = required_ids & {c if c in required_ids else str(parent_of.get(c)) for c in cited_ids}
                 # One cited node is not a comparison. Two or more keep the
                 # model sentence; sources it skipped stay attached for review.
                 if len(required_ids) > 1 and len(covered) < 2:

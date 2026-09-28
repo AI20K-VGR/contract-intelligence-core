@@ -23,6 +23,32 @@ TOO_BROAD = (
 )
 
 
+def _clause_body(gateway: ToolGateway, envelope: ToolEnvelope, node_id: str, limit: int = 12) -> list[dict[str, Any]]:
+    """Sub-clauses stored under a heading, each fetched through the gateway.
+
+    OCR snapshots keep "ĐIỀU 3. ..." as a one-line heading node and put 3.1,
+    3.2, ... under it, so the heading's own text is not the clause.
+    """
+    from app.pipeline.result_structure import _is_running_furniture
+
+    store = getattr(gateway, "store", None)
+    record = store.get(envelope.auth.tenant_id, envelope.auth.dossier_id) if store is not None else None
+    if record is None:
+        return []
+    child_ids = [
+        node.node_id
+        for node in sorted(record.evidence_nodes(), key=lambda item: item.order)
+        if node.parent_id == node_id and not _is_running_furniture(node.raw_label or "")
+    ]
+    body: list[dict[str, Any]] = []
+    for child_id in child_ids[:limit]:
+        try:
+            body.append(gateway.call("get_node", envelope, node_id=child_id))
+        except (ToolBlocked, TypeError):
+            continue
+    return body
+
+
 def _countish(query: str) -> bool:
     low = (query or "").lower()
     return any(w in low for w in ("bao nhiêu", "bao nhieu", "how many", "số lượng", "so luong", "có mấy", "co may"))
@@ -132,31 +158,43 @@ class L0Rules:
         if ttype == "party_card":
             from app.reasoning.ask_assemble import assemble_party
 
-            role = (task.get("role") or "A").lower()
-            key = f"party_{role}"
-            parties = _selected_hits(self.gateway.call("search_structured", envelope, key=key), selected)
-            mst_keys = {
-                "a": ("mst_seller", "mst_party_a"),
-                "b": ("mst_party_b", "mst_buyer"),
-                "c": ("mst_party_c",),
-                "y": ("mst_party_y",),
-            }.get(role, (f"mst_party_{role}",))
-            mst = []
-            for mst_key in mst_keys:
-                mst.extend(_selected_hits(self.gateway.call("search_structured", envelope, key=mst_key), selected))
-            linked = assemble_party(
-                role,
-                outline,
-                parties,
-                mst,
-                get_node=lambda nid: self.gateway.call("get_node", envelope, node_id=nid),
+            def card(role: str) -> dict[str, Any]:
+                parties = _selected_hits(
+                    self.gateway.call("search_structured", envelope, key=f"party_{role}"), selected
+                )
+                mst_keys = {
+                    "a": ("mst_seller", "mst_party_a"),
+                    "b": ("mst_party_b", "mst_buyer"),
+                    "c": ("mst_party_c",),
+                    "y": ("mst_party_y",),
+                }.get(role, (f"mst_party_{role}",))
+                mst = []
+                for mst_key in mst_keys:
+                    mst.extend(
+                        _selected_hits(self.gateway.call("search_structured", envelope, key=mst_key), selected)
+                    )
+                return assemble_party(
+                    role,
+                    outline,
+                    parties,
+                    mst,
+                    get_node=lambda nid: self.gateway.call("get_node", envelope, node_id=nid),
+                )
+
+            roles = [str(r).lower() for r in (task.get("roles") or [task.get("role") or "A"])]
+            cards = [card(role) for role in roles]
+            # One unconfirmed party makes the combined answer unconfirmed too.
+            severity = ["ANSWERED", "PASS", "NEEDS_REVIEW", "INSUFFICIENT_EVIDENCE"]
+            state = max(
+                (c["review_state"] for c in cards),
+                key=lambda s: severity.index(s) if s in severity else len(severity),
             )
             return {
                 "resolved": True,
-                "review_state": linked["review_state"],
-                "answer": linked["answer"],
-                "citations": linked["citations"],
-                "notes": linked["notes"],
+                "review_state": state,
+                "answer": "\n\n".join(c["answer"] for c in cards),
+                "citations": [cite for c in cards for cite in c["citations"]],
+                "notes": cards[0]["notes"] if len(cards) == 1 else "party_cards",
             }
 
         if ttype == "annex_card":
@@ -313,17 +351,27 @@ class L0Rules:
                     from app.reasoning.relations import doc_side
 
                     side = doc_side(full.get("ancestors"), full.get("raw_label"))
+                    body = _clause_body(self.gateway, envelope, nid)
+                    text = "\n".join(
+                        part
+                        for part in [full.get("text") or "", *(str(child.get("text") or "") for child in body)]
+                        if part.strip()
+                    )
                     packed.append(
                         {
                             "node_id": nid,
                             "label": full.get("raw_label"),
                             "path": " › ".join((full.get("ancestors") or []) + [full.get("raw_label") or ""]),
-                            "text": (full.get("text") or "")[:1200],
+                            "text": text[:2400],
                             "page_range": full.get("page_range"),
                             "side": side,
                         }
                     )
                     cites.append(full.get("citation") or {"node_id": nid, "text_span": full.get("raw_label")})
+                    cites.extend(
+                        child.get("citation") or {"node_id": child.get("node_id"), "text_span": child.get("text")}
+                        for child in body
+                    )
                 multi = len(packed) > 1 or bool(rels)
                 answer = render_related_answer(packed, rels) if multi else packed[0]["text"]
                 state = ReviewState.NEEDS_REVIEW.value if multi else ReviewState.ANSWERED.value

@@ -100,7 +100,12 @@ class L1Retrieval:
                 # query about Điều 2 to be answered from Điều 1 only.
                 filtered = _filter_relation_hits(q, hits)
                 protected = [h for h in hits if str(h.get("node_id") or "") in set(exact_ids)]
-                hits = _merge_hits(protected, filtered)
+                # The body side of a body-vs-annex question rarely says "phụ
+                # lục", so the relation filter drops exactly the clause being
+                # compared (Điều 3 "Tiến độ") and keeps clauses that only cite
+                # an annex. Keep the clear topic matches regardless.
+                topic = _topic_hits(record, q) if record is not None else []
+                hits = _merge_hits(protected, topic, filtered)
             from app.reasoning.relations import attach_ancestors, related_node_ids
 
             outline = attach_ancestors(list(outline))
@@ -175,7 +180,8 @@ class L1Retrieval:
             if ttype in COMPARE_TYPES:
                 filtered = _filter_relation_hits(q, hits)
                 protected = [h for h in hits if str(h.get("node_id") or "") in set(exact_ids)]
-                hits = _drop_repeated_annex_headings(_merge_hits(protected, filtered), outline)
+                topic = _topic_hits(record, q) if record is not None else []
+                hits = _drop_repeated_annex_headings(_merge_hits(protected, topic, filtered), outline)
         except ToolBlocked:
             return {
                 "resolved": False,
@@ -326,24 +332,51 @@ def _merge_hits(*groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _lexical_hits(record: Any, query: str) -> list[dict[str, Any]]:
     """Bounded local fallback over the already scoped canonical evidence tree."""
+    return [hit for _, hit in _scored_lexical_hits(record, query)]
+
+
+def _topic_hits(record: Any, query: str, limit: int = 3) -> list[dict[str, Any]]:
+    """The few nodes that match the question's topic clearly better than the rest."""
+    scored = _scored_lexical_hits(record, query)
+    if not scored:
+        return []
+    best = scored[0][0]
+    return [hit for score, hit in scored[:limit] if score >= 0.75 * best]
+
+
+def _scored_lexical_hits(record: Any, query: str) -> list[tuple[float, dict[str, Any]]]:
     folded = _plain_query(expand_query(query))
     stop = {
         "hop", "dong", "dieu", "nao", "cac", "cua", "trong", "voi", "cho",
         "the", "and", "are", "what", "when", "this", "that", "with", "for",
     }
-    terms = [term for term in re.findall(r"[\w]+", folded) if len(term) >= 3 and term not in stop]
-    scored: list[tuple[int, dict[str, Any]]] = []
+    # Words that name *where* to look (body vs annex) or the compare verb say
+    # nothing about the topic; scored as topic terms they rank any clause that
+    # merely mentions "phụ lục" above the clause the question is about.
+    scope = {"so", "sanh", "than", "phu", "luc", "annex", "appendix", "giua", "va"}
+    tokens = re.findall(r"\w+", folded)
+    terms = [term for term in tokens if len(term) >= 3 and term not in stop | scope]
+    # Adjacent content words ("tien do", "thuc hien") pin the topic far better
+    # than their parts: "tien" alone also matches "ưu tiên".
+    content = [token for token in tokens if token not in stop | scope and not token.isdigit()]
+    phrases = [f"{left} {right}" for left, right in zip(content, content[1:])]
+    scored: list[tuple[float, dict[str, Any]]] = []
     for node in record.evidence_nodes():
         blob = _plain_query(
             " ".join(
                 str(value or "") for value in (node.raw_label, node.text, node.structured_value)
             )
         )
-        score = sum(1 for term in terms if term in blob)
+        # Whole words only: a substring match lets "than" hit every "thanh toán".
+        score = float(sum(1 for term in terms if re.search(rf"\b{re.escape(term)}\b", blob)))
+        score += 2 * sum(1 for phrase in phrases if re.search(rf"\b{re.escape(phrase)}\b", blob))
+        if score and re.match(r"(?:dieu|phu luc)\s+\d", _plain_query(node.raw_label or "").strip()):
+            # A matching heading carries its sub-clauses into the answer.
+            score += 0.5
         if score:
             scored.append((score, _hit_from_node(node.model_dump())))
     scored.sort(key=lambda item: item[0], reverse=True)
-    return [hit for _, hit in scored[:12]]
+    return scored[:12]
 
 
 def _plain_query(value: str) -> str:
@@ -372,7 +405,10 @@ def _filter_term_hits(query: str, hits: list[dict[str, Any]]) -> list[dict[str, 
     """Reject lexical/vector hits that do not contain the requested concept."""
 
     normalized_query = _plain_query(expand_query(query))
-    cues = (
+    # Topic cues name what the clause is about; timing cues only qualify it.
+    # "Thời hạn thanh toán" asks about payment, so a confidentiality clause
+    # that merely says "thời hạn" must not pass on the timing word alone.
+    topic_cues = (
         "ngay lam viec",
         "working day",
         "thanh toan",
@@ -381,17 +417,13 @@ def _filter_term_hits(query: str, hits: list[dict[str, Any]]) -> list[dict[str, 
         "acceptance",
         "dinh nghia",
         "definition",
-        "thoi han",
-        "hieu luc",
-        "ngay ky",
-        "tu ngay",
         "cham dut",
-        "thoi han",
-        "hieu luc",
-        "ngay ky",
-        "tu ngay",
+        "tien do",
     )
-    wanted = [cue for cue in cues if cue in normalized_query]
+    timing_cues = ("thoi han", "hieu luc", "ngay ky", "tu ngay")
+    wanted = [cue for cue in topic_cues if cue in normalized_query] or [
+        cue for cue in timing_cues if cue in normalized_query
+    ]
     if not wanted:
         return hits
     kept: list[dict[str, Any]] = []
