@@ -1,0 +1,5 @@
+{
+  "ec": "EC-027",
+  "description": "Comparison without LEGAL_WINNER",
+  "forbidden": "LEGAL_WINNER"
+}

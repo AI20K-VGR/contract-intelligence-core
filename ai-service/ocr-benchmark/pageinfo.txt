@@ -1,0 +1,15 @@
+PAGE 1 len= 2489
+TỔNG CÔNG TY KHÍ VIỆT NAM-CTCP
+CÔNG TY CỔ PHẦN PHÂN PHỐI
+KHÍ THẤP ÁP DẦU KHÍ VIỆT NAM
+Số: 19 /QĐ-KTA-HTSX
+CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+Độc lập - Tự do - Hạnh phúc
+Thành phố Vũng Tàu, ngày 5 thán
+tables: 0
+---
+PAGE 2 len= 1855
+Căn cứ Biên bản thương thảo hợp đồng ngày 01/02/2024 giữa Công ty Cổ phần Phân phối Khí thấp áp Dầu khí Việt Nam và Công ty TNHH Toàn Tâm Vũng Tàu;
+Căn cứ Báo cáo thẩm định số 02/BC-TCGTĐ.HT ngày 5/02
+tables: 0
+---

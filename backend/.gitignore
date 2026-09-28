@@ -1,0 +1,28 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.env
+.venv/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+
+# Migration auto-generate
+alembic/versions/*.py
+
+# Logs
+*.log
+
+# Coverage
+htmlcov/
+.coverage
+
+# type stubs
+*.pyi

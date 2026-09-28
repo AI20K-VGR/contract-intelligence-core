@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractintel.internal/schemas/ai2.idp.request.v1.json",
+  "title": "AI2 IDP Request v1",
+  "description": "The canonical AI1 snapshot plus explicit dossier manifest handoff into AI2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "attempt_id", "manifest", "snapshots"],
+  "properties": {
+    "schema_version": {"const": "ai2.idp.request.v1"},
+    "task_id": {"$ref": "#/$defs/id"},
+    "attempt_id": {"$ref": "#/$defs/id"},
+    "manifest": {"$ref": "ai1.dossier-manifest.v1.schema.json"},
+    "snapshots": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": {"$ref": "ai1.snapshot.v1.schema.json"}
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    }
+  }
+}

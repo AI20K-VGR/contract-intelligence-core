@@ -1,0 +1,37 @@
+{
+  "schema_version": "ai1.snapshot.v1",
+  "snapshot_id": "eval-low-quality-v1",
+  "dossier_id": "eval_low_quality_v1",
+  "document_id": "doc-low-quality-v1",
+  "run_id": "run-low-quality-v1",
+  "source_digest": "8888888888888888888888888888888888888888888888888888888888888888",
+  "execution": {"ocr_engine": "fixture", "attempt": 2},
+  "producer": {"name": "AI1 coverage fixture", "version": "1"},
+  "status": "PARTIAL",
+  "pages": [
+    {
+      "page_no": 1,
+      "page_revision_id": "eval-low-quality-v1:p1:r1",
+      "input_type": "SCANNED_OCR",
+      "status": "PARTIAL",
+      "raw_text_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+      "transform": {"rotation_degrees": 90, "profile_version": "coverage"},
+      "table_coverage": {"status": "UNKNOWN", "method": "ocr-v1"},
+      "warnings": [{"code": "missing_line_geometry"}, {"code": "low_ocr_confidence"}],
+      "lines": [{"line_id": "p1-l1", "raw_text": "MST 0312345678?", "bbox": null, "words": []}],
+      "tables": []
+    },
+    {
+      "page_no": 2,
+      "page_revision_id": "eval-low-quality-v1:p2:r1",
+      "input_type": "SCANNED_OCR",
+      "status": "FAILED",
+      "error": {"code": "OCR_ENGINE_UNAVAILABLE"},
+      "raw_text_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "transform": {"rotation_degrees": 0, "profile_version": "coverage"},
+      "table_coverage": {"status": "FAILED", "method": "ocr-v1"},
+      "lines": [],
+      "tables": []
+    }
+  ]
+}

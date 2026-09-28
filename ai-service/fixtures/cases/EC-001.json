@@ -1,0 +1,1313 @@
+{
+  "case_id": "EC-001",
+  "title": "Hợp đồng 62 trang — scout, không dump PDF",
+  "tenant_id": "tenant_a",
+  "dossier_id": "d_long_62",
+  "expected_state": "PASS",
+  "expected_no_claims": [
+    "full_pdf_dump"
+  ],
+  "n_pages": 62,
+  "n_nodes": 22,
+  "n_tables": 0,
+  "lifecycle": "ACTIVE",
+  "query": "mst_seller",
+  "notes": "62 pages; only get_node on MST unit",
+  "tags": [
+    "edge",
+    "router"
+  ],
+  "pins": {
+    "manifest_version": 2,
+    "source_snapshot_digest": "sha256:aaa",
+    "tenant_profile_version": 5,
+    "policy_version": 2,
+    "ocr_run_version": 3,
+    "reconstruction_version": 2,
+    "extraction_version": 7,
+    "index_version": "idx_14"
+  },
+  "profile": {
+    "version": 5,
+    "aliases": {
+      "Công ty ABC": [
+        "ABC Co.",
+        "ABC"
+      ],
+      "Công ty XYZ": [
+        "XYZ Ltd",
+        "XYZ"
+      ]
+    },
+    "field_keys": [
+      "party_a",
+      "party_b",
+      "mst_seller",
+      "contract_value",
+      "payment_term"
+    ]
+  },
+  "acl_revision": 12,
+  "legal_hold": false,
+  "egress_approved": true,
+  "budget_exceeded": false,
+  "index_status": "READY",
+  "active_index_version": null,
+  "processing_index": false,
+  "envelope": {
+    "auth": {
+      "actor_id": "user_001",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_long_62",
+      "acl_revision": 12,
+      "permissions": [
+        "READ_CONTENT"
+      ],
+      "lifecycle": "ACTIVE"
+    },
+    "pins": {
+      "manifest_version": 2,
+      "source_snapshot_digest": "sha256:aaa",
+      "tenant_profile_version": 5,
+      "policy_version": 2,
+      "ocr_run_version": 3,
+      "reconstruction_version": 2,
+      "extraction_version": 7,
+      "index_version": "idx_14"
+    }
+  },
+  "pages": [
+    {
+      "page_revision_id": "p1_rev1",
+      "page_number": 1,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p1_b1"
+      ],
+      "text": "Trang 1 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p2_rev1",
+      "page_number": 2,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p2_b1"
+      ],
+      "text": "Trang 2 hợp đồng khung. MST bên bán: 0312345678",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p3_rev1",
+      "page_number": 3,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p3_b1"
+      ],
+      "text": "Trang 3 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p4_rev1",
+      "page_number": 4,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p4_b1"
+      ],
+      "text": "Trang 4 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p5_rev1",
+      "page_number": 5,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p5_b1"
+      ],
+      "text": "Trang 5 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p6_rev1",
+      "page_number": 6,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p6_b1"
+      ],
+      "text": "Trang 6 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p7_rev1",
+      "page_number": 7,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p7_b1"
+      ],
+      "text": "Trang 7 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p8_rev1",
+      "page_number": 8,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p8_b1"
+      ],
+      "text": "Trang 8 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p9_rev1",
+      "page_number": 9,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p9_b1"
+      ],
+      "text": "Trang 9 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p10_rev1",
+      "page_number": 10,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p10_b1"
+      ],
+      "text": "Trang 10 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p11_rev1",
+      "page_number": 11,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p11_b1"
+      ],
+      "text": "Trang 11 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p12_rev1",
+      "page_number": 12,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p12_b1"
+      ],
+      "text": "Trang 12 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p13_rev1",
+      "page_number": 13,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p13_b1"
+      ],
+      "text": "Trang 13 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p14_rev1",
+      "page_number": 14,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p14_b1"
+      ],
+      "text": "Trang 14 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p15_rev1",
+      "page_number": 15,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p15_b1"
+      ],
+      "text": "Trang 15 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p16_rev1",
+      "page_number": 16,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p16_b1"
+      ],
+      "text": "Trang 16 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p17_rev1",
+      "page_number": 17,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p17_b1"
+      ],
+      "text": "Trang 17 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p18_rev1",
+      "page_number": 18,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p18_b1"
+      ],
+      "text": "Trang 18 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p19_rev1",
+      "page_number": 19,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p19_b1"
+      ],
+      "text": "Trang 19 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p20_rev1",
+      "page_number": 20,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p20_b1"
+      ],
+      "text": "Trang 20 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p21_rev1",
+      "page_number": 21,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p21_b1"
+      ],
+      "text": "Trang 21 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p22_rev1",
+      "page_number": 22,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p22_b1"
+      ],
+      "text": "Trang 22 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p23_rev1",
+      "page_number": 23,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p23_b1"
+      ],
+      "text": "Trang 23 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p24_rev1",
+      "page_number": 24,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p24_b1"
+      ],
+      "text": "Trang 24 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p25_rev1",
+      "page_number": 25,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p25_b1"
+      ],
+      "text": "Trang 25 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p26_rev1",
+      "page_number": 26,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p26_b1"
+      ],
+      "text": "Trang 26 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p27_rev1",
+      "page_number": 27,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p27_b1"
+      ],
+      "text": "Trang 27 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p28_rev1",
+      "page_number": 28,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p28_b1"
+      ],
+      "text": "Trang 28 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p29_rev1",
+      "page_number": 29,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p29_b1"
+      ],
+      "text": "Trang 29 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p30_rev1",
+      "page_number": 30,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p30_b1"
+      ],
+      "text": "Trang 30 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p31_rev1",
+      "page_number": 31,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p31_b1"
+      ],
+      "text": "Trang 31 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p32_rev1",
+      "page_number": 32,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p32_b1"
+      ],
+      "text": "Trang 32 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p33_rev1",
+      "page_number": 33,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p33_b1"
+      ],
+      "text": "Trang 33 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p34_rev1",
+      "page_number": 34,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p34_b1"
+      ],
+      "text": "Trang 34 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p35_rev1",
+      "page_number": 35,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p35_b1"
+      ],
+      "text": "Trang 35 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p36_rev1",
+      "page_number": 36,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p36_b1"
+      ],
+      "text": "Trang 36 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p37_rev1",
+      "page_number": 37,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p37_b1"
+      ],
+      "text": "Trang 37 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p38_rev1",
+      "page_number": 38,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p38_b1"
+      ],
+      "text": "Trang 38 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p39_rev1",
+      "page_number": 39,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p39_b1"
+      ],
+      "text": "Trang 39 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p40_rev1",
+      "page_number": 40,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p40_b1"
+      ],
+      "text": "Trang 40 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p41_rev1",
+      "page_number": 41,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p41_b1"
+      ],
+      "text": "Trang 41 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p42_rev1",
+      "page_number": 42,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p42_b1"
+      ],
+      "text": "Trang 42 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p43_rev1",
+      "page_number": 43,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p43_b1"
+      ],
+      "text": "Trang 43 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p44_rev1",
+      "page_number": 44,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p44_b1"
+      ],
+      "text": "Trang 44 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p45_rev1",
+      "page_number": 45,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p45_b1"
+      ],
+      "text": "Trang 45 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p46_rev1",
+      "page_number": 46,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p46_b1"
+      ],
+      "text": "Trang 46 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p47_rev1",
+      "page_number": 47,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p47_b1"
+      ],
+      "text": "Trang 47 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p48_rev1",
+      "page_number": 48,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p48_b1"
+      ],
+      "text": "Trang 48 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p49_rev1",
+      "page_number": 49,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p49_b1"
+      ],
+      "text": "Trang 49 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p50_rev1",
+      "page_number": 50,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p50_b1"
+      ],
+      "text": "Trang 50 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p51_rev1",
+      "page_number": 51,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p51_b1"
+      ],
+      "text": "Trang 51 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p52_rev1",
+      "page_number": 52,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p52_b1"
+      ],
+      "text": "Trang 52 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p53_rev1",
+      "page_number": 53,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p53_b1"
+      ],
+      "text": "Trang 53 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p54_rev1",
+      "page_number": 54,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p54_b1"
+      ],
+      "text": "Trang 54 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p55_rev1",
+      "page_number": 55,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p55_b1"
+      ],
+      "text": "Trang 55 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p56_rev1",
+      "page_number": 56,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p56_b1"
+      ],
+      "text": "Trang 56 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p57_rev1",
+      "page_number": 57,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p57_b1"
+      ],
+      "text": "Trang 57 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p58_rev1",
+      "page_number": 58,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p58_b1"
+      ],
+      "text": "Trang 58 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p59_rev1",
+      "page_number": 59,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p59_b1"
+      ],
+      "text": "Trang 59 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p60_rev1",
+      "page_number": 60,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p60_b1"
+      ],
+      "text": "Trang 60 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p61_rev1",
+      "page_number": 61,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p61_b1"
+      ],
+      "text": "Trang 61 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p62_rev1",
+      "page_number": 62,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p62_b1"
+      ],
+      "text": "Trang 62 hợp đồng khung.",
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "root",
+      "type": "SECTION",
+      "raw_label": "Hợp đồng",
+      "parent_id": null,
+      "order": 0,
+      "has_children": true,
+      "status": "CONFIRMED",
+      "text": "Hợp đồng 62 trang",
+      "page_range": [
+        1
+      ],
+      "page_revision_id": "p1_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_1",
+      "type": "CLAUSE",
+      "raw_label": "Điều 1",
+      "parent_id": "root",
+      "order": 1,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 1.",
+      "page_range": [
+        1
+      ],
+      "page_revision_id": "p1_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_2",
+      "type": "CLAUSE",
+      "raw_label": "Điều 2",
+      "parent_id": "root",
+      "order": 2,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 2.",
+      "page_range": [
+        2
+      ],
+      "page_revision_id": "p2_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_3",
+      "type": "CLAUSE",
+      "raw_label": "Điều 3",
+      "parent_id": "root",
+      "order": 3,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 3.",
+      "page_range": [
+        3
+      ],
+      "page_revision_id": "p3_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_4",
+      "type": "CLAUSE",
+      "raw_label": "Điều 4",
+      "parent_id": "root",
+      "order": 4,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 4.",
+      "page_range": [
+        4
+      ],
+      "page_revision_id": "p4_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_5",
+      "type": "CLAUSE",
+      "raw_label": "Điều 5",
+      "parent_id": "root",
+      "order": 5,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 5.",
+      "page_range": [
+        5
+      ],
+      "page_revision_id": "p5_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_6",
+      "type": "CLAUSE",
+      "raw_label": "Điều 6",
+      "parent_id": "root",
+      "order": 6,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 6.",
+      "page_range": [
+        6
+      ],
+      "page_revision_id": "p6_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_7",
+      "type": "CLAUSE",
+      "raw_label": "Điều 7",
+      "parent_id": "root",
+      "order": 7,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 7.",
+      "page_range": [
+        7
+      ],
+      "page_revision_id": "p7_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_8",
+      "type": "CLAUSE",
+      "raw_label": "Điều 8",
+      "parent_id": "root",
+      "order": 8,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 8.",
+      "page_range": [
+        8
+      ],
+      "page_revision_id": "p8_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_9",
+      "type": "CLAUSE",
+      "raw_label": "Điều 9",
+      "parent_id": "root",
+      "order": 9,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 9.",
+      "page_range": [
+        9
+      ],
+      "page_revision_id": "p9_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_10",
+      "type": "CLAUSE",
+      "raw_label": "Điều 10",
+      "parent_id": "root",
+      "order": 10,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 10.",
+      "page_range": [
+        10
+      ],
+      "page_revision_id": "p10_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_11",
+      "type": "CLAUSE",
+      "raw_label": "Điều 11",
+      "parent_id": "root",
+      "order": 11,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 11.",
+      "page_range": [
+        11
+      ],
+      "page_revision_id": "p11_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_12",
+      "type": "CLAUSE",
+      "raw_label": "Điều 12",
+      "parent_id": "root",
+      "order": 12,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 12.",
+      "page_range": [
+        12
+      ],
+      "page_revision_id": "p12_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_13",
+      "type": "CLAUSE",
+      "raw_label": "Điều 13",
+      "parent_id": "root",
+      "order": 13,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 13.",
+      "page_range": [
+        13
+      ],
+      "page_revision_id": "p13_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_14",
+      "type": "CLAUSE",
+      "raw_label": "Điều 14",
+      "parent_id": "root",
+      "order": 14,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 14.",
+      "page_range": [
+        14
+      ],
+      "page_revision_id": "p14_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_15",
+      "type": "CLAUSE",
+      "raw_label": "Điều 15",
+      "parent_id": "root",
+      "order": 15,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 15.",
+      "page_range": [
+        15
+      ],
+      "page_revision_id": "p15_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_16",
+      "type": "CLAUSE",
+      "raw_label": "Điều 16",
+      "parent_id": "root",
+      "order": 16,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 16.",
+      "page_range": [
+        16
+      ],
+      "page_revision_id": "p16_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_17",
+      "type": "CLAUSE",
+      "raw_label": "Điều 17",
+      "parent_id": "root",
+      "order": 17,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 17.",
+      "page_range": [
+        17
+      ],
+      "page_revision_id": "p17_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_18",
+      "type": "CLAUSE",
+      "raw_label": "Điều 18",
+      "parent_id": "root",
+      "order": 18,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 18.",
+      "page_range": [
+        18
+      ],
+      "page_revision_id": "p18_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_19",
+      "type": "CLAUSE",
+      "raw_label": "Điều 19",
+      "parent_id": "root",
+      "order": 19,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 19.",
+      "page_range": [
+        19
+      ],
+      "page_revision_id": "p19_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "cl_20",
+      "type": "CLAUSE",
+      "raw_label": "Điều 20",
+      "parent_id": "root",
+      "order": 20,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Nội dung điều 20.",
+      "page_range": [
+        20
+      ],
+      "page_revision_id": "p20_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "node_p2_parties",
+      "type": "FIELD",
+      "raw_label": "MST Bên Bán",
+      "parent_id": "root",
+      "order": 21,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "MST bên bán: 0312345678",
+      "page_range": [
+        2
+      ],
+      "page_revision_id": "p2_rev1",
+      "bbox": [
+        0.1,
+        0.2,
+        0.8,
+        0.28
+      ],
+      "structured_key": "mst_seller",
+      "structured_value": "0312345678",
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "tables": []
+}

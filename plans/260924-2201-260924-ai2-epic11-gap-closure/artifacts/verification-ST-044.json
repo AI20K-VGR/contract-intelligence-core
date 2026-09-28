@@ -1,0 +1,15 @@
+{
+  "stage": "cook",
+  "plan": "260924-2201-260924-ai2-epic11-gap-closure",
+  "phase": "P1",
+  "checks": [
+    {"name": "st044_targeted", "status": "PASS"},
+    {"name": "st044_regression", "status": "PASS"},
+    {"name": "ai2_full_suite", "status": "PASS", "detail": "680 passed, 1 skipped, 25 warnings"},
+    {"name": "collection_blockers_restored", "status": "PASS"}
+  ],
+  "verdict": "PASS",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-09-24T15:42:37+00:00",
+  "run_seq": null
+}

@@ -1,0 +1,11 @@
+{
+  "document_id": "legacy-text-only",
+  "filename": "legacy-contract.txt",
+  "dossier_id": "legacy_contract",
+  "page_count": 2,
+  "full_text": "DIEU 1. Dinh nghia.\nDIEU 8. Thanh toan.",
+  "pages": [
+    {"page_number": 1, "text": "DIEU 1. Dinh nghia ngay lam viec.", "status": "SUCCESS"},
+    {"page_number": 2, "text": "DIEU 8. Thanh toan sau nghiem thu.", "status": "SUCCESS"}
+  ]
+}

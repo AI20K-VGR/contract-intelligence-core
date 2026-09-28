@@ -9,7 +9,7 @@ Hệ thống **OCR / IDP (Intelligent Document Processing)** xử lý hợp đ�
 ```
 contract-intelligence/
 ├── backend/        # Java Spring Boot — REST API, Clean Architecture + DDD
-├── frontend/       # Web UI cho reviewer / operator (Node/React/Vue — sẽ chốt sau)
+├── frontend/       # Web UI cho reviewer / operator (Vite + React + TypeScript)
 ├── ai-service/     # Python service cho OCR / IDP / LLM extraction (nếu tách riêng)
 ├── docs/           # Tài liệu sản phẩm & kỹ thuật (Product Vision, Architecture, API Spec)
 └── README.md       # File này
@@ -20,7 +20,7 @@ contract-intelligence/
 | Thư mục | Mục đích | Công nghệ dự kiến |
 |---|---|---|
 | `backend/` | API server, xử lý nghiệp vụ chính, lưu trữ, quản lý luồng review | Java 17, Spring Boot 3.x, PostgreSQL, Flyway |
-| `frontend/` | Giao diện upload hợp đồng, review điều khoản, xử lý conflict | Node.js (React hoặc Vue — chưa chốt) |
+| `frontend/` | Giao diện upload hợp đồng, review điều khoản, xử lý conflict | Node 20+, Vite, React 19, TypeScript, ESLint |
 | `ai-service/` | Worker OCR/IDP/LLM, tách riêng để scale độc lập với backend | Python (FastAPI / Celery worker) |
 | `docs/` | Product vision, system design, database schema, API spec, ADRs | Markdown + OpenAPI YAML |
 
@@ -62,8 +62,8 @@ cd contract-intelligence
 # Mở backend
 cd backend && ./mvnw spring-boot:run
 
-# Mở frontend (sau khi generate)
-cd ../frontend && npm install && npm run dev
+# Mở frontend
+cd ../frontend && npm i && npm run dev
 
 # Mở ai-service (sau khi generate)
 cd ../ai-service && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt
@@ -78,6 +78,7 @@ Xem thư mục [`docs/`](./docs/):
 - `DOC-01-product-vision.md` — Tầm nhìn sản phẩm, vấn đề, đối tượng người dùng
 - `DOC-04-architecture.md` — System design, database schema, ADRs
 - `DOC-05-api-spec.yaml` — OpenAPI 3.0 spec cho REST API
+- `DOC-07-khung-project.md` — Khung dự án: luồng end-to-end, ranh giới subsystem, I/O ghép nối
 
 ---
 

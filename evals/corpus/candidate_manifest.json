@@ -1,0 +1,1057 @@
+{
+  "accuracy_claim": "UNVERIFIED",
+  "case_count": 95,
+  "cases": [
+    {
+      "case_id": "EC-001",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "7d8ede42dfe5e163e6625a26c44ab7cdb0431b218bfffc5c72ec7f10d9eca3a6",
+      "tags": [
+        "edge",
+        "router"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-002",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "158143c85e35563011873a850095e888adb84ffb194fc900e896ef04cf3dffcf",
+      "tags": [
+        "clause",
+        "edge"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-003",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "68429b6a3099b4f6e0cc068a92be871e8ce0a654aee78aaf9ef14ac3b2baf8e1",
+      "tags": [
+        "edge",
+        "structure"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-004",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "73e35e179bd074c42b79ec30f6dc0d12df0ec4f3e325d19d6c90b1c9fed9a833",
+      "tags": [
+        "edge",
+        "structure"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-005",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "a9c498a9f214f8895466662010098912ceab39511c9d99323fdef2d99eb59af8",
+      "tags": [
+        "edge",
+        "structure"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-006",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "31ee1dcbdd8a4d35f1337dfe24a3aafc2b35bed158f4b4e82cbaa07c4796e024",
+      "tags": [
+        "edge",
+        "structure"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-007",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "c57d85ad10f278667292bd6c9948cdc7387f924925436445bd485bd9e03e40c1",
+      "tags": [
+        "edge",
+        "reconstruction"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-008",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "fe4cdb68756875a728d254d32f04578ede5322956224d58c6415d44dae70a110",
+      "tags": [
+        "edge",
+        "retrieval"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-009",
+      "expected_state": "INSUFFICIENT",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "c3295cbb6326381458dab967bf8ec6c7cb942edccbb957cc90d87a2e3d88f329",
+      "tags": [
+        "edge",
+        "retrieval"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-010",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "b85ae113aaed6d0592deeb53c83d4b6c0164247758b9a9368a697453da612e38",
+      "tags": [
+        "edge",
+        "table"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-011",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "bb6ad99226b0cc269e3320362c04f277fe26a2b9ce5309d4bfc70be3afaaec1e",
+      "tags": [
+        "edge",
+        "table"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-012",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "dc282d7791081762af6da2a83f6651881f288b29b0a32daffc3cfb0dee74e83c",
+      "tags": [
+        "edge",
+        "table"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-013",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "8564eeb6dd2742d93c057a5e100b2f2c11c56557d3c4cbd48c55b261f128e026",
+      "tags": [
+        "edge",
+        "table"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-014",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "5f3eaf512097187041e78af75cf48b81b9bee658a80b3d27262c06b562f6b5d5",
+      "tags": [
+        "edge",
+        "table"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-015",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "5000e0ec0fe3e834f9ea2844a21766c2d14b75f0085bd0c00790a76b9bf4c7c5",
+      "tags": [
+        "edge",
+        "table"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-016",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "9a48be6ed7156e18b43b99f0212a8edd1b39cdcae108cc6ffea8bba4e4f0bdc6",
+      "tags": [
+        "edge",
+        "table"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-017",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "c98ee3f9bccb8dd914d5ed5572354773d44a42352422a3e9a063139f84e8bfbc",
+      "tags": [
+        "edge",
+        "table"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-018",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "e95f4c2712a52de7e698ea421f817a9987fdfc4144633de161dcaeb8375ad3b0",
+      "tags": [
+        "edge",
+        "table"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-019",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "132a77e9b2950f81740fe734fabdebc1f09a9e4896068efd54b4cfec53c08dff",
+      "tags": [
+        "citation",
+        "edge"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-020",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "2859aef1df750d02c93b4e00a4af43a98041dfd545fdebb3142b81456c0ee4fd",
+      "tags": [
+        "edge",
+        "fact"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-021",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "7f475305a52104b92e348d431eefb21ef9accfd1b773e62054a561387f4fcb9b",
+      "tags": [
+        "edge",
+        "fact"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-022",
+      "expected_state": "INSUFFICIENT",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "157979e2642c6a724e66a7a6432f01bb06cf961ae667988700345b674a81265d",
+      "tags": [
+        "edge",
+        "fact"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-023",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "988ad40190328c4e5e8d4ec6eca462a76f6e29492c15efe79425aaf5b095efc3",
+      "tags": [
+        "edge",
+        "fact"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-024",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "e2a57c56dfa9d0234b7bfc82c8451453f1c22962cb857bcd2b0d7c6c0fa4d3eb",
+      "tags": [
+        "candidate",
+        "edge"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-025",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "a5e26d077606213b33d720b3a86b1005e4863b19cf1432621ce635527db8f14c",
+      "tags": [
+        "edge",
+        "profile"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-026",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "04265733ca4a7fc6325e2ca6fda3015c0983a253a628a29e6352c96bc1742de7",
+      "tags": [
+        "edge",
+        "entity"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-027",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "a743eb4ecbd9c70c3fd3cf54296d093c141764243aa454538091117fc6b0a54b",
+      "tags": [
+        "candidate",
+        "edge"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-028",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "972bfcd4c002d4c580635fcecb8f1a811a6db476f6e39b38bbc9e81888087f19",
+      "tags": [
+        "compare",
+        "edge"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-029",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "fb6554b93f1a86c86c0879939c2cc0174c68c22503747c04f219d5f00b9aafc0",
+      "tags": [
+        "compare",
+        "edge"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-030",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "1372870b1808984e13036487180562094dd3c7ab9c07e16a7a179afff4897092",
+      "tags": [
+        "candidate",
+        "edge"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-031",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "f5689cedc76124f5dbe0b1d8c5bb58ba9171b6753163248a1fa12d4beb4092dd",
+      "tags": [
+        "compare",
+        "edge"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-032",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "875161dbeb6d43d153e9a2cd6f88bd26ed9d762cc726bf49f53a8e5a3030ec96",
+      "tags": [
+        "compare",
+        "edge"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-033",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "2f3971f2d38ff1c209c1b14a6d9b399ccdd886685b711a5fc90c5f26be9b1ff4",
+      "tags": [
+        "compare",
+        "edge"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-034",
+      "expected_state": "INSUFFICIENT",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "e80815c83ecea54b603dfdde378717295275a6b67be49220a71a3d026d4e85c1",
+      "tags": [
+        "edge",
+        "retrieval"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-035",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "3efec7ed08b6fb367edbfa2acdf72d562310593dc2fc353f422e5b48b7fffaa1",
+      "tags": [
+        "edge",
+        "security"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-036",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "d0a48ba760112dcbf62462e6fff3367aef3cd79f2b6475c3a258936b85442e1e",
+      "tags": [
+        "edge",
+        "index"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-037",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "9559d2296d814e04316b208101a65f8abd8c5b22fb00ad46a36b92d8481a8cd1",
+      "tags": [
+        "edge",
+        "retrieval"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-038",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "9848117c4f5c6fcfaa2e8c440ef3f3e2cd767bebdeb0c21843d93ad9e0e96650",
+      "tags": [
+        "dedupe",
+        "edge"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-039",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "1bfcad2b428ea7aa31ec78884666223506215d91eb4db1e65b58d88929236a39",
+      "tags": [
+        "edge",
+        "grounding"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-040",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "45f449ba5b82577652ca8bf44d2b92970d4ca82fc8af5ef8019cd6f59447932b",
+      "tags": [
+        "edge",
+        "router"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-041",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "abea2b657c321c145e4021220d3212e942c945f6b5e395a5093103b0b67790da",
+      "tags": [
+        "edge",
+        "scan"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-042",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "0fbe02bf588701ada932fcd31a30dac69ec917b7af3b29ef0d46b5dfe45cb558",
+      "tags": [
+        "edge",
+        "scan"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-043",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "487ea07fa8206787ea38d192c4df5b9339f2cd3101758e36451ee29abc8b3872",
+      "tags": [
+        "edge",
+        "scan"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-044",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "b30065ca0128b02d7b0740aa44dfff6f158d9316da12855c0693cbbb7aef9b0f",
+      "tags": [
+        "edge",
+        "fact"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-045",
+      "expected_state": "BLOCKED",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "47db4460ca59525535f8336709ac893d3cea4f16a1279db54a279971cc4a22d8",
+      "tags": [
+        "edge",
+        "intake"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-046",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "4195567ff6c179474575f5c4538edc5c84dedeef1edb82e7da3de4eeb9d2ff8c",
+      "tags": [
+        "edge",
+        "intake"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-047",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "3c9ce6591333af6f5c1b39b8952e8bad07acd2b81702227250046f0814fc8096",
+      "tags": [
+        "edge",
+        "orchestrator"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-048",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "640df52b02ba136738004eb6cddeb874af9bc4e8e4489c0ecbc0ff7cbd5b3955",
+      "tags": [
+        "edge",
+        "queue"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-049",
+      "expected_state": "BLOCKED",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "f37c151bba460bcefe8ffb423d2726b519b84aade23646505b506af16174405d",
+      "tags": [
+        "edge",
+        "worker"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-050",
+      "expected_state": "BLOCKED",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "3436bfeca4a55dd6844e1433f701f41ce104d5752b56aef18e2f547e246a1dd0",
+      "tags": [
+        "cost",
+        "edge"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-051",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "6091d4e20b14c1674f925c53c842cff9ca448601dbbb03d317cb0aba2d8c7681",
+      "tags": [
+        "edge",
+        "versioning"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-052",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "f8ebf58f8f802150403adb9baced0f87053b8c696d2def72430c25cc0fdc8988",
+      "tags": [
+        "edge",
+        "lineage"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-053",
+      "expected_state": "BLOCKED",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "8d26dc7018b5a912d6c710105e1636668bc0d60adf646c01b8a1883d72eff899",
+      "tags": [
+        "acl",
+        "edge"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-054",
+      "expected_state": "BLOCKED",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "4192107ba9c9ba860f70e99fb678e9605cbf4468b741b7af2b9485d937d675e7",
+      "tags": [
+        "acl",
+        "edge"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-055",
+      "expected_state": "BLOCKED",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "bc140ff0f8cfa99b8309203bf1901ea5d587c7ef99623998cc222747d83de371",
+      "tags": [
+        "edge",
+        "policy"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "EC-056",
+      "expected_state": "BLOCKED",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "e8505b532bb0f08e8607e50e2bbb9180983501330cae7272fd5dda9a92595e13",
+      "tags": [
+        "edge",
+        "lifecycle"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "HAPPY-001",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "44b2a182c39ff8a8972f34463ace75ca2f767ee724436232b7095368b9c506f0",
+      "tags": [
+        "fact",
+        "happy"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "HAPPY-002",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "633db5a2f9c37f4fb995adfafc5ef9df43d1f49aa1092051085bca0020b2686a",
+      "tags": [
+        "happy",
+        "table"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "HAPPY-003",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "09c30455a483bbd2ec0ceabc9e589b5d73804212cea1aa9cb83391ab9d221df0",
+      "tags": [
+        "acl",
+        "happy"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "HAPPY-004",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "a2153ac427be926ae0b10125f633351e40febdfa6a528be5d271917e22e213e6",
+      "tags": [
+        "happy",
+        "query"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "HAPPY-005",
+      "expected_state": "PASS",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "c38f1ae493b766b53e68f5e4e9bf8dafccd420d6e7ff09a8a79b40ca5e2c48b9",
+      "tags": [
+        "compare",
+        "happy"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "HAPPY-006",
+      "expected_state": "BLOCKED",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "34a691a2b748a712de70f36fdefe2f6cbde26ff8e99d19f53768385e77a85b6d",
+      "tags": [
+        "acl",
+        "happy"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "HD-TONG-HOP",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "a90a2ba8b932e3bc08984faf6026e3842e90cb9b29417e21610e0ac48178ddc0",
+      "tags": [
+        "edge",
+        "full",
+        "happy",
+        "vi"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SALE-BRD-07",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "573dbce82b39db2fab3b14a370b6cc514c4d52444231c3a7978cc3c8931dd522",
+      "tags": [
+        "brd",
+        "compare",
+        "sale"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SERVICE-BRD-08",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "c6c7ccd23f7376e97590e428682475ab7874de219b6ea4ee6c1ed6a7ece91e84",
+      "tags": [
+        "brd",
+        "compare",
+        "service"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-001",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "5acd9bec972f30b676f292278ca44647974dac68d5700eb6e477025cec688122",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-002",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "fe843a7f590936288021f4b4a85e893cd8b21ce33a217583e9302b08b01622e0",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-003",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "7178312f0892f82543783ba6ffc0acc1404be11eaa79bd878d13d52f9016e4e7",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-004",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "a129bd6fc0aad7dd1c57bc538396056101e9b7f166ec62e8c3ba8352afdd2225",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-005",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "295d6fd37a632fb3b135f7a0fac665ea76741c57bc7ca26c8a04bacf08a2bbd6",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-006",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "6d9080e4df220ef88dbc75e80a7a5c72079910f228c3ed27f5cac43c3a625ef0",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-007",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "b88df318926a3461d53bf2ccac0ea2b50f5435f8f2e7636625d755e51eb97749",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-008",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "dca83f0c0b20ef913948b49d105c25c78326c4c9c3c914427a78398b7017a26d",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-009",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "76eafc39f96705ad8928c92815cd7984a77b7874bb4aa0a1d6d3b2c45627e66b",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-010",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "588bd0aaa363f200739f63f06b881c057c3506376aba595b0f894cab2e52676d",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-011",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "9f1e52a4c635281e5502856c673fbf65c380f30d3532148034fe1bc1b5bcd3b5",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-012",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "1fd063586dc8e6e2c540bc7fee62932a4f72d94bbbb5a9dcaec6cc34bdce7f86",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-013",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "081fec9e91c0b72750dbc4e690c25e348f86c54b598cd3690457149cea87cf93",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-014",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "f82b27d090d3e72ad7c1fe47f9bcb351e76af4cbade7d2e11e435b00b73a21e2",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-015",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "ec0231ecb03225561b9bc9f9911f7e46b5e861c6da0f7d3f3c42147820a2852c",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-016",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "8eeee35689c6eea9e85e42d3590e48a596fe8f7ba6803f7f1571b23b2edab0d2",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-017",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "66933e0c74b3b8442204e309ba716b26275b296455eaa09eb32a205b53356d7a",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-018",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "f48a95a0f3ea696f2e3dd193926c6b3058b00d4fb24f188f149cdbed43fd767b",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-019",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "05f189b6464919cbb588fb7d21c0b1a052a192d1951b33e9fca71c6c54221f1a",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-020",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "a591759efdee1e110e5c9e70f468aff6e43788ece6ab964fa667d31863d55635",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-021",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "c4a3c9a98d465db613a6791085a01001a2c25f763365140ef2813c84f7ec17a7",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-022",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "f84b1976d935db3494d9319e215f06c05edad74a4537d717f34d59ac0f9e1e26",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-023",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "6145cc7223b72a2679fae17c378287a0e527d764bbc815a13517055417a1ffe1",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-024",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "b074932c366a7a502ecef4f277e0c1d366998c619f72ee3b5576dac21215db87",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-025",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "f8bab1a9e167efef11e88171cecdc5db65af1fb6f9ce2dbe12b2eae32c164ce6",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-026",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "c7c92a3b826ae13f452a0b65edab9cfa522e54dcdd0962686c27ee5ccf0d29fb",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-027",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "89ab2000f563d3514f863710e2e7598b2dd5c816e8f1643023e5d3b4ae62c223",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-028",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "3d38cbdada373fa64f90d1e3ee8f72dcd174eecad776fd920af7263b4a742232",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-029",
+      "expected_state": "REVIEW",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "c169edd9c5fa836d9ce2b73f3fc342489b56259fa08f3bcddb2192078b17ef55",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    },
+    {
+      "case_id": "SYN-030",
+      "expected_state": "BLOCKED",
+      "source": "ai-service/fixtures/eval_suite.py",
+      "source_sha256": "984efdbca3f7972b72ce3c4a294863fa464b58aa37bbcc1449582fdf89974458",
+      "tags": [
+        "full_flow",
+        "synthetic"
+      ],
+      "validation_status": "UNVERIFIED"
+    }
+  ],
+  "schema_version": "ai2.candidate.manifest.v1",
+  "source": "ai-service/fixtures/eval_suite.py"
+}

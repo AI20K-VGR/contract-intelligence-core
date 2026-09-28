@@ -1,0 +1,1172 @@
+{
+  "schema_version": "ai1.snapshot.v1",
+  "snapshot_id": "pymupdf-native-001",
+  "parent_snapshot_id": null,
+  "run_id": "pymupdf-native-001",
+  "created_at": "2026-09-22T12:20:39.487978Z",
+  "status": "SUCCESS",
+  "execution": {
+    "execution_manifest_id": "pymupdf-native-001:execution",
+    "config_digest": "sha256:140b8e76996a12671e4780bc8f21f0200fc8dbf48e35781a280499c78c8ac076",
+    "policy_digest": "sha256:9ac74992b04823d60038ea316611cc97e427ddc34784ddddd14a6cf39f556e84",
+    "source_version_digest": "sha256:ba0e7e30b924ec062ae12239abefafba54e09ed0da988bcf6d1d4f8be093d8f5",
+    "replay": false
+  },
+  "language": null,
+  "source_digest": "sha256:5d056f0dfb7bb476cd9d7f0121426f3e46bde0f5e398acee5df2fc2f7c006838",
+  "dossier_id": "two-engine-test",
+  "document_id": "native-contract-test",
+  "filename": "hop-dong-mau.pdf",
+  "document_role": "contract",
+  "input_type": "TEXT_LAYER",
+  "engine": {
+    "name": "pymupdf",
+    "version": "1.28.2"
+  },
+  "page_count": 1,
+  "processing_ms": 31.567499972879887,
+  "pages": [
+    {
+      "page_number": 1,
+      "status": "SUCCESS",
+      "input_type": "TEXT_LAYER",
+      "source_page_width": 595.0,
+      "source_page_height": 842.0,
+      "rotation_degrees": 0,
+      "page_image_ref": {
+        "uri": "storage://ocr/pymupdf-native-001/page-001.png",
+        "width_px": 1240,
+        "height_px": 1755
+      },
+      "text": "SYNTHETIC HOP DONG MUA BAN SO 001/2026/HDMB\nDieu 1. Gia tri hop dong\nGia tri hop dong la 300.000.000.000 VND.\nSTT\nHang muc\nSo luong\n1\nDich vu A\n2\n2\nDich vu B\n3",
+      "lines": [
+        {
+          "line_id": "native-contract-test:s1:p001:l001",
+          "text": "SYNTHETIC HOP DONG MUA BAN SO 001/2026/HDMB",
+          "page_char_start": 0,
+          "page_char_end": 43,
+          "bbox_normalized": [
+            0.12100840336134454,
+            0.07713776359648716,
+            0.7237613453584559,
+            0.09998336936968806
+          ],
+          "geometry_provenance": "DERIVED",
+          "word_ids": [
+            "native-contract-test:s1:p001:w0001",
+            "native-contract-test:s1:p001:w0002",
+            "native-contract-test:s1:p001:w0003",
+            "native-contract-test:s1:p001:w0004",
+            "native-contract-test:s1:p001:w0005",
+            "native-contract-test:s1:p001:w0006",
+            "native-contract-test:s1:p001:w0007"
+          ],
+          "bbox_source": "DERIVED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "line_id": "native-contract-test:s1:p001:l002",
+          "text": "Dieu 1. Gia tri hop dong",
+          "page_char_start": 44,
+          "page_char_end": 68,
+          "bbox_normalized": [
+            0.12100840336134454,
+            0.11276721727819737,
+            0.36950250192850576,
+            0.13561282305139827
+          ],
+          "geometry_provenance": "DERIVED",
+          "word_ids": [
+            "native-contract-test:s1:p001:w0008",
+            "native-contract-test:s1:p001:w0009",
+            "native-contract-test:s1:p001:w0010",
+            "native-contract-test:s1:p001:w0011",
+            "native-contract-test:s1:p001:w0012",
+            "native-contract-test:s1:p001:w0013"
+          ],
+          "bbox_source": "DERIVED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "line_id": "native-contract-test:s1:p001:l003",
+          "text": "Gia tri hop dong la 300.000.000.000 VND.",
+          "page_char_start": 69,
+          "page_char_end": 109,
+          "bbox_normalized": [
+            0.12100840336134454,
+            0.14839667095990758,
+            0.559173019793855,
+            0.17124228579414713
+          ],
+          "geometry_provenance": "DERIVED",
+          "word_ids": [
+            "native-contract-test:s1:p001:w0014",
+            "native-contract-test:s1:p001:w0015",
+            "native-contract-test:s1:p001:w0016",
+            "native-contract-test:s1:p001:w0017",
+            "native-contract-test:s1:p001:w0018",
+            "native-contract-test:s1:p001:w0019",
+            "native-contract-test:s1:p001:w0020"
+          ],
+          "bbox_source": "DERIVED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "line_id": "native-contract-test:s1:p001:l004",
+          "text": "STT",
+          "page_char_start": 110,
+          "page_char_end": 113,
+          "bbox_normalized": [
+            0.12941176470588237,
+            0.28414489311163893,
+            0.16115966283974528,
+            0.30046318942181005
+          ],
+          "geometry_provenance": "DERIVED",
+          "word_ids": [
+            "native-contract-test:s1:p001:w0021"
+          ],
+          "bbox_source": "DERIVED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "line_id": "native-contract-test:s1:p001:l005",
+          "text": "Hang muc",
+          "page_char_start": 114,
+          "page_char_end": 122,
+          "bbox_normalized": [
+            0.29747899159663865,
+            0.28414489311163893,
+            0.374067213555344,
+            0.30046318942181005
+          ],
+          "geometry_provenance": "DERIVED",
+          "word_ids": [
+            "native-contract-test:s1:p001:w0022",
+            "native-contract-test:s1:p001:w0023"
+          ],
+          "bbox_source": "DERIVED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "line_id": "native-contract-test:s1:p001:l006",
+          "text": "So luong",
+          "page_char_start": 123,
+          "page_char_end": 131,
+          "bbox_normalized": [
+            0.6336134453781512,
+            0.28414489311163893,
+            0.6999495818835346,
+            0.30046318942181005
+          ],
+          "geometry_provenance": "DERIVED",
+          "word_ids": [
+            "native-contract-test:s1:p001:w0024",
+            "native-contract-test:s1:p001:w0025"
+          ],
+          "bbox_source": "DERIVED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "line_id": "native-contract-test:s1:p001:l007",
+          "text": "1",
+          "page_char_start": 132,
+          "page_char_end": 133,
+          "bbox_normalized": [
+            0.12941176470588237,
+            0.31977434679334915,
+            0.13875629841780462,
+            0.336092624981443
+          ],
+          "geometry_provenance": "DERIVED",
+          "word_ids": [
+            "native-contract-test:s1:p001:w0026"
+          ],
+          "bbox_source": "DERIVED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "line_id": "native-contract-test:s1:p001:l008",
+          "text": "Dich vu A",
+          "page_char_start": 134,
+          "page_char_end": 143,
+          "bbox_normalized": [
+            0.29747899159663865,
+            0.31977434679334915,
+            0.3693949466993829,
+            0.336092624981443
+          ],
+          "geometry_provenance": "DERIVED",
+          "word_ids": [
+            "native-contract-test:s1:p001:w0027",
+            "native-contract-test:s1:p001:w0028",
+            "native-contract-test:s1:p001:w0029"
+          ],
+          "bbox_source": "DERIVED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "line_id": "native-contract-test:s1:p001:l009",
+          "text": "2",
+          "page_char_start": 144,
+          "page_char_end": 145,
+          "bbox_normalized": [
+            0.6336134453781512,
+            0.31977434679334915,
+            0.6429579790900736,
+            0.336092624981443
+          ],
+          "geometry_provenance": "DERIVED",
+          "word_ids": [
+            "native-contract-test:s1:p001:w0030"
+          ],
+          "bbox_source": "DERIVED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "line_id": "native-contract-test:s1:p001:l010",
+          "text": "2",
+          "page_char_start": 146,
+          "page_char_end": 147,
+          "bbox_normalized": [
+            0.12941176470588237,
+            0.3554038004750594,
+            0.13875629841780462,
+            0.3717220786631532
+          ],
+          "geometry_provenance": "DERIVED",
+          "word_ids": [
+            "native-contract-test:s1:p001:w0031"
+          ],
+          "bbox_source": "DERIVED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "line_id": "native-contract-test:s1:p001:l011",
+          "text": "Dich vu B",
+          "page_char_start": 148,
+          "page_char_end": 157,
+          "bbox_normalized": [
+            0.29747899159663865,
+            0.3554038004750594,
+            0.3693949466993829,
+            0.3717220786631532
+          ],
+          "geometry_provenance": "DERIVED",
+          "word_ids": [
+            "native-contract-test:s1:p001:w0032",
+            "native-contract-test:s1:p001:w0033",
+            "native-contract-test:s1:p001:w0034"
+          ],
+          "bbox_source": "DERIVED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "line_id": "native-contract-test:s1:p001:l012",
+          "text": "3",
+          "page_char_start": 158,
+          "page_char_end": 159,
+          "bbox_normalized": [
+            0.6336134453781512,
+            0.3554038004750594,
+            0.6429579790900736,
+            0.3717220786631532
+          ],
+          "geometry_provenance": "DERIVED",
+          "word_ids": [
+            "native-contract-test:s1:p001:w0035"
+          ],
+          "bbox_source": "DERIVED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        }
+      ],
+      "words": [
+        {
+          "word_id": "native-contract-test:s1:p001:w0001",
+          "line_id": "native-contract-test:s1:p001:l001",
+          "text": "SYNTHETIC",
+          "line_char_start": 0,
+          "line_char_end": 9,
+          "bbox_normalized": [
+            0.12100840336134454,
+            0.07713776359648716,
+            0.2543495755235688,
+            0.09998336936968806
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0002",
+          "line_id": "native-contract-test:s1:p001:l001",
+          "text": "HOP",
+          "line_char_start": 10,
+          "line_char_end": 13,
+          "bbox_normalized": [
+            0.2608907491219144,
+            0.07713776359648716,
+            0.31187898010766807,
+            0.09998336936968806
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0003",
+          "line_id": "native-contract-test:s1:p001:l001",
+          "text": "DONG",
+          "line_char_start": 14,
+          "line_char_end": 18,
+          "bbox_normalized": [
+            0.3184201537060137,
+            0.07713776359648716,
+            0.3890083890001313,
+            0.09998336936968806
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0004",
+          "line_id": "native-contract-test:s1:p001:l001",
+          "text": "MUA",
+          "line_char_start": 19,
+          "line_char_end": 22,
+          "bbox_normalized": [
+            0.3955495625984769,
+            0.07713776359648716,
+            0.447831918411896,
+            0.09998336936968806
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0005",
+          "line_id": "native-contract-test:s1:p001:l001",
+          "text": "BAN",
+          "line_char_start": 23,
+          "line_char_end": 26,
+          "bbox_normalized": [
+            0.4543730920102416,
+            0.07713776359648716,
+            0.5027496081440389,
+            0.09998336936968806
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0006",
+          "line_id": "native-contract-test:s1:p001:l001",
+          "text": "SO",
+          "line_char_start": 27,
+          "line_char_end": 29,
+          "bbox_normalized": [
+            0.5092907817423844,
+            0.07713776359648716,
+            0.5432908002068014,
+            0.09998336936968806
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0007",
+          "line_id": "native-contract-test:s1:p001:l001",
+          "text": "001/2026/HDMB",
+          "line_char_start": 30,
+          "line_char_end": 43,
+          "bbox_normalized": [
+            0.549831973805147,
+            0.07713776359648716,
+            0.7237613453584559,
+            0.09998336936968806
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0008",
+          "line_id": "native-contract-test:s1:p001:l002",
+          "text": "Dieu",
+          "line_char_start": 0,
+          "line_char_end": 4,
+          "bbox_normalized": [
+            0.12100840336134454,
+            0.11276721727819737,
+            0.16938489385011818,
+            0.13561282305139827
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0009",
+          "line_id": "native-contract-test:s1:p001:l002",
+          "text": "1.",
+          "line_char_start": 5,
+          "line_char_end": 7,
+          "bbox_normalized": [
+            0.17592606744846376,
+            0.11276721727819737,
+            0.19554960106601235,
+            0.13561282305139827
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0010",
+          "line_id": "native-contract-test:s1:p001:l002",
+          "text": "Gia",
+          "line_char_start": 8,
+          "line_char_end": 11,
+          "bbox_normalized": [
+            0.20209077466435793,
+            0.11276721727819737,
+            0.2387025464482668,
+            0.13561282305139827
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0011",
+          "line_id": "native-contract-test:s1:p001:l002",
+          "text": "tri",
+          "line_char_start": 12,
+          "line_char_end": 15,
+          "bbox_normalized": [
+            0.2452437200466124,
+            0.11276721727819737,
+            0.2648437243549764,
+            0.13561282305139827
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0012",
+          "line_id": "native-contract-test:s1:p001:l002",
+          "text": "hop",
+          "line_char_start": 16,
+          "line_char_end": 19,
+          "bbox_normalized": [
+            0.27138489795332194,
+            0.11276721727819737,
+            0.31063193954339546,
+            0.13561282305139827
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0013",
+          "line_id": "native-contract-test:s1:p001:l002",
+          "text": "dong",
+          "line_char_start": 20,
+          "line_char_end": 24,
+          "bbox_normalized": [
+            0.31717311314174107,
+            0.11276721727819737,
+            0.36950250192850576,
+            0.13561282305139827
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0014",
+          "line_id": "native-contract-test:s1:p001:l003",
+          "text": "Gia",
+          "line_char_start": 0,
+          "line_char_end": 3,
+          "bbox_normalized": [
+            0.12100840336134454,
+            0.14839667095990758,
+            0.15762017514525342,
+            0.17124228579414713
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0015",
+          "line_id": "native-contract-test:s1:p001:l003",
+          "text": "tri",
+          "line_char_start": 4,
+          "line_char_end": 7,
+          "bbox_normalized": [
+            0.164161348743599,
+            0.14839667095990758,
+            0.18376135305196298,
+            0.17124228579414713
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0016",
+          "line_id": "native-contract-test:s1:p001:l003",
+          "text": "hop",
+          "line_char_start": 8,
+          "line_char_end": 11,
+          "bbox_normalized": [
+            0.19030252665030856,
+            0.14839667095990758,
+            0.22954958106289391,
+            0.17124228579414713
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0017",
+          "line_id": "native-contract-test:s1:p001:l003",
+          "text": "dong",
+          "line_char_start": 12,
+          "line_char_end": 16,
+          "bbox_normalized": [
+            0.2360907546612395,
+            0.14839667095990758,
+            0.2884201434480042,
+            0.17124228579414713
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0018",
+          "line_id": "native-contract-test:s1:p001:l003",
+          "text": "la",
+          "line_char_start": 17,
+          "line_char_end": 19,
+          "bbox_normalized": [
+            0.2949613170463498,
+            0.14839667095990758,
+            0.3132671965270483,
+            0.17124228579414713
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0019",
+          "line_id": "native-contract-test:s1:p001:l003",
+          "text": "300.000.000.000",
+          "line_char_start": 20,
+          "line_char_end": 35,
+          "bbox_normalized": [
+            0.3198083701253939,
+            0.14839667095990758,
+            0.4964200572807248,
+            0.17124228579414713
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0020",
+          "line_id": "native-contract-test:s1:p001:l003",
+          "text": "VND.",
+          "line_char_start": 36,
+          "line_char_end": 40,
+          "bbox_normalized": [
+            0.5029612308790704,
+            0.14839667095990758,
+            0.559173019793855,
+            0.17124228579414713
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0021",
+          "line_id": "native-contract-test:s1:p001:l004",
+          "text": "STT",
+          "line_char_start": 0,
+          "line_char_end": 3,
+          "bbox_normalized": [
+            0.12941176470588237,
+            0.28414489311163893,
+            0.16115966283974528,
+            0.30046318942181005
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0022",
+          "line_id": "native-contract-test:s1:p001:l005",
+          "text": "Hang",
+          "line_char_start": 0,
+          "line_char_end": 4,
+          "bbox_normalized": [
+            0.29747899159663865,
+            0.28414489311163893,
+            0.33764704856551997,
+            0.30046318942181005
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0023",
+          "line_id": "native-contract-test:s1:p001:l005",
+          "text": "muc",
+          "line_char_start": 5,
+          "line_char_end": 8,
+          "bbox_normalized": [
+            0.3423193154214811,
+            0.28414489311163893,
+            0.374067213555344,
+            0.30046318942181005
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0024",
+          "line_id": "native-contract-test:s1:p001:l006",
+          "text": "So",
+          "line_char_start": 0,
+          "line_char_end": 2,
+          "bbox_normalized": [
+            0.6336134453781512,
+            0.28414489311163893,
+            0.6541680856913078,
+            0.30046318942181005
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0025",
+          "line_id": "native-contract-test:s1:p001:l006",
+          "text": "luong",
+          "line_char_start": 3,
+          "line_char_end": 8,
+          "bbox_normalized": [
+            0.6588403525472689,
+            0.28414489311163893,
+            0.6999495818835346,
+            0.30046318942181005
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0026",
+          "line_id": "native-contract-test:s1:p001:l007",
+          "text": "1",
+          "line_char_start": 0,
+          "line_char_end": 1,
+          "bbox_normalized": [
+            0.12941176470588237,
+            0.31977434679334915,
+            0.13875629841780462,
+            0.336092624981443
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0027",
+          "line_id": "native-contract-test:s1:p001:l008",
+          "text": "Dich",
+          "line_char_start": 0,
+          "line_char_end": 4,
+          "bbox_normalized": [
+            0.29747899159663865,
+            0.31977434679334915,
+            0.3310924369747899,
+            0.336092624981443
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0028",
+          "line_id": "native-contract-test:s1:p001:l008",
+          "text": "vu",
+          "line_char_start": 5,
+          "line_char_end": 7,
+          "bbox_normalized": [
+            0.3357647038307511,
+            0.31977434679334915,
+            0.35351259888721115,
+            0.336092624981443
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0029",
+          "line_id": "native-contract-test:s1:p001:l008",
+          "text": "A",
+          "line_char_start": 8,
+          "line_char_end": 9,
+          "bbox_normalized": [
+            0.35818486574317226,
+            0.31977434679334915,
+            0.3693949466993829,
+            0.336092624981443
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0030",
+          "line_id": "native-contract-test:s1:p001:l009",
+          "text": "2",
+          "line_char_start": 0,
+          "line_char_end": 1,
+          "bbox_normalized": [
+            0.6336134453781512,
+            0.31977434679334915,
+            0.6429579790900736,
+            0.336092624981443
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0031",
+          "line_id": "native-contract-test:s1:p001:l010",
+          "text": "2",
+          "line_char_start": 0,
+          "line_char_end": 1,
+          "bbox_normalized": [
+            0.12941176470588237,
+            0.3554038004750594,
+            0.13875629841780462,
+            0.3717220786631532
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0032",
+          "line_id": "native-contract-test:s1:p001:l011",
+          "text": "Dich",
+          "line_char_start": 0,
+          "line_char_end": 4,
+          "bbox_normalized": [
+            0.29747899159663865,
+            0.3554038004750594,
+            0.3310924369747899,
+            0.3717220786631532
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0033",
+          "line_id": "native-contract-test:s1:p001:l011",
+          "text": "vu",
+          "line_char_start": 5,
+          "line_char_end": 7,
+          "bbox_normalized": [
+            0.3357647038307511,
+            0.3554038004750594,
+            0.35351259888721115,
+            0.3717220786631532
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0034",
+          "line_id": "native-contract-test:s1:p001:l011",
+          "text": "B",
+          "line_char_start": 8,
+          "line_char_end": 9,
+          "bbox_normalized": [
+            0.35818486574317226,
+            0.3554038004750594,
+            0.3693949466993829,
+            0.3717220786631532
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        },
+        {
+          "word_id": "native-contract-test:s1:p001:w0035",
+          "line_id": "native-contract-test:s1:p001:l012",
+          "text": "3",
+          "line_char_start": 0,
+          "line_char_end": 1,
+          "bbox_normalized": [
+            0.6336134453781512,
+            0.3554038004750594,
+            0.6429579790900736,
+            0.3717220786631532
+          ],
+          "geometry_provenance": "MEASURED",
+          "confidence": null,
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": null
+        }
+      ],
+      "blocks": [],
+      "table_status": "DETECTED",
+      "tables": [
+        {
+          "table_id": "native-contract-test-p001-t001",
+          "bbox_normalized": [
+            0.12100840336134454,
+            0.27315914489311166,
+            0.8403361344537815,
+            0.38004750593824227
+          ],
+          "geometry_provenance": "MEASURED",
+          "header": [
+            "STT",
+            "Hang muc",
+            "So luong"
+          ],
+          "rows": [
+            {
+              "row_id": "native-contract-test:s1:p001:t001:r001",
+              "cells": [
+                {
+                  "cell_id": "native-contract-test:s1:p001:t001:r001:c001",
+                  "text": "1",
+                  "bbox_normalized": [
+                    0.12100840336134454,
+                    0.3087885985748218,
+                    0.28907563025210087,
+                    0.34441805225653205
+                  ],
+                  "geometry_provenance": "MEASURED",
+                  "row_index": 0,
+                  "column_index": 0,
+                  "rowspan": 1,
+                  "colspan": 1,
+                  "row_kind": "HEADER",
+                  "bbox_fragments": [
+                    [
+                      0.12100840336134454,
+                      0.3087885985748218,
+                      0.28907563025210087,
+                      0.34441805225653205
+                    ]
+                  ],
+                  "line_ids": [
+                    "native-contract-test:s1:p001:l007"
+                  ]
+                },
+                {
+                  "cell_id": "native-contract-test:s1:p001:t001:r001:c002",
+                  "text": "Dich vu A",
+                  "bbox_normalized": [
+                    0.28907563025210087,
+                    0.3087885985748218,
+                    0.6252100840336134,
+                    0.34441805225653205
+                  ],
+                  "geometry_provenance": "MEASURED",
+                  "row_index": 0,
+                  "column_index": 1,
+                  "rowspan": 1,
+                  "colspan": 1,
+                  "row_kind": "HEADER",
+                  "bbox_fragments": [
+                    [
+                      0.28907563025210087,
+                      0.3087885985748218,
+                      0.6252100840336134,
+                      0.34441805225653205
+                    ]
+                  ],
+                  "line_ids": [
+                    "native-contract-test:s1:p001:l008"
+                  ]
+                },
+                {
+                  "cell_id": "native-contract-test:s1:p001:t001:r001:c003",
+                  "text": "2",
+                  "bbox_normalized": [
+                    0.6252100840336134,
+                    0.3087885985748218,
+                    0.8403361344537815,
+                    0.34441805225653205
+                  ],
+                  "geometry_provenance": "MEASURED",
+                  "row_index": 0,
+                  "column_index": 2,
+                  "rowspan": 1,
+                  "colspan": 1,
+                  "row_kind": "HEADER",
+                  "bbox_fragments": [
+                    [
+                      0.6252100840336134,
+                      0.3087885985748218,
+                      0.8403361344537815,
+                      0.34441805225653205
+                    ]
+                  ],
+                  "line_ids": [
+                    "native-contract-test:s1:p001:l009"
+                  ]
+                }
+              ]
+            },
+            {
+              "row_id": "native-contract-test:s1:p001:t001:r002",
+              "cells": [
+                {
+                  "cell_id": "native-contract-test:s1:p001:t001:r002:c001",
+                  "text": "2",
+                  "bbox_normalized": [
+                    0.12100840336134454,
+                    0.34441805225653205,
+                    0.28907563025210087,
+                    0.38004750593824227
+                  ],
+                  "geometry_provenance": "MEASURED",
+                  "row_index": 1,
+                  "column_index": 0,
+                  "rowspan": 1,
+                  "colspan": 1,
+                  "row_kind": "BODY",
+                  "bbox_fragments": [
+                    [
+                      0.12100840336134454,
+                      0.34441805225653205,
+                      0.28907563025210087,
+                      0.38004750593824227
+                    ]
+                  ],
+                  "line_ids": [
+                    "native-contract-test:s1:p001:l010"
+                  ]
+                },
+                {
+                  "cell_id": "native-contract-test:s1:p001:t001:r002:c002",
+                  "text": "Dich vu B",
+                  "bbox_normalized": [
+                    0.28907563025210087,
+                    0.34441805225653205,
+                    0.6252100840336134,
+                    0.38004750593824227
+                  ],
+                  "geometry_provenance": "MEASURED",
+                  "row_index": 1,
+                  "column_index": 1,
+                  "rowspan": 1,
+                  "colspan": 1,
+                  "row_kind": "BODY",
+                  "bbox_fragments": [
+                    [
+                      0.28907563025210087,
+                      0.34441805225653205,
+                      0.6252100840336134,
+                      0.38004750593824227
+                    ]
+                  ],
+                  "line_ids": [
+                    "native-contract-test:s1:p001:l011"
+                  ]
+                },
+                {
+                  "cell_id": "native-contract-test:s1:p001:t001:r002:c003",
+                  "text": "3",
+                  "bbox_normalized": [
+                    0.6252100840336134,
+                    0.34441805225653205,
+                    0.8403361344537815,
+                    0.38004750593824227
+                  ],
+                  "geometry_provenance": "MEASURED",
+                  "row_index": 1,
+                  "column_index": 2,
+                  "rowspan": 1,
+                  "colspan": 1,
+                  "row_kind": "BODY",
+                  "bbox_fragments": [
+                    [
+                      0.6252100840336134,
+                      0.34441805225653205,
+                      0.8403361344537815,
+                      0.38004750593824227
+                    ]
+                  ],
+                  "line_ids": [
+                    "native-contract-test:s1:p001:l012"
+                  ]
+                }
+              ]
+            }
+          ],
+          "logical_table_id": "native-contract-test-p001-t001",
+          "fragment_id": "native-contract-test-p001-t001",
+          "continuation": "START"
+        }
+      ],
+      "warnings": [],
+      "page_revision_id": "sha256:e6e0fba37459d8a807acc650f276562246e62bdf86f5b8dd4dff9b2e579b350e",
+      "raw_text_digest": "sha256:84a1033ac29c5270b4a5e52ec4f669216207dc7a29fdef4c193191bcbfdc5870",
+      "quality": {
+        "line_count": 12,
+        "lines_with_geometry": 12,
+        "low_confidence_lines": 0
+      },
+      "table_coverage": {
+        "status": "DETECTED",
+        "detected_table_count": 1,
+        "examined_area_ratio": null
+      },
+      "error": null
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "_unnumbered_1",
+      "type": "UNMARKED",
+      "label_raw": null,
+      "label_normalized": "UNMARKED__unnumbered_1",
+      "parent_id": null,
+      "page_start": 1,
+      "page_end": 1,
+      "line_ids": [
+        "native-contract-test:s1:p001:l001",
+        "native-contract-test:s1:p001:l002",
+        "native-contract-test:s1:p001:l003",
+        "native-contract-test:s1:p001:l004",
+        "native-contract-test:s1:p001:l005",
+        "native-contract-test:s1:p001:l006",
+        "native-contract-test:s1:p001:l007",
+        "native-contract-test:s1:p001:l008",
+        "native-contract-test:s1:p001:l009",
+        "native-contract-test:s1:p001:l010",
+        "native-contract-test:s1:p001:l011",
+        "native-contract-test:s1:p001:l012"
+      ],
+      "bbox_normalized": [
+        0.12100840336134454,
+        0.07713776359648716,
+        0.7237613453584559,
+        0.3717220786631532
+      ],
+      "geometry_provenance": "DERIVED"
+    }
+  ],
+  "table_continuity": []
+}

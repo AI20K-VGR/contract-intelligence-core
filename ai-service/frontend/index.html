@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="api-base" content="http://127.0.0.1:8000" />
+<title>Contract Intelligence - IDP Demo</title>
+<style>
+  :root {
+    --bg: #f4f5f8;
+    --surface: #ffffff;
+    --surface-2: #fafbfc;
+    --border: #e3e6ec;
+    --text: #191c22;
+    --text-muted: #666e7d;
+    --primary: #2554e8;
+    --primary-soft: #eaf0ff;
+    --success: #0f7a55;
+    --success-soft: #e4f6ee;
+    --danger: #b7382c;
+    --danger-soft: #fbeae8;
+    --accent-b: #b3540a;
+    --accent-b-soft: #fdf0e0;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .08);
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --surface: #1d2025;
+      --surface-2: #21242a;
+      --border: #2c3037;
+      --text: #e8eaed;
+      --text-muted: #9aa1ac;
+      --primary: #7d9dff;
+      --primary-soft: #1c2740;
+      --success: #56d9a6;
+      --success-soft: #103226;
+      --danger: #ff9086;
+      --danger-soft: #3a1d1c;
+      --accent-b: #e8a35c;
+      --accent-b-soft: #3a2a12;
+      --shadow: 0 1px 3px rgba(0, 0, 0, .5);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    margin: 0; background: var(--bg); color: var(--text);
+    font-size: 14px; line-height: 1.45;
+  }
+  .app-bar {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 14px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .app-bar h1 { font-size: 16px; margin: 0; }
+  .app-bar .subtitle { font-size: 12px; color: var(--text-muted); }
+  .tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px;
+    background: var(--primary-soft); color: var(--primary); white-space: nowrap;
+  }
+  .tag.is-down { background: var(--danger-soft); color: var(--danger); }
+  main { max-width: 1400px; margin: 0 auto; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .card-pad { padding: 16px; }
+
+  .dropzone {
+    border: 2px dashed var(--border); border-radius: var(--radius); padding: 18px;
+    text-align: center; cursor: pointer; background: var(--surface-2); transition: .15s;
+  }
+  .dropzone:hover, .dropzone.dragover { border-color: var(--primary); background: var(--primary-soft); }
+  .dropzone .label { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+  .dropzone .hint { font-size: 11px; color: var(--text-muted); }
+  .dropzone .filename { margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--primary); word-break: break-all; }
+  .dropzone input { display: none; }
+
+  .uploader-actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  button {
+    font: inherit; border-radius: 8px; padding: 9px 16px; cursor: pointer; border: 1px solid transparent;
+  }
+  button.primary { background: var(--primary); color: #fff; font-weight: 600; }
+  button.primary:disabled { opacity: .45; cursor: not-allowed; }
+  button.ghost { background: transparent; border-color: var(--border); color: var(--text); }
+  button.ghost:hover { border-color: var(--primary); color: var(--primary); }
+  select.engine-select { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+  .uploader-note { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+  .status-line { font-size: 12px; color: var(--primary); margin-top: 10px; min-height: 16px; }
+  .status-line.error { color: var(--danger); }
+
+  .workspace { display: grid; grid-template-columns: minmax(300px, 1.05fr) minmax(320px, 1fr); gap: 18px; align-items: start; }
+  @media (max-width: 980px) { .workspace { grid-template-columns: 1fr; } }
+
+  .doc-card h2 { font-size: 13px; margin: 0 0 2px; }
+  .doc-card { margin-bottom: 14px; }
+  .doc-card .meta { font-size: 11px; color: var(--text-muted); margin-bottom: 10px; }
+  .role-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+  .role-badge.contract { background: var(--primary-soft); color: var(--primary); }
+  .role-badge.annex { background: var(--accent-b-soft); color: var(--accent-b); }
+
+  .page-wrap { position: relative; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; line-height: 0; margin-bottom: 8px; }
+  .page-wrap img { width: 100%; display: block; }
+  .page-badge { position: absolute; top: 6px; left: 6px; font-size: 10px; background: rgba(0,0,0,.55); color: #fff; padding: 1px 6px; border-radius: 4px; z-index: 2; }
+  .bbox {
+    position: absolute; border: 1px dashed rgba(37, 84, 232, .4); border-radius: 2px;
+    pointer-events: none; transition: all .12s ease; background: transparent;
+  }
+  .bbox.active-a { border: 2px solid var(--primary); background: rgba(37, 84, 232, .18); }
+  .bbox.active-b { border: 2px solid var(--accent-b); background: rgba(179, 84, 10, .18); }
+
+  .panel-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+  .panel-tab { padding: 8px 4px; font-size: 13px; font-weight: 600; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; margin-right: 14px; }
+  .panel-tab.active { color: var(--primary); border-color: var(--primary); }
+  .panel-body[hidden] { display: none; }
+
+  .search-box { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; margin-bottom: 10px; }
+
+  .fact-row {
+    display: flex; align-items: baseline; gap: 8px; padding: 8px 6px; border-radius: 8px; cursor: pointer; font-size: 12px;
+  }
+  .fact-row:hover { background: var(--surface-2); }
+  .fact-row.selected { background: var(--primary-soft); }
+  .fact-row .fact-field { font-weight: 700; min-width: 130px; }
+  .fact-row .fact-value { font-family: ui-monospace, "SF Mono", Consolas, monospace; flex: 1; }
+  .fact-row .fact-clause { color: var(--text-muted); font-size: 11px; }
+
+  .empty-state { padding: 20px 10px; text-align: center; color: var(--text-muted); font-size: 12px; }
+
+  .finding-card { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; cursor: pointer; }
+  .finding-card:hover { border-color: var(--primary); }
+  .finding-card.selected { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+  .finding-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .finding-topic { font-weight: 700; font-size: 12px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+  .badge.match, .badge.conf-low { background: var(--success-soft); color: var(--success); }
+  .badge.diff, .badge.conf-high { background: var(--danger-soft); color: var(--danger); }
+  .badge.conf-medium { background: var(--accent-b-soft); color: var(--accent-b); }
+
+  .clause-tree { margin-top: 8px; font-size: 11px; }
+  .clause-row { padding: 2px 0; color: var(--text-muted); }
+  .clause-row .clause-level-article { color: var(--text); font-weight: 700; }
+  .clause-row .clause-level-clause { color: var(--text); font-weight: 600; }
+  .clause-row .clause-level-preamble { font-style: italic; }
+
+  .annex-group-title { font-size: 12px; font-weight: 700; margin: 12px 0 6px; color: var(--text-muted); }
+  .annex-group-title:first-child { margin-top: 0; }
+
+  .fact-row-wrap { border-radius: 8px; }
+  .fact-row-wrap:hover .fact-row { background: var(--surface-2); }
+  .correct-btn { font-size: 10px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; }
+  .correct-btn:hover { border-color: var(--primary); color: var(--primary); }
+  .human-value { font-size: 11px; color: var(--success); padding: 0 6px 6px 6px; }
+
+  .eval-stat { display: flex; justify-content: space-between; padding: 7px 2px; border-bottom: 1px dashed var(--border); font-size: 12px; }
+  .finding-values { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px; }
+  .value-block { font-size: 11px; border-radius: 6px; padding: 6px 8px; }
+  .value-block.a { background: var(--primary-soft); color: var(--primary); }
+  .value-block.b { background: var(--accent-b-soft); color: var(--accent-b); }
+  .value-block .value-label { font-weight: 700; display: block; margin-bottom: 2px; }
+  .finding-rationale { font-size: 11px; color: var(--text-muted); }
+
+  .detail-panel { margin-top: 10px; font-size: 12px; background: var(--surface-2); border: 1px dashed var(--border); border-radius: 8px; padding: 10px; white-space: pre-wrap; }
+  .detail-panel[hidden] { display: none; }
+  .quote-a { color: var(--primary); font-weight: 600; }
+  .quote-b { color: var(--accent-b); font-weight: 600; }
+
+  footer { text-align: center; font-size: 11px; color: var(--text-muted); padding: 6px 20px 26px; }
+
+  .overlay-loading {
+    position: fixed; inset: 0; background: rgba(20, 22, 26, .45); display: flex; align-items: center; justify-content: center; z-index: 50;
+  }
+  .overlay-loading[hidden] { display: none; }
+  .overlay-box { background: var(--surface); border-radius: var(--radius); padding: 20px 26px; box-shadow: var(--shadow); text-align: center; min-width: 220px; }
+  .spinner { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--primary); margin: 0 auto 10px; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="app-bar">
+  <div>
+    <h1>Contract Intelligence &mdash; IDP Demo</h1>
+    <div class="subtitle">Upload PDF -&gt; OCR engine da chon &mdash; Xem docs/architecture.md DOC-04 v0.2 &mdash; <a href="ocr_raw.html">cong cu debug OCR tho</a></div>
+  </div>
+  <span class="tag" id="backend-tag">dang ket noi backend...</span>
+</div>
+
+<main>
+  <section class="card card-pad">
+    <label class="dropzone" id="dropzone-contract">
+      <div class="label">📄 Tai PDF can xu ly (bat buoc)</div>
+      <div class="hint">Keo tha 1 file PDF vao day, hoac bam de chon &mdash; phan tich chay tu dong ngay sau khi chon file</div>
+      <div class="filename" id="filename-contract"></div>
+      <input type="file" id="file-contract" accept="application/pdf" />
+    </label>
+
+    <label class="dropzone" id="dropzone-annex" style="margin-top: 12px;">
+      <div class="label">📎 Phu luc (0..N, tuy chon)</div>
+      <div class="hint">Keo tha hoac chon nhieu file cung luc de kiem tra mau thuan voi hop dong o tren</div>
+      <div class="filename" id="filename-annex"></div>
+      <input type="file" id="file-annex" accept="application/pdf" multiple />
+    </label>
+
+    <div class="uploader-actions">
+      <label for="engine-select" style="font-size:12px; color: var(--text-muted);">OCR engine:</label>
+      <select class="engine-select" id="engine-select"></select>
+      <button class="ghost" id="btn-rerun" hidden>Phan tich lai</button>
+    </div>
+    <div class="uploader-note">Chay qua backend that (<code>/api/ai2/analyze</code>), dung dung engine da chon o tren &mdash; ho tro ca PDF scan neu chon PaddleOCR/Vision, khong chi PDF native nhu ban chay thang trong trinh duyet.</div>
+    <div class="status-line" id="status-line"></div>
+  </section>
+
+  <section class="workspace">
+    <div id="docs">
+      <div class="card card-pad empty-state">Chua co du lieu &mdash; tai PDF hop dong o tren de bat dau.</div>
+    </div>
+    <div class="card card-pad">
+      <div class="panel-tabs">
+        <div class="panel-tab active" data-tab="facts">Facts</div>
+        <div class="panel-tab" data-tab="findings">Xung dot (Findings)</div>
+        <div class="panel-tab" data-tab="evaluation">Evaluation</div>
+      </div>
+      <div class="panel-body" data-tab-body="facts">
+        <input class="search-box" id="fact-search" placeholder="Loc theo field, gia tri, dieu khoan..." />
+        <div id="facts-list"></div>
+      </div>
+      <div class="panel-body" data-tab-body="findings" hidden>
+        <div id="findings-list"></div>
+      </div>
+      <div class="panel-body" data-tab-body="evaluation" hidden>
+        <div id="evaluation-body"></div>
+      </div>
+      <div class="detail-panel" id="detail-panel" hidden></div>
+    </div>
+  </section>
+</main>
+
+<footer>docs/architecture.md demo &mdash; PDF gui len backend cuc bo (127.0.0.1) de OCR/phan tich, khong gui di dau khac. Xem repo root DOC-04 v0.2 de doi chieu thiet ke day du.</footer>
+
+<div class="overlay-loading" id="overlay-loading" hidden>
+  <div class="overlay-box">
+    <div class="spinner"></div>
+    <div id="overlay-text">Dang xu ly...</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const API_BASE = (
+  new URLSearchParams(location.search).get("api") ||
+  document.querySelector('meta[name="api-base"]').content
+).replace(/\/+$/, "");
+
+const docsEl = document.getElementById("docs");
+const factsList = document.getElementById("facts-list");
+const findingsList = document.getElementById("findings-list");
+const evaluationBody = document.getElementById("evaluation-body");
+const detailPanel = document.getElementById("detail-panel");
+const factSearch = document.getElementById("fact-search");
+const backendTag = document.getElementById("backend-tag");
+const engineSelect = document.getElementById("engine-select");
+const statusLine = document.getElementById("status-line");
+const overlayLoading = document.getElementById("overlay-loading");
+const overlayText = document.getElementById("overlay-text");
+const btnRerun = document.getElementById("btn-rerun");
+
+let overlaysByDoc = {};
+let allFactRows = [];
+let currentData = null;
+const state = { contract: null, annexes: [] };
+
+// --------------------------------------------------------------------------
+// Rendering - same shape/behaviour as scripts/demo_report_template.html's
+// renderDossier(), just fed by a backend JSON response instead of embedded
+// data + client-side pdf.js.
+// --------------------------------------------------------------------------
+
+function bboxStyle(bbox) {
+  const [x0, y0, x1, y1] = bbox;
+  return `left:${x0 * 100}%; top:${y0 * 100}%; width:${(x1 - x0) * 100}%; height:${(y1 - y0) * 100}%;`;
+}
+
+function clearActive() {
+  Object.values(overlaysByDoc).forEach((m) => m.forEach((el) => el.classList.remove("active-a", "active-b")));
+  document.querySelectorAll(".selected").forEach((el) => el.classList.remove("selected"));
+}
+
+function activateCitation(citationId, docId, cls) {
+  const el = overlaysByDoc[docId] && overlaysByDoc[docId].get(citationId);
+  if (el) {
+    el.classList.add(cls);
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+function clauseDepth(clause, byId) {
+  let depth = 0;
+  let parentId = clause.parent_clause_id;
+  while (parentId && byId.has(parentId)) {
+    depth++;
+    parentId = byId.get(parentId).parent_clause_id;
+  }
+  return depth;
+}
+
+function renderClauseTree(doc) {
+  const tree = document.createElement("div");
+  tree.className = "clause-tree";
+  const byId = new Map(doc.clauses.map((c) => [c.clause_id, c]));
+  doc.clauses.forEach((clause) => {
+    const row = document.createElement("div");
+    row.className = "clause-row";
+    row.style.paddingLeft = `${clauseDepth(clause, byId) * 14}px`;
+    row.innerHTML =
+      `<span class="clause-level-${clause.level}">${clause.label}</span>` +
+      (clause.title ? ` - ${clause.title}` : "");
+    tree.appendChild(row);
+  });
+  return tree;
+}
+
+function renderFactRow(doc, fact) {
+  const wrap = document.createElement("div");
+  wrap.className = "fact-row-wrap";
+  const conf = fact.confidence.review_priority;
+  const row = document.createElement("div");
+  row.className = "fact-row";
+  row.innerHTML =
+    `<span class="role-badge ${doc.role === "contract" ? "contract" : "annex"}">${doc.role}</span>` +
+    `<span class="fact-field">${fact.field}</span>` +
+    `<span class="fact-value">${fact.human_correction ? `<s>${fact.raw}</s>` : fact.raw}</span>` +
+    `<span class="fact-clause">${fact.context.clause_label}</span>` +
+    `<span class="badge conf-${conf}" title="review_priority">${conf}</span>` +
+    `<button class="correct-btn" type="button">Sua</button>`;
+  row.dataset.searchText = `${fact.field} ${fact.raw} ${fact.context.clause_label} ${fact.context.clause_title}`.toLowerCase();
+  row.addEventListener("click", (e) => {
+    if (e.target.closest(".correct-btn")) return;
+    clearActive();
+    row.classList.add("selected");
+    activateCitation(fact.citation.citation_id, fact.citation.document_id, "active-a");
+    detailPanel.hidden = false;
+    detailPanel.textContent =
+      `Citation (${doc.role}, trang ${fact.citation.segments[0].page_number}, anchor=${fact.citation.segments[0].anchor_precision}):\n"${fact.citation.segments[0].quote}"`;
+  });
+  row.querySelector(".correct-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    const value = prompt(
+      `Sua gia tri cho '${fact.field}' (machine: "${fact.raw}"). Chi luu trong phien lam viec nay, khong gui len backend.`,
+      fact.human_correction ? fact.human_correction.value : fact.raw
+    );
+    if (value === null) return;
+    fact.human_correction = value === fact.raw ? null : { value, actor: "reviewer (demo)", at: new Date().toLocaleString() };
+    renderDossier(currentData);
+  });
+  wrap.appendChild(row);
+  if (fact.human_correction) {
+    const humanRow = document.createElement("div");
+    humanRow.className = "human-value";
+    humanRow.textContent = `Da sua: "${fact.human_correction.value}" (${fact.human_correction.actor}, ${fact.human_correction.at})`;
+    wrap.appendChild(humanRow);
+  }
+  allFactRows.push(row);
+  return wrap;
+}
+
+function renderFindingCard(finding) {
+  const card = document.createElement("div");
+  card.className = "finding-card";
+  const badgeClass = finding.disposition === "comparable_match" ? "match" : "diff";
+  const conf = finding.confidence.review_priority;
+  card.innerHTML =
+    `<div class="finding-top"><span class="finding-topic">${finding.topic}</span>` +
+    `<span><span class="badge ${badgeClass}">${finding.disposition}</span> <span class="badge conf-${conf}">${conf}</span></span></div>` +
+    `<div class="finding-values">` +
+    `<div class="value-block a"><span class="value-label">A - Hop dong</span>${finding.value_a}</div>` +
+    `<div class="value-block b"><span class="value-label">B - ${finding.annex_filename || "Phu luc"}</span>${finding.value_b}</div>` +
+    `</div>` +
+    `<div class="finding-rationale">${finding.rationale}</div>`;
+  card.addEventListener("click", () => {
+    clearActive();
+    card.classList.add("selected");
+    const citA = finding.citations_a[0];
+    const citB = finding.citations_b[0];
+    activateCitation(citA.citation_id, citA.document_id, "active-a");
+    activateCitation(citB.citation_id, citB.document_id, "active-b");
+    detailPanel.hidden = false;
+    detailPanel.innerHTML =
+      `<strong>${finding.topic}</strong> - ${finding.disposition}\n${finding.rationale}\n` +
+      `<span class="quote-a">A (hop dong, trang ${citA.segments[0].page_number}): "${citA.segments[0].quote}"</span>\n` +
+      `<span class="quote-b">B (${finding.annex_filename || "phu luc"}, trang ${citB.segments[0].page_number}): "${citB.segments[0].quote}"</span>`;
+  });
+  return card;
+}
+
+function renderEvaluation(data) {
+  const totalFacts = data.documents.reduce((n, d) => n + d.facts.length, 0);
+  const byPriority = { low: 0, medium: 0, high: 0 };
+  data.documents.forEach((d) => d.facts.forEach((f) => byPriority[f.confidence.review_priority]++));
+  const correctedCount = data.documents.reduce(
+    (n, d) => n + d.facts.filter((f) => f.human_correction).length,
+    0
+  );
+  const rows = [
+    ["So tai lieu (hop dong + phu luc)", data.documents.length],
+    ["So fact trich duoc", totalFacts],
+    ["So finding (xung dot/khop) da phat hien", data.findings.length],
+    ["Fact review_priority = low (it can xem lai)", byPriority.low],
+    ["Fact review_priority = medium", byPriority.medium],
+    ["Fact review_priority = high (uu tien xem lai)", byPriority.high],
+    ["Fact da duoc reviewer sua trong phien nay", correctedCount],
+  ];
+  evaluationBody.innerHTML =
+    rows.map(([label, value]) => `<div class="eval-stat"><span>${label}</span><span>${value}</span></div>`).join("") +
+    '<div class="uploader-note" style="margin-top:10px;">Day la thong ke tren 1 lan chay, KHONG phai accuracy/F1 - chua co ground truth nap vao de doi chieu. Xem docs/architecture.md muc 16 cho thiet ke evaluation day du (can dataset da gan nhan).</div>';
+}
+
+function renderDossier(data) {
+  currentData = data;
+  overlaysByDoc = {};
+  docsEl.innerHTML = "";
+  factsList.innerHTML = "";
+  findingsList.innerHTML = "";
+  detailPanel.hidden = true;
+  allFactRows = [];
+
+  data.documents.forEach((doc) => {
+    const card = document.createElement("div");
+    card.className = "card card-pad doc-card";
+    const roleClass = doc.role === "contract" ? "contract" : "annex";
+    const cls = doc.classification;
+    const clsBadgeClass = cls.status === "confirmed" ? "match" : "diff";
+    card.innerHTML =
+      `<span class="role-badge ${roleClass}">${doc.role}</span>` +
+      `<h2>${doc.filename}</h2>` +
+      `<div class="meta">input_type: ${doc.input_type} | engine: ${doc.engine.name} | pages: ${doc.page_count} | clauses: ${doc.clauses.length} | facts: ${doc.facts.length}</div>` +
+      `<div class="meta">phan loai: <span class="badge ${clsBadgeClass}">${cls.predicted_role} (${cls.status})</span>${cls.evidence ? ` - tu khoa: "${cls.evidence}"` : ""}</div>`;
+    card.appendChild(renderClauseTree(doc));
+    const overlays = new Map();
+    overlaysByDoc[doc.document_id] = overlays;
+
+    for (let pageNo = 1; pageNo <= doc.page_count; pageNo++) {
+      const key = `${doc.document_id}:${pageNo}`;
+      const wrap = document.createElement("div");
+      wrap.className = "page-wrap";
+      wrap.style.marginTop = "8px";
+      wrap.innerHTML = `<span class="page-badge">trang ${pageNo}</span>`;
+      if (data.images[key]) {
+        const img = document.createElement("img");
+        img.src = data.images[key];
+        wrap.appendChild(img);
+      }
+      card.appendChild(wrap);
+
+      doc.facts
+        .filter((f) => f.citation.segments[0].page_number === pageNo)
+        .forEach((f) => {
+          const seg = f.citation.segments[0];
+          const box = document.createElement("div");
+          box.className = "bbox";
+          box.style.cssText += bboxStyle(seg.bbox);
+          wrap.appendChild(box);
+          overlays.set(f.citation.citation_id, box);
+        });
+    }
+    docsEl.appendChild(card);
+  });
+
+  let factCount = 0;
+  data.documents.forEach((doc) => {
+    doc.facts.forEach((fact) => {
+      factCount++;
+      factsList.appendChild(renderFactRow(doc, fact));
+    });
+  });
+  if (!factCount) {
+    factsList.innerHTML = '<div class="empty-state">Khong nhan dien duoc fact nao (van ban khong khop mau cau, hoac trang chua co text - kiem tra input_type/engine o tren, thu doi engine sang PaddleOCR neu la ban scan).</div>';
+  }
+
+  if (!data.findings.length) {
+    findingsList.innerHTML = '<div class="empty-state">Khong co finding (chua co phu luc nao duoc them, hoac khong co field nao trung ten voi hop dong).</div>';
+  } else {
+    const groups = new Map();
+    data.findings.forEach((finding) => {
+      const key = finding.annex_filename || finding.annex_document_id || "?";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(finding);
+    });
+    groups.forEach((findings, filename) => {
+      const heading = document.createElement("div");
+      heading.className = "annex-group-title";
+      heading.textContent = `So sanh voi: ${filename}`;
+      findingsList.appendChild(heading);
+      findings.forEach((finding) => findingsList.appendChild(renderFindingCard(finding)));
+    });
+  }
+
+  renderEvaluation(data);
+}
+
+factSearch.addEventListener("input", () => {
+  const q = factSearch.value.trim().toLowerCase();
+  allFactRows.forEach((row) => {
+    row.style.display = !q || row.dataset.searchText.includes(q) ? "" : "none";
+  });
+});
+
+document.querySelectorAll(".panel-tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".panel-tab").forEach((t) => t.classList.remove("active"));
+    tab.classList.add("active");
+    document.querySelectorAll(".panel-body").forEach((b) => {
+      b.hidden = b.dataset.tabBody !== tab.dataset.tab;
+    });
+  });
+});
+
+// --------------------------------------------------------------------------
+// Backend wiring
+// --------------------------------------------------------------------------
+
+fetch(API_BASE + "/api/engines")
+  .then((r) => r.json())
+  .then((data) => {
+    backendTag.className = "tag";
+    backendTag.textContent = "backend: " + API_BASE;
+    engineSelect.innerHTML = "";
+    data.engines.forEach((eng) => {
+      const opt = document.createElement("option");
+      opt.value = eng.id;
+      opt.textContent = eng.label + (eng.available ? "" : " (khong kha dung)");
+      opt.disabled = !eng.available;
+      if (eng.id === "pymupdf") opt.selected = true;
+      engineSelect.appendChild(opt);
+    });
+  })
+  .catch(() => {
+    backendTag.className = "tag is-down";
+    backendTag.textContent = "khong ket noi duoc backend tai " + API_BASE;
+    statusLine.textContent =
+      "Khong lay duoc danh sach engine. Kiem tra backend da chay chua (scripts/serve_backend.py), " +
+      "hoac them ?api=http://host:port vao URL de tro sang backend khac.";
+    statusLine.classList.add("error");
+  });
+
+function isPdf(file) {
+  return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+}
+
+function renderAnnexFilenames() {
+  const el = document.getElementById("filename-annex");
+  if (!state.annexes.length) { el.textContent = ""; return; }
+  el.innerHTML = state.annexes
+    .map(
+      (f, i) =>
+        `<span style="margin-right:8px;">${f.name} <button type="button" class="correct-btn" data-remove="${i}">x</button></span>`
+    )
+    .join("");
+  el.querySelectorAll("[data-remove]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      state.annexes.splice(Number(btn.dataset.remove), 1);
+      renderAnnexFilenames();
+      if (state.contract) runAnalysis();
+    });
+  });
+}
+
+async function runAnalysis() {
+  if (!state.contract) return;
+  statusLine.textContent = "";
+  statusLine.classList.remove("error");
+  overlayLoading.hidden = false;
+  overlayText.textContent = "Dang gui len backend va cho OCR...";
+  try {
+    const formData = new FormData();
+    formData.append("contract", state.contract);
+    state.annexes.forEach((file) => formData.append("annexes", file));
+    formData.append("engine", engineSelect.value || "pymupdf");
+    const res = await fetch(API_BASE + "/api/ai2/analyze", { method: "POST", body: formData });
+    if (!res.ok) {
+      const detail = await res.json().catch(() => null);
+      throw new Error((detail && detail.detail) || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    renderDossier(data);
+    btnRerun.hidden = false;
+  } catch (err) {
+    statusLine.textContent = `Loi khi phan tich: ${err.message}`;
+    statusLine.classList.add("error");
+  } finally {
+    overlayLoading.hidden = true;
+  }
+}
+
+function wireContractDropzone() {
+  const zone = document.getElementById("dropzone-contract");
+  const input = document.getElementById("file-contract");
+  const filenameEl = document.getElementById("filename-contract");
+
+  function setFile(file) {
+    if (!file) return;
+    if (!isPdf(file)) {
+      statusLine.textContent = "Chi nhan file PDF.";
+      statusLine.classList.add("error");
+      return;
+    }
+    state.contract = file;
+    filenameEl.textContent = file.name;
+    runAnalysis();
+  }
+
+  input.addEventListener("change", (e) => setFile(e.target.files[0]));
+  zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("dragover"); });
+  zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
+  zone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    zone.classList.remove("dragover");
+    setFile(e.dataTransfer.files[0]);
+  });
+}
+
+function wireAnnexDropzone() {
+  const zone = document.getElementById("dropzone-annex");
+  const input = document.getElementById("file-annex");
+
+  function addFiles(fileList) {
+    const files = Array.from(fileList || []).filter(isPdf);
+    if (!files.length) return;
+    state.annexes.push(...files);
+    renderAnnexFilenames();
+    if (state.contract) runAnalysis();
+  }
+
+  input.addEventListener("change", (e) => { addFiles(e.target.files); input.value = ""; });
+  zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("dragover"); });
+  zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
+  zone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    zone.classList.remove("dragover");
+    addFiles(e.dataTransfer.files);
+  });
+}
+
+wireContractDropzone();
+wireAnnexDropzone();
+btnRerun.addEventListener("click", runAnalysis);
+</script>
+</body>
+</html>

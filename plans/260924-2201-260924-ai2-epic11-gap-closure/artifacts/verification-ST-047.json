@@ -1,0 +1,23 @@
+{
+  "stage": "cook",
+  "plan": "260924-2201-260924-ai2-epic11-gap-closure",
+  "phase": "P4",
+  "commit_evidence": {
+    "C1": "19693ff",
+    "C2": "9bb90ea",
+    "C3": "eea49d6",
+    "C4": "this commit; see git log"
+  },
+  "checks": [
+    {"name": "st047_targeted", "status": "PASS", "detail": "62 passed"},
+    {"name": "propose_only_active_pointer", "status": "PASS", "detail": "two proposals; publish=propose; active_pointer=None"},
+    {"name": "reviewer_active_index_gate", "status": "PASS", "detail": "2 passed; reject stays inactive, approve changes active pointer, retry is idempotent and audited"},
+    {"name": "backend_full_suite", "status": "PASS", "detail": "264 passed, 28 warnings"},
+    {"name": "ai2_full_suite", "status": "PASS", "detail": "692 passed, 1 skipped, 27 warnings"},
+    {"name": "backend_ruff", "status": "PASS", "detail": "All checks passed"}
+  ],
+  "verdict": "PASS",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-09-25T09:30:00+07:00",
+  "run_seq": null
+}

@@ -1,0 +1,3 @@
+sample_id,file_path,source,language,input_type,quality,has_table,has_annex,has_seal,has_signature,is_bilingual,degradation,dpi,ground_truth_text,ground_truth_bbox,ground_truth_critical_fields,notes
+S001,data/raw/digital/S001.pdf,EXAMPLE - replace with authorized document,vi,text_layer,clean,true,true,false,false,false,,300,data/ground_truth/text/S001.txt,,,Example paths; files are not included
+S002,data/raw/scanned_clean/S002.pdf,EXAMPLE - replace with authorized document,vi,scanned,clean,true,true,false,false,false,,300,data/ground_truth/text/S002.txt,,,Example paths; files are not included

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VSF · Hồ sơ hợp đồng</title>
+  <link rel="stylesheet" href="/static/demo.css" />
+</head>
+<body>
+  <header class="appbar">
+    <div class="brand">
+      <span class="logo">VSF</span>
+      <div>
+        <p class="kicker">Phân tích hợp đồng</p>
+        <h1>Hồ sơ hợp đồng</h1>
+      </div>
+    </div>
+    <nav class="steps" id="steps">
+      <span data-step="ingest" class="on">1. Tiếp nhận</span>
+      <span data-step="reconstruct">2. Tái cấu trúc</span>
+      <span data-step="extract">3. Trích xuất AI2</span>
+      <span data-step="reason">4. Tra cứu</span>
+      <span data-step="result">5. Kết quả</span>
+    </nav>
+    <div class="appbar-right">
+      <div id="health" class="health">Mô hình AI …</div>
+      <a class="ghost" href="/static/lab.html">Phòng thử case</a>
+    </div>
+  </header>
+
+  <section id="view-ingest" class="hero">
+    <div class="hero-copy">
+      <h2>Đưa hợp đồng vào hệ thống</h2>
+      <p>Tải một hoặc nhiều PDF (hợp đồng + phụ lục). Cây điều khoản lấy từ chữ sẵn trong file. Bấm nút trên cây để tô trên PDF gốc, rồi hỏi — ví dụ «Điều 9 nói về gì?».</p>
+      <div class="drop" id="drop">
+        <input id="file" type="file" accept=".pdf,.md,.txt,.markdown,.json" multiple hidden />
+        <input id="snapshot-file" type="file" accept=".json,application/json" hidden />
+        <button type="button" id="pick-snapshot">Nạp output AI1 / snapshot (.json)</button>
+        <p class="drop-title">Kéo thả PDF (có thể nhiều file)</p>
+        <p class="muted">Hợp đồng + phụ lục · tối đa 12 MB/tệp · chữ sẵn trong PDF, chưa dùng máy OCR</p>
+        <p>
+          <a href="/static/HD-TONG-HOP.body.pdf" download>PDF thân</a>
+          ·
+          <a href="/static/HD-TONG-HOP.annex.pdf" download>PDF phụ lục</a>
+          ·
+          <a href="/static/SALE-BRD.sample.pdf" download>PDF đối chiếu</a>
+        </p>
+        <button type="button" id="pick" class="primary">Chọn tệp</button>
+        <button type="button" id="sample">Mở hồ sơ mẫu HĐ tổng hợp</button>
+        <button type="button" id="sample-compare">Mở PDF đối chiếu + phát hiện</button>
+        <div class="demo-case-picker">
+          <select id="sample-case" aria-label="Chọn case demo">
+            <option value="">Chọn case trong bộ 95 case…</option>
+          </select>
+          <button type="button" id="load-case">Mở case</button>
+        </div>
+      </div>
+      <p id="ingest-err" class="err"></p>
+    </div>
+    <aside class="hero-aside">
+      <h3>Luồng xử lý</h3>
+      <ol class="pipe">
+        <li><strong>Tiếp nhận</strong> tệp nguồn, mã băm SHA-256</li>
+        <li><strong>AI1</strong> ảnh chụp từng trang + cây mục lục</li>
+        <li><strong>Bàn giao</strong> ghim phiên bản, quyền truy cập, vòng đời hồ sơ</li>
+        <li><strong>AI2</strong> sự kiện · đoạn điều · ứng viên đối chiếu · đề xuất chỉ mục</li>
+        <li><strong>Hỏi (L0–L3)</strong> + nhảy nguồn dẫn trên trang</li>
+      </ol>
+    </aside>
+  </section>
+
+  <main id="view-work" class="workspace hidden">
+    <aside class="tree-pane">
+      <p class="kicker">Cây cấu trúc</p>
+      <input id="tree-filter" type="search" placeholder="Lọc điều / phụ lục…" />
+      <div id="tree" class="tree"></div>
+    </aside>
+    <aside class="doc">
+      <div class="doc-head">
+        <div>
+          <p class="kicker" id="doc-name">—</p>
+          <p class="muted" id="doc-meta"></p>
+          <p class="muted" id="loc-meta"></p>
+        </div>
+        <div class="pager">
+          <div id="file-tabs" class="file-tabs"></div>
+          <button type="button" id="prev">‹</button>
+          <span id="page-ind">1 / 1</span>
+          <button type="button" id="next">›</button>
+        </div>
+      </div>
+      <div class="pdf-stage">
+        <canvas id="pdf-canvas"></canvas>
+        <div id="pdf-hl"></div>
+      </div>
+      <article id="page-view" class="page-view hidden"></article>
+    </aside>
+    <section class="board">
+      <form id="askform" class="askform">
+        <input id="ask" placeholder="Hỏi hồ sơ, ví dụ: Điều 9 nói về gì?" />
+        <button type="submit" class="primary">Tra cứu</button>
+      </form>
+      <div id="ask-out" class="pane ask-out"><p class="muted">Đặt câu hỏi sau khi hồ sơ đã tái cấu trúc. Câu kiểu «Điều 9 nói về gì?» không cần bật mô hình AI.</p></div>
+      <div class="toolbar">
+        <label class="toggle"><input type="checkbox" id="use-llm" /> Dùng mô hình AI khi trích sự kiện / tầng L2</label>
+        <label class="toggle"><input type="checkbox" id="use-vector" /> Vector recall (chỉ tìm ứng viên)</label>
+        <button type="button" id="btn-extract" class="primary">Chạy trích xuất AI2</button>
+        <button type="button" id="btn-reset">Hồ sơ khác</button>
+      </div>
+      <div id="timeline" class="timeline"></div>
+      <div class="tabs">
+        <button type="button" class="tab on" data-tab="struct">Cấu trúc</button>
+        <button type="button" class="tab" data-tab="facts">Sự kiện & ứng viên</button>
+        <button type="button" class="tab" data-tab="findings">Phát hiện</button>
+        <button type="button" class="tab" data-tab="graph">Quan hệ & bảng</button>
+        <button type="button" class="tab" data-tab="reason">Nhiệm vụ mẫu</button>
+        <button type="button" class="tab" data-tab="out">Kết quả</button>
+      </div>
+      <div id="pane-struct" class="pane"></div>
+      <div id="pane-facts" class="pane hidden"></div>
+      <div id="pane-findings" class="pane hidden"></div>
+      <div id="pane-graph" class="pane hidden"></div>
+      <div id="pane-reason" class="pane hidden"></div>
+      <div id="pane-out" class="pane hidden"></div>
+    </section>
+  </main>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="/static/demo.js?v=review-persist"></script>
+</body>
+</html>

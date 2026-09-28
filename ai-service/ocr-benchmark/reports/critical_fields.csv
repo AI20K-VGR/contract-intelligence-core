@@ -1,0 +1,14 @@
+﻿document_id,page_number,provider,experiment,field_type,ground_truth,normalized_ground_truth,exact_match,normalized_match
+DOC-101,1,mistral,raw,contract_number,19/QĐ-KTA-HTSX,19/qđ-kta-htsx,0,1
+DOC-101,2,mistral,raw,total_amount,175.627.240 VND,175627240,1,1
+DOC-101,2,mistral,raw,effective_date,01/02/2024,2024-02-01,1,1
+DOC-102,1,mistral,raw,contract_number,05/2026/HD-DV/MH-TT,05/2026/hd-dv/mh-tt,1,1
+DOC-102,1,mistral,raw,tax_code,0101234567,0101234567,1,1
+DOC-102,1,mistral,raw,tax_code,0207654321,0207654321,1,1
+DOC-102,3,mistral,raw,total_amount,28.391.200,28391200,1,1
+DOC-103,1,mistral,raw,contract_number,20/09/2026/HD-MAU,20/09/2026/hd-mau,1,1
+DOC-103,1,mistral,raw,tax_code,0100000000,0100000000,1,1
+DOC-103,1,mistral,raw,tax_code,0100000001,0100000001,1,1
+DOC-103,1,mistral,raw,total_amount,486.750.000 VND,486750000,1,1
+DOC-103,1,mistral,raw,contract_date,20/09/2026,2026-09-20,1,1
+DOC-103,4,mistral,raw,signatory_name,TRAN THI B,tran thi b,0,0

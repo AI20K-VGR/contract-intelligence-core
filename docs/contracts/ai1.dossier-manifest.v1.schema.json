@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractintel.internal/schemas/ai1.dossier-manifest.v1.json",
+  "title": "AI1 Dossier Manifest v1",
+  "description": "Explicit document membership and body/annex roles for an AI2 dossier.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "manifest_id", "dossier_id", "documents"],
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["document_id", "snapshot_id", "role", "source_digest"],
+      "properties": {
+        "document_id": {"$ref": "#/$defs/id"},
+        "snapshot_id": {"$ref": "#/$defs/id"},
+        "role": {"enum": ["body", "annex"]},
+        "source_digest": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  },
+  "properties": {
+    "schema_version": {"const": "ai1.dossier-manifest.v1"},
+    "manifest_id": {"$ref": "#/$defs/id"},
+    "dossier_id": {"$ref": "#/$defs/id"},
+    "documents": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": {"$ref": "#/$defs/document"},
+      "contains": {
+        "type": "object",
+        "required": ["role"],
+        "properties": {"role": {"const": "body"}}
+      },
+      "minContains": 1,
+      "maxContains": 1
+    }
+  }
+}

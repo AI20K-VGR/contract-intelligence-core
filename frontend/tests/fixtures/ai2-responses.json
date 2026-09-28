@@ -1,0 +1,24 @@
+{
+  "answered": {
+    "query": "Giá trị tổng của hợp đồng",
+    "answer": "1.000.000.000 VNĐ",
+    "connected": true,
+    "review_state": "ANSWERED",
+    "hits": [
+      {
+        "text": "Tổng giá trị hợp đồng: 1.000.000.000 VNĐ",
+        "page_no": 3,
+        "source_file_id": "doc-contract",
+        "line_id": "line:3:doc-contract:s1:p003:l002",
+        "bbox": [0.1, 0.2, 0.8, 0.3]
+      }
+    ]
+  },
+  "unresolved": {
+    "query": "Thông tin bên A",
+    "answer": "Công ty ABC",
+    "connected": true,
+    "review_state": "ANSWERED",
+    "hits": [{ "text": "Công ty ABC" }]
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "ec": "EC-048",
+  "description": "ACL deny returns BLOCKED without leaking existence"
+}

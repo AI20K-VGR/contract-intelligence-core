@@ -1,0 +1,24 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# tsc emit next to sources. Vite would load these instead of the .ts files.
+src/**/*.js
+src/**/*.js.map
+vite.config.js
+vite.config.d.ts
+
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
