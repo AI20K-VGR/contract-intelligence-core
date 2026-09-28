@@ -34,9 +34,6 @@ from contract_intelligence.contract.interfaces.api.routers.admin_router import (
 from contract_intelligence.contract.interfaces.api.routers.contract_router import (
     router as contract_router,
 )
-from contract_intelligence.contract.interfaces.api.routers.contract_upload_router import (
-    router as contract_upload_router,
-)
 from contract_intelligence.extraction.interfaces.api.routers.events_router import (
     router as events_router,
 )
@@ -316,7 +313,6 @@ def create_app() -> FastAPI:
     app.include_router(users_router, prefix="/api/v1")  # → /api/v1/users*
     app.include_router(admin_overview_router, prefix="/api/v1")  # → /api/v1/admin/*
     app.include_router(contract_router, prefix="/api/v1", tags=["Contract"])
-    app.include_router(contract_upload_router, prefix="/api/v1", tags=["Contract-Upload"])
     app.include_router(extraction_router, prefix="/api/v1", tags=["Extraction"])
     app.include_router(conflict_router, prefix="/api/v1", tags=["Conflict"])
 

@@ -12,6 +12,7 @@ Changelog (ADR-12):
     v1.0.0 — Sprint 3 baseline. Auth + Contract BC + Document upload + Manifest.
     v1.1.0 — Sprint 4. **AI service integration** (DOC-05c v1.0.0):
                 - POST /dossiers/upload — multipart tạo dossier + auto-trigger run
+                  (đã gỡ: dùng POST /dossiers → Kafka dossier.uploaded)
                 - POST /dossiers/{id}/runs — async pipeline trigger qua AI service
                 - POST /documents/{id}/re-ocr — async Re-OCR submission
                 - GET  /runs/{id}/events — SSE stream real-time updates

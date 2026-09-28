@@ -182,7 +182,7 @@ backend/
 │   │           ├── __init__.py
 │   │           └── routers/
 │   │               ├── __init__.py
-│   │               ├── contract_upload_router.py  # @router.post("/contracts/upload")
+│   │               ├── contract_router.py  # @router.post("/dossiers") — upload duy nhất
 │   │               └── contract_status_router.py  # @router.get("/contracts/{id}")
 │   │
 │   ├── extraction/                      # Bounded Context: clause extraction

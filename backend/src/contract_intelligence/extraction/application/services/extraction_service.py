@@ -121,6 +121,11 @@ class ExtractionService:
         # Build context — gather documents
         ctx = await self._build_context(run_id=run_id, dossier_id=dossier_id, trace_id=trace_id)
 
+        # Commit before the run is picked up: the orchestrator / queue worker
+        # writes through its own session and must see the run row (and must
+        # not wait on this request's still-open write transaction).
+        await self._commit()
+
         from contract_intelligence.config.settings import get_settings
 
         settings = get_settings()
@@ -168,6 +173,11 @@ class ExtractionService:
             trace_id=trace_id,
         )
         return ReprocessAcceptedDTO(dossier_id=dossier_id, job_id=run.id)
+
+    async def _commit(self) -> None:
+        session = getattr(self._pipeline_run_repo, "_session", None)
+        if session is not None:
+            await session.commit()
 
     async def _ensure_no_active_run(self, dossier_id: str) -> None:
         active = await self._pipeline_run_repo.list_pipeline_runs(

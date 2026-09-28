@@ -235,48 +235,7 @@ RBAC list: **mọi user đã auth**.
 
 Mã vụ việc / phân loại / quyền riêng tư **không** nằm trong body POST (OpenAPI metadata chỉ `{ name, tags?, notes? }`). Sau 202 FE gọi `PATCH /dossiers/{id}` `{ metadata: { code, category, privacy } }`. PATCH lỗi không huỷ hồ sơ vừa tạo.
 
-Có **2** POST. Màn tạo hồ sơ dùng 3b. 3a (`/dossiers/upload`) khi muốn auto-run pipeline.
-
-### 3a. Nên dùng: `POST /api/v1/dossiers/upload` → **202**
-
-Multipart:
-
-| Field | Type | Bắt buộc |
-|---|---|---|
-| `contract_file` | file PDF | có |
-| `name` | string 1..255 | có |
-| `annex_files` | file[] PDF | không |
-| `auto_run` | boolean | không, default `true` |
-| `batch_id` | string | không |
-
-RBAC: `OPERATOR` | `ADMINISTRATOR`. 400 file thiếu/sai, 403 sai role.
-
-```ts
-type UploadedDocumentInfo = {
-  id: string
-  role: string              // contract | annex
-  order_index: number
-  filename: string
-  sha256: string
-  blob_uri: string
-  page_count?: number
-  size_bytes?: number
-}
-
-type DossierUploadResponse = {
-  dossier_id: string
-  run_id?: string | null    // poll GET /runs/{run_id}
-  documents?: UploadedDocumentInfo[]
-  status?: string           // default "accepted"
-}
-```
-
-Sau 202: `navigate('/tien-trinh-phan-tich', { state: { dossierId, runId, name } })`.
-
-**Form UI thừa so với API:** mã vụ việc, phân loại, quyền riêng tư. `upload` **không** nhận metadata. Cách nối:
-
-1. `POST /dossiers/upload` với `name` + files  
-2. `PATCH /dossiers/{id}` body `{ metadata: { code, category, privacy } }`
+Chỉ còn **1** POST tạo hồ sơ (3b). Endpoint cũ 3a `POST /dossiers/upload` (chạy pipeline trong tiến trình backend, không qua Kafka) **đã bị gỡ** — gọi vào sẽ nhận 404/405. Pipeline OCR tự chạy sau 3b: backend publish `dossier.uploaded`, worker gửi lệnh AI1 rồi AI2.
 
 ### 3b. Đã chốt — màn tạo hồ sơ: `POST /api/v1/dossiers` → **202**
 
@@ -1067,7 +1026,7 @@ Giữ mock hoặc ẩn màn cho đến khi BE bổ sung. Đừng bịa API.
 
 1. **Client** — Bearer + `X-Tenant-Id` + unwrap `{ data, meta }` + lỗi 401/403/409  
 2. **Auth** — Keycloak token → `GET /auth/me` → bỏ `DEMO_USERS`  
-3. **Upload** — màn `/tao-ho-so` dùng `POST /dossiers` (3b) → `dossier_id` + `job_id`, status UPLOADED, rồi xác nhận manifest ([19](#19-xác-nhận-manifest)). Auto-run: `POST /dossiers/upload` (3a) → `run_id`  
+3. **Upload** — màn `/tao-ho-so` dùng `POST /dossiers` (3b) → `dossier_id` + `job_id`, status UPLOADED, rồi xác nhận manifest ([19](#19-xác-nhận-manifest)). Pipeline tự chạy qua Kafka (endpoint 3a đã gỡ)  
 4. **Progress** — `GET /runs/{id}` + `/steps` (poll); SSE nếu giải được auth  
 5. **List** — `GET /dossiers` thay `myDossiers`  
 6. **Conflict** — `GET .../conflicts` + actions review  

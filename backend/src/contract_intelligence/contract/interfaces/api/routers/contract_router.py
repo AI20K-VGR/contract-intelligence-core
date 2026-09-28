@@ -424,13 +424,12 @@ async def create_dossier(
         2. Create dossier (name from metadata or contract filename)
         3. Ingest contract file + compute sha256 + store
         4. Ingest each annex file (if any)
-        5. Return dossier_id + job_id (None — pipeline trigger happens in BackgroundTasks
-           via contract_upload_router.py for the legacy endpoint)
+        5. Commit, then publish ``dossier.uploaded`` (post-response) — the Kafka
+           worker opens the pipeline run and sends the AI1 OCR commands
+        6. Return dossier_id + job_id
 
-    Note:
-        For the canonical multipart upload flow with auto-trigger of pipeline run,
-        use the legacy `/dossiers/upload` endpoint — preserved for backward compat.
-        This `/dossiers` endpoint mirrors the OpenAPI spec contract.
+    This is the only dossier upload endpoint (the in-process
+    ``/dossiers/upload`` pipeline was removed).
     """
     # Validate contract file
     if not contract or not contract.filename:
