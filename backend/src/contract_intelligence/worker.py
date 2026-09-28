@@ -481,7 +481,12 @@ async def _mark_processing(
             )
         await session.flush()
     elif pipeline_run.status == "queued":
+        # A run queued by POST /runs or /reprocess: start it like a fresh upload.
         pipeline_run.status = "running"
+        for step_code, step_status in (("S0", "succeeded"), ("S1", "succeeded"), ("S2", "running")):
+            await update_pipeline_step(
+                session, tenant_id=job.tenant_id, run_id=run_id, step=step_code, status=step_status
+            )
     await session.execute(
         update(DossierORM)
         .where(DossierORM.id == dossier_id)

@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from tests.pdf_bytes import make_pdf
 
 from contract_intelligence.main import app
 from contract_intelligence.shared.auth import get_current_user
@@ -21,7 +22,7 @@ OPERATOR = AuthenticatedUser(
     display_name="Operator",
     role="OPERATOR",
 )
-PDF = b"%PDF-1.4\n%%EOF\n"
+PDF = make_pdf()
 
 
 async def _unused_session() -> AsyncGenerator[MagicMock, None]:

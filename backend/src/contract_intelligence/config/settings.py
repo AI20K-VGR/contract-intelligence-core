@@ -193,7 +193,10 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     job_queue_enabled: bool = Field(
         default=True,
-        description="Start in-process worker + lease reaper on app lifespan.",
+        description=(
+            "Start the API maintenance loop (dossier purge sweep). The pipeline "
+            "itself runs only in the Kafka worker process."
+        ),
     )
     job_lease_seconds: int = Field(default=60, ge=10, le=3600)
     job_worker_poll_interval_seconds: float = Field(default=2.0, ge=0.2, le=60.0)
@@ -203,6 +206,11 @@ class Settings(BaseSettings):
     # Storage (Sprint 3: local filesystem — Sprint 4: MinIO presigned URLs)
     # -------------------------------------------------------------------------
     storage_root: str = Field(default="./var/storage")
+    upload_max_file_bytes: int = Field(
+        default=50 * 1024 * 1024,
+        ge=1,
+        description="Max size of one uploaded PDF (AI1 refuses sources above 50 MB).",
+    )
 
     # -------------------------------------------------------------------------
     # OpenTelemetry

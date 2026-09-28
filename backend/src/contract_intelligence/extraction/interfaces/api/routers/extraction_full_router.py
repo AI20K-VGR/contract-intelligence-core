@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, Path, Query, Response, status
+from fastapi import APIRouter, Body, Depends, Path, Query, Response, status
 from fastapi.responses import StreamingResponse
 
 from contract_intelligence.extraction.application.dtos.clause_dtos import ClauseNodeDTO
@@ -67,10 +67,9 @@ async def trigger_run(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ExtractionServiceDep,
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
-    background_tasks: BackgroundTasks,
     body: Annotated[CreateRunRequestDTO | None, Body()] = None,
 ) -> ApiResponse[PipelineRunSummaryDTO]:
-    """Kích hoạt pipeline run mới. RBAC: ADMINISTRATOR inherits OPERATOR."""
+    """Kích hoạt pipeline run mới (qua Kafka worker). RBAC: ADMINISTRATOR inherits OPERATOR."""
     override = (
         body.config_override.model_dump(exclude_none=True)
         if body and body.config_override
@@ -79,7 +78,6 @@ async def trigger_run(
     run = await svc.trigger_pipeline_run(
         dossier_id=dossier_id,
         trace_id=str(user.user_id),
-        background_tasks=background_tasks,
         config_override=override,
     )
     return ApiResponse(data=svc.to_summary(run, triggered_by=user.user_id))
@@ -100,11 +98,9 @@ async def reprocess_dossier(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ExtractionServiceDep,
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
-    background_tasks: BackgroundTasks,
 ) -> ApiResponse[ReprocessAcceptedDTO]:
     accepted = await svc.reprocess_dossier(
         dossier_id=dossier_id,
-        background_tasks=background_tasks,
         trace_id=str(user.user_id),
     )
     return ApiResponse(data=accepted)

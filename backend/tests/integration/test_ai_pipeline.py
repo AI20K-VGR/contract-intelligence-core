@@ -38,6 +38,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from tests.pdf_bytes import make_pdf
 from tests.unit.conftest_contract import FakeFileStorage
 
 from contract_intelligence.config.settings import get_settings
@@ -163,7 +164,7 @@ def _auth_headers(
 
 def _pdf_bytes(content: str = "PDF stub content") -> bytes:
     """Tạo PDF stub bytes — không cần format PDF thật vì StubAI trả về canned."""
-    return b"%PDF-stub\n" + content.encode("utf-8") + b"\n%%EOF"
+    return make_pdf(marker=content)
 
 
 async def _create_dossier(
@@ -439,27 +440,31 @@ class TestReOcrAsync:
 
 class TestPipelineRun:
     @pytest.mark.asyncio
-    async def test_pipeline_run_completes_via_stub(
-        self, client: AsyncClient, make_keycloak_token: Any
+    async def test_trigger_run_queues_run_and_hands_it_to_worker(
+        self, client: AsyncClient, make_keycloak_token: Any, monkeypatch: pytest.MonkeyPatch
     ) -> None:  # noqa: E501
-        """Full pipeline (OCR → Extract) chạy qua stub → run=SUCCEEDED."""
+        """POST /runs chỉ xếp hàng run + publish dossier.uploaded; pipeline chạy ở Kafka worker."""
+        from contract_intelligence.extraction.interfaces.api import dependencies
+
+        published: list[tuple[str, dict[str, Any]]] = []
+
+        async def fake_publish(topic: str, message: dict[str, Any], **_: Any) -> None:
+            published.append((topic, message))
+
+        monkeypatch.setattr(dependencies.messaging, "publish_event", fake_publish)
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         run_id = await _trigger_run(client, headers, name="Pipeline test")
 
-        # Poll run status — StubAI trả completed ngay → run nên be succeeded sau vài giây
-        status = None
-        for _ in range(30):  # Tăng số lần poll
-            await asyncio.sleep(0.3)
-            resp = await client.get(
-                f"/api/v1/runs/{run_id}",
-                headers=headers,
-            )
-            assert resp.status_code == 200
-            status = resp.json()["data"]["status"]
-            if status in ("completed", "succeeded", "failed", "cancelled", "dead"):
-                break
-
-        assert status in ("completed", "succeeded"), f"expected completed, got {status}"
+        resp = await client.get(f"/api/v1/runs/{run_id}", headers=headers)
+        assert resp.status_code == 200
+        run = resp.json()["data"]
+        # Nothing runs in the API process: the run waits for the Kafka worker.
+        assert run["status"] == "queued"
+        # The upload publishes its own event first; the trigger adds the hand-off.
+        assert published[-1] == (
+            "dossier_events",
+            {"event": "dossier.uploaded", "dossier_id": run["dossier_id"]},
+        )
 
     @pytest.mark.asyncio
     async def test_pipeline_run_steps_endpoint(
@@ -497,6 +502,11 @@ class TestSseEvents:
         """GET /runs/{id}/events stream SSE events."""
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         run_id = await _trigger_run(client, headers, name="SSE test")
+        # No Kafka worker runs in tests, so the run would stay queued and the
+        # stream never end (ASGITransport buffers the whole body). Cancel it:
+        # the stream then closes with run.completed.
+        resp = await client.post(f"/api/v1/runs/{run_id}/cancel", headers=headers)
+        assert resp.status_code == 200, resp.text
 
         # Mở SSE stream — đọc tối đa 5 giây
         events_received = []

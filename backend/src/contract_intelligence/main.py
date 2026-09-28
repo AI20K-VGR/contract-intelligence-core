@@ -64,8 +64,8 @@ from contract_intelligence.shared.ai import (
 )
 from contract_intelligence.shared.ai.health_router import router as ai_health_router
 from contract_intelligence.shared.ai.job_worker import (
-    start_job_queue_worker,
-    stop_job_queue_worker,
+    start_maintenance_loop,
+    stop_maintenance_loop,
 )
 from contract_intelligence.shared.auth.exceptions import (
     AuthenticationError,
@@ -159,9 +159,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _dispatcher = get_background_dispatcher()
     logger.info("dispatcher.ready")
 
-    # Postgres job queue worker + lease reaper (no Redis/Celery).
-    # Skip in test env — ASGI integration clients manage their own DB and would
-    # hang forever on the worker/reaper asyncio loops.
+    # The pipeline runs only in the Kafka worker process; the API keeps just
+    # the purge sweep. Skip in test env — ASGI integration clients manage their
+    # own DB and would hang forever on the background loop.
     if settings.env != "test":
         from contract_intelligence.contract.infrastructure.persistence import (
             dossier_deletion_service,
@@ -169,11 +169,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         await dossier_deletion_service.sweep_pending_purges()
     if settings.job_queue_enabled and settings.env != "test":
-        start_job_queue_worker(engine)
-        logger.info("job_queue.worker_ready", enabled=True)
+        start_maintenance_loop()
     else:
         logger.info(
-            "job_queue.worker_skipped",
+            "maintenance.skipped",
             enabled=settings.job_queue_enabled,
             env=settings.env,
         )
@@ -190,7 +189,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Shutdown
     logger.info("shutdown")
     await stop_producer()
-    await stop_job_queue_worker()
+    await stop_maintenance_loop()
     reset_background_dispatcher()
     reset_ai_service_client()
     reset_engine()

@@ -131,6 +131,7 @@ class ContractService:
         order_index: int = 0,
         file_size_bytes: int | None = None,
         blob_uri: str | None = None,
+        page_count: int = 0,
     ) -> Document:
         # Verify dossier exists + tenant
         dossier = await self._dossier_repo.get(dossier_id)
@@ -159,6 +160,7 @@ class ContractService:
             sha256=sha256,
             blob_uri=stored_uri,
             file_size_bytes=size_bytes,
+            page_count=page_count,
         )
         await self._document_repo.add(document)
         logger.info(

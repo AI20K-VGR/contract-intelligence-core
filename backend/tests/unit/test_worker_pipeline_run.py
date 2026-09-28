@@ -176,6 +176,87 @@ async def test_redelivered_upload_resumes_active_run(
 
 
 @pytest.mark.asyncio
+async def test_ocr_command_asks_for_every_page_with_one_render_url_each(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        worker.storage, "generate_presigned_get_url", AsyncMock(return_value="http://get")
+    )
+    put_url = AsyncMock(side_effect=lambda *, key: f"http://put/{key}")
+    monkeypatch.setattr(worker.storage, "generate_presigned_put_url", put_url)
+    document = DocumentORM(
+        id=DOC_A,
+        tenant_id=TENANT,
+        dossier_id=DOSSIER,
+        role="CONTRACT",
+        order_index=0,
+        filename="a.pdf",
+        sha256="0" * 64,
+        blob_uri="s3://dossiers/a.pdf",
+        page_count=200,
+    )
+    dossier = DossierORM(id=DOSSIER, tenant_id=TENANT, name="x")
+
+    envelope = await worker._build_ocr_command_payload(
+        document=document, dossier=dossier, run_id="run_x"
+    )
+
+    payload = envelope["payload"]
+    assert payload["pages_to_process"] == list(range(1, 201))
+    urls = payload["render_target"]["presigned_put_urls"]
+    assert len(urls) == 200 and urls["200"].endswith("/page-200.png")
+
+
+@pytest.mark.asyncio
+async def test_upload_event_starts_run_queued_by_api(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """POST /runs commits a queued run; the worker must run that one, not a new one."""
+    async with factory() as session:
+        session.add(
+            PipelineRunORM(
+                id="run_api",
+                tenant_id=TENANT,
+                job_id=JOB,
+                dossier_id=DOSSIER,
+                status="queued",
+                pipeline_version="v1.0.0",
+            )
+        )
+        session.add_all(
+            PipelineStepORM(tenant_id=TENANT, run_id="run_api", step=f"S{n}", status="queued")
+            for n in range(11)
+        )
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.status = "uploaded"
+        job.current_run_id = "run_api"
+        await session.commit()
+
+    assert await _start(factory) == "run_api"
+
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, "run_api")
+        steps = dict(
+            (
+                await session.execute(
+                    select(PipelineStepORM.step, PipelineStepORM.status).where(
+                        PipelineStepORM.run_id == "run_api"
+                    )
+                )
+            ).all()
+        )
+    assert run is not None and run.status == "running"
+    assert (steps["S0"], steps["S1"], steps["S2"], steps["S3"]) == (
+        "succeeded",
+        "succeeded",
+        "running",
+        "queued",
+    )
+    assert (await _job(factory)).status == "processing"
+
+
+@pytest.mark.asyncio
 async def test_ocr_restart_supersedes_run_and_ignores_its_late_results(
     factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
 ) -> None:

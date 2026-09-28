@@ -21,6 +21,7 @@ from unittest.mock import AsyncMock
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from tests.pdf_bytes import make_pdf
 
 from contract_intelligence.contract.application.services.contract_service import (
     ContractService,
@@ -470,7 +471,7 @@ class TestCreateDossierEndpoint:
         resp = await client.post(
             "/api/v1/dossiers",
             files={
-                "contract": ("contract.pdf", b"%PDF-1.4 content", "application/pdf"),
+                "contract": ("contract.pdf", make_pdf(3), "application/pdf"),
                 "metadata": (None, json.dumps({"name": "Test Upload"})),
             },
         )
@@ -480,6 +481,44 @@ class TestCreateDossierEndpoint:
         assert body["data"]["dossier_id"] == "dos_NEW_01"
         assert body["data"]["job_id"] == "job_NEW_01"
         mock_svc.create_dossier.assert_called_once()
+        # The real page count reaches the document, so AI1 gets one render URL per page.
+        assert mock_svc.upload_document.call_args.kwargs["page_count"] == 3
+
+    async def test_rejects_unreadable_pdf_before_creating_anything(
+        self, client: AsyncClient, mock_svc: AsyncMock
+    ) -> None:
+        resp = await client.post(
+            "/api/v1/dossiers",
+            files=[
+                ("contract", ("contract.pdf", make_pdf(), "application/pdf")),
+                ("annexes", ("broken.pdf", b"%PDF-1.4 not really", "application/pdf")),
+                ("metadata", (None, json.dumps({"name": "Broken annex"}))),
+            ],
+        )
+
+        assert resp.status_code == 422
+        assert "broken.pdf" in resp.text
+        mock_svc.create_dossier.assert_not_called()
+        mock_svc.upload_document.assert_not_called()
+
+    async def test_rejects_file_over_size_limit(
+        self, client: AsyncClient, mock_svc: AsyncMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from contract_intelligence.config.settings import get_settings
+
+        pdf = make_pdf()
+        monkeypatch.setattr(get_settings(), "upload_max_file_bytes", len(pdf) - 1)
+
+        resp = await client.post(
+            "/api/v1/dossiers",
+            files={
+                "contract": ("big.pdf", pdf, "application/pdf"),
+                "metadata": (None, json.dumps({"name": "Too big"})),
+            },
+        )
+
+        assert resp.status_code == 413
+        mock_svc.create_dossier.assert_not_called()
 
     async def test_passes_metadata_tags_and_notes(
         self, client: AsyncClient, mock_svc: AsyncMock
@@ -494,7 +533,7 @@ class TestCreateDossierEndpoint:
         resp = await client.post(
             "/api/v1/dossiers",
             files={
-                "contract": ("c.pdf", b"%PDF", "application/pdf"),
+                "contract": ("c.pdf", make_pdf(), "application/pdf"),
                 "metadata": (
                     None,
                     json.dumps({"name": "Tagged", "tags": ["urgent"], "notes": "review asap"}),
@@ -550,9 +589,9 @@ class TestCreateDossierEndpoint:
         resp = await client.post(
             "/api/v1/dossiers",
             files=[
-                ("contract", ("contract.pdf", b"%PDF-main", "application/pdf")),
-                ("annexes", ("annex1.pdf", b"%PDF-a1", "application/pdf")),
-                ("annexes", ("annex2.pdf", b"%PDF-a2", "application/pdf")),
+                ("contract", ("contract.pdf", make_pdf(marker="main"), "application/pdf")),
+                ("annexes", ("annex1.pdf", make_pdf(marker="a1"), "application/pdf")),
+                ("annexes", ("annex2.pdf", make_pdf(marker="a2"), "application/pdf")),
                 ("metadata", (None, json.dumps({"name": "With Annexes"}))),
             ],
         )

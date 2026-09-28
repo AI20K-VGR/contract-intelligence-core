@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from dataclasses import dataclass
 from io import BytesIO
 from typing import Annotated, Any, Literal
 from urllib.parse import quote
@@ -45,6 +46,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from contract_intelligence.admin.activity_feed import record_activity
+from contract_intelligence.config.settings import get_settings
 from contract_intelligence.contract.application.dtos.deletion_dtos import DossierDeletedDTO
 from contract_intelligence.contract.application.dtos.document_dtos import (
     DocumentDetailDTO,
@@ -79,6 +81,7 @@ from contract_intelligence.shared.auth import (
 )
 from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.shared.exceptions import NotFoundError
+from contract_intelligence.shared.pdf import InvalidPdfError, count_pdf_pages
 from contract_intelligence.shared.persistence import get_session_factory
 from contract_intelligence.shared.query_policy import (
     QueryLimitExceeded,
@@ -327,25 +330,58 @@ def _send_share_emails(
             smtp.send_message(message)
 
 
+@dataclass(frozen=True, slots=True)
+class _PdfUpload:
+    file: UploadFile
+    data: bytes
+    page_count: int
+
+
+async def _read_pdf_upload(file: UploadFile) -> _PdfUpload:
+    """Read one uploaded PDF (size-capped) and count its pages.
+
+    Raises 413 above ``upload_max_file_bytes`` and 422 for a file that is not a
+    readable PDF, so a bad file is refused before anything is stored or sent
+    to AI1 — and AI1 gets the real page range (one render URL per page).
+    """
+    limit = get_settings().upload_max_file_bytes
+    chunks: list[bytes] = []
+    total_size = 0
+    while chunk := await file.read(1024 * 1024):
+        total_size += len(chunk)
+        if total_size > limit:
+            raise HTTPException(
+                status_code=413,
+                detail=f"{file.filename}: file exceeds {limit // (1024 * 1024)} MB",
+            )
+        chunks.append(chunk)
+    data = b"".join(chunks)
+    try:
+        page_count = await asyncio.to_thread(count_pdf_pages, data)
+    except InvalidPdfError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{file.filename}: {exc}",
+        ) from exc
+    return _PdfUpload(file=file, data=data, page_count=page_count)
+
+
 async def _ingest_upload_file(
     *,
     svc: Any,
     dossier_id: str,
-    file: UploadFile,
+    upload: _PdfUpload,
     role: DocumentRole,
     order_index: int,
 ) -> tuple[Document, int, str]:
-    """Đọc UploadFile → MinIO → persist Document (compensate MinIO on DB failure).
+    """Validated upload → MinIO → persist Document (compensate MinIO on DB failure).
 
     Returns:
         (Document entity, size_bytes, s3_path) — s3_path dùng cho Kafka event.
     """
-    chunks: list[bytes] = []
-    total_size = 0
-    while chunk := await file.read(1024 * 1024):
-        chunks.append(chunk)
-        total_size += len(chunk)
-    raw_bytes = b"".join(chunks)
+    file = upload.file
+    raw_bytes = upload.data
+    total_size = len(raw_bytes)
 
     filename = safe_filename(file.filename, fallback=f"{role.value.lower()}.pdf")
     object_key = f"{dossier_id}/{order_index:02d}_{filename}"
@@ -360,6 +396,7 @@ async def _ingest_upload_file(
             order_index=order_index,
             file_size_bytes=total_size,
             blob_uri=s3_path,
+            page_count=upload.page_count,
         )
         return doc, total_size, s3_path
     except Exception:
@@ -461,6 +498,15 @@ async def create_dossier(
     meta_payload["created_by"] = user.user_id
     meta_payload["created_by_name"] = user.display_name
 
+    # Read + validate every file (size, readable PDF, page count) before
+    # anything is created, so a bad annex leaves no half-made dossier behind.
+    contract_upload = await _read_pdf_upload(contract)
+    annex_uploads = [
+        (idx, await _read_pdf_upload(annex_file))
+        for idx, annex_file in enumerate(annexes or [], start=1)
+        if annex_file.filename
+    ]
+
     # Create dossier + initial Job (UPLOADED) — per openapi.yaml createDossier
     dossier = await svc.create_dossier(
         name=name,
@@ -473,20 +519,17 @@ async def create_dossier(
     _contract_doc, _size, s3_path = await _ingest_upload_file(
         svc=svc,
         dossier_id=dossier.id,
-        file=contract,
+        upload=contract_upload,
         role=DocumentRole.CONTRACT,
         order_index=0,
     )
 
     # Ingest annexes (role=ANNEX, order_index=1..n)
-    annexes = annexes or []
-    for idx, annex_file in enumerate(annexes, start=1):
-        if not annex_file.filename:
-            continue
+    for idx, annex_upload in annex_uploads:
         await _ingest_upload_file(
             svc=svc,
             dossier_id=dossier.id,
-            file=annex_file,
+            upload=annex_upload,
             role=DocumentRole.ANNEX,
             order_index=idx,
         )
@@ -859,7 +902,6 @@ async def search_dossier(
     factory = _optional_session_factory()
     await _enforce_search_limits(factory, user)
 
-    from contract_intelligence.config.settings import get_settings
     from contract_intelligence.infrastructure.ai_adapters import (
         AiAdapterError,
         query_ai2,
