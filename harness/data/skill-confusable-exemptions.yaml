@@ -1,0 +1,31 @@
+# Reviewed exemption list for the skill-description confusable-pair signal
+# (harness/scripts/catalog.py:confusable_pairs / score_skill_description.py:check_confusable_pairs).
+#
+# Both call sites now share ONE measurement (rapidfuzz.fuzz.token_set_ratio) and ONE
+# threshold (catalog.CONFUSABLE_THRESHOLD). Raising the threshold's reach (the old
+# hand-rolled Jaccard scorer topped out at 0.578 on the real skill catalog and could
+# never touch its own 0.80 gate) means a pair that used to pass silently can now fire.
+# This ledger is where a HUMAN records "yes, I looked at this pair, and it firing is
+# expected" — never a place code adds an entry on its own.
+#
+# Shape: a list under `exemptions`, each entry `{a, b, reason}` (order-insensitive:
+# a<->b and b<->a both match). `reason` is required — an exemption without one is a
+# silenced gate, not a decision.
+#
+# EMPTY, and that is a measured result rather than an oversight. The one pair that
+# ever cleared the 0.80 bar on the real catalog (124 SKILL.md descriptions, 7,626
+# pairs) was `hs:plan`/`hs:plan-ng` at 0.9273 — a deliberate experimental sibling.
+# That prototype has been retired: the CLI-owned step sequence it was testing now
+# lives in the spine `hs:plan` itself, so the near-duplicate description is gone
+# with it and the entry would name a skill that no longer exists.
+#
+# An empty ledger does NOT mean the detector is idle. Its positive control is a
+# synthetic pair built in a temp dir (test_catalog.py::
+# test_the_detector_still_fires_on_a_near_duplicate_pair), deliberately split from
+# the real-catalog assertion so "no pairs found" stays a claim about THIS tree
+# rather than a symptom of having nothing left to catch. Those two readings look
+# identical from the outside, which is exactly why they are tested apart.
+#
+# Add an entry here only after looking at the pair yourself.
+
+exemptions: []

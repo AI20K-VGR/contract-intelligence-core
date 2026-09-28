@@ -1,0 +1,36 @@
+edges:
+  - {from: phase-1-contract, to: phase-2-search-review}
+  - {from: phase-1-contract, to: phase-3-hitl}
+  - {from: phase-1-contract, to: phase-4-analysis}
+  - {from: phase-2-search-review, to: phase-3-hitl}
+  - {from: phase-2-search-review, to: phase-4-analysis}
+  - {from: phase-3-hitl, to: phase-4-analysis}
+  - {from: phase-2-search-review, to: phase-5-release}
+  - {from: phase-3-hitl, to: phase-5-release}
+  - {from: phase-4-analysis, to: phase-5-release}
+subtasks:
+  phase-1-contract:
+    file: phases/phase-1-contract.md
+    post: [verification-phase-1-contract.json]
+    files_to_create: [frontend/src/api/ai2.ts, frontend/tests/fixtures/ai2-responses.json]
+    files_to_modify: [frontend/src/api/structure.ts]
+  phase-2-search-review:
+    file: phases/phase-2-search-review.md
+    post: [verification-phase-2-search-review.json]
+    files_to_create: [frontend/src/hooks/useDossierSearch.ts, frontend/tests/DossierSearchResults.test.tsx]
+    files_to_modify: [frontend/src/pages/DossierReviewPage.tsx, frontend/src/components/DossierSearchResults.tsx, frontend/src/api/structure.ts]
+  phase-3-hitl:
+    file: phases/phase-3-hitl.md
+    post: [verification-phase-3-hitl.json]
+    files_to_create: [frontend/src/api/review.ts, frontend/tests/review-actions.test.tsx]
+    files_to_modify: [frontend/src/pages/DossierReviewPage.tsx]
+  phase-4-analysis:
+    file: phases/phase-4-analysis.md
+    post: [verification-phase-4-analysis.json]
+    files_to_create: [frontend/src/components/StructuredContractAnalysis.tsx, ai-service/tests/test_ui_analysis_cases.py]
+    files_to_modify: [frontend/src/pages/DossierReviewPage.tsx, frontend/src/api/structure.ts, ai-service/app/reasoning/l0_rules.py, ai-service/app/reasoning/l1_retrieval.py, ai-service/app/reasoning/ask_assemble.py]
+  phase-5-release:
+    file: phases/phase-5-release.md
+    post: [verification-phase-5-release.json, release-decision.json]
+    files_to_create: [scripts/full-stack-ai2-smoke.ps1, plans/260924-2352-ai2-ui-completion/artifacts/release-report.json]
+    files_to_modify: [frontend/src/pages/DossierReviewPage.tsx]

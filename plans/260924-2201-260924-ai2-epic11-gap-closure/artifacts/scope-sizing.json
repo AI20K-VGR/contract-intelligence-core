@@ -1,0 +1,28 @@
+{
+  "sizing": {
+    "mode": "multi",
+    "projected_cells": 1600,
+    "pruned_cells": 1600,
+    "threshold": 60,
+    "sub_plan_count": 4,
+    "split_strategy": "hybrid"
+  },
+  "manifest": {
+    "subPlans": [
+      {"id": "sub-1", "scope": {"features": ["handoff_digest_provenance_e2e", "facts_findings_backend_persistence", "query_evidence_projection"], "layers": ["ui", "api"]}, "estimatedCells": 480},
+      {"id": "sub-2", "scope": {"features": ["handoff_digest_provenance_e2e", "facts_findings_backend_persistence", "query_evidence_projection"], "layers": ["data", "infra"]}, "estimatedCells": 480},
+      {"id": "sub-3", "scope": {"features": ["index_reviewer_publish_gate", "environment_regression_gate"], "layers": ["ui", "api"]}, "estimatedCells": 320},
+      {"id": "sub-4", "scope": {"features": ["index_reviewer_publish_gate", "environment_regression_gate"], "layers": ["data", "infra"]}, "estimatedCells": 320}
+    ],
+    "dependencies": [
+      {"from": "sub-1", "to": "sub-2", "sharedLayers": ["ui", "api", "data", "infra"]},
+      {"from": "sub-2", "to": "sub-3", "sharedLayers": ["ui", "api", "data", "infra"]},
+      {"from": "sub-3", "to": "sub-4", "sharedLayers": ["ui", "api", "data", "infra"]}
+    ],
+    "sharedContracts": [],
+    "masterRisk": [],
+    "intakeInheritance": {"density_tier": "HIGH", "threshold": 60}
+  },
+  "decision": "proceed",
+  "reason": "Giữ một gap-closure plan vì các phần còn thiếu cùng phụ thuộc canonical result/citation contract và phải được nghiệm thu bằng một Backend-to-AI2 vertical flow. Bốn phase tuần tự tách đúng ownership mà không tạo cross-plan contract drift."
+}

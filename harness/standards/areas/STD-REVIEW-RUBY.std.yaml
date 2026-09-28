@@ -1,0 +1,162 @@
+id: STD-REVIEW-RUBY
+type: std_area
+zone: operational
+title: "Review — Ruby"
+status: approved
+owner: harness
+version: 1.0.0
+description: |
+  Ruby review rules (scope **/*.rb, **/*.rake, **/Gemfile, **/*.gemspec,
+  **/config.ru, **/config/routes.rb, **/config/credentials*.yml.enc,
+  **/Gemfile.lock). Safety rules around SQL injection, secrets in credentials,
+  and unsafe template output, plus advisory rules for Ruby idioms and testing.
+rule_groups:
+  - id: STD-REVIEW-RUBY-RG1
+    title: "Safety — SQL, secrets, templates, sessions"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-RUBY-RG1-R1
+        title: "Active Record queries — never interpolate into SQL strings"
+        status: approved
+        scope: ["**/*.rb", "**/*.rake"]
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: use Active Record query APIs (where, find_by, joins with
+          parameterized conditions). Keep raw SQL behind query objects or
+          model scopes and parameterize every dynamic value. Scope model
+          callbacks carefully — security-sensitive side effects must be
+          explicit and covered by tests.
+          NEVER: interpolate a request, cookie, header, job, or webhook value
+          into a SQL string — this includes where("name = '#{input}'"),
+          ActiveRecord::Base.connection.execute("SELECT ... #{input}"),
+          and any string concatenation feeding into a database call. One
+          interpolated value is an injection vector regardless of how many
+          parameterized queries surround it.
+        rationale: |
+          Active Record's query interface parameterizes by default — where,
+          find_by, and joins all accept hash conditions or array conditions
+          that bind values safely. String interpolation in SQL bypasses every
+          one of these guards at the database driver level, where no ORM can
+          help. Model callbacks that trigger side effects (permission changes,
+          notifications, audit writes) are the Ruby equivalent of database
+          triggers — invisible to the caller and easy to miss in review.
+      - id: STD-REVIEW-RUBY-RG1-R2
+        title: "Secrets in Rails credentials — never committed plaintext"
+        status: approved
+        scope: ["**/*.rb", "**/*.rake", "**/config/credentials*.yml.enc"]
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: store secrets in Rails credentials (encrypted),
+          environment variables, or a secret manager. Keep CSRF protection
+          enabled for all state-changing browser requests. Use strong
+          parameters or typed boundary objects before mass assignment.
+          Rotate sessions after sign-in and privilege changes. Protect
+          account recovery flows with expiry, single-use tokens, rate
+          limiting, and audit logging.
+          NEVER: commit a plaintext API key, token, database password, or
+          private credential to any file in the repo — this includes
+          config/initializers, .env files (committed), and YAML configs.
+          A developer who pastes a key into config/database.yml "temporarily"
+          has leaked it to every clone of the repo forever.
+        rationale: |
+          Rails credentials encrypt secrets at rest with
+          config/master.key (kept out of the repo) — the encrypted file
+          can be committed safely. Plaintext secrets in committed files
+          survive every "I'll remove it after testing" fix: git history is
+          append-only. Session rotation after auth prevents session fixation;
+          strong parameters prevent mass-assignment attacks that set
+          admin=true via a crafted request body.
+      - id: STD-REVIEW-RUBY-RG1-R3
+        title: "Safe templates — html_safe and raw are security-sensitive"
+        status: approved
+        scope: ["**/*.rb", "**/*.rake", "**/*.erb"]
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: escape template output by default — Rails ERB escapes
+          every <%= expression automatically. Keep view components,
+          partials, and presenters focused on rendering decisions; keep
+          persistence and authorization out of templates.
+          NEVER: call html_safe, raw, or custom sanitizer methods on a
+          string that contains any user-controlled content without a
+          documented reason visible at the call site — a single raw(user_input)
+          in a template is a stored XSS vector that renders attacker-
+          controlled HTML and JavaScript to every visitor. Never put a
+          database query or authorization check in a view template.
+        rationale: |
+          Rails' default HTML escaping is the XSS safety net — every
+          <%= expr %> is escaped. html_safe and raw are explicit opt-outs
+          of that net: they tell Rails "this string is already safe," and
+          Rails trusts that claim. User input marked html_safe is the single
+          most common XSS vector in Rails apps. Views that query the database
+          or check permissions couple rendering to persistence and auth,
+          making both untestable without a full controller/request cycle.
+  - id: STD-REVIEW-RUBY-RG2
+    title: "Idioms — error handling, metaprogramming"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-RUBY-RG2-R1
+        title: "Rescue specific exceptions — avoid broad rescue StandardError"
+        status: approved
+        scope: ["**/*.rb", "**/*.rake"]
+        severity: info
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R6]
+        detector: null
+        description: |
+          ALWAYS: rescue specific exception classes that the code knows how
+          to handle. Use ActiveSupport::Notifications or the application
+          logger for operational events. Prefer clear Ruby over clever
+          metaprogramming; isolate DSL-heavy code behind narrow, tested
+          boundaries.
+          NEVER: write a bare rescue (which rescues StandardError) that
+          silently swallows the exception — one day that block will catch a
+          NameError from a typo in a refactored variable and suppress it
+          without a trace. Never leave puts, pp, or debugger calls in
+          committed application code.
+        rationale: |
+          A bare rescue StandardError swallows NameError, NoMethodError, and
+          every runtime mistake alongside the intended network timeout or
+          validation failure. The typo becomes invisible — the code continues
+          with nil or a default value, and the bug manifests three layers
+          away as wrong data. puts/pp/debugger left in production code are
+          operational noise at best and a PII leak at worst (puts token).
+  - id: STD-REVIEW-RUBY-RG3
+    title: "Testing — Minitest or RSpec, one per project"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-RUBY-RG3-R1
+        title: "One test framework, not both"
+        status: approved
+        scope: ["**/*.rb", "**/*.rake", "**/test/**/*.rb", "**/spec/**/*.rb"]
+        severity: info
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R4]
+        detector: null
+        description: |
+          ALWAYS: use Minitest when following the default Rails test stack;
+          use RSpec when it is already established or the team has explicit
+          production conventions around it. Cover background jobs with unit
+          tests for behaviour and integration tests for queue/enqueue
+          contracts. Add regression tests for bug fixes before changing
+          production code.
+          NEVER: mix Minitest and RSpec inside the same feature area without
+          a migration reason — a codebase with test/ and spec/ directories
+          both active forces every developer to context-switch between two
+          assertion styles, two lifecycle hooks, and two test-runner
+          invocations. Never game branch coverage with low-value tests that
+          exercise a code path without asserting on the outcome.
+        rationale: |
+          Minitest and RSpec have fundamentally different assertion models
+          (assert_equal vs expect(x).to eq(y)), setup models (setup/teardown
+          vs before/after), and runner commands (bin/rails test vs bundle
+          exec rspec). Mixing them doubles the cognitive load for no gain.
+          Regression tests written after a bug fix but before the code change
+          prove the fix works — a test that passes both before and after the
+          change proves nothing.

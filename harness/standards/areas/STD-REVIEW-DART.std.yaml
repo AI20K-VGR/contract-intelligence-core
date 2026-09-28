@@ -1,0 +1,209 @@
+id: STD-REVIEW-DART
+type: std_area
+zone: operational
+title: "Review — Dart"
+status: approved
+owner: harness
+version: 1.0.0
+description: |
+  Dart/Flutter review rules (scope **/*.dart, **/pubspec.yaml,
+  **/analysis_options.yaml, **/AndroidManifest.xml, **/Info.plist). Safety
+  rules around null-safety bypass, WebView security, and mobile secrets,
+  plus advisory rules for sealed types, async patterns, and testing with fakes.
+rule_groups:
+  - id: STD-REVIEW-DART-RG1
+    title: "Safety — null-safety bypass, WebView, deep links, secrets"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-DART-RG1-R1
+        title: "Ban ! (null-safety bypass) — use ?. / ?? / pattern matching"
+        status: approved
+        scope: ["**/*.dart"]
+        severity: critical
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: use null-aware operators (?., ??, ?..), if (x != null)
+          guards, or Dart 3 pattern matching to handle nullable values. Use
+          required for constructor parameters that must always be provided.
+          NEVER: use the ! (bang) operator on a nullable expression in
+          production code — it is a runtime crash wrapped in a single
+          character. A developer who writes user!.name is asserting "this
+          will never be null" without evidence; the runtime will prove them
+          wrong on a code path they did not test. Reserve ! only where a null
+          value is genuinely a programming error and crashing is the correct
+          behaviour (e.g., a failed invariant in a test fixture).
+        rationale: |
+          ! is Dart's escape hatch from sound null-safety — it suppresses the
+          compiler error without handling the null case. Dart's null-safety
+          is sound: the compiler proves a variable is non-nullable before
+          allowing access. ! short-circuits that proof and restores the
+          pre-null-safety world of NullPointerException-at-runtime. Pattern
+          matching with switch gives exhaustiveness checking on sealed types
+          — the compiler verifies every case is handled.
+      - id: STD-REVIEW-DART-RG1-R2
+        title: "WebView — disable JavaScript, validate URLs, never expose Dart callbacks"
+        status: approved
+        scope: ["**/*.dart"]
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: use webview_flutter v4+ (WebViewController / WebViewWidget).
+          Disable JavaScript unless the loaded content explicitly requires it
+          (JavaScriptMode.disabled). Validate every URL before loading via
+          NavigationDelegate.onNavigationRequest — check scheme, host, and
+          path against an allowlist.
+          NEVER: load an unvalidated URL from a deep link, push notification
+          payload, or QR scan into a WebView — this is a universal cross-site
+          scripting vector on mobile. Never expose Dart callbacks to
+          JavaScript via JavascriptChannel unless absolutely necessary and
+          carefully sandboxed — a Dart callback reachable from JavaScript
+          is an arbitrary-code-execution bridge into the host app.
+        rationale: |
+          WebView with JavaScript enabled and no URL validation is a full
+          browser with no address bar — the user cannot tell what domain they
+          are on, and the page can execute arbitrary JavaScript. A
+          JavascriptChannel callback gives that JavaScript a direct call path
+          into Dart code, effectively granting the webpage the same
+          capabilities as the app's own code.
+      - id: STD-REVIEW-DART-RG1-R3
+        title: "Deep link validation — never navigate to unvalidated URLs"
+        status: approved
+        scope: ["**/*.dart"]
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: validate deep link URLs before navigation — use
+          Uri.tryParse and check scheme, host, and path against a closed
+          allowlist before calling context.go() or router.go().
+          NEVER: pass an unvalidated incoming link directly to a navigation
+          call — context.go(Uri.parse(link).path) lets an attacker navigate
+          the user to any route in the app, including authenticated-only
+          screens, admin panels, or WebView routes that then load attacker-
+          controlled content.
+        rationale: |
+          Deep links arrive from outside the app (push notifications, QR
+          codes, SMS, email) and are attacker-controlled by definition.
+          Navigating directly to the parsed path gives the attacker the
+          ability to route the user to any screen in the app. An allowlist
+          of permitted paths closes this: any path not on the list is
+          rejected before navigation.
+      - id: STD-REVIEW-DART-RG1-R4
+        title: "Secrets in secure storage — never hardcoded or in SharedPreferences"
+        status: approved
+        scope: ["**/*.dart"]
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: store runtime secrets (tokens, API keys, PII) in
+          flutter_secure_storage (Keychain on iOS, EncryptedSharedPreferences
+          on Android). Use --dart-define or --dart-define-from-file for
+          compile-time configuration values. Clear all auth state on logout:
+          tokens, cached user data, cookies.
+          NEVER: hardcode an API key, token, or credential as a string literal
+          in Dart source — the value is embedded in the binary and
+          recoverable with `strings`. Never write sensitive data to
+          SharedPreferences or local files in plaintext. Never log tokens or
+          passwords (print(token), debugPrint(password)).
+        rationale: |
+          A hardcoded key in a Dart file is a string literal in the compiled
+          binary — `strings app.apk` recovers it in seconds.
+          SharedPreferences stores data in an unencrypted XML file on Android
+          and an unencrypted plist on iOS. flutter_secure_storage uses the
+          platform's hardware-backed encrypted storage (Keychain,
+          EncryptedSharedPreferences) — the data is encrypted at rest and
+          protected by the device passcode or biometric.
+  - id: STD-REVIEW-DART-RG2
+    title: "Idioms — sealed types, async, imports"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-DART-RG2-R1
+        title: "Exhaustive switch on sealed types — no default/wildcard"
+        status: approved
+        scope: ["**/*.dart"]
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: use sealed classes to model closed state hierarchies
+          (Loading, Success, Failure). Use exhaustive switch expressions
+          without a default or wildcard branch — the compiler proves every
+          case is handled and flags new variants at compile time.
+          NEVER: add a default or _ (wildcard) branch to a switch on a sealed
+          type — this silently swallows new variants added later, turning a
+          compile-time error into a runtime bug where the new state is
+          handled by the catch-all instead of being flagged as unhandled.
+        rationale: |
+          Dart 3's sealed types with exhaustive switch are the pattern-
+          matching guarantee: adding a new state variant forces every switch
+          to be updated. A default or wildcard branch short-circuits this —
+          the compiler accepts the code, and the new variant falls through
+          to a default case that was written before the variant existed.
+      - id: STD-REVIEW-DART-RG2-R2
+        title: "Always await Futures or use unawaited()"
+        status: approved
+        scope: ["**/*.dart"]
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: await Futures that produce a result. Call unawaited() on
+          Futures that are intentionally fire-and-forget — this signals to
+          the reader and the linter that the unawaited Future is deliberate.
+          Never mark a function async if it never awaits anything. Check
+          context.mounted before using BuildContext after any await (Flutter
+          3.7+).
+          NEVER: call a Future-returning function and discard the result
+          without await or unawaited() — a discarded Future is an unobserved
+          async operation whose error is silently swallowed by the zone. An
+          unawaited fetchData() that throws produces no log, no crash, no
+          stack trace — just missing data with no explanation.
+        rationale: |
+          Dart's linter flags unawaited futures, but the developer can
+          suppress it by ignoring the return value. unawaited() is the
+          explicit signal: "I know this is fire-and-forget, and I accept
+          that its errors will be handled by the zone's error handler."
+          context.mounted is the Flutter guard against using a BuildContext
+          after the widget has been removed from the tree during an await —
+          without it, the code calls methods on a disposed context and
+          crashes.
+  - id: STD-REVIEW-DART-RG3
+    title: "Testing — fakes over mocks, state manager testing"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-DART-RG3-R1
+        title: "Fakes over mocks for complex dependencies"
+        status: approved
+        scope: ["**/*.dart"]
+        severity: info
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R4]
+        detector: null
+        description: |
+          ALWAYS: prefer hand-written fakes over code-generated mocks
+          (mockito with @GenerateMocks) for Repository and DataSource
+          interfaces. Use bloc_test for BLoC/Cubit tests, ProviderContainer
+          overrides for Riverpod tests, and widget tests for all widgets
+          with meaningful behaviour. Every state transition (loading to
+          success, loading to error, retry) must have a test.
+          NEVER: use a mockito-generated mock when the interface has more
+          than three methods that return data — the generated mock produces
+          stub methods that return null by default, and a refactored method
+          signature produces a test that compiles but silently returns null
+          instead of the intended value. Never ship a state manager (BLoC,
+          Cubit, Notifier) without tests covering every state transition.
+        rationale: |
+          A hand-written FakeUserRepository is 30 lines, readable, and breaks
+          at compile time when the interface changes. A mockito-generated mock
+          compiles regardless — a changed method signature produces a test
+          that runs green with a null return instead of the expected value.
+          Fakes also compose: one fake can be reused across every test that
+          needs that dependency. State manager tests that cover every
+          transition (loading, success, error, retry) catch the most common
+          UI bug: a loading spinner that never resolves or an error state
+          that never shows.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clauseForCitation } from '../src/structure/conflictCite'
+import { clauseForCitation, sameFileCitationSides } from '../src/structure/conflictCite'
 import type { ClauseNode } from '../src/api/structure'
 import type { OcrLine } from '../src/structure/types'
 
@@ -56,5 +56,34 @@ describe('clauseForCitation', () => {
 
   it('bỏ qua khi không có dòng OCR khớp', () => {
     expect(clauseForCitation([], [], 15, 1)).toBeNull()
+  })
+})
+
+describe('sameFileCitationSides', () => {
+  it('giữ hai trích dẫn khi thân và phụ lục nằm trong cùng một file', () => {
+    const sides = sameFileCitationSides([
+      {
+        documentId: 'doc-1',
+        label: 'Thân',
+        quote: '1.286.400.000 đồng',
+        pageNo: 3,
+      },
+      {
+        documentId: 'doc-1',
+        label: 'Phụ lục 01',
+        quote: '4.149.360.000',
+        pageNo: 17,
+      },
+    ])
+    expect(sides?.map((side) => side.pageNo)).toEqual([3, 17])
+  })
+
+  it('để trang ghép theo tài liệu khi hai phía thuộc hai file', () => {
+    expect(
+      sameFileCitationSides([
+        { documentId: 'doc-a', label: 'Hợp đồng', quote: 'A', pageNo: 1 },
+        { documentId: 'doc-b', label: 'Phụ lục', quote: 'B', pageNo: 2 },
+      ]),
+    ).toBeNull()
   })
 })

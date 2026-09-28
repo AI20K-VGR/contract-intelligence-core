@@ -1,0 +1,27 @@
+{
+  "stage": "cook",
+  "plan": "260927-1931-hitl-conflict-review-fixes",
+  "checks": [
+    {
+      "name": "from_row_latest",
+      "status": "PASS"
+    },
+    {
+      "name": "conflicts_json_keys",
+      "status": "PASS"
+    },
+    {
+      "name": "pytest_conflict_router",
+      "status": "PASS"
+    },
+    {
+      "name": "lateral_join_present",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P1",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-09-27T17:13:28+00:00",
+  "run_seq": null
+}

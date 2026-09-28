@@ -1,0 +1,40 @@
+{
+  "stage": "fix",
+  "plan": "table-continuity-test1-test2",
+  "actor": "codex",
+  "ts": "2026-09-25T01:49:00+07:00",
+  "checks": [
+    {
+      "name": "frontend table continuity regression",
+      "status": "PASS",
+      "evidence": "2 tests passed, including legacy sequential-STT fragments"
+    },
+    {
+      "name": "backend AI1 adapter continuity regression",
+      "status": "PASS",
+      "evidence": "AI1 table_continuity MERGE links are copied into table rows"
+    },
+    {
+      "name": "backend legacy repository continuity regression",
+      "status": "PASS",
+      "evidence": "2 tests passed for sequence continuation and reset protection"
+    },
+    {
+      "name": "live Test 2 repository probe",
+      "status": "PASS",
+      "evidence": "pages 1→2→3→4→5 linked"
+    },
+    {
+      "name": "live Test 1 repository probe",
+      "status": "PASS",
+      "evidence": "page 1→2 and page 9→10 linked; signature tables kept separate"
+    },
+    {
+      "name": "service health",
+      "status": "PASS",
+      "evidence": "backend healthy after rebuild"
+    }
+  ],
+  "verdict": "PASS_WITH_RISK",
+  "risk": "A continuation without repeated header or reliable STT remains separate when evidence is ambiguous; it is not auto-merged without authoritative AI1 metadata."
+}

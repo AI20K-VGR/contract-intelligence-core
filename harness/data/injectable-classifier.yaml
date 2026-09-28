@@ -1,0 +1,86 @@
+# injectable-classifier.yaml — SSOT for the `injectable` frontmatter rollout.
+#
+# One human-edited source feeds two consumers:
+#   1. injectable_bootstrap.py — proposes `injectable: true|false` for every skill.
+#      A skill in `spine_false` is proposed false; every other skill is proposed
+#      true (advisory / read-comprehension-safe methodology a second engine can
+#      usefully follow). The proposal is NEVER auto-written — a human ratifies the
+#      whole table, then --apply writes it.
+#   2. check_skill_structure.py — the injectable-gate-conflict tripwire. It flags
+#      ONLY the reverse mistake: a skill that declares `injectable: true` yet its
+#      BODY invokes a gate (a `python3 harness/{hooks,scripts}/<basename>.py` call
+#      whose basename is in `gate_call_markers`). This is a NARROW tripwire, not an
+#      executor net — an executor kicks its gate through a tool-use hook, not a
+#      prose call, so the spine_false list + human ratification are the real control.
+
+# --- injectable: false — harness machinery (gate/write/deploy/install/config/
+#     autonomous-commit/orchestrate). Its "methodology" is harness-machinery calls,
+#     useless to inject into a second engine, and it mutates the live tree / drives
+#     gates / ships. Everything NOT listed here is proposed injectable: true.
+spine_false:
+  # SDLC executor spine + gate tiers
+  - plan
+  - cook
+  - test
+  - ship
+  - fix
+  - git
+  - review-pr
+  - debug
+  - triage
+  - code-review
+  # ship / deploy ops
+  - deploy
+  - release
+  - rops
+  # install / config / off-skill proxy
+  - cli
+  - setup
+  - cleanup
+  - bootstrap
+  - use
+  - voice
+  # harness authoring (writes the harness itself)
+  - harness-creator
+  - skill-creator
+  - rule-author
+  # autonomous drivers that commit / orchestrate the spine unattended
+  - afk
+  - loop
+  - goal
+  # git worktree mutation
+  - worktree
+  # the partner-lane driver itself — meta, never inject into gemini
+  - gemini
+  # governance / journal / telemetry-WRITE state
+  - remember
+  - retro
+  - journal
+  # docs pipeline (writes docs + runs the docs gate)
+  - docs-build
+  - docs-scaffold
+  - docs-standardize
+  # project / PR / tracker writes
+  - project-management
+  - plans-kanban
+  - ghpm
+  # gate-admissible test-evidence producers
+  - manual-test
+  - contract-test
+
+# --- gate-call markers — CLOSED enum of gate basenames. The validator flags an
+#     injectable:true skill only when its BODY calls one of these as
+#     `python3 harness/{hooks,scripts}/<basename>.py` (or inside a fenced block).
+#     A bare prose mention ("does not trigger gate_stage.py") is NOT a call and is
+#     never flagged (F1). A call to a NON-gate harness script (emit_observation.py,
+#     findings_store.py, disabled_skills.py) is not in this enum, so it is never
+#     flagged (F-D).
+gate_call_markers:
+  - gate_stage
+  - plan_approval
+  - push_gate
+  - artifact_check
+  - artifact_check_cli
+  - test_policy
+  - standards_strict_gate
+  - validate_artifacts

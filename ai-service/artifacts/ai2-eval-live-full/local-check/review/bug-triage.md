@@ -1,0 +1,94 @@
+# AI2 machine failure triage
+
+Severity is a starting point: P0/P1 requires remediation before acceptance; P2 is non-blocking only after manual review.
+
+- `deterministic/SYN-001` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-002` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-003` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-004` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-005` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-006` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-007` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-008` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-009` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-010` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-011` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-012` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-013` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-014` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-015` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-016` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-017` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-018` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-019` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-020` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-021` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-022` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-023` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-024` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-025` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-026` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-027` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-028` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-029` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:
+- `deterministic/SYN-030` — `invalid_citation` — severity: `PENDING`
+  - Reproduction: `python scripts/live_eval.py --mode live --vector-mode on --case <case-id> --review-output`
+  - Resolution:

@@ -1,0 +1,724 @@
+{
+  "case_id": "EC-017",
+  "run": "deterministic",
+  "input": {
+    "case": {
+      "case_id": "EC-017",
+      "title": "Hai bảng cùng số cột — không nối",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_two_tables",
+      "expected_state": "REVIEW",
+      "expected_no_claims": [
+        "join_by_col_count"
+      ],
+      "n_pages": 1,
+      "n_nodes": 2,
+      "n_tables": 2,
+      "lifecycle": "ACTIVE",
+      "query": null,
+      "notes": "",
+      "tags": [
+        "edge",
+        "table"
+      ]
+    },
+    "record": {
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_two_tables",
+      "lifecycle": "ACTIVE",
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-ec-017",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      },
+      "pages": [
+        {
+          "page_revision_id": "p1_rev1",
+          "page_number": 1,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p1_b1"
+          ],
+          "text": "Hai bảng khác nhau cùng 2 cột",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        }
+      ],
+      "nodes": [
+        {
+          "node_id": "t_a",
+          "type": "TABLE",
+          "raw_label": "Bảng phí",
+          "parent_id": null,
+          "order": 1,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Bảng phí",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "t_b",
+          "type": "TABLE",
+          "raw_label": "Bảng phạt",
+          "parent_id": null,
+          "order": 2,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Bảng phạt",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        }
+      ],
+      "tables": [
+        {
+          "table_id": "fees",
+          "title": "Phí",
+          "header": [
+            "name",
+            "amount"
+          ],
+          "rows": [
+            [
+              "Phí A",
+              "10"
+            ]
+          ],
+          "continuation": false,
+          "node_id": "t_a",
+          "page_revision_id": "p1_rev1",
+          "cell_citations": {},
+          "cells": [],
+          "header_row_indices": [],
+          "source_role": null,
+          "section_scope": null,
+          "header_source_table_id": null
+        },
+        {
+          "table_id": "pen",
+          "title": "Phạt",
+          "header": [
+            "name",
+            "amount"
+          ],
+          "rows": [
+            [
+              "Phạt B",
+              "20"
+            ]
+          ],
+          "continuation": false,
+          "node_id": "t_b",
+          "page_revision_id": "p1_rev1",
+          "cell_citations": {},
+          "cells": [],
+          "header_row_indices": [],
+          "source_role": null,
+          "section_scope": null,
+          "header_source_table_id": null
+        }
+      ],
+      "profile": {
+        "version": 5,
+        "aliases": {
+          "Công ty ABC": [
+            "ABC Co.",
+            "ABC"
+          ],
+          "Công ty XYZ": [
+            "XYZ Ltd",
+            "XYZ"
+          ]
+        },
+        "field_keys": [
+          "party_a",
+          "party_b",
+          "mst_seller",
+          "contract_value",
+          "payment_term"
+        ]
+      },
+      "acl_revision": 12,
+      "permissions_by_actor": {
+        "user_001": [
+          "READ_CONTENT"
+        ]
+      },
+      "source_files": [],
+      "facts": [],
+      "input_facts": [],
+      "chunks": [
+        {
+          "chunk_id": "chk_7f782a37",
+          "parent_node_id": "ai2-root:document",
+          "page_range": [
+            1
+          ],
+          "source_block_ids": [],
+          "text_span": "Hợp đồng",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Hợp đồng"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "NEEDS_REVIEW"
+        }
+      ],
+      "active_index_version": null,
+      "processing_index": false,
+      "legal_hold": false,
+      "egress_approved": true,
+      "budget_exceeded": false,
+      "processing_budget_exceeded": false,
+      "embedding_budget_exceeded": false,
+      "index_status": "READY",
+      "case_id": "EC-017",
+      "handoff_issues": [
+        {
+          "code": "STRUCTURE_ROOT_DERIVED",
+          "message": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "t_a is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "t_b is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        }
+      ],
+      "relation_graph": {
+        "graph_id": "graph:b0db8ec0cc07648ca67046ec",
+        "source_snapshot_digest": "sha256:eval-ec-017",
+        "nodes": [
+          {
+            "node_id": "ai2-root:document",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": null,
+            "quality": "PARTIAL"
+          }
+        ],
+        "edges": [],
+        "issues": []
+      },
+      "active_nodes": [
+        {
+          "node_id": "ai2-root:document",
+          "type": "SECTION",
+          "raw_label": "Hợp đồng",
+          "parent_id": null,
+          "order": -1,
+          "has_children": false,
+          "status": "PARTIAL",
+          "text": "Hợp đồng",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": null,
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI2_REPAIRED",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "ai2-root:document",
+          "heading_confidence": 1.0,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        }
+      ],
+      "citation_index": {},
+      "review_items": [
+        {
+          "review_item_id": "review:STRUCTURE_ROOT_DERIVED:1",
+          "kind": "STRUCTURE_ROOT_DERIVED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:2",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "t_a is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:3",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "t_b is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        }
+      ]
+    },
+    "envelope": {
+      "auth": {
+        "actor_id": "user_001",
+        "tenant_id": "tenant_a",
+        "dossier_id": "d_two_tables",
+        "acl_revision": 12,
+        "permissions": [
+          "READ_CONTENT"
+        ],
+        "lifecycle": "ACTIVE"
+      },
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-ec-017",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      }
+    }
+  },
+  "output": {
+    "extract": {
+      "status_code": 200,
+      "body": {
+        "session_id": "88ad01fcf04f",
+        "filename": "EC-017.snapshot",
+        "source": "eval",
+        "step": "extract",
+        "ai1": {
+          "case_id": "EC-017"
+        },
+        "files": [],
+        "has_pdf": false,
+        "dossier_id": "d_two_tables",
+        "tenant_id": "tenant_a",
+        "lifecycle": "ACTIVE",
+        "pins": {
+          "manifest_version": 2,
+          "source_snapshot_digest": "sha256:eval-ec-017",
+          "tenant_profile_version": 5,
+          "policy_version": 2,
+          "ocr_run_version": 3,
+          "reconstruction_version": 2,
+          "extraction_version": 7,
+          "index_version": "idx_14",
+          "source_digest": null,
+          "snapshot_digest": null
+        },
+        "n_pages": 1,
+        "n_nodes": 1,
+        "n_raw_nodes": 2,
+        "n_tables": 2,
+        "table_coverage": {
+          "UNKNOWN": 1
+        },
+        "relation_graph": {
+          "n_nodes": 1,
+          "n_edges": 0,
+          "n_issues": 0
+        },
+        "pages": [
+          {
+            "page": 1,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Hai bảng khác nhau cùng 2 cột",
+            "page_revision_id": "p1_rev1"
+          }
+        ],
+        "n_pages_hidden": 0,
+        "nodes": [
+          {
+            "node_id": "ai2-root:document",
+            "type": "SECTION",
+            "raw_label": "Hợp đồng",
+            "page_range": [
+              1
+            ],
+            "structured_key": null,
+            "structured_value": null
+          }
+        ],
+        "n_nodes_hidden": 0,
+        "tree": [
+          {
+            "node_id": "ai2-root:document",
+            "type": "SECTION",
+            "raw_label": "Hợp đồng",
+            "status": "PARTIAL",
+            "page": 1,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": null,
+            "bbox": [],
+            "has_children": false,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "ai2-root:document",
+            "heading_confidence": 1.0,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Hợp đồng",
+            "children": []
+          }
+        ],
+        "tables": [
+          {
+            "table_id": "fees",
+            "title": "Phí",
+            "n_rows": 1,
+            "header": [
+              "name",
+              "amount"
+            ],
+            "first_rows": [
+              [
+                "Phí A",
+                "10"
+              ]
+            ],
+            "last_rows": [
+              [
+                "Phí A",
+                "10"
+              ]
+            ]
+          },
+          {
+            "table_id": "pen",
+            "title": "Phạt",
+            "n_rows": 1,
+            "header": [
+              "name",
+              "amount"
+            ],
+            "first_rows": [
+              [
+                "Phạt B",
+                "20"
+              ]
+            ],
+            "last_rows": [
+              [
+                "Phạt B",
+                "20"
+              ]
+            ]
+          }
+        ],
+        "extracted": true,
+        "job": {
+          "job_id": "job_00f84310b5",
+          "status": "SUCCEEDED",
+          "review_state": "NEEDS_REVIEW",
+          "handoff_issues": [
+            {
+              "code": "STRUCTURE_ROOT_DERIVED",
+              "message": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "t_a is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "t_b is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_STATUS",
+              "message": "ai2-root:document:PARTIAL",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            }
+          ],
+          "contribution": {
+            "facts": [],
+            "chunks": [
+              {
+                "chunk_id": "chk_7f782a37",
+                "parent_node_id": "ai2-root:document",
+                "page_range": [
+                  1
+                ],
+                "source_block_ids": [],
+                "text_span": "Hợp đồng",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Hợp đồng"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "NEEDS_REVIEW"
+              }
+            ],
+            "candidates": [],
+            "evidence_issues": [],
+            "coverage": {
+              "n_facts": 0,
+              "n_findings": 0,
+              "n_evidence_issues": 0,
+              "n_units": 1,
+              "unit_ids": [
+                "unit:c7cf2809a1e0546e8b1f"
+              ],
+              "annex_labels": [],
+              "runtime": {
+                "egress_allowed": true,
+                "use_vector": false,
+                "max_processing_seconds": 300,
+                "max_llm_calls": 0,
+                "max_embedding_tokens": 0,
+                "llm_calls_used": 0,
+                "embedding_tokens_used": 0,
+                "fallback_count": 0
+              },
+              "n_candidates_suppressed": 0
+            },
+            "extraction_version": 7,
+            "proposed_index_version": "idx_7",
+            "publish": "propose"
+          },
+          "query_answer": null,
+          "error": null
+        },
+        "contribution": {
+          "facts": [],
+          "chunks": [
+            {
+              "chunk_id": "chk_7f782a37",
+              "parent_node_id": "ai2-root:document",
+              "page_range": [
+                1
+              ],
+              "source_block_ids": [],
+              "text_span": "Hợp đồng",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Hợp đồng"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "NEEDS_REVIEW"
+            }
+          ],
+          "candidates": [],
+          "evidence_issues": [],
+          "coverage": {
+            "n_facts": 0,
+            "n_findings": 0,
+            "n_evidence_issues": 0,
+            "n_units": 1,
+            "unit_ids": [
+              "unit:c7cf2809a1e0546e8b1f"
+            ],
+            "annex_labels": [],
+            "runtime": {
+              "egress_allowed": true,
+              "use_vector": false,
+              "max_processing_seconds": 300,
+              "max_llm_calls": 0,
+              "max_embedding_tokens": 0,
+              "llm_calls_used": 0,
+              "embedding_tokens_used": 0,
+              "fallback_count": 0
+            },
+            "n_candidates_suppressed": 0
+          },
+          "extraction_version": 7,
+          "proposed_index_version": "idx_7",
+          "publish": "propose"
+        },
+        "used_llm": false,
+        "has_gold_tasks": false,
+        "reviews": {},
+        "reviews_stale": false,
+        "published": false,
+        "authoritative_publish_blocked": false,
+        "review_queue_status": "HAS_REVIEW_ITEMS",
+        "review_items": [
+          {
+            "review_item_id": "review:STRUCTURE_ROOT_DERIVED:1",
+            "kind": "STRUCTURE_ROOT_DERIVED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:2",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "t_a is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:3",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "t_b is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          }
+        ],
+        "n_review_items": 3,
+        "n_citations": 0,
+        "handoff_issues": [
+          {
+            "code": "STRUCTURE_ROOT_DERIVED",
+            "message": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "t_a is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "t_b is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          }
+        ],
+        "policy": {
+          "deterministic": "ALLOW",
+          "external": "ALLOWED",
+          "gates": []
+        }
+      }
+    },
+    "ask": {
+      "status_code": null,
+      "body": null
+    }
+  },
+  "machine_checks": {
+    "case_id": "EC-017",
+    "run": "deterministic",
+    "expected_state": "REVIEW",
+    "actual_extract_state": "NEEDS_REVIEW",
+    "actual_ask_state": null,
+    "extract_http_ok": true,
+    "ask_http_ok": true,
+    "expected_match": true,
+    "citation_valid": true,
+    "citation_errors": [],
+    "forbidden_claims": [],
+    "n_citations": 0,
+    "use_vector": false,
+    "vector_status": "NOT_REQUESTED",
+    "embedding_model": null,
+    "embedding_dimensions": null,
+    "vector_hits": 0,
+    "n_pages": 1,
+    "n_nodes": 2,
+    "elapsed_ms": 17.5
+  },
+  "manual_review": {
+    "verdict": "PENDING",
+    "severity": null,
+    "reviewer_notes": ""
+  }
+}

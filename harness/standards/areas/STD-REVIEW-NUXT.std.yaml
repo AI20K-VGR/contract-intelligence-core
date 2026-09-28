@@ -1,0 +1,182 @@
+id: STD-REVIEW-NUXT
+type: std_area
+zone: operational
+title: "Review — Nuxt"
+status: approved
+owner: harness
+version: 1.0.0
+description: |
+  Nuxt review rules (scope **/nuxt.config.*, **/app.config.*, **/app.vue,
+  **/pages/**, **/layouts/**, **/middleware/**, **/server/**/*.ts).
+  Block-worthy rules around runtimeConfig secret exposure, SSRF, and SSR
+  payload leakage, plus advisory patterns for data-fetching selection,
+  shared state, and Nitro server routes.
+rule_groups:
+  - id: STD-REVIEW-NUXT-RG1
+    title: "Safety — runtimeConfig secrets, SSRF, SSR payload, h3 validation"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-NUXT-RG1-R1
+        title: "Never expose secrets via runtimeConfig.public or app.config.ts"
+        status: approved
+        scope:
+          - "**/nuxt.config.*"
+          - "**/app.config.*"
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: place secrets (API keys, tokens, database credentials)
+          at root-level runtimeConfig keys only — these are server-only
+          and never serialized to the client. Public-facing config goes in
+          runtimeConfig.public and is overridable via NUXT_PUBLIC_* env vars.
+          NEVER: put a secret in runtimeConfig.public or in app.config.ts —
+          both are serialized into every page payload and visible in the
+          browser's __NUXT__ object. A secret in app/app.config.ts ships to
+          every client in plain text. Even a "non-secret" API base URL that
+          reveals internal infrastructure belongs at root level if it should
+          not be client-visible.
+        rationale: |
+          runtimeConfig.public is injected into the HTML payload on every
+          SSR response and hydrated on the client. app.config.ts is a
+          build-time public artifact. There is no opt-out mechanism — if it
+          is in the key tree under public, it ships. The split between root
+          and public is the only boundary Nuxt gives you; using it wrong is
+          a guaranteed secret leak.
+      - id: STD-REVIEW-NUXT-RG1-R2
+        title: "Validate server-route input with h3 readers; never raw readBody"
+        status: approved
+        scope:
+          - "**/server/**/*.ts"
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: use h3 validating readers in server routes —
+          readValidatedBody(event, schema), getValidatedQuery(event, schema),
+          and getValidatedRouterParams(event, schema). These accept a Zod
+          schema or a validation function and throw on failure.
+          NEVER: call readBody(event), getQuery(event), or
+          getRouterParam(event) directly and trust the result — these return
+          unvalidated, attacker-controlled data. A raw readBody followed by
+          manual validation is a missed invariant: the raw read skips
+          the framework's built-in error handling and type narrowing.
+          NEVER: pass user-controlled input directly into a server-side
+          $fetch URL or host. Validate the param, allowlist the target,
+          and reject user-supplied absolute URLs. A server route with
+          server-side $fetch to an attacker-controlled URL is an SSRF vector.
+        rationale: |
+          h3's validating readers are the single injection-prevention seam
+          in Nitro server routes. They reject malformed input before your
+          handler body runs, so downstream code operates on validated,
+          typed data. Raw readers require every handler to implement its
+          own validation — one missed handler is a full SSRF or injection
+          vector. SSRF is a special concern: a server route with
+          server-side $fetch to a user-controlled URL can reach internal
+          services no external client should touch.
+      - id: STD-REVIEW-NUXT-RG1-R3
+        title: "Never leak SSR state into client payload — forward cookies explicitly"
+        status: approved
+        scope:
+          - "**/server/**/*.ts"
+          - "**/pages/**"
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: forward the incoming user's cookies to outbound
+          server-side $fetch using useRequestFetch() (pre-bound to request
+          headers) or useRequestHeaders(['cookie']). Relay backend
+          Set-Cookie responses to the browser via $fetch.raw +
+          appendResponseHeader(event, 'set-cookie', ...).
+          NEVER: assume Nuxt auto-attaches the user's cookies to server-side
+          $fetch — it does not. An SSR $fetch without explicit cookie
+          forwarding makes an unauthenticated request, which either fails
+          silently or returns public data when private data was expected.
+          NEVER: store secrets, tokens, or credentials in useState() —
+          its value is serialized into the client payload.
+        rationale: |
+          Server-side $fetch runs in the Nitro process, not the browser —
+          it has no access to the user's cookie jar. useRequestFetch()
+          binds to the incoming event and forwards the request context.
+          Without it, every SSR data fetch is anonymous. useState payload
+          serialization is a separate leak vector: anything in the store
+          at hydration time is visible in the page source.
+  - id: STD-REVIEW-NUXT-RG2
+    title: "Patterns — data-fetching, shared state, Nitro routes, hydration"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-NUXT-RG2-R1
+        title: "useFetch/useAsyncData for first paint; $fetch for mutations only"
+        status: approved
+        scope:
+          - "**/pages/**"
+          - "**/app.vue"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: use useFetch(url) or useAsyncData(key, fn) for any data
+          rendered on first paint. These are SSR-safe — they forward the
+          server result through the payload so there is no hydration
+          double-fetch. Use $fetch only for event-driven mutations (form
+          submit, button click, POST/PUT/DELETE).
+          NEVER: use $fetch for initial page data — it is not SSR-safe and
+          double-fetches on hydration (once on the server, once on the
+          client). An initial render driven by $fetch shows a flash of
+          empty content on the client before the second fetch completes.
+        rationale: |
+          useFetch and useAsyncData serialize their result into
+          __NUXT__.payload on the server. The client hydration reads the
+          payload instead of re-fetching — zero network cost, no flash of
+          empty content. $fetch skips the payload entirely; the server
+          fetches, renders nothing (because the data arrives asynchronously
+          after the response is sent), and the client fetches again.
+      - id: STD-REVIEW-NUXT-RG2-R2
+        title: "useState for SSR-safe shared state; never module-scoped ref()"
+        status: approved
+        scope:
+          - "**/pages/**"
+          - "**/app.vue"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: use useState('key', () => init) for SSR-safe shared
+          reactive state. Values must be JSON-serializable.
+          NEVER: declare export const x = ref() at module scope — a single
+          shared ref instance leaks across concurrent SSR requests,
+          causing cross-request state pollution and a memory leak.
+          PREFER: Pinia (via @pinia/nuxt) for domain state; useState for
+          small cross-component primitives.
+        rationale: |
+          Module-scoped refs are singletons in the Node.js process. Under
+          SSR, multiple concurrent requests share the same module instance
+          — one request's state overwrites another's. useState is
+          request-scoped by the Nuxt runtime; each SSR request gets its own
+          copy that is serialized to the payload and rehydrated on the client.
+      - id: STD-REVIEW-NUXT-RG2-R3
+        title: "Nitro route handler conventions — defineEventHandler, throw createError"
+        status: approved
+        scope:
+          - "**/server/**/*.ts"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: wrap server API handlers in defineEventHandler((event) =>
+          ...). Throw errors with throw createError({ status, statusText })
+          using the Web-API status/statusText properties.
+          NEVER: use the deprecated statusCode/statusMessage properties in
+          createError. A server/middleware/ file must only mutate
+          event.context or set headers — never return a response body;
+          returning a value from middleware short-circuits downstream
+          handlers.
+        rationale: |
+          createError with status/statusText uses the h3 v1 API that maps
+          to standard HTTP semantics. The deprecated statusCode/statusMessage
+          aliases still work but signal a stale codebase. Middleware that
+          returns a response prevents any downstream handler or route from
+          running — it is a silent route-killer that is hard to debug.

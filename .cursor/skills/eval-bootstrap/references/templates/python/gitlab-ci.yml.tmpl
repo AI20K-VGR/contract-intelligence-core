@@ -1,0 +1,81 @@
+# Production Evals — {domain}
+#
+# GitLab CI equivalent of github-actions.yml.tmpl -- same 3-job shape (unit
+# -> contract -> production evals) and the SAME single-brace marker set (a
+# parity test enforces this): domain, python_version,
+# dependency_install_command, unit_test_command, eval_test_command,
+# run_evals_command, setup_steps.
+
+stages:
+  - test
+  - eval
+
+unit-tests:
+  stage: test
+  image: python:{python_version}
+  rules:
+    # Match github-actions.yml.tmpl's trigger posture: merge requests and
+    # pushes to main/master only, path-filtered -- not every branch.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - "src/**/*"
+        - "evals/**/*"
+        - "data/**/*"
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master"'
+      changes:
+        - "src/**/*"
+        - "evals/**/*"
+        - "data/**/*"
+  script:
+    # {setup_steps} -- fill with the production stack's OWN interpreter/
+    # toolchain install (e.g. nvm/node, apt-get) when the mirrored
+    # production_module is not Python; leave as-is (no-op) for a pure-Python
+    # stack.
+    - {dependency_install_command}
+    - {unit_test_command}
+
+eval-contract-tests:
+  stage: test
+  image: python:{python_version}
+  rules:
+    # Match github-actions.yml.tmpl's trigger posture: merge requests and
+    # pushes to main/master only, path-filtered -- not every branch.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - "src/**/*"
+        - "evals/**/*"
+        - "data/**/*"
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master"'
+      changes:
+        - "src/**/*"
+        - "evals/**/*"
+        - "data/**/*"
+  script:
+    # {setup_steps} -- see unit-tests above; each job installs its own
+    # runner, so the target-language toolchain fill is repeated here.
+    - {dependency_install_command}
+    - {eval_test_command}
+
+production-evals:
+  stage: eval
+  image: python:{python_version}
+  needs:
+    - unit-tests
+    - eval-contract-tests
+  rules:
+    # Match github-actions.yml.tmpl's trigger posture: merge requests and
+    # pushes to main/master only, path-filtered -- not every branch.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - "src/**/*"
+        - "evals/**/*"
+        - "data/**/*"
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master"'
+      changes:
+        - "src/**/*"
+        - "evals/**/*"
+        - "data/**/*"
+  script:
+    # {setup_steps} -- see unit-tests above.
+    - {dependency_install_command}
+    - {run_evals_command}

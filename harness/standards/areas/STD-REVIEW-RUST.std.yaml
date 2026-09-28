@@ -1,0 +1,113 @@
+id: STD-REVIEW-RUST
+type: std_area
+zone: operational
+title: "Review — Rust"
+status: approved
+owner: harness
+version: 1.0.0
+description: |
+  Rust review rules (scope **/*.rs). Block-worthy safety rules around unsafe
+  code and error handling, plus advisory patterns for idiomatic Rust.
+rule_groups:
+  - id: STD-REVIEW-RUST-RG1
+    title: "Safety — unsafe, errors, panics"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-RUST-RG1-R1
+        title: "Unsafe code requires SAFETY comment"
+        status: approved
+        scope: ["**/*.rs"]
+        severity: critical
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: preface every unsafe block or unsafe fn with a // SAFETY:
+          comment listing every invariant the caller must uphold (non-null,
+          aligned, initialized, aliasing, and concurrent-access rules).
+          NEVER: drop an // SAFETY: comment in an unsafe block just to "say
+          something" — each claim must be provably true at the single call site,
+          not a blanket "should be safe". An unsafe fn that has no justification
+          comment is treated as an accidental leak.
+        rationale: |
+          A // SAFETY: comment that does not state the invariants is the same
+          as no comment — a reviewer must check every statement. Blanket
+          "should be safe" or "the docs guarantee it" comments are a red flag.
+          The reviewer applies the full rule; a grep-only scan misses unsafe fn
+          declarations — the grep is a starting hint, not a gate.
+      - id: STD-REVIEW-RUST-RG1-R2
+        title: "Ban unwrap/expect in production code"
+        status: approved
+        scope: ["**/*.rs"]
+        severity: info
+        relates_to_std: [STD-REVIEW-RUST-RG1-R1]
+        detector: null
+        description: |
+          ALWAYS: propagate errors with Result<T, E> and the ? operator; use
+          thiserror for library error types and anyhow for application error
+          context. Use .context() / .with_context() from anyhow to attach
+          actionable context before propagating.
+          NEVER: call unwrap(), expect(), or .ok().unwrap() in non-test code,
+          even when "it should never fail" — the assumption is always wrong in
+          a degraded runtime (disk full, network timeout, config migrated).
+          Reserve unwrap/expect for #[cfg(test)] modules and debug assertions
+          backed by an invariant the function itself maintains.
+          PREFER: .ok_or_else(|| MyError::NotFound)? over .unwrap() when a
+          None is a legitimate possibility.
+        rationale: |
+          unwrap is the standard-library footgun: one deployment where the
+          invariant holds and the next where it does not, and the panic
+          provides a stack trace with zero context. anyhow + thiserror turn
+          every panic site into a typed, contextualized Result — zero runtime
+          cost when the path succeeds, and a debuggable error when it does
+          not. The ? operator is already in every Rust codebase, so there is
+          no readability trade-off.
+  - id: STD-REVIEW-RUST-RG2
+    title: "Idiomatic Rust — ownership, naming, testing"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-RUST-RG2-R1
+        title: "Borrow over take; &str over String in params"
+        status: approved
+        scope: ["**/*.rs"]
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: accept &str over String, &[T] over Vec<T> in function
+          parameters — the caller decides whether to borrow or own. Use
+          impl Into<String> / impl Into<Box<dyn Trait>> only in constructors
+          that must store the value.
+          NEVER: take String or Vec<T> in a read-only parameter just because
+          "the caller has an owned value" — the caller can always pass &s and
+          &v, and the callee should not force an ownership transfer it does
+          not need. Never clone solely to satisfy the borrow checker without
+          understanding why the borrow fails (restructure the lifetime, do
+          not fight it with clone).
+        rationale: |
+          &str accepts both &String (via Deref) and &str; a String parameter
+          forces the caller to give up ownership unnecessarily. The clone-to-
+          appease-borrow_checker pattern is Rust's most common style regression
+          — a clone that survives a refactor silently becomes an expensive
+          allocation on a cold path.
+      - id: STD-REVIEW-RUST-RG2-R2
+        title: "Error type conventions"
+        status: approved
+        scope: ["**/*.rs"]
+        severity: info
+        relates_to_std: [STD-REVIEW-RUST-RG1-R2, STD-REVIEW-RUST-RG2-R1]
+        detector: null
+        description: |
+          ALWAYS: define a public error enum with thiserror for libraries;
+          use anyhow::Result + .context() for application/binaries. Implement
+          the Error trait for all custom error types.
+          NEVER: use String or Box<dyn std::error::Error> as a function-level
+          error type across a public API — callers lose the ability to match
+          on specific error variants. A bare Box<dyn Error> in a return
+          position is a sign the error model was an afterthought.
+        rationale: |
+          String errors lose typed matching (callers parse error messages
+          instead of matching variants); Box<dyn Error> loses the concrete
+          type. thiserror derives the Error trait from an enum with #[error]
+          attributes — zero runtime cost, full pattern matching for callers.

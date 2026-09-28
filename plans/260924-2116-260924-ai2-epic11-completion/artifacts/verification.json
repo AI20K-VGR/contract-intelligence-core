@@ -1,0 +1,31 @@
+{
+  "stage": "cook",
+  "plan": "260924-2116-260924-ai2-epic11-completion",
+  "checks": [
+    {
+      "name": "targeted-contract-tests",
+      "status": "PASS"
+    },
+    {
+      "name": "backend-test-command",
+      "status": "BLOCKED"
+    },
+    {
+      "name": "ai-service-full-suite",
+      "status": "BLOCKED"
+    },
+    {
+      "name": "fixture-dependencies",
+      "status": "BLOCKED"
+    },
+    {
+      "name": "logic-scope-review",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "BLOCKED",
+  "phase": "P1",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-09-24T14:54:26+00:00",
+  "run_seq": null
+}

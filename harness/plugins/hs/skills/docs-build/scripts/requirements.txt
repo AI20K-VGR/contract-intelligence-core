@@ -1,0 +1,19 @@
+# docs-build skill dependencies
+#
+# Declared here rather than centrally because a default-off install must not drag
+# every skill's packages along — the same convention the other scoped skills use,
+# and what the undeclared-import sweep resolves against by walking up from the
+# import site.
+
+# REQUIRED — render_md_page.py turns a source .md into the page fragment
+# build_showcase.py's step A2 writes, so a showcase build with any md-sourced
+# page fails outright without it. Its import re-raises for that reason.
+markdown>=3.5
+
+# OPTIONAL — build_pdf.py only. Both imports sit behind a guard that WARNS and
+# skips the PDF rather than failing the build, so a tree without them still
+# produces the showcase and the flat markdown.
+xhtml2pdf>=0.2.11
+
+# OPTIONAL — build_excel.py only, same posture.
+openpyxl>=3.1

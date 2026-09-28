@@ -1,0 +1,39 @@
+{
+  "stage": "cook",
+  "plan": "260925-0238-ai1-ai2-be-fe-review-fixes-260925-0238",
+  "checks": [
+    {
+      "name": "ai2-persistence",
+      "status": "PASS"
+    },
+    {
+      "name": "completeness-state",
+      "status": "PASS"
+    },
+    {
+      "name": "reload-idempotency",
+      "status": "PASS"
+    },
+    {
+      "name": "worker-regression",
+      "status": "PASS"
+    },
+    {
+      "name": "ai-service-contract",
+      "status": "PASS"
+    },
+    {
+      "name": "backend-ruff",
+      "status": "PASS"
+    },
+    {
+      "name": "ai-service-ruff",
+      "status": "SKIP"
+    }
+  ],
+  "verdict": "PASS_WITH_RISK",
+  "phase": "phase-2-ai2-persistence-coverage",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-09-24T20:29:52+00:00",
+  "run_seq": null
+}

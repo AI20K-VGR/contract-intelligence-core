@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "coverage-grid",
+  "description": "Mirrors harness/scripts/grid/types.py::Grid (schema grid/v2) — the axis-cell coverage artifact the grid-planning primitive emits for a planner/qa/executor run. Written to plans/<active-plan>/artifacts/coverage-grid.json.",
+  "type": "object",
+  "required": ["agent", "axes", "cells", "budget", "attestation", "density_tier", "created_at", "schema_version", "gate", "verdict", "ts"],
+  "properties": {
+    "agent": {
+      "type": "string",
+      "enum": ["frankode-planner", "planner", "qa", "executor"],
+      "description": "Which role produced this grid"
+    },
+    "gate": {
+      "type": "string",
+      "const": "grid",
+      "description": "Gate-envelope field stamped by build_coverage_grid_record — always 'grid'"
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["pass", "needs-detail", "reject"],
+      "description": "Gate-envelope field: the grid review verdict (from grid/review.py::review_grid)"
+    },
+    "ts": {
+      "type": "string",
+      "description": "Gate-envelope field: ISO-8601 timestamp build_coverage_grid_record stamped the record"
+    },
+    "cross_ref": {
+      "type": "string",
+      "description": "Gate-envelope field: provenance pointer to the tầng-2 grid copy (a plain string, never an import)"
+    },
+    "evidence_prefix_set": {
+      "type": "string",
+      "description": "Gate-envelope field: which named EVIDENCE_PREFIX set the writer declared (union/frankcode/harness)"
+    },
+    "evidence_prefixes_extra": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Gate-envelope field: the per-project evidence-prefix extension in effect when this grid was judged (HARNESS_GRID_EVIDENCE_PREFIXES). Omitted when none was configured. Context for reproducing the verdict, never read as authority — judging code resolves the live environment"
+    },
+    "review": {
+      "type": "object",
+      "description": "Gate-envelope field: the full GridReviewVerdict dict, present when a dict verdict was passed"
+    },
+    "plan_id": {
+      "type": "string",
+      "description": "Required when agent is frankode-planner, planner, or qa"
+    },
+    "task_id": {
+      "type": "string",
+      "description": "Required when agent is executor"
+    },
+    "axes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/gridAxis"}
+    },
+    "cells": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/gridCell"}
+    },
+    "budget": {"$ref": "#/$defs/budgetLedger"},
+    "attestation": {"$ref": "#/$defs/gridAttestation"},
+    "density_tier": {
+      "type": "string",
+      "enum": ["LOW", "MID", "HIGH"]
+    },
+    "created_at": {
+      "type": "string",
+      "description": "ISO-8601 timestamp; injectable at build time for deterministic tests"
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "grid/v2"
+    },
+    "strength": {
+      "type": "integer",
+      "minimum": 2,
+      "description": "CA strength t the skeleton was built at (parallel to density_tier); additive/optional, never required — an older record or a non-skeleton-stamped grid omits it"
+    },
+    "axis_selection": {
+      "type": "object",
+      "properties": {
+        "axes": {"type": "array", "items": {"type": "string"}},
+        "src_sha256": {"type": "string"}
+      },
+      "description": "Gate-envelope field: engine-consumed axis-selection receipt mark (optional, never required)"
+    },
+    "diff_attest": {
+      "type": "object",
+      "properties": {
+        "dropped": {"type": "array", "items": {"type": "string"}},
+        "added": {"type": "array", "items": {"type": "string"}},
+        "checklist_sha256": {"type": "string"},
+        "source": {"type": "string"},
+        "skipped": {"type": "string"}
+      },
+      "description": "Gate-envelope field: frozen-checklist-vs-feature-axis diff (optional, never required)"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "agent": {"enum": ["frankode-planner", "planner", "qa"]}
+        }
+      },
+      "then": {"required": ["plan_id"]}
+    },
+    {
+      "if": {
+        "properties": {
+          "agent": {"enum": ["executor"]}
+        }
+      },
+      "then": {"required": ["task_id"]}
+    }
+  ],
+  "$defs": {
+    "gridAxis": {
+      "type": "object",
+      "required": ["id", "label", "values"],
+      "properties": {
+        "id": {"type": "string"},
+        "label": {"type": "string"},
+        "values": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "ordered_by": {
+          "type": "string",
+          "enum": ["dependency", "priority", "lifecycle", "none"]
+        }
+      }
+    },
+    "gridCell": {
+      "type": "object",
+      "required": ["coordinates", "resolution"],
+      "properties": {
+        "coordinates": {
+          "type": "object",
+          "additionalProperties": {"type": "string"}
+        },
+        "resolution": {
+          "type": "string",
+          "enum": ["SKELETON", "LOW", "HIGH", "STUB", "MISSING", "N/A"]
+        },
+        "content": {"type": "string"},
+        "attestation": {
+          "type": "string",
+          "description": "Required non-empty reason when resolution is STUB, MISSING, or N/A"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Required non-empty when resolution is HIGH; each entry should match the anti-confab EVIDENCE_PREFIX_PATTERN"
+        },
+        "tokens_spent": {"type": "integer", "minimum": 0},
+        "budget_exceeded": {"type": "boolean"},
+        "iteration_expanded": {"type": "integer", "minimum": 0}
+      }
+    },
+    "budgetLedger": {
+      "type": "object",
+      "required": [
+        "skeleton_tokens", "depth_tokens_used", "depth_tokens_max",
+        "cells_expanded", "cells_stubbed", "cells_missing",
+        "cells_confab_flagged", "iterations", "iterations_max"
+      ],
+      "properties": {
+        "skeleton_tokens": {"type": "integer", "minimum": 0},
+        "depth_tokens_used": {"type": "integer", "minimum": 0},
+        "depth_tokens_max": {"type": "integer", "minimum": 0},
+        "cells_expanded": {"type": "integer", "minimum": 0},
+        "cells_stubbed": {"type": "integer", "minimum": 0},
+        "cells_missing": {"type": "integer", "minimum": 0},
+        "cells_confab_flagged": {"type": "integer", "minimum": 0},
+        "iterations": {"type": "integer", "minimum": 0},
+        "iterations_max": {"type": "integer", "minimum": 0}
+      }
+    },
+    "gridAttestation": {
+      "type": "object",
+      "required": [
+        "density", "total_cells", "coverage_ratio", "stub_ratio",
+        "missing_ratio", "confab_signals", "invariants_passed", "invariants_failed"
+      ],
+      "properties": {
+        "density": {
+          "type": "string",
+          "enum": ["SKELETON", "FILLED", "DEEP"]
+        },
+        "total_cells": {"type": "integer", "minimum": 0},
+        "coverage_ratio": {"type": "number", "minimum": 0, "maximum": 1},
+        "stub_ratio": {"type": "number", "minimum": 0, "maximum": 1},
+        "missing_ratio": {"type": "number", "minimum": 0, "maximum": 1},
+        "na_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Share of ALL N/A cells (free-text + rule:-pointing) over total_cells (na-option3 anti-gaming bell); additive/optional, never required"
+        },
+        "confab_signals": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "invariants_passed": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "invariants_failed": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    }
+  }
+}

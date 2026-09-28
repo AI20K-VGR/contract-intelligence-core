@@ -174,7 +174,7 @@ class L1Retrieval:
             if ttype in COMPARE_TYPES:
                 filtered = _filter_relation_hits(q, hits)
                 protected = [h for h in hits if str(h.get("node_id") or "") in set(exact_ids)]
-                hits = _merge_hits(protected, filtered)
+                hits = _drop_repeated_annex_headings(_merge_hits(protected, filtered), outline)
         except ToolBlocked:
             return {
                 "resolved": False,
@@ -256,14 +256,58 @@ def _exact_label_ids(query: str, outline: list[dict[str, Any]]) -> list[str]:
         for n in outline:
             raw = (n.get("raw_label") or "").strip()
             normalized = _plain_query(raw)
+            same_annex = _same_annex_heading(wanted, normalized)
             if (
                 normalized == wanted
                 or normalized.startswith(wanted + " ")
                 or normalized.startswith(wanted + ".")
                 or normalized.startswith(wanted + ",")
+                or same_annex
             ) and n["node_id"] not in ids:
                 ids.append(n["node_id"])
     return ids
+
+
+def _annex_heading_number(text: str) -> int | None:
+    match = re.match(r"^phu luc\s+0*(\d+)\b", text)
+    if match is None:
+        return None
+    return int(match.group(1))
+
+
+def _same_annex_heading(wanted: str, label: str) -> bool:
+    """Phụ lục 1 and PHỤ LỤC 01 name the same heading. Phụ lục 1 does not match 10."""
+
+    wanted_number = _annex_heading_number(wanted)
+    label_number = _annex_heading_number(label)
+    return wanted_number is not None and label_number == wanted_number
+
+
+def _drop_repeated_annex_headings(
+    hits: list[dict[str, Any]], outline: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """A continued page repeats PHỤ LỤC 01. Keep the section, drop the copy."""
+
+    by_id = {item.get("node_id"): item for item in outline}
+    section_numbers: set[int] = set()
+    for hit in hits:
+        item = by_id.get(hit.get("node_id"))
+        if not item or item.get("type") != "SECTION":
+            continue
+        number = _annex_heading_number(_plain_query(item.get("raw_label") or ""))
+        if number is not None:
+            section_numbers.add(number)
+    if not section_numbers:
+        return hits
+    kept: list[dict[str, Any]] = []
+    for hit in hits:
+        item = by_id.get(hit.get("node_id"))
+        if item and item.get("type") != "SECTION":
+            number = _annex_heading_number(_plain_query(item.get("raw_label") or ""))
+            if number is not None and number in section_numbers:
+                continue
+        kept.append(hit)
+    return kept
 
 
 def _merge_hits(*groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -367,6 +411,10 @@ def _filter_relation_hits(query: str, hits: list[dict[str, Any]]) -> list[dict[s
         cues.append(("thanh toan", "payment"))
     if not cues:
         return hits
+    named_annexes = {
+        int(number)
+        for number in re.findall(r"(?:phu luc|annex)\s+0*(\d+)", normalized_query)
+    }
     kept: list[dict[str, Any]] = []
     for hit in hits:
         citation = hit.get("citation") or {}
@@ -381,6 +429,11 @@ def _filter_relation_hits(query: str, hits: list[dict[str, Any]]) -> list[dict[s
                 )
             )
         )
+        mentioned = {
+            int(number) for number in re.findall(r"(?:phu luc|annex)\s+0*(\d+)", evidence)
+        }
+        if named_annexes and mentioned and mentioned.isdisjoint(named_annexes):
+            continue
         if any(left in evidence or right in evidence for left, right in cues):
             kept.append(hit)
     return kept

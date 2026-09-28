@@ -1,4 +1,5 @@
-import { apiBaseUrl } from '../api/client'
+import { useEffect, useState } from 'react'
+import { loadPagePreview } from '../api/structure'
 
 export type CitationViewerStatus = 'LOCATABLE' | 'PARTIAL' | 'UNRESOLVED'
 export type CitationViewerScope = 'body' | 'annex' | 'unknown'
@@ -86,6 +87,44 @@ export function DynamicCitationViewer({
 }: {
   citation: CitationViewerModel | null
 }) {
+  const documentId = citation?.documentId ?? null
+  const pageNo = citation?.pageNo ?? null
+  const canOpenSource =
+    citation?.status === 'LOCATABLE' && Boolean(documentId) && pageNo !== null
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let objectUrl: string | null = null
+    setPreviewUrl(null)
+    setPreviewError(null)
+
+    if (!canOpenSource || !documentId || pageNo === null) {
+      return () => controller.abort()
+    }
+
+    loadPagePreview(documentId, pageNo, controller.signal)
+      .then((blob) => {
+        if (controller.signal.aborted) return
+        objectUrl = URL.createObjectURL(blob)
+        setPreviewUrl(objectUrl)
+      })
+      .catch((cause: unknown) => {
+        if (controller.signal.aborted) return
+        setPreviewError(
+          cause instanceof Error
+            ? cause.message
+            : 'Không tải được ảnh trang hợp đồng.',
+        )
+      })
+
+    return () => {
+      controller.abort()
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [canOpenSource, documentId, pageNo])
+
   if (!citation) {
     return (
       <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-space-md">
@@ -98,14 +137,6 @@ export function DynamicCitationViewer({
       </section>
     )
   }
-
-  const canOpenSource =
-    citation.status === 'LOCATABLE' &&
-    Boolean(citation.documentId) &&
-    citation.pageNo !== null
-  const previewUrl = canOpenSource
-    ? `${apiBaseUrl}/api/v1/documents/${encodeURIComponent(citation.documentId ?? '')}/pages/${citation.pageNo}/image?variant=preview`
-    : null
 
   return (
     <section
@@ -183,6 +214,14 @@ export function DynamicCitationViewer({
             src={previewUrl}
             alt={`${citation.documentName || citation.documentId} · trang ${citation.pageNo}`}
           />
+        </div>
+      ) : canOpenSource && previewError ? (
+        <div className="mt-space-sm rounded border border-red-200 bg-red-50 p-space-sm font-body-sm text-body-sm text-red-900">
+          {previewError}
+        </div>
+      ) : canOpenSource ? (
+        <div className="mt-space-sm rounded border border-outline-variant/30 p-space-sm font-body-sm text-body-sm text-secondary">
+          Đang tải ảnh trang hợp đồng…
         </div>
       ) : (
         <div className="mt-space-sm rounded border border-amber-200 bg-amber-50 p-space-sm font-body-sm text-body-sm text-amber-950">

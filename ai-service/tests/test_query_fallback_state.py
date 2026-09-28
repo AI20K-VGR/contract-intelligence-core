@@ -100,7 +100,7 @@ class SpyLlm:
 @pytest.mark.parametrize(
     ("flags", "vector_calls", "llm_calls"),
     [
-        ({"use_vector": False, "use_llm": True, "egress_allowed": True}, 0, 0),
+        ({"use_vector": False, "use_llm": True, "egress_allowed": True}, 0, 1),
         ({"use_vector": True, "use_llm": False, "egress_allowed": True}, 1, 0),
         ({"use_vector": True, "use_llm": True, "egress_allowed": False}, 1, 0),
     ],

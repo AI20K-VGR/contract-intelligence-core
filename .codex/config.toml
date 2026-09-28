@@ -1,0 +1,7 @@
+# >>> harness engine root (generated; edits between markers are overwritten on reinstall) >>>
+# `hs-run` resolves the tree it answers for from this variable; without it
+# the engine answers for a parent directory and reports this project's own
+# skills as unknown.
+[shell_environment_policy]
+set = { HARNESS_DATA_ROOT = "C:/Users/dungs/OneDrive/Documents/VSF/.harness" }
+# <<< harness engine root <<<

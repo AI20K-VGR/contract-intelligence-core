@@ -1,0 +1,33 @@
+edges:
+  - {from: phase-1-auth-acl, to: phase-2-ai2-persistence-coverage}
+  - {from: phase-2-ai2-persistence-coverage, to: phase-3-query-grounding-state}
+  - {from: phase-2-ai2-persistence-coverage, to: phase-4-citation-finding-ui}
+  - {from: phase-3-query-grounding-state, to: phase-4-citation-finding-ui}
+  - {from: phase-4-citation-finding-ui, to: phase-5-snapshot-recovery-legacy}
+  - {from: phase-5-snapshot-recovery-legacy, to: phase-6-integrated-verification}
+  - {from: phase-4-citation-finding-ui, to: phase-6-integrated-verification}
+subtasks:
+  phase-1-auth-acl:
+    post: [verification-phase-1-auth-acl.json]
+    files_to_create: [backend/tests/unit/test_route_registration_authz.py, backend/tests/unit/test_dossier_acl_consistency.py]
+    files_to_modify: [backend/src/contract_intelligence/main.py, backend/src/contract_intelligence/api/v1/reviews.py, backend/src/contract_intelligence/api/v1/dossiers.py, backend/src/contract_intelligence/contract/interfaces/api/routers/contract_router.py]
+  phase-2-ai2-persistence-coverage:
+    post: [verification-phase-2-ai2-persistence-coverage.json]
+    files_to_create: [backend/tests/unit/test_ai2_result_persistence.py, backend/tests/unit/test_ai2_read_model_completeness.py]
+    files_to_modify: [backend/src/contract_intelligence/shared/ai/persistence.py, backend/tests/unit/test_worker_pipeline_run.py, ai-service/tests/test_processing_wire_contract.py]
+  phase-3-query-grounding-state:
+    post: [verification-phase-3-query-grounding-state.json]
+    files_to_create: [ai-service/tests/test_query_fallback_state.py, backend/tests/unit/test_query_state_passthrough.py, frontend/tests/ai2-query-state.test.ts]
+    files_to_modify: [ai-service/app/reasoning/query.py, ai-service/app/reasoning/l0_rules.py, ai-service/app/reasoning/vector_recall.py, backend/src/contract_intelligence/contract/interfaces/api/routers/contract_router.py, frontend/src/api/ai2.ts]
+  phase-4-citation-finding-ui:
+    post: [verification-phase-4-citation-finding-ui.json]
+    files_to_create: [frontend/src/components/ContextFindingsPanel.tsx, frontend/src/components/DynamicCitationViewer.tsx, frontend/src/components/FindingQueue.tsx, frontend/tests/dynamic-citation-viewer.test.tsx, frontend/tests/context-findings-panel.test.tsx, frontend/tests/finding-queue.test.tsx]
+    files_to_modify: [frontend/src/pages/DossierReviewPage.tsx, frontend/src/components/DossierSearchResults.tsx, frontend/src/pages/CitationComparePage.tsx, frontend/src/pages/CitationSplitViewPage.tsx, frontend/src/pages/DossierStructurePage.tsx, frontend/src/api/ai2.ts]
+  phase-5-snapshot-recovery-legacy:
+    post: [verification-phase-5-snapshot-recovery-legacy.json]
+    files_to_create: [backend/tests/unit/test_snapshot_recovery.py, backend/tests/unit/test_legacy_path_guard.py, ai-service/tests/test_canonical_legacy_separation.py]
+    files_to_modify: [backend/src/contract_intelligence/worker.py, backend/src/contract_intelligence/shared/ai/client.py, docker-compose.yml, ai-service/tests/test_legacy_compat.py]
+  phase-6-integrated-verification:
+    post: [verification-phase-6-integrated-verification.json, release-decision.json]
+    files_to_create: [backend/tests/integration/test_ai2_review_fixes_flow.py, frontend/tests/ai2-review-fixes-flow.test.tsx]
+    files_to_modify: []

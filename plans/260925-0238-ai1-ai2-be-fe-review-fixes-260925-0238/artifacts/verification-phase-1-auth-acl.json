@@ -1,0 +1,35 @@
+{
+  "stage": "cook",
+  "plan": "260925-0238-ai1-ai2-be-fe-review-fixes-260925-0238",
+  "checks": [
+    {
+      "name": "route-shadowing",
+      "status": "PASS"
+    },
+    {
+      "name": "acl-matrix",
+      "status": "PASS"
+    },
+    {
+      "name": "review-router",
+      "status": "PASS"
+    },
+    {
+      "name": "approval-router",
+      "status": "PASS"
+    },
+    {
+      "name": "contract-router",
+      "status": "PASS"
+    },
+    {
+      "name": "ruff",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "phase-1-auth-acl",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-09-24T20:20:20+00:00",
+  "run_seq": null
+}

@@ -65,6 +65,28 @@ async def test_ai2_citation_projection_preserves_source_location() -> None:
     assert hits[0].bbox == [0.1, 0.2, 0.8, 0.3]
 
 
+async def test_ai2_nested_citation_keeps_the_source_location() -> None:
+    hits = _hits_from_ai2(
+        {
+            "hits": [
+                {
+                    "text": "Tên đơn vị: Công ty ABC",
+                    "citation": {
+                        "source_file_id": "doc-1",
+                        "line_ids": ["doc-1:s1:p001:l009"],
+                        "page": 1,
+                        "text_span": "Tên đơn vị: Công ty ABC",
+                    },
+                }
+            ]
+        }
+    )
+
+    assert hits[0].source_file_id == "doc-1"
+    assert hits[0].line_id == "doc-1:s1:p001:l009"
+    assert hits[0].page_no == 1
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

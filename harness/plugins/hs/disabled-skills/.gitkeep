@@ -1,0 +1,3 @@
+# Tracked stash for install-disabled (off) skills.
+# A disabled skill dir is moved here (a sibling of skills/ the loader never scans),
+# so it ships with the bundle and toggles without a reinstall. Empty by default.

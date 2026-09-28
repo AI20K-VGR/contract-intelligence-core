@@ -325,9 +325,11 @@ services:
       AI_SERVICE_MODE: http
       AI2_BASE_URL: ${AI2_BASE_URL:-http://ai2-service:8002}
       AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-}
+      AI2_QUERY_EGRESS_ALLOWED: ${AI2_QUERY_EGRESS_ALLOWED:-true}
+      AI2_PROCESSING_EGRESS_ALLOWED: ${AI2_PROCESSING_EGRESS_ALLOWED:-true}
 
       # ---- CORS ----
-      CORS_ALLOW_ORIGINS: "http://localhost:3000,http://localhost:5173"
+      CORS_ALLOW_ORIGINS: "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"
 
       # ---- Logging ----
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -401,6 +403,8 @@ services:
       MINIO_BUCKET_RENDER: ci-render
       AI2_BASE_URL: ${AI2_BASE_URL:-http://ai2-service:8002}
       AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-}
+      AI2_QUERY_EGRESS_ALLOWED: ${AI2_QUERY_EGRESS_ALLOWED:-true}
+      AI2_PROCESSING_EGRESS_ALLOWED: ${AI2_PROCESSING_EGRESS_ALLOWED:-true}
       AI1_OCR_ENGINE: ${AI1_OCR_ENGINE:-mistral}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     volumes:

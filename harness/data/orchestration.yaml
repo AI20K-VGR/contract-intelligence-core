@@ -1,0 +1,19 @@
+# orchestration.yaml — cross-cutting fan-out enforcement knobs (one source).
+#
+# Per-skill CONTENT (which lenses/personas/angles a skill fans out) stays in each
+# skill's own yaml/prose; only enforcement caps that SPAN skills live here. An
+# absent file resolves to the defaults below (the old behaviour), so removing this
+# file never breaks a run — the knobs are a self-discipline tier, not a boundary.
+#
+# Read only via orchestration_config.py (the single reader + single home of the
+# clamp formula). Skills resolve a concrete cap through its CLI, then pass the
+# resolved integer down — the skill-local plan_orchestration.py never imports this
+# module (it may live in a different install tree post-install).
+group_cap:
+  base: 8         # wave-2 spawn cap = min(base, distinct_concerns)
+  ceiling: 10     # hard ceiling regardless of concern count
+  floor: 1        # never below 1
+batch_consolidate:
+  size: 8         # max group-files merged per consolidation batch
+early_write:
+  required: true  # each sub must flush via write_finding.py

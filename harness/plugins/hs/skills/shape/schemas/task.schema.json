@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hs.harness/shape/task.schema.json",
+  "title": "hs:shape dev-task frontmatter",
+  "description": "Shape of one TASK-<n>.md frontmatter block under docs/product/shape/tasks/, as written by task_model.py. `serves` is a plain list of story ids -- 1-1/1-n/n-1 cardinality is expressed entirely by how many tasks list the same story id (or how many ids one task lists), with no schema-level special-case.",
+  "type": "object",
+  "required": [
+    "id",
+    "serves",
+    "title",
+    "estimate",
+    "depends_on",
+    "acceptance",
+    "status"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^TASK-[0-9]+$",
+      "description": "Parent-free, globally monotonic within the workspace tasks dir (max existing TASK-<n>.md filename + 1, never reused) -- an n-1 task cannot be parent-scoped to a single story."
+    },
+    "serves": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "Story ids this task serves. One entry = 1-1 (or one of several 1-n tasks pointing at the same story); more than one entry = n-1 (one task serving several stories). Resolved against the PO story graph by serves_resolver.py, not validated here."
+    },
+    "title": { "type": "string" },
+    "estimate": {
+      "type": "string",
+      "description": "Free-form BA effort figure (e.g. an S/M/L-derived range) -- never the PO story's own size field."
+    },
+    "depends_on": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^TASK-[0-9]+$" },
+      "description": "Other TASK-<n> ids this task depends on."
+    },
+    "acceptance": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["open", "in_progress", "done"]
+    },
+    "actor": {
+      "type": "string"
+    },
+    "ts": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": true
+}

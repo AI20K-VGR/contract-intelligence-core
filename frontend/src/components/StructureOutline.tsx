@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ClauseNode } from '../api/structure'
+import type { ConflictMarker } from '../structure/conflictAnchors'
 import {
   ancestorIds,
   bodyOf,
@@ -22,6 +23,7 @@ import { MaterialIcon } from './icons'
 import {
   AttentionStar,
   CiteBadge,
+  ConflictBadge,
   EmptyStructure,
   FilterField,
   HeaderDivider,
@@ -104,6 +106,7 @@ export function StructureOutline({
   attentionIds,
   citationOf,
   focusId,
+  markers,
   onCite,
 }: {
   title: string
@@ -111,6 +114,7 @@ export function StructureOutline({
   attentionIds?: ReadonlySet<string>
   citationOf?: ReadonlyMap<string, number>
   focusId?: string | null
+  markers?: ReadonlyMap<string, ConflictMarker>
   onCite?: (id: string) => void
 }) {
   const source = useMemo(() => capToMaxLevels(nodes), [nodes])
@@ -224,6 +228,7 @@ export function StructureOutline({
             active={selected === row.node.id || focusId === row.node.id}
             cite={citationOf?.get(row.node.id)}
             flagged={attentionIds?.has(row.node.id) === true}
+            marker={markers?.get(row.node.id)}
             query={needle}
             row={row}
             onPick={() => pick(row.node.id)}
@@ -240,6 +245,7 @@ function OutlineRow({
   active,
   flagged,
   cite,
+  marker,
   query,
   onPick,
   onToggle,
@@ -248,6 +254,7 @@ function OutlineRow({
   active: boolean
   flagged: boolean
   cite: number | undefined
+  marker?: ConflictMarker
   query: string
   onPick: () => void
   onToggle: () => void
@@ -361,6 +368,7 @@ function OutlineRow({
           ) : null}
         </span>
         <span className="mt-0.5 flex shrink-0 items-center gap-1.5">
+          {marker ? <ConflictBadge collapsed={!row.open} marker={marker} /> : null}
           {flagged ? <AttentionStar /> : null}
           {pages ? (
             <span className="font-mono text-[10px] text-slate-400">

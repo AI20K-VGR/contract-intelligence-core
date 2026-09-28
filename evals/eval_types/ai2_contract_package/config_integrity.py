@@ -55,7 +55,7 @@ def load_verified_config(evals_root=None) -> dict:
             "eval_config.sha256 missing — config drift: the card has no hash "
             "sidecar; re-run bootstrap")
 
-    body = json_path.read_bytes()
+    body = json_path.read_bytes().replace(b"\r\n", b"\n")
     expected = sha_path.read_text(encoding="utf-8").strip()
     actual = hashlib.sha256(body).hexdigest()
     if expected != actual:

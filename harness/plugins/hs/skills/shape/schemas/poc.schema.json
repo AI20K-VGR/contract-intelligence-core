@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hs.harness/shape/poc.schema.json",
+  "title": "hs:shape technical-POC frontmatter",
+  "description": "Shape of one POC-<n>.md frontmatter block under docs/product/shape/poc/, as written by poc_gate.py. A POC is closed only when both the review verdict and the (optional) verification verdict read back as exactly PASS -- see gate(). poc_gate.py never runs, re-derives, or spawns a review itself; it only reads an already-produced verdict artifact.",
+  "type": "object",
+  "required": [
+    "id",
+    "subject",
+    "title",
+    "plan_id",
+    "status",
+    "verdict",
+    "verification_verdict",
+    "closed",
+    "review_decision_path",
+    "verification_path"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^POC-[0-9]+$",
+      "description": "Parent-free, globally monotonic within the workspace POC dir (max existing POC-<n>.md filename + 1, never reused)."
+    },
+    "subject": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What this POC verifies."
+    },
+    "title": { "type": "string" },
+    "plan_id": {
+      "type": ["string", "null"],
+      "description": "plans/<plan_id> that verifies this POC. Null until gate() is called with a plan_id -- a POC is often authored before its verifying plan exists."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["open", "closed"],
+      "description": "author() writes 'open'; gate() flips it to 'closed' only when both verdicts read back PASS, otherwise it stays whatever it already was."
+    },
+    "verdict": {
+      "type": ["string", "null"],
+      "description": "The review-decision artifact's verdict as last read by gate(), or null when never gated / the artifact was absent, unreadable, or carried a verdict value outside the known set (see verdict_unknown)."
+    },
+    "verification_verdict": {
+      "type": ["string", "null"],
+      "description": "Same shape as verdict, for the paired verification artifact."
+    },
+    "closed": {
+      "type": "boolean",
+      "description": "True only when both verdict and verification_verdict read back exactly PASS. PASS_WITH_RISK is a conscious soft-accept upstream, not a closure license here."
+    },
+    "review_decision_path": {
+      "type": ["string", "null"],
+      "description": "Path to the review-decision artifact gate() last read, or null when never gated."
+    },
+    "verification_path": {
+      "type": ["string", "null"],
+      "description": "Path to the verification artifact gate() last read, or null when never gated (verification is optional)."
+    },
+    "verdict_unknown": {
+      "type": "boolean",
+      "description": "True when a gated artifact carried a verdict value outside the harness's known verdict set (read from harness/schemas/artifact-review-decision.json, not hand-copied) -- surfaced rather than silently collapsed into the same bucket as a missing artifact. Only present after a gate() call."
+    },
+    "gated_by": {
+      "type": "string",
+      "description": "Actor that ran the last gate() call. Only present after a gate() call."
+    },
+    "gated_ts": {
+      "type": "string",
+      "description": "ISO-8601 timestamp of the last gate() call. Only present after a gate() call."
+    },
+    "actor": {
+      "type": "string"
+    },
+    "ts": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": true
+}

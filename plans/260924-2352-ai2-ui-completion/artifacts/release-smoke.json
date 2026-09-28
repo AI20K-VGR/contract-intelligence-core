@@ -1,0 +1,31 @@
+{
+  "schema": "vsf/ai2-release-smoke/v1",
+  "generated_at": "2026-09-24T18:02:59.568569+00:00",
+  "checks": [
+    {
+      "name": "backend-health",
+      "status": "PASS",
+      "detail": "ok"
+    },
+    {
+      "name": "ai2-health",
+      "status": "PASS",
+      "detail": "ok"
+    },
+    {
+      "name": "frontend-root",
+      "status": "PASS",
+      "detail": "frontend returned HTTP 200"
+    },
+    {
+      "name": "authenticated-dossier-flow",
+      "status": "PASS",
+      "detail": "dossier detail returned"
+    }
+  ],
+  "summary": {
+    "pass": 4,
+    "fail": 0,
+    "not_run": 0
+  }
+}

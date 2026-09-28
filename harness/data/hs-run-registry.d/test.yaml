@@ -1,0 +1,132 @@
+# test.yaml — the `test` domain's fragment of the hs-run registry.
+#
+# Owned exclusively by whoever builds the `test` domain's verbs. Never touch
+# plan.yaml/cook.yaml or any other domain's fragment from here — one file per
+# domain is what lets concurrent domain builds happen without two agents
+# writing the same file. Schema + merge/conflict rules: see
+# harness/data/hs-run-registry.yaml's header.
+#
+# Both verbs wrap functions that already own their judgment — this domain adds
+# no detection logic of its own. `preflight` wraps detect_techstack.detect() +
+# preflight_deps; `report` wraps the plan resolver and the verification
+# validator. Neither runs the suite; see hs_run_test.py's module docstring.
+
+domains:
+  test:
+    next: {module: hs_run_test, entry: cmd_next}
+
+step_routing:
+  test:
+    skill: test
+    covers_skill: true
+    states:
+      # ── repeating has stopped being an attempt ────────────────────────────
+      # Raised by the ENGINE, not by this domain: the same answer has come back
+      # often enough that another identical run is not new evidence. The domain's
+      # own answer rides as `domain_state` — counsel about the wrong problem is
+      # worse than none, so the finding has to stay readable.
+      stuck:
+        summary: >-
+          This domain has answered the same thing enough times in a row that repeating
+          it is no longer an attempt. Stop re-running and spawn `escalation-consultant`
+          for counsel — hand it the task, the evidence as file:line, what was already
+          tried, and the specific question. It advises; the decision stays here.
+        rules: [orchestration-protocol, agent-operational-discipline]
+      # An incident that reached a user becomes a test that cannot silently re-happen —
+      # setting up a run is when that binding gets written or gets forgotten.
+      ready:
+        summary: >-
+          A stack is detected, it declares a test command, and every required dependency
+          is installed inside its declared range. The command is in the envelope; run it,
+          then read the result against the rules this state carries.
+        # coverage and pass fractions are rates: they owe k/n and an interval.
+        # mutation-proof rides here for the DONE side, not the writing side: this is
+        # the step where a suite gets declared green, and a green that includes a gate
+        # nothing has ever made fail is a weaker claim than it reads as. It is the
+        # second delivery — the per-turn rule index is the primary one, because a gate
+        # is usually edited with no hs-run verb involved at all.
+        # tdd-discipline lands here rather than in `always`: it governs what to do with
+        # a failure, and the three pre-run states have no run to have failed yet.
+        # qa-report-format.md arrives here because it could not arrive anywhere
+        # else. `cmd_next` folds `no_verification` into this state and carries its
+        # warning — "run the suite, then write the verdict" — but `next` is the
+        # only verb this domain registers, so the drawers routed at that discarded
+        # row reached nobody. Measured: of the five documents the two folded rows
+        # carry, three are also routed at a reachable state and this one was routed
+        # nowhere else. The sentence and the instructions for acting on it now
+        # arrive together, which is the whole point of routing them at all.
+        rules: [regression-sentinel, sampled-rate-reporting, mutation-proof,
+                tdd-discipline]
+        refs: [references/coverage-and-edge-cases.md,
+               references/qa-report-format.md]
+      deps_missing:
+        summary: >-
+          A required dependency is not importable. The install command is in the
+          envelope; nothing about the suite is knowable until it runs.
+        rules: [claim-verification]
+      deps_stale:
+        summary: >-
+          Everything imports, but a required package sits outside its declared range —
+          the tier a plain import check cannot see, where the break arrives at the first
+          real call rather than at load. Pin the ranges before reading any result.
+        # The failure this state exists for is a suite that goes red for a reason that
+        # has nothing to do with the change under test. verification-mechanism is here
+        # because that is the misreading it prevents: a FAIL recorded as evidence about
+        # the code when the evidence is about the install.
+        rules: [claim-verification, verification-mechanism]
+      no_stack_detected:
+        summary: >-
+          No language marker anywhere under the root. Which command counts as "the tests"
+          is a judgment nothing on disk settles — ask the user rather than guessing one.
+        rules: [claim-verification]
+      stack_no_test_cmd:
+        summary: >-
+          The stack is recognised but declares no runner. Different from finding nothing:
+          there IS a project here, and the missing piece is one declaration in its own
+          manifest — ask for the command, or for where it belongs.
+        rules: [claim-verification]
+      # --- `report`: the suite has run, and what it recorded is on disk ---
+      no_verification:
+        summary: >-
+          A plan is open and no verdict is written yet. This is the step that writes one:
+          the QA report shape and the artifact contract are what the envelope carries,
+          because getting either wrong is caught two stages later by the push gate.
+        rules: [verification-mechanism, plannotator-review-gates]
+        refs: [references/qa-report-format.md, references/verification-artifact.md]
+      verification_malformed:
+        summary: >-
+          A verdict is written and the push gate would reject it as written — a
+          non-canonical check name, or a result file it cannot re-derive from. The
+          problems are listed in the envelope; fix those exact lines.
+        rules: [verification-mechanism]
+        refs: [references/verification-artifact.md]
+      suite_failed:
+        summary: >-
+          A FAIL is recorded. Fix the code, or fix a test that is genuinely wrong and say
+          why — the one thing that is never on the table is deleting or weakening a test
+          to reach green. Whether this red was written on purpose is not on disk; you
+          know which it is.
+        rules: [tdd-discipline, regression-sentinel]
+        refs: [references/regression-and-build.md, references/delegation-route.md]
+      verdict_unbacked:
+        summary: >-
+          A PASS is recorded that re-derivation does not support: a check names a result
+          file that is missing or failing, or the change class requires a test type no
+          check covers. The exact reason rides in the envelope — close that, then record
+          what the suite actually did. The push gate reads the same evaluation, so this
+          is the same block arriving one stage earlier.
+        rules: [claim-verification, tdd-discipline]
+        refs: [references/verification-artifact.md]
+      verified:
+        summary: >-
+          PASS recorded, checks re-derived from a real result file. Hand off. If the plan
+          carries a coverage grid, fold its verdict in as one advisory line — it never
+          flips a test verdict.
+        rules: [claim-verification]
+        refs: [references/grid-consume.md, references/delegation-route.md]
+      no_plan:
+        summary: >-
+          No plan directory, so a verification has nowhere to live — and the hard stage
+          gate blocks on its absence even when the suite is fully green. Open a plan
+          before treating a green run as shippable.
+        rules: [claim-verification]

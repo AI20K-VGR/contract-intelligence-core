@@ -1,0 +1,30 @@
+# LLM-CLI model taxonomy — SINGLE SOURCE OF TRUTH for the model id used in the
+# gemini / agy print-mode calls of use-mcp, scout, and ai-multimodal.
+#
+# Edit HERE only. Skills never hardcode a model id — they resolve via
+# `scripts/resolve_model.py`. At runtime the env var $GEMINI_MODEL overrides
+# `default`.
+#
+# Resolution order the skills follow: default -> fallback -> hand `available`
+# to the LLM to pick.
+
+# Every model the CLI may use. The LLM picks from THIS list when both default
+# and fallback fail. Keep it aligned with what your account/key actually serves.
+available:
+  - gemini-3.1-pro-preview
+  - gemini-3-flash-preview
+  - gemini-2.5-pro
+  - gemini-3.1-flash-lite
+  - gemini-3.5-flash
+
+# Named tiers — convenience handles a skill can request explicitly.
+tiers:
+  pro:        gemini-3.1-pro-preview
+  flash:      gemini-3.5-flash
+  flash_lite: gemini-3.1-flash-lite
+
+# First choice (env $GEMINI_MODEL overrides this at runtime).
+default: gemini-3.5-flash
+
+# Second choice, tried only when `default` fails. Change this one line to retune.
+fallback: gemini-3-flash-preview

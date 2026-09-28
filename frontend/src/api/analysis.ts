@@ -46,6 +46,25 @@ export type DossierFinding = {
   sides: FindingSide[]
 }
 
+export type Ai2Analysis = {
+  dossierId: string
+  runId: string | null
+  available: boolean
+  pipelineStatus: string | null
+  jobStatus: string
+  reviewState: string
+  completenessState: string
+  reasonCode: string | null
+  evidenceReady: boolean
+  inputCounts: Record<string, number>
+  outputCounts: Record<string, number>
+  coverage: Record<string, unknown>
+  droppedRecords: number
+  evidenceIssueCount: number
+  contextFindings: unknown[]
+  evidenceIssues: unknown[]
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   return value as Record<string, unknown>
@@ -57,6 +76,16 @@ function asString(value: unknown, fallback = '') {
 
 function asNumber(value: unknown, fallback = 0) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function asCounts(value: unknown): Record<string, number> {
+  const row = asRecord(value)
+  if (!row) return {}
+  return Object.fromEntries(
+    Object.entries(row).flatMap(([key, item]) =>
+      typeof item === 'number' && Number.isFinite(item) ? [[key, item]] : [],
+    ),
+  )
 }
 
 function asNullableString(value: unknown) {
@@ -195,4 +224,37 @@ export async function listDossierFindings(
   if (!Array.isArray(data))
     throw new Error('Backend trả về findings không hợp lệ.')
   return data.map(normalizeFinding)
+}
+
+export async function getDossierAi2Analysis(
+  dossierId: string,
+  signal?: AbortSignal,
+): Promise<Ai2Analysis> {
+  const data = await getJson<unknown>(
+    `/api/v1/dossiers/${encodeURIComponent(dossierId)}/ai2-analysis`,
+    { signal },
+  )
+  const row = asRecord(data) ?? {}
+  return {
+    dossierId: asString(row.dossier_id, dossierId),
+    runId: asNullableString(row.run_id),
+    available: row.available === true,
+    pipelineStatus: asNullableString(row.pipeline_status),
+    jobStatus: asString(row.job_status, 'NOT_AVAILABLE'),
+    reviewState: asString(row.review_state, 'UNKNOWN'),
+    completenessState: asString(row.completeness_state, 'NOT_AVAILABLE'),
+    reasonCode: asNullableString(row.reason_code),
+    evidenceReady: row.evidence_ready === true,
+    inputCounts: asCounts(row.input_counts),
+    outputCounts: asCounts(row.output_counts),
+    coverage: asRecord(row.coverage) ?? {},
+    droppedRecords: asNumber(row.dropped_records),
+    evidenceIssueCount: asNumber(row.evidence_issue_count),
+    contextFindings: Array.isArray(row.context_findings)
+      ? row.context_findings
+      : [],
+    evidenceIssues: Array.isArray(row.evidence_issues)
+      ? row.evidence_issues
+      : [],
+  }
 }

@@ -1,0 +1,51 @@
+{
+  "stage": "cook",
+  "plan": "260923-1023-ai2-long-running-architecture",
+  "checks": [
+    {
+      "name": "focused_p8",
+      "status": "PASS"
+    },
+    {
+      "name": "regression_p0_p8",
+      "status": "PASS"
+    },
+    {
+      "name": "duplicate_submit",
+      "status": "PASS"
+    },
+    {
+      "name": "stale_publish",
+      "status": "PASS"
+    },
+    {
+      "name": "parity",
+      "status": "PASS"
+    },
+    {
+      "name": "rollback",
+      "status": "PASS"
+    },
+    {
+      "name": "compileall",
+      "status": "PASS"
+    },
+    {
+      "name": "artifact_json",
+      "status": "PASS"
+    },
+    {
+      "name": "diff_check",
+      "status": "PASS"
+    },
+    {
+      "name": "limitations_recorded",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P8",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-09-23T16:19:34+00:00",
+  "run_seq": null
+}

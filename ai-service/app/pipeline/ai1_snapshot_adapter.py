@@ -789,6 +789,9 @@ def adapt_snapshot(
         case_id="AI1-SNAPSHOT",
         handoff_issues=issues,
     )
+    from app.pipeline.result_structure import enrich_result_structure
+
+    enrich_result_structure(record)
     envelope = ToolEnvelope(
         auth=AuthContext(
             actor_id=actor_id,
@@ -2032,7 +2035,11 @@ def _adapt_page(
 
 def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[StructuralNode]:
     nodes: list[StructuralNode] = []
+    party: str | None = None
+    consumed: set[int] = set()
     for order, line in enumerate(lines):
+        if order in consumed:
+            continue
         if not isinstance(line, Mapping):
             continue
         raw = str(line.get("raw_text", line.get("text", "")))
@@ -2042,26 +2049,99 @@ def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[S
         bbox = _bbox(line.get("bbox")) if _has_geometry(line) else []
         normalized = fold_for_match(raw)
         is_clause = bool(re.match(r"^(?:dieu|khoan|diem)\s+\d", normalized))
-        amount = _explicit_contract_value(raw)
-        nodes.append(
-            StructuralNode(
-                node_id=f"line:{page_no}:{line_id}",
-                type="FIELD" if amount else ("CLAUSE" if is_clause else "UNNUMBERED_BLOCK"),
-                raw_label=raw[:160],
-                text=raw,
-                page_range=[page_no],
-                page_revision_id=page.page_revision_id,
-                bbox=bbox,
-                source_file_id=page.source_file_id,
-                page_in_file=page.page_in_file,
-                status="PARTIAL" if page.quality != "OK" else "CONFIRMED",
-                order=order,
-                structured_key="contract_value" if amount else None,
-                structured_value=amount,
-                source_line_ids=[line_id],
+        party = _track_party(normalized, party)
+        labelled = _labelled_line_facts(raw, normalized, party)
+        following = _amount_after_total_label(lines, order) if not labelled else None
+        if following:
+            labelled = [("contract_value", following[0])]
+            raw = following[0]
+            consumed.add(following[3])
+            if following[1]:
+                line_id = following[1]
+            if following[2]:
+                bbox = following[2]
+        if not labelled:
+            nodes.append(
+                _line_node(
+                    page,
+                    page_no=page_no,
+                    line_id=line_id,
+                    order=order,
+                    raw=raw,
+                    bbox=bbox,
+                    node_type="CLAUSE" if is_clause else "UNNUMBERED_BLOCK",
+                )
             )
-        )
+            continue
+        for index, (key, value) in enumerate(labelled):
+            nodes.append(
+                _line_node(
+                    page,
+                    page_no=page_no,
+                    line_id=line_id,
+                    node_suffix="" if index == 0 else f":{key}",
+                    order=order,
+                    raw=raw,
+                    bbox=bbox,
+                    node_type="FIELD",
+                    structured_key=key,
+                    structured_value=value,
+                )
+            )
     return nodes
+
+
+def _amount_after_total_label(lines: list[Any], index: int) -> tuple[str, str, list[float], int] | None:
+    """A bare 'Tổng cộng' line takes the amount on the next line, not a later line item."""
+
+    current = lines[index]
+    if not isinstance(current, Mapping):
+        return None
+    folded = fold_for_match(str(current.get("raw_text", current.get("text", "")))).strip(" |")
+    if not re.fullmatch(r"tong\s+cong", folded):
+        return None
+    for offset, nxt in enumerate(lines[index + 1 : index + 3], start=1):
+        if not isinstance(nxt, Mapping):
+            continue
+        text = str(nxt.get("raw_text", nxt.get("text", ""))).strip()
+        if not text:
+            continue
+        if not re.fullmatch(r"\d{1,3}(?:[.,]\d{3})+", text.replace(" ", "")):
+            return None
+        bbox = _bbox(nxt.get("bbox")) if _has_geometry(nxt) else []
+        return text, str(nxt.get("line_id") or ""), bbox, index + offset
+    return None
+
+
+def _line_node(
+    page: PageSnapshot,
+    *,
+    page_no: int,
+    line_id: str,
+    order: int,
+    raw: str,
+    bbox: list[float],
+    node_type: str,
+    node_suffix: str = "",
+    structured_key: str | None = None,
+    structured_value: str | None = None,
+) -> StructuralNode:
+    return StructuralNode(
+        node_id=f"line:{page_no}:{line_id}{node_suffix}",
+        type=node_type,
+        raw_label=raw[:160],
+        text=raw,
+        page_range=[page_no],
+        page_revision_id=page.page_revision_id,
+        bbox=bbox,
+        source_file_id=page.source_file_id,
+        page_in_file=page.page_in_file,
+        status="PARTIAL" if page.quality != "OK" else "CONFIRMED",
+        order=order,
+        structured_key=structured_key,
+        structured_value=structured_value,
+        source_line_ids=[line_id],
+    )
 
 
 def _explicit_contract_value(raw: str) -> str | None:
@@ -2081,10 +2161,85 @@ def _explicit_contract_value(raw: str) -> str | None:
     ):
         return None
     match = re.search(r"(\d[\d.,\s]*)\s*(?:vnd|dong)\b", folded, re.I)
-    if not match:
+    if match:
+        digits = re.sub(r"\D", "", match.group(1))
+        return digits or None
+    if not re.search(r"\b(?:vnd|dong)\b", folded):
         return None
-    digits = re.sub(r"\D", "", match.group(1))
-    return digits or None
+    later = re.search(r"(\d[\d.]{5,})", raw)
+    if not later:
+        return None
+    digits = re.sub(r"\D", "", later.group(1))
+    return digits if len(digits) >= 6 else None
+
+
+def _track_party(folded: str, party: str | None) -> str | None:
+    """Party sticks to the block under its heading. A later numbered section drops it.
+
+    A mid-sentence 'Bên A thanh toán' does not become the new party. The MST
+    extractor may still read a party named on its own line.
+    """
+
+    heading = re.match(r"^ben\s+([abcy])\b", folded)
+    if heading:
+        return heading.group(1)
+    section = re.search(r"\(\s*ben\s+([abcy])\b", folded)
+    if section:
+        return section.group(1)
+    if re.match(r"^\d+\.\d+\.", folded):
+        return None
+    return party
+
+
+def _party_name(raw: str, folded: str) -> str | None:
+    if not re.match(r"^ben\s+[abcy]\b", folded) or not re.search(r"[:：]", raw):
+        return None
+    tail = re.split(r"[:：]", raw, maxsplit=1)[1]
+    tail = re.split(
+        r"\.\s+|(?:đại diện|địa chỉ|mã số thuế|mst)\b",
+        tail,
+        maxsplit=1,
+        flags=re.IGNORECASE,
+    )[0]
+    name = tail.strip(" .:-")
+    return name if len(name) >= 3 else None
+
+
+def _labelled_line_facts(raw: str, folded: str, party: str | None) -> list[tuple[str, str]]:
+    """High-signal fields on one OCR line. Ordinary numbers stay unstructured."""
+
+    found: list[tuple[str, str]] = []
+    unit = re.match(r"^-?\s*ten\s+(?:don\s+vi|day\s+du)\s*[:：]\s*(.+)$", folded)
+    if unit and party:
+        name = raw.split(":", 1)[1].strip() if ":" in raw else raw.split("：", 1)[-1].strip()
+        found.append((f"party_{party}", name))
+    elif party and (heading_name := _party_name(raw, folded)):
+        found.append((f"party_{party}", heading_name))
+    tax = re.search(r"(?:ma\s+so\s+thue|mst)\b\D{0,40}([0-9]{8,14})", folded)
+    if tax:
+        named = re.search(r"\bben\s+([abcy])\b", folded)
+        tax_party = named.group(1) if named else party
+        found.append(((f"mst_party_{tax_party}" if tax_party else "mst"), tax.group(1)))
+    amount = _explicit_contract_value(raw)
+    if amount:
+        found.append(("contract_value", amount))
+    elif re.search(r"(?:^|\|)\s*(?:total|tong\s+cong|tong\s+gia\s+tri)\b", folded):
+        numbers = re.findall(r"\d[\d.]{5,}", raw)
+        if numbers:
+            digits = re.sub(r"\D", "", numbers[-1])
+            if len(digits) >= 6:
+                found.append(("contract_value", digits))
+    percents = re.findall(r"\d+(?:[.,]\d+)?\s*%", raw)
+    numbered_schedule = bool(re.match(r"^\d+\.\d+\.", folded)) and "thanh toan" in folded and percents
+    if numbered_schedule or ("thanh toan" in folded and len(percents) >= 2):
+        found.append(("payment_schedule", raw.strip()))
+    term = re.search(r"(?:thoi\s+han|phuong\s+thuc|hinh\s+thuc)\s+thanh\s+toan\s*[:：]\s*(.+)$", folded)
+    if term and not any(key == "payment_schedule" for key, _value in found):
+        value = raw.split(":", 1)[-1].strip() if ":" in raw else raw.split("：", 1)[-1].strip()
+        key = "payment_method" if re.search(r"(?:phuong\s+thuc|hinh\s+thuc)", folded) else "payment_term"
+        if value:
+            found.append((key, value))
+    return found
 
 
 def _adapt_tables(value: Any, page: PageSnapshot, *, page_no: int, source_file_id: str) -> list[TableSnapshot]:

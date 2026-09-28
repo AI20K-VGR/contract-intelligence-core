@@ -1,0 +1,34 @@
+{
+  "sizing": {
+    "mode": "multi",
+    "projected_cells": 1200,
+    "pruned_cells": 1200,
+    "threshold": 60,
+    "sub_plan_count": 20,
+    "split_strategy": "hybrid"
+  },
+  "probe": {
+    "features": [
+      "ui-search-real",
+      "hitl-review",
+      "structured-results",
+      "risk-comparison",
+      "export-history"
+    ],
+    "layers": ["ui", "api", "data", "infra"],
+    "lifecycle": ["discover", "design", "build", "ship", "measure"],
+    "risk_classes": ["spec-drift", "regression", "compliance"],
+    "stakeholders": ["dev", "ops", "reviewer", "support"],
+    "density_tier": "HIGH",
+    "mode": "multi"
+  },
+  "decision": "proceed",
+  "reason": "Đây là một lộ trình sản phẩm duy nhất gồm các pha phụ thuộc nhau. Mô hình sizing phóng đại số tổ hợp do nhân chéo lifecycle, stakeholder và risk class; kế hoạch sẽ giữ một master plan và dùng phase gate thay cho 20 kế hoạch liên kết.",
+  "complexity": "complex",
+  "estimated_phases": 5,
+  "primary_risks": [
+    "UI/API contract drift",
+    "review-state and optimistic-lock integration",
+    "evidence/citation integrity across upload, OCR, AI1, AI2 and FE"
+  ]
+}

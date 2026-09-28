@@ -1,0 +1,48 @@
+{
+  "stage": "phase",
+  "phase": "P1",
+  "plan": "260923-1023-ai2-completion-release",
+  "actor": "user:dungskbg2004@gmail.com/agent:codex",
+  "ts": "2026-09-23T23:59:00+07:00",
+  "checks": [
+    {
+      "name": "targeted_phase_regression",
+      "status": "PASS",
+      "detail": "31 passed, 1 warning"
+    },
+    {
+      "name": "contract_profile_tests",
+      "status": "PASS",
+      "detail": "4 passed"
+    },
+    {
+      "name": "profile_schema_validation",
+      "status": "PASS",
+      "detail": "6 profile instances validated against ai2.contract-type-profile.v1.schema.json"
+    },
+    {
+      "name": "contract_registry",
+      "status": "PASS",
+      "detail": "Contract registry OK (5 schemas)"
+    },
+    {
+      "name": "offline_regression",
+      "status": "PASS",
+      "detail": "208 passed, 6 deselected, 1 warning"
+    }
+  ],
+  "red_run": {
+    "command": "Set-Location ai-service; .venv\\Scripts\\python.exe -m pytest tests/test_processing_wire_contract.py tests/test_canonical_contract.py tests/test_ai1_result_v01.py tests/test_contract_profiles.py -q --basetemp ..\\tmp\\ai2-phase1-red",
+    "status": "FAIL_INTENTIONAL",
+    "detail": "Collection failed because validate_processing_result and contract_profiles.py were not implemented yet."
+  },
+  "green_run": {
+    "command": "Set-Location ai-service; .venv\\Scripts\\python.exe -m pytest tests/test_processing_wire_contract.py tests/test_canonical_contract.py tests/test_ai1_result_v01.py -q --basetemp ..\\tmp\\ai2-phase1-basetemp",
+    "status": "PASS",
+    "detail": "31 passed, 1 warning"
+  },
+  "acceptance_unproven": [
+    "No live/provider accuracy claim was run; P1 proves offline contract, semantic, provenance, and profile boundaries only."
+  ],
+  "verdict": "PASS"
+}

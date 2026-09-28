@@ -1,0 +1,39 @@
+{
+  "stage": "fix",
+  "plan": "contract-structure-inaccuracy",
+  "checks": [
+    {
+      "name": "contract-mindmap-regression",
+      "status": "PASS",
+      "detail": "Hard-coded sample mindmap repro is green after replacing it with dossier-backed rendering."
+    },
+    {
+      "name": "structure-mode-inference",
+      "status": "PASS",
+      "detail": "Table-first OCR without numbered headings selects tables; numbered OCR remains numbered."
+    },
+    {
+      "name": "frontend-tests",
+      "status": "PASS",
+      "detail": "13 tests passed."
+    },
+    {
+      "name": "frontend-build",
+      "status": "PASS",
+      "detail": "tsc -b and vite build passed."
+    },
+    {
+      "name": "frontend-lint",
+      "status": "PASS_WITH_WARNINGS",
+      "detail": "0 errors; 7 existing warnings."
+    },
+    {
+      "name": "changed-file-format",
+      "status": "PASS",
+      "detail": "Prettier check passed for all changed structure files."
+    }
+  ],
+  "verdict": "PASS",
+  "actor": "agent:inline-fix",
+  "scope": "frontend structure rendering and mode inference"
+}

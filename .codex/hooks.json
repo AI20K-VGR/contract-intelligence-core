@@ -1,0 +1,88 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF/harness/hooks/hook_dispatch.py\" \"PreToolUse\" \"Bash\"",
+            "commandWindows": "C:\\Users\\dungs\\OneDrive\\Documents\\VSF\\.sdlc-tools\\python\\python.exe \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF\\harness\\hooks\\hook_dispatch.py\" \"PreToolUse\" \"Bash\""
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": null,
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF/harness/hooks/hook_dispatch.py\" \"SubagentStop\"",
+            "commandWindows": "C:\\Users\\dungs\\OneDrive\\Documents\\VSF\\.sdlc-tools\\python\\python.exe \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF\\harness\\hooks\\hook_dispatch.py\" \"SubagentStop\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": null,
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF/harness/hooks/hook_dispatch.py\" \"UserPromptSubmit\"",
+            "commandWindows": "C:\\Users\\dungs\\OneDrive\\Documents\\VSF\\.sdlc-tools\\python\\python.exe \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF\\harness\\hooks\\hook_dispatch.py\" \"UserPromptSubmit\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF/harness/hooks/hook_dispatch.py\" \"PostToolUse\" \"Bash\"",
+            "commandWindows": "C:\\Users\\dungs\\OneDrive\\Documents\\VSF\\.sdlc-tools\\python\\python.exe \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF\\harness\\hooks\\hook_dispatch.py\" \"PostToolUse\" \"Bash\""
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": null,
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF/harness/hooks/hook_dispatch.py\" \"SessionStart\"",
+            "commandWindows": "C:\\Users\\dungs\\OneDrive\\Documents\\VSF\\.sdlc-tools\\python\\python.exe \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF\\harness\\hooks\\hook_dispatch.py\" \"SessionStart\""
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": null,
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF/harness/hooks/hook_dispatch.py\" \"SubagentStart\"",
+            "commandWindows": "C:\\Users\\dungs\\OneDrive\\Documents\\VSF\\.sdlc-tools\\python\\python.exe \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF\\harness\\hooks\\hook_dispatch.py\" \"SubagentStart\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": null,
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF/harness/hooks/hook_dispatch.py\" \"Stop\"",
+            "commandWindows": "C:\\Users\\dungs\\OneDrive\\Documents\\VSF\\.sdlc-tools\\python\\python.exe \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF\\harness\\hooks\\hook_dispatch.py\" \"Stop\""
+          }
+        ]
+      }
+    ]
+  }
+}

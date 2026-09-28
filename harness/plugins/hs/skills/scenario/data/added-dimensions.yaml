@@ -1,0 +1,23 @@
+# Added scenario decomposition dimensions (14-15) for hs:scenario — machine-readable SSOT.
+#
+# Orthogonal extension to the 13 dimensions in scenario/SKILL.md. These are SCENARIO
+# dimensions (LLM-generated edge cases along an axis), NOT deterministic grid cells — do
+# not confuse them with the coverage-grid engine. Values seed from
+# docs/product/_refs/frankcode-src/planner-executor/engines/utils/planner/scopeSizer.ts
+# (default lifecycle + stakeholder axes), extended for QA edge-case generation. The
+# scenario/SKILL.md dimension count (13 -> 15) is bumped by the scenario-skill integration
+# phase, not here.
+
+dimensions:
+  - id: stakeholder-perspectives
+    name: "Stakeholder Perspectives"
+    index: 14
+    values: [dev, ops, security, support, end-user, admin]
+    look_for: "who is affected and how — an edge case that only bites ops (noisy alerts), only security (audit gap), or only the end-user (confusing error) that a feature-first pass misses"
+    applicability: "any feature with more than one class of user or operator; skip a pure internal library with a single caller"
+  - id: lifecycle-stage
+    name: "Lifecycle Stage"
+    index: 15
+    values: [discover, design, build, ship, measure, deprecate, migrate]
+    look_for: "which lifecycle stage the edge case lives in — a failure at ship (rollback), at measure (missing signal), or at deprecate/migrate (stranded data, dual-running) that a build-time-only view misses"
+    applicability: "any feature that outlives one release, changes shape over time, or will eventually be retired/migrated; skip a throwaway one-off"

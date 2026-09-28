@@ -191,6 +191,30 @@ class TestGetPageImage:
         with pytest.raises(NotFoundError):
             await service.get_page_image("doc_1", 99)
 
+    async def test_reads_ai1_page_from_render_bucket(
+        self,
+        service: ExtractionService,
+        page_repo: FakePageRepo,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        page_repo.pages[("doc_1", 2)] = {
+            "id": "pg_2",
+            "document_id": "doc_1",
+            "page_no": 2,
+            "preview_uri": "storage://ai1/doc_1/page-002.png",
+            "render_uri": "storage://ai1/doc_1/page-002.png",
+        }
+        download = AsyncMock(return_value=b"PNG")
+        monkeypatch.setattr(
+            "contract_intelligence.infrastructure.storage.download_object", download
+        )
+
+        data, media = await service.get_page_image("doc_1", 2)
+
+        assert data == b"PNG"
+        assert media == "image/png"
+        download.assert_awaited_once_with("storage://ai1/doc_1/page-002.png")
+
 
 class TestListClausesAndTables:
     async def test_clause_tree(self, service: ExtractionService) -> None:

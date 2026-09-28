@@ -1,0 +1,115 @@
+# model-policy.yaml — model-bound posture for subagent-types.
+#
+# Read by model_policy.resolve(agent_type) -> bound + mode; enforced by
+# harness/hooks/model_guard.py (PreToolUse Agent|Task). evaluate() decides pass/block.
+#
+# NOT on write_guard's GUARD_LIST: a human/dev may lower `mode` by hand, or point
+# HARNESS_MODEL_POLICY at a copy (whole-file override, restart-bound; HARNESS_* scrubbed at
+# push). A missing/corrupt file fails OPEN (permissive) — the reader never bricks a spawn;
+# the hook's enforce decision is what fails closed.
+#
+# ── Bound kinds (declare at MOST ONE per agent) ───────────────────────────────────────────
+#   required_model: X   exact   — the effective model's tier must equal X
+#   max_model: X        ceiling — the effective model's tier must be <= X
+#   min_model: X        floor   — the effective model's tier must be >= X
+#   require_explicit: true       — must name a model explicitly OR record a reason; a bare
+#                                  inherit is blocked (used for the catch-all `claude`)
+#   self_pinned: true            — the agent's frontmatter sets its own model, so a bare
+#                                  inherit is trusted (runs frontmatter == required); only an
+#                                  EXPLICIT override is evaluated. Built-in types omit this.
+#
+# ── Tier ladder ───────────────────────────────────────────────────────────────────────────
+#   haiku < sonnet < opus < fable.  TWO ladders, and the split is deliberate:
+#     - as the model being EVALUATED, `fable` IS ranked (above opus), so `max_model: sonnet`
+#       refuses a fable spawn. Leaving it unranked routed it into the custom-model fail-open
+#       below, where it cleared every ceiling that blocked opus.
+#     - as a DECLARED endpoint, `fable` is still NOT valid: `max_model: fable` /
+#       `min_model: fable` enforce nothing and stay inert, so a config author is never
+#       misled into thinking such a bound constrains a spawn.
+#   `required_model: fable` is unaffected — it matches by id/substring, never via the ladder.
+#
+# ── effort (a SEPARATE per-agent field, NOT a resolve()/evaluate() bound) ─────────────────
+#   effort: low|medium|high|xhigh|max — an author-time reasoning-depth declaration read by
+#   model_policy.effort_for(agent_type) (the SSOT). Every non-haiku agent above declares one;
+#   a haiku-required agent (gemini-relayer, git-manager, ...) declares none — haiku has no
+#   effort dial (effort_valid_for_model rejects any value there). This is a SEPARATE reader
+#   from resolve()/evaluate(): those two only ever look at required_model/max_model/min_model/
+#   require_explicit/self_pinned/mode — effort is never enforced at spawn time here, only
+#   validated author-time. A drift test asserts each shipped agent's frontmatter `effort:`
+#   matches its entry here.
+#
+# ── Session-awareness & custom mappings ───────────────────────────────────────────────────
+#   A bare inherit resolves to the LIVE session model (read from the transcript tail; a
+#   `/model` switch is honored). A ceiling passes when the live session is already at/under
+#   the cap. Tier classification maps THROUGH the environment
+#   (ANTHROPIC_DEFAULT_{HAIKU,SONNET,OPUS}_MODEL) so a custom model mapping is honored — never
+#   a hardcoded family-substring a custom id would evade. When that mapping collapses tiers
+#   onto one id, or an id cannot be classified, tier comparison FAILS OPEN (never
+#   false-blocks a custom setup). A bare inherit with no resolvable model still forces an
+#   explicit choice (block).
+#
+# ── mode (global posture, and per-agent override, read per-agent FIRST) ───────────────────
+#   block    — HARD (default): a violating spawn is blocked (exit 2) unless a reasoned escape
+#              marker (model_override.py) is consumed
+#   advisory — SOFT: stderr nudge, spawn continues
+#   off      — inert: no signal, no block
+schema_version: "2.0"
+mode: block
+
+agents:
+  # ── Built-in Claude Code agent-types (no frontmatter to self-pin) ──────────────────────
+  explore:           {required_model: haiku,  mode: block}     # read-only file finding — cheap
+  statusline-setup:  {required_model: haiku,  mode: block}     # trivial config edit
+  plan:              {min_model: sonnet,      mode: advisory}  # planning wants strong reasoning
+  claude-code-guide: {max_model: sonnet,      mode: block}     # doc/API lookup — no opus needed
+  general-purpose:   {max_model: sonnet,      mode: block}     # prefer a specialized agent-type
+  claude:            {require_explicit: true, mode: block}     # catch-all — name a model or reason
+
+  # ── hs:* agents we ship — exact, mirrors each agent's frontmatter model: ───────────────
+  # self_pinned: a normal (inherit) spawn runs the frontmatter model and passes untouched;
+  # only an explicit override to a different tier is caught. A drift test asserts these match
+  # the real frontmatter (test_shipped_self_pinned_matches_frontmatter).
+  advisor:                 {required_model: opus,   self_pinned: true, effort: high}
+  brainstormer:            {required_model: opus,   self_pinned: true, effort: xhigh}
+  code-reviewer:           {required_model: opus,   self_pinned: true, effort: xhigh}
+  # fable is UNRANKED (exact-only). `mode: advisory` is a deliberate per-agent deviation from
+  # the global `block`: this counsel agent prefers fable, but a caller may fall back to an
+  # explicit opus spawn when fable is unreachable — advisory nudges, never exit-2, so the
+  # fallback path stays open. Frontmatter model: fable keeps the drift test green.
+  escalation-consultant:   {required_model: fable,  self_pinned: true, mode: advisory, effort: xhigh}
+  critique-consolidator:   {required_model: opus,   self_pinned: true, effort: high}
+  decision-reconciler:     {required_model: opus,   self_pinned: true, effort: high}
+  independent-revalidator: {required_model: opus,   self_pinned: true, effort: xhigh}
+  planner:                 {required_model: opus,   self_pinned: true, effort: xhigh}
+  product-value-critic:    {required_model: opus,   self_pinned: true, effort: high}
+  red-teamer:              {required_model: opus,   self_pinned: true, effort: xhigh}
+  code-simplifier:         {required_model: sonnet, self_pinned: true, effort: high}
+  debugger:                {required_model: sonnet, self_pinned: true, effort: xhigh}
+  developer:               {required_model: sonnet, self_pinned: true, effort: high}
+  docs-manager:            {required_model: sonnet, self_pinned: true, effort: high}
+  market-fit-critic:       {required_model: sonnet, self_pinned: true, effort: high}
+  researcher:              {required_model: sonnet, self_pinned: true, effort: high}
+  tester:                  {required_model: sonnet, self_pinned: true, effort: medium}
+  ui-ux-designer:          {required_model: sonnet, self_pinned: true, effort: high}
+  workflow-orchestrator:   {required_model: sonnet, self_pinned: true, effort: high}
+  # spec-tech-critic carries no model bound here (unbound today, like the "Not bound here"
+  # agents below) — effort-only entry so effort_for() has an SSOT read; resolve()/evaluate()
+  # output for it is unchanged (no required_model/self_pinned key added).
+  spec-tech-critic:        {effort: high}
+  # grid-filler: report-only filler (writes one fill-source JSON, never runs the engine or
+  # orchestrates) — effort-only entry, model unbound here, same shape as spec-tech-critic.
+  grid-filler:             {effort: medium}
+  # grid-axis-selector: report-only axis selector (writes one axis-selection reasons-dict
+  # JSON, never runs the engine or orchestrates) — same shape as grid-filler.
+  grid-axis-selector:      {effort: medium}
+  gemini-relayer:          {required_model: haiku,  self_pinned: true}
+  partner-relayer:         {required_model: haiku,  self_pinned: true}
+  git-manager:             {required_model: haiku,  self_pinned: true}
+  journal-writer:          {required_model: haiku,  self_pinned: true}
+  project-manager:         {required_model: haiku,  self_pinned: true}
+
+  # ── Not bound here ─────────────────────────────────────────────────────────────────────
+  # cleanmatic:* critics (product-critic/tech-critic/market-critic/craft-critic/
+  # critique-humanizer/memory-harvester) live in .claude/agents (an external plugin, the
+  # install-output slot — not shipped by this repo). Add entries here if you want to bound
+  # them; left unbound they inherit as today.

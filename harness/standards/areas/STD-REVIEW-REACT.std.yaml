@@ -1,0 +1,285 @@
+id: STD-REVIEW-REACT
+type: std_area
+zone: operational
+title: "Review — React"
+status: approved
+owner: harness
+version: 1.0.0
+description: |
+  React review rules (scope **/*.tsx, **/*.jsx, **/components/**, **/hooks/**,
+  **/app/**, **/pages/**, test files). Block-worthy XSS/security rules around
+  dangerouslySetInnerHTML, unsafe URLs, and secret exposure, plus advisory
+  patterns for Server/Client boundaries, state management, and testing.
+rule_groups:
+  - id: STD-REVIEW-REACT-RG1
+    title: "Safety — XSS, unsafe URLs, secrets, auth, CSP"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-REACT-RG1-R1
+        title: "Never dangerouslySetInnerHTML without same-site sanitization"
+        status: approved
+        scope:
+          - "**/*.tsx"
+          - "**/*.jsx"
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: treat every dangerouslySetInnerHTML usage as a code
+          review halt. Render user content as text (JSX expression) or
+          via a library that sanitizes (ReactMarkdown). If raw HTML is
+          required, sanitize with DOMPurify.sanitize() at the SAME call
+          site — sanitization at the API boundary is acceptable only if
+          every consumer is verified.
+          NEVER: pass user-controlled input directly to
+          dangerouslySetInnerHTML.__html. The prop name is deliberately
+          scary for a reason — it is the single React API that bypasses
+          all built-in XSS protection. Sanitization elsewhere in the
+          pipeline does not count unless the reviewer can trace the data
+          flow from origin to this exact __html assignment and confirm
+          no unsanitized path exists.
+        rationale: |
+          React escapes all JSX expressions automatically.
+          dangerouslySetInnerHTML is the explicit opt-out. A sanitizer
+          call three files away is not a defense — refactors move code.
+          Same-site sanitization means the sanitizer call and the __html
+          assignment are visible in the same review diff, so the reviewer
+          can verify both simultaneously.
+      - id: STD-REVIEW-REACT-RG1-R2
+        title: "Validate URL schemes in href/src; never trust user-supplied URLs"
+        status: approved
+        scope:
+          - "**/*.tsx"
+          - "**/*.jsx"
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: validate the scheme of any user-supplied URL before
+          binding to href, src, or xlink:href. Allow http:, https:, and
+          mailto: only. Reject javascript: and data: schemes — they
+          execute arbitrary code.
+          NEVER: bind a user-controlled string directly to <a href={...}> —
+          React warns about javascript: URLs in development but does not
+          block them at runtime. data: URLs and other dangerous schemes
+          also slip through.
+          ALWAYS: add rel="noopener noreferrer" to every
+          target="_blank" link — without it, the target page can access
+          window.opener and run navigation hijacks. Modern browsers
+          default to noopener, but never rely on browser defaults.
+        rationale: |
+          React's development warning for javascript: URLs is not a
+          runtime block — it is a console message the user never sees.
+          An attacker sets user.website to "javascript:alert(document.cookie)"
+          and the anchor executes it. rel="noopener noreferrer" closes
+          the window.opener reverse-channel that lets a malicious target
+          page redirect the source page to a phishing URL.
+      - id: STD-REVIEW-REACT-RG1-R3
+        title: "Never expose secrets via framework-prefixed env vars"
+        status: approved
+        scope:
+          - "**/*.tsx"
+          - "**/*.jsx"
+          - "**/*.ts"
+          - "**/*.js"
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: treat framework-prefixed env vars as public —
+          NEXT_PUBLIC_*, VITE_*, REACT_APP_*, EXPO_PUBLIC_* are bundled
+          into the client and visible in the browser. Secrets belong in
+          server-only env vars (no prefix), accessed only in server-side
+          code (getServerSideProps, loader, server actions, API routes).
+          NEVER: reference a secret through a public-prefixed env var.
+          process.env.NEXT_PUBLIC_STRIPE_SECRET_KEY in client code ships
+          the key to every browser. Treat every env var accessed in a
+          client component or a file without "use server" as public by
+          default — audit it on every PR that touches env vars.
+        rationale: |
+          Framework bundlers have one rule: env vars with the public prefix
+          are inlined at build time into the client bundle. There is no
+          runtime check, no warning — the secret is in the .js file
+          served to the browser. The prefix naming convention is the only
+          boundary; misusing it is irreversible without a key rotation.
+      - id: STD-REVIEW-REACT-RG1-R4
+        title: "Validate every Server Action input; auth inside the action"
+        status: approved
+        scope:
+          - "**/*.tsx"
+          - "**/*.ts"
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: validate every Server Action input with a schema (Zod)
+          at the top of the action. Authenticate inside the action — do
+          not trust the client-side route gate. Authorize: confirm the
+          current user has permission for the specific record they are
+          mutating. Rate-limit sensitive actions.
+          NEVER: trust that the client-side UI gating (hidden buttons,
+          disabled forms) prevents unauthorized Server Action calls. A
+          Server Action is a public POST endpoint — an attacker calls it
+          directly with curl.
+        rationale: |
+          Server Actions compile to RPC endpoints accessible by URL. The
+          client-side route guard and UI state are client-only — an
+          attacker bypasses both by crafting a direct POST. Auth inside
+          the action is the only enforced check; a Zod schema at the
+          action boundary is the only input validation.
+  - id: STD-REVIEW-REACT-RG2
+    title: "Patterns — RSC boundary, state location, Suspense, forms, lists"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-REACT-RG2-R1
+        title: "Server Component is the default; 'use client' only when needed"
+        status: approved
+        scope:
+          - "**/*.tsx"
+          - "**/*.jsx"
+          - "**/app/**/*.ts"
+          - "**/app/**/*.tsx"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: default a new file to Server Component — only add
+          "use client" when the file uses useState, useEffect, useRef,
+          browser APIs, or event handlers. Place the directive on line 1,
+          before any imports.
+          NEVER: import a "server-only" module (DB client, secrets, fs)
+          into a Client Component file — mark sensitive modules with
+          import "server-only". Never re-export server-only code through
+          a client module — the bundler silently includes it. A Client
+          Component cannot import a Server Component directly, but it can
+          receive one via children or named slots.
+        rationale: |
+          The RSC boundary is the most consequential architectural
+          decision in a Next.js app. Server Components stay on the server,
+          ship zero JS to the client, and can await directly. Adding
+          "use client" to a file that does not need it sends unnecessary
+          JS to the browser and prevents the file from accessing server
+          resources. import "server-only" is a build-time guard — the
+          bundler errors if a client file imports it.
+      - id: STD-REVIEW-REACT-RG2-R2
+        title: "State location decision tree — local first, context for low-frequency"
+        status: approved
+        scope:
+          - "**/*.tsx"
+          - "**/*.jsx"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: follow the state escalation ladder: (1) useState for
+          one component, (2) lift to nearest common ancestor via props
+          for a parent + few children, (3) React Context for
+          low-frequency cross-cutting reads (theme, auth, locale),
+          (4) external store (Zustand, Jotai, Redux Toolkit) for
+          high-frequency shared updates, (5) server-state library
+          (TanStack Query, SWR, RSC fetch) for server-derived data —
+          never application state.
+          NEVER: use Context for frequently changing values — every
+          consumer re-renders on every update regardless of whether it
+          reads the changed value. Never duplicate server state into a
+          client store — the cache is the source of truth.
+        rationale: |
+          Context is a dependency injection mechanism, not a state
+          management solution. Every component that calls useContext
+          re-renders when the context value changes — with no selector
+          bailout, a theme toggle re-renders every consumer in the tree.
+          External stores solve this with fine-grained subscriptions.
+          Duplicating server data into client state creates two sources
+          of truth that drift apart.
+      - id: STD-REVIEW-REACT-RG2-R3
+        title: "Every Suspense boundary needs an Error Boundary above it"
+        status: approved
+        scope:
+          - "**/*.tsx"
+          - "**/*.jsx"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: pair every <Suspense> with an <ErrorBoundary> above it
+          that renders a fallback UI. Place Suspense boundaries close to
+          where data is needed, not at the route root — multiple narrower
+          boundaries reveal loaded content progressively.
+          NEVER: leave a Suspense boundary without an Error Boundary —
+          when the async child throws (network error, 500, timeout), the
+          error propagates up to the nearest Error Boundary. If none
+          exists between the Suspense and the route root, the entire page
+          crashes to a blank screen.
+        rationale: |
+          Suspense catches the pending state (the promise); Error Boundary
+          catches the rejected state (the error). Without the pair, an
+          async failure takes down the entire route instead of just the
+          affected section. The Error Boundary must be a Class Component
+          (React 19 has no functional equivalent) or use a wrapper like
+          react-error-boundary.
+      - id: STD-REVIEW-REACT-RG2-R4
+        title: "Stable keys on lists; never index as key for dynamic lists"
+        status: approved
+        scope:
+          - "**/*.tsx"
+          - "**/*.jsx"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: assign a stable, unique primitive key to every item in
+          a mapped list — a database ID, a UUID, a slug. The key must be
+          unique among siblings (not globally).
+          NEVER: use the array index as key for any list that can reorder,
+          insert, or delete items. When the list changes, index-based keys
+          cause React to associate component state (focus, animation,
+          controlled input values) with the wrong row — an item deleted
+          at index 0 shifts every component's state down one position.
+        rationale: |
+          index-as-key works only for static, never-reordered lists —
+          which is almost no real list. An insertion at position 0 changes
+          every key, causing React to unmount and remount every child
+          instead of moving the existing DOM nodes. Component state
+          (expanded sections, form inputs, animation progress) teleports
+          to the wrong item.
+  - id: STD-REVIEW-REACT-RG3
+    title: "Testing — RTL query priority, MSW, userEvent, async assertions"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-REACT-RG3-R1
+        title: "Test behavior through accessible queries; never implementation details"
+        status: approved
+        scope:
+          - "**/*.test.tsx"
+          - "**/*.test.jsx"
+          - "**/*.spec.tsx"
+          - "**/*.spec.jsx"
+          - "**/__tests__/**/*.ts"
+          - "**/__tests__/**/*.tsx"
+        severity: info
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R4]
+        detector: null
+        description: |
+          ALWAYS: query by accessible role first (getByRole), then label
+          (getByLabelText), then text (getByText). Fall back to
+          getByTestId only when no accessible query fits. Use userEvent
+          over fireEvent — userEvent simulates real browser sequences.
+          Always await userEvent calls.
+          NEVER: assert on internal state, props passed to children, which
+          hooks were called, or the number of renders. Never use
+          container.querySelector — it bypasses accessibility queries.
+          Never use setTimeout + assertion — use findBy* or waitFor.
+          PREFER: MSW (Mock Service Worker) for network mocking — it runs
+          at the network layer, so the component, hooks, and fetch library
+          all behave as in production.
+        rationale: |
+          Tests that query by role/label/text resemble how users and
+          assistive technology find elements — they survive refactors.
+          Tests that assert on implementation details break every time
+          the component is restructured, even when behavior is unchanged.
+          userEvent types character-by-character with realistic delays;
+          fireEvent dispatches a single synthetic event that skips focus,
+          keydown, and input sequencing.

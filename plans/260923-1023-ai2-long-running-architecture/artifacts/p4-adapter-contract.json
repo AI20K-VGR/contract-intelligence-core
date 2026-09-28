@@ -1,0 +1,55 @@
+{
+  "phase": "P4",
+  "status": "PASS_WITH_LIMITATIONS",
+  "scope": "CurrentPipelineAdapter + dependency-free optional ADK adapter",
+  "implementation_files": [
+    "ai-service/app/pipeline/execution.py",
+    "ai-service/app/pipeline/adk_adapter.py"
+  ],
+  "test_files": [
+    "ai-service/tests/test_p4_execution_adapters.py"
+  ],
+  "verification": {
+    "command": "ai-service/.venv/Scripts/python.exe -m pytest tests/test_p4_execution_adapters.py tests/test_p0_contract_baseline.py tests/test_p1_canonical_model.py tests/test_p2_hitl_state.py tests/test_p3_persistence_events.py -q --basetemp=.pytest-p4-final",
+    "result": "41 passed, 1 warning",
+    "warning": "PytestCacheWarning: access denied while creating .pytest_cache entries; test execution passed."
+  },
+  "acceptance_criteria": [
+    {
+      "criterion": "Typed execution boundary carries run, tenant/dossier, actor, correlation, idempotency, generation and cancellation context.",
+      "status": "PASS",
+      "evidence": "ai-service/app/pipeline/execution.py:22-36; ai-service/tests/test_p4_execution_adapters.py:26-49"
+    },
+    {
+      "criterion": "Current pipeline adapter propagates context, enforces tenant/dossier scope, cancellation and lease fencing, and classifies timeout.",
+      "status": "PASS",
+      "evidence": "ai-service/app/pipeline/execution.py:160-237; ai-service/tests/test_p4_execution_adapters.py:55-110"
+    },
+    {
+      "criterion": "Callbacks classify duplicate and out-of-order delivery.",
+      "status": "PASS",
+      "evidence": "ai-service/app/pipeline/execution.py:120-146; ai-service/tests/test_p4_execution_adapters.py:116-124"
+    },
+    {
+      "criterion": "Optional ADK adapter remains dependency-free and checks pinned version, artifact presence, citation and approved side effects.",
+      "status": "PASS_WITH_TEST_GAP",
+      "evidence": "ai-service/app/pipeline/adk_adapter.py:1-5,47-101; ai-service/tests/test_p4_execution_adapters.py:140-184"
+    },
+    {
+      "criterion": "A2A production endpoint is not added.",
+      "status": "PASS",
+      "evidence": "No A2A implementation files changed or added in P4 scope."
+    },
+    {
+      "criterion": "P0-P3 regression remains green.",
+      "status": "PASS",
+      "evidence": "41-test focused/regression command above."
+    }
+  ],
+  "limitations": [
+    "ADK runtime is an interface only; no google.adk dependency is pinned or installed, so provider integration is not verified.",
+    "There is no direct test for the ADK missing-artifact branch or an ADK runtime unexpected exception; the current focused suite verifies successful artifact mapping plus standalone citation/side-effect validation.",
+    "The current P4 tests do not exercise a real external tool or production worker restart; durable state ownership remains in P3 components.",
+    "Harness hs-run.cmd could not be used on this Windows environment because its launcher output is encoding-corrupted; pytest verification was run directly via the repository virtualenv."
+  ]
+}

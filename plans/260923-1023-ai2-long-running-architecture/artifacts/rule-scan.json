@@ -1,0 +1,37 @@
+{
+  "rules_applied": [
+    "STD-REVIEW-COMMON-RG1-R1",
+    "STD-REVIEW-COMMON-RG1-R2",
+    "STD-REVIEW-COMMON-RG1-R3",
+    "STD-REVIEW-COMMON-RG1-R4",
+    "STD-REVIEW-COMMON-RG1-R5",
+    "STD-REVIEW-COMMON-RG1-R6",
+    "STD-REVIEW-COMMON-RG2-R1",
+    "STD-REVIEW-COMMON-RG2-R2",
+    "STD-REVIEW-COMMON-RG2-R3",
+    "STD-REVIEW-COMMON-RG2-R4",
+    "STD-REVIEW-PY-RG1-R1",
+    "STD-REVIEW-PY-RG2-R1",
+    "STD-REVIEW-PY-RG2-R2",
+    "STD-REVIEW-PY-RG3-R1",
+    "STD-REVIEW-PY-RG3-R2",
+    "STD-REVIEW-PY-RG4-R1",
+    "STD-REVIEW-PY-RG4-R2"
+  ],
+  "violations": [],
+  "verdict": "PASS",
+  "reviewer": "user:dungskbg2004@gmail.com",
+  "ts": "2026-09-23T17:28:39.800107+00:00",
+  "changed_files": [
+    "ai-service/app/security/policy.py",
+    "ai-service/app/transport/events.py",
+    "ai-service/app/ops/readiness.py",
+    "ai-service/tests/test_p5_api_security.py",
+    "ai-service/tests/test_p6_event_ui_convergence.py",
+    "ai-service/tests/test_p9_production_readiness.py"
+  ],
+  "langs": [
+    "general",
+    "python"
+  ]
+}

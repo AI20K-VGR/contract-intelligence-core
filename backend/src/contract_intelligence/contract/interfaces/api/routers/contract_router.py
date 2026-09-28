@@ -699,6 +699,9 @@ def _hits_from_ai2(payload: dict[str, Any]) -> list[DossierSearchHit]:
     for item in raw:
         if not isinstance(item, dict):
             continue
+        nested = item.get("citation")
+        if isinstance(nested, dict):
+            item = {**nested, **{key: value for key, value in item.items() if value not in (None, "", [])}}
         text = item.get("text") or item.get("quote") or item.get("snippet") or item.get("text_span")
         if not isinstance(text, str) or not text.strip():
             continue
@@ -763,6 +766,20 @@ def _search_dto_from_ai2(payload: dict[str, Any], *, fallback_query: str) -> Dos
     )
 
 
+def ai2_search_policy_flags() -> dict[str, bool]:
+    """Flags for dossier search. LLM stays off unless the operator setting allows it."""
+
+    from contract_intelligence.config.settings import get_settings
+
+    settings = get_settings()
+    allow_llm = bool(settings.ai2_query_egress_allowed)
+    return {
+        "egress_allowed": allow_llm,
+        "use_llm": allow_llm,
+        "use_vector": bool(settings.ai2_query_use_vector),
+    }
+
+
 def _ai2_snapshot_digest(dossier: Any) -> str:
     metadata = dossier.metadata if isinstance(getattr(dossier, "metadata", None), dict) else {}
     return str(metadata.get("ai2_snapshot_digest") or dossier.checksum or "").strip()
@@ -802,8 +819,7 @@ async def search_dossier(
                     "snapshot_digest": _ai2_snapshot_digest(dossier),
                     "query_contract_version": "ai2.query.v1",
                     "acl_context": user.user_id,
-                    # Fail-closed: search never lets AI2 send dossier text out.
-                    "policy_flags": {"egress_allowed": False},
+                    "policy_flags": ai2_search_policy_flags(),
                     "tenant_id": user.tenant_id,
                     "actor_id": "backend",
                 }

@@ -1,0 +1,132 @@
+# decomposition-map.yaml — canonical skill -> plugin-group map (human-edited).
+#
+# 2.0.0 ORIGINALLY split the core `hs` plugin into a spine plus six themed sibling
+# plugins — but that was COLLAPSED back: every skill now lives in the single
+# `hs` plugin (harness/plugins/hs/skills/) and the groups below are INSTALL-TIME
+# LABELS for per-skill selection, NOT separate plugins. This file stays the canonical
+# skill -> group LABEL map; the migrator (migrate_decomposition.py) reads it for the
+# forward (split) rewrite, now exercised only in REVERSE (the collapse) and as the
+# group-label source the installer/hs-cli use to pick skills.
+#
+#   group "hs"  -> SPINE: always-on, invoke name `hs:<skill>` (unchanged).
+#   group "<g>" -> a LABEL grouping opt-in skills; they still live under hs/ and
+#                  invoke as `hs:<skill>` (the historical hs-<g>:<skill> form is dead).
+#
+# Every core skill dir under harness/plugins/hs/skills/ MUST appear here exactly once.
+# Spine = always-on SDLC loop; the themed groups are opt-in (per-skill) at install time.
+
+skills:
+  # --- spine (always-on, 13) -------------------------------------------------
+  plan: hs
+  cook: hs
+  test: hs
+  ship: hs
+  fix: hs
+  debug: hs
+  code-review: hs
+  review-pr: hs
+  git: hs
+  scout: hs
+  understand: hs
+  setup: hs
+  triage: hs
+
+  # --- hs-flow: orchestration / long-running / team (15) ---------------------
+  vibe: flow
+  loop: flow
+  afk: flow
+  autonomous-bell: flow
+  goal: flow
+  team: flow
+  worktree: flow
+  compound: flow
+  project-management: flow
+  plans-kanban: flow
+  coding-agent-orchestration: flow
+  dispatch: flow
+  finetune: flow
+  goal-warmup: flow
+  issue-to-plan: flow
+
+  # --- hs-think: reasoning / debate / decision (9) ---------------------------
+  brainstorm: think
+  predict: think
+  scenario: think
+  sequential-thinking: think
+  problem-solving: think
+  critique: think
+  bakeoff: think
+  advise: think
+  fable-thinking: think
+
+  # --- hs-research: investigate / survey / scan (9) --------------------------
+  research: research
+  discover: research
+  repomix: research
+  techstack: research
+  security-scan: research
+  manual-test: research
+  contract-test: research
+  eval-bootstrap: research
+  deep-swe: research
+
+  # --- hs-create: build new harness artifacts (6) ----------------------------
+  skill-creator: create
+  harness-creator: create
+  mcp-builder: create
+  agentize: create
+  port: create
+  bootstrap: create
+
+  # --- hs-mem: memory / knowledge / docs (8) ---------------------------------
+  remember: mem
+  insights: mem
+  journal: mem
+  retro: mem
+  docs: mem
+  docs-seeker: mem
+  document-skills: mem
+  interview-docs: mem
+
+  # --- hs-meta: skill-system meta / self-config (7) --------------------------
+  find-skills: meta
+  voice: meta
+  context-engineering: meta
+  project-organization: meta
+  rule-author: meta
+  folder-context: meta
+  cli: meta
+
+  # --- docs-ssot: docs-as-SSOT pipeline (3) ------------------------------------
+  docs-scaffold: docs-ssot
+  docs-standardize: docs-ssot
+  docs-build: docs-ssot
+
+  # --- product: PO/BA product-spec (3) -----------------------------------------
+  spec: product
+  shape: product
+  sowat: product
+
+# === ported domain plugins (off-by-default, 46) =============================
+# Ported from an upstream source into seven themed sibling plugins. These complete the full
+# 84-non-spine / 97-total skill universe (mirrored as ALL_SKILLS in the skill-deps
+# loader test). They are recorded here as a reference rather than as live `skills:`
+# entries on purpose:
+#
+#   * The forward migrator only needs the 38 original-themed entries above — those
+#     are the skills that move out of the spine when the 2.0.0 split first runs. The
+#     ck-ports already ship under their themed plugin, so the forward split never
+#     touches them and listing them under `skills:` would only widen the forward
+#     --check alternation onto pre-existing bare hs:<ckport> prose literals (e.g. in
+#     BACKLOG.md history) that are intentional and must survive.
+#   * The reverse migrator does NOT read this map at all — it sources the non-spine
+#     set straight from the filesystem (every harness/plugins/hs-<g>/skills/<skill>),
+#     so the forward<->reverse round-trip already covers all 84 skills including
+#     every ck-port below. Keeping this block as documentation keeps the human-facing
+#     skill->group map complete without changing what the forward engine scans.
+#
+#   The ck-port groups and their members are NOT listed here. components.yaml is
+#   the one place they are declared, and this file used to carry a second copy as
+#   a comment: it had drifted on four of the seven groups (ai 9 vs 10, devops 5 vs
+#   6, extra 9 vs 12, viz 5 vs 6) because nothing reads a comment and nothing gates
+#   one. A pointer cannot drift. Read `components:` in components.yaml.

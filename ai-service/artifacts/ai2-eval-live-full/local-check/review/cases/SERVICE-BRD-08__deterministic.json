@@ -1,0 +1,2418 @@
+{
+  "case_id": "SERVICE-BRD-08",
+  "run": "deterministic",
+  "input": {
+    "case": {
+      "case_id": "SERVICE-BRD-08",
+      "title": "DOC-02 §8 SERVICE: X 50/40 comparable; Y khác scope NOT_COMPARABLE",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_svc_brd08",
+      "expected_state": "REVIEW",
+      "expected_no_claims": [
+        "legal_winner",
+        "force_compare"
+      ],
+      "n_pages": 3,
+      "n_nodes": 6,
+      "n_tables": 0,
+      "lifecycle": "ACTIVE",
+      "query": null,
+      "notes": "",
+      "tags": [
+        "brd",
+        "compare",
+        "service"
+      ]
+    },
+    "record": {
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_svc_brd08",
+      "lifecycle": "ACTIVE",
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-service-brd-08",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      },
+      "pages": [
+        {
+          "page_revision_id": "p1_rev1",
+          "page_number": 1,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p1_b1"
+          ],
+          "text": "Phí X 50%.",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p2_rev1",
+          "page_number": 2,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p2_b1"
+          ],
+          "text": "Phụ lục 1: phí X 40%.",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p3_rev1",
+          "page_number": 3,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p3_b1"
+          ],
+          "text": "Phụ lục 2: phí Y khác phạm vi.",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        }
+      ],
+      "nodes": [
+        {
+          "node_id": "doc_body",
+          "type": "SECTION",
+          "raw_label": "Hợp đồng DV",
+          "parent_id": null,
+          "order": 0,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "HĐ",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "fx",
+          "type": "FIELD",
+          "raw_label": "Phí X",
+          "parent_id": "doc_body",
+          "order": 1,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Phí X: 50%",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": "scope:X",
+          "structured_value": "50%",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "doc_pl1",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 1",
+          "parent_id": null,
+          "order": 2,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "PL1",
+          "page_range": [
+            2
+          ],
+          "page_revision_id": "p2_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "fx1",
+          "type": "FIELD",
+          "raw_label": "Phí X PL1",
+          "parent_id": "doc_pl1",
+          "order": 3,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Phí X: 40%",
+          "page_range": [
+            2
+          ],
+          "page_revision_id": "p2_rev1",
+          "bbox": [],
+          "structured_key": "scope:X",
+          "structured_value": "40%",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "doc_pl2",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 2",
+          "parent_id": null,
+          "order": 4,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "PL2",
+          "page_range": [
+            3
+          ],
+          "page_revision_id": "p3_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "fy",
+          "type": "FIELD",
+          "raw_label": "Phí Y",
+          "parent_id": "doc_pl2",
+          "order": 5,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Phí Y: 10%",
+          "page_range": [
+            3
+          ],
+          "page_revision_id": "p3_rev1",
+          "bbox": [],
+          "structured_key": "scope:Y",
+          "structured_value": "10%",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        }
+      ],
+      "tables": [],
+      "profile": {
+        "version": 5,
+        "aliases": {
+          "Công ty ABC": [
+            "ABC Co.",
+            "ABC"
+          ],
+          "Công ty XYZ": [
+            "XYZ Ltd",
+            "XYZ"
+          ]
+        },
+        "field_keys": [
+          "party_a",
+          "party_b",
+          "mst_seller",
+          "contract_value",
+          "payment_term"
+        ]
+      },
+      "acl_revision": 12,
+      "permissions_by_actor": {
+        "user_001": [
+          "READ_CONTENT"
+        ]
+      },
+      "source_files": [],
+      "facts": [
+        {
+          "fact_id": "fact_f713337c78747895cd3fa5e8",
+          "raw_value": "50%",
+          "normalized_value": "50",
+          "subject": "Phí X",
+          "role": null,
+          "unit": "percent",
+          "currency": null,
+          "vat_basis": null,
+          "condition": null,
+          "scope": "X",
+          "validity": null,
+          "item_key": null,
+          "tax_basis": null,
+          "period_start": null,
+          "source_role": "body",
+          "citation": {
+            "node_id": "fx",
+            "page_revision_id": "p1_rev1",
+            "bbox": [],
+            "bbox_fragments": [],
+            "text_span": "Phí X 50%.",
+            "source_file_id": null,
+            "page": 1,
+            "page_range": [
+              1
+            ],
+            "line_ids": [],
+            "char_start": 0,
+            "char_end": 10,
+            "breadcrumb": [
+              "Hợp đồng DV",
+              "Phí X"
+            ],
+            "structure_path": "Hợp đồng DV › Phí X",
+            "geometry_available": false,
+            "citation_id": null,
+            "source_hash": null,
+            "quote_sha256": "70e54d83b2301be4d4051465138db1d221cb4f2f90b9cc81dca1961266099df9",
+            "coordinate_system": null,
+            "geometry_source": null,
+            "precision": null,
+            "validation_status": "UNVERIFIED",
+            "table_id": null,
+            "cell_id": null
+          },
+          "provenance": "L0",
+          "review_state": "NEEDS_REVIEW"
+        },
+        {
+          "fact_id": "fact_1c804bbdc67533d9fda9557b",
+          "raw_value": "40%",
+          "normalized_value": "40",
+          "subject": "Phí X PL1",
+          "role": null,
+          "unit": "percent",
+          "currency": null,
+          "vat_basis": null,
+          "condition": null,
+          "scope": "X",
+          "validity": null,
+          "item_key": null,
+          "tax_basis": null,
+          "period_start": null,
+          "source_role": "body",
+          "citation": {
+            "node_id": "fx1",
+            "page_revision_id": "p2_rev1",
+            "bbox": [],
+            "bbox_fragments": [],
+            "text_span": "Phụ lục 1: phí X 40%.",
+            "source_file_id": null,
+            "page": 2,
+            "page_range": [
+              2
+            ],
+            "line_ids": [],
+            "char_start": 0,
+            "char_end": 21,
+            "breadcrumb": [
+              "Hợp đồng DV",
+              "Phí X PL1"
+            ],
+            "structure_path": "Hợp đồng DV › Phí X PL1",
+            "geometry_available": false,
+            "citation_id": null,
+            "source_hash": null,
+            "quote_sha256": "e7d421fb34751bee62748e7029cec05704e41c2cd90bccc264cac2518e4e5635",
+            "coordinate_system": null,
+            "geometry_source": null,
+            "precision": null,
+            "validation_status": "UNVERIFIED",
+            "table_id": null,
+            "cell_id": null
+          },
+          "provenance": "L0",
+          "review_state": "NEEDS_REVIEW"
+        },
+        {
+          "fact_id": "fact_2d36b8c021a285a8b387ecaa",
+          "raw_value": "10%",
+          "normalized_value": "10",
+          "subject": "Phí Y",
+          "role": null,
+          "unit": "percent",
+          "currency": null,
+          "vat_basis": null,
+          "condition": null,
+          "scope": "Y",
+          "validity": null,
+          "item_key": null,
+          "tax_basis": null,
+          "period_start": null,
+          "source_role": "body",
+          "citation": {
+            "node_id": "fy",
+            "page_revision_id": "p3_rev1",
+            "bbox": [],
+            "bbox_fragments": [],
+            "text_span": "Phụ lục 2: phí Y khác phạm vi.",
+            "source_file_id": null,
+            "page": 3,
+            "page_range": [
+              3
+            ],
+            "line_ids": [],
+            "char_start": 0,
+            "char_end": 30,
+            "breadcrumb": [
+              "Hợp đồng DV",
+              "Phí Y"
+            ],
+            "structure_path": "Hợp đồng DV › Phí Y",
+            "geometry_available": false,
+            "citation_id": null,
+            "source_hash": null,
+            "quote_sha256": "61584933ba40a5a888596d0f5282b52496bed98faad2ba503fb332e201601e84",
+            "coordinate_system": null,
+            "geometry_source": null,
+            "precision": null,
+            "validation_status": "UNVERIFIED",
+            "table_id": null,
+            "cell_id": null
+          },
+          "provenance": "L0",
+          "review_state": "NEEDS_REVIEW"
+        }
+      ],
+      "input_facts": [],
+      "chunks": [
+        {
+          "chunk_id": "chk_62c5b601",
+          "parent_node_id": "doc_body",
+          "page_range": [
+            1
+          ],
+          "source_block_ids": [],
+          "text_span": "HĐ",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Hợp đồng DV"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_e1b5164b",
+          "parent_node_id": "doc_pl1",
+          "page_range": [
+            2
+          ],
+          "source_block_ids": [],
+          "text_span": "PL1",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 1"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_cb3da66f",
+          "parent_node_id": "doc_pl2",
+          "page_range": [
+            3
+          ],
+          "source_block_ids": [],
+          "text_span": "PL2",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 2"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        }
+      ],
+      "active_index_version": null,
+      "processing_index": false,
+      "legal_hold": false,
+      "egress_approved": true,
+      "budget_exceeded": false,
+      "processing_budget_exceeded": false,
+      "embedding_budget_exceeded": false,
+      "index_status": "READY",
+      "case_id": "SERVICE-BRD-08",
+      "handoff_issues": [],
+      "relation_graph": {
+        "graph_id": "graph:b8988bcdbac48f64d142926a",
+        "source_snapshot_digest": "sha256:eval-service-brd-08",
+        "nodes": [
+          {
+            "node_id": "doc_body",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "fx",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "doc_pl1",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              2
+            ],
+            "page_revision_id": "p2_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "fx1",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              2
+            ],
+            "page_revision_id": "p2_rev1",
+            "quality": "PARTIAL"
+          },
+          {
+            "node_id": "doc_pl2",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              3
+            ],
+            "page_revision_id": "p3_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "fy",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              3
+            ],
+            "page_revision_id": "p3_rev1",
+            "quality": "PARTIAL"
+          }
+        ],
+        "edges": [
+          {
+            "edge_id": "edge:65bc9dfcd0e6c0de1e7c9589",
+            "from_node_id": "doc_body",
+            "to_node_id": "fx",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "fx",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Phí X: 50%",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": null,
+                "char_end": null,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "581ce41b40156daf14948792eebd96b4fed42ffefe3b4a793ac9f906f3575618",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-service-brd-08"
+          },
+          {
+            "edge_id": "edge:7be5657bbb7a782c2cb3d4a4",
+            "from_node_id": "doc_body",
+            "to_node_id": "fx1",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "fx1",
+                "page_revision_id": "p2_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Phí X: 40%",
+                "source_file_id": null,
+                "page": 2,
+                "page_range": [
+                  2
+                ],
+                "line_ids": [],
+                "char_start": null,
+                "char_end": null,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "92702238632031dae0bc087063b609fd9b7a10cd3f37db12769918abcf0608a5",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-service-brd-08"
+          },
+          {
+            "edge_id": "edge:177107a251485a451636da25",
+            "from_node_id": "doc_body",
+            "to_node_id": "fy",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "fy",
+                "page_revision_id": "p3_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Phí Y: 10%",
+                "source_file_id": null,
+                "page": 3,
+                "page_range": [
+                  3
+                ],
+                "line_ids": [],
+                "char_start": null,
+                "char_end": null,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "d010ad7330998361a9e4149e5ca032ab52a16c229284835de98fd9a9f8ac516c",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-service-brd-08"
+          }
+        ],
+        "issues": []
+      },
+      "active_nodes": [
+        {
+          "node_id": "doc_body",
+          "type": "SECTION",
+          "raw_label": "Hợp đồng DV",
+          "parent_id": null,
+          "order": 0,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "HĐ",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "doc_body",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "fx",
+          "type": "FIELD",
+          "raw_label": "Phí X",
+          "parent_id": "doc_body",
+          "order": 1,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Phí X: 50%",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": "scope:X",
+          "structured_value": "50%",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "FIELD",
+          "scope_id": "doc_body",
+          "heading_confidence": null,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "doc_pl1",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 1",
+          "parent_id": null,
+          "order": 2,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "PL1",
+          "page_range": [
+            2
+          ],
+          "page_revision_id": "p2_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "doc_pl1",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "fx1",
+          "type": "FIELD",
+          "raw_label": "Phí X PL1",
+          "parent_id": "doc_body",
+          "order": 3,
+          "has_children": false,
+          "status": "PARTIAL",
+          "text": "Phí X: 40%",
+          "page_range": [
+            2
+          ],
+          "page_revision_id": "p2_rev1",
+          "bbox": [],
+          "structured_key": "scope:X",
+          "structured_value": "40%",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI2_REPAIRED",
+          "repaired_from_node_id": "fx1",
+          "structure_level": "FIELD",
+          "scope_id": "doc_body",
+          "heading_confidence": null,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "doc_pl2",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 2",
+          "parent_id": null,
+          "order": 4,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "PL2",
+          "page_range": [
+            3
+          ],
+          "page_revision_id": "p3_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "doc_pl2",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "fy",
+          "type": "FIELD",
+          "raw_label": "Phí Y",
+          "parent_id": "doc_body",
+          "order": 5,
+          "has_children": false,
+          "status": "PARTIAL",
+          "text": "Phí Y: 10%",
+          "page_range": [
+            3
+          ],
+          "page_revision_id": "p3_rev1",
+          "bbox": [],
+          "structured_key": "scope:Y",
+          "structured_value": "10%",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI2_REPAIRED",
+          "repaired_from_node_id": "fy",
+          "structure_level": "FIELD",
+          "scope_id": "doc_body",
+          "heading_confidence": null,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        }
+      ],
+      "citation_index": {},
+      "review_items": [
+        {
+          "review_item_id": "review:citation:fx:UNVERIFIED:1",
+          "kind": "citation:fx:UNVERIFIED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "fact:fact_f713337c78747895cd3fa5e8: source hash is missing",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:citation:fx1:UNVERIFIED:2",
+          "kind": "citation:fx1:UNVERIFIED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "fact:fact_1c804bbdc67533d9fda9557b: source hash is missing",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:citation:fy:UNVERIFIED:3",
+          "kind": "citation:fy:UNVERIFIED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "fact:fact_2d36b8c021a285a8b387ecaa: source hash is missing",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:candidate:cand_ca0a386c",
+          "kind": "CANDIDATE",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "Nguồn 1 · Phí X: 50%  ↔  Nguồn 2 · Phí X PL1: 40%. Cùng ngữ cảnh, hai nguồn khác giá trị — không kết luận bên nào thắng.",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": "cand_ca0a386c",
+          "proposed_action": "REVIEW_COMPARISON",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:candidate:cand_5820afcd",
+          "kind": "CANDIDATE",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "Nguồn 1 · Phí X: 50%  ↔  Nguồn 2 · Phí Y: 10%. Khác phạm vi phí — không so, không kết luận pháp lý.",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": "cand_5820afcd",
+          "proposed_action": "REVIEW_COMPARISON",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:fact:fact_f713337c78747895cd3fa5e8",
+          "kind": "FACT",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "Verify missing/uncertain value and its source context",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:fact:fact_1c804bbdc67533d9fda9557b",
+          "kind": "FACT",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "Verify missing/uncertain value and its source context",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:fact:fact_2d36b8c021a285a8b387ecaa",
+          "kind": "FACT",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "Verify missing/uncertain value and its source context",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        }
+      ]
+    },
+    "envelope": {
+      "auth": {
+        "actor_id": "user_001",
+        "tenant_id": "tenant_a",
+        "dossier_id": "d_svc_brd08",
+        "acl_revision": 12,
+        "permissions": [
+          "READ_CONTENT"
+        ],
+        "lifecycle": "ACTIVE"
+      },
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-service-brd-08",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      }
+    }
+  },
+  "output": {
+    "extract": {
+      "status_code": 200,
+      "body": {
+        "session_id": "d87d61ef007d",
+        "filename": "SERVICE-BRD-08.snapshot",
+        "source": "eval",
+        "step": "extract",
+        "ai1": {
+          "case_id": "SERVICE-BRD-08"
+        },
+        "files": [],
+        "has_pdf": false,
+        "dossier_id": "d_svc_brd08",
+        "tenant_id": "tenant_a",
+        "lifecycle": "ACTIVE",
+        "pins": {
+          "manifest_version": 2,
+          "source_snapshot_digest": "sha256:eval-service-brd-08",
+          "tenant_profile_version": 5,
+          "policy_version": 2,
+          "ocr_run_version": 3,
+          "reconstruction_version": 2,
+          "extraction_version": 7,
+          "index_version": "idx_14",
+          "source_digest": null,
+          "snapshot_digest": null
+        },
+        "n_pages": 3,
+        "n_nodes": 6,
+        "n_raw_nodes": 6,
+        "n_tables": 0,
+        "table_coverage": {
+          "UNKNOWN": 3
+        },
+        "relation_graph": {
+          "n_nodes": 6,
+          "n_edges": 3,
+          "n_issues": 0
+        },
+        "pages": [
+          {
+            "page": 1,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Phí X 50%.",
+            "page_revision_id": "p1_rev1"
+          },
+          {
+            "page": 2,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Phụ lục 1: phí X 40%.",
+            "page_revision_id": "p2_rev1"
+          },
+          {
+            "page": 3,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Phụ lục 2: phí Y khác phạm vi.",
+            "page_revision_id": "p3_rev1"
+          }
+        ],
+        "n_pages_hidden": 0,
+        "nodes": [
+          {
+            "node_id": "doc_body",
+            "type": "SECTION",
+            "raw_label": "Hợp đồng DV",
+            "page_range": [
+              1
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "fx",
+            "type": "FIELD",
+            "raw_label": "Phí X",
+            "page_range": [
+              1
+            ],
+            "structured_key": "scope:X",
+            "structured_value": "50%"
+          },
+          {
+            "node_id": "doc_pl1",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 1",
+            "page_range": [
+              2
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "fx1",
+            "type": "FIELD",
+            "raw_label": "Phí X PL1",
+            "page_range": [
+              2
+            ],
+            "structured_key": "scope:X",
+            "structured_value": "40%"
+          },
+          {
+            "node_id": "doc_pl2",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 2",
+            "page_range": [
+              3
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "fy",
+            "type": "FIELD",
+            "raw_label": "Phí Y",
+            "page_range": [
+              3
+            ],
+            "structured_key": "scope:Y",
+            "structured_value": "10%"
+          }
+        ],
+        "n_nodes_hidden": 0,
+        "tree": [
+          {
+            "node_id": "doc_body",
+            "type": "SECTION",
+            "raw_label": "Hợp đồng DV",
+            "status": "CONFIRMED",
+            "page": 1,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "doc_body",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "HĐ",
+            "children": [
+              {
+                "node_id": "fx",
+                "type": "FIELD",
+                "raw_label": "Phí X",
+                "status": "CONFIRMED",
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "has_children": false,
+                "structured_key": "scope:X",
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "FIELD",
+                "scope_id": "doc_body",
+                "heading_confidence": null,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "Phí X: 50%",
+                "children": []
+              },
+              {
+                "node_id": "fx1",
+                "type": "FIELD",
+                "raw_label": "Phí X PL1",
+                "status": "PARTIAL",
+                "page": 2,
+                "page_range": [
+                  2
+                ],
+                "page_revision_id": "p2_rev1",
+                "bbox": [],
+                "has_children": false,
+                "structured_key": "scope:X",
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "FIELD",
+                "scope_id": "doc_body",
+                "heading_confidence": null,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "Phí X: 40%",
+                "children": []
+              },
+              {
+                "node_id": "fy",
+                "type": "FIELD",
+                "raw_label": "Phí Y",
+                "status": "PARTIAL",
+                "page": 3,
+                "page_range": [
+                  3
+                ],
+                "page_revision_id": "p3_rev1",
+                "bbox": [],
+                "has_children": false,
+                "structured_key": "scope:Y",
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "FIELD",
+                "scope_id": "doc_body",
+                "heading_confidence": null,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "Phí Y: 10%",
+                "children": []
+              }
+            ]
+          },
+          {
+            "node_id": "doc_pl1",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 1",
+            "status": "CONFIRMED",
+            "page": 2,
+            "page_range": [
+              2
+            ],
+            "page_revision_id": "p2_rev1",
+            "bbox": [],
+            "has_children": false,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "doc_pl1",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "PL1",
+            "children": []
+          },
+          {
+            "node_id": "doc_pl2",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 2",
+            "status": "CONFIRMED",
+            "page": 3,
+            "page_range": [
+              3
+            ],
+            "page_revision_id": "p3_rev1",
+            "bbox": [],
+            "has_children": false,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "doc_pl2",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "PL2",
+            "children": []
+          }
+        ],
+        "tables": [],
+        "extracted": true,
+        "job": {
+          "job_id": "job_8c2f1f4ad4",
+          "status": "SUCCEEDED",
+          "review_state": "NEEDS_REVIEW",
+          "handoff_issues": [
+            {
+              "code": "NODE_STATUS",
+              "message": "fx1:PARTIAL",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_STATUS",
+              "message": "fy:PARTIAL",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            }
+          ],
+          "contribution": {
+            "facts": [
+              {
+                "fact_id": "fact_f713337c78747895cd3fa5e8",
+                "raw_value": "50%",
+                "normalized_value": "50",
+                "subject": "Phí X",
+                "role": null,
+                "unit": "percent",
+                "currency": null,
+                "vat_basis": null,
+                "condition": null,
+                "scope": "X",
+                "validity": null,
+                "item_key": null,
+                "tax_basis": null,
+                "period_start": null,
+                "source_role": "body",
+                "citation": {
+                  "node_id": "fx",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "Phí X 50%.",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 0,
+                  "char_end": 10,
+                  "breadcrumb": [
+                    "Hợp đồng DV",
+                    "Phí X"
+                  ],
+                  "structure_path": "Hợp đồng DV › Phí X",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "70e54d83b2301be4d4051465138db1d221cb4f2f90b9cc81dca1961266099df9",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "provenance": "L0",
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "fact_id": "fact_1c804bbdc67533d9fda9557b",
+                "raw_value": "40%",
+                "normalized_value": "40",
+                "subject": "Phí X PL1",
+                "role": null,
+                "unit": "percent",
+                "currency": null,
+                "vat_basis": null,
+                "condition": null,
+                "scope": "X",
+                "validity": null,
+                "item_key": null,
+                "tax_basis": null,
+                "period_start": null,
+                "source_role": "body",
+                "citation": {
+                  "node_id": "fx1",
+                  "page_revision_id": "p2_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "Phụ lục 1: phí X 40%.",
+                  "source_file_id": null,
+                  "page": 2,
+                  "page_range": [
+                    2
+                  ],
+                  "line_ids": [],
+                  "char_start": 0,
+                  "char_end": 21,
+                  "breadcrumb": [
+                    "Hợp đồng DV",
+                    "Phí X PL1"
+                  ],
+                  "structure_path": "Hợp đồng DV › Phí X PL1",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "e7d421fb34751bee62748e7029cec05704e41c2cd90bccc264cac2518e4e5635",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "provenance": "L0",
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "fact_id": "fact_2d36b8c021a285a8b387ecaa",
+                "raw_value": "10%",
+                "normalized_value": "10",
+                "subject": "Phí Y",
+                "role": null,
+                "unit": "percent",
+                "currency": null,
+                "vat_basis": null,
+                "condition": null,
+                "scope": "Y",
+                "validity": null,
+                "item_key": null,
+                "tax_basis": null,
+                "period_start": null,
+                "source_role": "body",
+                "citation": {
+                  "node_id": "fy",
+                  "page_revision_id": "p3_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "Phụ lục 2: phí Y khác phạm vi.",
+                  "source_file_id": null,
+                  "page": 3,
+                  "page_range": [
+                    3
+                  ],
+                  "line_ids": [],
+                  "char_start": 0,
+                  "char_end": 30,
+                  "breadcrumb": [
+                    "Hợp đồng DV",
+                    "Phí Y"
+                  ],
+                  "structure_path": "Hợp đồng DV › Phí Y",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "61584933ba40a5a888596d0f5282b52496bed98faad2ba503fb332e201601e84",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "provenance": "L0",
+                "review_state": "NEEDS_REVIEW"
+              }
+            ],
+            "chunks": [
+              {
+                "chunk_id": "chk_62c5b601",
+                "parent_node_id": "doc_body",
+                "page_range": [
+                  1
+                ],
+                "source_block_ids": [],
+                "text_span": "HĐ",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Hợp đồng DV"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_e1b5164b",
+                "parent_node_id": "doc_pl1",
+                "page_range": [
+                  2
+                ],
+                "source_block_ids": [],
+                "text_span": "PL1",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 1"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_cb3da66f",
+                "parent_node_id": "doc_pl2",
+                "page_range": [
+                  3
+                ],
+                "source_block_ids": [],
+                "text_span": "PL2",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 2"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "cand_ca0a386c",
+                "left_id": "fact_f713337c78747895cd3fa5e8",
+                "right_id": "fact_1c804bbdc67533d9fda9557b",
+                "finding_type": "COMPARABLE_DIFFERENCE",
+                "model_disposition": "INCOMPLETE",
+                "review_state": "NEEDS_REVIEW",
+                "evidence_left": [
+                  {
+                    "node_id": "fx",
+                    "page_revision_id": "p1_rev1",
+                    "bbox": [],
+                    "bbox_fragments": [],
+                    "text_span": "Phí X 50%.",
+                    "source_file_id": null,
+                    "page": 1,
+                    "page_range": [
+                      1
+                    ],
+                    "line_ids": [],
+                    "char_start": 0,
+                    "char_end": 10,
+                    "breadcrumb": [
+                      "Hợp đồng DV",
+                      "Phí X"
+                    ],
+                    "structure_path": "Hợp đồng DV › Phí X",
+                    "geometry_available": false,
+                    "citation_id": null,
+                    "source_hash": null,
+                    "quote_sha256": "70e54d83b2301be4d4051465138db1d221cb4f2f90b9cc81dca1961266099df9",
+                    "coordinate_system": null,
+                    "geometry_source": null,
+                    "precision": null,
+                    "validation_status": "UNVERIFIED",
+                    "table_id": null,
+                    "cell_id": null
+                  }
+                ],
+                "evidence_right": [
+                  {
+                    "node_id": "fx1",
+                    "page_revision_id": "p2_rev1",
+                    "bbox": [],
+                    "bbox_fragments": [],
+                    "text_span": "Phụ lục 1: phí X 40%.",
+                    "source_file_id": null,
+                    "page": 2,
+                    "page_range": [
+                      2
+                    ],
+                    "line_ids": [],
+                    "char_start": 0,
+                    "char_end": 21,
+                    "breadcrumb": [
+                      "Hợp đồng DV",
+                      "Phí X PL1"
+                    ],
+                    "structure_path": "Hợp đồng DV › Phí X PL1",
+                    "geometry_available": false,
+                    "citation_id": null,
+                    "source_hash": null,
+                    "quote_sha256": "e7d421fb34751bee62748e7029cec05704e41c2cd90bccc264cac2518e4e5635",
+                    "coordinate_system": null,
+                    "geometry_source": null,
+                    "precision": null,
+                    "validation_status": "UNVERIFIED",
+                    "table_id": null,
+                    "cell_id": null
+                  }
+                ],
+                "reason": "Nguồn 1 · Phí X: 50%  ↔  Nguồn 2 · Phí X PL1: 40%. Cùng ngữ cảnh, hai nguồn khác giá trị — không kết luận bên nào thắng.",
+                "disposition": "COMPARABLE_DIFFERENCE",
+                "scope": "WITHIN_DOCUMENT",
+                "item_key": "X"
+              },
+              {
+                "candidate_id": "cand_5820afcd",
+                "left_id": "fact_f713337c78747895cd3fa5e8",
+                "right_id": "fact_2d36b8c021a285a8b387ecaa",
+                "finding_type": "GAP",
+                "model_disposition": "INCOMPLETE",
+                "review_state": "NEEDS_REVIEW",
+                "evidence_left": [
+                  {
+                    "node_id": "fx",
+                    "page_revision_id": "p1_rev1",
+                    "bbox": [],
+                    "bbox_fragments": [],
+                    "text_span": "Phí X 50%.",
+                    "source_file_id": null,
+                    "page": 1,
+                    "page_range": [
+                      1
+                    ],
+                    "line_ids": [],
+                    "char_start": 0,
+                    "char_end": 10,
+                    "breadcrumb": [
+                      "Hợp đồng DV",
+                      "Phí X"
+                    ],
+                    "structure_path": "Hợp đồng DV › Phí X",
+                    "geometry_available": false,
+                    "citation_id": null,
+                    "source_hash": null,
+                    "quote_sha256": "70e54d83b2301be4d4051465138db1d221cb4f2f90b9cc81dca1961266099df9",
+                    "coordinate_system": null,
+                    "geometry_source": null,
+                    "precision": null,
+                    "validation_status": "UNVERIFIED",
+                    "table_id": null,
+                    "cell_id": null
+                  }
+                ],
+                "evidence_right": [
+                  {
+                    "node_id": "fy",
+                    "page_revision_id": "p3_rev1",
+                    "bbox": [],
+                    "bbox_fragments": [],
+                    "text_span": "Phụ lục 2: phí Y khác phạm vi.",
+                    "source_file_id": null,
+                    "page": 3,
+                    "page_range": [
+                      3
+                    ],
+                    "line_ids": [],
+                    "char_start": 0,
+                    "char_end": 30,
+                    "breadcrumb": [
+                      "Hợp đồng DV",
+                      "Phí Y"
+                    ],
+                    "structure_path": "Hợp đồng DV › Phí Y",
+                    "geometry_available": false,
+                    "citation_id": null,
+                    "source_hash": null,
+                    "quote_sha256": "61584933ba40a5a888596d0f5282b52496bed98faad2ba503fb332e201601e84",
+                    "coordinate_system": null,
+                    "geometry_source": null,
+                    "precision": null,
+                    "validation_status": "UNVERIFIED",
+                    "table_id": null,
+                    "cell_id": null
+                  }
+                ],
+                "reason": "Nguồn 1 · Phí X: 50%  ↔  Nguồn 2 · Phí Y: 10%. Khác phạm vi phí — không so, không kết luận pháp lý.",
+                "disposition": "NOT_COMPARABLE",
+                "scope": "WITHIN_DOCUMENT",
+                "item_key": null
+              }
+            ],
+            "evidence_issues": [
+              {
+                "issue_id": "citation:fx:UNVERIFIED",
+                "missing": "CITATION_VERIFICATION",
+                "reason": "fact:fact_f713337c78747895cd3fa5e8: source hash is missing",
+                "citation": {
+                  "node_id": "fx",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "Phí X 50%.",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 0,
+                  "char_end": 10,
+                  "breadcrumb": [
+                    "Hợp đồng DV",
+                    "Phí X"
+                  ],
+                  "structure_path": "Hợp đồng DV › Phí X",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "70e54d83b2301be4d4051465138db1d221cb4f2f90b9cc81dca1961266099df9",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "issue_id": "citation:fx1:UNVERIFIED",
+                "missing": "CITATION_VERIFICATION",
+                "reason": "fact:fact_1c804bbdc67533d9fda9557b: source hash is missing",
+                "citation": {
+                  "node_id": "fx1",
+                  "page_revision_id": "p2_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "Phụ lục 1: phí X 40%.",
+                  "source_file_id": null,
+                  "page": 2,
+                  "page_range": [
+                    2
+                  ],
+                  "line_ids": [],
+                  "char_start": 0,
+                  "char_end": 21,
+                  "breadcrumb": [
+                    "Hợp đồng DV",
+                    "Phí X PL1"
+                  ],
+                  "structure_path": "Hợp đồng DV › Phí X PL1",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "e7d421fb34751bee62748e7029cec05704e41c2cd90bccc264cac2518e4e5635",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "issue_id": "citation:fy:UNVERIFIED",
+                "missing": "CITATION_VERIFICATION",
+                "reason": "fact:fact_2d36b8c021a285a8b387ecaa: source hash is missing",
+                "citation": {
+                  "node_id": "fy",
+                  "page_revision_id": "p3_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "Phụ lục 2: phí Y khác phạm vi.",
+                  "source_file_id": null,
+                  "page": 3,
+                  "page_range": [
+                    3
+                  ],
+                  "line_ids": [],
+                  "char_start": 0,
+                  "char_end": 30,
+                  "breadcrumb": [
+                    "Hợp đồng DV",
+                    "Phí Y"
+                  ],
+                  "structure_path": "Hợp đồng DV › Phí Y",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "61584933ba40a5a888596d0f5282b52496bed98faad2ba503fb332e201601e84",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "review_state": "NEEDS_REVIEW"
+              }
+            ],
+            "coverage": {
+              "n_facts": 3,
+              "n_findings": 2,
+              "n_evidence_issues": 3,
+              "n_units": 2,
+              "unit_ids": [
+                "unit:055da6d9156a176c9f4b",
+                "unit:9865c5e450f14031b952"
+              ],
+              "annex_labels": [
+                "Phụ lục 1",
+                "Phụ lục 2"
+              ],
+              "runtime": {
+                "egress_allowed": true,
+                "use_vector": false,
+                "max_processing_seconds": 300,
+                "max_llm_calls": 0,
+                "max_embedding_tokens": 0,
+                "llm_calls_used": 0,
+                "embedding_tokens_used": 0,
+                "fallback_count": 0
+              },
+              "n_candidates_suppressed": 0
+            },
+            "extraction_version": 7,
+            "proposed_index_version": "idx_7",
+            "publish": "propose"
+          },
+          "query_answer": null,
+          "error": null
+        },
+        "contribution": {
+          "facts": [
+            {
+              "fact_id": "fact_f713337c78747895cd3fa5e8",
+              "raw_value": "50%",
+              "normalized_value": "50",
+              "subject": "Phí X",
+              "role": null,
+              "unit": "percent",
+              "currency": null,
+              "vat_basis": null,
+              "condition": null,
+              "scope": "X",
+              "validity": null,
+              "item_key": null,
+              "tax_basis": null,
+              "period_start": null,
+              "source_role": "body",
+              "citation": {
+                "node_id": "fx",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Phí X 50%.",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 0,
+                "char_end": 10,
+                "breadcrumb": [
+                  "Hợp đồng DV",
+                  "Phí X"
+                ],
+                "structure_path": "Hợp đồng DV › Phí X",
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "70e54d83b2301be4d4051465138db1d221cb4f2f90b9cc81dca1961266099df9",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "provenance": "L0",
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "fact_id": "fact_1c804bbdc67533d9fda9557b",
+              "raw_value": "40%",
+              "normalized_value": "40",
+              "subject": "Phí X PL1",
+              "role": null,
+              "unit": "percent",
+              "currency": null,
+              "vat_basis": null,
+              "condition": null,
+              "scope": "X",
+              "validity": null,
+              "item_key": null,
+              "tax_basis": null,
+              "period_start": null,
+              "source_role": "body",
+              "citation": {
+                "node_id": "fx1",
+                "page_revision_id": "p2_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Phụ lục 1: phí X 40%.",
+                "source_file_id": null,
+                "page": 2,
+                "page_range": [
+                  2
+                ],
+                "line_ids": [],
+                "char_start": 0,
+                "char_end": 21,
+                "breadcrumb": [
+                  "Hợp đồng DV",
+                  "Phí X PL1"
+                ],
+                "structure_path": "Hợp đồng DV › Phí X PL1",
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "e7d421fb34751bee62748e7029cec05704e41c2cd90bccc264cac2518e4e5635",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "provenance": "L0",
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "fact_id": "fact_2d36b8c021a285a8b387ecaa",
+              "raw_value": "10%",
+              "normalized_value": "10",
+              "subject": "Phí Y",
+              "role": null,
+              "unit": "percent",
+              "currency": null,
+              "vat_basis": null,
+              "condition": null,
+              "scope": "Y",
+              "validity": null,
+              "item_key": null,
+              "tax_basis": null,
+              "period_start": null,
+              "source_role": "body",
+              "citation": {
+                "node_id": "fy",
+                "page_revision_id": "p3_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Phụ lục 2: phí Y khác phạm vi.",
+                "source_file_id": null,
+                "page": 3,
+                "page_range": [
+                  3
+                ],
+                "line_ids": [],
+                "char_start": 0,
+                "char_end": 30,
+                "breadcrumb": [
+                  "Hợp đồng DV",
+                  "Phí Y"
+                ],
+                "structure_path": "Hợp đồng DV › Phí Y",
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "61584933ba40a5a888596d0f5282b52496bed98faad2ba503fb332e201601e84",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "provenance": "L0",
+              "review_state": "NEEDS_REVIEW"
+            }
+          ],
+          "chunks": [
+            {
+              "chunk_id": "chk_62c5b601",
+              "parent_node_id": "doc_body",
+              "page_range": [
+                1
+              ],
+              "source_block_ids": [],
+              "text_span": "HĐ",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Hợp đồng DV"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_e1b5164b",
+              "parent_node_id": "doc_pl1",
+              "page_range": [
+                2
+              ],
+              "source_block_ids": [],
+              "text_span": "PL1",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 1"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_cb3da66f",
+              "parent_node_id": "doc_pl2",
+              "page_range": [
+                3
+              ],
+              "source_block_ids": [],
+              "text_span": "PL2",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 2"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            }
+          ],
+          "candidates": [
+            {
+              "candidate_id": "cand_ca0a386c",
+              "left_id": "fact_f713337c78747895cd3fa5e8",
+              "right_id": "fact_1c804bbdc67533d9fda9557b",
+              "finding_type": "COMPARABLE_DIFFERENCE",
+              "model_disposition": "INCOMPLETE",
+              "review_state": "NEEDS_REVIEW",
+              "evidence_left": [
+                {
+                  "node_id": "fx",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "Phí X 50%.",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 0,
+                  "char_end": 10,
+                  "breadcrumb": [
+                    "Hợp đồng DV",
+                    "Phí X"
+                  ],
+                  "structure_path": "Hợp đồng DV › Phí X",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "70e54d83b2301be4d4051465138db1d221cb4f2f90b9cc81dca1961266099df9",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                }
+              ],
+              "evidence_right": [
+                {
+                  "node_id": "fx1",
+                  "page_revision_id": "p2_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "Phụ lục 1: phí X 40%.",
+                  "source_file_id": null,
+                  "page": 2,
+                  "page_range": [
+                    2
+                  ],
+                  "line_ids": [],
+                  "char_start": 0,
+                  "char_end": 21,
+                  "breadcrumb": [
+                    "Hợp đồng DV",
+                    "Phí X PL1"
+                  ],
+                  "structure_path": "Hợp đồng DV › Phí X PL1",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "e7d421fb34751bee62748e7029cec05704e41c2cd90bccc264cac2518e4e5635",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                }
+              ],
+              "reason": "Nguồn 1 · Phí X: 50%  ↔  Nguồn 2 · Phí X PL1: 40%. Cùng ngữ cảnh, hai nguồn khác giá trị — không kết luận bên nào thắng.",
+              "disposition": "COMPARABLE_DIFFERENCE",
+              "scope": "WITHIN_DOCUMENT",
+              "item_key": "X"
+            },
+            {
+              "candidate_id": "cand_5820afcd",
+              "left_id": "fact_f713337c78747895cd3fa5e8",
+              "right_id": "fact_2d36b8c021a285a8b387ecaa",
+              "finding_type": "GAP",
+              "model_disposition": "INCOMPLETE",
+              "review_state": "NEEDS_REVIEW",
+              "evidence_left": [
+                {
+                  "node_id": "fx",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "Phí X 50%.",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 0,
+                  "char_end": 10,
+                  "breadcrumb": [
+                    "Hợp đồng DV",
+                    "Phí X"
+                  ],
+                  "structure_path": "Hợp đồng DV › Phí X",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "70e54d83b2301be4d4051465138db1d221cb4f2f90b9cc81dca1961266099df9",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                }
+              ],
+              "evidence_right": [
+                {
+                  "node_id": "fy",
+                  "page_revision_id": "p3_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "Phụ lục 2: phí Y khác phạm vi.",
+                  "source_file_id": null,
+                  "page": 3,
+                  "page_range": [
+                    3
+                  ],
+                  "line_ids": [],
+                  "char_start": 0,
+                  "char_end": 30,
+                  "breadcrumb": [
+                    "Hợp đồng DV",
+                    "Phí Y"
+                  ],
+                  "structure_path": "Hợp đồng DV › Phí Y",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "61584933ba40a5a888596d0f5282b52496bed98faad2ba503fb332e201601e84",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                }
+              ],
+              "reason": "Nguồn 1 · Phí X: 50%  ↔  Nguồn 2 · Phí Y: 10%. Khác phạm vi phí — không so, không kết luận pháp lý.",
+              "disposition": "NOT_COMPARABLE",
+              "scope": "WITHIN_DOCUMENT",
+              "item_key": null
+            }
+          ],
+          "evidence_issues": [
+            {
+              "issue_id": "citation:fx:UNVERIFIED",
+              "missing": "CITATION_VERIFICATION",
+              "reason": "fact:fact_f713337c78747895cd3fa5e8: source hash is missing",
+              "citation": {
+                "node_id": "fx",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Phí X 50%.",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 0,
+                "char_end": 10,
+                "breadcrumb": [
+                  "Hợp đồng DV",
+                  "Phí X"
+                ],
+                "structure_path": "Hợp đồng DV › Phí X",
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "70e54d83b2301be4d4051465138db1d221cb4f2f90b9cc81dca1961266099df9",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "issue_id": "citation:fx1:UNVERIFIED",
+              "missing": "CITATION_VERIFICATION",
+              "reason": "fact:fact_1c804bbdc67533d9fda9557b: source hash is missing",
+              "citation": {
+                "node_id": "fx1",
+                "page_revision_id": "p2_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Phụ lục 1: phí X 40%.",
+                "source_file_id": null,
+                "page": 2,
+                "page_range": [
+                  2
+                ],
+                "line_ids": [],
+                "char_start": 0,
+                "char_end": 21,
+                "breadcrumb": [
+                  "Hợp đồng DV",
+                  "Phí X PL1"
+                ],
+                "structure_path": "Hợp đồng DV › Phí X PL1",
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "e7d421fb34751bee62748e7029cec05704e41c2cd90bccc264cac2518e4e5635",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "issue_id": "citation:fy:UNVERIFIED",
+              "missing": "CITATION_VERIFICATION",
+              "reason": "fact:fact_2d36b8c021a285a8b387ecaa: source hash is missing",
+              "citation": {
+                "node_id": "fy",
+                "page_revision_id": "p3_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Phụ lục 2: phí Y khác phạm vi.",
+                "source_file_id": null,
+                "page": 3,
+                "page_range": [
+                  3
+                ],
+                "line_ids": [],
+                "char_start": 0,
+                "char_end": 30,
+                "breadcrumb": [
+                  "Hợp đồng DV",
+                  "Phí Y"
+                ],
+                "structure_path": "Hợp đồng DV › Phí Y",
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "61584933ba40a5a888596d0f5282b52496bed98faad2ba503fb332e201601e84",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "review_state": "NEEDS_REVIEW"
+            }
+          ],
+          "coverage": {
+            "n_facts": 3,
+            "n_findings": 2,
+            "n_evidence_issues": 3,
+            "n_units": 2,
+            "unit_ids": [
+              "unit:055da6d9156a176c9f4b",
+              "unit:9865c5e450f14031b952"
+            ],
+            "annex_labels": [
+              "Phụ lục 1",
+              "Phụ lục 2"
+            ],
+            "runtime": {
+              "egress_allowed": true,
+              "use_vector": false,
+              "max_processing_seconds": 300,
+              "max_llm_calls": 0,
+              "max_embedding_tokens": 0,
+              "llm_calls_used": 0,
+              "embedding_tokens_used": 0,
+              "fallback_count": 0
+            },
+            "n_candidates_suppressed": 0
+          },
+          "extraction_version": 7,
+          "proposed_index_version": "idx_7",
+          "publish": "propose"
+        },
+        "used_llm": false,
+        "has_gold_tasks": false,
+        "reviews": {},
+        "reviews_stale": false,
+        "published": false,
+        "authoritative_publish_blocked": false,
+        "review_queue_status": "HAS_REVIEW_ITEMS",
+        "review_items": [
+          {
+            "review_item_id": "review:citation:fx:UNVERIFIED:1",
+            "kind": "citation:fx:UNVERIFIED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "fact:fact_f713337c78747895cd3fa5e8: source hash is missing",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:citation:fx1:UNVERIFIED:2",
+            "kind": "citation:fx1:UNVERIFIED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "fact:fact_1c804bbdc67533d9fda9557b: source hash is missing",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:citation:fy:UNVERIFIED:3",
+            "kind": "citation:fy:UNVERIFIED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "fact:fact_2d36b8c021a285a8b387ecaa: source hash is missing",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:candidate:cand_ca0a386c",
+            "kind": "CANDIDATE",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "Nguồn 1 · Phí X: 50%  ↔  Nguồn 2 · Phí X PL1: 40%. Cùng ngữ cảnh, hai nguồn khác giá trị — không kết luận bên nào thắng.",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": "cand_ca0a386c",
+            "proposed_action": "REVIEW_COMPARISON",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:candidate:cand_5820afcd",
+            "kind": "CANDIDATE",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "Nguồn 1 · Phí X: 50%  ↔  Nguồn 2 · Phí Y: 10%. Khác phạm vi phí — không so, không kết luận pháp lý.",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": "cand_5820afcd",
+            "proposed_action": "REVIEW_COMPARISON",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:fact:fact_f713337c78747895cd3fa5e8",
+            "kind": "FACT",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "Verify missing/uncertain value and its source context",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:fact:fact_1c804bbdc67533d9fda9557b",
+            "kind": "FACT",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "Verify missing/uncertain value and its source context",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:fact:fact_2d36b8c021a285a8b387ecaa",
+            "kind": "FACT",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "Verify missing/uncertain value and its source context",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          }
+        ],
+        "n_review_items": 8,
+        "n_citations": 0,
+        "handoff_issues": [],
+        "policy": {
+          "deterministic": "ALLOW",
+          "external": "ALLOWED",
+          "gates": []
+        }
+      }
+    },
+    "ask": {
+      "status_code": null,
+      "body": null
+    }
+  },
+  "machine_checks": {
+    "case_id": "SERVICE-BRD-08",
+    "run": "deterministic",
+    "expected_state": "REVIEW",
+    "actual_extract_state": "NEEDS_REVIEW",
+    "actual_ask_state": null,
+    "extract_http_ok": true,
+    "ask_http_ok": true,
+    "expected_match": true,
+    "citation_valid": true,
+    "citation_errors": [],
+    "forbidden_claims": [],
+    "n_citations": 0,
+    "use_vector": false,
+    "vector_status": "NOT_REQUESTED",
+    "embedding_model": null,
+    "embedding_dimensions": null,
+    "vector_hits": 0,
+    "n_pages": 3,
+    "n_nodes": 6,
+    "elapsed_ms": 18.1
+  },
+  "manual_review": {
+    "verdict": "PENDING",
+    "severity": null,
+    "reviewer_notes": ""
+  }
+}

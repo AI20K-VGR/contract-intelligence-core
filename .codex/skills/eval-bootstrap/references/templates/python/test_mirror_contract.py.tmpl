@@ -1,0 +1,197 @@
+"""
+Mirror CONTRACT tests for ${domain} -- the R9 evidence gate's mechanical
+layer over a FILLED (non-python) pipeline_mirror.<ext>. This must run
+against the mirror AFTER an LLM fills it, not the always-clean skeleton
+stub. Stamped ONLY on a non-python mirror_lang lane (eval_scaffold.py
+_plan()) -- the python lane keeps test_mirror_parity.py here instead, the
+two are mutually exclusive.
+
+Three blocks over mirror_contract.json + the mirror file it names, each over
+the FULL case_matrix (no truncation -- a regression on any case must surface):
+  1. denylist     -- inline sandbox_denylist.py regex-lane reimplementation
+                      over the source.
+  2. determinism  -- the same case through the mirror subprocess TWICE
+                      (reusing runner.py's `_run_mirror_case` -- the exact
+                      argv/env/timeout the real runner uses); the two
+                      results must be value-identical (parsed JSON equal,
+                      key-order-independent) both times.
+  3. parity       -- the same case, mirror subprocess vs production entry,
+                      skip-honest (a SKIP is not a pass) when production is
+                      not importable here.
+
+SKIP-HONESTY: a missing mirror file (the R9 fill flow has not run) skips
+the WHOLE module with a loud message -- a SKIP is NOT a pass, it means none
+of these four layers were ever exercised.
+
+SELF-CONTAINED: the target repo has no sandbox_denylist.py (it lives in the
+skill's scripts/, never stamped here), so `_REGEX_COMMON_TOKENS` /
+`_REGEX_LANG_TOKENS` below are a literal copy of its regex lane. A
+harness-side test (test_denylist_tables_in_sync) diffs the flattened token
+set of both sources -- editing one without the other reds immediately.
+
+RESIDUAL RISK: these mechanical layers miss a mirror call that is
+BOTH deterministic (a baked-in fixture response) and phrased without any
+banned token (a raw IP literal, a bespoke wrapper this table does not
+know). A human reading the R9 evidence artifact is still the final
+backstop -- see the skill's support matrix for the acknowledged gap.
+"""
+
+from __future__ import annotations
+
+import importlib
+import json
+import sys
+
+from pathlib import Path
+
+import pytest
+
+_HERE = Path(__file__).resolve()
+_DOMAIN_DIR = _HERE.parents[1]
+_REPO_ROOT = _HERE.parents[4]
+for _p in (str(_DOMAIN_DIR), str(_REPO_ROOT)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+from config_integrity import load_verified_config  # noqa: E402
+
+# Re-hash FIRST, at import time -- a drifted card fails loudly before any
+# case runs (same discipline as test_mirror_parity.py.tmpl).
+_CONFIG = load_verified_config()
+# Full case_matrix for BOTH determinism (block 2) and parity (block 3) -- a
+# fixed [:N] prefix silently leaves later cases unchecked, so a mirror that
+# only diverges/goes non-deterministic on case N+1 would pass; the mirror
+# subprocess is a cheap local run, so cover every case.
+_CASE_MATRIX = _CONFIG["case_matrix"]
+_PRODUCTION_MODULE = _CONFIG["production_module"]
+_PRODUCTION_ENTRY = _CONFIG["production_entry"]
+
+_CONTRACT_PATH = _DOMAIN_DIR / "mirror_contract.json"
+_CONTRACT = (json.loads(_CONTRACT_PATH.read_text(encoding="utf-8"))
+             if _CONTRACT_PATH.is_file() else None)
+_MIRROR_PATH = (_DOMAIN_DIR / _CONTRACT["mirror_filename"]) if _CONTRACT else None
+_MIRROR_EXISTS = _MIRROR_PATH is not None and _MIRROR_PATH.is_file()
+_MIRROR_SOURCE = _MIRROR_PATH.read_text(encoding="utf-8") if _MIRROR_EXISTS else ""
+_LANG = _CONTRACT["lang"] if _CONTRACT else "generic"
+
+if _CONTRACT is None:
+    _SKIP_REASON = ("mirror_contract.json missing beside this test -- run "
+                     "eval_config.py emit-mirror-contract first")
+elif not _MIRROR_EXISTS:
+    _SKIP_REASON = (
+        "mirror not filled yet -- run the R9 fill flow (%s does not exist "
+        "beside this test); a SKIP here means these four contract layers "
+        "were never exercised, not that the mirror is clean" % _MIRROR_PATH.name)
+else:
+    _SKIP_REASON = None
+
+# A whole-module pytestmark (not a bare module-level pytest.skip) -- every
+# parametrized item reports "skipped", never the surprising "no tests
+# collected" exit a bare module-level skip can produce (same reasoning as
+# test_mirror_parity.py.tmpl's own note on this).
+pytestmark = pytest.mark.skipif(_SKIP_REASON is not None, reason=_SKIP_REASON or "")
+
+if _MIRROR_EXISTS:
+    from runner import _run_mirror_case  # noqa: E402
+
+
+# --- inline regex-lane copy of sandbox_denylist.py (SELF-CONTAINED, above) ----
+
+_REGEX_COMMON_TOKENS = ("http://", "https://")
+_REGEX_LANG_TOKENS = {
+    "js": ("fetch(", "XMLHttpRequest", "child_process", "process.env", "exec("),
+    "javascript": ("fetch(", "XMLHttpRequest", "child_process", "process.env", "exec("),
+    "ts": ("fetch(", "XMLHttpRequest", "child_process", "process.env", "exec("),
+    "go": ("net.Dial", "os.Getenv", "exec.Command"),
+    "rust": ("env::var",),
+}
+# mirror_contract.json's `lang` speaks the card's mirror_lang vocabulary
+# (node/go/ruby/php/bash/sh); the table above keys by sandbox_denylist.py's
+# own file-suffix taxonomy (js/go/rust) -- alias the ones with real token
+# coverage. Anything else (ruby/php/bash/sh) gets the common tokens only,
+# same as sandbox_denylist.py's regex lane would give it.
+_LANG_ALIAS = {"node": "js"}
+
+
+def _denylist_tokens(lang: str) -> tuple:
+    return _REGEX_COMMON_TOKENS + _REGEX_LANG_TOKENS.get(_LANG_ALIAS.get(lang, lang), ())
+
+
+def _scan_source(source: str, lang: str) -> list:
+    """Best-effort line-token scan -- mirrors sandbox_denylist.py's regex lane."""
+    tokens = _denylist_tokens(lang)
+    findings = []
+    for lineno, line in enumerate(source.splitlines(), start=1):
+        for token in tokens:
+            if token in line:
+                findings.append("%d: contains %r" % (lineno, token))
+    return findings
+
+
+def _case_input_text(case) -> str:
+    value = case["input"]
+    return value if isinstance(value, str) else json.dumps(value)
+
+
+# --- block 1: denylist ------------------------------------------------------
+
+def test_denylist_clean():
+    findings = _scan_source(_MIRROR_SOURCE, _LANG)
+    assert not findings, (
+        "filled mirror %s trips the R9 denylist regex-lane: %s"
+        % (_MIRROR_PATH.name, findings))
+
+
+# --- block 2: determinism (2-run) -------------------------------------------
+
+@pytest.mark.parametrize("case", _CASE_MATRIX, ids=[c["case"] for c in _CASE_MATRIX])
+def test_determinism_two_run(case):
+    text = _case_input_text(case)
+    first = _run_mirror_case(_CONTRACT, text)
+    second = _run_mirror_case(_CONTRACT, text)
+    assert first == second, (
+        "mirror is non-deterministic for case %r: run1=%r run2=%r"
+        % (case["case"], first, second))
+
+
+# --- block 3: parity vs production (skip-honest -- a SKIP is not a pass) ---
+
+def _dotted(module_path: str) -> str:
+    if module_path.endswith(".py"):
+        module_path = module_path[:-3]
+    return module_path.replace("/", ".")
+
+
+def _resolve_production_entry():
+    try:
+        module = importlib.import_module(_dotted(_PRODUCTION_MODULE))
+    except Exception as e:  # noqa: BLE001 -- any import failure is a skip, not a crash
+        return None, e
+    entry = getattr(module, _PRODUCTION_ENTRY, None)
+    if entry is None:
+        return None, AttributeError(
+            "%s has no attribute %r (production_entry)" % (_PRODUCTION_MODULE, _PRODUCTION_ENTRY))
+    return entry, None
+
+
+_PRODUCTION_ENTRY_FN, _PRODUCTION_IMPORT_ERROR = (
+    _resolve_production_entry() if _MIRROR_EXISTS else (None, None))
+
+_PARITY_SKIP_REASON = None
+if _MIRROR_EXISTS and _PRODUCTION_ENTRY_FN is None:
+    _PARITY_SKIP_REASON = (
+        "production module %r unavailable here (%r) -- parity only runs "
+        "where the target repo's full dependency chain is importable; a "
+        "SKIP is NOT a pass, it means parity was never exercised."
+        % (_PRODUCTION_MODULE, _PRODUCTION_IMPORT_ERROR))
+
+
+@pytest.mark.skipif(_PARITY_SKIP_REASON is not None, reason=_PARITY_SKIP_REASON or "production available")
+@pytest.mark.parametrize("case", _CASE_MATRIX, ids=[c["case"] for c in _CASE_MATRIX])
+def test_parity_vs_production(case):
+    text = _case_input_text(case)
+    mirror_output = _run_mirror_case(_CONTRACT, text)
+    production_output = _PRODUCTION_ENTRY_FN(case["input"])
+    assert mirror_output == production_output, (
+        "mirror diverged from production for case %r: mirror=%r production=%r"
+        % (case["case"], mirror_output, production_output))

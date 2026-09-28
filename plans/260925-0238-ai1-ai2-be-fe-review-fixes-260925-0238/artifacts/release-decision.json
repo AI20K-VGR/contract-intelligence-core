@@ -1,0 +1,11 @@
+{
+  "schema": "vsf/ai2-release-decision/v1",
+  "decision": "PASS_WITH_SKIPS",
+  "release_scope": "offline full-stack implementation",
+  "automated_gates": "PASS",
+  "authenticated_e2e": "NOT_RUN",
+  "live_provider_replay": "NOT_RUN",
+  "safe_state": true,
+  "reason": "Backend, AI-service and frontend offline regression/build gates pass. Authenticated upload-to-approve E2E was not run because no valid Keycloak token/live stack was available; frontend repository format check remains baseline debt. This is a release-readiness record, not an approval verdict.",
+  "artifact": "developer-phase-6-report.md"
+}

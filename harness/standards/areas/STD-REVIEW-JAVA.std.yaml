@@ -1,0 +1,216 @@
+id: STD-REVIEW-JAVA
+type: std_area
+zone: operational
+title: "Review — Java (Spring)"
+status: approved
+owner: harness
+version: 1.0.0
+description: |
+  Java/Spring review rules (scope **/*.java). The review-able subset of
+  API/persistence/service rules; an opt-in multitenancy rule (disabled).
+  Enriched with safety, modern-practice, and testing rules from ECC.
+rule_groups:
+  - id: STD-REVIEW-JAVA-RG1
+    title: "Java exceptions, DI, persistence, services; multitenancy (opt-in)"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-JAVA-RG1-R1
+        title: "Java (Spring)"
+        status: approved
+        scope: ["**/*.java"]
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: custom exceptions carrying an error code (ENTITY.OPERATION)
+          handled by a global handler; constructor injection via
+          @RequiredArgsConstructor and @Slf4j; @EntityGraph or JOIN FETCH when
+          accessing relations in a loop (LEFT JOIN FETCH for nullable FK);
+          @Transactional(readOnly = true) on query services; cache at the
+          query-service layer with a consistent key.
+          PREFER: CQRS naming — queries find*/get*/search*, commands
+          create*/update*/delete*.
+          NEVER: throw a generic Exception or expose stack traces; hand-written
+          getters/setters or a manual logger; access a lazy relation in a loop
+          without eager fetching (1+N+N); cache mutable data or cache in the
+          facade/orchestration layer.
+        rationale: |
+          Architecture/codegen/messaging/job patterns are repo-specific and
+          left for a team to add under docs/review-rules/.
+      - id: STD-REVIEW-JAVA-RG1-R2
+        title: "Multitenancy (opt-in)"
+        status: approved
+        scope: ["**/*.java"]
+        severity: critical
+        enabled: false
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          Disabled by default — not every repo is multi-tenant. Enable per repo
+          when tenant isolation applies; a leak here is cross-tenant exposure.
+          ALWAYS: tenant-scoped entities extend the shared tenant base type so
+          the ORM filter auto-applies tenant_id; include the tenant code in
+          every cache key; set and clear the tenant context around a background
+          job; tests verify a different tenant cannot see the data.
+          NEVER: hand-write WHERE tenant_id = ...; share a cache entry across
+          tenants; leave a job running without an established tenant context.
+        rationale: |
+          The ORM filter is the safety net — the hand-written WHERE you forget
+          is the leak. Enable via hs-cli / docs/review-rules/ override per repo.
+  - id: STD-REVIEW-JAVA-RG2
+    title: "Java safety and data integrity (advisory)"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-JAVA-RG2-R1
+        title: "Java — defensive copies from public getters (advisory)"
+        status: approved
+        scope: ["**/*.java"]
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: return an unmodifiable copy from any public getter that
+          exposes an internal mutable collection — List.copyOf(),
+          Collections.unmodifiableList(), Map.copyOf(), Set.copyOf().
+          NEVER: return a direct reference to an internal ArrayList, HashMap,
+          or HashSet from a public method; a caller can then mutate your
+          object's internal state without going through any mutator method —
+          silently corrupting invariants.
+        rationale: |
+          A getter that returns the internal list directly is a backdoor
+          mutation path. A linter sees a valid return type; it cannot know
+          that the returned reference aliases internal state. One caller
+          that calls .add() or .clear() on the returned list corrupts the
+          owning object's state with no audit trail.
+      - id: STD-REVIEW-JAVA-RG2-R2
+        title: "Java — Optional misuse (advisory)"
+        status: approved
+        scope: ["**/*.java"]
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: use .orElseThrow() or .orElse() when unwrapping an Optional;
+          chain transformations with .map() and .flatMap() rather than
+          unwrapping early.
+          NEVER: call Optional.get() without a preceding .isPresent() check —
+          the .get() on an empty Optional throws NoSuchElementException at
+          runtime, defeating the purpose of Optional. NEVER use Optional as a
+          field type or method parameter — Optional is designed for return
+          types only; a nullable field or parameter should stay nullable or
+          use a sentinel.
+          PREFER: .orElseThrow(() -> new DomainException(...)) so the absence
+          maps to a meaningful domain error, not a cryptic runtime exception.
+        rationale: |
+          Optional.get() without isPresent() is a latent runtime bomb — the
+          compiler accepts it, a linter may or may not flag it depending on
+          configuration, and it fails only when the Optional happens to be
+          empty at runtime. Optional as a field serializes poorly and breaks
+          the intended usage contract. The reviewer is the gate.
+  - id: STD-REVIEW-JAVA-RG3
+    title: "Java modern practices (advisory)"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-JAVA-RG3-R1
+        title: "Java — record over hand-written DTO (advisory)"
+        status: approved
+        scope: ["**/*.java"]
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: use record for simple data carriers — DTOs, value objects,
+          API response types, projection results (Java 16+). A record
+          auto-generates the constructor, accessors, equals, hashCode, and
+          toString — correctly and consistently.
+          NEVER: hand-write (or Lombok-generate) a 30-line POJO with a
+          constructor, getters, equals, hashCode, and toString when the type
+          is purely a data carrier with no behaviour. The hand-written version
+          drifts: a field added without updating equals/hashCode silently
+          breaks Set/Map membership.
+          PREFER: a sealed interface hierarchy with record implementations for
+          closed-set domain variants (e.g. PaymentResult permits
+          PaymentSuccess, PaymentFailure).
+        rationale: |
+          A linter cannot distinguish a true data carrier from a class that
+          genuinely needs mutable state or custom equals logic. The reviewer
+          can: if the class has no behaviour beyond holding data, it should
+          be a record. The hand-written equals/hashCode drift is a real bug
+          class that records eliminate.
+      - id: STD-REVIEW-JAVA-RG3-R2
+        title: "Java — stream purity (advisory)"
+        status: approved
+        scope: ["**/*.java"]
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: use .collect(Collectors.toList()) or .reduce() to accumulate
+          results from a stream pipeline; the stream itself describes a pure
+          transformation.
+          NEVER: mutate external state inside a stream .forEach() or .peek()
+          lambda — adding to an external list inside forEach looks functional
+          but has hidden side effects, breaks parallel-stream safety, and is
+          less readable than a plain for-loop.
+          PREFER: a traditional for-loop when the logic genuinely needs
+          mutation or early exit — a convoluted stream pipeline that fights
+          the paradigm is worse than a clean imperative loop.
+        rationale: |
+          A linter sees valid stream usage — forEach and peek are real API
+          methods. It cannot tell that the lambda body mutates external state.
+          The reviewer identifies the side effect and flags it: if you need
+          mutation, use a loop. The stream API is for transformation, not
+          disguised iteration.
+  - id: STD-REVIEW-JAVA-RG4
+    title: "Java testing standards (advisory)"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-JAVA-RG4-R1
+        title: "Java — JUnit 5 and AssertJ (advisory)"
+        status: approved
+        scope: ["**/*.java"]
+        severity: info
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R4]
+        detector: null
+        description: |
+          ALWAYS: use JUnit 5 (@Test, @ParameterizedTest, @Nested,
+          @DisplayName) with AssertJ fluent assertions
+          (assertThat(result).isEqualTo(expected)) for all new test classes.
+          NEVER: add org.junit.Test (JUnit 4) imports to a new test file — a
+          new test class shipping with JUnit 4 in a project that has already
+          adopted JUnit 5 is a regression that reintroduces the old API
+          surface and blocks use of @Nested, @ParameterizedTest, and
+          extensions.
+          PREFER: Testcontainers for integration tests that need a real
+          database or external service rather than an in-memory substitute
+          that drifts from production behaviour.
+        rationale: |
+          A linter cannot tell that a project-wide migration to JUnit 5 is
+          in progress — it sees valid JUnit 4 annotations and passes. The
+          reviewer enforces the standard per the project's test policy: new
+          code uses the current framework, not the deprecated one.
+      - id: STD-REVIEW-JAVA-RG4-R2
+        title: "Java — @DisplayName on every test (advisory)"
+        status: approved
+        scope: ["**/*.java"]
+        severity: info
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R4]
+        detector: null
+        description: |
+          ALWAYS: annotate every @Test and @ParameterizedTest method with
+          @DisplayName carrying a human-readable description of what the test
+          verifies — the CI report, IDE test runner, and code reviewer all
+          read the display name first; "test1" or a bare method name tells
+          nobody what broke.
+          NEVER: ship a test class with no @DisplayName annotations — a bare
+          @Test void shouldNotHappen() relies on a method name that may
+          survive renaming but never carries the full intent.
+        rationale: |
+          A linter sees a valid @Test method and passes. The CI report lists
+          "test1 — FAILED" and the on-call engineer has to read the test body
+          to understand what was being verified. The reviewer checks that
+          every test tells its story in the display name.

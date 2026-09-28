@@ -1,0 +1,119 @@
+edges:
+  - {from: P1, to: P2}
+  - {from: P1, to: P3}
+  - {from: P2, to: P3}
+  - {from: P1, to: P4}
+  - {from: P2, to: P4}
+  - {from: P3, to: P4}
+subtasks:
+  P1:
+    files_to_create:
+      - ai-service/app/contracts/contract_profiles.py
+      - docs/contracts/ai2.contract-type-profile.v1.schema.json
+      - ai-service/tests/test_contract_profiles.py
+    files_to_modify:
+      - ai-service/app/pipeline/ai1_snapshot_adapter.py
+      - ai-service/app/contracts/models.py
+      - ai-service/app/contracts/wire.py
+      - docs/contracts/ai1.snapshot.v1.schema.json
+      - docs/contracts/be.ai2.processing.request.v1.schema.json
+      - docs/contracts/ai2.be.processing.result.v1.schema.json
+      - ai-service/tests/test_processing_wire_contract.py
+      - ai-service/tests/test_canonical_contract.py
+      - ai-service/tests/test_ai1_result_v01.py
+    post: [verification-P1.json]
+  P2:
+    files_to_create: []
+    files_to_modify:
+      - ai-service/app/pipeline/citations.py
+      - ai-service/app/pipeline/grounding.py
+      - ai-service/app/pipeline/table.py
+      - ai-service/app/pipeline/outline.py
+      - ai-service/app/pipeline/contract_context.py
+      - ai-service/app/pipeline/contract_events.py
+      - ai-service/app/pipeline/compare.py
+      - ai-service/app/pipeline/fact.py
+      - ai-service/app/pipeline/result_structure.py
+      - ai-service/app/reasoning/query.py
+      - ai-service/app/reasoning/stack.py
+      - ai-service/app/reasoning/relations.py
+      - ai-service/app/reasoning/fact_link.py
+      - ai-service/app/reasoning/ask_assemble.py
+      - ai-service/app/reasoning/l0_rules.py
+      - ai-service/app/reasoning/l3_ground.py
+      - ai-service/tests/test_citations.py
+      - ai-service/tests/test_compare.py
+      - ai-service/tests/test_contract_context.py
+      - ai-service/tests/test_ai2_hardening.py
+      - ai-service/tests/test_input_coverage.py
+      - ai-service/tests/test_structure_reconstruction.py
+      - ai-service/tests/test_contract_type_profiles.py
+      - ai-service/tests/test_free_form_query.py
+    post: [verification-P2.json]
+  P3:
+    files_to_create: []
+    files_to_modify:
+      - ai-service/app/pipeline/idp.py
+      - ai-service/app/pipeline/runtime.py
+      - ai-service/app/tools/store.py
+      - ai-service/app/tools/persist.py
+      - ai-service/app/api/main.py
+      - ai-service/app/reasoning/vector_recall.py
+      - ai-service/app/pipeline/index.py
+      - ai-service/tests/test_job_store.py
+      - ai-service/tests/test_persist.py
+      - ai-service/tests/test_hybrid_retrieval.py
+      - ai-service/tests/test_api.py
+      - ai-service/tests/test_service_envelope.py
+      - ai-service/app/tools/gateway.py
+      - ai-service/app/sandbox/__init__.py
+      - ai-service/app/reasoning/l2_plan.py
+      - ai-service/app/llm/client.py
+    post: [verification-P3.json]
+  P4:
+    files_to_create:
+      - evals/data/fixtures/production_parity/ai1_snapshot_v1_contract.json
+      - evals/data/fixtures/production_parity/ai1_snapshot_v1_query.json
+      - evals/data/fixtures/large_dossier/large_dossier_benchmark.json
+      - evals/data/fixtures/utf8/roundtrip_cases.json
+    files_to_modify:
+      - ai-service/app/ai2/v1/__init__.py
+      - ai-service/app/pipeline/ai2_batch.py
+      - ai-service/scripts/run_ai2_ai1_files.py
+      - ai-service/scripts/live_eval.py
+      - .github/workflows/ai-service.yml
+      - ai-service/README.md
+      - docs/ai2/README.md
+      - docs/ai2/AI2-12-review-and-release-gate.md
+      - ai-service/tests/test_ai2_package.py
+      - ai-service/tests/test_ai1_ocr_lab_integration.py
+      - ai-service/tests/test_demo_contract.py
+      - ai-service/tests/test_eval_contract.py
+      - ai-service/tests/test_happy_ai2_contract.py
+      - ai-service/scripts/audit_candidate_corpus.py
+      - ai-service/fixtures/gold/contract_type_profiles.json
+      - ai-service/tests/test_candidate_corpus_policy.py
+      - evals/eval_config.json
+      - evals/eval_config.sha256
+      - evals/cards/ai2_contract_package.json
+      - evals/cards/ai2_grounded_query.json
+      - evals/cards/ai2_grounded_query.sha256
+      - evals/eval_types/ai2_contract_package/scorer.py
+      - evals/eval_types/ai2_grounded_query/config_integrity.py
+      - evals/eval_types/ai2_grounded_query/tests/test_config_conformance.py
+      - evals/eval_types/ai2_grounded_query/tests/test_scorer.py
+      - evals/scripts/mutation_matrix.py
+      - evals/scripts/run_production_evals.py
+      - evals/scripts/run_grounded_query_evals.py
+      - evals/ci/production-evals.yml
+      - .github/workflows/production-evals.yml
+      - evals/docs/production-eval-setup.md
+      - evals/eval_types/ai2_contract_package/pipeline_mirror.py
+      - evals/eval_types/ai2_contract_package/runner.py
+      - evals/eval_types/ai2_grounded_query/pipeline_mirror.py
+      - evals/eval_types/ai2_grounded_query/runner.py
+      - evals/eval_types/ai2_grounded_query/scorer.py
+      - evals/eval_types/ai2_contract_package/tests/test_mirror_parity.py
+      - evals/eval_types/ai2_grounded_query/tests/test_mirror_parity.py
+      - evals/eval_types/ai2_grounded_query/tests/test_config_conformance.py
+    post: [verification-P4.json, review-decision.json]

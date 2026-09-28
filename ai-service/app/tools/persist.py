@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 
@@ -25,7 +26,11 @@ from app.contracts.models import (
 from app.tools.store import DossierRecord, InMemorySnapshotStore
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA = ROOT.parent / "data" / "ai2"
+# Keep the default inside the service project.  The compose volume is mounted
+# at ``/app/data/ai2``; using ``ROOT.parent`` resolved to ``/data/ai2`` in the
+# container, so durable snapshots were written outside the mounted volume (or
+# could not be opened at all after a restart).
+DATA = Path(os.environ.get("AI2_DATA_DIR", str(ROOT / "data" / "ai2")))
 DB = DATA / "runs.sqlite"
 
 

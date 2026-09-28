@@ -1,0 +1,2942 @@
+{
+  "case_id": "EC-048",
+  "run": "deterministic",
+  "input": {
+    "case": {
+      "case_id": "EC-048",
+      "title": "Nhiều annex — queue/checkpoint",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_many_annex",
+      "expected_state": "PASS",
+      "expected_no_claims": [
+        "one_shot_all_annex"
+      ],
+      "n_pages": 15,
+      "n_nodes": 15,
+      "n_tables": 0,
+      "lifecycle": "ACTIVE",
+      "query": null,
+      "notes": "",
+      "tags": [
+        "edge",
+        "queue"
+      ]
+    },
+    "record": {
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_many_annex",
+      "lifecycle": "ACTIVE",
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-ec-048",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      },
+      "pages": [
+        {
+          "page_revision_id": "p1_rev1",
+          "page_number": 1,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p1_b1"
+          ],
+          "text": "Annex 1",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p2_rev1",
+          "page_number": 2,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p2_b1"
+          ],
+          "text": "Annex 2",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p3_rev1",
+          "page_number": 3,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p3_b1"
+          ],
+          "text": "Annex 3",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p4_rev1",
+          "page_number": 4,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p4_b1"
+          ],
+          "text": "Annex 4",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p5_rev1",
+          "page_number": 5,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p5_b1"
+          ],
+          "text": "Annex 5",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p6_rev1",
+          "page_number": 6,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p6_b1"
+          ],
+          "text": "Annex 6",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p7_rev1",
+          "page_number": 7,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p7_b1"
+          ],
+          "text": "Annex 7",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p8_rev1",
+          "page_number": 8,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p8_b1"
+          ],
+          "text": "Annex 8",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p9_rev1",
+          "page_number": 9,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p9_b1"
+          ],
+          "text": "Annex 9",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p10_rev1",
+          "page_number": 10,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p10_b1"
+          ],
+          "text": "Annex 10",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p11_rev1",
+          "page_number": 11,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p11_b1"
+          ],
+          "text": "Annex 11",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p12_rev1",
+          "page_number": 12,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p12_b1"
+          ],
+          "text": "Annex 12",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p13_rev1",
+          "page_number": 13,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p13_b1"
+          ],
+          "text": "Annex 13",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p14_rev1",
+          "page_number": 14,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p14_b1"
+          ],
+          "text": "Annex 14",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p15_rev1",
+          "page_number": 15,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p15_b1"
+          ],
+          "text": "Annex 15",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        }
+      ],
+      "nodes": [
+        {
+          "node_id": "ax1",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 1",
+          "parent_id": null,
+          "order": 1,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 1",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "ax2",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 2",
+          "parent_id": null,
+          "order": 2,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 2",
+          "page_range": [
+            2
+          ],
+          "page_revision_id": "p2_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "ax3",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 3",
+          "parent_id": null,
+          "order": 3,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 3",
+          "page_range": [
+            3
+          ],
+          "page_revision_id": "p3_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "ax4",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 4",
+          "parent_id": null,
+          "order": 4,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 4",
+          "page_range": [
+            4
+          ],
+          "page_revision_id": "p4_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "ax5",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 5",
+          "parent_id": null,
+          "order": 5,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 5",
+          "page_range": [
+            5
+          ],
+          "page_revision_id": "p5_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "ax6",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 6",
+          "parent_id": null,
+          "order": 6,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 6",
+          "page_range": [
+            6
+          ],
+          "page_revision_id": "p6_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "ax7",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 7",
+          "parent_id": null,
+          "order": 7,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 7",
+          "page_range": [
+            7
+          ],
+          "page_revision_id": "p7_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "ax8",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 8",
+          "parent_id": null,
+          "order": 8,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 8",
+          "page_range": [
+            8
+          ],
+          "page_revision_id": "p8_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "ax9",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 9",
+          "parent_id": null,
+          "order": 9,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 9",
+          "page_range": [
+            9
+          ],
+          "page_revision_id": "p9_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "ax10",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 10",
+          "parent_id": null,
+          "order": 10,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 10",
+          "page_range": [
+            10
+          ],
+          "page_revision_id": "p10_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "ax11",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 11",
+          "parent_id": null,
+          "order": 11,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 11",
+          "page_range": [
+            11
+          ],
+          "page_revision_id": "p11_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "ax12",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 12",
+          "parent_id": null,
+          "order": 12,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 12",
+          "page_range": [
+            12
+          ],
+          "page_revision_id": "p12_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "ax13",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 13",
+          "parent_id": null,
+          "order": 13,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 13",
+          "page_range": [
+            13
+          ],
+          "page_revision_id": "p13_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "ax14",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 14",
+          "parent_id": null,
+          "order": 14,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 14",
+          "page_range": [
+            14
+          ],
+          "page_revision_id": "p14_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "ax15",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 15",
+          "parent_id": null,
+          "order": 15,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 15",
+          "page_range": [
+            15
+          ],
+          "page_revision_id": "p15_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        }
+      ],
+      "tables": [],
+      "profile": {
+        "version": 5,
+        "aliases": {
+          "Công ty ABC": [
+            "ABC Co.",
+            "ABC"
+          ],
+          "Công ty XYZ": [
+            "XYZ Ltd",
+            "XYZ"
+          ]
+        },
+        "field_keys": [
+          "party_a",
+          "party_b",
+          "mst_seller",
+          "contract_value",
+          "payment_term"
+        ]
+      },
+      "acl_revision": 12,
+      "permissions_by_actor": {
+        "user_001": [
+          "READ_CONTENT"
+        ]
+      },
+      "source_files": [],
+      "facts": [],
+      "input_facts": [],
+      "chunks": [
+        {
+          "chunk_id": "chk_15381155",
+          "parent_node_id": "ax1",
+          "page_range": [
+            1
+          ],
+          "source_block_ids": [],
+          "text_span": "Annex 1",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 1"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_2804dc23",
+          "parent_node_id": "ax2",
+          "page_range": [
+            2
+          ],
+          "source_block_ids": [],
+          "text_span": "Annex 2",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 2"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_a663813b",
+          "parent_node_id": "ax3",
+          "page_range": [
+            3
+          ],
+          "source_block_ids": [],
+          "text_span": "Annex 3",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 3"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_6b9d280b",
+          "parent_node_id": "ax4",
+          "page_range": [
+            4
+          ],
+          "source_block_ids": [],
+          "text_span": "Annex 4",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 4"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_064ad2e5",
+          "parent_node_id": "ax5",
+          "page_range": [
+            5
+          ],
+          "source_block_ids": [],
+          "text_span": "Annex 5",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 5"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_8865d6e4",
+          "parent_node_id": "ax6",
+          "page_range": [
+            6
+          ],
+          "source_block_ids": [],
+          "text_span": "Annex 6",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 6"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_39eec7ae",
+          "parent_node_id": "ax7",
+          "page_range": [
+            7
+          ],
+          "source_block_ids": [],
+          "text_span": "Annex 7",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 7"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_91675fe6",
+          "parent_node_id": "ax8",
+          "page_range": [
+            8
+          ],
+          "source_block_ids": [],
+          "text_span": "Annex 8",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 8"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_eb2c6cd7",
+          "parent_node_id": "ax9",
+          "page_range": [
+            9
+          ],
+          "source_block_ids": [],
+          "text_span": "Annex 9",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 9"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_e927952c",
+          "parent_node_id": "ax10",
+          "page_range": [
+            10
+          ],
+          "source_block_ids": [],
+          "text_span": "Annex 10",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 10"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_2dcd809e",
+          "parent_node_id": "ax11",
+          "page_range": [
+            11
+          ],
+          "source_block_ids": [],
+          "text_span": "Annex 11",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 11"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_095fab15",
+          "parent_node_id": "ax12",
+          "page_range": [
+            12
+          ],
+          "source_block_ids": [],
+          "text_span": "Annex 12",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 12"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_a3475ab5",
+          "parent_node_id": "ax13",
+          "page_range": [
+            13
+          ],
+          "source_block_ids": [],
+          "text_span": "Annex 13",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 13"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_f25194bf",
+          "parent_node_id": "ax14",
+          "page_range": [
+            14
+          ],
+          "source_block_ids": [],
+          "text_span": "Annex 14",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 14"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_e19438a1",
+          "parent_node_id": "ax15",
+          "page_range": [
+            15
+          ],
+          "source_block_ids": [],
+          "text_span": "Annex 15",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 15"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        }
+      ],
+      "active_index_version": null,
+      "processing_index": false,
+      "legal_hold": false,
+      "egress_approved": true,
+      "budget_exceeded": false,
+      "processing_budget_exceeded": false,
+      "embedding_budget_exceeded": false,
+      "index_status": "READY",
+      "case_id": "EC-048",
+      "handoff_issues": [],
+      "relation_graph": {
+        "graph_id": "graph:028022f9b962bbaf3608aa60",
+        "source_snapshot_digest": "sha256:eval-ec-048",
+        "nodes": [
+          {
+            "node_id": "ax1",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "ax2",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              2
+            ],
+            "page_revision_id": "p2_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "ax3",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              3
+            ],
+            "page_revision_id": "p3_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "ax4",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              4
+            ],
+            "page_revision_id": "p4_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "ax5",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              5
+            ],
+            "page_revision_id": "p5_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "ax6",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              6
+            ],
+            "page_revision_id": "p6_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "ax7",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              7
+            ],
+            "page_revision_id": "p7_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "ax8",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              8
+            ],
+            "page_revision_id": "p8_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "ax9",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              9
+            ],
+            "page_revision_id": "p9_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "ax10",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              10
+            ],
+            "page_revision_id": "p10_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "ax11",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              11
+            ],
+            "page_revision_id": "p11_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "ax12",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              12
+            ],
+            "page_revision_id": "p12_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "ax13",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              13
+            ],
+            "page_revision_id": "p13_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "ax14",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              14
+            ],
+            "page_revision_id": "p14_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "ax15",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              15
+            ],
+            "page_revision_id": "p15_rev1",
+            "quality": "CONFIRMED"
+          }
+        ],
+        "edges": [],
+        "issues": []
+      },
+      "active_nodes": [
+        {
+          "node_id": "ax1",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 1",
+          "parent_id": null,
+          "order": 1,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 1",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "ax1",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "ax2",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 2",
+          "parent_id": null,
+          "order": 2,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 2",
+          "page_range": [
+            2
+          ],
+          "page_revision_id": "p2_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "ax2",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "ax3",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 3",
+          "parent_id": null,
+          "order": 3,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 3",
+          "page_range": [
+            3
+          ],
+          "page_revision_id": "p3_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "ax3",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "ax4",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 4",
+          "parent_id": null,
+          "order": 4,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 4",
+          "page_range": [
+            4
+          ],
+          "page_revision_id": "p4_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "ax4",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "ax5",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 5",
+          "parent_id": null,
+          "order": 5,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 5",
+          "page_range": [
+            5
+          ],
+          "page_revision_id": "p5_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "ax5",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "ax6",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 6",
+          "parent_id": null,
+          "order": 6,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 6",
+          "page_range": [
+            6
+          ],
+          "page_revision_id": "p6_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "ax6",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "ax7",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 7",
+          "parent_id": null,
+          "order": 7,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 7",
+          "page_range": [
+            7
+          ],
+          "page_revision_id": "p7_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "ax7",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "ax8",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 8",
+          "parent_id": null,
+          "order": 8,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 8",
+          "page_range": [
+            8
+          ],
+          "page_revision_id": "p8_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "ax8",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "ax9",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 9",
+          "parent_id": null,
+          "order": 9,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 9",
+          "page_range": [
+            9
+          ],
+          "page_revision_id": "p9_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "ax9",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "ax10",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 10",
+          "parent_id": null,
+          "order": 10,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 10",
+          "page_range": [
+            10
+          ],
+          "page_revision_id": "p10_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "ax10",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "ax11",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 11",
+          "parent_id": null,
+          "order": 11,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 11",
+          "page_range": [
+            11
+          ],
+          "page_revision_id": "p11_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "ax11",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "ax12",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 12",
+          "parent_id": null,
+          "order": 12,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 12",
+          "page_range": [
+            12
+          ],
+          "page_revision_id": "p12_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "ax12",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "ax13",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 13",
+          "parent_id": null,
+          "order": 13,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 13",
+          "page_range": [
+            13
+          ],
+          "page_revision_id": "p13_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "ax13",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "ax14",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 14",
+          "parent_id": null,
+          "order": 14,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 14",
+          "page_range": [
+            14
+          ],
+          "page_revision_id": "p14_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "ax14",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "ax15",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 15",
+          "parent_id": null,
+          "order": 15,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Annex 15",
+          "page_range": [
+            15
+          ],
+          "page_revision_id": "p15_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "ax15",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        }
+      ],
+      "citation_index": {},
+      "review_items": []
+    },
+    "envelope": {
+      "auth": {
+        "actor_id": "user_001",
+        "tenant_id": "tenant_a",
+        "dossier_id": "d_many_annex",
+        "acl_revision": 12,
+        "permissions": [
+          "READ_CONTENT"
+        ],
+        "lifecycle": "ACTIVE"
+      },
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-ec-048",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      }
+    }
+  },
+  "output": {
+    "extract": {
+      "status_code": 200,
+      "body": {
+        "session_id": "90686dd71fd1",
+        "filename": "EC-048.snapshot",
+        "source": "eval",
+        "step": "extract",
+        "ai1": {
+          "case_id": "EC-048"
+        },
+        "files": [],
+        "has_pdf": false,
+        "dossier_id": "d_many_annex",
+        "tenant_id": "tenant_a",
+        "lifecycle": "ACTIVE",
+        "pins": {
+          "manifest_version": 2,
+          "source_snapshot_digest": "sha256:eval-ec-048",
+          "tenant_profile_version": 5,
+          "policy_version": 2,
+          "ocr_run_version": 3,
+          "reconstruction_version": 2,
+          "extraction_version": 7,
+          "index_version": "idx_14",
+          "source_digest": null,
+          "snapshot_digest": null
+        },
+        "n_pages": 15,
+        "n_nodes": 15,
+        "n_raw_nodes": 15,
+        "n_tables": 0,
+        "table_coverage": {
+          "UNKNOWN": 15
+        },
+        "relation_graph": {
+          "n_nodes": 15,
+          "n_edges": 0,
+          "n_issues": 0
+        },
+        "pages": [
+          {
+            "page": 1,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Annex 1",
+            "page_revision_id": "p1_rev1"
+          },
+          {
+            "page": 2,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Annex 2",
+            "page_revision_id": "p2_rev1"
+          },
+          {
+            "page": 3,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Annex 3",
+            "page_revision_id": "p3_rev1"
+          },
+          {
+            "page": 4,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Annex 4",
+            "page_revision_id": "p4_rev1"
+          },
+          {
+            "page": 5,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Annex 5",
+            "page_revision_id": "p5_rev1"
+          },
+          {
+            "page": 6,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Annex 6",
+            "page_revision_id": "p6_rev1"
+          },
+          {
+            "page": 7,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Annex 7",
+            "page_revision_id": "p7_rev1"
+          },
+          {
+            "page": 8,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Annex 8",
+            "page_revision_id": "p8_rev1"
+          },
+          {
+            "page": 9,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Annex 9",
+            "page_revision_id": "p9_rev1"
+          },
+          {
+            "page": 10,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Annex 10",
+            "page_revision_id": "p10_rev1"
+          },
+          {
+            "page": 11,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Annex 11",
+            "page_revision_id": "p11_rev1"
+          },
+          {
+            "page": 12,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Annex 12",
+            "page_revision_id": "p12_rev1"
+          }
+        ],
+        "n_pages_hidden": 3,
+        "nodes": [
+          {
+            "node_id": "ax1",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 1",
+            "page_range": [
+              1
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "ax2",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 2",
+            "page_range": [
+              2
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "ax3",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 3",
+            "page_range": [
+              3
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "ax4",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 4",
+            "page_range": [
+              4
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "ax5",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 5",
+            "page_range": [
+              5
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "ax6",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 6",
+            "page_range": [
+              6
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "ax7",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 7",
+            "page_range": [
+              7
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "ax8",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 8",
+            "page_range": [
+              8
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "ax9",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 9",
+            "page_range": [
+              9
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "ax10",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 10",
+            "page_range": [
+              10
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "ax11",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 11",
+            "page_range": [
+              11
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "ax12",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 12",
+            "page_range": [
+              12
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "ax13",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 13",
+            "page_range": [
+              13
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "ax14",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 14",
+            "page_range": [
+              14
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "ax15",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 15",
+            "page_range": [
+              15
+            ],
+            "structured_key": null,
+            "structured_value": null
+          }
+        ],
+        "n_nodes_hidden": 0,
+        "tree": [
+          {
+            "node_id": "ax1",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 1",
+            "status": "CONFIRMED",
+            "page": 1,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "ax1",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Annex 1",
+            "children": []
+          },
+          {
+            "node_id": "ax2",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 2",
+            "status": "CONFIRMED",
+            "page": 2,
+            "page_range": [
+              2
+            ],
+            "page_revision_id": "p2_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "ax2",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Annex 2",
+            "children": []
+          },
+          {
+            "node_id": "ax3",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 3",
+            "status": "CONFIRMED",
+            "page": 3,
+            "page_range": [
+              3
+            ],
+            "page_revision_id": "p3_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "ax3",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Annex 3",
+            "children": []
+          },
+          {
+            "node_id": "ax4",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 4",
+            "status": "CONFIRMED",
+            "page": 4,
+            "page_range": [
+              4
+            ],
+            "page_revision_id": "p4_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "ax4",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Annex 4",
+            "children": []
+          },
+          {
+            "node_id": "ax5",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 5",
+            "status": "CONFIRMED",
+            "page": 5,
+            "page_range": [
+              5
+            ],
+            "page_revision_id": "p5_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "ax5",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Annex 5",
+            "children": []
+          },
+          {
+            "node_id": "ax6",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 6",
+            "status": "CONFIRMED",
+            "page": 6,
+            "page_range": [
+              6
+            ],
+            "page_revision_id": "p6_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "ax6",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Annex 6",
+            "children": []
+          },
+          {
+            "node_id": "ax7",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 7",
+            "status": "CONFIRMED",
+            "page": 7,
+            "page_range": [
+              7
+            ],
+            "page_revision_id": "p7_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "ax7",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Annex 7",
+            "children": []
+          },
+          {
+            "node_id": "ax8",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 8",
+            "status": "CONFIRMED",
+            "page": 8,
+            "page_range": [
+              8
+            ],
+            "page_revision_id": "p8_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "ax8",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Annex 8",
+            "children": []
+          },
+          {
+            "node_id": "ax9",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 9",
+            "status": "CONFIRMED",
+            "page": 9,
+            "page_range": [
+              9
+            ],
+            "page_revision_id": "p9_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "ax9",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Annex 9",
+            "children": []
+          },
+          {
+            "node_id": "ax10",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 10",
+            "status": "CONFIRMED",
+            "page": 10,
+            "page_range": [
+              10
+            ],
+            "page_revision_id": "p10_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "ax10",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Annex 10",
+            "children": []
+          },
+          {
+            "node_id": "ax11",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 11",
+            "status": "CONFIRMED",
+            "page": 11,
+            "page_range": [
+              11
+            ],
+            "page_revision_id": "p11_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "ax11",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Annex 11",
+            "children": []
+          },
+          {
+            "node_id": "ax12",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 12",
+            "status": "CONFIRMED",
+            "page": 12,
+            "page_range": [
+              12
+            ],
+            "page_revision_id": "p12_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "ax12",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Annex 12",
+            "children": []
+          },
+          {
+            "node_id": "ax13",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 13",
+            "status": "CONFIRMED",
+            "page": 13,
+            "page_range": [
+              13
+            ],
+            "page_revision_id": "p13_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "ax13",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Annex 13",
+            "children": []
+          },
+          {
+            "node_id": "ax14",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 14",
+            "status": "CONFIRMED",
+            "page": 14,
+            "page_range": [
+              14
+            ],
+            "page_revision_id": "p14_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "ax14",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Annex 14",
+            "children": []
+          },
+          {
+            "node_id": "ax15",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 15",
+            "status": "CONFIRMED",
+            "page": 15,
+            "page_range": [
+              15
+            ],
+            "page_revision_id": "p15_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "ax15",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Annex 15",
+            "children": []
+          }
+        ],
+        "tables": [],
+        "extracted": true,
+        "job": {
+          "job_id": "job_941d0820ed",
+          "status": "SUCCEEDED",
+          "review_state": "PASS",
+          "handoff_issues": [],
+          "contribution": {
+            "facts": [],
+            "chunks": [
+              {
+                "chunk_id": "chk_15381155",
+                "parent_node_id": "ax1",
+                "page_range": [
+                  1
+                ],
+                "source_block_ids": [],
+                "text_span": "Annex 1",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 1"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_2804dc23",
+                "parent_node_id": "ax2",
+                "page_range": [
+                  2
+                ],
+                "source_block_ids": [],
+                "text_span": "Annex 2",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 2"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_a663813b",
+                "parent_node_id": "ax3",
+                "page_range": [
+                  3
+                ],
+                "source_block_ids": [],
+                "text_span": "Annex 3",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 3"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_6b9d280b",
+                "parent_node_id": "ax4",
+                "page_range": [
+                  4
+                ],
+                "source_block_ids": [],
+                "text_span": "Annex 4",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 4"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_064ad2e5",
+                "parent_node_id": "ax5",
+                "page_range": [
+                  5
+                ],
+                "source_block_ids": [],
+                "text_span": "Annex 5",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 5"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_8865d6e4",
+                "parent_node_id": "ax6",
+                "page_range": [
+                  6
+                ],
+                "source_block_ids": [],
+                "text_span": "Annex 6",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 6"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_39eec7ae",
+                "parent_node_id": "ax7",
+                "page_range": [
+                  7
+                ],
+                "source_block_ids": [],
+                "text_span": "Annex 7",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 7"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_91675fe6",
+                "parent_node_id": "ax8",
+                "page_range": [
+                  8
+                ],
+                "source_block_ids": [],
+                "text_span": "Annex 8",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 8"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_eb2c6cd7",
+                "parent_node_id": "ax9",
+                "page_range": [
+                  9
+                ],
+                "source_block_ids": [],
+                "text_span": "Annex 9",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 9"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_e927952c",
+                "parent_node_id": "ax10",
+                "page_range": [
+                  10
+                ],
+                "source_block_ids": [],
+                "text_span": "Annex 10",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 10"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_2dcd809e",
+                "parent_node_id": "ax11",
+                "page_range": [
+                  11
+                ],
+                "source_block_ids": [],
+                "text_span": "Annex 11",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 11"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_095fab15",
+                "parent_node_id": "ax12",
+                "page_range": [
+                  12
+                ],
+                "source_block_ids": [],
+                "text_span": "Annex 12",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 12"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_a3475ab5",
+                "parent_node_id": "ax13",
+                "page_range": [
+                  13
+                ],
+                "source_block_ids": [],
+                "text_span": "Annex 13",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 13"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_f25194bf",
+                "parent_node_id": "ax14",
+                "page_range": [
+                  14
+                ],
+                "source_block_ids": [],
+                "text_span": "Annex 14",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 14"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_e19438a1",
+                "parent_node_id": "ax15",
+                "page_range": [
+                  15
+                ],
+                "source_block_ids": [],
+                "text_span": "Annex 15",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 15"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              }
+            ],
+            "candidates": [],
+            "evidence_issues": [],
+            "coverage": {
+              "n_facts": 0,
+              "n_findings": 0,
+              "n_evidence_issues": 0,
+              "n_units": 8,
+              "unit_ids": [
+                "unit:0f1ad66ef394e2be143e",
+                "unit:8359fb2449e7fbd85303",
+                "unit:b64b5d593a1a30782d99",
+                "unit:1414c9762dd3f72d8056",
+                "unit:4d2f1e718f240125037e",
+                "unit:9b931445f426e462b5b9",
+                "unit:9ab0b867499a3a57973d",
+                "unit:97745c2521cbe187c2c4"
+              ],
+              "annex_labels": [
+                "Phụ lục 1",
+                "Phụ lục 10",
+                "Phụ lục 11",
+                "Phụ lục 12",
+                "Phụ lục 13",
+                "Phụ lục 14",
+                "Phụ lục 15",
+                "Phụ lục 2",
+                "Phụ lục 3",
+                "Phụ lục 4",
+                "Phụ lục 5",
+                "Phụ lục 6",
+                "Phụ lục 7",
+                "Phụ lục 8",
+                "Phụ lục 9"
+              ],
+              "runtime": {
+                "egress_allowed": true,
+                "use_vector": false,
+                "max_processing_seconds": 300,
+                "max_llm_calls": 0,
+                "max_embedding_tokens": 0,
+                "llm_calls_used": 0,
+                "embedding_tokens_used": 0,
+                "fallback_count": 0
+              },
+              "n_candidates_suppressed": 0
+            },
+            "extraction_version": 7,
+            "proposed_index_version": "idx_7",
+            "publish": "propose"
+          },
+          "query_answer": null,
+          "error": null
+        },
+        "contribution": {
+          "facts": [],
+          "chunks": [
+            {
+              "chunk_id": "chk_15381155",
+              "parent_node_id": "ax1",
+              "page_range": [
+                1
+              ],
+              "source_block_ids": [],
+              "text_span": "Annex 1",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 1"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_2804dc23",
+              "parent_node_id": "ax2",
+              "page_range": [
+                2
+              ],
+              "source_block_ids": [],
+              "text_span": "Annex 2",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 2"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_a663813b",
+              "parent_node_id": "ax3",
+              "page_range": [
+                3
+              ],
+              "source_block_ids": [],
+              "text_span": "Annex 3",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 3"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_6b9d280b",
+              "parent_node_id": "ax4",
+              "page_range": [
+                4
+              ],
+              "source_block_ids": [],
+              "text_span": "Annex 4",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 4"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_064ad2e5",
+              "parent_node_id": "ax5",
+              "page_range": [
+                5
+              ],
+              "source_block_ids": [],
+              "text_span": "Annex 5",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 5"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_8865d6e4",
+              "parent_node_id": "ax6",
+              "page_range": [
+                6
+              ],
+              "source_block_ids": [],
+              "text_span": "Annex 6",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 6"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_39eec7ae",
+              "parent_node_id": "ax7",
+              "page_range": [
+                7
+              ],
+              "source_block_ids": [],
+              "text_span": "Annex 7",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 7"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_91675fe6",
+              "parent_node_id": "ax8",
+              "page_range": [
+                8
+              ],
+              "source_block_ids": [],
+              "text_span": "Annex 8",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 8"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_eb2c6cd7",
+              "parent_node_id": "ax9",
+              "page_range": [
+                9
+              ],
+              "source_block_ids": [],
+              "text_span": "Annex 9",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 9"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_e927952c",
+              "parent_node_id": "ax10",
+              "page_range": [
+                10
+              ],
+              "source_block_ids": [],
+              "text_span": "Annex 10",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 10"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_2dcd809e",
+              "parent_node_id": "ax11",
+              "page_range": [
+                11
+              ],
+              "source_block_ids": [],
+              "text_span": "Annex 11",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 11"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_095fab15",
+              "parent_node_id": "ax12",
+              "page_range": [
+                12
+              ],
+              "source_block_ids": [],
+              "text_span": "Annex 12",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 12"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_a3475ab5",
+              "parent_node_id": "ax13",
+              "page_range": [
+                13
+              ],
+              "source_block_ids": [],
+              "text_span": "Annex 13",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 13"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_f25194bf",
+              "parent_node_id": "ax14",
+              "page_range": [
+                14
+              ],
+              "source_block_ids": [],
+              "text_span": "Annex 14",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 14"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_e19438a1",
+              "parent_node_id": "ax15",
+              "page_range": [
+                15
+              ],
+              "source_block_ids": [],
+              "text_span": "Annex 15",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 15"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            }
+          ],
+          "candidates": [],
+          "evidence_issues": [],
+          "coverage": {
+            "n_facts": 0,
+            "n_findings": 0,
+            "n_evidence_issues": 0,
+            "n_units": 8,
+            "unit_ids": [
+              "unit:0f1ad66ef394e2be143e",
+              "unit:8359fb2449e7fbd85303",
+              "unit:b64b5d593a1a30782d99",
+              "unit:1414c9762dd3f72d8056",
+              "unit:4d2f1e718f240125037e",
+              "unit:9b931445f426e462b5b9",
+              "unit:9ab0b867499a3a57973d",
+              "unit:97745c2521cbe187c2c4"
+            ],
+            "annex_labels": [
+              "Phụ lục 1",
+              "Phụ lục 10",
+              "Phụ lục 11",
+              "Phụ lục 12",
+              "Phụ lục 13",
+              "Phụ lục 14",
+              "Phụ lục 15",
+              "Phụ lục 2",
+              "Phụ lục 3",
+              "Phụ lục 4",
+              "Phụ lục 5",
+              "Phụ lục 6",
+              "Phụ lục 7",
+              "Phụ lục 8",
+              "Phụ lục 9"
+            ],
+            "runtime": {
+              "egress_allowed": true,
+              "use_vector": false,
+              "max_processing_seconds": 300,
+              "max_llm_calls": 0,
+              "max_embedding_tokens": 0,
+              "llm_calls_used": 0,
+              "embedding_tokens_used": 0,
+              "fallback_count": 0
+            },
+            "n_candidates_suppressed": 0
+          },
+          "extraction_version": 7,
+          "proposed_index_version": "idx_7",
+          "publish": "propose"
+        },
+        "used_llm": false,
+        "has_gold_tasks": false,
+        "reviews": {},
+        "reviews_stale": false,
+        "published": false,
+        "authoritative_publish_blocked": false,
+        "review_queue_status": "EMPTY_QUEUE",
+        "review_items": [],
+        "n_review_items": 0,
+        "n_citations": 0,
+        "handoff_issues": [],
+        "policy": {
+          "deterministic": "ALLOW",
+          "external": "ALLOWED",
+          "gates": []
+        }
+      }
+    },
+    "ask": {
+      "status_code": null,
+      "body": null
+    }
+  },
+  "machine_checks": {
+    "case_id": "EC-048",
+    "run": "deterministic",
+    "expected_state": "PASS",
+    "actual_extract_state": "PASS",
+    "actual_ask_state": null,
+    "extract_http_ok": true,
+    "ask_http_ok": true,
+    "expected_match": true,
+    "citation_valid": true,
+    "citation_errors": [],
+    "forbidden_claims": [],
+    "n_citations": 0,
+    "use_vector": false,
+    "vector_status": "NOT_REQUESTED",
+    "embedding_model": null,
+    "embedding_dimensions": null,
+    "vector_hits": 0,
+    "n_pages": 15,
+    "n_nodes": 15,
+    "elapsed_ms": 18.2
+  },
+  "manual_review": {
+    "verdict": "PENDING",
+    "severity": null,
+    "reviewer_notes": ""
+  }
+}

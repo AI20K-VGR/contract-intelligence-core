@@ -155,6 +155,36 @@ class PipelineRunRepositoryImpl:
             offset=offset,
         )
 
+    async def get_latest_ai2_read_model(
+        self, dossier_id: str
+    ) -> tuple[PipelineRunORM, Any] | None:
+        """Return the newest persisted AI2 projection for a dossier."""
+        stmt = (
+            select(PipelineRunORM)
+            .where(
+                PipelineRunORM.dossier_id == dossier_id,
+                PipelineRunORM.tenant_id == self._tenant_id,
+                PipelineRunORM.ai2_result_json.is_not(None),
+            )
+            .order_by(PipelineRunORM.created_at.desc())
+            .limit(1)
+        )
+        orm = (await self._session.execute(stmt)).scalar_one_or_none()
+        if orm is None:
+            return None
+
+        from contract_intelligence.shared.ai.persistence import load_ai2_read_model
+
+        try:
+            read_model = await load_ai2_read_model(
+                self._session,
+                tenant_id=self._tenant_id,
+                run_id=orm.id,
+            )
+        except (LookupError, ValueError):
+            return None
+        return orm, read_model
+
     async def update_status(
         self, run_id: str, status: str, *, error_code: str | None = None
     ) -> None:

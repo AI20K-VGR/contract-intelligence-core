@@ -1,0 +1,171 @@
+# hook-dispatch.yaml — the in-process dispatch registry (config, human-edited).
+#
+# hook_dispatch.py reads THIS file to know which hook cores a single (event,
+# matcher) command must run in-process, in what order, under what HOOK_CLASS. It
+# replaces N per-hook process spawns per tool call with one.
+#
+# Schema:
+#   groups:
+#     "<Event>:<Matcher>":            # matcher optional; "<Event>" alone => matcher "*"
+#       - name:   <config key>        # enabled/mode lookup (defaults to module)
+#         module: <python module>     # importable from harness/hooks
+#         entry:  <callable>          # takes (data); defaults to "core"
+#         class:  telemetry|nudge|compliance   # the MODULE's HOOK_CLASS constant wins
+#         kind:   additionalContext   # optional: a telemetry core whose return is
+#                                     #   injected as additionalContext (UserPromptSubmit/
+#                                     #   SessionStart only)
+#
+# Run order inside a group is FIXED by class (telemetry+nudge first, then
+# compliance) regardless of list order; within a class, list order holds.
+#
+# A group listed here is WIRED to hook_dispatch.py in hooks-registration.yaml +
+# .claude/settings.json (the matcher string must match EXACTLY — CC scopes by it).
+# Only fully-covered groups (every former hook present as a core) live here; groups
+# whose hooks still write their own terminal stdout are migrated in a later slice
+# and stay individually wired until then.
+#
+# EXACT matcher strings mirror hooks-registration.yaml so no hook is dropped.
+
+groups:
+  # Headline: PreToolUse:Bash — 7 spawns -> 1, seven gates in one process.
+  "PreToolUse:Bash":
+    - {name: mark_bash_start, module: mark_bash_start, entry: core, class: telemetry}
+    - {name: standards_drift_nudge, module: standards_drift_nudge, entry: handle_commit, class: nudge}
+    - {name: gate_stage, module: gate_stage, entry: core, class: compliance}
+    - {name: bash_safety_guard, module: bash_safety_guard, entry: core, class: compliance}
+    # floor_bash_guard: the deny-list floor for Bash-spelled writes into the protected
+    # zone (core-immune + harness/** minus the tests carve). Fail-closed (NO fail_open):
+    # a crash must block, not silently pass a floor write. Role-agnostic — the Bash path
+    # never reads agent_type, so every actor incl. the parent is gated here.
+    - {name: floor_bash_guard, module: floor_bash_guard, entry: core, class: compliance}
+    # plannotator_wrapper_guard: redirect a bare `plannotator annotate` to the wrapper
+    # (which injects --gate + globs the phase dir = a real Approve button). Redirect-class,
+    # so fail_open:true — a crash must never wedge the Bash lane. Same name as its Skill-lane
+    # row so one toggle silences both.
+    - {name: plannotator_wrapper_guard, module: plannotator_wrapper_guard, entry: bash_core, class: compliance, fail_open: true}
+    # A pre-push secret gate rode here and is gone. Its scanner survives as a library
+    # (harness/hooks/secret_scan_before_ship.py) because hs:security-scan and hs:review-pr
+    # import it, but nothing scans a push automatically any more — that audit is a skill
+    # the user invokes, not a gate that fires behind them.
+    - {name: protected_ref_guard, module: protected_ref_guard, entry: core, class: compliance}
+    # simplify_gate is a compliance-class heuristic that is fail-OPEN by design: its own
+    # main() never blocks a ship on an internal error (it ships SOFT/warn). The dispatcher
+    # bypasses that main() by calling core() directly, so fail_open:true preserves the
+    # "a heuristic crash never blocks the push" posture (a returned BLOCK reason still
+    # respects hook_mode). Every OTHER gate here stays fail-closed on crash.
+    - {name: simplify_gate, module: simplify_gate, entry: core, class: compliance, fail_open: true}
+
+  "PostToolUse:Write|Edit|MultiEdit":
+    - {name: ledger_red_watch, module: ledger_red_watch, entry: core, class: nudge}
+    - {name: memory_index_watch, module: memory_index_watch, entry: core, class: nudge}
+    - {name: memory_gap_hook, module: memory_gap_hook, entry: handle_post_tool_use, class: nudge}
+    - {name: decision_capture_nudge, module: decision_capture_nudge, entry: handle_post_tool_use, class: nudge}
+    - {name: standards_drift_nudge, module: standards_drift_nudge, entry: handle_post_tool_use, class: nudge}
+    - {name: glossary_capture_nudge, module: glossary_capture_nudge, entry: handle_post_tool_use, class: nudge}
+    - {name: methodology_review_gate, module: methodology_review_gate, entry: core, class: nudge}
+    - {name: stamp_artifact, module: stamp_artifact, entry: core, class: telemetry}
+    - {name: phase_progress_writer, module: phase_progress_writer, entry: core, class: telemetry}
+
+  "SubagentStop":
+    - {name: track_subagent_outcome, module: track_subagent_outcome, entry: core, class: telemetry}
+    - {name: mutation_guard, module: mutation_guard, entry: do_stop, class: nudge}
+
+  "UserPromptExpansion":
+    - {name: track_skill_invocation, module: track_skill_invocation, entry: core, class: telemetry}
+
+  "Notification":
+    - {name: notify_remote, module: notify_remote, entry: core, class: telemetry}
+
+  "UserPromptSubmit":
+    - {name: inject_prompt_context, module: inject_prompt_context, entry: core_gated, class: telemetry, kind: additionalContext}
+    - {name: nudge_context_inject, module: nudge_context_inject, entry: core, class: telemetry, kind: additionalContext}
+    - {name: disabled_ref_nudge, module: disabled_ref_nudge, entry: core, class: nudge}
+    - {name: panel_flag_relay, module: panel_flag_relay, entry: core, class: telemetry, kind: additionalContext}
+
+  "PreToolUse:Write":
+    - {name: descriptive_name, module: descriptive_name, entry: core, class: nudge}
+
+  "PreToolUse:Read|NotebookRead":
+    - {name: privacy_read_guard, module: privacy_read_guard, entry: core, class: compliance}
+
+
+
+  "PreToolUse:Write|Edit|MultiEdit":
+    - {name: rule_nudge_hook, module: rule_nudge_hook, entry: core, class: nudge}
+    - {name: cook_delegate_nudge, module: cook_delegate_nudge, entry: core_dispatch, class: nudge}
+    - {name: write_guard, module: write_guard, entry: check, class: compliance}
+
+  "PostToolUse:Bash":
+    - {name: ledger_red_watch, module: ledger_red_watch, entry: core, class: nudge}
+    - {name: memory_index_watch, module: memory_index_watch, entry: core, class: nudge}
+    - {name: track_script_execution, module: track_script_execution, entry: core, class: telemetry}
+    - {name: bash_write_guard, module: bash_write_guard, entry: core, class: telemetry}
+    - {name: manual_test_anchor, module: manual_test_anchor, entry: core, class: telemetry}
+
+  "SessionStart":
+    - {name: session_init, module: session_init, entry: core, class: telemetry}
+    - {name: voice_inject, module: voice_inject, entry: core, class: telemetry, kind: additionalContext}
+    - {name: glossary_pointer_inject, module: glossary_pointer_inject, entry: _build, class: telemetry, kind: additionalContext}
+    - {name: inject_prompt_context, module: inject_prompt_context, entry: core_gated, class: telemetry, kind: additionalContext}
+    - {name: pending_decisions_resurface, module: pending_decisions_resurface, entry: core, class: nudge, kind: additionalContext}
+    - {name: setup_nudge, module: setup_nudge, entry: core, class: telemetry, kind: additionalContext}
+    - {name: engine_root_inject, module: engine_root_inject, entry: core, class: nudge, kind: additionalContext}
+    - {name: engine_skew_nudge, module: engine_skew_nudge, entry: core, class: nudge, kind: additionalContext}
+
+  "SubagentStart":
+    - {name: subagent_init, module: subagent_init, entry: context_text, class: telemetry, kind: additionalContext}
+    # Same inject as SessionStart, because a subagent inherits none of it. The
+    # block above hands over `harness/rules/`, `harness/standards/`,
+    # `harness/data/output.yaml` and two output-style files marked "read IN
+    # FULL" — all engine-relative, all resolving to nothing under a global
+    # install unless the root is named. Silent on self-host, where the bare
+    # paths are already correct.
+    - {name: engine_root_inject, module: engine_root_inject, entry: core, class: nudge, kind: additionalContext}
+    - {name: mutation_guard, module: mutation_guard, entry: do_start, class: nudge}
+
+  "Stop":
+    - {name: memory_gap_hook, module: memory_gap_hook, entry: handle_stop, class: nudge}
+    - {name: decision_capture_nudge, module: decision_capture_nudge, entry: handle_stop, class: nudge}
+    - {name: standards_drift_nudge, module: standards_drift_nudge, entry: handle_stop, class: nudge}
+    - {name: glossary_capture_nudge, module: glossary_capture_nudge, entry: handle_stop, class: nudge}
+    - {name: auto_decision_review_nudge, module: auto_decision_review_nudge, entry: handle_stop, class: nudge}
+    - {name: dev_override_wiring_nudge, module: dev_override_wiring_nudge, entry: handle_stop, class: nudge}
+    - {name: decision_reconcile_nudge, module: decision_reconcile_nudge, entry: handle_stop, class: nudge}
+    - {name: backlog_capture_nudge, module: backlog_capture_nudge, entry: core, class: nudge}
+    - {name: goal_cycle_nudge, module: goal_cycle_nudge, entry: core, class: nudge}
+    - {name: spawn_fingerprint_audit, module: spawn_fingerprint_audit, entry: handle_stop, class: nudge}
+    - {name: emit_session_summary, module: emit_session_summary, entry: core, class: telemetry}
+    - {name: reinject_stop_context, module: reinject_stop_context, entry: core, class: telemetry, kind: additionalContext}
+    # gemini_stop_review_gate makes a slow partner-model spawn -> longer per-hook timeout.
+    - {name: gemini_stop_review_gate, module: gemini_stop_review_gate, entry: core, class: nudge, kind: additionalContext, timeout: 60}
+
+  "PreToolUse:Agent|Task":
+    # The only gate on this lane. A spawn-count guard rode here too and was removed:
+    # it counted a session's spawns over a sliding wall-clock window, which over-blocks
+    # legitimate sequential work — nothing now limits how many subagents a session opens,
+    # only which model each may use. Width is bounded on the Workflow lane instead, where
+    # one call declares its own fan-out.
+    - {name: model_guard, module: model_guard, entry: core, class: compliance, fail_open: true}
+
+  "PreToolUse:Workflow":
+    # Ask-3 Layer-2 (P8): unlike PreToolUse:Agent|Task (a cumulative session
+    # count with no per-call width), a Workflow call declares its OWN
+    # fan-out width in ONE call (WP1-verified: tool_input.script — a static
+    # script-parse via spawn_provenance.workflow_width(), never an
+    # execution). Reuses the SAME token/budget reader as the Agent|Task
+    # lane. Both opt-in + fail_open:true — a crash here must never darken
+    # the Workflow lane (F4).
+    - {name: spawn_provenance_workflow_guard, module: spawn_provenance_workflow_guard, entry: core, class: compliance, fail_open: true}
+
+  "PreToolUse:Skill":
+    - {name: track_skill_invocation, module: track_skill_invocation, entry: core, class: telemetry}
+    - {name: auto_finalize_ship, module: auto_finalize_ship, entry: core, class: telemetry}
+    - {name: cook_isolation_nudge, module: cook_isolation_nudge, entry: core, class: nudge}
+    - {name: discover_isolation_nudge, module: discover_isolation_nudge, entry: core, class: nudge}
+    - {name: stale_plan_close_nudge, module: stale_plan_close_nudge, entry: core, class: nudge}
+    - {name: backlog_hygiene_nudge, module: backlog_hygiene_nudge, entry: core, class: nudge}
+    - {name: disabled_skill_router, module: disabled_skill_router, entry: core, class: compliance, fail_open: true}
+    # plannotator_wrapper_guard: catch a Skill(plannotator-annotate) call before the bare
+    # !command runs, redirect to the wrapper. Same name + fail_open as its Bash-lane row so
+    # one toggle silences both lanes and a crash never wedges the Skill lane.
+    - {name: plannotator_wrapper_guard, module: plannotator_wrapper_guard, entry: skill_core, class: compliance, fail_open: true}

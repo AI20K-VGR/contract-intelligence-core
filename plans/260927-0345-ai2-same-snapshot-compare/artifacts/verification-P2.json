@@ -1,0 +1,18 @@
+{
+  "stage": "cook",
+  "plan": "260927-0345-ai2-same-snapshot-compare",
+  "phase": "P2",
+  "verdict": "PASS",
+  "checks": [
+    {
+      "name": "test_gap_as_note",
+      "status": "PASS"
+    },
+    {
+      "name": "regression",
+      "status": "PASS",
+      "command": "uv run pytest tests/test_gap_as_note.py tests/test_same_snapshot_pair.py tests/test_related_mocks.py tests/test_compare.py tests/test_ec_silent_pass.py",
+      "passed": 26
+    }
+  ]
+}

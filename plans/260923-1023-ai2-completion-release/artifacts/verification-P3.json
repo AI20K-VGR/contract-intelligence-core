@@ -1,0 +1,71 @@
+{
+  "stage": "cook",
+  "plan": "260923-1023-ai2-completion-release",
+  "checks": [
+    {
+      "name": "targeted_phase_regression",
+      "status": "PASS"
+    },
+    {
+      "name": "intentional_red",
+      "status": "PASS"
+    },
+    {
+      "name": "runtime_budget_egress_retry",
+      "status": "PASS"
+    },
+    {
+      "name": "tenant_dossier_idempotency_lease",
+      "status": "PASS"
+    },
+    {
+      "name": "review_staleness",
+      "status": "PASS"
+    },
+    {
+      "name": "vector_safety",
+      "status": "PASS"
+    },
+    {
+      "name": "api_vector_runtime_budget",
+      "status": "PASS"
+    },
+    {
+      "name": "persist_egress_fail_closed",
+      "status": "PASS"
+    },
+    {
+      "name": "l2_prompt_taint_boundary",
+      "status": "PASS"
+    },
+    {
+      "name": "run_code_denied",
+      "status": "PASS"
+    },
+    {
+      "name": "offline_regression",
+      "status": "PASS"
+    },
+    {
+      "name": "contract_registry",
+      "status": "PASS"
+    },
+    {
+      "name": "unicode_provenance",
+      "status": "PASS"
+    },
+    {
+      "name": "artifact_schema",
+      "status": "PASS"
+    },
+    {
+      "name": "diff_check",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P3",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-09-23T07:39:05+00:00",
+  "run_seq": null
+}

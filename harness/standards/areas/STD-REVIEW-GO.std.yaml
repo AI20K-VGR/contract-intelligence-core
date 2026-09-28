@@ -1,0 +1,162 @@
+id: STD-REVIEW-GO
+type: std_area
+zone: operational
+title: "Review — Go"
+status: approved
+owner: harness
+version: 1.0.0
+description: |
+  Go review rules (scope **/*.go). Block-worthy safety rules and advisory style,
+  patterns, and testing discipline.
+rule_groups:
+  - id: STD-REVIEW-GO-RG1
+    title: "Go safety (blocking) and style (advisory)"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-GO-RG1-R1
+        title: "Go — safety (blocking)"
+        status: approved
+        scope: ["**/*.go"]
+        severity: critical
+        relates_to_std: []
+        detector:
+          type: grep
+          pattern: '(?<!\w)_\s*:?=\s*\S'
+          flags: ""
+        description: |
+          error-wrap — NEVER drop an error (_ = err, or if err != nil { return }
+          / return nil that discards the value). PREFER wrapping added context
+          with %w so errors.Is/As still work (a bare unwrapped err is fine when
+          you add nothing).
+          goroutine-leak — NEVER spawn a goroutine with no exit path; ALWAYS
+          give every goroutine a way to be cancelled (ctx/done) and a place its
+          error is observed.
+        rationale: |
+          A discarded error hides the failure; a non-%w wrap breaks errors.Is.
+          A goroutine blocked forever is a slow memory + handle leak. The grep
+          detector flags blank-identifier discards (_ = err, n, _ := f()) —
+          control-flow drops are not grep-detectable; leading-blank idioms
+          (_, ok := m[k], for _, v := range) are intentionally NOT flagged.
+      - id: STD-REVIEW-GO-RG1-R2
+        title: "Go — style (advisory)"
+        status: approved
+        scope: ["**/*.go"]
+        severity: info
+        relates_to_std: [STD-REVIEW-GO-RG1-R1]
+        detector: null
+        description: |
+          context-propagation — ALWAYS thread the incoming ctx into downstream
+          I/O; NEVER create a fresh context.Background() inside a function that
+          already receives a ctx.
+          nil-check — ALWAYS check nil before dereferencing a pointer / indexing
+          a map returned from an external API.
+        rationale: |
+          A new root context drops the caller's deadlines and cancellation; an
+          unchecked nil deref panics, and external boundaries are where the
+          guarantee is weakest.
+  - id: STD-REVIEW-GO-RG2
+    title: "Go design patterns (advisory)"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-GO-RG2-R1
+        title: "Go — interface placement (advisory)"
+        status: approved
+        scope: ["**/*.go"]
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: define interfaces in the consuming package, not where the
+          concrete type is implemented; keep interfaces small (1-3 methods).
+          A function that only needs a single-method interface should declare
+          that interface locally — never import a 10-method interface for one
+          method call.
+          NEVER: define a large interface in the implementation package and
+          export it for consumers; this forces every caller to depend on the
+          full surface and blocks alternative implementations.
+          PREFER: accept interfaces, return structs — the caller defines the
+          contract; the implementation returns a concrete type the caller can
+          inspect.
+        rationale: |
+          A large interface at the implementation site couples every consumer
+          to every method. A linter sees the type X interface declaration and
+          considers it valid — it cannot tell that only 2 of 10 methods are
+          ever called. The reviewer is the only one who can identify the
+          hidden coupling.
+      - id: STD-REVIEW-GO-RG2-R2
+        title: "Go — constructor injection (advisory)"
+        status: approved
+        scope: ["**/*.go"]
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: inject dependencies through constructor functions (NewXxx
+          accepting interfaces); let the caller wire the dependency graph at
+          startup — the one package that calls concrete constructors and
+          passes them down is the composition root (main or a dedicated wire
+          package).
+          NEVER: declare a package-level var for a database handle, HTTP
+          client, or logger and have functions read it directly — this hides
+          the dependency, makes the function untestable without the real
+          resource, and creates implicit ordering constraints between init
+          and use.
+          PREFER: a constructor that accepts interfaces so tests can inject
+          a stub without reaching for global-state manipulation.
+        rationale: |
+          Package-level globals for dependencies are the Go equivalent of
+          the Service Locator anti-pattern. A formatter sees a valid var
+          declaration; a linter sees a valid function. Neither detects that
+          the function secretly depends on a global that makes it untestable.
+          Only a reviewer can flag the hidden coupling.
+  - id: STD-REVIEW-GO-RG3
+    title: "Go testing discipline (advisory)"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-GO-RG3-R1
+        title: "Go — table-driven tests (advisory)"
+        status: approved
+        scope: ["**/*_test.go"]
+        severity: info
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R4]
+        detector: null
+        description: |
+          ALWAYS: use table-driven tests (a slice of test-case structs iterated
+          with t.Run) when a function has multiple input/output pairs; each
+          case gets a name, inputs, expected output, and an error expectation
+          when relevant.
+          NEVER: copy-paste the same test body with different literal values
+          into separate TestXxx functions — when the logic changes, five
+          near-identical functions must be updated in lockstep, and one will
+          be missed.
+        rationale: |
+          A linter sees five TestXxx functions with different names and passes
+          — it cannot tell they share identical bodies. The reviewer sees the
+          repetition and flags it for a table-driven rewrite. This is the Go
+          community's standard idiom; a copy-pasted test suite is a maintenance
+          liability.
+      - id: STD-REVIEW-GO-RG3-R2
+        title: "Go — race detection in CI (advisory)"
+        status: approved
+        scope: ["**/*.go"]
+        severity: info
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R4]
+        detector: null
+        description: |
+          ALWAYS: run go test -race in CI for any package that spawns
+          goroutines, uses channels, or shares memory across concurrent
+          operations. The -race flag enables the Go runtime's built-in data
+          race detector.
+          NEVER: ship concurrent Go code that has never passed go test -race;
+          a data race may pass unit tests every time on a single-core runner
+          and only corrupt data under production load. The absence of a -race
+          run in CI is itself the anti-pattern.
+        rationale: |
+          Data races are non-deterministic — a test suite passing without -race
+          proves nothing about concurrent safety. A CI pipeline that runs
+          go test but not go test -race is shipping concurrent code blind. No
+          linter detects a missing CI flag; the reviewer checks whether the CI
+          config or Makefile includes -race.

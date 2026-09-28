@@ -1,0 +1,28 @@
+# guard-policy.yaml — one off/warn/block posture for every configurable guard.
+#
+# Edit this file by hand OR with `guard_config.py` (which also writes a
+# who/when audit line); either way the change is a git-visible diff.
+#
+#   preset    baseline for every guard, by category:
+#     strict    safety=block  enforcement=block  advisory=warn
+#     balanced  safety=block  enforcement=block  advisory=warn  (default)
+#     lenient   safety=block  enforcement=warn   advisory=off
+#     solo      safety=block  enforcement=block  advisory=off   (single-person; keeps the agent caged)
+#   overrides guard-id -> off|warn|block ; wins over the preset.
+#     QUOTE the mode when hand-editing: bare off/on/yes/no are YAML 1.1
+#     booleans. guard_config.py quotes for you; a hand edit must too.
+#
+# Advisory nudges are NOT a guard-policy category: their on/off lives in
+# harness/data/harness-hooks.yaml (the single nudge control surface).
+#
+# A safety guard (host-safety, secret-read, write_guard, force-push, merge
+# gate) has a FLOOR of `block`: a preset can never lower it. An `overrides:`
+# entry CAN lower it, but that is a break-glass — guard_config records it with
+# break_glass: true. List every valid guard id with: guard_config.py show
+#
+# NOT tunable here (always-on correctness invariants — turning them off would
+# corrupt state): input-validation grammars, path containment, config-loader
+# validation, plan-approval role consistency, the CI bug-class invariants.
+schema_version: "1.0"
+preset: balanced
+overrides: {}

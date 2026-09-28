@@ -1,0 +1,118 @@
+"""
+Contract regression tests for the ${domain} scoring engine.
+
+Scaffold variables:
+    ${domain}         — eval domain name
+    ${scorer_module}  — import name for the scorer
+
+These tests PIN expected outputs from the deterministic scoring engine — the
+contract-test principle: any change to scoring logic MUST intentionally update
+these tests, so an accidental scoring drift fails CI instead of shipping.
+
+Fill in the three markers below once your scorer has DIMENSIONS + a known run:
+    SAMPLE_RESULTS     — a known eval run (list of per-case result dicts)
+    EXPECTED_MATURITY  — the maturity that run must produce
+    EXPECTED_PASSED    — the pass/fail verdict that run must produce
+
+RED ON ARRIVAL (intentional, not a regression): DIMENSIONS/THRESHOLD now come
+from the approved card (the single source of truth), so score()/check_p0_gates()
+bodies below run against a real card immediately — but score_dimension() and
+check_p0_gates() themselves are still fill-me stubs (score_dimension raises
+NotImplementedError until you implement it). test_score_returns_expected_structure
+and every test
+below it FAIL until you fill score_dimension() for this domain — that failure
+IS the day-0 signal to fill it in, not a broken template.
+"""
+
+import pytest
+
+from ${scorer_module} import score, check_p0_gates, r1, DIMENSIONS, THRESHOLD
+
+
+# ── Domain fixtures to fill in ────────────────────────────────────────
+
+SAMPLE_RESULTS = []          # TODO: pin a known eval run for this domain
+EXPECTED_MATURITY = 0.0      # TODO: pin the maturity SAMPLE_RESULTS must produce
+EXPECTED_PASSED = False      # TODO: pin the verdict SAMPLE_RESULTS must produce
+
+
+@pytest.fixture
+def sample_results():
+    return SAMPLE_RESULTS
+
+
+# ── Rounding contract ─────────────────────────────────────────────────
+
+def test_r1_rounds_half_up():
+    """r1() must match Excel ROUND with ROUND_HALF_UP."""
+    assert r1(77.55) == 77.6
+    assert r1(77.54) == 77.5
+    assert r1(0.05) == 0.1
+    assert r1(100.0) == 100.0
+    assert r1(0.0) == 0.0
+
+
+def test_r1_is_deterministic():
+    """Same input must always produce the same output."""
+    for _ in range(100):
+        assert r1(77.55) == 77.6
+
+
+# ── Dimension weights contract ────────────────────────────────────────
+
+def test_dimension_weights_sum_to_100():
+    """All dimension weights must sum to exactly 100."""
+    total = sum(DIMENSIONS.values())
+    assert total == 100, "Dimension weights sum to %s, expected 100" % total
+
+
+# ── Scoring contract ──────────────────────────────────────────────────
+
+def test_score_returns_expected_structure(sample_results):
+    """score() must return all required fields."""
+    result = score(sample_results)
+    for key in ("maturity", "passed", "threshold", "p0_gate_passed", "p0_failures", "dimensions"):
+        assert key in result
+
+
+def test_score_maturity_matches_expected(sample_results):
+    """Contract: score(SAMPLE_RESULTS) must produce EXPECTED_MATURITY."""
+    result = score(sample_results)
+    assert result["maturity"] == EXPECTED_MATURITY, (
+        "Expected maturity %s, got %s. If scoring logic changed intentionally, "
+        "update this test." % (EXPECTED_MATURITY, result["maturity"]))
+
+
+def test_score_passed_matches_expected(sample_results):
+    """Contract: score(SAMPLE_RESULTS) must produce EXPECTED_PASSED."""
+    result = score(sample_results)
+    assert result["passed"] == EXPECTED_PASSED, (
+        "Expected passed=%s, got %s. If scoring logic changed intentionally, "
+        "update this test." % (EXPECTED_PASSED, result["passed"]))
+
+
+def test_score_is_deterministic(sample_results):
+    """Same results must always produce the same score (no randomness)."""
+    first = score(sample_results)
+    for _ in range(100):
+        assert score(sample_results) == first
+
+
+# ── P0 gate contract ──────────────────────────────────────────────────
+
+def test_check_p0_gates_returns_tuple():
+    passed, failures = check_p0_gates([])
+    assert isinstance(passed, bool)
+    assert isinstance(failures, list)
+
+
+def test_empty_results_pass_p0_gates():
+    passed, failures = check_p0_gates([])
+    assert passed is True
+    assert failures == []
+
+
+# ── Threshold contract ────────────────────────────────────────────────
+
+def test_threshold_is_between_0_and_100():
+    assert 0 <= THRESHOLD <= 100

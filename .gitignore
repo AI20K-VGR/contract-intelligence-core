@@ -32,6 +32,12 @@ desktop.ini
 *.swo
 *~
 
+# Local SDLC tool install (site-packages). Not product source.
+.sdlc-tools/
+
+# AI2 local runtime databases. Too large for GitHub and not source.
+ai-service/data/
+
 # ---------- Secrets / Local env ----------
 .env
 .env.local

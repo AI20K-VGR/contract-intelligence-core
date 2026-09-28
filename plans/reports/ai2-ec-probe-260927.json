@@ -1,0 +1,621 @@
+[
+  {
+    "id": "EC-001",
+    "expected": "PASS",
+    "want": "PASS",
+    "idp": "NEEDS_REVIEW",
+    "query": true,
+    "ask": "NEEDS_REVIEW",
+    "forbid": [
+      "full_pdf_dump"
+    ]
+  },
+  {
+    "id": "EC-002",
+    "expected": "PASS",
+    "want": "PASS",
+    "idp": "PASS",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "single_32k_clause"
+    ]
+  },
+  {
+    "id": "EC-003",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "fake_dieu_number"
+    ]
+  },
+  {
+    "id": "EC-004",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "merge_same_label"
+    ]
+  },
+  {
+    "id": "EC-005",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "PASS",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "invented_clause_3"
+    ]
+  },
+  {
+    "id": "EC-006",
+    "expected": "PASS",
+    "want": "PASS",
+    "idp": "PASS",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "flatten_levels"
+    ]
+  },
+  {
+    "id": "EC-007",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "PASS",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "blind_join"
+    ]
+  },
+  {
+    "id": "EC-008",
+    "expected": "PASS",
+    "want": "PASS",
+    "idp": "PASS",
+    "query": true,
+    "ask": "NEEDS_REVIEW",
+    "forbid": [
+      "unlinked_term"
+    ]
+  },
+  {
+    "id": "EC-009",
+    "expected": "INSUFFICIENT",
+    "want": "INSUFFICIENT_EVIDENCE",
+    "idp": "NEEDS_REVIEW",
+    "query": true,
+    "ask": "INSUFFICIENT_EVIDENCE",
+    "forbid": [
+      "invented_annex_7"
+    ]
+  },
+  {
+    "id": "EC-010",
+    "expected": "PASS",
+    "want": "PASS",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "dump_all_rows_to_llm"
+    ]
+  },
+  {
+    "id": "EC-011",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "complete_total"
+    ]
+  },
+  {
+    "id": "EC-012",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "complete_total"
+    ]
+  },
+  {
+    "id": "EC-013",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "guess_merged_value"
+    ]
+  },
+  {
+    "id": "EC-014",
+    "expected": "PASS",
+    "want": "PASS",
+    "idp": "PASS",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "flatten_header_loss"
+    ]
+  },
+  {
+    "id": "EC-015",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "missing_as_zero"
+    ]
+  },
+  {
+    "id": "EC-016",
+    "expected": "PASS",
+    "want": "PASS",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "overwrite_raw"
+    ]
+  },
+  {
+    "id": "EC-017",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "join_by_col_count"
+    ]
+  },
+  {
+    "id": "EC-018",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "force_merge_rows"
+    ]
+  },
+  {
+    "id": "EC-019",
+    "expected": "PASS",
+    "want": "PASS",
+    "idp": "PASS",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "unrotated_bbox"
+    ]
+  },
+  {
+    "id": "EC-020",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "legal_winner",
+      "silent_merge"
+    ]
+  },
+  {
+    "id": "EC-021",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "pick_one_amount"
+    ]
+  },
+  {
+    "id": "EC-022",
+    "expected": "INSUFFICIENT",
+    "want": "INSUFFICIENT_EVIDENCE",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "invented_calendar_date"
+    ]
+  },
+  {
+    "id": "EC-023",
+    "expected": "PASS",
+    "want": "PASS",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "flatten_tier"
+    ]
+  },
+  {
+    "id": "EC-024",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "fx_convert"
+    ]
+  },
+  {
+    "id": "EC-025",
+    "expected": "PASS",
+    "want": "PASS",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "unpinned_alias"
+    ]
+  },
+  {
+    "id": "EC-026",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "entity_merge"
+    ]
+  },
+  {
+    "id": "EC-027",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "legal_winner"
+    ]
+  },
+  {
+    "id": "EC-028",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "assume_amendment"
+    ]
+  },
+  {
+    "id": "EC-029",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "legal_winner",
+      "precedence"
+    ]
+  },
+  {
+    "id": "EC-030",
+    "expected": "PASS",
+    "want": "PASS",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "force_compare"
+    ]
+  },
+  {
+    "id": "EC-031",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "PASS",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "legal_winner",
+      "pick_language"
+    ]
+  },
+  {
+    "id": "EC-032",
+    "expected": "PASS",
+    "want": "PASS",
+    "idp": "PASS",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "llm_first_classify"
+    ]
+  },
+  {
+    "id": "EC-033",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "PASS",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "legal_winner"
+    ]
+  },
+  {
+    "id": "EC-034",
+    "expected": "INSUFFICIENT",
+    "want": "INSUFFICIENT_EVIDENCE",
+    "idp": "NEEDS_REVIEW",
+    "query": true,
+    "ask": "INSUFFICIENT_EVIDENCE",
+    "forbid": [
+      "fake_total"
+    ]
+  },
+  {
+    "id": "EC-035",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "PASS",
+    "query": true,
+    "ask": "NEEDS_REVIEW",
+    "forbid": [
+      "non_allowlist_tool"
+    ]
+  },
+  {
+    "id": "EC-036",
+    "expected": "PASS",
+    "want": "PASS",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "drop_old_index"
+    ]
+  },
+  {
+    "id": "EC-037",
+    "expected": "PASS",
+    "want": "PASS",
+    "idp": "NEEDS_REVIEW",
+    "query": true,
+    "ask": "INSUFFICIENT_EVIDENCE",
+    "forbid": [
+      "uncited_translation"
+    ]
+  },
+  {
+    "id": "EC-038",
+    "expected": "PASS",
+    "want": "PASS",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "double_publish"
+    ]
+  },
+  {
+    "id": "EC-039",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "auto_accept_high_conf"
+    ]
+  },
+  {
+    "id": "EC-040",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "forced_class"
+    ]
+  },
+  {
+    "id": "EC-041",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "guess_from_blur"
+    ]
+  },
+  {
+    "id": "EC-042",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "complete_amount"
+    ]
+  },
+  {
+    "id": "EC-043",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "drop_page_from_n"
+    ]
+  },
+  {
+    "id": "EC-044",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "overwrite_raw_with_normalized"
+    ]
+  },
+  {
+    "id": "EC-045",
+    "expected": "BLOCKED",
+    "want": "BLOCKED",
+    "idp": "BLOCKED",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "empty_as_success"
+    ]
+  },
+  {
+    "id": "EC-046",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "drop_blank_from_inventory"
+    ]
+  },
+  {
+    "id": "EC-047",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "PASS",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "uncontrolled_continue"
+    ]
+  },
+  {
+    "id": "EC-048",
+    "expected": "PASS",
+    "want": "PASS",
+    "idp": "PASS",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "one_shot_all_annex"
+    ]
+  },
+  {
+    "id": "EC-049",
+    "expected": "BLOCKED",
+    "want": "BLOCKED",
+    "idp": "BLOCKED",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "stale_publish"
+    ]
+  },
+  {
+    "id": "EC-050",
+    "expected": "BLOCKED",
+    "want": "BLOCKED",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "unbounded_embed"
+    ]
+  },
+  {
+    "id": "EC-051",
+    "expected": "PASS",
+    "want": "PASS",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "mutate_old_result"
+    ]
+  },
+  {
+    "id": "EC-052",
+    "expected": "REVIEW",
+    "want": "NEEDS_REVIEW",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "cite_old_revision"
+    ]
+  },
+  {
+    "id": "EC-053",
+    "expected": "BLOCKED",
+    "want": "BLOCKED",
+    "idp": "BLOCKED",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "existence_leak"
+    ]
+  },
+  {
+    "id": "EC-054",
+    "expected": "BLOCKED",
+    "want": "BLOCKED",
+    "idp": "BLOCKED",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "stale_acl_cache"
+    ]
+  },
+  {
+    "id": "EC-055",
+    "expected": "BLOCKED",
+    "want": "BLOCKED",
+    "idp": "NEEDS_REVIEW",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "silent_external_fallback"
+    ]
+  },
+  {
+    "id": "EC-056",
+    "expected": "BLOCKED",
+    "want": "BLOCKED",
+    "idp": "BLOCKED",
+    "query": false,
+    "ask": null,
+    "forbid": [
+      "purge_embeddings"
+    ]
+  }
+]

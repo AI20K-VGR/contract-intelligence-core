@@ -1,0 +1,2602 @@
+{
+  "case_id": "SALE-BRD-07",
+  "run": "deterministic",
+  "input": {
+    "case": {
+      "case_id": "SALE-BRD-07",
+      "title": "DOC-02 §7 SALE: sửa A, B không đổi, PL2 thiếu kỳ, thiếu PL9",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_sale_brd07",
+      "expected_state": "REVIEW",
+      "expected_no_claims": [
+        "legal_winner",
+        "precedence"
+      ],
+      "n_pages": 3,
+      "n_nodes": 8,
+      "n_tables": 0,
+      "lifecycle": "ACTIVE",
+      "query": null,
+      "notes": "",
+      "tags": [
+        "brd",
+        "compare",
+        "sale"
+      ]
+    },
+    "record": {
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_sale_brd07",
+      "lifecycle": "ACTIVE",
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-sale-brd-07",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      },
+      "pages": [
+        {
+          "page_revision_id": "p1_rev1",
+          "page_number": 1,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p1_b1"
+          ],
+          "text": "Hạng mục A 100.000 VND. Hạng mục B 200.000 VND. Xem Phụ lục 9.",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p2_rev1",
+          "page_number": 2,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p2_b1"
+          ],
+          "text": "Phụ lục 1: sửa A thành 110000 VND từ 01/07.",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p3_rev1",
+          "page_number": 3,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p3_b1"
+          ],
+          "text": "Phụ lục 2: A 105000 VND.",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        }
+      ],
+      "nodes": [
+        {
+          "node_id": "doc_body",
+          "type": "SECTION",
+          "raw_label": "Hợp đồng",
+          "parent_id": null,
+          "order": 0,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "HĐ bán",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "fa",
+          "type": "FIELD",
+          "raw_label": "Item A",
+          "parent_id": "doc_body",
+          "order": 1,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Item A: 100000 VND",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": "item:A",
+          "structured_value": "100000",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "fb",
+          "type": "FIELD",
+          "raw_label": "Item B",
+          "parent_id": "doc_body",
+          "order": 2,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Item B: 200000 VND",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": "item:B",
+          "structured_value": "200000",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "cite9",
+          "type": "FIELD",
+          "raw_label": "Viện dẫn",
+          "parent_id": "doc_body",
+          "order": 3,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Áp dụng theo Phụ lục 9",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": "annex_ref",
+          "structured_value": "Phụ lục 9",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "doc_pl1",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 1",
+          "parent_id": null,
+          "order": 4,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "PL1",
+          "page_range": [
+            2
+          ],
+          "page_revision_id": "p2_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "fa1",
+          "type": "FIELD",
+          "raw_label": "Sửa A",
+          "parent_id": "doc_pl1",
+          "order": 5,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "sửa A thành 110000 VND từ 01/07",
+          "page_range": [
+            2
+          ],
+          "page_revision_id": "p2_rev1",
+          "bbox": [],
+          "structured_key": "item:A",
+          "structured_value": "110000",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "doc_pl2",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 2",
+          "parent_id": null,
+          "order": 6,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "PL2",
+          "page_range": [
+            3
+          ],
+          "page_revision_id": "p3_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "fa2",
+          "type": "FIELD",
+          "raw_label": "A PL2",
+          "parent_id": "doc_pl2",
+          "order": 7,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "A: 105000 VND",
+          "page_range": [
+            3
+          ],
+          "page_revision_id": "p3_rev1",
+          "bbox": [],
+          "structured_key": "item:A",
+          "structured_value": "105000",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        }
+      ],
+      "tables": [],
+      "profile": {
+        "version": 5,
+        "aliases": {
+          "Công ty ABC": [
+            "ABC Co.",
+            "ABC"
+          ],
+          "Công ty XYZ": [
+            "XYZ Ltd",
+            "XYZ"
+          ]
+        },
+        "field_keys": [
+          "party_a",
+          "party_b",
+          "mst_seller",
+          "contract_value",
+          "payment_term"
+        ]
+      },
+      "acl_revision": 12,
+      "permissions_by_actor": {
+        "user_001": [
+          "READ_CONTENT"
+        ]
+      },
+      "source_files": [],
+      "facts": [
+        {
+          "fact_id": "fact_a8f7ca9c96c8bacc9cf3f44c",
+          "raw_value": "Phụ lục 9",
+          "normalized_value": null,
+          "subject": "Viện dẫn",
+          "role": null,
+          "unit": null,
+          "currency": null,
+          "vat_basis": null,
+          "condition": null,
+          "scope": null,
+          "validity": null,
+          "item_key": null,
+          "tax_basis": null,
+          "period_start": null,
+          "source_role": "body",
+          "citation": {
+            "node_id": "cite9",
+            "page_revision_id": "p1_rev1",
+            "bbox": [],
+            "bbox_fragments": [],
+            "text_span": "Hạng mục A 100.000 VND. Hạng mục B 200.000 VND. Xem Phụ lục 9.",
+            "source_file_id": null,
+            "page": 1,
+            "page_range": [
+              1
+            ],
+            "line_ids": [],
+            "char_start": 0,
+            "char_end": 62,
+            "breadcrumb": [
+              "Hợp đồng",
+              "Viện dẫn"
+            ],
+            "structure_path": "Hợp đồng › Viện dẫn",
+            "geometry_available": false,
+            "citation_id": null,
+            "source_hash": null,
+            "quote_sha256": "121918fc7afd5a197e42df083f9ca2e6a4f08bb55b31e33b63352686dc6e2bc0",
+            "coordinate_system": null,
+            "geometry_source": null,
+            "precision": null,
+            "validation_status": "UNVERIFIED",
+            "table_id": null,
+            "cell_id": null
+          },
+          "provenance": "L0",
+          "review_state": "NEEDS_REVIEW"
+        },
+        {
+          "fact_id": "fact_c0f65e93e2b66471bb2248f0",
+          "raw_value": "110000",
+          "normalized_value": "110000",
+          "subject": "Sửa A",
+          "role": null,
+          "unit": "VND",
+          "currency": "VND",
+          "vat_basis": null,
+          "condition": null,
+          "scope": "A",
+          "validity": null,
+          "item_key": "A",
+          "tax_basis": null,
+          "period_start": "01/07",
+          "source_role": "body",
+          "citation": {
+            "node_id": "fa1",
+            "page_revision_id": "p2_rev1",
+            "bbox": [],
+            "bbox_fragments": [],
+            "text_span": "sửa A thành 110000 VND từ 01/07",
+            "source_file_id": null,
+            "page": 2,
+            "page_range": [
+              2
+            ],
+            "line_ids": [],
+            "char_start": 11,
+            "char_end": 42,
+            "breadcrumb": [
+              "Hợp đồng",
+              "Sửa A"
+            ],
+            "structure_path": "Hợp đồng › Sửa A",
+            "geometry_available": false,
+            "citation_id": null,
+            "source_hash": null,
+            "quote_sha256": "f097d42756c6019d53a65ec1f405e4a1707172b7aa6430b956a5facd917887c0",
+            "coordinate_system": null,
+            "geometry_source": null,
+            "precision": null,
+            "validation_status": "UNVERIFIED",
+            "table_id": null,
+            "cell_id": null
+          },
+          "provenance": "L0",
+          "review_state": "NEEDS_REVIEW"
+        },
+        {
+          "fact_id": "fact_7f7f71bc0c5bed568eae104d",
+          "raw_value": "105000",
+          "normalized_value": "105000",
+          "subject": "A PL2",
+          "role": null,
+          "unit": "VND",
+          "currency": "VND",
+          "vat_basis": null,
+          "condition": null,
+          "scope": "A",
+          "validity": null,
+          "item_key": "A",
+          "tax_basis": null,
+          "period_start": null,
+          "source_role": "body",
+          "citation": {
+            "node_id": "fa2",
+            "page_revision_id": "p3_rev1",
+            "bbox": [],
+            "bbox_fragments": [],
+            "text_span": "Phụ lục 2: A 105000 VND.",
+            "source_file_id": null,
+            "page": 3,
+            "page_range": [
+              3
+            ],
+            "line_ids": [],
+            "char_start": 0,
+            "char_end": 24,
+            "breadcrumb": [
+              "Hợp đồng",
+              "A PL2"
+            ],
+            "structure_path": "Hợp đồng › A PL2",
+            "geometry_available": false,
+            "citation_id": null,
+            "source_hash": null,
+            "quote_sha256": "8146a716b91d42bb7513f60ee23a480cdbfe7bda0e4819c5837705d0b900deb5",
+            "coordinate_system": null,
+            "geometry_source": null,
+            "precision": null,
+            "validation_status": "UNVERIFIED",
+            "table_id": null,
+            "cell_id": null
+          },
+          "provenance": "L0",
+          "review_state": "NEEDS_REVIEW"
+        }
+      ],
+      "input_facts": [],
+      "chunks": [
+        {
+          "chunk_id": "chk_04eacfa8",
+          "parent_node_id": "doc_body",
+          "page_range": [
+            1
+          ],
+          "source_block_ids": [],
+          "text_span": "HĐ bán",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Hợp đồng"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_9dc0e664",
+          "parent_node_id": "doc_pl1",
+          "page_range": [
+            2
+          ],
+          "source_block_ids": [],
+          "text_span": "PL1",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 1"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_d08fa1d4",
+          "parent_node_id": "doc_pl2",
+          "page_range": [
+            3
+          ],
+          "source_block_ids": [],
+          "text_span": "PL2",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 2"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        }
+      ],
+      "active_index_version": null,
+      "processing_index": false,
+      "legal_hold": false,
+      "egress_approved": true,
+      "budget_exceeded": false,
+      "processing_budget_exceeded": false,
+      "embedding_budget_exceeded": false,
+      "index_status": "READY",
+      "case_id": "SALE-BRD-07",
+      "handoff_issues": [
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "fa is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "fb is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        }
+      ],
+      "relation_graph": {
+        "graph_id": "graph:74b7915776a4229ec5a54190",
+        "source_snapshot_digest": "sha256:eval-sale-brd-07",
+        "nodes": [
+          {
+            "node_id": "doc_body",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "cite9",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "doc_pl1",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              2
+            ],
+            "page_revision_id": "p2_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "fa1",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              2
+            ],
+            "page_revision_id": "p2_rev1",
+            "quality": "PARTIAL"
+          },
+          {
+            "node_id": "doc_pl2",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              3
+            ],
+            "page_revision_id": "p3_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "fa2",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              3
+            ],
+            "page_revision_id": "p3_rev1",
+            "quality": "PARTIAL"
+          }
+        ],
+        "edges": [
+          {
+            "edge_id": "edge:88aac6262ac9652e0b310ec9",
+            "from_node_id": "doc_body",
+            "to_node_id": "cite9",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "cite9",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Áp dụng theo Phụ lục 9",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": null,
+                "char_end": null,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "c18273611abfb2702322357f65933300dad78341aa92cee69513c121a9e1b0b1",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-sale-brd-07"
+          },
+          {
+            "edge_id": "edge:79d601b67a3e6732ccdd32b7",
+            "from_node_id": "doc_body",
+            "to_node_id": "fa1",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "fa1",
+                "page_revision_id": "p2_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "sửa A thành 110000 VND từ 01/07",
+                "source_file_id": null,
+                "page": 2,
+                "page_range": [
+                  2
+                ],
+                "line_ids": [],
+                "char_start": 11,
+                "char_end": 42,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "f097d42756c6019d53a65ec1f405e4a1707172b7aa6430b956a5facd917887c0",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-sale-brd-07"
+          },
+          {
+            "edge_id": "edge:e68e61dd08db05068468b516",
+            "from_node_id": "doc_body",
+            "to_node_id": "fa2",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "fa2",
+                "page_revision_id": "p3_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "A: 105000 VND",
+                "source_file_id": null,
+                "page": 3,
+                "page_range": [
+                  3
+                ],
+                "line_ids": [],
+                "char_start": null,
+                "char_end": null,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "a4b304cee3384a9392994701b784904601ea1e1c0b9a5f7ca047ed837a693507",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-sale-brd-07"
+          }
+        ],
+        "issues": [
+          {
+            "issue_id": "graph-issue:e1a881ebb250a927ae6820c4",
+            "missing": "missing annex 9",
+            "reason": "Không resolve được quan hệ: missing annex 9; không suy đoán target.",
+            "citation": {
+              "node_id": "cite9",
+              "page_revision_id": "p1_rev1",
+              "bbox": [],
+              "bbox_fragments": [],
+              "text_span": "Phụ lục 9",
+              "source_file_id": null,
+              "page": 1,
+              "page_range": [
+                1
+              ],
+              "line_ids": [],
+              "char_start": 52,
+              "char_end": 61,
+              "breadcrumb": [],
+              "structure_path": null,
+              "geometry_available": false,
+              "citation_id": null,
+              "source_hash": null,
+              "quote_sha256": "cb6fecc4ded024ec60fa08ecf9730344d45ec4d1fdfb1bbe3b2f69d6864947a2",
+              "coordinate_system": null,
+              "geometry_source": null,
+              "precision": null,
+              "validation_status": "UNVERIFIED",
+              "table_id": null,
+              "cell_id": null
+            },
+            "review_state": "INSUFFICIENT_EVIDENCE"
+          }
+        ]
+      },
+      "active_nodes": [
+        {
+          "node_id": "doc_body",
+          "type": "SECTION",
+          "raw_label": "Hợp đồng",
+          "parent_id": null,
+          "order": 0,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "HĐ bán",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "doc_body",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "cite9",
+          "type": "FIELD",
+          "raw_label": "Viện dẫn",
+          "parent_id": "doc_body",
+          "order": 3,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Áp dụng theo Phụ lục 9",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": "annex_ref",
+          "structured_value": "Phụ lục 9",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "FIELD",
+          "scope_id": "doc_body",
+          "heading_confidence": null,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "doc_pl1",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 1",
+          "parent_id": null,
+          "order": 4,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "PL1",
+          "page_range": [
+            2
+          ],
+          "page_revision_id": "p2_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "doc_pl1",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "fa1",
+          "type": "FIELD",
+          "raw_label": "Sửa A",
+          "parent_id": "doc_body",
+          "order": 5,
+          "has_children": false,
+          "status": "PARTIAL",
+          "text": "sửa A thành 110000 VND từ 01/07",
+          "page_range": [
+            2
+          ],
+          "page_revision_id": "p2_rev1",
+          "bbox": [],
+          "structured_key": "item:A",
+          "structured_value": "110000",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI2_REPAIRED",
+          "repaired_from_node_id": "fa1",
+          "structure_level": "FIELD",
+          "scope_id": "doc_body",
+          "heading_confidence": null,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "doc_pl2",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 2",
+          "parent_id": null,
+          "order": 6,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "PL2",
+          "page_range": [
+            3
+          ],
+          "page_revision_id": "p3_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "doc_pl2",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "fa2",
+          "type": "FIELD",
+          "raw_label": "A PL2",
+          "parent_id": "doc_body",
+          "order": 7,
+          "has_children": false,
+          "status": "PARTIAL",
+          "text": "A: 105000 VND",
+          "page_range": [
+            3
+          ],
+          "page_revision_id": "p3_rev1",
+          "bbox": [],
+          "structured_key": "item:A",
+          "structured_value": "105000",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI2_REPAIRED",
+          "repaired_from_node_id": "fa2",
+          "structure_level": "FIELD",
+          "scope_id": "doc_body",
+          "heading_confidence": null,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        }
+      ],
+      "citation_index": {},
+      "review_items": [
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:1",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "fa is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:2",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "fb is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:graph-issue:e1a881ebb250a927ae6820c4:3",
+          "kind": "graph-issue:e1a881ebb250a927ae6820c4",
+          "status": "OPEN",
+          "review_state": "INSUFFICIENT_EVIDENCE",
+          "reason": "Không resolve được quan hệ: missing annex 9; không suy đoán target.",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:iss_45bad1c1:4",
+          "kind": "iss_45bad1c1",
+          "status": "OPEN",
+          "review_state": "INSUFFICIENT_EVIDENCE",
+          "reason": "Viện dẫn Phụ lục 9 nhưng không có file/node phụ lục — EvidenceIssue, không conflict hai phía.",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:citation:cite9:UNVERIFIED:5",
+          "kind": "citation:cite9:UNVERIFIED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "fact:fact_a8f7ca9c96c8bacc9cf3f44c: source hash is missing",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:citation:fa1:UNVERIFIED:6",
+          "kind": "citation:fa1:UNVERIFIED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "fact:fact_c0f65e93e2b66471bb2248f0: source hash is missing",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:citation:fa2:UNVERIFIED:7",
+          "kind": "citation:fa2:UNVERIFIED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "fact:fact_7f7f71bc0c5bed568eae104d: source hash is missing",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:candidate:cand_4365b049",
+          "kind": "CANDIDATE",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "Nguồn 1 · Sửa A: 110000  ↔  Nguồn 2 · A PL2: 105000. Tham chiếu sửa/thay rõ — CANDIDATE_AMENDMENT, không xác nhận hiệu lực, không kéo item khác.",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": "cand_4365b049",
+          "proposed_action": "REVIEW_COMPARISON",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:fact:fact_a8f7ca9c96c8bacc9cf3f44c",
+          "kind": "FACT",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "Verify missing/uncertain value and its source context",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:fact:fact_c0f65e93e2b66471bb2248f0",
+          "kind": "FACT",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "Verify missing/uncertain value and its source context",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:fact:fact_7f7f71bc0c5bed568eae104d",
+          "kind": "FACT",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "Verify missing/uncertain value and its source context",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        }
+      ]
+    },
+    "envelope": {
+      "auth": {
+        "actor_id": "user_001",
+        "tenant_id": "tenant_a",
+        "dossier_id": "d_sale_brd07",
+        "acl_revision": 12,
+        "permissions": [
+          "READ_CONTENT"
+        ],
+        "lifecycle": "ACTIVE"
+      },
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-sale-brd-07",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      }
+    }
+  },
+  "output": {
+    "extract": {
+      "status_code": 200,
+      "body": {
+        "session_id": "e2d8d8405d01",
+        "filename": "SALE-BRD-07.snapshot",
+        "source": "eval",
+        "step": "extract",
+        "ai1": {
+          "case_id": "SALE-BRD-07"
+        },
+        "files": [],
+        "has_pdf": false,
+        "dossier_id": "d_sale_brd07",
+        "tenant_id": "tenant_a",
+        "lifecycle": "ACTIVE",
+        "pins": {
+          "manifest_version": 2,
+          "source_snapshot_digest": "sha256:eval-sale-brd-07",
+          "tenant_profile_version": 5,
+          "policy_version": 2,
+          "ocr_run_version": 3,
+          "reconstruction_version": 2,
+          "extraction_version": 7,
+          "index_version": "idx_14",
+          "source_digest": null,
+          "snapshot_digest": null
+        },
+        "n_pages": 3,
+        "n_nodes": 6,
+        "n_raw_nodes": 8,
+        "n_tables": 0,
+        "table_coverage": {
+          "UNKNOWN": 3
+        },
+        "relation_graph": {
+          "n_nodes": 6,
+          "n_edges": 3,
+          "n_issues": 1
+        },
+        "pages": [
+          {
+            "page": 1,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Hạng mục A 100.000 VND. Hạng mục B 200.000 VND. Xem Phụ lục 9.",
+            "page_revision_id": "p1_rev1"
+          },
+          {
+            "page": 2,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Phụ lục 1: sửa A thành 110000 VND từ 01/07.",
+            "page_revision_id": "p2_rev1"
+          },
+          {
+            "page": 3,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Phụ lục 2: A 105000 VND.",
+            "page_revision_id": "p3_rev1"
+          }
+        ],
+        "n_pages_hidden": 0,
+        "nodes": [
+          {
+            "node_id": "doc_body",
+            "type": "SECTION",
+            "raw_label": "Hợp đồng",
+            "page_range": [
+              1
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "cite9",
+            "type": "FIELD",
+            "raw_label": "Viện dẫn",
+            "page_range": [
+              1
+            ],
+            "structured_key": "annex_ref",
+            "structured_value": "Phụ lục 9"
+          },
+          {
+            "node_id": "doc_pl1",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 1",
+            "page_range": [
+              2
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "fa1",
+            "type": "FIELD",
+            "raw_label": "Sửa A",
+            "page_range": [
+              2
+            ],
+            "structured_key": "item:A",
+            "structured_value": "110000"
+          },
+          {
+            "node_id": "doc_pl2",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 2",
+            "page_range": [
+              3
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "fa2",
+            "type": "FIELD",
+            "raw_label": "A PL2",
+            "page_range": [
+              3
+            ],
+            "structured_key": "item:A",
+            "structured_value": "105000"
+          }
+        ],
+        "n_nodes_hidden": 0,
+        "tree": [
+          {
+            "node_id": "doc_body",
+            "type": "SECTION",
+            "raw_label": "Hợp đồng",
+            "status": "CONFIRMED",
+            "page": 1,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "doc_body",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "HĐ bán",
+            "children": [
+              {
+                "node_id": "cite9",
+                "type": "FIELD",
+                "raw_label": "Viện dẫn",
+                "status": "CONFIRMED",
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "has_children": false,
+                "structured_key": "annex_ref",
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "FIELD",
+                "scope_id": "doc_body",
+                "heading_confidence": null,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "Áp dụng theo Phụ lục 9",
+                "children": []
+              },
+              {
+                "node_id": "fa1",
+                "type": "FIELD",
+                "raw_label": "Sửa A",
+                "status": "PARTIAL",
+                "page": 2,
+                "page_range": [
+                  2
+                ],
+                "page_revision_id": "p2_rev1",
+                "bbox": [],
+                "has_children": false,
+                "structured_key": "item:A",
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "FIELD",
+                "scope_id": "doc_body",
+                "heading_confidence": null,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "sửa A thành 110000 VND từ 01/07",
+                "children": []
+              },
+              {
+                "node_id": "fa2",
+                "type": "FIELD",
+                "raw_label": "A PL2",
+                "status": "PARTIAL",
+                "page": 3,
+                "page_range": [
+                  3
+                ],
+                "page_revision_id": "p3_rev1",
+                "bbox": [],
+                "has_children": false,
+                "structured_key": "item:A",
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "FIELD",
+                "scope_id": "doc_body",
+                "heading_confidence": null,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "A: 105000 VND",
+                "children": []
+              }
+            ]
+          },
+          {
+            "node_id": "doc_pl1",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 1",
+            "status": "CONFIRMED",
+            "page": 2,
+            "page_range": [
+              2
+            ],
+            "page_revision_id": "p2_rev1",
+            "bbox": [],
+            "has_children": false,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "doc_pl1",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "PL1",
+            "children": []
+          },
+          {
+            "node_id": "doc_pl2",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 2",
+            "status": "CONFIRMED",
+            "page": 3,
+            "page_range": [
+              3
+            ],
+            "page_revision_id": "p3_rev1",
+            "bbox": [],
+            "has_children": false,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "doc_pl2",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "PL2",
+            "children": []
+          }
+        ],
+        "tables": [],
+        "extracted": true,
+        "job": {
+          "job_id": "job_c5c33c2341",
+          "status": "SUCCEEDED",
+          "review_state": "NEEDS_REVIEW",
+          "handoff_issues": [
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "fa is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "fb is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_STATUS",
+              "message": "fa1:PARTIAL",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_STATUS",
+              "message": "fa2:PARTIAL",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            }
+          ],
+          "contribution": {
+            "facts": [
+              {
+                "fact_id": "fact_a8f7ca9c96c8bacc9cf3f44c",
+                "raw_value": "Phụ lục 9",
+                "normalized_value": null,
+                "subject": "Viện dẫn",
+                "role": null,
+                "unit": null,
+                "currency": null,
+                "vat_basis": null,
+                "condition": null,
+                "scope": null,
+                "validity": null,
+                "item_key": null,
+                "tax_basis": null,
+                "period_start": null,
+                "source_role": "body",
+                "citation": {
+                  "node_id": "cite9",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "Hạng mục A 100.000 VND. Hạng mục B 200.000 VND. Xem Phụ lục 9.",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 0,
+                  "char_end": 62,
+                  "breadcrumb": [
+                    "Hợp đồng",
+                    "Viện dẫn"
+                  ],
+                  "structure_path": "Hợp đồng › Viện dẫn",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "121918fc7afd5a197e42df083f9ca2e6a4f08bb55b31e33b63352686dc6e2bc0",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "provenance": "L0",
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "fact_id": "fact_c0f65e93e2b66471bb2248f0",
+                "raw_value": "110000",
+                "normalized_value": "110000",
+                "subject": "Sửa A",
+                "role": null,
+                "unit": "VND",
+                "currency": "VND",
+                "vat_basis": null,
+                "condition": null,
+                "scope": "A",
+                "validity": null,
+                "item_key": "A",
+                "tax_basis": null,
+                "period_start": "01/07",
+                "source_role": "body",
+                "citation": {
+                  "node_id": "fa1",
+                  "page_revision_id": "p2_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "sửa A thành 110000 VND từ 01/07",
+                  "source_file_id": null,
+                  "page": 2,
+                  "page_range": [
+                    2
+                  ],
+                  "line_ids": [],
+                  "char_start": 11,
+                  "char_end": 42,
+                  "breadcrumb": [
+                    "Hợp đồng",
+                    "Sửa A"
+                  ],
+                  "structure_path": "Hợp đồng › Sửa A",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "f097d42756c6019d53a65ec1f405e4a1707172b7aa6430b956a5facd917887c0",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "provenance": "L0",
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "fact_id": "fact_7f7f71bc0c5bed568eae104d",
+                "raw_value": "105000",
+                "normalized_value": "105000",
+                "subject": "A PL2",
+                "role": null,
+                "unit": "VND",
+                "currency": "VND",
+                "vat_basis": null,
+                "condition": null,
+                "scope": "A",
+                "validity": null,
+                "item_key": "A",
+                "tax_basis": null,
+                "period_start": null,
+                "source_role": "body",
+                "citation": {
+                  "node_id": "fa2",
+                  "page_revision_id": "p3_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "Phụ lục 2: A 105000 VND.",
+                  "source_file_id": null,
+                  "page": 3,
+                  "page_range": [
+                    3
+                  ],
+                  "line_ids": [],
+                  "char_start": 0,
+                  "char_end": 24,
+                  "breadcrumb": [
+                    "Hợp đồng",
+                    "A PL2"
+                  ],
+                  "structure_path": "Hợp đồng › A PL2",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "8146a716b91d42bb7513f60ee23a480cdbfe7bda0e4819c5837705d0b900deb5",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "provenance": "L0",
+                "review_state": "NEEDS_REVIEW"
+              }
+            ],
+            "chunks": [
+              {
+                "chunk_id": "chk_04eacfa8",
+                "parent_node_id": "doc_body",
+                "page_range": [
+                  1
+                ],
+                "source_block_ids": [],
+                "text_span": "HĐ bán",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Hợp đồng"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_9dc0e664",
+                "parent_node_id": "doc_pl1",
+                "page_range": [
+                  2
+                ],
+                "source_block_ids": [],
+                "text_span": "PL1",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 1"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_d08fa1d4",
+                "parent_node_id": "doc_pl2",
+                "page_range": [
+                  3
+                ],
+                "source_block_ids": [],
+                "text_span": "PL2",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 2"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "cand_4365b049",
+                "left_id": "fact_c0f65e93e2b66471bb2248f0",
+                "right_id": "fact_7f7f71bc0c5bed568eae104d",
+                "finding_type": "CANDIDATE_AMENDMENT",
+                "model_disposition": "INCOMPLETE",
+                "review_state": "NEEDS_REVIEW",
+                "evidence_left": [
+                  {
+                    "node_id": "fa1",
+                    "page_revision_id": "p2_rev1",
+                    "bbox": [],
+                    "bbox_fragments": [],
+                    "text_span": "sửa A thành 110000 VND từ 01/07",
+                    "source_file_id": null,
+                    "page": 2,
+                    "page_range": [
+                      2
+                    ],
+                    "line_ids": [],
+                    "char_start": 11,
+                    "char_end": 42,
+                    "breadcrumb": [
+                      "Hợp đồng",
+                      "Sửa A"
+                    ],
+                    "structure_path": "Hợp đồng › Sửa A",
+                    "geometry_available": false,
+                    "citation_id": null,
+                    "source_hash": null,
+                    "quote_sha256": "f097d42756c6019d53a65ec1f405e4a1707172b7aa6430b956a5facd917887c0",
+                    "coordinate_system": null,
+                    "geometry_source": null,
+                    "precision": null,
+                    "validation_status": "UNVERIFIED",
+                    "table_id": null,
+                    "cell_id": null
+                  }
+                ],
+                "evidence_right": [
+                  {
+                    "node_id": "fa2",
+                    "page_revision_id": "p3_rev1",
+                    "bbox": [],
+                    "bbox_fragments": [],
+                    "text_span": "Phụ lục 2: A 105000 VND.",
+                    "source_file_id": null,
+                    "page": 3,
+                    "page_range": [
+                      3
+                    ],
+                    "line_ids": [],
+                    "char_start": 0,
+                    "char_end": 24,
+                    "breadcrumb": [
+                      "Hợp đồng",
+                      "A PL2"
+                    ],
+                    "structure_path": "Hợp đồng › A PL2",
+                    "geometry_available": false,
+                    "citation_id": null,
+                    "source_hash": null,
+                    "quote_sha256": "8146a716b91d42bb7513f60ee23a480cdbfe7bda0e4819c5837705d0b900deb5",
+                    "coordinate_system": null,
+                    "geometry_source": null,
+                    "precision": null,
+                    "validation_status": "UNVERIFIED",
+                    "table_id": null,
+                    "cell_id": null
+                  }
+                ],
+                "reason": "Nguồn 1 · Sửa A: 110000  ↔  Nguồn 2 · A PL2: 105000. Tham chiếu sửa/thay rõ — CANDIDATE_AMENDMENT, không xác nhận hiệu lực, không kéo item khác.",
+                "disposition": "CANDIDATE_AMENDMENT",
+                "scope": "WITHIN_DOCUMENT",
+                "item_key": "A"
+              }
+            ],
+            "evidence_issues": [
+              {
+                "issue_id": "graph-issue:e1a881ebb250a927ae6820c4",
+                "missing": "missing annex 9",
+                "reason": "Không resolve được quan hệ: missing annex 9; không suy đoán target.",
+                "citation": {
+                  "node_id": "cite9",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "Phụ lục 9",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 52,
+                  "char_end": 61,
+                  "breadcrumb": [],
+                  "structure_path": null,
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "cb6fecc4ded024ec60fa08ecf9730344d45ec4d1fdfb1bbe3b2f69d6864947a2",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "review_state": "INSUFFICIENT_EVIDENCE"
+              },
+              {
+                "issue_id": "iss_45bad1c1",
+                "missing": "Phụ lục 9",
+                "reason": "Viện dẫn Phụ lục 9 nhưng không có file/node phụ lục — EvidenceIssue, không conflict hai phía.",
+                "citation": {
+                  "node_id": "cite9",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "Hạng mục A 100.000 VND. Hạng mục B 200.000 VND. Xem Phụ lục 9.",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 0,
+                  "char_end": 62,
+                  "breadcrumb": [
+                    "Hợp đồng",
+                    "Viện dẫn"
+                  ],
+                  "structure_path": "Hợp đồng › Viện dẫn",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "121918fc7afd5a197e42df083f9ca2e6a4f08bb55b31e33b63352686dc6e2bc0",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "review_state": "INSUFFICIENT_EVIDENCE"
+              },
+              {
+                "issue_id": "citation:cite9:UNVERIFIED",
+                "missing": "CITATION_VERIFICATION",
+                "reason": "fact:fact_a8f7ca9c96c8bacc9cf3f44c: source hash is missing",
+                "citation": {
+                  "node_id": "cite9",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "Hạng mục A 100.000 VND. Hạng mục B 200.000 VND. Xem Phụ lục 9.",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 0,
+                  "char_end": 62,
+                  "breadcrumb": [
+                    "Hợp đồng",
+                    "Viện dẫn"
+                  ],
+                  "structure_path": "Hợp đồng › Viện dẫn",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "121918fc7afd5a197e42df083f9ca2e6a4f08bb55b31e33b63352686dc6e2bc0",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "issue_id": "citation:fa1:UNVERIFIED",
+                "missing": "CITATION_VERIFICATION",
+                "reason": "fact:fact_c0f65e93e2b66471bb2248f0: source hash is missing",
+                "citation": {
+                  "node_id": "fa1",
+                  "page_revision_id": "p2_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "sửa A thành 110000 VND từ 01/07",
+                  "source_file_id": null,
+                  "page": 2,
+                  "page_range": [
+                    2
+                  ],
+                  "line_ids": [],
+                  "char_start": 11,
+                  "char_end": 42,
+                  "breadcrumb": [
+                    "Hợp đồng",
+                    "Sửa A"
+                  ],
+                  "structure_path": "Hợp đồng › Sửa A",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "f097d42756c6019d53a65ec1f405e4a1707172b7aa6430b956a5facd917887c0",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "issue_id": "citation:fa2:UNVERIFIED",
+                "missing": "CITATION_VERIFICATION",
+                "reason": "fact:fact_7f7f71bc0c5bed568eae104d: source hash is missing",
+                "citation": {
+                  "node_id": "fa2",
+                  "page_revision_id": "p3_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "Phụ lục 2: A 105000 VND.",
+                  "source_file_id": null,
+                  "page": 3,
+                  "page_range": [
+                    3
+                  ],
+                  "line_ids": [],
+                  "char_start": 0,
+                  "char_end": 24,
+                  "breadcrumb": [
+                    "Hợp đồng",
+                    "A PL2"
+                  ],
+                  "structure_path": "Hợp đồng › A PL2",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "8146a716b91d42bb7513f60ee23a480cdbfe7bda0e4819c5837705d0b900deb5",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "review_state": "NEEDS_REVIEW"
+              }
+            ],
+            "coverage": {
+              "n_facts": 3,
+              "n_findings": 1,
+              "n_evidence_issues": 5,
+              "n_units": 2,
+              "unit_ids": [
+                "unit:a65391364f2f8ed984b8",
+                "unit:d59447fdc0ce84d7652e"
+              ],
+              "annex_labels": [
+                "Phụ lục 1",
+                "Phụ lục 2"
+              ],
+              "runtime": {
+                "egress_allowed": true,
+                "use_vector": false,
+                "max_processing_seconds": 300,
+                "max_llm_calls": 0,
+                "max_embedding_tokens": 0,
+                "llm_calls_used": 0,
+                "embedding_tokens_used": 0,
+                "fallback_count": 0
+              },
+              "n_candidates_suppressed": 0
+            },
+            "extraction_version": 7,
+            "proposed_index_version": "idx_7",
+            "publish": "propose"
+          },
+          "query_answer": null,
+          "error": null
+        },
+        "contribution": {
+          "facts": [
+            {
+              "fact_id": "fact_c0f65e93e2b66471bb2248f0",
+              "raw_value": "110000",
+              "normalized_value": "110000",
+              "subject": "Sửa A",
+              "role": null,
+              "unit": "VND",
+              "currency": "VND",
+              "vat_basis": null,
+              "condition": null,
+              "scope": "A",
+              "validity": null,
+              "item_key": "A",
+              "tax_basis": null,
+              "period_start": "01/07",
+              "source_role": "body",
+              "citation": {
+                "node_id": "fa1",
+                "page_revision_id": "p2_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "sửa A thành 110000 VND từ 01/07",
+                "source_file_id": null,
+                "page": 2,
+                "page_range": [
+                  2
+                ],
+                "line_ids": [],
+                "char_start": 11,
+                "char_end": 42,
+                "breadcrumb": [
+                  "Hợp đồng",
+                  "Sửa A"
+                ],
+                "structure_path": "Hợp đồng › Sửa A",
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "f097d42756c6019d53a65ec1f405e4a1707172b7aa6430b956a5facd917887c0",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "provenance": "L0",
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "fact_id": "fact_7f7f71bc0c5bed568eae104d",
+              "raw_value": "105000",
+              "normalized_value": "105000",
+              "subject": "A PL2",
+              "role": null,
+              "unit": "VND",
+              "currency": "VND",
+              "vat_basis": null,
+              "condition": null,
+              "scope": "A",
+              "validity": null,
+              "item_key": "A",
+              "tax_basis": null,
+              "period_start": null,
+              "source_role": "body",
+              "citation": {
+                "node_id": "fa2",
+                "page_revision_id": "p3_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Phụ lục 2: A 105000 VND.",
+                "source_file_id": null,
+                "page": 3,
+                "page_range": [
+                  3
+                ],
+                "line_ids": [],
+                "char_start": 0,
+                "char_end": 24,
+                "breadcrumb": [
+                  "Hợp đồng",
+                  "A PL2"
+                ],
+                "structure_path": "Hợp đồng › A PL2",
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "8146a716b91d42bb7513f60ee23a480cdbfe7bda0e4819c5837705d0b900deb5",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "provenance": "L0",
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "fact_id": "fact_a8f7ca9c96c8bacc9cf3f44c",
+              "raw_value": "Phụ lục 9",
+              "normalized_value": null,
+              "subject": "Viện dẫn",
+              "role": null,
+              "unit": null,
+              "currency": null,
+              "vat_basis": null,
+              "condition": null,
+              "scope": null,
+              "validity": null,
+              "item_key": null,
+              "tax_basis": null,
+              "period_start": null,
+              "source_role": "body",
+              "citation": {
+                "node_id": "cite9",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Hạng mục A 100.000 VND. Hạng mục B 200.000 VND. Xem Phụ lục 9.",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 0,
+                "char_end": 62,
+                "breadcrumb": [
+                  "Hợp đồng",
+                  "Viện dẫn"
+                ],
+                "structure_path": "Hợp đồng › Viện dẫn",
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "121918fc7afd5a197e42df083f9ca2e6a4f08bb55b31e33b63352686dc6e2bc0",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "provenance": "L0",
+              "review_state": "NEEDS_REVIEW"
+            }
+          ],
+          "chunks": [
+            {
+              "chunk_id": "chk_04eacfa8",
+              "parent_node_id": "doc_body",
+              "page_range": [
+                1
+              ],
+              "source_block_ids": [],
+              "text_span": "HĐ bán",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Hợp đồng"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_9dc0e664",
+              "parent_node_id": "doc_pl1",
+              "page_range": [
+                2
+              ],
+              "source_block_ids": [],
+              "text_span": "PL1",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 1"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_d08fa1d4",
+              "parent_node_id": "doc_pl2",
+              "page_range": [
+                3
+              ],
+              "source_block_ids": [],
+              "text_span": "PL2",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 2"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            }
+          ],
+          "candidates": [
+            {
+              "candidate_id": "cand_4365b049",
+              "left_id": "fact_c0f65e93e2b66471bb2248f0",
+              "right_id": "fact_7f7f71bc0c5bed568eae104d",
+              "finding_type": "CANDIDATE_AMENDMENT",
+              "model_disposition": "INCOMPLETE",
+              "review_state": "NEEDS_REVIEW",
+              "evidence_left": [
+                {
+                  "node_id": "fa1",
+                  "page_revision_id": "p2_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "sửa A thành 110000 VND từ 01/07",
+                  "source_file_id": null,
+                  "page": 2,
+                  "page_range": [
+                    2
+                  ],
+                  "line_ids": [],
+                  "char_start": 11,
+                  "char_end": 42,
+                  "breadcrumb": [
+                    "Hợp đồng",
+                    "Sửa A"
+                  ],
+                  "structure_path": "Hợp đồng › Sửa A",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "f097d42756c6019d53a65ec1f405e4a1707172b7aa6430b956a5facd917887c0",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                }
+              ],
+              "evidence_right": [
+                {
+                  "node_id": "fa2",
+                  "page_revision_id": "p3_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "Phụ lục 2: A 105000 VND.",
+                  "source_file_id": null,
+                  "page": 3,
+                  "page_range": [
+                    3
+                  ],
+                  "line_ids": [],
+                  "char_start": 0,
+                  "char_end": 24,
+                  "breadcrumb": [
+                    "Hợp đồng",
+                    "A PL2"
+                  ],
+                  "structure_path": "Hợp đồng › A PL2",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "8146a716b91d42bb7513f60ee23a480cdbfe7bda0e4819c5837705d0b900deb5",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                }
+              ],
+              "reason": "Nguồn 1 · Sửa A: 110000  ↔  Nguồn 2 · A PL2: 105000. Tham chiếu sửa/thay rõ — CANDIDATE_AMENDMENT, không xác nhận hiệu lực, không kéo item khác.",
+              "disposition": "CANDIDATE_AMENDMENT",
+              "scope": "WITHIN_DOCUMENT",
+              "item_key": "A"
+            }
+          ],
+          "evidence_issues": [
+            {
+              "issue_id": "graph-issue:e1a881ebb250a927ae6820c4",
+              "missing": "missing annex 9",
+              "reason": "Không resolve được quan hệ: missing annex 9; không suy đoán target.",
+              "citation": {
+                "node_id": "cite9",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Phụ lục 9",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 52,
+                "char_end": 61,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "cb6fecc4ded024ec60fa08ecf9730344d45ec4d1fdfb1bbe3b2f69d6864947a2",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "review_state": "INSUFFICIENT_EVIDENCE"
+            },
+            {
+              "issue_id": "iss_45bad1c1",
+              "missing": "Phụ lục 9",
+              "reason": "Viện dẫn Phụ lục 9 nhưng không có file/node phụ lục — EvidenceIssue, không conflict hai phía.",
+              "citation": {
+                "node_id": "cite9",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Hạng mục A 100.000 VND. Hạng mục B 200.000 VND. Xem Phụ lục 9.",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 0,
+                "char_end": 62,
+                "breadcrumb": [
+                  "Hợp đồng",
+                  "Viện dẫn"
+                ],
+                "structure_path": "Hợp đồng › Viện dẫn",
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "121918fc7afd5a197e42df083f9ca2e6a4f08bb55b31e33b63352686dc6e2bc0",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "review_state": "INSUFFICIENT_EVIDENCE"
+            },
+            {
+              "issue_id": "citation:cite9:UNVERIFIED",
+              "missing": "CITATION_VERIFICATION",
+              "reason": "fact:fact_a8f7ca9c96c8bacc9cf3f44c: source hash is missing",
+              "citation": {
+                "node_id": "cite9",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Hạng mục A 100.000 VND. Hạng mục B 200.000 VND. Xem Phụ lục 9.",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 0,
+                "char_end": 62,
+                "breadcrumb": [
+                  "Hợp đồng",
+                  "Viện dẫn"
+                ],
+                "structure_path": "Hợp đồng › Viện dẫn",
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "121918fc7afd5a197e42df083f9ca2e6a4f08bb55b31e33b63352686dc6e2bc0",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "issue_id": "citation:fa1:UNVERIFIED",
+              "missing": "CITATION_VERIFICATION",
+              "reason": "fact:fact_c0f65e93e2b66471bb2248f0: source hash is missing",
+              "citation": {
+                "node_id": "fa1",
+                "page_revision_id": "p2_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "sửa A thành 110000 VND từ 01/07",
+                "source_file_id": null,
+                "page": 2,
+                "page_range": [
+                  2
+                ],
+                "line_ids": [],
+                "char_start": 11,
+                "char_end": 42,
+                "breadcrumb": [
+                  "Hợp đồng",
+                  "Sửa A"
+                ],
+                "structure_path": "Hợp đồng › Sửa A",
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "f097d42756c6019d53a65ec1f405e4a1707172b7aa6430b956a5facd917887c0",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "issue_id": "citation:fa2:UNVERIFIED",
+              "missing": "CITATION_VERIFICATION",
+              "reason": "fact:fact_7f7f71bc0c5bed568eae104d: source hash is missing",
+              "citation": {
+                "node_id": "fa2",
+                "page_revision_id": "p3_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Phụ lục 2: A 105000 VND.",
+                "source_file_id": null,
+                "page": 3,
+                "page_range": [
+                  3
+                ],
+                "line_ids": [],
+                "char_start": 0,
+                "char_end": 24,
+                "breadcrumb": [
+                  "Hợp đồng",
+                  "A PL2"
+                ],
+                "structure_path": "Hợp đồng › A PL2",
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "8146a716b91d42bb7513f60ee23a480cdbfe7bda0e4819c5837705d0b900deb5",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "review_state": "NEEDS_REVIEW"
+            }
+          ],
+          "coverage": {
+            "n_facts": 3,
+            "n_findings": 1,
+            "n_evidence_issues": 5,
+            "n_units": 2,
+            "unit_ids": [
+              "unit:a65391364f2f8ed984b8",
+              "unit:d59447fdc0ce84d7652e"
+            ],
+            "annex_labels": [
+              "Phụ lục 1",
+              "Phụ lục 2"
+            ],
+            "runtime": {
+              "egress_allowed": true,
+              "use_vector": false,
+              "max_processing_seconds": 300,
+              "max_llm_calls": 0,
+              "max_embedding_tokens": 0,
+              "llm_calls_used": 0,
+              "embedding_tokens_used": 0,
+              "fallback_count": 0
+            },
+            "n_candidates_suppressed": 0
+          },
+          "extraction_version": 7,
+          "proposed_index_version": "idx_7",
+          "publish": "propose"
+        },
+        "used_llm": false,
+        "has_gold_tasks": false,
+        "reviews": {},
+        "reviews_stale": false,
+        "published": false,
+        "authoritative_publish_blocked": false,
+        "review_queue_status": "HAS_REVIEW_ITEMS",
+        "review_items": [
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:1",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "fa is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:2",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "fb is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:graph-issue:e1a881ebb250a927ae6820c4:3",
+            "kind": "graph-issue:e1a881ebb250a927ae6820c4",
+            "status": "OPEN",
+            "review_state": "INSUFFICIENT_EVIDENCE",
+            "reason": "Không resolve được quan hệ: missing annex 9; không suy đoán target.",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:iss_45bad1c1:4",
+            "kind": "iss_45bad1c1",
+            "status": "OPEN",
+            "review_state": "INSUFFICIENT_EVIDENCE",
+            "reason": "Viện dẫn Phụ lục 9 nhưng không có file/node phụ lục — EvidenceIssue, không conflict hai phía.",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:citation:cite9:UNVERIFIED:5",
+            "kind": "citation:cite9:UNVERIFIED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "fact:fact_a8f7ca9c96c8bacc9cf3f44c: source hash is missing",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:citation:fa1:UNVERIFIED:6",
+            "kind": "citation:fa1:UNVERIFIED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "fact:fact_c0f65e93e2b66471bb2248f0: source hash is missing",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:citation:fa2:UNVERIFIED:7",
+            "kind": "citation:fa2:UNVERIFIED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "fact:fact_7f7f71bc0c5bed568eae104d: source hash is missing",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:candidate:cand_4365b049",
+            "kind": "CANDIDATE",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "Nguồn 1 · Sửa A: 110000  ↔  Nguồn 2 · A PL2: 105000. Tham chiếu sửa/thay rõ — CANDIDATE_AMENDMENT, không xác nhận hiệu lực, không kéo item khác.",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": "cand_4365b049",
+            "proposed_action": "REVIEW_COMPARISON",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:fact:fact_a8f7ca9c96c8bacc9cf3f44c",
+            "kind": "FACT",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "Verify missing/uncertain value and its source context",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:fact:fact_c0f65e93e2b66471bb2248f0",
+            "kind": "FACT",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "Verify missing/uncertain value and its source context",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:fact:fact_7f7f71bc0c5bed568eae104d",
+            "kind": "FACT",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "Verify missing/uncertain value and its source context",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          }
+        ],
+        "n_review_items": 11,
+        "n_citations": 0,
+        "handoff_issues": [
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "fa is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "fb is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          }
+        ],
+        "policy": {
+          "deterministic": "ALLOW",
+          "external": "ALLOWED",
+          "gates": []
+        }
+      }
+    },
+    "ask": {
+      "status_code": null,
+      "body": null
+    }
+  },
+  "machine_checks": {
+    "case_id": "SALE-BRD-07",
+    "run": "deterministic",
+    "expected_state": "REVIEW",
+    "actual_extract_state": "NEEDS_REVIEW",
+    "actual_ask_state": null,
+    "extract_http_ok": true,
+    "ask_http_ok": true,
+    "expected_match": true,
+    "citation_valid": true,
+    "citation_errors": [],
+    "forbidden_claims": [],
+    "n_citations": 0,
+    "use_vector": false,
+    "vector_status": "NOT_REQUESTED",
+    "embedding_model": null,
+    "embedding_dimensions": null,
+    "vector_hits": 0,
+    "n_pages": 3,
+    "n_nodes": 8,
+    "elapsed_ms": 17.4
+  },
+  "manual_review": {
+    "verdict": "PENDING",
+    "severity": null,
+    "reviewer_notes": ""
+  }
+}

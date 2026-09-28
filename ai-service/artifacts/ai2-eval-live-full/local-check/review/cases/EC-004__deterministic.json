@@ -1,0 +1,1034 @@
+{
+  "case_id": "EC-004",
+  "run": "deterministic",
+  "input": {
+    "case": {
+      "case_id": "EC-004",
+      "title": "Trùng số Điều 5 body vs annex",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_dup_clause",
+      "expected_state": "REVIEW",
+      "expected_no_claims": [
+        "merge_same_label"
+      ],
+      "n_pages": 2,
+      "n_nodes": 4,
+      "n_tables": 0,
+      "lifecycle": "ACTIVE",
+      "query": null,
+      "notes": "",
+      "tags": [
+        "edge",
+        "structure"
+      ]
+    },
+    "record": {
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_dup_clause",
+      "lifecycle": "ACTIVE",
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-ec-004",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      },
+      "pages": [
+        {
+          "page_revision_id": "p1_rev1",
+          "page_number": 1,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p1_b1"
+          ],
+          "text": "Điều 5. Phạt chậm 0.1%/ngày.",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p40_rev1",
+          "page_number": 40,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p40_b1"
+          ],
+          "text": "Phụ lục 1 Điều 5. Phạt chậm 0.05%/ngày.",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        }
+      ],
+      "nodes": [
+        {
+          "node_id": "doc_contract",
+          "type": "SECTION",
+          "raw_label": "Hợp đồng",
+          "parent_id": null,
+          "order": 1,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Hợp đồng",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "c_5",
+          "type": "CLAUSE",
+          "raw_label": "Điều 5",
+          "parent_id": "doc_contract",
+          "order": 1,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Điều 5. Phạt chậm 0.1%/ngày.",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "doc_annex_01",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 1",
+          "parent_id": null,
+          "order": 2,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Phụ lục 1",
+          "page_range": [
+            40
+          ],
+          "page_revision_id": "p40_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "a_5",
+          "type": "CLAUSE",
+          "raw_label": "Điều 5",
+          "parent_id": "doc_annex_01",
+          "order": 1,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Phụ lục 1 Điều 5. Phạt chậm 0.05%/ngày.",
+          "page_range": [
+            40
+          ],
+          "page_revision_id": "p40_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        }
+      ],
+      "tables": [],
+      "profile": {
+        "version": 5,
+        "aliases": {
+          "Công ty ABC": [
+            "ABC Co.",
+            "ABC"
+          ],
+          "Công ty XYZ": [
+            "XYZ Ltd",
+            "XYZ"
+          ]
+        },
+        "field_keys": [
+          "party_a",
+          "party_b",
+          "mst_seller",
+          "contract_value",
+          "payment_term"
+        ]
+      },
+      "acl_revision": 12,
+      "permissions_by_actor": {
+        "user_001": [
+          "READ_CONTENT"
+        ]
+      },
+      "source_files": [],
+      "facts": [],
+      "input_facts": [],
+      "chunks": [
+        {
+          "chunk_id": "chk_6c3f9afc",
+          "parent_node_id": "c_5",
+          "page_range": [
+            1
+          ],
+          "source_block_ids": [],
+          "text_span": "Điều 5. Phạt chậm 0.1%/ngày.",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Hợp đồng",
+            "Điều 5"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_7f585ae2",
+          "parent_node_id": "doc_contract",
+          "page_range": [
+            1
+          ],
+          "source_block_ids": [],
+          "text_span": "Hợp đồng",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Hợp đồng"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_c9f79659",
+          "parent_node_id": "a_5",
+          "page_range": [
+            40
+          ],
+          "source_block_ids": [],
+          "text_span": "Phụ lục 1 Điều 5. Phạt chậm 0.05%/ngày.",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Hợp đồng",
+            "Điều 5"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "NEEDS_REVIEW"
+        },
+        {
+          "chunk_id": "chk_81e58f79",
+          "parent_node_id": "doc_annex_01",
+          "page_range": [
+            40
+          ],
+          "source_block_ids": [],
+          "text_span": "Phụ lục 1",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Phụ lục 1"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        }
+      ],
+      "active_index_version": null,
+      "processing_index": false,
+      "legal_hold": false,
+      "egress_approved": true,
+      "budget_exceeded": false,
+      "processing_budget_exceeded": false,
+      "embedding_budget_exceeded": false,
+      "index_status": "READY",
+      "case_id": "EC-004",
+      "handoff_issues": [],
+      "relation_graph": {
+        "graph_id": "graph:5cd3fa034b0b97af1ad89e99",
+        "source_snapshot_digest": "sha256:eval-ec-004",
+        "nodes": [
+          {
+            "node_id": "c_5",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "doc_contract",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "a_5",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              40
+            ],
+            "page_revision_id": "p40_rev1",
+            "quality": "PARTIAL"
+          },
+          {
+            "node_id": "doc_annex_01",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              40
+            ],
+            "page_revision_id": "p40_rev1",
+            "quality": "CONFIRMED"
+          }
+        ],
+        "edges": [
+          {
+            "edge_id": "edge:7551fe0fdcad808e3f53ad0a",
+            "from_node_id": "doc_contract",
+            "to_node_id": "c_5",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "c_5",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Điều 5. Phạt chậm 0.1%/ngày.",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 0,
+                "char_end": 28,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "4a9a754818007571d2fd3335ae930e5e328389947a26c2286313778be90defcb",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-ec-004"
+          },
+          {
+            "edge_id": "edge:a30c651fe776e955af08e03a",
+            "from_node_id": "doc_contract",
+            "to_node_id": "a_5",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "a_5",
+                "page_revision_id": "p40_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Phụ lục 1 Điều 5. Phạt chậm 0.05%/ngày.",
+                "source_file_id": null,
+                "page": 40,
+                "page_range": [
+                  40
+                ],
+                "line_ids": [],
+                "char_start": 0,
+                "char_end": 39,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "a963dc2b23c4f3c84a111ae6829fcaf484296e844209f7c00f58328e5f21127c",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-ec-004"
+          }
+        ],
+        "issues": []
+      },
+      "active_nodes": [
+        {
+          "node_id": "c_5",
+          "type": "CLAUSE",
+          "raw_label": "Điều 5",
+          "parent_id": "doc_contract",
+          "order": 1,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Điều 5. Phạt chậm 0.1%/ngày.",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "ARTICLE",
+          "scope_id": "doc_contract",
+          "heading_confidence": 0.95,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "doc_contract",
+          "type": "SECTION",
+          "raw_label": "Hợp đồng",
+          "parent_id": null,
+          "order": 1,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Hợp đồng",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "doc_contract",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "a_5",
+          "type": "CLAUSE",
+          "raw_label": "Điều 5",
+          "parent_id": "doc_contract",
+          "order": 1,
+          "has_children": false,
+          "status": "PARTIAL",
+          "text": "Phụ lục 1 Điều 5. Phạt chậm 0.05%/ngày.",
+          "page_range": [
+            40
+          ],
+          "page_revision_id": "p40_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI2_REPAIRED",
+          "repaired_from_node_id": "a_5",
+          "structure_level": "ARTICLE",
+          "scope_id": "doc_contract",
+          "heading_confidence": 0.95,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "doc_annex_01",
+          "type": "SECTION",
+          "raw_label": "Phụ lục 1",
+          "parent_id": null,
+          "order": 2,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Phụ lục 1",
+          "page_range": [
+            40
+          ],
+          "page_revision_id": "p40_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "doc_annex_01",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        }
+      ],
+      "citation_index": {},
+      "review_items": []
+    },
+    "envelope": {
+      "auth": {
+        "actor_id": "user_001",
+        "tenant_id": "tenant_a",
+        "dossier_id": "d_dup_clause",
+        "acl_revision": 12,
+        "permissions": [
+          "READ_CONTENT"
+        ],
+        "lifecycle": "ACTIVE"
+      },
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-ec-004",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      }
+    }
+  },
+  "output": {
+    "extract": {
+      "status_code": 200,
+      "body": {
+        "session_id": "55c395bbbead",
+        "filename": "EC-004.snapshot",
+        "source": "eval",
+        "step": "extract",
+        "ai1": {
+          "case_id": "EC-004"
+        },
+        "files": [],
+        "has_pdf": false,
+        "dossier_id": "d_dup_clause",
+        "tenant_id": "tenant_a",
+        "lifecycle": "ACTIVE",
+        "pins": {
+          "manifest_version": 2,
+          "source_snapshot_digest": "sha256:eval-ec-004",
+          "tenant_profile_version": 5,
+          "policy_version": 2,
+          "ocr_run_version": 3,
+          "reconstruction_version": 2,
+          "extraction_version": 7,
+          "index_version": "idx_14",
+          "source_digest": null,
+          "snapshot_digest": null
+        },
+        "n_pages": 2,
+        "n_nodes": 4,
+        "n_raw_nodes": 4,
+        "n_tables": 0,
+        "table_coverage": {
+          "UNKNOWN": 2
+        },
+        "relation_graph": {
+          "n_nodes": 4,
+          "n_edges": 2,
+          "n_issues": 0
+        },
+        "pages": [
+          {
+            "page": 1,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Điều 5. Phạt chậm 0.1%/ngày.",
+            "page_revision_id": "p1_rev1"
+          },
+          {
+            "page": 40,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Phụ lục 1 Điều 5. Phạt chậm 0.05%/ngày.",
+            "page_revision_id": "p40_rev1"
+          }
+        ],
+        "n_pages_hidden": 0,
+        "nodes": [
+          {
+            "node_id": "c_5",
+            "type": "CLAUSE",
+            "raw_label": "Điều 5",
+            "page_range": [
+              1
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "doc_contract",
+            "type": "SECTION",
+            "raw_label": "Hợp đồng",
+            "page_range": [
+              1
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "a_5",
+            "type": "CLAUSE",
+            "raw_label": "Điều 5",
+            "page_range": [
+              40
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "doc_annex_01",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 1",
+            "page_range": [
+              40
+            ],
+            "structured_key": null,
+            "structured_value": null
+          }
+        ],
+        "n_nodes_hidden": 0,
+        "tree": [
+          {
+            "node_id": "doc_contract",
+            "type": "SECTION",
+            "raw_label": "Hợp đồng",
+            "status": "CONFIRMED",
+            "page": 1,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "doc_contract",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Hợp đồng",
+            "children": [
+              {
+                "node_id": "a_5",
+                "type": "CLAUSE",
+                "raw_label": "Điều 5",
+                "status": "PARTIAL",
+                "page": 40,
+                "page_range": [
+                  40
+                ],
+                "page_revision_id": "p40_rev1",
+                "bbox": [],
+                "has_children": false,
+                "structured_key": null,
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "ARTICLE",
+                "scope_id": "doc_contract",
+                "heading_confidence": 0.95,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "Phụ lục 1 Điều 5. Phạt chậm 0.05%/ngày.",
+                "children": []
+              },
+              {
+                "node_id": "c_5",
+                "type": "CLAUSE",
+                "raw_label": "Điều 5",
+                "status": "CONFIRMED",
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "has_children": false,
+                "structured_key": null,
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "ARTICLE",
+                "scope_id": "doc_contract",
+                "heading_confidence": 0.95,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "Điều 5. Phạt chậm 0.1%/ngày.",
+                "children": []
+              }
+            ]
+          },
+          {
+            "node_id": "doc_annex_01",
+            "type": "SECTION",
+            "raw_label": "Phụ lục 1",
+            "status": "CONFIRMED",
+            "page": 40,
+            "page_range": [
+              40
+            ],
+            "page_revision_id": "p40_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "doc_annex_01",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Phụ lục 1",
+            "children": []
+          }
+        ],
+        "tables": [],
+        "extracted": true,
+        "job": {
+          "job_id": "job_d8f99e4cd1",
+          "status": "SUCCEEDED",
+          "review_state": "NEEDS_REVIEW",
+          "handoff_issues": [
+            {
+              "code": "NODE_STATUS",
+              "message": "a_5:PARTIAL",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            }
+          ],
+          "contribution": {
+            "facts": [],
+            "chunks": [
+              {
+                "chunk_id": "chk_6c3f9afc",
+                "parent_node_id": "c_5",
+                "page_range": [
+                  1
+                ],
+                "source_block_ids": [],
+                "text_span": "Điều 5. Phạt chậm 0.1%/ngày.",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Hợp đồng",
+                  "Điều 5"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_7f585ae2",
+                "parent_node_id": "doc_contract",
+                "page_range": [
+                  1
+                ],
+                "source_block_ids": [],
+                "text_span": "Hợp đồng",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Hợp đồng"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_c9f79659",
+                "parent_node_id": "a_5",
+                "page_range": [
+                  40
+                ],
+                "source_block_ids": [],
+                "text_span": "Phụ lục 1 Điều 5. Phạt chậm 0.05%/ngày.",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Hợp đồng",
+                  "Điều 5"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "chunk_id": "chk_81e58f79",
+                "parent_node_id": "doc_annex_01",
+                "page_range": [
+                  40
+                ],
+                "source_block_ids": [],
+                "text_span": "Phụ lục 1",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Phụ lục 1"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              }
+            ],
+            "candidates": [],
+            "evidence_issues": [],
+            "coverage": {
+              "n_facts": 0,
+              "n_findings": 0,
+              "n_evidence_issues": 0,
+              "n_units": 1,
+              "unit_ids": [
+                "unit:ec77f03984ab1898b94a"
+              ],
+              "annex_labels": [
+                "Phụ lục 1"
+              ],
+              "runtime": {
+                "egress_allowed": true,
+                "use_vector": false,
+                "max_processing_seconds": 300,
+                "max_llm_calls": 0,
+                "max_embedding_tokens": 0,
+                "llm_calls_used": 0,
+                "embedding_tokens_used": 0,
+                "fallback_count": 0
+              },
+              "n_candidates_suppressed": 0
+            },
+            "extraction_version": 7,
+            "proposed_index_version": "idx_7",
+            "publish": "propose"
+          },
+          "query_answer": null,
+          "error": null
+        },
+        "contribution": {
+          "facts": [],
+          "chunks": [
+            {
+              "chunk_id": "chk_6c3f9afc",
+              "parent_node_id": "c_5",
+              "page_range": [
+                1
+              ],
+              "source_block_ids": [],
+              "text_span": "Điều 5. Phạt chậm 0.1%/ngày.",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Hợp đồng",
+                "Điều 5"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_7f585ae2",
+              "parent_node_id": "doc_contract",
+              "page_range": [
+                1
+              ],
+              "source_block_ids": [],
+              "text_span": "Hợp đồng",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Hợp đồng"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_c9f79659",
+              "parent_node_id": "a_5",
+              "page_range": [
+                40
+              ],
+              "source_block_ids": [],
+              "text_span": "Phụ lục 1 Điều 5. Phạt chậm 0.05%/ngày.",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Hợp đồng",
+                "Điều 5"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "chunk_id": "chk_81e58f79",
+              "parent_node_id": "doc_annex_01",
+              "page_range": [
+                40
+              ],
+              "source_block_ids": [],
+              "text_span": "Phụ lục 1",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Phụ lục 1"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            }
+          ],
+          "candidates": [],
+          "evidence_issues": [],
+          "coverage": {
+            "n_facts": 0,
+            "n_findings": 0,
+            "n_evidence_issues": 0,
+            "n_units": 1,
+            "unit_ids": [
+              "unit:ec77f03984ab1898b94a"
+            ],
+            "annex_labels": [
+              "Phụ lục 1"
+            ],
+            "runtime": {
+              "egress_allowed": true,
+              "use_vector": false,
+              "max_processing_seconds": 300,
+              "max_llm_calls": 0,
+              "max_embedding_tokens": 0,
+              "llm_calls_used": 0,
+              "embedding_tokens_used": 0,
+              "fallback_count": 0
+            },
+            "n_candidates_suppressed": 0
+          },
+          "extraction_version": 7,
+          "proposed_index_version": "idx_7",
+          "publish": "propose"
+        },
+        "used_llm": false,
+        "has_gold_tasks": false,
+        "reviews": {},
+        "reviews_stale": false,
+        "published": false,
+        "authoritative_publish_blocked": false,
+        "review_queue_status": "EMPTY_QUEUE",
+        "review_items": [],
+        "n_review_items": 0,
+        "n_citations": 0,
+        "handoff_issues": [],
+        "policy": {
+          "deterministic": "ALLOW",
+          "external": "ALLOWED",
+          "gates": []
+        }
+      }
+    },
+    "ask": {
+      "status_code": null,
+      "body": null
+    }
+  },
+  "machine_checks": {
+    "case_id": "EC-004",
+    "run": "deterministic",
+    "expected_state": "REVIEW",
+    "actual_extract_state": "NEEDS_REVIEW",
+    "actual_ask_state": null,
+    "extract_http_ok": true,
+    "ask_http_ok": true,
+    "expected_match": true,
+    "citation_valid": true,
+    "citation_errors": [],
+    "forbidden_claims": [],
+    "n_citations": 0,
+    "use_vector": false,
+    "vector_status": "NOT_REQUESTED",
+    "embedding_model": null,
+    "embedding_dimensions": null,
+    "vector_hits": 0,
+    "n_pages": 2,
+    "n_nodes": 4,
+    "elapsed_ms": 15.7
+  },
+  "manual_review": {
+    "verdict": "PENDING",
+    "severity": null,
+    "reviewer_notes": ""
+  }
+}

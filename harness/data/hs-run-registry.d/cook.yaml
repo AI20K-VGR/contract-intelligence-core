@@ -1,0 +1,312 @@
+# cook.yaml — the `cook` domain's fragment of the hs-run registry.
+#
+# Owned exclusively by whoever builds the `cook` domain's verbs (P2). Never touch
+# plan.yaml or any other domain's fragment from here — one file per domain is what
+# lets P1 and P2 build concurrently without two agents writing the same file.
+# Schema + merge/conflict rules: see harness/data/hs-run-registry.yaml's header.
+
+domains:
+  cook:
+    next:      {module: hs_run_cook, entry: cmd_next}
+    status:    {module: hs_run_cook, entry: cmd_status}
+    preflight: {module: hs_run_cook, entry: cmd_preflight}
+    open:      {module: hs_run_cook, entry: cmd_open}
+    verify:    {module: hs_run_cook, entry: cmd_verify}
+    close:     {module: hs_run_cook, entry: cmd_close}
+    prompt:    {module: hs_run_cook, entry: cmd_prompt}
+    record:    {module: hs_run_cook, entry: cmd_record}
+
+# What the cook steps need, keyed by state.
+#
+# `covers_skill: true` is the claim that the CLI, not the prose, owns rule selection for
+# cook/SKILL.md. It was deliberately absent for a while — the table routed four states while
+# the body still named seven rule paths, and making the claim then would have asserted
+# something untrue. The body has since been migrated: the pointers moved here, the
+# hand-copied state table went, and the claim is now earned. Setting it also arms three
+# gates at once (rule coverage, no-duplication, every-state-routed), which is what makes it
+# a claim rather than a label.
+step_routing:
+  cook:
+    skill: cook
+    covers_skill: true
+    always:
+      # ONE rule, and the cost is why. Everything listed here is charged to the
+      # document budget of all 35 states, so a second entry buys its usefulness at
+      # `help` and `ok` too. probe-first earns that: it is not a step, it is the
+      # posture every step takes toward its own assumptions.
+      #
+      # no-orphan-code was here for one draft and came out. Its trigger reads "about
+      # to add a module ... or mark work done", which is six cook states, not
+      # thirty-five — and paying for it everywhere pushed needs_implementation and
+      # needs_review over budget. It is routed at those six instead.
+      rules: [agent-operational-discipline]
+    states:
+
+      # ── repeating has stopped being an attempt ────────────────────────────
+      # Raised by the ENGINE, not by this domain: the same answer has come back
+      # often enough that another identical run is not new evidence. The domain's
+      # own answer rides as `domain_state` — counsel about the wrong problem is
+      # worse than none, so the finding has to stay readable.
+      stuck:
+        summary: >-
+          This domain has answered the same thing enough times in a row that repeating
+          it is no longer an attempt. Stop re-running and spawn `escalation-consultant`
+          for counsel — hand it the task, the evidence as file:line, what was already
+          tried, and the specific question. It advises; the decision stays here.
+        rules: [orchestration-protocol, agent-operational-discipline]
+      # ---- entry: nothing to cook yet ------------------------------------
+      no_plan:
+        summary: >-
+          No plan exists. cook has nothing to execute; the work starts in hs:plan.
+        advisory: >-
+          Do not scaffold a plan from here — hs:plan owns creation, and a plan
+          born inside cook skips the approval a human has to give.
+      no_plan_graph:
+        summary: >-
+          The plan has no plan-graph.yaml sidecar, which is a mandatory artifact.
+          Back to hs:plan; the phase DAG is what cook walks.
+      not_approved:
+        summary: >-
+          The plan exists but no human approved it. Cooking an unapproved plan
+          executes a document nobody signed.
+        advisory: >-
+          Never approve on the plan's behalf. Approval is a human act; the
+          frontmatter status is its record, not its substitute.
+      ambiguous_approved:
+        summary: >-
+          Two or more plans read as approved. cook will not guess which one the
+          run means.
+      # `approval_refused`, not the `approval_invalid` this row used to carry:
+      # cook's only emit site is the MUTATING open verb refusing to write, where
+      # `plan`'s projection reports the same tree as a survey result. A shared
+      # name put one condition on two rungs, so a driver's next move depended on
+      # which verb it asked rather than on what is on disk.
+      approval_refused:
+        summary: >-
+          `cook open` refused to flip the frontmatter: the approval does not cover
+          the plan as it stands. Re-approve first; open writes nothing until then.
+      # Every mutating cook verb's answer for "no plan resolved". Distinct from
+      # `no_plan` (the projection's reading of an empty plans/ dir, rung 0): here
+      # a write was asked for and did not happen, which is rung 2.
+      plan_unresolved:
+        summary: >-
+          A mutating cook verb could not resolve which plan to act on, so nothing
+          was written. Name one with `--plan`, or fix what makes the tree ambiguous.
+      not_startable:
+        summary: >-
+          The plan is approved but its first phase cannot start; a precondition
+          the graph declares is unmet.
+
+      # ---- the run stopped on a tree it cannot act on ----------------------
+      # Routed rather than waived. plan waives its error/state_conflict on the
+      # ground that the next move is to fix the tree and a rule pointer answers a
+      # question nobody is asking yet. cook is different: its state_conflict means
+      # the frontmatter and the artifacts disagree, and deciding WHICH side lies is
+      # exactly the evidence question verification-mechanism governs.
+      error:
+        summary: >-
+          The verb could not act on the tree as it stands. Read warnings first;
+          they name what the run found, not what it wanted.
+      state_conflict:
+        summary: >-
+          The plan frontmatter and the artifacts on disk disagree. One of them is
+          stale — find which before touching either, because writing to the wrong
+          side makes the disagreement permanent.
+        rules: [verification-mechanism]
+
+      # ---- preflight: the hard gate before any phase runs ------------------
+      preflight_blocked:
+        summary: >-
+          Preflight refused: the plan skipped an artifact the DAG declares. This
+          is a plan defect, not a cook defect — fix it in hs:plan.
+        rules: [verification-mechanism]
+      needs_phase_grid_gate:
+        summary: >-
+          A phase grid has thin cells. Resolve them, then emit — a thin cell is a
+          case nobody thought through, not a formatting problem.
+        refs: [references/grid-mode.md]
+      blocked_grid_phase_gate:
+        summary: >-
+          The grid phase gate blocks: required per-phase grids are missing.
+        refs: [references/grid-mode.md]
+
+      # ---- opening the plan ------------------------------------------------
+      needs_open:
+        summary: >-
+          The plan is approved and startable but not opened. `cook open` flips the
+          frontmatter to in_progress, which is what makes the run resumable.
+        refs: [references/context-isolation.md]
+      already_open:
+        summary: >-
+          The plan is already open. Nothing to do; continue with the phase loop.
+      opened:
+        summary: >-
+          The plan just opened. The per-phase loop starts at the first unstarted node.
+      open_failed:
+        summary: >-
+          Opening the plan failed. The frontmatter write did not land; read the
+          warnings before retrying, because a partial write is the dangerous case.
+
+      # ---- the per-phase loop ----------------------------------------------
+      needs_implementation:
+        summary: >-
+          A phase is ready to build. Red->green: a test that fails for the stated
+          reason first, then the code. On a hard plan the whole red->green
+          delegates to a developer subagent.
+        # workflow-handoffs was routed here and came out: its handoff table governs
+        # plan->cook and cook->test, both of which happen at a different state than
+        # the one where code is being written. no-orphan-code takes the slot — this
+        # is the state where a module gets added, which is its first trigger.
+        rules: [tdd-discipline, no-orphan-code]
+        refs: [references/per-phase-tdd.md, references/subagent-patterns.md]
+      # `status`'s whole-plan reading, at rung 0. Deliberately a different word
+      # from `needs_implementation`, which `next` emits at rung 10 for the one
+      # phase it resolved: same tree, different question, and one word on both
+      # rungs tells two drivers two different things.
+      phases_remain:
+        summary: >-
+          Phases are still unfinished. This is the read-only report, not the step —
+          `hs-run cook next` resolves which phase and what it owes.
+        rules: [tdd-discipline]
+
+      phase_needs_work:
+        summary: >-
+          The phase's verification did not pass. Fix the code, or the test if the
+          test is genuinely wrong — never weaken a gate to get green.
+        rules: [tdd-discipline]
+        refs: [references/implement-test-loop.md]
+      phase_failed:
+        summary: >-
+          The phase failed outright. Read the verdict before deciding whether the
+          fault is the code, the test, or the phase's own declared contract.
+        rules: [tdd-discipline]
+      phase_needs_post_artifact:
+        summary: >-
+          The phase's declared post: artifact is missing. The obligation is the
+          plan's, written when the phase was authored — write it, then re-verify.
+        rules: [verification-mechanism]
+        refs: [references/verify-before-done.md]
+      phase_needs_reverify:
+        summary: >-
+          The canonical verification still records a PASS for this phase, but its
+          per-phase snapshot is gone — and the completion projection trusts only the
+          snapshot, so a deleted one regresses the phase. Re-run verify to regenerate
+          it; the implementation is not what is missing.
+        rules: [verification-mechanism]
+      # `verification_recorded`, not the `verified` this row used to carry. cook's
+      # emit site is the verb that WROTE the artifact and still owes one
+      # deterministic step (rung 11); the `test` domain's `verified` is a rung-0
+      # reading of an artifact someone else wrote. Same word, opposite claim.
+      verification_recorded:
+        summary: >-
+          The verification artifact reached disk. The phase is recorded as verified;
+          the named command is the next step, not a suggestion.
+        rules: [no-orphan-code]
+      verify_failed:
+        summary: >-
+          Recording the verification failed. The verdict did not reach disk, so the
+          phase still counts as unverified no matter what the run just did.
+      unknown_phase:
+        summary: >-
+          The named phase is not a node in the plan graph. Check the node id
+          against plan-graph.yaml rather than inventing one.
+      no_phase_resolved:
+        summary: >-
+          No phase could be resolved from the arguments and the plan state.
+
+      # ---- the mandatory post-build delegations -----------------------------
+      # The close verb's refusal, distinct from the projection's `needs_review`
+      # below: this is a write that did not happen, not work reported as owed.
+      review_missing:
+        summary: >-
+          `cook close` refused to finalize: no review-decision verdict is recorded.
+          Spawn the reviewer and record the verdict; close writes nothing until then.
+        rules: [workflow-handoffs, plannotator-review-gates]
+      # Same split, at the completion gate: the close verb refuses to write while
+      # phases remain, where the projection reports the same tree at rung 0.
+      phases_incomplete:
+        summary: >-
+          `cook close` refused to finalize: phases are still unbuilt. The warning
+          names which; finish them rather than closing over them.
+        rules: [tdd-discipline]
+      # Fourth close refusal, only reachable on a plan that opted into
+      # defer_suite: the canonical verification still lacks a closeable
+      # verdict. Same fact `pending` already reads (`_suite_debt_unpaid`) —
+      # one reader, not two independently-derived opinions of it.
+      suite_debt_unpaid:
+        summary: >-
+          `cook close` refused to finalize: this plan deferred its full suite
+          and the debt is still unpaid — run it once and record verify.
+        advisory: >-
+          the deferred full suite has not been verified yet for this plan —
+          run it once and record verify before cook close
+        rules: [verification-mechanism]
+        refs: [references/deferred-suite.md]
+      needs_review:
+        summary: >-
+          The build is done and the independent review is mandatory. Spawn the
+          reviewer; reviewing your own diff at this gate is the thing it exists
+          to prevent.
+        # anti-tautology-detection was routed here and moved to `recorded`. Its trigger
+        # is reading a verification artifact someone else wrote — which happens when a
+        # delegated result comes back, one state earlier. At THIS state the reviewer is
+        # being spawned, and the review domain routes the rule to the agent that will
+        # actually apply it.
+        rules: [workflow-handoffs, plannotator-review-gates]
+        # workflow-steps.md carries Step 4 (spawn the tester) and Step 5 (spawn the
+        # reviewer, and the --review effort pass-through) as well as Step 6. It used to
+        # route only at needs_close, one state AFTER the two steps it governs — so the
+        # body carried them instead. Routed at both states now; the body carries the
+        # mandate, the drawer carries the sequence.
+        refs: [references/self-check-confidence.md, references/workflow-steps.md]
+      needs_close:
+        summary: >-
+          Review passed. Finalize: docs, git, and close_plan — a plan left open
+          reads as still running to every later gate.
+        rules: [auto-decision-ledger, no-orphan-code]
+        refs: [references/workflow-steps.md]
+        # `defer_suite` only — conditional blocks accept `{rules, refs, docs}`
+        # exclusively (`StateRouting.from_entry`, hs_run.py:960-964); an
+        # `advisory:` key here would parse clean and never fire (measured).
+        # The reminder itself lives at the STATE level of `suite_debt_unpaid`
+        # (phase 5's own state), never here.
+        when_flag:
+          defer_suite:
+            refs: [references/deferred-suite.md]
+      close_failed:
+        summary: >-
+          Closing the plan failed. The frontmatter still says in_progress, so the
+          plan is not finished regardless of the work being done.
+      already_closed:
+        summary: >-
+          The plan is already closed. Re-opening is a decision, not a retry.
+      closed:
+        summary: >-
+          The plan closed. This run is finished.
+      completed:
+        summary: >-
+          Every phase is complete and the plan is closed. Nothing remains.
+
+      # ---- delegation bookkeeping -------------------------------------------
+      recorded:
+        summary: >-
+          A delegated result was recorded. The two-beat protocol is complete for
+          that role; the next state names what follows.
+        rules: [workflow-handoffs, anti-tautology-detection]
+      waiting_on_model:
+        summary: >-
+          The CLI has done what it can from disk; the next move is a judgment only
+          the model makes. Do that judgment, then run again.
+      blocked:
+        summary: >-
+          A gate blocks. Read the warnings — they name which gate and why, and the
+          fix is at that gate, not here.
+
+      # ---- end-of-work ------------------------------------------------------
+      ok:
+        summary: >-
+          The command succeeded and there is nothing further this verb owns.
+        rules: [observation-signal-emit]
+      help:
+        summary: >-
+          Usage output. No workflow state is implied.

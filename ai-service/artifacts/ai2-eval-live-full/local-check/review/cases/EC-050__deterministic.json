@@ -1,0 +1,2685 @@
+{
+  "case_id": "EC-050",
+  "run": "deterministic",
+  "input": {
+    "case": {
+      "case_id": "EC-050",
+      "title": "Embedding cost gate",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_cost",
+      "expected_state": "BLOCKED",
+      "expected_no_claims": [
+        "unbounded_embed"
+      ],
+      "n_pages": 1,
+      "n_nodes": 6,
+      "n_tables": 0,
+      "lifecycle": "ACTIVE",
+      "query": null,
+      "notes": "",
+      "tags": [
+        "edge",
+        "cost"
+      ]
+    },
+    "record": {
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_cost",
+      "lifecycle": "ACTIVE",
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-ec-050",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      },
+      "pages": [
+        {
+          "page_revision_id": "p1_rev1",
+          "page_number": 1,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p1_b1"
+          ],
+          "text": "Hợp đồng số 01. Bên A: Công ty ABC MST 0311111111. Bên B: Công ty XYZ MST 0322222222. Giá trị: 1.000.000.000 VND.",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        }
+      ],
+      "nodes": [
+        {
+          "node_id": "doc_contract",
+          "type": "SECTION",
+          "raw_label": "Hợp đồng số 01",
+          "parent_id": null,
+          "order": 1,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Hợp đồng số 01",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "field_party_a",
+          "type": "FIELD",
+          "raw_label": "Bên A",
+          "parent_id": "doc_contract",
+          "order": 2,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Bên A: Công ty ABC MST 0311111111",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [
+            10.0,
+            10.0,
+            200.0,
+            28.0
+          ],
+          "structured_key": "party_a",
+          "structured_value": "Công ty ABC",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "field_mst_a",
+          "type": "FIELD",
+          "raw_label": "MST Bên A",
+          "parent_id": "doc_contract",
+          "order": 3,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "MST 0311111111",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [
+            10.0,
+            30.0,
+            180.0,
+            44.0
+          ],
+          "structured_key": "mst_seller",
+          "structured_value": "0311111111",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "field_party_b",
+          "type": "FIELD",
+          "raw_label": "Bên B",
+          "parent_id": "doc_contract",
+          "order": 4,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Bên B: Công ty XYZ MST 0322222222",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [
+            10.0,
+            46.0,
+            200.0,
+            64.0
+          ],
+          "structured_key": "party_b",
+          "structured_value": "Công ty XYZ",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "field_mst_b",
+          "type": "FIELD",
+          "raw_label": "MST Bên B",
+          "parent_id": "doc_contract",
+          "order": 5,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "MST 0322222222",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [
+            10.0,
+            66.0,
+            180.0,
+            80.0
+          ],
+          "structured_key": "mst_party_b",
+          "structured_value": "0322222222",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "field_value",
+          "type": "FIELD",
+          "raw_label": "Giá trị",
+          "parent_id": "doc_contract",
+          "order": 6,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Giá trị: 1.000.000.000 VND",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": "contract_value",
+          "structured_value": "1.000.000.000 VND",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        }
+      ],
+      "tables": [],
+      "profile": {
+        "version": 5,
+        "aliases": {
+          "Công ty ABC": [
+            "ABC Co.",
+            "ABC"
+          ],
+          "Công ty XYZ": [
+            "XYZ Ltd",
+            "XYZ"
+          ]
+        },
+        "field_keys": [
+          "party_a",
+          "party_b",
+          "mst_seller",
+          "contract_value",
+          "payment_term"
+        ]
+      },
+      "acl_revision": 12,
+      "permissions_by_actor": {
+        "user_001": [
+          "READ_CONTENT"
+        ]
+      },
+      "source_files": [],
+      "facts": [
+        {
+          "fact_id": "fact_a1a8874ced778ee37dc12c03",
+          "raw_value": "0311111111",
+          "normalized_value": "0311111111",
+          "subject": "MST Bên A",
+          "role": null,
+          "unit": null,
+          "currency": null,
+          "vat_basis": null,
+          "condition": null,
+          "scope": "mst_seller",
+          "validity": null,
+          "item_key": "mst_seller",
+          "tax_basis": null,
+          "period_start": null,
+          "source_role": "body",
+          "citation": {
+            "node_id": "field_mst_a",
+            "page_revision_id": "p1_rev1",
+            "bbox": [
+              10.0,
+              30.0,
+              180.0,
+              44.0
+            ],
+            "bbox_fragments": [],
+            "text_span": "MST 0311111111",
+            "source_file_id": null,
+            "page": 1,
+            "page_range": [
+              1
+            ],
+            "line_ids": [],
+            "char_start": 35,
+            "char_end": 49,
+            "breadcrumb": [
+              "Hợp đồng số 01",
+              "MST Bên A"
+            ],
+            "structure_path": "Hợp đồng số 01 › MST Bên A",
+            "geometry_available": true,
+            "citation_id": null,
+            "source_hash": null,
+            "quote_sha256": "21aec2d946e57a8bf1759c1f5d9e5b45686816a0b06d495c1e3667ce1e837f1a",
+            "coordinate_system": null,
+            "geometry_source": null,
+            "precision": null,
+            "validation_status": "INVALID",
+            "table_id": null,
+            "cell_id": null
+          },
+          "provenance": "L0",
+          "review_state": "NEEDS_REVIEW"
+        },
+        {
+          "fact_id": "fact_59cb2bcba39101bd9a570dca",
+          "raw_value": "0322222222",
+          "normalized_value": "0322222222",
+          "subject": "MST Bên B",
+          "role": null,
+          "unit": null,
+          "currency": null,
+          "vat_basis": null,
+          "condition": null,
+          "scope": "mst_party_b",
+          "validity": null,
+          "item_key": "mst_party_b",
+          "tax_basis": null,
+          "period_start": null,
+          "source_role": "body",
+          "citation": {
+            "node_id": "field_mst_b",
+            "page_revision_id": "p1_rev1",
+            "bbox": [
+              10.0,
+              66.0,
+              180.0,
+              80.0
+            ],
+            "bbox_fragments": [],
+            "text_span": "MST 0322222222",
+            "source_file_id": null,
+            "page": 1,
+            "page_range": [
+              1
+            ],
+            "line_ids": [],
+            "char_start": 70,
+            "char_end": 84,
+            "breadcrumb": [
+              "Hợp đồng số 01",
+              "MST Bên B"
+            ],
+            "structure_path": "Hợp đồng số 01 › MST Bên B",
+            "geometry_available": true,
+            "citation_id": null,
+            "source_hash": null,
+            "quote_sha256": "8576d19860aea5e57f8bebddb24b0ab34ef5bc5755e8529b4eae07757ba5dfd8",
+            "coordinate_system": null,
+            "geometry_source": null,
+            "precision": null,
+            "validation_status": "INVALID",
+            "table_id": null,
+            "cell_id": null
+          },
+          "provenance": "L0",
+          "review_state": "NEEDS_REVIEW"
+        },
+        {
+          "fact_id": "fact_a6e612d08b939e04cfbdb2d1",
+          "raw_value": "Công ty ABC",
+          "normalized_value": "Công ty ABC",
+          "subject": "Bên A",
+          "role": null,
+          "unit": null,
+          "currency": null,
+          "vat_basis": null,
+          "condition": null,
+          "scope": null,
+          "validity": null,
+          "item_key": null,
+          "tax_basis": null,
+          "period_start": null,
+          "source_role": "body",
+          "citation": {
+            "node_id": "field_party_a",
+            "page_revision_id": "p1_rev1",
+            "bbox": [
+              10.0,
+              10.0,
+              200.0,
+              28.0
+            ],
+            "bbox_fragments": [],
+            "text_span": "Bên A: Công ty ABC MST 0311111111",
+            "source_file_id": null,
+            "page": 1,
+            "page_range": [
+              1
+            ],
+            "line_ids": [],
+            "char_start": 16,
+            "char_end": 49,
+            "breadcrumb": [
+              "Hợp đồng số 01",
+              "Bên A"
+            ],
+            "structure_path": "Hợp đồng số 01 › Bên A",
+            "geometry_available": true,
+            "citation_id": null,
+            "source_hash": null,
+            "quote_sha256": "95efe837addb2e57bf96de9ead7f9ccedb7d174e888261a0c8535ddc5d436dc7",
+            "coordinate_system": null,
+            "geometry_source": null,
+            "precision": null,
+            "validation_status": "INVALID",
+            "table_id": null,
+            "cell_id": null
+          },
+          "provenance": "L0",
+          "review_state": "NEEDS_REVIEW"
+        },
+        {
+          "fact_id": "fact_9bf3b89424476ed811c14ba7",
+          "raw_value": "Công ty XYZ",
+          "normalized_value": "Công ty XYZ",
+          "subject": "Bên B",
+          "role": null,
+          "unit": null,
+          "currency": null,
+          "vat_basis": null,
+          "condition": null,
+          "scope": null,
+          "validity": null,
+          "item_key": null,
+          "tax_basis": null,
+          "period_start": null,
+          "source_role": "body",
+          "citation": {
+            "node_id": "field_party_b",
+            "page_revision_id": "p1_rev1",
+            "bbox": [
+              10.0,
+              46.0,
+              200.0,
+              64.0
+            ],
+            "bbox_fragments": [],
+            "text_span": "Bên B: Công ty XYZ MST 0322222222",
+            "source_file_id": null,
+            "page": 1,
+            "page_range": [
+              1
+            ],
+            "line_ids": [],
+            "char_start": 51,
+            "char_end": 84,
+            "breadcrumb": [
+              "Hợp đồng số 01",
+              "Bên B"
+            ],
+            "structure_path": "Hợp đồng số 01 › Bên B",
+            "geometry_available": true,
+            "citation_id": null,
+            "source_hash": null,
+            "quote_sha256": "f6b7b563133406b88a654fa927531068492ee5aff6dbb3f90d85b16f158cf3eb",
+            "coordinate_system": null,
+            "geometry_source": null,
+            "precision": null,
+            "validation_status": "INVALID",
+            "table_id": null,
+            "cell_id": null
+          },
+          "provenance": "L0",
+          "review_state": "NEEDS_REVIEW"
+        },
+        {
+          "fact_id": "fact_2c2f0a419772499dfc57e4e1",
+          "raw_value": "1.000.000.000 VND",
+          "normalized_value": "1000000000",
+          "subject": "Giá trị",
+          "role": null,
+          "unit": "VND",
+          "currency": "VND",
+          "vat_basis": null,
+          "condition": null,
+          "scope": null,
+          "validity": null,
+          "item_key": null,
+          "tax_basis": null,
+          "period_start": null,
+          "source_role": "body",
+          "citation": {
+            "node_id": "field_value",
+            "page_revision_id": "p1_rev1",
+            "bbox": [],
+            "bbox_fragments": [],
+            "text_span": "Giá trị: 1.000.000.000 VND",
+            "source_file_id": null,
+            "page": 1,
+            "page_range": [
+              1
+            ],
+            "line_ids": [],
+            "char_start": 86,
+            "char_end": 112,
+            "breadcrumb": [
+              "Hợp đồng số 01",
+              "Giá trị"
+            ],
+            "structure_path": "Hợp đồng số 01 › Giá trị",
+            "geometry_available": false,
+            "citation_id": null,
+            "source_hash": null,
+            "quote_sha256": "dced7491dc4f3c39ed6db505efd462f50f278ba9d41041c43d8da157aaca3df4",
+            "coordinate_system": null,
+            "geometry_source": null,
+            "precision": null,
+            "validation_status": "UNVERIFIED",
+            "table_id": null,
+            "cell_id": null
+          },
+          "provenance": "L0",
+          "review_state": "NEEDS_REVIEW"
+        }
+      ],
+      "input_facts": [],
+      "chunks": [
+        {
+          "chunk_id": "chk_99ee2be2",
+          "parent_node_id": "doc_contract",
+          "page_range": [
+            1
+          ],
+          "source_block_ids": [],
+          "text_span": "Hợp đồng số 01",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Hợp đồng số 01"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        }
+      ],
+      "active_index_version": null,
+      "processing_index": false,
+      "legal_hold": false,
+      "egress_approved": true,
+      "budget_exceeded": false,
+      "processing_budget_exceeded": false,
+      "embedding_budget_exceeded": true,
+      "index_status": "READY",
+      "case_id": "EC-050",
+      "handoff_issues": [],
+      "relation_graph": {
+        "graph_id": "graph:6174fe312c7c5f32cf8d25d8",
+        "source_snapshot_digest": "sha256:eval-ec-050",
+        "nodes": [
+          {
+            "node_id": "doc_contract",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "field_party_a",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "field_mst_a",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "field_party_b",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "field_mst_b",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "field_value",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "quality": "CONFIRMED"
+          }
+        ],
+        "edges": [
+          {
+            "edge_id": "edge:da12e41b1a4800fb9d57e931",
+            "from_node_id": "doc_contract",
+            "to_node_id": "field_party_a",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "field_party_a",
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  10.0,
+                  200.0,
+                  28.0
+                ],
+                "bbox_fragments": [],
+                "text_span": "Bên A: Công ty ABC MST 0311111111",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 16,
+                "char_end": 49,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": true,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "95efe837addb2e57bf96de9ead7f9ccedb7d174e888261a0c8535ddc5d436dc7",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "INVALID",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-ec-050"
+          },
+          {
+            "edge_id": "edge:0664fb8fc435585bd06324b0",
+            "from_node_id": "doc_contract",
+            "to_node_id": "field_mst_a",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "field_mst_a",
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  30.0,
+                  180.0,
+                  44.0
+                ],
+                "bbox_fragments": [],
+                "text_span": "MST 0311111111",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 35,
+                "char_end": 49,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": true,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "21aec2d946e57a8bf1759c1f5d9e5b45686816a0b06d495c1e3667ce1e837f1a",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "INVALID",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-ec-050"
+          },
+          {
+            "edge_id": "edge:9ba2a6e9bfdd4e1922a94264",
+            "from_node_id": "doc_contract",
+            "to_node_id": "field_party_b",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "field_party_b",
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  46.0,
+                  200.0,
+                  64.0
+                ],
+                "bbox_fragments": [],
+                "text_span": "Bên B: Công ty XYZ MST 0322222222",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 51,
+                "char_end": 84,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": true,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "f6b7b563133406b88a654fa927531068492ee5aff6dbb3f90d85b16f158cf3eb",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "INVALID",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-ec-050"
+          },
+          {
+            "edge_id": "edge:ad8e1deb54a4f8a0ee7009a7",
+            "from_node_id": "doc_contract",
+            "to_node_id": "field_mst_b",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "field_mst_b",
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  66.0,
+                  180.0,
+                  80.0
+                ],
+                "bbox_fragments": [],
+                "text_span": "MST 0322222222",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 70,
+                "char_end": 84,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": true,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "8576d19860aea5e57f8bebddb24b0ab34ef5bc5755e8529b4eae07757ba5dfd8",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "INVALID",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-ec-050"
+          },
+          {
+            "edge_id": "edge:f031c1393b4cdfb315585d2e",
+            "from_node_id": "doc_contract",
+            "to_node_id": "field_value",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "field_value",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Giá trị: 1.000.000.000 VND",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 86,
+                "char_end": 112,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "dced7491dc4f3c39ed6db505efd462f50f278ba9d41041c43d8da157aaca3df4",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-ec-050"
+          }
+        ],
+        "issues": []
+      },
+      "active_nodes": [
+        {
+          "node_id": "doc_contract",
+          "type": "SECTION",
+          "raw_label": "Hợp đồng số 01",
+          "parent_id": null,
+          "order": 1,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Hợp đồng số 01",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "doc_contract",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "field_party_a",
+          "type": "FIELD",
+          "raw_label": "Bên A",
+          "parent_id": "doc_contract",
+          "order": 2,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Bên A: Công ty ABC MST 0311111111",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [
+            10.0,
+            10.0,
+            200.0,
+            28.0
+          ],
+          "structured_key": "party_a",
+          "structured_value": "Công ty ABC",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "FIELD",
+          "scope_id": "doc_contract",
+          "heading_confidence": null,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "field_mst_a",
+          "type": "FIELD",
+          "raw_label": "MST Bên A",
+          "parent_id": "doc_contract",
+          "order": 3,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "MST 0311111111",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [
+            10.0,
+            30.0,
+            180.0,
+            44.0
+          ],
+          "structured_key": "mst_seller",
+          "structured_value": "0311111111",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "FIELD",
+          "scope_id": "doc_contract",
+          "heading_confidence": null,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "field_party_b",
+          "type": "FIELD",
+          "raw_label": "Bên B",
+          "parent_id": "doc_contract",
+          "order": 4,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Bên B: Công ty XYZ MST 0322222222",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [
+            10.0,
+            46.0,
+            200.0,
+            64.0
+          ],
+          "structured_key": "party_b",
+          "structured_value": "Công ty XYZ",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "FIELD",
+          "scope_id": "doc_contract",
+          "heading_confidence": null,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "field_mst_b",
+          "type": "FIELD",
+          "raw_label": "MST Bên B",
+          "parent_id": "doc_contract",
+          "order": 5,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "MST 0322222222",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [
+            10.0,
+            66.0,
+            180.0,
+            80.0
+          ],
+          "structured_key": "mst_party_b",
+          "structured_value": "0322222222",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "FIELD",
+          "scope_id": "doc_contract",
+          "heading_confidence": null,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "field_value",
+          "type": "FIELD",
+          "raw_label": "Giá trị",
+          "parent_id": "doc_contract",
+          "order": 6,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Giá trị: 1.000.000.000 VND",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": "contract_value",
+          "structured_value": "1.000.000.000 VND",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "FIELD",
+          "scope_id": "doc_contract",
+          "heading_confidence": null,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        }
+      ],
+      "citation_index": {},
+      "review_items": [
+        {
+          "review_item_id": "review:citation:field_mst_a:INVALID:1",
+          "kind": "citation:field_mst_a:INVALID",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "fact:fact_a1a8874ced778ee37dc12c03: citation bbox is invalid",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:citation:field_mst_b:INVALID:2",
+          "kind": "citation:field_mst_b:INVALID",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "fact:fact_59cb2bcba39101bd9a570dca: citation bbox is invalid",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:citation:field_party_a:INVALID:3",
+          "kind": "citation:field_party_a:INVALID",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "fact:fact_a6e612d08b939e04cfbdb2d1: citation bbox is invalid",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:citation:field_party_b:INVALID:4",
+          "kind": "citation:field_party_b:INVALID",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "fact:fact_9bf3b89424476ed811c14ba7: citation bbox is invalid",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:citation:field_value:UNVERIFIED:5",
+          "kind": "citation:field_value:UNVERIFIED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "fact:fact_2c2f0a419772499dfc57e4e1: source hash is missing",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:fact:fact_a1a8874ced778ee37dc12c03",
+          "kind": "FACT",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "Verify missing/uncertain value and its source context",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:fact:fact_59cb2bcba39101bd9a570dca",
+          "kind": "FACT",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "Verify missing/uncertain value and its source context",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:fact:fact_a6e612d08b939e04cfbdb2d1",
+          "kind": "FACT",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "Verify missing/uncertain value and its source context",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:fact:fact_9bf3b89424476ed811c14ba7",
+          "kind": "FACT",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "Verify missing/uncertain value and its source context",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:fact:fact_2c2f0a419772499dfc57e4e1",
+          "kind": "FACT",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "Verify missing/uncertain value and its source context",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        }
+      ]
+    },
+    "envelope": {
+      "auth": {
+        "actor_id": "user_001",
+        "tenant_id": "tenant_a",
+        "dossier_id": "d_cost",
+        "acl_revision": 12,
+        "permissions": [
+          "READ_CONTENT"
+        ],
+        "lifecycle": "ACTIVE"
+      },
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-ec-050",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      }
+    }
+  },
+  "output": {
+    "extract": {
+      "status_code": 200,
+      "body": {
+        "session_id": "6673f521c7dc",
+        "filename": "EC-050.snapshot",
+        "source": "eval",
+        "step": "extract",
+        "ai1": {
+          "case_id": "EC-050"
+        },
+        "files": [],
+        "has_pdf": false,
+        "dossier_id": "d_cost",
+        "tenant_id": "tenant_a",
+        "lifecycle": "ACTIVE",
+        "pins": {
+          "manifest_version": 2,
+          "source_snapshot_digest": "sha256:eval-ec-050",
+          "tenant_profile_version": 5,
+          "policy_version": 2,
+          "ocr_run_version": 3,
+          "reconstruction_version": 2,
+          "extraction_version": 7,
+          "index_version": "idx_14",
+          "source_digest": null,
+          "snapshot_digest": null
+        },
+        "n_pages": 1,
+        "n_nodes": 6,
+        "n_raw_nodes": 6,
+        "n_tables": 0,
+        "table_coverage": {
+          "UNKNOWN": 1
+        },
+        "relation_graph": {
+          "n_nodes": 6,
+          "n_edges": 5,
+          "n_issues": 0
+        },
+        "pages": [
+          {
+            "page": 1,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Hợp đồng số 01. Bên A: Công ty ABC MST 0311111111. Bên B: Công ty XYZ MST 0322222222. Giá trị: 1.000.000.000 VND.",
+            "page_revision_id": "p1_rev1"
+          }
+        ],
+        "n_pages_hidden": 0,
+        "nodes": [
+          {
+            "node_id": "doc_contract",
+            "type": "SECTION",
+            "raw_label": "Hợp đồng số 01",
+            "page_range": [
+              1
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "field_party_a",
+            "type": "FIELD",
+            "raw_label": "Bên A",
+            "page_range": [
+              1
+            ],
+            "structured_key": "party_a",
+            "structured_value": "Công ty ABC"
+          },
+          {
+            "node_id": "field_mst_a",
+            "type": "FIELD",
+            "raw_label": "MST Bên A",
+            "page_range": [
+              1
+            ],
+            "structured_key": "mst_seller",
+            "structured_value": "0311111111"
+          },
+          {
+            "node_id": "field_party_b",
+            "type": "FIELD",
+            "raw_label": "Bên B",
+            "page_range": [
+              1
+            ],
+            "structured_key": "party_b",
+            "structured_value": "Công ty XYZ"
+          },
+          {
+            "node_id": "field_mst_b",
+            "type": "FIELD",
+            "raw_label": "MST Bên B",
+            "page_range": [
+              1
+            ],
+            "structured_key": "mst_party_b",
+            "structured_value": "0322222222"
+          },
+          {
+            "node_id": "field_value",
+            "type": "FIELD",
+            "raw_label": "Giá trị",
+            "page_range": [
+              1
+            ],
+            "structured_key": "contract_value",
+            "structured_value": "1.000.000.000 VND"
+          }
+        ],
+        "n_nodes_hidden": 0,
+        "tree": [
+          {
+            "node_id": "doc_contract",
+            "type": "SECTION",
+            "raw_label": "Hợp đồng số 01",
+            "status": "CONFIRMED",
+            "page": 1,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "doc_contract",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Hợp đồng số 01",
+            "children": [
+              {
+                "node_id": "field_party_a",
+                "type": "FIELD",
+                "raw_label": "Bên A",
+                "status": "CONFIRMED",
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  10.0,
+                  200.0,
+                  28.0
+                ],
+                "has_children": false,
+                "structured_key": "party_a",
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "FIELD",
+                "scope_id": "doc_contract",
+                "heading_confidence": null,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "Bên A: Công ty ABC MST 0311111111",
+                "children": []
+              },
+              {
+                "node_id": "field_mst_a",
+                "type": "FIELD",
+                "raw_label": "MST Bên A",
+                "status": "CONFIRMED",
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  30.0,
+                  180.0,
+                  44.0
+                ],
+                "has_children": false,
+                "structured_key": "mst_seller",
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "FIELD",
+                "scope_id": "doc_contract",
+                "heading_confidence": null,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "MST 0311111111",
+                "children": []
+              },
+              {
+                "node_id": "field_party_b",
+                "type": "FIELD",
+                "raw_label": "Bên B",
+                "status": "CONFIRMED",
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  46.0,
+                  200.0,
+                  64.0
+                ],
+                "has_children": false,
+                "structured_key": "party_b",
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "FIELD",
+                "scope_id": "doc_contract",
+                "heading_confidence": null,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "Bên B: Công ty XYZ MST 0322222222",
+                "children": []
+              },
+              {
+                "node_id": "field_mst_b",
+                "type": "FIELD",
+                "raw_label": "MST Bên B",
+                "status": "CONFIRMED",
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  66.0,
+                  180.0,
+                  80.0
+                ],
+                "has_children": false,
+                "structured_key": "mst_party_b",
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "FIELD",
+                "scope_id": "doc_contract",
+                "heading_confidence": null,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "MST 0322222222",
+                "children": []
+              },
+              {
+                "node_id": "field_value",
+                "type": "FIELD",
+                "raw_label": "Giá trị",
+                "status": "CONFIRMED",
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "has_children": false,
+                "structured_key": "contract_value",
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "FIELD",
+                "scope_id": "doc_contract",
+                "heading_confidence": null,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "Giá trị: 1.000.000.000 VND",
+                "children": []
+              }
+            ]
+          }
+        ],
+        "tables": [],
+        "extracted": true,
+        "job": {
+          "job_id": "job_0f0425ee04",
+          "status": "SUCCEEDED",
+          "review_state": "NEEDS_REVIEW",
+          "handoff_issues": [],
+          "contribution": {
+            "facts": [
+              {
+                "fact_id": "fact_a1a8874ced778ee37dc12c03",
+                "raw_value": "0311111111",
+                "normalized_value": "0311111111",
+                "subject": "MST Bên A",
+                "role": null,
+                "unit": null,
+                "currency": null,
+                "vat_basis": null,
+                "condition": null,
+                "scope": "mst_seller",
+                "validity": null,
+                "item_key": "mst_seller",
+                "tax_basis": null,
+                "period_start": null,
+                "source_role": "body",
+                "citation": {
+                  "node_id": "field_mst_a",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [
+                    10.0,
+                    30.0,
+                    180.0,
+                    44.0
+                  ],
+                  "bbox_fragments": [],
+                  "text_span": "MST 0311111111",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 35,
+                  "char_end": 49,
+                  "breadcrumb": [
+                    "Hợp đồng số 01",
+                    "MST Bên A"
+                  ],
+                  "structure_path": "Hợp đồng số 01 › MST Bên A",
+                  "geometry_available": true,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "21aec2d946e57a8bf1759c1f5d9e5b45686816a0b06d495c1e3667ce1e837f1a",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "INVALID",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "provenance": "L0",
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "fact_id": "fact_59cb2bcba39101bd9a570dca",
+                "raw_value": "0322222222",
+                "normalized_value": "0322222222",
+                "subject": "MST Bên B",
+                "role": null,
+                "unit": null,
+                "currency": null,
+                "vat_basis": null,
+                "condition": null,
+                "scope": "mst_party_b",
+                "validity": null,
+                "item_key": "mst_party_b",
+                "tax_basis": null,
+                "period_start": null,
+                "source_role": "body",
+                "citation": {
+                  "node_id": "field_mst_b",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [
+                    10.0,
+                    66.0,
+                    180.0,
+                    80.0
+                  ],
+                  "bbox_fragments": [],
+                  "text_span": "MST 0322222222",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 70,
+                  "char_end": 84,
+                  "breadcrumb": [
+                    "Hợp đồng số 01",
+                    "MST Bên B"
+                  ],
+                  "structure_path": "Hợp đồng số 01 › MST Bên B",
+                  "geometry_available": true,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "8576d19860aea5e57f8bebddb24b0ab34ef5bc5755e8529b4eae07757ba5dfd8",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "INVALID",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "provenance": "L0",
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "fact_id": "fact_a6e612d08b939e04cfbdb2d1",
+                "raw_value": "Công ty ABC",
+                "normalized_value": "Công ty ABC",
+                "subject": "Bên A",
+                "role": null,
+                "unit": null,
+                "currency": null,
+                "vat_basis": null,
+                "condition": null,
+                "scope": null,
+                "validity": null,
+                "item_key": null,
+                "tax_basis": null,
+                "period_start": null,
+                "source_role": "body",
+                "citation": {
+                  "node_id": "field_party_a",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [
+                    10.0,
+                    10.0,
+                    200.0,
+                    28.0
+                  ],
+                  "bbox_fragments": [],
+                  "text_span": "Bên A: Công ty ABC MST 0311111111",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 16,
+                  "char_end": 49,
+                  "breadcrumb": [
+                    "Hợp đồng số 01",
+                    "Bên A"
+                  ],
+                  "structure_path": "Hợp đồng số 01 › Bên A",
+                  "geometry_available": true,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "95efe837addb2e57bf96de9ead7f9ccedb7d174e888261a0c8535ddc5d436dc7",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "INVALID",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "provenance": "L0",
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "fact_id": "fact_9bf3b89424476ed811c14ba7",
+                "raw_value": "Công ty XYZ",
+                "normalized_value": "Công ty XYZ",
+                "subject": "Bên B",
+                "role": null,
+                "unit": null,
+                "currency": null,
+                "vat_basis": null,
+                "condition": null,
+                "scope": null,
+                "validity": null,
+                "item_key": null,
+                "tax_basis": null,
+                "period_start": null,
+                "source_role": "body",
+                "citation": {
+                  "node_id": "field_party_b",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [
+                    10.0,
+                    46.0,
+                    200.0,
+                    64.0
+                  ],
+                  "bbox_fragments": [],
+                  "text_span": "Bên B: Công ty XYZ MST 0322222222",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 51,
+                  "char_end": 84,
+                  "breadcrumb": [
+                    "Hợp đồng số 01",
+                    "Bên B"
+                  ],
+                  "structure_path": "Hợp đồng số 01 › Bên B",
+                  "geometry_available": true,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "f6b7b563133406b88a654fa927531068492ee5aff6dbb3f90d85b16f158cf3eb",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "INVALID",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "provenance": "L0",
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "fact_id": "fact_2c2f0a419772499dfc57e4e1",
+                "raw_value": "1.000.000.000 VND",
+                "normalized_value": "1000000000",
+                "subject": "Giá trị",
+                "role": null,
+                "unit": "VND",
+                "currency": "VND",
+                "vat_basis": null,
+                "condition": null,
+                "scope": null,
+                "validity": null,
+                "item_key": null,
+                "tax_basis": null,
+                "period_start": null,
+                "source_role": "body",
+                "citation": {
+                  "node_id": "field_value",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "Giá trị: 1.000.000.000 VND",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 86,
+                  "char_end": 112,
+                  "breadcrumb": [
+                    "Hợp đồng số 01",
+                    "Giá trị"
+                  ],
+                  "structure_path": "Hợp đồng số 01 › Giá trị",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "dced7491dc4f3c39ed6db505efd462f50f278ba9d41041c43d8da157aaca3df4",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "provenance": "L0",
+                "review_state": "NEEDS_REVIEW"
+              }
+            ],
+            "chunks": [
+              {
+                "chunk_id": "chk_99ee2be2",
+                "parent_node_id": "doc_contract",
+                "page_range": [
+                  1
+                ],
+                "source_block_ids": [],
+                "text_span": "Hợp đồng số 01",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Hợp đồng số 01"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              }
+            ],
+            "candidates": [],
+            "evidence_issues": [
+              {
+                "issue_id": "citation:field_mst_a:INVALID",
+                "missing": "CITATION_VERIFICATION",
+                "reason": "fact:fact_a1a8874ced778ee37dc12c03: citation bbox is invalid",
+                "citation": {
+                  "node_id": "field_mst_a",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [
+                    10.0,
+                    30.0,
+                    180.0,
+                    44.0
+                  ],
+                  "bbox_fragments": [],
+                  "text_span": "MST 0311111111",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 35,
+                  "char_end": 49,
+                  "breadcrumb": [
+                    "Hợp đồng số 01",
+                    "MST Bên A"
+                  ],
+                  "structure_path": "Hợp đồng số 01 › MST Bên A",
+                  "geometry_available": true,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "21aec2d946e57a8bf1759c1f5d9e5b45686816a0b06d495c1e3667ce1e837f1a",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "INVALID",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "issue_id": "citation:field_mst_b:INVALID",
+                "missing": "CITATION_VERIFICATION",
+                "reason": "fact:fact_59cb2bcba39101bd9a570dca: citation bbox is invalid",
+                "citation": {
+                  "node_id": "field_mst_b",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [
+                    10.0,
+                    66.0,
+                    180.0,
+                    80.0
+                  ],
+                  "bbox_fragments": [],
+                  "text_span": "MST 0322222222",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 70,
+                  "char_end": 84,
+                  "breadcrumb": [
+                    "Hợp đồng số 01",
+                    "MST Bên B"
+                  ],
+                  "structure_path": "Hợp đồng số 01 › MST Bên B",
+                  "geometry_available": true,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "8576d19860aea5e57f8bebddb24b0ab34ef5bc5755e8529b4eae07757ba5dfd8",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "INVALID",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "issue_id": "citation:field_party_a:INVALID",
+                "missing": "CITATION_VERIFICATION",
+                "reason": "fact:fact_a6e612d08b939e04cfbdb2d1: citation bbox is invalid",
+                "citation": {
+                  "node_id": "field_party_a",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [
+                    10.0,
+                    10.0,
+                    200.0,
+                    28.0
+                  ],
+                  "bbox_fragments": [],
+                  "text_span": "Bên A: Công ty ABC MST 0311111111",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 16,
+                  "char_end": 49,
+                  "breadcrumb": [
+                    "Hợp đồng số 01",
+                    "Bên A"
+                  ],
+                  "structure_path": "Hợp đồng số 01 › Bên A",
+                  "geometry_available": true,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "95efe837addb2e57bf96de9ead7f9ccedb7d174e888261a0c8535ddc5d436dc7",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "INVALID",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "issue_id": "citation:field_party_b:INVALID",
+                "missing": "CITATION_VERIFICATION",
+                "reason": "fact:fact_9bf3b89424476ed811c14ba7: citation bbox is invalid",
+                "citation": {
+                  "node_id": "field_party_b",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [
+                    10.0,
+                    46.0,
+                    200.0,
+                    64.0
+                  ],
+                  "bbox_fragments": [],
+                  "text_span": "Bên B: Công ty XYZ MST 0322222222",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 51,
+                  "char_end": 84,
+                  "breadcrumb": [
+                    "Hợp đồng số 01",
+                    "Bên B"
+                  ],
+                  "structure_path": "Hợp đồng số 01 › Bên B",
+                  "geometry_available": true,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "f6b7b563133406b88a654fa927531068492ee5aff6dbb3f90d85b16f158cf3eb",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "INVALID",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "issue_id": "citation:field_value:UNVERIFIED",
+                "missing": "CITATION_VERIFICATION",
+                "reason": "fact:fact_2c2f0a419772499dfc57e4e1: source hash is missing",
+                "citation": {
+                  "node_id": "field_value",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "Giá trị: 1.000.000.000 VND",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 86,
+                  "char_end": 112,
+                  "breadcrumb": [
+                    "Hợp đồng số 01",
+                    "Giá trị"
+                  ],
+                  "structure_path": "Hợp đồng số 01 › Giá trị",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "dced7491dc4f3c39ed6db505efd462f50f278ba9d41041c43d8da157aaca3df4",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "review_state": "NEEDS_REVIEW"
+              }
+            ],
+            "coverage": {
+              "n_facts": 5,
+              "n_findings": 0,
+              "n_evidence_issues": 5,
+              "n_units": 1,
+              "unit_ids": [
+                "unit:6b4c90e6f7ad94baf9d2"
+              ],
+              "annex_labels": [],
+              "runtime": {
+                "egress_allowed": true,
+                "use_vector": false,
+                "max_processing_seconds": 300,
+                "max_llm_calls": 0,
+                "max_embedding_tokens": 0,
+                "llm_calls_used": 0,
+                "embedding_tokens_used": 0,
+                "fallback_count": 0
+              },
+              "n_candidates_suppressed": 0
+            },
+            "extraction_version": 7,
+            "proposed_index_version": "idx_7",
+            "publish": "propose"
+          },
+          "query_answer": null,
+          "error": null
+        },
+        "contribution": {
+          "facts": [
+            {
+              "fact_id": "fact_a1a8874ced778ee37dc12c03",
+              "raw_value": "0311111111",
+              "normalized_value": "0311111111",
+              "subject": "MST Bên A",
+              "role": null,
+              "unit": null,
+              "currency": null,
+              "vat_basis": null,
+              "condition": null,
+              "scope": "mst_seller",
+              "validity": null,
+              "item_key": "mst_seller",
+              "tax_basis": null,
+              "period_start": null,
+              "source_role": "body",
+              "citation": {
+                "node_id": "field_mst_a",
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  30.0,
+                  180.0,
+                  44.0
+                ],
+                "bbox_fragments": [],
+                "text_span": "MST 0311111111",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 35,
+                "char_end": 49,
+                "breadcrumb": [
+                  "Hợp đồng số 01",
+                  "MST Bên A"
+                ],
+                "structure_path": "Hợp đồng số 01 › MST Bên A",
+                "geometry_available": true,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "21aec2d946e57a8bf1759c1f5d9e5b45686816a0b06d495c1e3667ce1e837f1a",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "INVALID",
+                "table_id": null,
+                "cell_id": null
+              },
+              "provenance": "L0",
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "fact_id": "fact_59cb2bcba39101bd9a570dca",
+              "raw_value": "0322222222",
+              "normalized_value": "0322222222",
+              "subject": "MST Bên B",
+              "role": null,
+              "unit": null,
+              "currency": null,
+              "vat_basis": null,
+              "condition": null,
+              "scope": "mst_party_b",
+              "validity": null,
+              "item_key": "mst_party_b",
+              "tax_basis": null,
+              "period_start": null,
+              "source_role": "body",
+              "citation": {
+                "node_id": "field_mst_b",
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  66.0,
+                  180.0,
+                  80.0
+                ],
+                "bbox_fragments": [],
+                "text_span": "MST 0322222222",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 70,
+                "char_end": 84,
+                "breadcrumb": [
+                  "Hợp đồng số 01",
+                  "MST Bên B"
+                ],
+                "structure_path": "Hợp đồng số 01 › MST Bên B",
+                "geometry_available": true,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "8576d19860aea5e57f8bebddb24b0ab34ef5bc5755e8529b4eae07757ba5dfd8",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "INVALID",
+                "table_id": null,
+                "cell_id": null
+              },
+              "provenance": "L0",
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "fact_id": "fact_a6e612d08b939e04cfbdb2d1",
+              "raw_value": "Công ty ABC",
+              "normalized_value": "Công ty ABC",
+              "subject": "Bên A",
+              "role": null,
+              "unit": null,
+              "currency": null,
+              "vat_basis": null,
+              "condition": null,
+              "scope": null,
+              "validity": null,
+              "item_key": null,
+              "tax_basis": null,
+              "period_start": null,
+              "source_role": "body",
+              "citation": {
+                "node_id": "field_party_a",
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  10.0,
+                  200.0,
+                  28.0
+                ],
+                "bbox_fragments": [],
+                "text_span": "Bên A: Công ty ABC MST 0311111111",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 16,
+                "char_end": 49,
+                "breadcrumb": [
+                  "Hợp đồng số 01",
+                  "Bên A"
+                ],
+                "structure_path": "Hợp đồng số 01 › Bên A",
+                "geometry_available": true,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "95efe837addb2e57bf96de9ead7f9ccedb7d174e888261a0c8535ddc5d436dc7",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "INVALID",
+                "table_id": null,
+                "cell_id": null
+              },
+              "provenance": "L0",
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "fact_id": "fact_9bf3b89424476ed811c14ba7",
+              "raw_value": "Công ty XYZ",
+              "normalized_value": "Công ty XYZ",
+              "subject": "Bên B",
+              "role": null,
+              "unit": null,
+              "currency": null,
+              "vat_basis": null,
+              "condition": null,
+              "scope": null,
+              "validity": null,
+              "item_key": null,
+              "tax_basis": null,
+              "period_start": null,
+              "source_role": "body",
+              "citation": {
+                "node_id": "field_party_b",
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  46.0,
+                  200.0,
+                  64.0
+                ],
+                "bbox_fragments": [],
+                "text_span": "Bên B: Công ty XYZ MST 0322222222",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 51,
+                "char_end": 84,
+                "breadcrumb": [
+                  "Hợp đồng số 01",
+                  "Bên B"
+                ],
+                "structure_path": "Hợp đồng số 01 › Bên B",
+                "geometry_available": true,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "f6b7b563133406b88a654fa927531068492ee5aff6dbb3f90d85b16f158cf3eb",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "INVALID",
+                "table_id": null,
+                "cell_id": null
+              },
+              "provenance": "L0",
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "fact_id": "fact_2c2f0a419772499dfc57e4e1",
+              "raw_value": "1.000.000.000 VND",
+              "normalized_value": "1000000000",
+              "subject": "Giá trị",
+              "role": null,
+              "unit": "VND",
+              "currency": "VND",
+              "vat_basis": null,
+              "condition": null,
+              "scope": null,
+              "validity": null,
+              "item_key": null,
+              "tax_basis": null,
+              "period_start": null,
+              "source_role": "body",
+              "citation": {
+                "node_id": "field_value",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Giá trị: 1.000.000.000 VND",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 86,
+                "char_end": 112,
+                "breadcrumb": [
+                  "Hợp đồng số 01",
+                  "Giá trị"
+                ],
+                "structure_path": "Hợp đồng số 01 › Giá trị",
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "dced7491dc4f3c39ed6db505efd462f50f278ba9d41041c43d8da157aaca3df4",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "provenance": "L0",
+              "review_state": "NEEDS_REVIEW"
+            }
+          ],
+          "chunks": [
+            {
+              "chunk_id": "chk_99ee2be2",
+              "parent_node_id": "doc_contract",
+              "page_range": [
+                1
+              ],
+              "source_block_ids": [],
+              "text_span": "Hợp đồng số 01",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Hợp đồng số 01"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            }
+          ],
+          "candidates": [],
+          "evidence_issues": [
+            {
+              "issue_id": "citation:field_mst_a:INVALID",
+              "missing": "CITATION_VERIFICATION",
+              "reason": "fact:fact_a1a8874ced778ee37dc12c03: citation bbox is invalid",
+              "citation": {
+                "node_id": "field_mst_a",
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  30.0,
+                  180.0,
+                  44.0
+                ],
+                "bbox_fragments": [],
+                "text_span": "MST 0311111111",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 35,
+                "char_end": 49,
+                "breadcrumb": [
+                  "Hợp đồng số 01",
+                  "MST Bên A"
+                ],
+                "structure_path": "Hợp đồng số 01 › MST Bên A",
+                "geometry_available": true,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "21aec2d946e57a8bf1759c1f5d9e5b45686816a0b06d495c1e3667ce1e837f1a",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "INVALID",
+                "table_id": null,
+                "cell_id": null
+              },
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "issue_id": "citation:field_mst_b:INVALID",
+              "missing": "CITATION_VERIFICATION",
+              "reason": "fact:fact_59cb2bcba39101bd9a570dca: citation bbox is invalid",
+              "citation": {
+                "node_id": "field_mst_b",
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  66.0,
+                  180.0,
+                  80.0
+                ],
+                "bbox_fragments": [],
+                "text_span": "MST 0322222222",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 70,
+                "char_end": 84,
+                "breadcrumb": [
+                  "Hợp đồng số 01",
+                  "MST Bên B"
+                ],
+                "structure_path": "Hợp đồng số 01 › MST Bên B",
+                "geometry_available": true,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "8576d19860aea5e57f8bebddb24b0ab34ef5bc5755e8529b4eae07757ba5dfd8",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "INVALID",
+                "table_id": null,
+                "cell_id": null
+              },
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "issue_id": "citation:field_party_a:INVALID",
+              "missing": "CITATION_VERIFICATION",
+              "reason": "fact:fact_a6e612d08b939e04cfbdb2d1: citation bbox is invalid",
+              "citation": {
+                "node_id": "field_party_a",
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  10.0,
+                  200.0,
+                  28.0
+                ],
+                "bbox_fragments": [],
+                "text_span": "Bên A: Công ty ABC MST 0311111111",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 16,
+                "char_end": 49,
+                "breadcrumb": [
+                  "Hợp đồng số 01",
+                  "Bên A"
+                ],
+                "structure_path": "Hợp đồng số 01 › Bên A",
+                "geometry_available": true,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "95efe837addb2e57bf96de9ead7f9ccedb7d174e888261a0c8535ddc5d436dc7",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "INVALID",
+                "table_id": null,
+                "cell_id": null
+              },
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "issue_id": "citation:field_party_b:INVALID",
+              "missing": "CITATION_VERIFICATION",
+              "reason": "fact:fact_9bf3b89424476ed811c14ba7: citation bbox is invalid",
+              "citation": {
+                "node_id": "field_party_b",
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  46.0,
+                  200.0,
+                  64.0
+                ],
+                "bbox_fragments": [],
+                "text_span": "Bên B: Công ty XYZ MST 0322222222",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 51,
+                "char_end": 84,
+                "breadcrumb": [
+                  "Hợp đồng số 01",
+                  "Bên B"
+                ],
+                "structure_path": "Hợp đồng số 01 › Bên B",
+                "geometry_available": true,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "f6b7b563133406b88a654fa927531068492ee5aff6dbb3f90d85b16f158cf3eb",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "INVALID",
+                "table_id": null,
+                "cell_id": null
+              },
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "issue_id": "citation:field_value:UNVERIFIED",
+              "missing": "CITATION_VERIFICATION",
+              "reason": "fact:fact_2c2f0a419772499dfc57e4e1: source hash is missing",
+              "citation": {
+                "node_id": "field_value",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Giá trị: 1.000.000.000 VND",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 86,
+                "char_end": 112,
+                "breadcrumb": [
+                  "Hợp đồng số 01",
+                  "Giá trị"
+                ],
+                "structure_path": "Hợp đồng số 01 › Giá trị",
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "dced7491dc4f3c39ed6db505efd462f50f278ba9d41041c43d8da157aaca3df4",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "review_state": "NEEDS_REVIEW"
+            }
+          ],
+          "coverage": {
+            "n_facts": 5,
+            "n_findings": 0,
+            "n_evidence_issues": 5,
+            "n_units": 1,
+            "unit_ids": [
+              "unit:6b4c90e6f7ad94baf9d2"
+            ],
+            "annex_labels": [],
+            "runtime": {
+              "egress_allowed": true,
+              "use_vector": false,
+              "max_processing_seconds": 300,
+              "max_llm_calls": 0,
+              "max_embedding_tokens": 0,
+              "llm_calls_used": 0,
+              "embedding_tokens_used": 0,
+              "fallback_count": 0
+            },
+            "n_candidates_suppressed": 0
+          },
+          "extraction_version": 7,
+          "proposed_index_version": "idx_7",
+          "publish": "propose"
+        },
+        "used_llm": false,
+        "has_gold_tasks": false,
+        "reviews": {},
+        "reviews_stale": false,
+        "published": false,
+        "authoritative_publish_blocked": false,
+        "review_queue_status": "HAS_REVIEW_ITEMS",
+        "review_items": [
+          {
+            "review_item_id": "review:citation:field_mst_a:INVALID:1",
+            "kind": "citation:field_mst_a:INVALID",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "fact:fact_a1a8874ced778ee37dc12c03: citation bbox is invalid",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:citation:field_mst_b:INVALID:2",
+            "kind": "citation:field_mst_b:INVALID",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "fact:fact_59cb2bcba39101bd9a570dca: citation bbox is invalid",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:citation:field_party_a:INVALID:3",
+            "kind": "citation:field_party_a:INVALID",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "fact:fact_a6e612d08b939e04cfbdb2d1: citation bbox is invalid",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:citation:field_party_b:INVALID:4",
+            "kind": "citation:field_party_b:INVALID",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "fact:fact_9bf3b89424476ed811c14ba7: citation bbox is invalid",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:citation:field_value:UNVERIFIED:5",
+            "kind": "citation:field_value:UNVERIFIED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "fact:fact_2c2f0a419772499dfc57e4e1: source hash is missing",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:fact:fact_a1a8874ced778ee37dc12c03",
+            "kind": "FACT",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "Verify missing/uncertain value and its source context",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:fact:fact_59cb2bcba39101bd9a570dca",
+            "kind": "FACT",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "Verify missing/uncertain value and its source context",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:fact:fact_a6e612d08b939e04cfbdb2d1",
+            "kind": "FACT",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "Verify missing/uncertain value and its source context",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:fact:fact_9bf3b89424476ed811c14ba7",
+            "kind": "FACT",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "Verify missing/uncertain value and its source context",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:fact:fact_2c2f0a419772499dfc57e4e1",
+            "kind": "FACT",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "Verify missing/uncertain value and its source context",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          }
+        ],
+        "n_review_items": 10,
+        "n_citations": 0,
+        "handoff_issues": [],
+        "policy": {
+          "deterministic": "ALLOW",
+          "external": "BLOCKED",
+          "gates": [
+            {
+              "code": "EMBEDDING_BUDGET_EXCEEDED",
+              "operation": "embedding_vector_recall",
+              "deterministic_action": "ALLOW_WITHOUT_VECTOR"
+            }
+          ]
+        }
+      }
+    },
+    "ask": {
+      "status_code": null,
+      "body": null
+    }
+  },
+  "machine_checks": {
+    "case_id": "EC-050",
+    "run": "deterministic",
+    "expected_state": "BLOCKED",
+    "actual_extract_state": "NEEDS_REVIEW",
+    "actual_ask_state": null,
+    "extract_http_ok": true,
+    "ask_http_ok": true,
+    "expected_match": true,
+    "citation_valid": true,
+    "citation_errors": [],
+    "forbidden_claims": [],
+    "n_citations": 0,
+    "use_vector": false,
+    "vector_status": "NOT_REQUESTED",
+    "embedding_model": null,
+    "embedding_dimensions": null,
+    "vector_hits": 0,
+    "n_pages": 1,
+    "n_nodes": 6,
+    "elapsed_ms": 17.4
+  },
+  "manual_review": {
+    "verdict": "PENDING",
+    "severity": null,
+    "reviewer_notes": ""
+  }
+}

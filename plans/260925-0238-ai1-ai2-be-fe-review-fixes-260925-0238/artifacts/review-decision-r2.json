@@ -1,0 +1,15 @@
+{
+  "verdict": "PASS_WITH_RISK",
+  "reviewer": "agent:codex-focused-review-r2",
+  "role": "reviewer",
+  "rationale": "Review vòng 2 focused: ACL dossier-level cho lock_dossier, create_external_approval và list_external_approvals đã được gắn và targeted regression pass; _submitted_ai2_runs được discard khi AI2 exception và retry guard được kiểm tra. Còn Important I1: require_external_approval_access dùng AclAction.APPROVE cho mọi administrator ở cả POST và GET, nên administrator có grant query-only có thể bị từ chối khi list external approvals. Authenticated E2E giữ trạng thái NOT_RUN, không coi là failure.",
+  "effort": "low",
+  "strategy": "focused-r2",
+  "reviewer_engine": "codex",
+  "reviewer_model": "GPT-5",
+  "rounds_run": 2,
+  "architecture_review": {
+    "checked": true
+  },
+  "run_seq": null
+}

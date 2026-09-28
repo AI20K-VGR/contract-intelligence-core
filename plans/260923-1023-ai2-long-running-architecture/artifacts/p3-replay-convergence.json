@@ -1,0 +1,31 @@
+{
+  "schema": "ai2.p3.replay-convergence/v1",
+  "phase": "P3",
+  "scope": "SQLite durable-friendly snapshots, checkpoints, events, audit, outbox, replay and lease fencing",
+  "implementation": {
+    "module": "ai-service/app/tools/durable.py",
+    "store": "DurableRunStore",
+    "persistence": "SQLite transactions with digest validation",
+    "recovery": ["snapshot fallback", "event replay", "outbox retry", "lease reclaim", "worker fencing"]
+  },
+  "invariants": [
+    "raw and canonical state snapshots carry a digest and corruption fails closed",
+    "events are contiguous per run and duplicate identity/digest conflicts are rejected",
+    "event and outbox rows commit transactionally",
+    "replay detects missing sequence and can converge from a durable snapshot",
+    "audit rows are append-only and protected by database triggers",
+    "expired worker leases fence stale snapshot/checkpoint writes"
+  ],
+  "verification": {
+    "focused_and_regression_command": "pytest tests/test_p3_persistence_events.py tests/test_job_store.py tests/test_persist.py tests/test_p2_hitl_state.py tests/test_p1_canonical_model.py tests/test_p0_contract_baseline.py -q --basetemp ..\\tmp\\ai2-p3-independent",
+    "result": "41 passed, 1 warning",
+    "compileall": "PASS",
+    "diff_check": "PASS",
+    "full_repository_suite": "NOT_RUN"
+  },
+  "limitations": [
+    "SQLite primitives do not prove production HA or external exactly-once side effects",
+    "worker scheduler/queue integration is not implemented in P3",
+    "production retention and RTO/RPO remain P9 decisions"
+  ]
+}

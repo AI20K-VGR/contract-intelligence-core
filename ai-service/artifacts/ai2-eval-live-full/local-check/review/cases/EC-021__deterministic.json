@@ -1,0 +1,1323 @@
+{
+  "case_id": "EC-021",
+  "run": "deterministic",
+  "input": {
+    "case": {
+      "case_id": "EC-021",
+      "title": "Số bằng chữ khác/cần hai anchor",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_words_num",
+      "expected_state": "REVIEW",
+      "expected_no_claims": [
+        "pick_one_amount"
+      ],
+      "n_pages": 1,
+      "n_nodes": 2,
+      "n_tables": 0,
+      "lifecycle": "ACTIVE",
+      "query": null,
+      "notes": "",
+      "tags": [
+        "edge",
+        "fact"
+      ]
+    },
+    "record": {
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_words_num",
+      "lifecycle": "ACTIVE",
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-ec-021",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      },
+      "pages": [
+        {
+          "page_revision_id": "p1_rev1",
+          "page_number": 1,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p1_b1"
+          ],
+          "text": "Giá trị hợp đồng: 1.000.000.000 đồng (một tỷ đồng chẵn).",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        }
+      ],
+      "nodes": [
+        {
+          "node_id": "num",
+          "type": "FIELD",
+          "raw_label": "Số",
+          "parent_id": null,
+          "order": 1,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "1.000.000.000 đồng",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": "contract_value",
+          "structured_value": "1.000.000.000",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "words",
+          "type": "FIELD",
+          "raw_label": "Chữ",
+          "parent_id": null,
+          "order": 2,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "một tỷ đồng chẵn",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": "contract_value_words",
+          "structured_value": "một tỷ đồng chẵn",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        }
+      ],
+      "tables": [],
+      "profile": {
+        "version": 5,
+        "aliases": {
+          "Công ty ABC": [
+            "ABC Co.",
+            "ABC"
+          ],
+          "Công ty XYZ": [
+            "XYZ Ltd",
+            "XYZ"
+          ]
+        },
+        "field_keys": [
+          "party_a",
+          "party_b",
+          "mst_seller",
+          "contract_value",
+          "payment_term"
+        ]
+      },
+      "acl_revision": 12,
+      "permissions_by_actor": {
+        "user_001": [
+          "READ_CONTENT"
+        ]
+      },
+      "source_files": [],
+      "facts": [
+        {
+          "fact_id": "fact_ecd945cb0700fce58565b307",
+          "raw_value": "1.000.000.000",
+          "normalized_value": null,
+          "subject": "Số",
+          "role": null,
+          "unit": "VND",
+          "currency": "VND",
+          "vat_basis": null,
+          "condition": null,
+          "scope": null,
+          "validity": null,
+          "item_key": null,
+          "tax_basis": null,
+          "period_start": null,
+          "source_role": "body",
+          "citation": {
+            "node_id": "num",
+            "page_revision_id": "p1_rev1",
+            "bbox": [],
+            "bbox_fragments": [],
+            "text_span": "1.000.000.000 đồng",
+            "source_file_id": null,
+            "page": 1,
+            "page_range": [
+              1
+            ],
+            "line_ids": [],
+            "char_start": 18,
+            "char_end": 36,
+            "breadcrumb": [
+              "Hợp đồng",
+              "Số"
+            ],
+            "structure_path": "Hợp đồng › Số",
+            "geometry_available": false,
+            "citation_id": null,
+            "source_hash": null,
+            "quote_sha256": "92aaf0da9a0a1a8269d2c9c6fbba3f24fcb9b2750c912b75177c6d3c7c3da120",
+            "coordinate_system": null,
+            "geometry_source": null,
+            "precision": null,
+            "validation_status": "UNVERIFIED",
+            "table_id": null,
+            "cell_id": null
+          },
+          "provenance": "L0",
+          "review_state": "NEEDS_REVIEW"
+        },
+        {
+          "fact_id": "fact_b192ba8f5153c6a166037e4c",
+          "raw_value": "một tỷ đồng chẵn",
+          "normalized_value": "1000000000",
+          "subject": "Chữ",
+          "role": null,
+          "unit": "VND",
+          "currency": "VND",
+          "vat_basis": null,
+          "condition": null,
+          "scope": null,
+          "validity": null,
+          "item_key": null,
+          "tax_basis": null,
+          "period_start": null,
+          "source_role": "body",
+          "citation": {
+            "node_id": "words",
+            "page_revision_id": "p1_rev1",
+            "bbox": [],
+            "bbox_fragments": [],
+            "text_span": "một tỷ đồng chẵn",
+            "source_file_id": null,
+            "page": 1,
+            "page_range": [
+              1
+            ],
+            "line_ids": [],
+            "char_start": 38,
+            "char_end": 54,
+            "breadcrumb": [
+              "Hợp đồng",
+              "Chữ"
+            ],
+            "structure_path": "Hợp đồng › Chữ",
+            "geometry_available": false,
+            "citation_id": null,
+            "source_hash": null,
+            "quote_sha256": "48261931c5aee3f0874de6a38f7aef5f828a91a6a8765e92a94b23a4eaf3dfd6",
+            "coordinate_system": null,
+            "geometry_source": null,
+            "precision": null,
+            "validation_status": "UNVERIFIED",
+            "table_id": null,
+            "cell_id": null
+          },
+          "provenance": "L0",
+          "review_state": "NEEDS_REVIEW"
+        }
+      ],
+      "input_facts": [],
+      "chunks": [
+        {
+          "chunk_id": "chk_146146c5",
+          "parent_node_id": "ai2-root:document",
+          "page_range": [
+            1
+          ],
+          "source_block_ids": [],
+          "text_span": "Hợp đồng",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Hợp đồng"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "NEEDS_REVIEW"
+        }
+      ],
+      "active_index_version": null,
+      "processing_index": false,
+      "legal_hold": false,
+      "egress_approved": true,
+      "budget_exceeded": false,
+      "processing_budget_exceeded": false,
+      "embedding_budget_exceeded": false,
+      "index_status": "READY",
+      "case_id": "EC-021",
+      "handoff_issues": [
+        {
+          "code": "STRUCTURE_ROOT_DERIVED",
+          "message": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        }
+      ],
+      "relation_graph": {
+        "graph_id": "graph:1c40ffe1e2fca63dae5da773",
+        "source_snapshot_digest": "sha256:eval-ec-021",
+        "nodes": [
+          {
+            "node_id": "ai2-root:document",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": null,
+            "quality": "PARTIAL"
+          },
+          {
+            "node_id": "num",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "quality": "PARTIAL"
+          },
+          {
+            "node_id": "words",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "quality": "PARTIAL"
+          }
+        ],
+        "edges": [
+          {
+            "edge_id": "edge:caf7b99c2be55cb0b1c66271",
+            "from_node_id": "ai2-root:document",
+            "to_node_id": "num",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "num",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "1.000.000.000 đồng",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 18,
+                "char_end": 36,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "92aaf0da9a0a1a8269d2c9c6fbba3f24fcb9b2750c912b75177c6d3c7c3da120",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-ec-021"
+          },
+          {
+            "edge_id": "edge:e95eda64e585522cee80f7d4",
+            "from_node_id": "ai2-root:document",
+            "to_node_id": "words",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "words",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "một tỷ đồng chẵn",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 38,
+                "char_end": 54,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "48261931c5aee3f0874de6a38f7aef5f828a91a6a8765e92a94b23a4eaf3dfd6",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-ec-021"
+          }
+        ],
+        "issues": []
+      },
+      "active_nodes": [
+        {
+          "node_id": "ai2-root:document",
+          "type": "SECTION",
+          "raw_label": "Hợp đồng",
+          "parent_id": null,
+          "order": -1,
+          "has_children": false,
+          "status": "PARTIAL",
+          "text": "Hợp đồng",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": null,
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI2_REPAIRED",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "ai2-root:document",
+          "heading_confidence": 1.0,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "num",
+          "type": "FIELD",
+          "raw_label": "Số",
+          "parent_id": "ai2-root:document",
+          "order": 1,
+          "has_children": false,
+          "status": "PARTIAL",
+          "text": "1.000.000.000 đồng",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": "contract_value",
+          "structured_value": "1.000.000.000",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI2_REPAIRED",
+          "repaired_from_node_id": "num",
+          "structure_level": "FIELD",
+          "scope_id": "ai2-root:document",
+          "heading_confidence": null,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "words",
+          "type": "FIELD",
+          "raw_label": "Chữ",
+          "parent_id": "ai2-root:document",
+          "order": 2,
+          "has_children": false,
+          "status": "PARTIAL",
+          "text": "một tỷ đồng chẵn",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": "contract_value_words",
+          "structured_value": "một tỷ đồng chẵn",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI2_REPAIRED",
+          "repaired_from_node_id": "words",
+          "structure_level": "FIELD",
+          "scope_id": "ai2-root:document",
+          "heading_confidence": null,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        }
+      ],
+      "citation_index": {},
+      "review_items": [
+        {
+          "review_item_id": "review:STRUCTURE_ROOT_DERIVED:1",
+          "kind": "STRUCTURE_ROOT_DERIVED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:citation:num:UNVERIFIED:2",
+          "kind": "citation:num:UNVERIFIED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "fact:fact_ecd945cb0700fce58565b307: source hash is missing",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:citation:words:UNVERIFIED:3",
+          "kind": "citation:words:UNVERIFIED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "fact:fact_b192ba8f5153c6a166037e4c: source hash is missing",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:fact:fact_ecd945cb0700fce58565b307",
+          "kind": "FACT",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "Verify missing/uncertain value and its source context",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:fact:fact_b192ba8f5153c6a166037e4c",
+          "kind": "FACT",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "Verify missing/uncertain value and its source context",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        }
+      ]
+    },
+    "envelope": {
+      "auth": {
+        "actor_id": "user_001",
+        "tenant_id": "tenant_a",
+        "dossier_id": "d_words_num",
+        "acl_revision": 12,
+        "permissions": [
+          "READ_CONTENT"
+        ],
+        "lifecycle": "ACTIVE"
+      },
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-ec-021",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      }
+    }
+  },
+  "output": {
+    "extract": {
+      "status_code": 200,
+      "body": {
+        "session_id": "374f7c347a42",
+        "filename": "EC-021.snapshot",
+        "source": "eval",
+        "step": "extract",
+        "ai1": {
+          "case_id": "EC-021"
+        },
+        "files": [],
+        "has_pdf": false,
+        "dossier_id": "d_words_num",
+        "tenant_id": "tenant_a",
+        "lifecycle": "ACTIVE",
+        "pins": {
+          "manifest_version": 2,
+          "source_snapshot_digest": "sha256:eval-ec-021",
+          "tenant_profile_version": 5,
+          "policy_version": 2,
+          "ocr_run_version": 3,
+          "reconstruction_version": 2,
+          "extraction_version": 7,
+          "index_version": "idx_14",
+          "source_digest": null,
+          "snapshot_digest": null
+        },
+        "n_pages": 1,
+        "n_nodes": 3,
+        "n_raw_nodes": 2,
+        "n_tables": 0,
+        "table_coverage": {
+          "UNKNOWN": 1
+        },
+        "relation_graph": {
+          "n_nodes": 3,
+          "n_edges": 2,
+          "n_issues": 0
+        },
+        "pages": [
+          {
+            "page": 1,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Giá trị hợp đồng: 1.000.000.000 đồng (một tỷ đồng chẵn).",
+            "page_revision_id": "p1_rev1"
+          }
+        ],
+        "n_pages_hidden": 0,
+        "nodes": [
+          {
+            "node_id": "ai2-root:document",
+            "type": "SECTION",
+            "raw_label": "Hợp đồng",
+            "page_range": [
+              1
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "num",
+            "type": "FIELD",
+            "raw_label": "Số",
+            "page_range": [
+              1
+            ],
+            "structured_key": "contract_value",
+            "structured_value": "1.000.000.000"
+          },
+          {
+            "node_id": "words",
+            "type": "FIELD",
+            "raw_label": "Chữ",
+            "page_range": [
+              1
+            ],
+            "structured_key": "contract_value_words",
+            "structured_value": "một tỷ đồng chẵn"
+          }
+        ],
+        "n_nodes_hidden": 0,
+        "tree": [
+          {
+            "node_id": "ai2-root:document",
+            "type": "SECTION",
+            "raw_label": "Hợp đồng",
+            "status": "PARTIAL",
+            "page": 1,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": null,
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "ai2-root:document",
+            "heading_confidence": 1.0,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Hợp đồng",
+            "children": [
+              {
+                "node_id": "num",
+                "type": "FIELD",
+                "raw_label": "Số",
+                "status": "PARTIAL",
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "has_children": false,
+                "structured_key": "contract_value",
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "FIELD",
+                "scope_id": "ai2-root:document",
+                "heading_confidence": null,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "1.000.000.000 đồng",
+                "children": []
+              },
+              {
+                "node_id": "words",
+                "type": "FIELD",
+                "raw_label": "Chữ",
+                "status": "PARTIAL",
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "has_children": false,
+                "structured_key": "contract_value_words",
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "FIELD",
+                "scope_id": "ai2-root:document",
+                "heading_confidence": null,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "một tỷ đồng chẵn",
+                "children": []
+              }
+            ]
+          }
+        ],
+        "tables": [],
+        "extracted": true,
+        "job": {
+          "job_id": "job_ac1c6f8262",
+          "status": "SUCCEEDED",
+          "review_state": "NEEDS_REVIEW",
+          "handoff_issues": [
+            {
+              "code": "STRUCTURE_ROOT_DERIVED",
+              "message": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_STATUS",
+              "message": "ai2-root:document:PARTIAL",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_STATUS",
+              "message": "num:PARTIAL",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_STATUS",
+              "message": "words:PARTIAL",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            }
+          ],
+          "contribution": {
+            "facts": [
+              {
+                "fact_id": "fact_ecd945cb0700fce58565b307",
+                "raw_value": "1.000.000.000",
+                "normalized_value": null,
+                "subject": "Số",
+                "role": null,
+                "unit": "VND",
+                "currency": "VND",
+                "vat_basis": null,
+                "condition": null,
+                "scope": null,
+                "validity": null,
+                "item_key": null,
+                "tax_basis": null,
+                "period_start": null,
+                "source_role": "body",
+                "citation": {
+                  "node_id": "num",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "1.000.000.000 đồng",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 18,
+                  "char_end": 36,
+                  "breadcrumb": [
+                    "Hợp đồng",
+                    "Số"
+                  ],
+                  "structure_path": "Hợp đồng › Số",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "92aaf0da9a0a1a8269d2c9c6fbba3f24fcb9b2750c912b75177c6d3c7c3da120",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "provenance": "L0",
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "fact_id": "fact_b192ba8f5153c6a166037e4c",
+                "raw_value": "một tỷ đồng chẵn",
+                "normalized_value": "1000000000",
+                "subject": "Chữ",
+                "role": null,
+                "unit": "VND",
+                "currency": "VND",
+                "vat_basis": null,
+                "condition": null,
+                "scope": null,
+                "validity": null,
+                "item_key": null,
+                "tax_basis": null,
+                "period_start": null,
+                "source_role": "body",
+                "citation": {
+                  "node_id": "words",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "một tỷ đồng chẵn",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 38,
+                  "char_end": 54,
+                  "breadcrumb": [
+                    "Hợp đồng",
+                    "Chữ"
+                  ],
+                  "structure_path": "Hợp đồng › Chữ",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "48261931c5aee3f0874de6a38f7aef5f828a91a6a8765e92a94b23a4eaf3dfd6",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "provenance": "L0",
+                "review_state": "NEEDS_REVIEW"
+              }
+            ],
+            "chunks": [
+              {
+                "chunk_id": "chk_146146c5",
+                "parent_node_id": "ai2-root:document",
+                "page_range": [
+                  1
+                ],
+                "source_block_ids": [],
+                "text_span": "Hợp đồng",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Hợp đồng"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "NEEDS_REVIEW"
+              }
+            ],
+            "candidates": [],
+            "evidence_issues": [
+              {
+                "issue_id": "citation:num:UNVERIFIED",
+                "missing": "CITATION_VERIFICATION",
+                "reason": "fact:fact_ecd945cb0700fce58565b307: source hash is missing",
+                "citation": {
+                  "node_id": "num",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "1.000.000.000 đồng",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 18,
+                  "char_end": 36,
+                  "breadcrumb": [
+                    "Hợp đồng",
+                    "Số"
+                  ],
+                  "structure_path": "Hợp đồng › Số",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "92aaf0da9a0a1a8269d2c9c6fbba3f24fcb9b2750c912b75177c6d3c7c3da120",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "issue_id": "citation:words:UNVERIFIED",
+                "missing": "CITATION_VERIFICATION",
+                "reason": "fact:fact_b192ba8f5153c6a166037e4c: source hash is missing",
+                "citation": {
+                  "node_id": "words",
+                  "page_revision_id": "p1_rev1",
+                  "bbox": [],
+                  "bbox_fragments": [],
+                  "text_span": "một tỷ đồng chẵn",
+                  "source_file_id": null,
+                  "page": 1,
+                  "page_range": [
+                    1
+                  ],
+                  "line_ids": [],
+                  "char_start": 38,
+                  "char_end": 54,
+                  "breadcrumb": [
+                    "Hợp đồng",
+                    "Chữ"
+                  ],
+                  "structure_path": "Hợp đồng › Chữ",
+                  "geometry_available": false,
+                  "citation_id": null,
+                  "source_hash": null,
+                  "quote_sha256": "48261931c5aee3f0874de6a38f7aef5f828a91a6a8765e92a94b23a4eaf3dfd6",
+                  "coordinate_system": null,
+                  "geometry_source": null,
+                  "precision": null,
+                  "validation_status": "UNVERIFIED",
+                  "table_id": null,
+                  "cell_id": null
+                },
+                "review_state": "NEEDS_REVIEW"
+              }
+            ],
+            "coverage": {
+              "n_facts": 2,
+              "n_findings": 0,
+              "n_evidence_issues": 2,
+              "n_units": 1,
+              "unit_ids": [
+                "unit:2bb5bffb8891ecc95fff"
+              ],
+              "annex_labels": [],
+              "runtime": {
+                "egress_allowed": true,
+                "use_vector": false,
+                "max_processing_seconds": 300,
+                "max_llm_calls": 0,
+                "max_embedding_tokens": 0,
+                "llm_calls_used": 0,
+                "embedding_tokens_used": 0,
+                "fallback_count": 0
+              },
+              "n_candidates_suppressed": 0
+            },
+            "extraction_version": 7,
+            "proposed_index_version": "idx_7",
+            "publish": "propose"
+          },
+          "query_answer": null,
+          "error": null
+        },
+        "contribution": {
+          "facts": [
+            {
+              "fact_id": "fact_b192ba8f5153c6a166037e4c",
+              "raw_value": "một tỷ đồng chẵn",
+              "normalized_value": "1000000000",
+              "subject": "Chữ",
+              "role": null,
+              "unit": "VND",
+              "currency": "VND",
+              "vat_basis": null,
+              "condition": null,
+              "scope": null,
+              "validity": null,
+              "item_key": null,
+              "tax_basis": null,
+              "period_start": null,
+              "source_role": "body",
+              "citation": {
+                "node_id": "words",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "một tỷ đồng chẵn",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 38,
+                "char_end": 54,
+                "breadcrumb": [
+                  "Hợp đồng",
+                  "Chữ"
+                ],
+                "structure_path": "Hợp đồng › Chữ",
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "48261931c5aee3f0874de6a38f7aef5f828a91a6a8765e92a94b23a4eaf3dfd6",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "provenance": "L0",
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "fact_id": "fact_ecd945cb0700fce58565b307",
+              "raw_value": "1.000.000.000",
+              "normalized_value": null,
+              "subject": "Số",
+              "role": null,
+              "unit": "VND",
+              "currency": "VND",
+              "vat_basis": null,
+              "condition": null,
+              "scope": null,
+              "validity": null,
+              "item_key": null,
+              "tax_basis": null,
+              "period_start": null,
+              "source_role": "body",
+              "citation": {
+                "node_id": "num",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "1.000.000.000 đồng",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 18,
+                "char_end": 36,
+                "breadcrumb": [
+                  "Hợp đồng",
+                  "Số"
+                ],
+                "structure_path": "Hợp đồng › Số",
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "92aaf0da9a0a1a8269d2c9c6fbba3f24fcb9b2750c912b75177c6d3c7c3da120",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "provenance": "L0",
+              "review_state": "NEEDS_REVIEW"
+            }
+          ],
+          "chunks": [
+            {
+              "chunk_id": "chk_146146c5",
+              "parent_node_id": "ai2-root:document",
+              "page_range": [
+                1
+              ],
+              "source_block_ids": [],
+              "text_span": "Hợp đồng",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Hợp đồng"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "NEEDS_REVIEW"
+            }
+          ],
+          "candidates": [],
+          "evidence_issues": [
+            {
+              "issue_id": "citation:num:UNVERIFIED",
+              "missing": "CITATION_VERIFICATION",
+              "reason": "fact:fact_ecd945cb0700fce58565b307: source hash is missing",
+              "citation": {
+                "node_id": "num",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "1.000.000.000 đồng",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 18,
+                "char_end": 36,
+                "breadcrumb": [
+                  "Hợp đồng",
+                  "Số"
+                ],
+                "structure_path": "Hợp đồng › Số",
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "92aaf0da9a0a1a8269d2c9c6fbba3f24fcb9b2750c912b75177c6d3c7c3da120",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "issue_id": "citation:words:UNVERIFIED",
+              "missing": "CITATION_VERIFICATION",
+              "reason": "fact:fact_b192ba8f5153c6a166037e4c: source hash is missing",
+              "citation": {
+                "node_id": "words",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "một tỷ đồng chẵn",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": 38,
+                "char_end": 54,
+                "breadcrumb": [
+                  "Hợp đồng",
+                  "Chữ"
+                ],
+                "structure_path": "Hợp đồng › Chữ",
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "48261931c5aee3f0874de6a38f7aef5f828a91a6a8765e92a94b23a4eaf3dfd6",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              },
+              "review_state": "NEEDS_REVIEW"
+            }
+          ],
+          "coverage": {
+            "n_facts": 2,
+            "n_findings": 0,
+            "n_evidence_issues": 2,
+            "n_units": 1,
+            "unit_ids": [
+              "unit:2bb5bffb8891ecc95fff"
+            ],
+            "annex_labels": [],
+            "runtime": {
+              "egress_allowed": true,
+              "use_vector": false,
+              "max_processing_seconds": 300,
+              "max_llm_calls": 0,
+              "max_embedding_tokens": 0,
+              "llm_calls_used": 0,
+              "embedding_tokens_used": 0,
+              "fallback_count": 0
+            },
+            "n_candidates_suppressed": 0
+          },
+          "extraction_version": 7,
+          "proposed_index_version": "idx_7",
+          "publish": "propose"
+        },
+        "used_llm": false,
+        "has_gold_tasks": false,
+        "reviews": {},
+        "reviews_stale": false,
+        "published": false,
+        "authoritative_publish_blocked": false,
+        "review_queue_status": "HAS_REVIEW_ITEMS",
+        "review_items": [
+          {
+            "review_item_id": "review:STRUCTURE_ROOT_DERIVED:1",
+            "kind": "STRUCTURE_ROOT_DERIVED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:citation:num:UNVERIFIED:2",
+            "kind": "citation:num:UNVERIFIED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "fact:fact_ecd945cb0700fce58565b307: source hash is missing",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:citation:words:UNVERIFIED:3",
+            "kind": "citation:words:UNVERIFIED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "fact:fact_b192ba8f5153c6a166037e4c: source hash is missing",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:fact:fact_ecd945cb0700fce58565b307",
+            "kind": "FACT",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "Verify missing/uncertain value and its source context",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:fact:fact_b192ba8f5153c6a166037e4c",
+            "kind": "FACT",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "Verify missing/uncertain value and its source context",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          }
+        ],
+        "n_review_items": 5,
+        "n_citations": 0,
+        "handoff_issues": [
+          {
+            "code": "STRUCTURE_ROOT_DERIVED",
+            "message": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          }
+        ],
+        "policy": {
+          "deterministic": "ALLOW",
+          "external": "ALLOWED",
+          "gates": []
+        }
+      }
+    },
+    "ask": {
+      "status_code": null,
+      "body": null
+    }
+  },
+  "machine_checks": {
+    "case_id": "EC-021",
+    "run": "deterministic",
+    "expected_state": "REVIEW",
+    "actual_extract_state": "NEEDS_REVIEW",
+    "actual_ask_state": null,
+    "extract_http_ok": true,
+    "ask_http_ok": true,
+    "expected_match": true,
+    "citation_valid": true,
+    "citation_errors": [],
+    "forbidden_claims": [],
+    "n_citations": 0,
+    "use_vector": false,
+    "vector_status": "NOT_REQUESTED",
+    "embedding_model": null,
+    "embedding_dimensions": null,
+    "vector_hits": 0,
+    "n_pages": 1,
+    "n_nodes": 2,
+    "elapsed_ms": 17.6
+  },
+  "manual_review": {
+    "verdict": "PENDING",
+    "severity": null,
+    "reviewer_notes": ""
+  }
+}

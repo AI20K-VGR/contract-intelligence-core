@@ -1,0 +1,108 @@
+{
+  "schema": "ai2.p0.contract-baseline/v1",
+  "phase": "P0",
+  "status": "approved_baseline",
+  "producer_change": "none",
+  "public_schema_change": "none",
+  "decision_record": {
+    "status": "approved",
+    "areas": {
+      "canonical_state_ownership": {
+        "decision": "Backend owns canonical AI2 run lifecycle, durable state and audit; AI2 owns adaptation and bounded processing only.",
+        "guardrail": "AI1 raw snapshots remain immutable and AI2 does not become the publish authority."
+      },
+      "phase_1_reviewer_policy": {
+        "decision": "Only an explicitly authorized reviewer may apply a review command; no automatic approval.",
+        "guardrail": "Commands remain tenant-scoped and require a server-side state/version check."
+      },
+      "checkpoint_expiration": {
+        "decision": "Expiration is terminal for the current generation; reopening creates a new generation and never auto-approves.",
+        "guardrail": "The concrete TTL is tenant configuration and must be approved before production rollout."
+      },
+      "auth_and_tenant_boundary": {
+        "decision": "Backend supplies the authenticated tenant, actor and scope; every read, replay and mutation is fail-closed outside that scope.",
+        "guardrail": "AI2 does not infer authorization from user text, document names or model output."
+      },
+      "event_snapshot_audit_retention": {
+        "decision": "Raw evidence is immutable; canonical events and audit entries are append-only; replay uses durable events with snapshot fallback.",
+        "guardrail": "Retention periods and deletion/legal-hold values remain deployment policy, not an AI1 contract change."
+      },
+      "live_transport": {
+        "decision": "Use authenticated HTTP commands plus SSE notifications/replay for the first live-review path.",
+        "guardrail": "SSE is not durable state or a command channel; WebSocket requires a later workload decision and rollback path."
+      },
+      "review_ui_protocol": {
+        "decision": "Phase 1 uses fixed allowlisted review components with an AG-UI mapping boundary; A2UI is disabled by default.",
+        "guardrail": "The server validates commands and catalog/actions; the client never grants authority."
+      },
+      "agent_boundary": {
+        "decision": "A2A is deferred and must not be introduced on the existing AI1 to AI2 processing path.",
+        "guardrail": "An A2A adapter requires an explicit independent-agent use case, authentication and contract decision."
+      }
+    }
+  },
+  "contract": {
+    "canonical_input": "ai1.snapshot.v1",
+    "compatibility_inputs": [
+      {
+        "input": "ocr.json",
+        "adapter": "legacy_ocr_json",
+        "behavior": "accept as degraded text-only evidence; preserve missing geometry/table evidence as review issues"
+      },
+      {
+        "input": "ai1.result.v0.1",
+        "adapter": "legacy-result-v0.1",
+        "behavior": "compatibility lane only; never reinterpret as canonical snapshot"
+      }
+    ],
+    "unknown_fields": "reject_on_canonical_boundary",
+    "missing_evidence": "preserve_raw_reference_and_fail_closed_to_review_or_insufficient_evidence",
+    "logical_documents": "one processing request may carry multiple snapshots; relations must be explicit",
+    "idempotency": {
+      "scope": [
+        "tenant_id",
+        "idempotency_key",
+        "attempt"
+      ],
+      "same_payload": "return_existing_job",
+      "different_payload": "reject"
+    }
+  },
+  "contract_cases": [
+    {
+      "id": "current-ai1-snapshot",
+      "test_ref": "ai-service/tests/test_p0_contract_baseline.py::test_current_ai1_snapshot_and_legacy_ocr_json_stay_separate_compatibility_lanes",
+      "expected": "canonical ai1.snapshot.v1 parses without changing source identity"
+    },
+    {
+      "id": "legacy-ocr-json",
+      "test_ref": "ai-service/tests/test_p0_contract_baseline.py::test_current_ai1_snapshot_and_legacy_ocr_json_stay_separate_compatibility_lanes",
+      "expected": "legacy ocr.json stays degraded and records LEGACY_TEXT_ONLY"
+    },
+    {
+      "id": "missing-evidence",
+      "test_ref": "ai-service/tests/test_p0_contract_baseline.py::test_missing_citation_is_not_a_succeeded_processing_result",
+      "expected": "missing citation is rejected before SUCCEEDED/PASS"
+    },
+    {
+      "id": "multiple-logical-documents",
+      "test_ref": "ai-service/tests/test_p0_contract_baseline.py::test_multiple_logical_documents_preserve_members_and_explicit_relation",
+      "expected": "body and annex remain distinct source files with explicit relation"
+    },
+    {
+      "id": "unsupported-version",
+      "test_ref": "ai-service/tests/test_p0_contract_baseline.py::test_unsupported_snapshot_version_fails_closed",
+      "expected": "unsupported ai1.snapshot version is rejected deterministically"
+    },
+    {
+      "id": "duplicate-submit",
+      "test_ref": "ai-service/tests/test_p0_contract_baseline.py::test_duplicate_submit_returns_same_job_and_conflicting_payload_is_rejected",
+      "expected": "same scoped submission returns the same job; changed payload is rejected"
+    }
+  ],
+  "rollback": "retain the existing adapter and public schemas; remove this baseline artifact only with an explicit plan revision",
+  "notes": [
+    "This artifact freezes compatibility and safety decisions for P0; it does not claim production TTL, retention or transport SLO values.",
+    "No AI1 producer, raw snapshot field or public processing schema was changed."
+  ]
+}

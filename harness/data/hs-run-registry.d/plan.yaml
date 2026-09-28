@@ -1,0 +1,377 @@
+# plan.yaml — the `plan` domain's fragment of the hs-run registry.
+#
+# Owned exclusively by whoever builds the `plan` domain's verbs (P1). Never touch
+# cook.yaml or any other domain's fragment from here — one file per domain is what
+# lets P1 and P2 build concurrently without two agents writing the same file.
+# Schema + merge/conflict rules: see harness/data/hs-run-registry.yaml's header.
+
+domains:
+  plan:
+    next:     {module: hs_run_plan, entry: cmd_next}
+    scaffold: {module: hs_run_plan, entry: cmd_scaffold}
+    graph:    {module: hs_run_plan, entry: cmd_graph}
+    prompt:   {module: hs_run_plan, entry: cmd_prompt}
+    record:   {module: hs_run_plan, entry: cmd_record}
+
+# What each STEP needs — read by the dispatcher, emitted as the envelope's `rules`,
+# `references` and `advisory`. This is the table that used to be twelve rule pointers
+# plus a paragraph per state in plan/SKILL.md, where nothing could check them.
+#
+# Keyed by STATE, and that is the whole design. A skill body is read ONCE when the skill
+# loads; by the time a run reaches `needs_redteam` the paragraph naming the red-team
+# reference is thousands of tokens back. Loaded is not followed. Here the pointer arrives
+# at the moment the step begins.
+#
+# `refs:` are PATHS relative to the skill dir, never text. The envelope carrying 14 kB of
+# reference prose would be a second copy of a file that already exists, and a second copy
+# drifts with nothing to notice.
+#
+# `when_flag:` because not every condition is a state. The four grid references are
+# worthless on a run without `--grid`; hanging them on the state unconditionally loads
+# four files on every plan ever made.
+#
+# `advisory:` for guidance the CLI cannot make a state out of, because it cannot DETECT
+# it from disk. "A decision was just finalized" is a model judgment; a state keyed on it
+# would never fire while every gate stayed green.
+#
+# Two refs were held out of this table on the argument that their trigger is a model
+# judgment ("worth building deliberately", "scope over one plan") and that routing would
+# "load them always". Re-examined and REVERSED, because both halves were wrong.
+# Delivering a pointer is not making the judgment — `red-team-gate.md` is routed at
+# `needs_redteam` without the CLI deciding to red-team. And `refs:` are PATHS: routing
+# one costs ~40 characters at ONE state, not the file, and not on every run. Against
+# that, a prose pointer sits thousands of tokens behind the step that needs it, which is
+# the failure this table exists for. `five-hat-elaboration.md` now rides `needs_planner`
+# (the state where the material is generated, before red-team) and
+# `multi-plan-split.md` rides `scaffolded` (sizing comes before phase decomposition).
+#
+# Caps (gated): 4 rules and 4 `refs:` per state, 2 in `always`, 400 chars of advisory.
+# Those count ONE key each. The budget that counts what a step actually hands over —
+# `refs:` + `docs:` + every `when_flag:` block that can apply — is 5 documents, with
+# named per-state exemptions, and lives in
+# `test_a_step_hands_over_no_more_reading_than_its_budget.py`. Adding a `docs:` entry
+# or a conditional ref spends that budget exactly like a `refs:` entry does.
+step_routing:
+  plan:
+    skill: plan
+    covers_skill: true
+    # The home rule for probe-before-you-build. It governs how every step of a plan is
+    # worked, not one of them, which is the only thing that belongs here.
+    always:
+      rules: [agent-operational-discipline]
+    states:
+      no_plan:
+        summary: >-
+          No plan directory exists yet — the run starts by scaffolding one. Do the
+          understand interview FIRST; the 5-fact floor is invariant. If a discovery
+          brief already exists, scaffold INTO its folder by passing that dir's
+          `--id`/`--slug` — scaffolding beside it orphans the brief in a sibling
+          folder with nothing to notice.
+        rules: [intake-and-interview-discipline]
+        # The read-these-standards instruction, which had no mechanism until now. The
+        # three hooks naming these files are NUDGES for the MISSING case — fed a tree
+        # where they are present, setup_nudge and nudge_context_inject both emit
+        # {"continue": true}. LESSONS.md has no hook at all.
+        docs: [docs/system-architecture.md, docs/code-standards.md, harness/LESSONS.md]
+      scaffolded:
+        summary: >-
+          `plan scaffold` just wrote the directory. Reported by the scaffold verb
+          itself, carrying the projection's own next step.
+        rules: [intake-and-interview-discipline, plain-language-phrasing]
+        # Sizing comes BEFORE phase decomposition: "does this fit in one plan" is asked
+        # of the scaffold, and asking it after the phases are written is asking it late.
+        refs:  [references/tdd-plan-mode.md, references/multi-plan-split.md]
+      # The scope-sizing leg. Its engine (`scope_split.py`) had no caller at all
+      # until the projection grew this step: the only route in was a human
+      # reading the reference below and typing the command.
+      needs_scope_sizing:
+        summary: >-
+          The scaffold exists and nothing has sized it yet: does this fit in ONE plan?
+          Asked here rather than after the phases, when the answer could no longer
+          change anything. `--fast` declares the skip.
+        # grid-when.md routed HERE, not only behind `--grid`. It owns the four
+        # preconditions and the flat cost floor — the criteria for DECIDING the
+        # flag — and its only two routes used to be `when_flag: grid:` and
+        # `grid_needs_axes`, both of which require the flag to already be set.
+        # SKILL.md tells the reader not to decide from the body and to wait for
+        # the run to route the file; behind the flag, that instruction resolved
+        # to nothing and nothing raised. Sizing is the state where the run is
+        # already asking how big this is, which is the same question.
+        refs: [references/multi-plan-split.md, references/grid-when.md]
+        # plain-language-phrasing routed here as well as at `scaffolded`, and this
+        # is the state where it is actually USED: sizing is where the run asks the
+        # human a question, and that rule governs how a question is phrased for a
+        # reader who is not a specialist. At `scaffolded` alone it arrived one beat
+        # before there was anything to phrase — and `scaffolded` is emitted ONLY by
+        # the scaffold verb, so a plan built any other way (measured: a hand-made
+        # plan dir goes straight to this state) never saw it at all.
+        rules: [plain-language-phrasing]
+        advisory: >-
+          Read the feature list out of THIS plan, not a canned one. The sizer
+          multiplies what you give it, so an invented feature list produces a
+          cell count that describes no plan and a verdict nobody should act on.
+      scope_needs_split:
+        summary: >-
+          The sizer judged this plan `multi` — too big for one plan. Split it, or
+          record a written reason for keeping it whole; both are valid, silence is not.
+        refs: [references/multi-plan-split.md]
+        rules: [scope-and-contract-discipline]
+        advisory: >-
+          Record the decision IN the receipt, not in chat. `proceed` costs a
+          written reason: a plan kept whole against the sizer's verdict is a
+          choice somebody must be able to read back later.
+      needs_research:
+        summary: >-
+          The plan body still carries TBD placeholders. Spawn `@researcher`, then
+          `record researcher --out <file>`. `--fast` declares the skip.
+        # research is where a measured number first enters the plan, and a rate
+        # without its counts is where it stops being checkable.
+        #
+        # `counting-discipline` sits beside it rather than replacing it: the two
+        # answer different questions about the same number. sampled-rate governs
+        # the INTERVAL around a rate; counting-discipline governs whether the
+        # count underneath is sound at all — where the denominator came from,
+        # what was excluded, whether the measurement ran. A census needs no
+        # interval and still needs every one of those.
+        #
+        # It takes `architectural-constraints`' slot, and that is a real trade
+        # rather than a free addition — the 4-rule cap is what stops this table
+        # becoming a dump. The displaced rule opens with "load during hs:plan's
+        # constraint-scan step", which is `needs_planner`, where it is still
+        # routed. Here it was arriving a step early; the number arrives HERE.
+        rules: [intake-and-interview-discipline, counting-discipline,
+                sampled-rate-reporting]
+        refs:  [references/research-phase.md]
+      needs_planner:
+        summary: >-
+          Content is there but `plan-graph.yaml` is missing or invalid. This is the
+          design step: decompose into phases, then spawn `@planner` and record it.
+        # adr-trigger's own first line says "load during hs:plan when a plan touches
+        # architecture" — the design step is where that is decided, and it was reachable
+        # from no skill body at all until this line existed.
+        rules: [testability-triad, scope-and-contract-discipline, architectural-constraints, adr-trigger]
+        # At the 4-ref cap. five-hat rides here because the material it shapes is
+        # generated at the design step, before red-team — not at `needs_redteam`, which
+        # is already too late for it.
+        refs:  [references/phase-decomposition.md, references/constraint-scan.md, references/solution-design.md, references/five-hat-elaboration.md]
+        # Named again at the design step on purpose: this is where the plan either
+        # follows the shared architecture or quietly invents its own, and by now the
+        # `no_plan` envelope that first named them is far behind in the transcript.
+        docs:  [docs/system-architecture.md, docs/code-standards.md]
+        when_flag:
+          # `grid-when.md` again, and deliberately the same file rather than a second
+          # one. It is routed at `needs_scope_sizing` for the reader still DECIDING
+          # the flag; here the flag is set, and the re-hand costs one path in a list
+          # that already resolves to a file the reader may have read. Routing a
+          # different grid document here instead would put build instructions at the
+          # design step, which `test_grid_when_guidance.py` refuses.
+          grid:
+            refs: [references/grid-when.md]
+          # The design step IS where a `--tdd` plan earns its per-phase red→green
+          # pairs, and where cook later reads them. Routed at `scaffolded` alone
+          # this arrived a beat early, and only ever on the path that goes through
+          # the scaffold verb — nothing else emits that state.
+          tdd:
+            refs: [references/tdd-plan-mode.md]
+      # The grid leg. These are PEER states, not sub-states of needs_planner: one
+      # name, one routing row, one exit code per call. Nesting them would put "which
+      # level am I on" back in the model's head, which is the thing this table exists
+      # to remove.
+      #
+      # Before this, `--grid` routed four references at ONE state — ~27k characters
+      # arriving together, with the step ORDER left in prose. Each state below now
+      # carries only the reference its own step needs.
+      grid_needs_axes:
+        summary: >-
+          `--grid` is on and no axis receipt exists. Spawn `@grid-axis-selector`; it
+          reads THIS plan's prose and writes the receipt. The step exists because a
+          grid built on canned axis values lands mostly-N/A.
+        # The axis decision is made here, and getting it wrong is the failure mode
+        # that ships a grid whose values do not exist in the project.
+        refs: [references/grid-when.md]
+        advisory: >-
+          Do not build from the canned axis defaults. The selector reads THIS plan's
+          prose; a grid built on invented axis values lands mostly-N/A, which is a
+          coverage number that means nothing.
+      grid_needs_fill:
+        summary: >-
+          Axis receipt present, no fill source. Spawn `@grid-filler`; it writes cell
+          content to a JSON file rather than editing the grid.
+        refs: [references/grid-preregistration.md]
+        advisory: >-
+          A cell the filler cannot ground stays an honest STUB with a reason. An
+          all-degradation grid is not a completed grid.
+      # The three deterministic rungs. Each prints ONE verbatim-runnable command
+      # against pinned paths, which is the promise exit 11 makes — they are the
+      # plan domain's first real tier-11 states.
+      grid_needs_build:
+        summary: >-
+          Fill source present, no skeleton grid. Deterministic: run the one command
+          the envelope prints.
+        refs: [references/grid-coverage-step.md]
+      grid_needs_expand:
+        summary: >-
+          Skeleton built. Validate the fill source, then relay it through the
+          expander — the validation is what keeps unground cells honest stubs.
+        refs: [references/grid-coverage-step.md]
+        advisory: >-
+          Validate the fill source before relaying it. An unresolved source relays no
+          cells and every cell degrades silently, which looks like an honest grid.
+      grid_needs_emit:
+        summary: >-
+          Grid filled, no coverage-grid artifact yet. Deterministic: run the one
+          command the envelope prints.
+        refs: [references/grid-coverage-step.md]
+      grid_unresolved:
+        summary: >-
+          The coverage-grid exists but no cell carries real content. Either ground
+          the cells or write the thin-grid attestation INTO the artifact.
+        refs: [references/grid-mode.md]
+        advisory: >-
+          Write the [JUSTIFIED-THIN] attestation INTO the artifact. A justification
+          that lives only in chat earns zero credit at either gate.
+      # Two states the CLI has always emitted with nothing routed to them. Both
+      # are ordinary steps, not errors, and both were reachable only from a
+      # skill body that had already scrolled away by the time they fired.
+      multiple_plans:
+        summary: >-
+          More than one plan directory resolves. Ambiguity, not failure — name the
+          target with `--plan <dir>` rather than guessing.
+        # Several plan dirs is the shape a deliberate split LEAVES BEHIND, so
+        # the question "which one" and the question "how are these supposed to
+        # relate" are the same question. If the set is not a split, the ref
+        # says so in a sentence and costs nothing.
+        refs: [references/multi-plan-split.md]
+      waiting_on_model:
+        summary: >-
+          `plan prompt <role>` just handed out a subagent prompt. Spawn the agent,
+          then feed its output back with `plan record <role> --out <file>`.
+        # `plan prompt` just handed out a subagent prompt. What governs next is
+        # the spawn-and-consume contract, and the failure it prevents is the
+        # advisory subagent that edits the plan instead of reporting on it.
+        rules: [orchestration-protocol, agent-operational-discipline]
+      needs_redteam:
+        summary: >-
+          Content and plan-graph are on disk, no red-team report is. Run the Goodhart
+          check and the 6-lens pre-mortem yourself first — those findings feed the
+          `risks:` frontmatter at C/H/M/L — then spawn `@red-teamer`. `--in-place`
+          falls back to an inline persona pass. After applying findings, sweep the
+          plan for consistency: a finding applied in one phase and not the others
+          leaves the plan disagreeing with itself. `--fast` declares the skip.
+        # the step most likely to produce "I measured X% and therefore Y" — and the one
+        # where a threshold straddled by its own interval turns into a verdict.
+        rules: [plan-quality-goodhart-premortem, verification-mechanism,
+                persistent-risk-register, sampled-rate-reporting]
+        refs:  [references/red-team-gate.md]
+      needs_model_attestation:
+        summary: >-
+          Everything disk-provable is proven. What remains is not: the red-team
+          disposition, the validate interview, the consistency sweep. Do them for
+          real, then run the approval command the envelope prints.
+        rules: [plan-quality-goodhart-premortem, observation-signal-emit]
+        refs:  [references/validate-gate.md, references/verification-roles.md]
+        advisory: >-
+          An architecture decision finalized here is recorded, not remembered: run
+          decision_register.py --append-alloc. The register is what stops an old
+          tension being re-litigated from scratch next time it surfaces.
+      approval_invalid:
+        summary: >-
+          An approval artifact exists but does not back THIS plan — wrong plan, or
+          no longer valid. Re-review which verdict is now correct; never re-stamp.
+        rules: [plannotator-review-gates]
+      approval_drifted:
+        summary: >-
+          The plan WAS validly approved, then the body changed. A stale approval,
+          not a conflicting story: re-review the part that drifted.
+        rules: [plannotator-review-gates]
+      rejected:
+        summary: >-
+          Terminal. The review rejected this plan — revise the body and phases
+          against the recorded reason before asking again.
+        rules: [plannotator-review-gates, scope-and-contract-discipline]
+      approved:
+        summary: >-
+          Terminal for the plan domain. Hand off to cook using the flags the plan
+          was built with — `--grid` carries via frontmatter, no retyping.
+        # workflow-handoffs is routed HERE, not one state later. `approved` is where
+        # the cook command is composed — its own next_action IS that command, built
+        # by `_cook_recommendation` from the plan's frontmatter. Routed only at
+        # `handed_off_to_cook`, the carry rules arrived after the carry had happened,
+        # which is why the skill body kept a private copy of them.
+        rules: [scope-and-contract-discipline, workflow-handoffs]
+        # The `--parallel` dual-recommendation phrasing, needed at the moment the
+        # command is written rather than after it has been run.
+        refs:  [references/cook-handoff-flags.md]
+      # The handoff, and the reason a pointer can belong to a state rather than a skill:
+      # what cook must honour is what plan needs to say here, once.
+      handed_off_to_cook:
+        summary: >-
+          The plan is in_progress and cook owns it now. Nothing left in the plan
+          domain — continue with `hs-run cook next`.
+        # workflow-handoffs IS a handoff table — who receives what, what is handed
+        # over, where to stop — and this state IS the handoff. It was reachable only
+        # from seven skill bodies, none of which is being read at the moment the
+        # handover happens.
+        rules: [tdd-discipline, workflow-handoffs]
+        refs:  [references/cook-handoff-flags.md]
+      completed:
+        summary: >-
+          Terminal. The whole chain finished; what is left is archiving the plan
+          directory.
+        rules: [output-rendering]
+        refs:  [references/archive-workflow.md]
+      # The four states the CLI emits with no routing, and correctly so: each is fully
+      # served by `next_action` and needs no extra file. They carry a summary anyway,
+      # because a reader meets them exactly as often as the routed ones — and sourcing
+      # the map from `states` alone would have silently dropped all four.
+      unresolved:
+        summary: >-
+          A directory that is not a finished plan — `plan.md` missing, or present with
+          no `phases/phase-*.md`. Half-scaffolded plan to finish, or stray dir to remove.
+      # The same reading, reported by the verb that was asked to ACT on that
+      # directory rather than to survey it: rung 2, because a named target that is
+      # not a plan is a broken invocation, not a survey result.
+      not_a_plan_dir:
+        summary: >-
+          The directory named on the command line is not a plan. Nothing was read or
+          written; check the path before re-running.
+      state_conflict:
+        summary: >-
+          Frontmatter and the artifacts on disk tell different stories. STOP: find out
+          which side is lying. Never pick one and carry on.
+      cancelled:
+        summary: >-
+          The plan was deliberately cancelled. Nothing for this domain to do, by
+          design, until a human un-cancels it — a leftover approval does not revive it.
+      error:
+        summary: >-
+          The invocation itself was wrong — missing flag, unknown role, unresolvable
+          plan. Nothing was read or written; fix the command and re-run.
+      # `plan graph`'s own four states. It is a QUERY verb — asked on purpose, about
+      # a file the asker already has in mind — so the answer belongs in the reply,
+      # not in a reference the caller must go read. The refs stay at `needs_planner`,
+      # which is the state that fires when the same missing sidecar blocks the RUN;
+      # duplicating them here would hand a diagnostic 4 files to answer a yes/no.
+      absent:
+        summary: >-
+          Queried by `plan graph`: no `plan-graph.yaml` at all. Not a fault on its own
+          — a plan reaches this shape before the design step writes one. Where the run
+          is actually blocked by it, `needs_planner` fires and carries the pointers.
+        refs: [references/plan-graph-format.md]
+      malformed:
+        summary: >-
+          Queried by `plan graph`: the sidecar is there and does not parse. Distinct
+          from `absent` on purpose — that difference is read off the filesystem, never
+          from the parser's wording, so this state survives a reworded error.
+        refs: [references/plan-graph-format.md]
+      invalid:
+        summary: >-
+          Queried by `plan graph`: the sidecar parses, and node(s) declare no `post`.
+          The names are listed in the reply; nothing downstream can order a node that
+          never says what it unblocks.
+        refs: [references/plan-graph-format.md]
+      ok:
+        summary: >-
+          Queried by `plan graph`: the sidecar parses and every node declares its
+          `post`. Cycles, ordering hazards and parallel conflicts ride back as
+          warnings — a clean parse is not the same claim as a sound graph.

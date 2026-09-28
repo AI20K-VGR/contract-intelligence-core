@@ -1,0 +1,202 @@
+id: STD-REVIEW-ARKTS
+type: std_area
+zone: operational
+title: "Review — ArkTS (HarmonyOS)"
+status: approved
+owner: harness
+version: 1.0.0
+description: |
+  ArkTS (HarmonyOS) review rules (scope **/*.ets, **/*.ts, **/module.json5,
+  **/oh-package.json5, **/build-profile.json5). Block-worthy rules around
+  permission management and deep-link validation, plus advisory patterns for
+  ArkUI V2 state management, Navigation routing, and ArkTS language constraints.
+rule_groups:
+  - id: STD-REVIEW-ARKTS-RG1
+    title: "Safety — permissions, secrets, deep-link validation"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-ARKTS-RG1-R1
+        title: "Declare and runtime-check permissions before system API calls"
+        status: approved
+        scope:
+          - "**/*.ets"
+          - "**/*.ts"
+          - "**/module.json5"
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: declare every system API permission in module.json5
+          requestPermissions before calling the API. For user-facing
+          permissions (camera, location, microphone), implement a runtime
+          check via abilityAccessCtrl.checkAccessToken() and request via
+          atManager.requestPermissionsFromUser() with graceful fallback on
+          denial.
+          NEVER: call a system API that requires a permission without
+          first declaring it in module.json5 and verifying the grant
+          status at runtime. A missing permission declaration crashes at
+          the system level; a missing runtime check for sensitive
+          permissions silently fails or returns empty data on a real device.
+        rationale: |
+          HarmonyOS enforces permissions at two layers: build-time
+          declaration in module.json5 and runtime-grant for sensitive
+          permissions. A missing declaration is a guaranteed crash; a
+          missing runtime check produces undefined behavior that passes
+          emulator testing but fails on a device with the permission denied.
+      - id: STD-REVIEW-ARKTS-RG1-R2
+        title: "Validate deep-link parameters before navigation"
+        status: approved
+        scope:
+          - "**/*.ets"
+          - "**/*.ts"
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: validate deep-link and universal-link parameters against
+          an allowlist of known paths before calling navPathStack.pushPath().
+          Reject unknown paths explicitly — log a warning and navigate to a
+          safe fallback.
+          NEVER: pass an unvalidated URI path directly to pushPath() — an
+          attacker-controlled deep link can navigate to any page, including
+          admin or debug routes that were never meant to be reachable from
+          outside the app.
+        rationale: |
+          Deep links are external input — an attacker crafts a link that
+          targets an internal route the developer assumed was only
+          reachable from in-app navigation. An allowlist at the deep-link
+          handler is the single choke point that prevents unauthorized
+          navigation.
+  - id: STD-REVIEW-ARKTS-RG2
+    title: "State management — V2 decorators, Navigation routing, MVVM"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-ARKTS-RG2-R1
+        title: "Use ArkUI V2 state management exclusively; never V1 decorators"
+        status: approved
+        scope:
+          - "**/*.ets"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: use @ComponentV2, @Local, @Param, @Event, @Provider,
+          @Consumer, @Monitor, @Computed, @ObservedV2, and @Trace for all
+          state management. Model classes that participate in reactive
+          state must be decorated with @ObservedV2 and their tracked
+          properties with @Trace.
+          NEVER: use any V1 decorator in new code — @State, @Prop, @Link,
+          @ObjectLink, @Observed, @Provide, @Consume, @Watch, or the bare
+          @Component decorator. V1 decorators are deprecated and their
+          reactivity semantics differ from V2 in ways that cause subtle
+          update bugs when mixed.
+        rationale: |
+          V1 and V2 decorators use different reactivity engines. Mixing
+          them in the same component tree produces silent update failures —
+          a V1 @State change inside a V2 @ComponentV2 subtree is not
+          detected, and vice versa. The deprecation is not cosmetic; the
+          two systems are incompatible.
+      - id: STD-REVIEW-ARKTS-RG2-R2
+        title: "Use Navigation + NavPathStack; never @ohos.router"
+        status: approved
+        scope:
+          - "**/*.ets"
+        severity: info
+        relates_to_std: [STD-REVIEW-ARKTS-RG2-R1]
+        detector: null
+        description: |
+          ALWAYS: use the Navigation component with NavPathStack for all
+          page routing. Define routes via a @Builder routerMap function
+          that maps name strings to page components.
+          NEVER: import or call @ohos.router — the older router API is
+          deprecated and does not integrate with V2 state management or
+          the Navigation component's stack lifecycle.
+        rationale: |
+          @ohos.router predates ArkUI V2 and operates outside the
+          component tree — it cannot participate in @Provider/@Consumer
+          scoping or NavDestination lifecycle events. Navigation +
+          NavPathStack is the V2-native routing system; every route
+          transition is a stack operation with full lifecycle hooks.
+      - id: STD-REVIEW-ARKTS-RG2-R3
+        title: "Follow MVVM architecture — ViewModel owns logic, View owns rendering"
+        status: approved
+        scope:
+          - "**/*.ets"
+          - "**/*.ts"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: separate feature code into model/ (@ObservedV2 data
+          classes), viewmodel/ (business logic), view/ (@ComponentV2 structs
+          with build()), and service/ (network, DB, file I/O). Keep
+          build() methods free of business logic — they render state, not
+          compute it.
+          NEVER: put API calls, database queries, or business rules inside
+          a build() method or directly in a @ComponentV2 struct. A View
+          that owns data fetching cannot be unit-tested without the full
+          ArkUI runtime.
+        rationale: |
+          build() is called by the ArkUI rendering pipeline; business logic
+          there is untestable and interferes with the declarative update
+          cycle. A ViewModel class decouples state transitions from
+          rendering — it can be unit-tested with plain TypeScript, no
+          ArkUI runtime needed.
+  - id: STD-REVIEW-ARKTS-RG3
+    title: "ArkTS language constraints — type system, modules, object model"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-ARKTS-RG3-R1
+        title: "Never use any/unknown, destructuring, or dynamic property access"
+        status: approved
+        scope:
+          - "**/*.ets"
+          - "**/*.ts"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: declare explicit types for all variables, parameters, and
+          return values. Use obj.field syntax for property access — never
+          obj["field"] bracket notation.
+          NEVER: use the any or unknown types — ArkTS does not support them
+          and the compiler rejects them. Never use destructuring assignment
+          or destructuring parameter declarations — assign field-by-field
+          with intermediate objects. Never use delete, in, typeof for type
+          annotations, index signatures, mapped types, conditional types,
+          or intersection types — all are rejected by the ArkTS compiler.
+        rationale: |
+          ArkTS is a strict subset of TypeScript designed for the ArkUI
+          rendering runtime. The constraints are not style preferences —
+          each forbidden construct is a hard compilation error. A reviewer
+          catching these before the hvigor build fails saves an entire
+          edit-compile cycle. This rule covers the most common portability
+          mistakes developers make when coming from standard TypeScript.
+      - id: STD-REVIEW-ARKTS-RG3-R2
+        title: "Use let/const, arrow functions, explicit return types; never var"
+        status: approved
+        scope:
+          - "**/*.ets"
+          - "**/*.ts"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: use const by default, let when reassignment is needed.
+          Use arrow functions for callbacks and lambdas — never function
+          expressions. Specify return types explicitly when calling
+          functions whose return type inference is limited.
+          NEVER: use var (block-scoping violation), for...in loops (use
+          regular for), with statements, Function.apply/call/bind, or
+          generator functions (use async/await). Never use # private
+          identifiers — use the private keyword.
+        rationale: |
+          These are more hard ArkTS compilation constraints, not style
+          preferences. var, for...in, with, and generator functions are
+          rejected by the ArkTS compiler. Function.apply/call/bind break
+          ArkTS's static this analysis. Explicit return types on functions
+          that call other functions with omitted return types prevent
+          inference failures that manifest as obscure compiler errors.

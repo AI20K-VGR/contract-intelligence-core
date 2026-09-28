@@ -1,0 +1,173 @@
+# hs-run-registry.yaml — the BASE of the data-driven domain/verb dispatch table for
+# `hs-run`. hs_run.py reads THIS file (if present) PLUS every `*.yaml` fragment under
+# the sibling `hs-run-registry.d/` directory, and merges them into one
+# `{domain: {verb: {module, entry}}}` table. It never hardcodes a domain/verb in an
+# if/else chain (survival invariant #3) — adding a THIRD domain is a new fragment file, not a router edit.
+#
+# WHY A DROP-IN DIRECTORY, NOT ONE MONOLITHIC FILE (decision D7):
+# concurrent build phases each own a different domain's verbs (P1: plan, P2: cook) and
+# run AT THE SAME TIME. Two agents writing one shared YAML file simultaneously is a
+# data-corruption hazard the concurrency rule forbids outright. One fragment file per
+# domain means P1 and P2 can never collide, by construction — no merge coordination,
+# no lock file, no "whoever writes last wins" race.
+#
+# Base pattern copied from harness/data/hook-dispatch.yaml + harness/hooks/
+# hook_dispatch.py (the repo's existing load-once/resolve-by-name precedent); the
+# drop-in-directory extension on top of it is this build's own addition.
+#
+# --------------------------------------------------------------------- Schema
+#
+#   domains:
+#     <domain>:
+#       <verb>:
+#         module: <python module name>   # importable from harness/scripts (on sys.path)
+#         entry:  <callable name>        # signature: fn(argv: list[str], root: Path) -> dict
+#                                         #   the dict is the three-tier stdout contract's
+#                                         #   JSON body: {state, next_action[, artifacts,
+#                                         #   warnings, exit_code, summary_numbers, ...]}.
+#                                         #   exit_code defaults to 0 (EXIT_DONE) when absent;
+#                                         #   set it to 10 (EXIT_NEEDS_MODEL) for a two-beat
+#                                         #   step, two-beat. A raised exception is caught
+#                                         #   by the dispatcher and mapped to exit 2 (EXIT_BROKEN)
+#                                         #   — a verb entry point never needs its own try/except
+#                                         #   just to keep stdout valid JSON.
+#
+# Every verb WRAPS a script that already owns the logic (survival invariant #4) —
+# hs_run_plan.py / hs_run_cook.py never re-implement plan/cook decisions, they call
+# into the existing scripts (scaffold.py, plan_graph.py, open_plan.py, ...).
+#
+# --------------------------------------------------------- Where a new domain goes
+#
+# Add `harness/data/hs-run-registry.d/<your-domain>.yaml` with its own `domains:`
+# block (one top-level key, your domain's name). Do NOT add rows to THIS base file
+# for a new domain going forward — this file stays the shared base (today: empty),
+# and each domain's rows live in its own fragment so ownership never overlaps.
+#
+# --------------------------------------------------------------------- Load order
+#
+# 1. This base file, if it exists (missing is fine — an empty base is not an error).
+# 2. Every `*.yaml` under `hs-run-registry.d/`, in SORTED FILENAME order — never
+#    directory iteration order. Directory listing order is a filesystem/OS detail,
+#    not a documented contract; a merge whose meaning depended on it would be a bug
+#    waiting to be blamed on something else entirely. Sorting by filename is the one
+#    order that is deterministic on every platform this ships to.
+#
+# --------------------------------------------------------------------- Conflicts
+#
+# A `(domain, verb)` key declared by more than one source (base vs. a fragment, or
+# fragment vs. fragment) is a HARD ERROR — hs_run.RegistryConflictError, which the
+# dispatcher maps to exit 2, naming BOTH files. Decision, not an oversight: silent
+# last-wins would let a typo'd or alphabetically-late fragment filename silently
+# hijack an already-registered verb, and nothing would shout about it. The whole
+# point of one-file-per-domain only holds if a genuine collision surfaces loudly as
+# the authoring mistake it is.
+#
+# A fragment that fails to PARSE (bad YAML) is the same story: hs_run.RegistryParseError,
+# exit 2, naming that exact file — never silently skipped. A silently-skipped fragment
+# makes its verbs vanish, and the resulting "unknown verb" error would point the user
+# at completely the wrong cause.
+#
+# An empty fragment (or one with only header comments) is legal — a no-op, useful
+# while a domain owner is scaffolding their file before filling it in.
+#
+# A missing `hs-run-registry.d/` directory ENTIRELY degrades gracefully to base-only
+# content (never a crash) — covers a hypothetical stripped-down install.
+#
+# --------------------------------------------------------------- Env overrides
+#
+# HARNESS_HS_RUN_REGISTRY      — a single-file override that REPLACES this whole
+#                                base+fragments pipeline (base file AND the .d/
+#                                directory are both ignored, not merged in). This is
+#                                deliberate, not an inconsistency: a test/fixture that
+#                                injects one throwaway registry must see EXACTLY what
+#                                it wrote — merging it with the real base/fragments
+#                                would leak real domains into what's supposed to be a
+#                                hermetic test, or let a fixture verb name collide with
+#                                a real one undetected.
+# HARNESS_HS_RUN_REGISTRY_BASE — overrides just this base file's path (leaves the
+#                                normal .d/ merge pipeline running against it).
+# HARNESS_HS_RUN_REGISTRY_DIR  — overrides just the hs-run-registry.d/ path (leaves
+#                                the base file resolution untouched).
+#
+# Today this base is intentionally EMPTY — `plan` and `cook`'s rows live in
+# hs-run-registry.d/plan.yaml and hs-run-registry.d/cook.yaml respectively (P0 ships
+# only `next` for each, an honest "nothing started" projection on an empty repo; P1
+# adds `scaffold`/`graph`/`prompt`/`record`/`status` to plan.yaml, P2 adds cook's
+# per-phase verbs to cook.yaml — both as fragment-file edits, never a base-file edit).
+
+domains: {}
+
+# Rules this table deliberately does NOT route, and why. The routing table's own
+# record of its edges — kept here rather than inferred from absence, because
+# absence is exactly what let ten rules ship with nothing pointing at them.
+#
+# The bar for landing here is narrow and mechanical: the rule fires BEFORE any verb
+# runs, so there is no state to bind it to. A rule that merely has no obvious home
+# does not qualify — it has a home nobody has looked for yet.
+#
+# ── When repeating stops being an attempt ────────────────────────────────────────
+# The trigger for asking a stronger model for counsel. The upstream pattern spends a
+# flag on this; a flag fires only when somebody remembers it, and the moment a run is
+# genuinely stuck is the moment nobody is thinking about flags. The ledger already
+# records (session, domain, state) per call, so "the same answer, N times in a row, in
+# this session" is a READ rather than a judgement — the only kind of decision this
+# engine is allowed to make.
+#
+# `repeat_threshold` is declared, not hardcoded: how many failures make a wall is a
+# judgement, and a project whose runs are cheap should be able to say a different
+# number without editing the engine. Below 2 it would fire on the first stumble, which
+# the escalation rule explicitly refuses.
+#
+# `domains` is scoped on purpose. A domain that only REPORTS (git, skills, setup) can
+# repeat an answer forever without anything being wrong — escalating there would teach
+# the reader to ignore the signal.
+advice_escalation:
+  repeat_threshold: 3
+  domains: [cook, fix, ship, test, review, review-pr]
+
+# Scope posture. The DEFAULT is load-bearing and stays `full`: deliver the whole thing
+# that was asked for. Cutting is the opt-in (`--yagni`), never the reverse — a harness
+# that trims by default trims things nobody agreed to lose, and the loss is silent.
+#
+# Two lists, kept disjoint so a reader can tell which one decided:
+#   auto_domains     — the step already decides scope, so the envelope raises the
+#                      question whether or not anyone typed the flag. `plan` writes the
+#                      scope-boundary fact; that IS this question.
+#   enforce_domains  — the step BUILDS to a scope somebody already set. Nothing to
+#                      decide, so the flag only travels here as an instruction.
+# Absent from both: a domain that neither sets scope nor builds to one. A posture field
+# there is noise, and a field that is noise is a field the reader learns to skip.
+scope_posture:
+  default: full
+  auto_domains: [plan]
+  enforce_domains: [cook, fix, test]
+  rule: harness/rules/scope-and-contract-discipline.md
+
+# Where the deliverable LANDS. `markdown` is what every step already produces; the
+# rungs above it are opt-in, because a self-contained page costs a render and a
+# publish costs a decision. Domains are listed per rung rather than one flat list:
+# a step that produces no durable document has nothing to render, and stamping a
+# rung there teaches the reader to skip the field.
+output_rung:
+  default: markdown
+  rungs:
+    # keyed by DOMAIN (what `_apply_output_rung` matches), not skill: the
+    # code-review skill runs under the `review` domain, and `understand` has
+    # no domain at all — either spelling here would never match and the rung
+    # would just never engage.
+    html: [plan, review, review-pr]
+    wiki: [plan, review]
+  rule: harness/rules/output-rendering.md
+
+# Gated by test_rule_reachability.py: the list is capped, each reason must be a real
+# sentence, and a rule already reachable from prose or routing is REFUSED an
+# exemption (otherwise the cheap fix for a red gate is to exempt everything).
+rules_not_routed:
+  primary-workflow: >-
+    The default entry router, read when no SDLC skill has been chosen yet. It runs
+    strictly before the first hs-run call, so there is no domain or state to bind it
+    to — routing it anywhere would attach it to a step it has already preceded.
+  disabled-group-handling: >-
+    Fires at skill-reference resolution, when a pointer lands on a skill this install
+    may have omitted. That is a property of the install, not of any step in a run,
+    and it can trigger inside a skill that never calls hs-run at all.

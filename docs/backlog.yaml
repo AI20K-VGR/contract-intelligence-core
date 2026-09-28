@@ -1,0 +1,9 @@
+- id: BL-001
+  text: 'Siết live_eval: expected_no_claims phải là predicate có cấu trúc, PASS và REVIEW không được chung một accept-set, BLOCKED không được xanh vì HTTP lỗi, INSUFFICIENT không query không được chỉ cần HTTP 200.'
+  type: eval
+  priority: P0
+  status: open
+  created_ts: '2026-09-27T21:30:52.113764+00:00'
+  done_ts: ''
+  source_ref: plans/reports/ai2-catalog-oracle-critique-260928-critique-report.md
+  actor: user:dungskbg2004@gmail.com

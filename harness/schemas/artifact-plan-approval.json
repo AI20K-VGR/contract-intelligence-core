@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "artifact-plan-approval",
+  "description": "Machine-written record that the plan was self-approved. Personal-first: no roster, no quorum, no role layer — self-approval is deliberate discipline (anti-drift), not authentication. reviewer + author are attribution (spoofable by design). plan_hash pins the NORMALIZED plan dir (frontmatter stripped from every file, plan.md '## Phases' section stripped) — the two regions the cook workflow legitimately mutates after approval are exempt; any body edit invalidates the approval. Written ONLY via harness/scripts/plan_approval.py to plans/<plan>/artifacts/plan-approval.yaml.",
+  "type": "object",
+  "required": ["schema", "plan", "plan_hash", "author", "reviewer", "verdict", "rationale", "ts"],
+  "properties": {
+    "schema": {
+      "const": "plan-approval/v1",
+      "description": "Record format version"
+    },
+    "plan": {
+      "type": "string",
+      "description": "Plan dir name the approval covers"
+    },
+    "plan_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{12}$",
+      "description": "sha256-12hex over the normalized plan dir (plan.md + phase-*.md sorted by name; frontmatter stripped everywhere, '## Phases' stripped from plan.md only)"
+    },
+    "file_hashes": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{12}$"},
+      "description": "Per-file normalized hashes so a drift block can name exactly which file changed"
+    },
+    "author": {
+      "type": "string",
+      "description": "Plan author attribution (trace event, plan.md frontmatter, or explicit --author)"
+    },
+    "reviewer": {
+      "type": "string",
+      "description": "resolve_actor() of whoever ran plan_approval.py — attribution, spoofable by design"
+    },
+    "verdict": {
+      "enum": ["APPROVED", "REJECTED"],
+      "description": "Gate passes only on APPROVED"
+    },
+    "rationale": {
+      "type": "string",
+      "description": "Why the reviewer approved/rejected — non-empty"
+    },
+    "ts": {
+      "type": "string",
+      "description": "ISO-8601 timestamp"
+    },
+    "ticket_id": {
+      "type": "string",
+      "description": "Optional free-form issue/MR reference"
+    }
+  }
+}

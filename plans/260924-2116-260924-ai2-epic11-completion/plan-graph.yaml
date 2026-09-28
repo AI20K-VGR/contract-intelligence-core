@@ -1,0 +1,72 @@
+edges:
+  - {from: P1, to: P2}
+  - {from: P2, to: P3}
+  - {from: P3, to: P4}
+  - {from: P4, to: P5}
+
+subtasks:
+  P1:
+    files_to_create:
+      - plans/260924-2116-260924-ai2-epic11-completion/research/ai2-epic11-baseline.md
+      - ai-service/tests/test_canonical_contract.py
+      - backend/tests/contract_intelligence/shared/ai/test_canonical_processing.py
+    files_to_modify:
+      - ai-service/app/contracts/wire.py
+      - ai-service/app/pipeline/ai1_snapshot_adapter.py
+      - backend/src/contract_intelligence/shared/ai/canonical_processing.py
+      - backend/src/contract_intelligence/shared/ai/ai1_adapter.py
+      - docs/contracts/BE-AI2-PROCESSING-CONTRACT.vi.md
+    post:
+      - verification-P1.json
+
+  P2:
+    files_to_create:
+      - ai-service/tests/test_handoff_relation.py
+    files_to_modify:
+      - ai-service/app/pipeline/handoff.py
+      - ai-service/app/reasoning/relations.py
+      - ai-service/tests/test_processing_wire_contract.py
+    post:
+      - verification-P2.json
+
+  P3:
+    files_to_create:
+      - ai-service/tests/test_facts_findings_index.py
+    files_to_modify:
+      - ai-service/app/pipeline/fact.py
+      - ai-service/app/pipeline/candidate.py
+      - ai-service/app/pipeline/compare.py
+      - ai-service/app/pipeline/index.py
+      - ai-service/app/pipeline/idp.py
+      - ai-service/tests/test_compare.py
+      - ai-service/tests/test_citations.py
+    post:
+      - verification-P3.json
+
+  P4:
+    files_to_create:
+      - ai-service/tests/test_query_grounding.py
+    files_to_modify:
+      - ai-service/app/api/main.py
+      - ai-service/app/reasoning/query.py
+      - ai-service/app/reasoning/stack.py
+      - ai-service/app/reasoning/l1_retrieval.py
+      - ai-service/app/reasoning/l2_plan.py
+      - ai-service/app/reasoning/l3_ground.py
+      - ai-service/app/reasoning/vector_recall.py
+    post:
+      - verification-P4.json
+
+  P5:
+    files_to_create:
+      - backend/tests/contract_intelligence/infrastructure/test_ai_adapters_epic11.py
+      - backend/tests/contract_intelligence/shared/ai/test_persistence_epic11.py
+    files_to_modify:
+      - backend/src/contract_intelligence/infrastructure/ai_adapters.py
+      - backend/src/contract_intelligence/shared/ai/persistence.py
+      - backend/src/contract_intelligence/shared/ai/pipeline_orchestrator.py
+      - backend/src/contract_intelligence/api/v1/dossiers.py
+      - backend/src/contract_intelligence/worker.py
+    post:
+      - verification-P5.json
+      - review-decision.json

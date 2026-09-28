@@ -1,0 +1,66 @@
+# reinject-strategy.yaml — named cadence/budget presets for the context
+# re-injection hook (harness/hooks/inject_prompt_context.py).
+#
+# Lifts the two previously welded-shut constants (_INJECT_EVERY_TURNS,
+# SLIM_BUDGET_CHARS) into config: `every_turns` gates how many quiet prompts
+# pass before a within-window refresh fires; `slim_budget_chars` is the
+# ceiling the compact refresh block is asserted against (a budget, NOT a
+# truncation — the block never gets cut, it is just sized to fit).
+#
+# `preset:` selects the active row from `presets:` below. A top-level
+# `every_turns` / `slim_budget_chars` (if present) is a per-key OVERRIDE that
+# wins over whatever the active preset set for that key — so a single knob
+# can be tuned without inventing a whole new preset.
+#
+# NOTE: the first injection after a session boundary (SessionStart) is
+# ALWAYS the full block regardless of preset — these knobs only govern the
+# WITHIN-WINDOW slim-refresh cadence and its budget ceiling, never the
+# armed/full-vs-refresh/slim branch.
+#
+# Read by harness/scripts/reinject_config.py — fail-open to (every_turns=5,
+# slim_budget_chars=1100) on a missing/corrupt file or missing PyYAML.
+# Test seam: HARNESS_REINJECT_STRATEGY points the resolver at a scratch file.
+#
+# `mode`/`threshold` (the `adaptive` preset only): read by the SEPARATE
+# resolve_adaptive() — never resolve() — so the every_turns/slim_budget_chars
+# 2-key contract above stays untouched. `mode: fill` opts a preset into
+# reinject_config.fill_ratio()-driven cadence (re-inject once prompt-side
+# context crosses `threshold` fraction of the model's window) INSTEAD OF the
+# turn-count cadence; any other/missing mode leaves the turn-count path active.
+
+preset: balanced
+
+presets:
+  # Shorter cadence (refresh more often) + a larger budget for the refresh
+  # block — a long/complex session that wants the register re-stated sooner
+  # and is willing to pay a few more chars for it.
+  aggressive:
+    every_turns: 3
+    slim_budget_chars: 1400
+
+  # Today's shipped behavior — the default. Any preset change must leave
+  # this row untouched so the active default keeps reproducing exactly.
+  balanced:
+    every_turns: 5
+    slim_budget_chars: 1100
+
+  # Longer cadence (refresh less often) + a smaller budget — a short/simple
+  # session that wants fewer, leaner refreshes.
+  lazy:
+    every_turns: 8
+    slim_budget_chars: 1000
+
+  # OPT-IN adaptive-by-context-fill (P6/B3) — NOT the active preset (see
+  # `preset: balanced` above). Re-injects when prompt-side context crosses
+  # `threshold` fraction of the model's window (reinject_config.fill_ratio),
+  # instead of a fixed turn count. every_turns/slim_budget_chars still apply as
+  # the FALLBACK cadence/budget when fill_ratio is unavailable (an unreadable
+  # transcript or an unclassifiable model — inject_prompt_context.decide() then
+  # takes the turn-count path exactly). Validate before flipping `preset:` to
+  # this row — see plans/260715-0021-subagent-spawn-guards-and-reinject/
+  # probes/B3-threshold-window.md for the window map + threshold rationale.
+  adaptive:
+    every_turns: 5
+    slim_budget_chars: 1100
+    mode: fill
+    threshold: 0.7

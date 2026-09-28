@@ -1,0 +1,153 @@
+# security.yaml — the `security` domain's fragment of the hs-run registry.
+#
+# Owned exclusively by whoever builds the `security` domain's verbs. Never touch
+# cook.yaml/plan.yaml or any other domain's fragment from here — one file per
+# domain is what lets concurrent domain builds avoid writing the same file.
+# Schema + merge/conflict rules: see harness/data/hs-run-registry.yaml's header.
+#
+# `next` is MECHANICAL only (module docstring, hs_run_security.py): it reports
+# what a deterministic sweep found (tracked `.env` files, secret patterns in the
+# working diff) and never renders a security verdict — that judgment is a
+# model's job via hs:security-scan's STRIDE/OWASP step.
+
+domains:
+  security:
+    next: {module: hs_run_security, entry: cmd_mechanical_sweep}
+
+# `skill:` and the domain name diverge here — this is the case that key exists
+# for. `review`/`code-review` is the same shape. Without this line every `refs:`
+# below resolves under `harness/plugins/hs/skills/security/`, a directory that
+# does not exist, and `skill_flags("security")` returns [] instead of the six
+# real flags `security-scan` declares — so a user typing an unknown flag gets a
+# stub message instead of the "this flag belongs to the SKILL" explanation.
+step_routing:
+  security:
+    skill: security-scan
+    covers_skill: true
+
+    # No `always:` block, and the absence is a decision, not an oversight.
+    # Everything listed there is charged to EVERY state's document budget, and
+    # `swept_clear` already spends all five of its slots. A rule worth its cost
+    # at the clear state would have to also earn it at `leak_found`, where the
+    # only useful sentence is "rotate the credential".
+
+    states:
+      # ── the tree is broken, and that outranks everything ──────────────────
+      # FIRST in the module's own priority order, and the ordering is the whole
+      # point: a git that will not answer yields an EMPTY secret-hit list that
+      # nothing measured, and an unmeasured empty list is indistinguishable
+      # from a clean one. Deciding `leak_found` ahead of this reports a
+      # confident diagnosis derived from a read that never happened.
+      #
+      # Routes NOTHING, deliberately. The next move is `git fsck` / re-clone —
+      # a repository repair, not a security judgment — and the envelope's
+      # warnings already carry git's own error text, which is the only thing
+      # that says which repair. A security rule here answers a question the
+      # reader is not asking yet.
+      repo_unreadable:
+        summary: >-
+          git itself could not answer, so nothing in this tree was measured. Repair the
+          repository first; a clear result from a broken probe is worth nothing.
+
+      # ── a secret is really exposed ────────────────────────────────────────
+      # The two references are the two halves of the answer: what the pattern
+      # means and how to get it out of the history, then the lifecycle a NEW
+      # secret consumer has to walk so the same file does not come back.
+      #
+      # No rule pointer. Rotation is not a methodology question — it is a
+      # procedure, and the procedure lives in the lifecycle reference.
+      leak_found:
+        summary: >-
+          A secret is exposed in this tree — a tracked `.env` file, a matched credential
+          pattern, or both. Remove it from the commit and ROTATE the credential before
+          anything else; a deleted file whose key still works is not a fix.
+        refs: [references/secret-and-dependency.md,
+               references/secret-lifecycle-7stage.md]
+
+      # ── part of the tree was never read ───────────────────────────────────
+      # `counting-discipline` is the rule this state exists for: the sweep is
+      # about to hand over a count of findings whose DENOMINATOR is incomplete,
+      # and the discipline is exactly "say what was excluded and on which
+      # criterion". The paths are in `artifacts[0].unreadable`.
+      scan_incomplete:
+        summary: >-
+          Part of this tree was never read — an untracked nested repository the scan
+          cannot descend into, or a file it lacks permission to open. Not a finding and
+          not a clean result: check the listed paths yourself before concluding anything
+          about the rest.
+        rules: [counting-discipline]
+        refs: [references/scan-dimensions.md]
+        advisory: >-
+          Every count in this envelope has a hole in it. Read artifacts[0].unreadable and
+          say which paths were excluded when you report a number — an unread path is not
+          a clean one.
+
+      # ── there is no repository at all ─────────────────────────────────────
+      # The measurement that motivated the whole split: a directory holding a
+      # live AWS key with no `.git` answered `swept_clear` at rung 10, byte-
+      # identical to a genuinely clean tree.
+      #
+      # `counting-discipline` again, and harder here than anywhere else: every
+      # count this envelope carries is zero because no read ran at all. The
+      # absence claim needs its scan scope stated in the same sentence.
+      no_repo:
+        summary: >-
+          There is no git repository here, so every git-based read was SKIPPED. Zero
+          findings means zero reads, not zero secrets — scan the whole tree by hand, or
+          re-run from inside the repository that owns these files.
+        rules: [counting-discipline]
+        refs: [references/secret-and-dependency.md]
+        advisory: >-
+          Do not report this as clean. Every number in this envelope is zero because
+          nothing ran; state that scan scope in the same sentence as any absence claim.
+
+      # ── nothing leaked yet, and one deterministic step closes the gap ─────
+      # The only rung-11 state here, and the one that turns a dead field into a
+      # step: `gitignore_covers_env` was computed and had no consumer at all
+      # outside its own test. `next_command` carries the exact append.
+      env_unprotected:
+        summary: >-
+          Nothing has leaked, but an untracked `.env` is on disk and the ignore rules do
+          not cover it — one careless `git add .` away from the state above. The envelope
+          carries the one command that closes it.
+        refs: [references/secret-lifecycle-7stage.md]
+
+      # ── the mechanical half is done ───────────────────────────────────────
+      # Five documents, the full budget, and each is the thing the NEXT step
+      # needs rather than background:
+      #   verification-mechanism — the sweep is about to hand a model an
+      #     absence claim ("no secrets found") over a narrow surface. What
+      #     counts as evidence for that is this rule's subject.
+      #   orchestration-protocol — the STRIDE/OWASP step is where the persona
+      #     fan-out happens, and sizing/groupCap apply at the moment before a
+      #     spawn and nowhere else.
+      #   threat-model.md — assets and boundaries, which is what the model does
+      #     FIRST once the mechanical half is finished.
+      #   scan-dimensions.md — the code-pattern pass and the persona lenses.
+      #   dependency-risk-deep.md — the dep-audit command is named in the
+      #     envelope, and CVEs are only its first layer.
+      swept_clear:
+        summary: >-
+          The mechanical sweep finished and found nothing on the surface it reads. That
+          surface is NARROW — this is the start of the security pass, not the end. Run
+          the STRIDE/OWASP reasoning, using the dependency-audit command the envelope
+          names.
+        rules: [verification-mechanism, orchestration-protocol]
+        refs: [references/threat-model.md, references/scan-dimensions.md,
+               references/dependency-risk-deep.md]
+
+      # ── same result, no dependency tooling to name ────────────────────────
+      # Three documents, not five, and the two that go are the ones this state
+      # cannot use: `dependency-risk-deep.md` has no command to attach to, and
+      # `orchestration-protocol` rides with it — a stack this thin is not where
+      # a fan-out is sized.
+      swept_clear_no_dep_tool:
+        summary: >-
+          Same clear sweep, and this stack declares NO dependency-audit command. Say that
+          out loud in the report rather than naming a runner that does not exist here.
+        rules: [verification-mechanism]
+        refs: [references/threat-model.md, references/scan-dimensions.md]
+        advisory: >-
+          There is no dependency-audit command for this stack. Report the gap as a gap —
+          do not substitute a runner from another ecosystem and do not imply the
+          dependencies were checked.

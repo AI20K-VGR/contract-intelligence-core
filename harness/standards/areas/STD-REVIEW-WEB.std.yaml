@@ -1,0 +1,263 @@
+id: STD-REVIEW-WEB
+type: std_area
+zone: operational
+title: "Review — Web (general)"
+status: approved
+owner: harness
+version: 1.0.0
+description: |
+  General web review rules (scope **/*.html, **/*.css, **/*.scss, **/*.less,
+  **/*.js, **/*.mjs). Framework-agnostic rules covering CSP/XSS, semantic HTML,
+  CSS performance, Core Web Vitals, bundle budgets, and design quality.
+  Framework-specific rules (React, Vue, Angular, Nuxt) live in their own
+  STD-REVIEW areas.
+rule_groups:
+  - id: STD-REVIEW-WEB-RG1
+    title: "Safety — CSP, XSS, third-party scripts, HTTPS headers"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-WEB-RG1-R1
+        title: "Configure a production CSP; never unsafe-inline in script-src"
+        status: approved
+        scope:
+          - "**/*.html"
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: configure a Content-Security-Policy header for production.
+          Use per-request nonces for scripts instead of 'unsafe-inline'.
+          Set frame-src 'none' or explicit allowlist, object-src 'none',
+          and base-uri 'self'. Tailor origins to the project — never
+          copy-paste a CSP block unchanged.
+          NEVER: use 'unsafe-inline' in script-src in production — it
+          neuters the primary XSS defense. 'unsafe-eval' in script-src
+          enables eval() and its derivatives. When using SSR with inline
+          scripts (streaming hydration), use per-request nonces — the
+          framework provides nonce injection support.
+        rationale: |
+          CSP is the browser's last line of XSS defense. Without it, an
+          injected <script> tag executes with full page context.
+          'unsafe-inline' in script-src disables the defense for inline
+          scripts, which is where most XSS payloads land. Per-request
+          nonces allow legitimate inline scripts (SSR hydration, critical
+          CSS) while blocking injected ones.
+      - id: STD-REVIEW-WEB-RG1-R2
+        title: "Never inject unsanitized HTML; avoid innerHTML on user content"
+        status: approved
+        scope:
+          - "**/*.html"
+          - "**/*.js"
+          - "**/*.mjs"
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: escape dynamic template values. When raw HTML rendering
+          from user input is unavoidable, sanitize with a vetted local
+          sanitizer (DOMPurify with allowlist config) before insertion.
+          Use textContent or innerText instead of innerHTML for text.
+          NEVER: assign user-controlled strings to innerHTML or
+          insertAdjacentHTML without sanitization at the same call site.
+          Never use document.write() with any dynamic content — it
+          rewrites the entire document and is blocked by CSP in any
+          reasonable policy.
+        rationale: |
+          innerHTML is the DOM's raw HTML injection point — it parses
+          and executes any markup, including <script> and event-handler
+          attributes. textContent and innerText treat input as plain text
+          and are always safe. Sanitization at a different call site
+          (e.g. "we sanitize on the server") is not a defense visible in
+          the code review diff.
+      - id: STD-REVIEW-WEB-RG1-R3
+        title: "Third-party scripts: SRI, async load, self-host when practical"
+        status: approved
+        scope:
+          - "**/*.html"
+          - "**/*.js"
+          - "**/*.mjs"
+        severity: info
+        relates_to_std: [STD-REVIEW-WEB-RG1-R1]
+        detector: null
+        description: |
+          ALWAYS: load third-party scripts asynchronously (async or defer).
+          Use Subresource Integrity (SRI) hashes when serving from a CDN.
+          Audit third-party dependencies quarterly. Prefer self-hosting
+          for critical dependencies when practical.
+          NEVER: load a third-party script from a CDN without an integrity
+          attribute — a compromised CDN or a supply-chain attack replaces
+          the script with malicious code. A render-blocking <script> in
+          <head> without async/defer blocks first paint.
+        rationale: |
+          SRI lets the browser verify that a fetched script matches the
+          expected hash before executing it — a CDN compromise delivers
+          a mismatched script that the browser rejects. Async/defer
+          prevents third-party scripts from blocking the critical
+          rendering path. Self-hosting eliminates the CDN as a supply
+          chain dependency entirely.
+  - id: STD-REVIEW-WEB-RG2
+    title: "Performance — CWV, bundle budgets, images, fonts, animation"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-WEB-RG2-R1
+        title: "CSS animation: transform and opacity only; never layout properties"
+        status: approved
+        scope:
+          - "**/*.css"
+          - "**/*.scss"
+          - "**/*.less"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: animate compositor-friendly properties only — transform,
+          opacity, clip-path, and filter (sparingly). Use will-change
+          narrowly on elements that will animate, and remove it when the
+          animation ends. Prefer CSS for simple transitions; use
+          requestAnimationFrame or established animation libraries (GSAP,
+          Framer Motion) for JS-driven motion.
+          NEVER: animate layout-bound properties — width, height, top,
+          left, margin, padding, border-width, or font-size. Every frame
+          of a width animation triggers layout recalculation, style
+          recalculation, and paint for the element and potentially its
+          entire subtree. A 60fps transform animation costs zero layout;
+          a 60fps width animation triggers 60 synchronous layouts.
+        rationale: |
+          The browser rendering pipeline has four phases: layout, paint,
+          composite. Transform and opacity only trigger composite — the
+          GPU moves pre-painted layers. Width/height trigger layout for
+          the element and all affected siblings/descendants. On a page
+          with complex layout, a single animated width can drop the frame
+          rate from 60fps to 10fps.
+      - id: STD-REVIEW-WEB-RG2-R2
+        title: "Image optimization: explicit dimensions, lazy loading, modern formats"
+        status: approved
+        scope:
+          - "**/*.html"
+          - "**/*.css"
+          - "**/*.scss"
+          - "**/*.less"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: set explicit width and height on every <img> to reserve
+          layout space and prevent CLS (Cumulative Layout Shift). Use
+          loading="lazy" for below-the-fold images; loading="eager" plus
+          fetchpriority="high" for the hero image only. Prefer AVIF or
+          WebP with fallbacks. Serve images at the rendered size — never
+          ship a 2000px source image for a 300px thumbnail.
+          NEVER: omit width and height on images in content that loads
+          dynamically — the browser cannot reserve space, so text and
+          layout jump when the image arrives. Each layout shift
+          contributes to CLS, which is a Core Web Vital.
+        rationale: |
+          CLS measures visual stability. Images without dimensions are
+          the #1 CLS contributor — the browser renders text at 0px height,
+          then reflows when the image loads. Modern browsers use the
+          width/height attributes to compute the aspect ratio and reserve
+          space even with CSS-set dimensions. AVIF/WebP are 30-50%
+          smaller than JPEG/PNG at the same quality.
+      - id: STD-REVIEW-WEB-RG2-R3
+        title: "Bundle budget and font loading: max 2 families, font-display: swap"
+        status: approved
+        scope:
+          - "**/*.css"
+          - "**/*.scss"
+          - "**/*.less"
+          - "**/*.html"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: set font-display: swap on every @font-face declaration.
+          Keep font families to a maximum of 2 unless there is a clear,
+          documented exception. Subset fonts where possible. Preload only
+          the critical weight/style — typically the regular (400) weight
+          used for body text.
+          NEVER: load more than 2 font families without justification —
+          each family adds network requests and delays first paint.
+          Without font-display: swap, the browser hides text for up to 3
+          seconds waiting for the font to load (FOIT — Flash of Invisible
+          Text). With swap, the browser shows a fallback font immediately
+          and swaps when the custom font arrives.
+        rationale: |
+          Web fonts block text rendering. font-display: swap eliminates
+          FOIT at the cost of a brief layout shift when the font swaps —
+          this is the recommended trade-off. Each font family is a
+          separate network request; each weight/style within a family is
+          an additional request. Subsetting removes unused glyphs and
+          reduces file size by 70-90% for Latin-only sites.
+  - id: STD-REVIEW-WEB-RG3
+    title: "Design quality — anti-template policy, hierarchy, intentional styling"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-WEB-RG3-R1
+        title: "Never ship generic-template UI; every surface must feel intentional"
+        status: approved
+        scope:
+          - "**/*.html"
+          - "**/*.css"
+          - "**/*.scss"
+          - "**/*.less"
+          - "**/*.js"
+          - "**/*.mjs"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: every frontend surface must demonstrate at least four
+          of: clear hierarchy through scale contrast, intentional rhythm
+          in spacing (not uniform padding everywhere), depth through
+          overlap/shadows/surfaces/motion, typography with a real pairing
+          strategy, semantic color usage, designed hover/focus/active
+          states, grid-breaking editorial or bento composition where
+          appropriate, texture/grain/atmosphere when fitting, motion that
+          clarifies flow, and data visualization treated as part of the
+          design system.
+          NEVER: ship default card grids with uniform spacing and no
+          hierarchy, stock hero sections with centered headline + gradient
+          blob + generic CTA, unmodified library defaults passed off as
+          finished design, flat layouts with no layering or depth, uniform
+          radius/spacing/shadows across every component, or safe
+          gray-on-white styling with one decorative accent color.
+          PREFER: a specific, named style direction (editorial, neo-brutalism,
+          glassmorphism with depth, dark luxury, bento, scrollytelling,
+          Swiss/International, retro-futurism) over vague defaults like
+          "clean minimal."
+        rationale: |
+          Generic-template UI is the most common design failure in
+          AI-generated frontend code. It looks like every other default
+          output and communicates zero brand or intent. The
+          four-of-ten-quality checklist is a minimum threshold — a
+          surface that hits none is indistinguishable from a tutorial
+          starter template. A named style direction gives the reviewer a
+          concrete reference to judge against.
+      - id: STD-REVIEW-WEB-RG3-R2
+        title: "Semantic HTML first; never div-stack when a semantic element exists"
+        status: approved
+        scope:
+          - "**/*.html"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: use semantic HTML elements — header, nav, main, section,
+          article, aside, footer, figure, figcaption, time, address. Give
+          each <section> an aria-labelledby pointing to its heading. Use
+          <nav> with aria-label for navigation regions.
+          NEVER: reach for a stack of generic <div> elements when a
+          semantic element exists and means the same thing. A page built
+          entirely from <div> and <span> is invisible to screen readers —
+          there are no landmarks, no heading hierarchy, no way to skip
+          navigation.
+        rationale: |
+          Semantic HTML is the foundation of accessibility. Screen readers
+          build a page outline from landmarks (header, main, nav, footer)
+          and headings. A div-only page has no outline — the user cannot
+          skip to content or understand the page structure. ARIA can patch
+          some gaps, but the first rule of ARIA is: do not use ARIA when
+          a native HTML element does the job.

@@ -1,0 +1,15 @@
+edges:
+  - {from: P1, to: P2}
+subtasks:
+  P1:
+    files_to_create:
+      - ai-service/tests/test_same_snapshot_pair.py
+    files_to_modify:
+      - ai-service/app/pipeline/compare.py
+    post: [verification-P1.json]
+  P2:
+    files_to_create:
+      - ai-service/tests/test_gap_as_note.py
+    files_to_modify:
+      - ai-service/app/pipeline/contract_context.py
+    post: [verification-P2.json]

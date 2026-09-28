@@ -1,0 +1,30 @@
+stage: push
+plan: 260923-1023-ai2-long-running-architecture
+actor: user:dungskbg2004@gmail.com
+ts: '2026-09-23T23:31:36+07:00'
+checks:
+  - name: unit
+    status: FAIL
+    format: junit
+    file: tester-ai-service-exact.xml
+    detail: 'Exact ai-service pytest -q: 286 passed, 6 deselected, 14 errors; pytest temp-root PermissionError [WinError 5].'
+  - name: regression
+    status: PASS
+    format: junit
+    file: tester-p0-p9.xml
+    detail: 'P0-P9 targeted: 96 passed, 1 warning.'
+  - name: contract
+    status: PASS
+    format: junit
+    file: tester-eval-contracts.xml
+    detail: 'Both AI2 eval contract domains: 36 passed.'
+  - name: integration
+    status: PASS
+    format: junit
+    file: tester-evals-tests.xml
+    detail: 'evals/tests including P7: 11 passed.'
+  - name: compileall
+    status: PASS
+    format: manual
+    detail: 'compileall -q ai-service/app ai-service/src evals backend exited 0.'
+verdict: BLOCKED

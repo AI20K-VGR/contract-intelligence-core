@@ -3,6 +3,7 @@ export type ContextFindingPanelItem = {
   reasonCode: string
   subject: string
   reviewState: string
+  relation?: string
 }
 
 export type EvidenceIssuePanelItem = {
@@ -95,6 +96,11 @@ export function ContextFindingsPanel({
                   <span className="ml-2 text-secondary">
                     {finding.reviewState}
                   </span>
+                  {finding.relation === 'UNCONFIRMED' ? (
+                    <span className="ml-2 font-label-sm text-label-sm text-amber-900">
+                      CHƯA XÁC NHẬN
+                    </span>
+                  ) : null}
                 </li>
               ))}
             </ul>

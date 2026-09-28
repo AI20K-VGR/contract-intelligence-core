@@ -1,0 +1,46 @@
+{
+  "stage": "fix",
+  "plan": "table-continuity-ui-and-persistence",
+  "actor": "codex",
+  "ts": "2026-09-25T01:30:00+07:00",
+  "checks": [
+    {
+      "name": "frontend regression tests",
+      "command": "frontend/npm test",
+      "status": "PASS",
+      "evidence": "7 files, 14 tests passed"
+    },
+    {
+      "name": "frontend production build",
+      "command": "frontend/npm run build",
+      "status": "PASS",
+      "evidence": "tsc and Vite build completed"
+    },
+    {
+      "name": "frontend lint",
+      "command": "frontend/npm run lint",
+      "status": "PASS",
+      "evidence": "0 errors, 7 pre-existing warnings"
+    },
+    {
+      "name": "backend regression tests",
+      "command": "backend/.venv/Scripts/python.exe -m pytest tests/unit/shared/ai/test_ai1_adapter.py tests/unit/test_contract_router.py tests/unit/shared/ai/test_canonical_processing.py -q",
+      "status": "PASS",
+      "evidence": "27 tests passed"
+    },
+    {
+      "name": "backend Ruff",
+      "command": "backend/.venv/Scripts/ruff.exe check <changed-files>",
+      "status": "PASS",
+      "evidence": "All checks passed"
+    },
+    {
+      "name": "migration runtime",
+      "command": "alembic upgrade head against live stack",
+      "status": "PASS",
+      "evidence": "Backend startup applied v10; PostgreSQL exposes both new doc_table columns"
+    }
+  ],
+  "verdict": "PASS_WITH_RISK",
+  "risk": "Existing table snapshots created before v10 still have no continuation metadata; re-OCR/reprocess is required to populate the new relationship fields."
+}

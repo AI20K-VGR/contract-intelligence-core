@@ -1,0 +1,89 @@
+# gemini-partner.yaml — SSOT config for the gemini partner lane (human-edited).
+#
+# Factory-safe corner: master OFF ⇒ every gemini path is inert. Turning the lane
+# on is a deliberate edit here (or a dev override file via $HARNESS_GEMINI_PARTNER,
+# env-bound → needs a restart, like HARNESS_GUARD_POLICY). Model ids are NEVER
+# hardcoded — `purposes`/`overrides` name a tier or an id resolved through
+# resolve_model.py against harness/plugins/hs/data/models.yaml (the model SSOT).
+#
+# Forbidden-state table (S1..S9) — enforce point in parens:
+#   S1 route-all + sandbox_write   → reject at load      (loader)
+#   S6 master off + stop-gate on   → normalize to inert  (effective())
+#   S7 override model ∉ available   → reject at load      (loader)
+#   S8 route_all_injection + sandbox_write → reject at load (loader)
+#   S9 route_all_injection on + mode partner → reject at load (loader)
+#   S6' master off + route_all_injection on → normalize off (effective())
+#   S2/S3 stop-gate + down / +goal → runtime             (hook, P6)
+#   S4/S5 silent fallback / advisory+write → runtime      (chokepoint, P3/P5)
+
+# --- the four axes (safe corner) ------------------------------------------
+master: "off"                 # kill-switch: off ⇒ whole lane inert
+mode: partner               # partner | route-all
+write: read_only            # read_only | sandbox_write (worktree-staging)
+stop_review_gate: "off"       # off | advisory | enforce
+engine: auto                # gemini-print | agy-print | auto — the transport lane.
+                            # auto resolves at call time from the credential
+                            # present: GEMINI_API_KEY → gemini-print, else agy-print
+                            # (agy runs on Google OAuth). A pinned value skips the
+                            # env sniff and disables cross-engine fallback.
+route_all_injection: "off"    # off | on — AUTO-inject skill methodology on route-all
+                            # fan-out. Separate axis from `mode`. Manual --skill
+                            # injection (Claude → relayer) is unaffected. Turning
+                            # this on widens the egress blast radius (whole SKILL +
+                            # cited rules + task context go to Google; secret_scrub
+                            # is warn-only) — setup warns before enabling.
+
+# --- purpose → tier (D9); resolved through resolve_model, never hardcoded ---
+purposes:
+  research: flash
+  scout: flash
+  review: pro
+  critique: pro
+  redteam: pro
+  delegate: pro
+  fix: pro
+
+# --- route-all allowlist (D3 factory: prose skills only, ship-narrow) -------
+route_all_surface: [research, scout]
+
+# --- per-skill exact-model overrides (gemini branch; each value in models.yaml) --
+overrides: {}
+
+# --- agy (agy-print) reasoning models: tier → display name, and per-purpose ---
+# agy override. agy has no models.yaml, so these are validated against a static
+# allowlist (Gemini 3.5 Flash Low|Medium|High, Gemini 3.1 Pro Low|High). A tier
+# a purpose uses but that is absent here falls back to the flash default (warns
+# at load). overrides_agy is the agy twin of `overrides` above (per-purpose).
+engine_models:
+  flash: "Gemini 3.5 Flash (Medium)"
+  pro: "Gemini 3.1 Pro (High)"
+overrides_agy: {}
+
+# --- timeouts (D10: one default + per-verb override), seconds ---------------
+timeouts:
+  default: 600
+  scout: 1200
+  research: 1200
+  review: 1200
+  critique: 1200
+  redteam: 1200
+  delegate: 1200
+  fix: 1200
+
+# --- retry on transient error-marker chain ----------------------------------
+retry:
+  max_attempts: 2
+  on_markers: [rate_limit, overloaded, deadline_exceeded]
+
+# --- secret-scrub posture (D7: v1 warns only; seam for v2 block|redact) ------
+secret_scrub: warn
+
+# --- Claude-driven loop (references/loop-pattern.md) -------------------------
+# max_rounds is a MODEL-HONORED cap (Claude stops at it, like the autonomy bell) —
+# NOT enforced by code. Safe by construction: gemini never self-drives, the relayer
+# makes one call per spawn, and NO Stop-hook re-invokes the loop. default_mode:
+# converge (stop when no new file:line finding) | target (a mechanical metric) |
+# judge (a Claude-per-task criterion).
+loop:
+  max_rounds: 3
+  default_mode: converge

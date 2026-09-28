@@ -1,0 +1,29 @@
+edges:
+  - {from: P1, to: P2}
+  - {from: P2, to: P3}
+
+subtasks:
+  P1:
+    file: phases/phase-1-list-latest.md
+    post: [verification-P1.json]
+    files_to_modify:
+      - backend/src/contract_intelligence/conflict/application/dtos/finding_dtos.py
+      - backend/src/contract_intelligence/conflict/infrastructure/persistence/repository_impl.py
+      - backend/tests/unit/test_conflict_router.py
+  P2:
+    file: phases/phase-2-numbered-timeline.md
+    post: [verification-P2.json]
+    files_to_create:
+      - frontend/src/structure/reviewTarget.ts
+      - frontend/tests/conflict-review-target.test.ts
+    files_to_modify:
+      - frontend/src/pages/ClauseConflictPage.tsx
+  P3:
+    file: phases/phase-3-badge-counts.md
+    post: [verification-P3.json]
+    files_to_modify:
+      - frontend/src/structure/conflictAnchors.ts
+      - frontend/src/components/StructureViewShell.tsx
+      - frontend/src/components/StructureDocument.tsx
+      - frontend/src/pages/ClauseConflictPage.tsx
+      - frontend/tests/conflict-anchors.test.ts

@@ -11,6 +11,9 @@ import structlog
 from contract_intelligence.contract.domain.repositories.document_repository import (
     DocumentRepository,
 )
+from contract_intelligence.extraction.application.dtos.ai2_analysis_dtos import (
+    Ai2AnalysisDTO,
+)
 from contract_intelligence.extraction.application.dtos.clause_dtos import (
     ClauseNodeDTO,
     build_clause_tree,
@@ -283,6 +286,48 @@ class ExtractionService:
 
         return cast(list[dict[str, Any]], await self._pipeline_run_repo.list_steps(run_id))
 
+    async def get_dossier_ai2_analysis(self, dossier_id: str) -> Ai2AnalysisDTO:
+        """Read the latest durable AI2 projection without issuing a new query."""
+        result = await self._pipeline_run_repo.get_latest_ai2_read_model(dossier_id)
+        if result is None:
+            return Ai2AnalysisDTO(dossier_id=dossier_id)
+
+        run, read_model = result
+        payload = read_model.payload
+        body = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+
+        def dict_list(value: Any) -> list[dict[str, Any]]:
+            return (
+                [item for item in value if isinstance(item, dict)]
+                if isinstance(value, list)
+                else []
+            )
+
+        index_contribution = body.get("index_contribution")
+        evidence_issues = (
+            index_contribution.get("evidence_issues")
+            if isinstance(index_contribution, dict)
+            else []
+        )
+        return Ai2AnalysisDTO(
+            dossier_id=dossier_id,
+            run_id=run.id,
+            available=True,
+            pipeline_status=str(run.status),
+            job_status=read_model.job_status,
+            review_state=read_model.review_state,
+            completeness_state=read_model.completeness_state,
+            reason_code=read_model.reason_code,
+            evidence_ready=read_model.evidence_ready,
+            input_counts=read_model.input_counts,
+            output_counts=read_model.output_counts,
+            coverage=read_model.coverage,
+            dropped_records=read_model.dropped_records,
+            evidence_issue_count=read_model.evidence_issue_count,
+            context_findings=dict_list(body.get("context_findings")),
+            evidence_issues=dict_list(evidence_issues),
+        )
+
     async def cancel_pipeline_run(self, run_id: str) -> PipelineRun:
         run = await self.get_pipeline_run(run_id)
         if run.status not in (PipelineRunStatus.RUNNING, PipelineRunStatus.QUEUED):
@@ -342,10 +387,23 @@ class ExtractionService:
         try:
             data = await self._storage.get(uri)
         except FileNotFoundError as exc:
-            raise NotFoundError(
-                entity_type="PageImage",
-                entity_id=f"{document_id}#{page_no}/{variant}",
-            ) from exc
+            # AI1 stores rendered pages in MinIO and returns a logical
+            # storage://ai1/... URI. The default FileStorage remains local
+            # for document uploads, so bridge this namespace to S3.
+            if not str(uri).startswith("storage://ai1/"):
+                raise NotFoundError(
+                    entity_type="PageImage",
+                    entity_id=f"{document_id}#{page_no}/{variant}",
+                ) from exc
+            try:
+                from contract_intelligence.infrastructure.storage import download_object
+
+                data = await download_object(uri)
+            except Exception as remote_exc:  # noqa: BLE001 - normalize storage errors
+                raise NotFoundError(
+                    entity_type="PageImage",
+                    entity_id=f"{document_id}#{page_no}/{variant}",
+                ) from remote_exc
 
         media_type = "image/webp" if str(uri).lower().endswith(".webp") else "image/png"
         return data, media_type

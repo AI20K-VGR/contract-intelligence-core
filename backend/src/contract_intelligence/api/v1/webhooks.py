@@ -177,13 +177,16 @@ async def receive_ai1_snapshot(
         run_id=run_id,
     )
 
+    from contract_intelligence.config.settings import get_settings
+
+    allow_llm = bool(get_settings().ai2_processing_egress_allowed)
     ai2_payload: dict[str, Any] = {
         "snapshot_id": payload.snapshot_id,
         "snapshot_version": payload.version,
         "digest": payload.digest,
         "dossier_members": [],
         "role_relation_map": {},
-        "policy_flags": {"egress_allowed": False, "use_vector": True},
+        "policy_flags": {"egress_allowed": allow_llm, "use_vector": True},
         "provenance": provenance,
     }
 

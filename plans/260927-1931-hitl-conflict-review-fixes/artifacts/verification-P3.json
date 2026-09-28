@@ -1,0 +1,27 @@
+{
+  "stage": "cook",
+  "plan": "260927-1931-hitl-conflict-review-fixes",
+  "checks": [
+    {
+      "name": "below_excludes_direct",
+      "status": "PASS"
+    },
+    {
+      "name": "direct_count",
+      "status": "PASS"
+    },
+    {
+      "name": "below_state",
+      "status": "PASS"
+    },
+    {
+      "name": "vitest_anchors",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P3",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-09-27T17:33:09+00:00",
+  "run_seq": null
+}

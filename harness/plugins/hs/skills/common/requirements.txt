@@ -1,0 +1,6 @@
+# api_key_helper.py is shared (via sys.path insertion, see README.md) by every
+# Gemini-based skill: AI Studio via google-genai, or Vertex AI via google-cloud-aiplatform
+# when GEMINI_USE_VERTEX=true. Both imports are unguarded top-level imports at their call
+# sites (get_client()/gemini_client()) — absent, the call fails, not the whole script.
+google-genai>=0.1.0
+google-cloud-aiplatform>=1.38.0

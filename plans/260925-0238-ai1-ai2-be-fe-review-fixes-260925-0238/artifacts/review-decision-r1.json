@@ -1,0 +1,15 @@
+{
+  "verdict": "BLOCKED",
+  "reviewer": "agent:independent-code-reviewer",
+  "role": "reviewer",
+  "rationale": "Round 1 review độc lập phát hiện Critical ACL: lock_dossier, create_external_approval và list_external_approvals chỉ kiểm tra role, bỏ qua dossier-level require_approval_access, nên cùng-tenant principal không được share vẫn có thể mutate/read approval. Important recovery: _submitted_ai2_runs được set trước submit và không release khi exception, khiến transient failure bị bỏ qua ở lần retry sau dù durable run đã failed. Cook verification ghi authenticated E2E SKIP; giữ trạng thái NOT_RUN, không suy diễn PASS. Security scan high-risk chưa chạy trong lượt này; không coi security ceremony là PASS.",
+  "effort": "high",
+  "strategy": "high-recall",
+  "reviewer_engine": "codex",
+  "reviewer_model": "GPT-5",
+  "rounds_run": 1,
+  "architecture_review": {
+    "checked": true
+  },
+  "run_seq": null
+}

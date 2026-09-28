@@ -1,0 +1,8 @@
+{
+  "verdict": "BLOCKED",
+  "reviewer": "agent:code-reviewer",
+  "role": "reviewer",
+  "rationale": "BLOCKED: focused review found fail-open authorization and redaction paths plus a readiness configured-claim validation gap; these are code defects, not merely documented environment or production limitations. Focused tests pass 21, but do not assert the uncovered unsafe paths. See plans/260923-1023-ai2-long-running-architecture/reports/code-review-final.md.",
+  "rounds_run": 1,
+  "run_seq": null
+}

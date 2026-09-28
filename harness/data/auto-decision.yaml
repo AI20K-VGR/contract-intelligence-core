@@ -1,0 +1,10 @@
+# Auto-decision ledger — subsystem policy (human-edited).
+#
+# enabled: the master toggle. When false the sink is a no-op (exit 0, no line written) —
+# a runtime kill-switch that needs no code revert. Default ON (axis G): the ledger is a
+# built-in advisory that records what auto-modes decided, not an opt-in feature.
+#
+# This subsystem does NOT read HARNESS_AUTONOMY: the ledger is independent of the autonomy
+# pause policy (default/ask_all/god). Whether the run pauses is a separate axis from
+# whether its autonomous decisions get recorded. (Out-of-scope decision, plan axis G.)
+enabled: true

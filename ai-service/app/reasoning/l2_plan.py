@@ -4,7 +4,9 @@ from typing import Any
 
 from app.contracts.models import ToolEnvelope
 from app.llm.client import NineRouterClient
+from app.pipeline.result_structure import _is_running_furniture
 from app.reasoning.l0_rules import query_too_broad
+from app.reasoning.relations import render_related_answer
 from app.tools.gateway import ToolBlocked, ToolGateway
 
 MAX_STEPS = 8
@@ -145,12 +147,15 @@ class L2Planner:
             i += 1
         user = _grounded_user_prompt(task, steps)
         self.last_prompt_chars = len(user)
-        draft = self.llm.complete_json(
-            "Answer only from trimmed tool results. JSON {answer, citations:[{node_id,text_span}], sufficient:bool, legal_winner:false}. "
-            "If sources conflict, sufficient=false and list all citations. No legal conclusion. No invented annex. "
-            "Every sentence must quote a span from a retrieved node.",
-            user,
-        )
+        try:
+            draft = self.llm.complete_json(
+                "Answer only from trimmed tool results. JSON {answer, citations:[{node_id,text_span}], sufficient:bool, legal_winner:false}. "
+                "If sources conflict, sufficient=false and list all citations. No legal conclusion. No invented annex. "
+                "Every sentence must quote a span from a retrieved node.",
+                user,
+            )
+        except Exception:
+            return self._fallback_review(envelope, task, l1)
         if draft.get("legal_winner"):
             draft["legal_winner"] = False
             draft["sufficient"] = False
@@ -187,6 +192,22 @@ class L2Planner:
                 ids.append(str(node_id))
             if len(ids) >= 6:
                 break
+        record = self.gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
+        expanded: list[str] = []
+        for node_id in ids:
+            if node_id not in expanded:
+                expanded.append(node_id)
+            if record is None:
+                continue
+            for child in record.evidence_nodes():
+                if child.parent_id != node_id or child.node_id in expanded or _is_running_furniture(child.raw_label or ""):
+                    continue
+                expanded.append(child.node_id)
+                if len(expanded) >= MAX_STEPS:
+                    break
+            if len(expanded) >= MAX_STEPS:
+                break
+        ids = expanded[:MAX_STEPS]
         plan = [{"tool": "get_node", "args": {"node_id": node_id}} for node_id in ids]
         if table_ok:
             plan.insert(0, {"tool": "list_tables", "args": {}})
@@ -224,7 +245,21 @@ class L2Planner:
         return {
             "steps": steps[:MAX_STEPS],
             "draft": {
-                "answer": packed,
+                "answer": render_related_answer(
+                    [
+                        {
+                            "node_id": item["node_id"],
+                            "label": item["label"],
+                            "path": item["label"],
+                            "text": item["text"],
+                            "side": "",
+                        }
+                        for item in packed
+                    ],
+                    [],
+                )
+                if packed
+                else None,
                 "citations": cites,
                 "sufficient": False,
                 "legal_winner": False,

@@ -1,0 +1,2 @@
+{"ts": "2026-09-26T12:36:40.274502+00:00", "source": "hook:bash", "script": "pytest:tests/unit/test_worker_pipeline_run.py", "exit": 0, "session": "01a0ddb2-bebd-7761-8a06-c0f91b00b62b", "actor": "user:dungskbg2004@gmail.com"}
+{"ts": "2026-09-26T12:36:56.946460+00:00", "source": "hook:bash", "script": "pytest:pytest", "exit": 0, "session": "01a0ddb2-bebd-7761-8a06-c0f91b00b62b", "actor": "user:dungskbg2004@gmail.com"}

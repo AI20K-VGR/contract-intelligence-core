@@ -166,6 +166,232 @@ def _post_with_retry(
             time.sleep(delay)
 
 
+def _state_matches(
+    expected: str,
+    actual: str | None,
+    *,
+    extract_ok: bool,
+    job_status: str,
+    query: str | None,
+    ask_state: str | None,
+) -> bool:
+    """Match the catalog label to the state the pipeline actually emits.
+
+    PASS is only PASS. REVIEW is only NEEDS_REVIEW. An HTTP failure is never
+    evidence that a BLOCKED case was enforced. A no-query INSUFFICIENT case
+    must stay uncertain; a PASS job does not count.
+    """
+
+    if not extract_ok:
+        return False
+    if expected == "BLOCKED":
+        return actual == "BLOCKED"
+    if expected == "INSUFFICIENT":
+        if query:
+            return ask_state == "INSUFFICIENT_EVIDENCE"
+        return actual in {"NEEDS_REVIEW", "INSUFFICIENT_EVIDENCE"}
+    if expected == "REVIEW":
+        return job_status == "SUCCEEDED" and actual == "NEEDS_REVIEW"
+    if expected == "PASS":
+        return job_status == "SUCCEEDED" and actual == "PASS"
+    return False
+
+
+def _contains_legal_winner(value: Any) -> bool:
+    if isinstance(value, dict):
+        if value.get("legal_winner") is True:
+            return True
+        for key in ("finding_type", "disposition", "model_disposition"):
+            if str(value.get(key) or "").upper() in {"LEGAL_WINNER", "WINNER"}:
+                return True
+        return any(_contains_legal_winner(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_contains_legal_winner(item) for item in value)
+    return False
+
+
+def _llm_calls_used(job: dict[str, Any]) -> int:
+    coverage = ((job.get("contribution") or {}).get("coverage") or {})
+    runtime = coverage.get("runtime") or {}
+    try:
+        return int(runtime.get("llm_calls_used") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _labels_match(labels: list[str], pattern: str) -> bool:
+    return any(re.search(pattern, (label or "").strip(), re.IGNORECASE) for label in labels)
+
+
+def _claim_violated(claim: str, observed: dict[str, Any]) -> bool | None:
+    """True when the banned behavior is in the payload, False when it is absent.
+
+    None means this token has no structural check yet. Callers must not treat
+    None as a pass.
+    """
+
+    job = observed.get("job") or {}
+    facts = observed.get("facts") or []
+    before = list(observed.get("before_labels") or [])
+    after = list(observed.get("after_labels") or [])
+    if claim == "legal_winner":
+        return _contains_legal_winner(observed.get("answer")) or _contains_legal_winner(job)
+    if claim == "unbounded_embed":
+        retrieval = observed.get("retrieval") or {}
+        try:
+            hits = int(retrieval.get("vector_hits") or 0)
+        except (TypeError, ValueError):
+            hits = 0
+        return hits > 0
+    if claim == "silent_external_fallback":
+        if observed.get("egress_approved", True):
+            return False
+        return _llm_calls_used(job) > 0
+    if claim in {"full_pdf_dump", "dump_all_rows_to_llm", "single_32k_clause"}:
+        # No model call means the document was not sent to a model. A call
+        # without the prompt text is not evidence either way.
+        if _llm_calls_used(job) == 0:
+            return False
+        return None
+    if claim == "existence_leak":
+        allowed = {str(observed.get("tenant_id") or ""), str(observed.get("dossier_id") or "")}
+
+        def foreign(value: Any) -> bool:
+            if isinstance(value, dict):
+                for key in ("tenant_id", "dossier_id"):
+                    found = value.get(key)
+                    if isinstance(found, str) and found not in allowed:
+                        return True
+                return any(foreign(item) for item in value.values())
+            if isinstance(value, list):
+                return any(foreign(item) for item in value)
+            return False
+
+        return foreign({"answer": observed.get("answer"), "facts": facts})
+    if claim == "invented_clause_3":
+        pattern = r"^Điều\s*3\b"
+        return _labels_match(after, pattern) and not _labels_match(before, pattern)
+    if claim == "invented_annex_7":
+        pattern = r"^Phụ lục\s*7\b"
+        return _labels_match(after, pattern) and not _labels_match(before, pattern)
+    if claim == "missing_as_zero":
+        sentinels = {"", "-", "—", "n/a", "na", "missing", "trống"}
+        for fact in facts:
+            raw = str(fact.get("raw_value") or "").strip().casefold()
+            if raw in sentinels and str(fact.get("normalized_value")) in {"0", "0.0"}:
+                return True
+        return False
+    if claim == "fx_convert":
+        for fact in facts:
+            raw = str(fact.get("raw_value") or "")
+            currency = str(fact.get("currency") or "")
+            has_usd = bool(re.search(r"\bUSD\b", raw, re.IGNORECASE))
+            has_vnd = bool(re.search(r"VND|đồng", raw, re.IGNORECASE))
+            if has_usd and not has_vnd and currency == "VND":
+                return True
+            if has_vnd and not has_usd and currency == "USD":
+                return True
+        return False
+    if claim in {"complete_total", "complete_total_without_rows", "fake_total"}:
+        page_digits = re.sub(r"\D", "", str(observed.get("page_text") or ""))
+        for fact in facts:
+            key = f"{fact.get('item_key') or ''} {fact.get('subject') or ''}"
+            if not re.search(r"total|tổng|subtotal", key, re.IGNORECASE):
+                continue
+            digits = re.sub(r"\D", "", str(fact.get("normalized_value") or ""))
+            if digits and digits not in page_digits:
+                return True
+        return False
+    if claim == "merge_same_label":
+        def clause_counts(labels: list[str]) -> Counter[str]:
+            counts: Counter[str] = Counter()
+            for label in labels:
+                match = re.match(r"^Điều\s+\d+$", (label or "").strip(), re.IGNORECASE)
+                if match:
+                    counts[match.group(0).casefold()] += 1
+            return counts
+
+        before_counts = clause_counts(before)
+        after_counts = clause_counts(after)
+        return any(count >= 2 and after_counts.get(label, 0) < count for label, count in before_counts.items())
+    if claim == "fake_dieu_number":
+        pattern = r"^Điều\s+\d+"
+        return _labels_match(after, pattern) and not _labels_match(before, pattern)
+    if claim == "flatten_levels":
+        before_parents = observed.get("before_parents") or {}
+        after_parents = observed.get("after_parents") or {}
+        return any(
+            parent and node_id in after_parents and not after_parents[node_id]
+            for node_id, parent in before_parents.items()
+        )
+    if claim == "overwrite_raw":
+        for fact in facts:
+            raw = str(fact.get("raw_value") or "")
+            span = str((fact.get("citation") or {}).get("text_span") or "")
+            if span and raw and raw != span and re.fullmatch(r"\d+", raw) and re.sub(r"\D", "", span) == raw:
+                return True
+        return False
+    if claim == "flatten_tier":
+        for fact in facts:
+            if fact.get("condition"):
+                continue
+            norm = str(fact.get("normalized_value") or "")
+            if "%" in norm or "/" in norm:
+                return True
+        return False
+    if claim == "force_compare":
+        for candidate in observed.get("candidates") or []:
+            disposition = str(candidate.get("disposition") or candidate.get("finding_type") or "")
+            reason = str(candidate.get("reason") or "")
+            forced = disposition in {"COMPARABLE_MATCH", "COMPARABLE_DIFFERENCE"}
+            if forced and re.search(r"không so|khác phạm vi|not comparable", reason, re.IGNORECASE):
+                return True
+        return False
+    if claim in {"llm_first_classify", "one_shot_all_annex"}:
+        if _llm_calls_used(job) == 0:
+            return False
+        return None
+    if claim == "double_publish":
+        seen: set[tuple[str, str]] = set()
+        for fact in facts:
+            key = (str(fact.get("item_key") or ""), str(fact.get("normalized_value") or ""))
+            if not key[0]:
+                continue
+            if key in seen:
+                return True
+            seen.add(key)
+        return False
+    if claim == "mutate_old_result":
+        prior = observed.get("prior_fact_values")
+        if not prior:
+            return False
+        current = [str(fact.get("normalized_value") or "") for fact in facts]
+        return list(prior) != current
+    if claim == "unpinned_alias":
+        allowed = {str(item) for item in (observed.get("aliases") or [])}
+        page = str(observed.get("page_text") or "")
+        for fact in facts:
+            norm = str(fact.get("normalized_value") or "")
+            if not norm:
+                continue
+            if norm not in page and norm not in allowed:
+                return True
+        return False
+    return None
+
+
+def _claim_report(claims: list[str], observed: dict[str, Any]) -> tuple[list[str], list[str]]:
+    hits: list[str] = []
+    unchecked: list[str] = []
+    for claim in claims:
+        violated = _claim_violated(claim, observed)
+        if violated is None:
+            unchecked.append(claim)
+        elif violated:
+            hits.append(claim)
+    return hits, unchecked
+
+
 def _citation_errors(answer: dict[str, Any], record: Any) -> list[str]:
     valid = {node.node_id: node for node in record.nodes}
     pages = {page.page_revision_id: page for page in record.pages}
@@ -244,6 +470,9 @@ def _evaluate_case(
     # fixtures. A live vector run must never share those indexes, so each
     # evaluation gets an immutable, case-scoped snapshot identity.
     pack = deepcopy(pack)
+    before_labels = [node.raw_label or "" for node in pack.record.nodes]
+    before_parents = {node.node_id: node.parent_id for node in pack.record.nodes}
+    page_text = "\n".join(page.text or "" for page in pack.record.pages)
     digest = f"sha256:eval-{pack.case_id.lower()}"
     pack.record.pins.source_snapshot_digest = digest
     pack.envelope.pins.source_snapshot_digest = digest
@@ -271,28 +500,43 @@ def _evaluate_case(
         ask_ok = ask_response.status_code == 200
         ask_payload = ask_response.json() if ask_ok else {"error": ask_response.text[:300]}
     record = main.SESSIONS[sid]["record"]
-    citation_errors = _citation_errors(ask_payload, record) if ask_ok else ["ask_http_error"]
-    answer_text = json.dumps(ask_payload.get("answer"), ensure_ascii=False).casefold()
-    forbidden_hits = [item for item in pack.expected_no_claims if item.casefold() in answer_text]
+    citation_checked = bool(query)
+    citation_errors = _citation_errors(ask_payload, record) if citation_checked and ask_ok else (["ask_http_error"] if citation_checked else [])
     expected = pack.expected_state
-    # EC-050 is an embedding-only budget gate: extraction and chat may still
-    # run, while vector recall must be skipped. EC-055 denies external egress
-    # and therefore blocks the live LLM path. Deterministic runs remain local.
-    if pack.case_id == "EC-050" or (not use_llm and pack.case_id == "EC-055"):
-        expected_match = extract_ok and actual_state != "BLOCKED" and not forbidden_hits
-    elif expected == "BLOCKED":
-        expected_match = actual_state == "BLOCKED" or not extract_ok
-    elif expected == "INSUFFICIENT":
-        # Some catalog cases intentionally have no user query: the contract is
-        # to preserve uncertainty in extraction, not to fabricate an answer.
-        expected_match = (
-            ask_payload.get("review_state") == "INSUFFICIENT_EVIDENCE"
-            if query
-            else extract_ok and not forbidden_hits
-        )
-    else:
-        expected_match = extract_ok and actual_state in {"PASS", "NEEDS_REVIEW", "SUCCEEDED", "REVIEW"}
+    job_status = str(job.get("status") or "")
     retrieval_trace = ask_payload.get("retrieval_trace") or {}
+    forbidden_hits, unchecked_claims = _claim_report(
+        list(pack.expected_no_claims),
+        {
+            "answer": ask_payload.get("answer"),
+            "job": job,
+            "retrieval": retrieval_trace,
+            "egress_approved": bool(getattr(record, "egress_approved", True)),
+            "before_labels": before_labels,
+            "after_labels": [node.raw_label or "" for node in record.evidence_nodes()],
+            "before_parents": before_parents,
+            "after_parents": {node.node_id: node.parent_id for node in record.evidence_nodes()},
+            "candidates": ((job.get("contribution") or {}).get("candidates") or []),
+            "aliases": [
+                name
+                for canonical, names in ((getattr(record.profile, "aliases", None) or {}).items())
+                for name in [canonical, *list(names)]
+            ],
+            "page_text": page_text,
+            "facts": [fact.model_dump() for fact in (record.facts or [])],
+            "tenant_id": record.tenant_id,
+            "dossier_id": record.dossier_id,
+        },
+    )
+    state_match = _state_matches(
+        expected,
+        actual_state,
+        extract_ok=extract_ok,
+        job_status=job_status,
+        query=query,
+        ask_state=ask_payload.get("review_state"),
+    )
+    expected_match = state_match and not forbidden_hits and not unchecked_claims
     row = {
         "case_id": pack.case_id,
         "run": run_label,
@@ -302,9 +546,12 @@ def _evaluate_case(
         "extract_http_ok": extract_ok,
         "ask_http_ok": ask_ok,
         "expected_match": expected_match,
+        "state_match": state_match,
+        "citation_checked": citation_checked,
         "citation_valid": not citation_errors,
         "citation_errors": citation_errors[:10],
         "forbidden_claims": forbidden_hits,
+        "unchecked_claims": unchecked_claims,
         "n_citations": len(ask_payload.get("citations") or []),
         "use_vector": use_vector,
         "vector_status": retrieval_trace.get("vector_status", "NOT_REQUESTED"),
@@ -346,10 +593,14 @@ def _score(results: list[dict[str, Any]]) -> dict[str, Any]:
     critical = [r for r in results if r["expected_state"] == "BLOCKED"]
     insufficient = [r for r in results if r["expected_state"] == "INSUFFICIENT"]
     answerable = [r for r in results if r["expected_state"] not in {"BLOCKED", "INSUFFICIENT"}]
+    checked = [r for r in results if r.get("citation_checked")]
     return {
         "total": len(results),
         "expected_match_rate": round(sum(bool(r["expected_match"]) for r in results) / total, 4),
-        "citation_valid_rate": round(sum(bool(r["citation_valid"]) for r in results) / total, 4),
+        "state_match_rate": round(sum(bool(r.get("state_match")) for r in results) / total, 4),
+        "unchecked_claim_cases": sum(bool(r.get("unchecked_claims")) for r in results),
+        "citation_checked": len(checked),
+        "citation_valid_rate": round(sum(bool(r["citation_valid"]) for r in checked) / len(checked), 4) if checked else None,
         "forbidden_claim_violations": sum(len(r["forbidden_claims"]) for r in results),
         "critical_blocked_rate": round(sum(r["actual_extract_state"] == "BLOCKED" for r in critical) / (len(critical) or 1), 4),
         "insufficient_rate": round(sum(r["actual_ask_state"] == "INSUFFICIENT_EVIDENCE" for r in insufficient) / (len(insufficient) or 1), 4),
@@ -368,12 +619,14 @@ def _machine_failures(report: dict[str, Any]) -> list[dict[str, Any]]:
                 reasons.append("extract_http_error")
             if not row.get("ask_http_ok"):
                 reasons.append("ask_http_error")
-            if not row.get("expected_match"):
+            if not row.get("state_match", row.get("expected_match")):
                 reasons.append("expected_state_mismatch")
-            if not row.get("citation_valid"):
+            if row.get("citation_checked") and not row.get("citation_valid"):
                 reasons.append("invalid_citation")
             if row.get("forbidden_claims"):
                 reasons.append("forbidden_claim")
+            if row.get("unchecked_claims"):
+                reasons.append("unchecked_claim")
             if reasons:
                 failures.append({"run": run.get("mode"), "case_id": row.get("case_id"), "reasons": reasons})
     return failures
@@ -587,7 +840,22 @@ def _markdown_report(report: dict[str, Any]) -> str:
     lines = ["# AI2 full-flow evaluation", "", f"Generated: {report['generated_at']}", "", "## Configuration", "", f"- Chat: `{report['config']['chat_model']}`", f"- Embedding: `{report['config']['embedding_model']}` ({report['config']['embedding_dimensions']} dims)", f"- Vector mode: `{report['config'].get('vector_mode')}` / enabled=`{report['config'].get('vector_enabled')}`", f"- Embedding status: `{report['config'].get('embedding_status', 'NOT_RUN')}`", ""]
     for run in report["runs"]:
         score = run["score"]
-        lines.extend([f"## {run['mode']}", "", f"- Cases: {score['total']}", f"- Expected match: {score['expected_match_rate']:.1%}", f"- Citation valid: {score['citation_valid_rate']:.1%}", f"- Forbidden claim violations: {score['forbidden_claim_violations']}", f"- Critical blocked: {score['critical_blocked_rate']:.1%}", f"- Insufficient evidence: {score['insufficient_rate']:.1%}", f"- p95 elapsed: {score['p95_elapsed_ms']} ms", ""])
+        citation_rate = score["citation_valid_rate"]
+        citation_text = "n/a" if citation_rate is None else f"{citation_rate:.1%}"
+        lines.extend([
+            f"## {run['mode']}",
+            "",
+            f"- Cases: {score['total']}",
+            f"- Expected match: {score['expected_match_rate']:.1%}",
+            f"- State match: {score.get('state_match_rate', 0):.1%}",
+            f"- Unchecked claim cases: {score.get('unchecked_claim_cases', 0)}",
+            f"- Citation valid: {citation_text} ({score.get('citation_checked', 0)} checked)",
+            f"- Forbidden claim violations: {score['forbidden_claim_violations']}",
+            f"- Critical blocked: {score['critical_blocked_rate']:.1%}",
+            f"- Insufficient evidence: {score['insufficient_rate']:.1%}",
+            f"- p95 elapsed: {score['p95_elapsed_ms']} ms",
+            "",
+        ])
     return "\n".join(lines)
 
 

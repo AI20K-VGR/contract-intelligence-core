@@ -1,0 +1,95 @@
+{
+  "sizing": {
+    "mode": "multi",
+    "projected_cells": 2880,
+    "pruned_cells": 2880,
+    "threshold": 60,
+    "sub_plan_count": 3,
+    "split_strategy": "feature"
+  },
+  "manifest": {
+    "subPlans": [
+      {
+        "id": "sub-1",
+        "scope": {
+          "features": [
+            "conflict-list-latest",
+            "tree-state",
+            "citation-timeline"
+          ],
+          "layers": [
+            "ui",
+            "api",
+            "data",
+            "infra"
+          ]
+        },
+        "estimatedCells": 960
+      },
+      {
+        "id": "sub-2",
+        "scope": {
+          "features": [
+            "collapsed-color",
+            "single-count",
+            "live-count"
+          ],
+          "layers": [
+            "ui",
+            "api",
+            "data",
+            "infra"
+          ]
+        },
+        "estimatedCells": 960
+      },
+      {
+        "id": "sub-3",
+        "scope": {
+          "features": [
+            "toc-marker",
+            "honest-action-count",
+            "no-dead-sources"
+          ],
+          "layers": [
+            "ui",
+            "api",
+            "data",
+            "infra"
+          ]
+        },
+        "estimatedCells": 960
+      }
+    ],
+    "dependencies": [
+      {
+        "from": "sub-1",
+        "to": "sub-2",
+        "sharedLayers": [
+          "ui",
+          "api",
+          "data",
+          "infra"
+        ]
+      },
+      {
+        "from": "sub-2",
+        "to": "sub-3",
+        "sharedLayers": [
+          "ui",
+          "api",
+          "data",
+          "infra"
+        ]
+      }
+    ],
+    "sharedContracts": [],
+    "masterRisk": [],
+    "intakeInheritance": {
+      "density_tier": "HIGH",
+      "threshold": 60
+    }
+  },
+  "decision": "proceed",
+  "reason": "Mot plan van dung: chin nang luc deu la mot man doi soat xung dot, chung mot hop dong review.latest va mot ham dem badge. So o bi phong vi truc mac dinh co infra va stakeholder khong dung toi. Ba phase da tach list, timeline, badge. Tach ba plan se lap lai cung hop dong."
+}

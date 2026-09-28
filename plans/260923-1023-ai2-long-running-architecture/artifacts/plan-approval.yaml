@@ -1,0 +1,22 @@
+schema: plan-approval/v1
+plan: 260923-1023-ai2-long-running-architecture
+plan_hash: 9fd3bbdf8934
+file_hashes:
+  plan.md: 0593f7e4e454
+  phases/phase-0-contract-baseline.md: b845e3a18630
+  phases/phase-1-canonical-model.md: 47a60327e8b0
+  phases/phase-2-hitl-state.md: b802dfcc3a72
+  phases/phase-3-persistence-events.md: b57e776dea05
+  phases/phase-4-execution-adapters.md: 300c414690ac
+  phases/phase-5-api-security.md: 82df395cbc05
+  phases/phase-6-agui-sse.md: 0905b6260b00
+  phases/phase-7-evaluation.md: 5459d02bfd47
+  phases/phase-8-migration.md: 2a39598a8908
+  phases/phase-9-hardening.md: b90d38c7be5a
+  plan-graph.yaml: 4cd635ad0635
+author: user:dungskbg2004@gmail.com
+reviewer: user:dungskbg2004@gmail.com
+verdict: APPROVED
+rationale: User explicitly invoked hs:cook for this plan; proceed with TDD phase execution.
+ts: '2026-09-23T13:54:27.958231+00:00'
+run_seq: null

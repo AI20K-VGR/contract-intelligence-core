@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "review-dismissal",
+  "description": "One append-only record in the per-repo review-dismissals store (docs/review/dismissals.jsonl). Records that a reviewer dismissed a finding so a later review can SHOW the prior dismissal — the store never auto-suppresses. actor is attribution, not authorization. fingerprint excludes the line number (stable across a reformat) and hashes the normalized snippet (distinguishes one rule firing twice in a file). schema_version lets a consumer (e.g. the multi-round review sweep) pin the format it reads.",
+  "type": "object",
+  "required": ["schema_version", "fingerprint", "verdict", "reason", "file", "actor", "ts"],
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "description": "Format version of this record; a consumer asserts the version it understands (R7 — guards silent schema drift)"
+    },
+    "fingerprint": {
+      "type": "string",
+      "description": "sha256(file + rule/title + sha256(normalized snippet))[:16]; NEVER includes a line number"
+    },
+    "verdict": {
+      "enum": ["confirmed", "dismissed", "needs-human"],
+      "description": "Per-finding verdict; the store records dismissals but the enum is shared with the review verdict truth-table"
+    },
+    "reason": {
+      "type": "string",
+      "description": "Why the finding was dismissed (shown verbatim when the finding recurs)"
+    },
+    "file": {
+      "type": "string",
+      "description": "Canonical file path the finding pointed at"
+    },
+    "actor": {
+      "type": "string",
+      "description": "resolve_actor() output: user:<u>[/agent:<a>] | ci. Attribution, not authentication"
+    },
+    "ts": {
+      "type": "string",
+      "description": "ISO-8601 timestamp the dismissal was recorded"
+    },
+    "line": {
+      "type": "integer",
+      "description": "Display metadata only — the line the finding pointed at when recorded. NEVER part of the fingerprint"
+    },
+    "code_evidence": {
+      "type": "string",
+      "description": "The snippet the finding pointed at; carried for display. May exceed PIPE_BUF, which is why the append is flock-guarded"
+    },
+    "rule_id": {
+      "type": "string",
+      "description": "Optional rule id or title the finding came from"
+    }
+  }
+}

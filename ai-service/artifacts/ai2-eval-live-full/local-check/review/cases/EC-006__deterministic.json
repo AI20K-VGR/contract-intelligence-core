@@ -1,0 +1,855 @@
+{
+  "case_id": "EC-006",
+  "run": "deterministic",
+  "input": {
+    "case": {
+      "case_id": "EC-006",
+      "title": "Numbering hỗn hợp Article/Điều/(a)",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_mixed_num",
+      "expected_state": "PASS",
+      "expected_no_claims": [
+        "flatten_levels"
+      ],
+      "n_pages": 1,
+      "n_nodes": 3,
+      "n_tables": 0,
+      "lifecycle": "ACTIVE",
+      "query": null,
+      "notes": "",
+      "tags": [
+        "edge",
+        "structure"
+      ]
+    },
+    "record": {
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_mixed_num",
+      "lifecycle": "ACTIVE",
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-ec-006",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      },
+      "pages": [
+        {
+          "page_revision_id": "p1_rev1",
+          "page_number": 1,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p1_b1"
+          ],
+          "text": "Article I. Điều 1.1. (a)",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        }
+      ],
+      "nodes": [
+        {
+          "node_id": "art_i",
+          "type": "SECTION",
+          "raw_label": "Article I",
+          "parent_id": null,
+          "order": 1,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Article I",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "d11",
+          "type": "CLAUSE",
+          "raw_label": "Điều 1.1",
+          "parent_id": "art_i",
+          "order": 1,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Điều 1.1. Định nghĩa",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "a",
+          "type": "CLAUSE",
+          "raw_label": "(a)",
+          "parent_id": "d11",
+          "order": 1,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "(a) Bên A",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        }
+      ],
+      "tables": [],
+      "profile": {
+        "version": 5,
+        "aliases": {
+          "Công ty ABC": [
+            "ABC Co.",
+            "ABC"
+          ],
+          "Công ty XYZ": [
+            "XYZ Ltd",
+            "XYZ"
+          ]
+        },
+        "field_keys": [
+          "party_a",
+          "party_b",
+          "mst_seller",
+          "contract_value",
+          "payment_term"
+        ]
+      },
+      "acl_revision": 12,
+      "permissions_by_actor": {
+        "user_001": [
+          "READ_CONTENT"
+        ]
+      },
+      "source_files": [],
+      "facts": [],
+      "input_facts": [],
+      "chunks": [
+        {
+          "chunk_id": "chk_1ab72875",
+          "parent_node_id": "a",
+          "page_range": [
+            1
+          ],
+          "source_block_ids": [],
+          "text_span": "(a) Bên A",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Article I",
+            "(a)"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "NEEDS_REVIEW"
+        },
+        {
+          "chunk_id": "chk_fe5facf8",
+          "parent_node_id": "art_i",
+          "page_range": [
+            1
+          ],
+          "source_block_ids": [],
+          "text_span": "Article I",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Article I"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        },
+        {
+          "chunk_id": "chk_09b1b562",
+          "parent_node_id": "d11",
+          "page_range": [
+            1
+          ],
+          "source_block_ids": [],
+          "text_span": "Điều 1.1. Định nghĩa",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Article I",
+            "Điều 1.1"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "PASS"
+        }
+      ],
+      "active_index_version": null,
+      "processing_index": false,
+      "legal_hold": false,
+      "egress_approved": true,
+      "budget_exceeded": false,
+      "processing_budget_exceeded": false,
+      "embedding_budget_exceeded": false,
+      "index_status": "READY",
+      "case_id": "EC-006",
+      "handoff_issues": [],
+      "relation_graph": {
+        "graph_id": "graph:7b369eb9c024e2343d55efdc",
+        "source_snapshot_digest": "sha256:eval-ec-006",
+        "nodes": [
+          {
+            "node_id": "a",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "quality": "PARTIAL"
+          },
+          {
+            "node_id": "art_i",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "quality": "CONFIRMED"
+          },
+          {
+            "node_id": "d11",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "quality": "CONFIRMED"
+          }
+        ],
+        "edges": [
+          {
+            "edge_id": "edge:9b622c61037064da80033a8a",
+            "from_node_id": "art_i",
+            "to_node_id": "a",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "a",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "(a) Bên A",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": null,
+                "char_end": null,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "63cd089410e090cd61a20a17f69b6a6f378157b090298909139f61dea9e4d1c5",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-ec-006"
+          },
+          {
+            "edge_id": "edge:a11097bcac3673589282ae50",
+            "from_node_id": "art_i",
+            "to_node_id": "d11",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "d11",
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Điều 1.1. Định nghĩa",
+                "source_file_id": null,
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "line_ids": [],
+                "char_start": null,
+                "char_end": null,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "d440bc3f740274f8e763bfc3e42dea6847677ee7765c12d08ad9beb3b3f2f37e",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-ec-006"
+          }
+        ],
+        "issues": []
+      },
+      "active_nodes": [
+        {
+          "node_id": "a",
+          "type": "CLAUSE",
+          "raw_label": "(a)",
+          "parent_id": "art_i",
+          "order": 1,
+          "has_children": false,
+          "status": "PARTIAL",
+          "text": "(a) Bên A",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI2_REPAIRED",
+          "repaired_from_node_id": "a",
+          "structure_level": "ARTICLE",
+          "scope_id": "art_i",
+          "heading_confidence": 0.95,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "art_i",
+          "type": "SECTION",
+          "raw_label": "Article I",
+          "parent_id": null,
+          "order": 1,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Article I",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "art_i",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "d11",
+          "type": "CLAUSE",
+          "raw_label": "Điều 1.1",
+          "parent_id": "art_i",
+          "order": 1,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Điều 1.1. Định nghĩa",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "ARTICLE",
+          "scope_id": "art_i",
+          "heading_confidence": 0.95,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        }
+      ],
+      "citation_index": {},
+      "review_items": []
+    },
+    "envelope": {
+      "auth": {
+        "actor_id": "user_001",
+        "tenant_id": "tenant_a",
+        "dossier_id": "d_mixed_num",
+        "acl_revision": 12,
+        "permissions": [
+          "READ_CONTENT"
+        ],
+        "lifecycle": "ACTIVE"
+      },
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-ec-006",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      }
+    }
+  },
+  "output": {
+    "extract": {
+      "status_code": 200,
+      "body": {
+        "session_id": "06ae457a0682",
+        "filename": "EC-006.snapshot",
+        "source": "eval",
+        "step": "extract",
+        "ai1": {
+          "case_id": "EC-006"
+        },
+        "files": [],
+        "has_pdf": false,
+        "dossier_id": "d_mixed_num",
+        "tenant_id": "tenant_a",
+        "lifecycle": "ACTIVE",
+        "pins": {
+          "manifest_version": 2,
+          "source_snapshot_digest": "sha256:eval-ec-006",
+          "tenant_profile_version": 5,
+          "policy_version": 2,
+          "ocr_run_version": 3,
+          "reconstruction_version": 2,
+          "extraction_version": 7,
+          "index_version": "idx_14",
+          "source_digest": null,
+          "snapshot_digest": null
+        },
+        "n_pages": 1,
+        "n_nodes": 3,
+        "n_raw_nodes": 3,
+        "n_tables": 0,
+        "table_coverage": {
+          "UNKNOWN": 1
+        },
+        "relation_graph": {
+          "n_nodes": 3,
+          "n_edges": 2,
+          "n_issues": 0
+        },
+        "pages": [
+          {
+            "page": 1,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Article I. Điều 1.1. (a)",
+            "page_revision_id": "p1_rev1"
+          }
+        ],
+        "n_pages_hidden": 0,
+        "nodes": [
+          {
+            "node_id": "a",
+            "type": "CLAUSE",
+            "raw_label": "(a)",
+            "page_range": [
+              1
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "art_i",
+            "type": "SECTION",
+            "raw_label": "Article I",
+            "page_range": [
+              1
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "d11",
+            "type": "CLAUSE",
+            "raw_label": "Điều 1.1",
+            "page_range": [
+              1
+            ],
+            "structured_key": null,
+            "structured_value": null
+          }
+        ],
+        "n_nodes_hidden": 0,
+        "tree": [
+          {
+            "node_id": "art_i",
+            "type": "SECTION",
+            "raw_label": "Article I",
+            "status": "CONFIRMED",
+            "page": 1,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "art_i",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Article I",
+            "children": [
+              {
+                "node_id": "a",
+                "type": "CLAUSE",
+                "raw_label": "(a)",
+                "status": "PARTIAL",
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "has_children": false,
+                "structured_key": null,
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "ARTICLE",
+                "scope_id": "art_i",
+                "heading_confidence": 0.95,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "(a) Bên A",
+                "children": []
+              },
+              {
+                "node_id": "d11",
+                "type": "CLAUSE",
+                "raw_label": "Điều 1.1",
+                "status": "CONFIRMED",
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "has_children": false,
+                "structured_key": null,
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "ARTICLE",
+                "scope_id": "art_i",
+                "heading_confidence": 0.95,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "Điều 1.1. Định nghĩa",
+                "children": []
+              }
+            ]
+          }
+        ],
+        "tables": [],
+        "extracted": true,
+        "job": {
+          "job_id": "job_307457e070",
+          "status": "SUCCEEDED",
+          "review_state": "NEEDS_REVIEW",
+          "handoff_issues": [
+            {
+              "code": "NODE_STATUS",
+              "message": "a:PARTIAL",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            }
+          ],
+          "contribution": {
+            "facts": [],
+            "chunks": [
+              {
+                "chunk_id": "chk_1ab72875",
+                "parent_node_id": "a",
+                "page_range": [
+                  1
+                ],
+                "source_block_ids": [],
+                "text_span": "(a) Bên A",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Article I",
+                  "(a)"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "chunk_id": "chk_fe5facf8",
+                "parent_node_id": "art_i",
+                "page_range": [
+                  1
+                ],
+                "source_block_ids": [],
+                "text_span": "Article I",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Article I"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              },
+              {
+                "chunk_id": "chk_09b1b562",
+                "parent_node_id": "d11",
+                "page_range": [
+                  1
+                ],
+                "source_block_ids": [],
+                "text_span": "Điều 1.1. Định nghĩa",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Article I",
+                  "Điều 1.1"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "PASS"
+              }
+            ],
+            "candidates": [],
+            "evidence_issues": [],
+            "coverage": {
+              "n_facts": 0,
+              "n_findings": 0,
+              "n_evidence_issues": 0,
+              "n_units": 1,
+              "unit_ids": [
+                "unit:100c576f0ad705e8852d"
+              ],
+              "annex_labels": [],
+              "runtime": {
+                "egress_allowed": true,
+                "use_vector": false,
+                "max_processing_seconds": 300,
+                "max_llm_calls": 0,
+                "max_embedding_tokens": 0,
+                "llm_calls_used": 0,
+                "embedding_tokens_used": 0,
+                "fallback_count": 0
+              },
+              "n_candidates_suppressed": 0
+            },
+            "extraction_version": 7,
+            "proposed_index_version": "idx_7",
+            "publish": "propose"
+          },
+          "query_answer": null,
+          "error": null
+        },
+        "contribution": {
+          "facts": [],
+          "chunks": [
+            {
+              "chunk_id": "chk_1ab72875",
+              "parent_node_id": "a",
+              "page_range": [
+                1
+              ],
+              "source_block_ids": [],
+              "text_span": "(a) Bên A",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Article I",
+                "(a)"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "chunk_id": "chk_fe5facf8",
+              "parent_node_id": "art_i",
+              "page_range": [
+                1
+              ],
+              "source_block_ids": [],
+              "text_span": "Article I",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Article I"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            },
+            {
+              "chunk_id": "chk_09b1b562",
+              "parent_node_id": "d11",
+              "page_range": [
+                1
+              ],
+              "source_block_ids": [],
+              "text_span": "Điều 1.1. Định nghĩa",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Article I",
+                "Điều 1.1"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "PASS"
+            }
+          ],
+          "candidates": [],
+          "evidence_issues": [],
+          "coverage": {
+            "n_facts": 0,
+            "n_findings": 0,
+            "n_evidence_issues": 0,
+            "n_units": 1,
+            "unit_ids": [
+              "unit:100c576f0ad705e8852d"
+            ],
+            "annex_labels": [],
+            "runtime": {
+              "egress_allowed": true,
+              "use_vector": false,
+              "max_processing_seconds": 300,
+              "max_llm_calls": 0,
+              "max_embedding_tokens": 0,
+              "llm_calls_used": 0,
+              "embedding_tokens_used": 0,
+              "fallback_count": 0
+            },
+            "n_candidates_suppressed": 0
+          },
+          "extraction_version": 7,
+          "proposed_index_version": "idx_7",
+          "publish": "propose"
+        },
+        "used_llm": false,
+        "has_gold_tasks": false,
+        "reviews": {},
+        "reviews_stale": false,
+        "published": false,
+        "authoritative_publish_blocked": false,
+        "review_queue_status": "EMPTY_QUEUE",
+        "review_items": [],
+        "n_review_items": 0,
+        "n_citations": 0,
+        "handoff_issues": [],
+        "policy": {
+          "deterministic": "ALLOW",
+          "external": "ALLOWED",
+          "gates": []
+        }
+      }
+    },
+    "ask": {
+      "status_code": null,
+      "body": null
+    }
+  },
+  "machine_checks": {
+    "case_id": "EC-006",
+    "run": "deterministic",
+    "expected_state": "PASS",
+    "actual_extract_state": "NEEDS_REVIEW",
+    "actual_ask_state": null,
+    "extract_http_ok": true,
+    "ask_http_ok": true,
+    "expected_match": true,
+    "citation_valid": true,
+    "citation_errors": [],
+    "forbidden_claims": [],
+    "n_citations": 0,
+    "use_vector": false,
+    "vector_status": "NOT_REQUESTED",
+    "embedding_model": null,
+    "embedding_dimensions": null,
+    "vector_hits": 0,
+    "n_pages": 1,
+    "n_nodes": 3,
+    "elapsed_ms": 14.8
+  },
+  "manual_review": {
+    "verdict": "PENDING",
+    "severity": null,
+    "reviewer_notes": ""
+  }
+}

@@ -1,0 +1,47 @@
+# context-surface.yaml — how the build_context reminder is surfaced to the HUMAN.
+#
+# The MODEL always receives the full reminder (inject_prompt_context on
+# UserPromptSubmit, reinject_stop_context on a /goal Stop) — these knobs NEVER gate
+# that off. They only add/shape the optional human `systemMessage` mirror and pick
+# the Stop model channel. Loader: harness/scripts/context_surface_config.py.
+# Dev override: point HARNESS_CONTEXT_SURFACE at .harness-dev/context-surface.yaml.
+#
+# Cross-ref: this file (human context-reminder surfacing) and nudge-channels.yaml
+# (per-nudge model/human/log visibility) touch the same surfacing concern by design —
+# the split is intentional (a reminder surface vs a nudge-visibility plane), NOT merged.
+#
+# CC rendering constraint (probe-verified 2.1.201):
+#   UserPromptSubmit additionalContext is SILENT to the human → a UPS systemMessage
+#     adds a clean human mirror with NO double render.
+#   A Stop model channel (decision:block/reason OR additionalContext) ALWAYS prints →
+#     a Stop systemMessage is a DOUBLE render (same content twice). Ship keeps it OFF
+#     (single, the printed model channel is the human view); dev turns it ON.
+#
+# NOT the same axis as nudge-channels.yaml. That file ROUTES each discrete nudge
+# advisory (goal_cycle_nudge, backlog_capture_nudge, …) to relay/systemMessage/stderr/
+# off; this file MIRRORS the standing build_context reminder (## Paths/Plan/Rules) to
+# the human + picks the Stop model channel. Disjoint hook sets. They only touch on a
+# /goal, where nudges FOLD into build_context to reach the model (UPS is dead), so a
+# full-verbosity human mirror re-shows a nudge already seen via nudge-channels. That
+# overlap is bounded: `summary` prints only a nudge COUNT (no re-print), and ship's
+# stop.system_message:false means no mirror at all.
+#
+# `system_message` is named after the CC output field it toggles (`{"systemMessage":…}`)
+# — a self-documenting on/off, NOT the abstract nudge `user` axis.
+
+user_prompt_submit:
+  system_message: true       # clean human mirror (UPS AC is silent, so no double)
+  verbosity: summary         # summary | full  — ship shows the short "Nhóm nhắc nhở" line
+
+stop:
+  system_message: false      # SHIP = single: the printed model channel is the human view
+  verbosity: summary         # applies to the systemMessage mirror when on (dev)
+  model_channel: reason      # reason (decision:block, documented) | additionalContext (passive)
+
+session_start:
+  system_message: false      # voice_inject register — SHIP model-only (dev turns on to SEE
+  verbosity: summary         #   "SessionStart says: [Terminal voice…]" mirroring UPS/Stop)
+
+subagent_start:
+  system_message: false      # subagent_init register — no human watches a subagent; model-only
+  verbosity: summary

@@ -1,0 +1,62 @@
+edges:
+  - {from: P1, to: P2}
+  - {from: P2, to: P3}
+  - {from: P3, to: P4}
+
+subtasks:
+  P1:
+    task: ST-044
+    commit: C1
+    files_to_create:
+      - ai-service/tests/test_st044_handoff_relation.py
+    files_to_modify:
+      - ai-service/app/contracts/wire.py
+      - ai-service/app/pipeline/handoff.py
+      - ai-service/app/reasoning/relations.py
+    post:
+      - verification-ST-044.json
+
+  P2:
+    task: ST-045
+    commit: C2
+    files_to_create:
+      - ai-service/tests/test_st045_facts_findings.py
+    files_to_modify:
+      - ai-service/app/pipeline/fact.py
+      - ai-service/app/pipeline/candidate.py
+      - ai-service/app/pipeline/compare.py
+      - ai-service/app/pipeline/idp.py
+    post:
+      - verification-ST-045.json
+
+  P3:
+    task: ST-046
+    commit: C3
+    files_to_create:
+      - ai-service/tests/test_st046_query_grounding.py
+      - backend/tests/contract_intelligence/api/test_dossier_query_evidence.py
+    files_to_modify:
+      - ai-service/app/api/main.py
+      - ai-service/app/reasoning/stack.py
+      - ai-service/app/reasoning/l1_retrieval.py
+      - ai-service/app/reasoning/l3_ground.py
+      - backend/src/contract_intelligence/api/v1/dossiers.py
+      - backend/src/contract_intelligence/infrastructure/ai_adapters.py
+    post:
+      - verification-ST-046.json
+
+  P4:
+    task: ST-047
+    commit: C4
+    files_to_create:
+      - ai-service/tests/test_st047_index_gate.py
+      - backend/tests/contract_intelligence/test_st047_review_gate.py
+    files_to_modify:
+      - ai-service/app/pipeline/index.py
+      - ai-service/app/contracts/models.py
+      - ai-service/app/contracts/wire.py
+      - backend/src/contract_intelligence/shared/ai/persistence.py
+      - backend/src/contract_intelligence/worker.py
+    post:
+      - verification-ST-047.json
+      - final-e2e-regression-report.md

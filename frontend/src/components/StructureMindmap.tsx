@@ -8,6 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import type { ClauseNode } from '../api/structure'
+import type { ConflictMarker } from '../structure/conflictAnchors'
 import { citationNumbers } from '../structure/citations'
 import {
   branchTones,
@@ -25,6 +26,7 @@ import {
 } from '../structure/display'
 import { capToMaxLevels } from '../structure/tree'
 import { MaterialIcon } from './icons'
+import { ConflictBadge } from './StructureViewShell'
 
 /*
  * Sơ đồ tư duy theo kiểu NotebookLM:
@@ -140,6 +142,7 @@ type Box = {
   expandable: boolean
   open: boolean
   flagged: boolean
+  marker: ConflictMarker | null
   children: Box[]
 }
 
@@ -164,12 +167,18 @@ function extentOf(box: Box, orientation: TreeOrientation) {
   return orientation === 'vertical' ? box.width : box.height
 }
 
+function markerVisible(marker: ConflictMarker | null, open: boolean) {
+  if (!marker) return false
+  return marker.spots.length > 0 || (!open && marker.below > 0)
+}
+
 function buildLayout(
   title: string,
   nodes: ClauseNode[],
   expanded: ReadonlySet<string>,
   rootOpen: boolean,
   attentionIds: ReadonlySet<string> | undefined,
+  markers: ReadonlyMap<string, ConflictMarker> | undefined,
   orientation: TreeOrientation,
 ): Layout {
   const boxes: Box[] = []
@@ -192,14 +201,19 @@ function buildLayout(
       0,
       ...lines.map((line) => textWidth(line, NODE_FONT)),
     )
-    const width = Math.max(
-      NODE_MIN_WIDTH,
-      Math.ceil(textW) + 2 + NODE_PAD_X * 2 + (flagged ? 22 : 0),
-    )
-    const height = Math.max(1, lines.length) * NODE_LINE + NODE_PAD_Y * 2
     const kids = visibleChildren(node)
     const expandable = kids.length > 0
     const open = expandable && expanded.has(node.id)
+    const marker = markers?.get(node.id) ?? null
+    const width = Math.max(
+      NODE_MIN_WIDTH,
+      Math.ceil(textW) +
+        2 +
+        NODE_PAD_X * 2 +
+        (flagged ? 22 : 0) +
+        (markerVisible(marker, open) ? 30 : 0),
+    )
+    const height = Math.max(1, lines.length) * NODE_LINE + NODE_PAD_Y * 2
     const box: Box = {
       id: node.id,
       node,
@@ -214,6 +228,7 @@ function buildLayout(
       expandable,
       open,
       flagged,
+      marker,
       children: [],
     }
     box.span = extentOf(box, orientation)
@@ -256,6 +271,7 @@ function buildLayout(
     expandable: roots.length > 0,
     open: rootOpen && roots.length > 0,
     flagged: false,
+    marker: null,
     children: [],
   }
   root.span = extentOf(root, orientation)
@@ -607,6 +623,7 @@ export function StructureMindmap({
   attentionIds,
   citationOf,
   focusId,
+  markers,
   orientation = 'horizontal',
   onCite,
 }: {
@@ -616,6 +633,7 @@ export function StructureMindmap({
   attentionIds?: ReadonlySet<string>
   citationOf?: ReadonlyMap<string, number>
   focusId?: string | null
+  markers?: ReadonlyMap<string, ConflictMarker>
   /** 'horizontal': sơ đồ tư duy gốc trái; 'vertical': cây từ trên xuống. */
   orientation?: TreeOrientation
   onCite?: (id: string) => void
@@ -669,6 +687,7 @@ export function StructureMindmap({
       expanded,
       rootOpen,
       attentionIds,
+      markers,
       orientation,
     )
   }, [
@@ -677,6 +696,7 @@ export function StructureMindmap({
     expanded,
     rootOpen,
     attentionIds,
+    markers,
     orientation,
     fontsVersion,
   ])
@@ -1119,6 +1139,9 @@ function NodeBox({
               </span>
             ))}
           </span>
+          {box.marker ? (
+            <ConflictBadge collapsed={!box.open} marker={box.marker} />
+          ) : null}
           {box.flagged ? (
             <span
               className="flex shrink-0 items-center justify-center overflow-hidden text-amber-500"

@@ -154,6 +154,43 @@ def test_sandbox_forbids_import():
         pass
 
 
+def test_grounding_rejects_a_rewritten_normalization():
+    source = "4.2. Bên A thanh toán 30% trong vòng 07 ngay lam Vietc ké tú ngay ký."
+    fact = Fact(
+        fact_id="f-pay",
+        raw_value=source,
+        normalized_value="Bên A thanh toán 30% trong vòng 07 ngày làm việc kể từ ngày ký và nhận đủ hồ sơ.",
+        citation=Citation(node_id="n", page_revision_id="p", text_span=source),
+    )
+    out = GroundingGate().ground_fact(fact, source)
+    assert out.review_state == ReviewState.NEEDS_REVIEW
+
+
+def test_grounding_keeps_a_pinned_profile_alias():
+    from app.contracts.models import TenantProfile
+
+    profile = TenantProfile(version=5, aliases={"Công ty ABC": ["ABC Co."]}, field_keys=["party_a"])
+    fact = Fact(
+        fact_id="f-alias",
+        raw_value="ABC Co.",
+        normalized_value="Công ty ABC",
+        citation=Citation(node_id="n", page_revision_id="p", text_span="ABC Co."),
+    )
+    out = GroundingGate().ground_fact(fact, "Bên A: ABC Co.", profile)
+    assert out.review_state == ReviewState.PASS
+
+
+def test_grounding_keeps_digit_normalization():
+    fact = Fact(
+        fact_id="f-value",
+        raw_value="1.286.400.000 đồng",
+        normalized_value="1286400000",
+        citation=Citation(node_id="n", page_revision_id="p", text_span="1.286.400.000 đồng"),
+    )
+    out = GroundingGate().ground_fact(fact, "4.1. Tổng giá trị hợp đồng là 1.286.400.000 đồng.")
+    assert out.review_state == ReviewState.PASS
+
+
 def test_grounding_exact_pass():
     fact = Fact(
         fact_id="f1",
@@ -321,3 +358,43 @@ def test_fact_extractor_party():
     fact = FactExtractor(ToolGateway(store), llm=None).extract(envelope(), "field_party", rec.profile)
     assert "ABC" in fact.raw_value
     assert fact.review_state in {ReviewState.PASS, ReviewState.NEEDS_REVIEW}
+
+
+def test_fact_normalizer_keeps_a_same_language_string():
+    class StringLLM:
+        def configured(self) -> bool:
+            return True
+
+        def complete_json(self, *_args: object, **_kwargs: object) -> dict[str, str]:
+            return {"normalized": "CÔNG TY CỔ PHẦN PHÚC THỊNH", "unit": ""}
+
+    rec = mock_record()
+    store = InMemorySnapshotStore()
+    store.put(rec)
+    normalized, provenance = FactExtractor(ToolGateway(store), llm=StringLLM())._normalize(
+        "CÔNG TY CỔ PHẦN PHÚC THỊNH",
+        "Tên đơn vị: CÔNG TY CỔ PHẦN PHÚC THỊNH",
+        rec.profile,
+    )
+    assert provenance == "L2"
+    assert normalized == "CÔNG TY CỔ PHẦN PHÚC THỊNH"
+
+
+def test_fact_normalizer_rejects_a_nested_object():
+    class ObjectLLM:
+        def configured(self) -> bool:
+            return True
+
+        def complete_json(self, *_args: object, **_kwargs: object) -> dict[str, object]:
+            return {"normalized": {"percentage": 30}}
+
+    rec = mock_record()
+    store = InMemorySnapshotStore()
+    store.put(rec)
+    normalized, provenance = FactExtractor(ToolGateway(store), llm=ObjectLLM())._normalize(
+        "4.2. Bên A thanh toán 30% trong vòng 07 ngày",
+        "4.2. Bên A thanh toán 30% trong vòng 07 ngày",
+        rec.profile,
+    )
+    assert provenance == "L0"
+    assert normalized is None

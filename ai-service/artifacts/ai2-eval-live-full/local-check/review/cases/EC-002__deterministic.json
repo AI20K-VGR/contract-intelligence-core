@@ -1,0 +1,1513 @@
+{
+  "case_id": "EC-002",
+  "run": "deterministic",
+  "input": {
+    "case": {
+      "case_id": "EC-002",
+      "title": "Điều khoản dài 4 trang, chunk theo bullet",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_clause_long",
+      "expected_state": "PASS",
+      "expected_no_claims": [
+        "single_32k_clause"
+      ],
+      "n_pages": 4,
+      "n_nodes": 4,
+      "n_tables": 0,
+      "lifecycle": "ACTIVE",
+      "query": null,
+      "notes": "",
+      "tags": [
+        "edge",
+        "clause"
+      ]
+    },
+    "record": {
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_clause_long",
+      "lifecycle": "ACTIVE",
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-ec-002",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      },
+      "pages": [
+        {
+          "page_revision_id": "p18_rev1",
+          "page_number": 18,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p18_b1"
+          ],
+          "text": "Điều 12 phần trang 18",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p19_rev1",
+          "page_number": 19,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p19_b1"
+          ],
+          "text": "Điều 12 phần trang 19",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p20_rev1",
+          "page_number": 20,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p20_b1"
+          ],
+          "text": "Điều 12 phần trang 20",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p21_rev1",
+          "page_number": 21,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p21_b1"
+          ],
+          "text": "Điều 12 phần trang 21",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        }
+      ],
+      "nodes": [
+        {
+          "node_id": "n12",
+          "type": "CLAUSE",
+          "raw_label": "Điều 12",
+          "parent_id": null,
+          "order": 1,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Điều 12. Thanh toán",
+          "page_range": [
+            18,
+            19,
+            20,
+            21
+          ],
+          "page_revision_id": "p18_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n12_a",
+          "type": "CLAUSE",
+          "raw_label": "(a)",
+          "parent_id": "n12",
+          "order": 1,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "a) Tạm ứng 30%.",
+          "page_range": [
+            18
+          ],
+          "page_revision_id": "p18_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n12_b",
+          "type": "CLAUSE",
+          "raw_label": "(b)",
+          "parent_id": "n12",
+          "order": 2,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "b) Thanh toán khối lượng.",
+          "page_range": [
+            19
+          ],
+          "page_revision_id": "p19_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n12_c",
+          "type": "CLAUSE",
+          "raw_label": "(c)",
+          "parent_id": "n12",
+          "order": 3,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "c) Quyết toán sau nghiệm thu.",
+          "page_range": [
+            21
+          ],
+          "page_revision_id": "p21_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        }
+      ],
+      "tables": [],
+      "profile": {
+        "version": 5,
+        "aliases": {
+          "Công ty ABC": [
+            "ABC Co.",
+            "ABC"
+          ],
+          "Công ty XYZ": [
+            "XYZ Ltd",
+            "XYZ"
+          ]
+        },
+        "field_keys": [
+          "party_a",
+          "party_b",
+          "mst_seller",
+          "contract_value",
+          "payment_term"
+        ]
+      },
+      "acl_revision": 12,
+      "permissions_by_actor": {
+        "user_001": [
+          "READ_CONTENT"
+        ]
+      },
+      "source_files": [],
+      "facts": [],
+      "input_facts": [],
+      "chunks": [
+        {
+          "chunk_id": "chk_9bab0374",
+          "parent_node_id": "ai2-root:document",
+          "page_range": [
+            18
+          ],
+          "source_block_ids": [],
+          "text_span": "Hợp đồng",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Hợp đồng"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "NEEDS_REVIEW"
+        },
+        {
+          "chunk_id": "chk_5455ed6f",
+          "parent_node_id": "n12",
+          "page_range": [
+            18,
+            19,
+            20,
+            21
+          ],
+          "source_block_ids": [],
+          "text_span": "Điều 12. Thanh toán",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Hợp đồng",
+            "Điều 12"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "NEEDS_REVIEW"
+        },
+        {
+          "chunk_id": "chk_abfd9f06",
+          "parent_node_id": "repair:n12_a",
+          "page_range": [
+            18
+          ],
+          "source_block_ids": [],
+          "text_span": "Điều 12 phần trang 18",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Hợp đồng",
+            "Điều 12 phần trang 18"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "NEEDS_REVIEW"
+        },
+        {
+          "chunk_id": "chk_616a09b3",
+          "parent_node_id": "repair:n12_b",
+          "page_range": [
+            19
+          ],
+          "source_block_ids": [],
+          "text_span": "Điều 12 phần trang 19",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Hợp đồng",
+            "Điều 12 phần trang 19"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "NEEDS_REVIEW"
+        },
+        {
+          "chunk_id": "chk_89b8b8d6",
+          "parent_node_id": "repair:n12_c",
+          "page_range": [
+            21
+          ],
+          "source_block_ids": [],
+          "text_span": "Điều 12 phần trang 21",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Hợp đồng",
+            "Điều 12 phần trang 21"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "NEEDS_REVIEW"
+        }
+      ],
+      "active_index_version": null,
+      "processing_index": false,
+      "legal_hold": false,
+      "egress_approved": true,
+      "budget_exceeded": false,
+      "processing_budget_exceeded": false,
+      "embedding_budget_exceeded": false,
+      "index_status": "READY",
+      "case_id": "EC-002",
+      "handoff_issues": [
+        {
+          "code": "STRUCTURE_ROOT_DERIVED",
+          "message": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n12_a repaired from page heading",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n12_b repaired from page heading",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n12_c repaired from page heading",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        }
+      ],
+      "relation_graph": {
+        "graph_id": "graph:fff4b093bbf088b703e090c5",
+        "source_snapshot_digest": "sha256:eval-ec-002",
+        "nodes": [
+          {
+            "node_id": "ai2-root:document",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              18
+            ],
+            "page_revision_id": null,
+            "quality": "PARTIAL"
+          },
+          {
+            "node_id": "n12",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              18,
+              19,
+              20,
+              21
+            ],
+            "page_revision_id": "p18_rev1",
+            "quality": "PARTIAL"
+          },
+          {
+            "node_id": "repair:n12_a",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              18
+            ],
+            "page_revision_id": "p18_rev1",
+            "quality": "PARTIAL"
+          },
+          {
+            "node_id": "repair:n12_b",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              19
+            ],
+            "page_revision_id": "p19_rev1",
+            "quality": "PARTIAL"
+          },
+          {
+            "node_id": "repair:n12_c",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              21
+            ],
+            "page_revision_id": "p21_rev1",
+            "quality": "PARTIAL"
+          }
+        ],
+        "edges": [
+          {
+            "edge_id": "edge:d2a2abdc85df71ef7fded6d3",
+            "from_node_id": "ai2-root:document",
+            "to_node_id": "n12",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "n12",
+                "page_revision_id": "p18_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Điều 12. Thanh toán",
+                "source_file_id": null,
+                "page": 18,
+                "page_range": [
+                  18,
+                  19,
+                  20,
+                  21
+                ],
+                "line_ids": [],
+                "char_start": null,
+                "char_end": null,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "df34d25c5ea079156417eec7b3ef5c7171c17695edfeaec945953fe764389a1f",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-ec-002"
+          },
+          {
+            "edge_id": "edge:f03085292eccd6e130a71d19",
+            "from_node_id": "ai2-root:document",
+            "to_node_id": "repair:n12_a",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "repair:n12_a",
+                "page_revision_id": "p18_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Điều 12 phần trang 18",
+                "source_file_id": null,
+                "page": 18,
+                "page_range": [
+                  18
+                ],
+                "line_ids": [],
+                "char_start": 0,
+                "char_end": 21,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "470fa3fd4a7e47b9d76386a602ac2f2a14e9b229f3e0ce5b84d6bc57081907d1",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-ec-002"
+          },
+          {
+            "edge_id": "edge:d82d775ba2b52432502e496f",
+            "from_node_id": "ai2-root:document",
+            "to_node_id": "repair:n12_b",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "repair:n12_b",
+                "page_revision_id": "p19_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Điều 12 phần trang 19",
+                "source_file_id": null,
+                "page": 19,
+                "page_range": [
+                  19
+                ],
+                "line_ids": [],
+                "char_start": 0,
+                "char_end": 21,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "a5c9c45176a8f2487e527f249380b6d476f8971e5713ed47c52bd91e99a0de07",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-ec-002"
+          },
+          {
+            "edge_id": "edge:9b7bef48591aa96d95bc3702",
+            "from_node_id": "ai2-root:document",
+            "to_node_id": "repair:n12_c",
+            "relation_type": "PARENT_OF",
+            "support": "STRUCTURAL",
+            "citations": [
+              {
+                "node_id": "repair:n12_c",
+                "page_revision_id": "p21_rev1",
+                "bbox": [],
+                "bbox_fragments": [],
+                "text_span": "Điều 12 phần trang 21",
+                "source_file_id": null,
+                "page": 21,
+                "page_range": [
+                  21
+                ],
+                "line_ids": [],
+                "char_start": 0,
+                "char_end": 21,
+                "breadcrumb": [],
+                "structure_path": null,
+                "geometry_available": false,
+                "citation_id": null,
+                "source_hash": null,
+                "quote_sha256": "1dfc45b4c18eb1e8eef87821b9aa2ee29a05fb7ad73ab40ee1ed621fb0c30dd6",
+                "coordinate_system": null,
+                "geometry_source": null,
+                "precision": null,
+                "validation_status": "UNVERIFIED",
+                "table_id": null,
+                "cell_id": null
+              }
+            ],
+            "review_state": "PASS",
+            "source_snapshot_digest": "sha256:eval-ec-002"
+          }
+        ],
+        "issues": []
+      },
+      "active_nodes": [
+        {
+          "node_id": "ai2-root:document",
+          "type": "SECTION",
+          "raw_label": "Hợp đồng",
+          "parent_id": null,
+          "order": -1,
+          "has_children": false,
+          "status": "PARTIAL",
+          "text": "Hợp đồng",
+          "page_range": [
+            18
+          ],
+          "page_revision_id": null,
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI2_REPAIRED",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "ai2-root:document",
+          "heading_confidence": 1.0,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "n12",
+          "type": "CLAUSE",
+          "raw_label": "Điều 12",
+          "parent_id": "ai2-root:document",
+          "order": 1,
+          "has_children": true,
+          "status": "PARTIAL",
+          "text": "Điều 12. Thanh toán",
+          "page_range": [
+            18,
+            19,
+            20,
+            21
+          ],
+          "page_revision_id": "p18_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI2_REPAIRED",
+          "repaired_from_node_id": "n12",
+          "structure_level": "ARTICLE",
+          "scope_id": "ai2-root:document",
+          "heading_confidence": 0.95,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "repair:n12_a",
+          "type": "CLAUSE",
+          "raw_label": "Điều 12 phần trang 18",
+          "parent_id": "ai2-root:document",
+          "order": 1,
+          "has_children": false,
+          "status": "PARTIAL",
+          "text": "Điều 12 phần trang 18",
+          "page_range": [
+            18
+          ],
+          "page_revision_id": "p18_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI2_REPAIRED",
+          "repaired_from_node_id": "n12_a",
+          "structure_level": "ARTICLE",
+          "scope_id": "ai2-root:document",
+          "heading_confidence": 0.95,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "repair:n12_b",
+          "type": "CLAUSE",
+          "raw_label": "Điều 12 phần trang 19",
+          "parent_id": "ai2-root:document",
+          "order": 2,
+          "has_children": false,
+          "status": "PARTIAL",
+          "text": "Điều 12 phần trang 19",
+          "page_range": [
+            19
+          ],
+          "page_revision_id": "p19_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI2_REPAIRED",
+          "repaired_from_node_id": "n12_b",
+          "structure_level": "ARTICLE",
+          "scope_id": "ai2-root:document",
+          "heading_confidence": 0.95,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "repair:n12_c",
+          "type": "CLAUSE",
+          "raw_label": "Điều 12 phần trang 21",
+          "parent_id": "ai2-root:document",
+          "order": 3,
+          "has_children": false,
+          "status": "PARTIAL",
+          "text": "Điều 12 phần trang 21",
+          "page_range": [
+            21
+          ],
+          "page_revision_id": "p21_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI2_REPAIRED",
+          "repaired_from_node_id": "n12_c",
+          "structure_level": "ARTICLE",
+          "scope_id": "ai2-root:document",
+          "heading_confidence": 0.95,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        }
+      ],
+      "citation_index": {},
+      "review_items": [
+        {
+          "review_item_id": "review:STRUCTURE_ROOT_DERIVED:1",
+          "kind": "STRUCTURE_ROOT_DERIVED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:2",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n12_a repaired from page heading",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:3",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n12_b repaired from page heading",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:4",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n12_c repaired from page heading",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        }
+      ]
+    },
+    "envelope": {
+      "auth": {
+        "actor_id": "user_001",
+        "tenant_id": "tenant_a",
+        "dossier_id": "d_clause_long",
+        "acl_revision": 12,
+        "permissions": [
+          "READ_CONTENT"
+        ],
+        "lifecycle": "ACTIVE"
+      },
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-ec-002",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      }
+    }
+  },
+  "output": {
+    "extract": {
+      "status_code": 200,
+      "body": {
+        "session_id": "19b9f34365bd",
+        "filename": "EC-002.snapshot",
+        "source": "eval",
+        "step": "extract",
+        "ai1": {
+          "case_id": "EC-002"
+        },
+        "files": [],
+        "has_pdf": false,
+        "dossier_id": "d_clause_long",
+        "tenant_id": "tenant_a",
+        "lifecycle": "ACTIVE",
+        "pins": {
+          "manifest_version": 2,
+          "source_snapshot_digest": "sha256:eval-ec-002",
+          "tenant_profile_version": 5,
+          "policy_version": 2,
+          "ocr_run_version": 3,
+          "reconstruction_version": 2,
+          "extraction_version": 7,
+          "index_version": "idx_14",
+          "source_digest": null,
+          "snapshot_digest": null
+        },
+        "n_pages": 4,
+        "n_nodes": 5,
+        "n_raw_nodes": 4,
+        "n_tables": 0,
+        "table_coverage": {
+          "UNKNOWN": 4
+        },
+        "relation_graph": {
+          "n_nodes": 5,
+          "n_edges": 4,
+          "n_issues": 0
+        },
+        "pages": [
+          {
+            "page": 18,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Điều 12 phần trang 18",
+            "page_revision_id": "p18_rev1"
+          },
+          {
+            "page": 19,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Điều 12 phần trang 19",
+            "page_revision_id": "p19_rev1"
+          },
+          {
+            "page": 20,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Điều 12 phần trang 20",
+            "page_revision_id": "p20_rev1"
+          },
+          {
+            "page": 21,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Điều 12 phần trang 21",
+            "page_revision_id": "p21_rev1"
+          }
+        ],
+        "n_pages_hidden": 0,
+        "nodes": [
+          {
+            "node_id": "ai2-root:document",
+            "type": "SECTION",
+            "raw_label": "Hợp đồng",
+            "page_range": [
+              18
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "n12",
+            "type": "CLAUSE",
+            "raw_label": "Điều 12",
+            "page_range": [
+              18,
+              19,
+              20,
+              21
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "repair:n12_a",
+            "type": "CLAUSE",
+            "raw_label": "Điều 12 phần trang 18",
+            "page_range": [
+              18
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "repair:n12_b",
+            "type": "CLAUSE",
+            "raw_label": "Điều 12 phần trang 19",
+            "page_range": [
+              19
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "repair:n12_c",
+            "type": "CLAUSE",
+            "raw_label": "Điều 12 phần trang 21",
+            "page_range": [
+              21
+            ],
+            "structured_key": null,
+            "structured_value": null
+          }
+        ],
+        "n_nodes_hidden": 0,
+        "tree": [
+          {
+            "node_id": "ai2-root:document",
+            "type": "SECTION",
+            "raw_label": "Hợp đồng",
+            "status": "PARTIAL",
+            "page": 18,
+            "page_range": [
+              18
+            ],
+            "page_revision_id": null,
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "ai2-root:document",
+            "heading_confidence": 1.0,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Hợp đồng",
+            "children": [
+              {
+                "node_id": "n12",
+                "type": "CLAUSE",
+                "raw_label": "Điều 12",
+                "status": "PARTIAL",
+                "page": 18,
+                "page_range": [
+                  18,
+                  19,
+                  20,
+                  21
+                ],
+                "page_revision_id": "p18_rev1",
+                "bbox": [],
+                "has_children": true,
+                "structured_key": null,
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "ARTICLE",
+                "scope_id": "ai2-root:document",
+                "heading_confidence": 0.95,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "Điều 12. Thanh toán",
+                "children": []
+              },
+              {
+                "node_id": "repair:n12_a",
+                "type": "CLAUSE",
+                "raw_label": "Điều 12 phần trang 18",
+                "status": "PARTIAL",
+                "page": 18,
+                "page_range": [
+                  18
+                ],
+                "page_revision_id": "p18_rev1",
+                "bbox": [],
+                "has_children": false,
+                "structured_key": null,
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "ARTICLE",
+                "scope_id": "ai2-root:document",
+                "heading_confidence": 0.95,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "Điều 12 phần trang 18",
+                "children": []
+              },
+              {
+                "node_id": "repair:n12_b",
+                "type": "CLAUSE",
+                "raw_label": "Điều 12 phần trang 19",
+                "status": "PARTIAL",
+                "page": 19,
+                "page_range": [
+                  19
+                ],
+                "page_revision_id": "p19_rev1",
+                "bbox": [],
+                "has_children": false,
+                "structured_key": null,
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "ARTICLE",
+                "scope_id": "ai2-root:document",
+                "heading_confidence": 0.95,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "Điều 12 phần trang 19",
+                "children": []
+              },
+              {
+                "node_id": "repair:n12_c",
+                "type": "CLAUSE",
+                "raw_label": "Điều 12 phần trang 21",
+                "status": "PARTIAL",
+                "page": 21,
+                "page_range": [
+                  21
+                ],
+                "page_revision_id": "p21_rev1",
+                "bbox": [],
+                "has_children": false,
+                "structured_key": null,
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "ARTICLE",
+                "scope_id": "ai2-root:document",
+                "heading_confidence": 0.95,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "Điều 12 phần trang 21",
+                "children": []
+              }
+            ]
+          }
+        ],
+        "tables": [],
+        "extracted": true,
+        "job": {
+          "job_id": "job_182f7058d5",
+          "status": "SUCCEEDED",
+          "review_state": "NEEDS_REVIEW",
+          "handoff_issues": [
+            {
+              "code": "STRUCTURE_ROOT_DERIVED",
+              "message": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n12_a repaired from page heading",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n12_b repaired from page heading",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n12_c repaired from page heading",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_STATUS",
+              "message": "ai2-root:document:PARTIAL",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_STATUS",
+              "message": "n12:PARTIAL",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_STATUS",
+              "message": "repair:n12_a:PARTIAL",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_STATUS",
+              "message": "repair:n12_b:PARTIAL",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_STATUS",
+              "message": "repair:n12_c:PARTIAL",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            }
+          ],
+          "contribution": {
+            "facts": [],
+            "chunks": [
+              {
+                "chunk_id": "chk_9bab0374",
+                "parent_node_id": "ai2-root:document",
+                "page_range": [
+                  18
+                ],
+                "source_block_ids": [],
+                "text_span": "Hợp đồng",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Hợp đồng"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "chunk_id": "chk_5455ed6f",
+                "parent_node_id": "n12",
+                "page_range": [
+                  18,
+                  19,
+                  20,
+                  21
+                ],
+                "source_block_ids": [],
+                "text_span": "Điều 12. Thanh toán",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Hợp đồng",
+                  "Điều 12"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "chunk_id": "chk_abfd9f06",
+                "parent_node_id": "repair:n12_a",
+                "page_range": [
+                  18
+                ],
+                "source_block_ids": [],
+                "text_span": "Điều 12 phần trang 18",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Hợp đồng",
+                  "Điều 12 phần trang 18"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "chunk_id": "chk_616a09b3",
+                "parent_node_id": "repair:n12_b",
+                "page_range": [
+                  19
+                ],
+                "source_block_ids": [],
+                "text_span": "Điều 12 phần trang 19",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Hợp đồng",
+                  "Điều 12 phần trang 19"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "NEEDS_REVIEW"
+              },
+              {
+                "chunk_id": "chk_89b8b8d6",
+                "parent_node_id": "repair:n12_c",
+                "page_range": [
+                  21
+                ],
+                "source_block_ids": [],
+                "text_span": "Điều 12 phần trang 21",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Hợp đồng",
+                  "Điều 12 phần trang 21"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "NEEDS_REVIEW"
+              }
+            ],
+            "candidates": [],
+            "evidence_issues": [],
+            "coverage": {
+              "n_facts": 0,
+              "n_findings": 0,
+              "n_evidence_issues": 0,
+              "n_units": 2,
+              "unit_ids": [
+                "unit:85ba7a8cbb509a6b4f3d",
+                "unit:b0598b0a33617932d2cf"
+              ],
+              "annex_labels": [],
+              "runtime": {
+                "egress_allowed": true,
+                "use_vector": false,
+                "max_processing_seconds": 300,
+                "max_llm_calls": 0,
+                "max_embedding_tokens": 0,
+                "llm_calls_used": 0,
+                "embedding_tokens_used": 0,
+                "fallback_count": 0
+              },
+              "n_candidates_suppressed": 0
+            },
+            "extraction_version": 7,
+            "proposed_index_version": "idx_7",
+            "publish": "propose"
+          },
+          "query_answer": null,
+          "error": null
+        },
+        "contribution": {
+          "facts": [],
+          "chunks": [
+            {
+              "chunk_id": "chk_9bab0374",
+              "parent_node_id": "ai2-root:document",
+              "page_range": [
+                18
+              ],
+              "source_block_ids": [],
+              "text_span": "Hợp đồng",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Hợp đồng"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "chunk_id": "chk_5455ed6f",
+              "parent_node_id": "n12",
+              "page_range": [
+                18,
+                19,
+                20,
+                21
+              ],
+              "source_block_ids": [],
+              "text_span": "Điều 12. Thanh toán",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Hợp đồng",
+                "Điều 12"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "chunk_id": "chk_abfd9f06",
+              "parent_node_id": "repair:n12_a",
+              "page_range": [
+                18
+              ],
+              "source_block_ids": [],
+              "text_span": "Điều 12 phần trang 18",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Hợp đồng",
+                "Điều 12 phần trang 18"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "chunk_id": "chk_616a09b3",
+              "parent_node_id": "repair:n12_b",
+              "page_range": [
+                19
+              ],
+              "source_block_ids": [],
+              "text_span": "Điều 12 phần trang 19",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Hợp đồng",
+                "Điều 12 phần trang 19"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "NEEDS_REVIEW"
+            },
+            {
+              "chunk_id": "chk_89b8b8d6",
+              "parent_node_id": "repair:n12_c",
+              "page_range": [
+                21
+              ],
+              "source_block_ids": [],
+              "text_span": "Điều 12 phần trang 21",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Hợp đồng",
+                "Điều 12 phần trang 21"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "NEEDS_REVIEW"
+            }
+          ],
+          "candidates": [],
+          "evidence_issues": [],
+          "coverage": {
+            "n_facts": 0,
+            "n_findings": 0,
+            "n_evidence_issues": 0,
+            "n_units": 2,
+            "unit_ids": [
+              "unit:85ba7a8cbb509a6b4f3d",
+              "unit:b0598b0a33617932d2cf"
+            ],
+            "annex_labels": [],
+            "runtime": {
+              "egress_allowed": true,
+              "use_vector": false,
+              "max_processing_seconds": 300,
+              "max_llm_calls": 0,
+              "max_embedding_tokens": 0,
+              "llm_calls_used": 0,
+              "embedding_tokens_used": 0,
+              "fallback_count": 0
+            },
+            "n_candidates_suppressed": 0
+          },
+          "extraction_version": 7,
+          "proposed_index_version": "idx_7",
+          "publish": "propose"
+        },
+        "used_llm": false,
+        "has_gold_tasks": false,
+        "reviews": {},
+        "reviews_stale": false,
+        "published": false,
+        "authoritative_publish_blocked": false,
+        "review_queue_status": "HAS_REVIEW_ITEMS",
+        "review_items": [
+          {
+            "review_item_id": "review:STRUCTURE_ROOT_DERIVED:1",
+            "kind": "STRUCTURE_ROOT_DERIVED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:2",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n12_a repaired from page heading",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:3",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n12_b repaired from page heading",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:4",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n12_c repaired from page heading",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          }
+        ],
+        "n_review_items": 4,
+        "n_citations": 0,
+        "handoff_issues": [
+          {
+            "code": "STRUCTURE_ROOT_DERIVED",
+            "message": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n12_a repaired from page heading",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n12_b repaired from page heading",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n12_c repaired from page heading",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          }
+        ],
+        "policy": {
+          "deterministic": "ALLOW",
+          "external": "ALLOWED",
+          "gates": []
+        }
+      }
+    },
+    "ask": {
+      "status_code": null,
+      "body": null
+    }
+  },
+  "machine_checks": {
+    "case_id": "EC-002",
+    "run": "deterministic",
+    "expected_state": "PASS",
+    "actual_extract_state": "NEEDS_REVIEW",
+    "actual_ask_state": null,
+    "extract_http_ok": true,
+    "ask_http_ok": true,
+    "expected_match": true,
+    "citation_valid": true,
+    "citation_errors": [],
+    "forbidden_claims": [],
+    "n_citations": 0,
+    "use_vector": false,
+    "vector_status": "NOT_REQUESTED",
+    "embedding_model": null,
+    "embedding_dimensions": null,
+    "vector_hits": 0,
+    "n_pages": 4,
+    "n_nodes": 4,
+    "elapsed_ms": 18.1
+  },
+  "manual_review": {
+    "verdict": "PENDING",
+    "severity": null,
+    "reviewer_notes": ""
+  }
+}

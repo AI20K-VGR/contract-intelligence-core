@@ -1,0 +1,10 @@
+verdict: PASS_WITH_RISK
+reviewer: user:dungskbg2004@gmail.com
+role: reviewer
+rationale: 'Independent review PASS_WITH_RISK: the three phases meet the acceptance
+  checks (conflicts list keeps latest, numbered review lookup, badge counts once).
+  Repo tsc still fails only in StructureSearchResult.tsx, which this plan does not
+  change.'
+effort: high
+rounds_run: 1
+run_seq: null

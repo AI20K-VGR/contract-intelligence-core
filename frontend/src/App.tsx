@@ -13,6 +13,7 @@ import { AccessPage } from './pages/AccessPage'
 import { ActivityLogPage } from './pages/ActivityLogPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { AnalysisProgressPage } from './pages/AnalysisProgressPage'
+import { AnalysisCenterPage } from './pages/AnalysisCenterPage'
 import { CreateDossierPage } from './pages/CreateDossierPage'
 import { DossierStructurePage } from './pages/DossierStructurePage'
 import { OcrProgressPage } from './pages/OcrProgressPage'
@@ -138,7 +139,7 @@ export default function App() {
               />
               <Route
                 path="/trung-tam-phan-tich"
-                element={<PlaceholderPage title="Trung tâm Phân tích" />}
+                element={<AnalysisCenterPage />}
               />
               <Route
                 path="/kho-dieu-khoan-mau"

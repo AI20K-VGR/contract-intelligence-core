@@ -1,0 +1,857 @@
+{
+  "case_id": "EC-049",
+  "run": "deterministic",
+  "input": {
+    "case": {
+      "case_id": "EC-049",
+      "title": "Rerun đồng thời — worker cũ không publish",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_fence",
+      "expected_state": "BLOCKED",
+      "expected_no_claims": [
+        "stale_publish"
+      ],
+      "n_pages": 1,
+      "n_nodes": 6,
+      "n_tables": 0,
+      "lifecycle": "ACTIVE",
+      "query": null,
+      "notes": "",
+      "tags": [
+        "edge",
+        "worker"
+      ]
+    },
+    "record": {
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_fence",
+      "lifecycle": "ACTIVE",
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-ec-049",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      },
+      "pages": [
+        {
+          "page_revision_id": "p1_rev1",
+          "page_number": 1,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p1_b1"
+          ],
+          "text": "Hợp đồng số 01. Bên A: Công ty ABC MST 0311111111. Bên B: Công ty XYZ MST 0322222222. Giá trị: 1.000.000.000 VND.",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        }
+      ],
+      "nodes": [
+        {
+          "node_id": "doc_contract",
+          "type": "SECTION",
+          "raw_label": "Hợp đồng số 01",
+          "parent_id": null,
+          "order": 1,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Hợp đồng số 01",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "field_party_a",
+          "type": "FIELD",
+          "raw_label": "Bên A",
+          "parent_id": "doc_contract",
+          "order": 2,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Bên A: Công ty ABC MST 0311111111",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [
+            10.0,
+            10.0,
+            200.0,
+            28.0
+          ],
+          "structured_key": "party_a",
+          "structured_value": "Công ty ABC",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "field_mst_a",
+          "type": "FIELD",
+          "raw_label": "MST Bên A",
+          "parent_id": "doc_contract",
+          "order": 3,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "MST 0311111111",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [
+            10.0,
+            30.0,
+            180.0,
+            44.0
+          ],
+          "structured_key": "mst_seller",
+          "structured_value": "0311111111",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "field_party_b",
+          "type": "FIELD",
+          "raw_label": "Bên B",
+          "parent_id": "doc_contract",
+          "order": 4,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Bên B: Công ty XYZ MST 0322222222",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [
+            10.0,
+            46.0,
+            200.0,
+            64.0
+          ],
+          "structured_key": "party_b",
+          "structured_value": "Công ty XYZ",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "field_mst_b",
+          "type": "FIELD",
+          "raw_label": "MST Bên B",
+          "parent_id": "doc_contract",
+          "order": 5,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "MST 0322222222",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [
+            10.0,
+            66.0,
+            180.0,
+            80.0
+          ],
+          "structured_key": "mst_party_b",
+          "structured_value": "0322222222",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "field_value",
+          "type": "FIELD",
+          "raw_label": "Giá trị",
+          "parent_id": "doc_contract",
+          "order": 6,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Giá trị: 1.000.000.000 VND",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": "contract_value",
+          "structured_value": "1.000.000.000 VND",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        }
+      ],
+      "tables": [],
+      "profile": {
+        "version": 5,
+        "aliases": {
+          "Công ty ABC": [
+            "ABC Co.",
+            "ABC"
+          ],
+          "Công ty XYZ": [
+            "XYZ Ltd",
+            "XYZ"
+          ]
+        },
+        "field_keys": [
+          "party_a",
+          "party_b",
+          "mst_seller",
+          "contract_value",
+          "payment_term"
+        ]
+      },
+      "acl_revision": 12,
+      "permissions_by_actor": {
+        "user_001": [
+          "READ_CONTENT"
+        ]
+      },
+      "source_files": [],
+      "facts": [],
+      "input_facts": null,
+      "chunks": [],
+      "active_index_version": null,
+      "processing_index": false,
+      "legal_hold": false,
+      "egress_approved": true,
+      "budget_exceeded": false,
+      "processing_budget_exceeded": false,
+      "embedding_budget_exceeded": false,
+      "index_status": "LEASED",
+      "case_id": "EC-049",
+      "handoff_issues": [],
+      "relation_graph": null,
+      "active_nodes": [
+        {
+          "node_id": "doc_contract",
+          "type": "SECTION",
+          "raw_label": "Hợp đồng số 01",
+          "parent_id": null,
+          "order": 1,
+          "has_children": true,
+          "status": "CONFIRMED",
+          "text": "Hợp đồng số 01",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "doc_contract",
+          "heading_confidence": 0.95,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        },
+        {
+          "node_id": "field_party_a",
+          "type": "FIELD",
+          "raw_label": "Bên A",
+          "parent_id": "doc_contract",
+          "order": 2,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Bên A: Công ty ABC MST 0311111111",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [
+            10.0,
+            10.0,
+            200.0,
+            28.0
+          ],
+          "structured_key": "party_a",
+          "structured_value": "Công ty ABC",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "FIELD",
+          "scope_id": "doc_contract",
+          "heading_confidence": null,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "field_mst_a",
+          "type": "FIELD",
+          "raw_label": "MST Bên A",
+          "parent_id": "doc_contract",
+          "order": 3,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "MST 0311111111",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [
+            10.0,
+            30.0,
+            180.0,
+            44.0
+          ],
+          "structured_key": "mst_seller",
+          "structured_value": "0311111111",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "FIELD",
+          "scope_id": "doc_contract",
+          "heading_confidence": null,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "field_party_b",
+          "type": "FIELD",
+          "raw_label": "Bên B",
+          "parent_id": "doc_contract",
+          "order": 4,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Bên B: Công ty XYZ MST 0322222222",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [
+            10.0,
+            46.0,
+            200.0,
+            64.0
+          ],
+          "structured_key": "party_b",
+          "structured_value": "Công ty XYZ",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "FIELD",
+          "scope_id": "doc_contract",
+          "heading_confidence": null,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "field_mst_b",
+          "type": "FIELD",
+          "raw_label": "MST Bên B",
+          "parent_id": "doc_contract",
+          "order": 5,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "MST 0322222222",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [
+            10.0,
+            66.0,
+            180.0,
+            80.0
+          ],
+          "structured_key": "mst_party_b",
+          "structured_value": "0322222222",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "FIELD",
+          "scope_id": "doc_contract",
+          "heading_confidence": null,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "field_value",
+          "type": "FIELD",
+          "raw_label": "Giá trị",
+          "parent_id": "doc_contract",
+          "order": 6,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "Giá trị: 1.000.000.000 VND",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": "contract_value",
+          "structured_value": "1.000.000.000 VND",
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "FIELD",
+          "scope_id": "doc_contract",
+          "heading_confidence": null,
+          "parent_confidence": 0.95,
+          "source_line_ids": [],
+          "is_synthetic": false
+        }
+      ],
+      "citation_index": {},
+      "review_items": []
+    },
+    "envelope": {
+      "auth": {
+        "actor_id": "user_001",
+        "tenant_id": "tenant_a",
+        "dossier_id": "d_fence",
+        "acl_revision": 12,
+        "permissions": [
+          "READ_CONTENT"
+        ],
+        "lifecycle": "ACTIVE"
+      },
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-ec-049",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      }
+    }
+  },
+  "output": {
+    "extract": {
+      "status_code": 200,
+      "body": {
+        "session_id": "163cf36c4c3d",
+        "filename": "EC-049.snapshot",
+        "source": "eval",
+        "step": "extract",
+        "ai1": {
+          "case_id": "EC-049"
+        },
+        "files": [],
+        "has_pdf": false,
+        "dossier_id": "d_fence",
+        "tenant_id": "tenant_a",
+        "lifecycle": "ACTIVE",
+        "pins": {
+          "manifest_version": 2,
+          "source_snapshot_digest": "sha256:eval-ec-049",
+          "tenant_profile_version": 5,
+          "policy_version": 2,
+          "ocr_run_version": 3,
+          "reconstruction_version": 2,
+          "extraction_version": 7,
+          "index_version": "idx_14",
+          "source_digest": null,
+          "snapshot_digest": null
+        },
+        "n_pages": 1,
+        "n_nodes": 6,
+        "n_raw_nodes": 6,
+        "n_tables": 0,
+        "table_coverage": {
+          "UNKNOWN": 1
+        },
+        "relation_graph": {
+          "n_nodes": 0,
+          "n_edges": 0,
+          "n_issues": 0
+        },
+        "pages": [
+          {
+            "page": 1,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "Hợp đồng số 01. Bên A: Công ty ABC MST 0311111111. Bên B: Công ty XYZ MST 0322222222. Giá trị: 1.000.000.000 VND.",
+            "page_revision_id": "p1_rev1"
+          }
+        ],
+        "n_pages_hidden": 0,
+        "nodes": [
+          {
+            "node_id": "doc_contract",
+            "type": "SECTION",
+            "raw_label": "Hợp đồng số 01",
+            "page_range": [
+              1
+            ],
+            "structured_key": null,
+            "structured_value": null
+          },
+          {
+            "node_id": "field_party_a",
+            "type": "FIELD",
+            "raw_label": "Bên A",
+            "page_range": [
+              1
+            ],
+            "structured_key": "party_a",
+            "structured_value": "Công ty ABC"
+          },
+          {
+            "node_id": "field_mst_a",
+            "type": "FIELD",
+            "raw_label": "MST Bên A",
+            "page_range": [
+              1
+            ],
+            "structured_key": "mst_seller",
+            "structured_value": "0311111111"
+          },
+          {
+            "node_id": "field_party_b",
+            "type": "FIELD",
+            "raw_label": "Bên B",
+            "page_range": [
+              1
+            ],
+            "structured_key": "party_b",
+            "structured_value": "Công ty XYZ"
+          },
+          {
+            "node_id": "field_mst_b",
+            "type": "FIELD",
+            "raw_label": "MST Bên B",
+            "page_range": [
+              1
+            ],
+            "structured_key": "mst_party_b",
+            "structured_value": "0322222222"
+          },
+          {
+            "node_id": "field_value",
+            "type": "FIELD",
+            "raw_label": "Giá trị",
+            "page_range": [
+              1
+            ],
+            "structured_key": "contract_value",
+            "structured_value": "1.000.000.000 VND"
+          }
+        ],
+        "n_nodes_hidden": 0,
+        "tree": [
+          {
+            "node_id": "doc_contract",
+            "type": "SECTION",
+            "raw_label": "Hợp đồng số 01",
+            "status": "CONFIRMED",
+            "page": 1,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": "p1_rev1",
+            "bbox": [],
+            "has_children": true,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "doc_contract",
+            "heading_confidence": 0.95,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Hợp đồng số 01",
+            "children": [
+              {
+                "node_id": "field_party_a",
+                "type": "FIELD",
+                "raw_label": "Bên A",
+                "status": "CONFIRMED",
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  10.0,
+                  200.0,
+                  28.0
+                ],
+                "has_children": false,
+                "structured_key": "party_a",
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "FIELD",
+                "scope_id": "doc_contract",
+                "heading_confidence": null,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "Bên A: Công ty ABC MST 0311111111",
+                "children": []
+              },
+              {
+                "node_id": "field_mst_a",
+                "type": "FIELD",
+                "raw_label": "MST Bên A",
+                "status": "CONFIRMED",
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  30.0,
+                  180.0,
+                  44.0
+                ],
+                "has_children": false,
+                "structured_key": "mst_seller",
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "FIELD",
+                "scope_id": "doc_contract",
+                "heading_confidence": null,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "MST 0311111111",
+                "children": []
+              },
+              {
+                "node_id": "field_party_b",
+                "type": "FIELD",
+                "raw_label": "Bên B",
+                "status": "CONFIRMED",
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  46.0,
+                  200.0,
+                  64.0
+                ],
+                "has_children": false,
+                "structured_key": "party_b",
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "FIELD",
+                "scope_id": "doc_contract",
+                "heading_confidence": null,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "Bên B: Công ty XYZ MST 0322222222",
+                "children": []
+              },
+              {
+                "node_id": "field_mst_b",
+                "type": "FIELD",
+                "raw_label": "MST Bên B",
+                "status": "CONFIRMED",
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "page_revision_id": "p1_rev1",
+                "bbox": [
+                  10.0,
+                  66.0,
+                  180.0,
+                  80.0
+                ],
+                "has_children": false,
+                "structured_key": "mst_party_b",
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "FIELD",
+                "scope_id": "doc_contract",
+                "heading_confidence": null,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "MST 0322222222",
+                "children": []
+              },
+              {
+                "node_id": "field_value",
+                "type": "FIELD",
+                "raw_label": "Giá trị",
+                "status": "CONFIRMED",
+                "page": 1,
+                "page_range": [
+                  1
+                ],
+                "page_revision_id": "p1_rev1",
+                "bbox": [],
+                "has_children": false,
+                "structured_key": "contract_value",
+                "source_file_id": null,
+                "page_in_file": null,
+                "structure_level": "FIELD",
+                "scope_id": "doc_contract",
+                "heading_confidence": null,
+                "parent_confidence": 0.95,
+                "source_line_ids": [],
+                "is_synthetic": false,
+                "preview": "Giá trị: 1.000.000.000 VND",
+                "children": []
+              }
+            ]
+          }
+        ],
+        "tables": [],
+        "extracted": true,
+        "job": {
+          "job_id": "job_90f1c30d56",
+          "status": "FAILED",
+          "review_state": "BLOCKED",
+          "handoff_issues": [
+            {
+              "code": "INDEX_LEASED",
+              "message": "index lease is not owned by this job",
+              "review_state": "BLOCKED",
+              "citation": null
+            }
+          ],
+          "contribution": null,
+          "query_answer": null,
+          "error": null
+        },
+        "contribution": null,
+        "used_llm": false,
+        "has_gold_tasks": false,
+        "reviews": {},
+        "reviews_stale": false,
+        "published": false,
+        "authoritative_publish_blocked": false,
+        "review_queue_status": "EMPTY_QUEUE",
+        "review_items": [],
+        "n_review_items": 0,
+        "n_citations": 0,
+        "handoff_issues": [],
+        "policy": {
+          "deterministic": "BLOCKED",
+          "external": "BLOCKED",
+          "gates": [
+            {
+              "code": "INDEX_LEASED",
+              "operation": "publish_or_index_write",
+              "deterministic_action": "BLOCK"
+            }
+          ]
+        }
+      }
+    },
+    "ask": {
+      "status_code": null,
+      "body": null
+    }
+  },
+  "machine_checks": {
+    "case_id": "EC-049",
+    "run": "deterministic",
+    "expected_state": "BLOCKED",
+    "actual_extract_state": "BLOCKED",
+    "actual_ask_state": null,
+    "extract_http_ok": true,
+    "ask_http_ok": true,
+    "expected_match": true,
+    "citation_valid": true,
+    "citation_errors": [],
+    "forbidden_claims": [],
+    "n_citations": 0,
+    "use_vector": false,
+    "vector_status": "NOT_REQUESTED",
+    "embedding_model": null,
+    "embedding_dimensions": null,
+    "vector_hits": 0,
+    "n_pages": 1,
+    "n_nodes": 6,
+    "elapsed_ms": 15.1
+  },
+  "manual_review": {
+    "verdict": "PENDING",
+    "severity": null,
+    "reviewer_notes": ""
+  }
+}

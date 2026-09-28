@@ -1,0 +1,23 @@
+# Vendored, not linked. Upstream ships this from a CDN with an SRI hash; a
+# published artifact refuses every external host, so the CDN tag would load
+# nothing and the page would render blank panels with no error anyone reports.
+# The recorded sri_sha384 matched upstream's published hash byte for byte at
+# vendoring time, which is the independent check that this is that file.
+name: '@antv/infographic'
+version: 0.2.19
+upstream_license: MIT
+upstream_repo: antvis/Infographic
+source_url: https://cdn.jsdelivr.net/npm/@antv/infographic@0.2.19/dist/infographic.min.js
+vendored_at: '2026-08-25'
+bytes: 874255
+sha256: 9c559178d6505c8a9765c6df137f35c8662916979816fc6f5cca67999f29d1fc
+sri_sha384: sha384-yIMmVGR7iq/lwiw1nxM0HBFtQop+F1gGc+5CyobDbz6P7sp+SJSSblD7rLkCj0Sd
+global: window.AntVInfographic
+runtime_network_calls: 0
+caveats:
+- The optional CJK webfont loader points at https://assets.antv.antgroup.com for `${base}/result.css`.
+  A published artifact's CSP allows no host but Google Fonts, so that stylesheet is refused
+  and type falls back to the declared stack. Charts and panels render either way; this is
+  a degradation to state, not a failure to debug.
+- 874 KB uncompressed. Include it only when a page really uses three or more panels — below
+  that, hand-authored SVG is smaller and reads better.

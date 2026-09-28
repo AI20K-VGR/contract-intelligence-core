@@ -1,0 +1,29 @@
+{
+  "sizing": {
+    "mode": "multi",
+    "projected_cells": 1536,
+    "pruned_cells": 1536,
+    "threshold": 60,
+    "sub_plan_count": 32,
+    "split_strategy": "hybrid"
+  },
+  "decision": "proceed",
+  "reason": "Goal warmup mở rộng feature matrix lên type profiles, structure/relations, free-form Q&A và golden promotion. Vẫn giữ một plan bốn phase vì các feature dùng chung AI2 contract, evidence model, dossier scope và release gate; không fan-out thành các plan độc lập. Hard stop: không mở rộng sang AI1/OCR/BE/FE/production platform.",
+  "features": [
+    "canonical-handoff",
+    "evidence-analysis",
+    "contract-type-profiles",
+    "structure-relations",
+    "free-form-qa",
+    "bounded-runtime",
+    "golden-promotion",
+    "release-evidence"
+  ],
+  "axes": {
+    "layers": ["contract", "pipeline", "runtime", "verification"],
+    "lifecycle": ["design", "build", "ship"],
+    "risk_classes": ["spec-drift", "regression", "compliance", "accuracy"],
+    "stakeholders": ["dev", "ops", "security", "reviewer"]
+  },
+  "source": "artifacts/scope-sizing-goal-warmup.json"
+}

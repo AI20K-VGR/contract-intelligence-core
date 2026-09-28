@@ -1,0 +1,168 @@
+id: STD-REVIEW-CPP
+type: std_area
+zone: operational
+title: "Review — C++"
+status: approved
+owner: harness
+version: 1.0.0
+description: |
+  C++ review rules (scope **/*.cpp, **/*.hpp, **/*.cc, **/*.hh, **/*.cxx, **/*.h,
+  **/CMakeLists.txt). Block-worthy safety rules around memory management and
+  undefined behaviour, plus advisory rules for modern C++ idioms and testing.
+rule_groups:
+  - id: STD-REVIEW-CPP-RG1
+    title: "Safety — memory, UB, casts"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-CPP-RG1-R1
+        title: "Ban raw new/delete and C allocation"
+        status: approved
+        scope: ["**/*.cpp", "**/*.hpp", "**/*.cc", "**/*.hh", "**/*.cxx", "**/*.h"]
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: use std::unique_ptr via std::make_unique for exclusive
+          ownership and std::shared_ptr via std::make_shared only when shared
+          ownership is genuinely required — tie every resource to an object
+          lifetime (RAII).
+          NEVER: write raw new or delete outside a custom deleter or a
+          low-level allocator — a bare new is a leak waiting to happen across
+          every early return, exception, and refactor. Never call malloc/free
+          in C++ code; those bypass constructors and destructors entirely.
+        rationale: |
+          Raw new/delete is the most durable footgun in C++: one added early
+          return or exception path and the delete is skipped. make_unique and
+          make_shared eliminate the manual pairing — the compiler enforces
+          cleanup at every exit point. malloc/free in C++ code skip
+          construction and destruction, producing objects with uninitialized
+          invariants.
+      - id: STD-REVIEW-CPP-RG1-R2
+        title: "Ban C-string functions — use std::string or fmt"
+        status: approved
+        scope: ["**/*.cpp", "**/*.hpp", "**/*.cc", "**/*.hh", "**/*.cxx", "**/*.h"]
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: use std::string for string data and std::string_view for
+          read-only views. Use fmt::format or std::format (C++20) for string
+          formatting. Use std::array or std::vector over C-style arrays, and
+          .at() for bounds-checked access when the index is not
+          compiler-proven.
+          NEVER: call strcpy, strcat, sprintf, or any function that writes to
+          an unbounded char* buffer — these are the canonical buffer-overflow
+          vector and have no place in code compiled after 2015. Never use
+          C-style arrays (T arr[N]) when the size is data-dependent.
+        rationale: |
+          strcpy/strcat/sprintf have no size information — the compiler cannot
+          help, and every buffer is one oversized input away from a write past
+          its end. std::string and fmt::format carry their own size and refuse
+          to overflow. A C-style array decays to a pointer silently; std::array
+          and std::vector retain their size and can be passed by reference
+          without decay.
+      - id: STD-REVIEW-CPP-RG1-R3
+        title: "Ban reinterpret_cast without justification"
+        status: approved
+        scope: ["**/*.cpp", "**/*.hpp", "**/*.cc", "**/*.hh", "**/*.cxx", "**/*.h"]
+        severity: critical
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: prefer static_cast, dynamic_cast, or const_cast — each of
+          these has a defined, narrow contract that the compiler enforces.
+          NEVER: use reinterpret_cast without a // JUSTIFICATION: comment
+          explaining why no other cast is possible, what the layout guarantee
+          is, and what platform ABI it depends on. A reinterpret_cast that
+          reinterprets a pointer to a different type without a comment is
+          treated as a type-system bypass — the equivalent of an unsafe block
+          with no // SAFETY: comment.
+        rationale: |
+          reinterpret_cast tells the compiler "I know better than the type
+          system." It is the C++ escape hatch for type-punning, foreign-function
+          interface marshalling, and low-level memory manipulation — it is also
+          the source of silent UB when the layout assumption breaks on a new
+          platform or compiler version. The justification comment is the only
+          durable record of what invariant the cast relies on.
+  - id: STD-REVIEW-CPP-RG2
+    title: "Idioms — ownership, error handling, value semantics"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-CPP-RG2-R1
+        title: "Rule of Zero / Rule of Five"
+        status: approved
+        scope: ["**/*.cpp", "**/*.hpp", "**/*.cc", "**/*.hh", "**/*.cxx", "**/*.h"]
+        severity: info
+        relates_to_std: [STD-REVIEW-CPP-RG1-R1]
+        detector: null
+        description: |
+          ALWAYS: prefer the Rule of Zero — design classes so the compiler-
+          generated destructor, copy/move constructors, and copy/move
+          assignment are correct. If the class manages a resource directly,
+          define all five (destructor, copy-ctor, copy-assign, move-ctor,
+          move-assign) or =delete the unwanted ones.
+          NEVER: define only a destructor and leave the compiler-generated copy
+          operations active — this is the "rule of three" half-fix that
+          produces a double-free when a copy is made. A class with a custom
+          destructor and no explicit copy/move operations is a bug, not a
+          style preference.
+        rationale: |
+          Defining a destructor signals that the class manages a resource; the
+          compiler-generated copy operations do a shallow copy of that
+          resource, producing two owners that both free it. The Rule of Zero
+          delegates resource management to types that already get this right
+          (unique_ptr, vector, string); the Rule of Five makes the intent
+          explicit when delegation is not possible.
+      - id: STD-REVIEW-CPP-RG2-R2
+        title: "std::optional over sentinel values"
+        status: approved
+        scope: ["**/*.cpp", "**/*.hpp", "**/*.cc", "**/*.hh", "**/*.cxx", "**/*.h"]
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: use std::optional<T> for a value that may legitimately be
+          absent. Use std::expected<T, E> (C++23) or a result type for an
+          operation that can fail with a recoverable error.
+          NEVER: return -1, nullptr, or an empty string as a "not found"
+          sentinel when the absence is a normal part of the contract — the
+          caller has no way to distinguish "not found" from "the real value
+          happens to be -1" without reading documentation that may drift.
+          Reserve exceptions for conditions the caller cannot reasonably
+          recover from (violated invariant, resource exhaustion).
+        rationale: |
+          std::optional makes absence part of the type — the caller cannot
+          forget to check. A sentinel value embeds the contract in a magic
+          number that the compiler cannot see. std::expected (or the
+          equivalent result type) gives the caller a typed error they can
+          match on, unlike an exception which bypasses the type system.
+  - id: STD-REVIEW-CPP-RG3
+    title: "Testing — framework, sanitizers"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-CPP-RG3-R1
+        title: "Sanitizers in CI"
+        status: approved
+        scope: ["**/*.cpp", "**/*.hpp", "**/*.cc", "**/*.hh", "**/*.cxx", "**/*.h", "**/CMakeLists.txt"]
+        severity: info
+        relates_to_std: [STD-REVIEW-CPP-RG1-R1, STD-REVIEW-CPP-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: build and run tests with AddressSanitizer and
+          UndefinedBehaviorSanitizer enabled in CI
+          (-fsanitize=address,undefined). Use GoogleTest with CMake/CTest as
+          the test framework.
+          NEVER: merge a change whose tests pass without sanitizers but fail
+          with them — a sanitizer failure is a real bug, not a false positive
+          to suppress. A test suite that only passes without sanitizers is
+          passing by accident.
+        rationale: |
+          ASan catches use-after-free, buffer overflow, and memory leaks at
+          the exact instruction; UBSan catches signed overflow, null-pointer
+          dereference, and misaligned access. Both find bugs that pass normal
+          tests silently and surface only in production under different
+          inputs or compiler versions. Running them in CI turns these into
+          a blocking gate instead of a post-mortem discovery.

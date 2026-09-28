@@ -1,0 +1,96 @@
+# nudge-channels.yaml — the visibility of each nudge advisory (INV-3 F-2).
+#
+# Cross-ref: this file (per-nudge model/human/log visibility) and context-surface.yaml
+# (human context-reminder surfacing) touch the same surfacing concern by design — the
+# split is intentional (a nudge-visibility plane vs a reminder surface), NOT merged.
+#
+# HOOK_CLASS picks a hook's FAILURE posture (fail-open vs fail-closed); it does NOT
+# decide who an advisory reaches. That is this file's job. Visibility is now THREE
+# INDEPENDENT flags, not one tangled sink enum:
+#
+#   model:  true|false  -> record a `<name>_observation`; nudge_context_inject re-
+#                          surfaces it to the MODEL as additionalContext next turn
+#                          (or folds it into the /goal reinject).
+#   user:   true|false  -> shown to the HUMAN this turn (the spec-guaranteed
+#                          `systemMessage` field) — unconditional.
+#   stderr: true|false  -> an `[advisory] ...` line: silent on exit 0, but on exit 2
+#                          (a fail-closed hook that BLOCKS) CC shows it to the user
+#                          AND feeds it to the model as the block reason. ERROR-ONLY.
+#
+# off vs stderr are DIFFERENT — off drops the advisory entirely; stderr keeps it as the
+# message a compliance hook surfaces only when it actually stops the op (exit 2).
+#   {model:false,user:false}              -> off        (never shown)
+#   {model:false,user:false,stderr:true}  -> error-only (shown only on exit 2)
+#   {model:true, user:false}              -> model-only (was `relay`)
+#   {model:true, user:true }              -> both       (was `systemMessage`)
+#   {model:false,user:true }              -> user-only  (human aware, model blind)
+#
+# Legacy sink strings (relay/systemMessage/stderr/off) still parse and map onto these
+# flags, so older configs keep working.
+#
+# PRECEDENCE (see hook_runtime.nudge_axes): a per-name entry wins; then a file-global
+# `default:` IF set (this ship file deliberately omits it, so an unlisted hook keeps
+# its code default — security advisories stay both/systemMessage); then the hook's
+# code default; then stderr. A malformed/missing file fails OPEN to the code default.
+#
+# Dev override: point HARNESS_NUDGE_CHANNELS at .harness-dev/nudge-channels.yaml
+# (default: {model: true, user: true}) to see + model-feed every nudge locally.
+
+# NOTE: no top-level `default:` on purpose — see the precedence note above.
+
+channels:
+  # --- group 1: model-aimed nudges (model-only) ------------------------------
+  # Record a `<family>_observation` that nudge_context_inject re-surfaces to the
+  # MODEL next turn. model-only (not user) so they don't flash at the human; a dev
+  # flips user:true to also see them.
+  decision_capture_nudge: {model: true, user: false}
+  standards_drift_nudge:  {model: true, user: false}
+  ledger_red_watch:       {model: true, user: true}
+  memory_index_watch:     {model: true, user: true}
+  backlog_capture_nudge:  {model: true, user: false}
+  goal_cycle_nudge:       {model: true, user: false}
+  glossary_capture_nudge: {model: true, user: false}
+  dev_override_wiring_nudge: {model: true, user: false}  # ship: model-only (dev flips user:true below)
+
+  # --- group 3: workflow advisories ------------------------------------------
+  # BOTH axes on. The MODEL is the actor these advise (it names the files, runs the
+  # cook, closes the plan), so the model MUST receive them; they are ALSO surfaced to
+  # the human via the official systemMessage channel. Not a model-leak — the model is
+  # exactly who acts on "use a descriptive name" / "/clear before cook".
+  backlog_hygiene_nudge:    {model: true, user: true}
+  stale_plan_close_nudge:   {model: true, user: true}
+  cook_isolation_nudge:     {model: true, user: true}
+  cook_delegate_nudge:      {model: true, user: true}
+  discover_isolation_nudge: {model: true, user: true}
+  descriptive_name:         {model: true, user: true}
+  engine_skew_nudge:        {model: true, user: true}
+  # Model-aimed: "the skill you named is off" is for the model to act on, not a flash.
+  disabled_ref_nudge:       {model: true, user: false}
+  # Model-aimed: the rules governing THIS file, at the moment it is being written.
+  # It was error-only, on the ground that it was low-value — and it was, because it
+  # showed `rules[:3]` unranked and the loader returns the repo-wide `**/*` rules
+  # first. Every Python file got the same three generic lines (YAGNI/KISS/DRY,
+  # security, observability) while the 20-odd Python-specific rules sat behind a
+  # "(+31 more)" tail. Now that specific outranks universal, the same slot carries
+  # "atomic write for a shared file" and "JSONL record guard" — things an agent
+  # editing that file plausibly does not know. Measured cost: 232 chars, once per
+  # file per session, and silent on prose/data/config.
+  rule_nudge_hook:          {model: true, user: false}
+
+  # --- group 2: security / ops guards ----------------------------------------
+  # These DEFAULT to both/systemMessage via their code (unlisted here, so the default
+  # holds). You MAY reroute them by adding an entry — but think first:
+  #
+  #   ⚠  Setting a security/ops advisory to {model:false, user:false} (off) or
+  #      stderr-only makes it INVISIBLE. bash_write_guard (an escaped write to gate
+  #      config), mutation_guard (an advisory agent mutated tracked files),
+  #      memory_gap_hook (a zone-fence breach), gate_stage (a soft-gate proceeding),
+  #      decision_reconcile_nudge (register drift) all warn about things you generally
+  #      WANT to see. Silence them only if you truly know why — the F3 self-blinding surface.
+  #
+  # To reroute, uncomment and set the flags, e.g.:
+  #   bash_write_guard:         {model: false, user: false, stderr: true}
+  #   mutation_guard:           {model: true,  user: true}
+  #   memory_gap_hook:          {model: true,  user: true}
+  #   gate_stage:               {model: true,  user: true}
+  #   decision_reconcile_nudge: {model: true,  user: true}

@@ -1,0 +1,63 @@
+{
+  "stage": "phase",
+  "phase": "P2",
+  "plan": "260923-1023-ai2-completion-release",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-09-23T07:24:17+00:00",
+  "checks": [
+    {
+      "name": "targeted_phase_regression",
+      "status": "PASS",
+      "command": "Set-Location ai-service; .venv\\Scripts\\python.exe -m pytest tests/test_citations.py tests/test_compare.py tests/test_contract_context.py tests/test_ai2_hardening.py tests/test_input_coverage.py tests/test_structure_reconstruction.py -q --basetemp ..\\tmp\\ai2-phase2-basetemp-final",
+      "detail": "33 passed, 1 warning"
+    },
+    {
+      "name": "intentional_red",
+      "status": "PASS",
+      "detail": "New resolver test first failed on missing CitationResolver node registry; selected-member test first failed because retrieval was unbounded. Both failures were observed before implementation."
+    },
+    {
+      "name": "compileall",
+      "status": "PASS",
+      "detail": "ai-service/app and ai-service/tests compiled successfully"
+    },
+    {
+      "name": "utf8_mojibake_scan",
+      "status": "PASS",
+      "detail": "Modified files: 0 U+FFFD and 0 detected UTF-8 mojibake byte-sequence matches"
+    },
+    {
+      "name": "five_legacy_red_regression",
+      "status": "PASS",
+      "command": "Set-Location ai-service; .venv\\Scripts\\python.exe -m pytest tests/test_happy_ai2_contract.py::test_happy_reasoning_returns_all_msts_and_conservative_entity_count tests/test_ingest.py::test_two_files_tree_and_locate tests/test_ingest.py::test_hd_tong_hop_sample_pdf_extracts_and_answers_dieu_9 tests/test_reasoning.py::test_ask_dieu_9 tests/test_reasoning.py::test_l0_table_300 -q --basetemp ..\\tmp\\ai2-five-red-green-basetemp-2",
+      "detail": "5 passed"
+    },
+    {
+      "name": "offline_regression",
+      "status": "PASS",
+      "command": "Set-Location ai-service; .venv\\Scripts\\python.exe -m pytest -q -m \"not live\" --basetemp ..\\tmp\\ai2-full-phase2-final",
+      "detail": "215 passed, 6 deselected, 1 warning"
+    }
+  ],
+  "acceptance_evidence": [
+    "ai-service/app/pipeline/citations.py:37 authoritative page/node/table/cell resolver with revision, source scope, exact quote hash, and claimed geometry downgrade",
+    "ai-service/app/reasoning/l3_ground.py:207 ANSWERED finalization enforces grounded=true and claim-level usable citations",
+    "ai-service/app/pipeline/grounding.py:59 duplicate structure IDs become NEEDS_REVIEW without inventing nodes",
+    "ai-service/app/pipeline/contract_context.py:271 invalid context citations are excluded from evidence links",
+    "ai-service/app/reasoning/stack.py:178 selected member bounds apply after retrieval",
+    "ai-service/tests/test_citations.py:62,79,112 resolver scope, claimed cell, and Unicode/NFC/NFD/control-character round trips",
+    "ai-service/tests/test_ai2_hardening.py:61 selected-member query bound and ANSWERED grounding coverage",
+    "ai-service/tests/test_structure_reconstruction.py:160 parent/order/duplicate repair coverage"
+  ],
+  "topology_and_continuity": {
+    "nested_tables": "Covered by targeted contract-context/input coverage tests; user Downloads replay ran where files were present.",
+    "continuation_sparse_claimed_geometry": "Claimed geometry resolves UNVERIFIED; continuation and sparse evidence remain review-safe.",
+    "independent_documents": "Targeted independent-document and embedded-annex tests passed; no cross-document link was introduced."
+  },
+  "residuals": [
+    "The five legacy fixture failures were corrected with source-derived deterministic provenance and one expected-state update; resolver invariants remain unchanged.",
+    "The Windows hs-run launcher is not executable in this workspace; it emitted launcher parsing errors, so the exact pytest gate was run directly.",
+    "No commit was created."
+  ],
+  "verdict": "PASS"
+}

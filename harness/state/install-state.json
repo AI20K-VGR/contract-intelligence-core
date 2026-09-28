@@ -1,0 +1,75 @@
+{
+  "installed_at": null,
+  "components": {
+    "write-deny": {
+      "installed": true,
+      "enabled": true
+    },
+    "decision-capture": {
+      "installed": true,
+      "enabled": true
+    },
+    "uiux": {
+      "installed": true,
+      "enabled": false
+    },
+    "viz": {
+      "installed": true,
+      "enabled": false
+    },
+    "devops": {
+      "installed": true,
+      "enabled": false
+    },
+    "ai": {
+      "installed": true,
+      "enabled": false
+    },
+    "stack": {
+      "installed": true,
+      "enabled": false
+    },
+    "integrations": {
+      "installed": true,
+      "enabled": false
+    },
+    "extra": {
+      "installed": true,
+      "enabled": false
+    },
+    "flow": {
+      "installed": true,
+      "enabled": false
+    },
+    "think": {
+      "installed": true,
+      "enabled": false
+    },
+    "research": {
+      "installed": true,
+      "enabled": false
+    },
+    "create": {
+      "installed": true,
+      "enabled": false
+    },
+    "mem": {
+      "installed": true,
+      "enabled": false
+    },
+    "meta": {
+      "installed": true,
+      "enabled": false
+    },
+    "docs-ssot": {
+      "installed": true,
+      "enabled": true
+    },
+    "product": {
+      "installed": true,
+      "enabled": true
+    }
+  },
+  "hooks_wired": true,
+  "last_verified": null
+}

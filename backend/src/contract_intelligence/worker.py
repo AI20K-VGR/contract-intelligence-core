@@ -66,6 +66,11 @@ _seen_result_ids: set[str] = set()
 _snapshot_cache: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
 _submitted_ai2_runs: set[str] = set()
 
+# Upload URLs are issued before AI1 opens the PDF. Older uploads can have
+# document.page_count=0; reserve enough per-page URLs for AI1 to align the
+# request to the real PDF page count instead of silently uploading only page 1.
+UNKNOWN_PAGE_RENDER_RESERVE = 512
+
 
 def _utcnow_iso() -> str:
     return datetime.now(tz=UTC).isoformat()
@@ -362,7 +367,11 @@ async def _build_ocr_command_payload(
 ) -> dict[str, Any]:
     settings = get_settings()
     page_count = int(document.page_count or 0)
-    pages = list(range(1, page_count + 1)) if page_count > 0 else [1]
+    pages = (
+        list(range(1, page_count + 1))
+        if page_count > 0
+        else list(range(1, UNKNOWN_PAGE_RENDER_RESERVE + 1))
+    )
 
     blob_uri = document.blob_uri
     if not blob_uri:
@@ -462,7 +471,13 @@ async def _run_ai2_if_ready(
     tenant_id: str,
     run_id: str,
 ) -> None:
-    """Submit/poll AI2 only after manifest confirmation and complete AI1 input."""
+    """Submit/poll AI2 after manifest confirmation and complete AI1 input.
+
+    A single-document dossier has no body/annex ambiguity.  Auto-confirm its
+    default manifest so a normal upload can continue from AI1 to AI2 without
+    requiring an unrelated manual manifest screen.  Multi-document dossiers
+    still require explicit confirmation before AI2 is allowed to process them.
+    """
 
     if run_id in _submitted_ai2_runs:
         return
@@ -470,6 +485,50 @@ async def _run_ai2_if_ready(
         select(ManifestORM).where(ManifestORM.dossier_id == dossier_id)
     )
     manifest = manifest_result.scalar_one_or_none()
+    if manifest is None:
+        document_result = await session.execute(
+            select(DocumentORM)
+            .where(DocumentORM.dossier_id == dossier_id)
+            .order_by(DocumentORM.order_index, DocumentORM.created_at)
+        )
+        documents = list(document_result.scalars().all())
+        if len(documents) == 1:
+            document = documents[0]
+            manifest = ManifestORM(
+                id=new_ulid("mft_"),
+                tenant_id=tenant_id,
+                dossier_id=dossier_id,
+                status="confirmed",
+                version=1,
+                confirmed_at=datetime.now(tz=UTC),
+                confirmed_by="system:auto-single-document",
+            )
+            session.add(manifest)
+            # ManifestItemORM has no SQLAlchemy relationship mapping to its
+            # parent, so make the parent row visible before inserting the FK.
+            await session.flush()
+            session.add(
+                ManifestItemORM(
+                    id=new_ulid("mfi_"),
+                    manifest_id=manifest.id,
+                    document_id=document.id,
+                    filename=document.filename,
+                    doc_type=str(document.role or "contract").lower(),
+                    sha256=document.sha256,
+                    confidence="1.0",
+                    order_index=document.order_index,
+                    included=True,
+                    page_count=document.page_count,
+                    file_size_bytes=document.file_size_bytes,
+                )
+            )
+            await session.flush()
+            logger.info(
+                "worker.manifest.auto_confirmed_single_document",
+                dossier_id=dossier_id,
+                document_id=document.id,
+                manifest_id=manifest.id,
+            )
     if manifest is None or manifest.status != "confirmed":
         logger.info("worker.ai2.waiting_for_manifest", dossier_id=dossier_id, run_id=run_id)
         return
@@ -733,6 +792,18 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
                 if isinstance(canonical_snapshot, dict)
                 else getattr(snapshot, "pages", [])
             )
+            document_id = str(correlation.get("document_id") or "").strip()
+            if document_id and page_count > 0:
+                await session.execute(
+                    update(DocumentORM)
+                    .where(DocumentORM.id == document_id)
+                    .values(page_count=page_count)
+                )
+                await session.execute(
+                    update(ManifestItemORM)
+                    .where(ManifestItemORM.document_id == document_id)
+                    .values(page_count=page_count)
+                )
             for step in ("S2", "S3", "S8"):
                 await update_pipeline_step(
                     session,
@@ -876,6 +947,48 @@ async def run_ai1_results_consumer(session_factory: async_sessionmaker[AsyncSess
         await consumer.stop()
 
 
+async def reconcile_pending_ai2_runs(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Resume AI2 handoffs whose Kafka trigger was already consumed.
+
+    AI1 results and manifest confirmation are separate events.  A worker
+    restart between those events must not leave an extracted dossier forever
+    outside AI2 just because the original event is no longer replayed.
+    """
+
+    async with session_factory() as session:
+        result = await session.execute(
+            select(JobORM)
+            .join(DossierORM, DossierORM.id == JobORM.dossier_id)
+            .where(
+                DossierORM.deleted_at.is_(None),
+                JobORM.current_run_id.is_not(None),
+                JobORM.status.in_((JobStatus.EXTRACTED.value, JobStatus.PROCESSING.value)),
+            )
+        )
+        jobs = [
+            (job.dossier_id, job.tenant_id, str(job.current_run_id))
+            for job in result.scalars().all()
+            if job.current_run_id
+        ]
+        for dossier_id, tenant_id, run_id in jobs:
+            try:
+                await _run_ai2_if_ready(
+                    session,
+                    dossier_id=dossier_id,
+                    tenant_id=tenant_id,
+                    run_id=run_id,
+                )
+            except Exception:
+                await session.rollback()
+                logger.exception(
+                    "worker.ai2.reconcile_failed",
+                    dossier_id=dossier_id,
+                    run_id=run_id,
+                )
+
+
 async def run_consumer() -> None:
     """Start producer + dossier_events and AI1 results consumers."""
     settings = get_settings()
@@ -883,6 +996,7 @@ async def run_consumer() -> None:
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     await messaging.start_producer()
+    await reconcile_pending_ai2_runs(session_factory)
     logger.info(
         "worker.started",
         bootstrap_servers=settings.kafka_bootstrap_servers,

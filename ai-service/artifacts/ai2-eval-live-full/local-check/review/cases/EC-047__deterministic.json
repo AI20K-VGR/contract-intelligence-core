@@ -1,0 +1,2368 @@
+{
+  "case_id": "EC-047",
+  "run": "deterministic",
+  "input": {
+    "case": {
+      "case_id": "EC-047",
+      "title": "File vượt budget — partial",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_budget",
+      "expected_state": "REVIEW",
+      "expected_no_claims": [
+        "uncontrolled_continue"
+      ],
+      "n_pages": 20,
+      "n_nodes": 20,
+      "n_tables": 0,
+      "lifecycle": "ACTIVE",
+      "query": null,
+      "notes": "",
+      "tags": [
+        "edge",
+        "orchestrator"
+      ]
+    },
+    "record": {
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_budget",
+      "lifecycle": "ACTIVE",
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-ec-047",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      },
+      "pages": [
+        {
+          "page_revision_id": "p1_rev1",
+          "page_number": 1,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p1_b1"
+          ],
+          "text": "page 1",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p2_rev1",
+          "page_number": 2,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p2_b1"
+          ],
+          "text": "page 2",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p3_rev1",
+          "page_number": 3,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p3_b1"
+          ],
+          "text": "page 3",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p4_rev1",
+          "page_number": 4,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p4_b1"
+          ],
+          "text": "page 4",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p5_rev1",
+          "page_number": 5,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p5_b1"
+          ],
+          "text": "page 5",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p6_rev1",
+          "page_number": 6,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p6_b1"
+          ],
+          "text": "page 6",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p7_rev1",
+          "page_number": 7,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p7_b1"
+          ],
+          "text": "page 7",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p8_rev1",
+          "page_number": 8,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p8_b1"
+          ],
+          "text": "page 8",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p9_rev1",
+          "page_number": 9,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p9_b1"
+          ],
+          "text": "page 9",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p10_rev1",
+          "page_number": 10,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p10_b1"
+          ],
+          "text": "page 10",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p11_rev1",
+          "page_number": 11,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p11_b1"
+          ],
+          "text": "page 11",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p12_rev1",
+          "page_number": 12,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p12_b1"
+          ],
+          "text": "page 12",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p13_rev1",
+          "page_number": 13,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p13_b1"
+          ],
+          "text": "page 13",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p14_rev1",
+          "page_number": 14,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p14_b1"
+          ],
+          "text": "page 14",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p15_rev1",
+          "page_number": 15,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p15_b1"
+          ],
+          "text": "page 15",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p16_rev1",
+          "page_number": 16,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p16_b1"
+          ],
+          "text": "page 16",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p17_rev1",
+          "page_number": 17,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p17_b1"
+          ],
+          "text": "page 17",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p18_rev1",
+          "page_number": 18,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p18_b1"
+          ],
+          "text": "page 18",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p19_rev1",
+          "page_number": 19,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p19_b1"
+          ],
+          "text": "page 19",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        },
+        {
+          "page_revision_id": "p20_rev1",
+          "page_number": 20,
+          "quality": "OK",
+          "coverage": 1.0,
+          "rotation": 0,
+          "source_block_ids": [
+            "p20_b1"
+          ],
+          "text": "page 20",
+          "source_file_id": null,
+          "page_in_file": null,
+          "table_coverage": "UNKNOWN",
+          "width": null,
+          "height": null,
+          "image_key": null,
+          "line_texts": {},
+          "line_bboxes": {},
+          "source_hash": null
+        }
+      ],
+      "nodes": [
+        {
+          "node_id": "n1",
+          "type": "CLAUSE",
+          "raw_label": "Điều 1",
+          "parent_id": null,
+          "order": 1,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 1",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": "p1_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n2",
+          "type": "CLAUSE",
+          "raw_label": "Điều 2",
+          "parent_id": null,
+          "order": 2,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 2",
+          "page_range": [
+            2
+          ],
+          "page_revision_id": "p2_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n3",
+          "type": "CLAUSE",
+          "raw_label": "Điều 3",
+          "parent_id": null,
+          "order": 3,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 3",
+          "page_range": [
+            3
+          ],
+          "page_revision_id": "p3_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n4",
+          "type": "CLAUSE",
+          "raw_label": "Điều 4",
+          "parent_id": null,
+          "order": 4,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 4",
+          "page_range": [
+            4
+          ],
+          "page_revision_id": "p4_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n5",
+          "type": "CLAUSE",
+          "raw_label": "Điều 5",
+          "parent_id": null,
+          "order": 5,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 5",
+          "page_range": [
+            5
+          ],
+          "page_revision_id": "p5_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n6",
+          "type": "CLAUSE",
+          "raw_label": "Điều 6",
+          "parent_id": null,
+          "order": 6,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 6",
+          "page_range": [
+            6
+          ],
+          "page_revision_id": "p6_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n7",
+          "type": "CLAUSE",
+          "raw_label": "Điều 7",
+          "parent_id": null,
+          "order": 7,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 7",
+          "page_range": [
+            7
+          ],
+          "page_revision_id": "p7_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n8",
+          "type": "CLAUSE",
+          "raw_label": "Điều 8",
+          "parent_id": null,
+          "order": 8,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 8",
+          "page_range": [
+            8
+          ],
+          "page_revision_id": "p8_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n9",
+          "type": "CLAUSE",
+          "raw_label": "Điều 9",
+          "parent_id": null,
+          "order": 9,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 9",
+          "page_range": [
+            9
+          ],
+          "page_revision_id": "p9_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n10",
+          "type": "CLAUSE",
+          "raw_label": "Điều 10",
+          "parent_id": null,
+          "order": 10,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 10",
+          "page_range": [
+            10
+          ],
+          "page_revision_id": "p10_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n11",
+          "type": "CLAUSE",
+          "raw_label": "Điều 11",
+          "parent_id": null,
+          "order": 11,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 11",
+          "page_range": [
+            11
+          ],
+          "page_revision_id": "p11_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n12",
+          "type": "CLAUSE",
+          "raw_label": "Điều 12",
+          "parent_id": null,
+          "order": 12,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 12",
+          "page_range": [
+            12
+          ],
+          "page_revision_id": "p12_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n13",
+          "type": "CLAUSE",
+          "raw_label": "Điều 13",
+          "parent_id": null,
+          "order": 13,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 13",
+          "page_range": [
+            13
+          ],
+          "page_revision_id": "p13_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n14",
+          "type": "CLAUSE",
+          "raw_label": "Điều 14",
+          "parent_id": null,
+          "order": 14,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 14",
+          "page_range": [
+            14
+          ],
+          "page_revision_id": "p14_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n15",
+          "type": "CLAUSE",
+          "raw_label": "Điều 15",
+          "parent_id": null,
+          "order": 15,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 15",
+          "page_range": [
+            15
+          ],
+          "page_revision_id": "p15_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n16",
+          "type": "CLAUSE",
+          "raw_label": "Điều 16",
+          "parent_id": null,
+          "order": 16,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 16",
+          "page_range": [
+            16
+          ],
+          "page_revision_id": "p16_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n17",
+          "type": "CLAUSE",
+          "raw_label": "Điều 17",
+          "parent_id": null,
+          "order": 17,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 17",
+          "page_range": [
+            17
+          ],
+          "page_revision_id": "p17_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n18",
+          "type": "CLAUSE",
+          "raw_label": "Điều 18",
+          "parent_id": null,
+          "order": 18,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 18",
+          "page_range": [
+            18
+          ],
+          "page_revision_id": "p18_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n19",
+          "type": "CLAUSE",
+          "raw_label": "Điều 19",
+          "parent_id": null,
+          "order": 19,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 19",
+          "page_range": [
+            19
+          ],
+          "page_revision_id": "p19_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        },
+        {
+          "node_id": "n20",
+          "type": "CLAUSE",
+          "raw_label": "Điều 20",
+          "parent_id": null,
+          "order": 20,
+          "has_children": false,
+          "status": "CONFIRMED",
+          "text": "text 20",
+          "page_range": [
+            20
+          ],
+          "page_revision_id": "p20_rev1",
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI1",
+          "repaired_from_node_id": null,
+          "structure_level": "BLOCK",
+          "scope_id": null,
+          "heading_confidence": null,
+          "parent_confidence": null,
+          "source_line_ids": [],
+          "is_synthetic": false
+        }
+      ],
+      "tables": [],
+      "profile": {
+        "version": 5,
+        "aliases": {
+          "Công ty ABC": [
+            "ABC Co.",
+            "ABC"
+          ],
+          "Công ty XYZ": [
+            "XYZ Ltd",
+            "XYZ"
+          ]
+        },
+        "field_keys": [
+          "party_a",
+          "party_b",
+          "mst_seller",
+          "contract_value",
+          "payment_term"
+        ]
+      },
+      "acl_revision": 12,
+      "permissions_by_actor": {
+        "user_001": [
+          "READ_CONTENT"
+        ]
+      },
+      "source_files": [],
+      "facts": [],
+      "input_facts": [],
+      "chunks": [
+        {
+          "chunk_id": "chk_2f03d4c3",
+          "parent_node_id": "ai2-root:document",
+          "page_range": [
+            1
+          ],
+          "source_block_ids": [],
+          "text_span": "Hợp đồng",
+          "bbox_fragments": [],
+          "breadcrumb": [
+            "Hợp đồng"
+          ],
+          "continuation": false,
+          "index_version": null,
+          "review_state": "NEEDS_REVIEW"
+        }
+      ],
+      "active_index_version": null,
+      "processing_index": false,
+      "legal_hold": false,
+      "egress_approved": true,
+      "budget_exceeded": false,
+      "processing_budget_exceeded": true,
+      "embedding_budget_exceeded": false,
+      "index_status": "READY",
+      "case_id": "EC-047",
+      "handoff_issues": [
+        {
+          "code": "STRUCTURE_ROOT_DERIVED",
+          "message": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n1 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n2 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n3 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n4 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n5 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n6 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n7 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n8 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n9 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n10 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n11 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n12 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n13 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n14 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n15 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n16 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n17 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n18 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n19 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        },
+        {
+          "code": "NODE_TEXT_UNGROUNDED",
+          "message": "n20 is not present in referenced page text",
+          "review_state": "NEEDS_REVIEW",
+          "citation": null
+        }
+      ],
+      "relation_graph": {
+        "graph_id": "graph:cfd0a16eaed7591588329892",
+        "source_snapshot_digest": "sha256:eval-ec-047",
+        "nodes": [
+          {
+            "node_id": "ai2-root:document",
+            "node_kind": "STRUCTURAL_NODE",
+            "source_file_id": null,
+            "source_role": null,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": null,
+            "quality": "PARTIAL"
+          }
+        ],
+        "edges": [],
+        "issues": []
+      },
+      "active_nodes": [
+        {
+          "node_id": "ai2-root:document",
+          "type": "SECTION",
+          "raw_label": "Hợp đồng",
+          "parent_id": null,
+          "order": -1,
+          "has_children": false,
+          "status": "PARTIAL",
+          "text": "Hợp đồng",
+          "page_range": [
+            1
+          ],
+          "page_revision_id": null,
+          "bbox": [],
+          "structured_key": null,
+          "structured_value": null,
+          "source_file_id": null,
+          "page_in_file": null,
+          "provenance": "AI2_REPAIRED",
+          "repaired_from_node_id": null,
+          "structure_level": "DOCUMENT",
+          "scope_id": "ai2-root:document",
+          "heading_confidence": 1.0,
+          "parent_confidence": 1.0,
+          "source_line_ids": [],
+          "is_synthetic": true
+        }
+      ],
+      "citation_index": {},
+      "review_items": [
+        {
+          "review_item_id": "review:STRUCTURE_ROOT_DERIVED:1",
+          "kind": "STRUCTURE_ROOT_DERIVED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:2",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n1 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:3",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n2 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:4",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n3 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:5",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n4 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:6",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n5 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:7",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n6 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:8",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n7 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:9",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n8 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:10",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n9 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:11",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n10 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:12",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n11 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:13",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n12 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:14",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n13 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:15",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n14 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:16",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n15 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:17",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n16 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:18",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n17 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:19",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n18 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:20",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n19 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        },
+        {
+          "review_item_id": "review:NODE_TEXT_UNGROUNDED:21",
+          "kind": "NODE_TEXT_UNGROUNDED",
+          "status": "OPEN",
+          "review_state": "NEEDS_REVIEW",
+          "reason": "n20 is not present in referenced page text",
+          "source_ids": [],
+          "citation_ids": [],
+          "candidate_id": null,
+          "proposed_action": "VERIFY_EVIDENCE",
+          "revision": 0
+        }
+      ]
+    },
+    "envelope": {
+      "auth": {
+        "actor_id": "user_001",
+        "tenant_id": "tenant_a",
+        "dossier_id": "d_budget",
+        "acl_revision": 12,
+        "permissions": [
+          "READ_CONTENT"
+        ],
+        "lifecycle": "ACTIVE"
+      },
+      "pins": {
+        "manifest_version": 2,
+        "source_snapshot_digest": "sha256:eval-ec-047",
+        "tenant_profile_version": 5,
+        "policy_version": 2,
+        "ocr_run_version": 3,
+        "reconstruction_version": 2,
+        "extraction_version": 7,
+        "index_version": "idx_14",
+        "source_digest": null,
+        "snapshot_digest": null
+      }
+    }
+  },
+  "output": {
+    "extract": {
+      "status_code": 200,
+      "body": {
+        "session_id": "69dfe4dcc7c6",
+        "filename": "EC-047.snapshot",
+        "source": "eval",
+        "step": "extract",
+        "ai1": {
+          "case_id": "EC-047"
+        },
+        "files": [],
+        "has_pdf": false,
+        "dossier_id": "d_budget",
+        "tenant_id": "tenant_a",
+        "lifecycle": "ACTIVE",
+        "pins": {
+          "manifest_version": 2,
+          "source_snapshot_digest": "sha256:eval-ec-047",
+          "tenant_profile_version": 5,
+          "policy_version": 2,
+          "ocr_run_version": 3,
+          "reconstruction_version": 2,
+          "extraction_version": 7,
+          "index_version": "idx_14",
+          "source_digest": null,
+          "snapshot_digest": null
+        },
+        "n_pages": 20,
+        "n_nodes": 1,
+        "n_raw_nodes": 20,
+        "n_tables": 0,
+        "table_coverage": {
+          "UNKNOWN": 20
+        },
+        "relation_graph": {
+          "n_nodes": 1,
+          "n_edges": 0,
+          "n_issues": 0
+        },
+        "pages": [
+          {
+            "page": 1,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "page 1",
+            "page_revision_id": "p1_rev1"
+          },
+          {
+            "page": 2,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "page 2",
+            "page_revision_id": "p2_rev1"
+          },
+          {
+            "page": 3,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "page 3",
+            "page_revision_id": "p3_rev1"
+          },
+          {
+            "page": 4,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "page 4",
+            "page_revision_id": "p4_rev1"
+          },
+          {
+            "page": 5,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "page 5",
+            "page_revision_id": "p5_rev1"
+          },
+          {
+            "page": 6,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "page 6",
+            "page_revision_id": "p6_rev1"
+          },
+          {
+            "page": 7,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "page 7",
+            "page_revision_id": "p7_rev1"
+          },
+          {
+            "page": 8,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "page 8",
+            "page_revision_id": "p8_rev1"
+          },
+          {
+            "page": 9,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "page 9",
+            "page_revision_id": "p9_rev1"
+          },
+          {
+            "page": 10,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "page 10",
+            "page_revision_id": "p10_rev1"
+          },
+          {
+            "page": 11,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "page 11",
+            "page_revision_id": "p11_rev1"
+          },
+          {
+            "page": 12,
+            "quality": "OK",
+            "coverage": 1.0,
+            "table_coverage": "UNKNOWN",
+            "text": "page 12",
+            "page_revision_id": "p12_rev1"
+          }
+        ],
+        "n_pages_hidden": 8,
+        "nodes": [
+          {
+            "node_id": "ai2-root:document",
+            "type": "SECTION",
+            "raw_label": "Hợp đồng",
+            "page_range": [
+              1
+            ],
+            "structured_key": null,
+            "structured_value": null
+          }
+        ],
+        "n_nodes_hidden": 0,
+        "tree": [
+          {
+            "node_id": "ai2-root:document",
+            "type": "SECTION",
+            "raw_label": "Hợp đồng",
+            "status": "PARTIAL",
+            "page": 1,
+            "page_range": [
+              1
+            ],
+            "page_revision_id": null,
+            "bbox": [],
+            "has_children": false,
+            "structured_key": null,
+            "source_file_id": null,
+            "page_in_file": null,
+            "structure_level": "DOCUMENT",
+            "scope_id": "ai2-root:document",
+            "heading_confidence": 1.0,
+            "parent_confidence": 1.0,
+            "source_line_ids": [],
+            "is_synthetic": true,
+            "preview": "Hợp đồng",
+            "children": []
+          }
+        ],
+        "tables": [],
+        "extracted": true,
+        "job": {
+          "job_id": "job_538be526dd",
+          "status": "SUCCEEDED",
+          "review_state": "NEEDS_REVIEW",
+          "handoff_issues": [
+            {
+              "code": "STRUCTURE_ROOT_DERIVED",
+              "message": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n1 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n2 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n3 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n4 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n5 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n6 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n7 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n8 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n9 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n10 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n11 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n12 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n13 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n14 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n15 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n16 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n17 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n18 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n19 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_TEXT_UNGROUNDED",
+              "message": "n20 is not present in referenced page text",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            },
+            {
+              "code": "NODE_STATUS",
+              "message": "ai2-root:document:PARTIAL",
+              "review_state": "NEEDS_REVIEW",
+              "citation": null
+            }
+          ],
+          "contribution": {
+            "facts": [],
+            "chunks": [
+              {
+                "chunk_id": "chk_2f03d4c3",
+                "parent_node_id": "ai2-root:document",
+                "page_range": [
+                  1
+                ],
+                "source_block_ids": [],
+                "text_span": "Hợp đồng",
+                "bbox_fragments": [],
+                "breadcrumb": [
+                  "Hợp đồng"
+                ],
+                "continuation": false,
+                "index_version": null,
+                "review_state": "NEEDS_REVIEW"
+              }
+            ],
+            "candidates": [],
+            "evidence_issues": [],
+            "coverage": {
+              "n_facts": 0,
+              "n_findings": 0,
+              "n_evidence_issues": 0,
+              "n_units": 10,
+              "unit_ids": [
+                "unit:f2ae42c55d1a2262c90c",
+                "unit:40e3705aba40add94482",
+                "unit:f12bb3d6c3691a857af5",
+                "unit:43f4685a44621ad58ea7",
+                "unit:00fe174be761760e2bbd",
+                "unit:e5daef42fa16c73f3652",
+                "unit:5153be3b2f266e67668f",
+                "unit:c25350b2d493890d8278",
+                "unit:35388dec26959fc2afb8",
+                "unit:a13037782a48a3c65d55"
+              ],
+              "annex_labels": [],
+              "runtime": {
+                "egress_allowed": true,
+                "use_vector": false,
+                "max_processing_seconds": 300,
+                "max_llm_calls": 0,
+                "max_embedding_tokens": 0,
+                "llm_calls_used": 0,
+                "embedding_tokens_used": 0,
+                "fallback_count": 0
+              },
+              "n_candidates_suppressed": 0
+            },
+            "extraction_version": 7,
+            "proposed_index_version": "idx_7",
+            "publish": "propose"
+          },
+          "query_answer": null,
+          "error": null
+        },
+        "contribution": {
+          "facts": [],
+          "chunks": [
+            {
+              "chunk_id": "chk_2f03d4c3",
+              "parent_node_id": "ai2-root:document",
+              "page_range": [
+                1
+              ],
+              "source_block_ids": [],
+              "text_span": "Hợp đồng",
+              "bbox_fragments": [],
+              "breadcrumb": [
+                "Hợp đồng"
+              ],
+              "continuation": false,
+              "index_version": null,
+              "review_state": "NEEDS_REVIEW"
+            }
+          ],
+          "candidates": [],
+          "evidence_issues": [],
+          "coverage": {
+            "n_facts": 0,
+            "n_findings": 0,
+            "n_evidence_issues": 0,
+            "n_units": 10,
+            "unit_ids": [
+              "unit:f2ae42c55d1a2262c90c",
+              "unit:40e3705aba40add94482",
+              "unit:f12bb3d6c3691a857af5",
+              "unit:43f4685a44621ad58ea7",
+              "unit:00fe174be761760e2bbd",
+              "unit:e5daef42fa16c73f3652",
+              "unit:5153be3b2f266e67668f",
+              "unit:c25350b2d493890d8278",
+              "unit:35388dec26959fc2afb8",
+              "unit:a13037782a48a3c65d55"
+            ],
+            "annex_labels": [],
+            "runtime": {
+              "egress_allowed": true,
+              "use_vector": false,
+              "max_processing_seconds": 300,
+              "max_llm_calls": 0,
+              "max_embedding_tokens": 0,
+              "llm_calls_used": 0,
+              "embedding_tokens_used": 0,
+              "fallback_count": 0
+            },
+            "n_candidates_suppressed": 0
+          },
+          "extraction_version": 7,
+          "proposed_index_version": "idx_7",
+          "publish": "propose"
+        },
+        "used_llm": false,
+        "has_gold_tasks": false,
+        "reviews": {},
+        "reviews_stale": false,
+        "published": false,
+        "authoritative_publish_blocked": false,
+        "review_queue_status": "HAS_REVIEW_ITEMS",
+        "review_items": [
+          {
+            "review_item_id": "review:STRUCTURE_ROOT_DERIVED:1",
+            "kind": "STRUCTURE_ROOT_DERIVED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:2",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n1 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:3",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n2 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:4",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n3 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:5",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n4 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:6",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n5 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:7",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n6 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:8",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n7 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:9",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n8 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:10",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n9 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:11",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n10 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:12",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n11 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:13",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n12 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:14",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n13 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:15",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n14 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:16",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n15 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:17",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n16 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:18",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n17 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:19",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n18 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:20",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n19 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          },
+          {
+            "review_item_id": "review:NODE_TEXT_UNGROUNDED:21",
+            "kind": "NODE_TEXT_UNGROUNDED",
+            "status": "OPEN",
+            "review_state": "NEEDS_REVIEW",
+            "reason": "n20 is not present in referenced page text",
+            "source_ids": [],
+            "citation_ids": [],
+            "candidate_id": null,
+            "proposed_action": "VERIFY_EVIDENCE",
+            "revision": 0
+          }
+        ],
+        "n_review_items": 21,
+        "n_citations": 0,
+        "handoff_issues": [
+          {
+            "code": "STRUCTURE_ROOT_DERIVED",
+            "message": "ai2-root:document: AI1 did not provide a document root; AI2 created a non-evidentiary root",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n1 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n2 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n3 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n4 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n5 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n6 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n7 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n8 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n9 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n10 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n11 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n12 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n13 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n14 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n15 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n16 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n17 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n18 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n19 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          },
+          {
+            "code": "NODE_TEXT_UNGROUNDED",
+            "message": "n20 is not present in referenced page text",
+            "review_state": "NEEDS_REVIEW",
+            "citation": null
+          }
+        ],
+        "policy": {
+          "deterministic": "ALLOW",
+          "external": "BLOCKED",
+          "gates": [
+            {
+              "code": "PROCESSING_BUDGET_EXCEEDED",
+              "operation": "external_processing",
+              "deterministic_action": "ALLOW_PARTIAL_REVIEW"
+            }
+          ]
+        }
+      }
+    },
+    "ask": {
+      "status_code": null,
+      "body": null
+    }
+  },
+  "machine_checks": {
+    "case_id": "EC-047",
+    "run": "deterministic",
+    "expected_state": "REVIEW",
+    "actual_extract_state": "NEEDS_REVIEW",
+    "actual_ask_state": null,
+    "extract_http_ok": true,
+    "ask_http_ok": true,
+    "expected_match": true,
+    "citation_valid": true,
+    "citation_errors": [],
+    "forbidden_claims": [],
+    "n_citations": 0,
+    "use_vector": false,
+    "vector_status": "NOT_REQUESTED",
+    "embedding_model": null,
+    "embedding_dimensions": null,
+    "vector_hits": 0,
+    "n_pages": 20,
+    "n_nodes": 20,
+    "elapsed_ms": 20.2
+  },
+  "manual_review": {
+    "verdict": "PENDING",
+    "severity": null,
+    "reviewer_notes": ""
+  }
+}

@@ -1,0 +1,21 @@
+# >>> harness worktree carry (generated — edits between markers are overwritten) >>>
+harness/afk/**
+harness/assets/**
+harness/bin/**
+harness/data/**
+harness/hooks/**
+harness/install/**
+harness/plugins/**
+harness/rules/**
+harness/schemas/**
+harness/scripts/**
+harness/standards/**
+harness/templates/**
+harness/LESSONS.md
+harness/constraints.txt
+harness/manifest.json
+harness/README.md
+harness/release.json
+harness/requirements.txt
+.claude/settings.json
+# <<< harness <<<

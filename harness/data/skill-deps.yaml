@@ -1,0 +1,191 @@
+# Skill dependency graph for the installer's skill picker.
+#
+# After the plugin collapse every skill is invoked bare as its skill-name.
+# When a user ticks a skill, the installer auto-ticks its declared deps
+# (transitively). The core_immutable spine can never be unticked.
+#
+# deps are bare skill-names seeded from each skill's declared cross-skill
+# handoff/route references in its SKILL.md. Most leaf skills have no deps.
+# Every name in any deps list must be one of the 131 entries below
+# (129 invokable skills + the common/_docslib shared-lib entries).
+
+# The always-on floor the installer pins permanently (cannot be unticked): the
+# 13-skill spine + the off-skill proxy trio (use + find-skills + cleanup) that must
+# stay reachable to run, route to, and sweep disabled skills.
+core_immutable: [plan, cook, test, ship, fix, debug, code-review, review-pr, git, scout, understand, setup, triage, use, find-skills, cleanup]
+
+skills:
+  # spine
+  plan: { deps: [cook, sequential-thinking, workflow-orchestrate] }
+  cook: { deps: [bakeoff, plan, remember, test] }
+  test: { deps: [code-review, cook, debug, fix] }
+  ship: { deps: [code-review, context-engineering, cook, critique, test] }
+  fix: { deps: [brainstorm, debug, remember, scout, workflow-orchestrate] }
+  debug: { deps: [brainstorm, fix, remember, scout, sequential-thinking, workflow-orchestrate] }
+  code-review: { deps: [afk, cook, fix, git, remember, repomix, scout, security-scan, test, workflow-orchestrate] }
+  review-pr: { deps: [code-review, fix, git, workflow-orchestrate] }
+  git: { deps: [context-engineering] }
+  scout: { deps: [code-review, context-engineering, debug, fix, repomix, research, workflow-orchestrate] }
+  understand: { deps: [context-engineering, docs, plan, repomix, scout, triage, use, workflow-orchestrate] }
+  setup: { deps: [use, voice] }  # /hs:voice see-also + /hs:use door for stashed skills (Layer-0.7 onboarding) are real routes; excalidraw was only an illustrative restart example (dropped, see SKILL.md)
+  triage: { deps: [bakeoff, code-review, debug, fix, plan, scenario, scout, test] }
+
+  # flow
+  vibe: { deps: [afk, code-review, cook, fix, git, plan, review-pr, ship, worktree] }
+  loop: { deps: [afk, cook, debug, fix] }
+  afk: { deps: [cook] }
+  autonomous-bell: { deps: [] }
+  goal: { deps: [autonomous-bell] }
+  team: { deps: [code-review, cook, debug, research, workflow-orchestrate] }
+  worktree: { deps: [git] }
+  workflow-orchestrate: { deps: [] }
+  coding-agent-orchestration: { deps: [] }
+  compound: { deps: [insights] }
+  project-management: { deps: [] }
+  plans-kanban: { deps: [project-management] }
+
+  # think
+  brainstorm: { deps: [debug, plan, research, scout, sequential-thinking, workflow-orchestrate] }
+  predict: { deps: [bakeoff, debug, plan, scenario, workflow-orchestrate] }
+  scenario: { deps: [plan, predict, research, test] }
+  sequential-thinking: { deps: [brainstorm, debug, plan, problem-solving] }
+  problem-solving: { deps: [bakeoff, brainstorm, debug, plan, sequential-thinking, workflow-orchestrate] }
+  critique: { deps: [brainstorm, workflow-orchestrate] }
+  bakeoff: { deps: [afk, brainstorm, loop, predict, worktree] }
+
+  # research
+  research: { deps: [bakeoff, plan, workflow-orchestrate] }
+  discover: { deps: [bakeoff, brainstorm, cook, plan, problem-solving, research, understand, workflow-orchestrate] }
+  repomix: { deps: [context-engineering, cook, scout] }
+  techstack: { deps: [setup, test] }
+  security-scan: { deps: [code-review, fix, git, plan, workflow-orchestrate] }
+  manual-test: { deps: [contract-test, test] }
+  contract-test: { deps: [manual-test, test, web-testing] }
+  eval-bootstrap: { deps: [techstack, test] }
+  deep-swe: { deps: [loop] }            # body routes to hs:loop for repo-local metric optimization
+
+  # create
+  skill-creator: { deps: [harness-creator] }
+  harness-creator: { deps: [skill-creator] }
+  mcp-builder: { deps: [code-review] }
+  agentize: { deps: [cook, docs, harness-creator, mcp-builder, project-management, scout, skill-creator, test, workflow-orchestrate] }
+  port: { deps: [bootstrap, brainstorm, cook, plan, repomix, scout, sequential-thinking] }
+  bootstrap: { deps: [cook, docs, journal, plan, project-management, workflow-orchestrate] }
+
+  # mem
+  remember: { deps: [rule-author] }
+  insights: { deps: [retro, setup] }
+  journal: { deps: [cook, fix, remember, retro, ship] }   # boundary routes durable decisions to hs:remember (DEC ledger)
+  retro: { deps: [] }
+  docs: { deps: [scout] }
+  docs-seeker: { deps: [docs, repomix, research] }
+  document-skills: { deps: [docs, skill-creator] }
+  interview-docs: { deps: [brainstorm, docs, remember] }  # body routes to hs:brainstorm/hs:docs + ADR->DEC via hs:remember
+
+  # meta
+  find-skills: { deps: [use] }   # routes an off match to /hs:use (excalidraw dropped: illustrative-only ref, and pinning find-skills to the floor would drag the viz cluster into every install — defeats the per-skill opt-in)
+  use: { deps: [find-skills] }   # off-skill proxy; delegates purpose-routing to find-skills (2-way cycle, resolve tolerates)
+  voice: { deps: [critique] }
+  context-engineering: { deps: [repomix, scout] }
+  project-organization: { deps: [brainstorm, cook, docs, fix, plan, project-management, research, scout] }
+  rule-author: { deps: [remember] }
+  folder-context: { deps: [docs] }      # body routes to hs:docs for project documentation
+
+  # ai
+  ai-artist: { deps: [] }
+  ai-multimodal: { deps: [project-organization, common] }
+  gemini: { deps: [] }   # gemini partner lane; ships OFF (not core_immutable), true leaf — running it via hs:use while stashed is see-also guidance, not an install dep (use is core_immutable, always present)
+  partner: { deps: [] }   # ccs partner lane; ships OFF (not core_immutable), true leaf
+
+  common: { deps: [] }   # resource dir (api-key helpers), no SKILL.md; consumed by ai-multimodal + llms
+  html-video: { deps: [agent-browser, chrome-profile, media-processing, preview, remotion, show-off] }
+  media-processing: { deps: [project-organization] }
+  remotion: { deps: [] }
+  shader: { deps: [] }
+  stitch: { deps: [frontend-design, ui-styling, ui-ux] }
+  threejs: { deps: [] }
+
+  # harness operation
+  goal-warmup: { deps: [advise, issue-to-plan, plan, vibe] }  # outcome-lock preflight before a long autonomous run
+  cli: { deps: [cook, find-skills, git, plan, use] }  # names each of these as the route to take instead
+  sowat: { deps: [] }   # product-impact call on work just landed; routes nowhere
+  sumup: { deps: [] }   # implementation recap; routes nowhere
+  eli5: { deps: [preview] }   # names hs:preview as the route when the answer IS the picture
+  finetune: { deps: [find-skills, loop, predict, scenario, security-scan, use] }  # directed router: names each as the owner of a measured outcome
+  dispatch: { deps: [coding-agent-orchestration, find-skills, finetune, triage, use, workflow-orchestrate] }  # names each in its Boundaries table
+
+  # devops
+  agent-browser: { deps: [chrome-profile] }
+  chrome-profile: { deps: [agent-browser, web-testing] }
+  cleanup: { deps: [] }  # recipient-side orphan sweep after over-install
+  deploy: { deps: [devops] }
+  devops: { deps: [] }
+  release: { deps: [docs-standardize] }  # owner-only build step; engine lives in release/ (not shipped); preflight runs the docs-standardize gate
+  rops: { deps: [] }  # remote execution CLI; engine lives in rops/ (not shipped), reached via $HARNESS_BIN_ROOT
+  web-testing: { deps: [test] }
+
+  # stack
+  backend-development: { deps: [] }
+  better-auth: { deps: [] }
+  databases: { deps: [] }
+  frontend-development: { deps: [] }
+  mobile-development: { deps: [] }
+  react-best-practices: { deps: [] }
+  tanstack: { deps: [] }
+  web-frameworks: { deps: [] }
+
+  # uiux
+  design: { deps: [agent-browser, ai-multimodal, chrome-profile, frontend-design, show-off, ui-ux] }
+  frontend-design: { deps: [ai-multimodal, ui-ux] }
+  show-off: { deps: [frontend-design, project-management] }
+  ui-styling: { deps: [] }
+  ui-ux: { deps: [] }
+  web-design-guidelines: { deps: [] }
+
+  # integrations
+  gkg: { deps: [] }
+  google-adk-python: { deps: [] }
+  payment-integration: { deps: [] }
+  shopify: { deps: [] }
+  use-mcp: { deps: [chrome-profile] }
+
+  # extra
+  ask: { deps: [scout] }
+  copywriting: { deps: [project-organization] }
+  cti-expert: { deps: [chrome-profile] }
+  ghpm: { deps: [cook, git, plan, scout, ship, test] }
+  llms: { deps: [scout, common] }
+  markdown-novel-viewer: { deps: [preview] }
+  mintlify: { deps: [] }
+  prompt: { deps: [find-skills, plan, use] }
+  watzup: { deps: [handoff] }           # points conversation-state compaction at hs:handoff (2-cycle, resolver tolerates)
+  handoff: { deps: [coding-agent-orchestration, watzup] }  # routes to hs:watzup for a git-derived status report, and to hs:coding-agent-orchestration under --dispatch
+  advise: { deps: [ask, brainstorm, plan, scout, workflow-orchestrate] }            # interview-driven advisory verdict
+  issue-to-plan: { deps: [brainstorm, git, plan, scout, vibe] }  # audited issue -> validated plan bridge
+  fable-thinking: { deps: [problem-solving, sequential-thinking] }  # ported Fable reasoning protocol
+
+  # (The CLI-sequenced `plan-ng`/`cook-ng` variants used to sit here. They were
+  # prototypes for moving the deterministic step ORDER out of prose and into the
+  # hs-run CLI; that move landed in the spine `plan`/`cook` themselves, so the
+  # prototypes were retired rather than kept as permanent siblings. Their deps
+  # are not migrated: `plan`/`cook` already carry their own, and the shared
+  # judgment drawers now live under `_shared/hs-run/`.)
+
+  # product
+  spec: { deps: [critique, shape] }     # PO product-spec hierarchy; hs:shape is its BA sibling (2-cycle, resolver tolerates)
+  shape: { deps: [code-review, cook, plan, spec, test] }   # BA bridge PO-story -> dev tasks
+
+  # viz
+  excalidraw: { deps: [drawio, mermaidjs, preview, repomix, tech-graph, understand] }
+  graphify: { deps: [drawio, mermaidjs, plan, repomix, scout, tech-graph, understand] }
+  mermaidjs: { deps: [docs, drawio, excalidraw, preview, tech-graph] }
+  preview: { deps: [brainstorm, cook, docs, plan, scout] }
+  tech-graph: { deps: [drawio, excalidraw, mermaidjs, repomix, understand] }
+
+  # docs-ssot pipeline. deps ở đây encode HANDOFF edge (từ SKILL.md "Sau/Trước"),
+  # KHÔNG phải build-order DAG — cycle hợp lệ; test_handoff_deps_drift enforce.
+  _docslib: { deps: [] }   # shared lib, no SKILL.md; consumed by docs-scaffold/standardize/build
+  docs-scaffold: { deps: [_docslib, docs-standardize] }       # scaffold → standardize
+  docs-standardize: { deps: [_docslib, docs-scaffold, docs-build] }  # standardize ↔ scaffold/build
+  docs-build: { deps: [_docslib, docs-standardize] }          # build cần gate standardize trước render
+  drawio: { deps: [excalidraw, graphify, mermaidjs, preview, repomix, tech-graph, understand] }

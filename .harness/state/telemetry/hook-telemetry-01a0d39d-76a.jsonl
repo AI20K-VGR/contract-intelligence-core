@@ -1,0 +1,7 @@
+{"ts": "2026-09-24T14:33:04.113201+00:00", "source": "hook:bash", "script": "pytest:pytest", "exit": 0, "session": "01a0d39d-76a5-7af2-96d4-2a4d77a910e2", "actor": "user:dungskbg2004@gmail.com"}
+{"ts": "2026-09-24T14:49:02.897742+00:00", "source": "hook:bash", "script": "pytest:tests/unit/shared/ai/test_canonical_processing.py", "exit": 0, "session": "01a0d39d-76a5-7af2-96d4-2a4d77a910e2", "actor": "user:dungskbg2004@gmail.com"}
+{"ts": "2026-09-24T15:04:39.015332+00:00", "source": "hook:bash", "script": "pytest:pytest", "exit": 0, "session": "01a0d39d-76a5-7af2-96d4-2a4d77a910e2", "actor": "user:dungskbg2004@gmail.com"}
+{"ts": "2026-09-24T15:35:57.384588+00:00", "source": "hook:bash", "script": "pytest:pytest", "exit": 0, "session": "01a0d39d-76a5-7af2-96d4-2a4d77a910e2", "actor": "user:dungskbg2004@gmail.com"}
+{"ts": "2026-09-24T15:36:27.533003+00:00", "source": "hook:bash", "script": "pytest:pytest", "exit": 0, "session": "01a0d39d-76a5-7af2-96d4-2a4d77a910e2", "actor": "user:dungskbg2004@gmail.com"}
+{"ts": "2026-09-24T15:36:44.572886+00:00", "source": "hook:bash", "script": "pytest:pytest", "exit": 0, "session": "01a0d39d-76a5-7af2-96d4-2a4d77a910e2", "actor": "user:dungskbg2004@gmail.com"}
+{"ts": "2026-09-24T16:27:18.706705+00:00", "source": "hook:bash", "script": "scripts/output_config.py", "exit": 0, "session": "01a0d39d-76a5-7af2-96d4-2a4d77a910e2", "ms": 5047, "actor": "user:dungskbg2004@gmail.com"}

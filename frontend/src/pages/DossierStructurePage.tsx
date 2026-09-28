@@ -28,6 +28,8 @@ import {
   type ReviewSpot,
 } from '../api/structure'
 import { dossiersLabel, dossiersPath } from '../auth/session'
+import { ConflictNotice } from '../components/ConflictNotice'
+import { conflictPagePath } from '../data/dossiers'
 import { useAuth } from '../auth/useAuth'
 import { CitationPane } from '../components/CitationPane'
 import { UploadedPdfPane } from '../components/UploadedPdfPane'
@@ -111,6 +113,11 @@ import {
   findClauseByQuote,
   searchCites,
 } from '../structure/citations'
+import {
+  anchorConflicts,
+  conflictMarkers,
+  openConflictCount,
+} from '../structure/conflictAnchors'
 
 const jobLabels: Record<string, string> = {
   uploaded: 'Đã tải lên',
@@ -373,6 +380,27 @@ export function DossierStructurePage() {
   const status = detail?.latestJobStatus
   const statusLabel = status ? (jobLabels[status] ?? status) : 'Đang chờ'
   const clauseCount = countClauses(nodes)
+  const anchors = useMemo(
+    () => anchorConflicts(spots, nodes, lines ?? [], documentId),
+    [documentId, lines, nodes, spots],
+  )
+  const markers = useMemo(() => conflictMarkers(anchors, nodes), [anchors, nodes])
+  const answerAnchors = useMemo(
+    () =>
+      answerNodes === nodes
+        ? anchors
+        : anchorConflicts(spots, answerNodes, lines ?? [], documentId),
+    [anchors, answerNodes, documentId, lines, nodes, spots],
+  )
+  const openConflicts = openConflictCount(spots)
+  const openConflict = useCallback(
+    (findingId: string) => {
+      navigate(conflictPagePath(dossierId, findingId), {
+        state: { dossierId, name: detail?.name, findingId },
+      })
+    },
+    [detail?.name, dossierId, navigate],
+  )
   const attentionIds = useMemo(() => {
     const ids = new Set<string>()
     for (const spot of spots) {
@@ -414,20 +442,22 @@ export function DossierStructurePage() {
       const clause = findClauseByQuote(nodes, hit.text, hit.pageNo)
       if (clause && citeOf.has(clause.id)) {
         openTreeCite(clause.id)
+        setReviewCiteId(clause.id)
         return
       }
-      if (!documentId || hit.pageNo === null) return
+      if (!documentId) return
+      const pageNo = hit.pageNo ?? 1
       const node: ClauseNode = {
         id: hit.lineId || `search-citation-${index}`,
         nodeType: 'line',
-        label: 'Citation',
+        label: 'Trích dẫn',
         number: null,
         title: null,
         text: hit.text,
-        pageStart: hit.pageNo,
-        pageEnd: hit.pageNo,
+        pageStart: pageNo,
+        pageEnd: pageNo,
         confidence: null,
-        regions: hit.bbox ? [{ pageNo: hit.pageNo, bbox: hit.bbox }] : [],
+        regions: hit.bbox ? [{ pageNo, bbox: hit.bbox }] : [],
         children: [],
       }
       setShowLines(false)
@@ -435,6 +465,7 @@ export function DossierStructurePage() {
       setCiteId(null)
       setTableCite(null)
       setSearchCite({ node, citeNo: index + 1 })
+      setReviewCiteId(node.id)
     },
     [citeOf, documentId, nodes, openTreeCite],
   )
@@ -606,13 +637,25 @@ export function DossierStructurePage() {
                 <Link
                   className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-outline-variant/30 bg-surface-container-lowest px-3 font-body-sm text-body-sm font-semibold text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] hover:bg-amber-50 hover:text-amber-950"
                   state={{ dossierId, name: detail?.name }}
-                  to="/doi-soat-xung-dot"
+                  title={
+                    openConflicts > 0
+                      ? `${openConflicts} xung đột chưa ai thẩm định`
+                      : spots.length > 0
+                        ? 'Mọi xung đột đã có người thẩm định'
+                        : 'Xem trang đối soát xung đột'
+                  }
+                  to={conflictPagePath(dossierId)}
                 >
                   <MaterialIcon
                     name="warning"
                     className="text-[18px] text-amber-700"
                   />
                   Xem xung đột
+                  {openConflicts > 0 ? (
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 font-label-sm text-[11px] font-bold text-amber-950">
+                      {openConflicts}
+                    </span>
+                  ) : null}
                 </Link>
                 <form
                   className="relative min-w-0 w-full shrink md:w-80 lg:w-96"
@@ -772,52 +815,36 @@ export function DossierStructurePage() {
                         : 'AI2 chưa nối. Câu hỏi đã gửi tới backend, chưa có câu trả lời.'}
                     </p>
                   )}
-                  {searchCites(
-                    answerNodes,
-                    searchResult.hits,
-                    answerCiteOf,
-                    searchResult.answer ?? '',
-                  ).length === 0 && searchResult.hits.length > 0 ? (
-                    <ul className="flex flex-col gap-1">
-                      {searchResult.hits
-                        .filter((hit) => {
-                          const clause = findClauseByQuote(
-                            nodes,
-                            hit.text,
-                            hit.pageNo,
-                          )
-                          return !clause || !citeOf.has(clause.id)
-                        })
-                        .map((hit, index) => (
-                        <li
-                          key={`${hit.lineId ?? ''}-${hit.pageNo ?? ''}-${hit.text}`}
-                          className="font-body-sm text-body-sm text-on-surface-variant"
-                        >
-                          {hit.sourceFileId === documentId && hit.pageNo ? (
+                  {searchResult.hits.length > 0 ? (
+                    <div className="flex flex-col gap-1">
+                      <p className="font-label-sm text-label-sm uppercase tracking-wide text-on-surface-variant">
+                        {searchResult.hits.length} trích dẫn · bấm để mở và đánh giá
+                      </p>
+                      <ul className="flex flex-col gap-1">
+                        {searchResult.hits.map((hit, index) => (
+                          <li key={`${hit.lineId ?? ''}-${hit.pageNo ?? ''}-${index}`}>
                             <button
                               className="group flex w-full items-start gap-2 rounded-md p-1 text-left hover:bg-primary/5 hover:text-primary"
                               type="button"
                               onClick={() => openSearchCitation(hit, index)}
-                              title="Mở trang nguồn"
+                              title="Mở trích dẫn và đánh giá"
                             >
-                              <span className="shrink-0 font-medium">
-                                Trang {hit.pageNo} ·
+                              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-container-high text-[11px] font-semibold">
+                                {index + 1}
                               </span>
-                              <span className="min-w-0 flex-1">{hit.text}</span>
+                              <span className="min-w-0 flex-1">
+                                {hit.pageNo ? `Trang ${hit.pageNo} · ` : ''}
+                                {hit.text}
+                              </span>
                               <MaterialIcon
-                                name="open_in_new"
+                                name="rate_review"
                                 className="shrink-0 text-[15px] opacity-60 group-hover:opacity-100"
                               />
                             </button>
-                          ) : (
-                            <span>
-                              {hit.pageNo ? `Trang ${hit.pageNo} · ` : ''}
-                              {hit.text}
-                            </span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   ) : null}
                 </div>
               ) : null}
@@ -837,12 +864,14 @@ export function DossierStructurePage() {
             />
           ) : null}
 
-          {phase === 'ready' && reviewCiteId && documentId && findClause(answerNodes, reviewCiteId) ? (
+          {phase === 'ready' && reviewCiteId && documentId && (findClause(answerNodes, reviewCiteId) || searchCite?.node.id === reviewCiteId) ? (
             <SearchCitationReview
-              citeNo={answerCiteOf.get(reviewCiteId) ?? 0}
+              citeNo={answerCiteOf.get(reviewCiteId) ?? searchCite?.citeNo ?? 0}
+              conflicts={answerAnchors.get(reviewCiteId) ?? []}
               documentId={documentId}
+              dossierId={dossierId}
               filename={filename}
-              node={findClause(answerNodes, reviewCiteId)!}
+              node={(findClause(answerNodes, reviewCiteId) ?? searchCite?.node)!}
               ordinal={clauseOrdinal(answerNodes, reviewCiteId)}
               related={
                 searchResult
@@ -855,6 +884,7 @@ export function DossierStructurePage() {
                   : []
               }
               onBack={() => setReviewCiteId(null)}
+              onOpenConflict={openConflict}
               onPick={setReviewCiteId}
             />
           ) : null}
@@ -866,6 +896,7 @@ export function DossierStructurePage() {
                   attentionIds,
                   citationOf: citeOf,
                   focusId: citeId,
+                  markers,
                   nodes,
                   title: detail?.name ?? 'Hợp đồng',
                   onCite: openTreeCite,
@@ -921,6 +952,17 @@ export function DossierStructurePage() {
         ) : cited && documentId ? (
           <CitationPane
             key={cited.id}
+            banner={
+              anchors.get(cited.id)?.length ? (
+                <ConflictNotice
+                  documentId={documentId}
+                  dossierId={dossierId}
+                  nodeId={cited.id}
+                  spots={anchors.get(cited.id) ?? []}
+                  onOpen={openConflict}
+                />
+              ) : null
+            }
             citeNo={citeOf.get(cited.id) ?? 0}
             documentId={documentId}
             node={cited}

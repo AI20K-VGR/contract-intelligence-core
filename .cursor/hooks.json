@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "matcher": "Shell",
+        "type": "command",
+        "command": "\"C:\\Users\\dungs\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF/harness/hooks/hook_dispatch.py\" \"preToolUse\" \"Shell\""
+      },
+      {
+        "matcher": "Write",
+        "type": "command",
+        "command": "\"C:\\Users\\dungs\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF/harness/hooks/hook_dispatch.py\" \"preToolUse\" \"Write\""
+      },
+      {
+        "matcher": "Read",
+        "type": "command",
+        "command": "\"C:\\Users\\dungs\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF/harness/hooks/hook_dispatch.py\" \"preToolUse\" \"Read\""
+      },
+      {
+        "matcher": "Write",
+        "type": "command",
+        "command": "\"C:\\Users\\dungs\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF/harness/hooks/hook_dispatch.py\" \"preToolUse\" \"Write\""
+      },
+      {
+        "matcher": "Task",
+        "type": "command",
+        "command": "\"C:\\Users\\dungs\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF/harness/hooks/hook_dispatch.py\" \"preToolUse\" \"Task\""
+      }
+    ],
+    "postToolUse": [
+      {
+        "matcher": "Write",
+        "type": "command",
+        "command": "\"C:\\Users\\dungs\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF/harness/hooks/hook_dispatch.py\" \"postToolUse\" \"Write\""
+      },
+      {
+        "matcher": "Shell",
+        "type": "command",
+        "command": "\"C:\\Users\\dungs\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF/harness/hooks/hook_dispatch.py\" \"postToolUse\" \"Shell\""
+      }
+    ],
+    "subagentStop": [
+      {
+        "type": "command",
+        "command": "\"C:\\Users\\dungs\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF/harness/hooks/hook_dispatch.py\" \"subagentStop\""
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "type": "command",
+        "command": "\"C:\\Users\\dungs\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF/harness/hooks/hook_dispatch.py\" \"beforeSubmitPrompt\""
+      }
+    ],
+    "sessionStart": [
+      {
+        "type": "command",
+        "command": "\"C:\\Users\\dungs\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF/harness/hooks/hook_dispatch.py\" \"sessionStart\""
+      }
+    ],
+    "subagentStart": [
+      {
+        "type": "command",
+        "command": "\"C:\\Users\\dungs\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF/harness/hooks/hook_dispatch.py\" \"subagentStart\""
+      }
+    ],
+    "stop": [
+      {
+        "type": "command",
+        "command": "\"C:\\Users\\dungs\\AppData\\Local\\Programs\\Python\\Python313\\python.exe\" \"C:\\Users\\dungs\\OneDrive\\Documents\\VSF/harness/hooks/hook_dispatch.py\" \"stop\""
+      }
+    ]
+  }
+}

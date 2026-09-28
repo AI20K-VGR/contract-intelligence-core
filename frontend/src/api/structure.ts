@@ -57,10 +57,22 @@ export type ClauseNode = {
   children: ClauseNode[]
 }
 
+/** Lượt thẩm định xung đột gần nhất, đủ để cây và banner hiện trạng thái. */
+export type ReviewSpotLatest = {
+  action: string
+  comment: string | null
+  reviewerId: string
+  reviewerName: string | null
+  reviewerEmail: string | null
+  reviewedAt: string | null
+  actionCount: number
+}
+
 export type ReviewSpotLink = {
   itemId: string
   status: string
   version: number
+  latest: ReviewSpotLatest | null
 }
 
 export type ReviewSpotSide = {
@@ -330,12 +342,17 @@ export async function loadPagePreview(
   pageNo: number,
   signal?: AbortSignal,
 ) {
-  const response = await apiFetch(
-    `/api/v1/documents/${encodeURIComponent(documentId)}/pages/${pageNo}/image?variant=preview`,
-    { signal },
-  )
+  const basePath = `/api/v1/documents/${encodeURIComponent(documentId)}/pages/${pageNo}/image`
+  let response = await apiFetch(`${basePath}?variant=preview`, { signal })
   if (!response.ok) {
-    throw new Error('Không tải được trang hợp đồng.')
+    // Some older snapshots have only a render URI. Try it before surfacing
+    // the error so the tree remains usable during artifact migration.
+    response = await apiFetch(`${basePath}?variant=render`, { signal })
+  }
+  if (!response.ok) {
+    throw new Error(
+      `Không tải được trang hợp đồng (HTTP ${response.status}, trang ${pageNo}).`,
+    )
   }
   return response.blob()
 }
@@ -516,8 +533,25 @@ function asReviewSpot(value: unknown): ReviewSpot | null {
             typeof reviewRow?.current_version === 'number'
               ? reviewRow.current_version
               : 1,
+          latest: asReviewLatest(reviewRow?.latest),
         }
       : null,
+  }
+}
+
+function asReviewLatest(value: unknown): ReviewSpotLatest | null {
+  const row = asRecord(value)
+  const action = asString(row?.action)
+  if (!row || !action) return null
+  return {
+    action,
+    comment: typeof row.comment === 'string' ? row.comment : null,
+    reviewerId: asString(row.reviewer_id),
+    reviewerName: typeof row.reviewer_name === 'string' ? row.reviewer_name : null,
+    reviewerEmail:
+      typeof row.reviewer_email === 'string' ? row.reviewer_email : null,
+    reviewedAt: typeof row.reviewed_at === 'string' ? row.reviewed_at : null,
+    actionCount: asNumber(row.action_count),
   }
 }
 

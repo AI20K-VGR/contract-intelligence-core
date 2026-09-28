@@ -42,6 +42,21 @@ function ownerOf(
   return null
 }
 
+export type SameFileSide = {
+  documentId: string
+  label: string
+  quote: string
+  pageNo: number | null
+}
+
+/** Hai phía trong cùng một file vẫn là hai trích dẫn. Hai file thì để trang tự ghép theo tài liệu. */
+export function sameFileCitationSides(sides: SameFileSide[]): SameFileSide[] | null {
+  const ids = new Set(sides.map((side) => side.documentId).filter(Boolean))
+  if (ids.size > 1) return null
+  const cited = sides.filter((side) => side.quote.trim() || (side.pageNo ?? 0) > 0)
+  return cited.length > 0 ? cited : null
+}
+
 export function regionsOf(node: ClauseNode | null): ClauseRegion[] {
   if (!node) return []
   return node.regions.filter((region) => {

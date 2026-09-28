@@ -12,6 +12,7 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
+from contract_intelligence.config.settings import get_settings
 from contract_intelligence.contract.infrastructure.persistence.orm import (
     DocumentORM,
     ManifestItemORM,
@@ -347,7 +348,7 @@ def build_processing_request(
         "dossier_members": dossier_members,
         "role_relation_map": role_relation_map,
         "policy_flags": {
-            "egress_allowed": False,
+            "egress_allowed": get_settings().ai2_processing_egress_allowed,
             "use_vector": True,
             "budget_limits": {
                 "max_processing_seconds": 300,

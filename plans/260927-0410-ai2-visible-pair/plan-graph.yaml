@@ -1,0 +1,24 @@
+edges:
+  - {from: P1, to: P2}
+  - {from: P2, to: P3}
+subtasks:
+  P1:
+    files_to_create:
+      - ai-service/tests/unit/test_health_llm_probe.py
+    files_to_modify:
+      - ai-service/app/llm/client.py
+      - ai-service/app/api/main.py
+    post: [verification-P1.json]
+  P2:
+    files_to_create:
+      - frontend/src/api/contextFindings.ts
+      - frontend/src/api/contextFindings.test.ts
+    files_to_modify:
+      - frontend/src/components/DossierAnalysisPanel.tsx
+      - frontend/src/components/ContextFindingsPanel.tsx
+    post: [verification-P2.json]
+  P3:
+    files_to_create:
+      - plans/260927-0410-ai2-visible-pair/artifacts/phase-3-live-reprocess-evidence.md
+    files_to_modify: []
+    post: [verification-P3.json]

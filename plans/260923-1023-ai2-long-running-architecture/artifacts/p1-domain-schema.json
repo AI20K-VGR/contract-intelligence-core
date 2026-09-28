@@ -1,0 +1,39 @@
+{
+  "schema": "ai2.p1.domain/v1",
+  "phase": "P1",
+  "implementation": {
+    "models": [
+      "AI2Run",
+      "InputSnapshot",
+      "LogicalDocument",
+      "Boundary",
+      "Party",
+      "Clause",
+      "Fact",
+      "Relation",
+      "CanonicalCitation",
+      "Generation",
+      "DependencyGraph"
+    ],
+    "mapper": "app.pipeline.canonical.build_canonical_run",
+    "segmentation_version": "segmentation.v1",
+    "raw_source_policy": "copy-and-retain; derived models never rewrite upstream JSON"
+  },
+  "invariants": [
+    "Every fact and relation carries evidence_refs and unresolved references remain non-confirmed.",
+    "Boundary status is one of PROPOSED, CONFIRMED, AMBIGUOUS, REJECTED and confidence is bounded to [0, 1].",
+    "A body/annex relation is confirmed only by resolvable evidence or an explicit reviewer decision.",
+    "Generation is pinned to input_snapshot_id, segmentation_version, and state_version.",
+    "Annotation edits do not stale evidence; boundary, fact, and relation edits stale derived generations.",
+    "User context is retained outside evidence-bearing objects."
+  ],
+  "compatibility": {
+    "ai1_snapshot_v1": "accepted as input projection",
+    "legacy_output": "unchanged; canonical model is read-only internal projection",
+    "ai1_producer": "unchanged"
+  },
+  "verification": {
+    "test_file": "ai-service/tests/test_p1_canonical_model.py",
+    "cases": 9
+  }
+}

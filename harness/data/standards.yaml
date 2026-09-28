@@ -1,0 +1,65 @@
+# standards.yaml — knobs for the repo-local rule layer (layer-b override folder).
+#
+# Layer-b = a repo's own review rules, kept as override files in a folder rather
+# than the single legacy standards.user.yaml. Each file holds an `overrides:`
+# list in the user_override format. The harness reads every *.yaml in the folder,
+# sorted, and merges their overrides. A missing/empty folder falls back to the
+# legacy root standards.user.yaml so existing repos keep working.
+
+# Folder (repo-relative) holding the layer-b override files. Env override:
+# HARNESS_USER_OVERRIDE (a file OR a dir) takes precedence over this knob.
+user_rules_dir: docs/standards/
+
+# rule_nudge_hook (advisory PreToolUse:Write) caps how many scope-matching rules
+# it surfaces for one file, so a broad edit never floods the terminal.
+nudge_max_rules: 3
+
+# drift — config for the standards-drift detector (nudge) + the Tier-2
+# architecture_review presence gate. Resolution precedence, highest first:
+#   1. $HARNESS_STANDARDS_CONFIG  — a gitignored .harness-dev/standards.yaml-shaped
+#      override (this repo dogfoods its own harness/ layout that way).
+#   2. this shipped section        — GENERIC cross-language default below.
+#   3. module constants            — final fail-open fallback.
+# The shipped default is deliberately GENERIC: a value baked here is every
+# installer's default, so it must NOT carry this repo's harness/ layout (that would
+# leak onto every consumer). A repo whose trees differ overrides via .harness-dev.
+drift:
+  # Editing code under these trees can change the architecture / code standards the
+  # auto-loaded prose docs describe → the drift nudge fires if no context_doc is
+  # touched in the same session.
+  watch_trees:
+    - src/
+    - lib/
+    - app/
+    - apps/
+    - packages/
+    - pkg/
+    - internal/
+    - cmd/
+    - services/
+    - modules/
+    - components/
+    - core/
+    - domain/
+  # Touching any of these prose docs in the same session means the author kept the
+  # standards in sync → no nudge.
+  context_docs:
+    - docs/system-architecture.md
+    - docs/architecture.md
+    - ARCHITECTURE.md
+    - docs/code-standards.md
+    - docs/coding-standards.md
+  # A reviewed diff intersecting these globs is "structural" → the Tier-2 gate
+  # requires the review to carry architecture_review.checked==true (the reviewer
+  # loaded docs/system-architecture.md and judged drift). GENERIC cross-language
+  # default; a repo whose structural trees differ overrides via .harness-dev. An
+  # empty match set = Tier-2 dormant for that repo. gitignore-style globs.
+  structural_globs:
+    - src/**
+    - lib/**
+    - packages/**
+    - internal/**
+    - services/**
+    - modules/**
+    - "**/schemas/*.json"
+    - "**/migrations/**"

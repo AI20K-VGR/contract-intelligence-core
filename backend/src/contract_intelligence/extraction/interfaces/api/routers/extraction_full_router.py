@@ -27,6 +27,9 @@ from typing import Annotated, Any
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, Path, Query, Response, status
 from fastapi.responses import StreamingResponse
 
+from contract_intelligence.extraction.application.dtos.ai2_analysis_dtos import (
+    Ai2AnalysisDTO,
+)
 from contract_intelligence.extraction.application.dtos.clause_dtos import ClauseNodeDTO
 from contract_intelligence.extraction.application.dtos.fact_effective_dtos import (
     FactEffectiveDTO,
@@ -45,6 +48,20 @@ from contract_intelligence.shared.auth import AuthenticatedUser, get_current_use
 from contract_intelligence.shared.responses import ApiMeta, ApiResponse
 
 router = APIRouter(tags=["Extraction"])
+
+
+@router.get(
+    "/dossiers/{dossier_id}/ai2-analysis",
+    response_model=ApiResponse[Ai2AnalysisDTO],
+    summary="Read persisted AI2 analysis state",
+)
+async def get_dossier_ai2_analysis(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ExtractionServiceDep,
+    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> ApiResponse[Ai2AnalysisDTO]:
+    """Return the latest durable AI2 projection for the Facts/Findings UI."""
+    return ApiResponse(data=await svc.get_dossier_ai2_analysis(dossier_id))
 
 
 # -----------------------------------------------------------------------------

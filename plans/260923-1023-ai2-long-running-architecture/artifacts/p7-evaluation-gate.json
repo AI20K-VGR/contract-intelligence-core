@@ -1,0 +1,32 @@
+{
+  "phase": "P7",
+  "status": "PASS_WITH_LIMITATIONS",
+  "scope": "deterministic evaluation and workflow/recovery metrics",
+  "implementation_files": [
+    "evals/workflow_gate.py"
+  ],
+  "test_files": [
+    "evals/tests/test_p7_evaluation_gate.py"
+  ],
+  "acceptance": [
+    {"criterion": "Ground truth requires case identity, provenance and explicit approval", "status": "PASS"},
+    {"criterion": "Case metrics expose denominator, coverage and passed fields", "status": "PASS"},
+    {"criterion": "Unapproved or absent ground truth cannot claim business accuracy", "status": "PASS"},
+    {"criterion": "Workflow metrics cover ordering, replay, idempotency, recovery and security", "status": "PASS"},
+    {"criterion": "P0-P6 regression remains green", "status": "PASS"}
+  ],
+  "verification": {
+    "focused_command": "ai-service/.venv/Scripts/python.exe -m pytest -q evals/tests/test_p7_evaluation_gate.py",
+    "focused_result": "5 passed",
+    "regression_command": "ai-service/.venv/Scripts/python.exe -m pytest -q tests/test_p6_event_ui_convergence.py tests/test_p5_api_security.py tests/test_p4_execution_adapters.py tests/test_p3_persistence_events.py tests/test_p2_hitl_state.py tests/test_p1_canonical_model.py tests/test_p0_contract_baseline.py",
+    "regression_result": "55 passed, 1 warning",
+    "compileall": "PASS",
+    "warning": "PytestCacheWarning: .pytest_cache path was not writable on Windows"
+  },
+  "limitations": [
+    "Các nhãn nghiệp vụ chưa được adjudicate không được dùng để claim business accuracy.",
+    "Workflow scorer là deterministic contract checker, chưa phải load/soak runner production.",
+    "Chưa tích hợp LLM judge; nếu bật về sau, kết quả chỉ advisory và không thay thế scorer deterministic.",
+    "Ground truth hiện có thể là human-authored contract expectation; cần quy trình phê duyệt riêng trước khi publish gate."
+  ]
+}

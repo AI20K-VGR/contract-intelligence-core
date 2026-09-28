@@ -1,0 +1,24 @@
+---
+description: Route every repo-changing prompt through the SDLC harness
+alwaysApply: true
+---
+
+# Use the harness on each prompt
+
+This repo has the SDLC harness installed for Cursor under `.cursor/skills/`.
+
+When the user asks to build, fix, change, review, or ship code, do that work by following one harness skill. Read `.cursor/skills/<name>/SKILL.md` and obey it before editing files.
+
+Pick one skill:
+
+- New feature or multi-step change: `plan`, then `cook` only after the user approves the plan
+- Execute an approved plan: `cook`
+- Bug, red test, or CI failure: `fix` (use `debug` first when the cause is unknown)
+- Local review: `code-review`. A GitHub or GitLab pull request: `review-pr`
+- Tests for the current change: `test`
+- Unclear problem: `discover`. Approach not chosen yet: `brainstorm`
+- Skill name unknown, or the skill is off: `find-skills`, then `use` for an off skill
+
+Answer a direct question in the chat. Do not open a plan for that.
+
+Skill order and lookalike pairs are in `.cursor/rules/skill-routing.mdc`. The default implementation loop is in `.cursor/rules/primary-workflow.mdc`.

@@ -1,0 +1,33 @@
+version: 1
+plan: 260924-ai2-bridge-fe-be-ai1
+nodes:
+  - id: P0
+    file: phases/phase-0-baseline.md
+    depends_on: []
+  - id: P1
+    file: phases/phase-1-handoff-adapter.md
+    depends_on: [P0]
+  - id: P2
+    file: phases/phase-2-backend-canonical-client.md
+    depends_on: [P1]
+  - id: P3
+    file: phases/phase-3-persistence-mapping.md
+    depends_on: [P2]
+  - id: P4
+    file: phases/phase-4-verification-security.md
+    depends_on: [P3]
+  - id: P5
+    file: phases/phase-5-canary-rollout.md
+    depends_on: [P4]
+edges:
+  - [P0, P1]
+  - [P1, P2]
+  - [P2, P3]
+  - [P3, P4]
+  - [P2, P4]
+  - [P4, P5]
+ownership:
+  backend: [P1, P2, P3, P4, P5]
+  ai2: [P1, P2, P3, P4]
+  frontend: []
+  shared: [P0, P5]

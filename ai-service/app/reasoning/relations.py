@@ -38,11 +38,14 @@ def attach_ancestors(outline: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def clause_key(label: str | None, text: str | None = None) -> str | None:
-    blob = f"{label or ''} {text or ''}"
-    m = CLAUSE_RE.search(blob)
-    if not m:
-        return None
-    return f"Điều {m.group(1)}"
+    """The clause this node *is*, not a clause it merely mentions."""
+
+    for source in (label, text):
+        normalized = _normalize_relation_text((source or "").strip())
+        match = re.match(r"(?:dieu|article)\s+(\d+(?:\.\d+)?)", normalized, re.I)
+        if match:
+            return f"Điều {match.group(1)}"
+    return None
 
 
 def doc_side(ancestors: list[str] | None, label: str | None) -> str:
@@ -99,8 +102,12 @@ def render_related_answer(packed: list[dict[str, Any]], rels: list[dict[str, Any
     for n in packed:
         side = n.get("side") or ""
         path = n.get("path") or n.get("label") or n.get("node_id")
-        text = (n.get("text") or "")[:400]
-        lines.append(f"- [{side}] {path}: {text}")
+        text = (n.get("text") or "").strip()
+        label = (n.get("label") or "").strip()
+        if text and text not in (path or "") and text != label:
+            lines.append(f"- [{side}] {path}: {text[:400]}")
+        else:
+            lines.append(f"- [{side}] {path}")
     if rels:
         lines.append("Quan hệ:")
         for r in rels:
@@ -332,9 +339,19 @@ def build_relation_graph(record: DossierRecord) -> RelationGraph:
 
 
 def _robust_clause_key(label: str | None, text: str | None = None) -> str | None:
-    normalized = _normalize_relation_text(f"{label or ''} {text or ''}")
-    match = re.search(r"(?:dieu|article)\s+(\d+(?:\.\d+)?)", normalized, re.I)
-    return f"dieu {match.group(1)}" if match else None
+    """Identity of a clause heading. A later mention of another article is not that clause."""
+
+    for source in (label, text):
+        normalized = _normalize_relation_text((source or "").strip())
+        match = re.match(r"(?:dieu|article)\s+(\d+(?:\.\d+)?)", normalized, re.I)
+        if match:
+            return f"dieu {match.group(1)}"
+    return None
+
+
+def _annex_numbers(text: str) -> set[int]:
+    normalized = _normalize_relation_text(text)
+    return {int(number) for number in re.findall(r"phu luc\s+0*(\d+)\b", normalized)}
 
 
 def _normalize_relation_text(value: str) -> str:
@@ -348,13 +365,16 @@ def _resolve_reference(kind: str, value: str, source: Any, nodes: list[Any]) -> 
         key = f"dieu {value}"
         return [node.node_id for node in nodes if _robust_clause_key(node.raw_label, node.text) == key and node.node_id != source.node_id]
     needle = _normalize_relation_text(f"phu luc {value}")
-    candidates = [
-        node.node_id
-        for node in nodes
-        if node.node_id != source.node_id
-        and node.type != "FIELD"
-        and needle in _normalize_relation_text(f"{node.raw_label} {node.text}")
-    ]
+    wanted = int(value) if str(value).isdigit() else None
+    candidates = []
+    for node in nodes:
+        if node.node_id == source.node_id or node.type == "FIELD":
+            continue
+        blob = _normalize_relation_text(f"{node.raw_label} {node.text}")
+        if wanted is not None and wanted in _annex_numbers(blob):
+            candidates.append(node.node_id)
+        elif wanted is None and needle in blob:
+            candidates.append(node.node_id)
     if len(candidates) <= 1:
         return candidates
     primary = []
@@ -362,7 +382,9 @@ def _resolve_reference(kind: str, value: str, source: Any, nodes: list[Any]) -> 
         if node.node_id not in candidates:
             continue
         label = _normalize_relation_text(node.raw_label or "").strip()
-        if re.match(rf"^phu\s+luc\s+{re.escape(value)}\b", label) and not re.search(r"\b(tiep\s+theo|continued|continue)\b", label):
+        if wanted is not None and re.match(rf"^phu\s+luc\s+0*{wanted}\b", label) and not re.search(
+            r"\b(tiep\s+theo|continued|continue)\b", label
+        ):
             primary.append(node.node_id)
     return primary if len(primary) == 1 else candidates
 

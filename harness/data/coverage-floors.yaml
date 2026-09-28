@@ -1,0 +1,86 @@
+# coverage-floors.yaml — sàn độ phủ DÒNG theo TỪNG NHÓM (SSOT của cổng).
+# Đọc bởi `harness/scripts/coverage_gate.py`; ghim bởi
+# `harness/tests/test_coverage_floor_gate.py`.
+#
+# ⚠️ VÌ SAO CHIA NHÓM CHỨ KHÔNG DÙNG MỘT SỐ CHUNG.
+# Độ phủ là trung bình CÓ TRỌNG SỐ THEO SỐ DÒNG. Đo 2026-07-31 trên cây này:
+# toàn `harness/` **88,1%** — nghe rất yên tâm — trong khi nhóm `*guard*`, tức
+# đúng những đoạn mã có quyền TỪ CHỐI, chỉ **60,6%**. 23.561 dòng của
+# `scripts/` kéo bảng lên và làm 1.388 dòng rủi ro nhất **vô hình**. Một cổng
+# `fail_under = 85` sẽ XANH suốt qua chuyện đó.
+#
+# ⚠️ SÀN ĐANG LÀ "BÁNH CÓC", KHÔNG PHẢI MỤC TIÊU.
+# Mỗi số dưới đây đặt ở ĐÚNG mức đo được, làm tròn xuống. Nó chặn TỤT LÙI, nó
+# KHÔNG sửa hiện trạng. Nói thẳng: sàn 60 cho nhóm guard là **đóng băng một vấn
+# đề**, không phải giải nó. Đặt cao hơn thì cổng ĐỎ ngay ngày dựng, và một cổng
+# đỏ-lúc-sinh là cổng bị người ta tắt. Việc nâng dần ghi ở `DEBTS.md`/
+# `BACKLOG.md`, không giấu trong tệp này.
+#
+# ⚠️ ĐIỀU KIỆN ĐO — SỐ KHÔNG KÈM ĐIỀU KIỆN THÌ KHÔNG SO ĐƯỢC VỚI SÀN Ở ĐÂY.
+# Header này TRƯỚC ĐÂY chép tay một bảng phủ-từng-guard. Bảng đó vừa mục vừa sai
+# nguồn: nó gọi tên `spawn_provenance_guard`, một tệp KHÔNG CÒN trên đĩa (đếm
+# hôm nay: `harness/hooks/*guard*.py` ra 11 tệp, không có tên đó), và mọi con số
+# trong nó đo bằng đường đo mù-tiến-trình-con. Nên ở đây không chép lại bảng nào
+# nữa — chỉ ghi ĐIỀU KIỆN mà một con số phải sinh ra dưới đó thì mới đem so:
+#
+#   1. BẬT đo tiến-trình-con. Hook/guard chạy như tiến trình RIÊNG (dispatcher
+#      exec chúng) và test cũng gọi y hệt; coverage mặc định chỉ theo tiến trình
+#      cha, nên mọi dòng con chạy bị đếm là chưa phủ. Bật bằng
+#      COVERAGE_PROCESS_START (job `coverage-floors` trong scripts/ci.sh) cộng
+#      `parallel` trong [tool.coverage.run].
+#   2. Danh sách `source` lấy từ [tool.coverage.run] trong pyproject.toml, KHÔNG
+#      dùng `--cov=harness`. `harness/` không có `__init__.py`, coverage dừng
+#      duyệt tại đó, chỉ tệp nào có test import mới vào báo cáo — tệp vắng mặt
+#      là chưa phủ theo định nghĩa, nên mỗi lần vắng chỉ có thể ĐẨY phần trăm
+#      LÊN.
+#   3. Đọc số ra bằng `harness/scripts/coverage_gate.py`, đừng tự quét lại.
+#      Bộ quét chép lại là một kiểu hỏng đã gặp ở kho này; và ĐỪNG nối ống
+#      (`| head`) khi xem kết quả cổng — ống nuốt mã thoát chặn, cổng trả 1 mà
+#      đọc thành 0.
+#
+# Lần đo gần nhất dưới đủ ba điều kiện trên (toàn bộ suite, 11.556 xanh / 160
+# bỏ qua / 0 đỏ), số lấy thẳng từ coverage_gate.py, census đủ tệp (0 tệp vắng):
+#
+#   nhóm      dòng    phủ      %       sàn
+#   guards    1.279     950   74,28%    60
+#   hooks     6.460   5.256   81,36%    70
+#   scripts  27.463  23.315   84,90%    81
+#   plugins  27.513  11.699   42,52%    42
+#   install   1.273   1.123   88,22%    88
+groups:
+  guards:
+    include: ["harness/hooks/*guard*.py"]
+    floor: 60
+    why: >-
+      Nhóm mã có quyền TỪ CHỐI. Một dòng không ai chạy trong một cổng chặn là
+      một cổng chưa ai chứng minh là chặn được. Đây là lý do cả tệp này tồn tại.
+  hooks:
+    include: ["harness/hooks/*.py"]
+    floor: 70
+    why: >-
+      Hook chạy theo sự kiện, không ai gọi bằng tay, nên lỗi ở đây hỏng CÂM.
+  scripts:
+    include: ["harness/scripts/*.py", "harness/scripts/**/*.py"]
+    floor: 81
+    why: >-
+      Động cơ dùng chung của các skill; một hồi quy ở đây lan ra mọi nơi gọi nó.
+  plugins:
+    include: ["harness/plugins/**/*.py"]
+    floor: 42
+    why: >-
+      Script skill, chạy theo yêu cầu. Phủ thấp nhất bảng và cũng ít nguy nhất —
+      sàn đặt ở mức đang có để nó không tụt thêm. Sàn 58 cũ KHÔNG PHẢI bị hạ cho
+      dễ: nó chưa bao giờ là số đo của nhóm này. Nó sinh ra từ báo cáo chạy bằng
+      `--cov=harness`, mà `harness/` không có `__init__.py` nên coverage dừng
+      duyệt tại đó và chỉ 116 trên 219 tệp của nhóm vào được báo cáo — hơn nửa
+      nhóm vắng mặt, và tệp vắng mặt là chưa phủ theo định nghĩa, nên mỗi lần
+      vắng chỉ ĐẨY phần trăm LÊN. Đo đủ tệp thì mẫu số đi từ 13.664 lên 27.513
+      dòng trong khi số dòng được phủ gần như đứng yên. 42 là số đo thật của
+      nhóm này (42,52%, làm tròn xuống); 58 là số đo của một nửa nhóm mang tên
+      cả nhóm.
+  install:
+    include: ["harness/install/*.py"]
+    floor: 88
+    why: >-
+      Đường cài đặt: hỏng ở đây thì người dùng mới không vào được, và họ không
+      có cách nào tự chẩn.

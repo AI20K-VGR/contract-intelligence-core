@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="{{lang}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{title}}</title>
+  {{viewer_head}}
+  <style>
+    /* Legacy graph-view specifics layered on the shared design system. */
+    /* Graph views use the full window width (the shared 1100px wrap is meant for
+       reading prose, too cramped for a zoomed graph/gantt). */
+    .ps-wrap { max-width: none; }
+    /* The diagram is a fixed full-height scroll viewport, NOT an auto-sized box:
+       a CSS `transform: scale()` grows the content visually but leaves its layout
+       box unchanged, so without a tall viewport a zoomed-in diagram is clipped to
+       its original size with no room to pan. `calc(100vh - …)` reserves space for
+       the title + meta + zoom controls above and the footer note below, so the
+       footer stays on screen while the diagram fills the rest. */
+    .diagram { overflow: auto; height: calc(100vh - 12rem); }
+    .controls { margin-bottom: 0.75rem; }
+    .controls button { padding: 4px 10px; margin-right: 6px; cursor: pointer; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; }
+    /* Mermaid text legibility is handled by matching the Mermaid THEME to the
+       page theme at render time (see the init script below) — NOT by force-
+       setting `fill: var(--text)`, which painted light text onto the light
+       section backgrounds of gantt/quadrant charts (light-on-light → invisible).
+       Only the flowchart edge-label chip keeps a surface background so the edge
+       text never sits on a graph line. */
+    .mermaid .edgeLabel { background: var(--surface) !important; }
+    /* Chart-label SVG <text> (gantt task/section/title, quadrant title + axis,
+       timeline) defaults to a faint Mermaid gray that washes out on the light
+       page. Force it to the theme text colour — safe in BOTH modes because the
+       Mermaid theme is matched to the page (so the diagram background contrasts
+       var(--text)). Scoped to <text> ONLY: flowchart node labels are HTML
+       <span class="nodeLabel"> (styled via `color`, not `fill`), so classDef-
+       tinted nodes keep their own ink and are untouched. */
+    .mermaid text { fill: var(--text) !important; }
+    .mermaid .grid .tick text { fill: var(--muted) !important; }
+    /* Hover-on-ID tooltip: floating box + the hover affordance on tagged IDs. */
+    #ps-tip { position: fixed; z-index: 80; display: none; max-width: 22rem; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); padding: .5rem .7rem; font-size: .82rem; line-height: 1.4; pointer-events: none; }
+    #ps-tip .ps-tip-h strong { color: var(--accent); }
+    #ps-tip .ps-tip-t { font-weight: 600; }
+    #ps-tip .ps-tip-m { margin-top: .25rem; color: var(--muted); font-size: .76rem; }
+    .ps-tipword { cursor: help; }
+    span.ps-tipword { text-decoration: underline dotted var(--border); text-underline-offset: 2px; }
+  </style>
+</head>
+<body>
+  <button class="ps-toggle" onclick="psToggleTheme()" aria-label="Toggle light/dark theme" title="Toggle theme">☾</button>
+  <div class="ps-wrap">
+    <h1>{{title}}</h1>
+    <div class="ps-meta">Generated {{generated_at}} · Product: {{product_name}} · View: {{view}}</div>
+    <div class="controls">
+      <button onclick="zoomIn()">Zoom +</button>
+      <button onclick="zoomOut()">Zoom -</button>
+      <button onclick="resetZoom()">Reset</button>
+    </div>
+    <div class="diagram ve-card ve-card--recessed" id="diagram"><div id="diagram-scale">{{view_body}}</div></div>
+    <p class="ps-meta">{{footer_note}}</p>
+  </div>
+  {{tooltip_data}}
+  <script>
+{{mermaid_js}}
+  </script>
+  {{tooltip_js}}
+  <script>
+    (function () {
+      if (!window.mermaid) return;
+      // A Mermaid SVG is baked once at render with whatever theme was active then.
+      // The theme toggle only swaps CSS vars, so a diagram rendered light would go
+      // stale (dark text/lines) on a dark page and vice-versa. Capture the DSL
+      // source up-front, then (re)render in the CURRENT theme on load AND on every
+      // theme flip — keeping the diagram theme in lock-step with the page.
+      var scaleEl = document.getElementById("diagram-scale");
+      var mermaidDiv = scaleEl ? scaleEl.querySelector(".mermaid") : null;
+      var src = mermaidDiv ? mermaidDiv.textContent : null;
+      function render() {
+        if (!mermaidDiv || src === null) return;
+        var dark = document.documentElement.getAttribute("data-theme") === "dark";
+        window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: dark ? "dark" : "default" });
+        mermaidDiv.removeAttribute("data-processed");
+        mermaidDiv.textContent = src;
+        try { window.mermaid.run({ nodes: [mermaidDiv] }); } catch (e) {}
+        // Re-tag hover targets on the freshly rendered SVG.
+        if (window.psRescanTooltips) setTimeout(window.psRescanTooltips, 150);
+      }
+      var orig = window.psToggleTheme;
+      window.psToggleTheme = function () { if (orig) orig(); render(); };
+      window.addEventListener("load", render);
+    })();
+    let scale = 1;
+    function applyScale() {
+      // Scale the inner wrapper, NOT #diagram itself: #diagram carries the
+      // .ve-card class whose shared ps-fade entrance animation (fill-mode: both)
+      // holds `transform: none` on the to-keyframe, and an animation's value wins
+      // over inline style — scaling #diagram would be silently clobbered. The
+      // wrapper has no animated transform, and #diagram keeps overflow:auto so a
+      // zoomed-in diagram becomes scrollable instead of clipping.
+      const d = document.getElementById("diagram-scale");
+      d.style.transform = `scale(${scale})`;
+      d.style.transformOrigin = "top left";
+    }
+    function zoomIn() { scale = Math.min(scale + 0.1, 3); applyScale(); }
+    function zoomOut() { scale = Math.max(scale - 0.1, 0.3); applyScale(); }
+    function resetZoom() { scale = 1; applyScale(); }
+  </script>
+</body>
+</html>

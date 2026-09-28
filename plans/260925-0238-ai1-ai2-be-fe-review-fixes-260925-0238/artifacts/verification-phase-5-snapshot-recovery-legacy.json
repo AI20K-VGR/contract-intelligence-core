@@ -1,0 +1,43 @@
+{
+  "stage": "cook",
+  "plan": "260925-0238-ai1-ai2-be-fe-review-fixes-260925-0238",
+  "checks": [
+    {
+      "name": "red-green",
+      "status": "PASS"
+    },
+    {
+      "name": "durable-hydration",
+      "status": "PASS"
+    },
+    {
+      "name": "restart-idempotency",
+      "status": "PASS"
+    },
+    {
+      "name": "legacy-separation",
+      "status": "PASS"
+    },
+    {
+      "name": "backend-targeted-tests",
+      "status": "PASS"
+    },
+    {
+      "name": "ai-service-targeted-tests",
+      "status": "PASS"
+    },
+    {
+      "name": "backend-ruff",
+      "status": "PASS"
+    },
+    {
+      "name": "ai-service-full-ruff",
+      "status": "SKIP"
+    }
+  ],
+  "verdict": "PASS_WITH_RISK",
+  "phase": "phase-5-snapshot-recovery-legacy",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-09-24T21:01:03+00:00",
+  "run_seq": null
+}

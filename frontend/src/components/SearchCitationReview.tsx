@@ -7,10 +7,11 @@ import {
   type ClauseReviewAction,
   type ClauseReviewEntry,
 } from '../api/clauseReview'
-import type { ClauseNode } from '../api/structure'
+import type { ClauseNode, ReviewSpot } from '../api/structure'
 import type { SearchCite } from '../structure/citations'
 import { bodyOf, headOf, nodeLabel } from '../structure/display'
 import { CitationPane } from './CitationPane'
+import { ConflictNotice } from './ConflictNotice'
 import { MaterialIcon } from './icons'
 
 type Verdict = 'correct' | 'deviation' | 'edit'
@@ -49,22 +50,28 @@ function entryWhen(entry: ClauseReviewEntry) {
 
 export function SearchCitationReview({
   citeNo,
+  dossierId = '',
   documentId,
   filename,
   node,
   ordinal,
   related,
+  conflicts = [],
   onBack,
   onPick,
+  onOpenConflict,
 }: {
   citeNo: number
+  dossierId?: string
   documentId: string
   filename: string | null
   node: ClauseNode
   ordinal: number
   related: SearchCite[]
+  conflicts?: ReviewSpot[]
   onBack: () => void
   onPick: (id: string) => void
+  onOpenConflict?: (findingId: string) => void
 }) {
   const [verdict, setVerdict] = useState<Verdict>('correct')
   const [note, setNote] = useState('')
@@ -226,6 +233,17 @@ export function SearchCitationReview({
                 <p className="mt-0.5 text-secondary">
                   Kết quả này không được tính cho lần phân tích hiện tại. Hãy chọn nhận định rồi lưu lại.
                 </p>
+              </div>
+            ) : null}
+            {dossierId && conflicts.length > 0 && onOpenConflict ? (
+              <div className="mt-2 overflow-hidden rounded border border-amber-300">
+                <ConflictNotice
+                  documentId={documentId}
+                  dossierId={dossierId}
+                  nodeId={node.id}
+                  spots={conflicts}
+                  onOpen={onOpenConflict}
+                />
               </div>
             ) : null}
             <div className="mt-1 grid grid-cols-3 gap-1">

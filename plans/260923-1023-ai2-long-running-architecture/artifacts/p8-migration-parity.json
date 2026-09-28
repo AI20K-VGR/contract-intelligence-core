@@ -1,0 +1,30 @@
+{
+  "phase": "P8",
+  "status": "PASS",
+  "scope": "bounded migration canary parity primitives",
+  "implementation_files": [
+    "ai-service/app/migration/canary.py",
+    "ai-service/app/migration/boundary.py"
+  ],
+  "test_files": [
+    "ai-service/tests/test_p8_migration_parity.py",
+    "ai-service/tests/test_p8_migration_boundary.py"
+  ],
+  "acceptance": [
+    {"criterion": "Migration flags support LEGACY, CANARY and CANONICAL", "status": "PASS"},
+    {"criterion": "One and multi-document submissions retain dossier_id", "status": "PASS"},
+    {"criterion": "Duplicate idempotency key is safe and conflicting digest is rejected", "status": "PASS"},
+    {"criterion": "Only current-generation VERIFIED records can publish", "status": "PASS"},
+    {"criterion": "Legacy/canonical parity comparison is deterministic", "status": "PASS"},
+    {"criterion": "Rollback forces LEGACY while preserving flags", "status": "PASS"}
+  ],
+  "verification": {
+    "focused_command": ".venv\\Scripts\\python.exe -m pytest -q tests/test_p8*.py --basetemp=.pytest-basetemp-p8",
+    "focused_result": "13 passed, 1 warning",
+    "warning": "PytestCacheWarning: .pytest_cache path was not writable on Windows"
+  },
+  "limitations": [
+    "This bounded module does not alter route wiring, persistence, or production traffic configuration.",
+    "Parity paths compare JSON-like values and report paths, not domain-specific tolerance bands."
+  ]
+}

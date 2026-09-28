@@ -1,0 +1,13 @@
+{
+  "stage": "cook",
+  "plan": "260927-0345-ai2-same-snapshot-compare",
+  "phase": "P1",
+  "verdict": "PASS",
+  "checks": [
+    {
+      "name": "test_same_snapshot_pair",
+      "status": "PASS",
+      "note": "characterization lock; compare.py unchanged because same-file pairing already holds"
+    }
+  ]
+}

@@ -1,0 +1,239 @@
+id: STD-REVIEW-ANGULAR
+type: std_area
+zone: operational
+title: "Review — Angular"
+status: approved
+owner: harness
+version: 1.0.0
+description: |
+  Angular review rules (scope **/*.ts component/service/directive/pipe/guard/
+  resolver/module/interceptor/store/routes/spec files, **/*.html templates).
+  Block-worthy XSS/sanitizer bypass rules plus advisory patterns for standalone
+  components, signals, DI, and template discipline.
+rule_groups:
+  - id: STD-REVIEW-ANGULAR-RG1
+    title: "Safety — XSS, sanitizer bypass, route guards"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-ANGULAR-RG1-R1
+        title: "Never bypass Angular sanitizer on user input"
+        status: approved
+        scope:
+          - "**/*.component.ts"
+          - "**/*.component.html"
+          - "**/*.service.ts"
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: let Angular auto-sanitize bound values — text interpolation
+          and property binding escape by default. When raw HTML is unavoidable,
+          sanitize explicitly with DomSanitizer.sanitize(SecurityContext.HTML, input)
+          at the call site before binding.
+          NEVER: call bypassSecurityTrustHtml(), bypassSecurityTrustUrl(),
+          bypassSecurityTrustStyle(), bypassSecurityTrustResourceUrl(), or
+          bypassSecurityTrustScript() on user-controlled input — these methods
+          exist for trusted template fragments only, not for data that
+          originates outside the codebase. A single bypass on user input is an
+          XSS vector regardless of any upstream "cleaning."
+          NEVER: bind [href] to user-supplied URLs without validating the
+          scheme — Angular does not block javascript: URLs in all contexts.
+        rationale: |
+          Angular's DomSanitizer bypass methods are named deliberately to
+          signal danger — they strip every built-in XSS protection. A
+          reviewer must verify that the input passed to a bypass is
+          compile-time constant (a template literal authored in the repo),
+          not any value that traces back to a URL parameter, API response,
+          or user-generated content. [href] binding is a separate but
+          related risk — Angular's sanitizer does not uniformly block
+          javascript: URLs across all attribute contexts.
+      - id: STD-REVIEW-ANGULAR-RG1-R2
+        title: "Every authenticated route must have a guard"
+        status: approved
+        scope:
+          - "**/*.routes.ts"
+          - "**/*.guard.ts"
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: attach a functional guard to every route that requires
+          authentication or a role. Use canMatch for sensitive routes so
+          the route module is never loaded for unauthorized users —
+          canActivate loads the module first and only then checks the guard,
+          leaking the chunk.
+          NEVER: rely on hiding UI elements (menu items, buttons) as the
+          sole access control — the route is still reachable via direct URL.
+          A route without a guard whose content depends on authentication
+          is a broken authorization boundary.
+        rationale: |
+          canMatch prevents the lazy-loaded chunk from being fetched at all
+          for an unauthorized user — canActivate downloads the module first.
+          For admin routes, this is the difference between a denied request
+          and a leaked bundle. UI-hiding is a UX convenience, not a security
+          control; an attacker navigates directly, not through your menu.
+  - id: STD-REVIEW-ANGULAR-RG2
+    title: "Patterns — standalone, signals, DI, smart/dumb split"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-ANGULAR-RG2-R1
+        title: "Prefer standalone components with OnPush change detection"
+        status: approved
+        scope:
+          - "**/*.component.ts"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: declare new components as standalone: true (v17+ default)
+          and set changeDetection: ChangeDetectionStrategy.OnPush.
+          NEVER: create a new NgModule-based component — NgModules are
+          legacy for new code. Use imports array on the component itself
+          to declare template dependencies.
+          NEVER: use markForCheck() or detectChanges() as a crutch for
+          OnPush — signals and the async pipe trigger detection
+          automatically; manual detection calls signal a broken data flow.
+        rationale: |
+          Standalone components eliminate the NgModule indirection layer
+          and make template dependencies locally visible. OnPush with
+          signals skips entire subtrees from change detection — the
+          performance win is automatic when every component follows the
+          pattern. Manual markForCheck() calls are a regression marker:
+          they mean a data source is not wired through signals or the
+          async pipe.
+      - id: STD-REVIEW-ANGULAR-RG2-R2
+        title: "Use inject() over constructor injection"
+        status: approved
+        scope:
+          - "**/*.component.ts"
+          - "**/*.service.ts"
+          - "**/*.directive.ts"
+          - "**/*.pipe.ts"
+          - "**/*.guard.ts"
+          - "**/*.resolver.ts"
+          - "**/*.interceptor.ts"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: declare dependencies with inject() as a class field —
+          private http = inject(HttpClient). Keep constructors empty or
+          remove them.
+          NEVER: use constructor injection (constructor(private http:
+          HttpClient)) in new code — it is verbose, harder to tree-shake,
+          and forces a constructor body that exists only for DI.
+          NEVER: call inject() outside an injection context (constructor,
+          factory function registered with InjectionToken, or the component
+          class body for fields). Calling inject() in a lifecycle hook or
+          an arbitrary method throws at runtime.
+        rationale: |
+          inject() eliminates the constructor-as-DI-mechanism pattern.
+          Tree-shaking: constructor parameters are part of the class
+          signature and the compiler cannot always determine they are
+          unused; inject() fields that are never read can be stripped.
+          The injection-context rule is a runtime constraint — a reviewer
+          flags an inject() call that appears inside ngOnInit or a helper
+          method, because it will throw.
+      - id: STD-REVIEW-ANGULAR-RG2-R3
+        title: "Smart/dumb component split — services own data, not components"
+        status: approved
+        scope:
+          - "**/*.component.ts"
+          - "**/*.service.ts"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: inject HttpClient only in services, never in components.
+          Smart (container) components own data fetching and state; dumb
+          (presentational) components receive inputs and emit outputs only,
+          with zero service injection.
+          NEVER: call HttpClient directly from a component — it couples the
+          view layer to the transport layer and makes the data flow
+          untestable without a full TestBed.
+        rationale: |
+          A component that injects HttpClient cannot be tested without
+          configuring the HTTP layer, even when the test only cares about
+          rendering. Services are the single seam for data access — they
+          isolate the transport so components only see typed data streams.
+      - id: STD-REVIEW-ANGULAR-RG2-R4
+        title: "Signals over RxJS for derived state; effect only for side effects"
+        status: approved
+        scope:
+          - "**/*.component.ts"
+          - "**/*.service.ts"
+        severity: info
+        relates_to_std: [STD-REVIEW-ANGULAR-RG2-R1]
+        detector: null
+        description: |
+          ALWAYS: use computed() for derived values, linkedSignal() for
+          writable derived state that resets with a source change, and
+          resource() for reactive async data loading.
+          NEVER: use effect() to synchronize one signal to another — that
+          is what computed() and linkedSignal() are for. An effect that
+          calls .set() on another signal is a computed() written wrong.
+          PREFER: toSignal() as the bridge from Observable to signal, with
+          an initialValue.
+        rationale: |
+          Effects that write to signals create circular-update bugs that
+          are hard to trace — the signal update triggers the effect which
+          triggers another update. computed() is declarative and glitch-free.
+          resource() replaces manual fetch-in-ngOnInit + RxJS pipelines for
+          simple data loading with automatic cleanup and reactive refetching.
+  - id: STD-REVIEW-ANGULAR-RG3
+    title: "Template discipline and forms"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-ANGULAR-RG3-R1
+        title: "Always provide track in @for loops"
+        status: approved
+        scope:
+          - "**/*.component.html"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: use the v17+ @for block syntax with a track expression
+          that identifies a stable unique property — @for (item of items();
+          track item.id). The track function must return a primitive
+          (string, number) that is unique and stable across changes.
+          NEVER: use track $index as a substitute for a real identity —
+          when the list reorders or an item is inserted, $index shifts and
+          Angular re-renders every row instead of moving only the changed one.
+          NEVER: put complex logic in templates. Move it to a component
+          method, a computed signal, or a pipe.
+        rationale: |
+          track is what lets Angular reuse DOM nodes across list updates.
+          Without it, or with $index as the track key, every insertion or
+          deletion destroys and recreates the entire list — including any
+          component state, animation, and focus. A computed signal or pipe
+          for template logic keeps the template declarative and testable.
+      - id: STD-REVIEW-ANGULAR-RG3-R2
+        title: "Component-scoped styles; avoid ViewEncapsulation.None"
+        status: approved
+        scope:
+          - "**/*.component.ts"
+          - "**/*.component.html"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: use the default ViewEncapsulation.Emulated for component
+          styles. Define styles inline or via styleUrls that target only
+          the component's own template. Use :host for host-element styling.
+          NEVER: set ViewEncapsulation.None on a component unless building
+          a design-system primitive that intentionally bleeds styles into
+          projected content — and even then, document why ::ng-deep or a
+          global stylesheet is not sufficient.
+          PREFER: CSS custom properties for themeable values over
+          hardcoding colors and spacing in component stylesheets.
+        rationale: |
+          ViewEncapsulation.None makes every style rule in that component's
+          stylesheet global — a style targeting .card in one component now
+          matches every .card in the application. The default Emulated
+          encapsulation scopes rules via attribute selectors automatically.
+          CSS custom properties pierce the shadow DOM boundary by design,
+          making them the correct mechanism for theming.

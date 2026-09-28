@@ -1,0 +1,38 @@
+#!/bin/sh
+# hs-cli — operator front-end over the harness scripts (POSIX launcher).
+#
+# Resolves the harness root from THIS script's own location, following a symlink
+# chain so a ~/.local/bin/hs-cli symlink still finds the repo, then delegates
+# every verb to harness/scripts/hs_cli.py. No logic lives here — it is one
+# discoverable, on-PATH entry point. Cross-platform twin: hs-cli.cmd (Windows).
+set -e
+
+# Follow the symlink chain to the real script path (readlink -f is not portable
+# to macOS, so walk it by hand).
+src="$0"
+while [ -L "$src" ]; do
+    dir=$(cd -P "$(dirname "$src")" >/dev/null 2>&1 && pwd)
+    target=$(readlink "$src")
+    case "$target" in
+        /*) src="$target" ;;
+        *)  src="$dir/$target" ;;
+    esac
+done
+bin_dir=$(cd -P "$(dirname "$src")" >/dev/null 2>&1 && pwd)
+root=$(cd "$bin_dir/.." >/dev/null 2>&1 && pwd)   # harness/bin -> harness
+cli="$root/scripts/hs_cli.py"
+
+if [ ! -f "$cli" ]; then
+    echo "hs-cli: cannot find $cli — is the harness installed at $root?" >&2
+    exit 1
+fi
+
+# Prefer python3; fall back to python (some distros ship only `python`).
+if command -v python3 >/dev/null 2>&1; then
+    exec python3 "$cli" "$@"
+elif command -v python >/dev/null 2>&1; then
+    exec python "$cli" "$@"
+else
+    echo "hs-cli: python3 not found — install Python 3 to run the harness CLI." >&2
+    exit 1
+fi

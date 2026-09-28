@@ -1,0 +1,17 @@
+{
+  "verdict": "BLOCKED",
+  "reviewer": "user:dungskbg2004@gmail.com",
+  "role": "reviewer",
+  "rationale": "GET /conflicts builds review.latest in the conflict repository then FindingDTO.from_row drops it (finding_dtos.py:79-84, extra=forbid). Live from_row of a confirm review serializes only item_id, status, current_version. The tree and banner therefore stay open after a save. Detail GET /findings/{id}/review still has latest, so the two paths disagree.",
+  "effort": "high",
+  "strategy": "inline-Task fallback; 4 code-reviewer lenses plus parent E2E probe",
+  "rounds_run": 1,
+  "architecture_review": {
+    "checked": true,
+    "doc_sha": "c441d6d9d74169179890f98eb395a0bab47cfc0aab9b9d3b3c30c03cf00dab5e",
+    "drift": [
+      "docs/system-architecture.md (2026-09-25) says the frontend has no HITL client; the working tree now wires ConflictFindingReview. Doc is behind the code."
+    ]
+  },
+  "run_seq": null
+}

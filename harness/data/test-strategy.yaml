@@ -1,0 +1,101 @@
+# test-strategy.yaml — SSOT: which pytest command each local/dev profile runs.
+#
+# Human-edited config -> YAML (docs/code-standards.md:31). harness/scripts/run_local_tests.py
+# reads this file and builds the exact pytest argv, so a dev or agent runs the SAME
+# command CI runs instead of hand-crafting one (drift). Every profile below MUST mirror
+# the matching case in scripts/ci.sh (unit / orchestrator / release-toolkit /
+# scoring-contract) — harness/tests/test_run_local_tests.py::test_strategy_matches_ci_sh
+# reads ci.sh back and reddens the moment this file or ci.sh drifts. Edit both together.
+schema_version: "1.0"
+
+profiles:
+  # Mirrors ci.sh `unit)`: full harness/tests/, `load` scheduler, -p no:randomly on the
+  # hot path when pytest-randomly is installed. `loadfile` was used until 2026-09-01: it
+  # builds a file's module-scoped fixtures once per worker, but it also pins a whole file
+  # to ONE worker, which set the shard-cell floor at the heaviest file. See ci.sh for the
+  # per-cell measurements.
+  harness:
+    path: harness/tests
+    scheduler: load
+    norandomly: true
+
+  # Dev inner-loop subset ONLY — NOT a gate substitute, never trust this in place of the
+  # full run. Skips the ~15 heaviest files (install/lifecycle/subprocess-heavy suites) for
+  # fast local iteration; measured (2026-08-21, `-n auto` 14-core) 119.68s / 11323
+  # collected vs 134.57s / 11853 collected full. The push/ship gate and CI always run the
+  # full `harness` profile (or the sharded unit-Nof3 cells) — this profile trades
+  # coverage for speed on purpose.
+  harness-fast:
+    path: harness/tests
+    scheduler: load
+    norandomly: true
+    ignore:
+      - test_install.py
+      - test_harness_lifecycle.py
+      - test_install_ccstatusline.py
+      - test_install_components.py
+      - test_bash_safety_guard.py
+      - test_spec_shape_e2e_smoke.py
+      - test_courier_slice.py
+      - test_drawio_catalog_search.py
+      - test_find_flaky.py
+      - test_find_polluter.py
+      - test_find_polluter_artifact.py
+      - test_shrink_failure.py
+      - test_decomposition_invariants.py
+      - test_hs_cli.py
+      - test_artifact_io.py
+
+  # Mirrors ci.sh `orchestrator)`: `load` scheduler (the shared ${PARALLEL} default),
+  # ORCH_MARKER excludes real_sdk/real_host
+  # (the two markers that need a live SDK/host and are gated to nightly/manual runs).
+  orchestrator:
+    path: orchestrator/tests
+    scheduler: load
+    marker: "not real_sdk and not real_host"
+    norandomly: true
+
+  # Mirrors ci.sh `release-toolkit)`: --dist load (NOT loadfile) — the shared-tarball
+  # fixture in test_courier_sync.py only pays off when its file's tests are SCATTERED
+  # across workers; loadfile would pack them onto one worker and force it serial again.
+  release:
+    path: release/tests
+    scheduler: load
+    norandomly: true
+
+  # Mirrors ci.sh `rops)`: the remote-execution CLI's pure-function tests. No xdist —
+  # the suite runs in well under a second, so worker startup would cost more than it
+  # saves. Like release/, the rops/ engine lives OUTSIDE harness/ and never ships;
+  # unlike release/, it is meant to run from any repo, so it is reached through
+  # $HARNESS_BIN_ROOT rather than a relative path.
+  rops:
+    path: rops/tests
+    xdist: false
+    norandomly: true
+
+  # Mirrors ci.sh `scoring-contract)`: no xdist at all — the suite runs in well under 1s,
+  # so spinning up worker processes would cost more than it saves.
+  scoring:
+    path: orchestrator/tests
+    marker: scoring_contract
+    xdist: false
+
+  # Mirrors ci.sh `plugin-skills)`: the executable Python tooling shipped inside
+  # harness/plugins/hs/skills/*/scripts (db_migrate.py, cloudflare_deploy.py,
+  # tailwind_config_gen.py, ...) ships real logic with real pytest suites, but no
+  # profile above ever reached it — only harness/tests, orchestrator/tests, and
+  # release/tests were wired. 36 test files across 18 skill directories sat un-gated
+  # until this profile (see test_plugin_skill_test_dirs_are_gated.py, the mechanical
+  # discovery guard).
+  # ai-multimodal's 4 files that used to be ignored (minimax_api_client /
+  # minimax_generate / gemini_batch_process / openrouter_generate) are ported onto
+  # the repo's single httpx client + respx transport-layer mocking (matching
+  # harness/tests/test_notify_remote.py's pattern) and run here unignored. Its
+  # collection-crashing `sys.exit(1)`-at-import bug was already fixed
+  # (document_converter.py); test_gemini_batch_process.py additionally stubs
+  # `google.genai` in sys.modules so it stays importable/testable without the real
+  # (uninstalled-in-CI) google-genai SDK.
+  plugin-skills:
+    path: harness/plugins/hs/skills
+    scheduler: load
+    norandomly: true

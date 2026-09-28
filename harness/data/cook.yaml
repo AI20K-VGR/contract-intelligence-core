@@ -1,0 +1,16 @@
+# cook.yaml — cook execution knobs (human-edited config).
+#
+# parallel: multi-agent execution for independent phases. Default true = cook fans
+#   independent phases out concurrently by default. The partitioner still demotes any
+#   phase that is not `parallel_safe` or whose `owns` globs overlap back to sequential,
+#   so default-on only parallelizes phases that are genuinely safe. Override precedence,
+#   highest first: `--parallel` flag > HARNESS_COOK_PARALLEL env > this file > default.
+# parallel_max: cap on concurrent slices when parallel is on.
+#
+# Parallelism never weakens a gate and never trusts a subagent on sight — every
+# slice is verified before merge and the full suite runs at the integration barrier.
+# See hs:cook's parallel-execution reference (named from its references/ index —
+# pointing at a filename here would rot the next time that file is renamed).
+
+parallel: true
+parallel_max: 4

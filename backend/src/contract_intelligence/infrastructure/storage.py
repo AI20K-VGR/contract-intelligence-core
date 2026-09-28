@@ -15,8 +15,16 @@ logger = structlog.get_logger(__name__)
 
 
 def parse_s3_uri(object_path: str) -> tuple[str, str]:
-    """Parse ``s3://bucket/key`` or bare key into ``(bucket, key)``."""
+    """Parse storage references into ``(bucket, key)``.
+
+    AI1 snapshot page images use the logical storage://ai1/{document}/{page}
+    URI while the rendered bytes are uploaded to the configured render bucket.
+    Resolve that logical namespace here so readers and cleanup use the same
+    object instead of treating it as a local filesystem path.
+    """
     settings = get_settings()
+    if object_path.startswith("storage://ai1/"):
+        return settings.minio_bucket_render, object_path[len("storage://ai1/") :]
     if object_path.startswith("s3://"):
         without = object_path[len("s3://") :]
         bucket, _, key = without.partition("/")

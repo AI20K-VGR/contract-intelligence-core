@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "standards-user-override",
+  "description": "Shape of <repo>/standards.user.yaml — the per-repo override layer over the operational standards rules. Every override is loud and must carry a non-empty reason. A floor rule is non-overridable: an override by id is refused, and a new-id rule whose scope overlaps a floor rule with a weaker posture (lower severity or disabled) is refused too (no floor-shadow). Required-field validation is hand-rolled in user_override.py (no jsonschema at runtime).",
+  "type": "object",
+  "properties": {
+    "overrides": {
+      "type": "array",
+      "description": "Override entries. An entry whose rule_id matches an existing operational rule modifies it; a new id adds a user rule (unless it shadows a floor rule).",
+      "items": {
+        "type": "object",
+        "required": ["rule_id", "reason"],
+        "properties": {
+          "rule_id": {"type": "string", "description": "Target rule id (existing rule to modify, or a new id to add)."},
+          "reason": {"type": "string", "description": "REQUIRED non-empty justification — surfaced as a loud warning; an override with no reason is refused."},
+          "severity": {"enum": ["critical", "info"], "description": "Override the rule severity."},
+          "enabled": {"type": "boolean", "description": "Enable/disable the rule. Disabling a floor rule is refused."},
+          "scope": {"type": "array", "items": {"type": "string"}, "description": "Override the rule's path-glob scope."},
+          "detector": {"type": ["null", "string", "object"], "description": "Override the rule's machine detector."},
+          "relates_to_std": {"type": "array", "items": {"type": "string"}, "description": "Override the rule's cross-reference list."}
+        }
+      }
+    }
+  }
+}

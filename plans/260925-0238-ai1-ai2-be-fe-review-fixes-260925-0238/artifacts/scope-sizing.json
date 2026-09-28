@@ -1,0 +1,42 @@
+{
+  "sizing": {
+    "mode": "multi",
+    "projected_cells": 756,
+    "pruned_cells": 756,
+    "threshold": 60,
+    "sub_plan_count": 14,
+    "split_strategy": "hybrid"
+  },
+  "manifest": {
+    "subPlans": [
+      {"id": "sub-1", "scope": {"features": ["auth-route-shadowing", "ai2-result-persistence", "query-grounding-state"], "layers": ["api", "data"]}, "estimatedCells": 162},
+      {"id": "sub-2", "scope": {"features": ["auth-route-shadowing", "ai2-result-persistence", "query-grounding-state"], "layers": ["ui", "worker"]}, "estimatedCells": 162},
+      {"id": "sub-3", "scope": {"features": ["dynamic-citation-finding-ui", "acl-consistency", "snapshot-cache-recovery"], "layers": ["api", "data"]}, "estimatedCells": 162},
+      {"id": "sub-4", "scope": {"features": ["dynamic-citation-finding-ui", "acl-consistency", "snapshot-cache-recovery"], "layers": ["ui", "worker"]}, "estimatedCells": 162},
+      {"id": "sub-5", "scope": {"features": ["legacy-stub-path-separation"], "layers": ["api", "data"]}, "estimatedCells": 54},
+      {"id": "sub-6", "scope": {"features": ["legacy-stub-path-separation"], "layers": ["ui", "worker"]}, "estimatedCells": 54}
+    ],
+    "dependencies": [
+      {"from": "sub-1", "to": "sub-2", "sharedLayers": ["api", "data", "ui", "worker"]},
+      {"from": "sub-2", "to": "sub-3", "sharedLayers": ["api", "data", "ui", "worker"]},
+      {"from": "sub-3", "to": "sub-4", "sharedLayers": ["api", "data", "ui", "worker"]},
+      {"from": "sub-4", "to": "sub-5", "sharedLayers": ["api", "data", "ui", "worker"]},
+      {"from": "sub-5", "to": "sub-6", "sharedLayers": ["api", "data", "ui", "worker"]}
+    ],
+    "sharedContracts": [
+      "ai2.be.processing.result.v1",
+      "ai1.snapshot.v1",
+      "trusted Principal + dossier ACL decision",
+      "query response review_state/retrieval_layer/reasoning_trace",
+      "citation source scope and evidence-ready predicate"
+    ],
+    "masterRisk": [
+      "A partial fix can make UI appear healthier while still dropping state/evidence at a prior boundary.",
+      "One ACL or legacy registration path can bypass the invariant after the main path is fixed.",
+      "Restart recovery can duplicate submissions unless receipt, lease and digest checks are tested together."
+    ],
+    "intakeInheritance": {"density_tier": "MID", "threshold": 60}
+  },
+  "decision": "proceed",
+  "reason": "Giữ một master plan vì bảy feature tạo thành một chuỗi contract duy nhất AI1 snapshot → AI2 result → Backend read model/query/ACL → FE citation/finding; sáu phase tuần tự giữ được gate theo boundary và tránh merge drift giữa 14 cell sub-plan. Những nhánh độc lập vẫn được nêu trong dependency graph và ownership table của từng phase."
+}

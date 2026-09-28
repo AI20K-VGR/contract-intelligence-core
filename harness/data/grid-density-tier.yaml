@@ -1,0 +1,46 @@
+# Grid density-tier SSOT (tầng-1). This is the ORIGINAL FrankCode 3-tier intake
+# model — LOW/MID/HIGH derived from intake sophistication — NOT the tầng-2
+# 4-tier RISK model in orchestrator/grid/data/risk-tier-density.yaml. The two
+# tables are deliberately kept distinct; do not merge or remap one onto the
+# other. Their iteration budgets already coincide on three rungs (15/40/80)
+# while the coverage floors do NOT (0.60/0.85/0.95 here vs 0.6/0.75/0.9 there),
+# so a merge that "looks right" silently lowers this tier's floors.
+# test_density_tier_vs_risk_tier_collision.py holds that line executably.
+#
+# Every number below is edited ONLY here. density.py loads this file; it never
+# hardcodes a floor, budget, or cap value itself.
+density_tiers:
+  LOW:
+    density: SKELETON
+    coverage_floor: 0.60
+    evidence_required: "no"
+    depth_tokens_max: 2000
+    iterations_max: 15
+    per_cell_token_cap: 400
+    meta_critique: false
+    # confab_signal_threshold: signals-on-ONE-cell before it is flagged (loop/review).
+    # confab_escalation_threshold: flagged-CELLS before advisor escalation (stopping).
+    # FrankCode conflated the two into one field; kept split here with equal defaults
+    # so ported behavior is byte-identical while the two axes tune independently.
+    confab_signal_threshold: 2
+    confab_escalation_threshold: 2
+  MID:
+    density: FILLED
+    coverage_floor: 0.85
+    evidence_required: on-high-only
+    depth_tokens_max: 15000
+    iterations_max: 40
+    per_cell_token_cap: 1200
+    meta_critique: false
+    confab_signal_threshold: 2
+    confab_escalation_threshold: 2
+  HIGH:
+    density: DEEP
+    coverage_floor: 0.95
+    evidence_required: always
+    depth_tokens_max: 40000
+    iterations_max: 80
+    per_cell_token_cap: 2000
+    meta_critique: true
+    confab_signal_threshold: 2
+    confab_escalation_threshold: 2

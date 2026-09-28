@@ -1,0 +1,82 @@
+# git.yaml — the `git` domain's fragment of the hs-run registry.
+#
+# Owned exclusively by whoever builds the `git` domain's verbs. Never touch
+# cook.yaml/plan.yaml/any other domain's fragment from here — one file per domain is
+# what lets concurrent build phases add domains without two agents writing the same
+# file. Schema + merge/conflict rules: see harness/data/hs-run-registry.yaml's header.
+
+domains:
+  git:
+    next: {module: hs_run_git, entry: cmd_next}
+
+step_routing:
+  git:
+    skill: git
+    covers_skill: true
+    states:
+      # --- `commit-plan`: what is staged, and whether it is safe to commit ---
+      ready:
+        summary: >-
+          The staged diff is clean and split into commits. The verb computed the split;
+          it did not choose the messages or the grouping — that is this step's judgment,
+          and the two drawers here are what it is judged against.
+        refs: [references/workflow-commit.md, references/commit-standards.md]
+      secret_found:
+        summary: >-
+          The staged diff carries something that looks like a credential. Stop. Do not
+          commit it "to fix later" — a secret in a commit is in the history whether or
+          not the next commit removes it.
+        refs: [references/safety-protocols.md]
+      nothing_staged:
+        summary: >-
+          Nothing is staged, so there is nothing to plan. Stage what belongs in this
+          commit first; the verb reads the index, never the working tree.
+      unresolved_conflict:
+        summary: >-
+          The index has unmerged paths. `git commit` refuses to run on it, and so does
+          this — resolve the conflict, stage the resolution, then ask again.
+      git_diff_failed:
+        summary: >-
+          git itself failed on a real repository. Not "nothing staged": an empty answer
+          from a broken git would read as a clean tree and skip the secret scan.
+      # --- `push-plan`: what a push from here would do ---
+      ready_to_push:
+        summary: >-
+          HEAD is ahead of its upstream and the pre-push gate passes. The commits are in
+          the envelope; the drawer covers the failure modes a push still has after that.
+        refs: [references/workflow-push.md]
+      no_upstream:
+        summary: >-
+          This branch tracks nothing. A first push needs `-u` to set the upstream, which
+          is a different command from the one every later push uses.
+        refs: [references/workflow-push.md]
+      nothing_to_push:
+        summary: >-
+          HEAD is not ahead of its upstream. Nothing to push — and if that is a surprise,
+          the commits went somewhere other than this branch.
+      sequencer_in_progress:
+        summary: >-
+          Git is mid-operation and staging the conflict fix silenced the conflict check
+          without ending it. What to do next differs by operation, and the envelope says
+          which: mid-merge, cherry-pick or revert the commit is what CONCLUDES the
+          operation, so it is the right move (rung 10). Mid-rebase HEAD is detached, a
+          commit finishes only the current step, and `git rebase --abort` discards it —
+          so that one stops (rung 2).
+        rules: [verification-mechanism]
+
+      push_gate_blocked:
+        summary: >-
+          The push would go through locally — the pre-push hook only warns on a receipt
+          gap — but CI's receipts-gate enforces it. The reason is in the envelope, and
+          the call on whether to push anyway is the model's.
+        rules: [verification-mechanism]
+      no_plan_resolved:
+        summary: >-
+          The same push gate refuses, but for the one reason no receipt can fix: with no
+          plan resolved there is nowhere for a receipt to live. Open a plan under plans/
+          with `status: in_progress`, or point HARNESS_ACTIVE_PLAN at one. `ship` rules
+          the identical tree the same way at the same rung.
+        rules: [verification-mechanism]
+      help:
+        summary: >-
+          Usage was asked for. Nothing was read and nothing was decided.

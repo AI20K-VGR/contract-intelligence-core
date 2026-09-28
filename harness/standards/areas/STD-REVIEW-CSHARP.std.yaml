@@ -1,0 +1,178 @@
+id: STD-REVIEW-CSHARP
+type: std_area
+zone: operational
+title: "Review — C#"
+status: approved
+owner: harness
+version: 1.0.0
+description: |
+  C# review rules (scope **/*.cs, **/*.csx, **/*.csproj, **/appsettings*.json).
+  Safety rules around async/await misuse, SQL injection, and error exposure,
+  plus advisory rules for immutable modelling and dependency injection.
+rule_groups:
+  - id: STD-REVIEW-CSHARP-RG1
+    title: "Safety — async, SQL, error exposure"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-CSHARP-RG1-R1
+        title: "Ban .Result/.Wait() — always async/await"
+        status: approved
+        scope: ["**/*.cs", "**/*.csx"]
+        severity: critical
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: use async/await through the full call chain; pass
+          CancellationToken through every public async API and honour it at
+          every I/O boundary.
+          NEVER: call .Result or .Wait() on a Task — this blocks the calling
+          thread and, when the Task awaits the captured SynchronizationContext,
+          produces a deadlock that is silent until the thread pool is
+          exhausted under load. Never call Task.Run() to wrap synchronous
+          work inside an async method as a "fire and forget" workaround.
+        rationale: |
+          .Result/.Wait() on an incomplete Task blocks the thread waiting for
+          work that may need that same thread to complete — the classic
+          ASP.NET deadlock. The fix is async all the way up: every caller
+          awaits, no caller blocks. CancellationToken is the cooperative
+          cancellation mechanism; omitting it from a public async API means
+          the caller cannot cancel the operation, and a server under load
+          accumulates abandoned work.
+      - id: STD-REVIEW-CSHARP-RG1-R2
+        title: "Parameterized queries — never SQL string concatenation"
+        status: approved
+        scope: ["**/*.cs", "**/*.csx"]
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: use parameterized queries with ADO.NET, Dapper, or EF Core
+          for every database operation. Validate sort fields and filter
+          operators against a closed allowlist before composing dynamic
+          queries.
+          NEVER: concatenate a request value, cookie, header, or webhook
+          payload into a SQL string — this includes string interpolation
+          ($"SELECT * FROM Orders WHERE Id = {input}"), string.Format, and
+          StringBuilder assembly of query text from user input. A single
+          interpolated WHERE clause is an injection vector regardless of
+          the ORM in use.
+        rationale: |
+          SQL injection through string concatenation is the most durable
+          vulnerability class across all application stacks. Parameterized
+          queries separate code from data at the database protocol level —
+          no amount of quoting or escaping in application code can match
+          that guarantee. Dynamic ORDER BY / WHERE column composition is the
+          one case parameters cannot cover; an allowlist is the only safe
+          path there.
+      - id: STD-REVIEW-CSHARP-RG1-R3
+        title: "Safe error responses — no stack traces or internals in API"
+        status: approved
+        scope: ["**/*.cs", "**/*.csx"]
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: return a safe, client-facing error message in API responses;
+          log the full exception with structured context (stack trace, inner
+          exceptions, correlation ID) server-side.
+          NEVER: expose exception messages, stack traces, SQL text, filesystem
+          paths, or internal type names in an HTTP response body — these are
+          reconnaissance gold for an attacker and confuse the client, which
+          cannot act on a stack trace. A 500 response whose body contains
+          "at MyApp.Controllers.OrderController.GetOrder" is a data leak, not
+          a debugging aid.
+        rationale: |
+          Exception details in API responses leak implementation structure:
+          framework version, namespace hierarchy, internal class names,
+          database schema hints, and filesystem layout. An attacker chains
+          these to find vulnerable versions and map the attack surface. The
+          server-side log is where diagnostics belong; the client needs a
+          correlation ID and a human-readable message.
+  - id: STD-REVIEW-CSHARP-RG2
+    title: "Idioms — records, DI, options pattern"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-CSHARP-RG2-R1
+        title: "Record vs class — immutable models over mutable entities"
+        status: approved
+        scope: ["**/*.cs", "**/*.csx"]
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: use record or record struct for data-transfer objects,
+          request/response models, and value-like types that carry data but
+          no identity. Use class for entities with identity and lifecycle
+          (EF Core entities, services). Use init-only setters and constructor
+          parameters for shared state; use with-expressions for non-
+          destructive mutation.
+          NEVER: mutate an input model in-place when producing updated state —
+          this is the source of "action at a distance" bugs where a downstream
+          consumer sees a changed object the caller did not expect to change.
+          Never use dynamic in application code when generics or explicit
+          models can express the contract; dynamic bypasses every compiler
+          check and turns a type error into a runtime crash.
+        rationale: |
+          Records give you value equality, non-destructive mutation (with),
+          and a clear signal "this is data, not an entity." Mutable DTOs
+          passed by reference are silently modified by any consumer in the
+          call chain — with-expressions on records make the copy explicit.
+          dynamic is the C# equivalent of turning off the type system; the
+          only valid use is COM interop or deserializing truly schema-less
+          data.
+      - id: STD-REVIEW-CSHARP-RG2-R2
+        title: "Options pattern for configuration"
+        status: approved
+        scope: ["**/*.cs", "**/*.csx"]
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: bind configuration sections to strongly-typed options classes
+          via IOptions<T> / IOptionsSnapshot<T>. Register with
+          services.Configure<T>(configuration.GetSection(name)).
+          NEVER: scatter configuration["Key"] string lookups through business
+          logic or services — every string key is one typo away from a runtime
+          failure with no compiler help, and the set of keys is invisible to
+          anyone reading the code. A service that reads raw IConfiguration
+          directly is untestable without building a full configuration
+          dictionary.
+        rationale: |
+          The options pattern gives you a single, typed object validated at
+          startup (via ValidateOnStart / ValidateDataAnnotations). Raw string
+          lookups defer every key to runtime — a renamed key in appsettings
+          silently produces a null or default, and no test catches it until
+          the feature is exercised in staging.
+  - id: STD-REVIEW-CSHARP-RG3
+    title: "Testing — framework and organization"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-CSHARP-RG3-R1
+        title: "xUnit, FluentAssertions, and integration testing with WebApplicationFactory"
+        status: approved
+        scope: ["**/*.cs", "**/*.csx", "**/*.csproj"]
+        severity: info
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R4]
+        detector: null
+        description: |
+          ALWAYS: use xUnit with FluentAssertions for readable assertions and
+          Moq or NSubstitute for mocking. Test ASP.NET Core APIs through
+          WebApplicationFactory<TEntryPoint> — not by bypassing middleware.
+          Separate unit, integration, and end-to-end tests clearly.
+          NEVER: mock HttpClient in a unit test by substituting a handler
+          when WebApplicationFactory gives you a real in-memory pipeline —
+          the handler mock skips middleware, auth, model binding, and
+          serialization, which are exactly the layers that break. Never
+          name a test after the method it calls; name it after the behaviour
+          it verifies.
+        rationale: |
+          WebApplicationFactory boots the real middleware pipeline in-memory —
+          your test exercises auth, validation, routing, and serialization
+          exactly as production does. Mocking HttpClient at the handler level
+          skips all of those, producing green tests against code that fails
+          the moment a real request arrives. FluentAssertions gives assertion
+          failure messages that show both expected and actual values without
+          requiring a debugger.

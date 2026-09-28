@@ -1,0 +1,105 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hs.harness/shape/roadmap.schema.json",
+  "title": "hs:shape roadmap sidecar frontmatter",
+  "description": "Shape of docs/product/shape/roadmap.md's frontmatter block, as written by roadmap_rollup.py. Unlike the one-file-per-record task/POC/experiment sidecars, the roadmap is a single small aggregate document carrying every milestone.",
+  "type": "object",
+  "required": ["milestones"],
+  "properties": {
+    "milestones": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/milestone" }
+    },
+    "generated_ts": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actor": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true,
+  "definitions": {
+    "milestone": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "target_window",
+        "contains",
+        "effort_rollup",
+        "poc_gated",
+        "depends_on"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^MS-[0-9]+$"
+        },
+        "title": { "type": "string" },
+        "target_window": {
+          "type": "string",
+          "description": "Free-form scheduling window (e.g. a quarter or sprint label)."
+        },
+        "contains": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "TASK-<n> ids rolled into this milestone -- a task held back by an unclosed technical-POC precondition is never listed here."
+        },
+        "excluded": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "task_id": { "type": "string" },
+              "poc_id": { "type": "string" },
+              "reason": {
+                "type": "string",
+                "enum": ["task_not_found", "poc_not_closed", "poc_unknown"]
+              }
+            }
+          },
+          "description": "Tasks that did not roll into contains, and why -- an unclosed/missing POC precondition, or a task id that no longer resolves."
+        },
+        "effort_rollup": {
+          "type": "string",
+          "description": "Summed BA effort figure across contains (e.g. \"10d\", \"3-5d\")."
+        },
+        "poc_gated": {
+          "type": "boolean",
+          "description": "True only when at least one technical-POC precondition was declared for this milestone AND every declared one closed. False both when nothing was gated (advisory, nothing to verify) and when a declared gate is still open/missing -- never raised as an error either way."
+        },
+        "poc_gate_status": {
+          "type": "string",
+          "enum": ["advisory", "satisfied", "unsatisfied"],
+          "description": "Disambiguates the two False cases `poc_gated` collapses: 'advisory' (nothing declared, purely informational), 'satisfied' (every declared gate closed, same as poc_gated:true), 'unsatisfied' (at least one declared gate still open/missing)."
+        },
+        "dropped_estimates": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "TASK-<n> ids whose effective estimate figure was unusable: either the task's own `estimate` field was a non-string value (e.g. a hand-edited bare YAML int), or it (or a size-derived fallback range) was a truthy string that still fails to parse as a day estimate (e.g. \"2 days\", \"~3d\", or an inverted \"5-2d\" range). Both are excluded from effort_rollup rather than silently mis-summed; the task itself still rolls into `contains`. Both cases behave the same on effort: neither wins outright over the size fallback, so an unusable estimate falls through to the linked story's size-derived range when one is mapped (effort_rollup may still be nonzero for that milestone), and only contributes 0 when no size fallback is available."
+        },
+        "unmapped_sizes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "task_id": { "type": "string" },
+              "size": { "type": "string" }
+            }
+          },
+          "description": "Tasks that fell back to a linked story's size (no explicit estimate) but whose size letter has no entry in the effort_map size->range table -- a loud, counted skip, not a silent 0 folded into effort_rollup."
+        },
+        "depends_on": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^MS-[0-9]+$" }
+        },
+        "cycle": {
+          "type": "boolean",
+          "description": "True when this milestone participates in a depends_on cycle (including a self-loop); flagged, not a build failure."
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

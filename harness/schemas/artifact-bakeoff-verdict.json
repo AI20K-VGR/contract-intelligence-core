@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "artifact-bakeoff-verdict",
+  "description": "Mechanical verdict of an empirical bake-off. A handoff artifact (NOT a stage gate): records which candidate direction won by real numbers, or refuses to crown one when the gap sits inside the measured noise band. Written by bakeoff_rank.py.",
+  "type": "object",
+  "required": ["schema", "run", "direction", "noise", "verdict", "candidates", "ranking", "band", "gap", "actor", "ts"],
+  "properties": {
+    "schema": {"const": "artifact-bakeoff-verdict"},
+    "run": {"type": "string", "description": "bake-off run id (ledger key)"},
+    "direction": {"enum": ["lower", "higher"], "description": "is lower-better or higher-better"},
+    "noise": {"enum": ["low", "medium", "high"], "description": "declared metric noise (reused from hs:loop)"},
+    "rel_band": {"type": "number", "description": "relative band fraction, default 0.05"},
+    "verdict": {"enum": ["winner", "tie_within_noise", "insufficient_trials"], "description": "winner = beats runner-up beyond the noise band; tie_within_noise = hand to human; insufficient_trials = too few trials for the noise level"},
+    "winner": {"type": ["string", "null"], "description": "winning candidate, or null when not a clear winner"},
+    "candidates": {
+      "type": "array",
+      "minItems": 2,
+      "description": "every candidate (losers included — no silent cut)",
+      "items": {
+        "type": "object",
+        "required": ["candidate", "rep", "spread", "n"],
+        "properties": {
+          "candidate": {"type": "string"},
+          "trials": {"type": "array", "items": {"type": "number"}},
+          "rep": {"type": "number", "description": "representative score (median or worse-of by noise)"},
+          "spread": {"type": "number", "description": "observed run-to-run spread (max-min)"},
+          "n": {"type": "integer", "description": "trial count"}
+        }
+      }
+    },
+    "ranking": {"type": "array", "items": {"type": "string"}, "description": "candidates best-first"},
+    "observed_spread_floor": {"type": "number", "description": "max spread across candidates — the honesty floor on band"},
+    "band": {"type": "number", "description": "max(rel_band*|rep(best)|, observed_spread_floor)"},
+    "gap": {"type": "number", "description": "improvement of best over runner-up (>=0)"},
+    "over_budget": {"type": "array", "items": {"type": "string"}, "description": "candidates that exceeded the time/token budget"},
+    "rationale": {"type": "string"},
+    "actor": {"type": "string", "description": "resolve_actor() output"},
+    "ts": {"type": "string", "description": "ISO-8601 aware-UTC timestamp"}
+  }
+}

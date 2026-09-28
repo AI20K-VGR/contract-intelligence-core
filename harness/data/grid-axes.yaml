@@ -1,0 +1,130 @@
+# grid-axes.yaml — Grid axis universe SSOT (tầng-1). Axis id + label +
+# default value list sống ở ĐÂY (self-doc), không còn literal Python trong
+# axes.py. axes.py LOAD file này (mirror density.py load
+# grid-density-tier.yaml). `feature` + `step` KHÔNG có default value list —
+# chúng seed từ plan/task artifact (frontier), không bao giờ hand-typed.
+#
+# Mỗi value-node mang `example` (minh hoạ field data thật) và, ở những chỗ
+# ranh giới TÍNH/KHÔNG-TÍNH mơ hồ nhất (side_effect:none, rollback:compensate),
+# một comment giải thích ngay bên cạnh.
+#
+# ⚠️ THỨ TỰ KHAI CÁC TRỤC CÓ NGHĨA — đừng sắp lại cho "dễ đọc".
+# Bộ sinh mảng phủ nhận danh sách trục THEO THỨ TỰ này, nên đổi thứ tự các khoá
+# dưới đây là ĐỔI SỐ HÀNG của grid.
+#
+# Mức ảnh hưởng ĐÃ GIẢM MẠNH sau khi bộ sinh chuyển sang `covertable`
+# (2026-07-31). Quét mọi thứ tự phân biệt, planner t=3:
+#   bộ sinh cũ (greedy tự viết): 116 → 140 hàng, biên độ 24 (+21%)
+#   covertable                 : 133 → 137 hàng, biên độ  4 (+3%)
+# Lý do: greedy điền trục TRÁI→PHẢI một lượt và chỉ tính lợi so với trục đã cố
+# định trong hàng, nên trục đầu chọn gần như MÙ; covertable xếp hạng cặp TOÀN
+# CỤC nên gần như không quan tâm thứ tự.
+#
+# Đánh đổi phải biết: thứ tự đang khai từng là thứ tự MAY của greedy (đúng cận
+# dưới lý thuyết); với covertable nó nằm ở ĐỈNH dải hẹp. Planner seeded=5 đi từ
+# 25 lên 29 hàng. Bốn hàng đó là phần DƯ THỪA, và dư thừa chính là thứ bắt được
+# lỗi cao hơn bậc đã khai (bắt lỗi 3-chiều: 26,6% → 33,9%, cấy 4.000 lỗi).
+#
+# Số hàng thứ tự đang khai tốn, t=2 (feature/step = 3/5/10):
+#   planner : 24 / 29 / 50   (rẻ nhất khả dĩ 22 / 26 / 50)
+#   executor: 15 / 20 / 34   (rẻ nhất khả dĩ 15 / 18 / 30)
+# `step` và `feature` GIỮ ở cột 0 có chủ ý — chúng là cột định danh của grid;
+# đẩy vào giữa để bớt vài hàng là đổi thứ đọc-được lấy thứ đo-được.
+# Ghim ở harness/tests/test_grid_axis_order_is_load_bearing.py.
+planner_axes:
+  feature: { label: "Feature", ordered_by: "priority", seeded_from_plan: true }
+  layer:
+    label: "Architecture layer"
+    ordered_by: "dependency"
+    values:
+      ui: { example: "React component render path" }
+      api: { example: "REST/gRPC handler" }
+      data: { example: "schema/query/migration" }
+      infra: { example: "deploy/K8s/network" }
+  lifecycle:
+    label: "Delivery lifecycle"
+    ordered_by: "lifecycle"
+    values:
+      discover: { example: "brief/requirement gathering" }
+      design: { example: "architecture/interface design" }
+      build: { example: "implementation + unit test" }
+      ship: { example: "review + merge + deploy" }
+      measure: { example: "telemetry/adoption/incident follow-up" }
+  risk_class:
+    label: "Risk class"
+    ordered_by: "priority"
+    values:
+      spec-drift: { example: "implementation quietly diverges from the approved spec" }
+      capacity: { example: "load/throughput/scaling limit" }
+      regression: { example: "a previously-working behavior breaks" }
+      compliance: { example: "policy/legal/security-standard violation" }
+  stakeholder:
+    label: "Stakeholder"
+    ordered_by: "priority"
+    values:
+      dev: { example: "engineering owner of the change" }
+      ops: { example: "on-call/SRE running the system" }
+      security: { example: "security/appsec reviewer" }
+      support: { example: "customer-facing support/success" }
+executor_axes:
+  step: { label: "Implementation step", ordered_by: "sequence", seeded_from_plan: true }
+  precondition:
+    label: "Precondition"
+    ordered_by: "priority"
+    values:
+      auth: { example: "caller must be authenticated/authorized first" }
+      state-ready: { example: "a prior migration/setup step must have run" }
+      dependency-available: { example: "an external service/queue must be reachable" }
+  side_effect: # Trục: bước ĐỤNG gì ra ngoài phạm vi hàm nó?
+    label: "Side effect"
+    ordered_by: "priority"
+    values:
+      write: { example: "ghi file/DB" }
+      network-call: { example: "gọi service ngoài" }
+      none:
+        # TÍNH: thuần tính/đọc — không ghi file, không I/O mạng, không đổi
+        # state chia sẻ.
+        # KHÔNG TÍNH: ghi cache/log/set global = 'write'. Một dòng log KHÔNG
+        # phải none.
+        example: "validate-config: chỉ đọc+kiểm, không chạm đĩa"
+  failure_mode:
+    label: "Failure mode"
+    ordered_by: "priority"
+    values:
+      timeout: { example: "downstream call exceeds its deadline" }
+      partial-write: { example: "write is interrupted mid-transaction" }
+      permission-denied: { example: "caller lacks the required grant" }
+  rollback: # Trục: hỏng thì LÙI thế nào?
+    label: "Rollback strategy"
+    ordered_by: "priority"
+    values:
+      revert: { example: "khôi phục snapshot trước đó" }
+      compensate:
+        # TÍNH: chạy hành động NGƯỢC để trung hòa (charge→refund); state tiến
+        # tới cân bằng bằng bước bù.
+        # KHÔNG TÍNH: 'revert' (khôi phục snapshot) hay 'manual' (người vào
+        # tay). Bù ≠ undo.
+        example: "charge-card: phát hành refund, KHÔNG rollback DB"
+      manual: { example: "người vào tay xử" }
+  verification:
+    label: "Verification method"
+    ordered_by: "priority"
+    values:
+      test: { example: "automated unit/integration test covers the path" }
+      manual-check: { example: "a human exercises the flow by hand" }
+      log-inspect: { example: "confirm via log/telemetry after the fact" }
+# constraint_rules — UNIVERSAL forbidden-combination rules (tier a).
+# Sinh @build-engine, versioned, review-như-code. Một ô N/A được vào TỬ SỐ độ phủ
+# (qua compute_coverage_ratio(grid, frozen_rules)) CHỈ KHI trỏ một luật ở đây
+# (hoặc luật cục-bộ trong nội-dung-plan-user-duyệt) VÀ rule.combo ⊆ toạ-độ ô VÀ hash khớp.
+# Sửa file này = sửa hợp đồng → bump version + đi qua code-review (freeze = merged-tracked).
+constraint_rules:
+  version: 1
+  rules:
+    - id: side_effect-none-x-rollback-compensate
+      # TÍNH: bước thuần (side_effect:none) KHÔNG đụng gì ra ngoài → KHÔNG có gì để bù
+      # (rollback:compensate). Tổ hợp cấu trúc bất khả → ô N/A hợp lệ, máy-kiểm-được.
+      # KHÔNG TÍNH: side_effect:write × rollback:compensate (bù có nghĩa) — không cấm.
+      combo: { side_effect: none, rollback: compensate }
+      verdict: forbidden
+      rationale: "a pure/no-side-effect step has nothing to compensate; the cell is structurally N/A"

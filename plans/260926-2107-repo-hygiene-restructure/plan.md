@@ -1,7 +1,7 @@
 ---
 id: 260926-2107-repo-hygiene-restructure
 title: "Dọn artifact rồi chuyển package, giữ logic"
-status: in_progress
+status: completed
 mode: hard
 tdd: true
 branch: feature/ai2-integration

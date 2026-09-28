@@ -1,0 +1,11 @@
+{
+  "schema": "vsf/ai2-release-decision/v1",
+  "decision": "PASS_WITH_SKIPS",
+  "release_scope": "local full-stack implementation",
+  "automated_gates": "PASS",
+  "authenticated_e2e": "PARTIAL_PASS",
+  "live_provider_replay": "NOT_RUN",
+  "safe_state": true,
+  "reason": "Frontend, backend, AI2 offline, Docker health, authenticated PKCE login and dossier detail gates pass. A new upload-to-approve mutation remains explicitly unrun; lock/approve was not performed on a real dossier without explicit confirmation.",
+  "artifact": "release-checklist.md"
+}

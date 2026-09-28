@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hs.harness/spec/decision.schema.json",
+  "title": "hs:spec workspace DEC ledger block frontmatter",
+  "description": "Shape of one --- fenced YAML frontmatter block in <root>/docs/product/decisions.md, as appended by dec_ledger.py. Distinct from the harness architecture register's own YAML SSOT schema (docs/decisions.yaml) -- see references/dec-ledger.md.",
+  "type": "object",
+  "required": ["id", "status", "date", "actor", "ts", "affects"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^DEC-[0-9]+$",
+      "description": "Parent-free, globally monotonic within the workspace ledger (grep max heading +1, never reused)."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "superseded", "deprecated"]
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "actor": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ts": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Machine-resolved UTC ISO-8601 instant of allocation."
+    },
+    "affects": {
+      "type": "string",
+      "description": "Comma-separated list of affected spec-graph ids (PRD/epic/story/goal); may be empty."
+    }
+  },
+  "additionalProperties": true
+}

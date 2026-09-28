@@ -1,0 +1,140 @@
+# voice-presets.yaml — 10 onboarding archetypes for hs:setup Layer-0.
+#
+# Each preset bundles existing axes into a named profile. "Apply" means writing
+# the axes values to terminal-voice.yaml (terminal axes) and output.yaml (prose/code
+# axes). code_style: null means off (no code shaping). Tên theo hành vi, không
+# dán nhãn bản sắc hay chức danh.
+#
+# Apply is all-or-nothing: validate ALL axes first, write both files via tmp, swap.
+# A failure at any point leaves both files at their original values.
+
+presets:
+  - id: nontech-direct
+    display: "Không rành kỹ thuật — nói thẳng, chi tiết"
+    description: "Plain audience, blunt register, full explanation depth. For non-technical users who want direct, detailed answers."
+    axes:
+      audience: 0
+      code_style: null
+      voice_level: 8
+      terminal_voice_level: 5
+      persona: reality-check
+      no_markdown: false
+      interview_rigor: standard
+      action_prompting: standard
+
+  - id: nontech-polite
+    display: "Không rành kỹ thuật — nhẹ nhàng, đầy đủ"
+    description: "Plain audience, polite register, full explanation depth. For non-technical users who prefer a courteous tone."
+    axes:
+      audience: 0
+      code_style: null
+      voice_level: 4
+      terminal_voice_level: 5
+      persona: none
+      no_markdown: false
+      interview_rigor: standard
+      action_prompting: standard
+
+  - id: nontech-brief
+    display: "Không rành kỹ thuật — nói gọn thôi"
+    description: "Plain audience, standard register, short answers. For non-technical users who want the bottom line."
+    axes:
+      audience: 0
+      code_style: null
+      voice_level: 5
+      terminal_voice_level: 2
+      persona: bluf
+      no_markdown: false
+      interview_rigor: light
+      action_prompting: standard
+
+  - id: learner-guided
+    display: "Đang học lập trình — dắt tay từng bước"
+    description: "Guided audience, eli5 code style. Step-by-step explanations with full code comments. For early learners."
+    axes:
+      audience: 1
+      code_style: 0
+      voice_level: 3
+      terminal_voice_level: 5
+      persona: feynman
+      no_markdown: false
+      interview_rigor: standard
+      action_prompting: standard
+
+  - id: dev-junior
+    display: "Mới đi làm dev — giải thích 'tại sao' trước"
+    description: "Informed audience, guided code style. Explains the why before the how. For developers starting their career."
+    axes:
+      audience: 2
+      code_style: 1
+      voice_level: 5
+      terminal_voice_level: 4
+      persona: none
+      no_markdown: false
+      interview_rigor: standard
+      action_prompting: standard
+
+  - id: dev-working
+    display: "Dev có nghề — đi thẳng vào việc"
+    description: "Practitioner audience, senior code style. Direct, assumes competence. For mid-to-senior engineers."
+    axes:
+      audience: 3
+      code_style: 3
+      voice_level: 6
+      terminal_voice_level: 2
+      persona: bluf
+      no_markdown: false
+      interview_rigor: standard
+      action_prompting: standard
+
+  - id: dev-expert
+    display: "Dev cứng — code trần trụi, bỏ định dạng"
+    description: "Peer audience, god-mode code style, no markdown. Maximum velocity. For domain experts."
+    axes:
+      audience: 5
+      code_style: 5
+      voice_level: 6
+      terminal_voice_level: 1
+      persona: bluf
+      no_markdown: true
+      interview_rigor: light
+      action_prompting: minimal
+
+  - id: lead-strategic
+    display: "Lo định hướng/đánh giá — trade-off + rủi ro"
+    description: "Expert audience, no code shaping. Strategic framing, trade-offs, risk. For tech leads and PMs."
+    axes:
+      audience: 4
+      code_style: null
+      voice_level: 6
+      terminal_voice_level: 3
+      persona: bluf
+      no_markdown: false
+      interview_rigor: deep
+      action_prompting: standard
+
+  - id: challenger
+    display: "Muốn bị phản biện gắt — đào lỗ hổng"
+    description: "Practitioner audience, senior code. Maximum challenge, deep interview rigor. For users who want their ideas stress-tested."
+    axes:
+      audience: 3
+      code_style: 3
+      voice_level: 9
+      terminal_voice_level: 4
+      persona: reality-check
+      no_markdown: false
+      interview_rigor: deep
+      action_prompting: proactive
+
+  - id: learner-direct
+    display: "Vừa học vừa thích bị nói thẳng"
+    description: "Guided audience, eli5 code, blunt register. Accessible but no hand-holding. For learners who want honesty."
+    axes:
+      audience: 1
+      code_style: 0
+      voice_level: 8
+      terminal_voice_level: 4
+      persona: reality-check
+      no_markdown: false
+      interview_rigor: standard
+      action_prompting: standard

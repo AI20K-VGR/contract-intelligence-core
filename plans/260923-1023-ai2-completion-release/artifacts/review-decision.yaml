@@ -1,0 +1,22 @@
+verdict: PASS_WITH_RISK
+reviewer: user:dungskbg2004@gmail.com
+role: code-reviewer
+rationale: 'Review độc lập trên diff AI2 và security surface: P1-P4 targeted/full
+  offline đều xanh; contract registry PASS; diff check PASS; UTF-8/U+FFFD scan PASS.
+  Đã xác nhận citation grounding fail-closed, review stale không được publish, tenant/dossier/ACL/pins
+  được kiểm tra, idempotency payload conflict và lease được giới hạn, egress mặc định
+  deny khi field cũ thiếu, request-scoped embedding budget truyền qua API, source
+  text trong L2 được đóng delimiter/untrusted-data instruction, và run_code bị loại
+  khỏi allowlist. Không thấy Critical/Important code defect còn mở trong phạm vi implementation
+  sau các regression test. PASS_WITH_RISK vì release evidence chưa đủ để claim nghiệp
+  vụ: candidate 95 UNVERIFIED, golden 0/accuracy UNVERIFIED, production mutation adapter
+  chưa nối (mutation BLOCKED), large-dossier fixture chỉ smoke dưới 50 pages, live
+  provider NOT_RUN. Do đó review implementation chấp nhận có rủi ro, nhưng release_verdict
+  vẫn BLOCKED và không được tuyên bố production accuracy/readiness.'
+plan_hash: 6dc349baca0c
+effort: high
+strategy: inline-review-fallback
+reviewer_engine: codex-inline
+reviewer_model: gpt-5.6-luna
+rounds_run: 1
+run_seq: null

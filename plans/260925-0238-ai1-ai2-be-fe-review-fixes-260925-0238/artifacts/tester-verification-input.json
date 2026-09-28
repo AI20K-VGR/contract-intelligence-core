@@ -1,0 +1,39 @@
+{
+  "stage": "phase",
+  "phase": "phase-6-integrated-verification",
+  "plan": "260925-0238-ai1-ai2-be-fe-review-fixes-260925-0238",
+  "actor": "user:dungskbg2004@gmail.com/agent:codex",
+  "ts": "2026-09-25T04:22:50+07:00",
+  "checks": [
+    {
+      "name": "unit",
+      "status": "PASS",
+      "detail": "299 passed; exit 0; JUnit result in tester-backend-full.xml",
+      "format": "junit",
+      "file": "tester-backend-full.xml"
+    },
+    {
+      "name": "integration",
+      "status": "PASS",
+      "detail": "703 passed, 1 skipped, 26 warnings; exit 0; JUnit result in tester-ai-service-full.xml",
+      "format": "junit",
+      "file": "tester-ai-service-full.xml"
+    },
+    {
+      "name": "component",
+      "status": "BLOCKED",
+      "detail": "Interrupted before exit result was returned; no PASS inferred."
+    },
+    {
+      "name": "regression",
+      "status": "BLOCKED",
+      "detail": "Frontend build/lint/format and git diff check were interrupted or not run; no PASS inferred."
+    },
+    {
+      "name": "e2e",
+      "status": "BLOCKED",
+      "detail": "No Keycloak token/live stack evidence; NOT_RUN, never PASS."
+    }
+  ],
+  "verdict": "BLOCKED"
+}

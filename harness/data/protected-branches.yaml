@@ -1,0 +1,14 @@
+# protected-branches.yaml — branches that demand merge-grade artifacts to push.
+#
+# A push whose destination branch matches any pattern here is treated as a
+# `merge` (the transport-level twin of the `pr` stage in stage-policy.yaml):
+# the pre-push hook then requires the same artifacts a reviewed merge would.
+# fnmatch semantics — `*` spans `/`, so `release/*` covers `release/1.2`.
+#
+# This is the FLOOR side of the guard policy: merge_gate cannot be lowered by a
+# preset, only by a logged break-glass override in guard-policy.yaml. An empty
+# or missing list protects nothing (additive — a fresh repo pushes freely).
+protected:
+  - main
+  - master
+  - "release/*"

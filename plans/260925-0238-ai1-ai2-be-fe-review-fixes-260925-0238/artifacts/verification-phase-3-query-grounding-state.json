@@ -1,0 +1,47 @@
+{
+  "stage": "cook",
+  "plan": "260925-0238-ai1-ai2-be-fe-review-fixes-260925-0238",
+  "checks": [
+    {
+      "name": "lexical-fallback",
+      "status": "PASS"
+    },
+    {
+      "name": "policy-matrix",
+      "status": "PASS"
+    },
+    {
+      "name": "state-passthrough",
+      "status": "PASS"
+    },
+    {
+      "name": "backend-regression",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend-tests",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend-build",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend-lint",
+      "status": "PASS"
+    },
+    {
+      "name": "ai-service-targeted-ruff",
+      "status": "PASS"
+    },
+    {
+      "name": "ai-service-full-ruff",
+      "status": "SKIP"
+    }
+  ],
+  "verdict": "PASS_WITH_RISK",
+  "phase": "phase-3-query-grounding-state",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-09-24T20:40:48+00:00",
+  "run_seq": null
+}

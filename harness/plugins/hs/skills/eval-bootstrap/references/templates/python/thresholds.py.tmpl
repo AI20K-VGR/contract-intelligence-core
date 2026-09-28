@@ -1,0 +1,90 @@
+"""Generic quality-threshold comparator for ${domain} eval metrics.
+
+This module does not know or assume ANY metric name, weight, or "good" value
+-- it is a comparison TOOL, not a source of thresholds. The tree's REAL pass
+threshold is `THRESHOLD` in scorer.py, read from the approved strategy card
+(see config_integrity.py.tmpl / scorer.py.tmpl) -- that is the one gate that
+actually blocks a release. Anything configured here is an OPTIONAL auxiliary
+check across additional named metrics you want to compare together; it is
+never a second source of judgment numbers.
+
+Scaffold variables:
+    ${domain}   -- eval domain name (e.g., cv_extraction)
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+
+@dataclass
+class QualityThresholds:
+    """A named metric -> minimum-value map, plus a comparator.
+
+    Every threshold VALUE here is a judgment call from the approved strategy
+    card / turn calibration for ${domain} -- never a code default. Construct
+    it with the metric_thresholds your card actually specifies; the empty
+    default means "no auxiliary thresholds configured", not "anything passes".
+
+    USAGE:
+        thresholds = QualityThresholds({"f1": 0.9, "precision": 0.85})
+        passed, failures = thresholds.check({"f1": 0.91, "precision": 0.6})
+        if not passed:
+            for f in failures:
+                print("  FAIL:", f)
+    """
+
+    metric_thresholds: dict = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        """Export thresholds as a plain dict (for serialization/reports)."""
+        return dict(self.metric_thresholds)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "QualityThresholds":
+        """Create thresholds from a dict (e.g., loaded from YAML/JSON config)."""
+        return cls(metric_thresholds=dict(data))
+
+    def check(self, metrics: dict) -> tuple:
+        """Compare `metrics` (name -> value) against every configured minimum.
+
+        A metric present in `metrics` with no configured threshold is not
+        checked. Returns (passed, failures); each failure names the metric,
+        its value, and the configured minimum.
+        """
+        failed = []
+        for name, minimum in self.metric_thresholds.items():
+            if name not in metrics:
+                continue
+            value = metrics[name]
+            if value < minimum:
+                failed.append("%s (%.2f) below threshold (%s)" % (name, value, minimum))
+        return len(failed) == 0, failed
+
+
+# -- Threshold presets ---------------------------------------------------------
+#
+# These are EXAMPLE dicts, not defaults -- "default" below is intentionally
+# empty. Fill a preset's metric_thresholds from the approved strategy card,
+# never from a number invented in this template.
+
+def get_thresholds(preset: str = "default") -> QualityThresholds:
+    """Get a preset threshold configuration.
+
+    'default' is EMPTY by design: the real thresholds for ${domain} come from
+    the approved strategy card (or turn calibration), never from this module.
+    """
+    presets = {
+        "default": QualityThresholds({}),
+        # Example (extraction): {"f1": 0.75, "precision": 0.80, "recall": 0.70,
+        #     "quality": 70.0, "score_reasonable_rate": 0.80, "agreement_rate": 0.75}
+        # Example (extraction, strict): {"f1": 0.85, "precision": 0.90,
+        #     "recall": 0.80, "quality": 80.0, "score_reasonable_rate": 0.90,
+        #     "agreement_rate": 0.85}
+        # Example (extraction, lenient): {"f1": 0.60, "precision": 0.65,
+        #     "recall": 0.55, "quality": 55.0, "score_reasonable_rate": 0.70,
+        #     "agreement_rate": 0.65}
+    }
+    if preset not in presets:
+        raise ValueError("Unknown preset '%s'. Available: %s" % (preset, list(presets.keys())))
+    return presets[preset]

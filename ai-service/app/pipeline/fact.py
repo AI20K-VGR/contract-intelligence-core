@@ -39,7 +39,18 @@ class FactExtractor:
         if mper:
             period = mper.group(1)
         scope = sk.split(":", 1)[1] if sk.startswith("scope:") else None
-        if item_key is None and sk.startswith("mst"):
+        if item_key is None and (
+            sk in {
+                "contract_value",
+                "contract_value_words",
+                "payment_schedule",
+                "payment_term",
+                "payment_method",
+                "contract_number",
+            }
+            or sk.startswith("party_")
+            or sk.startswith("mst")
+        ):
             item_key = sk
         if item_key is None and not scope:
             mi = re.search(r"\bitem\s+([A-Za-z0-9]+)\b", text, re.I) or re.search(
@@ -76,6 +87,9 @@ class FactExtractor:
         compact = raw.replace(" ", "").replace(",", ".")
         if re.fullmatch(r"-?\d+(\.\d+)?%?", compact):
             return compact.rstrip("%"), "L0"
+        grouped = re.fullmatch(r"\d{1,3}(?:[.,]\d{3})+", raw.replace(" ", ""))
+        if grouped:
+            return re.sub(r"\D", "", raw), "L0"
         if "%" not in raw:
             digits = re.sub(r"[^\d]", "", raw)
             if digits and re.search(r"vnd|đồng", raw, re.I):
@@ -87,26 +101,31 @@ class FactExtractor:
             if self.runtime is not None:
                 data = self.runtime.complete_json(
                     self.llm,
-                    "Normalize a contract field. Return JSON {normalized, unit}. Do not invent values. Keep the original meaning. No legal conclusion.",
+                    _NORMALIZE_SYSTEM,
                     f"raw={raw}\ncontext={text[:1500]}",
                 )
             else:
                 data = self.llm.complete_json(
-                    "Normalize a contract field. Return JSON {normalized, unit}. Do not invent values. Keep the original meaning. No legal conclusion.",
+                    _NORMALIZE_SYSTEM,
                     f"raw={raw}\ncontext={text[:1500]}",
                 )
             if not data:
                 return None, "L0"
             norm = data.get("normalized")
-            if norm is None:
+            if not isinstance(norm, str) or not norm.strip():
                 if self.runtime is not None:
-                    self.runtime.add_issue("LLM_INVALID_OUTPUT", "normalization response omitted normalized")
+                    self.runtime.add_issue("LLM_INVALID_OUTPUT", "normalization response omitted a string")
                     self.runtime.fallback_count += 1
                 return None, "L0"
-            if norm is not None and not isinstance(norm, str):
-                norm = str(norm)
-            return norm, "L2"
+            return norm.strip(), "L2"
         return None, "L0"
+
+
+_NORMALIZE_SYSTEM = (
+    "Normalize a contract field. Return JSON with keys normalized and unit. "
+    "normalized must be one string in the same language as raw. "
+    "Do not translate. Do not return an object or a list. Do not invent values. No legal conclusion."
+)
 
 
 def _first_value(text: str) -> str:

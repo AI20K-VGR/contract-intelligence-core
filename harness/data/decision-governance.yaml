@@ -1,0 +1,6 @@
+# Decision-flip / reconcile governance knobs. Human-edited (YAML).
+# Read by decision_reconcile.py (counter+nudge) and decision_register.py (confirm TTL).
+# Thresholds chốt với user 2026-06-29: N=15 DEC mới / M=8 lật kể từ reconcile trước.
+reconcile_threshold_new_decs: 15   # nudge khi >= N DEC mới kể từ marker reconcile trước
+reconcile_threshold_flips: 8       # hoặc >= M lần lật (superseded-diff, advisory-only) kể từ marker
+confirm_ttl_s: 1800                # TTL token confirm cross-scope (P2/P3), giây

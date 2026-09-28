@@ -1,0 +1,77 @@
+"""
+Config-conformance contract for the ${domain} scorer.
+
+Scaffold variables:
+    ${domain}         — eval domain name
+    ${scorer_module}  — import name for the scorer
+
+DIMENSIONS/THRESHOLD are no longer stamped literals in scorer.py — the
+scorer reads them from the approved strategy card at import time
+(config_integrity.load_verified_config). A "literal == config" assertion here
+would now be a tautology (both sides read the very same loader), so this test
+does something more useful: an INDEPENDENT re-hash of the card (its own call
+to load_verified_config, not scorer's cached module attributes) re-derives the
+same values from disk, then pins the card's shape invariants (weights sum to
+100, non-empty dims/p0_rules) and the check_p0_gates() return SHAPE the
+mutation-matrix's rule-id attribution depends on. Real p0 rule CONTENT is
+proven by the mutation matrix, not here.
+"""
+
+from __future__ import annotations
+
+import sys
+
+from pathlib import Path
+
+# Stamped at evals/eval_types/${domain}/tests/test_config_conformance.py:
+#   parents[1] == the domain dir (siblings: scorer.py, config_integrity.py)
+_DOMAIN_DIR = Path(__file__).resolve().parents[1]
+if str(_DOMAIN_DIR) not in sys.path:
+    sys.path.insert(0, str(_DOMAIN_DIR))
+
+from config_integrity import load_verified_config  # noqa: E402
+from ${scorer_module} import DIMENSIONS, THRESHOLD, check_p0_gates  # noqa: E402
+
+
+def _verified_card():
+    # an INDEPENDENT re-hash — not scorer's cached DIMENSIONS/THRESHOLD.
+    return load_verified_config()
+
+
+def test_scorer_dimensions_match_verified_card():
+    config = _verified_card()
+    assert DIMENSIONS == config["dimensions"], (
+        "scorer.DIMENSIONS drifted from the verified card — re-run bootstrap")
+
+
+def test_scorer_threshold_matches_verified_card():
+    config = _verified_card()
+    assert THRESHOLD == config["threshold"], (
+        "scorer.THRESHOLD drifted from the verified card — re-run bootstrap")
+
+
+def test_dimension_weights_sum_to_100():
+    total = sum(DIMENSIONS.values())
+    assert total == 100, "dimension weights sum to %s, expected 100" % total
+
+
+def test_dimensions_non_empty():
+    assert DIMENSIONS, "dimensions must not be empty (guarded at scorer import too)"
+
+
+def test_p0_rules_non_empty():
+    config = _verified_card()
+    assert config.get("p0_rules"), "p0_rules must be a non-empty list on the approved card"
+
+
+def test_check_p0_gates_returns_shaped_tuple():
+    # shape only — real p0 rule content is proven by the mutation matrix,
+    # not here.
+    passed, failures = check_p0_gates([])
+    assert isinstance(passed, bool)
+    assert isinstance(failures, list)
+    for failure in failures:
+        assert isinstance(failure, dict), "each p0 failure must be a dict, got %r" % (failure,)
+        assert isinstance(failure.get("rule_index"), int), (
+            "each p0 failure must carry an int rule_index: %r" % (failure,))
+        assert "msg" in failure, "each p0 failure must carry a msg: %r" % (failure,)

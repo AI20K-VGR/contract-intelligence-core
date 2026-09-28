@@ -1,0 +1,11 @@
+# write-guard.yaml — công tắc của tool-mediated config-edit gate (tracked).
+#
+# enabled: false = break-glass — CHỈ sửa được bằng editor NGOÀI session agent
+# (trong session chính guard chặn file này); flip là diff git lộ rõ + trace
+# gate_skip. File này KHÔNG bị HARNESS_HOOK_CONFIG ảnh hưởng — guard chỉ đọc
+# đúng file này cạnh write_guard.py.
+#
+# extra_guarded: CHỈ THÊM path (glob, relative repo root) vào guard list —
+# không có cơ chế bớt; GUARD_LIST gốc là hằng trong code.
+enabled: true
+extra_guarded: []

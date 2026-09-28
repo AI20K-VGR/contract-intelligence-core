@@ -1,0 +1,51 @@
+edges:
+  - {from: P0, to: P1}
+  - {from: P1, to: P2}
+  - {from: P2, to: P3}
+  - {from: P3, to: P4}
+  - {from: P4, to: P5}
+  - {from: P5, to: P6}
+  - {from: P6, to: P7}
+  - {from: P7, to: P8}
+  - {from: P8, to: P9}
+subtasks:
+  P0:
+    post: [verification-P0.json]
+    files_to_create: [artifacts/p0-contract-baseline.json]
+    files_to_modify: [ai-service/tests/]
+  P1:
+    post: [verification-P1.json]
+    files_to_create: [artifacts/p1-domain-schema.json]
+    files_to_modify: [ai-service/app/pipeline/ai1_snapshot_adapter.py, ai-service/app/pipeline/idp.py]
+  P2:
+    post: [verification-P2.json]
+    files_to_create: [artifacts/p2-state-transition-matrix.json]
+    files_to_modify: [ai-service/app/api/main.py, ai-service/app/pipeline/idp.py]
+  P3:
+    post: [verification-P3.json]
+    files_to_create: [artifacts/p3-replay-convergence.json]
+    files_to_modify: [ai-service/app/tools/jobs.py, ai-service/app/tools/persist.py]
+  P4:
+    post: [verification-P4.json]
+    files_to_create: [artifacts/p4-adapter-contract.json]
+    files_to_modify: [ai-service/app/pipeline/idp.py, ai-service/app/pipeline/ai2_batch.py]
+  P5:
+    post: [verification-P5.json]
+    files_to_create: [artifacts/p5-api-security-contract.json]
+    files_to_modify: [ai-service/app/api/main.py, packages/typescript/frontend-sdk/src/index.ts]
+  P6:
+    post: [verification-P6.json]
+    files_to_create: [artifacts/p6-event-ui-convergence.json]
+    files_to_modify: [ai-service/app/api/main.py, frontend/src/app/App.tsx]
+  P7:
+    post: [verification-P7.json]
+    files_to_create: [artifacts/p7-evaluation-gate.json]
+    files_to_modify: [evals/]
+  P8:
+    post: [verification-P8.json]
+    files_to_create: [artifacts/p8-migration-parity.json]
+    files_to_modify: [ai-service/app/api/main.py, ai-service/app/tools/jobs.py]
+  P9:
+    post: [verification-P9.json]
+    files_to_create: [artifacts/p9-production-readiness.json]
+    files_to_modify: [docs/]

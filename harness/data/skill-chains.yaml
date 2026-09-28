@@ -1,0 +1,40 @@
+# skill-chains.yaml — the DECLARED SDLC pipeline (human-edited config, YAML).
+#
+# Each chain is an ordered pair/sequence of skill invoke names: "after the
+# first, the second is the expected next step". The workflow-chains lens
+# compares these declarations against ACTUAL per-session telemetry and flags
+# deviations — drift between how the pipeline is documented and how it is
+# really used becomes data, not folklore.
+#
+# This file is ON-DEMAND data owned by the harness (loaded by the lens),
+# never always-on prompt context.
+#
+# Skill-name entries are QUOTED ("hs:plan", not hs:plan). Unquoted, a colon
+# inside a flow-sequence `[a, b]` is exactly the shape YAML 1.2 (ruamel) parses
+# more strictly than YAML 1.1 (PyYAML): PyYAML accepts the bare `hs:plan` as one
+# plain scalar, ruamel raises "found unexpected ':'" scanning the same token as
+# an ambiguous flow-mapping key. Quoting parses to the identical string under
+# both loaders (see test_yaml_fast_loader.py's whole-repo parity sweep) and
+# costs nothing — do not un-quote these back to bare tokens.
+chains:
+  - ["hs:plan", "hs:cook"]    # plan approved → implement
+  - ["hs:cook", "hs:test"]    # implementation done → verify
+  - ["hs:test", "hs:cook"]    # failed verification → back to fix loop
+  - ["hs:techstack", "hs:test"]  # non-Python target: detect the real test_cmd before testing (not assumed pytest)
+  - ["hs:plan", "hs:afk"]     # plan approved → run it unattended (AFK) instead of cook
+  - ["hs:afk", "hs:test"]     # unattended run done → human-verify before ship
+  - ["hs:discover", "hs:plan"]    # discovery brief → plan (pre-plan shaping)
+  - ["hs:understand", "hs:plan"]  # codebase map → plan (comprehension before design)
+  - ["hs:triage", "hs:fix"]       # triaged defect → fast-path fix
+  - ["hs:triage", "hs:plan"]      # architecture-affecting defect → escalate to full plan
+  - ["hs:cook", "hs:code-review"]      # implementation done → review before ship
+  - ["hs:code-review", "hs:git"]       # review PASS → commit/push
+  - ["hs:security-scan", "hs:code-review"]  # security findings → review their fixes
+  - ["hs:discover", "hs:bakeoff"]      # ≥2 measurable directions undecidable by reasoning → bake-off before choosing
+  - ["hs:bakeoff", "hs:plan"]          # bake-off winner → plan the winning direction
+  - ["hs:bakeoff", "hs:cook"]          # bake-off winner is a code direction → cook it directly
+  - ["hs:plan", "hs:critique"]         # plan written → multi-lens critique before cook
+  - ["hs:discover", "hs:critique"]     # chosen direction → multi-lens critique before planning
+  - ["hs:docs-scaffold", "hs:docs-standardize"]   # stub skeleton → validate structure (docs-SSOT pipeline)
+  - ["hs:docs-standardize", "hs:docs-build"]      # structure PASS gate → render showcase + releases
+  # chỉ top-level hop mới khai chain — bước con (vd triage→scout/debug) không khai

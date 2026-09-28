@@ -1,0 +1,63 @@
+# critique.yaml — config for hs:critique (human-edited, YAML).
+#
+# mode:    advisory (default) writes a human report only and never blocks. gate
+#          ALSO writes plans/<active>/artifacts/critique-consensus.json — a
+#          machine verdict the gate_stage hook can block on. Per-run override:
+#          --gate / --advisory on the skill.
+#          ENFORCEMENT (actual blocking) is a separate concern, exactly like
+#          review-decision: a stage lists `critique-consensus` in its `requires:`
+#          in harness/data/stage-policy.yaml. Ships OFF: no stage lists it by
+#          default, so a spine-only install is never blocked by an artifact whose
+#          producer is an opt-in plugin. Add it to a stage's requires (a tracked,
+#          write-guarded edit) to turn the gate on.
+#
+# lenses:  which independent critique agents fan out, keyed by artifact type.
+#          Default to reusing existing read-only agents; each already carries the
+#          Evidence Filter (proven vs [ASSUMED]). New lens agents are added
+#          only when they cover a perspective the existing set cannot — e.g. the
+#          product-thinking lenses below. Add/reorder here to extend coverage.
+#          Unknown type falls back to `default`. Every name here must resolve to
+#          an agent in harness/plugins/hs/agents/ (test_critique_lens_agents.py).
+#
+# loop:    --loop bounds the critique -> refute -> consolidate cycle so it
+#          converges instead of arguing forever.
+mode: advisory
+
+# product-value-critic / market-fit-critic are neutral-tone product-thinking
+# lenses: desirability (real user need, riskiest assumption) and positioning
+# (alternatives, defensibility, value capture). They ride only on artifacts that
+# carry a product dimension (plan/decision/design) — on a raw code/diff they have
+# nothing to bite on, so they are deliberately absent there.
+lenses:
+  plan:     [red-teamer, independent-revalidator, brainstormer, product-value-critic, market-fit-critic]
+  decision: [red-teamer, independent-revalidator, brainstormer, product-value-critic, market-fit-critic]
+  design:   [red-teamer, independent-revalidator, brainstormer, product-value-critic, market-fit-critic]
+  code:     [red-teamer, code-reviewer, independent-revalidator]
+  diff:     [red-teamer, code-reviewer, independent-revalidator]
+  default:  [red-teamer, independent-revalidator, brainstormer]
+
+  # Spec-family (hs:spec artifacts) — SSOT lens-set for the EXPLICIT `--lenses`
+  # route: hs:critique's classifier above only recognizes plan/decision/design/
+  # code/diff (critique/SKILL.md step 1), so it never auto-picks these keys. A
+  # spec artifact routes as `hs:critique <path> --lenses spec-tech-critic,
+  # spec-craft-critic,product-value-critic,market-fit-critic` — the caller reads
+  # this list via spec_critique_scan.lens_set_for(), not classifier inference.
+  # `spec` is the generic fallback (e.g. PRODUCT.md); vision/brd/prd/epic/story
+  # are the specific artifact-type keys — same list, kept as separate keys so a
+  # future divergence (e.g. a story-only lens) is a one-line change here.
+  spec:   [spec-tech-critic, spec-craft-critic, product-value-critic, market-fit-critic]
+  vision: [spec-tech-critic, spec-craft-critic, product-value-critic, market-fit-critic]
+  brd:    [spec-tech-critic, spec-craft-critic, product-value-critic, market-fit-critic]
+  prd:    [spec-tech-critic, spec-craft-critic, product-value-critic, market-fit-critic]
+  epic:   [spec-tech-critic, spec-craft-critic, product-value-critic, market-fit-critic]
+  story:  [spec-tech-critic, spec-craft-critic, product-value-critic, market-fit-critic]
+
+loop:
+  max_rounds: 3
+
+# Verdict taxonomy. Enforcement is fixed in harness/scripts/artifact_check.py
+# (a hard stage passes only on PASS) — this block documents the contract; it
+# does not drive the gate.
+verdict:
+  enum: [PASS, PASS_WITH_RISK, BLOCKED]
+  hard_stage_passes_on: PASS

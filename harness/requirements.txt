@@ -1,0 +1,352 @@
+# harness dependencies (code-standards §21 — declared, not silently imported).
+# Install (full declared set): pip install -r harness/requirements.txt
+# Reproducible install (hard pins): pip install -r harness/requirements.txt -c harness/constraints.txt
+#
+# Every line ends with a machine-readable REQUIRED/OPTIONAL tag — harness/scripts/preflight_deps.py
+# parses THIS file instead of hard-coding two dicts, so the declaration, the CI install steps, and
+# the preflight gate cannot drift from each other. REQUIRED missing or version-out-of-range makes
+# preflight exit non-zero; OPTIONAL missing is a warning only (exit 0).
+#
+# ruamel.yaml is the ONE YAML reader/writer for harness/ source (hooks, scripts,
+# plugins, install) — harness/scripts/yaml_io.py is the single import site; every
+# other call site goes through it (docs decisions, 2026-07-29, re-affirmed
+# 2026-08-02: "using two YAML readers in parallel in one repo creates two
+# different meanings for the same file"). Absent: yaml_io.py's import fails, and
+# every hook/script that reads harness config through it crashes with ImportError.
+# YAML 1.2 (ruamel) keeps a bare `off`/`on`/`yes`/`no` a string; PyYAML's YAML 1.1
+# folds it to a bool — the real bug this repo hit (partner.yaml's `master: off`).
+ruamel.yaml>=0.18,<1  # REQUIRED
+#
+# ruamel.yaml.clib is the C accelerator (libyaml-derived) ruamel.yaml resolves
+# automatically when present (`YAML(typ="safe", pure=False)`, yaml_io.py's only
+# loader shape). NOT decorative: the whole affordability case for replacing
+# PyYAML rests on this being installed -- measured, WITHOUT clib (pure-Python
+# ruamel vs PyYAML's C loader) parsing is ~8.5x slower, which is what nearly
+# reversed this decision; WITH clib installed it is ~2.49x, against a real
+# hook's 37-70ms this is the accepted ~+8.6ms/hook-process cost. Absent: every
+# hook process silently falls back to the slow pure-Python path and that
+# affordability math no longer holds.
+ruamel.yaml.clib>=0.2,<1  # REQUIRED
+#
+# pyyaml is kept for the test suite's OWN parity checks (test_yaml_io.py,
+# test_yaml_fast_loader.py compare yaml_io's output against real PyYAML by
+# value) and for harness/tests files not yet migrated off `yaml.safe_load`
+# directly — NOT for harness/ source, which reads/writes YAML through yaml_io.py.
+# Absent: those parity tests and the un-migrated test files fail to import.
+pyyaml>=6.0,<7  # REQUIRED
+#
+# pytest is the test runner the suite and CI both depend on.
+# Absent: `pytest harness/tests/` cannot run at all.
+pytest>=8.0,<10  # REQUIRED
+#
+# defusedxml parses untrusted JUnit/Cobertura XML from PR-controlled test output; stdlib
+# ElementTree is not safe against entity-expansion/XXE for that input.
+# Absent: the XML result readers refuse to fall back to unsafe stdlib parsing.
+defusedxml>=0.7,<1  # REQUIRED
+#
+# attrs carries the hs-run value objects (StepResult): what stdlib dataclasses lacks is a
+# CONVERTER, so the ~96 existing return sites keep passing a list while the boundary
+# normalises to a tuple. It also puts validators next to the field they constrain and
+# expresses cross-field rules (exit 11 requires a runnable next_command) at the
+# declaration rather than in a distant __post_init__.
+# Already present transitively via jsonschema/referencing, which is exactly the problem:
+# jsonschema is OPTIONAL, so a clean install could lose it. Declaring it turns an implicit
+# dependency into an explicit one. Pure-Python, no deps of its own.
+# Pinned >=23.2 for the @define/field API.
+# Absent: hs-run cannot construct a result at all — it is the spine, so this is REQUIRED.
+attrs>=23.2,<27  # REQUIRED
+#
+# httpx is the one HTTP client in the repo — the task-store engine has no stdlib fallback any
+# more (urllib.request collapsed connect/read into one deadline, hanging the read budget).
+# Absent: every task-store network call fails to import.
+httpx>=0.28,<1  # REQUIRED
+#
+# python-dotenv replaces four hand-written .env readers that dropped `export FOO=bar` and
+# multi-line values (measured: wrong on 2/2 adversarial cases).
+# Absent: those readers fall back to the documented-broken split-on-first-`=` parser.
+python-dotenv>=1.0,<2  # REQUIRED
+#
+# rank-bm25 replaces six drifted hand-written `class BM25` copies under plugins/ (175-266 lines
+# each, already inconsistent with each other).
+# Absent: the on-demand skill search scripts that import it fail — never a hook (see
+# harness/tests/test_hook_import_weight_budget.py; its 80.9ms cost is paid only by plugins/).
+rank-bm25>=0.2,<1  # REQUIRED
+#
+# jellyfish replaces a hand-rolled Soundex in the drawio skill's shapesearch.py — measured
+# against the NARA test vectors, the hand-rolled version deviates on any token with a
+# same-code consonant separated from its predecessor by a vowel (e.g. "Tymczak" -> T520
+# instead of T522), which real catalog tags hit ("actuator", "cluster", "instance", ...).
+# Called on every search (not a dev-tool regen path).
+# Absent: shapesearch.py's soundex() import fails, breaking the drawio skill's phonetic
+# fallback search entirely (see harness/tests/test_drawio_scripts_smoke.py's per-script
+# import allowlist).
+jellyfish>=1.2,<2  # REQUIRED
+#
+# pathspec compiles docs-build's `.docsignore` filter (_docslib/docslib/discover.py's
+# _is_ignored) with real gitignore semantics -- `*` stops at `/`, `**` crosses it, `!`
+# negates. The hand-written matcher understood none of them: a `.docsignore` author who
+# wrote `*.draft.md` got no error and no exclusion, the file simply stayed in the build.
+# The spec is compiled once per pattern set, not once per file (the prior probe rebuilt
+# it per call, which is where the cost would have shown up).
+# Absent: discover.py fails to import, breaking docs discovery for docs-build and
+# docs-standardize.
+pathspec>=1.1,<2  # REQUIRED
+#
+# junitparser aggregates JUnit-XML suite counts for test_result_readers.read_junit -- the
+# reader behind the DoD gate's junit check. The hand-written summing loop had no fallback
+# for a missing `tests=` summary attribute, so a suite from a minimal exporter reported
+# total=0 with real passing testcases present, silently. It is fed the root that
+# _parse_xml already built (defusedxml + a 12MB cap), via JUnitXml.fromroot, so
+# junitparser's own fromfile/fromstring -- which use stdlib ElementTree and are NOT
+# XXE-safe on PR-controlled input -- are never reached.
+# Absent: test_result_readers.py fails to import, breaking artifact_check's junit reader
+# dispatch and with it the ship/deploy DoD gate.
+junitparser>=5.0,<6  # REQUIRED
+#
+# mergedeep is the recursive dict merge behind release/release_orchestrator.py's config
+# loader (built-in defaults < release.yaml < CLI overrides). 0 transitive deps. The hand-
+# rolled walk it replaces was six lines and correct; this is the smaller half of the pair
+# below, kept for the case where the merge target has NO fixed key set, so there is
+# nothing to typo-check and a plain merge is the whole job.
+# Absent: release_orchestrator.load_config fails to import and the release CLI cannot start.
+# Tagged OPTIONAL, not REQUIRED: its only importer is release/release_orchestrator.py,
+# and release/ ships OUTSIDE the bundle. As REQUIRED it made preflight_deps exit 1 on a
+# machine that installs the harness and has no release tooling, and put a component in
+# the SBOM that no shipped code imports. OPTIONAL lines are still installed by
+# `pip install -r`, so the release path keeps working.
+mergedeep>=1.3,<2  # OPTIONAL
+#
+# omegaconf is the TYPED deep merge for review-policy.yaml's `profiles`/`stage_floor`
+# blocks (harness/scripts/review_policy_config.py). It does two things mergedeep does not:
+# it merges a repo override onto the shipped default without dropping the override'd
+# block's siblings (the hand-written code went one dict level too shallow and silently
+# deleted them), and it REJECTS a misspelled setting name instead of storing it as a dead
+# key nobody reads.
+# MANDATORY, and mechanically enforced by harness/tests/test_library_boundary_bans.py:
+# loading always goes ruamel (yaml_io) -> plain dict -> OmegaConf.create(dict). Never
+# OmegaConf.load() or create(<yaml text>) — measured, those re-fold a bare `off` to a bool
+# at OmegaConf's own coercion layer, which is the same Norway trap yaml_io exists to close.
+# Its ~85ms import is kept OFF the hook path: artifact_check checks a cheap ruamel-only
+# `stage_floor.<stage>.enabled` peek first and returns before importing it, which is the
+# default and shipped state for every stage.
+# Pulls antlr4-python3-runtime + PyYAML transitively; PyYAML's presence is accepted by the
+# signed decision this implements.
+omegaconf>=2.3,<3  # REQUIRED
+#
+# rapidfuzz replaces the hand-rolled word-token Jaccard scorer that decided whether two
+# SKILL.md descriptions read alike (harness/scripts/catalog.py's confusable_pairs,
+# harness/scripts/score_skill_description.py's check_confusable_pairs — merged onto one
+# rapidfuzz-backed function, see catalog.py's confusable-pair-detection docstring).
+# Measured on the real catalog (124 descriptions, 7,626 pairs): the Jaccard scorer's
+# highest score was 0.578, below its own 0.80/0.85 gates, so neither copy could ever
+# fire; rapidfuzz.fuzz.token_set_ratio scores a real near-duplicate pair (hs:plan /
+# hs:plan-ng) 0.9273. Called from check_skill_structure.py's --strict CI lint path
+# (advisory only — never blocks) and score_skill_description.py's CLI.
+# Absent: both confusable-pair call sites fail to import; the CI lint's multi-skill
+# scan and the description scorer's --json output break.
+rapidfuzz>=3.14,<4  # REQUIRED
+#
+# regex replaces stdlib `re` at the two places that compile a pattern supplied by
+# configuration (harness/scripts/claim_verify.py's rule["match"], harness/scripts/
+# skill_config.py's plan.resolution.branchPattern) — the ReDoS-exposed surface where
+# both the pattern and the matched text are outside the module's control. Measured: a
+# catastrophic-backtracking pattern already hangs stdlib `re` past 15s at a 28-30 char
+# input and keeps growing exponentially; `regex` adds the `timeout=` kwarg `re` lacks
+# (supported since regex 2019.3.12) to bound it. The other ~525 regex sites in the
+# codebase are constant, programmer-authored patterns, measured clean, and stay on `re`.
+# Absent: claim_verify.py and skill_config.py fail to import — the claim-verification
+# gate and hs:plan's branch-slug resolution both break.
+# The ceiling is deliberately far out because `regex` is CalVer, not semver: there is no
+# "next major" for an upper bound to hold back, so a year-shaped ceiling is a calendar
+# cliff rather than a compatibility statement. The previous `<2027` would not have failed
+# loudly on 2027-01-01 — pip would have kept resolving to a 2026.x release and frozen the
+# package there silently, still installing while upstream shipped fixes it could no longer
+# reach. Reproducibility is the lockfile's job (harness/constraints.txt pins the exact
+# version); this line states the floor the code actually needs.
+regex>=2020.1,<2100  # REQUIRED
+#
+# covertable generates the pairwise covering array behind grid/ca.py — every --grid build goes
+# through it, no fallback path remains.
+# Absent: --grid builds fail to import.
+covertable>=3.0,<4  # REQUIRED
+#
+# packaging.version compares harness_version strings correctly (a hand-rolled comparator sorted
+# "rc10" before "rc2"). A hook (engine_skew_nudge) imports it, so this is REQUIRED not optional.
+# Absent: that SessionStart advisory hook crashes instead of failing open.
+packaging>=23.0,<27  # REQUIRED
+#
+# tenacity replaces the hand-written `for attempt in range(max_retries): try: ... except:
+# wait_time = 2 ** attempt; time.sleep(wait_time)` retry loops in document_converter.py
+# (ai-multimodal skill) and the two chokepoint companions (gemini_companion.py,
+# partner_companion.py, both plugins/hs/scripts) that every hs:gemini/hs:partner call goes
+# through. The companions' loops additionally needed a transient-error predicate and (for
+# partner_companion) a `git reset --hard && git clean -fd` cleanup between attempts —
+# tenacity's retry_if_exception + before_sleep hook cover both without a second
+# hand-rolled mechanism. A sibling loop in gemini_batch_process.py was audited and left
+# UNCONVERTED: its "effective_max" widening for 5xx errors never actually extends past the
+# outer loop's own range() bound, so a persistent 5xx already falls through with no return
+# statement (an existing bug, not something this dependency should paper over by either
+# quietly fixing it or intentionally re-encoding it in a decorator).
+# Absent: document_converter.py, gemini_companion.py, and partner_companion.py fail to
+# import — the ai-multimodal doc-conversion command and BOTH the gemini and ccs partner
+# lanes stop working entirely (not a degraded retry, a hard import failure).
+tenacity>=9.1,<10  # REQUIRED
+#
+# dockerfile-parse replaces a hand-rolled per-physical-line Dockerfile scanner in the devops
+# skill's docker_optimize.py. Measured: the hand-rolled scanner read a backslash-continued RUN
+# (`RUN a && \` / `    b`) as separate lines, so a cleanup command on the continuation line was
+# reported as missing (false positive) and a secret split across a continuation could be missed
+# entirely; dockerfile-parse's `.structure` joins each logical instruction's continuations first.
+# Absent: docker_optimize.py's import fails, breaking the devops skill's Dockerfile analysis
+# entirely (same on-demand-skill-script posture as jellyfish/rank-bm25 above — not a hook).
+dockerfile-parse>=2.0,<3  # REQUIRED
+#
+# markdown-it-py reads real CommonMark table/heading structure (thead/tbody, heading level)
+# for the copywriting skill's extract-writing-styles.py, replacing two regexes that guessed
+# structure from surrounding text. Measured against real repo markdown (references/
+# writing-styles.md): the hand-rolled table regex read the header row as a data row whenever
+# it did not contain the literal word "Style" (it distinguished header-vs-data by scanning for
+# that word, not by table position), needed 4 pipe characters to match at all — silently
+# dropping every 2-column table (references/cta-patterns.md) — and matched ANY 3+-pipe line
+# anywhere in the document, including inside a fenced code block. The H2-section regex had the
+# matching defect: a fenced code comment line starting with `## ` was read as a document
+# section. `.enable("table")` is required — the "commonmark" preset does not include GFM
+# tables by default.
+# Absent: extract-writing-styles.py's import fails, breaking the copywriting skill's style
+# extraction entirely (on-demand skill script, never a hook — see
+# harness/tests/test_hook_import_weight_budget.py; no hook imports this module).
+markdown-it-py>=4.0,<5  # REQUIRED
+#
+# Jinja2 replaces hand-built f-string HTML in two page-shell generators that repeat
+# markup across many page types and genuinely need loops/conditionals/template
+# inheritance (string.Template has none of the three) — docs-build's ssg_engine.py
+# (page shell shared by hub/every guide page/the portable single-file, via a real
+# `{% extends %}` base) and design/scripts/cip/render-html.py (the deliverable-card
+# loop). Confirmed BEFORE converting: a smaller sibling family (4 table/grid HTML
+# builders under the spec skill) was measured and came back a wash (same line count)
+# and was left alone — scaffold.py's token substitution was rejected three times
+# independently before this — so this is not a blanket swap, only the two sites that
+# measured out real. autoescape is OFF in ssg_engine.py (every string flowing through
+# it is pre-formed HTML the caller already owns, e.g. `brand_html="SDLC&nbsp;
+# Harness"` — turning escaping on would double-escape live markup) and ON in
+# cip/render-html.py, where it closes a real hole: `--brand` landed unescaped in
+# <title>/<h1>/the footer before this (a `--brand 'X<script>...'` value rendered
+# live). Both conversions verified byte-identical against the pre-conversion
+# renderer on real repo content (all 32 files docs/showcase/build.py produces,
+# sha256-diffed 0 bytes different) except the cip file's escaping fix, which is a
+# deliberate, tested divergence, not a regression.
+# Absent: both modules' import fails (on-demand skill scripts, never a hook — grepped
+# harness/hooks/ directly since test_hook_import_weight_budget.py does not follow
+# into harness/plugins/; 0 hits).
+jinja2>=3.1,<4  # REQUIRED
+#
+# MarkupSafe is Jinja2's own escaping engine (its `Markup`/`escape()` — what
+# autoescape=True in cip/render-html.py actually calls) and a hard `install_requires`
+# of Jinja2 itself; declared directly here (not left transitive-only, unlike mdurl/
+# mdit-py-plugins below) because the specific correctness claim above — that
+# `--brand` now comes out escaped — depends on THIS package's behavior, not just on
+# Jinja2 being importable.
+# Absent: jinja2 itself fails to import (no fallback rendering path exists).
+markupsafe>=3.0,<4  # REQUIRED
+#
+# rich renders hs_cli_render.py's tty-facing display of one hs-run envelope (a panel +
+# tables for state/next_action/artifacts/checklist/warnings) -- already pinned in
+# harness/constraints.txt:161, but reached this dev machine only transitively via
+# import-linter/textual until now, and zero harness modules imported it directly before
+# this file. Imported LAZILY inside the render functions, never at module top level, so
+# hs-run's own hot path (`plan next`/`cook next`) never pays its ~35.8ms cold-import cost.
+# Absent: hs_cli_render.py falls back to the same plain-text rendering it already uses
+# when stdout is not a terminal -- the renderer keeps working; only the tty panel/table
+# formatting is unavailable.
+rich>=13.0,<16  # OPTIONAL
+#
+# --- optional: dev-tool / CI-gate only. Missing here is a warning, never a failure. ---
+#
+# cairosvg rasterizes SVG->PNG for build_pack.py (a dev tool that regenerates catalog packs).
+# Cross-platform replacement for the macOS-only qlmanage it used before.
+# Absent: build_pack regen warns and skips rasterization; skill runtime never touches it.
+cairosvg>=2.7,<3  # OPTIONAL
+#
+# pytest-xdist parallelizes the suite (-n auto). Absent: the suite still runs, just serially.
+pytest-xdist>=3.0,<4  # OPTIONAL
+#
+# pyflakes is the dead-name linter for the eval-bootstrap template invariant (renders each
+# stamped .py and asserts no unused import/local).
+# Absent: that one guard test importorskips; CI installs it explicitly.
+pyflakes>=3.0,<4  # OPTIONAL
+#
+# pytest-randomly reshuffles collection order to catch order-dependent tests. The hot path
+# defensively disables its reshuffle even when present (scripts/ci.sh HOT_NORANDOMLY).
+# Absent: nothing to reshuffle with; the nightly order-dependence job installs it itself.
+pytest-randomly>=3.0,<5  # OPTIONAL
+#
+# pytest-split shards the unit suite into weighted cells on the remote matrix (--splits/--group).
+# Absent: the shard cases are not runnable by hand; CI installs it explicitly for the matrix.
+pytest-split>=0.8,<1  # OPTIONAL
+#
+# jsonschema validates the shipped schema-lint gate tests (write-deny-policy, spec-graph,
+# dec-ledger, shape-*).
+# Absent: those tests importorskip; CI installs it explicitly to keep the drift gate live.
+jsonschema>=4.0,<5  # OPTIONAL
+#
+# allpairspy is the independent pairwise (t=2) oracle cross-checking the covering-array
+# generator behind grid/ca.py.
+# Absent: the crosscheck test fails loud (not importorskip, by design); CI installs it explicitly.
+allpairspy>=2.0,<3  # OPTIONAL
+#
+# respx intercepts httpx at the transport layer — the only layer that sees connect and read as
+# separate budgets. Test-only, never a runtime dep of the httpx call sites themselves.
+# Absent: the timeout-plumbing tests that import it directly fail (not importorskip, by design).
+respx>=0.20,<1  # OPTIONAL
+#
+# pytest-timeout kills a test that hangs; nothing else in this suite can, so without it a stuck
+# test blocks the whole run until a human or a CI job limit intervenes. The ceiling is applied per
+# item in harness/tests/conftest.py rather than globally, because pyproject.toml is shared with the
+# orchestrator and release suites whose slowest tests were not measured against it.
+# Absent: the ceiling is simply not applied (conftest checks for the plugin first) — the suite runs
+# exactly as before, with no ceiling and no collection error.
+pytest-timeout>=2.4,<3  # OPTIONAL
+#
+# pytest-subprocess replaces hand-written `monkeypatch.setattr(subprocess, "run", ...)` doubles.
+# The hand-written form replaces the whole function, so it cannot assert WHICH command ran or how
+# often; its `fp` fixture registers per-command expectations and records the calls.
+# Absent: the tests that take the `fp` fixture error out rather than skipping — deliberate, the same
+# choice made for respx, because a gate that quietly stops running is worse than one that fails.
+pytest-subprocess>=1.6,<2  # OPTIONAL
+#
+# dirty-equals replaces a hand-written multi-line `assert r[k] == v` cluster (repeated 4-8 lines
+# per record, ~54 such clusters measured across harness/tests + orchestrator/tests) with one
+# `assert r == IsPartialDict(...)` — keeps the "field must be PRESENT, value may vary" contract a
+# hand-rolled truthy check (`assert r["ts"]`) does not: that truthy form passes on ANY non-empty
+# string, so a malformed value slips through silently (see
+# harness/tests/test_trace_log.py::test_ts_field_shape_matcher_catches_malformed_value, the
+# regression pinning this). `IsStr(regex=...)` matches with `re.fullmatch`, not `re.search` — the
+# pattern must already describe the WHOLE string, so no `^`/`$` anchor is added (an anchor there is
+# read as a misunderstanding of the semantics: harness/tests/test_library_boundary_bans.py).
+# Absent: the tests that import it directly fail (not importorskip, by design) — same choice as
+# respx/pytest-subprocess above.
+dirty-equals>=0.11,<1  # OPTIONAL
+#
+# mutmut runs mutation testing — a nightly/manual job, never the merge path.
+# Absent: `mutmut run` is unavailable locally.
+mutmut>=3.0,<4  # OPTIONAL
+#
+# pytest-cov measures the coverage the coverage-floors CI job gates on.
+# Absent: that job produces no report, which the gate reads as UNMEASURABLE, not a pass.
+pytest-cov>=5.0,<8  # OPTIONAL
+#
+# diff-cover reports which CHANGED lines are uncovered — advisory only today (no threshold
+# has been picked yet for gating on it).
+diff-cover>=8.0,<11  # OPTIONAL
+#
+# mypy backs harness/scripts/mypy_gate.py's per-file ratchet-baseline gate (a merge-path
+# check, not an editor nicety). The range stays permissive because the gate pins its own
+# CLI flags rather than relying on mypy's defaults holding still across minors.
+# Tagged OPTIONAL, not REQUIRED, on the same reasoning as pyflakes/pytest-split: the tag
+# only decides whether a HARNESS USER's preflight goes red, and a user installing the
+# harness into their project never runs this gate. `pip install -r` installs every line
+# regardless of the tag, so CI still gets it.
+# Absent: mypy_gate.py's `python3 -m mypy` call fails and the gate exits non-zero as a
+# tooling error — it never degrades to a silent PASS, which is what OPTIONAL would
+# otherwise risk.
+mypy>=2.0,<3  # OPTIONAL

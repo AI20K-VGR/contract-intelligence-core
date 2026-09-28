@@ -1,0 +1,19 @@
+schema: plan-approval/v1
+plan: 260925-0238-ai1-ai2-be-fe-review-fixes-260925-0238
+plan_hash: 2253ce1b8b3c
+file_hashes:
+  plan.md: 817c2a6b8318
+  phases/phase-1-auth-acl.md: 5612ff52fa54
+  phases/phase-2-ai2-persistence-coverage.md: 4d99e7ead37f
+  phases/phase-3-query-grounding-state.md: aed0d75c6e04
+  phases/phase-4-citation-finding-ui.md: c8a633f560e9
+  phases/phase-5-snapshot-recovery-legacy.md: f97c8e2a1d77
+  phases/phase-6-integrated-verification.md: c1348692ad73
+  plan-graph.yaml: c2d8f3473092
+author: user:dungskbg2004@gmail.com
+reviewer: user:dungskbg2004@gmail.com
+verdict: APPROVED
+rationale: User approved the hard TDD plan after research, scope sizing, phase 
+  design, and red-team review.
+ts: '2026-09-24T19:59:52.442281+00:00'
+run_seq: null

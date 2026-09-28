@@ -1,0 +1,69 @@
+# skills.yaml — the `skills` domain's fragment of the hs-run registry.
+#
+# Owned exclusively by whoever builds the `skills` domain's verbs. Never touch
+# another domain's fragment from here — one file per domain is what lets domains
+# be built concurrently without two agents writing the same file. Schema +
+# merge/conflict rules: see harness/data/hs-run-registry.yaml's header.
+
+domains:
+  skills:
+    next: {module: hs_run_skills, entry: cmd_next}
+
+# ONE domain for a question two skill bodies used to answer. `use` resolves a
+# named skill's state; `find-skills` lists the catalog. Both read the same two
+# libraries (disabled_skills.py, catalog.py), and the split was measured rather
+# than assumed: 0 of the 8 shipped domains declare a required positional on
+# `next`, and 7 of 8 answer a bare call. `--skill` narrows the answer the bare
+# call already gives, which is a flag, not a second door.
+#
+# `skill:` names ONE directory, and this domain covers two bodies. `find-skills`
+# is the one named because it owns discovery outright — `use/SKILL.md:19` says
+# so in its own words ("MUST delegate all discovery, listing, and purpose-routing
+# to hs:find-skills"). Measured before choosing: neither body names a single
+# rule, so the coverage ratchet demands nothing from either, and the choice
+# costs no rule coverage on the unnamed side.
+step_routing:
+  skills:
+    skill: find-skills
+    covers_skill: true
+
+    states:
+      # The bare call. Naming a skill is a model decision — the catalog says what
+      # exists, not which one this task needs.
+      catalog_ready:
+        summary: >-
+          The skills tree is readable. The envelope carries how many are loaded and
+          which are stashed; picking one is the next move.
+
+      # Live and disabled are separated because the routes are opposite, and
+      # confusing them wastes a turn each way: the proxy bounces a live target
+      # straight back, and a direct invoke of a stashed skill finds nothing.
+      target_live:
+        summary: >-
+          The named skill is loaded. Invoke it directly; the off-skill proxy has
+          nothing to add for a target that is already there.
+
+      # Through `docs:`, not `refs:`. `refs:` resolve under the owning skill dir
+      # (`find-skills/`), and the drawer this state needs belongs to the OTHER body
+      # this domain covers. A skill-relative path under the wrong owner is looked
+      # for where it is not, and resolves to a missing file only by accident.
+      target_disabled:
+        summary: >-
+          The named skill is stashed. The envelope carries its stash path and the
+          disabled dependencies it needs loaded first, in order.
+        docs: [harness/plugins/hs/skills/use/references/mechanisms.md]
+
+      # An answer, not a failure. A name nobody recognises is fixed by re-reading
+      # the catalog; a broken tree is fixed by repairing the install. One word for
+      # both would make a typo and a corrupt install indistinguishable.
+      target_unknown:
+        summary: >-
+          No skill by that name in the catalog. Re-read the listing or check the
+          spelling — the tree itself is fine.
+
+      # Routes nothing on purpose: a tree that cannot be read has no skill to
+      # route to, so a document would arrive at a dead end rather than at a step.
+      catalog_broken:
+        summary: >-
+          The skills tree could not be read at all. The envelope's warnings carry
+          the underlying error; repair the install before routing anywhere.

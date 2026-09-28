@@ -1,0 +1,28 @@
+{
+  "sizing": {
+    "mode": "multi",
+    "projected_cells": 1920,
+    "pruned_cells": 1920,
+    "threshold": 60,
+    "sub_plan_count": 4,
+    "split_strategy": "hybrid"
+  },
+  "manifest": {
+    "subPlans": [
+      {"id": "sub-1", "scope": {"features": ["canonical_handoff_relation", "citation_grounded_facts", "body_annex_findings"], "layers": ["ui", "api"]}, "estimatedCells": 480},
+      {"id": "sub-2", "scope": {"features": ["canonical_handoff_relation", "citation_grounded_facts", "body_annex_findings"], "layers": ["data", "infra"]}, "estimatedCells": 480},
+      {"id": "sub-3", "scope": {"features": ["l0_l3_query_grounding", "propose_index_contribution", "backend_e2e_persistence"], "layers": ["ui", "api"]}, "estimatedCells": 480},
+      {"id": "sub-4", "scope": {"features": ["l0_l3_query_grounding", "propose_index_contribution", "backend_e2e_persistence"], "layers": ["data", "infra"]}, "estimatedCells": 480}
+    ],
+    "dependencies": [
+      {"from": "sub-1", "to": "sub-2", "sharedLayers": ["ui", "api", "data", "infra"]},
+      {"from": "sub-2", "to": "sub-3", "sharedLayers": ["ui", "api", "data", "infra"]},
+      {"from": "sub-3", "to": "sub-4", "sharedLayers": ["ui", "api", "data", "infra"]}
+    ],
+    "sharedContracts": [],
+    "masterRisk": [],
+    "intakeInheritance": {"density_tier": "HIGH", "threshold": 60}
+  },
+  "decision": "proceed",
+  "reason": "Không tách thành bốn sub-plan vì sáu feature cùng dùng canonical handoff/result contract, provenance, digest và Backend review gate; tách sẽ tạo cross-plan contract drift. Năm phase tuần tự đã cô lập đủ API/data/infra work và giữ được một vertical slice có thể nghiệm thu cho EPIC-11."
+}

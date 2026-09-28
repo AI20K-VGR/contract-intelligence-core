@@ -1,0 +1,69 @@
+THIRD-PARTY NOTICES — hs:drawio skill
+======================================
+
+This skill incorporates content from the following open-source projects.
+
+1. drawio-skill (MIT)
+   Source: https://github.com/Agents365-ai/drawio-skill @765a95b
+   Version: 1.14.0 (pinned SHA 765a95b; bump when pulling upstream)
+   Author: Agents365-ai
+   License: MIT
+   Ported: scripts/ (12 Python scripts: 11 verbatim + build_pack.py
+   ported with cairosvg adaptation), references/ (14 reference files,
+   de-branded), tests/ (upstream test suite ported to harness/tests/),
+   data/shape-index.json.gz, data/lobe-icons.json,
+   data/SHAPE-INDEX-NOTICE.md, styles/ (schema + 3 built-in presets).
+
+2. shape-index.json.gz (Apache-2.0)
+   Source: https://github.com/jgraph/drawio-mcp
+   Author: JGraph Ltd
+   License: Apache License 2.0
+   Ported: data/shape-index.json.gz (the draw.io official shape index).
+   See data/SHAPE-INDEX-NOTICE.md for full notice.
+
+3. draw.io GraphViewer viewer-static.min.js (Apache-2.0)
+   Source: https://viewer.diagrams.net/js/viewer-static.min.js
+   Repository: https://github.com/jgraph/drawio
+   Author: JGraph Ltd (draw.io)
+   License: Apache License 2.0
+   Vendored: vendor/viewer.min.js (enables offline file:// preview).
+   See vendor/VIEWER-LICENSE.txt for full notice.
+
+4. drawio-ai-kit (MIT)
+   Source: https://github.com/sparklabx/drawio-ai-kit @bda82a2
+   Author: sparklabx
+   License: MIT
+   Ported:
+   - data/catalog/ (8 OSS packs — observability, bigdata, database, cicd, aiml,
+     containers, databricks, network; embedded base64 tiles, offline)
+   - data/category-colors.json (11 AWS category→hex mappings; extracted from
+     aws.json, source of truth for Color=Identity audit)
+   - data/groups.json (19 container stencil GEOMETRY — stencil shapes exist
+     in shape-index, only points/stroke borrowed for pre-tuned containers)
+   - references/aws-architecture.md + references/diagram-types.md (merged from
+     rules/{aws-architecture,diagram-types}.md — guidance only, no code)
+   - references/principles.md + references/style-guide.md +
+     references/conventions.md + references/catalog-icons.md (split from
+     rules/{principles,style-guide}.md + cross-file conventions — guidance
+     only, no code)
+   - assets/oss-logos/ (7 PNG logos: hudi, zeppelin, debezium, iceberg,
+     delta, dagster, pinot — from packs/bigdata/assets/ and packs/database/assets/)
+   Not ported: aws.json icon data (redundant — 1002/1002 style matches shape-index
+     verbatim, 0 base64 tiles, verified), src/*.mjs (Node engine),
+   vendor/ scripts (overlap with drawio-skill ports).
+   Ported with adaptation: scripts/build_pack.py (pack regeneration tool;
+     cairosvg optional dep replaces macOS-only qlmanage rasterize).
+
+5. next-ai-draw-io (Apache-2.0)
+   Source: https://github.com/DayuanJiang/next-ai-draw-io @5c88476
+   Author: DayuanJiang
+   License: Apache License 2.0
+   Re-implemented (NOT verbatim): the applyDiagramOperations id-targeted patch
+   algorithm (update/add/delete by cell_id, fail-soft) re-written in Python stdlib
+   + defusedxml as scripts/edit_drawio.py. No Node/React/Vercel-AI-SDK code ported.
+
+Full license texts:
+- MIT (Agents365-ai drawio-skill): see https://github.com/Agents365-ai/drawio-skill/blob/main/LICENSE
+- MIT (sparklabx drawio-ai-kit): see https://github.com/sparklabx/drawio-ai-kit/blob/main/LICENSE
+- Apache-2.0 (JGraph): see vendor/VIEWER-LICENSE.txt and data/SHAPE-INDEX-NOTICE.md
+- Apache-2.0 (DayuanJiang next-ai-draw-io): see https://github.com/DayuanJiang/next-ai-draw-io/blob/main/LICENSE

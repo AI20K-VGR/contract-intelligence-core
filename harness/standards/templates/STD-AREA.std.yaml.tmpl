@@ -1,0 +1,50 @@
+id: {{id}}
+type: std_area
+title: {{title}}
+status: {{status}}
+owner: {{owner}}
+version: {{version}}
+# H2 zone: `charter` (default) renders into the code-standards digest; set
+# `operational` for a review-checklist area (e.g. STD-REVIEW-PY) — operational
+# areas render to the per-language checklist and are exempt from the
+# charter-goal orphan check below.
+# zone: charter
+# Which charter goals this area addresses (ARCH-G<n> ids). A CHARTER-zone area
+# that addresses no goal is an orphan — every charter area must point at >= 1
+# charter goal. Operational areas may omit arch_goals.
+arch_goals: {{arch_goals}}
+# Pure-YAML SSOT: the prose lives here, not in a markdown body. This is the
+# single source — the human-readable code-standards digest is rendered from it.
+description: |
+  What this standard area governs, and why.
+# Rule-groups and their rules are declared inline (flat layout): one area file
+# per standard area. Rule-group ids follow STD-<AREA>-RG<n>; rule ids follow
+# STD-<AREA>-RG<n>-R<n>.
+rule_groups:
+  - id: {{rule_group_id}}
+    title: {{rule_group_title}}
+    status: {{status}}
+    owner: {{owner}}
+    rules:
+      - id: {{rule_id}}
+        title: {{rule_title}}
+        status: {{status}}
+        # compliance_checks is the standards equivalent of acceptance criteria:
+        # the deterministic statements that make this rule verifiable.
+        compliance_checks: {{compliance_checks}}
+        # --- Checklist fields (operational review). All optional, safe defaults. ---
+        # scope: path globs this rule applies to (gitignore-style). Default [].
+        # scope: ["**/*.py"]
+        # severity: critical | info (default info).
+        # severity: info
+        # enabled: false hides the rule from the checklist (default true).
+        # enabled: true
+        # floor: true marks a non-relaxable rule (.user.yaml cannot override it).
+        # floor: false
+        # relates_to_std: cross-ref to other rule/std ids (default []).
+        # relates_to_std: []
+        # detector: regex string or mapping ({pattern} / {type, cmd}); default null.
+        # detector: {pattern: "TODO"}
+        # Optional: other rule ids this rule depends on (depends_on: [STD-...]).
+        rationale: |
+          Why this rule exists and what it prevents.

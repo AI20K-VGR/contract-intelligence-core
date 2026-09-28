@@ -1,0 +1,55 @@
+{
+  "stage": "cook",
+  "plan": "260925-0238-ai1-ai2-be-fe-review-fixes-260925-0238",
+  "checks": [
+    {
+      "name": "red-green",
+      "status": "PASS"
+    },
+    {
+      "name": "backend-integration",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend-flow",
+      "status": "PASS"
+    },
+    {
+      "name": "backend-full",
+      "status": "PASS"
+    },
+    {
+      "name": "ai-service-full",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend-full",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend-build",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend-lint",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend-format",
+      "status": "SKIP"
+    },
+    {
+      "name": "git-diff-check",
+      "status": "PASS"
+    },
+    {
+      "name": "authenticated-e2e",
+      "status": "SKIP"
+    }
+  ],
+  "verdict": "PASS_WITH_RISK",
+  "phase": "phase-6-integrated-verification",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-09-24T21:16:06+00:00",
+  "run_seq": null
+}

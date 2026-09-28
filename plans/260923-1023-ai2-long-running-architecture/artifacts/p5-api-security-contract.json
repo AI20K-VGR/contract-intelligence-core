@@ -1,0 +1,28 @@
+{
+  "phase": "P5",
+  "artifact": "p5-api-security-contract",
+  "status": "implemented",
+  "scope": "API authorization, redaction, audit correlation, tool policy, prompt-injection labeling",
+  "module": "ai-service/app/security/policy.py",
+  "contract": {
+    "default": "deny",
+    "roles": ["reviewer", "owner", "admin", "read_only"],
+    "actions": ["snapshot.read", "replay.read", "stream.read", "hitl.command"],
+    "cross_scope": "tenant and dossier mismatch are denied",
+    "idempotency": "(tenant_id, dossier_id, actor_id, idempotency_key) caches command decisions and rejects digest conflicts",
+    "redaction": ["raw_contract", "hidden_reasoning", "prompt", "secret", "token"],
+    "tools": "read-only tools allowed; unknown and side-effect tools require a validated, scoped, expiring, one-time ApprovalGrant",
+    "prompt_injection": "content is labeled untrusted and never executed"
+  },
+  "verification": {
+    "command": ".venv\\Scripts\\python.exe -m pytest tests/test_p5_api_security.py -q --basetemp=.pytest-p5-basetemp",
+    "result": "29 passed, 1 warning in 0.11s",
+    "exit_code": 0,
+    "warning": "PytestCacheWarning: .pytest_cache path was not writable on Windows"
+  },
+  "limitations": [
+    "This is an in-process policy and idempotency cache; production deployment needs a shared durable cache/store.",
+    "The module does not expose HTTP routes or execute commands; callers must enforce returned decisions.",
+    "ApprovalGrant issuance/proof/consumption is process-local prototype behavior; production needs an authenticated issuer and shared durable approval ledger."
+  ]
+}

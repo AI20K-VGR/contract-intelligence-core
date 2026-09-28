@@ -408,6 +408,7 @@ def build_idp_request(
     snap["source_digest"] = wire_digest.lower()
     digest = snapshot_payload_digest(snap)
     member_id = f"mem_{document_id}"
+    allow_llm = bool(settings.ai2_processing_egress_allowed)
     body: dict[str, Any] = {
         "schema_version": "be.ai2.processing.request.v1",
         "request_id": request_id or f"req_{uuid4().hex[:24]}",
@@ -443,11 +444,11 @@ def build_idp_request(
             }
         ],
         "policy_flags": {
-            "egress_allowed": False,
+            "egress_allowed": allow_llm,
             "use_vector": False,
             "budget_limits": {
                 "max_processing_seconds": 120,
-                "max_llm_calls": 0,
+                "max_llm_calls": 20 if allow_llm else 0,
                 "max_embedding_tokens": 0,
             },
         },

@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://harness/schemas/artifact-rule-scan.json",
+  "title": "Review-rules scan artifact",
+  "description": "Output of the review-rules layer for one review: which rules applied to the diff and any violations found. Written to plans/<plan>/artifacts/rule-scan.json by code-review / review-pr. NOT a required gate artifact (never listed in stage-policy requires:) — its presence is an AI-applied boundary the gate does not force. When PRESENT, the gate validates these fields (incl. the severity + verdict enums) and refuses a contradiction: if any violation is critical, this artifact's own verdict must be BLOCKED and a present review-decision must not be PASS or PASS_WITH_RISK.",
+  "type": "object",
+  "required": ["rules_applied", "violations", "verdict", "reviewer", "ts", "changed_files"],
+  "additionalProperties": true,
+  "properties": {
+    "rules_applied": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Stable ids of the rules that applied to this diff (rule_view.build_rule_scan → rules_applied). The audit trail for what the reviewer was asked to check."
+    },
+    "violations": {
+      "type": "array",
+      "description": "One entry per rule violation found in the diff. Empty = clean scan.",
+      "items": {
+        "type": "object",
+        "required": ["rule_id", "severity", "file", "line", "finding"],
+        "additionalProperties": true,
+        "properties": {
+          "rule_id": {"type": "string", "description": "Id of the violated rule (file-level)."},
+          "severity": {"type": "string", "enum": ["critical", "info"], "description": "critical → blocks (review verdict must be BLOCKED); info → advisory."},
+          "file": {"type": "string", "description": "Path of the offending changed file."},
+          "line": {"type": ["integer", "null"], "description": "Line of the violation, or null if file-level."},
+          "finding": {"type": "string", "description": "What was found and why it violates the rule."},
+          "directive": {"type": "string", "description": "Optional: the specific ALWAYS/NEVER directive within the rule body that was violated (rule_id is file-level; a rule body holds many directives, so this pins the directive-level audit)."}
+        }
+      }
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["PASS", "PASS_WITH_RISK", "BLOCKED"],
+      "description": "Scan verdict. A critical violation must yield BLOCKED; info-only may be PASS_WITH_RISK; clean is PASS."
+    },
+    "reviewer": {"type": "string", "description": "Actor that produced the scan (attribution, e.g. user:alice)."},
+    "ts": {"type": "string", "description": "ISO 8601 timestamp."},
+    "changed_files": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "The exact set of files the producer reviewed (working-tree or PR-range the reviewer scoped). This is the SINGLE diff source the coverage-gate reads — it never re-derives git, so the universe it checks is exactly what was reviewed (no lost/extra-file skew)."
+    }
+  }
+}

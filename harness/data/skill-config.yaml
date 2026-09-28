@@ -1,0 +1,59 @@
+# skill-config.yaml — human-edited plan + per-skill knobs.
+#
+# Read by harness/scripts/skill_config.py. Two postures: load() fails OPEN (a bad value
+# degrades to the default + records `_diag`), load_strict() fails CLOSED (a gate raises).
+# `locale.thinkingLanguage` lives NOT here but in harness/data/output.yaml, co-located with
+# `language` (both are locale axes). One-shot view: `skill_config.py --resolved`.
+#
+# plan.validation — how hs:plan runs its validation interview:
+#   mode:         prompt | auto | strict | none   (default prompt)
+#   minQuestions: 0-20   (default 3)
+#   maxQuestions: 1-20   (default 8)
+#   focusAreas:   subset of [assumptions, risks, tradeoffs, architecture, security,
+#                 performance, testing, dependencies]  (default first four)
+# plan.grid.autoPreregister — see the long note above the key itself.
+# plan.resolution.branchPattern — regex whose first capture group is the plan slug.
+# skills.<name>.* — an open per-skill option bag (add sub-options as skills need them).
+
+plan:
+  validation:
+    mode: prompt
+    minQuestions: 3
+    maxQuestions: 8
+    focusAreas: [assumptions, risks, tradeoffs, architecture]
+  # --- autoPreregister: WHY this is on, and what would justify turning it off ---
+  #
+  # An N/A cell only counts toward coverage when it cites a rule in the FROZEN
+  # ruleset. Nobody was writing a rules-in.yaml by hand, so na_ratio sat at 0.0
+  # and every small plan landed under its density floor and prompted the human
+  # for a confirm it could not act on meaningfully. Turning the freeze on by
+  # default makes the coverage number mean something instead of always reading
+  # low. Decided 2026-07-26 after the taskq global-install dogfood.
+  #
+  # THE RISK, STATED PLAINLY (Goodhart): the machine can check that a rule was
+  # frozen, that its combo applies to the cell, and that nobody edited it after
+  # approval. It CANNOT check that the rule is TRUE — "rm never touches
+  # models.py" is a claim, not a fact the engine can verify. So an auto-run
+  # authors claims the human is the only real reviewer of. That is why the
+  # ruleset renders into the plan BODY (under plan_hash) and shows up at the
+  # Approve gate: the freeze is tamper-EVIDENT, not tamper-proof.
+  #
+  # HARD ORDERING, not negotiable: rules are derived from the plan's own
+  # architecture BEFORE the fill runs (build -> freeze -> fill). Deriving them
+  # from which cells came out thin would convert "nobody filled this" into
+  # "this cannot apply" — automated laundering, and fraud by grid-mode.md.
+  #
+  # TURN IT OFF by setting this to false — no other change needed; the manual
+  # `grid_engine.py preregister --rules-in ...` path stays available either way.
+  # Evidence that would justify off: approvals landing with rule tables nobody
+  # read, or a coverage number that rises while thin cells stay thin.
+  grid:
+    autoPreregister: true
+
+  resolution:
+    branchPattern: '(?:feat|fix|chore|refactor|docs)/(?:[^/]+/)?(.+)'
+
+skills:
+  # Example per-skill bag. Remove or extend as skills grow their own options.
+  research:
+    useGemini: false

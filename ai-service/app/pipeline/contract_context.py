@@ -37,6 +37,38 @@ CLAUSE_RE = re.compile(r"\bdieu\s+(\d+(?:\.\d+)?)\b", re.I)
 DATE_RE = re.compile(r"\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2})\b")
 
 
+def _unconfirmed_value_pair(annex_node_ids: list[str], facts: Iterable[Fact]) -> dict:
+    """Mark a gap as a note when body and annex already share an item value."""
+
+    annex_ids = set(annex_node_ids)
+    fact_list = list(facts)
+    annex_facts = [
+        fact
+        for fact in fact_list
+        if fact.item_key and fact.citation.node_id in annex_ids
+    ]
+    body_facts = [fact for fact in fact_list if fact.item_key and (fact.source_role or "body") != "annex"]
+    for annex_fact in annex_facts:
+        match = next((fact for fact in body_facts if fact.item_key == annex_fact.item_key), None)
+        if match is None:
+            continue
+        return {
+            "relation": "UNCONFIRMED",
+            "item_key": annex_fact.item_key,
+            "pair_fact_ids": [match.fact_id, annex_fact.fact_id],
+        }
+    return {}
+
+
+def _annex_key(number: str) -> str:
+    """Compare Phụ lục 1 and PHỤ LỤC 01 as the same annex. Keep the raw text for display."""
+
+    text = str(number).strip()
+    if text.isdigit():
+        return str(int(text))
+    return text
+
+
 def build_contract_context(
     record: DossierRecord,
     *,
@@ -159,6 +191,7 @@ def build_contract_context(
                 )
             )
         else:
+            pair_note = _unconfirmed_value_pair(part.node_ids, facts)
             findings.append(
                 _finding(
                     digest,
@@ -169,6 +202,7 @@ def build_contract_context(
                     ReviewState.NEEDS_REVIEW,
                     None,
                     _node_citations(record, part.node_ids[:1]),
+                    metadata=pair_note,
                 )
             )
 
@@ -189,6 +223,31 @@ def build_contract_context(
                     metadata={"clause_signals": clauses, "date_signals": dates},
                 )
             )
+
+    present_keys = {_annex_key(number) for number in annex_ids}
+    missing_refs: dict[str, list[str]] = {}
+    for node_id in body_ids:
+        text = fold_for_match(_node_text(record, node_id))
+        for match in ANNEX_MENTION_RE.finditer(text):
+            raw_number = match.group(1)
+            if _annex_key(raw_number) in present_keys:
+                continue
+            bucket = missing_refs.setdefault(raw_number, [])
+            if node_id not in bucket:
+                bucket.append(node_id)
+    for raw_number, node_ids in missing_refs.items():
+        findings.append(
+            _finding(
+                digest,
+                "CONTEXT_GAP",
+                f"annex:{raw_number}",
+                node_ids[:1],
+                f"Thân hợp đồng nhắc Phụ lục {raw_number} nhưng snapshot không có tiêu đề phụ lục đó; AI2 không tạo node phụ lục.",
+                ReviewState.NEEDS_REVIEW,
+                None,
+                _node_citations(record, node_ids[:1]),
+            )
+        )
 
     for candidate in candidates:
         evidence = [*candidate.evidence_left, *candidate.evidence_right]
@@ -296,7 +355,8 @@ def _body_annex_references(record: DossierRecord, body_ids: list[str], number: s
     refs: list[str] = []
     for node_id in body_ids:
         text = fold_for_match(_node_text(record, node_id))
-        if "phu luc" in text and (not number or number in {match.group(1) for match in ANNEX_MENTION_RE.finditer(text)}):
+        mentioned = {_annex_key(match.group(1)) for match in ANNEX_MENTION_RE.finditer(text)}
+        if "phu luc" in text and (not number or _annex_key(number) in mentioned):
             refs.append(node_id)
     return refs
 
@@ -320,7 +380,11 @@ def _node_citations(record: DossierRecord, node_ids: list[str]) -> list[Citation
     citations: list[Citation] = []
     for node_id in node_ids:
         citation = _node_citation(record, node_id)
-        if citation is not None and resolver.verify(citation).valid:
+        if citation is None:
+            continue
+        check = resolver.verify(citation)
+        citation.validation_status = check.status
+        if check.valid:
             citations.append(citation)
     return citations
 
@@ -362,17 +426,29 @@ def _page_citation(record: DossierRecord, page_number: int | None, file_id: str 
     )
     if page is None:
         return None
-    text = (page.text or "")[:240]
-    return Citation(
+    line_id = next((key for key, value in page.line_texts.items() if str(value).strip()), None)
+    text = str(page.line_texts.get(line_id) or "") if line_id else (page.text or "")[:240]
+    text = text.strip()
+    if not text:
+        return None
+    char_start = page.text.find(text)
+    citation = Citation(
         node_id=f"page:{page.page_revision_id}",
         page_revision_id=page.page_revision_id,
+        bbox=list(page.line_bboxes.get(line_id) or []) if line_id else [],
         text_span=text,
         source_file_id=page.source_file_id,
         page=page.page_number,
         page_range=[page.page_number],
+        line_ids=[line_id] if line_id else [],
+        char_start=char_start if char_start >= 0 else None,
+        char_end=(char_start + len(text)) if char_start >= 0 else None,
         source_hash=page.source_hash,
         quote_sha256=quote_digest(text),
+        geometry_available=bool(line_id and page.line_bboxes.get(line_id)),
     )
+    citation.validation_status = CitationResolver([page]).verify(citation).status
+    return citation if citation.validation_status == "VALID" else None
 
 
 def _finding(

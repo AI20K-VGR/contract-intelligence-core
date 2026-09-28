@@ -1,0 +1,17 @@
+schema: plan-approval/v1
+plan: 260924-2201-260924-ai2-epic11-gap-closure
+plan_hash: 0cf795ae29c7
+file_hashes:
+  plan.md: 368b8694b0a7
+  phases/phase-1-handoff-facts-verification.md: 442d45a2feca
+  phases/phase-2-query-evidence-wiring.md: b6a4af01b180
+  phases/phase-3-index-review-gate.md: f1d84dacb524
+  phases/phase-4-full-e2e-verification.md: a17edfed97d5
+  plan-graph.yaml: d4ce7a6612d5
+author: user:dungskbg2004@gmail.com
+reviewer: user:dungskbg2004@gmail.com
+verdict: APPROVED
+rationale: 'Mentor approved: 4 tasks map one-to-one to 4 evidence commits; preserve
+  current logic; execute after approval.'
+ts: '2026-09-24T15:23:18.710323+00:00'
+run_seq: null

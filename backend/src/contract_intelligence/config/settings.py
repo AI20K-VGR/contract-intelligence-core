@@ -156,6 +156,13 @@ class Settings(BaseSettings):
         default=False,
         description="Ask AI2 to use vector recall for dossier Q&A (needs embeddings configured).",
     )
+    ai2_processing_egress_allowed: bool = Field(
+        default=False,
+        description=(
+            "Allow AI2 extraction to call an external LLM when a value cannot be "
+            "normalized locally. Fail-closed by default."
+        ),
+    )
     # Background dispatcher tuning
     ai_dispatcher_poll_interval_seconds: float = Field(default=1.5, ge=0.1, le=60.0)
     ai_dispatcher_max_polls: int = Field(default=200, ge=10, le=10_000)
@@ -198,7 +205,7 @@ class Settings(BaseSettings):
         """Accept BOTH JSON array AND comma-separated string từ env.
 
         Design contract (xem ``.env.example``):
-            CORS_ALLOW_ORIGINS=http://localhost:3000,http://localhost:5173
+            CORS_ALLOW_ORIGINS=http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173
 
         Field được annotate với ``NoDecode`` để pydantic-settings KHÔNG tự
         JSON-decode env value (mặc định 2.x treat ``list[str]`` như complex

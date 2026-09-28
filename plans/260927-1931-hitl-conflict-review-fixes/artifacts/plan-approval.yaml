@@ -1,0 +1,16 @@
+schema: plan-approval/v1
+plan: 260927-1931-hitl-conflict-review-fixes
+plan_hash: 28d77723bf7c
+file_hashes:
+  plan.md: b5d297d82a70
+  phases/phase-1-list-latest.md: 0d76c88dc1ec
+  phases/phase-2-numbered-timeline.md: cc2ed741c4d2
+  phases/phase-3-badge-counts.md: 5076d5ba9f25
+  plan-graph.yaml: fba2a2104eb5
+author: user:dungskbg2004@gmail.com
+reviewer: user:dungskbg2004@gmail.com
+verdict: APPROVED
+rationale: 'Nguoi dung duyet: sua review.latest, timeline numbered, va badge dem.
+  Red-team F1-F4 va F6 da dua vao phase.'
+ts: '2026-09-27T17:06:31.084237+00:00'
+run_seq: null

@@ -1,0 +1,44 @@
+# Durable per-skill thin-core body-cap overrides (chars).
+#
+# DISTINCT from thin-core-grandfather.yaml. That ledger holds TEMPORARY debt: an
+# over-cap file downgraded to advisory in the repo-wide sweep, re-teething under
+# `--strict` (CI on changed files), meant to SHRINK to empty. This file is the opposite
+# intent — a PERMANENT, accepted, still-bounded higher body cap for a skill whose
+# always-read body legitimately carries more load-bearing directive than the general
+# 15,000-char cap. The override HOLDS under `--strict`; it is not debt to pay down.
+#
+# It is NOT a "waive the cap" escape. The mechanism (check_skill_structure.py) keeps it
+# controlled so nothing balloons blindly:
+#   - EXEMPTION_HARD_CEILING bounds every override — a value above it is CLAMPED,
+#   - an override must sit ABOVE the general cap (below it is pointless),
+#   - every entry MUST carry a reason (raising a cap is a deliberate, visible act),
+#   - test_thin_core_caps.py fails if an exempted skill shrinks back under the general
+#     cap (its override is then dead weight and must be removed here).
+#
+# Shape: <skill-dir-name>: {body_max: <int chars>, reason: <str, >=40 chars>}
+
+# `cook` held an override here through three bumps (18000 -> 20200), on the ground that a
+# spine orchestrator's body carries the densest mandatory directive set in the harness.
+# It is gone for the same reason `plan`'s is: the step pointers moved into `hs-run cook`'s
+# step_routing table, so what the last two bumps were granted FOR — the hand-copied state
+# table, the --grid route, the pre-handoff self-check route, the reference index, fifteen
+# rule and reference pointers — now arrives in the envelope at the state that needs it.
+# The directives stayed and are still verbatim; only the pointers to them left. Measured
+# after: 14760 chars, under the general 15000 cap with no exemption.
+
+# `plan` held an override here through four bumps (17500 -> 21000). It is gone, not
+# raised again: every route line the last two bumps were granted FOR — the E1
+# methodology rules, the four --grid documents, multi-plan-split, five-hat — now
+# arrives from `hs-run plan`'s step_routing table at the step that needs it, so the
+# body no longer carries them at all. Measured after: 14474 chars, under the general
+# 15000 cap with no exemption. The ratchet in test_thin_core_caps.py is what surfaced
+# it: an override whose skill shrank back under the cap is dead weight, and dead weight
+# that stays looks exactly like an override still doing work.
+
+fable-thinking:
+  body_max: 25000
+  reason: >-
+    Verbatim reasoning-protocol port whose body is one cohesive always-read unit — the
+    Floor, the Proportionality Gate, the Constraint Loop, the five Moves, Claim Discipline
+    and the Self-Review Gate cross-reference each other, so splitting them into references
+    would break the protocol rather than thin it. Granted the named clamp-exemption ceiling.

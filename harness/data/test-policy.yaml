@@ -1,0 +1,72 @@
+# test-policy.yaml — tier-1 default Definition-of-Done per change-class.
+#
+# This is the SHIPPED baseline. A repo overrides it with a tier-2 file at the
+# repo root (<root>/test-policy.yaml, OUTSIDE harness/**): new change-classes
+# are unioned in, and an existing class can be STRENGTHENED freely. WEAKENING a
+# class (hard→soft, dropping a required type) is refused unless the override
+# wraps it in `grace: { reason: "...", expires: <ISO-date> }` — a git-visible,
+# traced, self-expiring backdoor (see test_policy.py).
+#
+# Human-edited config → YAML. Machine reads it via test_policy.load_test_policy.
+schema_version: "1.0"
+
+# check_name_validation: how write_verification.py reacts to a --check name that
+# is NOT a known test_type below. off = ignore; soft (default) = sharp advisory
+# but still write; hard = refuse the write. A wrong name is invisible to the DoD
+# gate, so it ships green-but-uncovered — soft warns loudly, hard stops it early.
+# Dev-override per clone via HARNESS_TEST_POLICY (tier-1 path); do not bake a
+# personal hard preference into this shipped default.
+check_name_validation: soft
+
+# preset: the shape of the test distribution the team targets. Descriptive only
+# (pyramid = many unit / few e2e; trophy = integration-heavy; honeycomb).
+preset: pyramid
+
+# change_classes: required test types + coverage + enforcement per class. An
+# UNSET enforcement defaults to `hard` (hard-default posture). The class itself
+# is DERIVED from code facts (change_class_derivation.py), never self-declared.
+change_classes:
+  feature:        { required: [unit, integration], coverage: {line: 80} }
+  bugfix:         { required: [unit, regression] }
+  refactor:       { required: [unit], coverage: {line: no_regression}, enforcement: soft }
+  dep_bump_major: { required: [unit, integration] }
+  release:        { required: [unit, integration, regression, smoke] }
+
+# test_types: how each required type's result is read. format selects the reader
+# (junit / cobertura+jacoco via defusedxml; sarif via json) in
+# test_result_readers.py. A check may override `format` on itself — e.g. a Java
+# module sets `format: jacoco` on its coverage check while a Python one keeps
+# cobertura, so a polyglot repo gates each stack with its native report.
+test_types:
+  unit:        { format: junit }
+  integration: { format: junit }
+  regression:  { format: junit }
+  smoke:       { format: junit }
+  contract:    { format: junit }
+  component:   { format: junit }
+  coverage:    { format: cobertura }   # per-check override: `jacoco` for Java modules
+  security:    { format: sarif }
+  # a11y: advisory test-type — no component glob makes it mandatory (a UI-path
+  # convention would; the gate stays backend-shaped until one exists).
+  a11y:        { format: sarif }
+  # manual / e2e / visual ride the orchestrated tier: a `manual` check carries an
+  # evidence_tier + anchor citation (admissibility in manual_test.py) rather than
+  # a result file; e2e/visual export JUnit and reuse the junit reader.
+  manual:      { format: manual }
+  e2e:         { format: junit }
+  visual:      { format: junit }
+  staging_smoke: { format: junit }
+
+# components: per-path requirement overlays, matched by glob (fnmatch). A
+# component that lists `required:` ADDS those test types (at its own
+# enforcement) for any change touching a matching path — independent of the
+# change-class. Security-sensitive paths (auth/payment) demand a clean security
+# SARIF at HARD enforcement even on a refactor: touching auth code is the single
+# highest-risk change, so it is never advisory. A repo with no scanner can grace
+# it in its tier-2 file. The "**" default carries no requirement (it does not
+# lift a soft class to hard); it is the catch-all anchor for repo overrides.
+components:
+  - { path: "**", enforcement: hard }
+  - { path: "**/auth/**",    required: [security], enforcement: hard }
+  - { path: "**/payment/**", required: [security], enforcement: hard }
+  - { path: "**/payments/**", required: [security], enforcement: hard }

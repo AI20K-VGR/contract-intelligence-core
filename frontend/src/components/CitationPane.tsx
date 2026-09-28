@@ -1,7 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
-import { loadDocumentPdf, type ClauseNode } from '../api/structure'
+import {
+  loadDocumentPdf,
+  loadPagePreview,
+  type ClauseNode,
+} from '../api/structure'
 import { MaterialIcon } from './icons'
 
 GlobalWorkerOptions.workerSrc = workerUrl
@@ -13,6 +17,7 @@ export function CitationPane({
   onClose,
   embedded = false,
   filename,
+  banner,
 }: {
   documentId: string
   node: ClauseNode
@@ -20,71 +25,98 @@ export function CitationPane({
   onClose?: () => void
   embedded?: boolean
   filename?: string | null
+  banner?: ReactNode
 }) {
   const pages = [
     ...new Set(
-      node.regions.length > 0
+      (node.regions.length > 0
         ? node.regions.map((region) => region.pageNo)
-        : [node.pageStart || 1],
+        : [node.pageStart || 1]
+      ).filter((page) => Number.isInteger(page) && page > 0),
     ),
   ].sort((a, b) => a - b)
   const [pageNo, setPageNo] = useState(pages[0] ?? 1)
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [pageSource, setPageSource] = useState<
+    'ai1-preview' | 'pdf-fallback' | null
+  >(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
     const controller = new AbortController()
     let cancelled = false
+    let nextUrl: string | null = null
     let renderTask: { cancel: () => void } | null = null
+    let loadingTask: ReturnType<typeof getDocument> | null = null
     setError(null)
     setReady(false)
+    setImageUrl(null)
+    setPageSource(null)
 
-    async function paint() {
+    async function renderPdfFallback() {
       const bytes = await loadDocumentPdf(documentId, controller.signal)
+      loadingTask = getDocument({ data: bytes.slice() })
+      const pdf = await loadingTask.promise
       if (cancelled) return
-      const loadingTask = getDocument({ data: bytes.slice() })
-      try {
-        const pdf = await loadingTask.promise
-        if (cancelled) return
-        const safePage = Math.min(Math.max(pageNo, 1), pdf.numPages)
-        const page = await pdf.getPage(safePage)
-        const viewport = page.getViewport({ scale: 1.5 })
-        canvas.width = viewport.width
-        canvas.height = viewport.height
-        const context = canvas.getContext('2d')
-        if (!context) throw new Error('Trình duyệt không vẽ được trang.')
-        context.setTransform(1, 0, 0, 1, 0, 0)
-        context.clearRect(0, 0, canvas.width, canvas.height)
-        const task = page.render({ canvas, viewport })
-        renderTask = task
-        try {
-          await task.promise
-        } catch (cause) {
-          if (cancelled) return
-          throw cause
-        }
-        if (!cancelled) setReady(true)
-      } finally {
-        await loadingTask.destroy().catch(() => undefined)
+      const safePage = Math.min(Math.max(pageNo, 1), pdf.numPages)
+      const page = await pdf.getPage(safePage)
+      const viewport = page.getViewport({ scale: 1.5 })
+      const canvas = canvasRef.current
+      if (!canvas) throw new Error('Trình duyệt không vẽ được trang.')
+      canvas.width = viewport.width
+      canvas.height = viewport.height
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error('Trình duyệt không vẽ được trang.')
+      context.setTransform(1, 0, 0, 1, 0, 0)
+      context.clearRect(0, 0, canvas.width, canvas.height)
+      const task = page.render({ canvas, viewport })
+      renderTask = task
+      await task.promise
+      if (!cancelled) {
+        setPageSource('pdf-fallback')
+        setReady(true)
       }
     }
 
-    paint().catch((cause: unknown) => {
+    async function loadPreview() {
+      try {
+        const blob = await loadPagePreview(
+          documentId,
+          pageNo,
+          controller.signal,
+        )
+        if (cancelled) return
+        nextUrl = URL.createObjectURL(blob)
+        setPageSource('ai1-preview')
+        setImageUrl(nextUrl)
+      } catch (previewCause) {
+        if (cancelled || controller.signal.aborted) return
+        try {
+          await renderPdfFallback()
+        } catch {
+          throw previewCause
+        }
+      } finally {
+        await loadingTask?.destroy().catch(() => undefined)
+      }
+    }
+
+    loadPreview().catch((cause: unknown) => {
       if (cancelled || controller.signal.aborted) return
       setError(
         cause instanceof Error
           ? cause.message
-          : 'Không tải được file hợp đồng.',
+          : 'Không tải được ảnh trang hợp đồng.',
       )
     })
 
     return () => {
       cancelled = true
-      renderTask?.cancel()
       controller.abort()
+      renderTask?.cancel()
+      if (nextUrl) URL.revokeObjectURL(nextUrl)
     }
   }, [documentId, pageNo])
 
@@ -112,6 +144,8 @@ export function CitationPane({
             </p>
             <p className="truncate text-xs text-secondary">
               Trang {pageNo}
+              {' · '}
+              {pageSource === 'pdf-fallback' ? 'PDF dự phòng' : 'ảnh preview AI1'}
               {boxes.length === 0 ? ' · không có vùng tô' : ' · vùng trích dẫn được khoanh'}
             </p>
           </div>
@@ -146,15 +180,32 @@ export function CitationPane({
           ) : null}
         </div>
       </div>
+      {banner}
       <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-4">
         {error ? <p className="mb-3 text-sm text-red-700">{error}</p> : null}
         {!ready && !error ? (
-          <p className="mb-3 text-sm text-slate-500">Đang mở trang hợp đồng…</p>
+          <p className="mb-3 text-sm text-slate-500">
+            Đang mở ảnh trang hợp đồng…
+          </p>
         ) : null}
         <div
+          data-page-source={pageSource ?? 'ai1-preview'}
           className={`relative mx-auto w-full max-w-3xl bg-white shadow ${ready ? '' : 'hidden'}`}
         >
-          <canvas ref={canvasRef} className="block h-auto w-full" />
+          {imageUrl ? (
+            <img
+              className="block h-auto w-full"
+              src={imageUrl}
+              alt={`Trang ${pageNo} của hợp đồng`}
+              onLoad={() => setReady(true)}
+              onError={() => {
+                setError('Không hiển thị được ảnh trang hợp đồng.')
+                setReady(false)
+              }}
+            />
+          ) : (
+            <canvas ref={canvasRef} className="block h-auto w-full" />
+          )}
           {boxes.map((region, index) => (
             <div
               key={`${region.pageNo}-${index}`}

@@ -1,0 +1,232 @@
+"""Deterministic comparison layer for ${domain} -- NO LLM calls.
+
+Computes precision, recall, F1, and other agreement metrics between pipeline
+outputs and expected outputs using pure string matching and set operations.
+
+This module has ZERO dependencies on external services, so it is independently
+unit-testable with fast deterministic tests. Adapted from a standard
+precision/recall comparison pattern; populate NORMALIZATION_ALIASES below for
+your domain. Same registry philosophy as runner.py's DOMAIN_CONFIG-driven
+NORMALIZERS/MASKS: this module's own normalize() stays a plain
+alias table, config-driven only through NORMALIZATION_ALIASES.
+"""
+
+from __future__ import annotations
+
+import re
+from typing import Optional
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Normalization aliases — domain-specific abbreviations and synonyms
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Expand as needed for your domain. Common aliases map, e.g.:
+#   JS → JavaScript, ML → Machine Learning, k8s → Kubernetes.
+NORMALIZATION_ALIASES: dict[str, str] = {
+    # Populate with domain-specific abbreviations
+    # "js": "javascript",
+    # "ts": "typescript",
+    # "ml": "machine learning",
+}
+
+
+def normalize(value: str) -> str:
+    """Normalize a value for comparison.
+
+    Handles case, common abbreviations (via NORMALIZATION_ALIASES), whitespace,
+    special-character removal, and diacritics where relevant to your language.
+    """
+    if not value or not isinstance(value, str):
+        return ""
+
+    s = value.lower().strip()
+    s = re.sub(r"\s+", " ", s)
+
+    # Expand known aliases before stripping
+    if s in NORMALIZATION_ALIASES:
+        s = NORMALIZATION_ALIASES[s]
+
+    # Remove special characters (keep #, +, . for C#, C++, .NET style terms)
+    s = re.sub(r"[^\w\s#\+\.]", "", s, flags=re.UNICODE)
+    s = re.sub(r"_", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+
+    return s
+
+
+def normalize_set(items: list) -> set:
+    """Normalize a list of items into a set (empty strings + duplicates removed)."""
+    result = set()
+    for item in items:
+        norm = normalize(item)
+        if norm:
+            result.add(norm)
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Overlap computation
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def compute_overlap(pipeline_items: list, expected_items: list) -> tuple:
+    """Compute (matched, missed_by_pipeline, hallucinated_by_pipeline) as sets."""
+    p_set = normalize_set(pipeline_items)
+    e_set = normalize_set(expected_items)
+
+    matched = p_set & e_set
+    missed = e_set - p_set
+    hallucinated = p_set - e_set
+
+    return matched, missed, hallucinated
+
+
+def compute_precision_recall_f1(pipeline_items: set, expected_items: set) -> tuple:
+    """Compute standard precision, recall, and F1.
+
+    precision = |pipeline ∩ expected| / |pipeline|
+    recall    = |pipeline ∩ expected| / |expected|
+    F1        = 2 * P * R / (P + R)
+
+    Returns (1.0, 1.0, 1.0) when both sets are empty (agreement on nothing).
+    """
+    if not pipeline_items and not expected_items:
+        return 1.0, 1.0, 1.0
+    if not pipeline_items:
+        return 1.0, 0.0, 0.0
+    if not expected_items:
+        return 0.0, 1.0, 0.0
+
+    intersection = pipeline_items & expected_items
+    precision = len(intersection) / len(pipeline_items)
+    recall = len(intersection) / len(expected_items)
+
+    if precision + recall == 0:
+        return 0.0, 0.0, 0.0
+
+    f1 = 2 * (precision * recall) / (precision + recall)
+    return precision, recall, f1
+
+
+def compute_precision(pipeline_items: list, expected_items: list) -> float:
+    """Compute precision: |items in both| / |items in pipeline|."""
+    p_set = normalize_set(pipeline_items)
+    e_set = normalize_set(expected_items)
+    if not p_set:
+        return 1.0
+    if not e_set:
+        return 0.0
+    precision, _, _ = compute_precision_recall_f1(p_set, e_set)
+    return precision
+
+
+def compute_recall(pipeline_items: list, expected_items: list) -> float:
+    """Compute recall: |items in both| / |items in expected|."""
+    p_set = normalize_set(pipeline_items)
+    e_set = normalize_set(expected_items)
+    if not e_set:
+        return 1.0
+    if not p_set:
+        return 0.0
+    _, recall, _ = compute_precision_recall_f1(p_set, e_set)
+    return recall
+
+
+def compute_f1(precision: float, recall: float) -> float:
+    """Compute F1 from precision and recall."""
+    if precision + recall == 0:
+        return 0.0
+    return 2 * (precision * recall) / (precision + recall)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Value comparison
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def compute_value_error(pipeline_value: Optional[float], expected_value: Optional[float]) -> Optional[float]:
+    """Absolute error between pipeline and expected numeric values (None if either is None)."""
+    if pipeline_value is None or expected_value is None:
+        return None
+    return abs(pipeline_value - expected_value)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Score reasonableness (for LLM-judge patterns)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def assess_score_reasonableness(pipeline_score: int, expected_low: int, expected_high: int,
+                                tolerance: int = 10) -> bool:
+    """True if pipeline_score is in [expected_low - tolerance, expected_high + tolerance].
+
+    This is the score-range pattern: the judge provides a score range, and the
+    pipeline score must fall within that range ± tolerance.
+    """
+    if expected_low > expected_high:
+        expected_low, expected_high = expected_high, expected_low
+    lower_bound = max(0, expected_low - tolerance)
+    upper_bound = min(100, expected_high + tolerance)
+    return lower_bound <= pipeline_score <= upper_bound
+
+
+def compute_score_delta(pipeline_score: int, expected_low: int, expected_high: int) -> int:
+    """Signed score delta from the expected midpoint (positive = pipeline scored higher)."""
+    midpoint = (expected_low + expected_high) // 2
+    return pipeline_score - midpoint
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Full comparison functions
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def compare_items(source_name: str, pipeline_items: list, expected_items: list,
+                  pipeline_value: Optional[float] = None,
+                  expected_value: Optional[float] = None) -> dict:
+    """Compare pipeline output against expected output for a single source.
+
+    Returns a dict of all comparison metrics (precision/recall/f1, matched,
+    missed, hallucinated, value_error).
+    """
+    matched, missed, hallucinated = compute_overlap(pipeline_items, expected_items)
+    precision, recall, f1 = compute_precision_recall_f1(
+        normalize_set(pipeline_items), normalize_set(expected_items))
+    value_error = compute_value_error(pipeline_value, expected_value)
+
+    return {
+        "source_name": source_name,
+        "pipeline_items": pipeline_items,
+        "expected_items": expected_items,
+        "matched_items": sorted(matched),
+        "precision": round(precision, 4),
+        "recall": round(recall, 4),
+        "f1": round(f1, 4),
+        "missed_items": sorted(missed),
+        "hallucinated_items": sorted(hallucinated),
+        "pipeline_value": pipeline_value,
+        "expected_value": expected_value,
+        "value_error": round(value_error, 1) if value_error is not None else None,
+    }
+
+
+def compare_score(source_a: str, source_b: str, pipeline_score: int,
+                  expected_low: int, expected_high: int, tolerance: int = 10) -> dict:
+    """Compare a pipeline score against an expected range (delta + reasonableness)."""
+    midpoint = (expected_low + expected_high) // 2
+    delta = compute_score_delta(pipeline_score, expected_low, expected_high)
+    is_reasonable = assess_score_reasonableness(
+        pipeline_score, expected_low, expected_high, tolerance=tolerance)
+
+    return {
+        "source_a": source_a,
+        "source_b": source_b,
+        "pipeline_score": pipeline_score,
+        "expected_low": expected_low,
+        "expected_high": expected_high,
+        "midpoint": midpoint,
+        "score_delta": delta,
+        "score_is_reasonable": is_reasonable,
+        "tolerance": tolerance,
+    }

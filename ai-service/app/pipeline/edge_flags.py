@@ -9,6 +9,7 @@ from app.contracts.models import HandoffIssue, ReviewState
 from app.tools.store import DossierRecord
 
 _DIEU = re.compile(r"^Điều (\d+)$")
+_DIEU_HEADING = re.compile(r"^dieu\s+(\d+)\b")
 _ART = re.compile(r"^(?:Art|Article) (\d+)$", re.IGNORECASE)
 
 
@@ -34,7 +35,7 @@ def dossier_edge_issues(record: DossierRecord) -> list[HandoffIssue]:
 def _numbering_gaps(record: DossierRecord) -> list[HandoffIssue]:
     grouped: dict[str | None, set[int]] = {}
     for node in record.nodes:
-        match = _DIEU.match((node.raw_label or "").strip())
+        match = _DIEU_HEADING.match(_fold((node.raw_label or "").strip()))
         if match is None:
             continue
         grouped.setdefault(node.parent_id, set()).add(int(match.group(1)))
@@ -82,7 +83,7 @@ def _bilingual_pairs(record: DossierRecord) -> list[HandoffIssue]:
 def _amended_definitions(record: DossierRecord) -> list[HandoffIssue]:
     issues = []
     for node in record.nodes:
-        if " moi" not in f" {_fold(node.raw_label or '')}":
+        if "mới" not in (node.raw_label or "").casefold():
             continue
         windows = _windows(node.text or "", 3)
         for other in record.nodes:
