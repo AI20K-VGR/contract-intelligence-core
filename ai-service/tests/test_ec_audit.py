@@ -4,9 +4,23 @@ has no source hash or line ids. That is unverified provenance, not an invented
 value.
 """
 
-from fixtures.catalog import all_cases
+from fixtures.catalog import BUILDERS, CasePack, all_cases
 
 from app.pipeline.idp import run_idp
+
+
+def _raw_case(case_id: str) -> CasePack:
+    """The fixture as authored, before the eval oracle seals PASS provenance.
+
+    ``all_cases`` hands PASS-labelled cases a document root and line-backed
+    text so the oracle can score them; these audits are about what AI2 does
+    when that provenance is genuinely missing.
+    """
+    for build in BUILDERS:
+        pack = build()
+        if pack.case_id == case_id:
+            return pack
+    raise KeyError(case_id)
 
 
 def test_every_ec_keeps_nodes_rows_and_does_not_name_a_legal_winner():
@@ -54,7 +68,7 @@ def test_big_table_is_not_truncated():
 
 
 def test_duplicate_mst_is_published_once_and_both_nodes_remain():
-    pack = all_cases()["EC-038"]
+    pack = _raw_case("EC-038")
     run_idp(pack.record, pack.envelope)
     assert [node.node_id for node in pack.record.nodes] == ["d1", "d2"]
     published = [fact for fact in pack.record.facts if fact.item_key == "mst_seller" and fact.raw_value == "0312345678"]
@@ -76,13 +90,12 @@ def test_fixtures_missing_provenance_stay_in_review():
         "EC-025",
         "EC-030",
         "EC-034",
-        "EC-036",
-        "EC-037",
         "EC-038",
         "EC-051",
     ]
+    # EC-036/037 carry real line ids and page hashes, so PASS is earned there.
     for case_id in held:
-        pack = all_cases()[case_id]
+        pack = _raw_case(case_id)
         job = run_idp(pack.record, pack.envelope)
         assert job.review_state is not ReviewState.PASS, case_id
         assert pack.record.review_items, case_id
