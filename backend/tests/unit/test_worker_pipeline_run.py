@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator, Iterator
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
@@ -41,13 +41,9 @@ DOC_B = "doc_b"
 
 @pytest.fixture(autouse=True)
 def _reset_worker_state() -> Iterator[None]:
-    worker._seen_result_ids.clear()
-    worker._snapshot_cache.clear()
-    worker._submitted_ai2_runs.clear()
+    worker._ai2_tasks.clear()
     yield
-    worker._seen_result_ids.clear()
-    worker._snapshot_cache.clear()
-    worker._submitted_ai2_runs.clear()
+    worker._ai2_tasks.clear()
 
 
 @pytest_asyncio.fixture
@@ -82,7 +78,7 @@ async def factory(tmp_path: Any) -> AsyncGenerator[async_sessionmaker[AsyncSessi
 
 
 @pytest.fixture
-def ai2_ready(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+def ai2_ready(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     """Stub the AI1 snapshot adapter/persistence and the AI2 hand-off."""
     monkeypatch.setattr(
         worker,
@@ -90,9 +86,9 @@ def ai2_ready(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
         lambda result: SimpleNamespace(document_id=result["snapshot"]["document_id"], pages=[]),
     )
     monkeypatch.setattr(worker, "persist_ai1_snapshot", AsyncMock())
-    run_ai2 = AsyncMock()
-    monkeypatch.setattr(worker, "_run_ai2_if_ready", run_ai2)
-    return run_ai2
+    schedule_ai2 = MagicMock()
+    monkeypatch.setattr(worker, "_schedule_ai2", schedule_ai2)
+    return schedule_ai2
 
 
 async def _start(factory: async_sessionmaker[AsyncSession], *, restart: bool = False) -> str:
@@ -181,7 +177,7 @@ async def test_redelivered_upload_resumes_active_run(
 
 @pytest.mark.asyncio
 async def test_ocr_restart_supersedes_run_and_ignores_its_late_results(
-    factory: async_sessionmaker[AsyncSession], ai2_ready: AsyncMock
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
 ) -> None:
     old_run = await _start(factory)
     new_run = await _start(factory, restart=True)
@@ -197,7 +193,7 @@ async def test_ocr_restart_supersedes_run_and_ignores_its_late_results(
 
     job = await _job(factory)
     assert job.status == "processing" and job.current_run_id == new_run
-    assert ai2_ready.await_count == 0
+    assert ai2_ready.call_count == 0
 
 
 @pytest.mark.asyncio
@@ -254,17 +250,17 @@ async def test_ocr_restart_recovers_failed_job_with_new_run(
 
 @pytest.mark.asyncio
 async def test_extracted_only_after_every_document_has_a_snapshot(
-    factory: async_sessionmaker[AsyncSession], ai2_ready: AsyncMock
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
 ) -> None:
     run_id = await _start(factory)
 
     await _deliver(factory, _ocr_completed(run_id, DOC_A))
     assert (await _job(factory)).status == "processing"
-    assert ai2_ready.await_count == 0
+    assert ai2_ready.call_count == 0
 
     await _deliver(factory, _ocr_completed(run_id, DOC_B))
     assert (await _job(factory)).status == "extracted"
-    ai2_ready.assert_awaited_once()
+    ai2_ready.assert_called_once()
 
     async with factory() as session:
         run = await session.get(PipelineRunORM, run_id)
@@ -275,6 +271,26 @@ async def test_extracted_only_after_every_document_has_a_snapshot(
         ("processing", "processing"),
         ("processing", "extracted"),
     ]
+
+
+@pytest.mark.asyncio
+async def test_redelivered_result_is_ignored_without_memory_state(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    """Dedupe lives in the run row, so it survives a worker restart."""
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+    assert ai2_ready.call_count == 1
+
+    # Worker restarts (no in-memory state) and Kafka redelivers DOC_A.
+    worker._ai2_tasks.clear()
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+
+    assert (await _job(factory)).status == "extracted"
+    assert len(await _audits(factory, "ai1.snapshot_persisted")) == 2
+    # The redelivery re-kicks AI2 (idempotent per run) instead of stranding the job.
+    assert ai2_ready.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -312,7 +328,7 @@ async def test_completed_event_without_result_marks_job_failed(
 
 @pytest.mark.asyncio
 async def test_snapshot_for_foreign_document_marks_job_failed(
-    factory: async_sessionmaker[AsyncSession], ai2_ready: AsyncMock
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
 ) -> None:
     run_id = await _start(factory)
     message = _ocr_completed(run_id, DOC_A)
@@ -321,12 +337,12 @@ async def test_snapshot_for_foreign_document_marks_job_failed(
     await _deliver(factory, message)
 
     assert (await _job(factory)).status == "failed"
-    assert ai2_ready.await_count == 0
+    assert ai2_ready.call_count == 0
 
 
 @pytest.mark.asyncio
 async def test_late_success_does_not_override_failed(
-    factory: async_sessionmaker[AsyncSession], ai2_ready: AsyncMock
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
 ) -> None:
     run_id = await _start(factory)
     failed = _ocr_completed(run_id, DOC_A, event_type=worker.EVENT_OCR_FAILED)
@@ -342,7 +358,7 @@ async def test_late_success_does_not_override_failed(
 
 @pytest.mark.asyncio
 async def test_envelope_with_wrong_schema_version_is_dropped(
-    factory: async_sessionmaker[AsyncSession], ai2_ready: AsyncMock
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
 ) -> None:
     run_id = await _start(factory)
     await _deliver(factory, _ocr_completed(run_id, DOC_A, schema_version="ci.kafka.v0"))
@@ -353,7 +369,7 @@ async def test_envelope_with_wrong_schema_version_is_dropped(
 
 @pytest.mark.asyncio
 async def test_result_claiming_another_tenant_is_rejected(
-    factory: async_sessionmaker[AsyncSession], ai2_ready: AsyncMock
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
 ) -> None:
     run_id = await _start(factory)
     await _deliver(factory, _ocr_completed(run_id, DOC_A, tenant_id="tenant_attacker"))
@@ -414,7 +430,7 @@ class _RowsResult:
 
 
 @pytest.mark.asyncio
-async def test_ai2_transient_failure_releases_submission_guard_for_retry(
+async def test_ai2_transient_failure_can_be_retried(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     run_id = "run_ai2_retry"
@@ -423,6 +439,7 @@ async def test_ai2_transient_failure_releases_submission_guard_for_retry(
 
     def result_sequence() -> list[object]:
         return [
+            _ScalarResult(SimpleNamespace(status="extracted")),
             _ScalarResult(manifest),
             _ScalarResult(durable_run),
             _RowsResult([]),
@@ -450,7 +467,6 @@ async def test_ai2_transient_failure_releases_submission_guard_for_retry(
         session, dossier_id="dos_test", tenant_id="tenant_test", run_id=run_id
     )
 
-    assert run_id not in worker._submitted_ai2_runs
     assert session.rollback.await_count == 1
 
     session.execute = AsyncMock(side_effect=result_sequence())
@@ -459,3 +475,26 @@ async def test_ai2_transient_failure_releases_submission_guard_for_retry(
     )
 
     assert submit.await_count == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("job_status", ["processing", "pending_review", "failed"])
+async def test_ai2_not_submitted_unless_job_is_extracted(
+    factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+    job_status: str,
+) -> None:
+    """Durable guard: a manifest.confirmed replay after AI2 finished must not resubmit."""
+    run_id = await _start(factory)
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.status = job_status
+        await session.commit()
+    submit = AsyncMock()
+    monkeypatch.setattr(worker, "submit_ai2_processing", submit)
+
+    async with factory() as session:
+        await worker._run_ai2_if_ready(session, dossier_id=DOSSIER, tenant_id=TENANT, run_id=run_id)
+
+    submit.assert_not_awaited()

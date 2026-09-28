@@ -69,10 +69,10 @@ def _result_with_pass_finding() -> dict[str, Any]:
 
 
 @pytest.fixture(autouse=True)
-def _reset_worker_dedupe() -> Iterator[None]:
-    worker._submitted_ai2_runs.clear()
+def _reset_worker_ai2_tasks() -> Iterator[None]:
+    worker._ai2_tasks.clear()
     yield
-    worker._submitted_ai2_runs.clear()
+    worker._ai2_tasks.clear()
 
 
 @pytest_asyncio.fixture

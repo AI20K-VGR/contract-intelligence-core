@@ -141,7 +141,9 @@ Role cần có: **OPERATOR** hoặc **ADMINISTRATOR**.
    - Job/dossier status → **`pending_review`** / `PENDING_REVIEW`.
    - Có dữ liệu extraction / review items (tùy nội dung PDF).
 
-**Không** dùng endpoint legacy `POST /api/v1/dossiers/upload` cho test này — path đó không publish `dossier.uploaded` Kafka.
+Endpoint legacy `POST /api/v1/dossiers/upload` đã bị gỡ; `POST /api/v1/dossiers` là đường upload duy nhất.
+
+Record worker xử lý lỗi quá `WORKER_HANDLER_MAX_ATTEMPTS` lần (mặc định 3) được chuyển sang topic `<topic>.dlq` (vd `dossier_events.dlq`, `ci.ai1.ocr.results.dlq`) kèm lỗi và offset gốc — kiểm tra ở đó khi hồ sơ đứng yên.
 
 ---
 

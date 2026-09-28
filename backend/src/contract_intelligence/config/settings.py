@@ -98,6 +98,31 @@ class Settings(BaseSettings):
             "(pymupdf | openai | gemini | mistral)."
         ),
     )
+    kafka_dead_letter_suffix: str = Field(
+        default=".dlq",
+        description=(
+            "A record the worker cannot process is parked on <topic><suffix> "
+            "(e.g. dossier_events.dlq) before its offset is committed."
+        ),
+    )
+    worker_handler_max_attempts: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Attempts per Kafka record before it is dead-lettered.",
+    )
+    worker_handler_retry_backoff_seconds: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=60.0,
+        description="Base backoff between attempts (doubles each retry).",
+    )
+    worker_ai2_max_concurrency: int = Field(
+        default=4,
+        ge=1,
+        le=64,
+        description="AI2 submit+poll hand-offs the worker runs at once.",
+    )
 
     # -------------------------------------------------------------------------
     # AI Service (FastAPI bên ngoài — REST polling theo DOC-05c)

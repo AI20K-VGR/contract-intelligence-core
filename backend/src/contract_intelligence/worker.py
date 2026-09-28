@@ -4,19 +4,25 @@ Run as a standalone process::
 
     uv run python -m contract_intelligence.worker
 
+Delivery is at-least-once: offsets are committed by hand after a record was
+handled (or parked on ``<topic>.dlq``), and every handler is idempotent
+against the DB, so the worker keeps no state that a restart could lose.
+
 See ``docs/DOC-05d-kafka-ai1-ocr-contract.md``.
 """
 
 from __future__ import annotations
 
 import asyncio
+import functools
 import hashlib
 import json
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
 
 import structlog
-from aiokafka import AIOKafkaConsumer
+from aiokafka import AIOKafkaConsumer, TopicPartition
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -60,10 +66,15 @@ SCHEMA_VERSION = "ci.kafka.v1"
 EVENT_OCR_COMMAND = "ai1.ocr.command"
 EVENT_OCR_COMPLETED = "ai1.ocr.completed"
 EVENT_OCR_FAILED = "ai1.ocr.failed"
-# Idempotency for result events (event_id / job_id).
-_seen_result_ids: set[str] = set()
-_snapshot_cache: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
-_submitted_ai2_runs: set[str] = set()
+
+Handler = Callable[[AsyncSession, dict[str, Any]], Awaitable[None]]
+
+# In-flight AI2 hand-offs, one per run. Only a concurrency guard: whether a
+# run still needs AI2 is always re-read from the DB (job status, result digest).
+_ai2_tasks: dict[str, asyncio.Task[None]] = {}
+_ai2_semaphore: asyncio.Semaphore | None = None
+# Bound by run_consumer(); AI2 hand-offs open their own session from it.
+_session_factory: async_sessionmaker[AsyncSession] | None = None
 
 
 def _utcnow_iso() -> str:
@@ -140,18 +151,51 @@ def _durable_snapshots_from_run(run: PipelineRunORM | None) -> dict[str, dict[st
     return result
 
 
-def _merge_snapshot_cache(
-    target: dict[str, dict[str, Any]], source: dict[str, dict[str, Any]]
-) -> None:
-    """Merge only scoped canonical snapshots into a per-run working set."""
+def _run_payload(run: PipelineRunORM) -> dict[str, Any]:
+    """Decode the run's ``config_snapshot`` JSON (the durable AI1 hand-off state)."""
+    try:
+        payload = (
+            json.loads(run.config_snapshot)
+            if isinstance(run.config_snapshot, str) and run.config_snapshot
+            else {}
+        )
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
-    for document_id, snapshot in source.items():
-        if (
-            isinstance(snapshot, dict)
-            and snapshot.get("schema_version") == "ai1.snapshot.v1"
-            and str(snapshot.get("document_id") or document_id).strip()
-        ):
-            target[str(snapshot.get("document_id") or document_id)] = snapshot
+
+async def _load_run(session: AsyncSession, run_id: str) -> PipelineRunORM | None:
+    return (
+        await session.execute(select(PipelineRunORM).where(PipelineRunORM.id == run_id))
+    ).scalar_one_or_none()
+
+
+async def _recorded_extractions(session: AsyncSession, run_id: str) -> set[str] | None:
+    """Documents of ``run_id`` that already have a recorded AI1 result (None: no run)."""
+    run = await _load_run(session, run_id)
+    if run is None:
+        return None
+    return {str(value) for value in _run_payload(run).get("ai1_extracted_documents") or [] if value}
+
+
+async def _is_recorded_result(
+    session: AsyncSession,
+    *,
+    run_id: str,
+    document_id: str,
+    snapshot: dict[str, Any] | None,
+) -> bool:
+    """True when this exact AI1 result was already recorded on the run (redelivery)."""
+    run = await _load_run(session, run_id)
+    if run is None:
+        return False
+    payload = _run_payload(run)
+    if document_id not in (payload.get("ai1_extracted_documents") or []):
+        return False
+    if snapshot is None:
+        return True
+    recorded_digest = (payload.get("ai1_snapshot_digests") or {}).get(document_id)
+    return bool(recorded_digest) and recorded_digest == _snapshot_digest(snapshot)
 
 
 async def _record_ai1_document(
@@ -162,21 +206,10 @@ async def _record_ai1_document(
     snapshot: dict[str, Any] | None,
 ) -> set[str]:
     """Store the canonical snapshot (if any) on the run; return every document extracted in it."""
-    run = (
-        await session.execute(select(PipelineRunORM).where(PipelineRunORM.id == run_id))
-    ).scalar_one_or_none()
+    run = await _load_run(session, run_id)
     if run is None:
         return {document_id}
-    try:
-        payload = (
-            json.loads(run.config_snapshot)
-            if isinstance(run.config_snapshot, str) and run.config_snapshot
-            else {}
-        )
-    except (TypeError, ValueError, json.JSONDecodeError):
-        payload = {}
-    if not isinstance(payload, dict):
-        payload = {}
+    payload = _run_payload(run)
     if snapshot is not None:
         payload["ai1_snapshots"] = _durable_snapshots_from_run(run)
         payload["ai1_snapshots"][document_id] = snapshot
@@ -219,11 +252,70 @@ async def _job_for_run(session: AsyncSession, run_id: str) -> JobORM | None:
 
 
 def _forget_run(run_id: str | None) -> None:
+    """Cancel the AI2 hand-off of a superseded run (its result would be refused anyway)."""
     if not run_id:
         return
-    _submitted_ai2_runs.discard(run_id)
-    for key in [key for key in _snapshot_cache if key[1] == run_id]:
-        _snapshot_cache.pop(key, None)
+    task = _ai2_tasks.pop(run_id, None)
+    if task is not None and not task.done():
+        task.cancel()
+
+
+def _schedule_ai2(*, dossier_id: str, tenant_id: str, run_id: str) -> None:
+    """Hand ``run_id`` to AI2 in the background so the consumer keeps draining.
+
+    Submitting and polling AI2 can take minutes; awaiting it inside the
+    consumer loop would stall every other dossier's OCR results meanwhile.
+    """
+    existing = _ai2_tasks.get(run_id)
+    if existing is not None and not existing.done():
+        logger.info("worker.ai2.already_in_flight", dossier_id=dossier_id, run_id=run_id)
+        return
+    task = asyncio.create_task(
+        _ai2_hand_off(dossier_id=dossier_id, tenant_id=tenant_id, run_id=run_id),
+        name=f"ai2:{run_id}",
+    )
+    _ai2_tasks[run_id] = task
+    task.add_done_callback(functools.partial(_ai2_task_done, run_id))
+
+
+def _ai2_task_done(run_id: str, task: asyncio.Task[None]) -> None:
+    if _ai2_tasks.get(run_id) is task:
+        del _ai2_tasks[run_id]
+    if not task.cancelled() and (error := task.exception()) is not None:
+        logger.error("worker.ai2.hand_off_crashed", run_id=run_id, error=repr(error))
+
+
+async def _ai2_hand_off(*, dossier_id: str, tenant_id: str, run_id: str) -> None:
+    global _ai2_semaphore  # noqa: PLW0603
+    if _session_factory is None:
+        msg = "worker session factory is not bound — start via run_consumer()"
+        raise RuntimeError(msg)
+    if _ai2_semaphore is None:
+        _ai2_semaphore = asyncio.Semaphore(get_settings().worker_ai2_max_concurrency)
+    async with _ai2_semaphore, _session_factory() as session:
+        await _run_ai2_if_ready(session, dossier_id=dossier_id, tenant_id=tenant_id, run_id=run_id)
+
+
+async def _resume_pending_ai2(session_factory: async_sessionmaker[AsyncSession]) -> None:
+    """Re-kick AI2 for runs a previous worker process left mid hand-off.
+
+    EXTRACTED is the durable "every AI1 snapshot is in, AI2 result not yet
+    persisted" state. ``_run_ai2_if_ready`` re-checks manifest and result
+    digest, and AI2 dedupes the resubmission on the per-run idempotency key.
+    """
+    async with session_factory() as session:
+        rows = (
+            await session.execute(
+                select(JobORM.dossier_id, JobORM.tenant_id, JobORM.current_run_id).where(
+                    JobORM.status == JobStatus.EXTRACTED.value,
+                    JobORM.current_run_id.is_not(None),
+                )
+            )
+        ).all()
+    for dossier_id, tenant_id, run_id in rows:
+        _schedule_ai2(dossier_id=dossier_id, tenant_id=tenant_id, run_id=str(run_id))
+    if rows:
+        logger.info("worker.ai2.resumed", runs=len(rows))
 
 
 async def _resolve_result_job(
@@ -735,9 +827,20 @@ async def _run_ai2_if_ready(
     tenant_id: str,
     run_id: str,
 ) -> None:
-    """Submit/poll AI2 only after manifest confirmation and complete AI1 input."""
+    """Submit/poll AI2 only after manifest confirmation and complete AI1 input.
 
-    if run_id in _submitted_ai2_runs:
+    Safe to call repeatedly: only a job still EXTRACTED on ``run_id`` goes on,
+    so a redelivered event or a restart never resubmits a finished run.
+    """
+
+    job = await _job_for_run(session, run_id)
+    if job is None or job.status != JobStatus.EXTRACTED.value:
+        logger.info(
+            "worker.ai2.not_ready",
+            dossier_id=dossier_id,
+            run_id=run_id,
+            job_status=job.status if job else None,
+        )
         return
     manifest_result = await session.execute(
         select(ManifestORM).where(ManifestORM.dossier_id == dossier_id)
@@ -752,7 +855,6 @@ async def _run_ai2_if_ready(
     )
     durable_run = durable_run_result.scalar_one_or_none()
     if durable_run is not None and durable_run.ai2_result_digest:
-        _submitted_ai2_runs.add(run_id)
         logger.info("worker.ai2.already_persisted", dossier_id=dossier_id, run_id=run_id)
         return
 
@@ -765,8 +867,7 @@ async def _run_ai2_if_ready(
     document_result = await session.execute(
         select(DocumentORM).where(DocumentORM.dossier_id == dossier_id)
     )
-    snapshots: dict[str, dict[str, Any]] = _durable_snapshots_from_run(durable_run)
-    _merge_snapshot_cache(snapshots, _snapshot_cache.get((dossier_id, run_id), {}))
+    snapshots = _durable_snapshots_from_run(durable_run)
     request = build_processing_request(
         dossier_id=dossier_id,
         run_id=run_id,
@@ -836,7 +937,6 @@ async def _run_ai2_if_ready(
             source="http_poll",
         )
     except Exception as exc:
-        _submitted_ai2_runs.discard(run_id)
         await session.rollback()
         await _fail_ai2_run(
             session,
@@ -935,7 +1035,6 @@ async def _finalize_ai2_success(
         },
     )
     await session.commit()
-    _submitted_ai2_runs.add(run_id)
     logger.info(
         "worker.ai2.completed",
         dossier_id=dossier_id,
@@ -949,15 +1048,15 @@ async def _finalize_ai2_success(
 
 
 async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> None:
-    """Persist AI1 OCR result and update job/dossier status."""
+    """Persist AI1 OCR result and update job/dossier status.
+
+    Idempotent against the DB: stale runs are dropped, a failed job cannot
+    fail twice, and a result already recorded on the run is not re-persisted.
+    """
     event_id = str(message.get("event_id") or "")
     raw_payload = message.get("payload")
     payload: dict[str, Any] = raw_payload if isinstance(raw_payload, dict) else {}
     job_id = str(payload.get("job_id") or "")
-    dedupe_key = event_id or job_id
-    if dedupe_key and dedupe_key in _seen_result_ids:
-        logger.info("worker.ai1_result.duplicate", event_id=event_id, job_id=job_id)
-        return
 
     raw_correlation = message.get("correlation")
     correlation: dict[str, Any] = raw_correlation if isinstance(raw_correlation, dict) else {}
@@ -973,8 +1072,6 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
         tenant_id=str(message.get("tenant_id") or correlation.get("tenant_id") or ""),
     )
     if job is None:
-        if dedupe_key:
-            _seen_result_ids.add(dedupe_key)
         return
     # Captured as plain values: a rollback below expires the ORM instance.
     tenant_id = job.tenant_id
@@ -995,8 +1092,6 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
             audit_action="ai1.ocr_failed",
             audit_detail=base_audit,
         )
-        if dedupe_key:
-            _seen_result_ids.add(dedupe_key)
         logger.warning(
             "worker.ai1_result.failed",
             dossier_id=dossier_id,
@@ -1016,8 +1111,6 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
             run_id=run_id,
             job_status=job_status,
         )
-        if dedupe_key:
-            _seen_result_ids.add(dedupe_key)
         return
 
     documents = await _load_documents(session, dossier_id)
@@ -1061,19 +1154,31 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
             audit_action="ai1.snapshot_rejected",
             audit_detail=base_audit,
         )
-        if dedupe_key:
-            _seen_result_ids.add(dedupe_key)
         logger.error("worker.ai1_result.rejected", event_id=event_id, run_id=run_id, code=code)
         return
 
+    if await _is_recorded_result(
+        session, run_id=run_id, document_id=document_id, snapshot=canonical_snapshot
+    ):
+        logger.info(
+            "worker.ai1_result.duplicate",
+            event_id=event_id,
+            run_id=run_id,
+            document_id=document_id,
+        )
+        # A redelivery may be the only signal left after a crash between the
+        # EXTRACTED commit and the AI2 hand-off; re-kicking is idempotent.
+        recorded = await _recorded_extractions(session, run_id) or set()
+        if dossier_document_ids <= recorded:
+            _schedule_ai2(dossier_id=dossier_id, tenant_id=tenant_id, run_id=run_id)
+        return
+
     try:
-        if canonical_snapshot is not None:
-            _snapshot_cache.setdefault((dossier_id, run_id), {})[document_id] = canonical_snapshot
         # A new OCR result is authoritative for a retry.  Older databases
         # may already contain immutable evidence rows for this document. In
         # that case the DB append-only trigger rejects the legacy replacement
-        # delete, but the canonical snapshot is still available in the
-        # in-memory handoff cache and must continue to AI2.
+        # delete, but the canonical snapshot is still recorded on the run
+        # (``_record_ai1_document``) and must continue to AI2.
         try:
             await persist_ai1_snapshot(
                 session,
@@ -1140,8 +1245,6 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
             },
         )
         await session.commit()
-        if dedupe_key:
-            _seen_result_ids.add(dedupe_key)
         logger.info(
             "worker.ai1_result.persisted",
             dossier_id=dossier_id,
@@ -1151,12 +1254,7 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
             all_extracted=all_extracted,
         )
         if all_extracted:
-            await _run_ai2_if_ready(
-                session,
-                dossier_id=dossier_id,
-                tenant_id=tenant_id,
-                run_id=run_id,
-            )
+            _schedule_ai2(dossier_id=dossier_id, tenant_id=tenant_id, run_id=run_id)
     except Exception:
         await session.rollback()
         logger.exception(
@@ -1184,8 +1282,7 @@ async def handle_dossier_event(session: AsyncSession, message: dict[str, Any]) -
         )
         job = result.scalar_one_or_none()
         if job and job.current_run_id:
-            await _run_ai2_if_ready(
-                session,
+            _schedule_ai2(
                 dossier_id=dossier_id,
                 tenant_id=job.tenant_id,
                 run_id=str(job.current_run_id),
@@ -1194,15 +1291,156 @@ async def handle_dossier_event(session: AsyncSession, message: dict[str, Any]) -
     logger.debug("worker.event.ignored", event_type=event_type)
 
 
+# ---------------------------------------------------------------------------
+# Kafka delivery: manual offset commit, retry, dead-letter
+# ---------------------------------------------------------------------------
+
+
+def _decode_record(value: bytes | None) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    try:
+        message = json.loads(value.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    return message if isinstance(message, dict) else None
+
+
+def _record_key(record: Any) -> str | None:
+    key = record.key
+    if isinstance(key, bytes):
+        return key.decode("utf-8", errors="replace")
+    return str(key) if key is not None else None
+
+
+async def _dead_letter(record: Any, *, value: Any, reason: str, error: str, attempts: int) -> None:
+    """Park ``record`` on ``<topic><suffix>`` so it no longer blocks its partition."""
+    topic = f"{record.topic}{get_settings().kafka_dead_letter_suffix}"
+    await messaging.publish_event(
+        topic,
+        {
+            "event": "worker.dead_letter",
+            "source_topic": record.topic,
+            "partition": record.partition,
+            "offset": record.offset,
+            "reason": reason,
+            "error": error[:2000],
+            "attempts": attempts,
+            "failed_at": _utcnow_iso(),
+            "value": value,
+        },
+        key=_record_key(record),
+    )
+    logger.error(
+        "worker.record_dead_lettered",
+        topic=record.topic,
+        partition=record.partition,
+        offset=record.offset,
+        dead_letter_topic=topic,
+        reason=reason,
+        error=error[:500],
+    )
+
+
+async def _handle_with_retry(
+    record: Any,
+    message: dict[str, Any],
+    *,
+    handler: Handler,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> Exception | None:
+    """Run ``handler`` in a fresh session per attempt; return the last error, if any."""
+    settings = get_settings()
+    attempts = settings.worker_handler_max_attempts
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            async with session_factory() as session:
+                await handler(session, message)
+        except Exception as exc:
+            last_error = exc
+            logger.warning(
+                "worker.record_failed",
+                topic=record.topic,
+                partition=record.partition,
+                offset=record.offset,
+                attempt=attempt,
+                max_attempts=attempts,
+                exc_info=True,
+            )
+            if attempt < attempts:
+                await asyncio.sleep(
+                    settings.worker_handler_retry_backoff_seconds * 2 ** (attempt - 1)
+                )
+        else:
+            return None
+    return last_error
+
+
+async def _process_record(
+    record: Any,
+    *,
+    consumer: Any,
+    handler: Handler,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Handle one record, then commit its offset (at-least-once delivery).
+
+    A failing handler is retried with backoff; a record that still fails, or
+    cannot be decoded, is dead-lettered so one poison message cannot stall the
+    partition. The offset is committed only once the record was handled or
+    dead-lettered — if the DLQ publish itself fails, the error propagates, the
+    offset stays uncommitted and the record is redelivered after restart.
+    """
+    message = _decode_record(record.value)
+    if message is None:
+        raw = record.value
+        await _dead_letter(
+            record,
+            value=raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else raw,
+            reason="invalid_message",
+            error="record value is not a JSON object",
+            attempts=0,
+        )
+    else:
+        error = await _handle_with_retry(
+            record, message, handler=handler, session_factory=session_factory
+        )
+        if error is not None:
+            await _dead_letter(
+                record,
+                value=message,
+                reason="handler_failed",
+                error=f"{type(error).__name__}: {error}",
+                attempts=get_settings().worker_handler_max_attempts,
+            )
+    await consumer.commit({TopicPartition(record.topic, record.partition): record.offset + 1})
+
+
+async def _consume(
+    consumer: AIOKafkaConsumer,
+    *,
+    handler: Handler,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Drain a started consumer record by record; stop it on the way out."""
+    try:
+        async for record in consumer:
+            await _process_record(
+                record, consumer=consumer, handler=handler, session_factory=session_factory
+            )
+    finally:
+        await consumer.stop()
+
+
 async def run_dossier_events_consumer(session_factory: async_sessionmaker[AsyncSession]) -> None:
     settings = get_settings()
     consumer = AIOKafkaConsumer(
         settings.kafka_dossier_events_topic,
         bootstrap_servers=settings.kafka_bootstrap_servers,
         group_id=settings.kafka_orchestrator_group_id,
-        enable_auto_commit=True,
+        enable_auto_commit=False,
         auto_offset_reset="earliest",
-        value_deserializer=lambda v: json.loads(v.decode("utf-8")),
     )
     await consumer.start()
     logger.info(
@@ -1210,23 +1448,7 @@ async def run_dossier_events_consumer(session_factory: async_sessionmaker[AsyncS
         topic=settings.kafka_dossier_events_topic,
         group_id=settings.kafka_orchestrator_group_id,
     )
-    try:
-        async for record in consumer:
-            message = record.value
-            if not isinstance(message, dict):
-                logger.warning("worker.invalid_message", raw=message)
-                continue
-            try:
-                async with session_factory() as session:
-                    await handle_dossier_event(session, message)
-            except Exception:
-                logger.exception(
-                    "worker.dossier_event_failed",
-                    event_type=message.get("event"),
-                    dossier_id=message.get("dossier_id"),
-                )
-    finally:
-        await consumer.stop()
+    await _consume(consumer, handler=handle_dossier_event, session_factory=session_factory)
 
 
 async def run_ai1_results_consumer(session_factory: async_sessionmaker[AsyncSession]) -> None:
@@ -1235,9 +1457,8 @@ async def run_ai1_results_consumer(session_factory: async_sessionmaker[AsyncSess
         settings.kafka_ai1_ocr_results_topic,
         bootstrap_servers=settings.kafka_bootstrap_servers,
         group_id=settings.kafka_backend_ai1_results_group_id,
-        enable_auto_commit=True,
+        enable_auto_commit=False,
         auto_offset_reset="earliest",
-        value_deserializer=lambda v: json.loads(v.decode("utf-8")),
         # Match broker message.max.bytes so large OCR snapshots (~1.6MB+) can be fetched.
         max_partition_fetch_bytes=10_485_760,
         fetch_max_bytes=10_485_760,
@@ -1248,34 +1469,23 @@ async def run_ai1_results_consumer(session_factory: async_sessionmaker[AsyncSess
         topic=settings.kafka_ai1_ocr_results_topic,
         group_id=settings.kafka_backend_ai1_results_group_id,
     )
-    try:
-        async for record in consumer:
-            message = record.value
-            if not isinstance(message, dict):
-                logger.warning("worker.ai1_results.invalid_message", raw=message)
-                continue
-            try:
-                async with session_factory() as session:
-                    await handle_ai1_result(session, message)
-            except Exception:
-                logger.exception(
-                    "worker.ai1_result_failed",
-                    event_type=message.get("event_type"),
-                    event_id=message.get("event_id"),
-                )
-    finally:
-        await consumer.stop()
+    await _consume(consumer, handler=handle_ai1_result, session_factory=session_factory)
 
 
 async def run_consumer() -> None:
     """Start producer + dossier_events and AI1 results consumers.
 
-    AI2 is not on Kafka: the worker submits/polls it over HTTP once every
-    document of the run has an AI1 snapshot (``_run_ai2_if_ready``).
+    AI2 is not on Kafka: the worker submits/polls it over HTTP, in background
+    tasks, once every document of the run has an AI1 snapshot
+    (``_schedule_ai2``). Runs a previous process left mid hand-off are resumed
+    on startup.
     """
+    global _session_factory, _ai2_semaphore  # noqa: PLW0603
     settings = get_settings()
     engine = create_async_engine(settings.database_url, future=True)
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    _session_factory = session_factory
+    _ai2_semaphore = asyncio.Semaphore(settings.worker_ai2_max_concurrency)
 
     await messaging.start_producer()
     logger.info(
@@ -1285,11 +1495,16 @@ async def run_consumer() -> None:
         results_topic=settings.kafka_ai1_ocr_results_topic,
     )
     try:
+        await _resume_pending_ai2(session_factory)
         await asyncio.gather(
             run_dossier_events_consumer(session_factory),
             run_ai1_results_consumer(session_factory),
         )
     finally:
+        pending = list(_ai2_tasks.values())
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
         await messaging.stop_producer()
         await engine.dispose()
         logger.info("worker.stopped")
