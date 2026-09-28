@@ -12,6 +12,7 @@ from contract_ocr.domain.enums import GeometryProvenance
 from contract_ocr.infrastructure.ocr.verified_mistral_ocr import VerifiedMistralOCREngine
 
 WIDTH, HEIGHT = 1200, 1600
+NL = chr(10)
 PARA = "4.1. Ket qua ban giao phai dam bao kha nang truy vet tu du lieu trich xuat ve"
 PARA_2 = "trang, dong hoac vung nguon tuong ung tren tai lieu."
 MONEY = "3.1. Tong gia tri hop dong la 1.286.400.000 dong theo pham vi."
@@ -236,6 +237,54 @@ def test_empty_reading_of_an_inkless_page_costs_no_fallback_call(tmp_path):
     assert result.lines == []
 
 
+# HC06 page 3 (hard_cases/Hop_dong_scan_testcase_bang_dut_doan_con_dau_v2.pdf): a
+# continuation page opening straight into a price table. mistral-ocr-2512 prints a
+# receipt caption over the blank top margin on 3/3 runs; 4-1 and GPT never see it.
+PHANTOM = "THANKS FOR SHOPPING"
+HC06_P3 = [
+    "PHU LUC 01 - BANG KHOI LUONG THIET BI (TIEP)",
+    "Kiem thu bo du lieu mau cho he thong",
+    "Tai lieu huong dan van hanh va runbook",
+]
+
+
+class FailingPageArbiter(FakeArbiter):
+    def recognize_page(self, image, context):
+        raise RuntimeError("arbiter down")
+
+
+def _phantom_engine(arbiter, verifier_markdown="\n".join(HC06_P3)):
+    return VerifiedMistralOCREngine(
+        FakeReader("\n".join([PHANTOM, *HC06_P3])), FakeReader(verifier_markdown), arbiter
+    )
+
+
+def test_text_no_ink_verifier_or_blind_page_reading_supports_is_dropped(tmp_path):
+    engine = _phantom_engine(FakeArbiter("\n".join(HC06_P3)))
+    result = engine.recognize_page(_page(HC06_P3), _ctx(tmp_path))
+    assert [line.text for line in result.lines] == HC06_P3
+    assert "ocr:dropped_unsupported_text:1" in result.warnings
+    assert PHANTOM in result.raw_markdown  # the raw reading stays auditable
+    assert not any(w.startswith("needs_review:arbiter_unavailable") for w in result.warnings)
+
+
+def test_unplaced_text_is_kept_and_flagged_when_the_arbiter_cannot_answer(tmp_path):
+    # A failed call is no evidence of absence: keep the line, ask a person.
+    engine = _phantom_engine(FailingPageArbiter("unused"))
+    result = engine.recognize_page(_page(HC06_P3), _ctx(tmp_path))
+    assert result.lines[0].text == PHANTOM
+    assert not any(w.startswith("ocr:dropped_unsupported_text") for w in result.warnings)
+
+
+def test_unplaced_text_the_verifier_also_read_is_never_dropped(tmp_path):
+    engine = _phantom_engine(
+        FakeArbiter("\n".join(HC06_P3)), verifier_markdown="\n".join([PHANTOM, *HC06_P3])
+    )
+    result = engine.recognize_page(_page(HC06_P3), _ctx(tmp_path))
+    assert PHANTOM in [line.text for line in result.lines]
+    assert not any(w.startswith("ocr:dropped_unsupported_text") for w in result.warnings)
+
+
 def test_footer_emitted_first_is_realigned_to_the_bottom_of_the_page(tmp_path):
     # Measured on the real scan: 2512 put page 4's footer above its header.
     footer = ["25/2026/HDDV-MH-TT", "Trang 4/12"]
@@ -301,3 +350,91 @@ def test_bordered_table_takes_real_cell_boxes_from_its_grid(tmp_path):
     # table rows stay in the line stream, positioned on their grid row
     row_lines = [line for line in result.lines if line.text.startswith("|")]
     assert len(row_lines) == 3 and all(line.bbox is not None for line in row_lines)
+
+
+# HC04/HC06 are typed without diacritics on purpose; every line used to fail the
+# spelling gate and went to GPT (38 lines on HC04 alone).
+UNACCENTED = [
+    "DIEU 1. NOI DUNG VA PHAM VI CONG VIEC CUA HOP DONG",
+    "Ben B cung cap thiet bi dich vu trien khai va ho tro van hanh theo bang khoi luong",
+    "Gia tri cuoi cung duoc xac dinh theo khoi luong nghiem thu va cac phu luc kem theo",
+]
+
+
+class CountingArbiter(FakeArbiter):
+    calls = 0
+
+    def read_regions(self, crops, context):
+        CountingArbiter.calls += 1
+        return super().read_regions(crops, context)
+
+    def recognize_page(self, image, context):
+        CountingArbiter.calls += 1
+        return super().recognize_page(image, context)
+
+
+def test_page_typed_without_diacritics_is_not_sent_to_gpt(tmp_path):
+    CountingArbiter.calls = 0
+    text = "\n".join(UNACCENTED)
+    engine = VerifiedMistralOCREngine(FakeReader(text), FakeReader(text), CountingArbiter(text))
+    result = engine.recognize_page(_page(UNACCENTED), _ctx(tmp_path))
+    assert [line.text for line in result.lines] == UNACCENTED
+    assert CountingArbiter.calls == 0
+    assert not any(w.startswith("needs_review:spelling") for w in result.warnings)
+
+
+def test_accent_loss_on_an_accented_page_is_still_flagged(tmp_path):
+    # One garbled line among accented ones: the page is not "typed unaccented".
+    lines = [*CLEAN_VN, GARBLED]
+    engine = VerifiedMistralOCREngine(
+        FakeReader("\n".join(lines)), FakeReader("\n".join(CLEAN_VN)), FakeArbiter("[illegible]")
+    )
+    result = engine.recognize_page(_page(["DIEU 4. YEU CAU", PARA, PARA_2, PARA]), _ctx(tmp_path))
+    assert any(w.startswith("needs_review:") for w in result.warnings)
+
+
+def test_gpt_reasoning_effort_is_sent_only_when_configured():
+    from contract_ocr.infrastructure.ocr.openai_vision_ocr import OpenAIRegionReader
+
+    assert OpenAIRegionReader(reasoning_effort="none")._reasoning() == {"reasoning_effort": "none"}
+    assert OpenAIRegionReader()._reasoning() == {}
+
+
+def test_budget_mode_skips_the_verifier_for_critical_fields_and_flags_them(tmp_path):
+    verifier = FakeReader(MONEY_VN)
+    engine = VerifiedMistralOCREngine(
+        FakeReader(MONEY_VN), verifier, FakeArbiter("unused"), budget=True
+    )
+    result = engine.recognize_page(_page([MONEY]), _ctx(tmp_path))
+    assert verifier.calls == 0
+    assert any(w.startswith("needs_review:critical_field_unverified:") for w in result.warnings)
+
+
+def test_budget_mode_never_reads_a_whole_page_with_gpt(tmp_path):
+    CountingArbiter.calls = 0
+    engine = VerifiedMistralOCREngine(
+        FakeReader("\n".join([PHANTOM, *HC06_P3])),
+        FakeReader("\n".join(HC06_P3)),
+        CountingArbiter("\n".join(HC06_P3)),
+        budget=True,
+    )
+    result = engine.recognize_page(_page(HC06_P3), _ctx(tmp_path))
+    assert CountingArbiter.calls == 0
+    # Without the full-page reading there is no proof of absence: kept and flagged.
+    assert result.lines[0].text == PHANTOM
+
+
+def test_budget_mode_does_not_pay_a_verifier_call_for_one_stray_line(tmp_path):
+    # 1 of 5 text lines has no ink to sit on: under the 25% bar.
+    lines = [*HC06_P3, "Tong cong theo bang khoi luong dinh kem"]
+    reading = NL.join([*HC06_P3, PHANTOM, *lines[3:]])
+    image = _page(lines)
+    budget_verifier, selective_verifier = FakeReader(reading), FakeReader(reading)
+    VerifiedMistralOCREngine(
+        FakeReader(reading), budget_verifier, FakeArbiter("unused"), budget=True
+    ).recognize_page(image, _ctx(tmp_path))
+    VerifiedMistralOCREngine(
+        FakeReader(reading), selective_verifier, FakeArbiter("unused"), verify_all_pages=False
+    ).recognize_page(image, _ctx(tmp_path))
+    assert budget_verifier.calls == 0
+    assert selective_verifier.calls == 1  # the accuracy-side selective mode still pays for it
