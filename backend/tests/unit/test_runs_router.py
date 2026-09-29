@@ -20,6 +20,7 @@ from contract_intelligence.extraction.domain.entities.pipeline_run import (
     PipelineRun,
     PipelineRunStatus,
 )
+from contract_intelligence.extraction.interfaces.api.routers import extraction_full_router
 from contract_intelligence.main import app
 from contract_intelligence.shared.auth.schemas import AuthenticatedUser
 from contract_intelligence.shared.exceptions import InvalidStateTransition
@@ -48,6 +49,17 @@ def _run(**overrides: object) -> PipelineRun:
     }
     base.update(overrides)
     return PipelineRun(**base)  # type: ignore[arg-type]
+
+
+@pytest.fixture(autouse=True)
+def _allow_dossier_edit(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """The dossier ACL itself is covered by test_share_permissions.py."""
+    from contract_intelligence.shared.persistence import get_async_session
+
+    app.dependency_overrides[get_async_session] = lambda: AsyncMock()
+    guard = AsyncMock()
+    monkeypatch.setattr(extraction_full_router, "require_dossier_action", guard)
+    return guard
 
 
 @pytest_asyncio.fixture

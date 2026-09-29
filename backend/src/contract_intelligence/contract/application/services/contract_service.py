@@ -225,7 +225,9 @@ class ContractService:
         *,
         name: str | None,
         metadata: dict[str, object] | None = None,
+        acl_update: bool = False,
     ) -> Dossier:
+        """``acl_update`` is set only by PUT /dossiers/{id}/access (owner/admin)."""
         dossier = await self.get_dossier(dossier_id)
         if name:
             dossier.name = name
@@ -233,11 +235,13 @@ class ContractService:
             # Metadata updates from the UI are partial. Merge them instead of
             # replacing the server-owned ACL fields. Replacing the object made
             # an otherwise visible dossier fail the fail-closed read ACL on
-            # the next structure/query request.
+            # the next structure/query request. A plain edit may never add or
+            # change ACL fields: someone shared with "edit" could otherwise
+            # grant themselves ownership.
             merged_metadata = dict(dossier.metadata or {})
             incoming_metadata = dict(metadata)
-            for key in ("created_by", "created_by_name", "access_scope", "shared_with"):
-                if key in merged_metadata:
+            if not acl_update:
+                for key in ("created_by", "created_by_name", "access_scope", "shared_with"):
                     incoming_metadata.pop(key, None)
             merged_metadata.update(incoming_metadata)
             dossier.metadata = merged_metadata

@@ -124,8 +124,14 @@ def _reviewer_user() -> AuthenticatedUser:
 
 @pytest_asyncio.fixture
 async def mock_svc() -> AsyncMock:
-    """Create a fully mocked ContractService."""
-    return AsyncMock(spec=ContractService)
+    """Create a fully mocked ContractService.
+
+    By default the dossier belongs to the operator used by ``client``, so the
+    edit/manage ACL passes; tests about other users override it.
+    """
+    svc = AsyncMock(spec=ContractService)
+    svc.get_dossier.return_value = _make_dossier(metadata={"created_by": "usr_op_01"})
+    return svc
 
 
 @pytest_asyncio.fixture
@@ -611,7 +617,7 @@ class TestRetryAi2Endpoint:
     def _dossier_with_job(**job_fields: Any) -> Dossier:
         from contract_intelligence.contract.domain.entities.job import Job
 
-        dossier = _make_dossier(id="dos_AI2_01")
+        dossier = _make_dossier(id="dos_AI2_01", metadata={"created_by": "usr_op_01"})
         dossier.jobs = [Job(id="job_AI2_01", dossier_id="dos_AI2_01", **job_fields)]
         return dossier
 
@@ -912,3 +918,97 @@ class TestSearchDossierEndpoint:
             json={"query": "abc"},
         )
         assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# PUT /api/v1/dossiers/{dossier_id}/access — permission + expiry (DOC-11 #10)
+# ---------------------------------------------------------------------------
+
+
+class TestDossierAccessPermissions:
+    @staticmethod
+    def _body(**grant: Any) -> dict[str, Any]:
+        return {
+            "scope": "shared_out",
+            "shared_with": [{"id": "usr_guest", "email": "", **grant}],
+        }
+
+    async def test_owner_stores_permission_and_utc_expiry(
+        self, client: AsyncClient, mock_svc: AsyncMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from contract_intelligence.contract.interfaces.api.routers import contract_router
+
+        monkeypatch.setattr(contract_router, "_record", AsyncMock())
+        resp = await client.put(
+            "/api/v1/dossiers/dos_TEST_01/access",
+            json=self._body(permission="read", expires_at="2099-01-01T07:00:00+07:00"),
+        )
+
+        assert resp.status_code == 200, resp.text
+        grant = resp.json()["data"]["shared_with"][0]
+        assert grant["permission"] == "read"
+        stored = mock_svc.patch_dossier.await_args.kwargs
+        assert stored["acl_update"] is True
+        assert stored["metadata"]["shared_with"][0]["expires_at"] == "2099-01-01T00:00:00+00:00"
+
+    async def test_missing_permission_keeps_edit(
+        self, client: AsyncClient, mock_svc: AsyncMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from contract_intelligence.contract.interfaces.api.routers import contract_router
+
+        monkeypatch.setattr(contract_router, "_record", AsyncMock())
+        resp = await client.put("/api/v1/dossiers/dos_TEST_01/access", json=self._body())
+        assert resp.status_code == 200
+        stored = mock_svc.patch_dossier.await_args.kwargs["metadata"]["shared_with"][0]
+        assert stored["permission"] == "edit"
+        assert stored["expires_at"] is None
+
+    async def test_rejects_expiry_in_the_past(
+        self, client: AsyncClient, mock_svc: AsyncMock
+    ) -> None:
+        resp = await client.put(
+            "/api/v1/dossiers/dos_TEST_01/access",
+            json=self._body(expires_at="2020-01-01T00:00:00Z"),
+        )
+        assert resp.status_code == 422
+        mock_svc.patch_dossier.assert_not_awaited()
+
+    async def test_rejects_unknown_permission(self, client: AsyncClient) -> None:
+        resp = await client.put(
+            "/api/v1/dossiers/dos_TEST_01/access", json=self._body(permission="owner")
+        )
+        assert resp.status_code == 422
+
+    async def test_only_owner_or_admin_changes_access(
+        self, client: AsyncClient, mock_svc: AsyncMock
+    ) -> None:
+        mock_svc.get_dossier.return_value = _make_dossier(
+            metadata={
+                "created_by": "usr_someone_else",
+                "access_scope": "shared_out",
+                "shared_with": [{"id": "usr_op_01", "permission": "edit"}],
+            }
+        )
+        resp = await client.put("/api/v1/dossiers/dos_TEST_01/access", json=self._body())
+        assert resp.status_code == 403
+        mock_svc.patch_dossier.assert_not_awaited()
+
+    async def test_read_grant_cannot_edit(
+        self, client: AsyncClient, mock_svc: AsyncMock
+    ) -> None:
+        mock_svc.get_dossier.return_value = _make_dossier(
+            metadata={
+                "created_by": "usr_someone_else",
+                "access_scope": "shared_out",
+                "shared_with": [{"id": "usr_op_01", "permission": "read"}],
+            }
+        )
+        resp = await client.patch("/api/v1/dossiers/dos_TEST_01", json={"name": "x"})
+        assert resp.status_code == 403
+        resp = await client.post("/api/v1/dossiers/dos_TEST_01/ocr")
+        assert resp.status_code == 403
+        mock_svc.patch_dossier.assert_not_awaited()
+        # Read still works.
+        mock_svc.list_documents.return_value = []
+        resp = await client.get("/api/v1/dossiers/dos_TEST_01/documents")
+        assert resp.status_code == 200

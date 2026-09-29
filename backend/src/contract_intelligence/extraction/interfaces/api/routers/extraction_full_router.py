@@ -26,6 +26,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Depends, Path, Query, Response, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from contract_intelligence.extraction.application.dtos.clause_dtos import ClauseNodeDTO
 from contract_intelligence.extraction.application.dtos.fact_effective_dtos import (
@@ -41,7 +42,10 @@ from contract_intelligence.extraction.application.dtos.table_dtos import DocTabl
 from contract_intelligence.extraction.interfaces.api.dependencies import (
     ExtractionServiceDep,
 )
+from contract_intelligence.extraction.interfaces.api.dossier_guard import require_dossier_action
+from contract_intelligence.shared.acl import AclAction
 from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user, require_role
+from contract_intelligence.shared.persistence import get_async_session
 from contract_intelligence.shared.responses import ApiMeta, ApiResponse
 
 router = APIRouter(tags=["Extraction"])
@@ -67,9 +71,13 @@ async def trigger_run(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ExtractionServiceDep,
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    session: Annotated[AsyncSession, Depends(get_async_session)],
     body: Annotated[CreateRunRequestDTO | None, Body()] = None,
 ) -> ApiResponse[PipelineRunSummaryDTO]:
     """Kích hoạt pipeline run mới (qua Kafka worker). RBAC: ADMINISTRATOR inherits OPERATOR."""
+    await require_dossier_action(
+        session, user, action=AclAction.DOSSIER_EDIT, dossier_id=dossier_id
+    )
     override = (
         body.config_override.model_dump(exclude_none=True)
         if body and body.config_override
@@ -98,7 +106,11 @@ async def reprocess_dossier(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ExtractionServiceDep,
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> ApiResponse[ReprocessAcceptedDTO]:
+    await require_dossier_action(
+        session, user, action=AclAction.DOSSIER_EDIT, dossier_id=dossier_id
+    )
     accepted = await svc.reprocess_dossier(
         dossier_id=dossier_id,
         trace_id=str(user.user_id),
@@ -185,9 +197,11 @@ async def get_run_steps(
 async def cancel_run(
     run_id: Annotated[str, Path(min_length=1)],
     svc: ExtractionServiceDep,
-    _user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> ApiResponse[PipelineRunSummaryDTO]:
     """Hủy run đang chạy. RBAC: ADMINISTRATOR inherits OPERATOR."""
+    await require_dossier_action(session, user, action=AclAction.DOSSIER_EDIT, run_id=run_id)
     run = await svc.cancel_pipeline_run(run_id)
     return ApiResponse(data=svc.to_summary(run))
 

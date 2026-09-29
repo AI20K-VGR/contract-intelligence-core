@@ -6,6 +6,7 @@ Layer: infrastructure (persistence) — concrete impl cho Dossier/Document/Job/M
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import UTC
 from typing import Any
 
 from sqlalchemy import and_, exists, func, or_, select, text
@@ -112,10 +113,16 @@ class DossierRepositoryImpl(DossierRepository):
         )
 
     def _readable_by(self, viewer_id: str, viewer_email: str = "") -> ColumnElement[bool]:
-        """Chủ hồ sơ luôn thấy. Người được chia sẻ chỉ thấy khi quyền còn hiệu lực."""
+        """Chủ hồ sơ luôn thấy. Người được chia sẻ chỉ thấy khi quyền còn hiệu lực.
+
+        A grant counts only while it is not ``disabled`` and not past
+        ``expires_at`` — the same rule as :func:`shared.acl.grant_is_live`.
+        ``expires_at`` is stored as a UTC ISO string, so text comparison orders it.
+        """
         meta = DossierORM.metadata_json
         owner = meta["created_by"].as_string()
         scope = meta["access_scope"].as_string()
+        now_iso = utcnow().astimezone(UTC).isoformat(timespec="seconds")
         shared: Any
         if self._session.bind is not None and self._session.bind.dialect.name == "sqlite":
             shared_rows = (
@@ -123,22 +130,30 @@ class DossierRepositoryImpl(DossierRepository):
                 .table_valued("key", "value")
                 .alias("share_grant")
             )
-            share_match = [func.json_extract(shared_rows.c.value, "$.id") == viewer_id]
+            grant = shared_rows.c.value
+            share_match = [func.json_extract(grant, "$.id") == viewer_id]
             if viewer_email:
                 share_match.append(
-                    func.lower(func.json_extract(shared_rows.c.value, "$.email"))
-                    == viewer_email.lower()
+                    func.lower(func.json_extract(grant, "$.email")) == viewer_email.lower()
                 )
-            shared = exists(select(1).select_from(shared_rows).where(or_(*share_match)))
+            expires = func.coalesce(func.json_extract(grant, "$.expires_at"), "")
+            live = and_(
+                func.coalesce(func.json_extract(grant, "$.status"), "") != "disabled",
+                or_(expires == "", expires > now_iso),
+            )
+            shared = exists(select(1).select_from(shared_rows).where(or_(*share_match), live))
         else:
             shared = text(
                 "EXISTS (SELECT 1 FROM json_array_elements("
                 "CASE WHEN json_typeof("
                 "COALESCE(dossier.metadata, '{}'::json)->'shared_with') = 'array' "
                 "THEN COALESCE(dossier.metadata, '{}'::json)->'shared_with' ELSE '[]'::json END"
-                ") AS share_grant WHERE share_grant->>'id' = :viewer_id"
+                ") AS share_grant WHERE (share_grant->>'id' = :viewer_id"
                 " OR (:viewer_email <> '' AND lower(share_grant->>'email') = lower(:viewer_email)))"
-            ).bindparams(viewer_id=viewer_id, viewer_email=viewer_email)
+                " AND COALESCE(share_grant->>'status', '') <> 'disabled'"
+                " AND (COALESCE(share_grant->>'expires_at', '') = ''"
+                " OR share_grant->>'expires_at' > :now_iso))"
+            ).bindparams(viewer_id=viewer_id, viewer_email=viewer_email, now_iso=now_iso)
         return or_(
             meta.is_(None),
             owner.is_(None),

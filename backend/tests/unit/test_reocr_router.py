@@ -12,6 +12,7 @@ from httpx import ASGITransport, AsyncClient
 
 from contract_intelligence.extraction.application.dtos.reocr_dtos import ReOcrRequestRecordDTO
 from contract_intelligence.extraction.application.services.reocr_service import ReOcrService
+from contract_intelligence.extraction.interfaces.api.routers import reocr_router
 from contract_intelligence.main import app
 from contract_intelligence.shared.auth.schemas import AuthenticatedUser
 
@@ -42,6 +43,17 @@ def _record(**overrides: object) -> ReOcrRequestRecordDTO:
     }
     base.update(overrides)
     return ReOcrRequestRecordDTO.model_validate(base)
+
+
+@pytest.fixture(autouse=True)
+def _allow_dossier_edit(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """The dossier ACL itself is covered by test_share_permissions.py."""
+    from contract_intelligence.shared.persistence import get_async_session
+
+    app.dependency_overrides[get_async_session] = lambda: AsyncMock()
+    guard = AsyncMock()
+    monkeypatch.setattr(reocr_router, "require_dossier_action", guard)
+    return guard
 
 
 @pytest_asyncio.fixture

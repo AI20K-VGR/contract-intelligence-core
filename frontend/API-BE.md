@@ -1088,3 +1088,39 @@ Sau upload, operator hoặc administrator xác nhận tài liệu thuộc hồ s
 | POST | `/api/v1/dossiers/{dossier_id}/manifest/confirm` | Ghi nhận xác nhận |
 
 RBAC: **OPERATOR** hoặc **ADMINISTRATOR**. `REVIEWER` nhận 403. Confirm không tạo pipeline run.
+
+## 20. Chia sẻ hồ sơ: chỉ đọc / được sửa, có hạn
+
+### `PUT /api/v1/dossiers/{dossier_id}/access`
+
+Chỉ **chủ hồ sơ** hoặc **ADMINISTRATOR** gọi được. Người khác nhận 403, kể cả khi được chia sẻ quyền `edit`.
+
+```json
+{
+  "scope": "shared_out",
+  "shared_with": [
+    {
+      "id": "usr_…",
+      "email": "a@vgr.vn",
+      "display_name": "A",
+      "permission": "read",
+      "expires_at": "2026-10-18T17:00:00+07:00"
+    }
+  ]
+}
+```
+
+| Trường | Giá trị | Ghi chú |
+|---|---|---|
+| `permission` | `read` \| `edit` | `read`: xem hồ sơ, điều khoản, fact, finding, hỏi đáp. `edit`: thêm thẩm định, chạy lại OCR/AI2, sửa hồ sơ, xác nhận manifest. **Bỏ trống thì là `edit`**, để client cũ chạy như trước. FE nên luôn gửi trường này. |
+| `expires_at` | ISO-8601 hoặc `null` | Phải ở tương lai, nếu không trả **422**. Server lưu theo UTC (`…+00:00`). `null` là không hết hạn. |
+| `status` | `invited` \| `active` \| `disabled` | `disabled` thu hồi quyền ngay. |
+
+Khi quyền hết hạn hoặc bị `disabled`:
+
+- Hồ sơ biến khỏi `GET /dossiers` của người được chia sẻ.
+- Mọi API trên hồ sơ đó trả **403**, kể cả SSE `/runs/{id}/events`.
+
+Người có quyền `read` gọi API sửa thì nhận **403**, `detail`: "Bạn chỉ có quyền xem hồ sơ này, hoặc quyền đã hết hạn." Các API sửa gồm: `PATCH /dossiers/{id}`, `POST /dossiers/{id}/ocr`, `/ai2/retry`, `/runs`, `/reprocess`, `/manifest/confirm`, `POST /runs/{id}/cancel`, `POST /documents/{id}/re-ocr` và `POST /review-items/{id}/actions`.
+
+`DELETE /dossiers/{id}` và `PUT /dossiers/{id}/access` chỉ chủ hồ sơ hoặc ADMINISTRATOR. `PATCH /dossiers/{id}` bỏ qua `created_by`, `access_scope`, `shared_with` trong `metadata`. Muốn đổi quyền thì dùng endpoint này.

@@ -25,6 +25,7 @@ import asyncio
 import json
 import time
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from io import BytesIO
 from typing import Annotated, Any, Literal
 from urllib.parse import quote
@@ -81,6 +82,7 @@ from contract_intelligence.shared.auth import (
     require_role,
 )
 from contract_intelligence.shared.auth.tenant import get_tenant_id
+from contract_intelligence.shared.base import utcnow
 from contract_intelligence.shared.exceptions import NotFoundError
 from contract_intelligence.shared.pdf import InvalidPdfError, count_pdf_pages
 from contract_intelligence.shared.persistence import get_session_factory
@@ -172,6 +174,11 @@ class AccessGrantBody(BaseModel):
     email: str = ""
     display_name: str = ""
     status: Literal["invited", "active", "disabled"] | None = None
+    # "read": xem; "edit": xem + thẩm định, chạy lại, sửa hồ sơ. Bỏ trống = "edit"
+    # (giữ hành vi cũ cho client chưa gửi trường này).
+    permission: Literal["read", "edit"] = "edit"
+    # Hết hạn thì quyền không còn tác dụng (API trả 403). None = không hết hạn.
+    expires_at: datetime | None = None
 
 
 class DossierAccessBody(BaseModel):
@@ -187,6 +194,19 @@ class DossierAccessDTO(BaseModel):
     dossier_id: str
     scope: Literal["mine", "shared_out", "shared_in"]
     shared_with: list[AccessGrantBody]
+
+
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
+
+def _stored_grant(item: AccessGrantBody) -> dict[str, Any]:
+    """Grant as kept in metadata; ``expires_at`` as UTC ISO so SQL can compare it as text."""
+    grant = item.model_dump()
+    grant["expires_at"] = (
+        _as_utc(item.expires_at).isoformat(timespec="seconds") if item.expires_at else None
+    )
+    return grant
 
 
 def _can_read_dossier(metadata: dict[str, Any] | None, user_id: str) -> bool:
@@ -224,9 +244,15 @@ async def _require_readable(
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Quyền xem hồ sơ này đã bị thu hồi.",
+            detail=_DENIED_MESSAGES.get(action, "Quyền xem hồ sơ này đã bị thu hồi."),
         )
     return dossier
+
+
+_DENIED_MESSAGES = {
+    AclAction.DOSSIER_EDIT: "Bạn chỉ có quyền xem hồ sơ này, hoặc quyền đã hết hạn.",
+    AclAction.DOSSIER_MANAGE: "Chỉ chủ hồ sơ hoặc quản trị viên được làm việc này.",
+}
 
 
 def _send_share_emails(
@@ -579,7 +605,7 @@ async def restart_dossier_ocr(
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
 ) -> ApiResponse[OcrRestartDTO]:
     """Đăng lại dossier.uploaded để worker gửi lệnh OCR."""
-    dossier = await svc.get_dossier(dossier_id)
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_EDIT)
     documents = await svc.list_documents(dossier_id)
     if not documents:
         raise HTTPException(status_code=404, detail="Dossier has no document to OCR")
@@ -624,7 +650,7 @@ async def retry_dossier_ai2(
     Chỉ nhận khi job mới nhất FAILED ở bước AI2. Worker kiểm tra lại điều kiện
     trước khi chạy (đủ snapshot OCR), rồi gửi AI2 với attempt kế tiếp.
     """
-    dossier = await svc.get_dossier(dossier_id)
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_EDIT)
     job = dossier.latest_job()
     if (
         job is None
@@ -729,7 +755,9 @@ async def delete_dossier(
     """
     dossier_name: str | None = None
     try:
-        dossier_name = (await svc.get_dossier(dossier_id)).name
+        dossier_name = (
+            await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_MANAGE)
+        ).name
     except NotFoundError:
         dossier_name = None
     result = await deletion_svc.tombstone(dossier_id, actor_user_id=user.user_id)
@@ -1107,6 +1135,7 @@ async def patch_dossier(
     """
     if body is None:
         body = DossierUpdateBody()
+    await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_EDIT)
     dossier = await svc.patch_dossier(dossier_id, name=body.name, metadata=body.metadata)
     await _record(
         tenant_id=user.tenant_id,
@@ -1138,8 +1167,19 @@ async def update_dossier_access(
     svc: ContractServiceDep,
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
 ) -> ApiResponse[DossierAccessDTO]:
-    """Đặt quyền hồ sơ. Gộp vào metadata, giữ created_by."""
-    dossier = await svc.get_dossier(dossier_id)
+    """Đặt quyền hồ sơ. Gộp vào metadata, giữ created_by.
+
+    Chỉ chủ hồ sơ hoặc ADMINISTRATOR. Mỗi người được chia sẻ có ``permission``
+    (``read``/``edit``) và ``expires_at`` tuỳ chọn (phải ở tương lai).
+    """
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_MANAGE)
+    now = utcnow()
+    for item in body.shared_with:
+        if item.expires_at is not None and _as_utc(item.expires_at) <= now:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"expires_at của {item.email or item.id} đã ở quá khứ.",
+            )
     current = dict(dossier.metadata or {})
     previous_ids = {
         str(item.get("id"))
@@ -1148,18 +1188,20 @@ async def update_dossier_access(
     }
     current.setdefault("created_by", user.user_id)
     current.setdefault("created_by_name", user.display_name)
-    grants = [] if body.scope == "mine" else [item.model_dump() for item in body.shared_with]
+    grants = [] if body.scope == "mine" else [_stored_grant(item) for item in body.shared_with]
     if body.scope == "shared_in" and user.user_id not in {item["id"] for item in grants}:
         grants.append(
             {
                 "id": user.user_id,
                 "email": user.email or "",
                 "display_name": user.display_name or "",
+                "permission": "edit",
+                "expires_at": None,
             }
         )
     current["access_scope"] = body.scope
     current["shared_with"] = grants
-    await svc.patch_dossier(dossier_id, name=None, metadata=current)
+    await svc.patch_dossier(dossier_id, name=None, metadata=current, acl_update=True)
     scope_label = "Chỉ mình tôi" if body.scope == "mine" else "Chia sẻ với người khác"
     await _record(
         tenant_id=user.tenant_id,
@@ -1264,6 +1306,7 @@ async def confirm_dossier_manifest(
     Validates version, membership, and relations; does not delete excluded
     files and does not start a pipeline run.
     """
+    await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_EDIT)
     data = await svc.confirm_manifest(dossier_id, user.user_id, body)
     await messaging.publish_event(
         "dossier_events",

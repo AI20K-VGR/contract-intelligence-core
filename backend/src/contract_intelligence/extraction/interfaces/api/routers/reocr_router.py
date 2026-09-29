@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, Path, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from contract_intelligence.extraction.application.dtos.reocr_dtos import (
     ReOcrRequestPayloadDTO,
@@ -19,7 +20,10 @@ from contract_intelligence.extraction.application.dtos.reocr_dtos import (
 from contract_intelligence.extraction.interfaces.api.dependencies_reocr import (
     ReOcrServiceDep,
 )
+from contract_intelligence.extraction.interfaces.api.dossier_guard import require_dossier_action
+from contract_intelligence.shared.acl import AclAction
 from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user, require_role
+from contract_intelligence.shared.persistence import get_async_session
 from contract_intelligence.shared.responses import ApiResponse
 
 router = APIRouter(tags=["ReOCR"])
@@ -43,8 +47,14 @@ async def create_reocr_request(
         AuthenticatedUser, Depends(require_role("OPERATOR", "REVIEWER", "ADMINISTRATOR"))
     ],
     background_tasks: BackgroundTasks,
+    session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> ApiResponse[ReOcrRequestRecordDTO]:
-    """RBAC: OPERATOR, REVIEWER, ADMINISTRATOR. OpenAPI ReOcrRequestPayload → 202."""
+    """RBAC: OPERATOR, REVIEWER, ADMINISTRATOR. OpenAPI ReOcrRequestPayload → 202.
+
+    Cần quyền sửa trên hồ sơ (chủ hoặc được chia sẻ ``edit`` còn hạn).
+    """
+    action = AclAction.REVIEW_MUTATE if user.role == "REVIEWER" else AclAction.DOSSIER_EDIT
+    await require_dossier_action(session, user, action=action, document_id=document_id)
     record = await svc.create_request(
         document_id=document_id,
         profile=body.profile,
