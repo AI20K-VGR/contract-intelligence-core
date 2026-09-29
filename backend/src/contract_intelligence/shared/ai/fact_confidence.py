@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 from difflib import SequenceMatcher
 
 # Grounding: how the fact's value appears in its cited quote.
@@ -20,6 +20,15 @@ NEAR = 0.60  # most of the value is there, not all of it
 NOT_FOUND = 0.20  # the quote does not support the value: possibly invented
 
 NEAR_MATCH_RATIO = 0.9
+# Window starts tried on each side of the anchor: absorbs a few inserted or
+# dropped characters before the longest common run.
+_ANCHOR_SLACK = 8
+# Fact values are short; a longer one is judged on its head so matching stays
+# within a few milliseconds whatever AI2 sends.
+MAX_COMPARED_CHARS = 400
+# Lines shorter than this ("b)", "10", "ngày") occur all over a page, so a
+# text match on them says nothing about where the quote came from.
+MIN_MATCH_CHARS = 12
 # AI2 flagged the fact (citation not validated etc.): never auto-accepted.
 NEEDS_REVIEW_CAP = 0.80
 
@@ -39,13 +48,25 @@ def grounding_score(value: str, quote: str) -> float:
     bare_value = _SEPARATORS.sub("", value)
     if bare_value and bare_value in _SEPARATORS.sub("", quote):
         return SEPARATORS_ONLY
-    # Best similarity against every quote window of the value's length: a
-    # scattered character overlap with a long quote does not count.
+    # Compare the value with quote windows of its own length, anchored on the
+    # longest run they share: a scattered character overlap with a long quote
+    # does not count, and only a handful of windows are ever compared.
+    value = value[:MAX_COMPARED_CHARS]
     width = len(value)
-    best = max(
-        SequenceMatcher(None, value, quote[start : start + width], autojunk=False).ratio()
-        for start in range(max(1, len(quote) - width + 1))
-    )
+    matcher = SequenceMatcher(None, value, quote, autojunk=False)
+    match = matcher.find_longest_match(0, width, 0, len(quote))
+    if match.size == 0:
+        return NOT_FOUND
+    anchor = match.b - match.a
+    best = 0.0
+    for start in range(anchor - _ANCHOR_SLACK, anchor + _ANCHOR_SLACK + 1):
+        window = quote[max(0, start) : max(0, start) + width]
+        matcher.set_seq2(window)
+        if matcher.real_quick_ratio() < NEAR_MATCH_RATIO:
+            continue
+        if matcher.quick_ratio() < NEAR_MATCH_RATIO:
+            continue
+        best = max(best, matcher.ratio())
     return NEAR if best >= NEAR_MATCH_RATIO else NOT_FOUND
 
 
@@ -65,13 +86,25 @@ def fact_confidence(
     return score
 
 
-def cited_lines(quote: str, lines: Iterable[tuple[str, float | None]]) -> list[float | None]:
-    """Confidences of the page's OCR lines the quote was taken from."""
+def cited_lines(
+    quote: str,
+    lines: Iterable[tuple[int, str, float | None]],
+    line_nos: Collection[int] = (),
+) -> list[float | None]:
+    """Confidences of the page's OCR lines the quote was taken from.
+
+    ``lines`` are ``(line_no, text, confidence)``. When the citation names its
+    lines (``line_nos``) those are used; otherwise lines are matched on text,
+    ignoring lines too short to identify the quote.
+    """
+    if line_nos:
+        return [confidence for line_no, _, confidence in lines if line_no in line_nos]
     target = _norm(quote)
     if not target:
         return []
     return [
         confidence
-        for text, confidence in lines
-        if (line := _norm(text)) and (line in target or target in line)
+        for _, text, confidence in lines
+        if (line := _norm(text))
+        and ((len(line) >= MIN_MATCH_CHARS and line in target) or target in line)
     ]
