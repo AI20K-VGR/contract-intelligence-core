@@ -4,8 +4,10 @@ on:
   push:
     branches: [main, feature/**]
     paths: ["backend/**", ".github/workflows/backend-ci.yml"]
+  # Every PR into develop or main, whatever the branch name (fix/*, docs/*, …):
+  # before, only feature/** pushes and PRs into main ran backend CI.
   pull_request:
-    branches: [main]
+    branches: [main, develop]
     paths: ["backend/**", ".github/workflows/backend-ci.yml"]
 
 env:
