@@ -117,6 +117,24 @@ class Settings(BaseSettings):
             "(pymupdf | openai | gemini | mistral)."
         ),
     )
+    kafka_max_message_bytes: int = Field(
+        default=10_485_760,
+        ge=1_048_576,
+        description=(
+            "Largest Kafka record the backend sends or fetches (producer "
+            "max_request_size, consumer fetch sizes). Keep equal to the broker's "
+            "message.max.bytes."
+        ),
+    )
+    kafka_dead_letter_max_value_bytes: int = Field(
+        default=262_144,
+        ge=0,
+        description=(
+            "A dead-lettered record keeps its value only up to this size; a larger "
+            "one is parked as a pointer (topic/partition/offset + size + sha256) "
+            "so the DLQ publish itself cannot exceed the message limit."
+        ),
+    )
     kafka_dead_letter_suffix: str = Field(
         default=".dlq",
         description=(

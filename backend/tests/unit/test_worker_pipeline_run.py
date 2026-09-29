@@ -305,6 +305,9 @@ async def test_ocr_result_after_timeout_does_not_revive_the_job(
     job = await _job(factory)
     assert job.status == "failed" and job.error_code == "AI1_TIMEOUT"
     assert ai2_ready.call_count == 0
+    late = await _audits(factory, "ai1.late_result")
+    assert [a.run_id for a in late] == [run_id, run_id]
+    assert all('"job_error_code": "AI1_TIMEOUT"' in (a.detail or "") for a in late)
 
 
 @pytest.mark.asyncio

@@ -1185,6 +1185,29 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
         return
 
     if not _worker_transition_allowed(job_status, JobStatus.EXTRACTED.value):
+        if job_status == JobStatus.FAILED.value:
+            # Typically AI1_TIMEOUT: the pages were OCR'd (and paid for) after the
+            # watchdog gave up. Operators need to see it to decide on a rerun.
+            add_audit_event(
+                session,
+                tenant_id=tenant_id,
+                action="ai1.late_result",
+                entity_type="job",
+                entity_id=job.id,
+                dossier_id=dossier_id,
+                run_id=run_id,
+                from_state=job_status,
+                to_state=job_status,
+                detail={**base_audit, "job_error_code": job.error_code},
+            )
+            await session.commit()
+            logger.warning(
+                "worker.ai1_result.late",
+                event_id=event_id,
+                run_id=run_id,
+                job_error_code=job.error_code,
+            )
+            return
         logger.info(
             "worker.ai1_result.job_not_extracting",
             event_id=event_id,
@@ -1545,23 +1568,33 @@ def _record_key(record: Any) -> str | None:
 
 
 async def _dead_letter(record: Any, *, value: Any, reason: str, error: str, attempts: int) -> None:
-    """Park ``record`` on ``<topic><suffix>`` so it no longer blocks its partition."""
-    topic = f"{record.topic}{get_settings().kafka_dead_letter_suffix}"
-    await messaging.publish_event(
-        topic,
-        {
-            "event": "worker.dead_letter",
-            "source_topic": record.topic,
-            "partition": record.partition,
-            "offset": record.offset,
-            "reason": reason,
-            "error": error[:2000],
-            "attempts": attempts,
-            "failed_at": _utcnow_iso(),
-            "value": value,
-        },
-        key=_record_key(record),
-    )
+    """Park ``record`` on ``<topic><suffix>`` so it no longer blocks its partition.
+
+    Small values are copied into the DLQ message. A large one (an AI1 result can
+    be MBs) is parked as a pointer — source topic/partition/offset plus size and
+    sha256 — so the DLQ publish cannot itself exceed the message limit and leave
+    the partition stuck; the original stays readable at that offset.
+    """
+    settings = get_settings()
+    topic = f"{record.topic}{settings.kafka_dead_letter_suffix}"
+    raw = record.value if isinstance(record.value, bytes) else b""
+    parked: dict[str, Any] = {
+        "event": "worker.dead_letter",
+        "source_topic": record.topic,
+        "partition": record.partition,
+        "offset": record.offset,
+        "reason": reason,
+        "error": error[:2000],
+        "attempts": attempts,
+        "failed_at": _utcnow_iso(),
+        "value_bytes": len(raw),
+        "value_sha256": hashlib.sha256(raw).hexdigest(),
+    }
+    if len(raw) <= settings.kafka_dead_letter_max_value_bytes:
+        parked["value"] = value
+    else:
+        parked["value_omitted"] = True
+    await messaging.publish_event(topic, parked, key=_record_key(record))
     logger.error(
         "worker.record_dead_lettered",
         topic=record.topic,
@@ -1690,9 +1723,9 @@ async def run_ai1_results_consumer(session_factory: async_sessionmaker[AsyncSess
         group_id=settings.kafka_backend_ai1_results_group_id,
         enable_auto_commit=False,
         auto_offset_reset="earliest",
-        # Match broker message.max.bytes so large OCR snapshots (~1.6MB+) can be fetched.
-        max_partition_fetch_bytes=10_485_760,
-        fetch_max_bytes=10_485_760,
+        # Match broker message.max.bytes so large OCR snapshots can be fetched.
+        max_partition_fetch_bytes=settings.kafka_max_message_bytes,
+        fetch_max_bytes=settings.kafka_max_message_bytes,
     )
     await consumer.start()
     logger.info(

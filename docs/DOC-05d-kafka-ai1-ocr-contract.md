@@ -146,10 +146,17 @@ Backend: `adapt_ai1_snapshot_result(payload["result"])` → `persist_ai1_snapsho
 - Transient errors (MinIO timeout): do not commit → Kafka redelivery.
 - Permanent OCR failures: publish `ai1.ocr.failed`, then commit.
 - Backend results consumer: idempotent on `(document_id, task_id, attempt_id)` / `job_id`.
-- No dedicated DLQ in this phase; failed events + logs are enough for integration tests.
+- AI1: no dedicated DLQ in this phase; failed events + logs are enough for integration tests.
 - Message size: broker + AI1 producer allow **10 MiB** (`message.max.bytes` /
-  `max_request_size=10485760`) so OCR snapshot results (~1.6MB+) fit. Backend
-  results consumer uses matching `max_partition_fetch_bytes` / `fetch_max_bytes`.
+  `max_request_size=10485760`). Backend results consumer uses matching
+  `max_partition_fetch_bytes` / `fetch_max_bytes` (`KAFKA_MAX_MESSAGE_BYTES`).
+  Measured OCR snapshot size is **~71 KiB per page** (202 pages → 14.3 MB), so an
+  inline result fits only up to **~144 pages**. Larger dossiers fail with
+  `MessageSizeTooLargeError` on the AI1 side until OCR results move to MinIO and
+  Kafka carries only a URI (DOC-11 §2, §4.2 #2).
+- Backend dead-letter topics (`<topic>.dlq`) copy a record's value only up to
+  `KAFKA_DEAD_LETTER_MAX_VALUE_BYTES` (256 KiB); a larger record is parked as
+  source topic/partition/offset + `value_bytes` + `value_sha256`.
 
 ## 7. Environment variables
 

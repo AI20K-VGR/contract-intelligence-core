@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 from collections.abc import AsyncGenerator, Iterator
 from types import SimpleNamespace
@@ -148,6 +149,32 @@ async def test_persistent_failure_is_dead_lettered_then_committed(
     assert "still broken" in payload["error"]
     assert payload["value"] == {"event": "dossier.uploaded", "dossier_id": "dos_1"}
     assert dlq.kwargs["key"] == "dos_1"
+    assert _committed_offset(consumer) == 42
+
+
+@pytest.mark.asyncio
+async def test_large_failed_record_is_parked_as_a_pointer(
+    factory: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An AI1 result of several MB must not be copied into the DLQ message."""
+    monkeypatch.setattr(get_settings(), "kafka_dead_letter_max_value_bytes", 64)
+    raw = json.dumps({"event": "ocr", "text": "Điều 1. Hợp đồng " * 50}).encode()
+    consumer = _consumer()
+
+    await worker._process_record(
+        _record(raw),
+        consumer=consumer,
+        handler=AsyncMock(side_effect=RuntimeError("boom")),
+        session_factory=factory,
+    )
+
+    (dlq,) = _dlq_calls()
+    payload = dlq.args[1]
+    assert "value" not in payload
+    assert payload["value_omitted"] is True
+    assert payload["value_bytes"] == len(raw)
+    assert payload["value_sha256"] == hashlib.sha256(raw).hexdigest()
+    assert (payload["source_topic"], payload["partition"], payload["offset"]) == (TOPIC, 2, 41)
     assert _committed_offset(consumer) == 42
 
 
