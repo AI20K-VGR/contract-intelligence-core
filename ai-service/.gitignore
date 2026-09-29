@@ -22,3 +22,9 @@ data/manifest.csv
 reports/*
 !reports/.gitkeep
 !reports/README.md
+# The test-contract benchmark write-ups are shared; its images and raw results stay local.
+!reports/benchmark/
+reports/benchmark/*
+!reports/benchmark/test-contract/
+reports/benchmark/test-contract/*
+!reports/benchmark/test-contract/*.md
