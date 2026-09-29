@@ -10,11 +10,14 @@ See ``docs/DOC-05d-kafka-ai1-ocr-contract.md``.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
 from datetime import UTC, datetime
 from typing import Any
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 
@@ -33,6 +36,12 @@ SCHEMA_VERSION = "ci.kafka.v1"
 EVENT_COMMAND = "ai1.ocr.command"
 EVENT_COMPLETED = "ai1.ocr.completed"
 EVENT_FAILED = "ai1.ocr.failed"
+
+# The producer's cap, and the largest result still sent inline when the upload to
+# the backend's result_target fails (an inline OCR result costs ~71 KiB per page).
+MAX_MESSAGE_BYTES = 10_485_760  # 10 MiB
+# Room left in a message for the envelope around an inline result.
+_ENVELOPE_ALLOWANCE = 64 * 1024
 
 # In-process idempotency for at-least-once redelivery (event_id → result envelope).
 _processed: dict[str, dict[str, Any]] = {}
@@ -64,6 +73,53 @@ def _build_result_envelope(
     }
 
 
+def _encode(value: Any) -> bytes:
+    # UTF-8, not \uXXXX escapes: Vietnamese text would take ~20% more bytes.
+    return json.dumps(value, ensure_ascii=False, default=str).encode("utf-8")
+
+
+def _put_result(put_url: str, body: bytes, content_type: str) -> None:
+    request = Request(put_url, data=body, method="PUT", headers={"Content-Type": content_type})
+    with urlopen(request, timeout=120):  # noqa: S310 - backend supplies a presigned URL
+        pass
+
+
+def _deliver_result(
+    result: dict[str, Any], result_target: Any
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
+    """Upload ``result`` to the backend's target (DOC-05d); return (inline, ref, error).
+
+    Without a target the result stays inline. When the upload fails, a result
+    that still fits a Kafka message is sent inline; a larger one fails the job
+    here instead of breaking on the producer's size limit.
+    """
+    if not isinstance(result_target, dict):
+        return result, None, None
+    put_url = str(result_target.get("put_url") or "")
+    uri = str(result_target.get("uri") or "")
+    if not put_url or not uri:
+        return result, None, None
+    body = _encode(result)
+    try:
+        _put_result(put_url, body, str(result_target.get("content_type") or "application/json"))
+    except (OSError, URLError) as exc:
+        logger.warning(
+            "ai1.kafka.result_upload_failed bytes=%d error=%s", len(body), type(exc).__name__
+        )
+        if len(body) <= MAX_MESSAGE_BYTES - _ENVELOPE_ALLOWANCE:
+            return result, None, None
+        return (
+            None,
+            None,
+            {
+                "code": "AI1_RESULT_UPLOAD_FAILED",
+                "message": f"result of {len(body)} bytes could not be uploaded: {exc}"[:500],
+            },
+        )
+    ref = {"uri": uri, "sha256": hashlib.sha256(body).hexdigest(), "bytes": len(body)}
+    return None, ref, None
+
+
 def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
     """Synchronously process one OCR command; return the result envelope."""
     event_id = str(message.get("event_id") or "")
@@ -93,6 +149,13 @@ def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
     status = str(job.get("status") or "failed")
     engine = str(request.options.get("engine", "pymupdf"))
     pages = len(request.pages_to_process)
+    result, result_ref, error = job.get("result"), None, job.get("error")
+    if status == "completed" and isinstance(result, dict):
+        result, result_ref, upload_error = _deliver_result(
+            result, request.options.get("result_target")
+        )
+        if upload_error is not None:
+            status, error = "failed", upload_error
     result_payload = {
         "job_id": job["job_id"],
         "kind": job.get("kind", "ocr"),
@@ -102,10 +165,12 @@ def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
         "created_at": job.get("created_at"),
         "updated_at": job.get("updated_at"),
         "finished_at": job.get("finished_at"),
-        "result": job.get("result"),
-        "error": job.get("error"),
+        "result": result,
+        "error": error,
         "usage": {"engine": engine, "pages": pages},
     }
+    if result_ref is not None:
+        result_payload["result_ref"] = result_ref
     event_type = EVENT_COMPLETED if status == "completed" else EVENT_FAILED
     envelope = _build_result_envelope(
         event_type=event_type,
@@ -133,8 +198,9 @@ async def run_worker() -> None:
     )
     producer = AIOKafkaProducer(
         bootstrap_servers=bootstrap,
-        # OCR snapshot results can exceed the default 1 MiB broker/client limit.
-        max_request_size=10_485_760,  # 10 MiB
+        # Inline OCR results can exceed the default 1 MiB broker/client limit;
+        # larger ones go to MinIO by reference (_deliver_result).
+        max_request_size=MAX_MESSAGE_BYTES,
     )
     await consumer.start()
     await producer.start()
@@ -163,7 +229,7 @@ async def run_worker() -> None:
                 envelope = await asyncio.to_thread(_handle_command, message)
                 await producer.send_and_wait(
                     results_topic,
-                    json.dumps(envelope, default=str).encode("utf-8"),
+                    _encode(envelope),
                     key=key,
                 )
                 await consumer.commit()
@@ -201,7 +267,7 @@ async def run_worker() -> None:
                     # re-raise. Here we treat as permanent after publish.
                     await producer.send_and_wait(
                         results_topic,
-                        json.dumps(failed, default=str).encode("utf-8"),
+                        _encode(failed),
                         key=key,
                     )
                     await consumer.commit()

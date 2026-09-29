@@ -432,15 +432,6 @@ export function CitationEditPage() {
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <MaterialIcon
-                  name="verified"
-                  className="text-[16px] text-[#059669]"
-                />
-                <span className="font-label-sm text-label-sm text-[#059669] font-semibold">
-                  Độ tin cậy: 98.4%
-                </span>
-              </div>
             </div>
 
             <div className="flex items-center justify-between bg-surface-container-low p-1 rounded gap-space-sm flex-wrap">

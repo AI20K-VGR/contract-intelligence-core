@@ -46,6 +46,7 @@ from contract_ocr.domain.critical_fields import amount_words_mismatch, critical_
 from contract_ocr.domain.entities import Cell, Context, Line, OCRResult, Row, Table
 from contract_ocr.domain.enums import GeometryProvenance
 from contract_ocr.domain.headings import is_annex_heading
+from contract_ocr.domain.ocr_confidence import line_text_confidence
 from contract_ocr.domain.reading_agreement import disputes, implausible, tokens
 from contract_ocr.domain.vn_text import char_skeleton, diacritic_density, line_issues, skeleton
 from contract_ocr.infrastructure.image.line_geometry import (
@@ -84,6 +85,7 @@ _ACCENT_ISSUES = frozenset({"LOW_DIACRITIC_DENSITY", "MISSING_VOWEL_MODIFIER"})
 # A full-page arbiter reading shorter than this is too thin to prove a line absent.
 MIN_PAGE_READING_CHARS = 40
 TRUSTED = (GeometryProvenance.MEASURED, GeometryProvenance.DERIVED)
+_FALLBACK_TEXT_WARNINGS = ("ocr:text_reader_fallback", "ocr:text_reader_empty_fallback")
 
 
 @dataclass
@@ -94,6 +96,8 @@ class _Segment:
     bbox: BBox | None = None
     provenance: GeometryProvenance | None = None
     review: list[str] = field(default_factory=list)
+    # A blind arbiter reading was obtained for it (see `_arbitrate`).
+    arbitrated: bool = False
     # Text no evidence supports (see `_unsupported`): left out of the output.
     dropped: bool = False
 
@@ -432,7 +436,14 @@ class VerifiedMistralOCREngine(OCREngine):
                     }
                 )
 
-        return self._result(context, [segments[i] for i in output_order], md_tables, read, warnings)
+        # The verifier only corroborates text the primary reader produced; a
+        # fallback transcription is not independent of it.
+        verified = second is not None and not any(
+            w.startswith(_FALLBACK_TEXT_WARNINGS) for w in warnings
+        )
+        return self._result(
+            context, [segments[i] for i in output_order], md_tables, read, warnings, verified
+        )
 
     # -- reading order ---------------------------------------------------------
 
@@ -831,6 +842,7 @@ class VerifiedMistralOCREngine(OCREngine):
                 else:
                     segment.review.append("arbiter_unavailable")
                 continue
+            segment.arbitrated = True
             same_text = fuzz.ratio(skeleton(candidate), skeleton(segment.text)) >= MIN_SAME_TEXT_RATIO
             mine, theirs = critical_tokens(segment.text), critical_tokens(candidate)
             if (mine or theirs) and mine != theirs:
@@ -994,6 +1006,7 @@ class VerifiedMistralOCREngine(OCREngine):
         md_tables: list[_MarkdownTable],
         read: OCRResult,
         warnings: list[str],
+        verified: bool,
     ) -> OCRResult:
         prefix = f"{context.document_id}-p{context.page:03d}"
         lines: list[Line] = []
@@ -1009,6 +1022,9 @@ class VerifiedMistralOCREngine(OCREngine):
                 Line(
                     line_id=line_id,
                     text=segment.text,
+                    confidence=line_text_confidence(
+                        verified=verified, arbitrated=segment.arbitrated, review=segment.review
+                    ),
                     bbox=segment.bbox,
                     geometry_provenance=segment.provenance if segment.bbox else None,
                 )

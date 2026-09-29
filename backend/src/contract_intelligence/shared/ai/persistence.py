@@ -23,12 +23,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
 import structlog
-from sqlalchemy import delete, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from contract_intelligence.extraction.infrastructure.persistence.orm import (
@@ -40,8 +41,10 @@ from contract_intelligence.extraction.infrastructure.persistence.orm import (
     PageORM,
     PipelineRunORM,
     PipelineStepORM,
+    stored_line_confidence,
 )
 from contract_intelligence.shared.ai.citation_guard import verify_citation
+from contract_intelligence.shared.ai.fact_confidence import cited_lines, fact_confidence
 from contract_intelligence.shared.ai.schemas import (
     Ai1SnapshotPayload,
     Ai2ComparisonPayload,
@@ -339,7 +342,7 @@ async def persist_ai1_snapshot(
             line_no=line.line_no,
             text=line.text,
             bbox=json.dumps(list(line.bbox)),
-            confidence=str(line.confidence),
+            confidence=str(line.confidence) if line.confidence is not None else None,
             doc_char_start=line.doc_char_start,
             doc_char_end=line.doc_char_end,
         )
@@ -856,6 +859,40 @@ def _context_findings_as_items(
     return items
 
 
+# AI1 snapshot line ids end in ``:p<page>:l<line>``, numbered per page exactly
+# like ``ocr_line.line_no`` (see ``ai1_adapter``).
+_AI1_LINE_ID = re.compile(r":p(\d+):l(\d+)$")
+
+
+def _cited_line_numbers(raw_line_ids: Any) -> dict[int, set[int]]:
+    """{page_no: {line_no}} named by a citation's AI1 ``line_ids``."""
+    numbers: dict[int, set[int]] = {}
+    for line_id in raw_line_ids if isinstance(raw_line_ids, list) else []:
+        match = _AI1_LINE_ID.search(str(line_id))
+        if match:
+            numbers.setdefault(int(match[1]), set()).add(int(match[2]))
+    return numbers
+
+
+async def _page_line_confidences(
+    session: AsyncSession, tenant_id: str, document_id: str, page_no: int
+) -> list[tuple[int, str, float | None]]:
+    """(line_no, text, OCR confidence) of every line on one page; None when unknown."""
+    if page_no <= 0:
+        return []
+    rows = await session.execute(
+        select(OcrLineORM.line_no, OcrLineORM.text, OcrLineORM.confidence).where(
+            OcrLineORM.tenant_id == tenant_id,
+            OcrLineORM.document_id == document_id,
+            OcrLineORM.page_no == page_no,
+        )
+    )
+    return [
+        (line_no, line_text, stored_line_confidence(confidence))
+        for line_no, line_text, confidence in rows.all()
+    ]
+
+
 def _canonical_citation_item(raw: dict[str, Any]) -> CitationItem:
     """Map one canonical AI2 citation to the legacy DB persistence DTO."""
 
@@ -929,6 +966,14 @@ async def persist_ai2_processing_result(
         if isinstance(item, dict) and item.get("citation_id")
     }
     facts_by_document: dict[str, list[FactItem]] = {}
+    page_lines: dict[tuple[str, int], list[tuple[int, str, float | None]]] = {}
+
+    async def lines_of(document_id: str, page_no: int) -> list[tuple[int, str, float | None]]:
+        key = (document_id, page_no)
+        if key not in page_lines:
+            page_lines[key] = await _page_line_confidences(session, tenant_id, document_id, page_no)
+        return page_lines[key]
+
     for raw_fact in body.get("facts", []):
         if not isinstance(raw_fact, dict):
             continue
@@ -948,6 +993,24 @@ async def persist_ai2_processing_result(
             normalized = {"value": raw_fact.get("raw_value")}
         elif not isinstance(normalized, dict):
             normalized = {"value": normalized}
+        cited = citation or {}
+        quote = str(cited.get("text_span") or "")
+        line_confidences: list[float | None] = []
+        cited_numbers = _cited_line_numbers(cited.get("line_ids"))
+        if cited_numbers:
+            for page_no, line_nos in cited_numbers.items():
+                line_confidences += cited_lines(
+                    quote, await lines_of(document_id, page_no), line_nos
+                )
+        else:
+            page_no = int(cited.get("page") or (cited.get("page_range") or [0])[0] or 0)
+            line_confidences = cited_lines(quote, await lines_of(document_id, page_no))
+        confidence = fact_confidence(
+            value=str(raw_fact.get("raw_value") or ""),
+            quote=quote,
+            review_passed=raw_fact.get("review_state") == "PASS",
+            line_confidences=line_confidences,
+        )
         facts_by_document.setdefault(document_id, []).append(
             FactItem(
                 key=str(
@@ -956,7 +1019,7 @@ async def persist_ai2_processing_result(
                 fact_type=str(raw_fact.get("role") or raw_fact.get("subject") or "unknown"),
                 raw_text=str(raw_fact.get("raw_value") or ""),
                 normalized_value=normalized,
-                confidence=1.0 if raw_fact.get("review_state") == "PASS" else 0.6,
+                confidence=confidence,
                 extractor=str(raw_fact.get("provenance") or "ai2.canonical"),
                 context_text=None,
                 citation=_canonical_citation_item(citation or {}),

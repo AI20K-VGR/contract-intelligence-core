@@ -2,6 +2,14 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { loadDocumentPdf, type ClauseNode } from '../api/structure'
+import {
+  confidenceBadgeClasses,
+  confidenceBoxClasses,
+  confidenceLabels,
+  confidenceLevel,
+  formatConfidence,
+  needsReview,
+} from '../structure/confidence'
 import { MaterialIcon } from './icons'
 
 GlobalWorkerOptions.workerSrc = workerUrl
@@ -97,6 +105,7 @@ export function CitationPane({
     const area = Math.max(0, x1 - x0) * Math.max(0, y1 - y0)
     return area > 0 && area <= 1
   })
+  const reviewCount = boxes.filter((region) => needsReview(region.confidence)).length
 
   return (
     <aside
@@ -116,6 +125,11 @@ export function CitationPane({
             <p className="truncate text-xs text-secondary">
               Trang {pageNo}
               {boxes.length === 0 ? ' · không có vùng tô' : ' · vùng trích dẫn được khoanh'}
+              {reviewCount > 0 ? (
+                <span className="font-semibold text-red-700">
+                  {` · ${reviewCount} vùng cần review`}
+                </span>
+              ) : null}
             </p>
           </div>
         </div>
@@ -159,18 +173,32 @@ export function CitationPane({
           className={`relative mx-auto w-full max-w-3xl bg-white shadow ${ready ? '' : 'hidden'}`}
         >
           <canvas ref={canvasRef} className="block h-auto w-full" />
-          {boxes.map((region, index) => (
-            <div
-              key={`${region.pageNo}-${index}`}
-              className="pointer-events-none absolute border-2 border-amber-500 bg-amber-300/40"
-              style={{
-                left: `${region.bbox[0] * 100}%`,
-                top: `${region.bbox[1] * 100}%`,
-                width: `${(region.bbox[2] - region.bbox[0]) * 100}%`,
-                height: `${(region.bbox[3] - region.bbox[1]) * 100}%`,
-              }}
-            />
-          ))}
+          {boxes.map((region, index) => {
+            const confidence = region.confidence ?? null
+            const level = confidence === null ? null : confidenceLevel(confidence)
+            return (
+              <div
+                key={`${region.pageNo}-${index}`}
+                className={`pointer-events-none absolute border-2 ${
+                  level ? confidenceBoxClasses[level] : 'border-amber-500 bg-amber-300/40'
+                }`}
+                style={{
+                  left: `${region.bbox[0] * 100}%`,
+                  top: `${region.bbox[1] * 100}%`,
+                  width: `${(region.bbox[2] - region.bbox[0]) * 100}%`,
+                  height: `${(region.bbox[3] - region.bbox[1]) * 100}%`,
+                }}
+              >
+                {level && confidence !== null ? (
+                  <span
+                    className={`absolute bottom-full left-0 mb-px whitespace-nowrap rounded-sm px-1 text-[10px] font-semibold leading-4 ${confidenceBadgeClasses[level]}`}
+                  >
+                    OCR {formatConfidence(confidence)} · {confidenceLabels[level]}
+                  </span>
+                ) : null}
+              </div>
+            )
+          })}
         </div>
       </div>
     </aside>

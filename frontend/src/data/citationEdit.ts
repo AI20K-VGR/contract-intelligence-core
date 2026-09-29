@@ -15,7 +15,7 @@ export const editCitations: EditCitation[] = [
     title: 'Khoản 5.2 - Hạn mức chi phí phát sinh',
     meta: 'Trang 04 • Đoạn văn thứ 2 • Mục Chi phí dự toán',
     status: 'active',
-    statusLabel: 'Độ tin cậy: 98.4%',
+    statusLabel: 'Đang thẩm định',
   },
   {
     id: '02',

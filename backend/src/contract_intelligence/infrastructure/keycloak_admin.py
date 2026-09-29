@@ -217,6 +217,16 @@ def _translate_keycloak_error(exc: Exception, *, email: str | None = None) -> Us
             return EmailExistsError(email or "unknown")
         if code in (404,):
             return UserNotFoundError("unknown")
+        if code in (401, 403):
+            # Service account "contract-intel-backend" thiếu client role của
+            # realm-management (manage-users để tạo/sửa user).
+            return UserAdminError(
+                "keycloak_forbidden",
+                "Keycloak từ chối thao tác: service account contract-intel-backend "
+                "thiếu quyền realm-management (manage-users).",
+                status_code=502,
+                details={"response_code": code},
+            )
         if code in (502, 503) or _EMAIL_CONFIG_RE.search(combined):
             # SMTP misconfig often surfaces as 500/502 with mail wording.
             if _EMAIL_CONFIG_RE.search(combined):
