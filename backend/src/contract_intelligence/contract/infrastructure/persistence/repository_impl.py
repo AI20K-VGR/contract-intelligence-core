@@ -42,6 +42,7 @@ from contract_intelligence.contract.infrastructure.persistence.orm import (
     ManifestRelationORM,
 )
 from contract_intelligence.shared.base import Page, new_ulid, utcnow
+from contract_intelligence.shared.run_events import record_run_event
 
 
 def _coerce_int(value: object, default: int = 0) -> int:
@@ -279,6 +280,15 @@ class DossierRepositoryImpl(DossierRepository):
             ),
             params,
         )
+        live_runs = await self._session.execute(
+            text(
+                "SELECT id FROM pipeline_run "
+                "WHERE dossier_id = :id AND tenant_id = :tenant_id "
+                "AND status IN ('queued', 'running')"
+            ),
+            params,
+        )
+        cancelled_run_ids = list(live_runs.scalars())
         await self._session.execute(
             text(
                 "UPDATE pipeline_run SET status = 'cancelled' "
@@ -287,6 +297,21 @@ class DossierRepositoryImpl(DossierRepository):
             ),
             params,
         )
+        # Raw SQL skips the run_event flush hook: close open SSE streams by hand.
+        for run_id in cancelled_run_ids:
+            record_run_event(
+                self._session,
+                tenant_id=self._tenant_id,
+                run_id=run_id,
+                dossier_id=dossier_id,
+                type="run.status_changed",
+                payload={
+                    "run_id": run_id,
+                    "dossier_id": dossier_id,
+                    "status": "cancelled",
+                    "error_code": "DOSSIER_DELETED",
+                },
+            )
         return True
 
     async def has_deletion(self, dossier_id: str) -> bool:

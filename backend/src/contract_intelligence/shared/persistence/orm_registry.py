@@ -22,6 +22,7 @@ def import_all_models() -> None:
     import contract_intelligence.admin.activity_feed  # noqa: F401
     import contract_intelligence.shared.audit  # noqa: F401
     import contract_intelligence.shared.query_policy  # noqa: F401
+    import contract_intelligence.shared.run_events  # noqa: F401
     # isort: on
 
 
