@@ -635,6 +635,58 @@ _AI2_RETRYABLE_ERRORS = frozenset({"AI2_PROCESSING_FAILED", "AI2_TIMEOUT"})
 
 
 @router.post(
+    "/dossiers/{dossier_id}/ocr/retry-failed",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ApiResponse[OcrRestartDTO],
+    summary="Chạy lại OCR chỉ cho tài liệu lỗi; tài liệu đã xong được giữ",
+    responses={
+        404: {"description": "Dossier not found"},
+        409: {"description": "Latest job did not fail at the OCR step"},
+    },
+)
+async def retry_failed_dossier_ocr(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+) -> ApiResponse[OcrRestartDTO]:
+    """Mở run mới mang theo kết quả OCR của các tài liệu đã xong ở run lỗi.
+
+    Worker chỉ gửi lệnh OCR cho tài liệu còn thiếu. Nếu mọi tài liệu đã có kết
+    quả (kết quả tới sau khi run lỗi cũng được giữ), run chuyển thẳng sang AI2.
+    Chỉ nhận khi job mới nhất FAILED ở bước OCR; lỗi AI2 dùng ``/ai2/retry``.
+    """
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_EDIT)
+    job = dossier.latest_job()
+    if (
+        job is None
+        or job.current_run_id is None
+        or job.status != JobStatus.FAILED
+        or job.error_code in _AI2_RETRYABLE_ERRORS
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Chỉ chạy lại phần lỗi khi hồ sơ lỗi ở bước OCR; lỗi AI2 dùng chạy lại AI2.",
+        )
+    await messaging.publish_event(
+        "dossier_events",
+        {
+            "event": "dossier.uploaded",
+            "dossier_id": str(dossier_id),
+            "restart": True,
+            "retry_failed": True,
+        },
+    )
+    await _record(
+        tenant_id=user.tenant_id,
+        title=f"Chạy lại phần OCR lỗi của hồ sơ {dossier.name}",
+        actor_display_name=user.email or user.display_name,
+        detail=None,
+        kind="dossier.ocr_retry_failed",
+    )
+    return ApiResponse(data=OcrRestartDTO(dossier_id=dossier_id, status="queued"))
+
+
+@router.post(
     "/dossiers/{dossier_id}/ai2/retry",
     status_code=status.HTTP_202_ACCEPTED,
     response_model=ApiResponse[OcrRestartDTO],
