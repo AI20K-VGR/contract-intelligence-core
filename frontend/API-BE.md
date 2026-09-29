@@ -1124,3 +1124,40 @@ Khi quyền hết hạn hoặc bị `disabled`:
 Người có quyền `read` gọi API sửa thì nhận **403**, `detail`: "Bạn chỉ có quyền xem hồ sơ này, hoặc quyền đã hết hạn." Các API sửa gồm: `PATCH /dossiers/{id}`, `POST /dossiers/{id}/ocr`, `/ai2/retry`, `/runs`, `/reprocess`, `/manifest/confirm`, `POST /runs/{id}/cancel`, `POST /documents/{id}/re-ocr` và `POST /review-items/{id}/actions`.
 
 `DELETE /dossiers/{id}` và `PUT /dossiers/{id}/access` chỉ chủ hồ sơ hoặc ADMINISTRATOR. `PATCH /dossiers/{id}` bỏ qua `created_by`, `access_scope`, `shared_with` trong `metadata`. Muốn đổi quyền thì dùng endpoint này.
+
+## 23. Tách file trộn (hợp đồng + phụ lục trong một PDF)
+
+**Bước 1: tải lên nhưng chưa xử lý.** `POST /api/v1/dossiers` như cũ, thêm `"split_pending": true` vào `metadata`:
+
+```json
+{ "name": "Hợp đồng kèm phụ lục", "split_pending": true }
+```
+
+Backend lưu file nhưng **chưa gửi OCR**, để không trang nào bị OCR hai lần.
+
+**Bước 2: người dùng xác nhận khoảng trang và vai trò.** `POST /api/v1/dossiers/{dossier_id}/split` → **202**
+
+```json
+{
+  "document_id": "doc_… (file vừa tải)",
+  "parts": [
+    { "page_start": 1, "page_end": 6, "role": "contract" },
+    { "page_start": 7, "page_end": 10, "role": "annex" }
+  ]
+}
+```
+
+- Mỗi phần thành **một tài liệu riêng** (PDF cắt từ file gốc). File gốc bị bỏ.
+- Vai trò được xác nhận, rồi mọi tài liệu được gửi OCR riêng, như khi tải lên từng file.
+- Theo dõi tiến độ bằng SSE như thường lệ.
+- Gửi **một phần phủ cả file** nghĩa là không cần tách, xử lý luôn.
+
+Trả về: `{ dossier_id, status: "queued", documents: [{ id, role, filename, page_start, page_end, page_count }] }`.
+
+| Lỗi | Khi nào |
+|---|---|
+| 422 | Các phần không phủ đủ trang 1..N theo thứ tự (thiếu, chồng lấn), `page_end < page_start`, hoặc hồ sơ không có đúng **một** hợp đồng |
+| 409 | Hồ sơ không tải lên với `split_pending`, hoặc đã bắt đầu xử lý (tách lúc này sẽ OCR lại) |
+| 403 | Không có quyền sửa hồ sơ |
+
+Chưa có: AI1 tự đề xuất chỗ cắt. Hiện người dùng nhập khoảng trang trên màn xác nhận.

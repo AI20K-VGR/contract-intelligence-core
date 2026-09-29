@@ -87,8 +87,8 @@ from contract_intelligence.shared.auth import (
 )
 from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.shared.base import utcnow
-from contract_intelligence.shared.exceptions import NotFoundError
-from contract_intelligence.shared.pdf import InvalidPdfError, count_pdf_pages
+from contract_intelligence.shared.exceptions import InvalidStateTransition, NotFoundError
+from contract_intelligence.shared.pdf import InvalidPdfError, count_pdf_pages, extract_pdf_pages
 from contract_intelligence.shared.persistence import get_session_factory
 from contract_intelligence.shared.query_policy import (
     QueryLimitExceeded,
@@ -565,20 +565,25 @@ async def create_dossier(
             order_index=idx,
         )
 
-    # Vai trò hợp đồng/phụ lục đã chọn lúc tải lên. Xác nhận luôn để worker
-    # so sánh xung đột khi OCR của mọi tệp xong, không chờ màn manifest.
-    await svc.confirm_uploaded_manifest(dossier.id, user.user_id)
+    # A file holding a contract and its annexes (metadata.split_pending) waits
+    # for POST /dossiers/{id}/split: no OCR yet, so no page is read twice.
+    split_pending = meta_payload.get("split_pending") is True
+    if not split_pending:
+        # Vai trò hợp đồng/phụ lục đã chọn lúc tải lên. Xác nhận luôn để worker
+        # so sánh xung đột khi OCR của mọi tệp xong, không chờ màn manifest.
+        await svc.confirm_uploaded_manifest(dossier.id, user.user_id)
 
     # Commit before the 202 is sent. Otherwise the next GET/PATCH and the
     # dossier.uploaded consumer race an uncommitted transaction.
     await svc.commit()
 
-    # Publish after the request session commits (BackgroundTasks run post-response).
-    background_tasks.add_task(
-        _publish_dossier_uploaded,
-        dossier_id=str(dossier.id),
-        file_path=s3_path,
-    )
+    if not split_pending:
+        # Publish after the request session commits (BackgroundTasks run post-response).
+        background_tasks.add_task(
+            _publish_dossier_uploaded,
+            dossier_id=str(dossier.id),
+            file_path=s3_path,
+        )
 
     # ApiEnvelopeDossierCreated — dossier_id + job_id (openapi.yaml line 2320)
     return ApiResponse(
@@ -587,6 +592,52 @@ async def create_dossier(
             job_id=job.id if job else None,
         )
     )
+
+
+class SplitPartBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    page_start: int = Field(ge=1)
+    page_end: int = Field(ge=1)
+    role: Literal["contract", "annex"]
+
+
+class DossierSplitBody(BaseModel):
+    """Khoảng trang của từng tài liệu trong file trộn, theo thứ tự trang."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: str = Field(min_length=1)
+    parts: list[SplitPartBody] = Field(min_length=1, max_length=50)
+
+
+class SplitDocumentDTO(BaseModel):
+    id: str
+    role: str
+    filename: str
+    page_start: int
+    page_end: int
+    page_count: int
+
+
+class DossierSplitDTO(BaseModel):
+    dossier_id: str
+    status: str
+    documents: list[SplitDocumentDTO]
+
+
+def _check_split_parts(parts: list[SplitPartBody], page_count: int) -> str | None:
+    """Parts must cover 1..page_count in order, without gap or overlap."""
+    expected = 1
+    for part in parts:
+        if part.page_end < part.page_start:
+            return f"page_end {part.page_end} < page_start {part.page_start}"
+        if part.page_start != expected:
+            return f"part starting at page {part.page_start}: expected page {expected}"
+        expected = part.page_end + 1
+    if expected != page_count + 1:
+        return f"parts cover pages 1-{expected - 1}, the file has {page_count}"
+    return None
 
 
 class OcrRestartDTO(BaseModel):
@@ -632,6 +683,140 @@ async def restart_dossier_ocr(
 
 
 _AI2_RETRYABLE_ERRORS = frozenset({"AI2_PROCESSING_FAILED", "AI2_TIMEOUT"})
+
+
+@router.post(
+    "/dossiers/{dossier_id}/split",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ApiResponse[DossierSplitDTO],
+    summary="Tách file trộn (hợp đồng + phụ lục) thành từng tài liệu rồi xử lý",
+    responses={
+        404: {"description": "Dossier or document not found"},
+        409: {"description": "Processing already started, or manifest confirmed"},
+        422: {"description": "Parts do not cover the file, or not exactly one contract"},
+    },
+)
+async def split_dossier_document(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    body: DossierSplitBody,
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    background_tasks: BackgroundTasks,
+) -> ApiResponse[DossierSplitDTO]:
+    """Người dùng xác nhận khoảng trang và vai trò của từng phần.
+
+    Chỉ cho hồ sơ tải lên với ``metadata.split_pending = true`` và chưa bắt đầu
+    xử lý, nên không trang nào bị OCR hai lần. Mỗi phần thành một tài liệu
+    (PDF cắt từ file gốc, sha256 riêng); file gốc bị bỏ. Một phần duy nhất phủ
+    cả file = không cần tách. Sau đó vai trò được xác nhận và mọi tài liệu
+    được gửi OCR riêng, như khi tải lên từng file.
+    """
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_EDIT)
+    metadata = dict(dossier.metadata or {})
+    job = dossier.latest_job()
+    if metadata.get("split_pending") is not True or job is None or job.status != JobStatus.UPLOADED:
+        raise HTTPException(
+            status_code=409,
+            detail="Hồ sơ không chờ tách file, hoặc đã bắt đầu xử lý (tách lúc này sẽ OCR lại).",
+        )
+    source = await svc.get_document(body.document_id)
+    if source.dossier_id != dossier_id or not source.blob_uri:
+        raise HTTPException(status_code=404, detail="Document not found in this dossier")
+    problem = _check_split_parts(body.parts, int(source.page_count or 0))
+    others = [d for d in await svc.list_documents(dossier_id) if d.id != source.id]
+    contracts = sum(d.role == DocumentRole.CONTRACT for d in others) + sum(
+        part.role == "contract" for part in body.parts
+    )
+    if problem is None and contracts != 1:
+        problem = f"a dossier needs exactly one contract, these parts give {contracts}"
+    if problem is not None:
+        raise HTTPException(status_code=422, detail=problem)
+
+    created: list[SplitDocumentDTO] = []
+    if len(body.parts) == 1:
+        part = body.parts[0]
+        created.append(
+            SplitDocumentDTO(
+                id=source.id,
+                role=source.role.value,
+                filename=source.filename,
+                page_start=part.page_start,
+                page_end=part.page_end,
+                page_count=int(source.page_count or 0),
+            )
+        )
+    else:
+        data = await storage.download_object(source.blob_uri)
+        base = source.filename.removesuffix(".pdf").removesuffix(".PDF")
+        next_index = max([source.order_index, *(d.order_index for d in others)]) + 1
+        for number, part in enumerate(body.parts, start=1):
+            try:
+                piece = await asyncio.to_thread(
+                    extract_pdf_pages, data, part.page_start, part.page_end
+                )
+            except InvalidPdfError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            role = DocumentRole.CONTRACT if part.role == "contract" else DocumentRole.ANNEX
+            filename = f"{base}-p{part.page_start}-{part.page_end}.pdf"
+            order_index = source.order_index if number == 1 else next_index + number - 2
+            document, _size, _path = await _ingest_upload_file(
+                svc=svc,
+                dossier_id=dossier_id,
+                upload=_PdfUpload(
+                    file=UploadFile(file=BytesIO(piece), filename=filename),
+                    data=piece,
+                    page_count=part.page_end - part.page_start + 1,
+                ),
+                role=role,
+                order_index=order_index,
+            )
+            created.append(
+                SplitDocumentDTO(
+                    id=document.id,
+                    role=role.value,
+                    filename=document.filename,
+                    page_start=part.page_start,
+                    page_end=part.page_end,
+                    page_count=part.page_end - part.page_start + 1,
+                )
+            )
+        try:
+            await svc.remove_split_source(dossier_id, source.id)
+        except InvalidStateTransition as exc:
+            raise HTTPException(status_code=409, detail="Manifest đã được xác nhận") from exc
+
+    metadata["split_pending"] = False
+    metadata["split_from"] = {
+        "document_id": source.id,
+        "filename": source.filename,
+        "parts": [part.model_dump() for part in body.parts],
+    }
+    await svc.patch_dossier(dossier_id, name=None, metadata=metadata)
+    await svc.confirm_uploaded_manifest(dossier_id, user.user_id)
+    await svc.commit()
+
+    if len(body.parts) > 1:
+        background_tasks.add_task(_delete_blob_quietly, source.blob_uri)
+    background_tasks.add_task(
+        _publish_dossier_uploaded, dossier_id=dossier_id, file_path=created[0].filename
+    )
+    await _record(
+        tenant_id=user.tenant_id,
+        title=f"Tách hồ sơ {dossier.name} thành {len(created)} tài liệu",
+        actor_display_name=user.email or user.display_name,
+        detail=None,
+        kind="dossier.split",
+    )
+    return ApiResponse(
+        data=DossierSplitDTO(dossier_id=dossier_id, status="queued", documents=created)
+    )
+
+
+async def _delete_blob_quietly(uri: str) -> None:
+    try:
+        await storage.delete_object(uri)
+    except Exception:
+        logger.warning("dossier.split.source_blob_delete_failed", uri=uri, exc_info=True)
 
 
 @router.post(

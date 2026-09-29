@@ -31,6 +31,10 @@ class ManifestRepository(Protocol):
 
     async def confirm(self, manifest_id: str, user_id: str) -> None: ...
 
+    async def discard_unconfirmed(self, dossier_id: str) -> bool:
+        """Delete a not-yet-confirmed manifest; False if none or confirmed."""
+        ...
+
     async def apply_confirmation(
         self,
         *,
