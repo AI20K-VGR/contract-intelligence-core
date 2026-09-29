@@ -123,6 +123,50 @@ Matches the in-memory AI1 job record shape (pollable HTTP job status):
 
 Backend: `adapt_ai1_snapshot_result(payload["result"])` → `persist_ai1_snapshot`.
 
+### Large results: upload to MinIO, send a reference (DOC-11 §2)
+
+An inline result costs ~71 KiB per page, so past ~144 pages the message
+exceeds the 10 MiB Kafka limit. Every command now carries an upload target in
+`options` (an open dict, so the current `BackendOcrJobRequest` accepts it):
+
+```json
+"options": {
+  "result_target": {
+    "put_url": "http://minio:9000/ci-render/doc_01J9X1AB/ai1-result/run_01….json?X-Amz-…",
+    "uri": "s3://ci-render/doc_01J9X1AB/ai1-result/run_01….json",
+    "content_type": "application/json"
+  }
+}
+```
+
+**AI1 side (to implement):** when `options.result_target` is present:
+
+1. PUT the same JSON that would go in `payload.result` to `put_url` with
+   `Content-Type: application/json`.
+2. Publish `ai1.ocr.completed` with `result: null` and:
+
+```json
+"result_ref": {
+  "uri": "s3://ci-render/doc_01J9X1AB/ai1-result/run_01….json",
+  "sha256": "<hex of the uploaded bytes>",
+  "bytes": 14312345
+}
+```
+
+AI1 may keep inlining small results. The backend accepts either form.
+
+**Backend checks (implemented):**
+
+- It reads only the exact `uri` it issued for that run and document. Any
+  other `uri` fails the run with `AI1_RESULT_UNREADABLE` and nothing is read.
+- The object must be at most `AI1_RESULT_MAX_BYTES` (256 MiB), match `sha256`
+  when AI1 sends one, and be a JSON object.
+- A missing object fails the run (`AI1_RESULT_UNREADABLE`). A transient
+  MinIO error is retried like any other handler error, without failing the run.
+- The PUT URL lives as long as the other presigned URLs (the AI1 deadline +
+  10 min).
+- Dossier purge deletes `{document}/ai1-result/{run}.json` for every run.
+
 ### `ai1.ocr.failed`
 
 ```json

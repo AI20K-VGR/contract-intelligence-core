@@ -314,6 +314,23 @@ class DossierDeletionService:
                     uris.append(page.render_blob_uri)
                 if page.preview_blob_uri:
                     uris.append(page.preview_blob_uri)
+            # OCR results AI1 uploaded instead of inlining them (one per run +
+            # document); deleting a key that was never written is a no-op.
+            from contract_intelligence.infrastructure.storage import ai1_result_uri
+
+            run_ids = (
+                (
+                    await self._session.execute(
+                        select(PipelineRunORM.id).where(
+                            PipelineRunORM.dossier_id == dossier_id,
+                            PipelineRunORM.tenant_id == self._tenant_id,
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            uris.extend(ai1_result_uri(doc_id, run_id) for doc_id in doc_ids for run_id in run_ids)
         # de-dupe preserve order
         seen: set[str] = set()
         out: list[str] = []

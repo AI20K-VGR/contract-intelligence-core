@@ -182,7 +182,7 @@ async def test_ocr_command_asks_for_every_page_with_one_render_url_each(
 ) -> None:
     get_url = AsyncMock(return_value="http://get")
     monkeypatch.setattr(worker.storage, "generate_presigned_get_url", get_url)
-    put_url = AsyncMock(side_effect=lambda *, key, expires_in: f"http://put/{key}")
+    put_url = AsyncMock(side_effect=lambda *, key, expires_in, **_: f"http://put/{key}")
     monkeypatch.setattr(worker.storage, "generate_presigned_put_url", put_url)
     document = DocumentORM(
         id=DOC_A,
@@ -210,6 +210,12 @@ async def test_ocr_command_asks_for_every_page_with_one_render_url_each(
     assert expected_ttl == 7200
     assert get_url.await_args.kwargs["expires_in"] == expected_ttl
     assert {call.kwargs["expires_in"] for call in put_url.await_args_list} == {expected_ttl}
+    # One more PUT URL: where AI1 may upload the snapshot JSON (DOC-11 §2).
+    target = payload["options"]["result_target"]
+    assert target["uri"] == f"s3://ci-render/{DOC_A}/ai1-result/run_x.json"
+    assert target["put_url"] == f"http://put/{DOC_A}/ai1-result/run_x.json"
+    assert target["content_type"] == "application/json"
+    assert put_url.await_count == 201
 
 
 def test_presign_ttl_never_exceeds_the_s3_limit() -> None:
@@ -806,3 +812,101 @@ async def test_ai2_retry_is_a_no_op_once_the_run_is_back_in_flight(
         run = await session.get(PipelineRunORM, run_id)
     assert worker._ai2_attempt(run) == 2
     assert ai2_ready.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# AI1 result uploaded to MinIO (payload.result_ref) instead of inlined
+# ---------------------------------------------------------------------------
+
+
+def _by_reference(
+    message: dict[str, Any], *, uri: str | None = None, sha: str | None = None
+) -> tuple[dict[str, Any], bytes]:
+    """Move the inline result to a result_ref, as AI1 does for large dossiers."""
+    import hashlib
+    import json as _json
+
+    payload = message["payload"]
+    body = _json.dumps(payload.pop("result"), ensure_ascii=False).encode()
+    document_id = message["correlation"]["document_id"]
+    run_id = message["correlation"]["run_id"]
+    payload["result"] = None
+    payload["result_ref"] = {
+        "uri": uri or f"s3://ci-render/{document_id}/ai1-result/{run_id}.json",
+        "sha256": sha or hashlib.sha256(body).hexdigest(),
+        "bytes": len(body),
+    }
+    return message, body
+
+
+@pytest.mark.asyncio
+async def test_result_by_reference_is_downloaded_and_persisted(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = await _start(factory)
+    objects: dict[str, bytes] = {}
+    for document_id in (DOC_A, DOC_B):
+        message, body = _by_reference(_ocr_completed(run_id, document_id))
+        objects[message["payload"]["result_ref"]["uri"]] = body
+        monkeypatch.setattr(worker.storage, "download_object", AsyncMock(side_effect=objects.get))
+        await _deliver(factory, message)
+
+    job = await _job(factory)
+    assert job.status == "extracted"
+    assert ai2_ready.call_count == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("change", "reason"),
+    [
+        ({"uri": "s3://dossiers/someone-else/contract.pdf"}, "not the issued target"),
+        ({"sha": "0" * 64}, "sha256 does not match"),
+        ({"missing": True}, "does not exist"),
+    ],
+)
+async def test_bad_result_reference_fails_the_run(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+    change: dict[str, Any],
+    reason: str,
+) -> None:
+    run_id = await _start(factory)
+    message, body = _by_reference(
+        _ocr_completed(run_id, DOC_A), uri=change.get("uri"), sha=change.get("sha")
+    )
+    download = AsyncMock(
+        side_effect=FileNotFoundError("gone") if change.get("missing") else None,
+        return_value=body,
+    )
+    monkeypatch.setattr(worker.storage, "download_object", download)
+
+    await _deliver(factory, message)
+
+    job = await _job(factory)
+    assert job.status == "failed" and job.error_code == "AI1_RESULT_UNREADABLE"
+    assert reason in (job.error_detail or "")
+    if "uri" in change:
+        download.assert_not_awaited()  # never reads an object it did not issue
+    assert ai2_ready.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_transient_storage_error_is_retried_not_failed(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = await _start(factory)
+    message, _ = _by_reference(_ocr_completed(run_id, DOC_A))
+    monkeypatch.setattr(
+        worker.storage, "download_object", AsyncMock(side_effect=ConnectionError("minio down"))
+    )
+
+    with pytest.raises(ConnectionError):
+        await _deliver(factory, message)
+
+    assert (await _job(factory)).status == "processing"

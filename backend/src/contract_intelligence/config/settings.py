@@ -117,6 +117,14 @@ class Settings(BaseSettings):
             "(pymupdf | openai | gemini | mistral)."
         ),
     )
+    ai1_result_max_bytes: int = Field(
+        default=268_435_456,
+        ge=1_048_576,
+        description=(
+            "Largest OCR result the worker downloads when AI1 uploads it to MinIO "
+            "(payload.result_ref) instead of inlining it in the Kafka message."
+        ),
+    )
     kafka_max_message_bytes: int = Field(
         default=10_485_760,
         ge=1_048_576,

@@ -800,6 +800,15 @@ async def _build_ocr_command_payload(
             key=put_key, expires_in=ttl
         )
 
+    # Where AI1 may upload the snapshot JSON instead of inlining it in the
+    # Kafka result (DOC-11 §2: ~71 KiB/page overflows 10 MiB past ~144 pages).
+    result_uri = storage.ai1_result_uri(document.id, run_id)
+    result_put_url = await storage.generate_presigned_put_url(
+        key=storage.ai1_result_key(document.id, run_id),
+        content_type="application/json",
+        expires_in=ttl,
+    )
+
     task_id = _task_id_from(document.id)
     engine = (settings.ai1_ocr_engine or "mistral").strip().lower()
     return {
@@ -835,6 +844,11 @@ async def _build_ocr_command_payload(
                 "language": document.lang_detected or "vi",
                 "document_role": document.role.lower(),
                 "filename": document.filename,
+                "result_target": {
+                    "put_url": result_put_url,
+                    "uri": result_uri,
+                    "content_type": "application/json",
+                },
             },
         },
     }
@@ -1133,6 +1147,46 @@ async def _finalize_ai2_success(
     return counts
 
 
+async def _load_ai1_result_ref(
+    ref: dict[str, Any], *, document_id: str, run_id: str
+) -> tuple[dict[str, Any] | None, tuple[str, str] | None]:
+    """Fetch an OCR result AI1 uploaded to MinIO; return (result, rejection).
+
+    Only the exact object the backend issued for this run and document is read,
+    so a result message cannot point the worker at any other object. Size and
+    sha256 are checked when AI1 states them. A transient storage error raises,
+    so the record is retried rather than failing the run.
+    """
+    uri = str(ref.get("uri") or "")
+    if not document_id or uri != storage.ai1_result_uri(document_id, run_id):
+        return None, ("AI1_RESULT_UNREADABLE", f"result_ref {uri!r} is not the issued target")
+    limit = get_settings().ai1_result_max_bytes
+    declared = ref.get("bytes")
+    if isinstance(declared, int) and declared > limit:
+        return None, ("AI1_RESULT_UNREADABLE", f"result is {declared} bytes, limit {limit}")
+    try:
+        data = await storage.download_object(uri)
+    except FileNotFoundError:
+        return None, ("AI1_RESULT_UNREADABLE", f"result object {uri} does not exist")
+    except Exception as exc:
+        code = str(getattr(exc, "response", {}).get("Error", {}).get("Code", ""))
+        if code in {"NoSuchKey", "404", "NotFound"}:
+            return None, ("AI1_RESULT_UNREADABLE", f"result object {uri} does not exist")
+        raise
+    if len(data) > limit:
+        return None, ("AI1_RESULT_UNREADABLE", f"result is {len(data)} bytes, limit {limit}")
+    expected_sha = str(ref.get("sha256") or "").removeprefix("sha256:").lower()
+    if expected_sha and hashlib.sha256(data).hexdigest() != expected_sha:
+        return None, ("AI1_RESULT_UNREADABLE", "result sha256 does not match result_ref")
+    try:
+        loaded = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return None, ("AI1_RESULT_UNREADABLE", f"result is not JSON: {exc}"[:500])
+    if not isinstance(loaded, dict):
+        return None, ("AI1_RESULT_UNREADABLE", "result JSON is not an object")
+    return loaded, None
+
+
 async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> None:
     """Persist AI1 OCR result and update job/dossier status.
 
@@ -1230,9 +1284,14 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
     snapshot: Any = None
     canonical_snapshot: dict[str, Any] | None = None
     document_id = ""
-    if not isinstance(result, dict):
+    result_ref = payload.get("result_ref")
+    if result is None and isinstance(result_ref, dict):
+        result, rejection = await _load_ai1_result_ref(
+            result_ref, document_id=claimed_document_id, run_id=run_id
+        )
+    if rejection is None and not isinstance(result, dict):
         rejection = ("AI1_RESULT_MISSING", "OCR completed event carries no result")
-    else:
+    elif rejection is None and isinstance(result, dict):
         try:
             snapshot = adapt_ai1_snapshot_result(result)
         except (ValueError, KeyError, TypeError) as exc:

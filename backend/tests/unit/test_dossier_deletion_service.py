@@ -161,3 +161,43 @@ async def test_list_excludes_tombstoned(session: AsyncSession) -> None:
     page = await repo.list()
     assert page.total == 0
     assert await repo.get(d.id) is None
+
+
+@pytest.mark.asyncio
+async def test_purge_includes_uploaded_ai1_results(session: AsyncSession) -> None:
+    """OCR results AI1 uploaded to MinIO (one per run + document) are purged too."""
+    from contract_intelligence.extraction.infrastructure.persistence.orm import PipelineRunORM
+
+    tenant = "tenant_test"
+    session.add(DossierORM(id="dos_r", tenant_id=tenant, name="d"))
+    session.add(JobORM(id="job_r", tenant_id=tenant, dossier_id="dos_r"))
+    for doc_id in ("doc_1", "doc_2"):
+        session.add(
+            DocumentORM(
+                id=doc_id,
+                tenant_id=tenant,
+                dossier_id="dos_r",
+                role="contract",
+                order_index=0,
+                filename=f"{doc_id}.pdf",
+                sha256=doc_id,
+            )
+        )
+    await session.flush()
+    for run_id in ("run_1", "run_2"):
+        session.add(PipelineRunORM(id=run_id, tenant_id=tenant, job_id="job_r", dossier_id="dos_r"))
+    await session.commit()
+
+    svc = DossierDeletionService(
+        session=session,
+        storage=FakeFileStorage(),
+        ai_client=StubAiServiceClient(),
+        tenant_id=tenant,
+    )
+    uris = await svc._collect_blob_uris("dos_r")
+
+    assert {u for u in uris if "/ai1-result/" in u} == {
+        f"s3://ci-render/{doc}/ai1-result/{run}.json"
+        for doc in ("doc_1", "doc_2")
+        for run in ("run_1", "run_2")
+    }
