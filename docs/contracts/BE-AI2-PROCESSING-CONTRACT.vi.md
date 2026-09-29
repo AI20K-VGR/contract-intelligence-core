@@ -151,7 +151,7 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
   - Chỉ gửi `ai1.snapshot.v1`.
   - `source_digest` và `snapshot_digest` là 64 ký tự hex chữ thường, không có tiền tố. AI2 nhận `sha256:<hex>` để tương thích nhưng chuẩn hoá ngay khi nhận.
 - **Hồ sơ nhiều file (D5).**
-  - Gửi đủ mọi snapshot của hồ sơ, với đúng một member `body`. Có 0 hoặc nhiều hơn một body thì Backend không gửi.
+  - Gửi đủ mọi snapshot của hồ sơ. Sprint 2: đúng một member `body`; có 0 hoặc nhiều hơn một body thì Backend không gửi. Sprint 3: được nhiều `body` theo D12 (so hợp đồng–hợp đồng), bật qua `policy_flags.max_body_members`.
   - Phụ lục không có `ANNEX_OF` vẫn được gửi với `role=annex`; finding liên tài liệu khi đó ghi là "quan hệ chưa xác nhận".
   - AI2 không suy luận, không sửa role hay quan hệ.
 - **`policy_flags` (D6, chờ Lead).**
@@ -190,6 +190,7 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
 
 ### 6.5 Lưu trữ (D11)
 
+- Phần này phụ thuộc lựa chọn A/B ở D11 (mâu thuẫn với DOC-04 ADR-02, xem ADR-14). Các dòng dưới đây là phương án A.
 - Dữ liệu nghiệp vụ nằm ở Postgres của Backend, và chỉ Backend ghi.
 - Trạng thái riêng của AI2 nằm ở schema `ai2` trong cùng cụm Postgres, qua `AI2_DATABASE_URL` và user `ai2_app` (chỉ có quyền trên schema `ai2`). Migration của schema này do AI2 tự quản.
 - SQLite chỉ dùng cho test và chạy local. Vector tắt trên bản online.

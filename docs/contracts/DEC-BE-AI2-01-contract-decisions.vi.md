@@ -1,6 +1,6 @@
 # DEC-BE-AI2-01: Các điểm chốt của contract Backend ↔ AI2
 
-**Trạng thái:** `accepted-backend`. Backend (Chương) đã chốt D1–D11 ngày 2026-09-29. Chờ Văn Dũng (AI2) xác nhận; D6 và D8 chờ thêm Trang (Lead)
+**Trạng thái:** `accepted-backend`. Backend (Chương) đã chốt D1–D12 ngày 2026-09-29. Chờ Văn Dũng (AI2) xác nhận; D6, D8, D11 (phương án A/B) và D12 chờ thêm Trang (Lead)
 **Ngày:** 2026-09-29
 **Người soạn:** Chương (Backend)
 **Người duyệt:** Chương (Backend), Văn Dũng (AI2). Riêng D6 và D8 cần thêm Trang (Lead).
@@ -13,7 +13,7 @@
 
 ## Cách dùng tài liệu này
 
-Mỗi mục D1–D11 gồm bốn phần: **hiện trạng** (dẫn tới code), **đề xuất**, **việc của từng bên** và **ô duyệt**. Người duyệt đánh dấu `[x]` và ghi chú nếu không đồng ý.
+Mỗi mục D1–D12 gồm bốn phần: **hiện trạng** (dẫn tới code), **đề xuất**, **việc của từng bên** và **ô duyệt**. Người duyệt đánh dấu `[x]` và ghi chú nếu không đồng ý.
 
 Khi cả hai bên duyệt xong:
 1. Đổi trạng thái sang `accepted`.
@@ -36,6 +36,7 @@ Khi cả hai bên duyệt xong:
 | D8 | Ánh xạ trạng thái | Tách "AI2 xong" khỏi "chờ review" | 01/10 (Lead) |
 | D9 | Xử lý kết quả | Lưu ở dạng đề xuất, publish sau khi reviewer duyệt | 01/10 |
 | D10 | Contract hỏi đáp | AI2 trả `query_snapshot_digest` trong result; Backend lưu nguyên giá trị, không tự tính | 30/09 |
+| D12 | Hồ sơ nhiều hợp đồng (Sprint 3) | Cho phép nhiều `body`; AI2 so từng cặp hợp đồng; Backend bỏ luật "đúng một hợp đồng" cùng lúc | Trước khi làm DOC-11 #12 |
 | D11 | Nơi lưu dữ liệu AI2 | Nghiệp vụ ở Postgres của Backend; trạng thái riêng của AI2 ở schema `ai2` trong cùng Postgres, AI2 tự quản migration | 01/10 (tạm), 18/10 |
 
 ---
@@ -115,6 +116,8 @@ Khi cả hai bên duyệt xong:
 - AI2 vẫn được nhận dạng `sha256:<hex>` để tương thích, nhưng phải chuẩn hoá về dạng trên trước khi so sánh hay lưu.
 - `snapshot_digest` trong `snapshot_identities[]` là SHA-256 của snapshot đã chuẩn hoá JSON theo quy tắc ở D2.
 
+**Liên quan DOC-04:** ADR-05 đang ghi `ai1.snapshot.v3` là bản chuyển giao chuẩn. Code và `BE-AI2-PROCESSING-CONTRACT.vi.md` §5.1 đã dùng v1 trên dây và chỉ giữ v3 trong adapter của Backend. PR này sửa câu chữ của ADR-05 cho khớp: v1 trên dây Backend → AI2, v3 chỉ ở phía Backend. Phiên bản AI1 xuất ra do AI1 chốt (DOC-11 §4.3 #7).
+
 **Việc cần làm:**
 - AI2: chuẩn hoá digest ngay khi nhận request.
 - AI1 (Đức Dũng): chốt một phiên bản snapshot (xem kế hoạch AI2 §5).
@@ -130,7 +133,8 @@ Khi cả hai bên duyệt xong:
 - Upload file trộn giờ được tách thành nhiều tài liệu trước khi OCR (`d667bd9`).
 
 **Đề xuất:**
-- Mỗi request có **đúng một** member `body`. Nếu hồ sơ không có hoặc có nhiều hơn một tài liệu `contract`, Backend không gửi sang AI2 mà báo lỗi cấu hình hồ sơ. AI2 không tự chọn.
+- **Sprint 2:** mỗi request có **đúng một** member `body`, vì schema và adapter hiện tại đòi như vậy. Nếu hồ sơ không có hoặc có nhiều hơn một tài liệu `contract`, Backend không gửi sang AI2 mà báo lỗi cấu hình hồ sơ. AI2 không tự chọn.
+- **Sprint 3:** luật "đúng một body" được nới theo D12, để so được hợp đồng với hợp đồng (DOC-11 #7, #12).
 - Phụ lục không có quan hệ `ANNEX_OF` vẫn được gửi với `role=annex`. AI2 được so sánh nó với thân HĐ, nhưng mọi finding ghi rõ là "quan hệ chưa xác nhận" (khớp với DEC-1 của AI2).
 - Tài liệu tách ra từ file trộn mang `doc_type` từ bước phân loại. Người dùng sửa được role trước khi chạy AI2.
 - AI2 không suy luận, không sửa role hay quan hệ.
@@ -304,9 +308,47 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
   - mount volume cho bước tạm (mục 9);
   - kiểm tra `ai2/retry` dựng lại được hồ sơ sau khi AI2 mất dữ liệu.
 
-**Hạn:** mục 9 trước T5 01/10. Mục 1–8 trong Sprint 3, trước 18/10 (DOC-11: "AI2 trên Postgres").
+**Liên quan DOC-04 ADR-02:** ADR-02 (17/09) ghi *"`ai-service` không kết nối PostgreSQL"*. DOC-11 §3 (29/09) yêu cầu *"bản online của AI2 ghi dữ liệu bền vào PostgreSQL"*. Hai tài liệu đang mâu thuẫn, và thực tế AI2 cũng đã không còn stateless: job store là SQLite. PR này thêm **ADR-14 ở trạng thái Đề xuất** vào DOC-04. ADR-14 cho AI2 giữ trạng thái riêng trong schema `ai2`, và **giữ nguyên** phần còn lại của ADR-02: không ghi business table, không sở hữu queue hay lease, không có public API. Architecture Lead chọn một trong hai phương án:
 
-- [x] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
+| Phương án | Nội dung | Được | Mất |
+|---|---|---|---|
+| **A** (đề xuất) | ADR-14 được chấp nhận; AI2 dùng schema `ai2` như mục 2–3 ở trên | Khớp DOC-11 và cam kết Sprint 3 "AI2 trên Postgres"; khởi động lại không mất gì | Thêm một kết nối DB và một bộ migration |
+| **B** | Giữ ADR-02: AI2 không nối Postgres; SQLite trên volume; khi mất dữ liệu thì Backend gửi lại `/jobs/idp` (mục 8) | Không đổi kiến trúc | Phải sửa DOC-11 §3; tạo lại container mà không có volume thì hỏi đáp tạm hỏng cho tới khi Backend gửi lại |
+
+Mục 8 và 9 đúng với cả hai phương án.
+
+**Hạn:** mục 9 trước T5 01/10. Mục 1–8 trong Sprint 3, trước 18/10 (DOC-11: "AI2 trên Postgres"). Phương án A/B chốt trước T5 01/10.
+
+- [x] Chương duyệt  - [ ] Dũng duyệt  - [ ] Trang duyệt (phương án A/B)  Ghi chú:
+
+## D12. Hồ sơ nhiều hợp đồng (Sprint 3)
+
+**Hiện trạng:** DOC-11 mục 1 #7 và §4.2 #12 yêu cầu finding hợp đồng–hợp đồng, với cùng điều kiện trích dẫn hai phía như finding có phụ lục. Hiện có bốn chỗ bắt đúng một hợp đồng:
+- D5 (Sprint 2);
+- adapter AI2, ở `BE-AI2-PROCESSING-CONTRACT.vi.md` §2 (*"Backend phải gửi đúng một member `body`"*);
+- bước tách file `POST /dossiers/{id}/split` (PR #36);
+- xác nhận manifest.
+
+Giữ nguyên thì hồ sơ có hai hợp đồng không bao giờ tới được AI2.
+
+**Đề xuất:**
+- Request cho phép **một hoặc nhiều** member `body`.
+- Phụ lục vẫn có `ANNEX_OF` trỏ tới **một** `body` cụ thể. Phụ lục không có quan hệ thì dùng quy tắc "chưa xác nhận" của D5.
+- AI2 so **từng cặp `body`** (hợp đồng–hợp đồng), và so mỗi phụ lục với `body` mà nó `ANNEX_OF`.
+  - Finding hợp đồng–hợp đồng dùng cùng shape và cùng điều kiện citation hai phía như finding có phụ lục (D9).
+  - Mỗi phía của finding ghi rõ `member_id`.
+- Luật "đúng một body" chỉ bỏ khi AI2 xử lý được nhiều body, qua cờ `max_body_members` trong `policy_flags`: Sprint 2 là `1`, Sprint 3 nâng lên. Như vậy Backend không gửi request mà AI2 chưa đọc được.
+- Backend bỏ luật "đúng một hợp đồng" ở `/split` và manifest **cùng lúc** với AI2, không bỏ trước.
+- Schema: `be.ai2.processing.request.v1` thêm `policy_flags.max_body_members`. Bỏ ràng buộc "đúng một body" là thay đổi về nghĩa, nên AI2 và Backend cùng tăng lên `v1.1` và có test hai phía.
+
+**Việc cần làm:**
+- AI2: so cặp body–body; hỗ trợ `max_body_members`.
+- Backend: nới luật ở `/split`, manifest và adapter khi `max_body_members > 1`; API conflict trả cặp hai hợp đồng.
+- Trang: màn đối soát đọc được finding giữa hai hợp đồng.
+
+**Hạn:** chốt trước khi bắt đầu DOC-11 #12 trong Sprint 3.
+
+- [x] Chương duyệt  - [ ] Dũng duyệt  - [ ] Trang duyệt  Ghi chú:
 
 ---
 
@@ -325,3 +367,4 @@ Các mục sau để lại cho Sprint 3:
 |---|---|---|
 | 2026-09-29 | Bản đề xuất đầu tiên | Chương |
 | 2026-09-29 | Thêm D11 (nơi lưu dữ liệu AI2). Backend chốt D1–D11 và chép vào `BE-AI2-PROCESSING-CONTRACT.vi.md` §6 | Chương |
+| 2026-09-29 | Theo review của Trang ở PR #37: thêm D12 (nhiều hợp đồng); D5 chỉ áp dụng cho Sprint 2; D11 nêu mâu thuẫn với ADR-02 kèm phương án A/B và ADR-14 (Đề xuất); D4 sửa ADR-05 cho khớp; DOC-05e trỏ tới D1 | Chương |
