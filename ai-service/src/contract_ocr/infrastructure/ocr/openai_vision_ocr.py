@@ -76,6 +76,13 @@ class OpenAIVisionOCREngine(OCREngine):
         finally:
             self.initialization_ms = (perf_counter() - start) * 1000
 
+    def _reasoning(self) -> dict[str, Any]:
+        # Transcription needs no hidden reasoning: measured on HC04's arbiter
+        # requests, "none" removed all ~5.9k reasoning tokens (-17% cost) with
+        # identical CER. Only sent when configured; not every model accepts it.
+        effort = self.config.get("reasoning_effort")
+        return {"reasoning_effort": effort} if effort else {}
+
     def recognize_page(self, page_image: np.ndarray, context: Context) -> OCRResult:
         self._load()
         image = Image.fromarray(page_image).convert("RGB")
@@ -91,6 +98,7 @@ class OpenAIVisionOCREngine(OCREngine):
         }
         if "temperature" in self.config:
             kwargs["temperature"] = self.config["temperature"]
+        kwargs.update(self._reasoning())
         with observation(
             "transcribe-page",
             as_type="generation",
@@ -187,6 +195,7 @@ class OpenAIRegionReader(OpenAIVisionOCREngine):
             content.append({"type": "text", "text": f"Region {region_id}:"})
             content.append({"type": "image_url", "image_url": {"url": url, "detail": "high"}})
         kwargs: dict[str, Any] = {"max_completion_tokens": self.config.get("max_tokens", 4096)}
+        kwargs.update(self._reasoning())
         with observation(
             "arbitrate-regions",
             as_type="generation",
