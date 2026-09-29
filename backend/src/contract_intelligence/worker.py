@@ -24,6 +24,7 @@ from typing import Any
 import structlog
 from aiokafka import AIOKafkaConsumer, TopicPartition
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from contract_intelligence.config.settings import get_settings
@@ -60,6 +61,11 @@ from contract_intelligence.shared.ai.persistence import (
 )
 from contract_intelligence.shared.audit import add_audit_event
 from contract_intelligence.shared.base import new_ulid
+from contract_intelligence.shared.processed_events import (
+    already_processed,
+    event_key,
+    mark_processed,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -1613,14 +1619,38 @@ async def _handle_with_retry(
     handler: Handler,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> Exception | None:
-    """Run ``handler`` in a fresh session per attempt; return the last error, if any."""
+    """Run ``handler`` in a fresh session per attempt; return the last error, if any.
+
+    A record already in ``processed_event`` for this handler is skipped. After
+    the handler succeeds the marker is committed in the same session, so a
+    redelivery after a restart is not handled twice; a failed attempt leaves no
+    marker. A crash between the handler's own commit and the marker's is still
+    covered by the handlers being idempotent against the DB.
+    """
     settings = get_settings()
     attempts = settings.worker_handler_max_attempts
+    consumer = getattr(handler, "__name__", "handler")
+    key = event_key(record, message)
     last_error: Exception | None = None
     for attempt in range(1, attempts + 1):
         try:
             async with session_factory() as session:
+                if await already_processed(session, consumer, key):
+                    logger.info(
+                        "worker.record_already_processed",
+                        consumer=consumer,
+                        event_key=key,
+                        topic=record.topic,
+                        offset=record.offset,
+                    )
+                    return None
                 await handler(session, message)
+                mark_processed(session, consumer, key, record)
+                try:
+                    await session.commit()
+                except IntegrityError:
+                    # Another worker marked it first; the work is done either way.
+                    await session.rollback()
         except Exception as exc:
             last_error = exc
             logger.warning(

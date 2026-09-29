@@ -300,3 +300,82 @@ async def test_resume_schedules_ai2_for_extracted_jobs_only(
     await worker._resume_pending_ai2(factory)
 
     assert scheduled == [{"dossier_id": "dos_0", "tenant_id": "t1", "run_id": "run_0"}]
+
+
+# ---------------------------------------------------------------------------
+# processed_event: a redelivered record is not handled twice (DOC-11 #8)
+# ---------------------------------------------------------------------------
+
+
+def _named_handler(**kwargs: Any) -> AsyncMock:
+    handler = AsyncMock(**kwargs)
+    handler.__name__ = "handle_test"
+    return handler
+
+
+@pytest.mark.asyncio
+async def test_redelivered_record_is_handled_once(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Restart before the offset commit → Kafka redelivers the same record."""
+    handler = _named_handler()
+    raw = json.dumps({"event": "dossier.uploaded", "dossier_id": "dos_1"}).encode()
+
+    await worker._process_record(
+        _record(raw), consumer=_consumer(), handler=handler, session_factory=factory
+    )
+    redelivery = _consumer()
+    await worker._process_record(
+        _record(raw), consumer=redelivery, handler=handler, session_factory=factory
+    )
+
+    handler.assert_awaited_once()
+    assert _committed_offset(redelivery) == 42  # skipped, but the offset moves on
+
+
+@pytest.mark.asyncio
+async def test_same_event_id_at_another_offset_is_skipped(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    handler = _named_handler()
+    raw = json.dumps({"event_id": "evt_1", "event_type": "ai1.ocr.completed"}).encode()
+
+    await worker._process_record(
+        _record(raw, offset=41), consumer=_consumer(), handler=handler, session_factory=factory
+    )
+    await worker._process_record(
+        _record(raw, offset=77), consumer=_consumer(), handler=handler, session_factory=factory
+    )
+
+    handler.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_failed_record_leaves_no_marker(factory: async_sessionmaker[AsyncSession]) -> None:
+    raw = json.dumps({"event": "dossier.uploaded", "dossier_id": "dos_1"}).encode()
+    failing = _named_handler(side_effect=RuntimeError("down"))
+    await worker._process_record(
+        _record(raw), consumer=_consumer(), handler=failing, session_factory=factory
+    )
+
+    # Replayed from the DLQ later, the same record must still run.
+    handler = _named_handler()
+    await worker._process_record(
+        _record(raw), consumer=_consumer(), handler=handler, session_factory=factory
+    )
+    handler.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_markers_are_per_handler(factory: async_sessionmaker[AsyncSession]) -> None:
+    raw = json.dumps({"event_id": "evt_shared"}).encode()
+    first, second = _named_handler(), AsyncMock()
+    second.__name__ = "handle_other"
+
+    for handler in (first, second):
+        await worker._process_record(
+            _record(raw), consumer=_consumer(), handler=handler, session_factory=factory
+        )
+
+    first.assert_awaited_once()
+    second.assert_awaited_once()
