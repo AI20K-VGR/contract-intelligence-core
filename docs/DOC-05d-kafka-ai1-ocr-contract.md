@@ -139,7 +139,7 @@ exceeds the 10 MiB Kafka limit. Every command now carries an upload target in
 }
 ```
 
-**AI1 side (to implement):** when `options.result_target` is present:
+**AI1 side (implemented, `kafka_worker._deliver_result`):** when `options.result_target` is present:
 
 1. PUT the same JSON that would go in `payload.result` to `put_url` with
    `Content-Type: application/json`.
@@ -154,6 +154,13 @@ exceeds the 10 MiB Kafka limit. Every command now carries an upload target in
 ```
 
 AI1 may keep inlining small results. The backend accepts either form.
+
+AI1 uploads every completed result when a target is present, as UTF-8 JSON;
+`sha256` and `bytes` describe exactly the uploaded body. Without a target it
+inlines as before. If the upload fails, a result that still fits a Kafka
+message (10 MiB less 64 KiB for the envelope) is inlined; a larger one is
+published as `ai1.ocr.failed` with `error.code = AI1_RESULT_UPLOAD_FAILED`.
+Kafka envelopes are published as UTF-8 JSON (no `\uXXXX` escapes).
 
 **Backend checks (implemented):**
 
