@@ -51,7 +51,6 @@ type ReviewCard = {
   contrast: string
   basis: string
   pageNo: number | null
-  confidence: number | null
   regions: ClauseRegion[]
   sources: CardSource[]
   review: ReviewSpotLink | null
@@ -113,12 +112,6 @@ function pageFromText(text: string) {
   return match ? Number(match[1]) : null
 }
 
-function confidenceLabel(value: number | null) {
-  if (value === null || !Number.isFinite(value)) return null
-  const percent = value <= 1 ? value * 100 : value
-  return `${percent.toFixed(1)}%`
-}
-
 function basisOf(head: string, pageNo: number | null, pageCount: number) {
   const page =
     pageNo && pageNo > 0
@@ -176,7 +169,6 @@ function spotToCard(
     contrast,
     basis: basisOf(head, pageNo, pageCount),
     pageNo,
-    confidence: matched?.confidence ?? null,
     regions: matched?.regions ?? [],
     sources,
     review: spot.review,
@@ -303,7 +295,6 @@ function demoCards(): ReviewCard[] {
       contrast,
       basis: basisOf('', pageNo, 0),
       pageNo,
-      confidence: null,
       regions: [],
       sources: [
         { label: 'Nguồn 1', quote, mark: 'amber' },
@@ -560,13 +551,6 @@ export function ClauseConflictPage() {
   const reviewed = cards.filter((card) =>
     dossierId ? reviewedIds[card.id] : verdicts[card.id],
   ).length
-  const confidences = cards
-    .map((card) => card.confidence)
-    .filter((value): value is number => value !== null)
-  const average =
-    confidences.length === 0
-      ? null
-      : confidences.reduce((sum, value) => sum + value, 0) / confidences.length
   const dossierName =
     detail?.name?.trim() || reviewState?.name?.trim() || 'Hồ sơ hợp đồng'
 
@@ -716,10 +700,6 @@ export function ClauseConflictPage() {
                         {pane.label}
                       </span>
                     ))}
-                  </span>
-                ) : confidenceLabel(average) ? (
-                  <span className="font-code-sm text-code-sm text-secondary">
-                    Độ chuẩn xác {confidenceLabel(average)}
                   </span>
                 ) : null}
               </div>
@@ -886,11 +866,6 @@ export function ClauseConflictPage() {
                       <span className="font-code-sm text-code-sm font-medium text-on-surface-variant">
                         {card.basis}
                       </span>
-                      {confidenceLabel(card.confidence) ? (
-                        <span className="font-code-sm text-code-sm font-semibold text-tertiary-container">
-                          Độ tin cậy: {confidenceLabel(card.confidence)}
-                        </span>
-                      ) : null}
                     </div>
                     {dossierId ? (
                       <ConflictFindingReview
