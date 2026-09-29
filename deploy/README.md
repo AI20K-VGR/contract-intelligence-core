@@ -47,7 +47,14 @@ sudo deploy/deploy.sh
    - **Đổi mật khẩu 3 tài khoản demo** (mật khẩu trong `realm-export.json` là công khai).
    - Cấu hình SMTP nếu có.
    - Bật chống dò mật khẩu: khoá tạm tài khoản sau 5 lần sai, tối đa 15 phút.
-5. Smoke test: `/health`, issuer OIDC, `/admin` bị chặn, cổng 8002 đóng.
+5. Smoke test trên máy chủ: `/health`, issuer OIDC, `/admin` bị chặn.
+
+**Kiểm tra cổng phải chạy từ máy khác.** Từ chính VPS gọi IP công khai của nó có thể đi vòng trong máy và bỏ qua firewall. Cách chạy:
+
+- GitHub → Actions → `deploy-external-check` → nhập `api-…` và `auth-…`; hoặc
+- trên máy dev: `deploy/check_external.sh api-<ip>.sslip.io auth-<ip>.sslip.io`.
+
+Script kiểm HTTPS, `/admin` 404 và 14 cổng nội bộ (8002, DB, Kafka, MinIO, Keycloak, mailpit) đều đóng.
 
 Cuối cùng script in sẵn các biến `VITE_*` cho frontend.
 

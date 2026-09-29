@@ -32,7 +32,7 @@ Chỉ thêm một lớp HTTPS phía trước và siết cấu hình cho môi tr�
 |---|---|
 | #10 Bản online đủ service, cổng AI2 không mở ra Internet | 12 container trên một máy. Chỉ cổng 80/443 (Caddy) mở ra ngoài. AI2 chỉ nghe trong mạng nội bộ |
 | #8 Mật khẩu người dùng lưu ở đâu | Chỉ ở Keycloak. Backend không có cột mật khẩu. Tài khoản demo đổi mật khẩu khi triển khai (§4) |
-| #4 Một database | Dữ liệu nghiệp vụ của backend ở PostgreSQL. **AI2 còn SQLite**, việc chuyển thuộc Văn Dũng ở Sprint 3 (§8) |
+| #4 Một database | **Chưa đạt đủ — ngoại lệ tạm thời, cần mentor xác nhận trước khi deploy (D3).** Dữ liệu nghiệp vụ của backend ở PostgreSQL. AI2 còn SQLite trong volume `ai2_data`. Chuyển PostgreSQL là việc của Văn Dũng ở Sprint 3 (D5) |
 | #5 Image không nhét dữ liệu chạy thử | Backend và AI1 build từ git, không mang `data/`. **Image AI2 còn copy `data/`**, cần `.dockerignore` của Văn Dũng trước khi deploy (§8) |
 | #11 Test file 50 MB và PDF ~200 trang | Chạy trên máy chủ sau khi AI1 upload kết quả OCR qua MinIO (§6, bước 5.3) |
 
@@ -123,14 +123,30 @@ Mật khẩu người dùng chỉ nằm trong database của Keycloak (`keycloak
 
 ## 5. Các bước triển khai
 
+### 5.0 Phụ thuộc
+
+Những việc ngoài backend quyết định bước nào được chạy. **Chặn** = bước hoặc tiêu chí đó không làm được khi phụ thuộc chưa xong.
+
+| # | Phụ thuộc | Người | Hạn | Chặn | Trạng thái 29/09 |
+|---|---|---|---|---|---|
+| D1 | Chốt máy chủ, LLM provider, người giữ key, trần chi tiêu | Trang (Lead) | 30/09 | Toàn bộ triển khai (5.3 trở đi) | Chưa |
+| D2 | `.dockerignore` cho AI2: image không mang `data/` (mentor #5) | Văn Dũng | 30/09 | 5.6 (build image AI2) | Chưa. Image AI2 hiện vẫn `COPY data/` |
+| D3 | Mentor xác nhận ngoại lệ "một database": AI2 còn SQLite tới Sprint 3 | Trang hỏi mentor | 30/09 | 5.6. Không deploy khi mentor chưa đồng ý | Chưa. Câu hỏi #1 ở mục 9 |
+| D4 | AI1 upload kết quả OCR qua MinIO (`result_ref`, DOC-05d §5). Backend đã xong phần nhận | Đức Dũng | Sprint 3 | C2, và mọi PDF trên ~144 trang (C1 nếu file 50 MB có nhiều trang) | Chưa. **C2 đang BLOCKED** |
+| D5 | AI2 ghi dữ liệu bền vào PostgreSQL chung, bỏ SQLite ở bản online | Văn Dũng | 18/10 | Đóng ngoại lệ D3 | Chưa (DOC-11 §4.4 #1) |
+
+Khi D4 chưa xong, bản online giới hạn demo ở PDF **≤ 100 trang**. Đây là biên an toàn dưới mức ~144 trang: khoảng 71 KiB mỗi trang so với trần Kafka 10 MB.
+
+### 5.1 Các bước
+
 | # | Bước | Người làm | Kết quả kiểm tra |
 |---|---|---|---|
 | 5.1 | Lead chốt máy chủ, LLM provider, người giữ key, trần chi tiêu | Trang | Có IP, quyền SSH cho Chương, 2 API key |
-| 5.2 | Văn Dũng thêm `.dockerignore` cho AI2 (không đóng gói `data/`) | Văn Dũng | `docker image` của AI2 không chứa `runs.sqlite` |
+| 5.2 | D2 và D3 xong: `.dockerignore` cho AI2; mentor đồng ý ngoại lệ một database | Văn Dũng, Trang | Image AI2 không chứa `runs.sqlite`. Có xác nhận của mentor |
 | 5.3 | Clone repo vào `/opt/contract-intelligence`, checkout tag `deploy-2026MMDD-1` từ `develop` | Chương | `git describe` đúng tag |
 | 5.4 | `sudo deploy/bootstrap.sh` | Chương | Docker, firewall 22/80/443, swap, `deploy/.env.prod` có secret |
 | 5.5 | Điền `AI2_LLM_*` trong `deploy/.env.prod`, `MISTRAL_API_KEY` trong `ai-service/.env` | Chương + người giữ key | Không key nào nằm trong git |
-| 5.6 | `sudo deploy/deploy.sh` | Chương | Build, chạy, migrate DB tới v16, cấu hình Keycloak. Smoke test qua (mục 6, nhóm A) |
+| 5.6 | `sudo deploy/deploy.sh`, rồi chạy kiểm tra **từ ngoài**: workflow `deploy-external-check` trên GitHub Actions (hoặc `deploy/check_external.sh` trên máy dev) | Chương | Build, chạy, migrate DB tới v16, cấu hình Keycloak. Nhóm A của mục 6 qua, **kể cả A2 chạy từ ngoài** |
 | 5.7 | Gửi nhóm: 4 biến `VITE_*`, mật khẩu demo (kênh riêng) | Chương | Frontend trên máy dev đăng nhập được vào server |
 | 5.8 | Chạy kiểm thử nghiệm thu (mục 6, nhóm B, C) | Cả nhóm | Bảng mục 6 điền đủ số đo |
 | 5.9 | Bật cron backup, thử khôi phục một lần | Chương | Có bản backup và khôi phục được vào DB tạm |
@@ -142,14 +158,14 @@ Thời gian dự kiến cho 5.3–5.7 khoảng 2 giờ khi đã có máy và key
 
 ## 6. Tiêu chí nghiệm thu
 
-**A. Tự động trong `deploy.sh`:**
+**A. Kiểm tra tự động**
 
-| Kiểm tra | Mong đợi |
-|---|---|
-| `GET https://api-…/health` | `{"status":"ok"}` |
-| OIDC issuer | `https://auth-…/realms/contract-intelligence` |
-| `https://auth-…/admin/…` | 404 |
-| `http://<ip>:8002` từ ngoài | Không kết nối được |
+A1 chạy trong `deploy.sh` trên chính VPS. A2 chạy **từ máy khác**: GitHub runner qua workflow `deploy-external-check`, hoặc `deploy/check_external.sh` trên máy dev. Kiểm tra cổng từ chính VPS tới IP công khai của nó có thể đi vòng trong máy và bỏ qua firewall của nhà cung cấp, nên chỉ A2 được tính là kết quả nghiệm thu về cổng.
+
+| # | Kiểm tra | Chạy ở | Mong đợi |
+|---|---|---|---|
+| A1 | `/health`, OIDC issuer, `/admin` bị chặn | VPS (`deploy.sh`) | `{"status":"ok"}`, issuer `https://auth-…/realms/contract-intelligence`, 404 |
+| A2 | Giống A1, cộng 14 cổng nội bộ: 8002 (AI2), 8000, 8080, 8443, 5432–5434, 9000, 9001, 9092, 9093, 29092, 1025, 8025 | **Ngoài VPS** (GitHub Actions / máy dev) | HTTPS đúng. **Mọi cổng nội bộ đều không kết nối được.** Script trả mã 0 |
 
 **B. Luồng MVP trên server (tay, có người ghi lại):**
 
@@ -164,13 +180,13 @@ Thời gian dự kiến cho 5.3–5.7 khoảng 2 giờ khi đã có máy và key
 
 **C. Tải và lỗi (Sprint 3, ghi số đo):**
 
-| # | Kiểm tra | Mong đợi | Phụ thuộc |
+| # | Kiểm tra | Mong đợi | Trạng thái |
 |---|---|---|---|
-| C1 | File ~50 MB | Upload nhận (≤ 50 MB/file), OCR xong hoặc lỗi có mã, không treo | |
-| C2 | PDF ~200 trang | Kết quả OCR qua MinIO, message Kafka vài KB | AI1 làm phía upload `result_ref` (DOC-05d §5) |
-| C3 | Tắt AI1 giữa chừng | Job `failed` với `AI1_TIMEOUT` sau hạn theo số trang | |
-| C4 | Restart `backend-worker` khi đang xử lý | Không xử lý trùng, không mất job | |
-| C5 | RAM/CPU lúc chạy C1, C2 | Ghi số đo thật, thay bảng ước tính ở mục 3 | |
+| C1 | File ~50 MB | Upload nhận (≤ 50 MB/file), OCR xong hoặc lỗi có mã, không treo | Chạy được với file ≤ ~144 trang. File nhiều trang hơn chờ D4 |
+| C2 | PDF ~200 trang | Kết quả OCR qua MinIO, message Kafka vài KB | **BLOCKED bởi D4.** Chạy thử lúc này sẽ ra `AI1_TIMEOUT`, đúng như thiết kế, nhưng chưa phải nghiệm thu |
+| C3 | Tắt AI1 giữa chừng | Job `failed` với `AI1_TIMEOUT` sau hạn theo số trang | Chạy được |
+| C4 | Restart `backend-worker` khi đang xử lý | Không xử lý trùng, không mất job | Chạy được |
+| C5 | RAM/CPU lúc chạy C1, C2 | Ghi số đo thật, thay bảng ước tính ở mục 3 | Phần C2 chờ D4 |
 
 ---
 
@@ -214,9 +230,9 @@ Mỗi lần cập nhật báo trước trong nhóm. Không cập nhật trong l�
 | Rủi ro | Khả năng | Ảnh hưởng | Phương án |
 |---|---|---|---|
 | Hết quota LLM/OCR giữa demo (đã gặp 429 ngày 29/09) | Trung bình | Job lỗi | Trần chi tiêu + key trả phí. Backend thử lại lỗi tạm có trần. Tách mã `RATE_LIMITED`/`UNAVAILABLE` ở Sprint 3 (DOC-11 #6) |
-| PDF > ~144 trang vượt trần Kafka 10 MB | Cao với file lớn | OCR không về backend, job `AI1_TIMEOUT` | Backend đã sẵn nhận kết quả qua MinIO. Chờ AI1 làm phía upload. Trước đó giới hạn demo ≤ 100 trang |
+| PDF > ~144 trang vượt trần Kafka 10 MB | Cao với file lớn | OCR không về backend, job `AI1_TIMEOUT` | Backend đã sẵn nhận kết quả qua MinIO. Chờ AI1 (D4). Trước đó giới hạn demo ≤ 100 trang |
 | Thiếu RAM | Trung bình ở máy 8 GB | Container bị kill | Swap 4 GB, heap Kafka 512 MB. Đo ở C5, nâng máy nếu cần |
-| AI2 còn SQLite, image còn `data/` | Chắc chắn tới khi Văn Dũng xong | Mentor #4, #5 chưa đạt đủ | Bước 5.2 bắt buộc trước deploy. SQLite AI2 để trong volume `ai2_data`. Chuyển PostgreSQL ở Sprint 3 |
+| AI2 còn SQLite, image còn `data/` | Chắc chắn tới khi Văn Dũng xong | Mentor #4, #5 chưa đạt đủ | D2 và D3 là điều kiện trước deploy (bước 5.2). SQLite AI2 để trong volume `ai2_data`. Chuyển PostgreSQL ở Sprint 3 (D5) |
 | Kafka không lưu ra đĩa | Thấp | Restart mất message đang bay | Watchdog fail run với mã lỗi, người dùng chạy lại. Không mất dữ liệu đã lưu |
 | Máy chủ hỏng hoặc mất dữ liệu | Thấp | Mất hồ sơ | Backup đêm, thử khôi phục ở bước 5.9. Nên chép backup ra ngoài máy (việc sau) |
 | Let's Encrypt giới hạn số lần cấp | Thấp | Chưa có HTTPS vài giờ | Không xoá volume `caddy_data` khi deploy lại |
@@ -227,7 +243,8 @@ Mỗi lần cập nhật báo trước trong nhóm. Không cập nhật trong l�
 
 | # | Câu hỏi | Đề xuất của backend |
 |---|---|---|
-| 1 | Duyệt kiến trúc 1 máy + Docker Compose + Caddy cho bản online MVP | Duyệt. Đủ cho demo và thử nghiệm của nhóm, ít thay đổi so với môi trường dev |
+| 1 | **Chấp nhận ngoại lệ tạm thời cho yêu cầu "một database"** (mentor #4): bản online đầu tiên AI2 còn SQLite (volume `ai2_data`, không nằm trong image) cho tới khi Văn Dũng chuyển sang PostgreSQL (hạn 18/10)? | Đề nghị chấp nhận, để demo 02/10 chạy online. Nếu không chấp nhận: hoãn deploy tới khi D5 xong |
+| 1b | Duyệt kiến trúc 1 máy + Docker Compose + Caddy cho bản online MVP | Duyệt. Đủ cho demo và thử nghiệm của nhóm, ít thay đổi so với môi trường dev |
 | 2 | Máy chủ ở đâu, ai trả chi phí | Lead chốt. Cấu hình theo mục 3 |
 | 3 | LLM provider, người giữ key, trần chi tiêu | Lead chốt trước 30/09 (DOC-11) |
 | 4 | Dùng `sslip.io` hay cần domain riêng | `sslip.io` cho MVP. Đổi domain chỉ sửa 2 biến |
@@ -249,11 +266,11 @@ Việc sau MVP (không làm trong đợt này):
 | Ngày | Việc |
 |---|---|
 | 29/09 | Gửi DOC-12 cho mentor |
-| 30/09 | Mentor phản hồi. Lead chốt máy, LLM, key (bước 5.1). Văn Dũng xong `.dockerignore` (5.2) |
-| 30/09 – 01/10 | Triển khai (5.3–5.7), nhóm A, B |
+| 30/09 | Mentor phản hồi, gồm ngoại lệ một database (D3). Lead chốt máy, LLM, key (D1). Văn Dũng xong `.dockerignore` (D2). Thiếu một trong ba thì lịch dưới lùi theo |
+| 30/09 – 01/10 | Triển khai (5.3–5.7), nhóm A (A2 từ GitHub Actions), B |
 | 01/10 | Frontend nối server. Nghiệm thu nhóm B cùng cả nhóm |
 | 02/10 | Đóng băng code nếu demo Sprint 2 đúng lịch (DOC-11). Demo trên bản online |
-| Sprint 3 (05/10 – 18/10) | Nhóm C sau khi AI1 upload kết quả OCR qua MinIO. Ghi số đo vào DOC-06 |
+| Sprint 3 (05/10 – 18/10) | C1, C3, C4 ngay. C2 và phần lớn của C1 sau D4. D5 đóng ngoại lệ D3. Ghi số đo vào DOC-06 |
 
 ---
 
