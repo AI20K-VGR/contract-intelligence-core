@@ -1124,3 +1124,37 @@ Khi quyền hết hạn hoặc bị `disabled`:
 Người có quyền `read` gọi API sửa thì nhận **403**, `detail`: "Bạn chỉ có quyền xem hồ sơ này, hoặc quyền đã hết hạn." Các API sửa gồm: `PATCH /dossiers/{id}`, `POST /dossiers/{id}/ocr`, `/ai2/retry`, `/runs`, `/reprocess`, `/manifest/confirm`, `POST /runs/{id}/cancel`, `POST /documents/{id}/re-ocr` và `POST /review-items/{id}/actions`.
 
 `DELETE /dossiers/{id}` và `PUT /dossiers/{id}/access` chỉ chủ hồ sơ hoặc ADMINISTRATOR. `PATCH /dossiers/{id}` bỏ qua `created_by`, `access_scope`, `shared_with` trong `metadata`. Muốn đổi quyền thì dùng endpoint này.
+
+## 21. Lịch sử hỏi đáp
+
+### `GET /api/v1/dossiers/{dossier_id}/queries?scope=mine|all&limit=20&offset=0`
+
+Trả các lần hỏi đáp (`/ask`, `/query`) trên hồ sơ, mới nhất trước. Dữ liệu lưu trong DB nên vẫn còn sau khi server khởi động lại.
+
+| Tham số | Ý nghĩa |
+|---|---|
+| `scope=mine` (mặc định) | Chỉ câu hỏi của chính người gọi |
+| `scope=all` | Câu hỏi của mọi người trên hồ sơ. **Chỉ chủ hồ sơ hoặc ADMINISTRATOR**, người khác nhận 403 |
+
+Cần quyền xem hồ sơ (như `GET /dossiers/{id}`). Người khác tenant, hoặc có quyền chia sẻ đã hết hạn / bị tắt, nhận 403/404.
+
+```json
+{
+  "data": [
+    {
+      "trace_id": "qtr_…",
+      "endpoint": "ask",
+      "actor_id": "usr_…",
+      "question": "Giá trị hợp đồng là bao nhiêu?",
+      "answer": "1.286.400.000 đồng",
+      "state": "PASS",
+      "citations": [],
+      "error_code": null,
+      "created_at": "2026-10-01T09:12:00+00:00"
+    }
+  ],
+  "meta": { "page": 1, "page_size": 20, "total": 1 }
+}
+```
+
+Lần hỏi mà AI2 lỗi vẫn có trong lịch sử, với `answer: null` và `error_code` (ví dụ `AI2_QUERY_FAILED`). Xoá hồ sơ thì câu trả lời bị xoá theo.
