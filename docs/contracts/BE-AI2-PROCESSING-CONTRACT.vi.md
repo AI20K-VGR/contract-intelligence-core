@@ -3,6 +3,8 @@
 **Trạng thái:** Canonical processing contract v1  
 **Phạm vi:** Backend gửi toàn bộ dossier cho AI2 xử lý; AI2 trả kết quả async để Backend lưu và quyết định publish.
 
+> **Đang duyệt:** [DEC-BE-AI2-01](DEC-BE-AI2-01-contract-decisions.vi.md) chốt kênh gọi, HMAC, digest, retry, ánh xạ trạng thái và contract `/query`. Khi DEC được `accepted`, các quy tắc sẽ được chép vào tài liệu này.
+
 ## 1. Phạm vi và ownership
 
 Contract này là wire contract giữa Backend và AI2, không thay thế `ai1.snapshot.v1`. AI1 vẫn sở hữu OCR/layout evidence; Backend sở hữu việc chọn snapshot, grouping dossier, policy và retry; AI2 sở hữu extraction/reasoning proposal.
