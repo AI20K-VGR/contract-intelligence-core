@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from datetime import UTC
 from typing import Any
 
-from sqlalchemy import and_, exists, func, or_, select, text
+from sqlalchemy import and_, delete, exists, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.sql.schema import Table
@@ -940,6 +940,28 @@ class ManifestRepositoryImpl:
     async def add_item(self, item: ManifestItemORM) -> None:
         self._session.add(item)
         await self._session.flush()
+
+    async def discard_unconfirmed(self, dossier_id: str) -> bool:
+        """Delete a manifest not confirmed yet (its items and relations too).
+
+        Explicit deletes: sqlite does not enforce the ON DELETE CASCADE.
+        """
+        manifest = await self._session.scalar(
+            select(ManifestORM).where(
+                ManifestORM.dossier_id == dossier_id, ManifestORM.tenant_id == self._tenant_id
+            )
+        )
+        if manifest is None or manifest.status == "confirmed":
+            return False
+        await self._session.execute(
+            delete(ManifestRelationORM).where(ManifestRelationORM.manifest_id == manifest.id)
+        )
+        await self._session.execute(
+            delete(ManifestItemORM).where(ManifestItemORM.manifest_id == manifest.id)
+        )
+        await self._session.delete(manifest)
+        await self._session.flush()
+        return True
 
     async def confirm(self, manifest_id: str, user_id: str) -> None:
         """Legacy simple confirm — prefer ``apply_confirmation`` for full API."""
