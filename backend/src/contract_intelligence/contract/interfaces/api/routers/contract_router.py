@@ -47,6 +47,10 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from contract_intelligence.admin.activity_feed import record_activity
+from contract_intelligence.api.dossier_guard import (
+    acl_document,
+    acl_dossier,
+)
 from contract_intelligence.config.settings import get_settings
 from contract_intelligence.contract.application.dtos.deletion_dtos import DossierDeletedDTO
 from contract_intelligence.contract.application.dtos.document_dtos import (
@@ -1260,6 +1264,7 @@ async def list_dossier_documents(
 
 @router.get(
     "/dossiers/{dossier_id}/manifest",
+    dependencies=[Depends(acl_dossier)],
     response_model=ApiResponse[ManifestDTO],
     responses={
         403: {"description": "Insufficient role (OPERATOR or ADMINISTRATOR required)"},
@@ -1328,6 +1333,7 @@ async def confirm_dossier_manifest(
 
 @router.get(
     "/documents/{document_id}",
+    dependencies=[Depends(acl_document)],
     response_model=ApiResponse[DocumentDetailDTO],
     responses={404: {"description": "Document not found"}},
 )

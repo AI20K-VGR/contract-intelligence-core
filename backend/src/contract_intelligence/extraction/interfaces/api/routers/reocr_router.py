@@ -13,6 +13,11 @@ from typing import Annotated
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from contract_intelligence.api.dossier_guard import (
+    acl_document,
+    acl_reocr_request,
+    require_dossier_action,
+)
 from contract_intelligence.extraction.application.dtos.reocr_dtos import (
     ReOcrRequestPayloadDTO,
     ReOcrRequestRecordDTO,
@@ -20,7 +25,6 @@ from contract_intelligence.extraction.application.dtos.reocr_dtos import (
 from contract_intelligence.extraction.interfaces.api.dependencies_reocr import (
     ReOcrServiceDep,
 )
-from contract_intelligence.extraction.interfaces.api.dossier_guard import require_dossier_action
 from contract_intelligence.shared.acl import AclAction
 from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user, require_role
 from contract_intelligence.shared.persistence import get_async_session
@@ -68,6 +72,7 @@ async def create_reocr_request(
 
 @router.get(
     "/documents/{document_id}/re-ocr-requests",
+    dependencies=[Depends(acl_document)],
     response_model=ApiResponse[list[ReOcrRequestRecordDTO]],
     summary="List re-OCR requests cho document",
 )
@@ -81,6 +86,7 @@ async def list_reocr_requests(
 
 @router.get(
     "/re-ocr-requests/{request_id}",
+    dependencies=[Depends(acl_reocr_request)],
     response_model=ApiResponse[ReOcrRequestRecordDTO],
     summary="Chi tiết 1 re-OCR request — poll status",
     responses={404: {"description": "Request not found"}},

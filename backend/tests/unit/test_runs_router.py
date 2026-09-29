@@ -127,13 +127,22 @@ class TestListRuns:
             [_run(status=PipelineRunStatus.SUCCEEDED)],
             1,
         )
-        resp = await client.get("/api/v1/runs", params={"status": "completed"})
+        resp = await client.get(
+            "/api/v1/runs", params={"status": "completed", "dossier_id": "dos_1"}
+        )
         assert resp.status_code == 200
         body = resp.json()
         assert body["data"][0]["status"] == "completed"
         assert body["meta"]["total"] == 1
         mock_svc.list_pipeline_runs.assert_called_once()
         assert mock_svc.list_pipeline_runs.call_args.kwargs["status"] == "completed"
+
+    async def test_tenant_wide_list_is_administrator_only(
+        self, client: AsyncClient, mock_svc: AsyncMock
+    ) -> None:
+        resp = await client.get("/api/v1/runs")
+        assert resp.status_code == 403
+        mock_svc.list_pipeline_runs.assert_not_called()
 
 
 class TestCancelRun:

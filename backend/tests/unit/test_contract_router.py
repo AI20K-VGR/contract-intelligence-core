@@ -993,9 +993,7 @@ class TestDossierAccessPermissions:
         assert resp.status_code == 403
         mock_svc.patch_dossier.assert_not_awaited()
 
-    async def test_read_grant_cannot_edit(
-        self, client: AsyncClient, mock_svc: AsyncMock
-    ) -> None:
+    async def test_read_grant_cannot_edit(self, client: AsyncClient, mock_svc: AsyncMock) -> None:
         mock_svc.get_dossier.return_value = _make_dossier(
             metadata={
                 "created_by": "usr_someone_else",

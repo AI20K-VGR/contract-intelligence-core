@@ -18,6 +18,7 @@ import pytest_asyncio
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from contract_intelligence.api.dossier_guard import require_dossier_action
 from contract_intelligence.contract.application.services.contract_service import (
     ContractService,
 )
@@ -31,7 +32,6 @@ from contract_intelligence.contract.infrastructure.persistence.repository_impl i
     JobRepositoryImpl,
 )
 from contract_intelligence.extraction.infrastructure.persistence.orm import PipelineRunORM
-from contract_intelligence.extraction.interfaces.api.dossier_guard import require_dossier_action
 from contract_intelligence.shared.acl import AclAction, dossier_access_decision, grant_is_live
 from contract_intelligence.shared.auth.schemas import AuthenticatedUser
 from contract_intelligence.shared.persistence import Base
