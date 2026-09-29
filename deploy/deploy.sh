@@ -63,12 +63,15 @@ curl -fsS "$auth/realms/contract-intelligence/.well-known/openid-configuration" 
   | grep -o '"issuer":"[^"]*"'
 code=$(curl -s -o /dev/null -w '%{http_code}' "$auth/admin/master/console/")
 [ "$code" = 404 ] && echo "admin console blocked publicly: ok" || echo "WARNING: admin console answered $code"
-code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://$(envval API_HOST):8002/health" || true)
-echo "AI2 port 8002 from outside: ${code:-closed} (expect 000/closed)"
+echo "Ports: run deploy/check_external.sh (or the deploy-external-check workflow) from"
+echo "another machine — probing this server's own public IP from here can bypass the"
+echo "provider firewall, so it is not a valid check."
 
 cat <<INFO
 
-[deploy] done. Frontend (.env.local):
+[deploy] done. Next, from outside this server:
+  deploy/check_external.sh $(envval API_HOST) $(envval AUTH_HOST)
+Frontend (.env.local):
   VITE_API_BASE_URL=$api
   VITE_KEYCLOAK_URL=$auth
   VITE_KEYCLOAK_REALM=contract-intelligence

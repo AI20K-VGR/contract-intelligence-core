@@ -1,0 +1,27 @@
+# Manual check of the online stack from a GitHub runner, i.e. from outside the
+# server (DOC-12 §6 A). Run it after every deploy: Actions → "deploy-external-check".
+name: deploy-external-check
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_host:
+        description: "Backend host, e.g. api-1-2-3-4.sslip.io"
+        required: true
+      auth_host:
+        description: "Keycloak host, e.g. auth-1-2-3-4.sslip.io"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  external-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: HTTPS, /admin blocked, internal ports closed
+        env:
+          API_HOST: ${{ inputs.api_host }}
+          AUTH_HOST: ${{ inputs.auth_host }}
+        run: bash deploy/check_external.sh "$API_HOST" "$AUTH_HOST"
