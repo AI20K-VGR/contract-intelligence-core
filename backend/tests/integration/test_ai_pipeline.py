@@ -534,3 +534,62 @@ class TestSseEvents:
         assert any("run.started" in e for e in events_received), (
             f"expected run.started event, got: {events_received}"
         )
+
+    @pytest.mark.asyncio
+    async def test_sse_stream_replays_cancel_and_closes(
+        self, client: AsyncClient, make_keycloak_token: Any
+    ) -> None:
+        """Cancel lands in run_event; the stream replays it with an id and closes."""
+        headers = _auth_headers(make_keycloak_token, role="OPERATOR")
+        run_id = await _trigger_run(client, headers, name="SSE replay test")
+        resp = await client.post(f"/api/v1/runs/{run_id}/cancel", headers=headers)
+        assert resp.status_code == 200, resp.text
+
+        resp = await client.get(f"/api/v1/runs/{run_id}/events", headers=headers, timeout=5.0)
+        assert resp.status_code == 200
+        body = resp.text
+        assert "event: run.started" in body
+        assert '"status": "cancelled"' in body
+        assert body.rstrip().splitlines()[-2] == "event: run.completed"
+        ids = [int(line[4:]) for line in body.splitlines() if line.startswith("id: ")]
+        assert ids and ids == sorted(ids)
+
+        # Resuming after the last id replays nothing but still reports completion.
+        resp = await client.get(
+            f"/api/v1/runs/{run_id}/events",
+            headers={**headers, "Last-Event-ID": str(ids[-1])},
+            timeout=5.0,
+        )
+        assert resp.status_code == 200
+        assert "id: " not in resp.text
+        assert "event: run.completed" in resp.text
+
+    @pytest.mark.asyncio
+    async def test_sse_stream_refuses_unknown_run_and_other_users(
+        self, client: AsyncClient, make_keycloak_token: Any
+    ) -> None:
+        owner = _auth_headers(make_keycloak_token, role="OPERATOR")
+        run_id = await _trigger_run(client, owner, name="SSE access test")
+
+        resp = await client.get("/api/v1/runs/run_does_not_exist/events", headers=owner)
+        assert resp.status_code == 404
+
+        stranger = _auth_headers(
+            make_keycloak_token,
+            role="OPERATOR",
+            user_id="usr_test_stranger",
+            email="stranger@vgr.vn",
+            display_name="Stranger",
+        )
+        resp = await client.get(f"/api/v1/runs/{run_id}/events", headers=stranger)
+        assert resp.status_code == 403
+
+        other_tenant = _auth_headers(
+            make_keycloak_token,
+            role="OPERATOR",
+            user_id="usr_test_other_tenant",
+            email="other@vgr.vn",
+            tenant_id="tenant_vgr_02",
+        )
+        resp = await client.get(f"/api/v1/runs/{run_id}/events", headers=other_tenant)
+        assert resp.status_code == 404

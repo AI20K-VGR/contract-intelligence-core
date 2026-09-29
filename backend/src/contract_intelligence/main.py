@@ -83,6 +83,11 @@ from contract_intelligence.shared.persistence import (
 from contract_intelligence.shared.persistence.base import Base
 from contract_intelligence.shared.persistence.orm_registry import import_all_models
 from contract_intelligence.shared.responses import ErrorPayload, ErrorResponse
+from contract_intelligence.shared.run_events import (
+    PostgresRunEventListener,
+    get_run_event_broker,
+    listen_dsn,
+)
 from contract_intelligence.shared.versioning import full_version
 
 logger = get_logger(__name__)
@@ -184,10 +189,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     else:
         logger.info("kafka.producer.skipped", reason="env=test")
 
+    # SSE progress: one LISTEN connection wakes this process's run streams.
+    # Without PostgreSQL the commit hook wakes them in-process instead.
+    run_event_listener: PostgresRunEventListener | None = None
+    if settings.env != "test" and engine.dialect.name == "postgresql":
+        run_event_listener = PostgresRunEventListener(
+            listen_dsn(settings.database_url), get_run_event_broker()
+        )
+        run_event_listener.start()
+
     yield
 
     # Shutdown
     logger.info("shutdown")
+    if run_event_listener is not None:
+        await run_event_listener.stop()
     await stop_producer()
     await stop_maintenance_loop()
     reset_background_dispatcher()
