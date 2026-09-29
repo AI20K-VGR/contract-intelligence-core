@@ -433,8 +433,37 @@ async def _resolve_result_job(
     return job
 
 
+_CARRIED_RUN_KEYS = ("ai1_snapshots", "ai1_snapshot_digests", "ai1_extracted_documents")
+
+
+async def _carry_extractions(
+    session: AsyncSession, *, from_run_id: str | None, to_run: PipelineRunORM
+) -> set[str]:
+    """Copy the documents ``from_run_id`` already extracted onto ``to_run``."""
+    if not from_run_id:
+        return set()
+    previous = await _load_run(session, from_run_id)
+    if previous is None:
+        return set()
+    carried = {
+        key: value for key, value in _run_payload(previous).items() if key in _CARRIED_RUN_KEYS
+    }
+    if not carried.get("ai1_extracted_documents"):
+        return set()
+    payload = _run_payload(to_run)
+    payload.update(carried)
+    payload["ai1_carried_from_run"] = from_run_id
+    to_run.config_snapshot = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    await session.flush()
+    return {str(value) for value in carried["ai1_extracted_documents"] if value}
+
+
 async def _mark_processing(
-    session: AsyncSession, dossier_id: str, *, restart: bool = False
+    session: AsyncSession,
+    dossier_id: str,
+    *,
+    restart: bool = False,
+    retry_failed: bool = False,
 ) -> str | None:
     """Start (or resume) the OCR run of the dossier's latest job. Returns its run id.
 
@@ -549,9 +578,20 @@ async def _mark_processing(
     job.error_code = None
     job.error_detail = None
     job.updated_at = now
-    detail: dict[str, Any] = {"trigger": "ocr.restart" if restart else "dossier.uploaded"}
+    detail: dict[str, Any] = {
+        "trigger": "ocr.retry_failed"
+        if retry_failed
+        else "ocr.restart"
+        if restart
+        else "dossier.uploaded"
+    }
     if superseded_run_id:
         detail["superseded_run_id"] = superseded_run_id
+    if retry_failed:
+        carried = await _carry_extractions(
+            session, from_run_id=superseded_run_id, to_run=pipeline_run
+        )
+        detail["carried_documents"] = sorted(carried)
     add_audit_event(
         session,
         tenant_id=job.tenant_id,
@@ -862,7 +902,13 @@ async def handle_dossier_uploaded(session: AsyncSession, event: dict[str, Any]) 
         logger.error("worker.dossier_uploaded.missing_dossier_id", event=event)
         return
 
-    run_id = await _mark_processing(session, dossier_id, restart=bool(event.get("restart")))
+    retry_failed = bool(event.get("retry_failed"))
+    run_id = await _mark_processing(
+        session,
+        dossier_id,
+        restart=bool(event.get("restart")) or retry_failed,
+        retry_failed=retry_failed,
+    )
     await session.commit()
     if run_id is None:
         return
@@ -871,6 +917,14 @@ async def handle_dossier_uploaded(session: AsyncSession, event: dict[str, Any]) 
     if not documents:
         logger.error("worker.dossier_uploaded.no_documents", dossier_id=dossier_id)
         return
+    carried = await _recorded_extractions(session, run_id) or set()
+    missing = [document for document in documents if str(document.id) not in carried]
+    if carried and not missing:
+        # Everything was extracted before the failure: straight on to AI2.
+        await _complete_carried_run(
+            session, dossier_id=dossier_id, run_id=run_id, documents=documents
+        )
+        return
 
     dossier = await session.get(DossierORM, dossier_id)
     if dossier is None:
@@ -878,7 +932,7 @@ async def handle_dossier_uploaded(session: AsyncSession, event: dict[str, Any]) 
         return
 
     dossier_pages = sum(int(document.page_count or 0) for document in documents)
-    for document in documents:
+    for document in missing:
         envelope = await _build_ocr_command_payload(
             document=document,
             dossier=dossier,
@@ -897,6 +951,34 @@ async def handle_dossier_uploaded(session: AsyncSession, event: dict[str, Any]) 
             run_id=envelope["correlation"]["run_id"],
             event_id=envelope["event_id"],
         )
+
+
+async def _complete_carried_run(
+    session: AsyncSession, *, dossier_id: str, run_id: str, documents: list[DocumentORM]
+) -> None:
+    """A retry whose documents were all extracted already: EXTRACTED, then AI2."""
+    job = await _job_for_run(session, run_id)
+    if job is None:
+        return
+    for step in ("S2", "S3", "S8"):
+        await update_pipeline_step(
+            session,
+            tenant_id=job.tenant_id,
+            run_id=run_id,
+            step=step,
+            status="succeeded",
+            metrics={"service": "ai1", "carried": True, "total_documents": len(documents)},
+        )
+    await _mark_status(
+        session,
+        status_value=JobStatus.EXTRACTED.value,
+        dossier_id=dossier_id,
+        run_id=run_id,
+        audit_action="ai1.snapshots_carried",
+        audit_detail={"total_documents": len(documents)},
+    )
+    await session.commit()
+    _schedule_ai2(dossier_id=dossier_id, tenant_id=job.tenant_id, run_id=run_id)
 
 
 async def _run_ai2_if_ready(
@@ -1187,6 +1269,32 @@ async def _load_ai1_result_ref(
     return loaded, None
 
 
+async def _audit_late_result(
+    session: AsyncSession,
+    *,
+    job_id: str,
+    tenant_id: str,
+    dossier_id: str,
+    run_id: str,
+    detail: dict[str, Any],
+) -> None:
+    """Audit an AI1 result that reached a failed run, then commit."""
+    add_audit_event(
+        session,
+        tenant_id=tenant_id,
+        action="ai1.late_result",
+        entity_type="job",
+        entity_id=job_id,
+        dossier_id=dossier_id,
+        run_id=run_id,
+        from_state=JobStatus.FAILED.value,
+        to_state=JobStatus.FAILED.value,
+        detail=detail,
+    )
+    await session.commit()
+    logger.warning("worker.ai1_result.late", run_id=run_id, **detail)
+
+
 async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> None:
     """Persist AI1 OCR result and update job/dossier status.
 
@@ -1244,30 +1352,12 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
         logger.debug("worker.ai1_result.ignored", event_type=event_type)
         return
 
-    if not _worker_transition_allowed(job_status, JobStatus.EXTRACTED.value):
-        if job_status == JobStatus.FAILED.value:
-            # Typically AI1_TIMEOUT: the pages were OCR'd (and paid for) after the
-            # watchdog gave up. Operators need to see it to decide on a rerun.
-            add_audit_event(
-                session,
-                tenant_id=tenant_id,
-                action="ai1.late_result",
-                entity_type="job",
-                entity_id=job.id,
-                dossier_id=dossier_id,
-                run_id=run_id,
-                from_state=job_status,
-                to_state=job_status,
-                detail={**base_audit, "job_error_code": job.error_code},
-            )
-            await session.commit()
-            logger.warning(
-                "worker.ai1_result.late",
-                event_id=event_id,
-                run_id=run_id,
-                job_error_code=job.error_code,
-            )
-            return
+    # The run already failed (another document failed, or AI1_TIMEOUT): a valid
+    # result is still kept on the run — the pages were OCR'd and paid for — so
+    # "retry failed" only re-OCRs what is missing. The job does not move.
+    late = job_status == JobStatus.FAILED.value
+    job_error_code = job.error_code
+    if not late and not _worker_transition_allowed(job_status, JobStatus.EXTRACTED.value):
         logger.info(
             "worker.ai1_result.job_not_extracting",
             event_id=event_id,
@@ -1311,6 +1401,16 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
                     "AI1_SNAPSHOT_INVALID",
                     f"Snapshot document {document_id!r} does not belong to this dossier/command",
                 )
+    if rejection is not None and late:
+        await _audit_late_result(
+            session,
+            job_id=job.id,
+            tenant_id=tenant_id,
+            dossier_id=dossier_id,
+            run_id=run_id,
+            detail={**base_audit, "job_error_code": job_error_code, "kept": False},
+        )
+        return
     if rejection is not None:
         code, detail = rejection
         await _fail_ai1_run(
@@ -1337,7 +1437,7 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
         # A redelivery may be the only signal left after a crash between the
         # EXTRACTED commit and the AI2 hand-off; re-kicking is idempotent.
         recorded = await _recorded_extractions(session, run_id) or set()
-        if dossier_document_ids <= recorded:
+        if not late and dossier_document_ids <= recorded:
             _schedule_ai2(dossier_id=dossier_id, tenant_id=tenant_id, run_id=run_id)
         return
 
@@ -1369,6 +1469,23 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
         extracted = await _record_ai1_document(
             session, run_id=run_id, document_id=document_id, snapshot=canonical_snapshot
         )
+        if late:
+            await _audit_late_result(
+                session,
+                job_id=job.id,
+                tenant_id=tenant_id,
+                dossier_id=dossier_id,
+                run_id=run_id,
+                detail={
+                    **base_audit,
+                    "document_id": document_id,
+                    "job_error_code": job_error_code,
+                    "kept": True,
+                    "extracted_documents": len(extracted & dossier_document_ids),
+                    "total_documents": len(dossier_document_ids),
+                },
+            )
+            return
         page_count = len(
             canonical_snapshot.get("pages", [])
             if canonical_snapshot is not None

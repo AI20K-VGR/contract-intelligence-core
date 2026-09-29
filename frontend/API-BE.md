@@ -1124,3 +1124,21 @@ Khi quyền hết hạn hoặc bị `disabled`:
 Người có quyền `read` gọi API sửa thì nhận **403**, `detail`: "Bạn chỉ có quyền xem hồ sơ này, hoặc quyền đã hết hạn." Các API sửa gồm: `PATCH /dossiers/{id}`, `POST /dossiers/{id}/ocr`, `/ai2/retry`, `/runs`, `/reprocess`, `/manifest/confirm`, `POST /runs/{id}/cancel`, `POST /documents/{id}/re-ocr` và `POST /review-items/{id}/actions`.
 
 `DELETE /dossiers/{id}` và `PUT /dossiers/{id}/access` chỉ chủ hồ sơ hoặc ADMINISTRATOR. `PATCH /dossiers/{id}` bỏ qua `created_by`, `access_scope`, `shared_with` trong `metadata`. Muốn đổi quyền thì dùng endpoint này.
+
+## 22. Chạy lại phần OCR lỗi (giữ phần đã xong)
+
+### `POST /api/v1/dossiers/{dossier_id}/ocr/retry-failed` → **202**
+
+Dùng khi hồ sơ lỗi ở bước OCR (`latest_job_status = failed` với mã lỗi OCR, ví dụ `AI1_TIMEOUT`, `AI1_OCR_FAILED`, `AI1_RESULT_UNREADABLE`).
+
+- Backend mở run mới, **giữ kết quả OCR của các tài liệu đã xong** (kể cả kết quả về sau khi run đã lỗi), và chỉ gửi lại tài liệu còn thiếu cho AI1.
+- Nếu mọi tài liệu đã có kết quả, run chuyển thẳng sang AI2, không OCR lại trang nào.
+- Theo dõi tiến độ bằng SSE `/runs/{run_id}/events` của run mới, như khi upload.
+
+| Trả về | Khi nào |
+|---|---|
+| 202 `{"status": "queued"}` | Đã nhận |
+| 409 | Job không lỗi ở bước OCR. Lỗi AI2 thì dùng `POST /dossiers/{id}/ai2/retry` |
+| 403 | Không có quyền sửa hồ sơ (§20) |
+
+`POST /dossiers/{id}/ocr` (chạy lại OCR toàn bộ) vẫn giữ nguyên hành vi cũ.
