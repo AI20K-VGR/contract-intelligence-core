@@ -30,7 +30,7 @@ ssh <user>@<ip>
 sudo git clone https://github.com/AI20K-VGR/contract-intelligence-core.git /opt/contract-intelligence
 cd /opt/contract-intelligence
 sudo git checkout <nhánh cần deploy>
-sudo deploy/bootstrap.sh          # Docker, firewall, swap, deploy/.env.prod với secret ngẫu nhiên
+sudo deploy/bootstrap.sh          # Docker (xoay vòng log 5 × 20 MB), firewall, swap, deploy/.env.prod với secret ngẫu nhiên
 sudo nano deploy/.env.prod        # điền AI2_LLM_BASE_URL / AI2_LLM_API_KEY (Lead chốt provider)
 sudo nano ai-service/.env         # MISTRAL_API_KEY cho AI1
 sudo deploy/deploy.sh
@@ -46,7 +46,15 @@ sudo deploy/deploy.sh
    - Đổi secret của client backend.
    - **Đổi mật khẩu 3 tài khoản demo** (mật khẩu trong `realm-export.json` là công khai).
    - Cấu hình SMTP nếu có.
-5. Smoke test: `/health`, issuer OIDC, `/admin` bị chặn, cổng 8002 đóng.
+   - Bật chống dò mật khẩu: khoá tạm tài khoản sau 5 lần sai, tối đa 15 phút.
+5. Smoke test trên máy chủ: `/health`, issuer OIDC, `/admin` bị chặn.
+
+**Kiểm tra cổng phải chạy từ máy khác.** Từ chính VPS gọi IP công khai của nó có thể đi vòng trong máy và bỏ qua firewall. Cách chạy:
+
+- GitHub → Actions → `deploy-external-check` → nhập `api-…` và `auth-…`; hoặc
+- trên máy dev: `deploy/check_external.sh api-<ip>.sslip.io auth-<ip>.sslip.io`.
+
+Script kiểm HTTPS, `/admin` 404 và 14 cổng nội bộ (8002, DB, Kafka, MinIO, Keycloak, mailpit) đều đóng.
 
 Cuối cùng script in sẵn các biến `VITE_*` cho frontend.
 

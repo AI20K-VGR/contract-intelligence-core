@@ -22,6 +22,43 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 docker compose version
 
+# Docker log rotation (5 x 20 MB per container), merged into any existing
+# /etc/docker/daemon.json instead of skipping it. Only log keys are touched;
+# values an operator already set win. Applies to containers created after the
+# restart — deploy.sh (re)creates them.
+changed=$(python3 - /etc/docker/daemon.json <<'MERGE'
+import json, os, shutil, sys, time
+path = sys.argv[1]
+config = {}
+if os.path.exists(path):
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read().strip()
+    config = json.loads(text) if text else {}
+before = json.dumps(config, sort_keys=True)
+driver = config.setdefault("log-driver", "json-file")
+if driver in ("json-file", "local"):
+    opts = config.setdefault("log-opts", {})
+    opts.setdefault("max-size", "20m")
+    opts.setdefault("max-file", "5")
+else:
+    print(f"log-driver {driver!r} rotates on its own; left unchanged", file=sys.stderr)
+if json.dumps(config, sort_keys=True) != before:
+    if os.path.exists(path):
+        shutil.copy2(path, f"{path}.bak-{int(time.time())}")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(config, fh, indent=2)
+        fh.write("\n")
+    print("yes")
+MERGE
+)
+if [ "$changed" = yes ]; then
+  echo "[bootstrap] Docker log rotation set in /etc/docker/daemon.json (5 x 20 MB); restarting Docker"
+  systemctl restart docker
+else
+  echo "[bootstrap] Docker log rotation already configured"
+fi
+
 if command -v ufw >/dev/null 2>&1; then
   echo "[bootstrap] firewall: allow SSH, 80, 443 only"
   ufw allow OpenSSH >/dev/null
