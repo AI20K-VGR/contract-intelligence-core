@@ -438,3 +438,41 @@ def test_budget_mode_does_not_pay_a_verifier_call_for_one_stray_line(tmp_path):
     ).recognize_page(image, _ctx(tmp_path))
     assert budget_verifier.calls == 0
     assert selective_verifier.calls == 1  # the accuracy-side selective mode still pays for it
+
+
+def test_line_confidence_follows_the_evidence_behind_its_text(tmp_path):
+    # Single reader, nothing to doubt.
+    engine = VerifiedMistralOCREngine(
+        FakeReader("\n".join(CLEAN_VN)), FakeReader("unused"), FakeArbiter("unused"),
+        verify_all_pages=False,
+    )
+    single = engine.recognize_page(
+        _page(["DIEU 4. YEU CAU CHAT LUONG VA NGHIEM THU", PARA, PARA_2]), _ctx(tmp_path)
+    )
+    assert {line.confidence for line in single.lines} == {0.90}
+
+    # Critical digits corroborated by the independent verifier.
+    verifier = FakeReader(MONEY, lines=[_verifier_line(MONEY)])
+    engine = VerifiedMistralOCREngine(FakeReader(MONEY_VN), verifier, FakeArbiter("unused"))
+    agreed = engine.recognize_page(_page([MONEY]), _ctx(tmp_path))
+    assert agreed.lines[0].confidence == 0.97
+
+    # Three different readings of the amount: flagged, low confidence.
+    verifier_text = MONEY.replace("286", "236")
+    verifier = FakeReader(verifier_text, lines=[_verifier_line(verifier_text)])
+    engine = VerifiedMistralOCREngine(
+        FakeReader(MONEY_VN), verifier, FakeArbiter(MONEY_VN.replace("286", "999"))
+    )
+    conflict = engine.recognize_page(_page([MONEY]), _ctx(tmp_path))
+    assert conflict.lines[0].confidence == 0.30
+
+
+def test_fallback_text_is_not_counted_as_corroborated(tmp_path):
+    engine = VerifiedMistralOCREngine(
+        FakeReader(error=RuntimeError("402 insufficient credits")),
+        FakeReader(MONEY, lines=[_verifier_line(MONEY)]),
+        FakeArbiter("unused"),
+        fallback_reader=FakeReader(MONEY_VN),
+    )
+    result = engine.recognize_page(_page([MONEY]), _ctx(tmp_path))
+    assert result.lines[0].confidence == 0.90
