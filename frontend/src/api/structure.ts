@@ -12,6 +12,7 @@ import {
   type Ai2SearchResult,
 } from './ai2'
 import { buildStructureTree, inferStructureMode } from '../structure'
+import { asConfidence } from '../structure/confidence'
 
 export type StructureDocument = {
   id: string
@@ -41,6 +42,8 @@ export type ClauseRegion = {
   pageNo: number
   /** [x1, y1, x2, y2] chuẩn hóa 0..1 theo trang. */
   bbox: [number, number, number, number]
+  /** Độ tin cậy OCR của chữ trong vùng (0..1); không có nếu engine không báo. */
+  confidence?: number | null
 }
 
 export type ClauseNode = {
@@ -397,6 +400,7 @@ export async function getPageLines(page: DocumentPage, signal?: AbortSignal) {
         bbox: asBBox(line.bbox, page.widthPt, page.heightPt),
         pageWidth: page.widthPt,
         pageHeight: page.heightPt,
+        confidence: asConfidence(line.confidence),
       },
     ]
   })

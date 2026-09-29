@@ -5,7 +5,7 @@ import type { ClauseNode, ClauseRegion, OcrLine } from './types'
 
 function lineRegion(line: OcrLine): ClauseRegion | null {
   if (!line.bbox) return null
-  return { pageNo: line.pageNo, bbox: line.bbox }
+  return { pageNo: line.pageNo, bbox: line.bbox, confidence: line.confidence }
 }
 
 const TITLE_NEXT_LINE_MAX = 100

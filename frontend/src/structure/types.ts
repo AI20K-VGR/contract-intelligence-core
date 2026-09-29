@@ -106,6 +106,8 @@ export type OcrLine = {
   bbox: [number, number, number, number] | null
   pageWidth: number
   pageHeight: number
+  /** Độ tin cậy OCR của dòng (0..1); null nếu engine không báo. */
+  confidence?: number | null
 }
 
 /** Một nút mở mới trong cây, trước khi gắn cha con. */

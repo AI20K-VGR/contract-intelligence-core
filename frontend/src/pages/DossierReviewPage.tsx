@@ -24,6 +24,12 @@ import {
 } from '../components/FindingQueue'
 import { MaterialIcon } from '../components/icons'
 import { auditTotalCount, exportAuditCsv } from '../data/auditLog'
+import {
+  confidenceBadgeClasses,
+  confidenceLabels,
+  confidenceLevel,
+  formatConfidence,
+} from '../structure/confidence'
 import { usePageTitle } from '../hooks/usePageTitle'
 import {
   approveDossier,
@@ -992,8 +998,13 @@ export function DossierReviewPage() {
                           <span className="font-label-md text-label-md font-semibold text-on-surface">
                             {fact.key}
                           </span>
-                          <span className="font-code-sm text-code-sm text-secondary">
-                            {Math.round(fact.confidence * 100)}% ·{' '}
+                          <span className="flex items-center gap-space-xs font-code-sm text-code-sm text-secondary">
+                            <span
+                              className={`rounded-sm px-1 font-semibold ${confidenceBadgeClasses[confidenceLevel(fact.confidence)]}`}
+                            >
+                              IDP {formatConfidence(fact.confidence)} ·{' '}
+                              {confidenceLabels[confidenceLevel(fact.confidence)]}
+                            </span>
                             {fact.reviewState}
                           </span>
                         </div>
