@@ -1,6 +1,6 @@
 # DEC-BE-AI2-01: Các điểm chốt của contract Backend ↔ AI2
 
-**Trạng thái:** `proposed`, chờ duyệt
+**Trạng thái:** `accepted-backend`. Backend (Chương) đã chốt D1–D11 ngày 2026-09-29. Chờ Văn Dũng (AI2) xác nhận; D6 và D8 chờ thêm Trang (Lead)
 **Ngày:** 2026-09-29
 **Người soạn:** Chương (Backend)
 **Người duyệt:** Chương (Backend), Văn Dũng (AI2). Riêng D6 và D8 cần thêm Trang (Lead).
@@ -13,14 +13,14 @@
 
 ## Cách dùng tài liệu này
 
-Mỗi mục D1–D10 gồm bốn phần: **hiện trạng** (dẫn tới code), **đề xuất**, **việc của từng bên** và **ô duyệt**. Người duyệt đánh dấu `[x]` và ghi chú nếu không đồng ý.
+Mỗi mục D1–D11 gồm bốn phần: **hiện trạng** (dẫn tới code), **đề xuất**, **việc của từng bên** và **ô duyệt**. Người duyệt đánh dấu `[x]` và ghi chú nếu không đồng ý.
 
 Khi cả hai bên duyệt xong:
 1. Đổi trạng thái sang `accepted`.
 2. Chép các quy tắc đã chốt vào `BE-AI2-PROCESSING-CONTRACT.vi.md`.
 3. Nếu mục nào đổi schema, cập nhật file `*.schema.json` tương ứng.
 
-**Hạn:** D1, D2, D4, D10 cần chốt **trước T4 30/09**, vì bốn mục này chặn việc của AI2 trong tuần. D6 và D8 chốt cùng Lead **trước T5 01/10**.
+**Hạn:** D1, D2, D4, D10 cần chốt **trước T4 30/09**, vì bốn mục này chặn việc của AI2 trong tuần. D6 và D8 chốt cùng Lead **trước T5 01/10**. D11 có hai mốc: bước tạm trước 01/10, bản Postgres trước 18/10 (DOC-11 §3).
 
 ## Tóm tắt
 
@@ -36,6 +36,7 @@ Khi cả hai bên duyệt xong:
 | D8 | Ánh xạ trạng thái | Tách "AI2 xong" khỏi "chờ review" | 01/10 (Lead) |
 | D9 | Xử lý kết quả | Lưu ở dạng đề xuất, publish sau khi reviewer duyệt | 01/10 |
 | D10 | Contract hỏi đáp | AI2 trả `query_snapshot_digest` trong result; Backend lưu nguyên giá trị, không tự tính | 30/09 |
+| D11 | Nơi lưu dữ liệu AI2 | Nghiệp vụ ở Postgres của Backend; trạng thái riêng của AI2 ở schema `ai2` trong cùng Postgres, AI2 tự quản migration | 01/10 (tạm), 18/10 |
 
 ---
 
@@ -55,7 +56,7 @@ Khi cả hai bên duyệt xong:
 - AI2: sửa docstring của `kafka_idp_worker.py` và `/jobs/idp`. Ghi đúng kênh vào phần AI2 của Architecture doc.
 - Backend: xoá bộ hàm trùng; ghi DOC-05e là "chưa dùng trong Sprint 2".
 
-- [ ] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
+- [x] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
 
 ## D2. Xác thực bằng service envelope (HMAC)
 
@@ -81,7 +82,7 @@ Khi cả hai bên duyệt xong:
 - AI2: xác nhận `service_envelope.py` chuẩn hoá JSON giống bảng trên, kể cả `ensure_ascii=False`. Chỉ cần lệch một chi tiết là mọi request bị 401.
 - Backend: thêm vào CI một test ký thử bằng secret cố định và so với vector mẫu do AI2 cung cấp.
 
-- [ ] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
+- [x] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
 
 ## D3. Mạng và healthcheck
 
@@ -98,7 +99,7 @@ Khi cả hai bên duyệt xong:
 - AI2: đổi healthcheck.
 - Backend: tách override compose cho bản online, không có `ports` cho `ai2-service`.
 
-- [ ] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
+- [x] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
 
 ## D4. Phiên bản snapshot và định dạng digest
 
@@ -118,7 +119,7 @@ Khi cả hai bên duyệt xong:
 - AI2: chuẩn hoá digest ngay khi nhận request.
 - AI1 (Đức Dũng): chốt một phiên bản snapshot (xem kế hoạch AI2 §5).
 
-- [ ] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
+- [x] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
 
 ## D5. Hồ sơ nhiều file: member và quan hệ
 
@@ -138,7 +139,7 @@ Khi cả hai bên duyệt xong:
 - Backend: chặn trường hợp có 0 hoặc nhiều hơn 1 body trước khi submit, kèm mã lỗi.
 - AI2: finding liên tài liệu khi thiếu `ANNEX_OF` phải gắn nhãn "chưa xác nhận".
 
-- [ ] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
+- [x] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
 
 ## D6. `policy_flags`: egress, vector và ngân sách (cần Lead)
 
@@ -163,7 +164,7 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
 - Backend: đọc egress của luồng xử lý từ env.
 - AI2: xác nhận hành vi khi egress tắt và khi vượt ngân sách.
 
-- [ ] Chương duyệt  - [ ] Dũng duyệt  - [ ] Trang duyệt  Ghi chú:
+- [x] Chương duyệt  - [ ] Dũng duyệt  - [ ] Trang duyệt  Ghi chú:
 
 ## D7. Idempotency, attempt và retry
 
@@ -188,7 +189,7 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
 - AI2: xác nhận `409` và việc trả lại cùng `job_id`.
 - Backend: thêm giới hạn attempt và nhánh xử lý `retryable=false`.
 
-- [ ] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
+- [x] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
 
 ## D8. Ánh xạ trạng thái AI2 sang trạng thái hồ sơ (cần Lead)
 
@@ -214,7 +215,7 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
 - Backend: sửa bước chuyển trạng thái trong worker; thêm migration nếu cần giá trị trạng thái mới.
 - AI2: không phải làm gì.
 
-- [ ] Chương duyệt  - [ ] Dũng duyệt  - [ ] Trang duyệt  Ghi chú:
+- [x] Chương duyệt  - [ ] Dũng duyệt  - [ ] Trang duyệt  Ghi chú:
 
 ## D9. Backend lưu và kiểm tra gì trong kết quả
 
@@ -233,7 +234,7 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
 - Backend: bước kiểm tra ở mục 1 và mục 3.
 - AI2: bảo đảm mục 1, mục 3 và mục 6 ngay ở đầu ra.
 
-- [ ] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
+- [x] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
 
 ## D10. Contract hỏi đáp `ai2.query.v1`
 
@@ -258,7 +259,54 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
 - AI2: thêm `query_snapshot_digest` vào result và schema; chốt danh sách giá trị `state`.
 - Backend: lưu digest theo AI2 trả về, xoá code tự tính, xoá phương án thay thế.
 
-- [ ] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
+- [x] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
+
+## D11. AI2 lưu dữ liệu bền ở đâu
+
+**Hiện trạng:**
+- Kết quả nghiệp vụ AI2 **đã nằm trong Postgres của Backend**, và Backend là bên ghi: `pipeline_run.ai2_result_json`, `ai2_result_digest` (migration `v10`), cùng các bảng fact, finding, citation và review.
+- Trạng thái riêng của AI2 vẫn nằm trong SQLite hoặc RAM:
+
+  | Kho | Code | Chứa gì |
+  |---|---|---|
+  | Job store | `app/tools/jobs.py` (`AI2_JOB_DB`) | Toàn bộ request Backend gửi, kể cả snapshot, và kết quả job |
+  | Snapshot store | `app/api/main.py:70` (`InMemorySnapshotStore`) | Hồ sơ đã nhận, để trả lời `/query`. Nằm trong RAM; khởi động lại thì dựng lại từ job store (`main.py:82`) |
+  | Durable run store | `app/tools/durable.py` | Run, checkpoint, event, audit, outbox |
+  | Vector | `app/reasoning/vector_recall.py` (`AI2_VECTOR_DB`) | Embedding cho vector recall |
+  | Workspace demo | `app/tools/persist.py` | Session của các trang demo `/api/workspace/*` |
+
+- `ai-service` chưa có driver Postgres.
+- **Rủi ro:** container AI2 bị tạo lại mà không có volume thì job store mất. Khi đó `/query` trả `INSUFFICIENT_EVIDENCE` cho mọi hồ sơ cũ, và poll job cũ nhận `404`.
+- DOC-11 §3 (Lead) đã định hướng: *"bản online của AI2 ghi dữ liệu bền vào PostgreSQL. SQLite chỉ còn trong test."*
+
+**Đề xuất:**
+1. **Nguồn sự thật của dữ liệu nghiệp vụ** là Postgres của Backend, và chỉ Backend ghi vào đó. AI2 không đọc, không ghi bảng của Backend.
+2. **Trạng thái riêng của AI2** (job store, durable run store, nonce đã dùng) chuyển vào **cùng cụm Postgres, schema `ai2`**:
+   - AI2 kết nối qua biến `AI2_DATABASE_URL`, bằng user `ai2_app`;
+   - `ai2_app` chỉ có quyền trên schema `ai2`;
+   - user của Backend không có quyền gì trên schema `ai2`.
+3. **Migration của schema `ai2` do AI2 tự quản**, bằng alembic riêng trong `ai-service`, với bảng version đặt trong schema `ai2`. Alembic của Backend không đụng tới schema này. Backend chỉ tạo schema và user trong script khởi tạo DB khi deploy.
+4. **Snapshot store vẫn nằm trong RAM**, và vẫn được dựng lại từ job store khi khởi động. Job store đã ở Postgres thì khởi động lại không mất gì.
+5. **Vector tắt trên bản online**: `use_vector=false`, khớp với D6. Việc chuyển sang pgvector để sau khi eval chứng minh vector có ích.
+6. **Workspace demo** (`persist.py`) không chạy trên bản online, vì các endpoint `/api/workspace/*` không được mở ra ngoài (D3).
+7. **SQLite chỉ còn cho test và chạy local**: `AI2_DATABASE_URL` để trống thì AI2 dùng SQLite như hiện tại.
+8. **Phục hồi khi AI2 mất dữ liệu:** Backend gửi lại `/jobs/idp` với `attempt` mới (D7), dùng snapshot đã lưu phía Backend, qua `POST /dossiers/{id}/ai2/retry`. AI2 không cần sao lưu riêng.
+9. **Bước tạm cho demo Sprint 2**, trước khi có Postgres: mount volume cho file của `AI2_JOB_DB` và `vectors.sqlite`, để khởi động lại không mất dữ liệu. Image không chứa `data/` (O4).
+
+**Việc cần làm:**
+- AI2:
+  - chuyển job store và durable run store sang Postgres (schema `ai2`), có test chạy trên Postgres thật;
+  - thêm alembic riêng;
+  - đọc `AI2_DATABASE_URL`.
+- Backend:
+  - script khởi tạo tạo schema `ai2` và user `ai2_app`;
+  - compose đặt `AI2_DATABASE_URL` cho `ai2-service`;
+  - mount volume cho bước tạm (mục 9);
+  - kiểm tra `ai2/retry` dựng lại được hồ sơ sau khi AI2 mất dữ liệu.
+
+**Hạn:** mục 9 trước T5 01/10. Mục 1–8 trong Sprint 3, trước 18/10 (DOC-11: "AI2 trên Postgres").
+
+- [x] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
 
 ---
 
@@ -276,3 +324,4 @@ Các mục sau để lại cho Sprint 3:
 | Ngày | Thay đổi | Người |
 |---|---|---|
 | 2026-09-29 | Bản đề xuất đầu tiên | Chương |
+| 2026-09-29 | Thêm D11 (nơi lưu dữ liệu AI2). Backend chốt D1–D11 và chép vào `BE-AI2-PROCESSING-CONTRACT.vi.md` §6 | Chương |

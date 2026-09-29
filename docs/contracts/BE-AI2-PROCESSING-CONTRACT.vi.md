@@ -3,7 +3,7 @@
 **Trạng thái:** Canonical processing contract v1  
 **Phạm vi:** Backend gửi toàn bộ dossier cho AI2 xử lý; AI2 trả kết quả async để Backend lưu và quyết định publish.
 
-> **Đang duyệt:** [DEC-BE-AI2-01](DEC-BE-AI2-01-contract-decisions.vi.md) chốt kênh gọi, HMAC, digest, retry, ánh xạ trạng thái và contract `/query`. Khi DEC được `accepted`, các quy tắc sẽ được chép vào tài liệu này.
+> **v1.1:** §6 là các quy tắc đã chốt theo [DEC-BE-AI2-01](DEC-BE-AI2-01-contract-decisions.vi.md). Backend chốt ngày 2026-09-29; chờ AI2 (Văn Dũng) xác nhận, riêng D6 và D8 chờ thêm Lead. Chỗ nào §6 khác các mục trên thì theo §6.
 
 ## 1. Phạm vi và ownership
 
@@ -130,3 +130,68 @@ Không tự động đổi version giữa các lane. Mọi migration từ `ai1.s
 3. POST/polling có idempotency theo attempt.
 4. Result tách public wire shape khỏi internal `JobResult`/`IndexContribution`.
 5. Có test cho membership, body/annex relation, citation resolution và async lifecycle.
+
+## 6. Quy tắc đã chốt (v1.1)
+
+Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn` trỏ tới mục tương ứng trong DEC.
+
+### 6.1 Kết nối và bảo mật
+
+- **Kênh gọi (D1).** Chỉ dùng HTTP: `POST /jobs/idp` trả `202`, sau đó Backend poll `GET /jobs/{job_id}`. Kafka của AI2 không dùng trong Sprint 2. `POST /query` là lời gọi đồng bộ.
+- **Envelope (D2).**
+  - `issuer=backend-service`, `audience=vsf-ai2`, `key_id=default`; thời hạn 300 giây.
+  - Scope: `ai2.jobs.submit` cho submit và poll, `ai2.query` cho hỏi đáp.
+  - Payload đem đi hash: bỏ trường `service_envelope`, chuẩn hoá JSON với `sort_keys`, `separators=(",", ":")`, `ensure_ascii=False`, mã hoá UTF-8. Chữ ký là HMAC-SHA256 trên envelope đã bỏ `signature`.
+  - Mỗi môi trường dùng một secret riêng, đặt giống nhau cho `backend`, `backend-worker` và `ai2-service`. Thiếu secret thì cả hai phía đều từ chối (fail-closed).
+- **Mạng (D3).** Bản online không publish cổng 8002. Healthcheck gọi `/healthz`, endpoint không gọi LLM.
+
+### 6.2 Request
+
+- **Snapshot và digest (D4).**
+  - Chỉ gửi `ai1.snapshot.v1`.
+  - `source_digest` và `snapshot_digest` là 64 ký tự hex chữ thường, không có tiền tố. AI2 nhận `sha256:<hex>` để tương thích nhưng chuẩn hoá ngay khi nhận.
+- **Hồ sơ nhiều file (D5).**
+  - Gửi đủ mọi snapshot của hồ sơ, với đúng một member `body`. Có 0 hoặc nhiều hơn một body thì Backend không gửi.
+  - Phụ lục không có `ANNEX_OF` vẫn được gửi với `role=annex`; finding liên tài liệu khi đó ghi là "quan hệ chưa xác nhận".
+  - AI2 không suy luận, không sửa role hay quan hệ.
+- **`policy_flags` (D6, chờ Lead).**
+  - Egress của từng luồng do biến env quyết định (`AI2_PROCESSING_EGRESS_ALLOWED`, `AI2_QUERY_EGRESS_ALLOWED`), mặc định `false`.
+  - Khi `egress_allowed=false`, AI2 vẫn trả `SUCCEEDED` với phần xử lý bằng luật cố định.
+  - Vượt `max_llm_calls` thì AI2 trả `INSUFFICIENT_EVIDENCE` kèm lý do, không trả `FAILED`.
+
+### 6.3 Vòng đời job
+
+- **Idempotency và retry (D7).**
+  - `idempotency_key` bằng `<run_id>:ai2`.
+  - Gửi lại vì mất phản hồi mạng: giữ nguyên key và `attempt`, nhận lại cùng `job_id`.
+  - Retry sau `FAILED` có `retryable=true`: giữ key, `attempt` tăng 1, tối đa 3 attempt cho một run.
+  - Bộ snapshot thay đổi: mở run mới, key mới.
+  - Cùng `(key, attempt)` mà payload khác: AI2 trả `409`, Backend không retry.
+- **Ánh xạ trạng thái (D8, chờ Lead).**
+  - `SUCCEEDED` với `PASS`, `NEEDS_REVIEW` hoặc `INSUFFICIENT_EVIDENCE`: hồ sơ chuyển sang `pending_review`.
+  - `BLOCKED`, hoặc `FAILED` đã hết lượt retry: hồ sơ chuyển sang `failed`.
+  - `evidence_ready` chỉ cho biết đủ bằng chứng để publish; nó không quyết định hồ sơ có vào hàng chờ review hay không.
+
+### 6.4 Kết quả
+
+- **Kiểm tra và lưu (D9).**
+  - `input_snapshots[]` phải khớp các snapshot đã gửi, và mọi `citation_id` phải có trong `citations[]`. Sai một điều thì Backend không lưu phần nào của result.
+  - Kết quả là bản đề xuất (`propose`); chỉ publish sau khi reviewer duyệt.
+  - AI2 không tạo bbox mới.
+  - Citation `UNVERIFIED` vẫn được lưu nhưng gắn cờ.
+  - `table_id` và `cell_id` được lưu nếu có.
+  - Finding liên tài liệu thiếu citation một phía thì bị hạ xuống `NEEDS_REVIEW`.
+- **Hỏi đáp `ai2.query.v1` (D10).**
+  - AI2 trả `query_snapshot_digest` (64 hex) trong result xử lý hồ sơ. Backend lưu nguyên giá trị đó và gửi lại trong `/query`. Backend không tự tính digest, và không dùng `dossier.checksum` thay thế.
+  - Hồ sơ chưa có digest thì Backend không gọi AI2.
+  - `acl_context` là `user_id` của người hỏi, chỉ dùng cho audit.
+  - `state` nhận một trong ba giá trị `ANSWERED`, `NEEDS_REVIEW`, `INSUFFICIENT_EVIDENCE`.
+  - Timeout 20 giây.
+
+### 6.5 Lưu trữ (D11)
+
+- Dữ liệu nghiệp vụ nằm ở Postgres của Backend, và chỉ Backend ghi.
+- Trạng thái riêng của AI2 nằm ở schema `ai2` trong cùng cụm Postgres, qua `AI2_DATABASE_URL` và user `ai2_app` (chỉ có quyền trên schema `ai2`). Migration của schema này do AI2 tự quản.
+- SQLite chỉ dùng cho test và chạy local. Vector tắt trên bản online.
+- AI2 mất dữ liệu thì Backend dựng lại bằng cách gửi lại `/jobs/idp` với `attempt` mới.
+- Trước khi có Postgres: mount volume cho các file SQLite của AI2.
