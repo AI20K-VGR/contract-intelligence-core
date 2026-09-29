@@ -12,6 +12,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query
 
+from contract_intelligence.api.dossier_guard import (
+    acl_dossier_findings,
+    acl_finding,
+)
 from contract_intelligence.conflict.application.dtos.finding_dtos import FindingDTO
 from contract_intelligence.conflict.interfaces.api.dependencies import (
     ConflictServiceDep,
@@ -24,6 +28,7 @@ router = APIRouter(tags=["Conflict"])
 
 @router.get(
     "/dossiers/{dossier_id}/findings",
+    dependencies=[Depends(acl_dossier_findings)],
     response_model=ApiResponse[list[FindingDTO]],
     summary="List findings trong dossier",
 )
@@ -56,6 +61,7 @@ async def list_findings(
 
 @router.get(
     "/dossiers/{dossier_id}/conflicts",
+    dependencies=[Depends(acl_dossier_findings)],
     response_model=ApiResponse[list[FindingDTO]],
     summary="Findings needing reviewer (= v_conflict)",
 )
@@ -80,6 +86,7 @@ async def list_conflicts(
 
 @router.get(
     "/findings/{finding_id}",
+    dependencies=[Depends(acl_finding)],
     response_model=ApiResponse[FindingDTO],
     responses={404: {"description": "Finding not found"}},
 )

@@ -1,0 +1,43 @@
+# Public entry point. Caddy obtains and renews Let's Encrypt certificates for
+# both hosts (sslip.io names resolve to the VPS IP, so no DNS setup is needed).
+
+(common) {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	log {
+		output stdout
+		format console
+	}
+}
+
+# Backend API — for the frontend. AI1/AI2 never come through here: AI1 talks
+# over Kafka and AI2 over HTTP inside ci-network.
+{$API_HOST} {
+	import common
+
+	# Several PDFs of up to 50 MB each per dossier upload.
+	request_body {
+		max_size 300MB
+	}
+
+	reverse_proxy backend:8000 {
+		# SSE (/api/v1/runs/{id}/events): pass each event through at once.
+		flush_interval -1
+	}
+}
+
+# Keycloak — login pages, OIDC endpoints and the account console.
+{$AUTH_HOST} {
+	import common
+
+	# Admin console and admin REST stay off the Internet; operators use an SSH
+	# tunnel (deploy/README.md). The backend reaches admin REST internally.
+	@admin path /admin /admin/*
+	respond @admin 404
+
+	reverse_proxy keycloak:8080
+}

@@ -1,0 +1,44 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.3, pytest-9.1.1, pluggy-1.6.0 -- E:\Project_OJT\contract-intelligence-core\backend\.venv\Scripts\python.exe
+rootdir: E:\Project_OJT\contract-intelligence-core\backend
+configfile: pyproject.toml
+plugins: anyio-4.15.1, asyncio-1.4.0, cov-7.1.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 34 items
+
+tests/integration/test_contract_endpoints.py::TestDossierEndpoints::test_create_dossier_multipart_upload_returns_202 PASSED [  2%]
+tests/integration/test_contract_endpoints.py::TestDossierEndpoints::test_create_dossier_requires_auth PASSED [  5%]
+tests/integration/test_contract_endpoints.py::TestDossierEndpoints::test_create_dossier_requires_operator_or_admin PASSED [  8%]
+tests/integration/test_contract_endpoints.py::TestDossierEndpoints::test_create_dossier_with_annex PASSED [ 11%]
+tests/integration/test_contract_endpoints.py::TestDossierEndpoints::test_list_dossiers_requires_auth PASSED [ 14%]
+tests/integration/test_contract_endpoints.py::TestDossierEndpoints::test_list_dossiers_returns_empty_list PASSED [ 17%]
+tests/integration/test_contract_endpoints.py::TestDossierEndpoints::test_list_dossiers_returns_created_dossiers PASSED [ 20%]
+tests/integration/test_contract_endpoints.py::TestDossierEndpoints::test_get_dossier_detail PASSED [ 23%]
+tests/integration/test_contract_endpoints.py::TestDossierEndpoints::test_get_dossier_not_found_returns_404 PASSED [ 26%]
+tests/integration/test_contract_endpoints.py::TestDossierEndpoints::test_patch_dossier_updates_name PASSED [ 29%]
+tests/integration/test_contract_endpoints.py::TestDossierEndpoints::test_patch_dossier_requires_write_role PASSED [ 32%]
+tests/integration/test_contract_endpoints.py::TestDossierEndpoints::test_list_dossier_documents PASSED [ 35%]
+tests/integration/test_contract_endpoints.py::TestDossierEndpoints::test_get_document_detail PASSED [ 38%]
+tests/integration/test_contract_endpoints.py::TestDossierEndpoints::test_stream_document_content PASSED [ 41%]
+tests/integration/test_contract_endpoints.py::TestDossierEndpoints::test_read_ops_accessible_by_reviewer PASSED [ 44%]
+tests/integration/test_ai_pipeline.py::TestDossierUpload::test_upload_dossier_with_contract_only PASSED [ 47%]
+tests/integration/test_ai_pipeline.py::TestDossierUpload::test_upload_dossier_with_contract_and_annexes PASSED [ 50%]
+tests/integration/test_ai_pipeline.py::TestDossierUpload::test_upload_without_contract_file_returns_400 PASSED [ 52%]
+tests/integration/test_ai_pipeline.py::TestDossierUpload::test_upload_reviewer_role_forbidden PASSED [ 55%]
+tests/unit/test_contract_router.py::TestCreateDossierEndpoint::test_returns_202_with_dossier_created PASSED [ 58%]
+tests/unit/test_contract_router.py::TestCreateDossierEndpoint::test_passes_metadata_tags_and_notes PASSED [ 61%]
+tests/unit/test_contract_router.py::TestCreateDossierEndpoint::test_returns_422_when_no_contract_file PASSED [ 64%]
+tests/unit/test_contract_router.py::TestCreateDossierEndpoint::test_rbac_rejects_reviewer PASSED [ 67%]
+tests/unit/test_contract_router.py::TestCreateDossierEndpoint::test_upload_with_annexes PASSED [ 70%]
+tests/unit/test_upload_tenant_header.py::test_upload_without_tenant_header_is_rejected PASSED [ 73%]
+tests/unit/test_upload_tenant_header.py::test_upload_with_foreign_tenant_header_is_rejected PASSED [ 76%]
+tests/unit/test_auth_dependencies.py::TestGetCurrentUser::test_missing_authorization_header PASSED [ 79%]
+tests/unit/test_auth_dependencies.py::TestGetCurrentUser::test_invalid_bearer_format PASSED [ 82%]
+tests/unit/test_auth_dependencies.py::TestGetCurrentUser::test_valid_token_returns_user PASSED [ 85%]
+tests/unit/test_auth_dependencies.py::TestGetCurrentUser::test_expired_token_returns_401 PASSED [ 88%]
+tests/unit/test_auth_dependencies.py::TestRequireRole::test_allowed_role_passes PASSED [ 91%]
+tests/unit/test_auth_dependencies.py::TestRequireRole::test_disallowed_role_raises_403 PASSED [ 94%]
+tests/unit/test_auth_dependencies.py::TestAuthenticatedUser::test_has_role_single PASSED [ 97%]
+tests/unit/test_auth_dependencies.py::TestAuthenticatedUser::test_has_role_multiple PASSED [100%]
+
+======================== 34 passed in 77.17s (0:01:17) ========================

@@ -222,3 +222,6 @@ __all__ = [
     "PipelineRunORM",
     "PipelineStepORM",
 ]
+
+# Registers the run_event outbox hooks on every Session that can touch these tables.
+import contract_intelligence.shared.run_events  # noqa: E402, F401

@@ -11,6 +11,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from tests.pdf_bytes import make_pdf
 from tests.unit.conftest_contract import FakeFileStorage
 
 from contract_intelligence.config.settings import get_settings
@@ -95,7 +96,7 @@ async def client(
 async def _create_dossier(client: AsyncClient, token: str) -> tuple[str, str]:
     response = await client.post(
         "/api/v1/dossiers",
-        files=[("contract", ("test.pdf", b"%PDF-1.4 content", "application/pdf"))],
+        files=[("contract", ("test.pdf", make_pdf(marker="content"), "application/pdf"))],
         data={"metadata": '{"name": "To Delete", "notes": "secret note"}'},
         headers={
             "Authorization": f"Bearer {token}",

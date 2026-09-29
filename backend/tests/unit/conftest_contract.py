@@ -116,7 +116,9 @@ class FakeDossierRepository(DossierRepository):
             self._store[dossier_id]._checksum = checksum
             self._store[dossier_id]._status = "approved"
 
-    async def get_flags(self, dossier_id: str) -> dict[str, object] | None:
+    async def get_flags(
+        self, dossier_id: str, *, for_update: bool = False
+    ) -> dict[str, object] | None:
         d = self._store.get(dossier_id)
         if d is None:
             return None

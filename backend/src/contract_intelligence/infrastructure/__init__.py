@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-from contract_intelligence.infrastructure.ai_adapters import (
-    query_ai2,
-    submit_to_ai1,
-    submit_to_ai2,
-)
+from contract_intelligence.infrastructure.ai_adapters import query_ai2
 from contract_intelligence.infrastructure.messaging import (
     publish_event,
     start_producer,
@@ -29,7 +25,5 @@ __all__ = [
     "query_ai2",
     "start_producer",
     "stop_producer",
-    "submit_to_ai1",
-    "submit_to_ai2",
     "upload_file",
 ]

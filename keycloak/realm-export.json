@@ -172,14 +172,18 @@
       "redirectUris": [
         "http://localhost:5173/",
         "http://localhost:5173/auth/callback",
-        "http://localhost:5173/auth/silent-callback"
+        "http://localhost:5173/auth/silent-callback",
+        "http://127.0.0.1:5173/",
+        "http://127.0.0.1:5173/auth/callback",
+        "http://127.0.0.1:5173/auth/silent-callback"
       ],
       "webOrigins": [
-        "http://localhost:5173"
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:5173/*",
+        "post.logout.redirect.uris": "http://localhost:5173/*##http://127.0.0.1:5173/*",
         "client.use.lightweight.access.token.enabled": "false",
         "oauth2.device.authorization.grant.enabled": "false",
         "oidc.ciba.grant.enabled": "false"

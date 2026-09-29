@@ -217,7 +217,12 @@ async def _seed_dossier(factory: async_sessionmaker[AsyncSession]) -> None:
                         ],
                     },
                 ),
-                JobORM(id="job-vsf-ai2", tenant_id=TENANT_ID, dossier_id=DOSSIER_ID),
+                JobORM(
+                    id="job-vsf-ai2",
+                    tenant_id=TENANT_ID,
+                    dossier_id=DOSSIER_ID,
+                    current_run_id=RUN_ID,
+                ),
                 PipelineRunORM(
                     id=RUN_ID,
                     tenant_id=TENANT_ID,

@@ -24,9 +24,19 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, Path, Query, Response, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Response, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from contract_intelligence.api.dossier_guard import (
+    acl_citation,
+    acl_document,
+    acl_dossier,
+    acl_fact,
+    acl_page,
+    acl_run,
+    require_dossier_action,
+)
 from contract_intelligence.extraction.application.dtos.clause_dtos import ClauseNodeDTO
 from contract_intelligence.extraction.application.dtos.fact_effective_dtos import (
     FactEffectiveDTO,
@@ -41,7 +51,9 @@ from contract_intelligence.extraction.application.dtos.table_dtos import DocTabl
 from contract_intelligence.extraction.interfaces.api.dependencies import (
     ExtractionServiceDep,
 )
+from contract_intelligence.shared.acl import AclAction
 from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user, require_role
+from contract_intelligence.shared.persistence import get_async_session
 from contract_intelligence.shared.responses import ApiMeta, ApiResponse
 
 router = APIRouter(tags=["Extraction"])
@@ -67,10 +79,13 @@ async def trigger_run(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ExtractionServiceDep,
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
-    background_tasks: BackgroundTasks,
+    session: Annotated[AsyncSession, Depends(get_async_session)],
     body: Annotated[CreateRunRequestDTO | None, Body()] = None,
 ) -> ApiResponse[PipelineRunSummaryDTO]:
-    """Kích hoạt pipeline run mới. RBAC: ADMINISTRATOR inherits OPERATOR."""
+    """Kích hoạt pipeline run mới (qua Kafka worker). RBAC: ADMINISTRATOR inherits OPERATOR."""
+    await require_dossier_action(
+        session, user, action=AclAction.DOSSIER_EDIT, dossier_id=dossier_id
+    )
     override = (
         body.config_override.model_dump(exclude_none=True)
         if body and body.config_override
@@ -79,7 +94,6 @@ async def trigger_run(
     run = await svc.trigger_pipeline_run(
         dossier_id=dossier_id,
         trace_id=str(user.user_id),
-        background_tasks=background_tasks,
         config_override=override,
     )
     return ApiResponse(data=svc.to_summary(run, triggered_by=user.user_id))
@@ -100,11 +114,13 @@ async def reprocess_dossier(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ExtractionServiceDep,
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
-    background_tasks: BackgroundTasks,
+    session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> ApiResponse[ReprocessAcceptedDTO]:
+    await require_dossier_action(
+        session, user, action=AclAction.DOSSIER_EDIT, dossier_id=dossier_id
+    )
     accepted = await svc.reprocess_dossier(
         dossier_id=dossier_id,
-        background_tasks=background_tasks,
         trace_id=str(user.user_id),
     )
     return ApiResponse(data=accepted)
@@ -117,7 +133,8 @@ async def reprocess_dossier(
 )
 async def list_runs(
     svc: ExtractionServiceDep,
-    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_async_session)],
     dossier_id: Annotated[str | None, Query()] = None,
     status_filter: Annotated[
         str | None,
@@ -129,7 +146,18 @@ async def list_runs(
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ApiResponse[list[PipelineRunSummaryDTO]]:
-    """Danh sách runs trong tenant — OpenAPI status filter (completed↔succeeded)."""
+    """Danh sách runs — OpenAPI status filter (completed↔succeeded).
+
+    Với ``dossier_id``: cần quyền xem hồ sơ đó. Không có ``dossier_id`` (xem cả
+    tenant, cho vận hành): chỉ ADMINISTRATOR.
+    """
+    if dossier_id is not None:
+        await require_dossier_action(session, user, action=AclAction.QUERY, dossier_id=dossier_id)
+    elif user.role != "ADMINISTRATOR":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cần dossier_id; chỉ ADMINISTRATOR xem được mọi run trong tenant.",
+        )
     items, total = await svc.list_pipeline_runs(
         dossier_id=dossier_id,
         status=status_filter,
@@ -148,6 +176,7 @@ async def list_runs(
 
 @router.get(
     "/runs/{run_id}",
+    dependencies=[Depends(acl_run)],
     response_model=ApiResponse[PipelineRunSummaryDTO],
     responses={404: {"description": "Run not found"}},
 )
@@ -163,6 +192,7 @@ async def get_run(
 
 @router.get(
     "/runs/{run_id}/steps",
+    dependencies=[Depends(acl_run)],
     response_model=ApiResponse[list[Any]],
     summary="11 steps S0..S10 status",
 )
@@ -189,9 +219,11 @@ async def get_run_steps(
 async def cancel_run(
     run_id: Annotated[str, Path(min_length=1)],
     svc: ExtractionServiceDep,
-    _user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> ApiResponse[PipelineRunSummaryDTO]:
     """Hủy run đang chạy. RBAC: ADMINISTRATOR inherits OPERATOR."""
+    await require_dossier_action(session, user, action=AclAction.DOSSIER_EDIT, run_id=run_id)
     run = await svc.cancel_pipeline_run(run_id)
     return ApiResponse(data=svc.to_summary(run))
 
@@ -203,6 +235,7 @@ async def cancel_run(
 
 @router.get(
     "/documents/{document_id}/pages",
+    dependencies=[Depends(acl_document)],
     response_model=ApiResponse[list[PageDTO]],
     summary="List pages of document",
 )
@@ -217,6 +250,7 @@ async def list_pages(
 
 @router.get(
     "/documents/{document_id}/pages/{page_no}/image",
+    dependencies=[Depends(acl_document)],
     summary="Stream page image (PNG/WebP) from storage",
     responses={
         200: {
@@ -244,6 +278,7 @@ async def get_page_image(
 
 @router.get(
     "/pages/{page_id}",
+    dependencies=[Depends(acl_page)],
     response_model=ApiResponse[dict[str, Any]],
     responses={404: {"description": "Page not found"}},
 )
@@ -258,6 +293,7 @@ async def get_page(
 
 @router.get(
     "/documents/{document_id}/clauses",
+    dependencies=[Depends(acl_document)],
     response_model=ApiResponse[list[ClauseNodeDTO]],
     summary="Clause tree of document",
 )
@@ -273,6 +309,7 @@ async def list_clauses(
 
 @router.get(
     "/documents/{document_id}/tables",
+    dependencies=[Depends(acl_document)],
     response_model=ApiResponse[list[DocTableDTO]],
     summary="Tables detected in document",
 )
@@ -293,6 +330,7 @@ async def list_tables(
 
 @router.get(
     "/dossiers/{dossier_id}/facts",
+    dependencies=[Depends(acl_dossier)],
     response_model=ApiResponse[list[FactEffectiveDTO]],
     summary="List facts + effective values (with current_version)",
     responses={200: {"description": "FactEffective list; ETag for dossier-level concurrency"}},
@@ -317,6 +355,7 @@ async def list_dossier_facts(
 
 @router.get(
     "/documents/{document_id}/facts",
+    dependencies=[Depends(acl_document)],
     response_model=ApiResponse[list[Any]],
     summary="List facts extracted from document",
 )
@@ -331,6 +370,7 @@ async def list_facts(
 
 @router.get(
     "/facts/{fact_id}",
+    dependencies=[Depends(acl_fact)],
     response_model=ApiResponse[dict[str, Any]],
     responses={404: {"description": "Fact not found"}},
 )
@@ -345,6 +385,7 @@ async def get_fact(
 
 @router.get(
     "/citations/{citation_id}",
+    dependencies=[Depends(acl_citation)],
     response_model=ApiResponse[dict[str, Any]],
     responses={404: {"description": "Citation not found"}},
 )

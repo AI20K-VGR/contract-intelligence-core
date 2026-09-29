@@ -1,0 +1,1585 @@
+{
+  "generated_at": "2026-09-28T02:57:04+0700",
+  "api": "http://localhost:8000/api/v1",
+  "tenant": "tenant_vgr_01",
+  "context": {
+    "dossier_id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+    "job_id": "job_01M3J729Z16B05ZTXD3Q44X0YE",
+    "status_timeline": [
+      {
+        "t_seconds": 0.0,
+        "status": "processing"
+      },
+      {
+        "t_seconds": 3.0,
+        "status": "pending_review"
+      }
+    ],
+    "review_items_source": "clause_review",
+    "review_item_id": "ri_01M3J72HCY1JR2PHDTPX8TQ2DH"
+  },
+  "summary": {
+    "steps": 28,
+    "passed": 28
+  },
+  "steps": [
+    {
+      "task": "ST-035",
+      "step": "no JWT → 401",
+      "request": {
+        "method": "POST",
+        "path": "/dossiers",
+        "as_user": null,
+        "headers": {
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": null,
+        "files": [
+          "evidence-contract.pdf",
+          "evidence-annex.pdf",
+          null
+        ]
+      },
+      "expected_status": 401,
+      "status": 401,
+      "elapsed_ms": 6,
+      "pass": true,
+      "response": {
+        "detail": "Missing Authorization header"
+      }
+    },
+    {
+      "task": "ST-035",
+      "step": "missing X-Tenant-Id → 400",
+      "request": {
+        "method": "POST",
+        "path": "/dossiers",
+        "as_user": "operator",
+        "headers": {
+          "Authorization": "Bearer <operator-jwt>"
+        },
+        "json": null,
+        "files": [
+          "evidence-contract.pdf",
+          "evidence-annex.pdf",
+          null
+        ]
+      },
+      "expected_status": 400,
+      "status": 400,
+      "elapsed_ms": 46,
+      "pass": true,
+      "response": {
+        "detail": "X-Tenant-Id header is required"
+      }
+    },
+    {
+      "task": "ST-035",
+      "step": "X-Tenant-Id ≠ JWT tenant → 403",
+      "request": {
+        "method": "POST",
+        "path": "/dossiers",
+        "as_user": "operator",
+        "headers": {
+          "Authorization": "Bearer <operator-jwt>",
+          "X-Tenant-Id": "tenant_other"
+        },
+        "json": null,
+        "files": [
+          "evidence-contract.pdf",
+          "evidence-annex.pdf",
+          null
+        ]
+      },
+      "expected_status": 403,
+      "status": 403,
+      "elapsed_ms": 48,
+      "pass": true,
+      "response": {
+        "error": {
+          "code": "TENANT_MISMATCH",
+          "message": "Tenant mismatch: header=tenant_other, token=tenant_vgr_01",
+          "details": {
+            "header_tenant": "tenant_other",
+            "token_tenant": "tenant_vgr_01"
+          }
+        },
+        "meta": {
+          "trace_id": null,
+          "request_id": null,
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      }
+    },
+    {
+      "task": "ST-035",
+      "step": "REVIEWER role → 403",
+      "request": {
+        "method": "POST",
+        "path": "/dossiers",
+        "as_user": "reviewer",
+        "headers": {
+          "Authorization": "Bearer <reviewer-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": null,
+        "files": [
+          "evidence-contract.pdf",
+          "evidence-annex.pdf",
+          null
+        ]
+      },
+      "expected_status": 403,
+      "status": 403,
+      "elapsed_ms": 47,
+      "pass": true,
+      "response": {
+        "detail": "Insufficient role — required one of ['OPERATOR', 'ADMINISTRATOR'], got 'REVIEWER'"
+      }
+    },
+    {
+      "task": "ST-035",
+      "step": "OPERATOR upload contract + annex → 202",
+      "request": {
+        "method": "POST",
+        "path": "/dossiers",
+        "as_user": "operator",
+        "headers": {
+          "Authorization": "Bearer <operator-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": null,
+        "files": [
+          "evidence-contract.pdf",
+          "evidence-annex.pdf",
+          null
+        ]
+      },
+      "expected_status": 202,
+      "status": 202,
+      "elapsed_ms": 379,
+      "pass": true,
+      "response": {
+        "data": {
+          "dossier_id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+          "job_id": "job_01M3J729Z16B05ZTXD3Q44X0YE"
+        },
+        "meta": {
+          "trace_id": null,
+          "request_id": null,
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      }
+    },
+    {
+      "task": "ST-035",
+      "step": "share with reviewer + admin",
+      "request": {
+        "method": "PUT",
+        "path": "/dossiers/dos_01M3J729YZDD4F2CZ9XFNMHDCZ/access",
+        "as_user": "operator",
+        "headers": {
+          "Authorization": "Bearer <operator-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": {
+          "scope": "shared_out",
+          "shared_with": [
+            {
+              "id": "reviewer@ci.local",
+              "email": "reviewer@ci.local"
+            },
+            {
+              "id": "admin@ci.local",
+              "email": "admin@ci.local"
+            }
+          ]
+        },
+        "files": null
+      },
+      "expected_status": 200,
+      "status": 200,
+      "elapsed_ms": 4121,
+      "pass": true,
+      "response": {
+        "data": {
+          "dossier_id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+          "scope": "shared_out",
+          "shared_with": [
+            {
+              "id": "reviewer@ci.local",
+              "email": "reviewer@ci.local",
+              "display_name": "",
+              "status": null
+            },
+            {
+              "id": "admin@ci.local",
+              "email": "admin@ci.local",
+              "display_name": "",
+              "status": null
+            }
+          ]
+        },
+        "meta": {
+          "trace_id": null,
+          "request_id": null,
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      }
+    },
+    {
+      "task": "ST-037",
+      "step": "get manifest",
+      "request": {
+        "method": "GET",
+        "path": "/dossiers/dos_01M3J729YZDD4F2CZ9XFNMHDCZ/manifest",
+        "as_user": "operator",
+        "headers": {
+          "Authorization": "Bearer <operator-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": null,
+        "files": null
+      },
+      "expected_status": 200,
+      "status": 200,
+      "elapsed_ms": 21,
+      "pass": true,
+      "response": {
+        "data": {
+          "dossier_id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+          "status": "confirmed",
+          "version": 2,
+          "latest_job_status": "processing",
+          "members": [
+            {
+              "document_id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK",
+              "filename": "evidence-contract.pdf",
+              "role": "contract",
+              "included": true,
+              "order_index": 0,
+              "page_count": 0,
+              "file_size_bytes": 54038
+            },
+            {
+              "document_id": "doc_01M3J72A8XF5CJX5PEZP62HS3K",
+              "filename": "evidence-annex.pdf",
+              "role": "annex",
+              "included": true,
+              "order_index": 1,
+              "page_count": 0,
+              "file_size_bytes": 50376
+            }
+          ],
+          "relations": [
+            {
+              "id": "mrel_01M3J72A93EDQJQ6Z015KY7KQJ",
+              "source_document_id": "doc_01M3J72A8XF5CJX5PEZP62HS3K",
+              "target_document_id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK",
+              "relation_type": "annex_of",
+              "confirmation": "unconfirmed"
+            }
+          ],
+          "confirmed_at": "2026-09-27T19:56:56.488352Z"
+        },
+        "meta": {
+          "trace_id": null,
+          "request_id": null,
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      }
+    },
+    {
+      "task": "ST-036",
+      "step": "dossier detail after pipeline",
+      "request": {
+        "method": "GET",
+        "path": "/dossiers/dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+        "as_user": "operator",
+        "headers": {
+          "Authorization": "Bearer <operator-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": null,
+        "files": null
+      },
+      "expected_status": 200,
+      "status": 200,
+      "elapsed_ms": 12,
+      "pass": true,
+      "response": {
+        "data": {
+          "id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+          "name": "Evidence ST-035..039 65b68d",
+          "batch_id": null,
+          "has_conflicts": false,
+          "latest_job_id": "job_01M3J729Z16B05ZTXD3Q44X0YE",
+          "latest_job_status": "pending_review",
+          "documents": [
+            {
+              "id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK",
+              "dossier_id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+              "role": "contract",
+              "order_index": 0,
+              "filename": "evidence-contract.pdf",
+              "sha256": "ace6724f675e7de66f09c51ea96a5d8971bf1f54dbaf169b9326b43151229474",
+              "page_count": 0,
+              "file_size_bytes": 54038,
+              "lang_detected": "vi"
+            },
+            {
+              "id": "doc_01M3J72A8XF5CJX5PEZP62HS3K",
+              "dossier_id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+              "role": "annex",
+              "order_index": 1,
+              "filename": "evidence-annex.pdf",
+              "sha256": "70f4c0796d3194d06be8deb2bc2b40921423f7cd86db6f845068ed8190eca731",
+              "page_count": 0,
+              "file_size_bytes": 50376,
+              "lang_detected": "vi"
+            }
+          ],
+          "open_review_items": 0,
+          "pending_conflicts": 0,
+          "metadata": {
+            "created_by": "dev-operator-keycloak-id",
+            "created_by_name": "Operator User",
+            "access_scope": "shared_out",
+            "shared_with": [
+              {
+                "id": "reviewer@ci.local",
+                "email": "reviewer@ci.local",
+                "display_name": "",
+                "status": null
+              },
+              {
+                "id": "admin@ci.local",
+                "email": "admin@ci.local",
+                "display_name": "",
+                "status": null
+              }
+            ],
+            "ai2_snapshot_digest": "6831fafcf75e718efbfaa69d78a75ee2b703beac722e1f2973a2c8eace25c509",
+            "ai2_snapshot_id": "ocr-run-ai1_6655c2bddf374ff28fa349f2532962d3"
+          },
+          "created_at": "2026-09-27T19:56:56.160301Z",
+          "updated_at": "2026-09-27T19:57:02.538594Z"
+        },
+        "meta": {
+          "trace_id": null,
+          "request_id": null,
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      }
+    },
+    {
+      "task": "ST-037",
+      "step": "findings persisted",
+      "request": {
+        "method": "GET",
+        "path": "/dossiers/dos_01M3J729YZDD4F2CZ9XFNMHDCZ/findings",
+        "as_user": "reviewer",
+        "headers": {
+          "Authorization": "Bearer <reviewer-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": null,
+        "files": null
+      },
+      "expected_status": 200,
+      "status": 200,
+      "elapsed_ms": 10,
+      "pass": true,
+      "response": {
+        "data": [],
+        "meta": {
+          "trace_id": null,
+          "request_id": null,
+          "page": 1,
+          "page_size": 20,
+          "total": 0
+        }
+      }
+    },
+    {
+      "task": "ST-037",
+      "step": "review items queued",
+      "request": {
+        "method": "GET",
+        "path": "/dossiers/dos_01M3J729YZDD4F2CZ9XFNMHDCZ/review-items?limit=50",
+        "as_user": "reviewer",
+        "headers": {
+          "Authorization": "Bearer <reviewer-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": null,
+        "files": null
+      },
+      "expected_status": 200,
+      "status": 200,
+      "elapsed_ms": 12,
+      "pass": true,
+      "response": {
+        "data": [],
+        "meta": {
+          "trace_id": null,
+          "request_id": null,
+          "page": 1,
+          "page_size": 50,
+          "total": 0
+        }
+      }
+    },
+    {
+      "task": "ST-038",
+      "step": "list documents",
+      "request": {
+        "method": "GET",
+        "path": "/dossiers/dos_01M3J729YZDD4F2CZ9XFNMHDCZ/documents",
+        "as_user": "reviewer",
+        "headers": {
+          "Authorization": "Bearer <reviewer-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": null,
+        "files": null
+      },
+      "expected_status": 200,
+      "status": 200,
+      "elapsed_ms": 10,
+      "pass": true,
+      "response": {
+        "data": [
+          {
+            "id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK",
+            "dossier_id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+            "role": "CONTRACT",
+            "filename": "evidence-contract.pdf",
+            "file_size_bytes": 54038,
+            "page_count": 0,
+            "signing_date": null,
+            "document_number": null,
+            "sha256": "ace6724f675e7de66f09c51ea96a5d8971bf1f54dbaf169b9326b43151229474"
+          },
+          {
+            "id": "doc_01M3J72A8XF5CJX5PEZP62HS3K",
+            "dossier_id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+            "role": "ANNEX",
+            "filename": "evidence-annex.pdf",
+            "file_size_bytes": 50376,
+            "page_count": 0,
+            "signing_date": null,
+            "document_number": null,
+            "sha256": "70f4c0796d3194d06be8deb2bc2b40921423f7cd86db6f845068ed8190eca731"
+          }
+        ],
+        "meta": {
+          "trace_id": null,
+          "request_id": null,
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      }
+    },
+    {
+      "task": "ST-038",
+      "step": "clause tree",
+      "request": {
+        "method": "GET",
+        "path": "/documents/doc_01M3J72A6GFQ8NB2XW7YGB3PTK/clauses",
+        "as_user": "reviewer",
+        "headers": {
+          "Authorization": "Bearer <reviewer-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": null,
+        "files": null
+      },
+      "expected_status": 200,
+      "status": 200,
+      "elapsed_ms": 5,
+      "pass": true,
+      "response": {
+        "data": [
+          {
+            "id": "cl_01M3J72AP6X7HWZHCY4XQ0Q9Z7",
+            "document_id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK",
+            "node_type": "unmarked",
+            "label": "UNMARKED__unnumbered_1",
+            "number": "",
+            "title": "UNMARKED__unnumbered_1",
+            "text": "HỢP ĐỒNG DỊCH VỤ BẢO TRÌ HỆ THỐNG\nSố: 2026/HĐDV-VGR\nBên A: Công ty TNHH Khách Hàng Mẫu (Bên thuê dịch vụ)\nBên B: Công ty Cổ phần Dịch Vụ Mẫu (Bên cung cấp dịch vụ)",
+            "lang": null,
+            "parent_id": null,
+            "stable_path": "unmarked-x",
+            "page_start": 1,
+            "page_end": 1,
+            "confidence": 1.0,
+            "regions": [
+              {
+                "page_no": 1,
+                "bbox": [
+                  0.052378710473463326,
+                  0.03947665375771213,
+                  0.10134054740518574,
+                  0.05672474989353701
+                ],
+                "bbox_source": "MEASURED"
+              },
+              {
+                "page_no": 1,
+                "bbox": [
+                  0.5745261388518976,
+                  0.1513143013613778,
+                  0.6025264050245522,
+                  0.16723562923649835
+                ],
+                "bbox_source": "MEASURED"
+              }
+            ],
+            "children": []
+          },
+          {
+            "id": "cl_01M3J72AP6X7HWZHCY4XQ0Q9Z8",
+            "document_id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK",
+            "node_type": "article",
+            "label": "ARTICLE_1",
+            "number": "Điều 1",
+            "title": "ARTICLE_1",
+            "text": "Điều 1. Phạm vi dịch vụ\nBên B bảo trì định kỳ hệ thống máy chủ của Bên A mỗi tháng một lần.",
+            "lang": null,
+            "parent_id": null,
+            "stable_path": "art-Điều 1",
+            "page_start": 1,
+            "page_end": 1,
+            "confidence": 1.0,
+            "regions": [
+              {
+                "page_no": 1,
+                "bbox": [
+                  0.052378710473463326,
+                  0.18763144753560473,
+                  0.0997026589479331,
+                  0.20487953914031842
+                ],
+                "bbox_source": "MEASURED"
+              },
+              {
+                "page_no": 1,
+                "bbox": [
+                  0.6429040072313655,
+                  0.22538571718355407,
+                  0.6753996280965128,
+                  0.24130704505867462
+                ],
+                "bbox_source": "MEASURED"
+              }
+            ],
+            "children": []
+          },
+          {
+            "id": "cl_01M3J72AP6X7HWZHCY4XQ0Q9Z9",
+            "document_id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK",
+            "node_type": "article",
+            "label": "ARTICLE_2",
+            "number": "Điều 2",
+            "title": "ARTICLE_2",
+            "text": "Điều 2. Giá trị hợp đồng\nTổng giá trị hợp đồng là 1.200.000.000 VNĐ (đã bao gồm VAT).",
+            "lang": null,
+            "parent_id": null,
+            "stable_path": "art-Điều 2",
+            "page_start": 1,
+            "page_end": 1,
+            "confidence": 1.0,
+            "regions": [
+              {
+                "page_no": 1,
+                "bbox": [
+                  0.052378710473463326,
+                  0.26170286335778103,
+                  0.0997026589479331,
+                  0.2789509549624947
+                ],
+                "bbox_source": "MEASURED"
+              },
+              {
+                "page_no": 1,
+                "bbox": [
+                  0.5732158332126875,
+                  0.2994572055035094,
+                  0.6247411583719092,
+                  0.3153785333786299
+                ],
+                "bbox_source": "MEASURED"
+              }
+            ],
+            "children": []
+          },
+          {
+            "id": "cl_01M3J72AP6X7HWZHCY4XQ0Q9ZA",
+            "document_id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK",
+            "node_type": "article",
+            "label": "ARTICLE_3",
+            "number": "Điều 3",
+            "title": "ARTICLE_3",
+            "text": "Điều 3. Thanh toán\nBên A thanh toán cho Bên B trong vòng 30 ngày kể từ ngày nhận hóa đơn hợp lệ.",
+            "lang": null,
+            "parent_id": null,
+            "stable_path": "art-Điều 3",
+            "page_start": 1,
+            "page_end": 1,
+            "confidence": 1.0,
+            "regions": [
+              {
+                "page_no": 1,
+                "bbox": [
+                  0.052378710473463326,
+                  0.33577426105551256,
+                  0.0997026589479331,
+                  0.35302238890911575
+                ],
+                "bbox_source": "MEASURED"
+              },
+              {
+                "page_no": 1,
+                "bbox": [
+                  0.7636135624195381,
+                  0.37352863945013043,
+                  0.7849010178130615,
+                  0.3894499492008062
+                ],
+                "bbox_source": "MEASURED"
+              }
+            ],
+            "children": []
+          },
+          {
+            "id": "cl_01M3J72AP6X7HWZHCY4XQ0Q9ZB",
+            "document_id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK",
+            "node_type": "article",
+            "label": "ARTICLE_4",
+            "number": "Điều 4",
+            "title": "ARTICLE_4",
+            "text": "Điều 4. Phạt vi phạm\nMức phạt vi phạm hợp đồng là 8% giá trị phần nghĩa vụ bị vi phạm.",
+            "lang": null,
+            "parent_id": null,
+            "stable_path": "art-Điều 4",
+            "page_start": 1,
+            "page_end": 1,
+            "confidence": 1.0,
+            "regions": [
+              {
+                "page_no": 1,
+                "bbox": [
+                  0.052378710473463326,
+                  0.40984574937546786,
+                  0.0997026589479331,
+                  0.42709384098018155
+                ],
+                "bbox_source": "MEASURED"
+              },
+              {
+                "page_no": 1,
+                "bbox": [
+                  0.5967610397056597,
+                  0.44760005527230673,
+                  0.6527817195573742,
+                  0.4635213650229825
+                ],
+                "bbox_source": "MEASURED"
+              }
+            ],
+            "children": []
+          },
+          {
+            "id": "cl_01M3J72AP6X7HWZHCY4XQ0Q9ZC",
+            "document_id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK",
+            "node_type": "article",
+            "label": "ARTICLE_5",
+            "number": "Điều 5",
+            "title": "ARTICLE_5",
+            "text": "Điều 5. Hiệu lực\nHợp đồng có hiệu lực từ ngày 01/10/2026 đến hết ngày 30/09/2027.",
+            "lang": null,
+            "parent_id": null,
+            "stable_path": "art-Điều 5",
+            "page_start": 1,
+            "page_end": 1,
+            "confidence": 1.0,
+            "regions": [
+              {
+                "page_no": 1,
+                "bbox": [
+                  0.052378710473463326,
+                  0.4839290548334052,
+                  0.0997026589479331,
+                  0.5011771464381188
+                ],
+                "bbox_source": "MEASURED"
+              },
+              {
+                "page_no": 1,
+                "bbox": [
+                  0.5542869177165585,
+                  0.5216833969791336,
+                  0.6607644896969856,
+                  0.5376047067298093
+                ],
+                "bbox_source": "MEASURED"
+              }
+            ],
+            "children": []
+          },
+          {
+            "id": "cl_01M3J72AP6X7HWZHCY4XQ0Q9ZD",
+            "document_id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK",
+            "node_type": "article",
+            "label": "ARTICLE_6",
+            "number": "Điều 6",
+            "title": "ARTICLE_6",
+            "text": "Điều 6. Điều khoản thanh toán chi tiết\nTổng giá trị hợp đồng là 1.500.000.000 VNĐ (đã bao gồm VAT).",
+            "lang": null,
+            "parent_id": null,
+            "stable_path": "art-Điều 6",
+            "page_start": 1,
+            "page_end": 1,
+            "confidence": 1.0,
+            "regions": [
+              {
+                "page_no": 1,
+                "bbox": [
+                  0.052378710473463326,
+                  0.5580004706555814,
+                  0.0997026589479331,
+                  0.5752485622602952
+                ],
+                "bbox_source": "MEASURED"
+              },
+              {
+                "page_no": 1,
+                "bbox": [
+                  0.5732158332126875,
+                  0.5957548490501994,
+                  0.6247411583719092,
+                  0.6116761588008751
+                ],
+                "bbox_source": "MEASURED"
+              }
+            ],
+            "children": []
+          }
+        ],
+        "meta": {
+          "trace_id": null,
+          "request_id": null,
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      }
+    },
+    {
+      "task": "ST-038",
+      "step": "open review item via clause Điều 2",
+      "request": {
+        "method": "POST",
+        "path": "/clause-nodes/cl_01M3J72AP6X7HWZHCY4XQ0Q9Z9/review",
+        "as_user": "reviewer",
+        "headers": {
+          "Authorization": "Bearer <reviewer-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": {
+          "action": "reject",
+          "base_version": 0,
+          "comment": "Giá trị hợp đồng mâu thuẫn giữa các điều khoản"
+        },
+        "files": null
+      },
+      "expected_status": 200,
+      "status": 200,
+      "elapsed_ms": 83,
+      "pass": true,
+      "response": {
+        "data": {
+          "node_id": "cl_01M3J72AP6X7HWZHCY4XQ0Q9Z9",
+          "document_id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK",
+          "dossier_id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+          "review_item_id": "ri_01M3J72HCY1JR2PHDTPX8TQ2DH",
+          "run_id": "run_01M3J72A9FJMEY75Y9K07VH499",
+          "version": 2,
+          "status": "resolved",
+          "dossier_locked": false,
+          "latest": {
+            "revision_number": 1,
+            "review_action_id": "ra_01M3J72HD56BJQ38REC2TYTQ94",
+            "action": "reject",
+            "comment": "Giá trị hợp đồng mâu thuẫn giữa các điều khoản",
+            "corrected_value": null,
+            "reviewer_id": "dev-reviewer-keycloak-id",
+            "reviewer_name": "Reviewer User",
+            "reviewer_email": "reviewer@ci.local",
+            "base_version": 1,
+            "created_at": "2026-09-27T19:57:03.758148Z"
+          },
+          "history": [
+            {
+              "revision_number": 1,
+              "review_action_id": "ra_01M3J72HD56BJQ38REC2TYTQ94",
+              "action": "reject",
+              "comment": "Giá trị hợp đồng mâu thuẫn giữa các điều khoản",
+              "corrected_value": null,
+              "reviewer_id": "dev-reviewer-keycloak-id",
+              "reviewer_name": "Reviewer User",
+              "reviewer_email": "reviewer@ci.local",
+              "base_version": 1,
+              "created_at": "2026-09-27T19:57:03.758148Z"
+            }
+          ],
+          "stale": null
+        },
+        "meta": {
+          "trace_id": null,
+          "request_id": null,
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      }
+    },
+    {
+      "task": "ST-038",
+      "step": "open review item via clause Điều 6",
+      "request": {
+        "method": "POST",
+        "path": "/clause-nodes/cl_01M3J72AP6X7HWZHCY4XQ0Q9ZD/review",
+        "as_user": "reviewer",
+        "headers": {
+          "Authorization": "Bearer <reviewer-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": {
+          "action": "reject",
+          "base_version": 0,
+          "comment": "Giá trị hợp đồng mâu thuẫn giữa các điều khoản"
+        },
+        "files": null
+      },
+      "expected_status": 200,
+      "status": 200,
+      "elapsed_ms": 26,
+      "pass": true,
+      "response": {
+        "data": {
+          "node_id": "cl_01M3J72AP6X7HWZHCY4XQ0Q9ZD",
+          "document_id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK",
+          "dossier_id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+          "review_item_id": "ri_01M3J72HE1YS4NJPN5MK8QSE00",
+          "run_id": "run_01M3J72A9FJMEY75Y9K07VH499",
+          "version": 2,
+          "status": "resolved",
+          "dossier_locked": false,
+          "latest": {
+            "revision_number": 1,
+            "review_action_id": "ra_01M3J72HE4RM886GP6GSRB3HYV",
+            "action": "reject",
+            "comment": "Giá trị hợp đồng mâu thuẫn giữa các điều khoản",
+            "corrected_value": null,
+            "reviewer_id": "dev-reviewer-keycloak-id",
+            "reviewer_name": "Reviewer User",
+            "reviewer_email": "reviewer@ci.local",
+            "base_version": 1,
+            "created_at": "2026-09-27T19:57:03.801334Z"
+          },
+          "history": [
+            {
+              "revision_number": 1,
+              "review_action_id": "ra_01M3J72HE4RM886GP6GSRB3HYV",
+              "action": "reject",
+              "comment": "Giá trị hợp đồng mâu thuẫn giữa các điều khoản",
+              "corrected_value": null,
+              "reviewer_id": "dev-reviewer-keycloak-id",
+              "reviewer_name": "Reviewer User",
+              "reviewer_email": "reviewer@ci.local",
+              "base_version": 1,
+              "created_at": "2026-09-27T19:57:03.801334Z"
+            }
+          ],
+          "stale": null
+        },
+        "meta": {
+          "trace_id": null,
+          "request_id": null,
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      }
+    },
+    {
+      "task": "ST-038",
+      "step": "review items after clause review",
+      "request": {
+        "method": "GET",
+        "path": "/dossiers/dos_01M3J729YZDD4F2CZ9XFNMHDCZ/review-items?limit=50",
+        "as_user": "reviewer",
+        "headers": {
+          "Authorization": "Bearer <reviewer-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": null,
+        "files": null
+      },
+      "expected_status": 200,
+      "status": 200,
+      "elapsed_ms": 6,
+      "pass": true,
+      "response": {
+        "data": [
+          {
+            "id": "ri_01M3J72HCY1JR2PHDTPX8TQ2DH",
+            "dossier_id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+            "run_id": "run_01M3J72A9FJMEY75Y9K07VH499",
+            "target_type": "clause_node",
+            "target_id": "cl_01M3J72AP6X7HWZHCY4XQ0Q9Z9",
+            "reason": "Thẩm định trích dẫn thủ công",
+            "priority": "P3",
+            "status": "resolved",
+            "version": 2,
+            "source_trace_id": null,
+            "source_observation_id": null,
+            "target_snapshot": {
+              "document_id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK",
+              "node_type": "article",
+              "number": "Điều 2",
+              "label": "ARTICLE_2",
+              "ordinal": 0,
+              "text_sha256": "9e0981d510b3fa46810a2e1db66a614de8e8485dc0a24b62b68b18355d3bf87b",
+              "text": "Điều 2. Giá trị hợp đồng\nTổng giá trị hợp đồng là 1.200.000.000 VNĐ (đã bao gồm VAT)."
+            },
+            "created_at": "2026-09-27T19:57:03.758148Z"
+          },
+          {
+            "id": "ri_01M3J72HE1YS4NJPN5MK8QSE00",
+            "dossier_id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+            "run_id": "run_01M3J72A9FJMEY75Y9K07VH499",
+            "target_type": "clause_node",
+            "target_id": "cl_01M3J72AP6X7HWZHCY4XQ0Q9ZD",
+            "reason": "Thẩm định trích dẫn thủ công",
+            "priority": "P3",
+            "status": "resolved",
+            "version": 2,
+            "source_trace_id": null,
+            "source_observation_id": null,
+            "target_snapshot": {
+              "document_id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK",
+              "node_type": "article",
+              "number": "Điều 6",
+              "label": "ARTICLE_6",
+              "ordinal": 0,
+              "text_sha256": "c2aa75e97dd0532db79512d671eb36f09ea3a024363e00a210a06302bb881658",
+              "text": "Điều 6. Điều khoản thanh toán chi tiết\nTổng giá trị hợp đồng là 1.500.000.000 VNĐ (đã bao gồm VAT)."
+            },
+            "created_at": "2026-09-27T19:57:03.801334Z"
+          }
+        ],
+        "meta": {
+          "trace_id": null,
+          "request_id": null,
+          "page": 1,
+          "page_size": 50,
+          "total": 2
+        }
+      }
+    },
+    {
+      "task": "ST-038",
+      "step": "operator cannot act → 403",
+      "request": {
+        "method": "POST",
+        "path": "/review-items/ri_01M3J72HCY1JR2PHDTPX8TQ2DH/actions",
+        "as_user": "operator",
+        "headers": {
+          "Idempotency-Key": "15cd2d9b-789c-48de-9d1c-bc6f9368ee0a",
+          "Authorization": "Bearer <operator-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": {
+          "action": "confirm",
+          "base_version": 2
+        },
+        "files": null
+      },
+      "expected_status": 403,
+      "status": 403,
+      "elapsed_ms": 44,
+      "pass": true,
+      "response": {
+        "detail": "Insufficient role — required one of ['REVIEWER', 'ADMINISTRATOR'], got 'OPERATOR'"
+      }
+    },
+    {
+      "task": "ST-038",
+      "step": "base_version 0 → 422",
+      "request": {
+        "method": "POST",
+        "path": "/review-items/ri_01M3J72HCY1JR2PHDTPX8TQ2DH/actions",
+        "as_user": "reviewer",
+        "headers": {
+          "Idempotency-Key": "b6b7e809-b691-4bb3-8350-edcd881696ed",
+          "Authorization": "Bearer <reviewer-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": {
+          "action": "confirm",
+          "base_version": 0
+        },
+        "files": null
+      },
+      "expected_status": 422,
+      "status": 422,
+      "elapsed_ms": 54,
+      "pass": true,
+      "response": {
+        "detail": [
+          {
+            "type": "greater_than_equal",
+            "loc": [
+              "body",
+              "base_version"
+            ],
+            "msg": "Input should be greater than or equal to 1",
+            "input": 0,
+            "ctx": {
+              "ge": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "task": "ST-038",
+      "step": "confirm at current version → 200",
+      "request": {
+        "method": "POST",
+        "path": "/review-items/ri_01M3J72HCY1JR2PHDTPX8TQ2DH/actions",
+        "as_user": "reviewer",
+        "headers": {
+          "Idempotency-Key": "62d61ecc-8442-44d2-b555-a7113ec9118b",
+          "Authorization": "Bearer <reviewer-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": {
+          "action": "confirm",
+          "base_version": 2
+        },
+        "files": null
+      },
+      "expected_status": 200,
+      "status": 200,
+      "elapsed_ms": 69,
+      "pass": true,
+      "response": {
+        "data": {
+          "review_action_id": "ra_01M3J72HKJ26HRBEE00VVVYAK3",
+          "item_status": "resolved",
+          "new_version": 3,
+          "effective_value": null,
+          "machine_value": null,
+          "job_status": null,
+          "open_items_remaining": 0,
+          "idempotent_replay": false
+        },
+        "meta": {
+          "trace_id": null,
+          "request_id": null,
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      }
+    },
+    {
+      "task": "ST-038",
+      "step": "stale base_version → 409 VERSION_CONFLICT",
+      "request": {
+        "method": "POST",
+        "path": "/review-items/ri_01M3J72HCY1JR2PHDTPX8TQ2DH/actions",
+        "as_user": "reviewer",
+        "headers": {
+          "Idempotency-Key": "5b45ea55-e3d0-4061-9849-e8ed9eb3d254",
+          "Authorization": "Bearer <reviewer-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": {
+          "action": "reject",
+          "base_version": 2
+        },
+        "files": null
+      },
+      "expected_status": 409,
+      "status": 409,
+      "elapsed_ms": 50,
+      "pass": true,
+      "response": {
+        "error": {
+          "code": "VERSION_CONFLICT",
+          "message": "Version conflict: another action was submitted before yours (current version: 3)."
+        },
+        "current_state": {
+          "id": "ri_01M3J72HCY1JR2PHDTPX8TQ2DH",
+          "dossier_id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+          "run_id": "run_01M3J72A9FJMEY75Y9K07VH499",
+          "target_type": "clause_node",
+          "target_id": "cl_01M3J72AP6X7HWZHCY4XQ0Q9Z9",
+          "reason": "Thẩm định trích dẫn thủ công",
+          "priority": "P3",
+          "status": "resolved",
+          "version": 3,
+          "source_trace_id": null,
+          "source_observation_id": null,
+          "target_snapshot": {
+            "document_id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK",
+            "node_type": "article",
+            "number": "Điều 2",
+            "label": "ARTICLE_2",
+            "ordinal": 0,
+            "text_sha256": "9e0981d510b3fa46810a2e1db66a614de8e8485dc0a24b62b68b18355d3bf87b",
+            "text": "Điều 2. Giá trị hợp đồng\nTổng giá trị hợp đồng là 1.200.000.000 VNĐ (đã bao gồm VAT)."
+          },
+          "created_at": "2026-09-27T19:57:03.758148+00:00",
+          "updated_at": "2026-09-27T19:57:03.986750+00:00"
+        },
+        "your_submitted_action": null
+      }
+    },
+    {
+      "task": "ST-038",
+      "step": "append-only revision trail",
+      "request": {
+        "method": "GET",
+        "path": "/review-items/ri_01M3J72HCY1JR2PHDTPX8TQ2DH/revisions",
+        "as_user": "reviewer",
+        "headers": {
+          "Authorization": "Bearer <reviewer-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": null,
+        "files": null
+      },
+      "expected_status": 200,
+      "status": 200,
+      "elapsed_ms": 18,
+      "pass": true,
+      "response": {
+        "data": [
+          {
+            "revision_number": 1,
+            "action": "reject",
+            "author_user_id": "dev-reviewer-keycloak-id",
+            "author_role": null,
+            "comment": "Giá trị hợp đồng mâu thuẫn giữa các điều khoản",
+            "corrected_value": null,
+            "corrected_bbox": null,
+            "previous_version": 1,
+            "created_at": "2026-09-27T19:57:03.758148Z"
+          },
+          {
+            "revision_number": 2,
+            "action": "confirm",
+            "author_user_id": "dev-reviewer-keycloak-id",
+            "author_role": null,
+            "comment": null,
+            "corrected_value": null,
+            "corrected_bbox": null,
+            "previous_version": 2,
+            "created_at": "2026-09-27T19:57:03.976204Z"
+          }
+        ],
+        "meta": {
+          "trace_id": null,
+          "request_id": null,
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      }
+    },
+    {
+      "task": "ST-039",
+      "step": "search → 200 (ACL + trace)",
+      "request": {
+        "method": "POST",
+        "path": "/dossiers/dos_01M3J729YZDD4F2CZ9XFNMHDCZ/search",
+        "as_user": "reviewer",
+        "headers": {
+          "Authorization": "Bearer <reviewer-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": {
+          "query": "Thời hạn thanh toán là bao nhiêu ngày?"
+        },
+        "files": null
+      },
+      "expected_status": 200,
+      "status": 200,
+      "elapsed_ms": 78,
+      "pass": true,
+      "response": {
+        "data": {
+          "query": "Thời hạn thanh toán là bao nhiêu ngày?",
+          "answer": null,
+          "connected": true,
+          "state": "BLOCKED",
+          "used_llm": false,
+          "notes": [
+            "QUERY_RETRIEVAL"
+          ],
+          "retrieval_layer": {
+            "selected": "NONE",
+            "vector_status": "NOT_REQUESTED",
+            "dossier_id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+            "snapshot_version": "latest",
+            "snapshot_digest": "6831fafcf75e718efbfaa69d78a75ee2b703beac722e1f2973a2c8eace25c509",
+            "source": "ai2.canonical.store"
+          },
+          "reasoning_trace": [
+            {
+              "code": "QUERY_RETRIEVAL",
+              "layer": "NONE"
+            }
+          ],
+          "hits": [],
+          "trace_id": "qtr_01M3J72HRA9X7SY31MH3JDAYXG",
+          "acl_decision": "passed"
+        },
+        "meta": {
+          "trace_id": null,
+          "request_id": null,
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      }
+    },
+    {
+      "task": "ST-039",
+      "step": "client policy_flags rejected → 422",
+      "request": {
+        "method": "POST",
+        "path": "/dossiers/dos_01M3J729YZDD4F2CZ9XFNMHDCZ/query",
+        "as_user": "reviewer",
+        "headers": {
+          "Authorization": "Bearer <reviewer-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": {
+          "query": "Thời hạn thanh toán là bao nhiêu ngày?",
+          "policy_flags": {
+            "egress_allowed": true
+          }
+        },
+        "files": null
+      },
+      "expected_status": 422,
+      "status": 422,
+      "elapsed_ms": 44,
+      "pass": true,
+      "response": {
+        "detail": [
+          {
+            "type": "extra_forbidden",
+            "loc": [
+              "body",
+              "policy_flags"
+            ],
+            "msg": "Extra inputs are not permitted",
+            "input": {
+              "egress_allowed": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "task": "ST-039",
+      "step": "ask without X-Tenant-Id → 400",
+      "request": {
+        "method": "POST",
+        "path": "/dossiers/dos_01M3J729YZDD4F2CZ9XFNMHDCZ/ask",
+        "as_user": "reviewer",
+        "headers": {
+          "Authorization": "Bearer <reviewer-jwt>"
+        },
+        "json": {
+          "query": "Thời hạn thanh toán là bao nhiêu ngày?"
+        },
+        "files": null
+      },
+      "expected_status": 400,
+      "status": 400,
+      "elapsed_ms": 44,
+      "pass": true,
+      "response": {
+        "detail": "X-Tenant-Id header is required"
+      }
+    },
+    {
+      "task": "ST-039",
+      "step": "ask with foreign X-Tenant-Id → 403",
+      "request": {
+        "method": "POST",
+        "path": "/dossiers/dos_01M3J729YZDD4F2CZ9XFNMHDCZ/ask",
+        "as_user": "reviewer",
+        "headers": {
+          "Authorization": "Bearer <reviewer-jwt>",
+          "X-Tenant-Id": "tenant_other"
+        },
+        "json": {
+          "query": "Thời hạn thanh toán là bao nhiêu ngày?"
+        },
+        "files": null
+      },
+      "expected_status": 403,
+      "status": 403,
+      "elapsed_ms": 44,
+      "pass": true,
+      "response": {
+        "error": {
+          "code": "TENANT_MISMATCH",
+          "message": "Tenant mismatch: header=tenant_other, token=tenant_vgr_01",
+          "details": {
+            "header_tenant": "tenant_other",
+            "token_tenant": "tenant_vgr_01"
+          }
+        },
+        "meta": {
+          "trace_id": null,
+          "request_id": null,
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      }
+    },
+    {
+      "task": "ST-039",
+      "step": "query → 200",
+      "request": {
+        "method": "POST",
+        "path": "/dossiers/dos_01M3J729YZDD4F2CZ9XFNMHDCZ/query",
+        "as_user": "reviewer",
+        "headers": {
+          "Authorization": "Bearer <reviewer-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": {
+          "query": "Thời hạn thanh toán là bao nhiêu ngày?"
+        },
+        "files": null
+      },
+      "expected_status": 200,
+      "status": 200,
+      "elapsed_ms": 69,
+      "pass": true,
+      "response": {
+        "state": "BLOCKED",
+        "answer": "",
+        "citations": [],
+        "retrieval_layer": {
+          "selected": "NONE",
+          "vector_status": "NOT_REQUESTED",
+          "dossier_id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+          "snapshot_version": "latest",
+          "snapshot_digest": "6831fafcf75e718efbfaa69d78a75ee2b703beac722e1f2973a2c8eace25c509",
+          "source": "ai2.canonical.store"
+        },
+        "reasoning_trace": [
+          {
+            "code": "QUERY_RETRIEVAL",
+            "layer": "NONE"
+          }
+        ],
+        "trace_id": "qtr_01M3J72HYNCVTGDC5ZDBBE7D2Q",
+        "acl_decision": "passed"
+      }
+    },
+    {
+      "task": "ST-039",
+      "step": "ask → 200",
+      "request": {
+        "method": "POST",
+        "path": "/dossiers/dos_01M3J729YZDD4F2CZ9XFNMHDCZ/ask",
+        "as_user": "reviewer",
+        "headers": {
+          "Authorization": "Bearer <reviewer-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": {
+          "query": "Thời hạn thanh toán là bao nhiêu ngày?"
+        },
+        "files": null
+      },
+      "expected_status": 200,
+      "status": 200,
+      "elapsed_ms": 66,
+      "pass": true,
+      "response": {
+        "state": "BLOCKED",
+        "answer": "",
+        "citations": [],
+        "retrieval_layer": {
+          "selected": "NONE",
+          "vector_status": "NOT_REQUESTED",
+          "dossier_id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+          "snapshot_version": "latest",
+          "snapshot_digest": "6831fafcf75e718efbfaa69d78a75ee2b703beac722e1f2973a2c8eace25c509",
+          "source": "ai2.canonical.store"
+        },
+        "reasoning_trace": [
+          {
+            "code": "QUERY_RETRIEVAL",
+            "layer": "NONE"
+          }
+        ],
+        "trace_id": "qtr_01M3J72J0Q5BSD2RC4EXGAB2W1",
+        "acl_decision": "passed"
+      }
+    },
+    {
+      "task": "ST-038",
+      "step": "admin locks dossier",
+      "request": {
+        "method": "POST",
+        "path": "/dossiers/dos_01M3J729YZDD4F2CZ9XFNMHDCZ/lock",
+        "as_user": "admin",
+        "headers": {
+          "Authorization": "Bearer <admin-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": null,
+        "files": null
+      },
+      "expected_status": 200,
+      "status": 200,
+      "elapsed_ms": 33,
+      "pass": true,
+      "response": {
+        "data": {
+          "id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+          "name": "Evidence ST-035..039 65b68d",
+          "batch_id": null,
+          "has_conflicts": false,
+          "latest_job_id": null,
+          "latest_job_status": "pending_review",
+          "documents": [
+            {
+              "id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK",
+              "dossier_id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+              "role": "contract",
+              "order_index": 0,
+              "filename": "evidence-contract.pdf",
+              "sha256": "ace6724f675e7de66f09c51ea96a5d8971bf1f54dbaf169b9326b43151229474",
+              "page_count": 0,
+              "file_size_bytes": 54038,
+              "lang_detected": "vi"
+            },
+            {
+              "id": "doc_01M3J72A8XF5CJX5PEZP62HS3K",
+              "dossier_id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+              "role": "annex",
+              "order_index": 1,
+              "filename": "evidence-annex.pdf",
+              "sha256": "70f4c0796d3194d06be8deb2bc2b40921423f7cd86db6f845068ed8190eca731",
+              "page_count": 0,
+              "file_size_bytes": 50376,
+              "lang_detected": "vi"
+            }
+          ],
+          "open_review_items": 0,
+          "pending_conflicts": 0,
+          "metadata": {
+            "created_by": "dev-operator-keycloak-id",
+            "created_by_name": "Operator User",
+            "access_scope": "shared_out",
+            "shared_with": [
+              {
+                "id": "reviewer@ci.local",
+                "email": "reviewer@ci.local",
+                "display_name": "",
+                "status": null
+              },
+              {
+                "id": "admin@ci.local",
+                "email": "admin@ci.local",
+                "display_name": "",
+                "status": null
+              }
+            ],
+            "ai2_snapshot_digest": "6831fafcf75e718efbfaa69d78a75ee2b703beac722e1f2973a2c8eace25c509",
+            "ai2_snapshot_id": "ocr-run-ai1_6655c2bddf374ff28fa349f2532962d3"
+          },
+          "created_at": "2026-09-27T19:56:56.160301Z",
+          "updated_at": "2026-09-27T19:57:04.434672Z"
+        },
+        "meta": {
+          "trace_id": null,
+          "request_id": null,
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      }
+    },
+    {
+      "task": "ST-038",
+      "step": "action on locked dossier → 409 INVARIANT_VIOLATION",
+      "request": {
+        "method": "POST",
+        "path": "/review-items/ri_01M3J72HE1YS4NJPN5MK8QSE00/actions",
+        "as_user": "reviewer",
+        "headers": {
+          "Idempotency-Key": "e1f9b522-916e-4b79-adcc-2ace14300eac",
+          "Authorization": "Bearer <reviewer-jwt>",
+          "X-Tenant-Id": "tenant_vgr_01"
+        },
+        "json": {
+          "action": "confirm",
+          "base_version": 2
+        },
+        "files": null
+      },
+      "expected_status": 409,
+      "status": 409,
+      "elapsed_ms": 52,
+      "pass": true,
+      "response": {
+        "error": {
+          "code": "INVARIANT_VIOLATION",
+          "message": "Hồ sơ đã khóa hoặc đã phê duyệt, không thể thẩm định thêm.",
+          "details": {
+            "dossier_id": "dos_01M3J729YZDD4F2CZ9XFNMHDCZ",
+            "review_item_id": "ri_01M3J72HE1YS4NJPN5MK8QSE00"
+          }
+        },
+        "meta": {
+          "trace_id": null,
+          "request_id": null,
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      }
+    }
+  ]
+}

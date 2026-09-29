@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
-"""End-to-end Sprint 2 pipeline smoke test (FE/AI → Backend control plane).
+"""End-to-end Sprint 2 pipeline smoke test (FE → Backend → Kafka → AI1/AI2).
 
-Runs sequentially against a live backend:
+Runs sequentially against a live stack:
 
     1. Upload dossier (multipart PDF)
-    2. AI1 OCR snapshot webhook
-    3. AI2 findings webhook
-    4. HITL review action (CONFIRM)
-    5. Dossier approve
+    2. Wait for the Kafka worker to drive the job to ``pending_review``
+       (AI1 OCR via ``ci.ai1.ocr.*`` then AI2 processing)
+    3. HITL review action (confirm) on the first open review item
+    4. Dossier approve
 
 Prerequisites:
-    - Backend listening on http://localhost:8000
-    - Valid Keycloak JWT for OPERATOR/ADMINISTRATOR in env ``CI_E2E_BEARER_TOKEN``
-      (upload + approve require auth; webhooks/review-actions do not)
+    - Backend API on http://localhost:8000, ``contract_intelligence.worker``, AI1, AI2, Kafka
+    - Keycloak JWT with ADMINISTRATOR role in env ``CI_E2E_BEARER_TOKEN``
+      (upload, review and approve all require auth)
+    - ``CI_E2E_TENANT_ID`` matching the token's tenant claim
 
 Usage::
 
@@ -33,6 +34,7 @@ import httpx
 
 BASE_URL = os.getenv("CI_E2E_BASE_URL", "http://localhost:8000/api/v1")
 TIMEOUT = httpx.Timeout(60.0, connect=10.0)
+PIPELINE_TIMEOUT_SECONDS = float(os.getenv("CI_E2E_PIPELINE_TIMEOUT", "600"))
 
 # Minimal syntactically-valid PDF bytes for multipart upload.
 DUMMY_PDF = (
@@ -97,76 +99,57 @@ async def step_upload(client: httpx.AsyncClient) -> tuple[str, str]:
     return str(dossier_id), str(job_id)
 
 
-async def step_ai1_webhook(
-    client: httpx.AsyncClient,
-    *,
-    dossier_id: str,
-    job_id: str,
-    run_id: str,
-) -> None:
-    """Step 2 — AI1 → BE OCR snapshot callback."""
-    print("[Step 2] Posting AI1 OCR snapshot webhook …")
-    body: dict[str, Any] = {
-        "snapshot_id": f"snap_{uuid4().hex[:12]}",
-        "version": "1",
-        "digest": f"sha256:{uuid4().hex}",
-        "quality_state": {"score": 0.95, "engine": "e2e-stub"},
-        "pages": [{"page": 1, "width": 612, "height": 792}],
-        "nodes": [],
-        "tables": [],
-        "source_files": [{"dossier_id": dossier_id, "job_id": job_id}],
-        "provenance": {
-            "dossier_id": dossier_id,
-            "job_id": job_id,
-            "run_id": run_id,
-        },
-    }
-    response = await client.post(f"{BASE_URL}/webhooks/ai1/snapshot", json=body)
-    _assert_status(response, 200, "[Step 2] AI1 webhook")
-    print(f"[Step 2] AI1 Webhook Success — snapshot accepted for dossier {dossier_id}")
+async def step_wait_for_review(client: httpx.AsyncClient, *, dossier_id: str) -> None:
+    """Step 2 — Kafka worker: AI1 OCR → AI2 → pending_review."""
+    print("[Step 2] Waiting for Kafka pipeline to reach pending_review …")
+    deadline = asyncio.get_running_loop().time() + PIPELINE_TIMEOUT_SECONDS
+    status = None
+    while asyncio.get_running_loop().time() < deadline:
+        response = await client.get(f"{BASE_URL}/dossiers/{dossier_id}", headers=_auth_headers())
+        _assert_status(response, 200, "[Step 2] Dossier detail")
+        data = response.json().get("data") or {}
+        status = data.get("latest_job_status") or data.get("status")
+        if status == "pending_review":
+            print(f"[Step 2] Pipeline Success — dossier {dossier_id} is pending_review")
+            return
+        if status == "failed":
+            raise E2EFailure(f"[Step 2] Pipeline failed for dossier {dossier_id}: {data}")
+        await asyncio.sleep(3)
+    raise E2EFailure(f"[Step 2] Timed out waiting for pending_review (last status: {status})")
 
 
-async def step_ai2_webhook(client: httpx.AsyncClient, *, run_id: str) -> None:
-    """Step 3 — AI2 → BE findings callback."""
-    print("[Step 3] Posting AI2 findings webhook …")
-    body: dict[str, Any] = {
-        "run_id": run_id,
-        "facts": [{"fact_id": "fct_e2e_1", "label": "contract_value", "value": "1000"}],
-        "findings": [
-            {
-                "finding_id": "fnd_e2e_1",
-                "severity": "MEDIUM",
-                "summary": "E2E dummy finding",
-            }
-        ],
-        "index_contribution": {"vectors": 0, "tokens": 12},
-    }
-    response = await client.post(f"{BASE_URL}/webhooks/ai2/findings", json=body)
-    _assert_status(response, 200, "[Step 3] AI2 webhook")
-    print(f"[Step 3] AI2 Webhook Success — findings applied for run {run_id}")
-
-
-async def step_hitl_review(client: httpx.AsyncClient) -> None:
-    """Step 4 — FE → BE HITL review action."""
-    print("[Step 4] Submitting HITL CONFIRM action …")
-    body = {"action": "CONFIRM", "base_version": 1}
-    response = await client.post(
-        f"{BASE_URL}/review-items/dummy-item-123/actions",
-        json=body,
+async def step_hitl_review(client: httpx.AsyncClient, *, dossier_id: str) -> None:
+    """Step 3 — FE → BE HITL review action on a real review item."""
+    print("[Step 3] Submitting HITL confirm action …")
+    response = await client.get(
+        f"{BASE_URL}/dossiers/{dossier_id}/review-items",
+        params={"status": "open", "limit": 1},
+        headers=_auth_headers(),
     )
-    _assert_status(response, 200, "[Step 4] HITL review")
-    print("[Step 4] HITL Review Success — CONFIRM applied to dummy-item-123")
+    _assert_status(response, 200, "[Step 3] Review queue")
+    items: list[dict[str, Any]] = response.json().get("data") or []
+    if not items:
+        print("[Step 3] No open review item — skipping review action")
+        return
+    item = items[0]
+    response = await client.post(
+        f"{BASE_URL}/review-items/{item['id']}/actions",
+        json={"action": "confirm", "base_version": item["version"]},
+        headers={**_auth_headers(), "Idempotency-Key": str(uuid4())},
+    )
+    _assert_status(response, 200, "[Step 3] HITL review")
+    print(f"[Step 3] HITL Review Success — confirm applied to {item['id']}")
 
 
 async def step_approve(client: httpx.AsyncClient, *, dossier_id: str) -> None:
-    """Step 5 — FE → BE dossier approval."""
-    print(f"[Step 5] Approving dossier {dossier_id} …")
+    """Step 4 — FE → BE dossier approval."""
+    print(f"[Step 4] Approving dossier {dossier_id} …")
     response = await client.post(
         f"{BASE_URL}/dossiers/{dossier_id}/approve",
         headers=_auth_headers(),
     )
-    _assert_status(response, 200, "[Step 5] Approve")
-    print(f"[Step 5] Approve Success — Dossier {dossier_id} marked APPROVED")
+    _assert_status(response, 200, "[Step 4] Approve")
+    print(f"[Step 4] Approve Success — Dossier {dossier_id} marked APPROVED")
 
 
 async def run_pipeline() -> None:
@@ -187,17 +170,9 @@ async def run_pipeline() -> None:
         if health.status_code != 200:
             raise E2EFailure(f"Backend /health returned {health.status_code}")
 
-        dossier_id, job_id = await step_upload(client)
-        run_id = f"run_e2e_{uuid4().hex[:10]}"
-
-        await step_ai1_webhook(
-            client,
-            dossier_id=dossier_id,
-            job_id=job_id,
-            run_id=run_id,
-        )
-        await step_ai2_webhook(client, run_id=run_id)
-        await step_hitl_review(client)
+        dossier_id, _job_id = await step_upload(client)
+        await step_wait_for_review(client, dossier_id=dossier_id)
+        await step_hitl_review(client, dossier_id=dossier_id)
         await step_approve(client, dossier_id=dossier_id)
 
     print("=" * 60)

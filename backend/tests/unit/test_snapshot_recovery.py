@@ -2,7 +2,6 @@ import json
 
 from contract_intelligence.worker import (
     _durable_snapshots_from_run,
-    _merge_snapshot_cache,
     _snapshot_digest,
 )
 
@@ -27,12 +26,14 @@ def test_durable_run_payload_hydrates_snapshot_after_cache_restart() -> None:
     assert _snapshot_digest(snapshot)
 
 
-def test_merge_hydrates_only_valid_scoped_snapshots() -> None:
-    cache: dict[str, dict[str, object]] = {}
-    _merge_snapshot_cache(cache, {"doc-1": _snapshot(), "doc-2": {"document_id": "doc-2"}})
+def test_durable_run_payload_hydrates_only_valid_scoped_snapshots() -> None:
+    payload = {"ai1_snapshots": {"doc-1": _snapshot(), "doc-2": {"document_id": "doc-2"}}}
+    run = type("Run", (), {"config_snapshot": json.dumps(payload)})()
 
-    assert "doc-1" in cache
-    assert "doc-2" not in cache
+    hydrated = _durable_snapshots_from_run(run)
+
+    assert "doc-1" in hydrated
+    assert "doc-2" not in hydrated
 
 
 def test_durable_run_payload_rejects_malformed_data() -> None:

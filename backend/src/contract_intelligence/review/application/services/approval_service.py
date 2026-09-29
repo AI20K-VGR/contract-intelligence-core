@@ -50,7 +50,7 @@ class ApprovalService:
         self._document_repo = document_repo
 
     async def lock_dossier(self, dossier_id: str) -> DossierDetailDTO:
-        flags = await self._dossier_repo.get_flags(dossier_id)
+        flags = await self._dossier_repo.get_flags(dossier_id, for_update=True)
         if flags is None:
             raise NotFoundError(entity_type="Dossier", entity_id=dossier_id)
         if flags.get("is_locked"):
@@ -69,7 +69,9 @@ class ApprovalService:
         *,
         comment: str | None = None,
     ) -> DossierDetailDTO:
-        flags = await self._dossier_repo.get_flags(dossier_id)
+        # Row lock: review actions share-lock the dossier, so none can land
+        # between the open-item count below and the approval.
+        flags = await self._dossier_repo.get_flags(dossier_id, for_update=True)
         if flags is None:
             raise NotFoundError(entity_type="Dossier", entity_id=dossier_id)
         if flags.get("is_approved"):

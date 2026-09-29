@@ -59,11 +59,14 @@
 |---|---|
 | **Deployment** | Monolith — Modular Monolith (không microservices) |
 | **Design pattern** | Domain-Driven Design (DDD) |
-| **Backend** | Python 3.11 + FastAPI |
-| **AI Service** | Python (FastAPI) — tách riêng, giao tiếp qua HTTP REST |
-| **Database** | PostgreSQL + SQLAlchemy (ORM) |
-| **Migration** | Alembic |
-| **Object storage** | MinIO (S3-compatible) |
+| **Backend** | Python 3.11 + FastAPI (API process) + Kafka worker process (`contract_intelligence.worker`) |
+| **AI Service** | AI1 (OCR) + AI2 (IDP/compare/Q&A) — service riêng. AI1 qua Kafka; AI2 qua HTTP submit/poll từ worker (xem §3.6) |
+| **Database** | PostgreSQL + SQLAlchemy 2 async (asyncpg) |
+| **Migration** | Alembic (`backend/alembic/versions/`, v1 → v11) |
+| **Object storage** | MinIO (S3-compatible, qua `aioboto3`) — bucket PDF `dossiers`, bucket render `ci-render` |
+| **Messaging** | Kafka (`aiokafka`) |
+| **Job queue nội bộ** | PostgreSQL (`FOR UPDATE SKIP LOCKED` trên bảng `job` + lease) — không Redis/Celery |
+| **Auth** | Keycloak (OIDC) — Bearer JWT + header `X-Tenant-Id` |
 | **Frontend** | React / Vue (chưa chốt) |
 
 **Lý do chọn Monolith:**
@@ -79,18 +82,21 @@
 
 **Lý do chọn DDD:**
 - Nghiệp vụ hợp đồng có domain rõ: upload → extract → conflict → review
-- 5 bounded context tách biệt, dễ phân công work
+- 5 bounded context nghiệp vụ tách biệt + shared kernel, dễ phân công work
 - Dễ mở rộng khi cần tách AI service ra worker riêng
 
-### 3.2 Bounded Context — 5 module
+### 3.2 Bounded Context — 5 module + shared kernel
 
 | Module | Trách nhiệm |
 |---|---|
-| `contract` | Quản lý vòng đời hợp đồng, upload, metadata, state machine |
-| `extraction` | Lưu kết quả trích xuất điều khoản, pages, bounding box |
-| `conflict` | Lưu kết quả phát hiện xung đột, ánh xạ clause conflict |
-| `review` | Lưu review log, duyệt/kết quả HITL |
-| `shared` | Common types, enums, utils, exceptions, domain events |
+| `contract` | Dossier, document, job, manifest (xác nhận quan hệ HĐ–phụ lục), batch upload, xóa hồ sơ 2 bước, optimization campaign |
+| `extraction` | Pipeline run/step, page, OCR line, clause tree, table, fact, citation, re-OCR, SSE events |
+| `conflict` | Finding, finding side, annex link; "conflict" = finding cần reviewer (không có bảng riêng) |
+| `review` | Review item/action (optimistic concurrency), lock, approve, external approval |
+| `identity` | `app_user`, đồng bộ user từ Keycloak (webhook), Keycloak admin client |
+| `shared` | Auth (JWT/RBAC/tenant/ACL), persistence (session, job queue), AI client/orchestrator/persistence, audit, query policy, exceptions, response envelope |
+
+Ngoài khuôn DDD còn: `api/v1/` (users, admin overview, dossier query/ask). Kết quả AI chỉ vào qua worker (`contract_intelligence.worker`), không có webhook HTTP: AI1 qua Kafka (`ci.ai1.ocr.*`), AI2 do worker gọi HTTP submit + poll. Ngoài ra: `admin/activity_feed.py`, `infrastructure/` (AI adapters HTTP, Kafka messaging, S3 storage, Keycloak admin), `schemas/`.
 
 ### 3.3 Nguyên tắc Dependency Rule
 
@@ -176,7 +182,7 @@ backend/
 │   │           ├── __init__.py
 │   │           └── routers/
 │   │               ├── __init__.py
-│   │               ├── contract_upload_router.py  # @router.post("/contracts/upload")
+│   │               ├── contract_router.py  # @router.post("/dossiers") — upload duy nhất
 │   │               └── contract_status_router.py  # @router.get("/contracts/{id}")
 │   │
 │   ├── extraction/                      # Bounded Context: clause extraction

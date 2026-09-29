@@ -24,10 +24,18 @@ from dataclasses import dataclass
 from typing import Any
 
 import structlog
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from contract_intelligence.shared.ai.ai1_adapter import adapt_ai1_snapshot_result
 from contract_intelligence.shared.ai.client import (
     AiServiceClient,
     get_ai_service_client,
+)
+from contract_intelligence.shared.ai.persistence import (
+    persist_ai1_snapshot,
+    persist_ai2_comparison,
+    persist_ai2_extraction,
+    persist_usage_ledger,
 )
 from contract_intelligence.shared.ai.schemas import (
     CompareJobRequest,
@@ -37,6 +45,8 @@ from contract_intelligence.shared.ai.schemas import (
     OcrJobRequest,
     ReOcrJobRequest,
 )
+from contract_intelligence.shared.audit import add_audit_event
+from contract_intelligence.shared.persistence.session import get_session_factory
 
 logger = structlog.get_logger(__name__)
 
@@ -57,6 +67,8 @@ class DispatchTask:
     attempt_id: int = 1
     poll_interval_seconds: float = 1.5
     max_polls: int = 200  # ≈ 5 phút ở poll_interval=1.5s
+    run_id: str | None = None
+    dossier_id: str | None = None
 
 
 class BackgroundDispatcher:
@@ -98,13 +110,22 @@ class BackgroundDispatcher:
                         task_id=dispatch_task.task_id,
                         status=report.status.value,
                     )
-                    # Persistence hook — concrete implementation sẽ ghi vào DB
-                    # theo dispatch_task.kind. Hiện tại chỉ log.
                     await _persist_result(dispatch_task, report)
                     return
-            # Timeout — cancel + log
             logger.warning("dispatcher.timeout", task_id=dispatch_task.task_id)
             await self._client.cancel_job(submission.job_id)
+            await _persist_result(
+                dispatch_task,
+                JobStatusReport(
+                    job_id=submission.job_id,
+                    kind=dispatch_task.kind,
+                    status=JobStatus.FAILED,
+                    error={
+                        "code": "POLL_TIMEOUT",
+                        "message": "AI service did not complete in time",
+                    },
+                ),
+            )
         except Exception:
             logger.exception(
                 "dispatcher.error",
@@ -130,21 +151,100 @@ class BackgroundDispatcher:
 async def _persist_result(
     dispatch_task: DispatchTask,
     report: JobStatusReport,
-) -> None:
-    """Hook để persist canonical payload xuống DB.
+    *,
+    session_factory: async_sessionmaker[AsyncSession] | None = None,
+) -> int:
+    """Validate + persist a terminal AI job report by ``dispatch_task.kind``.
 
-    Sprint 3: chỉ log structured — Sprint 4 sẽ wire persistence theo kind.
-    Khi production-ready, các handler sẽ được register theo ``dispatch_task.kind``.
+    Writes the canonical payload (snapshot / extraction / comparison), the
+    usage ledger and one ``audit_event`` in a single transaction. Returns the
+    number of domain rows written (0 for failed jobs).
     """
+    factory = session_factory
+    if factory is None:
+        try:
+            factory = get_session_factory()
+        except RuntimeError:
+            logger.error("dispatcher.persist_no_db", task_id=dispatch_task.task_id)
+            raise
+
+    succeeded = report.status is JobStatus.COMPLETED and isinstance(report.result, dict)
+    async with factory() as session:
+        try:
+            written = 0
+            if succeeded:
+                written = await _persist_payload(session, dispatch_task, report.result or {})
+                if report.usage:
+                    await persist_usage_ledger(
+                        session,
+                        tenant_id=dispatch_task.tenant_id,
+                        usage=report.usage,
+                        task_id=dispatch_task.task_id,
+                        job_kind=dispatch_task.kind,
+                    )
+            add_audit_event(
+                session,
+                tenant_id=dispatch_task.tenant_id,
+                action=f"ai.{dispatch_task.kind}.{'persisted' if succeeded else 'failed'}",
+                entity_type="ai_job",
+                entity_id=report.job_id,
+                actor_id="system:dispatcher",
+                dossier_id=dispatch_task.dossier_id,
+                run_id=dispatch_task.run_id,
+                to_state=report.status.value,
+                detail={
+                    "task_id": dispatch_task.task_id,
+                    "rows_written": written,
+                    "error": report.error,
+                },
+            )
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            logger.exception(
+                "dispatcher.persist_failed",
+                task_id=dispatch_task.task_id,
+                kind=dispatch_task.kind,
+            )
+            raise
     logger.info(
         "dispatcher.persist",
         task_id=dispatch_task.task_id,
         kind=dispatch_task.kind,
         tenant_id=dispatch_task.tenant_id,
         status=report.status.value,
-        has_result=report.result is not None,
-        usage_cost=report.usage.cost_usd if report.usage else 0.0,
+        rows_written=written,
     )
+    return written
+
+
+async def _persist_payload(
+    session: AsyncSession, dispatch_task: DispatchTask, result: dict[str, Any]
+) -> int:
+    if dispatch_task.kind in {"ocr", "reocr"}:
+        snapshot = adapt_ai1_snapshot_result(result)
+        return await persist_ai1_snapshot(
+            session,
+            tenant_id=dispatch_task.tenant_id,
+            snapshot=snapshot,
+            run_id=dispatch_task.run_id,
+        )
+    if dispatch_task.kind == "extract":
+        return await persist_ai2_extraction(
+            session,
+            tenant_id=dispatch_task.tenant_id,
+            extraction=result,
+            run_id=dispatch_task.run_id,
+        )
+    if dispatch_task.kind == "compare":
+        return await persist_ai2_comparison(
+            session,
+            tenant_id=dispatch_task.tenant_id,
+            comparison=result,
+            run_id=dispatch_task.run_id,
+            queue_all_findings=True,
+        )
+    raise ValueError(f"Unknown dispatch kind: {dispatch_task.kind!r}")
 
 
 # -----------------------------------------------------------------------------
@@ -157,6 +257,8 @@ def build_ocr_task(
     task_id: int,
     req: OcrJobRequest,
     client: AiServiceClient,
+    run_id: str | None = None,
+    dossier_id: str | None = None,
 ) -> DispatchTask:
     return DispatchTask(
         task_id=task_id,
@@ -164,6 +266,8 @@ def build_ocr_task(
         submit_coroutine=lambda: client.submit_ocr(req),
         request_payload=req,
         tenant_id=req.tenant_id,
+        run_id=run_id,
+        dossier_id=dossier_id,
     )
 
 
@@ -172,6 +276,8 @@ def build_reocr_task(
     task_id: int,
     req: ReOcrJobRequest,
     client: AiServiceClient,
+    run_id: str | None = None,
+    dossier_id: str | None = None,
 ) -> DispatchTask:
     return DispatchTask(
         task_id=task_id,
@@ -179,6 +285,8 @@ def build_reocr_task(
         submit_coroutine=lambda: client.submit_reocr(req),
         request_payload=req,
         tenant_id=req.tenant_id,
+        run_id=run_id,
+        dossier_id=dossier_id,
     )
 
 
@@ -187,6 +295,8 @@ def build_extract_task(
     task_id: int,
     req: ExtractJobRequest,
     client: AiServiceClient,
+    run_id: str | None = None,
+    dossier_id: str | None = None,
 ) -> DispatchTask:
     return DispatchTask(
         task_id=task_id,
@@ -194,6 +304,8 @@ def build_extract_task(
         submit_coroutine=lambda: client.submit_extract(req),
         request_payload=req,
         tenant_id=req.tenant_id,
+        run_id=run_id,
+        dossier_id=dossier_id,
     )
 
 
@@ -202,6 +314,7 @@ def build_compare_task(
     task_id: int,
     req: CompareJobRequest,
     client: AiServiceClient,
+    run_id: str | None = None,
 ) -> DispatchTask:
     return DispatchTask(
         task_id=task_id,
@@ -209,6 +322,8 @@ def build_compare_task(
         submit_coroutine=lambda: client.submit_compare(req),
         request_payload=req,
         tenant_id=req.tenant_id,
+        run_id=run_id,
+        dossier_id=req.dossier_id,
     )
 
 

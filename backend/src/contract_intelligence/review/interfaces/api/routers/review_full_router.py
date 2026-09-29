@@ -11,8 +11,10 @@ Endpoints:
     POST /findings/{id}/review             — Lưu thẩm định xung đột (confirm/reject/correct)
 
 Optimistic locking (P0-05 / openapi.yaml):
-    Client sends ``base_version`` (``current_version`` previously read, or ``0``).
+    ``/review-items/{id}/actions``: ``base_version`` = item ``version`` (starts at 1).
+    ``/clause-nodes|findings/{id}/review``: ``0`` = no review item exists yet.
     On mismatch → **409 Conflict** with ``ReviewConflictResponse`` + current_state.
+    Locked/approved dossier → **409** ``INVARIANT_VIOLATION``.
 """
 
 from __future__ import annotations
@@ -132,7 +134,7 @@ async def list_revisions(
     responses={
         403: {"description": "Insufficient role"},
         404: {"description": "Review item not found"},
-        409: {"description": "Version conflict — base_version mismatch"},
+        409: {"description": "Version conflict — base_version mismatch, or dossier locked"},
         422: {"description": "Invalid action or missing corrected_value"},
     },
 )

@@ -63,8 +63,13 @@ class DossierRepository(Protocol):
 
     async def approve(self, dossier_id: str, checksum: str) -> None: ...
 
-    async def get_flags(self, dossier_id: str) -> dict[str, object] | None:
-        """Return ``{is_locked, is_approved, status}`` or None if missing."""
+    async def get_flags(
+        self, dossier_id: str, *, for_update: bool = False
+    ) -> dict[str, object] | None:
+        """Return ``{is_locked, is_approved, status}`` or None if missing.
+
+        ``for_update`` row-locks the dossier until the transaction ends.
+        """
         ...
 
     async def is_tombstoned(self, dossier_id: str) -> bool:

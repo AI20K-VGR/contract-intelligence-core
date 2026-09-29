@@ -9,6 +9,7 @@ from sqlalchemy import exists, func, or_, select, text, true
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from contract_intelligence.contract.infrastructure.persistence.orm import DossierORM
 from contract_intelligence.extraction.infrastructure.persistence.orm import (
     ClauseNodeORM,
     OcrLineORM,
@@ -22,11 +23,17 @@ from contract_intelligence.review.domain.entities.review_item import (
     ReviewPriority,
 )
 from contract_intelligence.review.infrastructure.persistence.orm import (
+    REVIEW_ACTION_BASE_VERSION_UNIQUE,
     ReviewActionORM,
     ReviewItemORM,
 )
+from contract_intelligence.shared.audit import add_audit_event
 from contract_intelligence.shared.base import new_ulid, utcnow
-from contract_intelligence.shared.exceptions import NotFoundError, ReviewVersionConflict
+from contract_intelligence.shared.exceptions import (
+    InvariantViolation,
+    NotFoundError,
+    ReviewVersionConflict,
+)
 
 _DOSSIER_COLUMNS = (
     "ds.tenant_id AS dossier_tenant_id, ds.metadata AS dossier_metadata, ds.is_locked, "
@@ -135,8 +142,12 @@ class ReviewRepositoryImpl:
     ) -> dict[str, Any]:
         """Atomic submit với optimistic lock (P0-05).
 
+        Locks the item row, then share-locks its dossier so approval/lock (which
+        take the dossier row for update) cannot interleave with the action.
+
         Raises:
             ReviewVersionConflict: base_version mismatch (includes current_state).
+            InvariantViolation: dossier locked, approved or deleted.
             NotFoundError: item missing.
         """
         stmt = (
@@ -152,6 +163,22 @@ class ReviewRepositoryImpl:
         if orm is None:
             raise NotFoundError(entity_type="ReviewItem", entity_id=item_id)
 
+        dossier = (
+            await self._session.execute(
+                select(DossierORM.is_locked, DossierORM.is_approved, DossierORM.deleted_at)
+                .where(DossierORM.id == orm.dossier_id, DossierORM.tenant_id == self._tenant_id)
+                .with_for_update(read=True)
+            )
+        ).one_or_none()
+        if dossier is None or dossier.deleted_at is not None:
+            raise NotFoundError(entity_type="Dossier", entity_id=orm.dossier_id)
+        if dossier.is_locked or dossier.is_approved:
+            raise InvariantViolation(
+                "Hồ sơ đã khóa hoặc đã phê duyệt, không thể thẩm định thêm.",
+                dossier_id=orm.dossier_id,
+                review_item_id=item_id,
+            )
+
         if orm.version != base_version:
             raise ReviewVersionConflict(
                 review_item_id=item_id,
@@ -160,6 +187,8 @@ class ReviewRepositoryImpl:
                 current_state=self._item_to_dict(orm),
             )
 
+        previous_status = orm.status
+        dossier_id = orm.dossier_id
         action_orm = ReviewActionORM(
             id=new_ulid("ra_"),
             tenant_id=self._tenant_id,
@@ -186,19 +215,45 @@ class ReviewRepositoryImpl:
         elif action_type == ReviewActionType.NEEDS_MORE_EVIDENCE:
             orm.status = ReviewItemStatus.AWAITING_EVIDENCE.value
         orm.updated_at = utcnow()
+        add_audit_event(
+            self._session,
+            tenant_id=self._tenant_id,
+            action="review.action_submitted",
+            entity_type="review_item",
+            entity_id=item_id,
+            actor_id=reviewer_id,
+            dossier_id=dossier_id,
+            run_id=orm.run_id,
+            from_state=previous_status,
+            to_state=orm.status,
+            detail={
+                "review_action_id": action_orm.id,
+                "action": action_type.value,
+                "base_version": base_version,
+                "new_version": new_version,
+                "target_type": orm.target_type,
+                "target_id": orm.target_id,
+                "has_correction": corrected_value is not None or corrected_bbox is not None,
+            },
+        )
 
         try:
             await self._session.flush()
         except IntegrityError as exc:
+            if not _is_base_version_race(exc):
+                raise
+            # Another action for the same base_version won the race; the ORM
+            # instance is expired by the rollback, so read the winner back.
             await self._session.rollback()
+            current = await self.get_item(item_id)
             raise ReviewVersionConflict(
                 review_item_id=item_id,
                 expected_version=base_version,
-                current_version=orm.version,
-                current_state=self._item_to_dict(orm),
+                current_version=int((current or {}).get("version") or base_version + 1),
+                current_state=current,
             ) from exc
 
-        open_remaining = await self.count_open(orm.dossier_id)
+        open_remaining = await self.count_open(dossier_id)
         return {
             "action_id": action_orm.id,
             "review_action_id": action_orm.id,
@@ -439,6 +494,14 @@ class ReviewRepositoryImpl:
             "created_at": orm.created_at.isoformat() if orm.created_at else None,
             "updated_at": orm.updated_at.isoformat() if orm.updated_at else None,
         }
+
+
+def _is_base_version_race(exc: IntegrityError) -> bool:
+    # Postgres names the index; SQLite lists the columns instead.
+    message = str(exc.orig)
+    return REVIEW_ACTION_BASE_VERSION_UNIQUE in message or (
+        "review_action.review_item_id" in message and "review_action.base_version" in message
+    )
 
 
 def _load_json_dict(raw: str | None) -> dict[str, Any] | None:

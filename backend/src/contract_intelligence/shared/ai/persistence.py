@@ -561,12 +561,16 @@ async def persist_ai2_comparison(
     tenant_id: str,
     comparison: dict[str, Any] | Ai2ComparisonPayload,
     run_id: str | None = None,
+    queue_all_findings: bool = False,
 ) -> int:
     """Ghi canonical comparison (DOC-05c §5.3) xuống DB.
 
     Comparison writes to ``finding`` and ``annex_link`` tables (conflict BC).
     Dùng raw SQL ``text()`` để tránh import ORM từ ``conflict.infrastructure``
     (vi phạm import-linter layer rule: shared/ai KHÔNG được phép import BC infra).
+
+    ``queue_all_findings`` puts every AI2 CandidateFinding in the HITL queue;
+    otherwise only low-confidence / conflicting / high-severity ones.
 
     Returns số findings written.
     """
@@ -742,13 +746,19 @@ async def persist_ai2_comparison(
             or float(finding.confidence) < _FINDING_REVIEW_CONFIDENCE
             or finding.severity.lower() == "high"
         )
-        if needs_review:
+        if needs_review or queue_all_findings:
+            if finding.severity.lower() == "high":
+                priority = "P1"
+            elif needs_review:
+                priority = "P2"
+            else:
+                priority = "P3"
             finding_review_targets.append(
                 (
                     "finding",
                     finding_id,
                     f"finding:{finding.key_or_topic}:{finding.disposition}",
-                    "P1" if finding.severity.lower() == "high" else "P2",
+                    priority,
                 )
             )
 
@@ -909,6 +919,8 @@ async def persist_ai2_processing_result(
             "review_state": run.ai2_review_state,
             "evidence_ready": bool(run.ai2_evidence_ready),
             "job_status": run.ai2_job_status,
+            "review_items": await _count_review_items(session, run.id),
+            "index_contribution_state": _index_contribution_state(body),
             "idempotent_replay": True,
         }
     citation_by_id = {
@@ -962,6 +974,12 @@ async def persist_ai2_processing_result(
             run_id=run_id,
         )
 
+    invalid_finding_ids = {
+        target_id
+        for target_type, target_id, _, _ in completeness["invalid_record_ids"]
+        if target_type == "finding"
+    }
+    unlocatable_findings: list[tuple[str, str, str, str]] = []
     finding_items: list[FindingItem] = []
     finding_items.extend(
         _context_findings_as_items(body.get("context_findings") or [], citation_by_id)
@@ -991,6 +1009,11 @@ async def persist_ai2_processing_result(
             or not left.get("source_file_id")
             or not right.get("source_file_id")
         ):
+            finding_ref = str(
+                raw_finding.get("finding_id") or raw_finding.get("item_key") or "unknown"
+            )
+            if finding_ref not in invalid_finding_ids:
+                unlocatable_findings.append(("finding", finding_ref, "MISSING_SOURCE_FILE", "P1"))
             continue
         finding_items.append(
             FindingItem(
@@ -1032,9 +1055,10 @@ async def persist_ai2_processing_result(
                 findings=finding_items,
             ).model_dump(mode="json"),
             run_id=run_id,
+            queue_all_findings=True,
         )
     if run is not None:
-        invalid_targets = completeness["invalid_record_ids"]
+        invalid_targets = [*completeness["invalid_record_ids"], *unlocatable_findings]
         if invalid_targets:
             await _create_review_items(
                 session,
@@ -1070,8 +1094,25 @@ async def persist_ai2_processing_result(
         "review_state": effective_review_state,
         "evidence_ready": completeness["evidence_ready"],
         "job_status": str(result.get("status") or "UNKNOWN"),
+        "review_items": await _count_review_items(session, run_id) if run_id else 0,
+        "index_contribution_state": _index_contribution_state(body),
         "idempotent_replay": False,
     }
+
+
+def _index_contribution_state(body: dict[str, Any]) -> str | None:
+    index = body.get("index_contribution")
+    if not isinstance(index, dict):
+        return None
+    state = index.get("state") or index.get("publish")
+    return str(state) if state else None
+
+
+async def _count_review_items(session: AsyncSession, run_id: str) -> int:
+    count = await session.scalar(
+        text("SELECT COUNT(*) FROM review_item WHERE run_id = :run_id"), {"run_id": run_id}
+    )
+    return int(count or 0)
 
 
 async def load_ai2_read_model(

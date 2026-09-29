@@ -6,6 +6,7 @@ Layer: infrastructure (persistence) — concrete impl cho Dossier/Document/Job/M
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import UTC
 from typing import Any
 
 from sqlalchemy import and_, exists, func, or_, select, text
@@ -42,6 +43,7 @@ from contract_intelligence.contract.infrastructure.persistence.orm import (
     ManifestRelationORM,
 )
 from contract_intelligence.shared.base import Page, new_ulid, utcnow
+from contract_intelligence.shared.run_events import record_run_event
 
 
 def _coerce_int(value: object, default: int = 0) -> int:
@@ -111,10 +113,16 @@ class DossierRepositoryImpl(DossierRepository):
         )
 
     def _readable_by(self, viewer_id: str, viewer_email: str = "") -> ColumnElement[bool]:
-        """Chủ hồ sơ luôn thấy. Người được chia sẻ chỉ thấy khi quyền còn hiệu lực."""
+        """Chủ hồ sơ luôn thấy. Người được chia sẻ chỉ thấy khi quyền còn hiệu lực.
+
+        A grant counts only while it is not ``disabled`` and not past
+        ``expires_at`` — the same rule as :func:`shared.acl.grant_is_live`.
+        ``expires_at`` is stored as a UTC ISO string, so text comparison orders it.
+        """
         meta = DossierORM.metadata_json
         owner = meta["created_by"].as_string()
         scope = meta["access_scope"].as_string()
+        now_iso = utcnow().astimezone(UTC).isoformat(timespec="seconds")
         shared: Any
         if self._session.bind is not None and self._session.bind.dialect.name == "sqlite":
             shared_rows = (
@@ -122,22 +130,30 @@ class DossierRepositoryImpl(DossierRepository):
                 .table_valued("key", "value")
                 .alias("share_grant")
             )
-            share_match = [func.json_extract(shared_rows.c.value, "$.id") == viewer_id]
+            grant = shared_rows.c.value
+            share_match = [func.json_extract(grant, "$.id") == viewer_id]
             if viewer_email:
                 share_match.append(
-                    func.lower(func.json_extract(shared_rows.c.value, "$.email"))
-                    == viewer_email.lower()
+                    func.lower(func.json_extract(grant, "$.email")) == viewer_email.lower()
                 )
-            shared = exists(select(1).select_from(shared_rows).where(or_(*share_match)))
+            expires = func.coalesce(func.json_extract(grant, "$.expires_at"), "")
+            live = and_(
+                func.coalesce(func.json_extract(grant, "$.status"), "") != "disabled",
+                or_(expires == "", expires > now_iso),
+            )
+            shared = exists(select(1).select_from(shared_rows).where(or_(*share_match), live))
         else:
             shared = text(
                 "EXISTS (SELECT 1 FROM json_array_elements("
                 "CASE WHEN json_typeof("
                 "COALESCE(dossier.metadata, '{}'::json)->'shared_with') = 'array' "
                 "THEN COALESCE(dossier.metadata, '{}'::json)->'shared_with' ELSE '[]'::json END"
-                ") AS share_grant WHERE share_grant->>'id' = :viewer_id"
+                ") AS share_grant WHERE (share_grant->>'id' = :viewer_id"
                 " OR (:viewer_email <> '' AND lower(share_grant->>'email') = lower(:viewer_email)))"
-            ).bindparams(viewer_id=viewer_id, viewer_email=viewer_email)
+                " AND COALESCE(share_grant->>'status', '') <> 'disabled'"
+                " AND (COALESCE(share_grant->>'expires_at', '') = ''"
+                " OR share_grant->>'expires_at' > :now_iso))"
+            ).bindparams(viewer_id=viewer_id, viewer_email=viewer_email, now_iso=now_iso)
         return or_(
             meta.is_(None),
             owner.is_(None),
@@ -279,6 +295,15 @@ class DossierRepositoryImpl(DossierRepository):
             ),
             params,
         )
+        live_runs = await self._session.execute(
+            text(
+                "SELECT id FROM pipeline_run "
+                "WHERE dossier_id = :id AND tenant_id = :tenant_id "
+                "AND status IN ('queued', 'running')"
+            ),
+            params,
+        )
+        cancelled_run_ids = list(live_runs.scalars())
         await self._session.execute(
             text(
                 "UPDATE pipeline_run SET status = 'cancelled' "
@@ -287,6 +312,21 @@ class DossierRepositoryImpl(DossierRepository):
             ),
             params,
         )
+        # Raw SQL skips the run_event flush hook: close open SSE streams by hand.
+        for run_id in cancelled_run_ids:
+            record_run_event(
+                self._session,
+                tenant_id=self._tenant_id,
+                run_id=run_id,
+                dossier_id=dossier_id,
+                type="run.status_changed",
+                payload={
+                    "run_id": run_id,
+                    "dossier_id": dossier_id,
+                    "status": "cancelled",
+                    "error_code": "DOSSIER_DELETED",
+                },
+            )
         return True
 
     async def has_deletion(self, dossier_id: str) -> bool:
@@ -502,12 +542,16 @@ class DossierRepositoryImpl(DossierRepository):
             orm.updated_at = utcnow()
             await self._session.flush()
 
-    async def get_flags(self, dossier_id: str) -> dict[str, object] | None:
+    async def get_flags(
+        self, dossier_id: str, *, for_update: bool = False
+    ) -> dict[str, object] | None:
         stmt = select(DossierORM).where(
             DossierORM.id == dossier_id,
             DossierORM.tenant_id == self._tenant_id,
             DossierORM.deleted_at.is_(None),
         )
+        if for_update:
+            stmt = stmt.with_for_update()
         result = await self._session.execute(stmt)
         orm = result.scalar_one_or_none()
         if orm is None:

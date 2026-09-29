@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import uuid
+from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 import structlog
@@ -37,20 +37,14 @@ from contract_intelligence.extraction.domain.repositories.fact_repository import
 from contract_intelligence.extraction.domain.repositories.page_repository import (
     PageRepository,
 )
-
-# Import trực tiếp từ sub-module để tránh chain qua shared.ai.__init__
-# (eagerly imports persistence → ORM).
-from contract_intelligence.shared.ai.pipeline_orchestrator import (
-    DocumentJob,
-    PipelineContext,
-    PipelineOrchestrator,
-    get_pipeline_orchestrator,
-)
 from contract_intelligence.shared.base import new_ulid
 from contract_intelligence.shared.exceptions import InvalidStateTransition, NotFoundError
 from contract_intelligence.shared.storage import FileStorage
 
 logger = structlog.get_logger(__name__)
+
+# Hands a committed, queued run to the Kafka worker (publishes ``dossier.uploaded``).
+RunPublisher = Callable[[str], Awaitable[None]]
 
 
 class ExtractionService:
@@ -71,7 +65,7 @@ class ExtractionService:
         table_repo: Any,  # DocTableRepository — chưa extract Protocol
         document_repo: DocumentRepository | None = None,
         storage: FileStorage | None = None,
-        orchestrator: PipelineOrchestrator | None = None,
+        run_publisher: RunPublisher | None = None,
         tenant_id: str,
     ) -> None:
         self._pipeline_run_repo = pipeline_run_repo
@@ -83,7 +77,7 @@ class ExtractionService:
         self._table_repo = table_repo
         self._document_repo = document_repo
         self._storage = storage
-        self._orchestrator = orchestrator or get_pipeline_orchestrator()
+        self._run_publisher = run_publisher
         self._tenant_id = tenant_id
 
     # ----- Pipeline runs ------------------------------------------------------
@@ -95,10 +89,13 @@ class ExtractionService:
         pipeline_version: str = "v1.0.0",
         git_sha: str | None = None,
         trace_id: str | None = None,
-        background_tasks: Any | None = None,
         config_override: dict[str, Any] | None = None,
     ) -> PipelineRun:
-        """Tạo pipeline_run + dispatch orchestrator chạy nền.
+        """Queue a pipeline run and hand it to the Kafka worker.
+
+        The run is committed as ``queued`` (job back to ``uploaded``), then
+        ``dossier.uploaded`` is published; the worker resumes exactly this run
+        and sends the AI1 OCR commands. Nothing runs inside the API process.
 
         Raises:
             InvalidStateTransition: if an active (queued/running) run already exists.
@@ -106,6 +103,7 @@ class ExtractionService:
         """
         _ = config_override  # persisted later via config_snapshot when ORM supports it
         await self._ensure_no_active_run(dossier_id)
+        await self._ensure_has_documents(dossier_id)
 
         run_id = new_ulid("run_")
         run = await self._pipeline_run_repo.create(
@@ -115,59 +113,48 @@ class ExtractionService:
             git_sha=git_sha,
             trace_id=trace_id or str(uuid.uuid4()),
         )
-
         run = cast(PipelineRun, run)
 
-        # Build context — gather documents
-        ctx = await self._build_context(run_id=run_id, dossier_id=dossier_id, trace_id=trace_id)
+        # Commit before publishing: the worker reads the run through its own session.
+        await self._commit()
 
-        from contract_intelligence.config.settings import get_settings
+        if self._run_publisher is None:
+            msg = "run_publisher is not wired — ExtractionService cannot dispatch runs"
+            raise RuntimeError(msg)
+        try:
+            await self._run_publisher(dossier_id)
+        except Exception:
+            # A queued run nobody will pick up would block every later trigger
+            # (_ensure_no_active_run), so close it before surfacing the error.
+            await self._pipeline_run_repo.update_status(
+                run_id, "failed", error_code="DISPATCH_FAILED"
+            )
+            await self._commit()
+            logger.exception("pipeline_run.dispatch_failed", run_id=run_id, dossier_id=dossier_id)
+            raise
 
-        settings = get_settings()
-        if settings.job_queue_enabled:
-            # Job already enqueued in pipeline_run_repo.create — worker claims it.
-            logger.info(
-                "pipeline_run.enqueued",
-                run_id=run_id,
-                dossier_id=dossier_id,
-                tenant_id=self._tenant_id,
-                mode="postgres_queue",
-            )
-        elif background_tasks is not None:
-            background_tasks.add_task(self._run_orchestrator_safely, ctx)
-            logger.info(
-                "pipeline_run.scheduled",
-                run_id=run_id,
-                dossier_id=dossier_id,
-                tenant_id=self._tenant_id,
-                mode="background",
-            )
-        else:
-            asyncio.create_task(self._run_orchestrator_safely(ctx))
-            logger.info(
-                "pipeline_run.scheduled",
-                run_id=run_id,
-                dossier_id=dossier_id,
-                tenant_id=self._tenant_id,
-                mode="inline",
-            )
-
+        logger.info(
+            "pipeline_run.dispatched",
+            run_id=run_id,
+            dossier_id=dossier_id,
+            tenant_id=self._tenant_id,
+        )
         return run
 
     async def reprocess_dossier(
         self,
         *,
         dossier_id: str,
-        background_tasks: Any | None = None,
         trace_id: str | None = None,
     ) -> ReprocessAcceptedDTO:
         """Create a new immutable pipeline run for an existing dossier (reprocess)."""
-        run = await self.trigger_pipeline_run(
-            dossier_id=dossier_id,
-            background_tasks=background_tasks,
-            trace_id=trace_id,
-        )
+        run = await self.trigger_pipeline_run(dossier_id=dossier_id, trace_id=trace_id)
         return ReprocessAcceptedDTO(dossier_id=dossier_id, job_id=run.id)
+
+    async def _commit(self) -> None:
+        session = getattr(self._pipeline_run_repo, "_session", None)
+        if session is not None:
+            await session.commit()
 
     async def _ensure_no_active_run(self, dossier_id: str) -> None:
         active = await self._pipeline_run_repo.list_pipeline_runs(
@@ -187,60 +174,18 @@ class ExtractionService:
     def to_summary(run: PipelineRun, *, triggered_by: str | None = None) -> PipelineRunSummaryDTO:
         return PipelineRunSummaryDTO.from_domain(run, triggered_by=triggered_by)
 
-    async def _run_orchestrator_safely(self, ctx: PipelineContext) -> None:
-        """Run orchestrator với error handling — không để crash background task."""
-        try:
-            await self._orchestrator.run(ctx)
-        except Exception as exc:
-            logger.exception(
-                "pipeline_run.orchestrator_error",
-                run_id=ctx.run_id,
-                dossier_id=ctx.dossier_id,
-                error=str(exc),
-            )
-
-    async def _build_context(
-        self,
-        *,
-        run_id: str,
-        dossier_id: str,
-        trace_id: str | None,
-    ) -> PipelineContext:
-        """Load documents từ DB → build DocumentJob list cho orchestrator."""
+    async def _ensure_has_documents(self, dossier_id: str) -> None:
         if self._document_repo is None:
-            # Defensive — nếu DI thiếu, thử lấy từ engine
             raise RuntimeError(
                 "document_repo is None — wiring thiếu. "
                 "ExtractionService cần DocumentRepositoryImpl được inject."
             )
-
-        # Load documents cho dossier (cross-BC read)
-        documents = await self._document_repo.list_by_dossier(dossier_id)
-        if not documents:
+        # Cross-BC read: a run needs at least one document to OCR.
+        if not await self._document_repo.list_by_dossier(dossier_id):
             raise NotFoundError(
                 entity_type="Document",
                 entity_id=f"dossier {dossier_id} has no documents",
             )
-
-        doc_jobs = [
-            DocumentJob(
-                document_id=d.id,
-                sha256=d.sha256,
-                blob_uri=d.blob_uri,
-                filename=d.filename,
-                role=d.role.value,
-                page_count=d.page_count,
-            )
-            for d in documents
-        ]
-
-        return PipelineContext(
-            run_id=run_id,
-            dossier_id=dossier_id,
-            tenant_id=self._tenant_id,
-            documents=doc_jobs,
-            trace_id=trace_id,
-        )
 
     async def get_pipeline_run(self, run_id: str) -> PipelineRun:
         run = await self._pipeline_run_repo.get(run_id)

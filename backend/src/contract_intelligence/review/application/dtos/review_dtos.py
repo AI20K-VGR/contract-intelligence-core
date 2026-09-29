@@ -64,8 +64,10 @@ class ReviewActionRequestDTO(BaseModel):
     action: str = Field(..., description="confirm | correct | reject | needs_more_evidence")
     base_version: int = Field(
         ...,
-        ge=0,
-        description="Version client saw (0 = machine baseline). Mismatch → 409.",
+        ge=1,
+        description=(
+            "``version`` of the review item the client read (items start at 1). Mismatch → 409."
+        ),
     )
     corrected_value: dict[str, Any] | None = None
     corrected_bbox: list[Any] | None = None

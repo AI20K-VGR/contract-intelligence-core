@@ -33,6 +33,7 @@ dependencies = [
     "aioboto3>=15.5.0",
     "python-keycloak>=7.1.1",
     "email-validator>=2.3.0",
+    "pypdf>=5.0",
 ]
 
 [project.optional-dependencies]
