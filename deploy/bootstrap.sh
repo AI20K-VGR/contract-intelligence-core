@@ -22,6 +22,14 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 docker compose version
 
+if [ ! -f /etc/docker/daemon.json ]; then
+  echo "[bootstrap] Docker log rotation: 5 x 20 MB per container"
+  cat > /etc/docker/daemon.json <<'JSON'
+{ "log-driver": "json-file", "log-opts": { "max-size": "20m", "max-file": "5" } }
+JSON
+  systemctl restart docker
+fi
+
 if command -v ufw >/dev/null 2>&1; then
   echo "[bootstrap] firewall: allow SSH, 80, 443 only"
   ufw allow OpenSSH >/dev/null

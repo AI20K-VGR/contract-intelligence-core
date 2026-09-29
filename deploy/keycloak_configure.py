@@ -10,7 +10,8 @@ Runs inside the backend image on ci-network (deploy/deploy.sh does it):
 - backend client: replace the repo's dev secret with BACKEND_KEYCLOAK_ADMIN_SECRET;
 - seeded demo users: replace the passwords committed in realm-export.json with
   DEMO_*_PASSWORD from deploy/.env.prod;
-- realm SMTP: point at SMTP_* when a real mail server is configured.
+- realm SMTP: point at SMTP_* when a real mail server is configured;
+- brute-force protection on: the login page is public (off in the dev realm).
 """
 
 from __future__ import annotations
@@ -177,6 +178,22 @@ def configure_smtp(token: str) -> None:
     print(f"[keycloak] SMTP: {host}")
 
 
+def enable_brute_force_protection(token: str) -> None:
+    realm = _request("GET", f"/admin/realms/{REALM}", token)
+    realm.update(
+        {
+            "bruteForceProtected": True,
+            "failureFactor": 5,  # lock after 5 wrong passwords
+            "waitIncrementSeconds": 60,
+            "maxFailureWaitSeconds": 900,
+            "maxDeltaTimeSeconds": 43200,
+            "permanentLockout": False,
+        }
+    )
+    _request("PUT", f"/admin/realms/{REALM}", token, realm)
+    print("[keycloak] brute-force protection on (5 failures, up to 15 min lockout)")
+
+
 def main() -> None:
     origins = [o.strip().rstrip("/") for o in _env("FRONTEND_ORIGINS").split(",") if o.strip()]
     token = _admin_token()
@@ -184,6 +201,7 @@ def main() -> None:
     configure_backend_secret(token, _env("BACKEND_KEYCLOAK_ADMIN_SECRET"))
     reset_demo_passwords(token)
     configure_smtp(token)
+    enable_brute_force_protection(token)
     print("[keycloak] done")
 
 
