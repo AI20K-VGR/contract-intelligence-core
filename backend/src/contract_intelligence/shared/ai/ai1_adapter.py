@@ -90,7 +90,7 @@ def adapt_ai1_snapshot_result(result: dict[str, Any]) -> Ai1SnapshotPayload:
                     "line_no": line_no,
                     "text": str(line["text"]),
                     "bbox": bbox,
-                    "confidence": 1.0,
+                    "confidence": line.get("confidence"),
                     "doc_char_start": start,
                     "doc_char_end": end,
                     "words": [

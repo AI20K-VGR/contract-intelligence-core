@@ -22,6 +22,7 @@ from contract_intelligence.extraction.infrastructure.persistence.orm import (
     PageORM,
     PipelineRunORM,
     PipelineStepORM,
+    stored_line_confidence,
 )
 from contract_intelligence.shared.base import Page
 
@@ -510,7 +511,7 @@ class PageRepositoryImpl:
                 "line_no": ln.line_no,
                 "text": ln.text,
                 "bbox": ln.bbox,
-                "confidence": float(ln.confidence),
+                "confidence": stored_line_confidence(ln.confidence),
                 "doc_char_start": ln.doc_char_start,
                 "doc_char_end": ln.doc_char_end,
             }
