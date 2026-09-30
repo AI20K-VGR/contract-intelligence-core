@@ -283,7 +283,21 @@ Màn hình khởi tạo hồ sơ, tải lên các file PDF (hợp đồng gốc 
        ]
      }
      ```
-     Trả về `{ dossier_id, status: "queued", documents: [{ id, role, filename, page_start, page_end, page_count }] }`. Mỗi phần thành một tài liệu riêng, rồi đi OCR riêng. Một phần phủ cả file nghĩa là không tách.
+     Response `202`, bọc trong `{ data, meta }` như mọi endpoint của backend:
+     ```json
+     {
+       "data": {
+         "dossier_id": "dos_…",
+         "status": "queued",
+         "documents": [
+           { "id": "doc_…", "role": "contract", "filename": "hop-dong-p1-6.pdf", "page_start": 1, "page_end": 6, "page_count": 6 },
+           { "id": "doc_…", "role": "annex", "filename": "hop-dong-p7-10.pdf", "page_start": 7, "page_end": 10, "page_count": 4 }
+         ]
+       },
+       "meta": { "trace_id": null, "request_id": null, "page": null, "page_size": null, "total": null }
+     }
+     ```
+     Mỗi phần thành một tài liệu riêng, rồi đi OCR riêng. Một phần phủ cả file nghĩa là không tách.
   - Lỗi: `422` khi các phần không phủ đủ trang 1..N theo thứ tự, `page_end < page_start`, hoặc không có đúng một hợp đồng; `409` khi hồ sơ không tải lên với `split_pending` hoặc đã bắt đầu xử lý; `403` khi không có quyền sửa hồ sơ.
   - Hiện người dùng tự nhập khoảng trang. Khi AI1 đề xuất được chỗ cắt, đề xuất điền sẵn `parts`; API giữ nguyên.
 
@@ -301,7 +315,11 @@ Theo dõi hành trình chạy của Pipeline AI qua 11 bước (S0..S10), xem lo
 | `POST` | `/runs/{id}/cancel` | `OPERATOR`, `ADMINISTRATOR` | Hủy run đang trong trạng thái `running` |
 | `POST` | `/dossiers/{id}/ocr/retry-failed` | `OPERATOR`, `ADMINISTRATOR` | **v1.1.0.** Hồ sơ lỗi ở bước OCR: mở run mới, giữ kết quả OCR đã có, chỉ OCR lại tài liệu còn thiếu |
 
-- **Chạy lại OCR lỗi (v1.1.0):** `202 {"status": "queued"}`. Nếu mọi tài liệu đã có kết quả thì run sang thẳng AI2, không OCR lại trang nào. Theo dõi bằng SSE của run mới. `409` khi job không lỗi ở bước OCR (lỗi AI2 thì dùng `POST /dossiers/{id}/ai2/retry`); `403` khi không có quyền sửa hồ sơ.
+- **Chạy lại OCR lỗi (v1.1.0):** response `202`:
+  ```json
+  { "data": { "dossier_id": "dos_…", "status": "queued" }, "meta": { "trace_id": null, "request_id": null, "page": null, "page_size": null, "total": null } }
+  ```
+  Nếu mọi tài liệu đã có kết quả thì run sang thẳng AI2, không OCR lại trang nào. Theo dõi bằng SSE của run mới. `409` khi job không lỗi ở bước OCR (lỗi AI2 thì dùng `POST /dossiers/{id}/ai2/retry`); `403` khi không có quyền sửa hồ sơ.
 
 ---
 
@@ -318,7 +336,26 @@ Giao diện xem văn bản trực quan chia đôi màn hình: Bên trái là câ
 | `GET` | `/documents/{id}/tables` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Danh sách bảng phát hiện được, danh sách cell (`row`, `col`, `span`, text) |
 | `GET` | `/dossiers/{id}/queries` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | **v1.1.0.** Lịch sử hỏi đáp trên hồ sơ, mới nhất trước; còn sau khi server khởi động lại |
 
-- **Lịch sử hỏi đáp (v1.1.0):** `GET /dossiers/{id}/queries?scope=mine|all&limit=20&offset=0`. `scope=mine` (mặc định) chỉ trả câu hỏi của người gọi; `scope=all` chỉ dành cho chủ hồ sơ hoặc `ADMINISTRATOR`, người khác nhận `403`. Cần quyền xem hồ sơ. Mỗi phần tử: `trace_id`, `endpoint`, `actor_id`, `question`, `answer`, `state`, `citations`, `error_code`, `created_at`, trong envelope phân trang ở §3.1. Lần hỏi mà AI2 lỗi vẫn có trong lịch sử, với `answer: null` và `error_code`.
+- **Lịch sử hỏi đáp (v1.1.0):** `GET /dossiers/{id}/queries?scope=mine|all&limit=20&offset=0`. `scope=mine` (mặc định) chỉ trả câu hỏi của người gọi; `scope=all` chỉ dành cho chủ hồ sơ hoặc `ADMINISTRATOR`, người khác nhận `403`. Cần quyền xem hồ sơ. Phân trang bằng `limit` và `offset`, **không** theo `page`/`page_size` của §3.1. Response bọc trong `{ data, meta }`; `meta.page` = `offset / limit + 1`:
+  ```json
+  {
+    "data": [
+      {
+        "trace_id": "qtr_…",
+        "endpoint": "ask",
+        "actor_id": "usr_…",
+        "question": "Giá trị hợp đồng là bao nhiêu?",
+        "answer": "1.286.400.000 đồng",
+        "state": "PASS",
+        "citations": [],
+        "error_code": null,
+        "created_at": "2026-10-01T09:12:00+00:00"
+      }
+    ],
+    "meta": { "trace_id": null, "request_id": null, "page": 1, "page_size": 20, "total": 1 }
+  }
+  ```
+  `endpoint` là `ask` hoặc `query`. Lần hỏi mà AI2 lỗi vẫn có trong lịch sử, với `answer: null` và `error_code`.
 
 ---
 
@@ -684,7 +721,9 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
-| `v1.1.0` | 30/09/2026 | Thêm `GET /dossiers/{id}/queries`, `POST /dossiers/{id}/ocr/retry-failed`, `POST /dossiers/{id}/split` và `metadata.split_pending` (đã có trong `DOC-05-api-spec.yaml`, PR #36). Chỉ thêm, không đổi hay xoá trường nào, nên là MINOR. Các endpoint backend bỏ ở v2.0.0 (`POST /dossiers/upload`, webhook AI1/AI2, `/reviews` cũ) chưa từng có trong DOC-05b, nên không ảnh hưởng contract này |
+| `v1.1.0` | 30/09/2026 | Thêm `GET /dossiers/{id}/queries`, `POST /dossiers/{id}/ocr/retry-failed`, `POST /dossiers/{id}/split` và `metadata.split_pending` (đã có trong `DOC-05-api-spec.yaml`, PR #36). Chỉ thêm, không đổi hay xoá trường nào, nên là MINOR. Response của ba API mô tả theo envelope thật `{ data, meta }` (xem ghi chú §3.1 bên dưới). Các endpoint backend bỏ ở v2.0.0 (`POST /dossiers/upload`, webhook AI1/AI2, `/reviews` cũ) chưa từng có trong DOC-05b, nên không ảnh hưởng contract này |
+
+**§3.1 chưa khớp backend (đã biết):** backend trả mọi response, kể cả danh sách, trong `{ data, meta }`, với `meta` gồm `trace_id`, `request_id`, `page`, `page_size`, `total`. Envelope ở §3.1 (`items`, `total`, `page`, `page_size`, `total_pages`) không khớp endpoint danh sách nào. Ba API của v1.1.0 được mô tả theo `{ data, meta }`. Sửa §3.1 cho mọi endpoint là thay đổi contract chung, để ở bản sau khi frontend chốt.
 
 **Chưa đồng bộ (đã biết):** backend còn các route có trong `DOC-05-api-spec.yaml` hoặc `frontend/API-BE.md` nhưng chưa có trong DOC-05b. Sẽ đồng bộ ở bản sau, mỗi nhóm một lần:
 
