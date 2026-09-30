@@ -1,7 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { loadDocumentPdf, type ClauseNode } from '../api/structure'
+import {
+  confidenceBadgeClasses,
+  confidenceBoxClasses,
+  confidenceLabels,
+  confidenceLevel,
+  formatConfidence,
+  needsReview,
+} from '../structure/confidence'
 import { MaterialIcon } from './icons'
 
 GlobalWorkerOptions.workerSrc = workerUrl
@@ -11,11 +19,18 @@ export function CitationPane({
   node,
   citeNo,
   onClose,
+  embedded = false,
+  filename,
+  banner,
 }: {
   documentId: string
   node: ClauseNode
   citeNo: number
-  onClose: () => void
+  onClose?: () => void
+  embedded?: boolean
+  filename?: string | null
+  /** Thông báo dính dưới header (vd. điều khoản này có xung đột). */
+  banner?: ReactNode
 }) {
   const pages = [
     ...new Set(
@@ -34,6 +49,7 @@ export function CitationPane({
     if (!canvas) return
     const controller = new AbortController()
     let cancelled = false
+    let renderTask: { cancel: () => void } | null = null
     setError(null)
     setReady(false)
 
@@ -51,7 +67,16 @@ export function CitationPane({
         canvas.height = viewport.height
         const context = canvas.getContext('2d')
         if (!context) throw new Error('Trình duyệt không vẽ được trang.')
-        await page.render({ canvas, canvasContext: context, viewport }).promise
+        context.setTransform(1, 0, 0, 1, 0, 0)
+        context.clearRect(0, 0, canvas.width, canvas.height)
+        const task = page.render({ canvas, viewport })
+        renderTask = task
+        try {
+          await task.promise
+        } catch (cause) {
+          if (cancelled) return
+          throw cause
+        }
         if (!cancelled) setReady(true)
       } finally {
         await loadingTask.destroy().catch(() => undefined)
@@ -69,23 +94,44 @@ export function CitationPane({
 
     return () => {
       cancelled = true
+      renderTask?.cancel()
       controller.abort()
     }
   }, [documentId, pageNo])
 
-  const boxes = node.regions.filter((region) => region.pageNo === pageNo)
+  const boxes = node.regions.filter((region) => {
+    if (region.pageNo !== pageNo) return false
+    const [x0, y0, x1, y1] = region.bbox
+    const area = Math.max(0, x1 - x0) * Math.max(0, y1 - y0)
+    return area > 0 && area <= 1
+  })
+  const reviewCount = boxes.filter((region) => needsReview(region.confidence)).length
 
   return (
-    <aside className="flex min-h-0 w-1/2 min-w-0 flex-col border-l border-outline-variant/30 bg-white">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-outline-variant/20 px-4 py-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-slate-900">
-            Trích dẫn {citeNo}
-          </p>
-          <p className="truncate text-xs text-slate-500">
-            Trang {pageNo} · file đã tải lên
-            {boxes.length === 0 ? ' · không có vùng tô' : ''}
-          </p>
+    <aside
+      className={
+        embedded
+          ? 'flex min-h-0 min-w-0 flex-1 flex-col bg-surface-container-lowest'
+          : 'flex min-h-0 w-1/2 min-w-0 flex-col border-l border-outline-variant/30 bg-white'
+      }
+    >
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-outline-variant/20 bg-surface-container px-4 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <MaterialIcon name="picture_as_pdf" className="text-[18px] text-error" />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-on-surface">
+              {filename || `Trích dẫn ${citeNo}`}
+            </p>
+            <p className="truncate text-xs text-secondary">
+              Trang {pageNo}
+              {boxes.length === 0 ? ' · không có vùng tô' : ' · vùng trích dẫn được khoanh'}
+              {reviewCount > 0 ? (
+                <span className="font-semibold text-red-700">
+                  {` · ${reviewCount} vùng cần review`}
+                </span>
+              ) : null}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {pages.length > 1 ? (
@@ -106,15 +152,18 @@ export function CitationPane({
               ))}
             </div>
           ) : null}
-          <button
-            className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
-            type="button"
-            onClick={onClose}
-          >
-            <MaterialIcon name="close" className="text-[18px]" />
-          </button>
+          {onClose ? (
+            <button
+              className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
+              type="button"
+              onClick={onClose}
+            >
+              <MaterialIcon name="close" className="text-[18px]" />
+            </button>
+          ) : null}
         </div>
       </div>
+      {banner}
       <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-4">
         {error ? <p className="mb-3 text-sm text-red-700">{error}</p> : null}
         {!ready && !error ? (
@@ -124,18 +173,32 @@ export function CitationPane({
           className={`relative mx-auto w-full max-w-3xl bg-white shadow ${ready ? '' : 'hidden'}`}
         >
           <canvas ref={canvasRef} className="block h-auto w-full" />
-          {boxes.map((region, index) => (
-            <div
-              key={`${region.pageNo}-${index}`}
-              className="pointer-events-none absolute border-2 border-amber-500 bg-amber-300/40"
-              style={{
-                left: `${region.bbox[0] * 100}%`,
-                top: `${region.bbox[1] * 100}%`,
-                width: `${(region.bbox[2] - region.bbox[0]) * 100}%`,
-                height: `${(region.bbox[3] - region.bbox[1]) * 100}%`,
-              }}
-            />
-          ))}
+          {boxes.map((region, index) => {
+            const confidence = region.confidence ?? null
+            const level = confidence === null ? null : confidenceLevel(confidence)
+            return (
+              <div
+                key={`${region.pageNo}-${index}`}
+                className={`pointer-events-none absolute border-2 ${
+                  level ? confidenceBoxClasses[level] : 'border-amber-500 bg-amber-300/40'
+                }`}
+                style={{
+                  left: `${region.bbox[0] * 100}%`,
+                  top: `${region.bbox[1] * 100}%`,
+                  width: `${(region.bbox[2] - region.bbox[0]) * 100}%`,
+                  height: `${(region.bbox[3] - region.bbox[1]) * 100}%`,
+                }}
+              >
+                {level && confidence !== null ? (
+                  <span
+                    className={`absolute bottom-full left-0 mb-px whitespace-nowrap rounded-sm px-1 text-[10px] font-semibold leading-4 ${confidenceBadgeClasses[level]}`}
+                  >
+                    OCR {formatConfidence(confidence)} · {confidenceLabels[level]}
+                  </span>
+                ) : null}
+              </div>
+            )
+          })}
         </div>
       </div>
     </aside>

@@ -10,6 +10,7 @@ import { AuthCallbackPage } from './pages/AuthCallbackPage'
 import { SilentRenewPage } from './pages/SilentRenewPage'
 import { MyDossiersPage } from './pages/MyDossiersPage'
 import { AccessPage } from './pages/AccessPage'
+import { ActivityLogPage } from './pages/ActivityLogPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { AnalysisProgressPage } from './pages/AnalysisProgressPage'
 import { CreateDossierPage } from './pages/CreateDossierPage'
@@ -22,6 +23,7 @@ import { CitationSplitViewPage } from './pages/CitationSplitViewPage'
 import { CitationEditPage } from './pages/CitationEditPage'
 import { ClauseConflictPage } from './pages/ClauseConflictPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
+import { SettingsPage } from './pages/SettingsPage'
 import { UsersPage } from './pages/UsersPage'
 import { ReviewLayout } from './layouts/ReviewLayout'
 
@@ -70,22 +72,8 @@ export default function App() {
                   </RequireRole>
                 }
               />
-              <Route
-                path="/quyen-truy-cap"
-                element={
-                  <RequireRole allow="admin">
-                    <AccessPage />
-                  </RequireRole>
-                }
-              />
-              <Route
-                path="/nhat-ky-hoat-dong"
-                element={
-                  <RequireRole allow="admin">
-                    <PlaceholderPage title="Nhật ký hoạt động" />
-                  </RequireRole>
-                }
-              />
+              <Route path="/quyen-truy-cap" element={<AccessPage />} />
+              <Route path="/nhat-ky-hoat-dong" element={<ActivityLogPage />} />
               <Route
                 path="/ho-so-cua-toi"
                 element={
@@ -125,13 +113,14 @@ export default function App() {
                 element={<ManifestConfirmPage />}
               />
               <Route
-                path="/tien-trinh-phan-tich"
+                path="/tien-trinh-phan-tich/:dossierId"
                 element={<AnalysisProgressPage />}
               />
               <Route
-                path="/cai-dat"
-                element={<PlaceholderPage title="Cài đặt" />}
+                path="/tien-trinh-phan-tich"
+                element={<AnalysisProgressPage />}
               />
+              <Route path="/cai-dat" element={<SettingsPage />} />
             </Route>
             <Route element={<ReviewLayout />}>
               <Route path="/ho-so-hop-dong" element={<DossierReviewPage />} />

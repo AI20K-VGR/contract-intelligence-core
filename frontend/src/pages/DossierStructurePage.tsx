@@ -1,15 +1,28 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { ApiError } from '../api/client'
+import { clauseOrdinal } from '../api/clauseReview'
 import {
   contractDocument,
   countClauses,
   getDossierStructure,
+  listDocumentTables,
   isOcrComplete,
   listClauses,
   listReviewSpots,
   loadDocumentLines,
   saveStructureMode,
+  searchDossier,
   structureErrorMessage,
+  type DossierSearchResult,
   type ClauseNode,
   type DossierStructure,
   type ReviewSpot,
@@ -17,17 +30,94 @@ import {
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { CitationPane } from '../components/CitationPane'
+import { ConflictNotice } from '../components/ConflictNotice'
+import { UploadedPdfPane } from '../components/UploadedPdfPane'
+import { CitedAnswer } from '../components/CitedAnswer'
+import { SearchCitationReview } from '../components/SearchCitationReview'
+import { StructureDocument } from '../components/StructureDocument'
 import { StructureMindmap } from '../components/StructureMindmap'
+import { StructureOutline } from '../components/StructureOutline'
+import { TableStructure } from '../components/TableStructure'
 import { MaterialIcon } from '../components/icons'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 import {
   buildStructureTree,
+  inferStructureMode,
   parseStructureMode,
+  parseStructureView,
+  STRUCTURE_VIEW_KEY,
   structureModes,
+  structureViews,
   type OcrLine,
   type StructureMode,
+  type StructureView,
 } from '../structure'
-import { citationNumbers, findClause } from '../structure/citations'
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
+function readFocusedCitation(value: unknown): {
+  hit: DossierSearchResult['hits'][number]
+  index: number
+} | null {
+  const state = asRecord(value)
+  const row = asRecord(state?.focusCitation)
+  const text = typeof row?.text === 'string' ? row.text.trim() : ''
+  const pageNo = typeof row?.pageNo === 'number' ? row.pageNo : null
+  if (!text || pageNo === null) return null
+  const sourceFileId =
+    typeof row.sourceFileId === 'string' ? row.sourceFileId : null
+  const lineId = typeof row.lineId === 'string' ? row.lineId : null
+  const bbox =
+    Array.isArray(row.bbox) &&
+    row.bbox.length === 4 &&
+    row.bbox.every(
+      (item): item is number =>
+        typeof item === 'number' && Number.isFinite(item),
+    )
+      ? ([row.bbox[0], row.bbox[1], row.bbox[2], row.bbox[3]] as [
+          number,
+          number,
+          number,
+          number,
+        ])
+      : null
+  const status = sourceFileId && lineId ? 'LOCATABLE' : 'PARTIAL'
+  const index = typeof row.index === 'number' && row.index >= 0 ? row.index : 0
+  return {
+    index,
+    hit: {
+      text,
+      pageNo,
+      sourceFileId,
+      lineId,
+      bbox,
+      citation: {
+        status,
+        sourceFileId,
+        lineId,
+        pageNo,
+        bbox,
+        nodeId: null,
+        quote: text,
+      },
+    },
+  }
+}
+import {
+  citationNumbers,
+  findClause,
+  findClauseByQuote,
+  searchCites,
+} from '../structure/citations'
+import {
+  anchorConflicts,
+  conflictMarkers,
+  openConflictCount,
+} from '../structure/conflictAnchors'
+import { conflictPagePath } from '../data/dossiers'
 
 const jobLabels: Record<string, string> = {
   uploaded: 'Đã tải lên',
@@ -48,10 +138,23 @@ function stateStructureMode(state: unknown): StructureMode | null {
   )
 }
 
+/** Kiểu xem nhớ theo trình duyệt; mặc định sơ đồ tư duy. */
+function storedStructureView(): StructureView {
+  try {
+    return (
+      parseStructureView(window.localStorage.getItem(STRUCTURE_VIEW_KEY)) ??
+      'mindmap'
+    )
+  } catch {
+    return 'mindmap'
+  }
+}
+
 export function DossierStructurePage() {
   const titleInHeader = useHeaderShowsPageTitle()
   const { dossierId = '' } = useParams()
   const location = useLocation()
+  const navigate = useNavigate()
   const { user } = useAuth()
   const backTo = user ? dossiersPath(user.role) : '/'
   const backLabel = user ? dossiersLabel(user.role) : 'Hồ sơ'
@@ -61,15 +164,32 @@ export function DossierStructurePage() {
   const [filename, setFilename] = useState<string | null>(null)
   const [documentId, setDocumentId] = useState<string | null>(null)
   const [citeId, setCiteId] = useState<string | null>(null)
+  const [reviewCiteId, setReviewCiteId] = useState<string | null>(null)
+  const [tableCite, setTableCite] = useState<{
+    node: ClauseNode
+    citeNo: number
+  } | null>(null)
   // Dòng OCR thô: cây được dựng trên trình duyệt theo loại tài liệu.
   const [lines, setLines] = useState<OcrLine[] | null>(null)
   const [showLines, setShowLines] = useState(false)
+  const [pdfDocumentId, setPdfDocumentId] = useState<string | null>(null)
   // Cây AI1 trả sẵn, chỉ dùng khi backend không trả được dòng OCR.
   const [fallbackNodes, setFallbackNodes] = useState<ClauseNode[]>([])
   const [mode, setMode] = useState<StructureMode | null>(
     stateStructureMode(location.state),
   )
+  const [view, setView] = useState<StructureView>(storedStructureView)
   const [spots, setSpots] = useState<ReviewSpot[]>([])
+  const [query, setQuery] = useState('')
+  const [searching, setSearching] = useState(false)
+  const [searchResult, setSearchResult] = useState<DossierSearchResult | null>(
+    null,
+  )
+  const [searchCite, setSearchCite] = useState<{
+    node: ClauseNode
+    citeNo: number
+  } | null>(null)
+  const [searchError, setSearchError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   usePageTitle(detail?.name ?? 'Cấu trúc hợp đồng')
 
@@ -78,6 +198,45 @@ export function DossierStructurePage() {
     () => (lines ? buildStructureTree(lines, activeMode) : fallbackNodes),
     [lines, activeMode, fallbackNodes],
   )
+  // Câu trả lời AI2 không đi theo loại cấu trúc đang xem.
+  const answerNodes = useMemo(
+    () => (lines ? buildStructureTree(lines, 'numbered') : fallbackNodes),
+    [lines, fallbackNodes],
+  )
+  useEffect(() => {
+    setQuery('')
+    setSearchResult(null)
+    setSearchCite(null)
+    setSearchError(null)
+    setReviewCiteId(null)
+  }, [dossierId])
+
+  async function submitSearch(event: FormEvent) {
+    event.preventDefault()
+    const question = query.trim()
+    if (!dossierId || !question || searching) return
+    setSearching(true)
+    setSearchError(null)
+    try {
+      setSearchResult(await searchDossier(dossierId, question))
+    } catch (cause: unknown) {
+      setSearchResult(null)
+      setSearchError(
+        structureErrorMessage(cause) ?? 'Không hỏi được hồ sơ này. Thử lại.',
+      )
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  function changeView(next: StructureView) {
+    setView(next)
+    try {
+      window.localStorage.setItem(STRUCTURE_VIEW_KEY, next)
+    } catch {
+      // Không lưu được cũng không sao; chỉ mất ghi nhớ giữa các phiên.
+    }
+  }
 
   function changeMode(next: StructureMode) {
     if (next === activeMode) return
@@ -128,7 +287,14 @@ export function DossierStructurePage() {
           }, 2000)
           return
         }
-        const document = contractDocument(next)
+        const focusedCitation = readFocusedCitation(location.state)
+        const document =
+          (focusedCitation?.hit.sourceFileId
+            ? next.documents.find(
+                (candidate) =>
+                  candidate.id === focusedCitation.hit.sourceFileId,
+              )
+            : null) ?? contractDocument(next)
         if (!document) {
           setFilename(null)
           setDocumentId(null)
@@ -148,6 +314,26 @@ export function DossierStructurePage() {
         if (ocrLines.length > 0) {
           setLines(ocrLines)
           setFallbackNodes([])
+          // Table-first contracts often have no Điều/Khoản markers. When the
+          // upload did not persist a user-selected mode, infer the first view
+          // from the actual OCR/table payload instead of forcing numbered.
+          if (
+            !next.structureMode &&
+            stateStructureMode(location.state) === null
+          ) {
+            let hasTables = false
+            if (buildStructureTree(ocrLines, 'numbered').length === 0) {
+              try {
+                hasTables =
+                  (await listDocumentTables(document.id, controller.signal))
+                    .length > 0
+              } catch {
+                hasTables = false
+              }
+            }
+            if (stopped) return
+            setMode(inferStructureMode(ocrLines, hasTables))
+          }
         } else {
           const tree = await listClauses(document.id, controller.signal)
           if (stopped) return
@@ -165,6 +351,17 @@ export function DossierStructurePage() {
         }
       } catch (cause) {
         if (controller.signal.aborted || stopped) return
+        if (cause instanceof ApiError && cause.status === 403) {
+          navigate(backTo, {
+            replace: true,
+            state: {
+              notice:
+                'Quyền xem hồ sơ này đã bị thu hồi. Chờ email chia sẻ mới để mở lại.',
+              noticeTone: 'error',
+            },
+          })
+          return
+        }
         const message = structureErrorMessage(cause)
         if (!message) return
         setError(message)
@@ -178,21 +375,99 @@ export function DossierStructurePage() {
       controller.abort()
       if (timer !== undefined) window.clearTimeout(timer)
     }
-  }, [attempt, dossierId])
+  }, [attempt, backTo, dossierId, navigate])
 
   const status = detail?.latestJobStatus
   const statusLabel = status ? (jobLabels[status] ?? status) : 'Đang chờ'
   const clauseCount = countClauses(nodes)
-  const attentionIds = useMemo(() => {
-    const ids = new Set<string>()
-    for (const spot of spots) {
-      for (const clauseId of spot.clauseIds) ids.add(clauseId)
-    }
-    return ids
-  }, [spots])
-  const needsCheck = status === 'pending_review' || spots.length > 0
+  // Xung đột neo bằng trang + dòng OCR bên hợp đồng → nút cây đang chứa dòng đó.
+  const anchors = useMemo(
+    () => anchorConflicts(spots, nodes, lines ?? [], documentId),
+    [documentId, lines, nodes, spots],
+  )
+  const markers = useMemo(() => conflictMarkers(anchors, nodes), [anchors, nodes])
+  const answerAnchors = useMemo(
+    () =>
+      answerNodes === nodes
+        ? anchors
+        : anchorConflicts(spots, answerNodes, lines ?? [], documentId),
+    [anchors, answerNodes, documentId, lines, nodes, spots],
+  )
+  const openConflicts = openConflictCount(spots)
+  const openConflict = useCallback(
+    (findingId: string) => {
+      navigate(conflictPagePath(dossierId, findingId), {
+        state: { dossierId, name: detail?.name, findingId },
+      })
+    },
+    [detail?.name, dossierId, navigate],
+  )
   const citeOf = useMemo(() => citationNumbers(nodes), [nodes])
+  const answerCiteOf = useMemo(
+    () => citationNumbers(answerNodes),
+    [answerNodes],
+  )
   const cited = citeId ? findClause(nodes, citeId) : null
+  const pdfFile =
+    detail?.documents.find((document) => document.id === pdfDocumentId) ?? null
+  const splitView = Boolean(
+    cited || tableCite || searchCite || showLines || pdfFile,
+  )
+
+  const openTreeCite = useCallback((id: string) => {
+    setShowLines(false)
+    setPdfDocumentId(null)
+    setTableCite(null)
+    setSearchCite(null)
+    setCiteId(id)
+  }, [])
+
+  function openUploadedPdf(id: string) {
+    setShowLines(false)
+    setCiteId(null)
+    setSearchCite(null)
+    setTableCite(null)
+    setReviewCiteId(null)
+    setPdfDocumentId(id)
+  }
+
+  const openSearchCitation = useCallback(
+    (hit: DossierSearchResult['hits'][number], index: number) => {
+      const clause = findClauseByQuote(nodes, hit.text, hit.pageNo)
+      if (clause && citeOf.has(clause.id)) {
+        openTreeCite(clause.id)
+        return
+      }
+      if (!documentId || hit.pageNo === null) return
+      const node: ClauseNode = {
+        id: hit.lineId || `search-citation-${index}`,
+        nodeType: 'line',
+        label: 'Citation',
+        number: null,
+        title: null,
+        text: hit.text,
+        pageStart: hit.pageNo,
+        pageEnd: hit.pageNo,
+        confidence: null,
+        regions: hit.bbox ? [{ pageNo: hit.pageNo, bbox: hit.bbox }] : [],
+        children: [],
+      }
+      setShowLines(false)
+      setPdfDocumentId(null)
+      setCiteId(null)
+      setTableCite(null)
+      setSearchCite({ node, citeNo: index + 1 })
+    },
+    [citeOf, documentId, nodes, openTreeCite],
+  )
+
+  useEffect(() => {
+    if (phase !== 'ready' || !documentId || searchCite) return
+    const focused = readFocusedCitation(location.state)
+    if (!focused) return
+    openSearchCitation(focused.hit, focused.index)
+  }, [documentId, location.state, openSearchCitation, phase, searchCite])
+
   const frameRef = useRef<HTMLDivElement>(null)
   const [frameHeight, setFrameHeight] = useState<number | null>(null)
 
@@ -216,20 +491,20 @@ export function DossierStructurePage() {
     <div
       ref={frameRef}
       data-structure-frame
-      className="relative flex w-full flex-col overflow-hidden"
+      className="relative flex w-full flex-col overflow-hidden bg-surface"
       style={frameHeight ? { height: frameHeight } : undefined}
     >
       <div
         className={
-          cited || showLines
-            ? 'flex min-h-0 flex-1'
-            : 'min-h-0 flex-1 overflow-y-auto'
+          splitView
+            ? 'flex min-h-0 flex-1 overflow-auto'
+            : 'flex min-h-0 flex-1 flex-col overflow-auto'
         }
       >
         <div
           className={
-            cited || showLines
-              ? 'min-h-0 min-w-0 flex-1 overflow-y-auto'
+            splitView
+              ? 'flex min-h-0 min-w-0 flex-1 flex-col overflow-auto'
               : 'contents'
           }
         >
@@ -246,31 +521,152 @@ export function DossierStructurePage() {
                 Cấu trúc cây
               </span>
             </nav>
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
-              <div className="flex flex-col gap-space-xs max-w-3xl">
+            <div className="flex flex-col gap-space-sm md:flex-row md:items-start md:justify-between">
+              <div className="flex min-w-0 flex-col gap-space-xs">
                 {titleInHeader ? null : (
                   <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">
                     {detail?.name ?? 'Cấu trúc hợp đồng'}
                   </h1>
                 )}
-                <p className="font-body-md text-body-md text-on-surface-variant">
-                  {filename
-                    ? `${filename} · ${clauseCount} nút`
-                    : 'Hệ thống OCR hợp đồng rồi dựng cây điều khoản.'}
-                </p>
+                {/* Dòng meta: tệp · số nút · nguồn OCR · trạng thái */}
+                <div className="flex flex-wrap items-center gap-x-space-sm gap-y-1 font-body-sm text-body-sm text-on-surface-variant">
+                  {filename ? (
+                    <span className="inline-flex min-w-0 items-center gap-1.5">
+                      <MaterialIcon
+                        name="description"
+                        className="text-outline"
+                        style={{ fontSize: 16 }}
+                      />
+                      <span className="truncate font-medium text-on-surface">
+                        {filename}
+                      </span>
+                      {phase === 'ready' && documentId ? (
+                        <button
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-label-sm text-label-sm font-semibold ${
+                            pdfFile
+                              ? 'bg-primary text-on-primary'
+                              : 'bg-surface-container text-primary hover:bg-primary/10'
+                          }`}
+                          type="button"
+                          onClick={() =>
+                            pdfFile
+                              ? setPdfDocumentId(null)
+                              : openUploadedPdf(documentId)
+                          }
+                        >
+                          <MaterialIcon
+                            name="picture_as_pdf"
+                            className="text-[14px]"
+                          />
+                          PDF gốc
+                        </button>
+                      ) : null}
+                    </span>
+                  ) : (
+                    <span>
+                      {activeMode === 'tables'
+                        ? 'Các bảng mà OCR đã trích từ hợp đồng.'
+                        : 'Hệ thống OCR hợp đồng rồi dựng cây điều khoản.'}
+                    </span>
+                  )}
+                  {filename && phase === 'ready' ? (
+                    <>
+                      <MetaDot />
+                      <span>
+                        {activeMode === 'tables'
+                          ? 'các bảng OCR đã trích'
+                          : `${clauseCount} nút`}
+                      </span>
+                    </>
+                  ) : null}
+                  {phase === 'ready' ? (
+                    <>
+                      <MetaDot />
+                      {lines ? (
+                        <button
+                          aria-expanded={showLines}
+                          className={`inline-flex items-center gap-1 underline-offset-2 transition-colors hover:text-primary hover:underline ${
+                            showLines ? 'text-primary' : ''
+                          }`}
+                          title="Xem các dòng OCR đang dùng để dựng cây"
+                          type="button"
+                          onClick={() => {
+                            setCiteId(null)
+                            setShowLines((open) => !open)
+                          }}
+                        >
+                          {lines.length} dòng OCR
+                          <MaterialIcon
+                            name={showLines ? 'close' : 'open_in_new'}
+                            style={{ fontSize: 14 }}
+                          />
+                        </button>
+                      ) : (
+                        <span title="Backend không trả dòng OCR">
+                          cây AI1 trả sẵn
+                        </span>
+                      )}
+                    </>
+                  ) : null}
+                  <MetaDot />
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-container px-2 py-0.5 font-label-sm text-label-sm font-semibold text-secondary">
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        phase === 'ready'
+                          ? 'bg-emerald-600'
+                          : phase === 'failed' || phase === 'error'
+                            ? 'bg-error'
+                            : 'bg-amber-600'
+                      }`}
+                    />
+                    {statusLabel}
+                  </span>
+                </div>
               </div>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-label-sm text-label-sm font-semibold bg-surface-container text-secondary self-start">
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    phase === 'ready'
-                      ? 'bg-emerald-600'
-                      : phase === 'failed' || phase === 'error'
-                        ? 'bg-error'
-                        : 'bg-amber-600'
-                  }`}
-                />
-                {statusLabel}
-              </span>
+              {phase === 'ready' ? (
+                <div className="flex w-full shrink-0 items-center gap-space-sm md:w-auto">
+                <Link
+                  className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-outline-variant/30 bg-surface-container-lowest px-3 font-body-sm text-body-sm font-semibold text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] hover:bg-amber-50 hover:text-amber-950"
+                  state={{ dossierId, name: detail?.name }}
+                  title={
+                    openConflicts > 0
+                      ? `${openConflicts} xung đột chưa ai thẩm định`
+                      : spots.length > 0
+                        ? 'Mọi xung đột đã có người thẩm định'
+                        : 'Xem trang đối soát xung đột'
+                  }
+                  to={conflictPagePath(dossierId)}
+                >
+                  <MaterialIcon
+                    name="warning"
+                    className="text-[18px] text-amber-700"
+                  />
+                  Xem xung đột
+                  {openConflicts > 0 ? (
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 font-label-sm text-[11px] font-bold text-amber-950">
+                      {openConflicts}
+                    </span>
+                  ) : null}
+                </Link>
+                <form
+                  className="relative min-w-0 w-full shrink md:w-80 lg:w-96"
+                  onSubmit={(event) => void submitSearch(event)}
+                >
+                  <MaterialIcon
+                    name="search"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-outline"
+                  />
+                  <input
+                    aria-label="Hỏi về hợp đồng"
+                    className="h-10 w-full rounded-full border border-outline-variant/30 bg-surface-container-lowest pl-9 pr-space-md font-body-sm text-body-sm text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-secondary"
+                    placeholder="Hỏi về hợp đồng này…"
+                    type="search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                  />
+                </form>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -327,133 +723,329 @@ export function DossierStructurePage() {
             </section>
           ) : null}
 
-          {phase === 'ready' && needsCheck ? (
-            <Link
-              className="mb-space-lg flex items-center justify-between gap-space-md rounded-xl bg-amber-50/80 px-space-lg py-space-md text-amber-950 hover:bg-amber-100 transition-colors"
-              state={{
-                dossierId,
-                name: detail?.name,
-              }}
-              to="/doi-soat-xung-dot"
-            >
-              <span className="flex items-start gap-space-sm min-w-0">
-                <MaterialIcon
-                  name="warning"
-                  className="text-[20px] mt-0.5 shrink-0"
-                />
-                <span className="flex flex-col gap-1 min-w-0">
-                  <span className="font-title-sm text-title-sm font-semibold">
-                    Cần kiểm tra
-                    {spots.length > 0 ? ` · ${spots.length} chỗ` : ''}
-                  </span>
-                  <span className="font-body-sm text-body-sm">
-                    {spots.length > 0
-                      ? `${spots
-                          .slice(0, 3)
-                          .map((spot) => spot.topic)
-                          .join(' · ')}. Bấm để mở giao diện kiểm tra.`
-                      : 'Hồ sơ đã OCR xong và còn nội dung chờ rà soát. Bấm để mở giao diện kiểm tra.'}
-                  </span>
-                </span>
-              </span>
-              <MaterialIcon
-                name="arrow_forward"
-                className="text-[18px] shrink-0"
-              />
-            </Link>
-          ) : null}
-
           {phase === 'ready' ? (
-            <div className="mb-space-sm flex shrink-0 flex-col sm:flex-row sm:items-center justify-between gap-space-sm">
-              <div className="flex items-center gap-space-sm">
-                <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
-                  Loại cấu trúc
-                </span>
+            <div className="mb-space-sm flex shrink-0 flex-wrap items-stretch gap-x-space-lg gap-y-space-sm rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-space-md py-space-sm shadow-sm">
+              <ToolbarGroup label="Loại cấu trúc">
                 <div
-                  className="inline-flex items-center bg-surface-container p-1 gap-1"
-                  role="radiogroup"
                   aria-label="Loại cấu trúc tài liệu"
-                  style={{ borderRadius: '9999px' }}
+                  className="inline-flex items-center gap-0.5 rounded-full bg-surface-container p-1"
+                  role="radiogroup"
                 >
-                  {structureModes.map((item) => {
-                    const active = item.value === activeMode
-                    return (
-                      <button
-                        key={item.value}
-                        aria-checked={active}
-                        className={`h-8 px-space-md font-body-sm text-body-sm font-semibold transition-colors ${
-                          active
-                            ? 'bg-primary text-on-primary shadow-sm'
-                            : 'text-on-surface-variant hover:text-primary'
-                        }`}
-                        disabled={!lines}
-                        role="radio"
-                        style={{ borderRadius: '9999px' }}
-                        title={item.hint}
-                        type="button"
-                        onClick={() => changeMode(item.value)}
-                      >
-                        {item.label}
-                      </button>
-                    )
-                  })}
+                  {structureModes.map((item) => (
+                    <SegmentButton
+                      key={item.value}
+                      active={item.value === activeMode}
+                      disabled={item.value === 'tables' ? !documentId : !lines}
+                      hint={item.hint}
+                      icon={item.icon}
+                      label={item.short}
+                      onClick={() => changeMode(item.value)}
+                    />
+                  ))}
                 </div>
-              </div>
-              {lines ? (
-                <button
-                  aria-expanded={showLines}
-                  className={`font-code-sm text-code-sm underline-offset-2 hover:underline ${
-                    showLines
-                      ? 'text-primary'
-                      : 'text-on-surface-variant hover:text-primary'
-                  }`}
-                  type="button"
-                  onClick={() => {
-                    setCiteId(null)
-                    setShowLines((open) => !open)
-                  }}
-                >
-                  Dựng từ {lines.length} dòng OCR trên trình duyệt
-                </button>
-              ) : (
-                <span className="font-code-sm text-code-sm text-on-surface-variant">
-                  Backend không trả dòng OCR, đang dùng cây AI1 trả sẵn
-                </span>
-              )}
+              </ToolbarGroup>
+              {activeMode !== 'tables' ? (
+                <>
+                  <span
+                    aria-hidden
+                    className="hidden w-px self-stretch bg-outline-variant/30 sm:block"
+                  />
+                  <ToolbarGroup label="Kiểu xem">
+                    <div
+                      aria-label="Kiểu xem cấu trúc"
+                      className="inline-flex items-center gap-0.5 rounded-full bg-surface-container p-1"
+                      role="radiogroup"
+                    >
+                      {structureViews.map((item) => (
+                        <SegmentButton
+                          key={item.value}
+                          active={item.value === view}
+                          hint={item.hint}
+                          icon={item.icon}
+                          label={item.label}
+                          onClick={() => changeView(item.value)}
+                        />
+                      ))}
+                    </div>
+                  </ToolbarGroup>
+                </>
+              ) : null}
             </div>
           ) : null}
 
-          {phase === 'ready' ? (
-            <div className="pb-16">
-              <StructureMindmap
-                attentionIds={attentionIds}
-                citationOf={citeOf}
-                focusId={citeId}
-                nodes={nodes}
-                subtitle={filename}
-                title={detail?.name ?? 'Hợp đồng'}
-                onCite={(id) => {
-                  setShowLines(false)
-                  setCiteId(id)
-                }}
-              />
+          {phase === 'ready' && (searching || searchError || searchResult) ? (
+            <section className="mb-space-md rounded-xl bg-surface-container-lowest px-space-md py-space-md shadow-sm">
+              {searching ? (
+                <p className="font-body-sm text-body-sm text-on-surface-variant">
+                  Đang hỏi backend…
+                </p>
+              ) : null}
+              {searchError ? (
+                <p className="font-body-sm text-body-sm text-on-error-container">
+                  {searchError}
+                </p>
+              ) : null}
+              {searchResult ? (
+                <div className="flex flex-col gap-space-sm">
+                  <p className="font-label-sm text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">
+                    Câu trả lời tổng hợp AI
+                  </p>
+                  {searchResult.answer ? (
+                    <CitedAnswer
+                      activeId={reviewCiteId}
+                      answer={searchResult.answer}
+                      citationOf={answerCiteOf}
+                      hits={searchResult.hits}
+                      nodes={answerNodes}
+                      onCite={setReviewCiteId}
+                    />
+                  ) : (
+                    <p className="font-body-sm text-body-sm text-on-surface">
+                      {searchResult.connected
+                        ? 'AI2 không trả lời cho câu hỏi này.'
+                        : 'AI2 chưa nối. Câu hỏi đã gửi tới backend, chưa có câu trả lời.'}
+                    </p>
+                  )}
+                  {searchCites(
+                    answerNodes,
+                    searchResult.hits,
+                    answerCiteOf,
+                    searchResult.answer ?? '',
+                  ).length === 0 && searchResult.hits.length > 0 ? (
+                    <ul className="flex flex-col gap-1">
+                      {searchResult.hits
+                        .filter((hit) => {
+                          const clause = findClauseByQuote(
+                            nodes,
+                            hit.text,
+                            hit.pageNo,
+                          )
+                          return !clause || !citeOf.has(clause.id)
+                        })
+                        .map((hit, index) => (
+                        <li
+                          key={`${hit.lineId ?? ''}-${hit.pageNo ?? ''}-${hit.text}`}
+                          className="font-body-sm text-body-sm text-on-surface-variant"
+                        >
+                          {hit.sourceFileId === documentId && hit.pageNo ? (
+                            <button
+                              className="group flex w-full items-start gap-2 rounded-md p-1 text-left hover:bg-primary/5 hover:text-primary"
+                              type="button"
+                              onClick={() => openSearchCitation(hit, index)}
+                              title="Mở trang nguồn"
+                            >
+                              <span className="shrink-0 font-medium">
+                                Trang {hit.pageNo} ·
+                              </span>
+                              <span className="min-w-0 flex-1">{hit.text}</span>
+                              <MaterialIcon
+                                name="open_in_new"
+                                className="shrink-0 text-[15px] opacity-60 group-hover:opacity-100"
+                              />
+                            </button>
+                          ) : (
+                            <span>
+                              {hit.pageNo ? `Trang ${hit.pageNo} · ` : ''}
+                              {hit.text}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+
+          {phase === 'ready' && activeMode === 'tables' && documentId ? (
+            <TableStructure
+              activeId={tableCite?.node.id}
+              documentId={documentId}
+              query=""
+              onCite={(node, citeNo) => {
+                setShowLines(false)
+                setCiteId(null)
+                setTableCite({ node, citeNo })
+              }}
+            />
+          ) : null}
+
+          {phase === 'ready' && reviewCiteId && documentId && findClause(answerNodes, reviewCiteId) ? (
+            <SearchCitationReview
+              citeNo={answerCiteOf.get(reviewCiteId) ?? 0}
+              conflicts={answerAnchors.get(reviewCiteId)}
+              documentId={documentId}
+              dossierId={dossierId}
+              filename={filename}
+              node={findClause(answerNodes, reviewCiteId)!}
+              ordinal={clauseOrdinal(answerNodes, reviewCiteId)}
+              onOpenConflict={openConflict}
+              related={
+                searchResult
+                  ? searchCites(
+                      answerNodes,
+                      searchResult.hits,
+                      answerCiteOf,
+                      searchResult.answer ?? '',
+                    )
+                  : []
+              }
+              onBack={() => setReviewCiteId(null)}
+              onPick={setReviewCiteId}
+            />
+          ) : null}
+
+          {phase === 'ready' && !reviewCiteId && activeMode !== 'tables' ? (
+            <div className="flex min-h-[520px] flex-1 flex-col pb-space-md">
+              {(() => {
+                const shared = {
+                  markers,
+                  citationOf: citeOf,
+                  focusId: citeId,
+                  nodes,
+                  title: detail?.name ?? 'Hợp đồng',
+                  onCite: openTreeCite,
+                }
+                switch (view) {
+                  case 'outline':
+                    return <StructureOutline {...shared} />
+                  case 'document':
+                    return <StructureDocument {...shared} />
+                  case 'tree':
+                    return (
+                      <StructureMindmap
+                        key="tree"
+                        {...shared}
+                        orientation="vertical"
+                        subtitle={filename}
+                      />
+                    )
+                  default:
+                    // key để đổi hướng thì dựng lại, tự căn vừa khung.
+                    return (
+                      <StructureMindmap
+                        key="mindmap"
+                        {...shared}
+                        subtitle={filename}
+                      />
+                    )
+                }
+              })()}
             </div>
           ) : null}
         </div>
+        {pdfFile ? (
+          <UploadedPdfPane
+            documentId={pdfFile.id}
+            filename={pdfFile.filename}
+            files={detail?.documents ?? []}
+            onClose={() => setPdfDocumentId(null)}
+            onSelect={openUploadedPdf}
+          />
+        ) : null}
         {showLines && lines ? (
           <OcrLinesPane lines={lines} onClose={() => setShowLines(false)} />
         ) : null}
-        {cited && documentId ? (
+        {searchCite && documentId ? (
+          <CitationPane
+            key={searchCite.node.id}
+            citeNo={searchCite.citeNo}
+            documentId={documentId}
+            node={searchCite.node}
+            onClose={() => setSearchCite(null)}
+          />
+        ) : cited && documentId ? (
           <CitationPane
             key={cited.id}
+            banner={
+              anchors.get(cited.id)?.length ? (
+                <ConflictNotice
+                  documentId={documentId}
+                  dossierId={dossierId}
+                  nodeId={cited.id}
+                  spots={anchors.get(cited.id) ?? []}
+                  onOpen={openConflict}
+                />
+              ) : null
+            }
             citeNo={citeOf.get(cited.id) ?? 0}
             documentId={documentId}
             node={cited}
             onClose={() => setCiteId(null)}
           />
+        ) : tableCite && documentId && activeMode === 'tables' ? (
+          <CitationPane
+            key={tableCite.node.id}
+            citeNo={tableCite.citeNo}
+            documentId={documentId}
+            node={tableCite.node}
+            onClose={() => setTableCite(null)}
+          />
         ) : null}
       </div>
     </div>
+  )
+}
+
+function MetaDot() {
+  return (
+    <span aria-hidden className="h-1 w-1 rounded-full bg-outline-variant" />
+  )
+}
+
+/** Một nhóm trong thanh công cụ: nhãn nhỏ phía trên, điều khiển bên dưới. */
+function ToolbarGroup({
+  label,
+  children,
+}: {
+  label: string
+  children: ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">
+        {label}
+      </span>
+      {children}
+    </div>
+  )
+}
+
+function SegmentButton({
+  active,
+  disabled,
+  icon,
+  label,
+  hint,
+  onClick,
+}: {
+  active: boolean
+  disabled?: boolean
+  icon: string
+  label: string
+  hint?: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      aria-checked={active}
+      className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 font-body-sm text-body-sm font-semibold transition-colors ${
+        active
+          ? 'bg-primary text-on-primary shadow-sm'
+          : disabled
+            ? 'cursor-not-allowed text-on-surface-variant/40'
+            : 'text-on-surface-variant hover:bg-surface-container-high hover:text-primary'
+      }`}
+      disabled={disabled}
+      role="radio"
+      title={hint}
+      type="button"
+      onClick={onClick}
+    >
+      <MaterialIcon name={icon} className="text-[18px]" />
+      <span className="hidden sm:inline">{label}</span>
+    </button>
   )
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   deleteDossier,
   inspectDossierOcr,
@@ -14,6 +14,7 @@ import { ApiError } from '../api/client'
 import { MaterialIcon } from '../components/icons'
 import {
   dossierOpenTo,
+  progressPath,
   type Dossier,
   type DossierStatus,
 } from '../data/dossiers'
@@ -22,6 +23,15 @@ import { useAuth } from '../auth/useAuth'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 
 type StatusFilter = 'all' | OcrState
+
+function stateNotice(state: unknown): { text: string; tone: 'ok' | 'error' } | null {
+  if (!state || typeof state !== 'object') return null
+  const notice = (state as { notice?: unknown }).notice
+  if (typeof notice !== 'string' || !notice.trim()) return null
+  const tone =
+    (state as { noticeTone?: unknown }).noticeTone === 'error' ? 'error' : 'ok'
+  return { text: notice, tone }
+}
 
 const filters: { id: StatusFilter; label: string }[] = [
   { id: 'all', label: 'Tất cả' },
@@ -86,7 +96,9 @@ function reviewNote(summary: DossierSummary) {
   return undefined
 }
 
-function sharesOf(metadata: Record<string, unknown> | null): DossierShareGrant[] {
+function sharesOf(
+  metadata: Record<string, unknown> | null,
+): DossierShareGrant[] {
   const raw = metadata?.shared_with
   if (!Array.isArray(raw)) return []
   return raw.flatMap((item) => {
@@ -100,16 +112,41 @@ function sharesOf(metadata: Record<string, unknown> | null): DossierShareGrant[]
         email: typeof row.email === 'string' ? row.email : '',
         display_name:
           typeof row.display_name === 'string' ? row.display_name : '',
+        status:
+          row.status === 'invited' ||
+          row.status === 'active' ||
+          row.status === 'disabled'
+            ? row.status
+            : undefined,
       },
     ]
   })
 }
 
+function grantFor(
+  shares: ReturnType<typeof sharesOf>,
+  userId: string | undefined,
+  email: string | undefined,
+) {
+  const normalized = email?.trim().toLowerCase()
+  return shares.find(
+    (item) =>
+      (userId && item.id === userId) ||
+      (normalized && item.email.trim().toLowerCase() === normalized),
+  )
+}
+
 function accessScope(
   summary: DossierSummary,
   userId: string | undefined,
+  email?: string,
 ): Dossier['access'] {
   const metadata = summary.metadata
+  const owner = metadataText(metadata, 'created_by')
+  const shares = sharesOf(metadata)
+  if (userId && owner && owner !== userId) {
+    return grantFor(shares, userId, email) ? 'shared_in' : 'mine'
+  }
   const explicit = metadata?.access_scope
   if (
     explicit === 'mine' ||
@@ -118,18 +155,13 @@ function accessScope(
   ) {
     return explicit
   }
-  const owner = metadataText(summary.metadata, 'created_by')
-  const shares = sharesOf(metadata)
-  if (!owner || (userId && owner === userId)) {
-    return shares.length > 0 ? 'shared_out' : 'mine'
-  }
-  if (userId && shares.some((item) => item.id === userId)) return 'shared_in'
-  return 'mine'
+  return shares.length > 0 ? 'shared_out' : 'mine'
 }
 
 export function dossierFromSummary(
   summary: DossierSummary,
   userId: string | undefined,
+  email?: string,
 ): Dossier {
   const code = metadataText(summary.metadata, 'code') || summary.id
   const job = summary.latest_job_status
@@ -147,7 +179,7 @@ export function dossierFromSummary(
     reviewNote: reviewNote(summary),
     documents: summary.document_count,
     updated: formatWhen(summary.created_at),
-    access: accessScope(summary, userId),
+    access: accessScope(summary, userId, email),
     shares: sharesOf(summary.metadata),
     jobStatus: job,
     uploadedAt: summary.created_at,
@@ -197,7 +229,7 @@ function StatusCell({
       <div className="flex flex-col gap-1">
         <Link
           className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-label-sm text-label-sm font-semibold bg-amber-100 text-amber-900 w-fit hover:opacity-80"
-          to={`/ocr/${dossier.id}`}
+          to={progressPath(dossier.id)}
         >
           <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
           Đang OCR
@@ -219,7 +251,7 @@ function StatusCell({
                 ? 'bg-amber-100 text-amber-950'
                 : 'bg-error-container text-on-error-container'
             }`}
-            to={`/ocr/${dossier.id}`}
+            to={progressPath(dossier.id)}
           >
             {label}
           </Link>
@@ -239,7 +271,9 @@ function StatusCell({
           </button>
         </div>
         {detail ? (
-          <span className="font-code-sm text-label-sm text-error">{detail}</span>
+          <span className="font-code-sm text-label-sm text-error">
+            {detail}
+          </span>
         ) : null}
         {note}
       </div>
@@ -278,10 +312,7 @@ function AccessBadge({ dossier }: { dossier: Dossier }) {
       to={`/quyen-truy-cap?dossier=${encodeURIComponent(dossier.id)}`}
       onClick={(event) => event.stopPropagation()}
     >
-      <MaterialIcon
-        name={shared ? 'share' : 'lock'}
-        className="text-[14px]"
-      />
+      <MaterialIcon name={shared ? 'share' : 'lock'} className="text-[14px]" />
       <span>{accessLabels[dossier.access]}</span>
     </Link>
   )
@@ -350,6 +381,7 @@ export function MyDossiersPage() {
   const { user } = useAuth()
   const heading = user ? dossiersLabel(user.role) : 'Hồ sơ'
   const navigate = useNavigate()
+  const location = useLocation()
   usePageTitle(heading)
   const titleInHeader = useHeaderShowsPageTitle()
   const [query, setQuery] = useState('')
@@ -364,6 +396,25 @@ export function MyDossiersPage() {
   const [deleting, setDeleting] = useState(false)
   const [ocrById, setOcrById] = useState<Record<string, OcrInspection>>({})
   const [restartAt, setRestartAt] = useState<Record<string, number>>({})
+  /** Thông báo kết quả thao tác (đã xóa…), tự ẩn sau vài giây. */
+  const [notice, setNotice] = useState<{
+    text: string
+    tone: 'ok' | 'error'
+  } | null>(null)
+
+  // Trang khác (tiến trình phân tích) xóa xong rồi chuyển về đây kèm thông báo.
+  useEffect(() => {
+    const incoming = stateNotice(location.state)
+    if (!incoming) return
+    setNotice(incoming)
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.state, location.pathname, navigate])
+
+  useEffect(() => {
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(null), 4000)
+    return () => window.clearTimeout(timer)
+  }, [notice])
 
   function ocrOf(dossier: Dossier): OcrState | 'checking' {
     const started = restartAt[dossier.id]
@@ -387,7 +438,11 @@ export function MyDossiersPage() {
     listDossiers({ limit: 100, offset: 0, signal: controller.signal })
       .then((result) => {
         if (controller.signal.aborted) return
-        setDossiers(result.items.map((item) => dossierFromSummary(item, user?.id)))
+        setDossiers(
+          result.items.map((item) =>
+            dossierFromSummary(item, user?.id, user?.email),
+          ),
+        )
         setTotal(result.total)
       })
       .catch((cause: unknown) => {
@@ -471,9 +526,11 @@ export function MyDossiersPage() {
     try {
       await deleteDossier(pendingDelete.id)
       const removedId = pendingDelete.id
+      const removedTitle = textOf(pendingDelete.title) || 'hồ sơ'
       setDossiers((current) => current.filter((item) => item.id !== removedId))
       setTotal((current) => Math.max(0, current - 1))
       setPendingDelete(null)
+      setNotice({ text: `Đã xóa hồ sơ “${removedTitle}”.`, tone: 'ok' })
     } catch (cause: unknown) {
       if (cause instanceof ApiError && cause.status === 403) {
         setError('Bạn không có quyền xóa hồ sơ này.')
@@ -498,7 +555,9 @@ export function MyDossiersPage() {
       })
       setDossiers((current) => [
         ...current,
-        ...result.items.map((item) => dossierFromSummary(item, user?.id)),
+        ...result.items.map((item) =>
+          dossierFromSummary(item, user?.id, user?.email),
+        ),
       ])
       setTotal(result.total)
     } catch (cause) {
@@ -532,7 +591,7 @@ export function MyDossiersPage() {
   }, [dossiers, ocrById, query, restartAt, status])
 
   function retryOcr(dossierId: string) {
-    navigate(`/ocr/${dossierId}`, { state: { restart: true } })
+    navigate(progressPath(dossierId), { state: { restart: true } })
   }
 
   return (
@@ -568,14 +627,16 @@ export function MyDossiersPage() {
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
-          <button
-            className="flex items-center gap-space-xs h-9 px-space-md bg-primary text-on-primary font-title-sm text-body-sm rounded shadow-sm hover:bg-primary-container transition-colors shrink-0"
-            type="button"
-            onClick={() => navigate('/tao-ho-so')}
-          >
-            <MaterialIcon name="cloud_upload" className="text-[18px]" />
-            <span>Tải hồ sơ lên</span>
-          </button>
+          {user?.backendRole === 'REVIEWER' ? null : (
+            <button
+              className="flex items-center gap-space-xs h-9 px-space-md bg-primary text-on-primary font-title-sm text-body-sm rounded shadow-sm hover:bg-primary-container transition-colors shrink-0"
+              type="button"
+              onClick={() => navigate('/tao-ho-so')}
+            >
+              <MaterialIcon name="cloud_upload" className="text-[18px]" />
+              <span>Tải hồ sơ lên</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -683,7 +744,7 @@ export function MyDossiersPage() {
                   }`}
                   onClick={() => {
                     if (ocrOf(dossier) === 'running') {
-                      navigate(`/ocr/${dossier.id}`)
+                      navigate(progressPath(dossier.id))
                     }
                   }}
                 >
@@ -702,7 +763,7 @@ export function MyDossiersPage() {
                           }}
                           to={
                             ocrOf(dossier) === 'running'
-                              ? `/ocr/${dossier.id}`
+                              ? progressPath(dossier.id)
                               : dossierOpenTo(dossier)
                           }
                         >
@@ -770,6 +831,28 @@ export function MyDossiersPage() {
           </div>
         ) : null}
       </div>
+      {notice ? (
+        <div
+          className="fixed top-20 right-6 z-[70] flex w-[min(24rem,calc(100vw-3rem))] items-start gap-space-md rounded border border-surface-container bg-surface-container-lowest px-space-lg py-space-md font-body-sm text-body-sm text-on-surface shadow-md"
+          role="status"
+        >
+          <MaterialIcon
+            name={notice.tone === 'error' ? 'error' : 'check_circle'}
+            className={`shrink-0 text-[20px] ${
+              notice.tone === 'error' ? 'text-error' : 'text-emerald-600'
+            }`}
+          />
+          <span className="flex-1">{notice.text}</span>
+          <button
+            aria-label="Đóng thông báo"
+            className="shrink-0 text-secondary hover:text-on-surface"
+            type="button"
+            onClick={() => setNotice(null)}
+          >
+            <MaterialIcon name="close" className="text-[18px]" />
+          </button>
+        </div>
+      ) : null}
       {pendingDelete ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-space-md">
           <div

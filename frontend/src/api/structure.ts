@@ -4,8 +4,15 @@ import {
   type OcrLine,
   type StructureMode,
 } from '../structure/types'
-import { ApiError, apiFetch, getJson } from './client'
+import { ApiError, apiFetch, getJson, requestJson } from './client'
 import { patchDossier } from './dossiers'
+import {
+  normalizeAi2SearchResult,
+  type Ai2SearchHit,
+  type Ai2SearchResult,
+} from './ai2'
+import { buildStructureTree, inferStructureMode } from '../structure'
+import { asConfidence } from '../structure/confidence'
 
 export type StructureDocument = {
   id: string
@@ -35,6 +42,8 @@ export type ClauseRegion = {
   pageNo: number
   /** [x1, y1, x2, y2] chuẩn hóa 0..1 theo trang. */
   bbox: [number, number, number, number]
+  /** Độ tin cậy OCR của chữ trong vùng (0..1); không có nếu engine không báo. */
+  confidence?: number | null
 }
 
 export type ClauseNode = {
@@ -51,13 +60,45 @@ export type ClauseNode = {
   children: ClauseNode[]
 }
 
+/** Lượt thẩm định xung đột gần nhất, đủ để cây và banner hiện trạng thái. */
+export type ReviewSpotLatest = {
+  action: string
+  comment: string | null
+  reviewerId: string
+  reviewerName: string | null
+  reviewerEmail: string | null
+  reviewedAt: string | null
+  actionCount: number
+}
+
+export type ReviewSpotLink = {
+  itemId: string
+  status: string
+  version: number
+  latest: ReviewSpotLatest | null
+}
+
+export type ReviewSpotSide = {
+  label: string
+  value: string
+  quote: string
+  documentId: string
+  clauseId: string
+  /** Trang và dòng OCR của citation. Bbox 0,0,0,0 không dùng được. */
+  pageNo: number | null
+  lineNo: number | null
+  /** Bbox thật từ citation. Rỗng thì UI lấy region của nút cây cấu trúc. */
+  regions: ClauseRegion[]
+}
+
 export type ReviewSpot = {
   id: string
   topic: string
   rationale: string
   severity: string
   clauseIds: string[]
-  sides: { label: string; value: string; quote: string }[]
+  sides: ReviewSpotSide[]
+  review: ReviewSpotLink | null
 }
 
 const DONE_STATUSES = new Set([
@@ -139,6 +180,63 @@ export function contractDocument(detail: DossierStructure) {
     detail.documents[0] ??
     null
   )
+}
+
+export type DossierStructurePreview = {
+  detail: DossierStructure
+  document: StructureDocument | null
+  mode: StructureMode
+  nodes: ClauseNode[]
+  lines: OcrLine[]
+  tableCount: number
+}
+
+/** Load the same dossier-grounded structure used by the full structure page. */
+export async function loadDossierStructurePreview(
+  dossierId: string,
+  signal?: AbortSignal,
+): Promise<DossierStructurePreview> {
+  const detail = await getDossierStructure(dossierId, signal)
+  const document = contractDocument(detail)
+  if (!document) {
+    return {
+      detail,
+      document: null,
+      mode: 'numbered',
+      nodes: [],
+      lines: [],
+      tableCount: 0,
+    }
+  }
+
+  const pages = await listPages(document.id, signal)
+  const lines = (
+    await Promise.all(pages.map((page) => getPageLines(page, signal)))
+  ).flat()
+  const explicitMode = detail.structureMode
+  let tableCount = 0
+  let mode = explicitMode
+  if (!mode) {
+    const numberedNodes = buildStructureTree(lines, 'numbered')
+    if (numberedNodes.length > 0) {
+      mode = 'numbered'
+    } else {
+      tableCount = (await listDocumentTables(document.id, signal)).length
+      mode = inferStructureMode(lines, tableCount > 0)
+    }
+  }
+  const nodes = mode === 'tables' ? [] : buildStructureTree(lines, mode)
+  if (nodes.length > 0 || mode === 'tables') {
+    return { detail, document, mode, nodes, lines, tableCount }
+  }
+  return {
+    detail,
+    document,
+    mode,
+    nodes: await listClauses(document.id, signal),
+    lines,
+    tableCount,
+  }
 }
 
 export async function getDossierStructure(
@@ -302,6 +400,7 @@ export async function getPageLines(page: DocumentPage, signal?: AbortSignal) {
         bbox: asBBox(line.bbox, page.widthPt, page.heightPt),
         pageWidth: page.widthPt,
         pageHeight: page.heightPt,
+        confidence: asConfidence(line.confidence),
       },
     ]
   })
@@ -326,6 +425,50 @@ export async function loadDocumentLines(
   return lines
 }
 
+function lineNoOf(row: Record<string, unknown>) {
+  const direct = asNumber(row.line_no)
+  if (direct > 0) return direct
+  const id = asString(row.line_id)
+  const match = id.match(/(?:^|:)l(\d+)$/i)
+  return match ? Number(match[1]) : null
+}
+
+function usableBBox(bbox: [number, number, number, number]) {
+  const area = Math.max(0, bbox[2] - bbox[0]) * Math.max(0, bbox[3] - bbox[1])
+  return area > 0.0001 && area <= 1
+}
+
+function citationAnchor(citation: Record<string, unknown> | null): {
+  regions: ClauseRegion[]
+  pageNo: number | null
+  lineNo: number | null
+} {
+  if (!citation) return { regions: [], pageNo: null, lineNo: null }
+  let segments: unknown = citation.segments
+  if (typeof segments === 'string') {
+    try {
+      segments = JSON.parse(segments) as unknown
+    } catch {
+      return { regions: [], pageNo: null, lineNo: null }
+    }
+  }
+  if (!Array.isArray(segments)) return { regions: [], pageNo: null, lineNo: null }
+  let pageNo: number | null = null
+  let lineNo: number | null = null
+  const regions: ClauseRegion[] = []
+  for (const item of segments) {
+    const row = asRecord(item)
+    if (!row) continue
+    const page = asNumber(row.page_no) || asNumber(row.page_number)
+    if (pageNo === null && page > 0) pageNo = page
+    if (lineNo === null) lineNo = lineNoOf(row)
+    const bbox = asBBox(row.bbox, 0, 0)
+    if (!bbox || !usableBBox(bbox) || page <= 0) continue
+    regions.push({ pageNo: page, bbox })
+  }
+  return { regions, pageNo, lineNo }
+}
+
 function snapshotText(value: unknown) {
   if (typeof value === 'string') return value.trim()
   if (typeof value === 'number' && Number.isFinite(value)) return String(value)
@@ -348,12 +491,19 @@ function asReviewSpot(value: unknown): ReviewSpot | null {
         const side = asRecord(item)
         if (!side) return []
         const citation = asRecord(side.citation)
+        const anchor = citationAnchor(citation)
         return [
           {
             label:
               asString(side.document_role) || asString(side.side) || 'Nguồn',
             value: snapshotText(side.value_snapshot) || '—',
             quote: asString(citation?.quote),
+            documentId:
+              asString(side.document_id) || asString(citation?.document_id),
+            clauseId: asString(side.clause_node_id),
+            pageNo: anchor.pageNo,
+            lineNo: anchor.lineNo,
+            regions: anchor.regions,
           },
         ]
       })
@@ -365,6 +515,8 @@ function asReviewSpot(value: unknown): ReviewSpot | null {
         return clauseId ? [clauseId] : []
       })
     : []
+  const reviewRow = asRecord(row.review)
+  const reviewId = asString(reviewRow?.item_id)
   return {
     id,
     topic: asString(row.key_or_topic) || 'Nội dung cần kiểm tra',
@@ -372,6 +524,33 @@ function asReviewSpot(value: unknown): ReviewSpot | null {
     severity: asString(row.severity),
     clauseIds,
     sides,
+    review: reviewId
+      ? {
+          itemId: reviewId,
+          status: asString(reviewRow?.status) || 'open',
+          version:
+            typeof reviewRow?.current_version === 'number'
+              ? reviewRow.current_version
+              : 1,
+          latest: asReviewLatest(reviewRow?.latest),
+        }
+      : null,
+  }
+}
+
+function asReviewLatest(value: unknown): ReviewSpotLatest | null {
+  const row = asRecord(value)
+  const action = asString(row?.action)
+  if (!row || !action) return null
+  return {
+    action,
+    comment: typeof row.comment === 'string' ? row.comment : null,
+    reviewerId: asString(row.reviewer_id),
+    reviewerName: typeof row.reviewer_name === 'string' ? row.reviewer_name : null,
+    reviewerEmail:
+      typeof row.reviewer_email === 'string' ? row.reviewer_email : null,
+    reviewedAt: typeof row.reviewed_at === 'string' ? row.reviewed_at : null,
+    actionCount: asNumber(row.action_count),
   }
 }
 
@@ -386,6 +565,75 @@ export async function listReviewSpots(dossierId: string, signal?: AbortSignal) {
     .filter((spot): spot is ReviewSpot => spot !== null)
 }
 
+export type DocumentTableCell = {
+  row: number
+  column: number
+  rowSpan: number
+  colSpan: number
+  text: string
+  header: boolean
+  pageNo: number
+  bbox: [number, number, number, number] | null
+}
+
+export type DocumentTable = {
+  id: string
+  pageNo: number
+  rows: number
+  columns: number
+  continued: boolean
+  continuedFrom: string | null
+  bbox: [number, number, number, number] | null
+  cells: DocumentTableCell[]
+}
+
+export async function listDocumentTables(
+  documentId: string,
+  signal?: AbortSignal,
+) {
+  const data = await getJson<unknown>(
+    `/api/v1/documents/${encodeURIComponent(documentId)}/tables`,
+    { signal },
+  )
+  if (!Array.isArray(data)) return []
+  return data.flatMap((item): DocumentTable[] => {
+    const row = asRecord(item)
+    const id = asString(row?.id)
+    if (!row || !id) return []
+    const cells = Array.isArray(row.cells)
+      ? row.cells.flatMap((cell): DocumentTableCell[] => {
+          const record = asRecord(cell)
+          if (!record) return []
+          return [
+            {
+              row: asNumber(record.row_idx),
+              column: asNumber(record.col_idx),
+              rowSpan: Math.max(1, asNumber(record.row_span) || 1),
+              colSpan: Math.max(1, asNumber(record.col_span) || 1),
+              text: asString(record.text),
+              header: record.is_header === true,
+              pageNo: asNumber(row.page_no),
+              bbox: asBBox(record.bbox, 612, 792),
+            },
+          ]
+        })
+      : []
+    return [
+      {
+        id,
+        pageNo: asNumber(row.page_no),
+        rows: asNumber(row.rows_count),
+        columns: asNumber(row.cols_count),
+        continued: row.is_multi_page === true || Boolean(row.continued_from),
+        continuedFrom:
+          typeof row.continued_from === 'string' ? row.continued_from : null,
+        bbox: asBBox(row.bbox, 612, 792),
+        cells,
+      },
+    ]
+  })
+}
+
 export async function listClauses(documentId: string, signal?: AbortSignal) {
   const data = await getJson<unknown>(
     `/api/v1/documents/${encodeURIComponent(documentId)}/clauses`,
@@ -397,6 +645,18 @@ export async function listClauses(documentId: string, signal?: AbortSignal) {
   return data.map(asClause).filter((node): node is ClauseNode => node !== null)
 }
 
+export type DossierSearchHit = Ai2SearchHit
+export type DossierSearchResult = Ai2SearchResult
+
+export async function searchDossier(dossierId: string, query: string) {
+  const { data } = await requestJson<unknown>(
+    `/api/v1/dossiers/${encodeURIComponent(dossierId)}/search`,
+    { method: 'POST', json: { query } },
+  )
+  const result = normalizeAi2SearchResult(data, dossierId)
+  return { ...result, query: result.query || query }
+}
+
 export function structureErrorMessage(error: unknown) {
   if (error instanceof DOMException && error.name === 'AbortError') {
     return null
@@ -404,7 +664,7 @@ export function structureErrorMessage(error: unknown) {
   if (error instanceof ApiError) {
     if (error.status === 401) return 'Phiên đăng nhập hết hạn. Đăng nhập lại.'
     if (error.status === 403)
-      return 'Bạn không có quyền xem cấu trúc hồ sơ này.'
+      return 'Quyền xem hồ sơ này đã bị thu hồi. Chờ email chia sẻ mới để mở lại.'
     if (error.status === 404) return 'Không tìm thấy hồ sơ hoặc cây điều khoản.'
     return error.message
   }

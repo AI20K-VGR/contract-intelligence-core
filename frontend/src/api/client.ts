@@ -34,12 +34,19 @@ type ProblemBody = {
 export class ApiError extends Error {
   status: number
   code?: string
+  details?: unknown
 
-  constructor(status: number, message: string, code?: string) {
+  constructor(
+    status: number,
+    message: string,
+    code?: string,
+    details?: unknown,
+  ) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
+    this.details = details
   }
 }
 
@@ -136,7 +143,7 @@ export async function requestJson<T>(
 
   if (!response.ok) {
     const { message, code } = messageFromBody(response.status, payload)
-    throw new ApiError(response.status, message, code)
+    throw new ApiError(response.status, message, code, payload)
   }
 
   return unwrapEnvelope<T>(payload)

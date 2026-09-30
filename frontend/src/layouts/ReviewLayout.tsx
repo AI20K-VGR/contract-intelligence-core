@@ -101,7 +101,7 @@ export function ReviewLayout() {
         </div>
 
         <div className="px-space-sm pb-space-md">
-          <SidebarLogout className="w-full flex items-center gap-space-md px-space-md py-space-sm rounded text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-body-md text-body-md" />
+          <SidebarLogout tone="surface" />
         </div>
       </aside>
 

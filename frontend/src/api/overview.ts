@@ -13,10 +13,16 @@ export type StorageUsage = {
   quota_bytes: number | null
 }
 
-export async function listActivity(signal?: AbortSignal) {
+export async function listActivity(options?: {
+  limit?: number
+  offset?: number
+  signal?: AbortSignal
+}) {
+  const limit = options?.limit ?? 8
+  const offset = options?.offset ?? 0
   const { data, meta } = await requestJson<ActivityEvent[]>(
-    '/api/v1/admin/activity?limit=8&offset=0',
-    { signal },
+    `/api/v1/admin/activity?limit=${limit}&offset=${offset}`,
+    { signal: options?.signal },
   )
   return { events: data, total: meta?.total ?? data.length }
 }

@@ -154,6 +154,7 @@ export type DossierShareGrant = {
   id: string
   email: string
   display_name: string
+  status?: 'invited' | 'active' | 'disabled'
 }
 
 export async function updateDossierAccess(
@@ -291,15 +292,22 @@ export async function loadContractOcrPages(
   if (!documentId) {
     return { documentId: null, filename: null, pages: [] as OcrPageRow[] }
   }
+  return {
+    documentId,
+    filename: asString(record?.filename) || null,
+    pages: await loadDocumentOcrPages(documentId, signal),
+  }
+}
+
+export async function loadDocumentOcrPages(
+  documentId: string,
+  signal?: AbortSignal,
+) {
   const { data: pages } = await requestJson<unknown>(
     `/api/v1/documents/${encodeURIComponent(documentId)}/pages`,
     { signal },
   )
-  return {
-    documentId,
-    filename: asString(record?.filename) || null,
-    pages: readOcrPages(pages),
-  }
+  return readOcrPages(pages)
 }
 
 function inspectionFromPages(

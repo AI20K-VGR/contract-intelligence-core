@@ -14,7 +14,12 @@ export type Dossier = {
   documents: number | null
   updated: string
   access: DossierAccess
-  shares?: { id: string; email: string; display_name: string }[]
+  shares?: {
+    id: string
+    email: string
+    display_name: string
+    status?: 'invited' | 'active' | 'disabled'
+  }[]
   jobStatus?: string | null
   uploadedAt?: string
 }
@@ -23,7 +28,30 @@ export function structurePath(dossierId: string) {
   return `/cau-truc/${encodeURIComponent(dossierId)}`
 }
 
+/** Trang đối soát xung đột; kèm finding để cuộn thẳng tới đúng xung đột. */
+export function conflictPagePath(dossierId: string, findingId?: string) {
+  const query = new URLSearchParams()
+  if (dossierId) query.set('dossier', dossierId)
+  if (findingId) query.set('finding', findingId)
+  const search = query.toString()
+  return `/doi-soat-xung-dot${search ? `?${search}` : ''}`
+}
+
+export function progressPath(dossierId: string) {
+  return `/tien-trinh-phan-tich/${encodeURIComponent(dossierId)}`
+}
+
 export function dossierOpenTo(dossier: Dossier) {
+  const job = dossier.jobStatus
+  if (
+    dossier.status === 'processing' ||
+    dossier.status === 'failed' ||
+    job === 'uploaded' ||
+    job === 'processing' ||
+    job === 'failed'
+  ) {
+    return progressPath(dossier.id)
+  }
   return structurePath(dossier.id)
 }
 

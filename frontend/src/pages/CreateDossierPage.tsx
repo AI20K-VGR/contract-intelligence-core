@@ -8,27 +8,28 @@ import {
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
-import { structurePath } from '../data/dossiers'
+import { progressPath } from '../data/dossiers'
 import { dossierCategories } from '../data/upload'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
+import {
+  asUploadPdf,
+  isImageFile,
+  isUploadable,
+  UPLOAD_ACCEPT,
+} from '../pdf/imageToPdf'
 import {
   STRUCTURE_MODE_KEY,
   structureModes,
   type StructureMode,
 } from '../structure'
 
-type PrivacyTier = 'private' | 'shared'
 type UploadStatus = 'idle' | 'uploading'
+
+const UNSUPPORTED_FILE = 'Chỉ nhận tệp PDF hoặc ảnh JPG, PNG, WebP, BMP.'
 type PickedFile = {
   key: string
   role: 'contract' | 'annex'
   file: File
-}
-
-function isPdf(file: File) {
-  return (
-    file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-  )
 }
 
 function formatSize(bytes: number) {
@@ -55,7 +56,10 @@ function FileCard({
     <div className="p-space-lg rounded-xl bg-surface-container-lowest border-t border-surface-container hover:bg-surface-container-low transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-space-md shadow-sm">
       <div className="flex items-start gap-space-md min-w-0">
         <div className="w-10 h-10 rounded-lg bg-red-50 text-red-700 flex items-center justify-center shrink-0">
-          <MaterialIcon name="picture_as_pdf" className="text-[22px]" />
+          <MaterialIcon
+            name={isImageFile(item.file) ? 'image' : 'picture_as_pdf'}
+            className="text-[22px]"
+          />
         </div>
         <div className="flex flex-col min-w-0">
           <div className="flex items-center gap-space-sm flex-wrap">
@@ -137,7 +141,6 @@ export function CreateDossierPage() {
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [category, setCategory] = useState(dossierCategories[0])
-  const [privacy, setPrivacy] = useState<PrivacyTier>('private')
   const [structureMode, setStructureMode] = useState<StructureMode | null>(null)
   const [contract, setContract] = useState<PickedFile | null>(null)
   const [annexes, setAnnexes] = useState<PickedFile[]>([])
@@ -156,8 +159,8 @@ export function CreateDossierPage() {
   function takePdf(list: FileList | File[] | null): File | null {
     const file = list?.[0]
     if (!file) return null
-    if (!isPdf(file)) {
-      setError('Chỉ nhận tệp PDF.')
+    if (!isUploadable(file)) {
+      setError(UNSUPPORTED_FILE)
       return null
     }
     setError(null)
@@ -175,8 +178,8 @@ export function CreateDossierPage() {
   function addAnnexes(list: FileList | File[]) {
     const next: PickedFile[] = []
     for (const file of Array.from(list)) {
-      if (!isPdf(file)) {
-        setError('Chỉ nhận tệp PDF.')
+      if (!isUploadable(file)) {
+        setError(UNSUPPORTED_FILE)
         return
       }
       next.push({
@@ -270,7 +273,7 @@ export function CreateDossierPage() {
       return
     }
     if (!contract) {
-      setError('Chọn tệp PDF hợp đồng.')
+      setError('Chọn tệp hợp đồng (PDF hoặc ảnh).')
       return
     }
     if (!canUpload) {
@@ -281,10 +284,15 @@ export function CreateDossierPage() {
     setError(null)
     setUploadStatus('uploading')
     try {
+      // Ảnh được gói thành PDF một trang để backend và OCR dùng chung luồng PDF.
+      const contractPdf = await asUploadPdf(contract.file)
+      const annexPdfs = await Promise.all(
+        annexes.map((item) => asUploadPdf(item.file)),
+      )
       const created = await createDossier({
-        contract: contract.file,
+        contract: contractPdf,
         metadata: { name: trimmedName },
-        annexes: annexes.map((item) => item.file),
+        annexes: annexPdfs,
       })
       if (!created?.dossier_id) {
         setError('Backend không trả dossier_id.')
@@ -293,7 +301,7 @@ export function CreateDossierPage() {
       }
 
       const extra: Record<string, unknown> = {
-        privacy,
+        privacy: 'private',
         category,
         [STRUCTURE_MODE_KEY]: structureMode,
       }
@@ -305,8 +313,8 @@ export function CreateDossierPage() {
         // Loại cấu trúc vẫn được truyền qua state để trang cây dùng ngay.
       }
 
-      navigate(structurePath(created.dossier_id), {
-        state: { structureMode },
+      navigate(progressPath(created.dossier_id), {
+        state: { structureMode, name: trimmedName },
       })
     } catch (cause) {
       const message = createDossierErrorMessage(cause)
@@ -333,8 +341,8 @@ export function CreateDossierPage() {
               </h1>
             )}
             <p className="font-body-md text-body-md text-on-surface-variant">
-              Tải PDF hợp đồng. Hệ thống OCR và hiện cây cấu trúc khi xử lý
-              xong.
+              Tải PDF hoặc ảnh chụp hợp đồng. Hệ thống OCR và hiện cây cấu
+              trúc khi xử lý xong.
             </p>
           </div>
         </div>
@@ -464,7 +472,9 @@ export function CreateDossierPage() {
                   </span>
                 </legend>
                 <div className="flex flex-col gap-space-xs">
-                  {structureModes.map((item) => {
+                  {structureModes
+                    .filter((item) => item.value !== 'tables')
+                    .map((item) => {
                     const active = structureMode === item.value
                     return (
                       <label
@@ -509,62 +519,6 @@ export function CreateDossierPage() {
                   })}
                 </div>
               </fieldset>
-
-              <div className="flex flex-col gap-space-xs pt-space-xs">
-                <span className="font-label-sm text-label-sm text-primary tracking-wider uppercase font-semibold">
-                  Quyền riêng tư mặc định
-                </span>
-                <div className="flex flex-col gap-space-xs">
-                  <label className="flex items-center justify-between p-space-md rounded-lg bg-surface hover:bg-surface-container-low transition-colors cursor-pointer group">
-                    <div className="flex items-center gap-space-md">
-                      <input
-                        checked={privacy === 'private'}
-                        className="w-4 h-4 accent-primary-container"
-                        disabled={busy}
-                        name="privacy-tier"
-                        type="radio"
-                        onChange={() => setPrivacy('private')}
-                      />
-                      <div className="flex flex-col">
-                        <span className="font-body-sm text-body-sm font-semibold text-primary">
-                          Riêng tư (Chỉ mình tôi)
-                        </span>
-                        <span className="font-code-sm text-code-sm text-on-surface-variant">
-                          Không truy cập chéo giữa các tổ chức vụ việc
-                        </span>
-                      </div>
-                    </div>
-                    <MaterialIcon
-                      name="lock"
-                      className="text-primary text-[18px]"
-                    />
-                  </label>
-                  <label className="flex items-center justify-between p-space-md rounded-lg bg-surface hover:bg-surface-container-low transition-colors cursor-pointer group">
-                    <div className="flex items-center gap-space-md">
-                      <input
-                        checked={privacy === 'shared'}
-                        className="w-4 h-4 accent-primary-container"
-                        disabled={busy}
-                        name="privacy-tier"
-                        type="radio"
-                        onChange={() => setPrivacy('shared')}
-                      />
-                      <div className="flex flex-col">
-                        <span className="font-body-sm text-body-sm font-semibold text-primary">
-                          Chia sẻ với Trưởng ban Pháp chế
-                        </span>
-                        <span className="font-code-sm text-code-sm text-on-surface-variant">
-                          Tự động báo cáo rủi ro cấp điều hành
-                        </span>
-                      </div>
-                    </div>
-                    <MaterialIcon
-                      name="groups"
-                      className="text-on-surface-variant text-[18px]"
-                    />
-                  </label>
-                </div>
-              </div>
             </div>
           </section>
         </div>
@@ -579,7 +533,7 @@ export function CreateDossierPage() {
                     className="text-primary text-[20px]"
                   />
                   <h2 className="font-title-sm text-title-sm text-primary uppercase tracking-wider">
-                    Tệp PDF
+                    Tệp PDF / ảnh
                     <span className="text-error" aria-hidden="true">
                       {' '}
                       *
@@ -590,7 +544,8 @@ export function CreateDossierPage() {
                   </span>
                 </div>
                 <p className="font-body-sm text-body-sm text-on-surface-variant">
-                  Một tệp hợp đồng chính (bắt buộc) và phụ lục PDF tùy chọn.
+                  Một tệp hợp đồng chính (bắt buộc) và phụ lục tùy chọn. Nhận PDF hoặc ảnh
+                  JPG, PNG, WebP, BMP; ảnh được chuyển thành PDF một trang khi tải lên.
                 </p>
               </div>
               {files.length > 0 ? (
@@ -604,7 +559,7 @@ export function CreateDossierPage() {
 
             <input
               ref={contractInputRef}
-              accept="application/pdf,.pdf"
+              accept={UPLOAD_ACCEPT}
               aria-label="Chọn tệp hợp đồng"
               className="sr-only"
               disabled={busy}
@@ -616,7 +571,7 @@ export function CreateDossierPage() {
             />
             <input
               ref={annexInputRef}
-              accept="application/pdf,.pdf"
+              accept={UPLOAD_ACCEPT}
               aria-label="Chọn phụ lục"
               className="sr-only"
               disabled={busy}
@@ -646,7 +601,7 @@ export function CreateDossierPage() {
               {!contract ? (
                 <>
                   <p className="font-title-sm text-title-sm text-on-surface">
-                    Chưa chọn tệp PDF
+                    Chưa chọn tệp hợp đồng
                     <span className="text-error" aria-hidden="true">
                       {' '}
                       *
@@ -668,7 +623,7 @@ export function CreateDossierPage() {
               ) : (
                 <>
                   <p className="font-body-sm text-body-sm text-on-surface-variant">
-                    Thêm phụ lục PDF nếu hồ sơ có nhiều tệp.
+                    Thêm phụ lục (PDF hoặc ảnh) nếu hồ sơ có nhiều tệp.
                   </p>
                   <button
                     className="h-10 px-space-lg bg-surface-container-lowest text-on-surface hover:bg-surface-container font-body-sm text-body-sm font-semibold rounded-lg shadow-sm"
@@ -705,12 +660,8 @@ export function CreateDossierPage() {
                 ))}
               </div>
             ) : null}
-          </div>
-        </div>
-      </div>
 
-      <div className="sticky bottom-4 mt-space-xl p-space-lg bg-surface-container-lowest rounded-xl shadow-xl z-30 flex flex-col md:flex-row items-center justify-between gap-space-md">
-        <div className="flex items-center justify-end gap-space-md w-full">
+            <div className="flex items-center justify-end gap-space-md pt-space-sm">
           <button
             className="h-10 px-space-lg font-body-sm text-body-sm font-medium text-on-surface-variant hover:text-primary transition-colors cursor-pointer rounded-lg hover:bg-surface-container-low"
             disabled={busy}
@@ -736,6 +687,8 @@ export function CreateDossierPage() {
               </>
             )}
           </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
