@@ -1010,3 +1010,54 @@ class TestDossierAccessPermissions:
         mock_svc.list_documents.return_value = []
         resp = await client.get("/api/v1/dossiers/dos_TEST_01/documents")
         assert resp.status_code == 200
+
+
+class TestRetryFailedOcrEndpoint:
+    @staticmethod
+    def _dossier(**job_fields: Any) -> Dossier:
+        from contract_intelligence.contract.domain.entities.job import Job
+
+        dossier = _make_dossier(id="dos_R", metadata={"created_by": "usr_op_01"})
+        dossier.jobs = [Job(id="job_R", dossier_id="dos_R", **job_fields)]
+        return dossier
+
+    async def test_publishes_retry_failed_for_an_ocr_failure(
+        self, client: AsyncClient, mock_svc: AsyncMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from contract_intelligence.contract.domain.entities.job import JobStatus
+        from contract_intelligence.contract.interfaces.api.routers import contract_router
+
+        mock_svc.get_dossier.return_value = self._dossier(
+            status=JobStatus.FAILED, error_code="AI1_TIMEOUT", current_run_id="run_1"
+        )
+        publish = AsyncMock()
+        monkeypatch.setattr(contract_router.messaging, "publish_event", publish)
+        monkeypatch.setattr(contract_router, "_record", AsyncMock())
+
+        resp = await client.post("/api/v1/dossiers/dos_R/ocr/retry-failed")
+
+        assert resp.status_code == 202
+        publish.assert_awaited_once_with(
+            "dossier_events",
+            {
+                "event": "dossier.uploaded",
+                "dossier_id": "dos_R",
+                "restart": True,
+                "retry_failed": True,
+            },
+        )
+
+    @pytest.mark.parametrize(
+        ("status_value", "error_code"),
+        [("failed", "AI2_TIMEOUT"), ("pending_review", None), ("processing", None)],
+    )
+    async def test_rejects_when_ocr_did_not_fail(
+        self, client: AsyncClient, mock_svc: AsyncMock, status_value: str, error_code: str | None
+    ) -> None:
+        from contract_intelligence.contract.domain.entities.job import JobStatus
+
+        mock_svc.get_dossier.return_value = self._dossier(
+            status=JobStatus(status_value), error_code=error_code, current_run_id="run_1"
+        )
+        resp = await client.post("/api/v1/dossiers/dos_R/ocr/retry-failed")
+        assert resp.status_code == 409

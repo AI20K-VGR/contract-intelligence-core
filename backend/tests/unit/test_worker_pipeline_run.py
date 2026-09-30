@@ -910,3 +910,150 @@ async def test_transient_storage_error_is_retried_not_failed(
         await _deliver(factory, message)
 
     assert (await _job(factory)).status == "processing"
+
+
+# ---------------------------------------------------------------------------
+# Keep what finished, retry only what failed (Sprint 3 task 2)
+# ---------------------------------------------------------------------------
+
+
+def _failed(run_id: str, document_id: str) -> dict[str, Any]:
+    message = _ocr_completed(run_id, document_id, event_type=worker.EVENT_OCR_FAILED)
+    message["payload"] = {
+        "job_id": f"ai1_{document_id}",
+        "status": "failed",
+        "error": {"code": "AI1_OCR_FAILED", "message": "page 7 unreadable"},
+    }
+    return message
+
+
+@pytest.fixture
+def ocr_commands(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+    """OCR commands the worker publishes; documents get a blob to presign."""
+    published: list[dict[str, Any]] = []
+
+    async def publish(topic: str, message: dict[str, Any], **_: Any) -> None:
+        if topic == worker.get_settings().kafka_ai1_ocr_commands_topic:
+            published.append(message)
+
+    monkeypatch.setattr(worker.messaging, "publish_event", publish)
+    monkeypatch.setattr(worker.storage, "generate_presigned_get_url", AsyncMock(return_value="g"))
+    monkeypatch.setattr(worker.storage, "generate_presigned_put_url", AsyncMock(return_value="p"))
+    return published
+
+
+async def _give_blobs(factory: async_sessionmaker[AsyncSession]) -> None:
+    async with factory() as session:
+        for doc_id in (DOC_A, DOC_B):
+            document = await session.get(DocumentORM, doc_id)
+            assert document is not None
+            document.blob_uri = f"s3://dossiers/{doc_id}.pdf"
+            document.page_count = 3
+        await session.commit()
+
+
+async def _run_payload(factory: async_sessionmaker[AsyncSession], run_id: str) -> dict[str, Any]:
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+    assert run is not None
+    return worker._run_payload(run)
+
+
+@pytest.mark.asyncio
+async def test_result_after_the_run_failed_is_kept_on_the_run(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    await _deliver(factory, _failed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+
+    job = await _job(factory)
+    assert job.status == "failed" and job.error_code == "AI1_OCR_FAILED"
+    assert (await _run_payload(factory, run_id))["ai1_extracted_documents"] == [DOC_B]
+    (late,) = await _audits(factory, "ai1.late_result")
+    assert '"kept": true' in (late.detail or "")
+    assert ai2_ready.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_retry_failed_re_ocrs_only_the_missing_document(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ocr_commands: list[dict[str, Any]],
+) -> None:
+    await _give_blobs(factory)
+    first_run = await _start(factory)
+    await _deliver(factory, _failed(first_run, DOC_A))
+    await _deliver(factory, _ocr_completed(first_run, DOC_B))
+
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(
+            session,
+            {
+                "event": "dossier.uploaded",
+                "dossier_id": DOSSIER,
+                "restart": True,
+                "retry_failed": True,
+            },
+        )
+    job = await _job(factory)
+    retry_run = str(job.current_run_id)
+    assert retry_run != first_run and job.status == "processing"
+    # Only A goes back to AI1; B's result is carried over, not re-OCR'd.
+    assert [c["correlation"]["document_id"] for c in ocr_commands] == [DOC_A]
+    assert (await _run_payload(factory, retry_run))["ai1_extracted_documents"] == [DOC_B]
+
+    await _deliver(factory, _ocr_completed(retry_run, DOC_A))
+    job = await _job(factory)
+    assert job.status == "extracted"
+    assert ai2_ready.call_count == 1
+    assert sorted((await _run_payload(factory, retry_run))["ai1_extracted_documents"]) == [
+        DOC_A,
+        DOC_B,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_retry_failed_with_everything_kept_goes_straight_to_ai2(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ocr_commands: list[dict[str, Any]],
+) -> None:
+    await _give_blobs(factory)
+    run_id = await _start(factory)
+    # The watchdog gave up, then both results still arrived.
+    await _age_run(factory, run_id, worker.ai1_deadline_seconds(6) + 5)
+    async with factory() as session:
+        assert await worker.fail_overdue_ai1_runs(session) == [run_id]
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(
+            session, {"event": "dossier.uploaded", "dossier_id": DOSSIER, "retry_failed": True}
+        )
+
+    assert ocr_commands == []
+    job = await _job(factory)
+    assert job.status == "extracted" and job.current_run_id != run_id
+    assert ai2_ready.call_count == 1
+    assert len(await _audits(factory, "ai1.snapshots_carried")) == 1
+
+
+@pytest.mark.asyncio
+async def test_plain_restart_still_re_ocrs_everything(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ocr_commands: list[dict[str, Any]],
+) -> None:
+    await _give_blobs(factory)
+    run_id = await _start(factory)
+    await _deliver(factory, _failed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(
+            session, {"event": "dossier.uploaded", "dossier_id": DOSSIER, "restart": True}
+        )
+
+    assert sorted(c["correlation"]["document_id"] for c in ocr_commands) == [DOC_A, DOC_B]
