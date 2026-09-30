@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | **Not used** — the backend calls AI2 over HTTP (submit + poll). The backend no longer publishes `ci.ai2.idp.commands` nor consumes `ci.ai2.idp.results`; kept for reference only. |
+| Status | **Not used** — the backend calls AI2 over HTTP (submit + poll). The backend no longer publishes `ci.ai2.idp.commands` nor consumes `ci.ai2.idp.results`; kept for reference only. [DEC-BE-AI2-01](contracts/DEC-BE-AI2-01-contract-decisions.vi.md) D1 settles HTTP as the only Backend → AI2 path for Sprint 2. Sections 1 and below describe the unused Kafka design, not the running system. |
 | Owner | Backend Lead / AI2 Lead |
 | Companion | [BE-AI2-PROCESSING-CONTRACT.vi.md](contracts/BE-AI2-PROCESSING-CONTRACT.vi.md), [DOC-05d](DOC-05d-kafka-ai1-ocr-contract.md) |
 
