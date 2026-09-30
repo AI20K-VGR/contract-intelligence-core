@@ -491,6 +491,155 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
 
+  /dossiers/{dossier_id}/queries:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    get:
+      tags: [dossiers]
+      summary: Lịch sử hỏi đáp trên hồ sơ (mới nhất trước)
+      description: |
+        Câu hỏi, câu trả lời và trích dẫn của các lượt `/query` và `/ask`, lưu trong DB (còn sau khi restart).
+        Cần quyền xem hồ sơ như `GET /dossiers/{dossier_id}`; quyền chia sẻ hết hạn hoặc bị tắt → 403.
+        - `scope=mine` (mặc định): chỉ lịch sử của người gọi.
+        - `scope=all`: của mọi người trên hồ sơ, **chỉ chủ hồ sơ hoặc ADMINISTRATOR**; người khác → 403 `ACL_DENIED`.
+
+        Lượt hỏi mà AI2 lỗi vẫn có trong lịch sử, với `answer: null` và `error_code` (ví dụ `AI2_QUERY_FAILED`).
+        Xoá hồ sơ thì câu trả lời bị xoá theo.
+      operationId: listDossierQueries
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      parameters:
+        - name: scope
+          in: query
+          required: false
+          schema: { type: string, enum: [mine, all], default: mine }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: offset
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        '200':
+          description: Lịch sử hỏi đáp
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeQueryHistory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /dossiers/{dossier_id}/ocr/retry-failed:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    post:
+      tags: [dossiers]
+      summary: Chạy lại OCR chỉ cho tài liệu lỗi, giữ tài liệu đã xong
+      description: |
+        Dùng khi job mới nhất `FAILED` ở bước OCR (ví dụ `AI1_TIMEOUT`, `AI1_OCR_FAILED`, `AI1_RESULT_UNREADABLE`).
+        Backend mở run mới, mang theo kết quả OCR của các tài liệu đã xong (kể cả kết quả về sau khi run đã lỗi),
+        và chỉ gửi lại AI1 các tài liệu còn thiếu. Nếu mọi tài liệu đã có kết quả, run chuyển thẳng sang AI2.
+        Theo dõi tiến độ qua SSE `/runs/{run_id}/events` của run mới.
+
+        Lỗi ở bước AI2 (`AI2_PROCESSING_FAILED`, `AI2_TIMEOUT`) không dùng endpoint này mà dùng `POST /dossiers/{dossier_id}/ai2/retry`.
+        `POST /dossiers/{dossier_id}/ocr` (OCR lại toàn bộ) giữ nguyên hành vi.
+      operationId: retryFailedDossierOcr
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      responses:
+        '202':
+          description: Đã nhận, run mới được xếp hàng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeOcrRestart'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Không có role phù hợp hoặc không có quyền sửa hồ sơ (chia sẻ `read`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Job mới nhất không lỗi ở bước OCR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /dossiers/{dossier_id}/split:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    post:
+      tags: [dossiers]
+      summary: Tách file trộn (hợp đồng + phụ lục) thành từng tài liệu rồi xử lý
+      description: |
+        Bước 2 của luồng tách file. Bước 1 là `POST /dossiers` với `metadata.split_pending = true`:
+        Backend lưu file nhưng **chưa gửi OCR**, để không trang nào bị OCR hai lần.
+
+        Người dùng xác nhận khoảng trang và vai trò từng phần. Mỗi phần thành một tài liệu riêng
+        (PDF cắt từ file gốc, `sha256` riêng); file gốc bị bỏ. Sau đó manifest được xác nhận và mọi tài liệu
+        được gửi OCR riêng như khi tải lên từng file. Gửi **một phần phủ cả file** nghĩa là không cần tách.
+
+        Ràng buộc: các phần phủ đủ trang `1..N` theo thứ tự, không thiếu, không chồng lấn;
+        cả hồ sơ sau khi tách có **đúng một** tài liệu `contract`.
+
+        Hiện người dùng nhập khoảng trang. Việc AI1 tự đề xuất chỗ cắt (DOC-11 mục 1) chưa có;
+        khi có, đề xuất sẽ điền sẵn `parts` và endpoint này giữ nguyên.
+      operationId: splitDossierDocument
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DossierSplitRequest'
+            example:
+              document_id: doc_01HZX
+              parts:
+                - { page_start: 1, page_end: 6, role: contract }
+                - { page_start: 7, page_end: 10, role: annex }
+      responses:
+        '202':
+          description: Đã tách và xếp hàng OCR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeDossierSplit'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Không có role phù hợp hoặc không có quyền sửa hồ sơ (chia sẻ `read`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Không có hồ sơ, hoặc `document_id` không thuộc hồ sơ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Hồ sơ không tải lên với `split_pending`, đã bắt đầu xử lý, hoặc manifest đã xác nhận
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Các phần không phủ đủ trang theo thứ tự, `page_end < page_start`, PDF không cắt được, hoặc hồ sơ không có đúng một hợp đồng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
   # ─── Runs ────────────────────────────────────────────────────────────────
   /runs:
     get:
@@ -1832,6 +1981,8 @@ components:
           description: |
             JSON object. Khuyến nghị: `{"name": "...", "tags": [...], "notes": "..."}`.
             Tên nếu thiếu sẽ lấy từ file hợp đồng.
+            `"split_pending": true`: file trộn hợp đồng + phụ lục; Backend lưu nhưng chưa OCR,
+            chờ `POST /dossiers/{dossier_id}/split`.
 
     # ── Document & Pages ───────────────────────────────────────────────────
     Document:
@@ -3004,6 +3155,106 @@ components:
         - type: object
           properties:
             data: { $ref: '#/components/schemas/ExperimentResult' }
+
+    QueryHistoryItem:
+      type: object
+      required: [trace_id, endpoint, actor_id, question, citations, created_at]
+      properties:
+        trace_id: { type: string, example: qtr_01HZX }
+        endpoint: { type: string, enum: [query, ask] }
+        actor_id: { type: string }
+        question: { type: string }
+        answer:
+          type: string
+          nullable: true
+          description: null khi AI2 lỗi hoặc lượt hỏi có trước khi có lịch sử
+        state:
+          type: string
+          nullable: true
+          description: Trạng thái câu trả lời AI2 trả về (ví dụ `PASS`, `INSUFFICIENT_EVIDENCE`)
+        citations:
+          type: array
+          items: { type: object, additionalProperties: true }
+        error_code: { type: string, nullable: true, example: AI2_QUERY_FAILED }
+        created_at: { type: string, format: date-time }
+
+    SplitPart:
+      type: object
+      additionalProperties: false
+      required: [page_start, page_end, role]
+      properties:
+        page_start: { type: integer, minimum: 1 }
+        page_end: { type: integer, minimum: 1 }
+        role: { type: string, enum: [contract, annex] }
+
+    DossierSplitRequest:
+      type: object
+      additionalProperties: false
+      required: [document_id, parts]
+      properties:
+        document_id:
+          type: string
+          minLength: 1
+          description: Tài liệu vừa tải lên với `split_pending`
+        parts:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { $ref: '#/components/schemas/SplitPart' }
+
+    SplitDocument:
+      type: object
+      required: [id, role, filename, page_start, page_end, page_count]
+      properties:
+        id: { type: string }
+        role: { type: string, enum: [contract, annex] }
+        filename: { type: string, example: hop-dong-p1-6.pdf }
+        page_start: { type: integer, description: Trang bắt đầu trong file gốc }
+        page_end: { type: integer, description: Trang kết thúc trong file gốc }
+        page_count: { type: integer }
+
+    ApiEnvelopeQueryHistory:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/QueryHistoryItem' }
+        meta:
+          type: object
+          properties:
+            trace_id: { type: string, nullable: true }
+            request_id: { type: string, nullable: true }
+            page: { type: integer }
+            page_size: { type: integer }
+            total: { type: integer }
+
+    ApiEnvelopeOcrRestart:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [dossier_id, status]
+              properties:
+                dossier_id: { type: string }
+                status: { type: string, enum: [queued] }
+
+    ApiEnvelopeDossierSplit:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [dossier_id, status, documents]
+              properties:
+                dossier_id: { type: string }
+                status: { type: string, enum: [queued] }
+                documents:
+                  type: array
+                  items: { $ref: '#/components/schemas/SplitDocument' }
 
   # ── Responses ───────────────────────────────────────────────────────────
   responses:

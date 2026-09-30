@@ -9,6 +9,10 @@ from sqlalchemy import exists, func, or_, select, text, true
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from contract_intelligence.contract.domain.entities.job import JobStatus
+from contract_intelligence.contract.infrastructure.persistence.dossier_status import (
+    advance_dossier_status,
+)
 from contract_intelligence.contract.infrastructure.persistence.orm import DossierORM
 from contract_intelligence.extraction.infrastructure.persistence.orm import (
     ClauseNodeORM,
@@ -167,7 +171,11 @@ class ReviewRepositoryImpl:
             await self._session.execute(
                 select(DossierORM.is_locked, DossierORM.is_approved, DossierORM.deleted_at)
                 .where(DossierORM.id == orm.dossier_id, DossierORM.tenant_id == self._tenant_id)
-                .with_for_update(read=True)
+                # Exclusive, not FOR SHARE: two reviewers closing the last two
+                # items must see each other's work, or neither would move the
+                # dossier to ``reviewed``. Also keeps approval out (it takes
+                # the same row lock before counting open items).
+                .with_for_update()
             )
         ).one_or_none()
         if dossier is None or dossier.deleted_at is not None:
@@ -254,6 +262,16 @@ class ReviewRepositoryImpl:
             ) from exc
 
         open_remaining = await self.count_open(dossier_id)
+        if open_remaining == 0:
+            await advance_dossier_status(
+                self._session,
+                tenant_id=self._tenant_id,
+                dossier_id=dossier_id,
+                from_status=JobStatus.PENDING_REVIEW,
+                to_status=JobStatus.REVIEWED,
+                actor_id=reviewer_id,
+                detail={"last_review_item_id": item_id, "review_action_id": action_orm.id},
+            )
         return {
             "action_id": action_orm.id,
             "review_action_id": action_orm.id,

@@ -50,11 +50,11 @@ router = APIRouter(tags=["Approval"])
 async def lock_dossier(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ApprovalServiceDep,
-    _user: Annotated[AuthenticatedUser, Depends(require_role("REVIEWER", "ADMINISTRATOR"))],
+    user: Annotated[AuthenticatedUser, Depends(require_role("REVIEWER", "ADMINISTRATOR"))],
     _acl: Annotated[None, Depends(require_lock_access)],
 ) -> ApiResponse[DossierDetailDTO]:
     """RBAC: REVIEWER, ADMINISTRATOR."""
-    return ApiResponse(data=await svc.lock_dossier(dossier_id))
+    return ApiResponse(data=await svc.lock_dossier(dossier_id, actor_id=user.user_id))
 
 
 @router.post(

@@ -8,6 +8,8 @@ The canonical Backend ↔ AI2 processing wire contracts are:
 See [BE-AI2-PROCESSING-CONTRACT.vi.md](BE-AI2-PROCESSING-CONTRACT.vi.md) for the lifecycle, idempotency, and ownership rules.
 Pending decisions for that contract are in [DEC-BE-AI2-01-contract-decisions.vi.md](DEC-BE-AI2-01-contract-decisions.vi.md).
 
+Transport (decided 2026-09-30, not yet running — the runtime is still HTTP until DOC-05e §12 is green): Backend ↔ AI2 processing moves to **event driven Kafka** — `ci.ai2.idp.commands` / `ci.ai2.idp.results`, envelope `ci.kafka.v1`, large payloads by MinIO reference. The rules are in [DOC-05e](../DOC-05e-kafka-ai2-idp-contract.md). The payload schemas above are unchanged; `/query` stays synchronous HTTP.
+
 The AI1 snapshot contract remains the evidence-level contract. The processing
 schemas below are the canonical Backend↔AI2 transport contract for this phase.
 
