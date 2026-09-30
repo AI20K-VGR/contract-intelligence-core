@@ -80,6 +80,8 @@ def dossier_access_decision(
     if isinstance(owner_id, str) and owner_id and owner_id == principal.user_id:
         return True
 
+    # Lead decision 2026-09-30: an ADMINISTRATOR may delete a dossier or change
+    # its sharing without a grant, but still cannot read it (CONTEXT.md §4.4).
     if action is AclAction.DOSSIER_MANAGE:
         return principal.role == "ADMINISTRATOR"
     if meta.get("access_scope") == "mine":

@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from datetime import UTC
 from typing import Any
 
-from sqlalchemy import and_, exists, func, or_, select, text
+from sqlalchemy import and_, delete, exists, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.sql.schema import Table
@@ -33,6 +33,9 @@ from contract_intelligence.contract.domain.repositories.job_repository import (
 )
 from contract_intelligence.contract.infrastructure.persistence.deletion_ledger import (
     DeletionLedgerORM,
+)
+from contract_intelligence.contract.infrastructure.persistence.dossier_status import (
+    advance_dossier_status,
 )
 from contract_intelligence.contract.infrastructure.persistence.orm import (
     DocumentORM,
@@ -529,6 +532,26 @@ class DossierRepositoryImpl(DossierRepository):
             orm.updated_at = utcnow()
             await self._session.flush()
 
+    async def advance_status(
+        self,
+        dossier_id: str,
+        *,
+        from_status: JobStatus,
+        to_status: JobStatus,
+        actor_id: str,
+        detail: dict[str, Any] | None = None,
+    ) -> bool:
+        """Human lifecycle step for the dossier and its latest job (audited)."""
+        return await advance_dossier_status(
+            self._session,
+            tenant_id=self._tenant_id,
+            dossier_id=dossier_id,
+            from_status=from_status,
+            to_status=to_status,
+            actor_id=actor_id,
+            detail=detail,
+        )
+
     async def approve(self, dossier_id: str, checksum: str) -> None:
         stmt = select(DossierORM).where(
             DossierORM.id == dossier_id, DossierORM.tenant_id == self._tenant_id
@@ -940,6 +963,28 @@ class ManifestRepositoryImpl:
     async def add_item(self, item: ManifestItemORM) -> None:
         self._session.add(item)
         await self._session.flush()
+
+    async def discard_unconfirmed(self, dossier_id: str) -> bool:
+        """Delete a manifest not confirmed yet (its items and relations too).
+
+        Explicit deletes: sqlite does not enforce the ON DELETE CASCADE.
+        """
+        manifest = await self._session.scalar(
+            select(ManifestORM).where(
+                ManifestORM.dossier_id == dossier_id, ManifestORM.tenant_id == self._tenant_id
+            )
+        )
+        if manifest is None or manifest.status == "confirmed":
+            return False
+        await self._session.execute(
+            delete(ManifestRelationORM).where(ManifestRelationORM.manifest_id == manifest.id)
+        )
+        await self._session.execute(
+            delete(ManifestItemORM).where(ManifestItemORM.manifest_id == manifest.id)
+        )
+        await self._session.delete(manifest)
+        await self._session.flush()
+        return True
 
     async def confirm(self, manifest_id: str, user_id: str) -> None:
         """Legacy simple confirm — prefer ``apply_confirmation`` for full API."""

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
+from datetime import datetime
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -38,3 +39,19 @@ __all__ = [
     "DossierQueryRequest",
     "DossierQueryResponse",
 ]
+
+
+class QueryHistoryItem(BaseModel):
+    """One past question on a dossier, with the answer given at the time."""
+
+    trace_id: str
+    endpoint: Literal["query", "ask"]
+    actor_id: str
+    question: str
+    answer: str | None = Field(
+        default=None, description="None when AI2 failed or the query predates history"
+    )
+    state: str | None = None
+    citations: list[Any] = Field(default_factory=list)
+    error_code: str | None = None
+    created_at: datetime

@@ -4,8 +4,10 @@ on:
   push:
     branches: [main, feature/**]
     paths: ["backend/**", ".github/workflows/backend-ci.yml"]
+  # Every PR into develop or main, whatever the branch name (fix/*, docs/*, …):
+  # before, only feature/** pushes and PRs into main ran backend CI.
   pull_request:
-    branches: [main]
+    branches: [main, develop]
     paths: ["backend/**", ".github/workflows/backend-ci.yml"]
 
 env:
@@ -131,6 +133,24 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    # Real PostgreSQL for the tests sqlite cannot reach (append-only triggers,
+    # LISTEN/NOTIFY, JSON share filter, alembic upgrade head). Disposable.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      CI_TEST_POSTGRES_URL: postgresql+asyncpg://ci:ci@127.0.0.1:5432/ci_test
     steps:
       - uses: actions/checkout@v4
 
@@ -145,5 +165,5 @@ jobs:
       - name: Install test dependencies
         run: uv sync --frozen --extra dev
 
-      - name: Run integration tests (SQLite in-memory)
+      - name: Run integration tests (SQLite + PostgreSQL)
         run: uv run pytest tests/integration/ -v --tb=short

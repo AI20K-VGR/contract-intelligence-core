@@ -35,7 +35,7 @@ from contract_intelligence.contract.domain.repositories.manifest_repository impo
     ManifestRepository,
 )
 from contract_intelligence.shared.base import new_ulid
-from contract_intelligence.shared.exceptions import NotFoundError
+from contract_intelligence.shared.exceptions import InvalidStateTransition, NotFoundError
 from contract_intelligence.shared.storage import FileStorage
 from contract_intelligence.shared.utils import safe_filename
 
@@ -347,6 +347,20 @@ class ContractService:
             except FileNotFoundError as exc:
                 raise NotFoundError(entity_type="Document", entity_id=document_id) from exc
         return data, doc.filename
+
+    async def remove_split_source(self, dossier_id: str, document_id: str) -> None:
+        """Drop a mixed upload after it was cut into documents (never OCR'd).
+
+        Its unconfirmed manifest goes too, so the next one lists the parts.
+        Raises :class:`InvalidStateTransition` if the manifest was confirmed.
+        """
+        manifest = await self._manifest_repo.get_by_dossier(dossier_id)
+        if manifest is not None and manifest.status == "confirmed":
+            raise InvalidStateTransition(
+                from_state="confirmed", to_state="split", entity="Manifest"
+            )
+        await self._manifest_repo.discard_unconfirmed(dossier_id)
+        await self._document_repo.delete(document_id)
 
     async def get_or_create_manifest(self, dossier_id: str) -> Manifest:
         """Lấy hoặc tạo manifest pending cho dossier.
