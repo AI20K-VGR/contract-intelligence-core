@@ -133,11 +133,11 @@ Không tự động đổi version giữa các lane. Mọi migration từ `ai1.s
 
 ## 6. Quy tắc đã chốt (v1.1)
 
-Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn` trỏ tới mục tương ứng trong DEC.
+Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn` trỏ tới mục tương ứng trong DEC. **D6, D8, D11 (phương án A hay B) và D12 còn chờ Lead chốt**, giống ghi chú ở đầu DEC: quy tắc của bốn mục này bên dưới là đề xuất của Backend, chưa phải quy tắc đã chốt.
 
 ### 6.1 Kết nối và bảo mật
 
-- **Kênh gọi (D1).** Chỉ dùng HTTP: `POST /jobs/idp` trả `202`, sau đó Backend poll `GET /jobs/{job_id}`. Kafka của AI2 không dùng trong Sprint 2. `POST /query` là lời gọi đồng bộ.
+- **Kênh gọi (D1).** Sprint 2: chỉ HTTP, `POST /jobs/idp` trả `202`, sau đó Backend poll `GET /jobs/{job_id}`. Sprint 3: chuyển sang Kafka theo DOC-05e v2 (PR #36) khi DOC-05e §12 đạt; HTTP còn làm fallback. `POST /query` là lời gọi đồng bộ ở cả hai sprint.
 - **Envelope (D2).**
   - `issuer=backend-service`, `audience=vsf-ai2`, `key_id=default`; thời hạn 300 giây.
   - Scope: `ai2.jobs.submit` cho submit và poll, `ai2.query` cho hỏi đáp.

@@ -26,7 +26,7 @@ Khi cả hai bên duyệt xong:
 
 | # | Chủ đề | Đề xuất ngắn | Hạn |
 |---|---|---|---|
-| D1 | Kênh gọi | Chỉ HTTP `/jobs/idp` + poll; Kafka AI2 ra khỏi Sprint 2 | 30/09 |
+| D1 | Kênh gọi | Sprint 2 (tới demo 04/10): chỉ HTTP `/jobs/idp` + poll. Sprint 3: chuyển sang Kafka theo DOC-05e v2, HTTP làm fallback | 30/09 |
 | D2 | Xác thực HMAC | Giữ tham số hiện tại; một secret mới dùng chung cho 3 service | 30/09 |
 | D3 | Mạng | Không publish 8002; healthcheck gọi `/healthz` | 01/10 |
 | D4 | Snapshot và digest | Chỉ `ai1.snapshot.v1`; `source_digest` là 64 hex chữ thường, không có tiền tố | 30/09 |
@@ -49,13 +49,14 @@ Khi cả hai bên duyệt xong:
 - Phía AI2, `app/transport/kafka_idp_worker.py` lại tự ghi mình là "runtime path", còn `/jobs/idp` là "demo-only". Hai phía đang mô tả ngược nhau.
 
 **Đề xuất:**
-- Trong Sprint 2, kênh chính thức là HTTP: `POST /jobs/idp` trả `202` kèm `job_id`, sau đó Backend poll `GET /jobs/{job_id}`.
-- Kafka giữ cho AI1 (DOC-05d). Kafka của AI2 (DOC-05e) để lại cho Sprint 3.
+- **Sprint 2 (tới demo 04/10):** kênh chính thức là HTTP: `POST /jobs/idp` trả `202` kèm `job_id`, sau đó Backend poll `GET /jobs/{job_id}`. Không đổi kênh trước demo.
+- **Sprint 3:** Backend và AI2 đã thống nhất (30/09) chuyển processing sang Kafka theo [DOC-05e v2](../DOC-05e-kafka-ai2-idp-contract.md) (PR #36): gửi cả hồ sơ, payload lớn qua MinIO, sự kiện `started`, dedupe theo `(idempotency_key, attempt)`, watchdog ở Backend. Kafka chỉ thành đường chạy thật khi DOC-05e §12 bước 3 đạt; tới lúc đó HTTP vẫn là runtime, sau đó là fallback qua `AI2_TRANSPORT=http`.
+- `/query` giữ HTTP đồng bộ ở cả hai sprint.
 - Backend gộp hai bộ hàm trùng nhau trong `infrastructure/ai_adapters.py`: giữ `submit_ai2_processing`/`poll_ai2_processing`, bỏ `submit_idp_job`/`get_idp_job`/`poll_idp_job` và `build_idp_request` (bản chỉ gửi một snapshot, có `max_llm_calls=0`).
 
 **Việc cần làm:**
-- AI2: sửa docstring của `kafka_idp_worker.py` và `/jobs/idp`. Ghi đúng kênh vào phần AI2 của Architecture doc.
-- Backend: xoá bộ hàm trùng; ghi DOC-05e là "chưa dùng trong Sprint 2".
+- AI2: sửa docstring của `kafka_idp_worker.py` và `/jobs/idp` cho đúng: HTTP là đường chạy tới khi DOC-05e §12 đạt, Kafka là đích Sprint 3. Ghi đúng kênh vào phần AI2 của Architecture doc. Duyệt checklist DOC-05e §13.
+- Backend: xoá bộ hàm trùng; làm phần Kafka theo `plans/260930-be-ai2-kafka/plan.md` sau khi AI2 duyệt DOC-05e §13. Trạng thái DOC-05e (hướng đã chốt, runtime vẫn là HTTP) nằm ở PR #36; DEC này không sửa DOC-05e.
 
 - [x] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
 
@@ -367,4 +368,5 @@ Các mục sau để lại cho Sprint 3:
 |---|---|---|
 | 2026-09-29 | Bản đề xuất đầu tiên | Chương |
 | 2026-09-29 | Thêm D11 (nơi lưu dữ liệu AI2). Backend chốt D1–D11 và chép vào `BE-AI2-PROCESSING-CONTRACT.vi.md` §6 | Chương |
+| 2026-09-30 | Theo review của Trang ở PR #37 (lần 2): D1 tách Sprint 2 (HTTP) và Sprint 3 (Kafka theo DOC-05e v2, PR #36); PR này thôi sửa DOC-05e để không ghi đè PR #36; dòng mở đầu `BE-AI2-PROCESSING-CONTRACT` §6 ghi D6, D8, D11, D12 còn chờ Lead | Chương |
 | 2026-09-29 | Theo review của Trang ở PR #37: thêm D12 (nhiều hợp đồng); D5 chỉ áp dụng cho Sprint 2; D11 nêu mâu thuẫn với ADR-02 kèm phương án A/B và ADR-14 (Đề xuất); D4 sửa ADR-05 cho khớp; DOC-05e trỏ tới D1 | Chương |
