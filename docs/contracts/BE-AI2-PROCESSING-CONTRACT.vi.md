@@ -178,7 +178,7 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
 - **Ánh xạ trạng thái (D8, Lead duyệt 30/09).**
   - `SUCCEEDED` với `PASS`, `NEEDS_REVIEW` hoặc `INSUFFICIENT_EVIDENCE`: hồ sơ chuyển sang `pending_review`, nhãn UI "Chờ rà soát".
   - `SUCCEEDED` + `BLOCKED`, hoặc `FAILED` đã hết lượt retry: hồ sơ chuyển sang `failed`.
-  - Khi `status` khác `SUCCEEDED`, Backend bỏ qua `review_state` (AI2 trả `BLOCKED` cho mọi job `FAILED`) và chỉ đọc `status` và `errors[]`.
+  - Khi `status` khác `SUCCEEDED`, Backend bỏ qua `review_state` (giá trị này không có nghĩa khi job không `SUCCEEDED`) và chỉ đọc `status` và `errors[]`.
   - `evidence_ready` chỉ cho biết đủ bằng chứng để publish; nó không quyết định hồ sơ có vào hàng chờ review hay không.
 
 ### 6.4 Kết quả

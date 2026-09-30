@@ -3,7 +3,7 @@
 **Trạng thái:** `accepted-backend`. Backend (Chương) chốt D1–D12. Lead (Trang) đã duyệt D8, D11 (phương án A) và D12 ngày 30/09; **D6 chưa duyệt** (chưa có provider và trần chi tiêu). Chờ Văn Dũng (AI2) duyệt lại đúng commit này.
 **Ngày:** 2026-09-29
 **Người soạn:** Chương (Backend)
-**Người duyệt:** Chương (Backend), Văn Dũng (AI2). Riêng D6, D8, D11 (phương án A/B) và D12 cần thêm Trang (Lead).
+**Người duyệt:** Chương (Backend), Văn Dũng (AI2), Trang (Lead) cho D6, D8, D11 và D12. Trang đã duyệt D8, D11 (phương án A) và D12 ngày 30/09; D6 chưa duyệt.
 **Bổ sung cho:** [BE-AI2-PROCESSING-CONTRACT.vi.md](BE-AI2-PROCESSING-CONTRACT.vi.md), [AI2-SERVICE-ENVELOPE-v1.vi.md](AI2-SERVICE-ENVELOPE-v1.vi.md)
 **Căn cứ:**
 - Code của nhánh `feature/sprint3-backend` (`d667bd9`).
@@ -20,7 +20,7 @@ Khi cả hai bên duyệt xong:
 2. Chép các quy tắc đã chốt vào `BE-AI2-PROCESSING-CONTRACT.vi.md`.
 3. Nếu mục nào đổi schema, cập nhật file `*.schema.json` tương ứng.
 
-**Hạn:** D1, D2, D4, D10 cần chốt **trước T4 30/09**, vì bốn mục này chặn việc của AI2 trong tuần. D6 và D8 chốt cùng Lead **trước T5 01/10**. D11 có hai mốc: bước tạm trước 01/10, bản Postgres trước 18/10 (DOC-11 §3).
+**Hạn:** D1, D2, D4, D10 cần chốt **trước T4 30/09**, vì bốn mục này chặn việc của AI2 trong tuần. D6 và D8 chốt cùng Lead **trước T5 01/10**. D11: AI2 lên Postgres (schema `ai2`) trước lần deploy online đầu tiên, chậm nhất 03/10 (việc A7).
 
 ## Tóm tắt
 
@@ -198,7 +198,7 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
 
 - Nếu cùng `(idempotency_key, attempt)` mà payload khác, AI2 trả `409` (`IDEMPOTENCY_PAYLOAD_CONFLICT`). Backend coi đây là lỗi lập trình và không retry.
 - **Payload tất định.** Cùng `(idempotency_key, attempt)` thì payload (bỏ `service_envelope`) phải giống hệt từng byte, kể cả khi dựng lại sau khi worker crash hoặc message được giao lại. Hiện Backend ghi `created_at = datetime.now()` mỗi lần dựng snapshot (`canonical_processing.py:211`), nên dựng lại là nhận `409` và run fail. Sửa: `created_at` lấy từ thời điểm lưu snapshot, không lấy giờ hiện tại.
-- **Định nghĩa "job được retry":** `status=FAILED` **và** có ít nhất một phần tử trong `errors[]` mang `retryable=true`. `retryable` gắn với **mã lỗi** (lỗi tạm như 429/529, timeout provider: `true`; lỗi contract, dữ liệu sai: `false`), không suy ra từ `review_state`. Với `FAILED`, AI2 luôn trả `review_state="BLOCKED"`, nên Backend bỏ qua `review_state` khi quyết định retry. Hồ sơ `SUCCEEDED` + `BLOCKED` thì không retry (D8).
+- **Định nghĩa "job được retry":** `status=FAILED` **và** có ít nhất một phần tử trong `errors[]` mang `retryable=true`. `retryable` gắn với **mã lỗi** (lỗi tạm như 429/529, timeout provider: `true`; lỗi contract, dữ liệu sai: `false`), không suy ra từ `review_state`. Với `FAILED`, `review_state` không có nghĩa (sai contract hoặc worker lỗi thì AI2 trả `BLOCKED`, hết thời gian thì `NEEDS_REVIEW`), nên Backend bỏ qua `review_state` khi quyết định retry. Hồ sơ `SUCCEEDED` + `BLOCKED` thì không retry (D8).
 - Backend retry tối đa 3 attempt cho một run.
 
 **Việc cần làm:**
@@ -224,7 +224,7 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
 | `FAILED` | retry theo D7; hết lượt thì `failed` | Lỗi, kèm `code` |
 
 - `evidence_ready` chỉ cho biết đủ bằng chứng để publish. Nó **không** quyết định hồ sơ có vào hàng chờ review hay không.
-- **Khi `status` khác `SUCCEEDED` thì Backend bỏ qua `review_state`** và chỉ dựa vào `status` và `errors[]` (D7). Lý do: khi job `FAILED` (kể cả request sai contract), AI2 trả `review_state="BLOCKED"`, không phải `null`; giá trị này không mang nghĩa "bị chặn" như ở `SUCCEEDED` + `BLOCKED`.
+- **Khi `status` khác `SUCCEEDED` thì Backend bỏ qua `review_state`** và chỉ dựa vào `status` và `errors[]` (D7). Lý do: `review_state` không có nghĩa khi job không `SUCCEEDED`. Ví dụ ở AI2: sai contract hoặc worker lỗi trả `BLOCKED` (`main.py:259`), hết thời gian trả `NEEDS_REVIEW` (`idp.py:442`).
 
 **Lead đã chốt (30/09):** trạng thái hồ sơ là `pending_review`. Nhãn UI là **"Chờ rà soát"**, như màn danh sách đang có. Không dùng chữ "Chờ duyệt".
 
@@ -418,6 +418,7 @@ Các mục sau để lại cho Sprint 3:
 |---|---|---|
 | 2026-09-29 | Bản đề xuất đầu tiên | Chương |
 | 2026-09-29 | Thêm D11 (nơi lưu dữ liệu AI2). Backend chốt D1–D11 và chép vào `BE-AI2-PROCESSING-CONTRACT.vi.md` §6 | Chương |
+| 2026-09-30 | Sửa câu theo comment của Văn Dũng lúc 09:08: `FAILED` không phải lúc nào cũng mang `BLOCKED` (hết thời gian là `NEEDS_REVIEW`), nên D7, D8 và §6.3 ghi "`review_state` không có nghĩa khi job không `SUCCEEDED`"; quy tắc giữ nguyên. Hạn D11 thành trước deploy online đầu tiên (chậm nhất 03/10). Dòng "Người duyệt" ghi đúng quyết định Lead | Chương |
 | 2026-09-30 | Theo comment của Văn Dũng lúc 08:45: `FAILED` luôn mang `review_state="BLOCKED"`. Sửa D7, A2 và §6.3: `retryable` theo mã lỗi, không theo `review_state`; câu cũ "BLOCKED không bao giờ retry" sẽ chặn mọi retry, kể cả lỗi tạm. D8 ghi rõ giá trị `BLOCKED` | Chương |
 | 2026-09-30 | Theo review của Trang (lần 3, gồm quyết định Lead) và Văn Dũng ở PR #37: Lead duyệt D8 (`pending_review`, "Chờ rà soát"), D11 phương án A (ADR-14 được chấp nhận), D12; D6 chưa duyệt nên vector và egress online giữ `false`; D1 bỏ câu "đã thống nhất", không làm Kafka trước demo; D2 `AI2_QUERY_REQUIRE_SIGNATURE`; D5 mã lỗi `DOSSIER_TOO_MANY_DOCUMENTS`; D8 bỏ qua `review_state` khi không `SUCCEEDED`; D11 AI2 lên Postgres trước deploy online, pgvector quyết cùng D6; trần embedding `/query` do AI2 đọc từ env; B3 sau A3; thêm A7 | Chương |
 | 2026-09-30 | Theo review của Văn Dũng (AI2) ở PR #37: D2 lệch đồng hồ 30 giây, TTL tối đa 3600 giây, tắt `/query` không chữ ký online; D5 tối đa 6 file; D6 bật vector cho `/query` online, dựa vào egress của `/query`, trần `max_embedding_tokens`; D7 payload tất định và định nghĩa retry; D8 `review_state=null`; D10 `state` thêm `BLOCKED`, chuyển tiếp digest, bỏ `query_binding`; D11 vector bật, volume gồm `vectors.sqlite`; D12 AI2 nhận `max_body_members` trước; thêm bảng việc của từng bên | Chương |
