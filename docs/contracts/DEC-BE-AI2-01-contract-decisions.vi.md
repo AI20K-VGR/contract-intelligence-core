@@ -1,9 +1,9 @@
 # DEC-BE-AI2-01: Các điểm chốt của contract Backend ↔ AI2
 
-**Trạng thái:** `accepted-backend`. Backend (Chương) chốt D1–D12. Lead (Trang) đã duyệt D8, D11 (phương án A) và D12 ngày 30/09; **D6 chưa duyệt** (chưa có provider và trần chi tiêu). Chờ Văn Dũng (AI2) duyệt lại đúng commit này.
+**Trạng thái:** `accepted-backend`. Backend (Chương) chốt D1–D12. Lead (Trang) đã duyệt D8, D11 (phương án A) và D12 ngày 30/09; D6 duyệt một phần ngày 30/09 (review PR #42). Chờ Văn Dũng (AI2) duyệt lại đúng commit này.
 **Ngày:** 2026-09-29
 **Người soạn:** Chương (Backend)
-**Người duyệt:** Chương (Backend), Văn Dũng (AI2), Trang (Lead) cho D6, D8, D11 và D12. Trang đã duyệt D8, D11 (phương án A) và D12 ngày 30/09; D6 chưa duyệt.
+**Người duyệt:** Chương (Backend), Văn Dũng (AI2), Trang (Lead) cho D6, D8, D11 và D12. Trang đã duyệt D8, D11 (phương án A) và D12 ngày 30/09; D6 duyệt một phần ngày 30/09.
 **Bổ sung cho:** [BE-AI2-PROCESSING-CONTRACT.vi.md](BE-AI2-PROCESSING-CONTRACT.vi.md), [AI2-SERVICE-ENVELOPE-v1.vi.md](AI2-SERVICE-ENVELOPE-v1.vi.md)
 **Căn cứ:**
 - Code của nhánh `feature/sprint3-backend` (`d667bd9`).
@@ -31,7 +31,7 @@ Khi cả hai bên duyệt xong:
 | D3 | Mạng | Không publish 8002; healthcheck gọi `/healthz` | 01/10 |
 | D4 | Snapshot và digest | Chỉ `ai1.snapshot.v1`; `source_digest` là 64 hex chữ thường, không có tiền tố | 30/09 |
 | D5 | Hồ sơ nhiều file | Gửi đủ snapshot, **tối đa 6 file**; role theo `doc_type`; quan hệ `ANNEX_OF` do Backend quyết định | 01/10 |
-| D6 | `policy_flags` | Egress theo env từng luồng, mặc định `false`; xử lý hồ sơ `use_vector=false`. **Chưa bật egress và vector trên bản online** cho tới khi Lead ghi provider và trần chi tiêu | 01/10 (Lead, chưa duyệt) |
+| D6 | `policy_flags` | Cờ egress, vector, LLM chuyển về env của `ai2-service`, mặc định `false`; Backend thôi gửi sau khi AI2 deploy A8. Online: OpenAI `gpt-4o-mini` và `text-embedding-3-small`, trần 5 USD/tháng, chỉ hợp đồng mẫu đã ẩn thông tin | 01/10 (Lead duyệt một phần 30/09) |
 | D7 | Idempotency và retry | Key `<run_id>:ai2`, cố định trong một run; `attempt` tăng khi retry; payload tất định; chỉ retry khi `FAILED` và có lỗi `retryable=true` | 01/10 |
 | D8 | Ánh xạ trạng thái | Tách "AI2 xong" khỏi "chờ review" | 01/10 (Lead) |
 | D9 | Xử lý kết quả | Lưu ở dạng đề xuất, publish sau khi reviewer duyệt | 01/10 |
@@ -163,7 +163,7 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
 **Đề xuất:**
 - Egress của luồng xử lý hồ sơ đọc từ biến env `AI2_PROCESSING_EGRESS_ALLOWED`, không hard-code nữa. Egress của hỏi đáp giữ `AI2_QUERY_EGRESS_ALLOWED`. Cả hai mặc định `false`.
 - **Vector (cập nhật 30/09):**
-  - **Bản online chưa bật egress và vector** (Lead, 30/09): chưa có tên provider và trần chi tiêu. `AI2_QUERY_EGRESS_ALLOWED`, `AI2_QUERY_USE_VECTOR` và `AI2_VECTOR_RECALL_ENABLED` giữ `false`. Chỉ bật sau khi Lead ghi provider và trần chi tiêu vào DEC này.
+  - Bản online bật egress và vector theo **Quyết định của Lead** bên dưới.
   - Công tắc thật của vector là env `AI2_VECTOR_RECALL_ENABLED` phía AI2; `use_vector` trong request chỉ cho phép hoặc cấm theo từng lời gọi.
   - Khi bật: vector trên `/query` dựa vào **egress của chính request `/query`**, không dựa vào egress lúc xử lý hồ sơ (giá trị đó luôn `false`).
   - `/query` có trần embedding. **AI2 đọc trần này từ env của mình**, Backend không gửi trong request. Lần hỏi đầu tiên embed cả hồ sơ, nên không được để chi phí không giới hạn.
@@ -172,13 +172,26 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
 - Giữ các giới hạn ngân sách hiện tại. AI2 phải tuân thủ: vượt `max_llm_calls` thì trả `review_state=INSUFFICIENT_EVIDENCE` kèm lý do, không dừng job với `FAILED`.
 - Khi `egress_allowed=false`, AI2 không được gọi LLM bên ngoài. Kết quả vẫn phải `SUCCEEDED`, chỉ với phần xử lý bằng luật cố định, **không** được trả `LLM_UNAVAILABLE`.
 
-**Lead cần chốt:** bản demo online có bật egress hay không, dùng provider nào, và giới hạn chi tiêu bao nhiêu (kế hoạch AI2 §7 mục 1).
+**Quyết định của Lead (Trang, 30/09, review PR #42): duyệt một phần.** Văn Dũng nhận quyết định này và đồng ý cách chia cờ (review PR #42, 30/09).
+- **Provider:** OpenAI, gọi thẳng `https://api.openai.com/v1`.
+- **LLM:** `gpt-4o-mini` cho xử lý hồ sơ và `/query`. `AI2_LLM_STRONG_MODEL` để trống, không gọi model mạnh. Khi trống, AI2 dùng `AI2_LLM_MODEL` cho cả bước suy luận khó, tính chung vào trần 20 lần gọi (Văn Dũng nêu, chờ Trang xác nhận).
+- **Embedding:** `text-embedding-3-small`.
+- **Key:** Văn Dũng giữ; key riêng cho bản online, không đưa vào git.
+- **Trần:** tối đa 20 lần gọi LLM một hồ sơ; embedding tối đa 100.000 token một hồ sơ (`AI2_QUERY_MAX_EMBEDDING_TOKENS`); hard limit tài khoản 5 USD/tháng. Hết trần thì tắt env.
+- **Dữ liệu:** không gửi hồ sơ thật, chỉ hợp đồng mẫu đã ẩn thông tin (DOC-12 mục 9 câu 6). AI2 không phân biệt được hồ sơ thật và hồ sơ mẫu, nên đây là quy tắc vận hành. Ai được tải hồ sơ lên bản online: chờ Trang ghi.
+- **Chia cờ:** `egress_allowed`, `use_vector` và `use_llm` là cấu hình của `ai2-service`, đọc từ env `AI2_PROCESSING_EGRESS_ALLOWED`, `AI2_QUERY_EGRESS_ALLOWED`, `AI2_QUERY_USE_LLM`, `AI2_QUERY_USE_VECTOR`, `AI2_VECTOR_RECALL_ENABLED`; mặc định tất cả `false`. Env của AI2 là nguồn quyết định. Backend không gửi `use_llm` (không có B9). `max_processing_seconds` và `budget_limits` vẫn do Backend gửi.
+- **Thứ tự bắt buộc:** hiện `egress_allowed` và `use_vector` là trường bắt buộc, và `policy_flags` cấm trường lạ (`ai-service/app/contracts/wire.py:94-98`). Backend bỏ cờ trước thì mọi request bị `422`. Vì vậy:
+  1. AI2 làm A8: hai trường thành tuỳ chọn, giá trị trong request bị bỏ qua.
+  2. AI2 deploy A8 xong và báo, Backend mới thôi gửi cờ (B3).
+- **Timeout `/query`:** AI2 giới hạn LLM trong `/query` ở 15 giây; quá thì trả kết quả truy xuất kèm citation, `NEEDS_REVIEW`. Backend chờ `/query` 30 giây.
+
+**Còn chờ Trang:** xác nhận cách hiểu "không gọi model mạnh" ở trên; ghi ai được tải hồ sơ lên bản online; chốt đóng băng code tối 02/10 (DOC-11) hay lùi sang tối 03/10, vì deploy là 03/10.
 
 **Việc cần làm:**
-- Backend: đọc egress của luồng xử lý từ env; `use_vector=false` cho luồng xử lý. Chỉ bật `AI2_QUERY_USE_VECTOR` và `AI2_QUERY_EGRESS_ALLOWED` khi Lead đã duyệt D6 **và** A3 đã deploy.
-- AI2: vector trên `/query` dựa vào egress của `/query`; trần embedding cho `/query` đọc từ env của AI2; viết test cho hai cam kết của mục này: egress tắt thì vẫn `SUCCEEDED`, vượt `max_llm_calls` thì trả `INSUFFICIENT_EVIDENCE`.
+- AI2 (A3, A8): vector trên `/query` dựa vào egress của `/query`; trần embedding cho `/query` đọc từ env của AI2; đọc các cờ từ env và nhận cờ trong `policy_flags` là tuỳ chọn; viết test cho hai cam kết của mục này: egress tắt thì vẫn `SUCCEEDED`, vượt `max_llm_calls` thì trả `INSUFFICIENT_EVIDENCE`.
+- Backend (B3): sau khi AI2 deploy A8, thôi gửi `egress_allowed` và `use_vector`, bỏ các env cờ phía `backend` và `backend-worker`; nâng timeout `/query` lên 30 giây.
 
-- [x] Chương duyệt  - [ ] Dũng duyệt  - [ ] Trang duyệt  Ghi chú: bật sau khi Lead ghi provider và trần chi tiêu vào DEC.
+- [x] Chương duyệt  - [x] Dũng duyệt (review PR #42, 30/09)  - [x] Trang duyệt một phần (review PR #42, 30/09)  Ghi chú: bật trên bản online sau khi A8 deploy; xem mục "Còn chờ Trang".
 
 ## D7. Idempotency, attempt và retry
 
@@ -306,11 +319,11 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
    - user của Backend không có quyền gì trên schema `ai2`.
 3. **Migration của schema `ai2` do AI2 tự quản**, bằng alembic riêng trong `ai-service`, với bảng version đặt trong schema `ai2`. Alembic của Backend không đụng tới schema này. Backend chỉ tạo schema và user trong script khởi tạo DB khi deploy.
 4. **Snapshot store vẫn nằm trong RAM**, và vẫn được dựng lại từ job store khi khởi động. Job store đã ở Postgres thì khởi động lại không mất gì.
-5. **Vector chưa bật trên bản online** (D6 chưa duyệt). `vectors.sqlite` là **cache** embedding, không phải nguồn sự thật; volume cho nó vẫn giữ (Lead, 30/09). AI2 đề xuất chuyển vector vào schema `ai2` bằng pgvector và bỏ hẳn SQLite: quyết định **cùng lúc với D6**, vì chỉ cần khi vector bật.
+5. **Vector trên bản online bật theo D6** (sau A8). `vectors.sqlite` là **cache** embedding, không phải nguồn sự thật; volume cho nó vẫn giữ (Lead, 30/09). AI2 đề xuất chuyển vector vào schema `ai2` bằng pgvector và bỏ hẳn SQLite: quyết định **cùng lúc với D6**, vì chỉ cần khi vector bật.
 6. **Workspace demo** (`persist.py`) không chạy trên bản online, vì các endpoint `/api/workspace/*` không được mở ra ngoài (D3).
 7. **Job store, query store và durable run store của AI2 dùng Postgres (schema `ai2`) ngay từ lần deploy online đầu tiên** (AI2 cam kết 30/09). Việc AI2 bỏ SQLite cả ở local và test là lựa chọn nội bộ của AI2, không đổi contract.
 8. **Phục hồi khi AI2 mất dữ liệu:** Backend gửi lại `/jobs/idp` với `attempt` mới (D7), dùng snapshot đã lưu phía Backend, qua `POST /dossiers/{id}/ai2/retry`. AI2 không cần sao lưu riêng.
-9. **Volume:** không cần volume cho `AI2_JOB_DB` khi job store đã ở Postgres (mục 7). Volume cho `vectors.sqlite` (`AI2_VECTOR_DB`) vẫn giữ (Lead, 30/09). `AI2_VECTOR_RECALL_ENABLED` giữ `false` trên bản online (D6). Image không chứa `data/` (O4).
+9. **Volume:** không cần volume cho `AI2_JOB_DB` khi job store đã ở Postgres (mục 7). Volume cho `vectors.sqlite` (`AI2_VECTOR_DB`) vẫn giữ (Lead, 30/09). `AI2_VECTOR_RECALL_ENABLED` đặt theo D6. Image không chứa `data/` (O4).
 
 **Việc cần làm:**
 - AI2:
@@ -385,6 +398,7 @@ Review của Văn Dũng ở PR #37 xác nhận D2, D4, D5, D7 (409 và cùng `jo
 | A5 | D12 | Nhận `policy_flags.max_body_members` **trước** khi Backend gửi | Trước DOC-11 §4.2 mục 12 |
 | A6 | D1, D9 | Docstring `kafka_idp_worker.py`; comment lỗi thời về `table_id`/`cell_id` trong `wire.py` | 02/10 |
 | A7 | D11 | Job store, query store, durable run store trên Postgres (schema `ai2`), alembic riêng, `AI2_DATABASE_URL` | Trước deploy online đầu tiên |
+| A8 | D6 | Env hoá các cờ: `AI2_PROCESSING_EGRESS_ALLOWED`, `AI2_QUERY_EGRESS_ALLOWED`, `AI2_QUERY_USE_LLM`, `AI2_QUERY_USE_VECTOR`, `AI2_VECTOR_RECALL_ENABLED` ở `ai2-service`, mặc định `false`; `egress_allowed` và `use_vector` trong `policy_flags` thành tuỳ chọn và bị bỏ qua; LLM trong `/query` tối đa 15 giây. **Làm trước khi Backend bỏ cờ** (B3) | Trước deploy online đầu tiên |
 
 **Backend**
 
@@ -392,14 +406,14 @@ Review của Văn Dũng ở PR #37 xác nhận D2, D4, D5, D7 (409 và cùng `jo
 |---|---|---|---|
 | B1 | D7 | Payload tất định: `created_at` của snapshot lấy từ lúc lưu, không `datetime.now()` | 01/10 |
 | B2 | D10 | Dùng `query_snapshot_digest` khi có, tạm tính như cũ khi chưa có; xoá hẳn `_ai2_query_snapshot_digest` và phương án `dossier.checksum` sau khi AI2 deploy A1 | Theo A1 |
-| B3 | D6 | Egress luồng xử lý từ env; `use_vector=false` cho luồng xử lý. Bật vector cho `/query` chỉ khi Lead duyệt D6 **và** A3 đã deploy | 02/10 (phần bật: sau D6 và A3) |
+| B3 | D6 | Thôi gửi `egress_allowed` và `use_vector` trong `policy_flags`, bỏ các env cờ phía `backend`, `backend-worker`; nâng timeout `/query` lên 30 giây. Chỉ bỏ cờ sau khi AI2 deploy A8 | Sau A8 |
 | B4 | D5 | Chặn 0 hoặc nhiều body; hồ sơ hơn 6 tài liệu trả `422 DOSSIER_TOO_MANY_DOCUMENTS` ("Hồ sơ tối đa 6 tài liệu"); cập nhật `API-BE.md` và DOC-05b cùng lúc | 02/10 |
 | B5 | D8 | `SUCCEEDED` + `BLOCKED` → `failed`; bỏ qua `review_state` khi `status` khác `SUCCEEDED` | 02/10 |
-| B6 | D3, D11 | Override compose online: không publish 8002, healthcheck `/healthz`; script khởi tạo DB tạo schema `ai2` và user `ai2_app`, đặt `AI2_DATABASE_URL`; bỏ volume `AI2_JOB_DB` khi AI2 đã trên Postgres, giữ volume `vectors.sqlite`; `AI2_VECTOR_RECALL_ENABLED=false`; không tắt `AI2_QUERY_REQUIRE_SIGNATURE` | Trước deploy online đầu tiên |
+| B6 | D3, D11 | Override compose online: không publish 8002, healthcheck `/healthz`; script khởi tạo DB tạo schema `ai2` và user `ai2_app`, đặt `AI2_DATABASE_URL`; bỏ volume `AI2_JOB_DB` khi AI2 đã trên Postgres, giữ volume `vectors.sqlite`; các cờ egress, vector, LLM đặt ở env của `ai2-service` theo D6; không tắt `AI2_QUERY_REQUIRE_SIGNATURE` | Trước deploy online đầu tiên |
 | B7 | D1 | Xoá `submit_idp_job`/`get_idp_job`/`poll_idp_job`/`build_idp_request` trong `ai_adapters.py` | 02/10 |
 | B8 | D2 | Test CI ký bằng vector mẫu của AI2 | Theo A4 |
 
-**Lead (Trang):** đã duyệt D8, D11 (phương án A), D12 ngày 30/09. Còn D6: ghi provider và trần chi tiêu thì mới bật egress và vector online.
+**Lead (Trang):** đã duyệt D8, D11 (phương án A), D12 ngày 30/09; D6 duyệt một phần ngày 30/09. Còn các điểm ở mục "Còn chờ Trang" của D6.
 
 ---
 
@@ -418,6 +432,7 @@ Các mục sau để lại cho Sprint 3:
 |---|---|---|
 | 2026-09-29 | Bản đề xuất đầu tiên | Chương |
 | 2026-09-29 | Thêm D11 (nơi lưu dữ liệu AI2). Backend chốt D1–D11 và chép vào `BE-AI2-PROCESSING-CONTRACT.vi.md` §6 | Chương |
+| 2026-09-30 | Ghi quyết định D6 của Trang (duyệt một phần) và xác nhận của Văn Dũng ở PR #42: OpenAI `gpt-4o-mini`, `text-embedding-3-small`, key do Văn Dũng giữ, trần 20 lần gọi LLM và 100.000 token embedding mỗi hồ sơ, 5 USD/tháng, chỉ hợp đồng mẫu đã ẩn thông tin, không gọi model mạnh; cờ egress, vector, LLM chuyển về env của `ai2-service`, không có B9; thêm A8, B3 thôi gửi cờ sau A8; timeout `/query` 30 giây | Chương |
 | 2026-09-30 | Sửa câu theo comment của Văn Dũng lúc 09:08: `FAILED` không phải lúc nào cũng mang `BLOCKED` (hết thời gian là `NEEDS_REVIEW`), nên D7, D8 và §6.3 ghi "`review_state` không có nghĩa khi job không `SUCCEEDED`"; quy tắc giữ nguyên. Hạn D11 thành trước deploy online đầu tiên (chậm nhất 03/10). Dòng "Người duyệt" ghi đúng quyết định Lead | Chương |
 | 2026-09-30 | Theo comment của Văn Dũng lúc 08:45: `FAILED` luôn mang `review_state="BLOCKED"`. Sửa D7, A2 và §6.3: `retryable` theo mã lỗi, không theo `review_state`; câu cũ "BLOCKED không bao giờ retry" sẽ chặn mọi retry, kể cả lỗi tạm. D8 ghi rõ giá trị `BLOCKED` | Chương |
 | 2026-09-30 | Theo review của Trang (lần 3, gồm quyết định Lead) và Văn Dũng ở PR #37: Lead duyệt D8 (`pending_review`, "Chờ rà soát"), D11 phương án A (ADR-14 được chấp nhận), D12; D6 chưa duyệt nên vector và egress online giữ `false`; D1 bỏ câu "đã thống nhất", không làm Kafka trước demo; D2 `AI2_QUERY_REQUIRE_SIGNATURE`; D5 mã lỗi `DOSSIER_TOO_MANY_DOCUMENTS`; D8 bỏ qua `review_state` khi không `SUCCEEDED`; D11 AI2 lên Postgres trước deploy online, pgvector quyết cùng D6; trần embedding `/query` do AI2 đọc từ env; B3 sau A3; thêm A7 | Chương |

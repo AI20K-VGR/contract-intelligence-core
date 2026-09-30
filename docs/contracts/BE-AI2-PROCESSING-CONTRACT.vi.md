@@ -4,7 +4,7 @@
 **Phạm vi:** Backend gửi toàn bộ dossier cho AI2 xử lý; AI2 trả kết quả async để Backend lưu và quyết định publish.  
 **Transport:** đã chốt chuyển sang Kafka, event driven (2026-09-30) — xem [DOC-05e](../DOC-05e-kafka-ai2-idp-contract.md). **Hiện runtime vẫn là HTTP** `POST /jobs/idp` + poll; Kafka thành runtime khi DOC-05e §12 bước 3 đạt. Sau đó HTTP chỉ còn cho demo/manual và làm fallback khi `AI2_TRANSPORT=http`.
 
-> **v1.2:** §6 là các quy tắc đã chốt theo [DEC-BE-AI2-01](DEC-BE-AI2-01-contract-decisions.vi.md). Backend chốt D1–D12; Lead duyệt D8, D11 (phương án A) và D12 ngày 30/09, **D6 chưa duyệt**; chờ AI2 (Văn Dũng) xác nhận. Chỗ nào §6 khác các mục trên thì theo §6.
+> **v1.2:** §6 là các quy tắc đã chốt theo [DEC-BE-AI2-01](DEC-BE-AI2-01-contract-decisions.vi.md). Backend chốt D1–D12; Lead duyệt D8, D11 (phương án A) và D12 ngày 30/09, D6 duyệt một phần ngày 30/09; chờ AI2 (Văn Dũng) xác nhận. Chỗ nào §6 khác các mục trên thì theo §6.
 
 ## 1. Phạm vi và ownership
 
@@ -165,7 +165,7 @@ Không tự động đổi version giữa các lane. Mọi migration từ `ai1.s
 
 ## 6. Quy tắc đã chốt (v1.2)
 
-Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn` trỏ tới mục tương ứng trong DEC. Lead đã duyệt D8, D11 (phương án A) và D12 ngày 30/09. **D6 chưa duyệt**: quy tắc bật egress và vector trên bản online bên dưới chỉ áp dụng khi Lead ghi provider và trần chi tiêu.
+Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn` trỏ tới mục tương ứng trong DEC. Lead đã duyệt D8, D11 (phương án A) và D12 ngày 30/09; D6 duyệt một phần ngày 30/09 (các điểm còn chờ Lead nằm trong DEC).
 
 ### 6.1 Kết nối và bảo mật
 
@@ -188,12 +188,14 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
   - Tối đa 6 file một hồ sơ (`snapshots` từ 1 đến 6). Hồ sơ hơn 6 tài liệu thì Backend không gửi và trả `422 DOSSIER_TOO_MANY_DOCUMENTS` ("Hồ sơ tối đa 6 tài liệu").
   - Phụ lục không có `ANNEX_OF` vẫn được gửi với `role=annex`; finding liên tài liệu khi đó ghi là "quan hệ chưa xác nhận".
   - AI2 không suy luận, không sửa role hay quan hệ.
-- **`policy_flags` (D6, Lead chưa duyệt).**
-  - Egress của từng luồng do biến env quyết định (`AI2_PROCESSING_EGRESS_ALLOWED`, `AI2_QUERY_EGRESS_ALLOWED`), mặc định `false`.
+- **`policy_flags` (D6, Lead duyệt một phần 30/09).**
+  - Cờ egress, vector và LLM là cấu hình của `ai2-service`, đọc từ env `AI2_PROCESSING_EGRESS_ALLOWED`, `AI2_QUERY_EGRESS_ALLOWED`, `AI2_QUERY_USE_LLM`, `AI2_QUERY_USE_VECTOR`, `AI2_VECTOR_RECALL_ENABLED`, mặc định `false`. Env của AI2 là nguồn quyết định; Backend không gửi `use_llm`.
+  - Thứ tự: AI2 đổi `egress_allowed` và `use_vector` trong `policy_flags` thành tuỳ chọn và bỏ qua giá trị trong request (A8); AI2 deploy xong thì Backend mới thôi gửi hai cờ này. Trước đó Backend vẫn gửi, vì hiện AI2 bắt buộc hai trường này. `max_processing_seconds` và `budget_limits` vẫn do Backend gửi.
   - Khi `egress_allowed=false`, AI2 vẫn trả `SUCCEEDED` với phần xử lý bằng luật cố định.
   - Vượt `max_llm_calls` thì AI2 trả `INSUFFICIENT_EVIDENCE` kèm lý do, không trả `FAILED`.
   - Luồng xử lý hồ sơ: `use_vector=false`.
-  - Bản online **chưa bật egress và vector**: `AI2_QUERY_EGRESS_ALLOWED`, `AI2_QUERY_USE_VECTOR`, `AI2_VECTOR_RECALL_ENABLED` giữ `false` cho tới khi Lead duyệt D6. Khi bật: công tắc thật là `AI2_VECTOR_RECALL_ENABLED`; vector trên `/query` dựa vào egress của chính `/query`; trần embedding do AI2 đọc từ env của mình, Backend không gửi.
+  - Bản online (Lead, 30/09): OpenAI gọi thẳng `https://api.openai.com/v1`, `gpt-4o-mini` cho xử lý hồ sơ và `/query`, không gọi model mạnh, embedding `text-embedding-3-small`; tối đa 20 lần gọi LLM và 100.000 token embedding một hồ sơ, hard limit 5 USD/tháng, hết trần thì tắt env. Chỉ dùng hợp đồng mẫu đã ẩn thông tin, không gửi hồ sơ thật.
+  - Công tắc thật của vector là `AI2_VECTOR_RECALL_ENABLED`; vector trên `/query` dựa vào egress của chính `/query`; trần embedding do AI2 đọc từ env của mình, Backend không gửi.
 
 ### 6.3 Vòng đời job
 
@@ -225,13 +227,13 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
   - Hồ sơ chưa có digest thì Backend không gọi AI2.
   - `acl_context` là `user_id` của người hỏi, chỉ dùng cho audit.
   - `state` nhận một trong bốn giá trị `ANSWERED`, `NEEDS_REVIEW`, `INSUFFICIENT_EVIDENCE`, `BLOCKED`. `BLOCKED` là bị khoá hoặc bị chính sách chặn, không phải lỗi hệ thống.
-  - Timeout 20 giây.
+  - Backend chờ 30 giây. AI2 giới hạn LLM trong `/query` ở 15 giây; quá thì trả kết quả truy xuất kèm citation, `NEEDS_REVIEW` (D6).
 
 ### 6.5 Lưu trữ (D11)
 
 - Lead chọn **phương án A** ngày 30/09; ADR-14 được chấp nhận.
 - Dữ liệu nghiệp vụ nằm ở Postgres của Backend, và chỉ Backend ghi.
 - Trạng thái riêng của AI2 nằm ở schema `ai2` trong cùng cụm Postgres, qua `AI2_DATABASE_URL` và user `ai2_app` (chỉ có quyền trên schema `ai2`). Migration của schema này do AI2 tự quản.
-- Job store, query store và durable run store của AI2 nằm ở schema `ai2` ngay từ lần deploy online đầu tiên. Vector chưa bật trên bản online (D6); `vectors.sqlite` là cache, volume cho nó vẫn giữ. Chuyển vector sang pgvector quyết cùng D6.
+- Job store, query store và durable run store của AI2 nằm ở schema `ai2` ngay từ lần deploy online đầu tiên. Vector trên bản online bật theo D6; `vectors.sqlite` là cache, volume cho nó vẫn giữ. Chuyển vector sang pgvector quyết cùng D6.
 - AI2 mất dữ liệu thì Backend dựng lại bằng cách gửi lại `/jobs/idp` với `attempt` mới.
 - Không cần volume cho `AI2_JOB_DB` khi AI2 đã chạy trên Postgres.
