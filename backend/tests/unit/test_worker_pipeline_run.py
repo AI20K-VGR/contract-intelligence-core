@@ -1057,3 +1057,65 @@ async def test_plain_restart_still_re_ocrs_everything(
         )
 
     assert sorted(c["correlation"]["document_id"] for c in ocr_commands) == [DOC_A, DOC_B]
+
+
+# ---------------------------------------------------------------------------
+# DEC-BE-AI2-01 B1: the AI2 payload does not read the clock
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_snapshot_time_is_stamped_once_and_survives_redelivery(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+    stamped = (await _run_payload(factory, run_id))["ai1_snapshot_recorded_at"]
+    assert sorted(stamped) == [DOC_A, DOC_B]
+
+    # Worker restarts and Kafka redelivers DOC_A with the same snapshot.
+    worker._ai2_tasks.clear()
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+
+    assert (await _run_payload(factory, run_id))["ai1_snapshot_recorded_at"] == stamped
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+    assert run is not None
+    assert worker._snapshot_created_at(run) == stamped
+
+
+@pytest.mark.asyncio
+async def test_carried_snapshot_keeps_its_stored_time(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ocr_commands: list[dict[str, Any]],
+) -> None:
+    await _give_blobs(factory)
+    first_run = await _start(factory)
+    await _deliver(factory, _failed(first_run, DOC_A))
+    await _deliver(factory, _ocr_completed(first_run, DOC_B))
+    first_stamp = (await _run_payload(factory, first_run))["ai1_snapshot_recorded_at"][DOC_B]
+
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(
+            session,
+            {"event": "dossier.uploaded", "dossier_id": DOSSIER, "retry_failed": True},
+        )
+    retry_run = str((await _job(factory)).current_run_id)
+
+    carried = (await _run_payload(factory, retry_run))["ai1_snapshot_recorded_at"]
+    assert retry_run != first_run
+    assert carried[DOC_B] == first_stamp
+
+
+def test_run_stored_before_the_stamp_falls_back_to_the_run_time() -> None:
+    created = datetime(2026, 9, 30, 8, 0)  # SQLite hands back a naive UTC value
+    run = SimpleNamespace(
+        created_at=created,
+        config_snapshot='{"ai1_snapshots": {"doc_a": {"schema_version": "ai1.snapshot.v1"}}}',
+    )
+
+    assert worker._snapshot_created_at(run) == {  # type: ignore[arg-type]
+        DOC_A: created.replace(tzinfo=UTC).isoformat()
+    }
