@@ -39,11 +39,10 @@ from __future__ import annotations
 # SemVer — bump theo ADR-12 khi release
 __version__ = "2.0.0"
 
-# API contract version (DOC-05b). Chưa bump dù 2.0.0 bỏ endpoint (breaking với
-# client còn gọi POST /dossiers/upload, webhook AI1/AI2 hay /reviews cũ): tài liệu
-# DOC-05b chưa ra bản mới. Frontend hiện không gọi các endpoint đã bỏ và không đọc
-# giá trị này. Chờ chốt với frontend (review PR #38) có nâng DOC-05b lên v2 không.
-__api_contract__ = "v1.0.0"
+# API contract version = phiên bản DOC-05b. v1.1.0 (PR #41): thêm /queries,
+# /ocr/retry-failed, /split. MINOR vì các endpoint 2.0.0 bỏ đi chưa từng có trong
+# DOC-05b. Độc lập với __version__ (SemVer của backend, vẫn 2.0.0).
+__api_contract__ = "v1.1.0"
 
 # AI service contract version (DOC-05c) — wrap khi AI service sẵn sàng
 __ai_contract__ = "v1.0.0"
