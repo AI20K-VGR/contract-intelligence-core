@@ -33,6 +33,7 @@ class DomainErrorCode(StrEnum):
     RELATIONS_UNCONFIRMED = "relations_unconfirmed"
     RELATION_MISSING = "relation_missing"
     CONTRACT_REQUIRED = "contract_required"
+    CONTRACT_NOT_UNIQUE = "contract_not_unique"
     MEMBER_MISSING = "member_missing"
     MEMBER_UNKNOWN = "member_unknown"
     MEMBER_ROLE_INVALID = "member_role_invalid"
@@ -40,6 +41,9 @@ class DomainErrorCode(StrEnum):
     RELATION_SELF = "relation_self"
     RELATION_DUPLICATE = "relation_duplicate"
     RELATION_TYPE_INVALID = "relation_type_invalid"
+
+    # Dossier size (DEC-BE-AI2-01 D5)
+    DOSSIER_TOO_MANY_DOCUMENTS = "DOSSIER_TOO_MANY_DOCUMENTS"
 
     # Conflict
     INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
@@ -161,6 +165,17 @@ class ManifestVersionConflict(DomainException):
                 "expected_version": expected_version,
                 "current_version": current_version,
             },
+        )
+
+
+class DossierTooManyDocuments(DomainException):
+    """A dossier would hold more documents than AI2 accepts — HTTP 422."""
+
+    def __init__(self, *, limit: int, count: int) -> None:
+        super().__init__(
+            DomainErrorCode.DOSSIER_TOO_MANY_DOCUMENTS,
+            f"Hồ sơ tối đa {limit} tài liệu",
+            details={"limit": limit, "count": count},
         )
 
 

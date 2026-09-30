@@ -224,8 +224,6 @@ class Settings(BaseSettings):
             "while submitting or polling before the run fails."
         ),
     )
-    ai2_idp_poll_interval_seconds: float = Field(default=0.5, ge=0.1, le=30.0)
-    ai2_idp_max_polls: int = Field(default=120, ge=1, le=10_000)
     # Dossier Q&A (POST /dossiers/{id}/search → AI2 POST /query)
     ai2_query_timeout_seconds: float = Field(
         default=20.0,

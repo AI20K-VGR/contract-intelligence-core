@@ -42,3 +42,11 @@ def test_major_is_bumped_past_the_removed_endpoints() -> None:
 
 def test_full_version_carries_the_semver() -> None:
     assert versioning.full_version().startswith(f"{versioning.__version__}+")
+
+
+def test_contract_header_follows_the_doc_05b_version() -> None:
+    from fastapi.testclient import TestClient
+
+    response = TestClient(create_app()).get("/health")
+
+    assert response.headers["X-API-Contract"] == versioning.__api_contract__ == "v1.2.0"

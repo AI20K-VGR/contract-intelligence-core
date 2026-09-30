@@ -143,8 +143,14 @@ async def test_single_part_keeps_the_file_and_starts_processing(
         (_parts((1, 5, "contract"), (7, 10, "annex")), "expected page 6"),
         (_parts((1, 6, "contract"), (6, 10, "annex")), "expected page 7"),
         (_parts((1, 6, "contract"), (7, 9, "annex")), "the file has 10"),
-        (_parts((1, 6, "annex"), (7, 10, "annex")), "exactly one contract"),
-        (_parts((1, 6, "contract"), (7, 10, "contract")), "exactly one contract"),
+        (_parts((1, 6, "annex"), (7, 10, "annex")), "contract_required"),
+        (_parts((1, 6, "contract"), (7, 10, "contract")), "contract_not_unique"),
+        (
+            _parts(
+                *((n, n, "contract" if n == 1 else "annex") for n in range(1, 7)), (7, 10, "annex")
+            ),
+            "DOSSIER_TOO_MANY_DOCUMENTS",
+        ),
         (_parts((3, 1, "contract")), "page_end"),
     ],
 )
@@ -176,3 +182,31 @@ async def test_normal_upload_cannot_be_split(client: AsyncClient, make_keycloak_
         json={"document_id": source["id"], "parts": _parts((1, 6, "contract"), (7, 10, "annex"))},
     )
     assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_upload_of_more_than_six_files_is_refused(
+    client: AsyncClient, make_keycloak_token: Any
+) -> None:
+    """DEC-BE-AI2-01 D5: AI2 takes at most 6 documents per dossier."""
+    headers = _auth_headers(make_keycloak_token)
+    before = len(_uploaded_events())
+    response = await client.post(
+        "/api/v1/dossiers",
+        headers=headers,
+        files=[
+            ("contract", ("hd.pdf", io.BytesIO(make_pdf(1, "c")), "application/pdf")),
+            *(
+                ("annexes", (f"pl{n}.pdf", io.BytesIO(make_pdf(1, f"a{n}")), "application/pdf"))
+                for n in range(1, 7)
+            ),
+            ("metadata", (None, json.dumps({"name": "Bảy tệp"}))),
+        ],
+    )
+
+    assert response.status_code == 422, response.text
+    error = response.json()["error"]
+    assert error["code"] == "DOSSIER_TOO_MANY_DOCUMENTS"
+    assert error["message"] == "Hồ sơ tối đa 6 tài liệu"
+    assert error["details"] == {"limit": 6, "count": 7}
+    assert len(_uploaded_events()) == before

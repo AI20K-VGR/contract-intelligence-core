@@ -150,6 +150,15 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '413':
           $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          description: |
+            Metadata không đúng JSON, PDF không đọc được, hoặc quá 6 tệp
+            (`DOSSIER_TOO_MANY_DOCUMENTS`, "Hồ sơ tối đa 6 tài liệu"; DEC-BE-AI2-01 D5).
+            Bị từ chối trước khi tạo gì, không có hồ sơ dở dang.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '429':
           $ref: '#/components/responses/RateLimited'
 
@@ -368,6 +377,15 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           description: Manifest conflict or already confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: |
+            Manifest sai luật, `error.code` cho biết luật nào. Hồ sơ cần **đúng một** member
+            `included` với `role: contract` (DEC-BE-AI2-01 D5): không có thì `contract_required`,
+            nhiều hơn một thì `contract_not_unique`.
           content:
             application/json:
               schema:
@@ -634,7 +652,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
         '422':
-          description: Các phần không phủ đủ trang theo thứ tự, `page_end < page_start`, PDF không cắt được, hoặc hồ sơ không có đúng một hợp đồng
+          description: |
+            Các phần không phủ đủ trang theo thứ tự, `page_end < page_start`, PDF không cắt được;
+            hồ sơ không có đúng một hợp đồng (`contract_required`, `contract_not_unique`);
+            hoặc sau khi tách hồ sơ quá 6 tài liệu (`DOSSIER_TOO_MANY_DOCUMENTS`)
           content:
             application/json:
               schema:
