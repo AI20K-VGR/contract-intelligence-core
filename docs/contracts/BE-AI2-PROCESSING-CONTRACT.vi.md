@@ -2,7 +2,7 @@
 
 **Trạng thái:** Canonical processing contract v1  
 **Phạm vi:** Backend gửi toàn bộ dossier cho AI2 xử lý; AI2 trả kết quả async để Backend lưu và quyết định publish.  
-**Transport:** Kafka, event driven (chốt 2026-09-30) — xem [DOC-05e](../DOC-05e-kafka-ai2-idp-contract.md). HTTP `POST /jobs/idp` + poll chỉ còn cho demo/manual và làm fallback khi `AI2_TRANSPORT=http`.
+**Transport:** đã chốt chuyển sang Kafka, event driven (2026-09-30) — xem [DOC-05e](../DOC-05e-kafka-ai2-idp-contract.md). **Hiện runtime vẫn là HTTP** `POST /jobs/idp` + poll; Kafka thành runtime khi DOC-05e §12 bước 3 đạt. Sau đó HTTP chỉ còn cho demo/manual và làm fallback khi `AI2_TRANSPORT=http`.
 
 ## 1. Phạm vi và ownership
 
@@ -18,15 +18,15 @@ Schema authority:
 
 ## 2. Backend → AI2: processing request
 
-Kênh runtime: event `ai2.idp.command` trên topic `ci.ai2.idp.commands`; request này là `payload` của envelope `ci.kafka.v1` (hoặc nằm trên MinIO qua `payload_ref` khi lớn hơn ngưỡng inline, DOC-05e §6). Endpoint demo `POST /jobs/idp` nhận đúng body này. Backend gửi `snapshots[]` đầy đủ của dossier, không chỉ body. Đây là điều kiện để AI2 so sánh body–annex và tạo finding liên tài liệu.
+Kênh runtime đích: event `ai2.idp.command` trên topic `ci.ai2.idp.commands`; request này là `payload` của envelope `ci.kafka.v1` (hoặc nằm trên MinIO qua `payload_ref` khi lớn hơn ngưỡng inline, DOC-05e §6). Endpoint demo `POST /jobs/idp` nhận đúng body này. Backend gửi `snapshots[]` đầy đủ của dossier, không chỉ body. Đây là điều kiện để AI2 so sánh body–annex và tạo finding liên tài liệu.
 
 `service_envelope` là field bắt buộc của request canonical. Envelope có `payload_sha256`, nonce, thời hạn, scope và chữ ký HMAC; AI2 phải xác thực envelope trước khi nhận request hoặc chạy worker. Trên Kafka, AI2 kiểm tra chữ ký, `payload_sha256`, audience/tenant/dossier nhưng **không** kiểm tra `expires_at`/`nonce`, vì command có thể nằm trong topic hoặc được redeliver sau 300 giây; chống replay bằng dedupe `(idempotency_key, attempt)` (DOC-05e §4, §7). `idempotency_key` được ghép với `attempt` để chống submit trùng và payload conflict.
 
 ```json
 {
   "schema_version": "be.ai2.processing.request.v1",
-  "request_id": "req-001",
-  "idempotency_key": "dossier-001:attempt-1",
+  "request_id": "run-001:ai2",
+  "idempotency_key": "run-001:ai2",
   "attempt": 1,
   "task_id": "process-dossier",
   "dossier_id": "dossier-001",
@@ -65,9 +65,26 @@ Kênh runtime: event `ai2.idp.command` trên topic `ci.ai2.idp.commands`; reques
       "max_llm_calls": 20,
       "max_embedding_tokens": 50000
     }
+  },
+  "service_envelope": {
+    "schema_version": "ai2.service-envelope.v1",
+    "issuer": "backend-service",
+    "audience": "vsf-ai2",
+    "tenant_id": "tenant-001",
+    "actor_id": "backend",
+    "dossier_id": "dossier-001",
+    "scopes": ["ai2.jobs.submit"],
+    "key_id": "default",
+    "issued_at": 1790740800,
+    "expires_at": 1790741100,
+    "nonce": "3f9c2b7e8a1d4c56b0e2f7a9c1d3e5f7",
+    "payload_sha256": "<64 hex: SHA-256 của request đã bỏ service_envelope>",
+    "signature": "<64 hex: HMAC-SHA256 của envelope đã bỏ signature>"
   }
 }
 ```
+
+`request_id` và `idempotency_key` cố định theo run (`<run_id>:ai2`); `attempt` là trường riêng, tăng khi Backend retry. Cách chuẩn hoá JSON trước khi hash và ký: `sort_keys`, `separators=(",", ":")`, `ensure_ascii=False`, UTF-8.
 
 `dossier_members[]` là danh sách membership có role rõ ràng. `role_relation_map[]` là quan hệ cấu trúc do Backend xác định; AI2 không tự suy ra hay sửa quan hệ này. `ANNEX_OF` bắt buộc có `related_member_id`; `MEMBER_OF` không có target.
 

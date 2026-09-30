@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | **Active (runtime path)** — transport decided 2026-09-30: Backend ↔ AI2 processing is event driven over Kafka. Rules in §4–§9 are proposed by Backend and need AI2 sign-off (§13). |
+| Status | **Accepted direction, not yet running** — decided 2026-09-30: Backend ↔ AI2 processing moves to event-driven Kafka. **Runtime today is still HTTP** submit + poll (`docker-compose.yml`, no AI2 worker service, no Backend AI2 consumer). This contract becomes the runtime path after §12 step 3 is green and `AI2_TRANSPORT` defaults to `kafka`. Rules in §4–§9 are proposed by Backend and need AI2 sign-off (§13). |
 | Version | 2 (replaces the MVP body-only draft, which was never wired on the Backend side) |
 | Owner | Backend Lead / AI2 Lead |
 | Companion | [BE-AI2-PROCESSING-CONTRACT.vi.md](contracts/BE-AI2-PROCESSING-CONTRACT.vi.md) (payload rules), [DOC-05d](DOC-05d-kafka-ai1-ocr-contract.md) (same envelope and by-reference pattern), backend plan [`plans/260930-be-ai2-kafka/plan.md`](../plans/260930-be-ai2-kafka/plan.md) |
@@ -108,6 +108,17 @@ Same envelope as DOC-05d, plus the AI2-specific fields marked *(AI2)*.
 
 A command that fails these checks → `ai2.idp.failed` with `AI2_ENVELOPE_INVALID`, `retryable: false`.
 
+This replaces the v1 rule "no HMAC on Kafka, trust the internal cluster". The HMAC is kept because the broker has no authentication in this phase (below), so any process on the Docker network can publish to `ci.ai2.idp.commands`.
+
+### Security decisions (deliberate, reviewed by AI2 in §13)
+
+| Topic | Decision | Accepted risk / compensating control |
+|---|---|---|
+| Broker connection | PLAINTEXT listener on the internal Docker network only. `deploy/compose.prod.yml` publishes no Kafka port and only Caddy is reachable from outside. No TLS or SASL in this phase. | Anyone who gets a shell on the host or a container can read and write every topic. The signed envelope stops forged commands; results from AI2 are not signed and are trusted on this network. |
+| Topic ACLs | None in this phase. | Same as above. SASL + per-service ACLs (Backend produces commands, AI2 produces results) are the first step if the broker ever leaves the single host. |
+| HMAC key | One `AI2_SERVICE_HMAC_SECRET` per environment, shared by Backend API, Backend worker and AI2 (HTTP and worker). `deploy/bootstrap.sh` generates it; it is never committed. Both sides fail closed when it is empty; with PR #38 the backend also refuses to start in staging/prod on an empty or placeholder value. `key_id` in the envelope is `default` today and is the hook for rotation (accept old and new id during a switch). | Rotation is manual: set the new secret on all three services and restart them together. |
+| `expires_at` / `nonce` not enforced on Kafka | A command may legitimately sit in the topic or be redelivered long after the 300 s envelope lifetime, so expiry checks would reject valid work. | A replayed command cannot do new work: AI2 dedupes on `(idempotency_key, attempt)` and answers with the stored result; Backend applies a result only to the current run and attempt (§7). HTTP keeps both checks. |
+
 ## 5. Results
 
 ### 5.1 `ai2.idp.started`
@@ -210,7 +221,11 @@ Rules (both sides):
 
 - `enable_auto_commit=false`; commit the command offset **after** the terminal result is published (at-least-once).
 - `max_poll_interval_ms` must be larger than the longest budget it can receive (recommended 1 800 000 ms), or the consumer must pause the partition while a job runs. Otherwise a long IDP run causes a rebalance and a second worker processes the same command.
-- Dedupe on `(idempotency_key, attempt)`, not only on `event_id`. Same key and same `payload_sha256` → republish the stored terminal result, do not rerun. Different `payload_sha256` → `AI2_IDEMPOTENCY_CONFLICT`. The dedupe store must survive a restart (PostgreSQL per DOC-11 §3; in-memory is acceptable only in local dev).
+- Dedupe on `(idempotency_key, attempt)`, not only on `event_id`. Same key and same `payload_sha256` → republish the stored terminal result, do not rerun. Different `payload_sha256` → `AI2_IDEMPOTENCY_CONFLICT`. The dedupe store must survive a restart; the in-memory `_processed` dict in today's worker is acceptable only in local dev. Ownership:
+  - **AI2 owns and operates it.** It lives on the shared PostgreSQL server (DOC-11 §3: one database server) but in its own schema `ai2`, created by AI2's migrations and reached with its own role (`ai2_app`) that has no grant on Backend tables.
+  - Backend never reads or writes schema `ai2`, and AI2 never reads or writes Backend tables. The only interface between them is this contract.
+  - Minimum columns: `idempotency_key`, `attempt`, `payload_sha256`, `job_id`, terminal result (or its `result_ref`), `created_at`. Unique on `(idempotency_key, attempt)`.
+  - Retention: at least the topic retention (7 days), so any redelivery still finds its row.
 - Transient errors (LLM 429/529, timeouts): bounded retries **inside** AI2, then publish `ai2.idp.failed` with `retryable: true` and commit. AI2 must not "skip and continue": an uncommitted offset followed by a commit of a later offset silently drops the command.
 - A record that is not JSON or has no usable `correlation` → park on `ci.ai2.idp.commands.dlq` and commit. Anything with a usable `correlation` gets an `ai2.idp.failed` instead, so the Backend run does not wait for the watchdog.
 
@@ -284,11 +299,12 @@ A result that arrives after the watchdog failed the run is dropped (job already 
 | 3 | `payload_ref` / `result_target` / `result_ref` (§6) | [x] | [ ] |
 | 4 | HMAC on Kafka: verify signature and hash, not expiry/nonce (§4) | [x] | [ ] |
 | 5 | `ai2.idp.started` event | [x] | [ ] |
-| 6 | Dedupe on `(idempotency_key, attempt)`, durable | [x] | [ ] |
+| 6 | Dedupe on `(idempotency_key, attempt)`, durable, in AI2's own schema `ai2` (§7) | [x] | [ ] |
 | 7 | Transient errors → `failed` with `retryable: true`, never skip-and-continue | [x] | [ ] |
 | 8 | Error code table (§5.3) | [x] | [ ] |
 | 9 | `query_binding` in the completed envelope | [x] | [ ] |
 | 10 | `max_poll_interval_ms` ≥ max budget | — | [ ] |
+| 11 | Security decisions: PLAINTEXT internal broker, no ACLs, shared HMAC key, no expiry/nonce on Kafka (§4) | [x] | [ ] |
 
 ## History
 
@@ -296,3 +312,4 @@ A result that arrives after the watchdog failed the run is dropped (job already 
 |---|---|
 | 2026-09-24 | v1 draft: MVP body-only; marked "not used" in Sprint 2 (HTTP chosen, SAD D4) |
 | 2026-09-30 | v2: Kafka chosen as the runtime path; full dossier, by-reference payloads, `started` event, attempt-scoped dedupe, Backend watchdog |
+| 2026-09-30 | v2.1 after AI2 review: status says the runtime is still HTTP; security decisions written out (§4); AI2 owns the dedupe store in its own schema (§7) |
