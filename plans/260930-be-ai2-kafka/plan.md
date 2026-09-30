@@ -50,7 +50,7 @@ Hàm mới `_dispatch_ai2_command(session, dossier_id, tenant_id, run_id)` thay 
 
 `_schedule_ai2` rẽ nhánh theo `AI2_TRANSPORT`: `kafka` thì gọi thẳng dispatch trong session của handler; `http` giữ nguyên code cũ. `_resume_pending_ai2` khi `kafka` chỉ dispatch các run `EXTRACTED` chưa có `ai2_dispatch` cho attempt hiện tại.
 
-`_ai2_query_snapshot_digest` vẫn giữ để tính digest cho `/query` cho tới khi AI2 gửi `query_binding`.
+`_ai2_query_snapshot_digest` vẫn giữ để tính digest cho `/query` cho tới khi AI2 trả `query_snapshot_digest` trong result (DEC D10, việc A1).
 
 ### B4. Consumer kết quả — 2 ngày
 
@@ -60,7 +60,7 @@ Hàm mới `_dispatch_ai2_command(session, dossier_id, tenant_id, run_id)` thay 
   2. Đọc `correlation`; `run_id` phải là `current_run_id` của job và `attempt` phải bằng attempt hiện tại của run. Sai → audit `ai2.result_late`, bỏ qua.
   3. `ai2.idp.started` → S4 `running`, ghi `started_at` và `run_deadline_at = started_at + max_processing_seconds + grace` vào `ai2_dispatch`; commit.
   4. `completed` / `failed`: lấy payload inline hoặc qua `result_ref` (chỉ nhận đúng `result_uri` đã phát). Kiểm tra `idempotency_key`, `attempt`, `input_snapshots[]` khớp request → sai là `AI2_RESULT_MISMATCH`.
-  5. `completed` → `_finalize_ai2_success(source="kafka")`; có `query_binding` thì lưu digest đó thay cho digest tự tính.
+  5. `completed` → `_finalize_ai2_success(source="kafka")`; result có `query_snapshot_digest` thì lưu nguyên giá trị đó thay cho digest tự tính (DEC D10).
   6. `failed` → `_fail_ai2_run` với `AI2_PROCESSING_FAILED` nếu `errors[0].retryable`, ngược lại `AI2_REQUEST_REJECTED`; mã gốc của AI2 vào `audit_detail`.
 - Payload không đúng shape (thiếu `correlation`, `event_type` lạ) → raise để vào DLQ, không đoán.
 
@@ -81,7 +81,7 @@ Hàm mới `_dispatch_ai2_command(session, dossier_id, tenant_id, run_id)` thay 
 Unit (`backend/tests/unit/`), dùng producer giả như test hiện có:
 
 - Dispatch: inline vs `payload_ref` theo ngưỡng; không gửi lại khi đã có `ai2_dispatch`; hai body → `AI2_DOSSIER_INVALID`; publish lỗi → `AI2_DISPATCH_FAILED`.
-- Consumer: `started` cập nhật deadline; `completed` inline và qua ref; ref sai `uri`, sai sha256, quá cỡ; attempt cũ và run cũ bị bỏ qua; `event_id` lặp; `failed` retryable và không retryable; `query_binding`.
+- Consumer: `started` cập nhật deadline; `completed` inline và qua ref; ref sai `uri`, sai sha256, quá cỡ; attempt cũ và run cũ bị bỏ qua; `event_id` lặp; `failed` retryable và không retryable; `query_snapshot_digest` có và chưa có.
 - Watchdog: hết hạn khi đang xếp hàng, khi đang chạy; không động vào run chưa dispatch.
 - Contract test: command sinh ra hợp lệ với `be.ai2.processing.request.v1.schema.json`; fixture result hợp lệ với `ai2.be.processing.result.v1.schema.json`.
 
@@ -122,4 +122,4 @@ Backend làm được tới hết B7 với AI2 giả. Để bật trên bản on
 | Commit DB xong nhưng publish lỗi | Run `FAILED` với `AI2_DISPATCH_FAILED`, retry được; không có run treo |
 | Publish xong nhưng commit lỗi | Handler retry sẽ dispatch lại cùng attempt; AI2 dedupe theo `(idempotency_key, attempt)` |
 | Nhiều hồ sơ xếp hàng, AI2 chỉ một worker | Deadline hàng đợi tách riêng; tăng số `ai2-worker` tối đa bằng số partition |
-| Digest `/query` lệch nếu AI2 đổi cách hash | Ưu tiên `query_binding`; có test so digest với AI2 thật trong E2E |
+| Digest `/query` lệch nếu AI2 đổi cách hash | Dùng `query_snapshot_digest` AI2 trả trong result (DEC D10); có test so digest với AI2 thật trong E2E |

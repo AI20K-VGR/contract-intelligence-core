@@ -91,7 +91,7 @@ Same envelope as DOC-05d, plus the AI2-specific fields marked *(AI2)*.
 `payload` is the canonical [`be.ai2.processing.request.v1`](contracts/be.ai2.processing.request.v1.schema.json), built the same way as for HTTP today (`canonical_processing.build_processing_request`):
 
 - `snapshots[]`: **every** selected `ai1.snapshot.v1` of the dossier (body and annexes). The MVP body-only limit of the previous draft is dropped; AI2 must accept N members.
-- `dossier_members[]`: exactly one `role: "body"`; the others `annex`. Backend refuses to dispatch a dossier with zero or several bodies.
+- `dossier_members[]`: exactly one `role: "body"`; the others `annex`. Backend refuses to dispatch a dossier with zero or several bodies, or with more than **6** documents (AI2 accepts 1 to 6 snapshots; DEC-BE-AI2-01 D5). Several bodies come with D12, and only after AI2 accepts `policy_flags.max_body_members`.
 - `role_relation_map[]`: relations stored by Backend (`ANNEX_OF`, `MEMBER_OF`). AI2 does not infer or change them.
 - `policy_flags`: authoritative from Backend (egress, vector, budget). `budget_limits.max_processing_seconds` is also the base of the Backend deadline (§8).
 - `idempotency_key` = `<run_id>:ai2`, fixed for the run. `attempt` starts at 1 and is bumped by every Backend retry.
@@ -135,13 +135,7 @@ A redelivered command that AI2 already finished does **not** publish `started` a
 
 `payload` (or the object behind `result_ref`) is [`ai2.be.processing.result.v1`](contracts/ai2.be.processing.result.v1.schema.json) with `status: "SUCCEEDED"`. All rules of BE-AI2-PROCESSING-CONTRACT §4 apply: `input_snapshots[]` equals the sent identities, every citation id resolves, no invented bbox, `index_contribution.state = "propose"`.
 
-Optional envelope field *(AI2)*, until the query digest decision is settled:
-
-```json
-"query_binding": { "snapshot_digest": "<64 hex>", "snapshot_id": "snap-..." }
-```
-
-When present, Backend stores it as the digest `/query` must send, instead of recomputing AI2's internal hash.
+The digest `/query` must send comes back **inside the payload**, as `query_snapshot_digest` (64 hex) in `ai2.be.processing.result.v1` (DEC-BE-AI2-01 D10). It is the same field on HTTP and Kafka; there is no Kafka-only envelope field for it. Backend stores it as is. Until AI2 ships the field, Backend keeps computing the digest the old way, then removes that code.
 
 ### 5.3 `ai2.idp.failed`
 
@@ -162,7 +156,7 @@ Always the full result shape — the bare `{"error": {...}}` form of the previou
 }
 ```
 
-`errors[0].retryable` drives the Backend retry button: `true` → the user (or a policy) may start the next attempt; `false` → the run stays failed until the input changes.
+A job may be retried **only if** `status` is `FAILED` and at least one entry of `errors[]` has `retryable: true` (DEC-BE-AI2-01 D7). `review_state` never decides a retry, and `BLOCKED` is never retried. Otherwise the run stays failed until the input changes.
 
 | `errors[0].code` | `retryable` | Meaning |
 |---|---|---|
@@ -302,7 +296,7 @@ A result that arrives after the watchdog failed the run is dropped (job already 
 | 6 | Dedupe on `(idempotency_key, attempt)`, durable, owned by AI2 (§7). Location waits for Lead decision D11 (PR #37) | [x] | [ ] |
 | 7 | Transient errors → `failed` with `retryable: true`, never skip-and-continue | [x] | [ ] |
 | 8 | Error code table (§5.3) | [x] | [ ] |
-| 9 | `query_binding` in the completed envelope | [x] | [ ] |
+| 9 | `/query` digest: `query_snapshot_digest` in the result payload (D10), no envelope field | [x] | [ ] |
 | 10 | `max_poll_interval_ms` ≥ max budget | — | [ ] |
 | 11 | Security decisions: PLAINTEXT internal broker, no ACLs, shared HMAC key, no expiry/nonce on Kafka (§4) | [x] | [ ] |
 
@@ -313,4 +307,5 @@ A result that arrives after the watchdog failed the run is dropped (job already 
 | 2026-09-24 | v1 draft: MVP body-only; marked "not used" in Sprint 2 (HTTP chosen, SAD D4) |
 | 2026-09-30 | v2: Kafka chosen as the runtime path; full dossier, by-reference payloads, `started` event, attempt-scoped dedupe, Backend watchdog |
 | 2026-09-30 | v2.1 after AI2 review: status says the runtime is still HTTP; security decisions written out (§4); AI2 owns the dedupe store (§7) |
+| 2026-09-30 | v2.3, after the AI2 review of DEC-BE-AI2-01 (PR #37): `query_binding` dropped for `query_snapshot_digest` in the payload (D10); at most 6 documents (D5); retry rule (D7) |
 | 2026-09-30 | v2.2: where the dedupe store lives is the Lead's decision D11 (PR #37), not settled here; schema `ai2` is only option A (§7) |
