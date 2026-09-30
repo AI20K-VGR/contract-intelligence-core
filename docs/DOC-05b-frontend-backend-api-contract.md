@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu | **DOC-05b** / Contract Intelligence (PROD-01) |
-| Phiên bản / SemVer | **`v1.0.0`** — Official Contract Baseline |
+| Phiên bản / SemVer | **`v1.1.0`** — thêm 3 API (lịch sử hỏi đáp, chạy lại OCR lỗi, tách file trộn); không breaking. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
 | Trạng thái | Đã chốt — Sẵn sàng triển khai Frontend & Backend |
 | Owner | Tech Lead / Frontend Lead / Backend Lead |
 | Ngày hiệu lực | 17/09/2026 |
@@ -264,11 +264,28 @@ Màn hình khởi tạo hồ sơ, tải lên các file PDF (hợp đồng gốc 
 | `GET` | `/dossiers/{id}/documents` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Danh sách các file PDF kèm vai trò `CONTRACT` hoặc `ANNEX` |
 | `GET` | `/dossiers/{id}/manifest` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Xem Manifest dự thảo phân loại tài liệu sau bước tiền xử lý |
 | `POST` | `/dossiers/{id}/manifest/confirm` | `OPERATOR`, `ADMINISTRATOR` | Xác nhận phân loại tài liệu để kích hoạt bước phân tích sâu |
+| `POST` | `/dossiers/{id}/split` | `OPERATOR`, `ADMINISTRATOR` | **v1.1.0.** Tách một PDF trộn (hợp đồng + phụ lục) thành từng tài liệu theo khoảng trang người dùng xác nhận |
 
 - **Request Upload Document (`multipart/form-data`):**
   - `file`: Binary file PDF
   - `role`: `"CONTRACT"` hoặc `"ANNEX"`
   - `order_index`: `0` (số thứ tự)
+
+- **Tách file trộn (v1.1.0):**
+  1. `POST /dossiers` với `metadata.split_pending = true`: Backend lưu file nhưng **chưa gửi OCR**.
+  2. `POST /dossiers/{id}/split` → `202`:
+     ```json
+     {
+       "document_id": "doc_…",
+       "parts": [
+         { "page_start": 1, "page_end": 6, "role": "contract" },
+         { "page_start": 7, "page_end": 10, "role": "annex" }
+       ]
+     }
+     ```
+     Trả về `{ dossier_id, status: "queued", documents: [{ id, role, filename, page_start, page_end, page_count }] }`. Mỗi phần thành một tài liệu riêng, rồi đi OCR riêng. Một phần phủ cả file nghĩa là không tách.
+  - Lỗi: `422` khi các phần không phủ đủ trang 1..N theo thứ tự, `page_end < page_start`, hoặc không có đúng một hợp đồng; `409` khi hồ sơ không tải lên với `split_pending` hoặc đã bắt đầu xử lý; `403` khi không có quyền sửa hồ sơ.
+  - Hiện người dùng tự nhập khoảng trang. Khi AI1 đề xuất được chỗ cắt, đề xuất điền sẵn `parts`; API giữ nguyên.
 
 ---
 
@@ -282,6 +299,9 @@ Theo dõi hành trình chạy của Pipeline AI qua 11 bước (S0..S10), xem lo
 | `GET` | `/runs/{id}` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Trạng thái run, git sha, cấu hình snapshot, thời gian hoàn thành |
 | `GET` | `/runs/{id}/steps` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Chi tiết tiến độ 11 bước (S0..S10) kèm số trang và thời gian ms |
 | `POST` | `/runs/{id}/cancel` | `OPERATOR`, `ADMINISTRATOR` | Hủy run đang trong trạng thái `running` |
+| `POST` | `/dossiers/{id}/ocr/retry-failed` | `OPERATOR`, `ADMINISTRATOR` | **v1.1.0.** Hồ sơ lỗi ở bước OCR: mở run mới, giữ kết quả OCR đã có, chỉ OCR lại tài liệu còn thiếu |
+
+- **Chạy lại OCR lỗi (v1.1.0):** `202 {"status": "queued"}`. Nếu mọi tài liệu đã có kết quả thì run sang thẳng AI2, không OCR lại trang nào. Theo dõi bằng SSE của run mới. `409` khi job không lỗi ở bước OCR (lỗi AI2 thì dùng `POST /dossiers/{id}/ai2/retry`); `403` khi không có quyền sửa hồ sơ.
 
 ---
 
@@ -296,6 +316,9 @@ Giao diện xem văn bản trực quan chia đôi màn hình: Bên trái là câ
 | `GET` | `/pages/{id}` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Chi tiết trang kèm danh sách các dòng OCR (`ocr_line`) và Bbox |
 | `GET` | `/documents/{id}/clauses` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Cây Điều khoản hoàn chỉnh dựng theo quan hệ cha-con (`parent_id`) |
 | `GET` | `/documents/{id}/tables` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Danh sách bảng phát hiện được, danh sách cell (`row`, `col`, `span`, text) |
+| `GET` | `/dossiers/{id}/queries` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | **v1.1.0.** Lịch sử hỏi đáp trên hồ sơ, mới nhất trước; còn sau khi server khởi động lại |
+
+- **Lịch sử hỏi đáp (v1.1.0):** `GET /dossiers/{id}/queries?scope=mine|all&limit=20&offset=0`. `scope=mine` (mặc định) chỉ trả câu hỏi của người gọi; `scope=all` chỉ dành cho chủ hồ sơ hoặc `ADMINISTRATOR`, người khác nhận `403`. Cần quyền xem hồ sơ. Mỗi phần tử: `trace_id`, `endpoint`, `actor_id`, `question`, `answer`, `state`, `citations`, `error_code`, `created_at`, trong envelope phân trang ở §3.1. Lần hỏi mà AI2 lỗi vẫn có trong lịch sử, với `answer: null` và `error_code`.
 
 ---
 
@@ -656,6 +679,21 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 2. **Quy trình Đề Xuất Thay Đổi:**
    - Mọi đề xuất thêm endpoint hoặc thay đổi payload phải được cập nhật vào [DOC-05-api-spec.yaml](file:///e:/Project_OJT/contract-intelligence-core/docs/DOC-05-api-spec.yaml) trước, sau đó đồng bộ vào tài liệu contract này và nâng phiên bản theo chuẩn SemVer (`v1.1.0` cho tính năng mới, `v2.0.0` nếu có breaking change).
 
+### Lịch sử phiên bản
+
+| Phiên bản | Ngày | Thay đổi |
+|---|---|---|
+| `v1.0.0` | 17/09/2026 | Baseline |
+| `v1.1.0` | 30/09/2026 | Thêm `GET /dossiers/{id}/queries`, `POST /dossiers/{id}/ocr/retry-failed`, `POST /dossiers/{id}/split` và `metadata.split_pending` (đã có trong `DOC-05-api-spec.yaml`, PR #36). Chỉ thêm, không đổi hay xoá trường nào, nên là MINOR. Các endpoint backend bỏ ở v2.0.0 (`POST /dossiers/upload`, webhook AI1/AI2, `/reviews` cũ) chưa từng có trong DOC-05b, nên không ảnh hưởng contract này |
+
+**Chưa đồng bộ (đã biết):** backend còn các route có trong `DOC-05-api-spec.yaml` hoặc `frontend/API-BE.md` nhưng chưa có trong DOC-05b. Sẽ đồng bộ ở bản sau, mỗi nhóm một lần:
+
+- Quản trị người dùng: `/users`, `/users/{id}`, `/users/{id}/disable|enable|invite`, `/admin/activity`, `/admin/storage`.
+- Hồ sơ: `DELETE /dossiers/{id}`, `PUT /dossiers/{id}/access` (chia sẻ), `POST /dossiers/{id}/ocr`, `/reprocess`, `/ai2/retry`, `/dossiers/{id}/facts`, `/conflicts`.
+- Hỏi đáp: `POST /dossiers/{id}/search`, `/ask`, `/query`.
+- Review: `GET|POST /clause-nodes/{id}/review`, `GET|POST /findings/{id}/review`.
+- Khác: `GET /runs/{id}/events` (SSE), `GET /documents/{id}/pages/{page_no}/image`, `GET /re-ocr-requests/{id}`, `/ai/jobs/{id}`, `/readyz`.
+
 ---
 
-**Hết DOC-05b · Frontend-Backend API Contract v1.0.0 (SemVer)**
+**Hết DOC-05b · Frontend-Backend API Contract v1.1.0 (SemVer)**
