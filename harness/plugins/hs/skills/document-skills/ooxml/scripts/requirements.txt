@@ -1,4 +1,0 @@
-# document-skills/ooxml validation scripts (validation/base.py, docx.py, pptx.py) parse
-# real .docx/.pptx XML parts to check document structure. Absent: every validation script's
-# import fails immediately (unguarded top-level import — no fallback).
-lxml>=4.9.0

@@ -1,1 +1,0 @@
-{"ts": "2026-09-25T03:35:56.466030+00:00", "source": "hook:bash", "script": "pytest:tests/test_legacy_compat.py", "exit": 0, "session": "01a0d69e-44fd-7bf2-931a-ec8b4f8f1a9f", "actor": "user:dungskbg2004@gmail.com"}

@@ -1,7 +1,0 @@
-anthropic>=0.39.0
-# Upper bound, per this repo's range convention: the floor alone let 2.0.0 in,
-# where `mcp.client.streamable_http.streamablehttp_client` — imported unguarded
-# at connections.py:10 — is renamed to `StreamableHTTPTransport`, so the module
-# fails at import. The test covering it had always skipped for want of the
-# package, so nothing said so until the package arrived.
-mcp>=1.1.0,<2

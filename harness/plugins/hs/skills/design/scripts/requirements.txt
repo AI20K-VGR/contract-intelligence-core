@@ -1,8 +1,0 @@
-# design skill: image work (cip/icon/logo) + Gemini-backed generation + poster layout
-# clustering. All four imports below are unguarded top-level imports in their call sites
-# (poster/core.py, poster/cluster.py) — absent, the script fails on first run, not on
-# first use of the feature.
-Pillow>=10.0.0
-google-genai>=0.1.0
-numpy>=1.24.0
-scikit-learn>=1.3.0
