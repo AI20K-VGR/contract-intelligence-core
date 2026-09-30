@@ -1,7 +1,8 @@
 # Contract Backend ↔ AI2: Processing v1
 
 **Trạng thái:** Canonical processing contract v1  
-**Phạm vi:** Backend gửi toàn bộ dossier cho AI2 xử lý; AI2 trả kết quả async để Backend lưu và quyết định publish.
+**Phạm vi:** Backend gửi toàn bộ dossier cho AI2 xử lý; AI2 trả kết quả async để Backend lưu và quyết định publish.  
+**Transport:** Kafka, event driven (chốt 2026-09-30) — xem [DOC-05e](../DOC-05e-kafka-ai2-idp-contract.md). HTTP `POST /jobs/idp` + poll chỉ còn cho demo/manual và làm fallback khi `AI2_TRANSPORT=http`.
 
 ## 1. Phạm vi và ownership
 
@@ -17,9 +18,9 @@ Schema authority:
 
 ## 2. Backend → AI2: processing request
 
-Endpoint demo: `POST /jobs/idp`. Backend gửi `snapshots[]` đầy đủ của dossier, không chỉ body. Đây là điều kiện để AI2 so sánh body–annex và tạo finding liên tài liệu.
+Kênh runtime: event `ai2.idp.command` trên topic `ci.ai2.idp.commands`; request này là `payload` của envelope `ci.kafka.v1` (hoặc nằm trên MinIO qua `payload_ref` khi lớn hơn ngưỡng inline, DOC-05e §6). Endpoint demo `POST /jobs/idp` nhận đúng body này. Backend gửi `snapshots[]` đầy đủ của dossier, không chỉ body. Đây là điều kiện để AI2 so sánh body–annex và tạo finding liên tài liệu.
 
-`service_envelope` là field bắt buộc của request canonical. Envelope có `payload_sha256`, nonce, thời hạn, scope và chữ ký HMAC; AI2 phải xác thực envelope trước khi nhận request hoặc chạy worker. `idempotency_key` được ghép với `attempt` để chống submit trùng và payload conflict.
+`service_envelope` là field bắt buộc của request canonical. Envelope có `payload_sha256`, nonce, thời hạn, scope và chữ ký HMAC; AI2 phải xác thực envelope trước khi nhận request hoặc chạy worker. Trên Kafka, AI2 kiểm tra chữ ký, `payload_sha256`, audience/tenant/dossier nhưng **không** kiểm tra `expires_at`/`nonce`, vì command có thể nằm trong topic hoặc được redeliver sau 300 giây; chống replay bằng dedupe `(idempotency_key, attempt)` (DOC-05e §4, §7). `idempotency_key` được ghép với `attempt` để chống submit trùng và payload conflict.
 
 ```json
 {
@@ -76,15 +77,27 @@ Backend phải gửi đúng một member `body`, mọi member phải trỏ tới
 
 ## 3. Async lifecycle và retry
 
-`POST /jobs/idp` trả job envelope với `202 Accepted`; Backend poll `GET /jobs/{job_id}`. Public job status là:
+Trên Kafka (runtime):
+
+1. Backend publish `ai2.idp.command` cho mỗi cặp `(run, attempt)`.
+2. AI2 publish `ai2.idp.started` khi bắt đầu chạy pipeline.
+3. AI2 publish đúng một kết quả cuối: `ai2.idp.completed` (`status=SUCCEEDED`) hoặc `ai2.idp.failed` (`status=FAILED`), payload là `ai2.be.processing.result.v1`.
+
+Backend không poll. Timeout do watchdog của Backend quyết định: thời gian chờ trong hàng đợi và thời gian chạy (`max_processing_seconds` + grace) được tính riêng (DOC-05e §8). Hết hạn thì run `FAILED` với `AI2_TIMEOUT`.
+
+Trên HTTP (demo/fallback): `POST /jobs/idp` trả job envelope với `202 Accepted`; Backend poll `GET /jobs/{job_id}`.
+
+Public job status ở cả hai kênh là:
 
 `QUEUED → RUNNING → SUCCEEDED | FAILED`
 
 `review_state` là trạng thái chất lượng/review độc lập: `PASS`, `NEEDS_REVIEW`, `INSUFFICIENT_EVIDENCE`, `BLOCKED` hoặc `null` khi job chưa hoàn tất.
 
-Retry tạo `attempt` mới và nên giữ `request_id`/`idempotency_key` theo policy của Backend. Cùng `(idempotency_key, attempt)` trả lại cùng `job_id`; không tạo duplicate job trong cùng attempt.
+`idempotency_key` = `<run_id>:ai2`, cố định trong một run. Retry của Backend tạo `attempt + 1` và command mới; cùng `(idempotency_key, attempt)` thì AI2 không chạy lại mà trả lại kết quả đã lưu (cùng `job_id`). Cùng cặp nhưng `payload_sha256` khác → `AI2_IDEMPOTENCY_CONFLICT`. Kết quả của attempt cũ đến muộn bị Backend bỏ qua và ghi audit.
 
-Backend là nơi lưu request, job state và result. AI2 chỉ cần lưu state đủ cho worker/polling trong phase demo; production sẽ thay background task bằng durable queue.
+Lỗi luôn có `errors[].retryable`. Lỗi tạm (429/529, timeout provider) AI2 tự thử lại có giới hạn, sau đó trả `FAILED` với `retryable=true`; Backend chỉ mở retry cho run khi `retryable=true` hoặc khi chính Backend timeout. Bảng mã lỗi ở DOC-05e §5.3.
+
+Backend là nơi lưu request, job state và result. Kho dedupe của AI2 phải bền qua restart (PostgreSQL theo DOC-11 §3); in-memory chỉ dùng khi chạy local.
 
 ## 4. AI2 → Backend: processing result
 
@@ -125,6 +138,6 @@ Không tự động đổi version giữa các lane. Mọi migration từ `ai1.s
 
 1. Hai schema mới có trong registry và được kiểm tra tự động.
 2. Request full dossier được adapter vào pipeline mà không sửa snapshot gốc.
-3. POST/polling có idempotency theo attempt.
+3. Command Kafka (và POST/polling ở kênh demo) có idempotency theo attempt.
 4. Result tách public wire shape khỏi internal `JobResult`/`IndexContribution`.
 5. Có test cho membership, body/annex relation, citation resolution và async lifecycle.

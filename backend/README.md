@@ -140,7 +140,7 @@ uv run python -m contract_intelligence.worker
 
 Chi tiết:
 - AI1 OCR: `docs/DOC-05d-kafka-ai1-ocr-contract.md`
-- AI2 IDP (MVP body-only): `docs/DOC-05e-kafka-ai2-idp-contract.md`
+- AI2 IDP (Kafka, full dossier): `docs/DOC-05e-kafka-ai2-idp-contract.md`
 
 ### HTTP job API (demo / manual only)
 
