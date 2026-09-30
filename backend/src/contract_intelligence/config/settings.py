@@ -14,8 +14,9 @@ from __future__ import annotations
 
 from functools import lru_cache
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -491,6 +492,47 @@ class Settings(BaseSettings):
             "Bật/tắt HMAC verification. Set false CHỈ trong local debugging. "
             "Production BẮT BUỘC phải bật."
         ),
+    )
+
+    @model_validator(mode="after")
+    def _refuse_dev_secrets_outside_dev(self) -> Settings:
+        """Refuse to start in staging/prod with a dev default or placeholder secret.
+
+        The defaults above let ``docker compose up`` work locally; on a server
+        they would be public passwords. Only field names are reported, never
+        the values.
+        """
+        if self.env not in _GUARDED_ENVS:
+            return self
+        secrets = {
+            "DATABASE_URL (password)": urlsplit(self.database_url).password,
+            "S3_SECRET_KEY": self.s3_secret_key,
+            "MINIO_SECRET_KEY": self.minio_secret_key,
+            "KEYCLOAK_ADMIN_CLIENT_SECRET": self.keycloak_admin_client_secret,
+            "KEYCLOAK_WEBHOOK_SECRET": self.keycloak_webhook_secret,
+            "AI2_SERVICE_HMAC_SECRET": self.ai2_service_hmac_secret,
+        }
+        problems = [name for name, value in secrets.items() if _is_dev_secret(value)]
+        if not self.keycloak_webhook_verify_signature:
+            problems.append("KEYCLOAK_WEBHOOK_VERIFY_SIGNATURE (must be true)")
+        if problems:
+            names = ", ".join(problems)
+            msg = f"ENV={self.env} refuses dev default or placeholder settings: {names}"
+            raise ValueError(msg)
+        return self
+
+
+# Environments reachable from outside a developer machine.
+_GUARDED_ENVS = frozenset({"staging", "prod"})
+# Values shipped as defaults here or as placeholders in deploy/.env.prod.example.
+_DEV_SECRET_VALUES = frozenset({"password123", "changeme", "generate", "secret"})
+
+
+def _is_dev_secret(value: str | None) -> bool:
+    """True for a missing secret, a known default/placeholder, or a ``*_dev`` value."""
+    stripped = (value or "").strip()
+    return (
+        not stripped or stripped.lower() in _DEV_SECRET_VALUES or stripped.lower().endswith("_dev")
     )
 
 
