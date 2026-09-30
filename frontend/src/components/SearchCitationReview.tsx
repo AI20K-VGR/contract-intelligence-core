@@ -4,39 +4,26 @@ import {
   getClauseReview,
   saveClauseReview,
   type ClauseReview,
-  type ClauseReviewAction,
   type ClauseReviewEntry,
 } from '../api/clauseReview'
 import { getFindingReview, type FindingReview } from '../api/findingReview'
 import type { ClauseNode, ReviewSpot } from '../api/structure'
 import { reviewerLabel } from '../review/reviewerLabel'
-import { mergeTimelines, timelineEntries } from '../review/timeline'
+import {
+  actionLabel,
+  extraNoteLabel,
+  mergeTimelines,
+  reviewActionOf,
+  timelineEntries,
+  verdictOfAction,
+  type ReviewVerdict,
+} from '../review/timeline'
 import type { SearchCite } from '../structure/citations'
 import { bodyOf, headOf, nodeLabel } from '../structure/display'
 import { CitationPane } from './CitationPane'
 import { ConflictNotice } from './ConflictNotice'
 import { MaterialIcon } from './icons'
 import { ReviewTimeline } from './ReviewTimeline'
-
-type Verdict = 'correct' | 'deviation' | 'edit'
-
-const ACTION_OF: Record<Verdict, ClauseReviewAction> = {
-  correct: 'confirm',
-  deviation: 'reject',
-  edit: 'correct',
-}
-
-const VERDICT_OF: Record<string, Verdict> = {
-  confirm: 'correct',
-  reject: 'deviation',
-  correct: 'edit',
-}
-
-const VERDICT_LABEL: Record<Verdict, string> = {
-  correct: 'Chính xác',
-  deviation: 'Sai lệch',
-  edit: 'Sửa nhận định',
-}
 
 function entryNote(entry: ClauseReviewEntry) {
   return entry.assessment ?? entry.comment ?? ''
@@ -80,7 +67,7 @@ export function SearchCitationReview({
   onPick: (id: string) => void
   onOpenConflict?: (findingId: string) => void
 }) {
-  const [verdict, setVerdict] = useState<Verdict>('correct')
+  const [verdict, setVerdict] = useState<ReviewVerdict | null>('dung')
   const [note, setNote] = useState('')
   const [saved, setSaved] = useState(false)
   const [review, setReview] = useState<ClauseReview | null>(null)
@@ -139,10 +126,10 @@ export function SearchCitationReview({
   function adopt(next: ClauseReview) {
     setReview(next)
     if (next.latest) {
-      setVerdict(VERDICT_OF[next.latest.action] ?? 'correct')
+      setVerdict(verdictOfAction(next.latest.action))
       setNote(entryNote(next.latest))
     } else {
-      setVerdict('correct')
+      setVerdict('dung')
       setNote('')
     }
   }
@@ -167,22 +154,22 @@ export function SearchCitationReview({
     return () => controller.abort()
   }, [documentId, node, ordinal])
 
-  function choose(next: Verdict) {
+  function choose(next: ReviewVerdict) {
     setVerdict(next)
     setSaved(false)
   }
 
   async function save() {
     if (saving || loading) return
-    if (verdict === 'edit' && !note.trim()) {
-      setMessage('Sửa nhận định cần nhập nội dung nhận định mới.')
+    if (!verdict) {
+      setMessage('Hãy chọn đúng hoặc sai.')
       return
     }
     setSaving(true)
     setMessage(null)
     try {
       const next = await saveClauseReview({ documentId, node, ordinal }, {
-        action: ACTION_OF[verdict],
+        action: reviewActionOf(verdict),
         baseVersion: review?.version ?? 0,
         comment: note,
       })
@@ -241,14 +228,11 @@ export function SearchCitationReview({
             <p className="mt-space-sm rounded border border-surface-container bg-surface-container-low p-space-sm font-body-md text-body-md leading-relaxed text-on-surface">
               {body ? `“${body}”` : 'Không có nội dung trích dẫn.'}
             </p>
-            <p className="mt-space-sm font-label-sm text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">
-              Nhận định của chuyên viên
-            </p>
             {latest ? (
-              <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">
+              <p className="mt-space-sm font-body-sm text-body-sm text-on-surface-variant">
                 Lần gần nhất:{' '}
                 <span className="font-semibold text-on-surface">
-                  {VERDICT_LABEL[VERDICT_OF[latest.action] ?? 'correct']}
+                  {actionLabel(latest.action)}
                 </span>{' '}
                 bởi {entryWho(latest)} · {entryWhen(latest)}
               </p>
@@ -265,7 +249,7 @@ export function SearchCitationReview({
                 </p>
                 <p className="mt-0.5">
                   <span className="font-semibold">
-                    {VERDICT_LABEL[VERDICT_OF[review.stale.latest.action] ?? 'correct']}
+                    {actionLabel(review.stale.latest.action)}
                   </span>{' '}
                   bởi {entryWho(review.stale.latest)} · {entryWhen(review.stale.latest)}
                 </p>
@@ -280,33 +264,30 @@ export function SearchCitationReview({
                   </p>
                 ) : null}
                 <p className="mt-0.5 text-secondary">
-                  Kết quả này không được tính cho lần phân tích hiện tại. Hãy chọn nhận định rồi lưu lại.
+                  Kết quả này không được tính cho lần phân tích hiện tại. Hãy chọn đúng hoặc sai rồi lưu lại.
                 </p>
               </div>
             ) : null}
-            <div className="mt-1 grid grid-cols-3 gap-1">
+            <div className="mt-1 grid grid-cols-2 gap-1">
               <VerdictButton
-                active={verdict === 'correct'}
+                active={verdict === 'dung'}
                 icon="check_circle"
-                label="Chính xác"
-                onClick={() => choose('correct')}
+                label="Đúng"
+                onClick={() => choose('dung')}
               />
               <VerdictButton
-                active={verdict === 'deviation'}
+                active={verdict === 'sai'}
                 icon="cancel"
-                label="Sai lệch"
-                onClick={() => choose('deviation')}
-              />
-              <VerdictButton
-                active={verdict === 'edit'}
-                icon="edit_note"
-                label="Sửa nhận định"
-                onClick={() => choose('edit')}
+                label="Sai"
+                onClick={() => choose('sai')}
               />
             </div>
+            <label className="mt-2 block font-label-sm text-label-sm font-semibold text-on-surface-variant">
+              {extraNoteLabel(verdict)}
+            </label>
             <textarea
-              className="mt-2 w-full resize-none rounded bg-surface-container-low p-2 font-body-sm text-body-sm text-on-surface outline-none focus:ring-1 focus:ring-outline-variant"
-              placeholder="Ghi chú thẩm định..."
+              className="mt-1 w-full resize-none rounded bg-surface-container-low p-2 font-body-sm text-body-sm text-on-surface outline-none focus:ring-1 focus:ring-outline-variant"
+              placeholder={extraNoteLabel(verdict)}
               rows={2}
               disabled={locked}
               value={note}
@@ -353,7 +334,7 @@ export function SearchCitationReview({
                             <span className="font-semibold">{spot.topic}</span>
                             <span className="block text-on-surface-variant">
                               {state
-                                ? `Thẩm định xung đột: ${VERDICT_LABEL[VERDICT_OF[state.action] ?? 'correct']} · ${reviewerLabel(state)}`
+                                ? `Thẩm định xung đột: ${actionLabel(state.action)} · ${reviewerLabel(state)}`
                                 : 'Chưa ai thẩm định xung đột này.'}
                             </span>
                           </span>

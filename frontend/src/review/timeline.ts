@@ -25,9 +25,28 @@ export const KIND_LABEL: Record<TimelineKind, string> = {
 }
 
 export const ACTION_LABEL: Record<string, string> = {
-  confirm: 'Chính xác',
-  reject: 'Sai lệch',
-  correct: 'Sửa nhận định',
+  confirm: 'Đúng',
+  reject: 'Sai',
+  correct: 'Bổ sung',
+}
+
+export type ReviewVerdict = 'dung' | 'sai'
+
+export function verdictOfAction(action: string): ReviewVerdict | null {
+  if (action === 'confirm') return 'dung'
+  if (action === 'reject') return 'sai'
+  return null
+}
+
+export function reviewActionOf(verdict: ReviewVerdict): 'confirm' | 'reject' {
+  return verdict === 'sai' ? 'reject' : 'confirm'
+}
+
+/** Ô ghi thêm: đúng thì bổ sung, sai thì xử lý. */
+export function extraNoteLabel(verdict: ReviewVerdict | null) {
+  if (verdict === 'sai') return 'Xử lý'
+  if (verdict === 'dung') return 'Bổ sung'
+  return 'Bổ sung hoặc xử lý'
 }
 
 export function actionLabel(action: string) {
