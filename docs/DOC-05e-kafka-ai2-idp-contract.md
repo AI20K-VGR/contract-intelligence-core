@@ -222,8 +222,8 @@ Rules (both sides):
 - `enable_auto_commit=false`; commit the command offset **after** the terminal result is published (at-least-once).
 - `max_poll_interval_ms` must be larger than the longest budget it can receive (recommended 1 800 000 ms), or the consumer must pause the partition while a job runs. Otherwise a long IDP run causes a rebalance and a second worker processes the same command.
 - Dedupe on `(idempotency_key, attempt)`, not only on `event_id`. Same key and same `payload_sha256` → republish the stored terminal result, do not rerun. Different `payload_sha256` → `AI2_IDEMPOTENCY_CONFLICT`. The dedupe store must survive a restart; the in-memory `_processed` dict in today's worker is acceptable only in local dev. Ownership:
-  - **AI2 owns and operates it.** It lives on the shared PostgreSQL server (DOC-11 §3: one database server) but in its own schema `ai2`, created by AI2's migrations and reached with its own role (`ai2_app`) that has no grant on Backend tables.
-  - Backend never reads or writes schema `ai2`, and AI2 never reads or writes Backend tables. The only interface between them is this contract.
+  - **Settled:** AI2 owns and operates the store. Backend never reads or writes it, and AI2 never reads or writes Backend tables; the only interface between them is this contract.
+  - **Not settled — where it lives waits for the Lead (DEC-BE-AI2-01 D11, PR #37).** Option A (proposed, ADR-14): the shared PostgreSQL server (DOC-11 §3) in AI2's own schema `ai2`, created by AI2's migrations and reached with its own role (`ai2_app`) that has no grant on Backend tables. Option B: keep ADR-02 as it is. This section is updated once D11 is decided.
   - Minimum columns: `idempotency_key`, `attempt`, `payload_sha256`, `job_id`, terminal result (or its `result_ref`), `created_at`. Unique on `(idempotency_key, attempt)`.
   - Retention: at least the topic retention (7 days), so any redelivery still finds its row.
 - Transient errors (LLM 429/529, timeouts): bounded retries **inside** AI2, then publish `ai2.idp.failed` with `retryable: true` and commit. AI2 must not "skip and continue": an uncommitted offset followed by a commit of a later offset silently drops the command.
@@ -299,7 +299,7 @@ A result that arrives after the watchdog failed the run is dropped (job already 
 | 3 | `payload_ref` / `result_target` / `result_ref` (§6) | [x] | [ ] |
 | 4 | HMAC on Kafka: verify signature and hash, not expiry/nonce (§4) | [x] | [ ] |
 | 5 | `ai2.idp.started` event | [x] | [ ] |
-| 6 | Dedupe on `(idempotency_key, attempt)`, durable, in AI2's own schema `ai2` (§7) | [x] | [ ] |
+| 6 | Dedupe on `(idempotency_key, attempt)`, durable, owned by AI2 (§7). Location waits for Lead decision D11 (PR #37) | [x] | [ ] |
 | 7 | Transient errors → `failed` with `retryable: true`, never skip-and-continue | [x] | [ ] |
 | 8 | Error code table (§5.3) | [x] | [ ] |
 | 9 | `query_binding` in the completed envelope | [x] | [ ] |
@@ -312,4 +312,5 @@ A result that arrives after the watchdog failed the run is dropped (job already 
 |---|---|
 | 2026-09-24 | v1 draft: MVP body-only; marked "not used" in Sprint 2 (HTTP chosen, SAD D4) |
 | 2026-09-30 | v2: Kafka chosen as the runtime path; full dossier, by-reference payloads, `started` event, attempt-scoped dedupe, Backend watchdog |
-| 2026-09-30 | v2.1 after AI2 review: status says the runtime is still HTTP; security decisions written out (§4); AI2 owns the dedupe store in its own schema (§7) |
+| 2026-09-30 | v2.1 after AI2 review: status says the runtime is still HTTP; security decisions written out (§4); AI2 owns the dedupe store (§7) |
+| 2026-09-30 | v2.2: where the dedupe store lives is the Lead's decision D11 (PR #37), not settled here; schema `ai2` is only option A (§7) |
