@@ -37,7 +37,10 @@ from contract_ocr.application.use_cases.extract_ai2_facts import (
     extract_clauses,
     extract_facts,
 )
-from contract_ocr.application.use_cases.process_document import ProcessDocument
+from contract_ocr.application.use_cases.process_document import (
+    LowQualityDocument,
+    ProcessDocument,
+)
 from contract_ocr.domain.entities import Document, Experiment
 from contract_ocr.infrastructure.backend_ocr_job import (
     MAX_UPLOAD_BYTES,
@@ -55,6 +58,7 @@ from contract_ocr.infrastructure.backend_ocr_job import (
 from contract_ocr.infrastructure.backend_ocr_job import (
     run_backend_ocr as _run_backend_ocr,
 )
+from contract_ocr.infrastructure.image.page_quality import OpenCvPageQuality
 from contract_ocr.infrastructure.image.preprocessing import ImagePreprocessor, validate_steps
 from contract_ocr.infrastructure.image.renderer import PdfRenderer
 from contract_ocr.infrastructure.pdf.pymupdf_extractor import PyMuPDFExtractor
@@ -85,7 +89,11 @@ app.add_middleware(
 )
 
 _processor = ProcessDocument(
-    PyMuPDFExtractor(), PdfRenderer(), ImagePreprocessor(), PdfPageClassifier()
+    PyMuPDFExtractor(),
+    PdfRenderer(),
+    ImagePreprocessor(),
+    PdfPageClassifier(),
+    quality=OpenCvPageQuality(),
 )
 _engine_lock = threading.Lock()
 _process_lock = threading.Lock()
@@ -328,6 +336,8 @@ def ocr_pdf(
                     dpi=dpi,
                     max_workers=max_workers,
                 )
+        except LowQualityDocument as exc:
+            raise HTTPException(422, f"Bản scan quá xấu, chưa gọi OCR: {exc}") from exc
         except ValueError as exc:
             raise HTTPException(400, f"Không xử lý được PDF: {exc}") from exc
         except Exception as exc:
@@ -478,6 +488,8 @@ def ai2_analyze(
                 annex_refs.append(
                     (annex_entry["document_id"], annex_entry["filename"], annex_entry["facts"])
                 )
+        except LowQualityDocument as exc:
+            raise HTTPException(422, f"Bản scan quá xấu, chưa gọi OCR: {exc}") from exc
         except ValueError as exc:
             raise HTTPException(400, f"Không xử lý được PDF: {exc}") from exc
         except Exception as exc:

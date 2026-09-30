@@ -16,3 +16,9 @@ class Renderer(Protocol):
 class Preprocessor(Protocol):
     def apply(self, image: Any, steps: list[str]) -> tuple[Any, Any]: ...
     def restore(self, lines: list, transform: Any, shape: tuple, original_shape: tuple) -> None: ...
+
+
+class PageQualityAssessor(Protocol):
+    def assess(self, image: Any) -> list[str]:
+        """Reasons the rendered page is hard to read (e.g. "blur"); empty when fine."""
+        ...
