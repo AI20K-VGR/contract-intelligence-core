@@ -3,7 +3,7 @@
 **Trạng thái:** Canonical processing contract v1  
 **Phạm vi:** Backend gửi toàn bộ dossier cho AI2 xử lý; AI2 trả kết quả async để Backend lưu và quyết định publish.
 
-> **v1.1:** §6 là các quy tắc đã chốt theo [DEC-BE-AI2-01](DEC-BE-AI2-01-contract-decisions.vi.md). Backend chốt ngày 2026-09-29; chờ AI2 (Văn Dũng) xác nhận, riêng D6 và D8 chờ thêm Lead. Chỗ nào §6 khác các mục trên thì theo §6.
+> **v1.2:** §6 là các quy tắc đã chốt theo [DEC-BE-AI2-01](DEC-BE-AI2-01-contract-decisions.vi.md). Backend chốt D1–D12; Lead duyệt D8, D11 (phương án A) và D12 ngày 30/09, **D6 chưa duyệt**; chờ AI2 (Văn Dũng) xác nhận. Chỗ nào §6 khác các mục trên thì theo §6.
 
 ## 1. Phạm vi và ownership
 
@@ -70,6 +70,8 @@ Endpoint demo: `POST /jobs/idp`. Backend gửi `snapshots[]` đầy đủ của 
 }
 ```
 
+Ví dụ trên là **hiện trạng** request Backend đang gửi (ví dụ `use_vector: true`). Luật đã chốt nằm ở §6: luồng xử lý `use_vector=false`, tối đa 6 file một hồ sơ, nhiều `body` chỉ theo D12.
+
 `dossier_members[]` là danh sách membership có role rõ ràng. `role_relation_map[]` là quan hệ cấu trúc do Backend xác định; AI2 không tự suy ra hay sửa quan hệ này. `ANNEX_OF` bắt buộc có `related_member_id`; `MEMBER_OF` không có target.
 
 Backend phải gửi đúng một member `body`, mọi member phải trỏ tới một snapshot trong `snapshots[]`, và các `source_digest` phải khớp với snapshot tương ứng. Adapter hiện tại kiểm tra các ràng buộc cross-field này ngoài JSON Schema.
@@ -133,7 +135,7 @@ Không tự động đổi version giữa các lane. Mọi migration từ `ai1.s
 
 ## 6. Quy tắc đã chốt (v1.2)
 
-Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn` trỏ tới mục tương ứng trong DEC. **D6, D8, D11 (phương án A hay B) và D12 còn chờ Lead chốt**, giống ghi chú ở đầu DEC: quy tắc của bốn mục này bên dưới là đề xuất của Backend, chưa phải quy tắc đã chốt.
+Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn` trỏ tới mục tương ứng trong DEC. Lead đã duyệt D8, D11 (phương án A) và D12 ngày 30/09. **D6 chưa duyệt**: quy tắc bật egress và vector trên bản online bên dưới chỉ áp dụng khi Lead ghi provider và trần chi tiêu.
 
 ### 6.1 Kết nối và bảo mật
 
@@ -143,7 +145,7 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
   - Scope: `ai2.jobs.submit` cho submit và poll, `ai2.query` cho hỏi đáp.
   - Payload đem đi hash: bỏ trường `service_envelope`, chuẩn hoá JSON với `sort_keys`, `separators=(",", ":")`, `ensure_ascii=False`, mã hoá UTF-8. Chữ ký là HMAC-SHA256 trên envelope đã bỏ `signature`.
   - Mỗi môi trường dùng một secret riêng, đặt giống nhau cho `backend`, `backend-worker` và `ai2-service`. Thiếu secret thì cả hai phía đều từ chối (fail-closed).
-  - Bản online tắt đường `/query` không chữ ký (env do AI2 thêm). Local và test giữ như cũ.
+  - `/query` bắt buộc có chữ ký: `AI2_QUERY_REQUIRE_SIGNATURE`, mặc định `true`, thiếu envelope thì `401 SERVICE_ENVELOPE_MISSING`. Chỉ compose local hoặc test cần nhánh cũ mới đặt `false`.
 - **Mạng (D3).** Bản online không publish cổng 8002. Healthcheck gọi `/healthz`, endpoint không gọi LLM.
 
 ### 6.2 Request
@@ -153,15 +155,15 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
   - `source_digest` và `snapshot_digest` là 64 ký tự hex chữ thường, không có tiền tố. AI2 nhận `sha256:<hex>` để tương thích nhưng chuẩn hoá ngay khi nhận.
 - **Hồ sơ nhiều file (D5).**
   - Gửi đủ mọi snapshot của hồ sơ. Sprint 2: đúng một member `body`; có 0 hoặc nhiều hơn một body thì Backend không gửi. Sprint 3: được nhiều `body` theo D12 (so hợp đồng–hợp đồng), bật qua `policy_flags.max_body_members`. AI2 nhận trường này trước; Backend chỉ gửi sau đó, vì `policy_flags` phía AI2 cấm trường lạ.
-  - Tối đa 6 file một hồ sơ (`snapshots` từ 1 đến 6). Hồ sơ hơn 6 tài liệu thì Backend không gửi và báo lỗi.
+  - Tối đa 6 file một hồ sơ (`snapshots` từ 1 đến 6). Hồ sơ hơn 6 tài liệu thì Backend không gửi và trả `422 DOSSIER_TOO_MANY_DOCUMENTS` ("Hồ sơ tối đa 6 tài liệu").
   - Phụ lục không có `ANNEX_OF` vẫn được gửi với `role=annex`; finding liên tài liệu khi đó ghi là "quan hệ chưa xác nhận".
   - AI2 không suy luận, không sửa role hay quan hệ.
-- **`policy_flags` (D6, chờ Lead).**
+- **`policy_flags` (D6, Lead chưa duyệt).**
   - Egress của từng luồng do biến env quyết định (`AI2_PROCESSING_EGRESS_ALLOWED`, `AI2_QUERY_EGRESS_ALLOWED`), mặc định `false`.
   - Khi `egress_allowed=false`, AI2 vẫn trả `SUCCEEDED` với phần xử lý bằng luật cố định.
   - Vượt `max_llm_calls` thì AI2 trả `INSUFFICIENT_EVIDENCE` kèm lý do, không trả `FAILED`.
   - Luồng xử lý hồ sơ: `use_vector=false`.
-  - Bản online bật vector cho `/query`: `AI2_VECTOR_RECALL_ENABLED=true` ở `ai2-service` (công tắc thật), `AI2_QUERY_USE_VECTOR=true` và `AI2_QUERY_EGRESS_ALLOWED=true` ở Backend. Vector trên `/query` dựa vào egress của chính `/query`, có trần `max_embedding_tokens`.
+  - Bản online **chưa bật egress và vector**: `AI2_QUERY_EGRESS_ALLOWED`, `AI2_QUERY_USE_VECTOR`, `AI2_VECTOR_RECALL_ENABLED` giữ `false` cho tới khi Lead duyệt D6. Khi bật: công tắc thật là `AI2_VECTOR_RECALL_ENABLED`; vector trên `/query` dựa vào egress của chính `/query`; trần embedding do AI2 đọc từ env của mình, Backend không gửi.
 
 ### 6.3 Vòng đời job
 
@@ -173,10 +175,10 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
   - Cùng `(key, attempt)` mà payload khác: AI2 trả `409`, Backend không retry.
   - Payload tất định: cùng `(key, attempt)` thì payload (bỏ `service_envelope`) giống hệt từng byte, kể cả khi dựng lại. `created_at` của snapshot lấy từ lúc lưu, không lấy giờ hiện tại.
   - Job được retry khi và chỉ khi `status=FAILED` và có ít nhất một lỗi `retryable=true`. `review_state` không quyết định retry; `BLOCKED` không retry.
-- **Ánh xạ trạng thái (D8, chờ Lead).**
-  - `SUCCEEDED` với `PASS`, `NEEDS_REVIEW` hoặc `INSUFFICIENT_EVIDENCE`: hồ sơ chuyển sang `pending_review`.
+- **Ánh xạ trạng thái (D8, Lead duyệt 30/09).**
+  - `SUCCEEDED` với `PASS`, `NEEDS_REVIEW` hoặc `INSUFFICIENT_EVIDENCE`: hồ sơ chuyển sang `pending_review`, nhãn UI "Chờ rà soát".
   - `SUCCEEDED` + `BLOCKED`, hoặc `FAILED` đã hết lượt retry: hồ sơ chuyển sang `failed`.
-  - Job không `SUCCEEDED` thì `review_state` là `null`; Backend chỉ đọc `status` và `errors[]`.
+  - Khi `status` khác `SUCCEEDED`, Backend bỏ qua `review_state` và chỉ đọc `status` và `errors[]`.
   - `evidence_ready` chỉ cho biết đủ bằng chứng để publish; nó không quyết định hồ sơ có vào hàng chờ review hay không.
 
 ### 6.4 Kết quả
@@ -197,9 +199,9 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
 
 ### 6.5 Lưu trữ (D11)
 
-- Phần này phụ thuộc lựa chọn A/B ở D11 (mâu thuẫn với DOC-04 ADR-02, xem ADR-14). Các dòng dưới đây là phương án A.
+- Lead chọn **phương án A** ngày 30/09; ADR-14 được chấp nhận.
 - Dữ liệu nghiệp vụ nằm ở Postgres của Backend, và chỉ Backend ghi.
 - Trạng thái riêng của AI2 nằm ở schema `ai2` trong cùng cụm Postgres, qua `AI2_DATABASE_URL` và user `ai2_app` (chỉ có quyền trên schema `ai2`). Migration của schema này do AI2 tự quản.
-- SQLite chỉ dùng cho test và chạy local. Vector bật trên bản online; `vectors.sqlite` là cache embedding, không phải nguồn sự thật, nhưng vẫn cần volume để khỏi phải trả tiền embed lại.
+- Job store, query store và durable run store của AI2 nằm ở schema `ai2` ngay từ lần deploy online đầu tiên. Vector chưa bật trên bản online (D6); `vectors.sqlite` là cache, volume cho nó vẫn giữ. Chuyển vector sang pgvector quyết cùng D6.
 - AI2 mất dữ liệu thì Backend dựng lại bằng cách gửi lại `/jobs/idp` với `attempt` mới.
-- Trước khi có Postgres: mount volume cho `AI2_JOB_DB` và `vectors.sqlite`.
+- Không cần volume cho `AI2_JOB_DB` khi AI2 đã chạy trên Postgres.
