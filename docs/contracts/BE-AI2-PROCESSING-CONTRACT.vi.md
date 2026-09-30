@@ -131,7 +131,7 @@ Không tự động đổi version giữa các lane. Mọi migration từ `ai1.s
 4. Result tách public wire shape khỏi internal `JobResult`/`IndexContribution`.
 5. Có test cho membership, body/annex relation, citation resolution và async lifecycle.
 
-## 6. Quy tắc đã chốt (v1.1)
+## 6. Quy tắc đã chốt (v1.2)
 
 Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn` trỏ tới mục tương ứng trong DEC. **D6, D8, D11 (phương án A hay B) và D12 còn chờ Lead chốt**, giống ghi chú ở đầu DEC: quy tắc của bốn mục này bên dưới là đề xuất của Backend, chưa phải quy tắc đã chốt.
 
@@ -139,10 +139,11 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
 
 - **Kênh gọi (D1).** Sprint 2: chỉ HTTP, `POST /jobs/idp` trả `202`, sau đó Backend poll `GET /jobs/{job_id}`. Sprint 3: chuyển sang Kafka theo DOC-05e v2 (PR #36) khi DOC-05e §12 đạt; HTTP còn làm fallback. `POST /query` là lời gọi đồng bộ ở cả hai sprint.
 - **Envelope (D2).**
-  - `issuer=backend-service`, `audience=vsf-ai2`, `key_id=default`; thời hạn 300 giây.
+  - `issuer=backend-service`, `audience=vsf-ai2`, `key_id=default`; Backend đặt thời hạn 300 giây. AI2 cho lệch đồng hồ 30 giây và từ chối envelope có thời hạn quá 3600 giây.
   - Scope: `ai2.jobs.submit` cho submit và poll, `ai2.query` cho hỏi đáp.
   - Payload đem đi hash: bỏ trường `service_envelope`, chuẩn hoá JSON với `sort_keys`, `separators=(",", ":")`, `ensure_ascii=False`, mã hoá UTF-8. Chữ ký là HMAC-SHA256 trên envelope đã bỏ `signature`.
   - Mỗi môi trường dùng một secret riêng, đặt giống nhau cho `backend`, `backend-worker` và `ai2-service`. Thiếu secret thì cả hai phía đều từ chối (fail-closed).
+  - Bản online tắt đường `/query` không chữ ký (env do AI2 thêm). Local và test giữ như cũ.
 - **Mạng (D3).** Bản online không publish cổng 8002. Healthcheck gọi `/healthz`, endpoint không gọi LLM.
 
 ### 6.2 Request
@@ -151,13 +152,16 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
   - Chỉ gửi `ai1.snapshot.v1`.
   - `source_digest` và `snapshot_digest` là 64 ký tự hex chữ thường, không có tiền tố. AI2 nhận `sha256:<hex>` để tương thích nhưng chuẩn hoá ngay khi nhận.
 - **Hồ sơ nhiều file (D5).**
-  - Gửi đủ mọi snapshot của hồ sơ. Sprint 2: đúng một member `body`; có 0 hoặc nhiều hơn một body thì Backend không gửi. Sprint 3: được nhiều `body` theo D12 (so hợp đồng–hợp đồng), bật qua `policy_flags.max_body_members`.
+  - Gửi đủ mọi snapshot của hồ sơ. Sprint 2: đúng một member `body`; có 0 hoặc nhiều hơn một body thì Backend không gửi. Sprint 3: được nhiều `body` theo D12 (so hợp đồng–hợp đồng), bật qua `policy_flags.max_body_members`. AI2 nhận trường này trước; Backend chỉ gửi sau đó, vì `policy_flags` phía AI2 cấm trường lạ.
+  - Tối đa 6 file một hồ sơ (`snapshots` từ 1 đến 6). Hồ sơ hơn 6 tài liệu thì Backend không gửi và báo lỗi.
   - Phụ lục không có `ANNEX_OF` vẫn được gửi với `role=annex`; finding liên tài liệu khi đó ghi là "quan hệ chưa xác nhận".
   - AI2 không suy luận, không sửa role hay quan hệ.
 - **`policy_flags` (D6, chờ Lead).**
   - Egress của từng luồng do biến env quyết định (`AI2_PROCESSING_EGRESS_ALLOWED`, `AI2_QUERY_EGRESS_ALLOWED`), mặc định `false`.
   - Khi `egress_allowed=false`, AI2 vẫn trả `SUCCEEDED` với phần xử lý bằng luật cố định.
   - Vượt `max_llm_calls` thì AI2 trả `INSUFFICIENT_EVIDENCE` kèm lý do, không trả `FAILED`.
+  - Luồng xử lý hồ sơ: `use_vector=false`.
+  - Bản online bật vector cho `/query`: `AI2_VECTOR_RECALL_ENABLED=true` ở `ai2-service` (công tắc thật), `AI2_QUERY_USE_VECTOR=true` và `AI2_QUERY_EGRESS_ALLOWED=true` ở Backend. Vector trên `/query` dựa vào egress của chính `/query`, có trần `max_embedding_tokens`.
 
 ### 6.3 Vòng đời job
 
@@ -167,9 +171,12 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
   - Retry sau `FAILED` có `retryable=true`: giữ key, `attempt` tăng 1, tối đa 3 attempt cho một run.
   - Bộ snapshot thay đổi: mở run mới, key mới.
   - Cùng `(key, attempt)` mà payload khác: AI2 trả `409`, Backend không retry.
+  - Payload tất định: cùng `(key, attempt)` thì payload (bỏ `service_envelope`) giống hệt từng byte, kể cả khi dựng lại. `created_at` của snapshot lấy từ lúc lưu, không lấy giờ hiện tại.
+  - Job được retry khi và chỉ khi `status=FAILED` và có ít nhất một lỗi `retryable=true`. `review_state` không quyết định retry; `BLOCKED` không retry.
 - **Ánh xạ trạng thái (D8, chờ Lead).**
   - `SUCCEEDED` với `PASS`, `NEEDS_REVIEW` hoặc `INSUFFICIENT_EVIDENCE`: hồ sơ chuyển sang `pending_review`.
-  - `BLOCKED`, hoặc `FAILED` đã hết lượt retry: hồ sơ chuyển sang `failed`.
+  - `SUCCEEDED` + `BLOCKED`, hoặc `FAILED` đã hết lượt retry: hồ sơ chuyển sang `failed`.
+  - Job không `SUCCEEDED` thì `review_state` là `null`; Backend chỉ đọc `status` và `errors[]`.
   - `evidence_ready` chỉ cho biết đủ bằng chứng để publish; nó không quyết định hồ sơ có vào hàng chờ review hay không.
 
 ### 6.4 Kết quả
@@ -182,10 +189,10 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
   - `table_id` và `cell_id` được lưu nếu có.
   - Finding liên tài liệu thiếu citation một phía thì bị hạ xuống `NEEDS_REVIEW`.
 - **Hỏi đáp `ai2.query.v1` (D10).**
-  - AI2 trả `query_snapshot_digest` (64 hex) trong result xử lý hồ sơ. Backend lưu nguyên giá trị đó và gửi lại trong `/query`. Backend không tự tính digest, và không dùng `dossier.checksum` thay thế.
+  - AI2 trả `query_snapshot_digest` (64 hex) trong result xử lý hồ sơ, dùng chung cho HTTP và Kafka. Backend lưu nguyên giá trị đó và gửi lại trong `/query`. Backend không tự tính digest, và không dùng `dossier.checksum` thay thế. Chuyển tiếp: result chưa có trường này thì Backend tạm tính như cũ, và xoá phần tự tính sau khi AI2 deploy.
   - Hồ sơ chưa có digest thì Backend không gọi AI2.
   - `acl_context` là `user_id` của người hỏi, chỉ dùng cho audit.
-  - `state` nhận một trong ba giá trị `ANSWERED`, `NEEDS_REVIEW`, `INSUFFICIENT_EVIDENCE`.
+  - `state` nhận một trong bốn giá trị `ANSWERED`, `NEEDS_REVIEW`, `INSUFFICIENT_EVIDENCE`, `BLOCKED`. `BLOCKED` là bị khoá hoặc bị chính sách chặn, không phải lỗi hệ thống.
   - Timeout 20 giây.
 
 ### 6.5 Lưu trữ (D11)
@@ -193,6 +200,6 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
 - Phần này phụ thuộc lựa chọn A/B ở D11 (mâu thuẫn với DOC-04 ADR-02, xem ADR-14). Các dòng dưới đây là phương án A.
 - Dữ liệu nghiệp vụ nằm ở Postgres của Backend, và chỉ Backend ghi.
 - Trạng thái riêng của AI2 nằm ở schema `ai2` trong cùng cụm Postgres, qua `AI2_DATABASE_URL` và user `ai2_app` (chỉ có quyền trên schema `ai2`). Migration của schema này do AI2 tự quản.
-- SQLite chỉ dùng cho test và chạy local. Vector tắt trên bản online.
+- SQLite chỉ dùng cho test và chạy local. Vector bật trên bản online; `vectors.sqlite` là cache embedding, không phải nguồn sự thật, nhưng vẫn cần volume để khỏi phải trả tiền embed lại.
 - AI2 mất dữ liệu thì Backend dựng lại bằng cách gửi lại `/jobs/idp` với `attempt` mới.
-- Trước khi có Postgres: mount volume cho các file SQLite của AI2.
+- Trước khi có Postgres: mount volume cho `AI2_JOB_DB` và `vectors.sqlite`.
