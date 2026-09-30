@@ -1,0 +1,25 @@
+{
+  "sizing": {
+    "mode": "multi",
+    "projected_cells": 640,
+    "pruned_cells": 640,
+    "threshold": 60,
+    "sub_plan_count": 2,
+    "split_strategy": "hybrid"
+  },
+  "sizer_input": {
+    "features": ["versioned-contracts", "versioned-ai2-image", "llm-enabled-ai2", "ai2-observability"],
+    "layers": ["api", "infra"]
+  },
+  "decision": "proceed",
+  "reason": "This plan is already sub-plan B of a user-approved 3-way split (parent sizing: 9 features, 2880 cells; user chose 'Tách 3 plan theo phụ thuộc' on 2026-09-29). The sizer's further split is by layer (api vs infra), which would separate the versioned image from the contracts and /version endpoint it publishes; B has 4 features, 4 phases and one owner (AI2).",
+  "parent_split": {
+    "decided_by": "user (AskUserQuestion, 2026-09-29)",
+    "subPlans": [
+      {"id": "A-measure", "plan": "plans/260929-2323-ai2-a-measure-baseline"},
+      {"id": "B-service", "plan": "plans/260929-2323-ai2-b-versioned-service"},
+      {"id": "C-integration", "plan": "plans/260929-2323-ai2-c-integration"}
+    ],
+    "dependencies": ["A-measure -> B-service", "A-measure -> C-integration", "B-service -> C-integration"]
+  }
+}

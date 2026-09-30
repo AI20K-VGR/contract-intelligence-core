@@ -1,0 +1,153 @@
+# plan-graph.yaml — phase-DAG sidecar for 260929-2323-ai2-a-measure-baseline.
+# {from: A, to: B} = "A runs BEFORE B". Chain P1 -> P2 -> P3 -> P4 (P2 -> P4 explicit:
+# P4's PR job calls P2's gate CLI and needs P2's committed baselines).
+# P4 also runs a mechanical ruff autofix (I001/F401/E714) whose exact file list is the
+# output of `ruff check` at cook time; it is scoped to files NOT owned by P1-P3 below.
+edges:
+  - {from: P1, to: P2}
+  - {from: P2, to: P3}
+  - {from: P2, to: P4}
+  - {from: P3, to: P4}
+subtasks:
+  P1:
+    files_to_create:
+      - evals/golden/__init__.py
+      - evals/golden/spec.py
+      - evals/golden/catalog.py
+      - evals/golden/render_snapshot.py
+      - evals/golden/build_golden.py
+      - evals/data/golden/manifest.json
+      - evals/data/golden/questions.json
+      - evals/data/golden/snapshots/G01.json
+      - evals/data/golden/snapshots/G02.json
+      - evals/data/golden/snapshots/G03.json
+      - evals/data/golden/snapshots/G04.json
+      - evals/data/golden/snapshots/G05.json
+      - evals/data/golden/snapshots/G06.json
+      - evals/data/golden/snapshots/G07.json
+      - evals/data/golden/snapshots/G08.json
+      - evals/docs/golden-guideline.vi.md
+      - evals/scripts/candidate_review.py
+      - evals/corpus/candidate_review_worksheet.md
+      - evals/corpus/candidate_decisions.json
+      - evals/tests/test_golden_generator.py
+      - evals/tests/test_golden_pipeline_smoke.py
+      - evals/tests/test_candidate_review.py
+    files_to_modify:
+      - .gitattributes
+      - evals/corpus/golden_manifest.json
+      - evals/corpus/candidate_manifest.json
+    post: [verification-P1.json]
+  P2:
+    files_to_create:
+      - evals/unit_metrics.py
+      - evals/value_normalize.py
+      - evals/real_pipeline.py
+      - evals/scripts/approve_card.py
+      - evals/scripts/run_ai2_gate.py
+      - evals/tests/test_unit_metrics.py
+      - evals/tests/test_value_normalize.py
+      - evals/tests/test_real_pipeline.py
+      - evals/tests/test_approve_card.py
+      - evals/tests/test_gate_exit_codes.py
+      - evals/tests/test_no_eval_leakage.py
+      - evals/cards/proposed/ai2_grounded_query.v2.json
+      - evals/cards/proposed/ai2_contract_package.v2.json
+      - evals/eval_types/ai2_grounded_query/units.py
+      - evals/eval_types/ai2_grounded_query/invariants.py
+      - evals/eval_types/ai2_grounded_query/tests/test_units.py
+      - evals/eval_types/ai2_grounded_query/tests/test_invariants.py
+      - evals/eval_types/ai2_contract_package/processing_units.py
+      - evals/eval_types/ai2_contract_package/tests/test_processing_units.py
+      - evals/cards/ai2_contract_package.sha256
+      - evals/baselines/ai2_grounded_query.offline.json
+      - evals/baselines/ai2_contract_package.offline.json
+    files_to_modify:
+      - .gitignore
+      - evals/eval_types/ai2_grounded_query/config_integrity.py
+      - evals/eval_types/ai2_grounded_query/scorer.py
+      - evals/eval_types/ai2_grounded_query/runner.py
+      - evals/eval_types/ai2_grounded_query/judge_runner.py
+      - evals/eval_types/ai2_grounded_query/judge_prompt.py
+      - evals/eval_types/ai2_grounded_query/tests/test_scorer.py
+      - evals/eval_types/ai2_grounded_query/tests/test_config_conformance.py
+      - evals/eval_types/ai2_grounded_query/tests/test_mirror_parity.py
+      - evals/eval_types/ai2_contract_package/config_integrity.py
+      - evals/eval_types/ai2_contract_package/scorer.py
+      - evals/eval_types/ai2_contract_package/runner.py
+      - evals/eval_types/ai2_contract_package/tests/test_scorer.py
+      - evals/eval_types/ai2_contract_package/tests/test_config_conformance.py
+      - evals/eval_types/ai2_contract_package/tests/test_mirror_parity.py
+      - evals/cards/ai2_grounded_query.json
+      - evals/cards/ai2_grounded_query.sha256
+      - evals/cards/ai2_contract_package.json
+      - evals/scripts/run_grounded_query_evals.py
+      - evals/scripts/run_production_evals.py
+      - evals/scripts/run_release_verification.py
+      - evals/mutation_mapping.json
+      - evals/tests/test_p4_release_verification.py
+      - evals/docs/production-eval-setup.md
+    files_to_delete:
+      - evals/eval_types/ai2_grounded_query/pipeline_mirror.py
+      - evals/eval_types/ai2_contract_package/pipeline_mirror.py
+      - evals/eval_types/ai2_contract_package/tests/production_fixtures/ground_truth.json
+      - evals/eval_config.json
+      - evals/eval_config.sha256
+      - evals/data/samples/ai2_contract_package/README.md
+      - evals/data/samples/ai2_contract_package/body_annex_conflict.json
+      - evals/data/samples/ai2_contract_package/clean_fact.json
+      - evals/data/samples/ai2_contract_package/complete_table.json
+      - evals/data/samples/ai2_contract_package/full_contract_annex.json
+      - evals/data/samples/ai2_contract_package/long_document.json
+      - evals/data/samples/ai2_contract_package/missing_annex.json
+      - evals/data/samples/ai2_contract_package/partial_budget.json
+      - evals/data/samples/ai2_contract_package/security_scope.json
+      - evals/data/samples/ai2_contract_package/unsafe_text.json
+      - evals/data/samples/ai2_contract_package/vietnamese_boundary.json
+    post: [verification-P2.json]
+  P3:
+    files_to_create:
+      - evals/live/__init__.py
+      - evals/live/budget.py
+      - evals/live/pricing.json
+      - evals/live/benchmark.py
+      - evals/live/dotenv_opt_in.py
+      - evals/scripts/run_live_benchmark.py
+      - evals/conftest.py
+      - evals/tests/test_live_budget.py
+      - evals/tests/test_live_benchmark.py
+      - evals/tests/test_live_openai_smoke.py
+      - ai-service/tests/test_llm_client_trace.py
+      - ai-service/tests/test_offline_env_isolation.py
+      - evals/baselines/ai2_live.baseline.json
+      - docs/ai2/AI2-16-measurement-baseline.vi.md
+    files_to_modify:
+      - ai-service/pyproject.toml
+      - ai-service/tests/conftest.py
+      - ai-service/app/llm/client.py
+    post: [verification-P3.json]
+  P4:
+    files_to_create:
+      - .github/workflows/ai2-live-benchmark.yml
+      - ai-service/tests/fixtures/p0-contract-baseline.json
+      - evals/tests/test_ci_workflows.py
+    files_to_modify:
+      - .github/workflows/ai-service.yml
+      - .github/CODEOWNERS
+      - ai-service/app/tools/jobs.py
+      - ai-service/README.md
+      - docs/code-standards.md
+      - ai-service/tests/unit/test_mistral_ocr.py
+      - ai-service/tests/unit/test_kafka_idp_worker.py
+      - ai-service/tests/unit/test_production_query.py
+      - ai-service/tests/test_hd_gold.py
+      - ai-service/tests/test_ingest.py
+      - ai-service/tests/test_structure_reconstruction.py
+      - ai-service/tests/test_p0_contract_baseline.py
+      - ai-service/tests/unit/test_core.py
+      - ai-service/tests/unit/test_kafka_contract_compat.py
+      - ai-service/app/reasoning/gold.py
+      - ai-service/tests/test_p6_event_ui_convergence.py
+    files_to_delete:
+      - evals/ci/production-evals.yml
+    post: [verification-P4.json, review-decision.json]

@@ -1,0 +1,106 @@
+# Phase DAG and file ownership for AI2-B. Edge direction: prerequisite -> dependent.
+edges:
+  - {from: P1, to: P2}
+  - {from: P1, to: P3}
+  - {from: P2, to: P3}
+  - {from: P2, to: P4}
+  - {from: P3, to: P4}
+subtasks:
+  P1:
+    files_to_create:
+      - docs/contracts/ai2.query.v1.request.schema.json
+      - docs/contracts/ai2.query.v1.response.schema.json
+      - docs/contracts/ai2.error.v1.schema.json
+      - docs/contracts/CHANGELOG.md
+      - ai-service/app/contracts/versions.py
+      - ai-service/app/api/query_contract.py
+      - ai-service/app/api/errors.py
+      - ai-service/tests/test_versioned_contracts.py
+      - backend/tests/unit/test_ai2_contract_tolerance.py
+    files_to_modify:
+      - docs/contracts/ai2.be.processing.result.v1.schema.json
+      - docs/contracts/README.md
+      - ai-service/app/api/main.py
+      - ai-service/app/contracts/wire.py
+      - ai-service/app/contracts/schema_validation.py
+      - ai-service/app/pipeline/ai1_snapshot_adapter.py
+      - ai-service/app/security/service_envelope.py
+      - backend/src/contract_intelligence/worker.py
+      - backend/src/contract_intelligence/infrastructure/ai_adapters.py
+    post: [verification-P1.json]
+  P2:
+    files_to_create:
+      - ai-service/app/llm/guard.py
+      - ai-service/app/llm/settings.py
+      - ai-service/tests/test_llm_guard.py
+      - ai-service/tests/test_llm_query_integration.py
+      - backend/src/contract_intelligence/shared/ai/egress_policy.py
+      - backend/tests/unit/test_ai2_query_egress_policy.py
+    files_to_modify:
+      - backend/src/contract_intelligence/api/v1/dossiers.py
+      - backend/src/contract_intelligence/config/settings.py
+      - backend/src/contract_intelligence/schemas/queries.py
+      - backend/src/contract_intelligence/contract/interfaces/api/routers/contract_router.py
+      - backend/src/contract_intelligence/shared/ai/canonical_processing.py
+      - backend/src/contract_intelligence/infrastructure/ai_adapters.py
+      - backend/src/contract_intelligence/api/v1/webhooks.py
+      - backend/tests/unit/test_query_state_passthrough.py
+      - backend/tests/unit/test_contract_router.py
+      - backend/tests/unit/test_ai_adapters.py
+      - backend/tests/unit/test_dossiers_query.py
+      - ai-service/app/api/main.py
+      - ai-service/app/llm/client.py
+      - ai-service/app/pipeline/runtime.py
+      - ai-service/app/reasoning/l2_plan.py
+      - ai-service/app/reasoning/stack.py
+      - ai-service/app/reasoning/query.py
+      - ai-service/app/reasoning/orchestrator.py
+      - ai-service/.env.example
+      - docker-compose.yml
+      - ai-service/tests/test_query_fallback_state.py
+      - ai-service/tests/test_llm.py
+      - ai-service/tests/test_llm_guardrails.py
+      - ai-service/tests/test_processing_runtime.py
+      - evals/tests/test_live_benchmark.py
+    post: [verification-P2.json]
+  P3:
+    files_to_create:
+      - ai-service/.dockerignore
+      - docker-compose.ai2-image.yml
+      - .github/workflows/ai2-release.yml
+      - evals/scripts/ai2_release_evidence.py
+      - evals/tests/test_ai2_release_evidence.py
+      - ai-service/tests/test_version_endpoint.py
+      - ai-service/tests/test_packaging_hygiene.py
+      - docs/ai2/AI2-17-release-runbook.vi.md
+    files_to_modify:
+      - ai-service/Dockerfile.ai2
+      - ai-service/app/contracts/schema_validation.py
+      - ai-service/app/api/main.py
+      - ai-service/pyproject.toml
+      - ai-service/.env.example
+      - docker-compose.yml
+      - .github/CODEOWNERS
+      - ai-service/README.md
+    post: [verification-P3.json]
+  P4:
+    files_to_create:
+      - ai-service/app/observability/logging.py
+      - ai-service/app/observability/metrics.py
+      - ai-service/app/observability/tracing.py
+      - ai-service/tests/test_observability_logging.py
+      - ai-service/tests/test_observability_metrics.py
+      - ai-service/tests/test_observability_tracing.py
+      - docs/ai2/AI2-18-observability.vi.md
+    files_to_modify:
+      - ai-service/app/api/main.py
+      - ai-service/app/transport/kafka_idp_worker.py
+      - ai-service/app/llm/client.py
+      - ai-service/app/llm/guard.py
+      - ai-service/pyproject.toml
+      - ai-service/uv.lock
+      - docker-compose.yml
+      - ai-service/.env.example
+      - ai-service/README.md
+      - docs/ai2/AI2-17-release-runbook.vi.md
+    post: [verification-P4.json, review-decision.json]

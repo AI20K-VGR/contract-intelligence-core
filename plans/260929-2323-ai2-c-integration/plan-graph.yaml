@@ -1,0 +1,88 @@
+﻿# plan-graph.yaml — phase-DAG sidecar for 260929-2323-ai2-c-integration.
+# Edge direction: {from: A, to: B} means A must complete before B can start.
+# The ADR-14 decision is a step-level human gate in P2-2c and P3, not an edge:
+# P2-2a/2b and P4 can proceed while P1 awaits Architecture Lead review.
+# P4-F4.10 is gated by P3 PASS as specified in phase-4; this does not block P4's earlier work.
+edges:
+  - {from: P1, to: P3}
+  - {from: P2, to: P3}
+subtasks:
+  P1:
+    files_to_create: []
+    files_to_modify:
+      - docs/DOC-04-architecture.md
+    post: [verification-P1.json]
+  P2:
+    files_to_create:
+      - ai-service/app/db/__init__.py
+      - ai-service/app/db/engine.py
+      - ai-service/app/db/tables.py
+      - ai-service/app/db/bootstrap.py
+      - ai-service/app/db/migrate.py
+      - ai-service/app/db/migrations/env.py
+      - ai-service/app/db/migrations/script.py.mako
+      - ai-service/app/db/migrations/versions/0001_ai2_initial.py
+      - ai-service/app/tools/record_codec.py
+      - ai-service/app/tools/job_sweeper.py
+      - ai-service/tests/test_pipeline_determinism.py
+      - ai-service/tests/test_record_persistence.py
+      - ai-service/tests/test_job_recovery.py
+      - ai-service/tests/test_ai2_postgres_schema.py
+    files_to_modify:
+      - ai-service/app/pipeline/clause.py
+      - ai-service/app/pipeline/compare.py
+      - ai-service/app/tools/jobs.py
+      - ai-service/app/tools/store.py
+      - ai-service/app/tools/__init__.py
+      - ai-service/app/api/main.py
+      - ai-service/pyproject.toml
+      - ai-service/uv.lock
+      - ai-service/tests/conftest.py
+      - ai-service/tests/test_api.py
+      - ai-service/tests/test_job_store.py
+      - docker-compose.yml
+      - .github/workflows/ai-service.yml
+    post: [verification-P2.json]
+  P3:
+    files_to_create:
+      - backend/tests/e2e/__init__.py
+      - backend/tests/e2e/conftest.py
+      - backend/tests/e2e/test_backend_ai2_e2e.py
+      - backend/tests/unit/test_ai2_attempt_supersede.py
+      - .github/workflows/e2e-backend-ai2.yml
+    files_to_modify:
+      - backend/src/contract_intelligence/shared/ai/canonical_processing.py
+      - backend/src/contract_intelligence/shared/ai/persistence.py
+      - backend/src/contract_intelligence/worker.py
+      - backend/pyproject.toml
+      - backend/uv.lock
+      - docs/system-architecture.md
+      - docs/code-standards.md
+      - ai-service/README.md
+    post: [verification-P3.json]
+  P4:
+    files_to_create:
+      - ai-service/app/reasoning/structural_refs.py
+      - ai-service/app/reasoning/comparability.py
+      - ai-service/app/reasoning/retrieval_views.py
+      - ai-service/fixtures/gold_labels.py
+      - ai-service/tests/test_structural_refs.py
+      - ai-service/tests/test_comparability.py
+      - ai-service/tests/test_retrieval_views.py
+      - docs/ai2/AI2-18-quality-uplift.vi.md
+    files_to_modify:
+      - ai-service/app/reasoning/l0_rules.py
+      - ai-service/app/reasoning/l1_retrieval.py
+      - ai-service/app/reasoning/gold.py
+      - ai-service/tests/test_reasoning.py
+      - evals/tests/test_no_eval_leakage.py
+      - evals/cards/proposed/ai2_grounded_query.v2.json
+      - evals/cards/proposed/ai2_contract_package.v2.json
+      - evals/cards/ai2_grounded_query.json
+      - evals/cards/ai2_grounded_query.sha256
+      - evals/cards/ai2_contract_package.json
+      - evals/cards/ai2_contract_package.sha256
+      - evals/baselines/ai2_grounded_query.offline.json
+      - evals/baselines/ai2_contract_package.offline.json
+      - docs/ai2/README.md
+    post: [verification-P4.json, review-decision.json]
