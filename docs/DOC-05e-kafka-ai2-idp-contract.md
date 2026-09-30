@@ -91,7 +91,7 @@ Same envelope as DOC-05d, plus the AI2-specific fields marked *(AI2)*.
 `payload` is the canonical [`be.ai2.processing.request.v1`](contracts/be.ai2.processing.request.v1.schema.json), built the same way as for HTTP today (`canonical_processing.build_processing_request`):
 
 - `snapshots[]`: **every** selected `ai1.snapshot.v1` of the dossier (body and annexes). The MVP body-only limit of the previous draft is dropped; AI2 must accept N members.
-- `dossier_members[]`: exactly one `role: "body"`; the others `annex`. Backend refuses to dispatch a dossier with zero or several bodies, or with more than **6** documents (AI2 accepts 1 to 6 snapshots; DEC-BE-AI2-01 D5). Several bodies come with D12, and only after AI2 accepts `policy_flags.max_body_members`.
+- `dossier_members[]`: exactly one `role: "body"`; the others `annex`. Backend refuses to dispatch a dossier with zero or several bodies, or with more than **6** documents: [`be.ai2.processing.request.v1`](contracts/be.ai2.processing.request.v1.schema.json) caps `snapshots`, `snapshot_identities` and `dossier_members` at `maxItems: 6`, and AI2 enforces the same limit. The rule is also written into DEC-BE-AI2-01 D5 (PR #37). Several bodies come with D12, and only after AI2 accepts `policy_flags.max_body_members`.
 - `role_relation_map[]`: relations stored by Backend (`ANNEX_OF`, `MEMBER_OF`). AI2 does not infer or change them.
 - `policy_flags`: authoritative from Backend (egress, vector, budget). `budget_limits.max_processing_seconds` is also the base of the Backend deadline (§8).
 - `idempotency_key` = `<run_id>:ai2`, fixed for the run. `attempt` starts at 1 and is bumped by every Backend retry.
@@ -307,5 +307,5 @@ A result that arrives after the watchdog failed the run is dropped (job already 
 | 2026-09-24 | v1 draft: MVP body-only; marked "not used" in Sprint 2 (HTTP chosen, SAD D4) |
 | 2026-09-30 | v2: Kafka chosen as the runtime path; full dossier, by-reference payloads, `started` event, attempt-scoped dedupe, Backend watchdog |
 | 2026-09-30 | v2.1 after AI2 review: status says the runtime is still HTTP; security decisions written out (§4); AI2 owns the dedupe store (§7) |
-| 2026-09-30 | v2.3, after the AI2 review of DEC-BE-AI2-01 (PR #37): `query_binding` dropped for `query_snapshot_digest` in the payload (D10); at most 6 documents (D5); retry rule (D7) |
+| 2026-09-30 | v2.3, after the AI2 review of DEC-BE-AI2-01 (PR #37): `query_binding` dropped for `query_snapshot_digest` in the payload (D10); at most 6 documents (from the request schema, `maxItems: 6`); retry rule (D7) |
 | 2026-09-30 | v2.2: where the dedupe store lives is the Lead's decision D11 (PR #37), not settled here; schema `ai2` is only option A (§7) |
