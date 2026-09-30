@@ -168,6 +168,62 @@ async def test_approval_holding_dossier_blocks_then_refuses_action(
         assert list((await session.execute(select(ReviewActionORM))).scalars()) == []
 
 
+async def test_last_two_items_closed_concurrently_mark_the_dossier_reviewed(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Under FOR SHARE each reviewer counted the other's item as still open."""
+    async with factory() as session:
+        dossier = await session.get(DossierORM, DOSSIER_ID)
+        job = await session.get(JobORM, JOB_ID)
+        assert dossier is not None and job is not None
+        dossier.status = job.status = "pending_review"
+        session.add(
+            ReviewItemORM(
+                id="ri_pg_2",
+                tenant_id=TENANT_ID,
+                dossier_id=DOSSIER_ID,
+                run_id=RUN_ID,
+                target_type="finding",
+                target_id="finding-2",
+                reason="conflict",
+                priority="P1",
+                status="open",
+                version=1,
+            )
+        )
+        await session.commit()
+
+    async with factory() as first, factory() as second:
+        await _submit(first, "reviewer-a")
+        other = asyncio.create_task(
+            ReviewRepositoryImpl(second, TENANT_ID).submit_action(
+                item_id="ri_pg_2",
+                action_type=ReviewActionType.CONFIRM,
+                base_version=1,
+                reviewer_id="reviewer-b",
+            )
+        )
+        await asyncio.sleep(0.5)
+        assert not other.done(), "the dossier row lock must serialize the two actions"
+        await first.commit()
+        await other
+        await second.commit()
+
+    async with factory() as session:
+        dossier = await session.get(DossierORM, DOSSIER_ID)
+        job = await session.get(JobORM, JOB_ID)
+        reviewed = list(
+            (
+                await session.execute(
+                    select(AuditEventORM).where(AuditEventORM.action == "dossier.reviewed")
+                )
+            ).scalars()
+        )
+    assert dossier is not None and job is not None
+    assert (dossier.status, job.status) == ("reviewed", "reviewed")
+    assert [a.actor_id for a in reviewed] == ["reviewer-b"]
+
+
 async def test_unique_index_rejects_duplicate_base_version(
     factory: async_sessionmaker[AsyncSession],
 ) -> None:
