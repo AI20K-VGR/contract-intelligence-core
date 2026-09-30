@@ -97,6 +97,10 @@ class FactExtractor:
         phrase = _scale_phrase_norm(raw)
         if phrase:
             return phrase, "L0"
+        # A masked or illegible value has nothing to normalize; asking a model
+        # turned "1.000.•••" into "1000".
+        if _unreadable(raw):
+            return None, "L0"
         if self.llm and (self.runtime is None or self.llm.configured()):
             if self.runtime is not None:
                 data = self.runtime.complete_json(
@@ -117,6 +121,12 @@ class FactExtractor:
                     self.runtime.add_issue("LLM_INVALID_OUTPUT", "normalization response omitted a string")
                     self.runtime.fallback_count += 1
                 return None, "L0"
+            reason = _ungrounded_normalization(raw, norm)
+            if reason:
+                if self.runtime is not None:
+                    self.runtime.add_issue("LLM_NORMALIZATION_REJECTED", reason)
+                    self.runtime.fallback_count += 1
+                return None, "L0"
             return norm.strip(), "L2"
         return None, "L0"
 
@@ -124,8 +134,41 @@ class FactExtractor:
 _NORMALIZE_SYSTEM = (
     "Normalize a contract field. Return JSON with keys normalized and unit. "
     "normalized must be one string in the same language as raw. "
-    "Do not translate. Do not return an object or a list. Do not invent values. No legal conclusion."
+    "Do not translate. Do not return an object or a list. Do not invent values. No legal conclusion. "
+    "Use the deterministic rules' conventions: a percentage becomes the bare number without % "
+    "(\"0,1%/ngày\" -> \"0.1\"); a money amount becomes digits only. "
+    "If the raw value is masked, cut off, illegible or states no value, return {\"normalized\": null}."
 )
+
+_MASK = re.compile(r"[•●■□▯�]|\?{2,}|\*{2,}|\.{4,}|…|x{3,}", re.I)
+_UNREADABLE_PHRASES = ("không rõ", "không đọc được", "khong ro", "khong doc duoc", "illegible", "unreadable")
+
+
+def _unreadable(raw: str) -> bool:
+    low = (raw or "").casefold()
+    return bool(_MASK.search(raw or "")) or any(p in low for p in _UNREADABLE_PHRASES)
+
+
+def _fold(value: str) -> str:
+    import unicodedata
+
+    text = unicodedata.normalize("NFD", value.casefold())
+    return "".join(c for c in text if unicodedata.category(c) != "Mn").replace("đ", "d")
+
+
+def _ungrounded_normalization(raw: str, norm: str) -> str | None:
+    """Reject a model normalization that adds digits or words the raw lacks."""
+
+    raw_digits = re.sub(r"\D", "", raw)
+    if raw_digits:
+        norm_digits = re.sub(r"\D", "", norm)
+        if norm_digits and norm_digits not in raw_digits and raw_digits not in norm_digits:
+            return f"normalized digits {norm!r} are not in raw value {raw!r}"
+    raw_words = set(re.findall(r"[a-z]+", _fold(raw)))
+    extra = [w for w in re.findall(r"[a-z]+", _fold(norm)) if len(w) > 2 and w not in raw_words]
+    if extra:
+        return f"normalized value adds words not in raw ({', '.join(extra[:3])}); translation is not normalization"
+    return None
 
 
 def _first_value(text: str) -> str:
