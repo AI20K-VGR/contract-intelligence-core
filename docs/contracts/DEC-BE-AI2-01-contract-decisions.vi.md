@@ -198,11 +198,11 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
 
 - Nếu cùng `(idempotency_key, attempt)` mà payload khác, AI2 trả `409` (`IDEMPOTENCY_PAYLOAD_CONFLICT`). Backend coi đây là lỗi lập trình và không retry.
 - **Payload tất định.** Cùng `(idempotency_key, attempt)` thì payload (bỏ `service_envelope`) phải giống hệt từng byte, kể cả khi dựng lại sau khi worker crash hoặc message được giao lại. Hiện Backend ghi `created_at = datetime.now()` mỗi lần dựng snapshot (`canonical_processing.py:211`), nên dựng lại là nhận `409` và run fail. Sửa: `created_at` lấy từ thời điểm lưu snapshot, không lấy giờ hiện tại.
-- **Định nghĩa "job được retry":** `status=FAILED` **và** có ít nhất một phần tử trong `errors[]` mang `retryable=true`. `review_state` không quyết định retry. `BLOCKED` không bao giờ được retry (khớp D8).
+- **Định nghĩa "job được retry":** `status=FAILED` **và** có ít nhất một phần tử trong `errors[]` mang `retryable=true`. `retryable` gắn với **mã lỗi** (lỗi tạm như 429/529, timeout provider: `true`; lỗi contract, dữ liệu sai: `false`), không suy ra từ `review_state`. Với `FAILED`, AI2 luôn trả `review_state="BLOCKED"`, nên Backend bỏ qua `review_state` khi quyết định retry. Hồ sơ `SUCCEEDED` + `BLOCKED` thì không retry (D8).
 - Backend retry tối đa 3 attempt cho một run.
 
 **Việc cần làm:**
-- AI2: đã có `409` và trả lại cùng `job_id` (xác nhận trong review 30/09). Sửa cờ `retryable`: hiện mọi lỗi có `review_state=BLOCKED` được đánh `retryable=true` (`wire.py`), trái với D8; `BLOCKED` phải là `retryable=false`.
+- AI2: đã có `409` và trả lại cùng `job_id` (xác nhận trong review 30/09). Sửa cờ `retryable`: hiện mọi lỗi có `review_state=BLOCKED` được đánh `retryable=true` (`wire.py`). Đổi thành: `retryable` theo mã lỗi, không theo `review_state`.
 - Backend: payload tất định (`created_at` từ lúc lưu snapshot); thêm giới hạn attempt và nhánh xử lý `retryable=false`; retry theo đúng định nghĩa ở trên.
 
 - [x] Chương duyệt  - [ ] Dũng duyệt  Ghi chú:
@@ -224,7 +224,7 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
 | `FAILED` | retry theo D7; hết lượt thì `failed` | Lỗi, kèm `code` |
 
 - `evidence_ready` chỉ cho biết đủ bằng chứng để publish. Nó **không** quyết định hồ sơ có vào hàng chờ review hay không.
-- **Khi `status` khác `SUCCEEDED` thì Backend bỏ qua `review_state`** và chỉ dựa vào `status` và `errors[]` (D7). Lý do: khi request sai contract, AI2 vẫn trả một giá trị `review_state` (không phải `null`), nên Backend không được đọc nó.
+- **Khi `status` khác `SUCCEEDED` thì Backend bỏ qua `review_state`** và chỉ dựa vào `status` và `errors[]` (D7). Lý do: khi job `FAILED` (kể cả request sai contract), AI2 trả `review_state="BLOCKED"`, không phải `null`; giá trị này không mang nghĩa "bị chặn" như ở `SUCCEEDED` + `BLOCKED`.
 
 **Lead đã chốt (30/09):** trạng thái hồ sơ là `pending_review`. Nhãn UI là **"Chờ rà soát"**, như màn danh sách đang có. Không dùng chữ "Chờ duyệt".
 
@@ -379,7 +379,7 @@ Review của Văn Dũng ở PR #37 xác nhận D2, D4, D5, D7 (409 và cùng `jo
 | # | Mục | Việc | Hạn |
 |---|---|---|---|
 | A1 | D10 | Thêm `query_snapshot_digest` vào result và schema (**gấp nhất**, Backend chờ việc này) | 01/10 |
-| A2 | D7 | `BLOCKED` là `retryable=false`; retry chỉ khi `FAILED` và có lỗi `retryable=true` | 01/10 |
+| A2 | D7 | `retryable` theo mã lỗi, không theo `review_state` (bỏ quy tắc đánh `retryable=true` cho mọi lỗi `BLOCKED`); retry chỉ khi `FAILED` và có lỗi `retryable=true` | 01/10 |
 | A3 | D6 | Vector `/query` dựa vào egress của `/query`; trần embedding của `/query` đọc từ env AI2; test egress tắt → `SUCCEEDED`, vượt `max_llm_calls` → `INSUFFICIENT_EVIDENCE` | 02/10 |
 | A4 | D2 | `AI2_QUERY_REQUIRE_SIGNATURE` (mặc định `true`, thiếu chữ ký → `401 SERVICE_ENVELOPE_MISSING`); vector ký mẫu cho CI của Backend | 02/10 |
 | A5 | D12 | Nhận `policy_flags.max_body_members` **trước** khi Backend gửi | Trước DOC-11 §4.2 mục 12 |
@@ -418,6 +418,7 @@ Các mục sau để lại cho Sprint 3:
 |---|---|---|
 | 2026-09-29 | Bản đề xuất đầu tiên | Chương |
 | 2026-09-29 | Thêm D11 (nơi lưu dữ liệu AI2). Backend chốt D1–D11 và chép vào `BE-AI2-PROCESSING-CONTRACT.vi.md` §6 | Chương |
+| 2026-09-30 | Theo comment của Văn Dũng lúc 08:45: `FAILED` luôn mang `review_state="BLOCKED"`. Sửa D7, A2 và §6.3: `retryable` theo mã lỗi, không theo `review_state`; câu cũ "BLOCKED không bao giờ retry" sẽ chặn mọi retry, kể cả lỗi tạm. D8 ghi rõ giá trị `BLOCKED` | Chương |
 | 2026-09-30 | Theo review của Trang (lần 3, gồm quyết định Lead) và Văn Dũng ở PR #37: Lead duyệt D8 (`pending_review`, "Chờ rà soát"), D11 phương án A (ADR-14 được chấp nhận), D12; D6 chưa duyệt nên vector và egress online giữ `false`; D1 bỏ câu "đã thống nhất", không làm Kafka trước demo; D2 `AI2_QUERY_REQUIRE_SIGNATURE`; D5 mã lỗi `DOSSIER_TOO_MANY_DOCUMENTS`; D8 bỏ qua `review_state` khi không `SUCCEEDED`; D11 AI2 lên Postgres trước deploy online, pgvector quyết cùng D6; trần embedding `/query` do AI2 đọc từ env; B3 sau A3; thêm A7 | Chương |
 | 2026-09-30 | Theo review của Văn Dũng (AI2) ở PR #37: D2 lệch đồng hồ 30 giây, TTL tối đa 3600 giây, tắt `/query` không chữ ký online; D5 tối đa 6 file; D6 bật vector cho `/query` online, dựa vào egress của `/query`, trần `max_embedding_tokens`; D7 payload tất định và định nghĩa retry; D8 `review_state=null`; D10 `state` thêm `BLOCKED`, chuyển tiếp digest, bỏ `query_binding`; D11 vector bật, volume gồm `vectors.sqlite`; D12 AI2 nhận `max_body_members` trước; thêm bảng việc của từng bên | Chương |
 | 2026-09-30 | Theo review của Trang ở PR #37 (lần 2): D1 tách Sprint 2 (HTTP) và Sprint 3 (Kafka theo DOC-05e v2, PR #36); PR này thôi sửa DOC-05e để không ghi đè PR #36; dòng mở đầu `BE-AI2-PROCESSING-CONTRACT` §6 ghi D6, D8, D11, D12 còn chờ Lead | Chương |

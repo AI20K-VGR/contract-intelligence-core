@@ -174,11 +174,11 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
   - Bộ snapshot thay đổi: mở run mới, key mới.
   - Cùng `(key, attempt)` mà payload khác: AI2 trả `409`, Backend không retry.
   - Payload tất định: cùng `(key, attempt)` thì payload (bỏ `service_envelope`) giống hệt từng byte, kể cả khi dựng lại. `created_at` của snapshot lấy từ lúc lưu, không lấy giờ hiện tại.
-  - Job được retry khi và chỉ khi `status=FAILED` và có ít nhất một lỗi `retryable=true`. `review_state` không quyết định retry; `BLOCKED` không retry.
+  - Job được retry khi và chỉ khi `status=FAILED` và có ít nhất một lỗi `retryable=true`. `retryable` theo mã lỗi (lỗi tạm: `true`; lỗi contract, dữ liệu sai: `false`), không theo `review_state`. Hồ sơ `SUCCEEDED` + `BLOCKED` không retry.
 - **Ánh xạ trạng thái (D8, Lead duyệt 30/09).**
   - `SUCCEEDED` với `PASS`, `NEEDS_REVIEW` hoặc `INSUFFICIENT_EVIDENCE`: hồ sơ chuyển sang `pending_review`, nhãn UI "Chờ rà soát".
   - `SUCCEEDED` + `BLOCKED`, hoặc `FAILED` đã hết lượt retry: hồ sơ chuyển sang `failed`.
-  - Khi `status` khác `SUCCEEDED`, Backend bỏ qua `review_state` và chỉ đọc `status` và `errors[]`.
+  - Khi `status` khác `SUCCEEDED`, Backend bỏ qua `review_state` (AI2 trả `BLOCKED` cho mọi job `FAILED`) và chỉ đọc `status` và `errors[]`.
   - `evidence_ready` chỉ cho biết đủ bằng chứng để publish; nó không quyết định hồ sơ có vào hàng chờ review hay không.
 
 ### 6.4 Kết quả
