@@ -31,13 +31,6 @@ from contract_intelligence.shared.ai.persistence import (
     update_pipeline_run_status,
     update_pipeline_step,
 )
-from contract_intelligence.shared.ai.pipeline_orchestrator import (
-    DocumentJob,
-    PipelineContext,
-    PipelineOrchestrator,
-    get_pipeline_orchestrator,
-    reset_pipeline_orchestrator,
-)
 from contract_intelligence.shared.ai.schemas import (
     Ai1SnapshotPayload,
     Ai2ComparisonPayload,
@@ -64,12 +57,6 @@ __all__ = [
     "BackgroundDispatcher",
     "get_background_dispatcher",
     "reset_background_dispatcher",
-    # Pipeline orchestrator
-    "DocumentJob",
-    "PipelineContext",
-    "PipelineOrchestrator",
-    "get_pipeline_orchestrator",
-    "reset_pipeline_orchestrator",
     # Persistence
     "persist_ai1_snapshot",
     "persist_ai2_comparison",
