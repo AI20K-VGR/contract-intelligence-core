@@ -191,6 +191,23 @@ Kafka envelopes are published as UTF-8 JSON (no `\uXXXX` escapes).
 }
 ```
 
+`error.code = AI1_LOW_QUALITY_DOCUMENT`: AI1 refused the document before any
+OCR call, because at least 30% of the pages it would OCR are too poor to read
+(blur, low contrast, grain noise or speckle, measured locally). No OCR was paid
+for and a retry gives the same answer; the user should rescan. `error.pages`
+maps each such page number to its reasons:
+
+```json
+"error": {
+  "code": "AI1_LOW_QUALITY_DOCUMENT",
+  "message": "4 of 6 scanned pages are too poor to read (p1:speckle, ...); rescan the document",
+  "pages": {"1": ["speckle"], "2": ["blur", "low_contrast"]}
+}
+```
+
+Below that share the document is OCR'd; each poor page is read once only and
+carries the page warning `low_quality_scan:<reasons>` in the snapshot.
+
 ## 6. Delivery semantics
 
 - AI1 consumer: `enable_auto_commit=false`; commit offset **after** publishing a result (at-least-once).
