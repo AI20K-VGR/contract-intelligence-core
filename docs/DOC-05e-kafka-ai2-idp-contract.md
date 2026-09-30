@@ -165,7 +165,7 @@ A job may be retried **only if** `status` is `FAILED` and at least one entry of 
 | `AI2_REQUEST_UNREADABLE` | true | `payload_ref` missing, expired or sha256 mismatch |
 | `AI2_IDEMPOTENCY_CONFLICT` | false | Same `(idempotency_key, attempt)` with a different `payload_sha256` |
 | `LLM_RATE_LIMITED` / `LLM_UNAVAILABLE` | true | 429 / 529 after AI2's own bounded retries (DOC-11 §2) |
-| `AI2_BUDGET_EXCEEDED` | true | `max_processing_seconds` hit |
+| `PROCESSING_TIMEOUT` | true | `max_processing_seconds` hit (AI2's own code, `idp.py`); the job is `FAILED` with `review_state=NEEDS_REVIEW`, which Backend ignores |
 | `AI2_RESULT_UPLOAD_FAILED` | true | Result too large to inline and the upload failed |
 | `AI2_WORKER_FAILED` | false | Unexpected pipeline exception |
 
@@ -239,7 +239,7 @@ No polling means Backend owns the timeout.
 | Queued | command published | `KAFKA_AI2_QUEUE_TIMEOUT_SECONDS` (default 900 s) | `AI2_TIMEOUT` (retryable) |
 | Running | `ai2.idp.started` received | `max_processing_seconds + AI2_RESULT_GRACE_SECONDS` | `AI2_TIMEOUT` (retryable) |
 
-`max_processing_seconds` = `AI2_DEADLINE_BASE_SECONDS + AI2_DEADLINE_PER_PAGE_SECONDS × pages` (today 300 s + 2 s/page). AI2 must stop by itself at that budget and publish `AI2_BUDGET_EXCEEDED`; the grace only covers publish latency.
+`max_processing_seconds` = `AI2_DEADLINE_BASE_SECONDS + AI2_DEADLINE_PER_PAGE_SECONDS × pages` (today 300 s + 2 s/page). AI2 must stop by itself at that budget and publish `PROCESSING_TIMEOUT`; the grace only covers publish latency.
 
 A result that arrives after the watchdog failed the run is dropped (job already `FAILED`) and audited. A retry sends `attempt + 1`, so a late result of the old attempt can never be persisted.
 
@@ -307,5 +307,6 @@ A result that arrives after the watchdog failed the run is dropped (job already 
 | 2026-09-24 | v1 draft: MVP body-only; marked "not used" in Sprint 2 (HTTP chosen, SAD D4) |
 | 2026-09-30 | v2: Kafka chosen as the runtime path; full dossier, by-reference payloads, `started` event, attempt-scoped dedupe, Backend watchdog |
 | 2026-09-30 | v2.1 after AI2 review: status says the runtime is still HTTP; security decisions written out (§4); AI2 owns the dedupe store (§7) |
+| 2026-09-30 | v2.4: the timeout code is AI2's real `PROCESSING_TIMEOUT`, not `AI2_BUDGET_EXCEEDED`; retry follows the error code, so both sides must use one name |
 | 2026-09-30 | v2.3, after the AI2 review of DEC-BE-AI2-01 (PR #37): `query_binding` dropped for `query_snapshot_digest` in the payload (D10); at most 6 documents (from the request schema, `maxItems: 6`); retry rule (D7) |
 | 2026-09-30 | v2.2: where the dedupe store lives is the Lead's decision D11 (PR #37), not settled here; schema `ai2` is only option A (§7) |
