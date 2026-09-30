@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu / sản phẩm | DOC-04 / Contract Intelligence (PROD-01) |
-| Phiên bản / trạng thái | v0.7.0 — Draft · Ready for Review (SemVer) |
+| Phiên bản / trạng thái | v0.8.0 — Draft · Ready for Review (SemVer) |
 | Owner / Contributors | Architecture Lead / Backend, AI1, AI2, Frontend, QA |
 | Reviewer | Mentor |
 | Ngày hiệu lực / review | 17/09/2026 / TBD |
@@ -93,7 +93,7 @@ flowchart LR
 | ADR-02 | AI1/AI2 nằm trong `ai-service`, một Python HTTP service nội bộ, stateless, được backend gọi theo mô hình push (`POST /jobs`, `GET /jobs/{id}` polling). | `ai-service` không kết nối PostgreSQL, không sở hữu queue/lease/callback lifecycle, không ghi business table, không có public API. Mọi kết quả đi qua backend validate. |
 | ADR-03 | PostgreSQL là system of record và task queue MVP; task table do backend dispatcher sở hữu độc quyền. | Không thêm Redis/Celery/second state store khi chưa có bằng chứng cần thiết. |
 | ADR-04 | MinIO là S3-compatible object-storage adapter cho PDF/render; local compose dùng MinIO. | PostgreSQL chỉ lưu metadata/digest/object key, không lưu PDF/render lớn. |
-| ADR-05 | `ai1.snapshot.v3` là handoff OCR/layout canonical. | Backend FastAPI semantic gate trước khi IDP nhận dữ liệu. |
+| ADR-05 | Handoff OCR/layout canonical trên dây Backend → AI2 là `ai1.snapshot.v1` (`BE-AI2-PROCESSING-CONTRACT.vi.md` §5.1; DEC-BE-AI2-01 D4). `ai1.snapshot.v3` chỉ còn trong adapter persistence của Backend. | Backend FastAPI semantic gate trước khi IDP nhận dữ liệu. AI1 chốt một phiên bản xuất ra (DOC-11 §4.3 #7). |
 | ADR-06 | CPS là hệ tọa độ trang đứng đã chuẩn hóa. | Mọi consumer dùng chung bbox convention. |
 | ADR-07 | Finding là domain canonical; Conflict chỉ là queue/UI/API surface. | Không sinh entity/pipeline conflict thứ hai. |
 | ADR-08 | AI2 trả `EvidenceGapDetected.v2` trong kết quả job; Backend FastAPI tạo `ReOcrRequest.v3`. | AI2 không bypass OCR, budget hay egress policy. |
@@ -102,6 +102,7 @@ flowchart LR
 | ADR-11 | Page/chunk ledger là authority của completeness. | Không dùng word count để chứng minh tài liệu dài đã xử lý đủ. |
 | ADR-12 | Retry/repair/provider dùng shared finite budget. | Không loop vô hạn hoặc phát sinh chi phí không kiểm soát. |
 | ADR-13 | Bearer JWT + Tenant-Isolation (`X-Tenant-Id`) + phân quyền `x-rbac` (`OPERATOR`, `REVIEWER`, `ADMINISTRATOR`). | Enforce ranh giới dữ liệu đa khách hàng và kiểm soát quyền truy cập chặt chẽ ở cấp API. |
+| ADR-14 | **Được chấp nhận 30/09/2026** (Lead chọn DEC-BE-AI2-01 D11, phương án A). Sửa một phần ADR-02: `ai-service` được giữ **trạng thái riêng của AI2** (job store, run store, nonce) trong schema `ai2` của cùng cụm PostgreSQL, qua user chỉ có quyền trên schema đó, với migration do AI2 tự quản. Phần còn lại của ADR-02 giữ nguyên. | Khớp DOC-11 §3 ("AI2 ghi dữ liệu bền vào PostgreSQL"). Không ghi hay đọc business table; không sở hữu queue, lease hay callback; không có public API. Nếu chọn phương án B thì bỏ ADR-14 và sửa DOC-11 §3. |
 
 ---
 
@@ -984,6 +985,7 @@ Theo [DOCUMENT-GOVERNANCE.md](DOCUMENT-GOVERNANCE.md), mọi thay đổi ADR/con
 
 | Ngày | Phiên bản | Thay đổi | Lý do | Ảnh hưởng | Tài liệu đã đồng bộ | Owner |
 |---|---|---|---|---|---|---|
+| 2026-09-29 | v0.8.0 | ADR-05: bản chuyển giao trên dây Backend → AI2 là `ai1.snapshot.v1`; v3 chỉ ở adapter của Backend. Thêm ADR-14 (được chấp nhận 30/09) sửa một phần ADR-02 cho trạng thái riêng của AI2 trong schema `ai2`. | ADR-05 lệch code và BE-AI2 §5.1; ADR-02 mâu thuẫn DOC-11 §3 (review của Trang ở PR #37). | §2 (ADR-02, ADR-05, ADR-14). | DOC-04, `contracts/DEC-BE-AI2-01-contract-decisions.vi.md`, `contracts/BE-AI2-PROCESSING-CONTRACT.vi.md` §6. | Backend (đề xuất), chờ Architecture Lead |
 | 2026-09-17 | v0.7.0 | Chốt kiến trúc Enterprise: Bearer JWT + `X-Tenant-Id` + `x-rbac` (`OPERATOR`, `REVIEWER`, `ADMINISTRATOR`); bao phủ 9 phân hệ (Dossiers, Documents, Manifest confirmation, Runs, Batches, Re-OCR, External Approvals, Review revisions, Optimization Loop). | Đồng bộ toàn diện với DOC-05 API Spec v0.3.0 và PostgreSQL Schema v1.2.0. | §1, §2 (ADR-13), §3, §4, §9, §10, §11, §13, §20. | DOC-04, DOC-05 (v0.3.0), DOC-04b (v1.2.0), DOC-04c (v1.2.0). | Architecture Lead + Backend |
 | 2026-09-17 | v0.6.0 | ADR-01: backend từ Java 17/Spring Boot 3 sang Python 3.12/FastAPI; Flyway → Alembic; Maven → pyproject. | Team backend đã dựng skeleton FastAPI trên `feature/backend-setup`; một ngôn ngữ cho toàn stack giảm chi phí bàn giao OJT. | DOC-03 CON-02 (vẫn monolith DDD), NFR-06; không đổi business rule. | README gốc, `backend/README.md`, `ai-service/README.md`, DOC-03, DOC-05, `contracts/`, AI2 pipeline, archive manifest. | Architecture Lead + Backend |
 | 2026-09-17 | v0.5.0 | ADR-02/03: chốt mô hình **backend-push**: dispatcher backend claim PostgreSQL task table rồi gọi `ai-service` qua HTTP REST + polling; `ai-service` stateless, không truy cập DB. | Trước đó DOC-04 mô tả song song hai mô hình (worker pull DB và httpx push), Backend và AI có thể implement khác nhau. | §1, §3, §5, §9, §13; ai-service README. | DOC-04, `ai-service/README.md`, `backend/README.md`, AI2 pipeline, `contracts/README.md`. | Architecture Lead + Backend + AI |
