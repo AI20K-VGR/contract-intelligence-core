@@ -74,6 +74,10 @@ class L1Retrieval:
         structured_keys_used: list[str] = []
         rels: list[dict[str, Any]] = []
         outline: list[dict[str, Any]] = []
+        exact_ids: list[str] = []
+        structured_ids: list[str] = []
+        topic_ids: list[str] = []
+        record = None
         try:
             record = self.gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
             if record is not None and record.relation_graph is None:
@@ -88,7 +92,9 @@ class L1Retrieval:
             keys = structured_keys(q, ttype)
             structured_keys_used = keys
             for key in keys:
-                hits.extend(self.gateway.call("search_structured", envelope, key=key) or [])
+                found = self.gateway.call("search_structured", envelope, key=key) or []
+                structured_ids.extend(str(h.get("node_id")) for h in found if h.get("node_id"))
+                hits.extend(found)
             if ttype in EXPAND_SEMANTIC or (not hits and ttype == "lookup_term"):
                 sem = (
                     self.gateway.call("search_semantic", envelope, query=expand_query(q), k=8) or []
@@ -181,7 +187,15 @@ class L1Retrieval:
                 filtered = _filter_relation_hits(q, hits)
                 protected = [h for h in hits if str(h.get("node_id") or "") in set(exact_ids)]
                 topic = _topic_hits(record, q) if record is not None else []
-                hits = _drop_repeated_annex_headings(_merge_hits(protected, topic, filtered), outline)
+                candidates = _merge_hits(topic, filtered)
+                # A comparison about a named topic (tax, penalty, value...) may
+                # only use evidence whose node text mentions that topic. Without
+                # this, a tax question was answered from penalty clauses.
+                on_topic = _filter_topic_hits(q, candidates, record)
+                if on_topic is not None:
+                    candidates = on_topic
+                    topic_ids = [str(h.get("node_id") or h.get("chunk_id")) for h in on_topic]
+                hits = _drop_repeated_annex_headings(_merge_hits(protected, candidates), outline)
         except ToolBlocked:
             return {
                 "resolved": False,
@@ -212,6 +226,11 @@ class L1Retrieval:
             "resolved": bool(enough_lookup and ttype in {"lookup"}),
             "blocked": False,
             "hits": deduped,
+            "anchor_ids": _anchor_ids(
+                deduped, [*exact_ids, *structured_ids, *topic_ids], outline
+            )
+            if ttype in COMPARE_TYPES
+            else [],
             "outline_ids": [
                 {"node_id": n["node_id"], "type": n["type"], "raw_label": n["raw_label"]}
                 for n in outline
@@ -474,6 +493,88 @@ def _filter_relation_hits(query: str, hits: list[dict[str, Any]]) -> list[dict[s
         if any(left in evidence or right in evidence for left, right in cues):
             kept.append(hit)
     return kept
+
+
+# (query cues, evidence cues), matched on accent-folded text at word boundaries.
+TOPICS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    "tax": (
+        ("thue", "vat", "gtgt"),
+        ("thue", "vat", "gtgt", "thue suat"),
+    ),
+    "penalty": (("phat", "penalty"), ("phat", "penalty")),
+    "value": (
+        ("gia tri", "gia hop dong", "contract value", "price"),
+        ("gia", "gia tri", "value", "price", "vnd"),
+    ),
+    "working_day": (("ngay lam viec", "working day"), ("ngay lam viec", "working day")),
+    "payment": (("thanh toan", "payment"), ("thanh toan", "payment")),
+    "termination": (("cham dut", "terminate"), ("cham dut", "terminate", "termination")),
+}
+# "Mã số thuế" names a tax ID, not a tax rule.
+_TAX_ID = re.compile(r"(?<!\w)(ma so thue|mst)(?!\w)")
+
+
+def _has_cue(text: str, cues: tuple[str, ...]) -> bool:
+    return any(re.search(rf"(?<!\w){re.escape(cue)}(?!\w)", text) for cue in cues)
+
+
+def _filter_topic_hits(
+    query: str, hits: list[dict[str, Any]], record: Any
+) -> list[dict[str, Any]] | None:
+    """Keep hits that mention every topic the query names; None when no topic."""
+
+    plain_q = _TAX_ID.sub(" ", _plain_query(query))
+    wanted = [ev for q_cues, ev in TOPICS.values() if _has_cue(plain_q, q_cues)]
+    if not wanted:
+        return None
+    nodes = {n.node_id: n for n in record.evidence_nodes()} if record is not None else {}
+    kept: list[dict[str, Any]] = []
+    for hit in hits:
+        node = nodes.get(str(hit.get("node_id") or ""))
+        # Judge the node text that L2 will actually send to the model. A
+        # semantic chunk's span can mention VAT while its parent node is only
+        # "Article I. Định nghĩa"; matching on the span let such a node through.
+        if node is not None:
+            parts = (node.raw_label, node.text, node.structured_value)
+        else:
+            citation = hit.get("citation") or {}
+            parts = (hit.get("value"), citation.get("text_span"))
+        blob = " ".join(str(v or "") for v in parts)
+        evidence = _TAX_ID.sub(" ", _plain_query(blob))
+        if all(_has_cue(evidence, cues) for cues in wanted):
+            kept.append(hit)
+    return kept
+
+
+def _anchor_ids(
+    hits: list[dict[str, Any]], candidates: list[str], outline: list[dict[str, Any]]
+) -> list[str]:
+    """Sources a relation answer must cite: named, keyed or on-topic evidence.
+
+    A container anchor (``Phụ lục 1``) is replaced by its descendants among the
+    hits; when another anchor already sits inside it, it is dropped.
+    """
+
+    hit_ids = [str(h.get("node_id") or h.get("chunk_id")) for h in hits]
+    parent = {str(n.get("node_id")): n.get("parent") for n in outline}
+
+    def ancestors(nid: str) -> set[str]:
+        seen: set[str] = set()
+        cur = parent.get(nid)
+        while cur and cur not in seen:
+            seen.add(cur)
+            cur = parent.get(cur)
+        return seen
+
+    base = [nid for nid in dict.fromkeys(candidates) if nid in hit_ids]
+    anchors: list[str] = []
+    for nid in base:
+        inside = [h for h in hit_ids if h != nid and nid in ancestors(h)]
+        if not inside:
+            anchors.append(nid)
+        elif not any(h in base for h in inside):
+            anchors.extend(inside)
+    return list(dict.fromkeys(anchors))
 
 
 def bm25_lite_score(query: str, docs: list[str]) -> list[float]:

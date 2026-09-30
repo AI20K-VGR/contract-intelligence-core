@@ -53,14 +53,12 @@ class FourLayerReasoner:
 
         # An unscoped natural-language question still gets bounded lexical
         # retrieval before the outline hint; the hint is the last resort.
-        # Explicit vector policy also bypasses the deterministic L0 shortcut,
-        # otherwise a vector request can incorrectly report NOT_REQUESTED.
+        # L0 runs even when vector recall is allowed: skipping it made the
+        # "full" configuration answer 11/24 benchmark questions correctly
+        # against 21/24 without vector. A vector request answered by L0
+        # reports NOT_NEEDED, not NOT_REQUESTED.
         policy_flags = task.get("policy_flags") or {}
-        l0 = (
-            None
-            if task.get("type") == "unscoped" or policy_flags.get("use_vector") is True
-            else self.l0.run(envelope, task)
-        )
+        l0 = None if task.get("type") == "unscoped" else self.l0.run(envelope, task)
         if l0:
             layers.append("L0")
             grounded = self.l3.run(
@@ -77,6 +75,11 @@ class FourLayerReasoner:
                 "l0_notes": l0.get("notes"),
                 "steps": [],
                 "last_prompt_chars": 0,
+                "retrieval_trace": {
+                    "vector_status": "NOT_NEEDED"
+                    if policy_flags.get("use_vector") is True
+                    else "NOT_REQUESTED"
+                },
             }
 
         layers.append("L0")
