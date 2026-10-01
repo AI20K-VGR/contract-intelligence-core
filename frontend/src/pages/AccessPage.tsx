@@ -467,32 +467,42 @@ export function AccessPage() {
                                     {saveError}
                                   </p>
                                 ) : null}
-                                <button
-                                  className="h-8 px-space-sm rounded bg-primary-container text-on-primary font-label-sm text-label-sm disabled:opacity-50"
-                                  disabled={
-                                    savingId === item.id ||
-                                    chosen.length === 0 ||
-                                    chosen.some(
-                                      (id) =>
-                                        (options[id]?.expires ?? '') !== '' &&
-                                        (options[id]?.expires ?? '') <
-                                          todayInput(),
-                                    )
-                                  }
-                                  type="button"
-                                  onClick={() => {
-                                    void saveAccess(
-                                      item,
-                                      'shared_out',
-                                      chosen,
-                                      options,
-                                    )
-                                  }}
-                                >
-                                  {savingId === item.id
-                                    ? 'Đang lưu…'
-                                    : 'Lưu quyền'}
-                                </button>
+                                <div className="flex gap-space-sm">
+                                  <button
+                                    className="h-8 px-space-md rounded bg-surface-container-low text-on-surface font-label-sm text-label-sm hover:bg-surface-container disabled:opacity-50"
+                                    disabled={savingId === item.id}
+                                    type="button"
+                                    onClick={() => select('')}
+                                  >
+                                    Hủy
+                                  </button>
+                                  <button
+                                    className="h-8 flex-1 px-space-sm rounded bg-primary-container text-on-primary font-label-sm text-label-sm disabled:opacity-50"
+                                    disabled={
+                                      savingId === item.id ||
+                                      chosen.length === 0 ||
+                                      chosen.some(
+                                        (id) =>
+                                          (options[id]?.expires ?? '') !== '' &&
+                                          (options[id]?.expires ?? '') <
+                                            todayInput(),
+                                      )
+                                    }
+                                    type="button"
+                                    onClick={() => {
+                                      void saveAccess(
+                                        item,
+                                        'shared_out',
+                                        chosen,
+                                        options,
+                                      )
+                                    }}
+                                  >
+                                    {savingId === item.id
+                                      ? 'Đang lưu…'
+                                      : 'Lưu quyền'}
+                                  </button>
+                                </div>
                               </div>
                             ) : null}
                           </div>
