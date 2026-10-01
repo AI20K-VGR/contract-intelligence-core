@@ -313,7 +313,7 @@ class TestClauseReview:
         resp = await client.post(
             "/api/v1/clause-nodes/cl_1/review",
             json={
-                "action": "correct",
+                "action": "reject",
                 "base_version": 0,
                 "comment": "Điều 2 chỉ nói bàn giao, chưa nói nghiệm thu",
             },
@@ -322,8 +322,24 @@ class TestClauseReview:
         kwargs = mock_svc.submit_clause_review.call_args.kwargs
         assert kwargs["reviewer_id"] == "usr_rev"
         assert kwargs["base_version"] == 0
-        assert kwargs["action_type"] == ReviewActionType.CORRECT
+        assert kwargs["action_type"] == ReviewActionType.REJECT
         assert resp.json()["data"]["version"] == 2
+
+    @pytest.mark.parametrize(
+        "path", ["/api/v1/clause-nodes/cl_1/review", "/api/v1/findings/fd_1/review"]
+    )
+    async def test_post_rejects_correct_action(
+        self, client: AsyncClient, mock_svc: AsyncMock, path: str
+    ) -> None:
+        """ST-051: chỉ còn đúng/sai; không tạo mới bản ghi correct."""
+        mock_svc.get_clause_context.return_value = _ctx()
+        resp = await client.post(
+            path,
+            json={"action": "correct", "base_version": 0, "comment": "bổ sung"},
+        )
+        assert resp.status_code == 422
+        mock_svc.submit_clause_review.assert_not_called()
+        mock_svc.submit_finding_review.assert_not_called()
 
     async def test_post_conflict_returns_current_state(
         self, client: AsyncClient, mock_svc: AsyncMock

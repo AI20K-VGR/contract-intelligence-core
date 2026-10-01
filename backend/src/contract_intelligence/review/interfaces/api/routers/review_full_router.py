@@ -6,9 +6,9 @@ Endpoints:
     GET  /review-items/{id}/revisions      — Append-only audit trail
     POST /review-items/{id}/actions        — Submit action (optimistic locking)
     GET  /clause-nodes/{id}/review         — Thẩm định hiện hành + lịch sử của điều khoản
-    POST /clause-nodes/{id}/review         — Lưu thẩm định trích dẫn (confirm/reject/correct)
+    POST /clause-nodes/{id}/review         — Lưu thẩm định trích dẫn (confirm/reject)
     GET  /findings/{id}/review             — Thẩm định hiện hành + lịch sử của xung đột
-    POST /findings/{id}/review             — Lưu thẩm định xung đột (confirm/reject/correct)
+    POST /findings/{id}/review             — Lưu thẩm định xung đột (confirm/reject)
 
 Optimistic locking (P0-05 / openapi.yaml):
     ``/review-items/{id}/actions``: ``base_version`` = item ``version`` (starts at 1).
