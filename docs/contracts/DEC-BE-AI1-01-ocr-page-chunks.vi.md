@@ -13,7 +13,7 @@
 
 ## Cách dùng tài liệu này
 
-Mỗi mục C1–C8 gồm **hiện trạng**, **đề xuất** và **ô duyệt**. Người duyệt đánh dấu `[x]` và ghi chú nếu không đồng ý. Câu hỏi cho AI1 nằm ở mục [Câu hỏi cho AI1](#câu-hỏi-cho-ai1).
+Mỗi mục C1–C9 gồm **hiện trạng**, **đề xuất** và **ô duyệt**. Người duyệt đánh dấu `[x]` và ghi chú nếu không đồng ý. Câu hỏi cho AI1 nằm ở mục [Câu hỏi cho AI1](#câu-hỏi-cho-ai1).
 
 Khi hai bên duyệt xong:
 1. Đổi trạng thái sang `accepted`.
@@ -48,6 +48,7 @@ Riêng `nodes[]` (cây điều khoản) và `table_continuity[]` được dựng
 | C6 | Thời hạn | Hạn cụm = 120 + 30 × số trang của cụm, tính từ `chunk_started`; hạn run giữ nguyên làm trần ngoài |
 | C7 | Tiến độ | Backend ghi số cụm và số trang đã xong vào bước S2, SSE phát qua sự kiện bước sẵn có |
 | C8 | Idempotency | Backend nhận kết quả cụm theo `(run_id, chunk_id, attempt_id)` và đúng URI đã cấp; bản trùng bị bỏ qua |
+| C9 | Chất lượng trang khi chia cụm | Trước khi chia cụm, Backend gửi `ai1.ocr.inspect` cho cả tài liệu; AI1 đo chất lượng và quyết định từ chối theo quy tắc của #47; không từ chối thì danh sách trang xấu đi kèm lệnh của từng cụm (`chunk.low_quality_pages`) |
 
 ---
 
@@ -57,6 +58,8 @@ Riêng `nodes[]` (cây điều khoản) và `table_continuity[]` được dựng
 
 ```
 Backend                                   AI1
+  │ ai1.ocr.inspect             ───────►  đo chất lượng mọi trang, không gọi OCR (C9)
+  │                             ◄───────  ai1.ocr.inspected (hoặc ai1.ocr.failed nếu từ chối)
   │ ai1.ocr.command (cụm 1..k)  ───────►  OCR các trang của cụm, upload ảnh trang
   │                             ◄───────  ai1.ocr.chunk_started / chunk_completed (kết quả trang trên MinIO)
   │  ... đủ mọi cụm của tài liệu ...
@@ -105,7 +108,8 @@ Giữ nguyên `event_type` và các trường hiện có, thêm trường `chunk
     "count": 10,
     "page_start": 41,
     "page_end": 60,
-    "document_page_count": 200
+    "document_page_count": 200,
+    "low_quality_pages": { "57": ["speckle"] }
   },
   "render_target": {
     "dpi": 150,
@@ -131,6 +135,7 @@ Giữ nguyên `event_type` và các trường hiện có, thêm trường `chunk
 |---|---|
 | `chunk` | Có thì AI1 chỉ OCR `pages_to_process` và trả kết quả trang (pha 1). Không có thì xử lý cả tài liệu như hiện nay |
 | `pages_to_process` | Đúng dải `page_start..page_end`, số trang tuyệt đối |
+| `low_quality_pages` | Các trang xấu **của cụm này** theo kết quả `ai1.ocr.inspected` (C9), kèm lý do. AI1 không đo lại; các trang này chỉ đọc một lần và gắn `low_quality_scan:<lý do>`. Rỗng `{}` khi cụm không có trang xấu |
 | `chunk_id` | `<document_id>:c<index 2 chữ số>`; `index` bắt đầu từ 1 |
 | `task_id` | Riêng cho từng cụm (Backend băm từ `chunk_id`), để dedupe `(document_id, task_id, attempt_id)` ở DOC-05d §6 không gộp hai cụm |
 | `attempt_id` | Lần gửi của cụm: 1, rồi 2 khi Backend gửi lại (C5) |
@@ -257,6 +262,55 @@ SSE đã phát thay đổi của bước, nên không cần sự kiện SSE mớ
 
 - [ ] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
 
+## C9. Kiểm tra chất lượng trang khi chia cụm
+
+**Hiện trạng:** #47 thêm bước kiểm tra chất lượng trang trước khi gọi OCR. Tài liệu bị từ chối (`AI1_LOW_QUALITY_DOCUMENT`) khi số trang xấu ≥ 3 **và** ≥ 30% số trang phải OCR. Quy tắc này cần nhìn cả tài liệu, còn mỗi lệnh cụm chỉ chứa các trang của một cụm.
+
+**Đã chốt (Q7, AI1 chọn phương án (a) ngày 01/10):** đo cả tài liệu một lần trước khi chia cụm.
+
+- Không chọn cách mỗi cụm tự đo: các cụm đầu đã OCR và trả tiền xong thì cụm sau mới từ chối, và hai cụm của cùng một tài liệu có thể cho kết quả ngược nhau.
+- Bước đo chạy cục bộ, không gọi model, khoảng 0,1–0,2 giây/trang ở 150 DPI, tức khoảng 20–40 giây cho 200 trang.
+
+**Lệnh đo (`ai1.ocr.inspect`):** topic `ci.ai1.ocr.commands`, key `document_id`. Chỉ gửi khi tài liệu sẽ được chia cụm; tài liệu tới 20 trang đi một lệnh như hiện nay và tự đo bên trong lệnh đó (như #47).
+
+```json
+{
+  "task_id": 102938,
+  "attempt_id": 1,
+  "tenant_id": "tenant_vgr_01",
+  "document_id": "doc_01J9X1AB",
+  "source_blob_get_url": "http://minio:9000/dossiers/...?X-Amz-...",
+  "source_sha256": "a1b2c3...",
+  "options": { "dpi": 150, "document_role": "contract", "filename": "hop-dong.pdf" }
+}
+```
+
+**Kết quả (`ai1.ocr.inspected`, topic `ci.ai1.ocr.results`):**
+
+```json
+{
+  "job_id": "ai1_def456",
+  "document_page_count": 200,
+  "ocr_pages": 180,
+  "low_quality_pages": { "57": ["speckle"], "133": ["blur", "low_contrast"] },
+  "refused": false
+}
+```
+
+| Trường | Quy tắc |
+|---|---|
+| `ocr_pages` | Số trang phải OCR (trang scan và trang MIXED), là mẫu số của ngưỡng 30% |
+| `low_quality_pages` | Mọi trang xấu của tài liệu kèm lý do, cùng định dạng `error.pages` của #47 |
+| `refused` | AI1 quyết định theo quy tắc của #47. Backend không tự tính lại |
+
+- **Bị từ chối:** AI1 trả `ai1.ocr.failed` với `error.code = AI1_LOW_QUALITY_DOCUMENT`, `retryable=false` và `error.pages` (DOC-05d §5), không trả `ai1.ocr.inspected`. Run `failed`, không cụm nào được gửi.
+- **Không bị từ chối:** Backend lưu kết quả đo trên run, chia cụm, và đặt `chunk.low_quality_pages` cho từng cụm bằng các trang xấu nằm trong cụm đó (C3).
+- **Hạn:** 60 + 0,5 × số trang (giây) từ lúc gửi, tức 160 giây cho 200 trang. Lỗi tạm (`retryable=true`) hoặc quá hạn thì Backend gửi lại một lần với `attempt_id` + 1, như C5.
+- **Chạy lại phần lỗi:** run mới mang theo kết quả đo cùng các cụm đã xong, không đo lại. Kết quả đo chỉ phụ thuộc file nguồn (`source_sha256`), nên vẫn đúng.
+- **Dùng sau này (chưa làm lần này):** `ai1.ocr.inspected` có thể trả thêm danh sách trang phải OCR, để Backend chỉ chia cụm các trang đó.
+
+- [ ] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
+
 ---
 
 ## Câu hỏi cho AI1
@@ -269,7 +323,7 @@ SSE đã phát thay đổi của bước, nên không cần sự kiện SSE mớ
 | Q4 | `ai1-worker` chạy nhiều replica được không (trạng thái cục bộ ngoài `_processed` và thư mục tạm)? | C4 |
 | Q5 | AI1 tách được mã lỗi và `retryable` như C3 không? Hiện mọi lỗi đều là `AI1_OCR_FAILED` | Backend cần biết lỗi nào gửi lại được (C5) |
 | Q6 | Cỡ cụm 20 trang và 8 trang cùng lúc có hợp với hạn mức provider đang dùng (Mistral) không? | C2, C4 |
-| Q7 | Kiểm tra chất lượng trang của #47 từ chối cả tài liệu khi từ 30% số trang phải OCR bị xấu. Khi chia cụm, mỗi lệnh chỉ chứa các trang của một cụm. AI1 chọn cách nào: (a) đo chất lượng cả tài liệu trước khi chia cụm, Backend gửi lệnh đo riêng; (b) mỗi cụm tự đo, cụm vượt ngưỡng trả `chunk_failed` với `AI1_LOW_QUALITY_DOCUMENT` và `retryable=false`, cả tài liệu bị từ chối; (c) cách khác? | Tránh hai cụm của cùng một tài liệu cho kết quả ngược nhau, và tránh OCR (tốn tiền) các cụm đầu rồi mới từ chối ở cụm sau |
+| Q7 | ~~Kiểm tra chất lượng trang của #47 khi chia cụm: đo cả tài liệu trước (a) hay mỗi cụm tự đo (b)?~~ **Đã chốt 01/10: AI1 chọn (a), xem C9.** | Tránh hai cụm của cùng một tài liệu cho kết quả ngược nhau, và tránh OCR (tốn tiền) các cụm đầu rồi mới từ chối ở cụm sau |
 
 ## Việc của từng bên
 
@@ -281,6 +335,7 @@ SSE đã phát thay đổi của bước, nên không cần sự kiện SSE mớ
 | K2 | C1, C3 | Lệnh `ai1.ocr.assemble`: đọc kết quả các cụm, dựng `nodes`, `table_continuity` và snapshot, trả `ai1.ocr.completed` / `ai1.ocr.failed` như DOC-05d §5 |
 | K3 | C3, C5 | Mã lỗi và `retryable` theo mã |
 | K4 | C4 | `ai1-worker` chạy nhiều replica (bỏ `container_name`, `AI1_WORKER_REPLICAS`) |
+| K5 | C9 | Lệnh `ai1.ocr.inspect` trả `ai1.ocr.inspected` hoặc `ai1.ocr.failed` (`AI1_LOW_QUALITY_DOCUMENT`); lệnh cụm nhận `chunk.low_quality_pages` và không đo lại |
 
 **Backend (Chương)**
 
@@ -292,12 +347,13 @@ SSE đã phát thay đổi của bước, nên không cần sự kiện SSE mớ
 | E4 | C7 | Tiến độ S2 |
 | E5 | C4 | Script tạo topic 6 partition; compose cho phép nhiều replica AI1 |
 | E6 | — | Test end-to-end với PDF khoảng 200 trang, khoảng 48 MiB; ghi số đo vào DOC-11 |
+| E7 | C9 | Gửi `ai1.ocr.inspect` trước khi chia cụm, lưu kết quả trên run (mang sang run mới khi chạy lại phần lỗi), đặt `chunk.low_quality_pages` cho từng cụm |
 
 ## Thứ tự triển khai
 
 1. Hai bên duyệt DEC này. AI1 trả lời Q1–Q7; nếu câu trả lời làm đổi đề xuất thì sửa DEC trước khi code.
-2. AI1 deploy K1–K4. Lệnh không có `chunk` vẫn chạy như cũ, nên Backend cũ không bị ảnh hưởng.
-3. Backend deploy E1–E5 với `AI1_OCR_CHUNK_PAGES=0` (tắt): hành vi chưa đổi.
+2. AI1 deploy K1–K5. Lệnh không có `chunk` vẫn chạy như cũ, nên Backend cũ không bị ảnh hưởng.
+3. Backend deploy E1–E5 và E7 với `AI1_OCR_CHUNK_PAGES=0` (tắt): hành vi chưa đổi.
 4. Bật `AI1_OCR_CHUNK_PAGES=20` trên máy test, chạy E6 và ghi số đo.
 5. Đặt 20 làm mặc định, chép quy tắc vào DOC-05d §9, đổi trạng thái DEC sang `accepted`.
 
@@ -307,3 +363,4 @@ SSE đã phát thay đổi của bước, nên không cần sự kiện SSE mớ
 |---|---|---|
 | 2026-10-01 | Bản đề xuất đầu tiên | Chương |
 | 2026-10-01 | Thêm Q7: kiểm tra chất lượng trang (#47) khi chia cụm | Chương |
+| 2026-10-01 | Chốt Q7 theo trả lời của Đức Dũng: phương án (a). Thêm C9 (`ai1.ocr.inspect` / `ai1.ocr.inspected`, `chunk.low_quality_pages`), K5, E7 | Chương |
