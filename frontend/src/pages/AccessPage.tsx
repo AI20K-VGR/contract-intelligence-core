@@ -360,7 +360,7 @@ export function AccessPage() {
                               </button>
                             ) : null}
                             {active ? (
-                              <div className="absolute left-0 top-10 z-50 w-96 max-w-[calc(100vw-2rem)] rounded bg-surface-container-lowest shadow-[0_8px_24px_rgba(15,23,42,0.12)] border border-surface-container p-space-sm flex flex-col gap-space-sm">
+                              <div className="absolute right-0 top-10 z-50 w-96 max-w-[calc(100vw-2rem)] rounded bg-surface-container-lowest shadow-[0_8px_24px_rgba(15,23,42,0.12)] border border-surface-container p-space-sm flex flex-col gap-space-sm">
                                 <div className="flex flex-col gap-1 max-h-48 overflow-auto">
                                   {tenants.length === 0 ? (
                                     <p className="font-body-sm text-body-sm text-secondary px-1">
