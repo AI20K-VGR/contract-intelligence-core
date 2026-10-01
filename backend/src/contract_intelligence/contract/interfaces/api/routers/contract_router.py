@@ -1662,6 +1662,7 @@ def _content_disposition(filename: str) -> str:
 
 @router.get(
     "/documents/{document_id}/content",
+    dependencies=[Depends(acl_document)],
     summary="Stream PDF binary từ MinIO/local storage",
     responses={
         200: {
@@ -1676,7 +1677,11 @@ async def get_document_content(
     svc: ContractServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> StreamingResponse:
-    """Tải PDF gốc — trả về binary stream từ storage."""
+    """Tải PDF gốc — trả về binary stream từ storage.
+
+    Có ngay sau khi tải lên, trước OCR (kể cả hồ sơ ``split_pending``), nên màn
+    tách file dựng ảnh trang bằng pdf.js từ đây. Cần quyền xem hồ sơ.
+    """
     data, filename = await svc.get_document_blob(document_id)
     return StreamingResponse(
         iter([data]),

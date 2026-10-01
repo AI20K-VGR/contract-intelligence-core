@@ -451,6 +451,20 @@ class TestGetDocumentContentEndpoint:
 
         assert resp.status_code == 404
 
+    def test_content_requires_dossier_read_access(self) -> None:
+        """PDF gốc chỉ trả cho người xem được hồ sơ (chủ hoặc grant còn hạn)."""
+        from fastapi.routing import APIRoute
+
+        from contract_intelligence.api.dossier_guard import acl_document
+        from contract_intelligence.contract.interfaces.api.routers.contract_router import router
+
+        (route,) = [
+            r
+            for r in router.routes
+            if isinstance(r, APIRoute) and r.path == "/documents/{document_id}/content"
+        ]
+        assert acl_document in [d.call for d in route.dependant.dependencies]
+
 
 # ---------------------------------------------------------------------------
 # POST /api/v1/dossiers (Multipart upload)
