@@ -9,7 +9,8 @@ reviewer sees why:
   scan, or a low-resolution scan scaled up).
 - `low_contrast`: ink barely darker than the paper (faded print, pale scan).
 - `noise`: grain over the paper, the kind that breaks thin strokes apart.
-- `speckle`: dirt, toner dust and salt-and-pepper dots.
+- `speckle`: dirt, toner dust and salt-and-pepper dots; tolerated far longer
+  when the ink contrast is good (`max_speckle`).
 
 Thresholds were set on the labelled local scans at 150 DPI (the backend
 default): clean scans measured sharpness 0.86-1.00, ink contrast >= 170, noise
@@ -34,6 +35,11 @@ MIN_SHARPNESS = 0.80
 MIN_CONTRAST = 120.0
 MAX_NOISE = 3.5
 MAX_SPECKLE_PER_MEGAPIXEL = 300.0
+# With crisp dark ink a 1-2 px dot cannot pass for a stroke or a diacritic, so
+# speckle is tolerated much longer: the `scanned_bad` scan (contrast 197-217,
+# 410-716 speckles/MP) is read, salt-and-pepper noise (7,966/MP) is not.
+GOOD_CONTRAST = 190.0
+MAX_SPECKLE_GOOD_CONTRAST = 1000.0
 # Dots of at most this many pixels count as speckle: smaller than any glyph
 # part at 150 DPI, the size of dust and JPEG/scanner specks.
 SPECKLE_MAX_AREA = 2
@@ -82,6 +88,11 @@ def measure(image: np.ndarray, dpi: int = REFERENCE_DPI) -> dict[str, float] | N
     }
 
 
+def max_speckle(contrast: float) -> float:
+    """Speckles per megapixel a page with this ink contrast may have."""
+    return MAX_SPECKLE_GOOD_CONTRAST if contrast >= GOOD_CONTRAST else MAX_SPECKLE_PER_MEGAPIXEL
+
+
 def assess(image: np.ndarray, dpi: int = REFERENCE_DPI) -> list[str]:
     """What makes this page, rendered at `dpi`, hard to read; empty when nothing does."""
     signals = measure(image, dpi)
@@ -94,7 +105,7 @@ def assess(image: np.ndarray, dpi: int = REFERENCE_DPI) -> list[str]:
         reasons.append("low_contrast")
     if signals["noise"] > MAX_NOISE:
         reasons.append("noise")
-    if signals["speckle"] > MAX_SPECKLE_PER_MEGAPIXEL:
+    if signals["speckle"] > max_speckle(signals["contrast"]):
         reasons.append("speckle")
     return reasons
 
