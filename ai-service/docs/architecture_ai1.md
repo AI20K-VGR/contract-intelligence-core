@@ -1,6 +1,8 @@
 # Kiến trúc AI1 — OCR & dựng snapshot hợp đồng
 
 > Tài liệu mô tả **trạng thái hiện tại của code** (nhánh `feature/code-full`, từ commit `415cca7`).
+> Mục 5.1 (kiểm tra chất lượng scan), 6.4 (trang scan xấu), 6.5 (độ tin cậy và chi phí) theo PR #47
+> (`feature/ai1-page-quality-gate`).
 > Đây là tài liệu kiến trúc duy nhất của AI1; `docs/ARCHITECTURE.md` cũ của OCR lab đã được xoá.
 
 ## Mục lục
@@ -169,6 +171,7 @@ File: `application/use_cases/process_document.py`, `classify_pdf.py`.
      | Trang trắng | Không có lớp chữ **và** không có vết mực nào ≥ ~1 mm. Mực = điểm tối hơn nền giấy ≥ 60 mức xám, nên chữ mờ/bút chì vẫn tính, còn chữ in hằn từ mặt sau thì không. Bỏ dải mép 2% (bóng máy scan) | `SUCCESS` + `blank_page`, **không gọi OCR** |
      | Trang ít chữ | Lớp chữ sạch nhưng dưới 20 ký tự / 3 từ (`SHORT_NATIVE_TEXT`), không có ảnh **và** mọi dòng mực trên ảnh render đều nằm trong bbox của dòng chữ gốc | `TEXT_LAYER`, đọc native (`SHORT_TEXT_COVERS_ALL_INK`), **không gọi OCR**. Còn dòng mực ngoài lớp chữ (chữ vẽ bằng vector, dán ảnh) → OCR |
      | Trang trùng pixel | Ảnh (sau tiền xử lý) có sha256 trùng một trang đã xếp OCR | Dùng lại kết quả OCR của trang gốc, cấp lại id dòng/từ/bảng theo số trang mới, cảnh báo `ocr:reused_reading_of_pN`. **Không gọi OCR lần hai** |
+     | Chất lượng scan | Đo 4 chỉ số trên ảnh trang (mục 5.1) | Đủ trang xấu → từ chối cả file, **không gọi OCR**; ít hơn → trang xấu chỉ đọc một lần |
      | Còn lại | `SCANNED` / `MIXED` | `preprocessing=[]`, gửi engine OCR |
 
 2. Đọc PDF, phân loại, render luôn tuần tự (đối tượng trang PyMuPDF không an toàn đa luồng).
@@ -186,6 +189,66 @@ File: `application/use_cases/process_document.py`, `classify_pdf.py`.
    - **Gần trùng** (cùng dãy chữ số, phần chữ giống ≥ 95%, vd bản scan lại) → `near_duplicate_of = N`:
      vẫn giữ trong cây điều khoản, snapshot `PARTIAL` + `possible_duplicate_of:pN`. Trang mẫu chỉ
      khác tên người cũng rơi vào đây, nên hệ thống không tự loại: loại nhầm là mất nội dung.
+
+### 5.1 Kiểm tra chất lượng scan trước OCR
+
+File: `infrastructure/image/page_quality.py` (OpenCV thuần, không gọi mạng), lắp qua port
+`PageQualityAssessor` (`application/ports/pdf_extractor.py`). `ProcessDocument` nhận nó qua tham số
+`quality`; `None` thì bỏ qua bước này. Bật trong `backend_ocr_job`, web demo và lệnh `snapshot` của
+CLI; không bật trong `benchmark`, để số đo giữa các lần chạy còn so được với nhau.
+
+**Vì sao cần.** Bản scan xấu làm các bản đọc lệch nhau, và mỗi chỗ lệch kéo thêm một lời gọi trả
+tiền: 4-1 đối chiếu, GPT đọc lại cả trang khi 2512 trả rỗng, GPT phân xử từng dòng. Bước này chạy
+trên từng trang sắp gửi OCR (sau trang trắng, trang ít chữ, trang trùng pixel), **trước lời gọi trả
+tiền đầu tiên**, và tốn khoảng một phần mười giây mỗi trang.
+
+**Bốn chỉ số.** Ảnh được thu về mức tương đương 150 DPI trước khi đo, nên kết quả không phụ thuộc DPI
+render. Render một bản scan 150–200 DPI ở 300 DPI chỉ phóng to ảnh: một bản scan sạch đo được độ nét
+0,98 ở 150 DPI nhưng 0,69 ở 300 DPI. Giấy = trung vị độ xám; mực = điểm tối hơn giấy trên 20 mức.
+
+| Chỉ số → lý do | Cách tính | Coi là xấu khi | Bắt được |
+|---|---|---|---|
+| Độ nét → `blur` | Độ dốc biên nét chữ (Sobel 3×3), phân vị 90, chia cho mức một biên sắc đạt được với cùng độ tương phản (4 × tương phản). Biên sắc ≈ 1,0 | < 0,80 | Scan mất nét, scan độ phân giải thấp bị phóng to |
+| Tương phản mực → `low_contrast` | Giấy trừ độ xám ở lõi nét chữ (phân vị 10 của các điểm mực) | < 120 | Chữ in mờ, scan nhạt |
+| Nhiễu hạt → `noise` | Trên vùng giấy: ảnh trừ ảnh lọc trung vị 5×5, lấy MAD × 1,4826 (quy ra σ). Nét chữ gần như không làm số này dịch chuyển | > 3,5 | Nhiễu hạt trên nền |
+| Chấm bẩn → `speckle` | Số chấm tối rời rạc 1–2 điểm ảnh (nhỏ hơn mọi nét chữ ở 150 DPI) trên mỗi megapixel | > 300/MP; > **1.000/MP khi tương phản ≥ 190** | Bụi, mực máy photo, muối tiêu |
+
+Chữ đậm và rõ thì một chấm 1–2 điểm ảnh không thể bị đọc thành nét chữ hay dấu thanh, nên ngưỡng chấm
+bẩn được nới khi tương phản tốt. Trang có mực dưới 0,2% diện tích (chỉ tiêu đề, chữ ký, số trang)
+**không được chấm**: trên trang gần trắng, phân vị mực rơi vào màu giấy và các chỉ số mất nghĩa.
+
+**Quyết định.**
+
+| Tình huống | Hành vi | Chi phí |
+|---|---|---|
+| Số trang xấu ≥ 3 (`MIN_LOW_QUALITY_PAGES`) **và** ≥ 30% số trang sắp OCR (`MAX_LOW_QUALITY_SHARE`) | `LowQualityDocument` → job `failed`, `error.code = AI1_LOW_QUALITY_DOCUMENT`, `error.pages = {"3": ["blur", "speckle"], ...}`. Web demo trả HTTP 422 | **0**: chưa gọi model nào. Thử lại cũng ra kết quả như cũ; cách xử lý là scan lại |
+| Có trang xấu nhưng chưa đủ cả hai điều kiện trên (vd PDF có lớp chữ, chỉ trang ký là scan lấm chấm: 1/1 = 100% nhưng dưới 3 trang) | Trang xấu: `Context.low_quality = True`, `evidence.reason_codes` thêm `LOW_QUALITY_SCAN`, cảnh báo trang `low_quality_scan:<lý do>`. Engine chỉ đọc một lần (mục 6.4) | Đúng 1 lời gọi cho trang đó |
+| Không có trang xấu | Như trước | Như trước |
+
+**Hiệu chỉnh.** Đo ở 150 DPI trên bản scan cục bộ (`data/raw/`, không commit) và trên ảnh làm xấu
+giả lập (`degradation.py`):
+
+| Mẫu | Độ nét | Tương phản | Nhiễu | Chấm/MP | Kết quả |
+|---|---|---|---|---|---|
+| 11 file `scanned_clean` + 4 file scan hard case | 0,86–1,00 | ≥ 170 | 0 | ≤ 152 | OCR |
+| `scanned_bad` (scan bẩn) | 0,96 | 197–217 | 0 | 410–716 | OCR (tương phản tốt → ngưỡng 1.000/MP) |
+| Nhoè nhẹ σ1 / nhoè mạnh σ3,5 | 0,74 / 0,29 | — | — | — | `blur` |
+| Scan 75 DPI phóng to | 0,76 | — | — | — | `blur` |
+| Tương phản thấp | — | 81 | — | — | `low_contrast` |
+| Nhiễu hạt σ15 | — | — | 5,9 | — | `noise` |
+| Muối tiêu 1% | — | — | — | 7.966 | `speckle` |
+| JPEG chất lượng 30–50, đổi độ sáng | — | — | — | — | Không gắn cờ (cố ý: file 202 trang ở JPEG ≈ 32 vẫn đọc đúng 99,43% ký tự) |
+
+Kiểm tra một file mới không tốn tiền (in 4 chỉ số và kết luận từng trang, không gọi OCR):
+
+```powershell
+cd ai-service
+uv run python scripts/check_page_quality.py "<thư mục>/*.pdf" --dpi 150
+```
+
+**Chưa bắt được:** nhoè do rung ngang (đo 0,94), trang nghiêng/xoay, chữ bị con dấu hoặc chữ ký đè,
+chữ in thấu từ mặt sau, chữ viết tay. Các ngưỡng mới chỉ được chứng minh trên ảnh giả lập; chưa
+đối chiếu với tỉ lệ đọc sai thật theo từng trang (mục 16).
 
 ---
 
@@ -343,6 +406,67 @@ Không có 4-1 (lỗi/không gọi) → dòng có token quan trọng nhận `cri
 
 Đo được ~0.1–0.2 s/trang ở 150 DPI, không gọi mạng.
 
+### 6.4 Trang scan xấu: chỉ đọc một lần
+
+Trang được mục 5.1 gắn `Context.low_quality = True` đi luồng rút gọn, ở cả hai chế độ chi phí:
+
+| Bước thường | Trên trang xấu | Thay bằng |
+|---|---|---|
+| 4-1 đọc song song (`AI1_VERIFY_ALL_PAGES`) hoặc khi cổng nghi ngờ | Không gọi | Dòng có số tiền/ngày… → `critical_field_unverified` |
+| GPT đọc lại cả trang khi 2512 trả rỗng | Không gọi | Cảnh báo `ocr:text_reader_empty` |
+| GPT phân xử dòng lỗi chính tả / tranh chấp / mực bị bỏ | Không gọi | `needs_review:low_quality_unverified:<line>` → trang `PARTIAL` |
+| GPT đọc cả trang khi 2512 **lỗi** (`fallback_reader`) | Vẫn gọi | Đây là cứu một trang lỗi, không phải đọc lặp |
+
+Lý do: trên bản scan xấu, các bản đọc lệch nhau chủ yếu vì nhiễu, nên đọc thêm chủ yếu là mua thêm
+bất đồng. Đánh đổi: dòng mà 2512 đọc sót trên trang xấu sẽ không được 4-1/GPT khôi phục; trang được
+gắn cờ để người thẩm định kiểm tra thay.
+
+### 6.5 Độ tin cậy từng dòng và chi phí
+
+File: `domain/ocr_confidence.py`, gọi trong `VerifiedMistralOCREngine._result`.
+
+Không model nào trong luồng có xác suất dùng được: 2512 không trả confidence; confidence từng từ của
+4-1 đạt 0,99 ngay cả trên từ sai dấu (mục 13). Vì vậy độ tin cậy của một dòng là **bằng chứng đứng
+sau văn bản của nó**: có bao nhiêu bản đọc độc lập khớp nhau, và cổng để lại cờ review nào. Mỗi lớp
+bằng chứng ứng với một điểm; dòng lấy điểm **thấp nhất** trong các lớp nó thuộc về.
+
+| Bằng chứng | Điểm |
+|---|---|
+| Lớp chữ gốc của PDF (không đọc từ ảnh) | 0,99 |
+| 2512 và 4-1 khớp mọi token | 0,97 |
+| Hai bên lệch, GPT đọc mù phân định (2 trên 3) | 0,90 |
+| Chỉ 2512 đọc, cổng không thấy gì đáng ngờ | 0,90 |
+| `spelling_unverified` | 0,75 |
+| `critical_field_unverified` | 0,70 |
+| `content_conflict`, `arbiter_unavailable` | 0,50 |
+| `critical_field_conflict`, `amount_words_mismatch` | 0,30 |
+| Cờ khác (gồm `low_quality_unverified`, `recovered_text_unconfirmed`) | 0,50 (`UNKNOWN_REVIEW`: cờ lạ vẫn là nghi ngờ, không bao giờ là đạt) |
+
+Đây là điểm **ước lượng ban đầu (prior)**. Khi có ground truth đã sửa tay, mỗi điểm cần thay bằng tỉ lệ
+dòng đọc đúng đo được trong lớp đó (cận dưới Wilson), để 0,93 nghĩa là "93% dòng loại này đúng". Dòng
+dưới 0,5 làm trang có `low_confidence_lines`.
+
+Engine `mistral` thường (web demo, không qua `VerifiedMistralOCREngine`) dùng
+`average_content_confidence_score` Mistral trả về kèm block, nên con số đó không cùng thang với bảng
+trên.
+
+**Độ tin cậy của fact (backend, ngoài AI1).** `backend/.../shared/ai/fact_confidence.py`:
+`min(grounding, độ tin cậy các dòng OCR được trích)`, và tối đa 0,80 nếu fact chưa qua review.
+Grounding: giá trị nằm nguyên văn trong câu trích 1,0; chỉ khác dấu phân cách số 0,95; gần đúng 0,60;
+không tìm thấy 0,20. Độ tin cậy tự chấm của LLM không được dùng.
+
+**Chi phí.** Tính các con số trên **không gọi API nào**: AI1 dùng bảng tra trên bằng chứng sẵn có,
+backend so chuỗi. Cái tốn tiền là **số bản đọc đứng sau con số**:
+
+| Muốn dòng đạt | Cần | Chế độ | Chi phí đo trên bộ hard case (mục 19) |
+|---|---|---|---|
+| 0,97 | 4-1 đọc mọi trang | `accuracy` | $10,1 / 1.000 trang scan |
+| 0,90 | Chỉ 2512, 4-1 khi cổng nghi ngờ | `budget` | $4,4 / 1.000 trang scan |
+| ≤ 0,90 (thường 0,50 trên dòng có cờ) | Trang xấu, một bản đọc (mục 6.4) | Cả hai | 2512 $2 / 1.000 trang |
+
+Nâng một tài liệu từ 0,90 lên 0,97 tốn thêm khoảng **$5,7 cho 1.000 trang**: đó là tiền cho bản đọc
+thứ hai, không phải cho việc tính độ tin cậy.
+
 ---
 
 ## 7. Dựng snapshot và cấu trúc điều khoản
@@ -436,11 +560,13 @@ Mã cảnh báo trang:
 | `needs_review:spelling_unverified:<line>` | PARTIAL | Dòng lỗi chính tả, không có bản sạch thay thế |
 | `needs_review:arbiter_unavailable:<line>` | PARTIAL | Cần phân xử nhưng GPT không trả kết quả |
 | `needs_review:recovered_text_unconfirmed:<line>` | PARTIAL | Chữ khôi phục chỉ khớp một phần với 4-1 |
+| `needs_review:low_quality_unverified:<line>` | PARTIAL | Trang scan xấu chỉ đọc một lần; dòng này lẽ ra được GPT phân xử (mục 6.4) |
 | `missing_line_geometry` | PARTIAL | Có dòng không gắn được bbox |
 | `low_confidence_lines` | PARTIAL | Có dòng confidence < 0.5 |
 | `no_text_found` | PARTIAL | Trang có mực nhưng không bản đọc nào ra chữ |
 | `possible_duplicate_of:pN` | PARTIAL | Gần trùng trang N (vd bản scan lại); vẫn nằm trong cây điều khoản |
 | `blank_page` | Thông tin | Trang trắng (router, không gọi OCR) |
+| `low_quality_scan:<lý do>` | Thông tin | Trang scan xấu (`blur`, `low_contrast`, `noise`, `speckle`, nối bằng `+`), chỉ đọc một lần (mục 5.1) |
 | `duplicate_of:pN` | Thông tin | Trùng nguyên văn trang N; không đưa vào cây điều khoản lần hai |
 | `ocr:reused_reading_of_pN` | Thông tin | Ảnh trùng pixel với trang N, dùng lại kết quả OCR |
 | `ocr:text_reader_empty_fallback` | Thông tin | 2512 trả rỗng trên trang có dòng chữ, đã đọc lại bằng GPT cả trang |
@@ -481,6 +607,8 @@ Gốc: `ai-service/src/contract_ocr/`.
 | infrastructure/ocr | `prompts.py` | Prompt OCR "không đoán, dùng [illegible]" |
 | infrastructure/image | `line_geometry.py` | Bbox dòng, khối cột |
 | infrastructure/image | `page_ink.py` | Router trước OCR: trang trắng, dòng mực ngoài lớp chữ gốc |
+| infrastructure/image | `page_quality.py` | Chất lượng scan trước OCR: `blur`, `low_contrast`, `noise`, `speckle` (mục 5.1) |
+| domain | `ocr_confidence.py` | Độ tin cậy từng dòng từ bằng chứng (mục 6.5) |
 | infrastructure/image | `table_grid.py` | Lưới bảng có viền |
 | infrastructure/image | `renderer.py` | Render trang PDF |
 | infrastructure | `backend_ocr_job.py` | Job OCR, lắp engine theo `engine_id` |
@@ -509,6 +637,7 @@ Engine theo `options.engine`: `pymupdf` (chỉ native), `openai`, `gemini`, `mis
 | `AI1_COST_MODE` | `accuracy` trong code; **`budget`** trong `.env` / `.env.example` | `budget`: 4-1 chỉ khi ≥ 25% dòng căn kém / mực bỏ sót / bảng không viền; critical field thành cờ review; GPT chỉ đọc crop (mục 19) |
 | `AI1_GPT_REASONING_EFFORT` | `none` | Mức suy luận ẩn của GPT; `none` rẻ hơn 17%, CER không đổi |
 | `AI1_MAX_PAGES_IN_FLIGHT` | `8` | Số trang OCR song song mỗi tài liệu |
+| `AI1_PAGE_QUALITY_CHECK` | `true` | Kiểm tra chất lượng scan trước OCR (mục 5.1); `false` = tắt, mọi trang đọc như trước |
 | `LANGFUSE_*` | tắt | Tracing và chi phí |
 
 Liên quan trực tiếp đến AI1 ở chỗ khác:
@@ -532,6 +661,8 @@ Liên quan trực tiếp đến AI1 ở chỗ khác:
 | 2512 trả rỗng trên trang có dòng chữ | GPT đọc cả trang, cảnh báo `ocr:text_reader_empty_fallback` |
 | Cả 2512 và GPT lỗi | Trang `FAILED`, tài liệu vẫn có snapshot |
 | Mọi bản đọc đều rỗng trên trang có mực | Trang `PARTIAL` + `no_text_found` (không còn `FAILED`) |
+| ≥ 3 trang **và** ≥ 30% số trang sắp OCR là scan xấu | Từ chối trước khi gọi OCR: job `failed`, `AI1_LOW_QUALITY_DOCUMENT` + `error.pages`; web demo HTTP 422. Thử lại không giúp gì, cần scan lại (mục 5.1) |
+| Trang scan xấu, dưới ngưỡng trên | Đọc một lần, không 4-1/GPT; `low_quality_scan:<lý do>` (mục 6.4) |
 | 4-1 lỗi | Cảnh báo `ocr:verifier_failed`; dòng có token quan trọng → `critical_field_unverified`; bbox căn kém giữ CLAIMED |
 | GPT trọng tài lỗi | Các dòng cần phân xử → `needs_review:arbiter_unavailable`, giữ bản 2512 |
 | 2512 bịa chữ (ảo giác) | Dòng không có mực, 4-1 không đọc ra, GPT đọc cả trang thành công mà không có → loại, `ocr:dropped_unsupported_text`. Thiếu một trong ba bằng chứng (vd GPT lỗi) → giữ + cờ review |
@@ -564,6 +695,11 @@ process-ocr-job (root, theo job)
 Chi phí và hiệu năng **đo thật** trên bộ hard case, theo từng chế độ chi phí, ở mục 19. Tóm tắt:
 chế độ `accuracy` **$10.1 / 1.000 trang scan**, chế độ `budget` **$4.4 / 1.000 trang scan**; trang có
 lớp chữ gốc $0. Giá: 2512 $2/1.000 trang, 4-1 $4/1.000 trang, GPT-5.6-terra $2/$12 mỗi 1M token vào/ra.
+
+Hai bước không tốn tiền nhưng quyết định tiền: kiểm tra chất lượng scan (mục 5.1; file bị từ chối
+tốn $0, trang xấu tốn đúng một lần đọc 2512) và độ tin cậy từng dòng (mục 6.5; tính từ bằng chứng
+có sẵn, mức cao hơn chỉ có được bằng cách trả thêm bản đọc). Span `process-page` ghi
+`low_quality_scan` để lọc các trang này trên Langfuse.
 
 Hiệu năng đo trên file scan 12 trang (4 trang song song): ~19 s cho cả tài liệu; 2512 ~2–3 s/trang
 (từng gặp 23 s → có timeout); 4-1 ~1–2 s chạy song song; OpenCV ~0.1–0.2 s/trang.
@@ -609,6 +745,10 @@ có bbox; 11/12 trang `SUCCESS`, 1 trang `PARTIAL` (tên người ký bị con d
 | `test_duplicate_pages.py` | Trùng nguyên văn / gần trùng / trang mẫu khác số / trang ngắn |
 | `test_page_ink.py` | Trang trắng có bụi và bóng mép, một chữ số, chữ mờ vs chữ hằn mặt sau, dòng mực ngoài lớp chữ |
 | `integration/test_page_routing.py` | Router: trang trắng/ít chữ/trùng pixel không gọi OCR; trang có mực không ra chữ → `PARTIAL` |
+| `test_page_quality.py` | 4 chỉ số trên trang sạch và từng kiểu làm xấu; JPEG/độ sáng không gắn cờ; render 300 DPI không thành `blur`; chấm bẩn chịu được khi tương phản tốt; trang gần trắng không chấm |
+| `integration/test_page_quality_gate.py` | 3/6 trang xấu → `LowQualityDocument`, engine **không được gọi lần nào**; PDF có lớp chữ + 1 trang scan xấu → vẫn OCR, trang đó có `low_quality_scan`; 2/2 trang xấu (dưới 3 trang) → vẫn OCR; dưới ngưỡng → `low_quality` chỉ trên trang xấu |
+| `test_page_quality.py` (công tắc) | `AI1_PAGE_QUALITY_CHECK` = `false`/`0`/`no` tắt kiểm tra; mặc định bật |
+| `test_verified_mistral_ocr.py` (phần trang xấu) | Trang `low_quality`: không 4-1 kể cả `AI1_VERIFY_ALL_PAGES`, không GPT phân xử, không GPT đọc lại khi rỗng |
 | `test_mistral_ocr.py` | Engine Mistral với SDK giả |
 
 ```bash
@@ -662,6 +802,10 @@ docker logs -f ci-ai1-worker
 | Idempotency Kafka | Trong bộ nhớ, mất khi khởi động lại | Lưu `event_id` bền |
 | Trích dẫn AI2 bị `citation_guard` loại (`no_ocr_span`) | Vị trí trích dẫn đến backend là 0–0 | Sửa khâu chuyển vị trí AI2 → backend (ngoài AI1) |
 | Đánh giá định lượng | Mới đo trên 1 tài liệu | Benchmark CER / lỗi dấu / field quan trọng trên bộ ground truth `ocr-benchmark/data` |
+| Ngưỡng chất lượng scan | Hiệu chỉnh trên 15 file scan cục bộ và ảnh giả lập; không còn file scan thật nào bị gắn cờ, nên phần từ chối mới chỉ được chứng minh bằng ảnh giả lập. Ngưỡng 30% là mức tự chọn | Chạy 4 chỉ số trên file 202 trang, so với độ chính xác từng trang (trang 32, 62 mất chữ); thêm bản scan xấu thật (chụp điện thoại, fax, photo nhiều lần) |
+| Trang scan xấu đọc sót | Không có bản đọc thứ hai để khôi phục; chỉ gắn cờ | Đo trên ground truth xem đọc một lần mất bao nhiêu so với đọc đủ, rồi quyết định giữ hay bỏ |
+| Nhoè do rung, trang nghiêng | Chưa đo | Thêm chỉ số theo hướng (độ nét theo trục) và góc nghiêng |
+| Điểm độ tin cậy | Là prior, chưa đo; `low_quality_unverified` rơi vào mặc định 0,50 | Thay bằng tỉ lệ đúng đo trên ground truth; khai báo rõ cờ mới trong `REVIEW_SCORES` |
 
 ---
 
@@ -970,6 +1114,7 @@ viện đã có test nhưng chưa nối vào job Kafka.
 | Router trước OCR: trang trắng theo mực tương đối nền giấy, bỏ bóng mép scan | `page_ink.is_blank` | P |
 | Trang ít chữ: chỉ đọc native khi mọi dòng mực nằm trong lớp chữ | `page_ink.unexplained_lines` | P |
 | Khử trùng lặp trang bằng sha256 ảnh (OCR một lần, cấp lại id) | `process_document._reuse_reading` | P |
+| Từ chối file scan quá xấu trước mọi lời gọi; trang xấu chỉ đọc một lần | `process_document`, `page_quality.py` (mục 5.1, 6.4) | P |
 | Phát hiện trang trùng nguyên văn / gần trùng sau OCR (khớp dãy số + so mờ ≥ 95) | `duplicate_pages.py` | P |
 | Bản đọc thứ hai chạy cùng lúc (không tăng độ trễ); GPT chỉ đọc crop của dòng mâu thuẫn, gộp một request mỗi trang | Mục 6 | P |
 
@@ -984,6 +1129,7 @@ viện đã có test nhưng chưa nối vào job Kafka.
 | Thứ tự đọc theo cột cho khối chữ ký hai cột | `column_major_variant` | P |
 | Dò lưới bảng: contour + projection, gom nét dày về tâm | `table_grid.py` | P |
 | Đo mực tương đối nền giấy, lọc theo kích thước thành phần | `page_ink.py` | P |
+| Chất lượng scan: độ nét biên (Sobel chuẩn hoá theo tương phản), tương phản lõi nét, nhiễu nền (MAD sau lọc trung vị), chấm bẩn (thành phần ≤ 2 điểm ảnh); chuẩn hoá về 150 DPI | `page_quality.py` | P |
 | Lọc crop có > 15% mực đỏ trước khi đọc lại | `verified_mistral_ocr` | P |
 
 ### 18.4 OCR đa bản đọc và phân xử
