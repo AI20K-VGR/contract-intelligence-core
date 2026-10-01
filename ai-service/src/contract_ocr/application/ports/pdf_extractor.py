@@ -19,6 +19,7 @@ class Preprocessor(Protocol):
 
 
 class PageQualityAssessor(Protocol):
-    def assess(self, image: Any) -> list[str]:
-        """Reasons the rendered page is hard to read (e.g. "blur"); empty when fine."""
+    def assess(self, image: Any, dpi: int) -> list[str]:
+        """Reasons the page, rendered at `dpi`, is hard to read (e.g. "blur");
+        empty when fine."""
         ...

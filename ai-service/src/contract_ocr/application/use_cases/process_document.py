@@ -187,7 +187,7 @@ class ProcessDocument:
                             continue
                         first_page_with[digest] = index
                         # Judged on the scan as it came, before preprocessing.
-                        quality_issues = self.quality.assess(original) if self.quality else []
+                        quality_issues = self.quality.assess(original, dpi) if self.quality else []
                         if quality_issues:
                             page_result.evidence = evidence.model_copy(
                                 update={
