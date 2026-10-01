@@ -269,6 +269,7 @@ SSE đã phát thay đổi của bước, nên không cần sự kiện SSE mớ
 | Q4 | `ai1-worker` chạy nhiều replica được không (trạng thái cục bộ ngoài `_processed` và thư mục tạm)? | C4 |
 | Q5 | AI1 tách được mã lỗi và `retryable` như C3 không? Hiện mọi lỗi đều là `AI1_OCR_FAILED` | Backend cần biết lỗi nào gửi lại được (C5) |
 | Q6 | Cỡ cụm 20 trang và 8 trang cùng lúc có hợp với hạn mức provider đang dùng (Mistral) không? | C2, C4 |
+| Q7 | Kiểm tra chất lượng trang của #47 từ chối cả tài liệu khi từ 30% số trang phải OCR bị xấu. Khi chia cụm, mỗi lệnh chỉ chứa các trang của một cụm. AI1 chọn cách nào: (a) đo chất lượng cả tài liệu trước khi chia cụm, Backend gửi lệnh đo riêng; (b) mỗi cụm tự đo, cụm vượt ngưỡng trả `chunk_failed` với `AI1_LOW_QUALITY_DOCUMENT` và `retryable=false`, cả tài liệu bị từ chối; (c) cách khác? | Tránh hai cụm của cùng một tài liệu cho kết quả ngược nhau, và tránh OCR (tốn tiền) các cụm đầu rồi mới từ chối ở cụm sau |
 
 ## Việc của từng bên
 
@@ -294,7 +295,7 @@ SSE đã phát thay đổi của bước, nên không cần sự kiện SSE mớ
 
 ## Thứ tự triển khai
 
-1. Hai bên duyệt DEC này. AI1 trả lời Q1–Q6; nếu câu trả lời làm đổi đề xuất thì sửa DEC trước khi code.
+1. Hai bên duyệt DEC này. AI1 trả lời Q1–Q7; nếu câu trả lời làm đổi đề xuất thì sửa DEC trước khi code.
 2. AI1 deploy K1–K4. Lệnh không có `chunk` vẫn chạy như cũ, nên Backend cũ không bị ảnh hưởng.
 3. Backend deploy E1–E5 với `AI1_OCR_CHUNK_PAGES=0` (tắt): hành vi chưa đổi.
 4. Bật `AI1_OCR_CHUNK_PAGES=20` trên máy test, chạy E6 và ghi số đo.
@@ -305,3 +306,4 @@ SSE đã phát thay đổi của bước, nên không cần sự kiện SSE mớ
 | Ngày | Thay đổi | Người |
 |---|---|---|
 | 2026-10-01 | Bản đề xuất đầu tiên | Chương |
+| 2026-10-01 | Thêm Q7: kiểm tra chất lượng trang (#47) khi chia cụm | Chương |
