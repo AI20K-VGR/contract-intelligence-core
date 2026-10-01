@@ -11,9 +11,23 @@ import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
 import { dossierOpenTo, type Dossier } from '../data/dossiers'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { ShareGrantBadge } from '../components/ShareGrantBadge'
+import {
+  formatExpiry,
+  fromDateInput,
+  grantPermission,
+  permissionLabels,
+  todayInput,
+  toDateInput,
+  type SharePermission,
+} from '../data/shareGrant'
 import { accessLabels, dossierFromSummary } from './MyDossiersPage'
 
 type AccessFilter = 'all' | Dossier['access']
+
+type GrantOption = { permission: SharePermission; expires: string }
+
+const DEFAULT_OPTION: GrantOption = { permission: 'read', expires: '' }
 
 const filters: { id: AccessFilter; label: string; dot?: string }[] = [
   { id: 'all', label: 'Tất cả' },
@@ -36,6 +50,7 @@ export function AccessPage() {
     sharedOnly ? 'shared_in' : 'all',
   )
   const [chosen, setChosen] = useState<string[]>([])
+  const [options, setOptions] = useState<Record<string, GrantOption>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -82,6 +97,17 @@ export function AccessPage() {
 
   useEffect(() => {
     setChosen(selected?.shares?.map((item) => item.id) ?? [])
+    setOptions(
+      Object.fromEntries(
+        (selected?.shares ?? []).map((item) => [
+          item.id,
+          {
+            permission: grantPermission(item),
+            expires: toDateInput(item.expires_at),
+          },
+        ]),
+      ),
+    )
     setSaveError(null)
   }, [selected])
 
@@ -99,6 +125,7 @@ export function AccessPage() {
     dossier: Dossier,
     nextScope: Dossier['access'],
     shareIds: string[],
+    shareOptions: Record<string, GrantOption> = {},
   ) {
     setSavingId(dossier.id)
     setSaveError(null)
@@ -112,6 +139,11 @@ export function AccessPage() {
               email: person.email,
               display_name: person.display_name,
               status: person.status,
+              permission: (shareOptions[person.id] ?? DEFAULT_OPTION)
+                .permission,
+              expires_at: fromDateInput(
+                (shareOptions[person.id] ?? DEFAULT_OPTION).expires,
+              ),
             }))
     try {
       const saved = await updateDossierAccess(dossier.id, nextScope, shares)
@@ -190,7 +222,9 @@ export function AccessPage() {
             <thead>
               <tr className="bg-surface-container-low text-on-secondary-container font-label-sm text-label-sm uppercase tracking-wider">
                 <th className="py-3 px-space-md font-semibold">Tên hồ sơ</th>
-                <th className="py-3 px-space-md font-semibold">Quyền truy cập</th>
+                <th className="py-3 px-space-md font-semibold">
+                  Quyền truy cập
+                </th>
                 {sharedOnly ? null : (
                   <th className="py-3 px-space-md font-semibold">Đổi quyền</th>
                 )}
@@ -239,13 +273,22 @@ export function AccessPage() {
                     }`}
                   >
                     <td className="py-3.5 px-space-md">
-                      <Link
-                        className="font-title-sm text-title-sm font-semibold text-on-surface hover:text-on-tertiary-container"
-                        state={{ dossierId: item.id, name: item.title }}
-                        to={dossierOpenTo(item)}
-                      >
-                        {item.title}
-                      </Link>
+                      {item.myGrant?.expired ? (
+                        <span
+                          className="font-title-sm text-title-sm font-semibold text-on-surface-variant"
+                          title="Quyền chia sẻ đã hết hạn"
+                        >
+                          {item.title}
+                        </span>
+                      ) : (
+                        <Link
+                          className="font-title-sm text-title-sm font-semibold text-on-surface hover:text-on-tertiary-container"
+                          state={{ dossierId: item.id, name: item.title }}
+                          to={dossierOpenTo(item)}
+                        >
+                          {item.title}
+                        </Link>
+                      )}
                       <span className="block font-code-sm text-label-sm text-on-surface-variant mt-1">
                         {item.code}
                       </span>
@@ -261,7 +304,10 @@ export function AccessPage() {
                             )
                           }
                         >
-                          <MaterialIcon name="mark_email_unread" className="text-[14px]" />
+                          <MaterialIcon
+                            name="mark_email_unread"
+                            className="text-[14px]"
+                          />
                           Chưa mời
                         </button>
                       ) : (
@@ -273,98 +319,185 @@ export function AccessPage() {
                           {accessLabels[item.access]}
                         </span>
                       )}
+                      {item.myGrant ? (
+                        <div className="mt-1">
+                          <ShareGrantBadge grant={item.myGrant} />
+                        </div>
+                      ) : null}
                     </td>
                     {sharedOnly ? null : (
-                    <td className="py-3.5 px-space-md">
-                      {item.access === 'shared_in' ? (
-                        <span className="font-body-sm text-body-sm text-on-surface-variant">
-                          Người khác chia sẻ
-                        </span>
-                      ) : (
-                        <div className="relative inline-flex items-center gap-space-sm">
-                          <button
-                            className={`h-9 px-space-sm rounded font-body-sm text-body-sm disabled:opacity-50 ${
-                              active
-                                ? 'bg-primary-container text-on-primary'
-                                : 'bg-surface-container-low text-on-surface hover:bg-surface-container'
-                            }`}
-                            disabled={savingId === item.id}
-                            type="button"
-                            onClick={() =>
-                              select(active ? '' : item.id)
-                            }
-                          >
-                            Chia sẻ với người khác
-                          </button>
-                          {item.access === 'shared_out' ? (
+                      <td className="py-3.5 px-space-md">
+                        {item.access === 'shared_in' ? (
+                          <span className="font-body-sm text-body-sm text-on-surface-variant">
+                            Người khác chia sẻ
+                          </span>
+                        ) : (
+                          <div className="relative inline-flex items-center gap-space-sm">
                             <button
-                              className="h-9 px-space-sm rounded bg-surface-container-low text-on-surface font-body-sm text-body-sm hover:bg-surface-container disabled:opacity-50"
+                              className={`h-9 px-space-sm rounded font-body-sm text-body-sm disabled:opacity-50 ${
+                                active
+                                  ? 'bg-primary-container text-on-primary'
+                                  : 'bg-surface-container-low text-on-surface hover:bg-surface-container'
+                              }`}
                               disabled={savingId === item.id}
                               type="button"
-                              onClick={() => {
-                                void saveAccess(item, 'mine', [])
-                              }}
+                              onClick={() => select(active ? '' : item.id)}
                             >
-                              {savingId === item.id
-                                ? 'Đang lưu…'
-                                : 'Đổi thành hồ sơ của tôi'}
+                              Chia sẻ với người khác
                             </button>
-                          ) : null}
-                          {active ? (
-                            <div className="absolute left-0 top-10 z-50 w-72 rounded bg-surface-container-lowest shadow-[0_8px_24px_rgba(15,23,42,0.12)] border border-surface-container p-space-sm flex flex-col gap-space-sm">
-                              <div className="flex flex-col gap-1 max-h-48 overflow-auto">
-                                {tenants.length === 0 ? (
-                                  <p className="font-body-sm text-body-sm text-secondary px-1">
-                                    Tenant chưa có người dùng khác.
-                                  </p>
-                                ) : (
-                                  tenants.map((person) => (
-                                    <label
-                                      key={person.id}
-                                      className="inline-flex items-center gap-2 px-1 py-1 rounded hover:bg-surface-container-low font-body-sm text-body-sm"
-                                    >
-                                      <input
-                                        checked={chosen.includes(person.id)}
-                                        type="checkbox"
-                                        onChange={() =>
-                                          setChosen((current) =>
-                                            current.includes(person.id)
-                                              ? current.filter(
-                                                  (id) => id !== person.id,
-                                                )
-                                              : [...current, person.id],
-                                          )
-                                        }
-                                      />
-                                      <span>
-                                        {person.display_name} · {person.email}
-                                      </span>
-                                    </label>
-                                  ))
-                                )}
-                              </div>
-                              {saveError ? (
-                                <p className="font-body-sm text-body-sm text-error">
-                                  {saveError}
-                                </p>
-                              ) : null}
+                            {item.access === 'shared_out' ? (
                               <button
-                                className="h-8 px-space-sm rounded bg-primary-container text-on-primary font-label-sm text-label-sm disabled:opacity-50"
-                                disabled={
-                                  savingId === item.id || chosen.length === 0
-                                }
+                                className="h-9 px-space-sm rounded bg-surface-container-low text-on-surface font-body-sm text-body-sm hover:bg-surface-container disabled:opacity-50"
+                                disabled={savingId === item.id}
                                 type="button"
                                 onClick={() => {
-                                  void saveAccess(item, 'shared_out', chosen)
+                                  void saveAccess(item, 'mine', [])
                                 }}
                               >
-                                {savingId === item.id ? 'Đang lưu…' : 'Lưu quyền'}
+                                {savingId === item.id
+                                  ? 'Đang lưu…'
+                                  : 'Đổi thành hồ sơ của tôi'}
                               </button>
-                            </div>
-                          ) : null}
-                        </div>
-                      )}
-                    </td>
+                            ) : null}
+                            {active ? (
+                              <div className="absolute left-0 top-10 z-50 w-96 max-w-[calc(100vw-2rem)] rounded bg-surface-container-lowest shadow-[0_8px_24px_rgba(15,23,42,0.12)] border border-surface-container p-space-sm flex flex-col gap-space-sm">
+                                <div className="flex flex-col gap-1 max-h-48 overflow-auto">
+                                  {tenants.length === 0 ? (
+                                    <p className="font-body-sm text-body-sm text-secondary px-1">
+                                      Tenant chưa có người dùng khác.
+                                    </p>
+                                  ) : (
+                                    tenants.map((person) => {
+                                      const isChosen = chosen.includes(
+                                        person.id,
+                                      )
+                                      const option =
+                                        options[person.id] ?? DEFAULT_OPTION
+                                      const pastDate =
+                                        Boolean(option.expires) &&
+                                        option.expires < todayInput()
+                                      return (
+                                        <div
+                                          key={person.id}
+                                          className="rounded px-1 py-1 hover:bg-surface-container-low"
+                                        >
+                                          <label className="inline-flex w-full items-center gap-2 font-body-sm text-body-sm">
+                                            <input
+                                              checked={isChosen}
+                                              type="checkbox"
+                                              onChange={() =>
+                                                setChosen((current) =>
+                                                  current.includes(person.id)
+                                                    ? current.filter(
+                                                        (id) =>
+                                                          id !== person.id,
+                                                      )
+                                                    : [...current, person.id],
+                                                )
+                                              }
+                                            />
+                                            <span className="min-w-0 flex-1 truncate">
+                                              {person.display_name} ·{' '}
+                                              {person.email}
+                                            </span>
+                                          </label>
+                                          {isChosen ? (
+                                            <div className="mt-1 flex flex-wrap items-center gap-2 pl-6">
+                                              <select
+                                                aria-label={`Quyền của ${person.display_name}`}
+                                                className="h-8 rounded bg-surface-container-low px-2 font-body-sm text-body-sm"
+                                                value={option.permission}
+                                                onChange={(event) =>
+                                                  setOptions((current) => ({
+                                                    ...current,
+                                                    [person.id]: {
+                                                      ...option,
+                                                      permission: event.target
+                                                        .value as SharePermission,
+                                                    },
+                                                  }))
+                                                }
+                                              >
+                                                <option value="read">
+                                                  {permissionLabels.read}
+                                                </option>
+                                                <option value="edit">
+                                                  {permissionLabels.edit}
+                                                </option>
+                                              </select>
+                                              <input
+                                                aria-label={`Ngày hết hạn của ${person.display_name}`}
+                                                className="h-8 rounded bg-surface-container-low px-2 font-body-sm text-body-sm"
+                                                min={todayInput()}
+                                                type="date"
+                                                value={option.expires}
+                                                onChange={(event) =>
+                                                  setOptions((current) => ({
+                                                    ...current,
+                                                    [person.id]: {
+                                                      ...option,
+                                                      expires:
+                                                        event.target.value,
+                                                    },
+                                                  }))
+                                                }
+                                              />
+                                              <span
+                                                className={`font-label-sm text-label-sm ${
+                                                  pastDate
+                                                    ? 'text-error'
+                                                    : 'text-secondary'
+                                                }`}
+                                              >
+                                                {pastDate
+                                                  ? 'Ngày hết hạn đã qua'
+                                                  : option.expires
+                                                    ? `Hết hạn ${formatExpiry(fromDateInput(option.expires))}`
+                                                    : 'Không hết hạn'}
+                                              </span>
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      )
+                                    })
+                                  )}
+                                </div>
+                                {saveError ? (
+                                  <p className="font-body-sm text-body-sm text-error">
+                                    {saveError}
+                                  </p>
+                                ) : null}
+                                <button
+                                  className="h-8 px-space-sm rounded bg-primary-container text-on-primary font-label-sm text-label-sm disabled:opacity-50"
+                                  disabled={
+                                    savingId === item.id ||
+                                    chosen.length === 0 ||
+                                    chosen.some(
+                                      (id) =>
+                                        (options[id]?.expires ?? '') !== '' &&
+                                        (options[id]?.expires ?? '') <
+                                          todayInput(),
+                                    )
+                                  }
+                                  type="button"
+                                  onClick={() => {
+                                    void saveAccess(
+                                      item,
+                                      'shared_out',
+                                      chosen,
+                                      options,
+                                    )
+                                  }}
+                                >
+                                  {savingId === item.id
+                                    ? 'Đang lưu…'
+                                    : 'Lưu quyền'}
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+                      </td>
                     )}
                   </tr>
                 )
@@ -378,7 +511,10 @@ export function AccessPage() {
           className="fixed top-20 right-6 z-[70] flex w-[min(24rem,calc(100vw-3rem))] items-start gap-space-md rounded border border-surface-container bg-surface-container-lowest px-space-lg py-space-md font-body-sm text-body-sm text-on-surface shadow-md"
           role="status"
         >
-          <MaterialIcon name="mark_email_unread" className="shrink-0 text-[20px] text-amber-700" />
+          <MaterialIcon
+            name="mark_email_unread"
+            className="shrink-0 text-[20px] text-amber-700"
+          />
           <span className="flex-1">{notice}</span>
           <button
             aria-label="Đóng thông báo"

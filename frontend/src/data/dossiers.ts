@@ -19,7 +19,15 @@ export type Dossier = {
     email: string
     display_name: string
     status?: 'invited' | 'active' | 'disabled'
+    permission?: 'read' | 'edit'
+    expires_at?: string | null
   }[]
+  /** Quyền chia sẻ cho người đang đăng nhập (chỉ có ở hồ sơ được chia sẻ). */
+  myGrant?: {
+    permission: 'read' | 'edit'
+    expires_at: string | null
+    expired: boolean
+  }
   jobStatus?: string | null
   uploadedAt?: string
 }

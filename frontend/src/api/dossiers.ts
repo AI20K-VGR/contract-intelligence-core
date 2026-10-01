@@ -155,6 +155,10 @@ export type DossierShareGrant = {
   email: string
   display_name: string
   status?: 'invited' | 'active' | 'disabled'
+  /** Bỏ trống ở bản chia sẻ cũ, backend coi là 'edit'. */
+  permission?: 'read' | 'edit'
+  /** ISO-8601. null hoặc bỏ trống là không hết hạn. */
+  expires_at?: string | null
 }
 
 export async function updateDossierAccess(

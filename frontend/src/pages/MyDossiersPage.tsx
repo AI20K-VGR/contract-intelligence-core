@@ -12,12 +12,14 @@ import {
 } from '../api/dossiers'
 import { ApiError } from '../api/client'
 import { MaterialIcon } from '../components/icons'
+import { ShareGrantBadge } from '../components/ShareGrantBadge'
 import {
   dossierOpenTo,
   progressPath,
   type Dossier,
   type DossierStatus,
 } from '../data/dossiers'
+import { grantPermission, isGrantExpired } from '../data/shareGrant'
 import { dossiersLabel } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
@@ -118,6 +120,14 @@ function sharesOf(
           row.status === 'disabled'
             ? row.status
             : undefined,
+        permission:
+          row.permission === 'read' || row.permission === 'edit'
+            ? row.permission
+            : undefined,
+        expires_at:
+          typeof row.expires_at === 'string' && row.expires_at
+            ? row.expires_at
+            : null,
       },
     ]
   })
@@ -165,6 +175,9 @@ export function dossierFromSummary(
 ): Dossier {
   const code = metadataText(summary.metadata, 'code') || summary.id
   const job = summary.latest_job_status
+  const access = accessScope(summary, userId, email)
+  const shares = sharesOf(summary.metadata)
+  const mine = grantFor(shares, userId, email)
   return {
     id: summary.id,
     title: summary.name,
@@ -179,8 +192,9 @@ export function dossierFromSummary(
     reviewNote: reviewNote(summary),
     documents: summary.document_count,
     updated: formatWhen(summary.created_at),
-    access: accessScope(summary, userId, email),
-    shares: sharesOf(summary.metadata),
+    access,
+    shares,
+    myGrant: access === 'shared_in' && mine ? { permission: grantPermission(mine), expires_at: mine.expires_at ?? null, expired: isGrantExpired(mine) } : undefined,
     jobStatus: job,
     uploadedAt: summary.created_at,
   }
@@ -303,6 +317,7 @@ export const accessLabels: Record<Dossier['access'], string> = {
 function AccessBadge({ dossier }: { dossier: Dossier }) {
   const shared = dossier.access !== 'mine'
   return (
+    <div className="flex flex-col items-start gap-1">
     <Link
       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-body-sm text-label-sm font-medium ${
         shared
@@ -315,6 +330,8 @@ function AccessBadge({ dossier }: { dossier: Dossier }) {
       <MaterialIcon name={shared ? 'share' : 'lock'} className="text-[14px]" />
       <span>{accessLabels[dossier.access]}</span>
     </Link>
+    <ShareGrantBadge grant={dossier.myGrant} />
+    </div>
   )
 }
 
@@ -755,6 +772,14 @@ export function MyDossiersPage() {
                         className="text-primary-container text-[20px] mt-0.5 flex-shrink-0"
                       />
                       <div className="flex flex-col">
+                        {dossier.myGrant?.expired ? (
+                          <span
+                            className="font-title-sm text-title-sm text-on-surface-variant leading-tight font-semibold"
+                            title="Quyền chia sẻ đã hết hạn"
+                          >
+                            {dossier.title}
+                          </span>
+                        ) : (
                         <Link
                           className="font-title-sm text-title-sm text-on-surface hover:text-on-tertiary-container cursor-pointer leading-tight font-semibold"
                           state={{
@@ -769,6 +794,7 @@ export function MyDossiersPage() {
                         >
                           {dossier.title}
                         </Link>
+                        )}
                         <span className="font-code-sm text-label-sm text-on-surface-variant mt-1 whitespace-nowrap">
                           {dossier.size
                             ? `${dossier.code} • ${dossier.size}`
