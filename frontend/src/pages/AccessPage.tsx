@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
+import { ApiError } from '../api/client'
 import {
   listDossiers,
   listDossiersErrorMessage,
@@ -54,7 +55,9 @@ export function AccessPage() {
   const [options, setOptions] = useState<Record<string, GrantOption>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const [notice, setNotice] = useState<{ text: string; icon: string } | null>(
+    null,
+  )
 
   const selected = dossiers.find((item) => item.id === selectedId) ?? null
   const tenants = people.filter((person) => person.id !== user?.id)
@@ -156,8 +159,21 @@ export function AccessPage() {
         ),
       )
       setChosen(saved.shared_with.map((item) => item.id))
-    } catch {
-      setSaveError('Chưa lưu được quyền truy cập.')
+      // Đóng hộp và báo đã lưu để người dùng biết thao tác thành công.
+      setParams({})
+      setNotice({
+        text:
+          nextScope === 'mine'
+            ? 'Đã đổi thành hồ sơ của bạn, không còn chia sẻ.'
+            : 'Đã lưu quyền truy cập.',
+        icon: 'check_circle',
+      })
+    } catch (cause: unknown) {
+      setSaveError(
+        cause instanceof ApiError && cause.message
+          ? cause.message
+          : 'Chưa lưu được quyền truy cập.',
+      )
     } finally {
       setSavingId(null)
     }
@@ -300,9 +316,10 @@ export function AccessPage() {
                           className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-900 font-label-sm text-label-sm"
                           type="button"
                           onClick={() =>
-                            setNotice(
-                              'Vui lòng kiểm tra mail mời rồi làm theo hướng dẫn.',
-                            )
+                            setNotice({
+                              text: 'Vui lòng kiểm tra mail mời rồi làm theo hướng dẫn.',
+                              icon: 'mark_email_unread',
+                            })
                           }
                         >
                           <MaterialIcon
@@ -582,10 +599,14 @@ export function AccessPage() {
           role="status"
         >
           <MaterialIcon
-            name="mark_email_unread"
-            className="shrink-0 text-[20px] text-amber-700"
+            name={notice.icon}
+            className={`shrink-0 text-[20px] ${
+              notice.icon === 'check_circle'
+                ? 'text-emerald-600'
+                : 'text-amber-700'
+            }`}
           />
-          <span className="flex-1">{notice}</span>
+          <span className="flex-1">{notice.text}</span>
           <button
             aria-label="Đóng thông báo"
             className="shrink-0 text-secondary hover:text-on-surface"
