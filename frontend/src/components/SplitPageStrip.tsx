@@ -15,14 +15,14 @@ function roleOfPage(parts: ResolvedPart[], page: number) {
 function Thumb({
   page,
   render,
-  role,
+  part,
   partNo,
   disabled,
   onStartAnnex,
 }: {
   page: number
   render: ((canvas: HTMLCanvasElement) => Promise<void>) | null
-  role: 'contract' | 'annex' | undefined
+  part: ResolvedPart | undefined
   partNo: number
   disabled: boolean
   onStartAnnex: (page: number) => void
@@ -44,40 +44,52 @@ function Thumb({
     }
   }, [render])
 
-  const annex = role === 'annex'
+  const annex = part?.role === 'annex'
+  // Trang đầu của một phần phụ lục: nơi người dùng đã chọn điểm cắt.
+  const startsAnnex = annex && part?.pageStart === page
   return (
-    <figure className="flex w-28 shrink-0 flex-col gap-1">
+    <figure className="flex w-32 shrink-0 flex-col gap-2">
       <div
-        className={`relative overflow-hidden rounded border-2 bg-surface-container ${
-          annex ? 'border-sky-500' : 'border-amber-500'
+        className={`relative overflow-hidden rounded-lg bg-white shadow-sm ring-2 ${
+          annex ? 'ring-sky-400' : 'ring-amber-300'
         }`}
       >
         <canvas ref={canvasRef} className="block h-auto w-full" />
         {drawn ? null : (
-          <span className="absolute inset-0 flex items-center justify-center font-label-sm text-label-sm text-on-surface-variant">
+          <span className="absolute inset-0 flex items-center justify-center bg-surface-container font-label-sm text-label-sm text-on-surface-variant">
             Đang tải…
           </span>
         )}
+        <span
+          className={`absolute left-1.5 top-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold text-white shadow ${
+            annex ? 'bg-sky-600' : 'bg-amber-600'
+          }`}
+        >
+          Phần {partNo}
+        </span>
       </div>
-      <figcaption className="flex flex-col gap-1">
+      <figcaption className="flex flex-col gap-1.5">
         <span className="font-code-sm text-code-sm text-on-surface">
           Trang {page}
-          <span
-            className={`ml-1 font-label-sm text-label-sm ${
-              annex ? 'text-sky-700' : 'text-amber-700'
-            }`}
-          >
-            · Phần {partNo}
-          </span>
         </span>
-        <button
-          className="rounded bg-surface-container-low px-1 py-0.5 text-left font-label-sm text-label-sm text-on-surface hover:bg-surface-container disabled:opacity-50"
-          disabled={disabled || page <= 1}
-          type="button"
-          onClick={() => onStartAnnex(page)}
-        >
-          Phụ lục từ đây
-        </button>
+        {startsAnnex ? (
+          <span className="inline-flex items-center justify-center gap-1 rounded-md bg-sky-600 px-2 py-1 text-[12px] font-semibold text-white">
+            Phụ lục bắt đầu
+          </span>
+        ) : page > 1 ? (
+          <button
+            className="rounded-md border border-sky-300 bg-sky-50 px-2 py-1 text-[12px] font-semibold text-sky-800 transition-colors hover:bg-sky-100 disabled:opacity-50"
+            disabled={disabled}
+            type="button"
+            onClick={() => onStartAnnex(page)}
+          >
+            Phụ lục từ đây
+          </button>
+        ) : (
+          <span className="px-2 py-1 text-[12px] text-on-surface-variant">
+            Trang đầu
+          </span>
+        )}
       </figcaption>
     </figure>
   )
@@ -163,7 +175,7 @@ export function SplitPageStrip({
   }
 
   return (
-    <div className="flex gap-space-sm overflow-x-auto pb-space-sm">
+    <div className="flex max-h-[34rem] flex-wrap gap-space-md overflow-y-auto p-1">
       {Array.from({ length: pageCount }, (_, index) => {
         const page = index + 1
         const part = roleOfPage(parts, page)
@@ -175,7 +187,7 @@ export function SplitPageStrip({
             page={page}
             partNo={partNo}
             render={renderers?.[index] ?? null}
-            role={part?.role}
+            part={part}
             onStartAnnex={onStartAnnex}
           />
         )

@@ -150,47 +150,47 @@ export function SplitConfirmPage() {
   }
 
   return (
-    <div className="flex w-full flex-col pb-margin-lg">
-      <nav className="flex items-center gap-space-xs pt-space-md font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">
-        <Link className="hover:text-primary" to={backTo}>
-          {backLabel}
-        </Link>
-        <MaterialIcon name="chevron_right" className="text-[14px]" />
-        <span className="font-semibold text-on-surface">
-          Xác nhận tách file
-        </span>
-      </nav>
-      {titleInHeader ? null : (
-        <h1 className="mt-space-sm font-headline-lg text-headline-lg text-primary">
-          Xác nhận tách file
-        </h1>
-      )}
-      <p className="mt-space-sm max-w-3xl font-body-md text-body-md text-on-surface-variant">
-        File này gồm cả hợp đồng và phụ lục. Chia file thành từng phần theo
-        khoảng trang rồi xác nhận. Mỗi phần sẽ là một tài liệu riêng, sau đó mới
-        OCR.
-      </p>
+    <div className="flex w-full flex-col gap-space-lg pb-margin-lg">
+      <div className="flex flex-col gap-space-sm pt-space-md">
+        <nav className="flex items-center gap-space-xs font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">
+          <Link className="hover:text-primary" to={backTo}>
+            {backLabel}
+          </Link>
+          <MaterialIcon name="chevron_right" className="text-[14px]" />
+          <span className="font-semibold text-on-surface">
+            Xác nhận tách file
+          </span>
+        </nav>
+        {titleInHeader ? null : (
+          <h1 className="font-headline-lg text-headline-lg text-primary">
+            Xác nhận tách file
+          </h1>
+        )}
+        <p className="max-w-3xl font-body-md text-body-md text-on-surface-variant">
+          File này gồm cả hợp đồng và phụ lục. Chọn trang đầu tiên của phụ lục
+          để chia file. Mỗi phần sẽ thành một tài liệu riêng rồi mới OCR.
+        </p>
+      </div>
 
       {loadError ? (
-        <div className="mt-space-lg rounded bg-error-container px-space-md py-space-sm font-body-sm text-body-sm text-on-error-container">
+        <div className="rounded-lg bg-error-container px-space-md py-space-sm font-body-sm text-body-sm text-on-error-container">
           {loadError}
         </div>
       ) : null}
 
       {!dossier && !loadError ? (
-        <p className="mt-space-lg font-body-sm text-body-sm text-on-surface-variant">
+        <p className="font-body-sm text-body-sm text-on-surface-variant">
           Đang tải hồ sơ…
         </p>
       ) : null}
 
       {dossier && source && !done ? (
-        <section className="mt-space-lg rounded-lg bg-surface-container-lowest p-space-lg shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-space-sm">
-            <div className="flex min-w-0 items-center gap-space-sm">
-              <MaterialIcon
-                name="picture_as_pdf"
-                className="text-[22px] text-red-700"
-              />
+        <div className="grid grid-cols-1 items-start gap-space-lg xl:grid-cols-12">
+          <section className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-lg shadow-sm xl:col-span-8">
+            <div className="flex items-center gap-space-md">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-700">
+                <MaterialIcon name="picture_as_pdf" className="text-[24px]" />
+              </span>
               <div className="min-w-0">
                 <p className="truncate font-title-sm text-title-sm font-semibold text-on-surface">
                   {source.filename}
@@ -200,22 +200,22 @@ export function SplitConfirmPage() {
                 </p>
               </div>
             </div>
-            <button
-              className="inline-flex h-9 items-center gap-1 rounded bg-surface-container-low px-space-sm font-body-sm text-body-sm text-on-surface hover:bg-surface-container disabled:opacity-50"
-              disabled={saving || !canAdd}
-              type="button"
-              onClick={() => setParts((current) => addPart(current, pageCount))}
-            >
-              <MaterialIcon name="add" className="text-[18px]" />
-              Thêm phần
-            </button>
-          </div>
 
-          <div className="mt-space-md">
-            <p className="mb-space-xs font-label-sm text-label-sm text-on-surface-variant">
-              Xem từng trang rồi bấm &quot;Phụ lục từ đây&quot; ở trang đầu tiên
-              của phụ lục. Viền vàng là hợp đồng, viền xanh là phụ lục.
-            </p>
+            <div className="flex flex-wrap items-center gap-x-space-lg gap-y-1 rounded-lg bg-surface-container-low px-space-md py-space-sm font-body-sm text-body-sm text-on-surface-variant">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-3 w-3 rounded-sm bg-amber-400" />
+                Hợp đồng
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-3 w-3 rounded-sm bg-sky-500" />
+                Phụ lục
+              </span>
+              <span>
+                Bấm <strong className="text-on-surface">Phụ lục từ đây</strong>{' '}
+                ở trang đầu tiên của phụ lục.
+              </span>
+            </div>
+
             <SplitPageStrip
               disabled={saving}
               documentId={source.id}
@@ -223,144 +223,170 @@ export function SplitConfirmPage() {
               parts={resolved}
               onStartAnnex={(page) => setParts(splitAtPage(page, pageCount))}
             />
-          </div>
+          </section>
 
-          <ol className="mt-space-md flex flex-col gap-space-sm">
-            {resolved.map((part, index) => {
-              const last = index === resolved.length - 1
-              const draft = parts[index]
-              return (
-                <li
-                  key={part.key}
-                  className="flex flex-wrap items-center gap-space-sm rounded-lg bg-surface-container-low px-space-md py-space-sm"
-                >
-                  <span className="font-label-md text-label-md font-semibold text-on-surface">
-                    Phần {index + 1}
-                  </span>
-                  <span className="font-body-sm text-body-sm text-on-surface-variant">
-                    Từ trang
-                  </span>
-                  <span className="rounded bg-surface-container px-2 py-1 font-code-sm text-code-sm">
-                    {part.pageStart}
-                  </span>
-                  <label className="inline-flex items-center gap-1 font-body-sm text-body-sm text-on-surface-variant">
-                    đến trang
-                    <input
-                      aria-label={`Trang cuối của phần ${index + 1}`}
-                      className="h-8 w-20 rounded bg-surface px-2 font-code-sm text-code-sm text-on-surface disabled:opacity-60"
-                      disabled={last || saving}
-                      max={pageCount}
-                      min={part.pageStart}
-                      type="number"
-                      value={last ? pageCount : (draft?.end ?? part.pageEnd)}
-                      onChange={(event) =>
-                        updatePart(part.key, {
-                          end: Number.parseInt(event.target.value, 10) || 0,
-                        })
-                      }
-                    />
-                  </label>
-                  <select
-                    aria-label={`Vai trò của phần ${index + 1}`}
-                    className="h-8 rounded bg-surface px-2 font-body-sm text-body-sm"
-                    disabled={saving}
-                    value={part.role}
-                    onChange={(event) =>
-                      updatePart(part.key, {
-                        role: event.target.value as SplitRole,
-                      })
-                    }
-                  >
-                    <option value="contract">{roleLabels.contract}</option>
-                    <option value="annex">{roleLabels.annex}</option>
-                  </select>
-                  <span className="font-label-sm text-label-sm text-secondary">
-                    {part.pageEnd >= part.pageStart
-                      ? `${part.pageEnd - part.pageStart + 1} trang`
-                      : ''}
-                  </span>
-                  {parts.length > 1 ? (
-                    <button
-                      aria-label={`Xóa phần ${index + 1}`}
-                      className="ml-auto text-secondary hover:text-error disabled:opacity-50"
-                      disabled={saving}
-                      type="button"
-                      onClick={() =>
-                        setParts((current) => removePart(current, part.key))
-                      }
-                    >
-                      <MaterialIcon name="delete" className="text-[18px]" />
-                    </button>
-                  ) : null}
-                </li>
-              )
-            })}
-          </ol>
-
-          {problem ? (
-            <p className="mt-space-sm font-body-sm text-body-sm text-error">
-              {problem}
-            </p>
-          ) : null}
-          {saveError ? (
-            <p className="mt-space-sm rounded bg-error-container px-space-md py-space-sm font-body-sm text-body-sm text-on-error-container">
-              {saveError}
-            </p>
-          ) : null}
-
-          {warn ? (
-            <div
-              className="mt-space-md rounded-lg border border-amber-400 bg-amber-50 px-space-md py-space-sm font-body-sm text-body-sm text-on-surface"
-              role="alert"
-            >
-              <p className="flex items-center gap-1 font-semibold text-amber-900">
-                <MaterialIcon name="warning" className="text-[18px]" />
-                Tách xong không sửa lại được
-              </p>
-              <p className="mt-1">
-                File gốc sẽ bị bỏ và thay bằng {parts.length} tài liệu riêng.
-                Nếu tách sai, bạn phải xóa hồ sơ rồi tải lên lại.
-              </p>
-            </div>
-          ) : null}
-
-          <div className="mt-space-md flex items-center justify-end gap-space-sm">
-            {warn ? (
+          <aside className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-lg shadow-sm xl:sticky xl:top-space-md xl:col-span-4">
+            <div className="flex items-center justify-between gap-space-sm">
+              <h2 className="font-title-sm text-title-sm font-semibold text-on-surface">
+                Các phần sau khi tách
+              </h2>
               <button
-                className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface disabled:opacity-50"
-                disabled={saving}
+                className="inline-flex h-8 items-center gap-1 rounded-md bg-surface-container-low px-space-sm font-body-sm text-body-sm text-on-surface hover:bg-surface-container disabled:opacity-50"
+                disabled={saving || !canAdd}
                 type="button"
-                onClick={() => setWarn(false)}
+                onClick={() =>
+                  setParts((current) => addPart(current, pageCount))
+                }
               >
-                Quay lại chỉnh
+                <MaterialIcon name="add" className="text-[16px]" />
+                Thêm phần
               </button>
-            ) : (
-              <Link
-                className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface"
-                to={backTo}
+            </div>
+
+            <ol className="flex flex-col gap-space-sm">
+              {resolved.map((part, index) => {
+                const last = index === resolved.length - 1
+                const draft = parts[index]
+                const annex = part.role === 'annex'
+                return (
+                  <li
+                    key={part.key}
+                    className={`flex flex-col gap-space-sm rounded-lg border-l-4 bg-surface-container-low px-space-md py-space-sm ${
+                      annex ? 'border-sky-500' : 'border-amber-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-space-sm">
+                      <span className="font-label-md text-label-md font-semibold text-on-surface">
+                        Phần {index + 1}
+                      </span>
+                      <span className="font-code-sm text-code-sm text-on-surface-variant">
+                        {part.pageEnd >= part.pageStart
+                          ? `Trang ${part.pageStart}–${part.pageEnd} · ${part.pageEnd - part.pageStart + 1} trang`
+                          : 'Chưa hợp lệ'}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-space-sm">
+                      <select
+                        aria-label={`Vai trò của phần ${index + 1}`}
+                        className="h-9 min-w-0 flex-1 rounded-md bg-surface-container-lowest px-2 font-body-sm text-body-sm text-on-surface ring-1 ring-surface-container-high"
+                        disabled={saving}
+                        value={part.role}
+                        onChange={(event) =>
+                          updatePart(part.key, {
+                            role: event.target.value as SplitRole,
+                          })
+                        }
+                      >
+                        <option value="contract">{roleLabels.contract}</option>
+                        <option value="annex">{roleLabels.annex}</option>
+                      </select>
+                      <label className="inline-flex items-center gap-1.5 font-body-sm text-body-sm text-on-surface-variant">
+                        đến trang
+                        <input
+                          aria-label={`Trang cuối của phần ${index + 1}`}
+                          className="h-9 w-16 rounded-md bg-surface-container-lowest px-2 text-center font-code-sm text-code-sm text-on-surface ring-1 ring-surface-container-high disabled:bg-surface-container disabled:text-on-surface-variant"
+                          disabled={last || saving}
+                          max={pageCount}
+                          min={part.pageStart}
+                          type="number"
+                          value={
+                            last ? pageCount : (draft?.end ?? part.pageEnd)
+                          }
+                          onChange={(event) =>
+                            updatePart(part.key, {
+                              end: Number.parseInt(event.target.value, 10) || 0,
+                            })
+                          }
+                        />
+                      </label>
+                      {parts.length > 1 ? (
+                        <button
+                          aria-label={`Xóa phần ${index + 1}`}
+                          className="flex h-9 w-9 items-center justify-center rounded-md text-secondary hover:bg-surface-container hover:text-error disabled:opacity-50"
+                          disabled={saving}
+                          type="button"
+                          onClick={() =>
+                            setParts((current) => removePart(current, part.key))
+                          }
+                        >
+                          <MaterialIcon name="delete" className="text-[18px]" />
+                        </button>
+                      ) : null}
+                    </div>
+                  </li>
+                )
+              })}
+            </ol>
+
+            {problem ? (
+              <p className="font-body-sm text-body-sm text-error">{problem}</p>
+            ) : null}
+            {saveError ? (
+              <p className="rounded-lg bg-error-container px-space-md py-space-sm font-body-sm text-body-sm text-on-error-container">
+                {saveError}
+              </p>
+            ) : null}
+
+            {warn ? (
+              <div
+                className="rounded-lg border border-amber-400 bg-amber-50 px-space-md py-space-sm font-body-sm text-body-sm text-on-surface"
+                role="alert"
               >
-                Để sau
-              </Link>
-            )}
-            <button
-              className="inline-flex h-10 items-center gap-1 rounded bg-primary px-space-lg font-label-md text-label-md font-semibold text-on-primary disabled:opacity-50"
-              disabled={saving || problem !== null}
-              type="button"
-              onClick={() => (warn ? void confirm() : askConfirm())}
-            >
-              <MaterialIcon name="check" className="text-[18px]" />
-              {saving ? 'Đang tách…' : warn ? 'Vẫn tách' : 'Xác nhận tách'}
-            </button>
-          </div>
-        </section>
+                <p className="flex items-center gap-1 font-semibold text-amber-900">
+                  <MaterialIcon name="warning" className="text-[18px]" />
+                  Tách xong không sửa lại được
+                </p>
+                <p className="mt-1">
+                  File gốc sẽ bị bỏ và thay bằng {parts.length} tài liệu riêng.
+                  Nếu tách sai, bạn phải xóa hồ sơ rồi tải lên lại.
+                </p>
+              </div>
+            ) : null}
+
+            <div className="flex flex-col gap-space-sm border-t border-surface-container pt-space-md">
+              <button
+                className="inline-flex h-11 items-center justify-center gap-1.5 rounded-lg bg-primary px-space-lg font-label-md text-label-md font-semibold text-on-primary disabled:opacity-50"
+                disabled={saving || problem !== null}
+                type="button"
+                onClick={() => (warn ? void confirm() : askConfirm())}
+              >
+                <MaterialIcon name="check" className="text-[18px]" />
+                {saving
+                  ? 'Đang tách…'
+                  : warn
+                    ? 'Vẫn tách'
+                    : parts.length > 1
+                      ? `Xác nhận tách thành ${parts.length} tài liệu`
+                      : 'Xác nhận, không cần tách'}
+              </button>
+              {warn ? (
+                <button
+                  className="h-9 rounded-lg font-body-sm text-body-sm text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface disabled:opacity-50"
+                  disabled={saving}
+                  type="button"
+                  onClick={() => setWarn(false)}
+                >
+                  Quay lại chỉnh
+                </button>
+              ) : (
+                <Link
+                  className="flex h-9 items-center justify-center rounded-lg font-body-sm text-body-sm text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
+                  to={backTo}
+                >
+                  Để sau
+                </Link>
+              )}
+            </div>
+          </aside>
+        </div>
       ) : null}
 
       {done ? (
-        <section className="mt-space-lg rounded-lg bg-surface-container-lowest p-space-lg shadow-sm">
-          <p className="flex items-center gap-1 font-title-sm text-title-sm font-semibold text-on-surface">
+        <section className="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm">
+          <p className="flex items-center gap-1.5 font-title-sm text-title-sm font-semibold text-on-surface">
             <MaterialIcon
               name="check_circle"
-              className="text-[20px] text-emerald-600"
+              className="text-[22px] text-emerald-600"
             />
             Đã tách thành {done.documents.length} tài liệu
           </p>
