@@ -87,7 +87,8 @@ class OcrLineItem(BaseModel):
     line_no: int
     text: str
     bbox: BBox
-    confidence: float
+    # None: AI1 gave no confidence for this line (unknown, not 0).
+    confidence: float | None = Field(default=None, ge=0, le=1)
     doc_char_start: int
     doc_char_end: int
     words: list[WordItem] = Field(default_factory=list)

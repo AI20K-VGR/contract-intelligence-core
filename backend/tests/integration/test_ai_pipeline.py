@@ -2,9 +2,9 @@
 
 Test setup giống test_auth_endpoints.py — SQLite in-memory + mock Keycloak JWKS.
 Mỗi test verify:
-    - POST /dossiers/upload (multipart) trả 202 + dossier_id + run_id
-    - Pipeline run được schedule async qua BackgroundDispatcher
-    - Stub AI client trả completed ngay → orchestrator persist results
+    - POST /dossiers (multipart) trả 202 + dossier_id + job_id; endpoint cũ
+      POST /dossiers/upload đã bị gỡ
+    - POST /dossiers/{id}/runs schedule pipeline run async qua BackgroundDispatcher
     - GET /runs/{id} trả status="succeeded"
     - GET /runs/{id}/events stream SSE events
     - POST /documents/{id}/re-ocr submits async + poll returns result
@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -36,18 +37,18 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from tests.pdf_bytes import make_pdf
+from tests.unit.conftest_contract import FakeFileStorage
 
 from contract_intelligence.config.settings import get_settings
 from contract_intelligence.main import app
-from contract_intelligence.shared.ai import (
-    reset_pipeline_orchestrator,
-)
 from contract_intelligence.shared.persistence import (
     Base,
     bind_engine,
     reset_engine,
 )
 from contract_intelligence.shared.persistence.session import get_async_session
+from contract_intelligence.shared.storage import reset_file_storage, set_file_storage
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Settings override (autouse) — Keycloak SSO mode (no /auth/login anymore)
@@ -115,14 +116,16 @@ async def client(db_engine: Any) -> AsyncGenerator[AsyncClient, None]:
                 await session.close()
 
     app.dependency_overrides[get_async_session] = override_get_async_session
-    # Reset orchestrator singleton để nó pick up engine mới của test này
-    reset_pipeline_orchestrator()
+    # POST /dossiers ghi blob qua MinIO (stub trong conftest) + FileStorage — dùng
+    # bản in-memory để không ghi đường dẫn s3:// ra filesystem.
+    set_file_storage(FakeFileStorage())
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
     app.dependency_overrides.clear()
+    reset_file_storage()
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -155,7 +158,67 @@ def _auth_headers(
 
 def _pdf_bytes(content: str = "PDF stub content") -> bytes:
     """Tạo PDF stub bytes — không cần format PDF thật vì StubAI trả về canned."""
-    return b"%PDF-stub\n" + content.encode("utf-8") + b"\n%%EOF"
+    return make_pdf(marker=content)
+
+
+async def _create_dossier(
+    client: AsyncClient,
+    headers: dict[str, str],
+    *,
+    name: str,
+    annexes: int = 0,
+) -> dict[str, Any]:
+    """POST /dossiers (multipart) — endpoint tạo hồ sơ duy nhất."""
+    files: list[tuple[str, Any]] = [
+        (
+            "contract",
+            ("contract.pdf", io.BytesIO(_pdf_bytes(f"{name} contract")), "application/pdf"),
+        ),
+        ("metadata", (None, json.dumps({"name": name}))),
+    ]
+    for index in range(1, annexes + 1):
+        files.append(
+            (
+                "annexes",
+                (
+                    f"phuluc-{index:02d}.pdf",
+                    io.BytesIO(_pdf_bytes(f"{name} annex {index}")),
+                    "application/pdf",
+                ),
+            )
+        )
+    resp = await client.post("/api/v1/dossiers", headers=headers, files=files)
+    assert resp.status_code == 202, f"got {resp.status_code}: {resp.text}"
+    data: dict[str, Any] = resp.json()["data"]
+    return data
+
+
+async def _documents(
+    client: AsyncClient, headers: dict[str, str], dossier_id: str
+) -> list[dict[str, Any]]:
+    resp = await client.get(f"/api/v1/dossiers/{dossier_id}/documents", headers=headers)
+    assert resp.status_code == 200, resp.text
+    rows: list[dict[str, Any]] = resp.json()["data"]
+    return rows
+
+
+def _roles(documents: list[dict[str, Any]]) -> list[str]:
+    return sorted(str(doc["role"]).lower() for doc in documents)
+
+
+async def _contract_document_id(client: AsyncClient, headers: dict[str, str], *, name: str) -> str:
+    dossier = await _create_dossier(client, headers, name=name)
+    documents = await _documents(client, headers, dossier["dossier_id"])
+    return next(str(doc["id"]) for doc in documents if str(doc["role"]).lower() == "contract")
+
+
+async def _trigger_run(client: AsyncClient, headers: dict[str, str], *, name: str) -> str:
+    dossier = await _create_dossier(client, headers, name=name)
+    resp = await client.post(
+        f"/api/v1/dossiers/{dossier['dossier_id']}/runs", headers=headers, json={}
+    )
+    assert resp.status_code == 202, f"got {resp.status_code}: {resp.text}"
+    return str(resp.json()["data"]["run_id"])
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -167,101 +230,80 @@ class TestDossierUpload:
     @pytest.mark.asyncio
     async def test_upload_dossier_with_contract_only(
         self, client: AsyncClient, make_keycloak_token: Any
-    ) -> None:  # noqa: E501
-        """POST /dossiers/upload với 1 contract file → 202 + dossier_id + run_id."""
+    ) -> None:
+        """POST /dossiers với 1 contract file → 202 + dossier_id + job_id."""
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
-        pdf = _pdf_bytes("Contract PDF")
 
-        resp = await client.post(
-            "/api/v1/dossiers/upload",
-            headers=headers,
-            data={"name": "Hop dong so 12/2026", "auto_run": "true"},
-            files={
-                "contract_file": ("hop-dong.pdf", io.BytesIO(pdf), "application/pdf"),
-            },
-        )
-        assert resp.status_code == 202, f"got {resp.status_code}: {resp.text}"
-        body = resp.json()
-        assert "data" in body
+        data = await _create_dossier(client, headers, name="Hop dong so 12/2026")
 
-        data = body["data"]
         assert data["dossier_id"].startswith("dos_")
-        assert data["run_id"] is not None
-        assert data["run_id"].startswith("run_")
-        assert data["status"] == "accepted"
-        assert len(data["documents"]) == 1
-        assert data["documents"][0]["role"] == "contract"
+        assert data["job_id"] is not None
+        documents = await _documents(client, headers, data["dossier_id"])
+        assert _roles(documents) == ["contract"]
 
     @pytest.mark.asyncio
     async def test_upload_dossier_with_contract_and_annexes(
         self, client: AsyncClient, make_keycloak_token: Any
-    ) -> None:  # noqa: E501
-        """POST /dossiers/upload với contract + 2 annex files."""
+    ) -> None:
+        """POST /dossiers với contract + 2 annex files."""
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
 
-        resp = await client.post(
-            "/api/v1/dossiers/upload",
-            headers=headers,
-            data={"name": "Dossier with annexes"},
-            files=[
-                (
-                    "contract_file",
-                    (
-                        "contract.pdf",
-                        io.BytesIO(_pdf_bytes("Contract content unique")),
-                        "application/pdf",
-                    ),
-                ),
-                (
-                    "annex_files",
-                    ("phuluc-01.pdf", io.BytesIO(_pdf_bytes("Annex 01 unique")), "application/pdf"),
-                ),
-                (
-                    "annex_files",
-                    ("phuluc-02.pdf", io.BytesIO(_pdf_bytes("Annex 02 unique")), "application/pdf"),
-                ),
-            ],
-        )
-        assert resp.status_code == 202
-        data = resp.json()["data"]
-        assert len(data["documents"]) == 3  # 1 contract + 2 annexes
-        assert data["documents"][0]["role"] == "contract"
-        assert data["documents"][1]["role"] == "annex"
-        assert data["documents"][2]["role"] == "annex"
+        data = await _create_dossier(client, headers, name="Dossier with annexes", annexes=2)
+
+        documents = await _documents(client, headers, data["dossier_id"])
+        assert _roles(documents) == ["annex", "annex", "contract"]
 
     @pytest.mark.asyncio
     async def test_upload_without_contract_file_returns_400(
         self, client: AsyncClient, make_keycloak_token: Any
-    ) -> None:  # noqa: E501
-        """Thiếu contract_file → 422 (Pydantic validation) hoặc 400."""
+    ) -> None:
+        """Thiếu contract → 422 (Pydantic validation) hoặc 400."""
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         resp = await client.post(
-            "/api/v1/dossiers/upload",
+            "/api/v1/dossiers",
             headers=headers,
-            data={"name": "No file"},
+            files={"metadata": (None, json.dumps({"name": "No file"}))},
         )
-        # FastAPI trả 422 khi thiếu required File param (Pydantic validation)
         assert resp.status_code in (400, 422)
+
+    @pytest.mark.asyncio
+    async def test_upload_allowed_for_administrator(
+        self, client: AsyncClient, make_keycloak_token: Any
+    ) -> None:
+        """ADMINISTRATOR kế thừa quyền upload của OPERATOR."""
+        headers = _auth_headers(make_keycloak_token, role="ADMINISTRATOR")
+        data = await _create_dossier(client, headers, name="Admin upload")
+        assert data["dossier_id"].startswith("dos_")
 
     @pytest.mark.asyncio
     async def test_upload_reviewer_role_forbidden(
         self, client: AsyncClient, make_keycloak_token: Any
-    ) -> None:  # noqa: E501
+    ) -> None:
         """REVIEWER không có quyền upload (chỉ OPERATOR, ADMINISTRATOR)."""
-        # Note: chúng ta không seed REVIEWER trong fixture này — admin sẽ trả 403
-        # vì admin cũng đủ quyền. Đăng nhập admin thử trước.
-        # REVIEWER test sẽ fail với 403 nếu có.
-        # Bỏ qua nếu không có user reviewer — admin có quyền
-        headers = _auth_headers(make_keycloak_token, role="ADMINISTRATOR")
-        pdf = _pdf_bytes()
+        headers = _auth_headers(make_keycloak_token, role="REVIEWER")
+        resp = await client.post(
+            "/api/v1/dossiers",
+            headers=headers,
+            files={
+                "contract": ("x.pdf", io.BytesIO(_pdf_bytes()), "application/pdf"),
+                "metadata": (None, json.dumps({"name": "Reviewer upload"})),
+            },
+        )
+        assert resp.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_legacy_upload_endpoint_is_gone(
+        self, client: AsyncClient, make_keycloak_token: Any
+    ) -> None:
+        """POST /dossiers/upload (pipeline in-process cũ) đã bị gỡ."""
+        headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         resp = await client.post(
             "/api/v1/dossiers/upload",
             headers=headers,
-            data={"name": "Admin upload"},
-            files={"contract_file": ("x.pdf", io.BytesIO(pdf), "application/pdf")},
+            data={"name": "Legacy"},
+            files={"contract_file": ("x.pdf", io.BytesIO(_pdf_bytes()), "application/pdf")},
         )
-        # Admin được phép → 202
-        assert resp.status_code == 202
+        assert resp.status_code in (404, 405)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -295,15 +337,7 @@ class TestAiServiceHealth:
         """GET /api/v1/ai/jobs/{id} — proxy qua StubAI."""
         # Trước submit 1 job qua reocr để có job_id
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
-        pdf = _pdf_bytes()
-        # Tạo dossier
-        up = await client.post(
-            "/api/v1/dossiers/upload",
-            headers=headers,
-            data={"name": "Setup for reocr", "auto_run": "false"},
-            files={"contract_file": ("x.pdf", io.BytesIO(pdf), "application/pdf")},
-        )
-        doc_id = up.json()["data"]["documents"][0]["id"]
+        doc_id = await _contract_document_id(client, headers, name="Setup for reocr")
 
         # Submit reocr
         reocr = await client.post(
@@ -341,16 +375,7 @@ class TestReOcrAsync:
     ) -> None:  # noqa: E501
         """POST /documents/{id}/re-ocr trả job_id async."""
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
-        pdf = _pdf_bytes()
-
-        # Tạo dossier + document
-        up = await client.post(
-            "/api/v1/dossiers/upload",
-            headers=headers,
-            data={"name": "Dossier for reocr", "auto_run": "false"},
-            files={"contract_file": ("x.pdf", io.BytesIO(pdf), "application/pdf")},
-        )
-        doc_id = up.json()["data"]["documents"][0]["id"]
+        doc_id = await _contract_document_id(client, headers, name="Dossier for reocr")
 
         # Submit re-OCR
         resp = await client.post(
@@ -376,15 +401,7 @@ class TestReOcrAsync:
     ) -> None:  # noqa: E501
         """GET /re-ocr-requests/{id} — poll status."""
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
-        pdf = _pdf_bytes()
-
-        up = await client.post(
-            "/api/v1/dossiers/upload",
-            headers=headers,
-            data={"name": "Reocr status", "auto_run": "false"},
-            files={"contract_file": ("x.pdf", io.BytesIO(pdf), "application/pdf")},
-        )
-        doc_id = up.json()["data"]["documents"][0]["id"]
+        doc_id = await _contract_document_id(client, headers, name="Reocr status")
 
         reocr = await client.post(
             f"/api/v1/documents/{doc_id}/re-ocr",
@@ -417,37 +434,31 @@ class TestReOcrAsync:
 
 class TestPipelineRun:
     @pytest.mark.asyncio
-    async def test_pipeline_run_completes_via_stub(
-        self, client: AsyncClient, make_keycloak_token: Any
+    async def test_trigger_run_queues_run_and_hands_it_to_worker(
+        self, client: AsyncClient, make_keycloak_token: Any, monkeypatch: pytest.MonkeyPatch
     ) -> None:  # noqa: E501
-        """Full pipeline (OCR → Extract) chạy qua stub → run=SUCCEEDED."""
+        """POST /runs chỉ xếp hàng run + publish dossier.uploaded; pipeline chạy ở Kafka worker."""
+        from contract_intelligence.extraction.interfaces.api import dependencies
+
+        published: list[tuple[str, dict[str, Any]]] = []
+
+        async def fake_publish(topic: str, message: dict[str, Any], **_: Any) -> None:
+            published.append((topic, message))
+
+        monkeypatch.setattr(dependencies.messaging, "publish_event", fake_publish)
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
-        pdf = _pdf_bytes()
+        run_id = await _trigger_run(client, headers, name="Pipeline test")
 
-        # Upload dossier với auto_run=true
-        up = await client.post(
-            "/api/v1/dossiers/upload",
-            headers=headers,
-            data={"name": "Pipeline test", "auto_run": "true"},
-            files={"contract_file": ("x.pdf", io.BytesIO(pdf), "application/pdf")},
+        resp = await client.get(f"/api/v1/runs/{run_id}", headers=headers)
+        assert resp.status_code == 200
+        run = resp.json()["data"]
+        # Nothing runs in the API process: the run waits for the Kafka worker.
+        assert run["status"] == "queued"
+        # The upload publishes its own event first; the trigger adds the hand-off.
+        assert published[-1] == (
+            "dossier_events",
+            {"event": "dossier.uploaded", "dossier_id": run["dossier_id"]},
         )
-        assert up.status_code == 202
-        run_id = up.json()["data"]["run_id"]
-
-        # Poll run status — StubAI trả completed ngay → run nên be succeeded sau vài giây
-        status = None
-        for _ in range(30):  # Tăng số lần poll
-            await asyncio.sleep(0.3)
-            resp = await client.get(
-                f"/api/v1/runs/{run_id}",
-                headers=headers,
-            )
-            assert resp.status_code == 200
-            status = resp.json()["data"]["status"]
-            if status in ("completed", "succeeded", "failed", "cancelled", "dead"):
-                break
-
-        assert status in ("completed", "succeeded"), f"expected completed, got {status}"
 
     @pytest.mark.asyncio
     async def test_pipeline_run_steps_endpoint(
@@ -455,15 +466,7 @@ class TestPipelineRun:
     ) -> None:  # noqa: E501
         """GET /runs/{id}/steps trả về 11 steps S0..S10."""
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
-        pdf = _pdf_bytes()
-
-        up = await client.post(
-            "/api/v1/dossiers/upload",
-            headers=headers,
-            data={"name": "Steps test", "auto_run": "true"},
-            files={"contract_file": ("x.pdf", io.BytesIO(pdf), "application/pdf")},
-        )
-        run_id = up.json()["data"]["run_id"]
+        run_id = await _trigger_run(client, headers, name="Steps test")
 
         # Đợi pipeline chạy
         await asyncio.sleep(2.0)
@@ -492,15 +495,12 @@ class TestSseEvents:
     ) -> None:  # noqa: E501
         """GET /runs/{id}/events stream SSE events."""
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
-        pdf = _pdf_bytes()
-
-        up = await client.post(
-            "/api/v1/dossiers/upload",
-            headers=headers,
-            data={"name": "SSE test", "auto_run": "true"},
-            files={"contract_file": ("x.pdf", io.BytesIO(pdf), "application/pdf")},
-        )
-        run_id = up.json()["data"]["run_id"]
+        run_id = await _trigger_run(client, headers, name="SSE test")
+        # No Kafka worker runs in tests, so the run would stay queued and the
+        # stream never end (ASGITransport buffers the whole body). Cancel it:
+        # the stream then closes with run.completed.
+        resp = await client.post(f"/api/v1/runs/{run_id}/cancel", headers=headers)
+        assert resp.status_code == 200, resp.text
 
         # Mở SSE stream — đọc tối đa 5 giây
         events_received = []
@@ -528,3 +528,62 @@ class TestSseEvents:
         assert any("run.started" in e for e in events_received), (
             f"expected run.started event, got: {events_received}"
         )
+
+    @pytest.mark.asyncio
+    async def test_sse_stream_replays_cancel_and_closes(
+        self, client: AsyncClient, make_keycloak_token: Any
+    ) -> None:
+        """Cancel lands in run_event; the stream replays it with an id and closes."""
+        headers = _auth_headers(make_keycloak_token, role="OPERATOR")
+        run_id = await _trigger_run(client, headers, name="SSE replay test")
+        resp = await client.post(f"/api/v1/runs/{run_id}/cancel", headers=headers)
+        assert resp.status_code == 200, resp.text
+
+        resp = await client.get(f"/api/v1/runs/{run_id}/events", headers=headers, timeout=5.0)
+        assert resp.status_code == 200
+        body = resp.text
+        assert "event: run.started" in body
+        assert '"status": "cancelled"' in body
+        assert body.rstrip().splitlines()[-2] == "event: run.completed"
+        ids = [int(line[4:]) for line in body.splitlines() if line.startswith("id: ")]
+        assert ids and ids == sorted(ids)
+
+        # Resuming after the last id replays nothing but still reports completion.
+        resp = await client.get(
+            f"/api/v1/runs/{run_id}/events",
+            headers={**headers, "Last-Event-ID": str(ids[-1])},
+            timeout=5.0,
+        )
+        assert resp.status_code == 200
+        assert "id: " not in resp.text
+        assert "event: run.completed" in resp.text
+
+    @pytest.mark.asyncio
+    async def test_sse_stream_refuses_unknown_run_and_other_users(
+        self, client: AsyncClient, make_keycloak_token: Any
+    ) -> None:
+        owner = _auth_headers(make_keycloak_token, role="OPERATOR")
+        run_id = await _trigger_run(client, owner, name="SSE access test")
+
+        resp = await client.get("/api/v1/runs/run_does_not_exist/events", headers=owner)
+        assert resp.status_code == 404
+
+        stranger = _auth_headers(
+            make_keycloak_token,
+            role="OPERATOR",
+            user_id="usr_test_stranger",
+            email="stranger@vgr.vn",
+            display_name="Stranger",
+        )
+        resp = await client.get(f"/api/v1/runs/{run_id}/events", headers=stranger)
+        assert resp.status_code == 403
+
+        other_tenant = _auth_headers(
+            make_keycloak_token,
+            role="OPERATOR",
+            user_id="usr_test_other_tenant",
+            email="other@vgr.vn",
+            tenant_id="tenant_vgr_02",
+        )
+        resp = await client.get(f"/api/v1/runs/{run_id}/events", headers=other_tenant)
+        assert resp.status_code == 404

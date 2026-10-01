@@ -35,7 +35,7 @@ from contract_intelligence.contract.domain.repositories.manifest_repository impo
     ManifestRepository,
 )
 from contract_intelligence.shared.base import new_ulid
-from contract_intelligence.shared.exceptions import NotFoundError
+from contract_intelligence.shared.exceptions import InvalidStateTransition, NotFoundError
 from contract_intelligence.shared.storage import FileStorage
 from contract_intelligence.shared.utils import safe_filename
 
@@ -131,6 +131,7 @@ class ContractService:
         order_index: int = 0,
         file_size_bytes: int | None = None,
         blob_uri: str | None = None,
+        page_count: int = 0,
     ) -> Document:
         # Verify dossier exists + tenant
         dossier = await self._dossier_repo.get(dossier_id)
@@ -159,6 +160,7 @@ class ContractService:
             sha256=sha256,
             blob_uri=stored_uri,
             file_size_bytes=size_bytes,
+            page_count=page_count,
         )
         await self._document_repo.add(document)
         logger.info(
@@ -223,7 +225,9 @@ class ContractService:
         *,
         name: str | None,
         metadata: dict[str, object] | None = None,
+        acl_update: bool = False,
     ) -> Dossier:
+        """``acl_update`` is set only by PUT /dossiers/{id}/access (owner/admin)."""
         dossier = await self.get_dossier(dossier_id)
         if name:
             dossier.name = name
@@ -231,11 +235,13 @@ class ContractService:
             # Metadata updates from the UI are partial. Merge them instead of
             # replacing the server-owned ACL fields. Replacing the object made
             # an otherwise visible dossier fail the fail-closed read ACL on
-            # the next structure/query request.
+            # the next structure/query request. A plain edit may never add or
+            # change ACL fields: someone shared with "edit" could otherwise
+            # grant themselves ownership.
             merged_metadata = dict(dossier.metadata or {})
             incoming_metadata = dict(metadata)
-            for key in ("created_by", "created_by_name", "access_scope", "shared_with"):
-                if key in merged_metadata:
+            if not acl_update:
+                for key in ("created_by", "created_by_name", "access_scope", "shared_with"):
                     incoming_metadata.pop(key, None)
             merged_metadata.update(incoming_metadata)
             dossier.metadata = merged_metadata
@@ -341,6 +347,20 @@ class ContractService:
             except FileNotFoundError as exc:
                 raise NotFoundError(entity_type="Document", entity_id=document_id) from exc
         return data, doc.filename
+
+    async def remove_split_source(self, dossier_id: str, document_id: str) -> None:
+        """Drop a mixed upload after it was cut into documents (never OCR'd).
+
+        Its unconfirmed manifest goes too, so the next one lists the parts.
+        Raises :class:`InvalidStateTransition` if the manifest was confirmed.
+        """
+        manifest = await self._manifest_repo.get_by_dossier(dossier_id)
+        if manifest is not None and manifest.status == "confirmed":
+            raise InvalidStateTransition(
+                from_state="confirmed", to_state="split", entity="Manifest"
+            )
+        await self._manifest_repo.discard_unconfirmed(dossier_id)
+        await self._document_repo.delete(document_id)
 
     async def get_or_create_manifest(self, dossier_id: str) -> Manifest:
         """Lấy hoặc tạo manifest pending cho dossier.

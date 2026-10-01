@@ -94,7 +94,11 @@ def _doc() -> Any:
     )
 
 
-def _svc(repo: FakePipelineRunRepo, docs: list[Any] | None = None) -> ExtractionService:
+def _svc(
+    repo: FakePipelineRunRepo,
+    docs: list[Any] | None = None,
+    publisher: AsyncMock | None = None,
+) -> ExtractionService:
     return ExtractionService(
         pipeline_run_repo=repo,
         page_repo=AsyncMock(),
@@ -105,7 +109,7 @@ def _svc(repo: FakePipelineRunRepo, docs: list[Any] | None = None) -> Extraction
         table_repo=AsyncMock(),
         document_repo=FakeDocRepo(docs if docs is not None else [_doc()]),
         storage=None,
-        orchestrator=AsyncMock(run=AsyncMock()),
+        run_publisher=publisher or AsyncMock(),
         tenant_id="tenant_test",
     )
 
@@ -114,9 +118,38 @@ class TestTriggerPipelineRun:
     async def test_creates_queued_run(self) -> None:
         repo = FakePipelineRunRepo()
         svc = _svc(repo)
-        run = await svc.trigger_pipeline_run(dossier_id="dos_1", background_tasks=None)
+        run = await svc.trigger_pipeline_run(dossier_id="dos_1")
         assert run.status == PipelineRunStatus.QUEUED
         assert repo.create_calls == 1
+
+    async def test_hands_run_to_kafka_worker(self) -> None:
+        repo = FakePipelineRunRepo()
+        publisher = AsyncMock()
+        svc = _svc(repo, publisher=publisher)
+        await svc.trigger_pipeline_run(dossier_id="dos_1")
+        publisher.assert_awaited_once_with("dos_1")
+
+    async def test_dispatch_failure_closes_run_so_it_cannot_block_retries(self) -> None:
+        repo = FakePipelineRunRepo()
+        publisher = AsyncMock(side_effect=RuntimeError("kafka down"))
+        svc = _svc(repo, publisher=publisher)
+        with pytest.raises(RuntimeError, match="kafka down"):
+            await svc.trigger_pipeline_run(dossier_id="dos_1")
+        (run,) = repo.runs.values()
+        assert run.status == PipelineRunStatus.FAILED
+        # The failed run no longer counts as active: a retry is accepted.
+        publisher.side_effect = None
+        await svc.trigger_pipeline_run(dossier_id="dos_1")
+        assert repo.create_calls == 2
+
+    async def test_no_documents_creates_no_run(self) -> None:
+        repo = FakePipelineRunRepo()
+        publisher = AsyncMock()
+        svc = _svc(repo, docs=[], publisher=publisher)
+        with pytest.raises(NotFoundError):
+            await svc.trigger_pipeline_run(dossier_id="dos_empty")
+        assert repo.create_calls == 0
+        publisher.assert_not_awaited()
 
     async def test_rejects_when_active_run_exists(self) -> None:
         repo = FakePipelineRunRepo()

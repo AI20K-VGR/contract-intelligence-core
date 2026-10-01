@@ -6,7 +6,7 @@ Một số quy ước (xem ``docs/DOC-04-architecture.md`` §5 Technology stack)
 - ``S3_*`` / ``MINIO_*`` — endpoint, access key, secret, bucket cho file storage.
 - ``KAFKA_BOOTSTRAP_SERVERS`` — Kafka broker list cho event publishing.
 - ``AI_SERVICE_URL`` — base URL của ai-service (Sprint 1 polling).
-- ``AI1_BASE_URL`` / ``AI2_BASE_URL`` — OCR / Semantics HTTP adapters.
+- ``AI2_BASE_URL`` — AI2 processing/query HTTP adapter (AI1 is Kafka-only).
 - ``OTEL_*`` — OpenTelemetry exporter config.
 """
 
@@ -14,8 +14,9 @@ from __future__ import annotations
 
 from functools import lru_cache
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -85,16 +86,30 @@ class Settings(BaseSettings):
         default="ci-backend-orchestrator",
         description="Consumer group for dossier_events orchestrator.",
     )
-    kafka_ai2_idp_commands_topic: str = Field(default="ci.ai2.idp.commands")
-    kafka_ai2_idp_results_topic: str = Field(default="ci.ai2.idp.results")
-    kafka_ai2_idp_group_id: str = Field(default="ci-ai2-idp")
-    kafka_backend_ai2_results_group_id: str = Field(default="ci-backend-ai2-results")
-    kafka_backend_ai2_commands_group_id: str = Field(default="ci-backend-ai2-idp")
     kafka_presign_expires_seconds: int = Field(
         default=3600,
         ge=60,
         le=86400,
-        description="TTL for MinIO presigned GET/PUT URLs embedded in OCR commands.",
+        description=(
+            "Minimum TTL for MinIO presigned GET/PUT URLs in OCR commands. The "
+            "actual TTL is stretched to outlive the run's AI1 deadline."
+        ),
+    )
+    ai1_deadline_base_seconds: int = Field(
+        default=600,
+        ge=60,
+        description="AI1 deadline per run = base + per_page x pages in the dossier.",
+    )
+    ai1_deadline_per_page_seconds: float = Field(
+        default=30.0,
+        ge=0.0,
+        description="Seconds of AI1 budget added per page (see ai1_deadline_base_seconds).",
+    )
+    worker_watchdog_interval_seconds: float = Field(
+        default=60.0,
+        ge=1.0,
+        le=3600.0,
+        description="How often the worker fails runs whose AI1 deadline has passed.",
     )
     ai1_ocr_engine: str = Field(
         default="mistral",
@@ -102,6 +117,57 @@ class Settings(BaseSettings):
             "OCR engine id sent in ci.ai1.ocr.commands options.engine "
             "(pymupdf | openai | gemini | mistral)."
         ),
+    )
+    ai1_result_max_bytes: int = Field(
+        default=268_435_456,
+        ge=1_048_576,
+        description=(
+            "Largest OCR result the worker downloads when AI1 uploads it to MinIO "
+            "(payload.result_ref) instead of inlining it in the Kafka message."
+        ),
+    )
+    kafka_max_message_bytes: int = Field(
+        default=10_485_760,
+        ge=1_048_576,
+        description=(
+            "Largest Kafka record the backend sends or fetches (producer "
+            "max_request_size, consumer fetch sizes). Keep equal to the broker's "
+            "message.max.bytes."
+        ),
+    )
+    kafka_dead_letter_max_value_bytes: int = Field(
+        default=262_144,
+        ge=0,
+        description=(
+            "A dead-lettered record keeps its value only up to this size; a larger "
+            "one is parked as a pointer (topic/partition/offset + size + sha256) "
+            "so the DLQ publish itself cannot exceed the message limit."
+        ),
+    )
+    kafka_dead_letter_suffix: str = Field(
+        default=".dlq",
+        description=(
+            "A record the worker cannot process is parked on <topic><suffix> "
+            "(e.g. dossier_events.dlq) before its offset is committed."
+        ),
+    )
+    worker_handler_max_attempts: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Attempts per Kafka record before it is dead-lettered.",
+    )
+    worker_handler_retry_backoff_seconds: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=60.0,
+        description="Base backoff between attempts (doubles each retry).",
+    )
+    worker_ai2_max_concurrency: int = Field(
+        default=4,
+        ge=1,
+        le=64,
+        description="AI2 submit+poll hand-offs the worker runs at once.",
     )
 
     # -------------------------------------------------------------------------
@@ -119,16 +185,11 @@ class Settings(BaseSettings):
         description="X-Internal-Service-Key cho internal auth (DOC-05c §3)",
     )
     ai_service_timeout_seconds: float = Field(default=30.0, gt=0)
-    # External AI1 (OCR) / AI2 (Semantics) base URLs for Kafka-worker HTTP adapters.
-    ai1_base_url: str = Field(
-        default="http://localhost:8001/api/v1",
-        description="AI1 OCR service base URL (POST {AI1_BASE_URL}/jobs).",
-    )
+    # AI1 is reached only over Kafka (DOC-05d); AI2 processing + query over HTTP.
     ai2_base_url: str = Field(
         default="http://localhost:8002",
         description="AI2 canonical service base URL (POST {AI2_BASE_URL}/jobs/idp).",
     )
-    ai2_wire_enabled: bool = Field(default=False)
     ai2_service_hmac_secret: str | None = Field(
         default=None,
         description="Shared local/service secret for the canonical AI2 envelope; never commit.",
@@ -136,6 +197,33 @@ class Settings(BaseSettings):
     ai2_service_issuer: str = Field(default="backend-service")
     ai2_service_audience: str = Field(default="vsf-ai2")
     ai2_service_key_id: str = Field(default="default")
+    ai2_deadline_base_seconds: int = Field(
+        default=300,
+        ge=30,
+        description=(
+            "AI2 processing budget per run = base + per_page x pages; sent to AI2 as "
+            "max_processing_seconds and used as the worker's polling deadline."
+        ),
+    )
+    ai2_deadline_per_page_seconds: float = Field(
+        default=2.0,
+        ge=0.0,
+        description="Seconds of AI2 budget added per page (see ai2_deadline_base_seconds).",
+    )
+    ai2_poll_grace_seconds: int = Field(
+        default=60,
+        ge=0,
+        description="The worker keeps polling this long past AI2's own budget.",
+    )
+    ai2_max_consecutive_errors: int = Field(
+        default=5,
+        ge=1,
+        le=100,
+        description=(
+            "Transient AI2 errors (timeout, 429, 5xx, transport) tolerated in a row "
+            "while submitting or polling before the run fails."
+        ),
+    )
     ai2_idp_poll_interval_seconds: float = Field(default=0.5, ge=0.1, le=30.0)
     ai2_idp_max_polls: int = Field(default=120, ge=1, le=10_000)
     # Dossier Q&A (POST /dossiers/{id}/search → AI2 POST /query)
@@ -156,6 +244,18 @@ class Settings(BaseSettings):
         default=False,
         description="Ask AI2 to use vector recall for dossier Q&A (needs embeddings configured).",
     )
+    query_rate_limit_per_minute: int = Field(
+        default=20,
+        ge=0,
+        le=10_000,
+        description="Max /search|/query|/ask calls per user per minute (0 = off).",
+    )
+    query_daily_quota_per_tenant: int = Field(
+        default=2000,
+        ge=0,
+        le=10_000_000,
+        description="Max dossier Q&A calls per tenant in a rolling 24h window (0 = off).",
+    )
     # Background dispatcher tuning
     ai_dispatcher_poll_interval_seconds: float = Field(default=1.5, ge=0.1, le=60.0)
     ai_dispatcher_max_polls: int = Field(default=200, ge=10, le=10_000)
@@ -166,7 +266,10 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     job_queue_enabled: bool = Field(
         default=True,
-        description="Start in-process worker + lease reaper on app lifespan.",
+        description=(
+            "Start the API maintenance loop (dossier purge sweep). The pipeline "
+            "itself runs only in the Kafka worker process."
+        ),
     )
     job_lease_seconds: int = Field(default=60, ge=10, le=3600)
     job_worker_poll_interval_seconds: float = Field(default=2.0, ge=0.2, le=60.0)
@@ -176,6 +279,11 @@ class Settings(BaseSettings):
     # Storage (Sprint 3: local filesystem — Sprint 4: MinIO presigned URLs)
     # -------------------------------------------------------------------------
     storage_root: str = Field(default="./var/storage")
+    upload_max_file_bytes: int = Field(
+        default=50 * 1024 * 1024,
+        ge=1,
+        description="Max size of one uploaded PDF (AI1 refuses sources above 50 MB).",
+    )
 
     # -------------------------------------------------------------------------
     # OpenTelemetry
@@ -389,6 +497,47 @@ class Settings(BaseSettings):
             "Bật/tắt HMAC verification. Set false CHỈ trong local debugging. "
             "Production BẮT BUỘC phải bật."
         ),
+    )
+
+    @model_validator(mode="after")
+    def _refuse_dev_secrets_outside_dev(self) -> Settings:
+        """Refuse to start in staging/prod with a dev default or placeholder secret.
+
+        The defaults above let ``docker compose up`` work locally; on a server
+        they would be public passwords. Only field names are reported, never
+        the values.
+        """
+        if self.env not in _GUARDED_ENVS:
+            return self
+        secrets = {
+            "DATABASE_URL (password)": urlsplit(self.database_url).password,
+            "S3_SECRET_KEY": self.s3_secret_key,
+            "MINIO_SECRET_KEY": self.minio_secret_key,
+            "KEYCLOAK_ADMIN_CLIENT_SECRET": self.keycloak_admin_client_secret,
+            "KEYCLOAK_WEBHOOK_SECRET": self.keycloak_webhook_secret,
+            "AI2_SERVICE_HMAC_SECRET": self.ai2_service_hmac_secret,
+        }
+        problems = [name for name, value in secrets.items() if _is_dev_secret(value)]
+        if not self.keycloak_webhook_verify_signature:
+            problems.append("KEYCLOAK_WEBHOOK_VERIFY_SIGNATURE (must be true)")
+        if problems:
+            names = ", ".join(problems)
+            msg = f"ENV={self.env} refuses dev default or placeholder settings: {names}"
+            raise ValueError(msg)
+        return self
+
+
+# Environments reachable from outside a developer machine.
+_GUARDED_ENVS = frozenset({"staging", "prod"})
+# Values shipped as defaults here or as placeholders in deploy/.env.prod.example.
+_DEV_SECRET_VALUES = frozenset({"password123", "changeme", "generate", "secret"})
+
+
+def _is_dev_secret(value: str | None) -> bool:
+    """True for a missing secret, a known default/placeholder, or a ``*_dev`` value."""
+    stripped = (value or "").strip()
+    return (
+        not stripped or stripped.lower() in _DEV_SECRET_VALUES or stripped.lower().endswith("_dev")
     )
 
 

@@ -41,6 +41,17 @@ class AiAdapterHTTPError(AiAdapterError):
         super().__init__(f"AI service returned HTTP {status_code}: {detail}")
 
 
+class AiAdapterDeadlineExceeded(AiAdapterTimeoutError):
+    """The remote job did not reach a terminal state within its whole budget."""
+
+
+def is_transient(error: Exception) -> bool:
+    """Worth retrying: timeouts, transport errors, 429 and 5xx — not other 4xx."""
+    if isinstance(error, AiAdapterHTTPError):
+        return error.status_code == 429 or error.status_code >= 500
+    return isinstance(error, AiAdapterError) and not isinstance(error, AiAdapterDeadlineExceeded)
+
+
 def _validate_keys(payload: dict[str, Any], required: set[str], label: str) -> None:
     missing = required - payload.keys()
     if missing:
@@ -186,11 +197,24 @@ async def submit_ai2_processing(
         },
         "AI2.processing",
     )
-    wire = dict(payload)
-    wire["service_envelope"] = _service_envelope(
-        wire, tenant_id=tenant_id, dossier_id=dossier_id, actor_id=actor_id
-    )
-    return await _post_json(f"{_canonical_ai2_base_url()}/jobs/idp", wire, service="ai2.processing")
+    settings = get_settings()
+    url = f"{_canonical_ai2_base_url()}/jobs/idp"
+    failures = 0
+    while True:
+        wire = dict(payload)
+        # A fresh envelope (nonce) per attempt; AI2 dedupes the job itself on
+        # (idempotency_key, attempt), so a resend after a lost reply is safe.
+        wire["service_envelope"] = _service_envelope(
+            wire, tenant_id=tenant_id, dossier_id=dossier_id, actor_id=actor_id
+        )
+        try:
+            return await _post_json(url, wire, service="ai2.processing")
+        except AiAdapterError as exc:
+            failures += 1
+            if not is_transient(exc) or failures >= settings.ai2_max_consecutive_errors:
+                raise
+            logger.warning("ai2.submit.retry", failures=failures, error=str(exc))
+            await asyncio.sleep(min(30.0, 2.0 ** (failures - 1)))
 
 
 async def poll_ai2_processing(
@@ -198,14 +222,24 @@ async def poll_ai2_processing(
     *,
     tenant_id: str,
     dossier_id: str,
+    timeout_seconds: float,
     actor_id: str = "backend",
-    max_polls: int | None = None,
 ) -> dict[str, Any]:
-    """Poll canonical AI2 until a terminal result is returned."""
+    """Poll canonical AI2 until the job is terminal or ``timeout_seconds`` pass.
+
+    Transient errors (timeout, transport, 429, 5xx) are retried up to
+    ``ai2_max_consecutive_errors`` in a row, so one slow or failed poll no
+    longer fails a run whose AI2 job is still healthy.
+
+    Raises:
+        AiAdapterDeadlineExceeded: the job was still running at the deadline.
+        AiAdapterError: a non-transient error, or too many transient ones in a row.
+    """
     settings = get_settings()
-    polls = max_polls or settings.ai_dispatcher_max_polls
     interval = settings.ai_dispatcher_poll_interval_seconds
-    for _ in range(polls):
+    deadline = time.monotonic() + timeout_seconds
+    failures = 0
+    while True:
         request = {
             "operation": "get_job",
             "job_id": job_id,
@@ -214,73 +248,26 @@ async def poll_ai2_processing(
         envelope = _service_envelope(
             request, tenant_id=tenant_id, dossier_id=dossier_id, actor_id=actor_id
         )
-        report = await _get_json(
-            f"{_canonical_ai2_base_url()}/jobs/{job_id}",
-            headers={"X-AI2-Service-Envelope": json.dumps(envelope)},
-            service="ai2.processing.poll",
-        )
-        if str(report.get("status", "")).upper() in {"SUCCEEDED", "FAILED"}:
-            return report
+        try:
+            report = await _get_json(
+                f"{_canonical_ai2_base_url()}/jobs/{job_id}",
+                headers={"X-AI2-Service-Envelope": json.dumps(envelope)},
+                service="ai2.processing.poll",
+            )
+        except AiAdapterError as exc:
+            failures += 1
+            if not is_transient(exc) or failures >= settings.ai2_max_consecutive_errors:
+                raise
+            logger.warning("ai2.poll.retry", job_id=job_id, failures=failures, error=str(exc))
+        else:
+            failures = 0
+            if str(report.get("status", "")).upper() in {"SUCCEEDED", "FAILED"}:
+                return report
+        if time.monotonic() >= deadline:
+            raise AiAdapterDeadlineExceeded(
+                f"AI2 job {job_id} did not finish within {int(timeout_seconds)}s"
+            )
         await asyncio.sleep(interval)
-    raise AiAdapterTimeoutError(f"AI2 job {job_id} exceeded polling budget")
-
-
-async def submit_to_ai1(payload: dict[str, Any]) -> dict[str, Any]:
-    """Submit an OCR job to AI1.
-
-    Expected contract::
-
-        {
-            "dossier_id": str,
-            "document_id": str,
-            "file_ref": str,
-            "ocr_profile": str,
-            "run_id": str,
-        }
-
-    POSTs to ``{AI1_BASE_URL}/jobs``.
-    """
-    _validate_keys(
-        payload,
-        {"dossier_id", "document_id", "file_ref", "ocr_profile", "run_id"},
-        "AI1",
-    )
-    settings = get_settings()
-    url = f"{settings.ai1_base_url.rstrip('/')}/jobs"
-    return await _post_json(url, payload, service="ai1")
-
-
-async def submit_to_ai2(payload: dict[str, Any]) -> dict[str, Any]:
-    """Submit a semantics job to AI2.
-
-    Expected contract::
-
-        {
-            "snapshot_id": str,
-            "snapshot_version": str | int,
-            "digest": str,
-            "dossier_members": list,
-            "role_relation_map": dict,
-            "policy_flags": dict,
-        }
-
-    POSTs to ``{AI2_BASE_URL}/process``.
-    """
-    _validate_keys(
-        payload,
-        {
-            "snapshot_id",
-            "snapshot_version",
-            "digest",
-            "dossier_members",
-            "role_relation_map",
-            "policy_flags",
-        },
-        "AI2",
-    )
-    settings = get_settings()
-    url = f"{settings.ai2_base_url.rstrip('/')}/process"
-    return await _post_json(url, payload, service="ai2")
 
 
 async def query_ai2(payload: dict[str, Any]) -> dict[str, Any]:
@@ -529,19 +516,19 @@ def wire_result_to_findings_payload(wire: dict[str, Any], *, run_id: str) -> dic
 
 
 __all__ = [
+    "AiAdapterDeadlineExceeded",
     "AiAdapterError",
     "AiAdapterHTTPError",
     "AiAdapterTimeoutError",
     "build_idp_request",
     "build_service_envelope",
     "get_idp_job",
+    "is_transient",
     "poll_idp_job",
     "poll_ai2_processing",
     "query_ai2",
     "submit_ai2_processing",
     "submit_idp_job",
-    "submit_to_ai1",
-    "submit_to_ai2",
     "snapshot_payload_digest",
     "wire_result_to_findings_payload",
 ]

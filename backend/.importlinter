@@ -79,9 +79,6 @@ ignore_imports =
     # complexity without runtime value. Service can be moved to infrastructure in a
     # follow-up refactor sprint.
     contract_intelligence.extraction.application.services.reocr_service -> contract_intelligence.extraction.infrastructure.persistence.orm_reocr
-    # ExtractionService binds to PipelineOrchestrator (shared.ai) for async dispatch,
-    # which transitively imports extraction.infrastructure.persistence.orm.
-    contract_intelligence.extraction.application.services.extraction_service -> contract_intelligence.shared.ai.pipeline_orchestrator
 
 [importlinter:contract:infrastructure_no_interfaces]
 name = Infrastructure no interfaces
@@ -117,10 +114,6 @@ forbidden_modules =
     contract_intelligence.identity.infrastructure
     contract_intelligence.identity.interfaces
 ignore_imports =
-    # ExtractionService binds to PipelineOrchestrator (shared.ai) for background dispatch,
-    # which transitively imports extraction.infrastructure.persistence.orm. This dependency
-    # is acceptable (orchestrator is cross-cutting shared kernel).
-    contract_intelligence.extraction.application.services.extraction_service -> contract_intelligence.shared.ai.pipeline_orchestrator
     # ReOcrService, ApprovalService -- see comments in
     # application_no_infra_or_interfaces section.
     contract_intelligence.extraction.application.services.reocr_service -> contract_intelligence.extraction.infrastructure.persistence.orm_reocr

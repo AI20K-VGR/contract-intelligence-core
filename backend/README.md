@@ -120,17 +120,18 @@ uv run lint-imports          # alias cho `import-linter --config .importlinter`
 
 ## Kết nối AI1 OCR service
 
-### Kafka (đường runtime — DOC-05d / DOC-05e)
+### Kafka cho AI1, HTTP cho AI2 (đường runtime — DOC-05d)
 
 Backend publish `dossier.uploaded` → orchestrator worker publish
 `ci.ai1.ocr.commands` → AI1 Kafka worker chạy OCR → `ci.ai1.ocr.results` →
-backend persist snapshot → (nếu `AI2_WIRE_ENABLED=true`) publish
-`ci.ai2.idp.commands` → AI2 Kafka worker → `ci.ai2.idp.results` →
-backend persist findings / `PENDING_REVIEW`.
+backend persist snapshot. Khi **mọi** tài liệu của run đã có snapshot (job
+`EXTRACTED`) và manifest đã xác nhận, worker gọi AI2 qua HTTP
+(`POST {AI2_BASE_URL}/jobs/idp` rồi poll `GET /jobs/{id}`) → persist findings /
+`PENDING_REVIEW`. Không có webhook HTTP và không có topic Kafka cho AI2.
 
 ```powershell
 # Terminal A — Kafka + MinIO + DB (từ repo root)
-docker compose up -d kafka minio minio-init backend-db backend backend-worker ai1-worker ai2-worker
+docker compose up -d kafka minio minio-init backend-db backend backend-worker ai1-worker ai2-service
 
 # Hoặc chạy worker local (Kafka đã up)
 cd backend
@@ -139,7 +140,7 @@ uv run python -m contract_intelligence.worker
 
 Chi tiết:
 - AI1 OCR: `docs/DOC-05d-kafka-ai1-ocr-contract.md`
-- AI2 IDP (MVP body-only): `docs/DOC-05e-kafka-ai2-idp-contract.md`
+- AI2 IDP (Kafka, full dossier): `docs/DOC-05e-kafka-ai2-idp-contract.md`
 
 ### HTTP job API (demo / manual only)
 

@@ -26,7 +26,7 @@ async def start_producer() -> None:
         bootstrap_servers=settings.kafka_bootstrap_servers,
         value_serializer=lambda v: v,  # publish_event already encodes JSON bytes
         # AI1 OCR results / AI2 IDP commands can exceed the default 1 MiB limit.
-        max_request_size=10_485_760,  # 10 MiB
+        max_request_size=settings.kafka_max_message_bytes,
     )
     await producer.start()
     _producer = producer
@@ -70,7 +70,9 @@ async def publish_event(
         msg = "Kafka producer is not started — call start_producer() first"
         raise RuntimeError(msg)
 
-    payload = json.dumps(message, default=str).encode("utf-8")
+    # ensure_ascii=False: Vietnamese text goes out as UTF-8 instead of ASCII
+    # escapes, which roughly double its size on the wire.
+    payload = json.dumps(message, default=str, ensure_ascii=False).encode("utf-8")
     kafka_key = key.encode("utf-8") if key else None
     await _producer.send_and_wait(topic, payload, key=kafka_key)
     logger.info(

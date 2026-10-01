@@ -235,7 +235,14 @@ class TestValidateConfirm:
 
 @pytest_asyncio.fixture
 async def mock_svc() -> AsyncMock:
-    return AsyncMock(spec=ContractService)
+    from contract_intelligence.contract.domain.entities.dossier import Dossier
+
+    svc = AsyncMock(spec=ContractService)
+    # Owned by the operator used by ``client``: confirm needs edit rights.
+    svc.get_dossier.return_value = Dossier(
+        id="dos_1", name="Manifest", metadata={"created_by": "usr_op_01"}
+    )
+    return svc
 
 
 @pytest_asyncio.fixture

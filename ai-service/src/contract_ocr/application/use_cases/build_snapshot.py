@@ -50,6 +50,7 @@ from contract_ocr.domain.entities import Line as InternalLine
 from contract_ocr.domain.entities import Page as InternalPage
 from contract_ocr.domain.entities import Table as InternalTable
 from contract_ocr.domain.enums import InputType, Status
+from contract_ocr.domain.ocr_confidence import TEXT_LAYER
 from contract_ocr.domain.snapshot import (
     Cell,
     DocumentRole,
@@ -287,6 +288,13 @@ class BuildSnapshot:
                     # Line model itself refuses a bbox without one (section 6 gate).
                     geometry_provenance=line.geometry_provenance,
                     word_ids=[w.word_id for w in line_words],
+                    confidence=(
+                        line.confidence
+                        if line.confidence is not None
+                        else TEXT_LAYER
+                        if common["input_type"] == "TEXT_LAYER"
+                        else None
+                    ),
                 )
             )
             words_payload.extend(line_words)

@@ -125,11 +125,29 @@ class OcrLineORM(Base):
     line_no: Mapped[int] = mapped_column(Integer, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     bbox: Mapped[str] = mapped_column(Text, nullable=False)  # JSON [x0,y0,x1,y1]
-    confidence: Mapped[float] = mapped_column(String, nullable=False, server_default="0.0")
+    # NULL: AI1 gave no confidence for this line (unknown, not 0).
+    confidence: Mapped[str | None] = mapped_column(String, nullable=True)
     doc_char_start: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     doc_char_end: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
     __table_args__ = (Index("ix_ocr_line_doc_page_line", "document_id", "page_no", "line_no"),)
+
+
+# The old AI1 bridge wrote this for every line, having no real score. AI1 now
+# never scores a line exactly 1.0, and the table is append-only, so the
+# placeholder is mapped to "unknown" on read instead of being rewritten.
+_LINE_CONFIDENCE_PLACEHOLDER = 1.0
+
+
+def stored_line_confidence(raw: str | None) -> float | None:
+    """A stored ``ocr_line.confidence`` as 0..1, or None when unknown."""
+    if raw is None:
+        return None
+    try:
+        value = float(raw)
+    except ValueError:
+        return None
+    return None if value == _LINE_CONFIDENCE_PLACEHOLDER else value
 
 
 class ClauseNodeORM(Base):
@@ -222,3 +240,6 @@ __all__ = [
     "PipelineRunORM",
     "PipelineStepORM",
 ]
+
+# Registers the run_event outbox hooks on every Session that can touch these tables.
+import contract_intelligence.shared.run_events  # noqa: E402, F401

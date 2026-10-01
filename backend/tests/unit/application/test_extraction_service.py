@@ -159,7 +159,7 @@ def service(page_repo: FakePageRepo, storage: FakeStorage) -> ExtractionService:
             ]
         ),
         storage=storage,
-        orchestrator=AsyncMock(),  # avoid DB-bound get_pipeline_orchestrator()
+        run_publisher=AsyncMock(),
         tenant_id="tenant_t",
     )
 
@@ -235,7 +235,7 @@ class TestListDossierFacts:
             clause_repo=FakeClauseRepo(),
             table_repo=FakeTableRepo(),
             storage=storage,
-            orchestrator=AsyncMock(),
+            run_publisher=AsyncMock(),
             tenant_id="t",
         )
         items = await svc.list_dossier_facts("dos_1")

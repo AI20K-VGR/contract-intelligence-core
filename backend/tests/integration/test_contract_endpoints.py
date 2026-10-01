@@ -26,6 +26,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from tests.pdf_bytes import make_pdf
 from tests.unit.conftest_contract import FakeFileStorage
 
 from contract_intelligence.config.settings import get_settings
@@ -161,7 +162,7 @@ class TestDossierEndpoints:
         token = make_keycloak_token(role="OPERATOR")
         response = await client.post(
             "/api/v1/dossiers",
-            files=[("contract", ("test.pdf", b"%PDF-1.4 content", "application/pdf"))],
+            files=[("contract", ("test.pdf", make_pdf(marker="content"), "application/pdf"))],
             data={"metadata": '{"name": "Test Contract"}'},
             headers=_auth_headers(token),
         )
@@ -183,7 +184,7 @@ class TestDossierEndpoints:
         """POST /dossiers without token → 401."""
         response = await client.post(
             "/api/v1/dossiers",
-            files=[("contract", ("x.pdf", b"pdf", "application/pdf"))],
+            files=[("contract", ("x.pdf", make_pdf(), "application/pdf"))],
             data={"metadata": "{}"},
         )
         assert response.status_code == 401
@@ -198,7 +199,7 @@ class TestDossierEndpoints:
         token = make_keycloak_token(role="REVIEWER")
         response = await client.post(
             "/api/v1/dossiers",
-            files=[("contract", ("x.pdf", b"pdf", "application/pdf"))],
+            files=[("contract", ("x.pdf", make_pdf(), "application/pdf"))],
             data={"metadata": "{}"},
             headers=_auth_headers(token),
         )
@@ -215,8 +216,8 @@ class TestDossierEndpoints:
         response = await client.post(
             "/api/v1/dossiers",
             files=[
-                ("contract", ("contract.pdf", b"%PDF-1.4 contract", "application/pdf")),
-                ("annexes", ("annex_1.pdf", b"%PDF-1.4 annex 1", "application/pdf")),
+                ("contract", ("contract.pdf", make_pdf(marker="contract"), "application/pdf")),
+                ("annexes", ("annex_1.pdf", make_pdf(marker="annex 1"), "application/pdf")),
             ],
             data={"metadata": '{"name": "Multi-doc dossier"}'},
             headers=_auth_headers(token),
@@ -260,7 +261,7 @@ class TestDossierEndpoints:
         for name in ["Dossier A", "Dossier B"]:
             r = await client.post(
                 "/api/v1/dossiers",
-                files=[("contract", ("x.pdf", b"pdf", "application/pdf"))],
+                files=[("contract", ("x.pdf", make_pdf(), "application/pdf"))],
                 data={"metadata": _json.dumps({"name": name})},
                 headers=_auth_headers(token),
             )
@@ -285,7 +286,7 @@ class TestDossierEndpoints:
 
         r = await client.post(
             "/api/v1/dossiers",
-            files=[("contract", ("main.pdf", b"%PDF-1.4", "application/pdf"))],
+            files=[("contract", ("main.pdf", make_pdf(marker="main"), "application/pdf"))],
             data={"metadata": '{"name": "Detail Test"}'},
             headers=_auth_headers(token),
         )
@@ -326,7 +327,7 @@ class TestDossierEndpoints:
 
         r = await client.post(
             "/api/v1/dossiers",
-            files=[("contract", ("x.pdf", b"pdf", "application/pdf"))],
+            files=[("contract", ("x.pdf", make_pdf(), "application/pdf"))],
             data={"metadata": '{"name": "Old Name"}'},
             headers=_auth_headers(token),
         )
@@ -353,7 +354,7 @@ class TestDossierEndpoints:
 
         r = await client.post(
             "/api/v1/dossiers",
-            files=[("contract", ("x.pdf", b"pdf", "application/pdf"))],
+            files=[("contract", ("x.pdf", make_pdf(), "application/pdf"))],
             data={"metadata": "{}"},
             headers=_auth_headers(token_op),
         )
@@ -378,8 +379,8 @@ class TestDossierEndpoints:
         r = await client.post(
             "/api/v1/dossiers",
             files=[
-                ("contract", ("c.pdf", b"%PDF-1.4 contract", "application/pdf")),
-                ("annexes", ("a.pdf", b"%PDF-1.4 annex", "application/pdf")),
+                ("contract", ("c.pdf", make_pdf(marker="contract"), "application/pdf")),
+                ("annexes", ("a.pdf", make_pdf(marker="annex"), "application/pdf")),
             ],
             data={"metadata": '{"name": "Doc List"}'},
             headers=_auth_headers(token),
@@ -408,7 +409,7 @@ class TestDossierEndpoints:
 
         r = await client.post(
             "/api/v1/dossiers",
-            files=[("contract", ("doc.pdf", b"%PDF-1.4 content", "application/pdf"))],
+            files=[("contract", ("doc.pdf", make_pdf(marker="content"), "application/pdf"))],
             data={"metadata": '{"name": "Doc Test"}'},
             headers=_auth_headers(token),
         )
@@ -440,7 +441,7 @@ class TestDossierEndpoints:
     ) -> None:
         """GET /documents/{id}/content → binary PDF stream."""
         token = make_keycloak_token(role="OPERATOR")
-        content = b"%PDF-1.4 full content here"
+        content = make_pdf(marker="full content here")
 
         r = await client.post(
             "/api/v1/dossiers",
@@ -477,7 +478,7 @@ class TestDossierEndpoints:
         # Create dossier as OPERATOR
         r = await client.post(
             "/api/v1/dossiers",
-            files=[("contract", ("x.pdf", b"pdf", "application/pdf"))],
+            files=[("contract", ("x.pdf", make_pdf(), "application/pdf"))],
             data={"metadata": "{}"},
             headers=_auth_headers(token_op),
         )

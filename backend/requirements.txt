@@ -175,6 +175,8 @@ pydantic-settings==2.15.0
     # via contract-intelligence-backend
 pyjwt==2.14.0
     # via contract-intelligence-backend
+pypdf==6.19.0
+    # via contract-intelligence-backend
 python-dateutil==2.9.0.post0
     # via
     #   aiobotocore

@@ -90,6 +90,9 @@ class SnapshotLine(SnapshotEntity):
     bbox_normalized: NormalizedBBox
     geometry_provenance: GeometryProvenance
     word_ids: list[str] = Field(default_factory=list)
+    # Confidence that the text is read correctly (domain/ocr_confidence.py);
+    # None when the engine gives no evidence either way.
+    confidence: float | None = Field(default=None, ge=0, le=1)
 
     @model_validator(mode="after")
     def _ordered_offsets(self) -> "SnapshotLine":

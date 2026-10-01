@@ -1,7 +1,21 @@
-"""Shared dossier ACL decision seam for reads and review mutations."""
+"""Shared dossier ACL decision seam for reads and review mutations.
+
+A share grant (``dossier.metadata.shared_with[]``) may carry:
+
+- ``permission``: ``"read"`` (view only) or ``"edit"`` (also review, run, change
+  the dossier). A grant without it predates the field and keeps full access
+  (``"edit"``), so existing shares keep working.
+- ``expires_at``: ISO-8601 instant; at or past it the grant gives nothing.
+- ``status``: ``"disabled"`` revokes the grant.
+- ``roles`` / ``actions``: optional extra restrictions.
+
+Changing who can access a dossier, or deleting it, is never granted by a
+share: only the owner (or an ADMINISTRATOR) may do it.
+"""
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
@@ -18,6 +32,8 @@ class AclAction(StrEnum):
     REVIEW_READ = "review_read"
     REVIEW_MUTATE = "review_mutate"
     APPROVE = "approve"
+    DOSSIER_EDIT = "dossier_edit"
+    DOSSIER_MANAGE = "dossier_manage"
 
 
 _ALLOWED_ROLES: dict[AclAction, frozenset[str]] = {
@@ -28,7 +44,14 @@ _ALLOWED_ROLES: dict[AclAction, frozenset[str]] = {
     AclAction.REVIEW_READ: frozenset({"REVIEWER", "ADMINISTRATOR"}),
     AclAction.REVIEW_MUTATE: frozenset({"REVIEWER", "ADMINISTRATOR"}),
     AclAction.APPROVE: frozenset({"ADMINISTRATOR"}),
+    AclAction.DOSSIER_EDIT: frozenset({"OPERATOR", "ADMINISTRATOR"}),
+    AclAction.DOSSIER_MANAGE: frozenset({"OPERATOR", "ADMINISTRATOR"}),
 }
+
+# Actions a "read" grant does not cover.
+_EDIT_ACTIONS = frozenset({AclAction.REVIEW_MUTATE, AclAction.APPROVE, AclAction.DOSSIER_EDIT})
+
+SHARE_PERMISSIONS = ("read", "edit")
 
 
 def dossier_access_decision(
@@ -38,6 +61,7 @@ def dossier_access_decision(
     dossier_id: str,
     dossier_tenant_id: str,
     metadata: dict[str, Any] | None,
+    now: datetime | None = None,
 ) -> bool:
     """Return one fail-closed ACL decision for a dossier operation.
 
@@ -56,25 +80,55 @@ def dossier_access_decision(
     if isinstance(owner_id, str) and owner_id and owner_id == principal.user_id:
         return True
 
+    # Lead decision 2026-09-30: an ADMINISTRATOR may delete a dossier or change
+    # its sharing without a grant, but still cannot read it (CONTEXT.md §4.4).
+    if action is AclAction.DOSSIER_MANAGE:
+        return principal.role == "ADMINISTRATOR"
     if meta.get("access_scope") == "mine":
         return False
     shared_with = meta.get("shared_with")
     if not isinstance(shared_with, list):
         return False
     email = (principal.email or "").strip().lower()
+    moment = now or datetime.now(tz=UTC)
     return any(
         isinstance(grant, dict)
         and (
             grant.get("id") == principal.user_id
             or (email and str(grant.get("email") or "").strip().lower() == email)
         )
+        and grant_is_live(grant, moment)
         and _grant_allows(grant, action, principal.role)
         for grant in shared_with
     )
 
 
+def grant_is_live(grant: dict[str, Any], now: datetime) -> bool:
+    """Not disabled and not expired. An unreadable ``expires_at`` counts as expired."""
+    if grant.get("status") == "disabled":
+        return False
+    expires_at = grant.get("expires_at")
+    if expires_at in (None, ""):
+        return True
+    try:
+        moment = datetime.fromisoformat(str(expires_at))
+    except ValueError:
+        return False
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return now < moment
+
+
+def grant_permission(grant: dict[str, Any]) -> str:
+    """``read`` or ``edit``; a grant from before the field existed is ``edit``."""
+    permission = grant.get("permission")
+    return permission if permission in SHARE_PERMISSIONS else "edit"
+
+
 def _grant_allows(grant: dict[str, Any], action: AclAction, role: str) -> bool:
-    """Honor optional per-grant role/action restrictions without weakening ACL."""
+    """Honor per-grant permission and optional role/action restrictions."""
+    if action in _EDIT_ACTIONS and grant_permission(grant) != "edit":
+        return False
     roles = grant.get("roles")
     if isinstance(roles, list) and roles and role not in roles:
         return False
@@ -82,4 +136,10 @@ def _grant_allows(grant: dict[str, Any], action: AclAction, role: str) -> bool:
     return not (isinstance(actions, list) and actions and action.value not in actions)
 
 
-__all__ = ["AclAction", "dossier_access_decision"]
+__all__ = [
+    "SHARE_PERMISSIONS",
+    "AclAction",
+    "dossier_access_decision",
+    "grant_is_live",
+    "grant_permission",
+]

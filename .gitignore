@@ -98,3 +98,6 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+
+# Production secrets (deploy/bootstrap.sh generates it)
+deploy/.env.prod

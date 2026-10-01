@@ -438,3 +438,75 @@ def test_budget_mode_does_not_pay_a_verifier_call_for_one_stray_line(tmp_path):
     ).recognize_page(image, _ctx(tmp_path))
     assert budget_verifier.calls == 0
     assert selective_verifier.calls == 1  # the accuracy-side selective mode still pays for it
+
+
+def test_line_confidence_follows_the_evidence_behind_its_text(tmp_path):
+    # Single reader, nothing to doubt.
+    engine = VerifiedMistralOCREngine(
+        FakeReader("\n".join(CLEAN_VN)), FakeReader("unused"), FakeArbiter("unused"),
+        verify_all_pages=False,
+    )
+    single = engine.recognize_page(
+        _page(["DIEU 4. YEU CAU CHAT LUONG VA NGHIEM THU", PARA, PARA_2]), _ctx(tmp_path)
+    )
+    assert {line.confidence for line in single.lines} == {0.90}
+
+    # Critical digits corroborated by the independent verifier.
+    verifier = FakeReader(MONEY, lines=[_verifier_line(MONEY)])
+    engine = VerifiedMistralOCREngine(FakeReader(MONEY_VN), verifier, FakeArbiter("unused"))
+    agreed = engine.recognize_page(_page([MONEY]), _ctx(tmp_path))
+    assert agreed.lines[0].confidence == 0.97
+
+    # Three different readings of the amount: flagged, low confidence.
+    verifier_text = MONEY.replace("286", "236")
+    verifier = FakeReader(verifier_text, lines=[_verifier_line(verifier_text)])
+    engine = VerifiedMistralOCREngine(
+        FakeReader(MONEY_VN), verifier, FakeArbiter(MONEY_VN.replace("286", "999"))
+    )
+    conflict = engine.recognize_page(_page([MONEY]), _ctx(tmp_path))
+    assert conflict.lines[0].confidence == 0.30
+
+
+def test_fallback_text_is_not_counted_as_corroborated(tmp_path):
+    engine = VerifiedMistralOCREngine(
+        FakeReader(error=RuntimeError("402 insufficient credits")),
+        FakeReader(MONEY, lines=[_verifier_line(MONEY)]),
+        FakeArbiter("unused"),
+        fallback_reader=FakeReader(MONEY_VN),
+    )
+    result = engine.recognize_page(_page([MONEY]), _ctx(tmp_path))
+    assert result.lines[0].confidence == 0.90
+
+
+def _poor(tmp_path) -> Context:
+    return Context(document_id="doc", page=3, output_dir=str(tmp_path), low_quality=True)
+
+
+def test_a_low_quality_page_is_read_once_even_when_every_page_is_verified(tmp_path):
+    verifier = FakeReader(MONEY_VN)
+    engine = VerifiedMistralOCREngine(FakeReader(MONEY_VN), verifier, FakeArbiter("unused"))
+    result = engine.recognize_page(_page([MONEY]), _poor(tmp_path))
+    assert verifier.calls == 0
+    assert result.lines[0].text == MONEY_VN
+    assert any(w.startswith("needs_review:critical_field_unverified:") for w in result.warnings)
+
+
+def test_a_low_quality_page_is_flagged_instead_of_arbitrated(tmp_path):
+    CountingArbiter.calls = 0
+    engine = VerifiedMistralOCREngine(
+        FakeReader(GARBLED), FakeReader("unused"), CountingArbiter(CLEAN_VN[1])
+    )
+    result = engine.recognize_page(_page([PARA, PARA_2]), _poor(tmp_path))
+    assert CountingArbiter.calls == 0
+    assert result.lines[0].text == GARBLED
+    assert any(w.startswith("needs_review:low_quality_unverified:") for w in result.warnings)
+
+
+def test_an_empty_reading_of_a_low_quality_page_is_not_reread(tmp_path):
+    fallback = FakeReader("\n".join(CLEAN_VN))
+    engine = VerifiedMistralOCREngine(
+        FakeReader(""), FakeReader("unused"), FakeArbiter("unused"), fallback_reader=fallback
+    )
+    result = engine.recognize_page(_page(["DIEU 4. YEU CAU", PARA, PARA_2]), _poor(tmp_path))
+    assert fallback.calls == 0
+    assert "ocr:text_reader_empty" in result.warnings

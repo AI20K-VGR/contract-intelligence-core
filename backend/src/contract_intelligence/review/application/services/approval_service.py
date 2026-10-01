@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from contract_intelligence.contract.application.dtos.dossier_dtos import DossierDetailDTO
+from contract_intelligence.contract.domain.entities.job import JobStatus
 from contract_intelligence.contract.infrastructure.persistence.repository_impl import (
     DocumentRepositoryImpl,
     DossierRepositoryImpl,
@@ -22,17 +23,23 @@ from contract_intelligence.contract.infrastructure.persistence.repository_impl i
 from contract_intelligence.review.application.dtos.approval_dtos import (
     ExternalApprovalGrantDTO,
 )
+from contract_intelligence.review.domain.entities.review_item import ReviewItemStatus
 from contract_intelligence.review.infrastructure.persistence.orm import ReviewItemORM
 from contract_intelligence.review.infrastructure.persistence.orm_approval import (
     DossierApprovalORM,
     ExternalApprovalORM,
 )
+from contract_intelligence.shared.audit import add_audit_event
 from contract_intelligence.shared.base import new_ulid, utcnow
 from contract_intelligence.shared.exceptions import (
     InvalidStateTransition,
     NotFoundError,
     ValidationError,
 )
+
+# Approval needs every review item closed; ``pending_review`` is accepted too
+# so a dossier whose items were all closed (or that had none) is not stuck.
+_APPROVABLE_STATUSES = frozenset({JobStatus.PENDING_REVIEW.value, JobStatus.REVIEWED.value})
 
 
 class ApprovalService:
@@ -49,8 +56,8 @@ class ApprovalService:
         self._dossier_repo = dossier_repo
         self._document_repo = document_repo
 
-    async def lock_dossier(self, dossier_id: str) -> DossierDetailDTO:
-        flags = await self._dossier_repo.get_flags(dossier_id)
+    async def lock_dossier(self, dossier_id: str, *, actor_id: str) -> DossierDetailDTO:
+        flags = await self._dossier_repo.get_flags(dossier_id, for_update=True)
         if flags is None:
             raise NotFoundError(entity_type="Dossier", entity_id=dossier_id)
         if flags.get("is_locked"):
@@ -60,6 +67,18 @@ class ApprovalService:
                 entity="Dossier",
             )
         await self._dossier_repo.lock(dossier_id, locked=True)
+        add_audit_event(
+            self._session,
+            tenant_id=self._tenant_id,
+            action="dossier.locked",
+            entity_type="dossier",
+            entity_id=dossier_id,
+            actor_id=actor_id,
+            dossier_id=dossier_id,
+            from_state=str(flags.get("status") or "") or None,
+            to_state=str(flags.get("status") or "") or None,
+            detail={"is_locked": True},
+        )
         return await self._dossier_detail(dossier_id)
 
     async def approve_dossier(
@@ -69,7 +88,9 @@ class ApprovalService:
         *,
         comment: str | None = None,
     ) -> DossierDetailDTO:
-        flags = await self._dossier_repo.get_flags(dossier_id)
+        # Row lock: review actions share-lock the dossier, so none can land
+        # between the open-item count below and the approval.
+        flags = await self._dossier_repo.get_flags(dossier_id, for_update=True)
         if flags is None:
             raise NotFoundError(entity_type="Dossier", entity_id=dossier_id)
         if flags.get("is_approved"):
@@ -79,7 +100,7 @@ class ApprovalService:
                 entity="Dossier",
             )
         status = str(flags.get("status") or "")
-        if status != "reviewed":
+        if status not in _APPROVABLE_STATUSES:
             raise InvalidStateTransition(
                 from_state=status or "unknown",
                 to_state="approved",
@@ -112,6 +133,23 @@ class ApprovalService:
         self._session.add(approval)
         await self._session.flush()
 
+        # Every item is closed, so the review is complete even if no action
+        # closed the last one after the dossier reached pending_review (a
+        # dossier with no review items, or one reviewed before this rule).
+        await self._dossier_repo.advance_status(
+            dossier_id,
+            from_status=JobStatus.PENDING_REVIEW,
+            to_status=JobStatus.REVIEWED,
+            actor_id=user_id,
+            detail={"via": "approve"},
+        )
+        await self._dossier_repo.advance_status(
+            dossier_id,
+            from_status=JobStatus.REVIEWED,
+            to_status=JobStatus.APPROVED,
+            actor_id=user_id,
+            detail={"approval_id": approval.id, "checksum": checksum},
+        )
         await self._dossier_repo.approve(dossier_id, checksum)
         return await self._dossier_detail(dossier_id)
 
@@ -248,7 +286,11 @@ class ApprovalService:
             .where(
                 ReviewItemORM.dossier_id == dossier_id,
                 ReviewItemORM.tenant_id == self._tenant_id,
-                ReviewItemORM.status == "open",
+                # Same definition as the review queue: awaiting_evidence is
+                # still open work.
+                ReviewItemORM.status.in_(
+                    (ReviewItemStatus.OPEN.value, ReviewItemStatus.AWAITING_EVIDENCE.value)
+                ),
             )
         )
         result = await self._session.execute(stmt)

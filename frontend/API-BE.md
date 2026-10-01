@@ -235,48 +235,7 @@ RBAC list: **mọi user đã auth**.
 
 Mã vụ việc / phân loại / quyền riêng tư **không** nằm trong body POST (OpenAPI metadata chỉ `{ name, tags?, notes? }`). Sau 202 FE gọi `PATCH /dossiers/{id}` `{ metadata: { code, category, privacy } }`. PATCH lỗi không huỷ hồ sơ vừa tạo.
 
-Có **2** POST. Màn tạo hồ sơ dùng 3b. 3a (`/dossiers/upload`) khi muốn auto-run pipeline.
-
-### 3a. Nên dùng: `POST /api/v1/dossiers/upload` → **202**
-
-Multipart:
-
-| Field | Type | Bắt buộc |
-|---|---|---|
-| `contract_file` | file PDF | có |
-| `name` | string 1..255 | có |
-| `annex_files` | file[] PDF | không |
-| `auto_run` | boolean | không, default `true` |
-| `batch_id` | string | không |
-
-RBAC: `OPERATOR` | `ADMINISTRATOR`. 400 file thiếu/sai, 403 sai role.
-
-```ts
-type UploadedDocumentInfo = {
-  id: string
-  role: string              // contract | annex
-  order_index: number
-  filename: string
-  sha256: string
-  blob_uri: string
-  page_count?: number
-  size_bytes?: number
-}
-
-type DossierUploadResponse = {
-  dossier_id: string
-  run_id?: string | null    // poll GET /runs/{run_id}
-  documents?: UploadedDocumentInfo[]
-  status?: string           // default "accepted"
-}
-```
-
-Sau 202: `navigate('/tien-trinh-phan-tich', { state: { dossierId, runId, name } })`.
-
-**Form UI thừa so với API:** mã vụ việc, phân loại, quyền riêng tư. `upload` **không** nhận metadata. Cách nối:
-
-1. `POST /dossiers/upload` với `name` + files  
-2. `PATCH /dossiers/{id}` body `{ metadata: { code, category, privacy } }`
+Chỉ còn **1** POST tạo hồ sơ (3b). Endpoint cũ 3a `POST /dossiers/upload` (chạy pipeline trong tiến trình backend, không qua Kafka) **đã bị gỡ** — gọi vào sẽ nhận 404/405. Pipeline OCR tự chạy sau 3b: backend publish `dossier.uploaded`, worker gửi lệnh AI1 rồi AI2.
 
 ### 3b. Đã chốt — màn tạo hồ sơ: `POST /api/v1/dossiers` → **202**
 
@@ -1067,7 +1026,7 @@ Giữ mock hoặc ẩn màn cho đến khi BE bổ sung. Đừng bịa API.
 
 1. **Client** — Bearer + `X-Tenant-Id` + unwrap `{ data, meta }` + lỗi 401/403/409  
 2. **Auth** — Keycloak token → `GET /auth/me` → bỏ `DEMO_USERS`  
-3. **Upload** — màn `/tao-ho-so` dùng `POST /dossiers` (3b) → `dossier_id` + `job_id`, status UPLOADED, rồi xác nhận manifest ([19](#19-xác-nhận-manifest)). Auto-run: `POST /dossiers/upload` (3a) → `run_id`  
+3. **Upload** — màn `/tao-ho-so` dùng `POST /dossiers` (3b) → `dossier_id` + `job_id`, status UPLOADED, rồi xác nhận manifest ([19](#19-xác-nhận-manifest)). Pipeline tự chạy qua Kafka (endpoint 3a đã gỡ)  
 4. **Progress** — `GET /runs/{id}` + `/steps` (poll); SSE nếu giải được auth  
 5. **List** — `GET /dossiers` thay `myDossiers`  
 6. **Conflict** — `GET .../conflicts` + actions review  
@@ -1129,3 +1088,128 @@ Sau upload, operator hoặc administrator xác nhận tài liệu thuộc hồ s
 | POST | `/api/v1/dossiers/{dossier_id}/manifest/confirm` | Ghi nhận xác nhận |
 
 RBAC: **OPERATOR** hoặc **ADMINISTRATOR**. `REVIEWER` nhận 403. Confirm không tạo pipeline run.
+
+## 20. Chia sẻ hồ sơ: chỉ đọc / được sửa, có hạn
+
+### `PUT /api/v1/dossiers/{dossier_id}/access`
+
+Chỉ **chủ hồ sơ** hoặc **ADMINISTRATOR** gọi được. Người khác nhận 403, kể cả khi được chia sẻ quyền `edit`.
+
+```json
+{
+  "scope": "shared_out",
+  "shared_with": [
+    {
+      "id": "usr_…",
+      "email": "a@vgr.vn",
+      "display_name": "A",
+      "permission": "read",
+      "expires_at": "2026-10-18T17:00:00+07:00"
+    }
+  ]
+}
+```
+
+| Trường | Giá trị | Ghi chú |
+|---|---|---|
+| `permission` | `read` \| `edit` | `read`: xem hồ sơ, điều khoản, fact, finding, hỏi đáp. `edit`: thêm thẩm định, chạy lại OCR/AI2, sửa hồ sơ, xác nhận manifest. **Bỏ trống thì là `edit`**, để client cũ chạy như trước. FE nên luôn gửi trường này. |
+| `expires_at` | ISO-8601 hoặc `null` | Phải ở tương lai, nếu không trả **422**. Server lưu theo UTC (`…+00:00`). `null` là không hết hạn. |
+| `status` | `invited` \| `active` \| `disabled` | `disabled` thu hồi quyền ngay. |
+
+Khi quyền hết hạn hoặc bị `disabled`:
+
+- Hồ sơ biến khỏi `GET /dossiers` của người được chia sẻ.
+- Mọi API trên hồ sơ đó trả **403**, kể cả SSE `/runs/{id}/events`.
+
+Người có quyền `read` gọi API sửa thì nhận **403**, `detail`: "Bạn chỉ có quyền xem hồ sơ này, hoặc quyền đã hết hạn." Các API sửa gồm: `PATCH /dossiers/{id}`, `POST /dossiers/{id}/ocr`, `/ai2/retry`, `/runs`, `/reprocess`, `/manifest/confirm`, `POST /runs/{id}/cancel`, `POST /documents/{id}/re-ocr` và `POST /review-items/{id}/actions`.
+
+`DELETE /dossiers/{id}` và `PUT /dossiers/{id}/access` chỉ chủ hồ sơ hoặc ADMINISTRATOR. `PATCH /dossiers/{id}` bỏ qua `created_by`, `access_scope`, `shared_with` trong `metadata`. Muốn đổi quyền thì dùng endpoint này.
+
+## 21. Lịch sử hỏi đáp
+
+### `GET /api/v1/dossiers/{dossier_id}/queries?scope=mine|all&limit=20&offset=0`
+
+Trả các lần hỏi đáp (`/ask`, `/query`) trên hồ sơ, mới nhất trước. Dữ liệu lưu trong DB nên vẫn còn sau khi server khởi động lại.
+
+| Tham số | Ý nghĩa |
+|---|---|
+| `scope=mine` (mặc định) | Chỉ câu hỏi của chính người gọi |
+| `scope=all` | Câu hỏi của mọi người trên hồ sơ. **Chỉ chủ hồ sơ hoặc ADMINISTRATOR**, người khác nhận 403 |
+
+Cần quyền xem hồ sơ (như `GET /dossiers/{id}`). Người khác tenant, hoặc có quyền chia sẻ đã hết hạn / bị tắt, nhận 403/404.
+
+```json
+{
+  "data": [
+    {
+      "trace_id": "qtr_…",
+      "endpoint": "ask",
+      "actor_id": "usr_…",
+      "question": "Giá trị hợp đồng là bao nhiêu?",
+      "answer": "1.286.400.000 đồng",
+      "state": "PASS",
+      "citations": [],
+      "error_code": null,
+      "created_at": "2026-10-01T09:12:00+00:00"
+    }
+  ],
+  "meta": { "page": 1, "page_size": 20, "total": 1 }
+}
+```
+
+Lần hỏi mà AI2 lỗi vẫn có trong lịch sử, với `answer: null` và `error_code` (ví dụ `AI2_QUERY_FAILED`). Xoá hồ sơ thì câu trả lời bị xoá theo.
+
+## 22. Chạy lại phần OCR lỗi (giữ phần đã xong)
+
+### `POST /api/v1/dossiers/{dossier_id}/ocr/retry-failed` → **202**
+
+Dùng khi hồ sơ lỗi ở bước OCR (`latest_job_status = failed` với mã lỗi OCR, ví dụ `AI1_TIMEOUT`, `AI1_OCR_FAILED`, `AI1_RESULT_UNREADABLE`).
+
+- Backend mở run mới, **giữ kết quả OCR của các tài liệu đã xong** (kể cả kết quả về sau khi run đã lỗi), và chỉ gửi lại tài liệu còn thiếu cho AI1.
+- Nếu mọi tài liệu đã có kết quả, run chuyển thẳng sang AI2, không OCR lại trang nào.
+- Theo dõi tiến độ bằng SSE `/runs/{run_id}/events` của run mới, như khi upload.
+
+| Trả về | Khi nào |
+|---|---|
+| 202 `{"status": "queued"}` | Đã nhận |
+| 409 | Job không lỗi ở bước OCR. Lỗi AI2 thì dùng `POST /dossiers/{id}/ai2/retry` |
+| 403 | Không có quyền sửa hồ sơ (§20) |
+
+`POST /dossiers/{id}/ocr` (chạy lại OCR toàn bộ) vẫn giữ nguyên hành vi cũ.
+
+## 23. Tách file trộn (hợp đồng + phụ lục trong một PDF)
+
+**Bước 1: tải lên nhưng chưa xử lý.** `POST /api/v1/dossiers` như cũ, thêm `"split_pending": true` vào `metadata`:
+
+```json
+{ "name": "Hợp đồng kèm phụ lục", "split_pending": true }
+```
+
+Backend lưu file nhưng **chưa gửi OCR**, để không trang nào bị OCR hai lần.
+
+**Bước 2: người dùng xác nhận khoảng trang và vai trò.** `POST /api/v1/dossiers/{dossier_id}/split` → **202**
+
+```json
+{
+  "document_id": "doc_… (file vừa tải)",
+  "parts": [
+    { "page_start": 1, "page_end": 6, "role": "contract" },
+    { "page_start": 7, "page_end": 10, "role": "annex" }
+  ]
+}
+```
+
+- Mỗi phần thành **một tài liệu riêng** (PDF cắt từ file gốc). File gốc bị bỏ.
+- Vai trò được xác nhận, rồi mọi tài liệu được gửi OCR riêng, như khi tải lên từng file.
+- Theo dõi tiến độ bằng SSE như thường lệ.
+- Gửi **một phần phủ cả file** nghĩa là không cần tách, xử lý luôn.
+
+Trả về: `{ dossier_id, status: "queued", documents: [{ id, role, filename, page_start, page_end, page_count }] }`.
+
+| Lỗi | Khi nào |
+|---|---|
+| 422 | Các phần không phủ đủ trang 1..N theo thứ tự (thiếu, chồng lấn), `page_end < page_start`, hoặc hồ sơ không có đúng **một** hợp đồng |
+| 409 | Hồ sơ không tải lên với `split_pending`, hoặc đã bắt đầu xử lý (tách lúc này sẽ OCR lại) |
+| 403 | Không có quyền sửa hồ sơ |
+
+Chưa có: AI1 tự đề xuất chỗ cắt. Hiện người dùng nhập khoảng trang trên màn xác nhận.

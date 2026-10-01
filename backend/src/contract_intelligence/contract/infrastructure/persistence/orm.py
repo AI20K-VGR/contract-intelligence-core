@@ -22,6 +22,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -39,9 +40,9 @@ class DossierORM(Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     batch_id: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="uploaded")
-    has_conflicts: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
-    is_locked: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
-    is_approved: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    has_conflicts: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
+    is_locked: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
+    is_approved: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
     checksum: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_json: Mapped[dict[str, object] | None] = mapped_column(
         "metadata", JSON, nullable=True, default=None

@@ -23,7 +23,6 @@ from fastapi.security import HTTPBearer
 from contract_intelligence.api.v1.admin_overview import router as admin_overview_router
 from contract_intelligence.api.v1.dossiers import router as dossier_query_router
 from contract_intelligence.api.v1.users import router as users_router
-from contract_intelligence.api.v1.webhooks import router as ai_webhooks_router
 from contract_intelligence.config.logging import configure_logging, get_logger
 from contract_intelligence.config.settings import get_settings
 from contract_intelligence.conflict.interfaces.api.routers.conflict_full_router import (
@@ -34,9 +33,6 @@ from contract_intelligence.contract.interfaces.api.routers.admin_router import (
 )
 from contract_intelligence.contract.interfaces.api.routers.contract_router import (
     router as contract_router,
-)
-from contract_intelligence.contract.interfaces.api.routers.contract_upload_router import (
-    router as contract_upload_router,
 )
 from contract_intelligence.extraction.interfaces.api.routers.events_router import (
     router as events_router,
@@ -68,8 +64,8 @@ from contract_intelligence.shared.ai import (
 )
 from contract_intelligence.shared.ai.health_router import router as ai_health_router
 from contract_intelligence.shared.ai.job_worker import (
-    start_job_queue_worker,
-    stop_job_queue_worker,
+    start_maintenance_loop,
+    stop_maintenance_loop,
 )
 from contract_intelligence.shared.auth.exceptions import (
     AuthenticationError,
@@ -87,6 +83,11 @@ from contract_intelligence.shared.persistence import (
 from contract_intelligence.shared.persistence.base import Base
 from contract_intelligence.shared.persistence.orm_registry import import_all_models
 from contract_intelligence.shared.responses import ErrorPayload, ErrorResponse
+from contract_intelligence.shared.run_events import (
+    PostgresRunEventListener,
+    get_run_event_broker,
+    listen_dsn,
+)
 from contract_intelligence.shared.versioning import full_version
 
 logger = get_logger(__name__)
@@ -163,9 +164,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _dispatcher = get_background_dispatcher()
     logger.info("dispatcher.ready")
 
-    # Postgres job queue worker + lease reaper (no Redis/Celery).
-    # Skip in test env — ASGI integration clients manage their own DB and would
-    # hang forever on the worker/reaper asyncio loops.
+    # The pipeline runs only in the Kafka worker process; the API keeps just
+    # the purge sweep. Skip in test env — ASGI integration clients manage their
+    # own DB and would hang forever on the background loop.
     if settings.env != "test":
         from contract_intelligence.contract.infrastructure.persistence import (
             dossier_deletion_service,
@@ -173,11 +174,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         await dossier_deletion_service.sweep_pending_purges()
     if settings.job_queue_enabled and settings.env != "test":
-        start_job_queue_worker(engine)
-        logger.info("job_queue.worker_ready", enabled=True)
+        start_maintenance_loop()
     else:
         logger.info(
-            "job_queue.worker_skipped",
+            "maintenance.skipped",
             enabled=settings.job_queue_enabled,
             env=settings.env,
         )
@@ -189,12 +189,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     else:
         logger.info("kafka.producer.skipped", reason="env=test")
 
+    # SSE progress: one LISTEN connection wakes this process's run streams.
+    # Without PostgreSQL the commit hook wakes them in-process instead.
+    run_event_listener: PostgresRunEventListener | None = None
+    if settings.env != "test" and engine.dialect.name == "postgresql":
+        run_event_listener = PostgresRunEventListener(
+            listen_dsn(settings.database_url), get_run_event_broker()
+        )
+        run_event_listener.start()
+
     yield
 
     # Shutdown
     logger.info("shutdown")
+    if run_event_listener is not None:
+        await run_event_listener.stop()
     await stop_producer()
-    await stop_job_queue_worker()
+    await stop_maintenance_loop()
     reset_background_dispatcher()
     reset_ai_service_client()
     reset_engine()
@@ -317,7 +328,6 @@ def create_app() -> FastAPI:
     app.include_router(users_router, prefix="/api/v1")  # → /api/v1/users*
     app.include_router(admin_overview_router, prefix="/api/v1")  # → /api/v1/admin/*
     app.include_router(contract_router, prefix="/api/v1", tags=["Contract"])
-    app.include_router(contract_upload_router, prefix="/api/v1", tags=["Contract-Upload"])
     app.include_router(extraction_router, prefix="/api/v1", tags=["Extraction"])
     app.include_router(conflict_router, prefix="/api/v1", tags=["Conflict"])
 
@@ -336,10 +346,6 @@ def create_app() -> FastAPI:
     # AI service health + proxy — DOC-05c §4.7
     # /healthz + /readyz + /ai/jobs/{id}
     app.include_router(ai_health_router, prefix="/api/v1", tags=["AI-Service"])
-
-    # Inbound AI1 / AI2 webhooks — OCRSnapshot + CandidateFinding handoff
-    # → /api/v1/webhooks/ai1/snapshot, /api/v1/webhooks/ai2/findings
-    app.include_router(ai_webhooks_router, prefix="/api/v1")
 
     # Backend liveness (root — không qua /api/v1)
     @app.get("/health", tags=["health"])

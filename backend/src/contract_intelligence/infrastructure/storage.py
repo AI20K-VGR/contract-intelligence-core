@@ -27,6 +27,15 @@ def parse_s3_uri(object_path: str) -> tuple[str, str]:
     return settings.s3_bucket_name, object_path.lstrip("/")
 
 
+def ai1_result_key(document_id: str, run_id: str) -> str:
+    """Render-bucket key AI1 may upload an OCR result to (one per run + document)."""
+    return f"{document_id}/ai1-result/{run_id}.json"
+
+
+def ai1_result_uri(document_id: str, run_id: str) -> str:
+    return f"s3://{get_settings().minio_bucket_render}/{ai1_result_key(document_id, run_id)}"
+
+
 def _s3_client_kwargs() -> dict[str, Any]:
     settings = get_settings()
     return {
