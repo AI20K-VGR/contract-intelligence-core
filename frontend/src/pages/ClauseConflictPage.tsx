@@ -34,6 +34,7 @@ import { findClause, findClauseByQuote } from '../structure/citations'
 import { bodyOf, headOf } from '../structure/display'
 import { clauseForCitation, regionsOf } from '../structure/conflictCite'
 import { buildStructureTree } from '../structure'
+import { withinDocumentId, withinSideLabel } from '../structure/withinDocument'
 import type { OcrLine } from '../structure/types'
 
 type Verdict = 'correct' | 'deviation'
@@ -73,6 +74,8 @@ type ComparePane = {
 }
 
 function paneRoleLabel(label: string) {
+  const within = label.match(/Vế \d+/)
+  if (within) return within[0]
   return label.startsWith('Xanh') ? 'Phụ lục' : 'Hợp đồng'
 }
 
@@ -133,12 +136,13 @@ function spotToCard(
       .map((id) => findClause(nodes, id))
       .find((node): node is ClauseNode => node !== null) ?? null
   const texts = spot.sides.map(sideQuote).filter(Boolean)
+  const within = withinDocumentId(spot) !== null
   const sources = spot.sides.flatMap((side, index) => {
     const quote = sideQuote(side)
     if (!quote) return []
     return [
       {
-        label: sourceLabel(side.label),
+        label: within ? withinSideLabel(index) : sourceLabel(side.label),
         quote,
         mark: MARKS[index] ?? 'amber',
       },
@@ -202,9 +206,11 @@ function linkPane(
   mark: 'amber' | 'sky',
   nodes: ClauseNode[],
   lines: OcrLine[] | undefined,
+  pick?: { side: ReviewSpotSide | null; key: string; missing: string },
 ): ComparePane {
-  const side =
-    spot.sides.find((item) => item.documentId === document.id) ?? null
+  const side = pick
+    ? pick.side
+    : (spot.sides.find((item) => item.documentId === document.id) ?? null)
   const clause =
     lines && side
       ? clauseForCitation(nodes, lines, side.pageNo, side.lineNo)
@@ -226,11 +232,12 @@ function linkPane(
       ? sideQuote(side as ReviewSpotSide)
       : ''
   const missing =
-    label.startsWith('Xanh')
+    pick?.missing ??
+    (label.startsWith('Xanh')
       ? 'Điểm này không có trích dẫn trên phụ lục.'
-      : 'Điểm này không có trích dẫn trên hợp đồng.'
+      : 'Điểm này không có trích dẫn trên hợp đồng.')
   return {
-    key: document.id,
+    key: pick?.key ?? document.id,
     document,
     pageNo,
     quote,
@@ -252,6 +259,30 @@ function locatePanes(
   linesByDocument: Record<string, OcrLine[] | undefined>,
 ): ComparePane[] {
   if (!spot || documents.length === 0) return []
+  const withinId = withinDocumentId(spot)
+  const within = withinId
+    ? (documents.find((item) => item.id === withinId) ?? null)
+    : null
+  if (within) {
+    // Cả hai vế cùng một tài liệu: hai khung cùng file, mỗi khung một vế.
+    const marks = [PANE_ROLES[0].mark, PANE_ROLES[1].mark] as const
+    const colors = ['Vàng', 'Xanh'] as const
+    return spot.sides.slice(0, 2).map((side, index) =>
+      linkPane(
+        spot,
+        within,
+        `${colors[index]} · ${withinSideLabel(index)}`,
+        marks[index],
+        nodesByDocument[within.id] ?? [],
+        linesByDocument[within.id],
+        {
+          side,
+          key: `${within.id}:${index}`,
+          missing: `Điểm này không có trích dẫn ở ${withinSideLabel(index).toLowerCase()}.`,
+        },
+      ),
+    )
+  }
   const contract = documentByRole(documents, 'contract')
   const annex =
     documentByRole(documents, 'annex') ??

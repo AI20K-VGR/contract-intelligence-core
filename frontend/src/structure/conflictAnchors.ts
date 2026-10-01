@@ -88,17 +88,17 @@ export function anchorConflicts(
   const anchors = new Map<string, ReviewSpot[]>()
   if (nodes.length === 0) return anchors
   for (const spot of spots) {
-    let target: ClauseNode | null = null
+    // Mỗi vế nằm trên tài liệu này đều được đánh dấu. Xung đột trong một hợp
+    // đồng có hai vế cùng file nên hiện ở cả hai điều khoản.
     for (const side of sidesOn(spot, documentId)) {
-      target = nodeForSide(side, nodes, lines)
-      if (target) break
-    }
-    if (!target) continue
-    const list = anchors.get(target.id)
-    if (list) {
-      if (!list.some((item) => item.id === spot.id)) list.push(spot)
-    } else {
-      anchors.set(target.id, [spot])
+      const target = nodeForSide(side, nodes, lines)
+      if (!target) continue
+      const list = anchors.get(target.id)
+      if (list) {
+        if (!list.some((item) => item.id === spot.id)) list.push(spot)
+      } else {
+        anchors.set(target.id, [spot])
+      }
     }
   }
   return anchors

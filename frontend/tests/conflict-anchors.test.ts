@@ -102,11 +102,23 @@ const l31 = line(1, 3, 0.2)
 const l32 = line(1, 4, 0.25)
 const l81 = line(3, 2, 0.1)
 const tree: ClauseNode[] = [
-  node('3', 1, [line(1, 2, 0.15)], [node('3.1', 1, [l31]), node('3.2', 1, [l32])]),
+  node(
+    '3',
+    1,
+    [line(1, 2, 0.15)],
+    [node('3.1', 1, [l31]), node('3.2', 1, [l32])],
+  ),
   node('8', 3, [line(3, 1, 0.05)], [node('8.1', 3, [l81])]),
   node('9', 4, [line(4, 1, 0.05)]),
 ]
-const lines = [line(1, 2, 0.15), l31, l32, line(3, 1, 0.05), l81, line(4, 1, 0.05)]
+const lines = [
+  line(1, 2, 0.15),
+  l31,
+  l32,
+  line(3, 1, 0.05),
+  l81,
+  line(4, 1, 0.05),
+]
 
 describe('conflictState', () => {
   it('is open without a review, dismissed on reject, reviewed otherwise', () => {
@@ -130,7 +142,12 @@ describe('anchorConflicts', () => {
   })
 
   it('ignores conflicts whose contract-side line is not in the tree', () => {
-    const anchors = anchorConflicts([spot('x', 9, 9, null)], tree, lines, CONTRACT)
+    const anchors = anchorConflicts(
+      [spot('x', 9, 9, null)],
+      tree,
+      lines,
+      CONTRACT,
+    )
     expect(anchors.size).toBe(0)
   })
 })
@@ -138,7 +155,11 @@ describe('anchorConflicts', () => {
 describe('conflictMarkers', () => {
   it('marks the node, rolls live counts up to ancestors and skips dismissed ones', () => {
     const anchors = anchorConflicts(
-      [spot('a', 1, 3, null), spot('c', 1, 4, 'confirm'), spot('b', 3, 2, 'reject')],
+      [
+        spot('a', 1, 3, null),
+        spot('c', 1, 4, 'confirm'),
+        spot('b', 3, 2, 'reject'),
+      ],
       tree,
       lines,
       CONTRACT,
@@ -160,5 +181,22 @@ describe('conflict summary helpers', () => {
     expect(openConflictCount(before)).toBe(1)
     const after = [spot('a', 1, 3, 'confirm'), before[1]]
     expect(conflictSignature(before)).not.toBe(conflictSignature(after))
+  })
+})
+
+describe('anchorConflicts within one contract', () => {
+  it('marks both clauses when both sides cite the same document', () => {
+    const inside = spot('w', 1, 3, null)
+    inside.sides[1] = {
+      ...inside.sides[1],
+      label: 'contract',
+      documentId: CONTRACT,
+      pageNo: 3,
+      lineNo: 2,
+    }
+    const anchors = anchorConflicts([inside], tree, lines, CONTRACT)
+    expect([...anchors.keys()].sort()).toEqual(['3.1', '8.1'])
+    expect(anchors.get('3.1')?.[0].id).toBe('w')
+    expect(anchors.get('8.1')?.[0].id).toBe('w')
   })
 })
