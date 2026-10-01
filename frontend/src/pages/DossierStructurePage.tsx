@@ -1,4 +1,3 @@
-import { mockAi2Enabled, mockSearchResult } from '../api/mockAi2'
 import {
   useCallback,
   useEffect,
@@ -219,11 +218,7 @@ export function DossierStructurePage() {
     setSearching(true)
     setSearchError(null)
     try {
-      setSearchResult(
-        mockAi2Enabled
-          ? await mockSearchResult(dossierId, documentId, lines ?? [], question)
-          : await searchDossier(dossierId, question),
-      )
+      setSearchResult(await searchDossier(dossierId, question))
     } catch (cause: unknown) {
       setSearchResult(null)
       setSearchError(
