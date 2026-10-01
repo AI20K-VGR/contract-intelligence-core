@@ -315,7 +315,8 @@ def build_processing_request(
     ]
     selected_member_ids = {str(member.id) for member, _ in selected}
     role_relation_map: list[dict[str, Any]] = []
-    for relation in relations:
+    # The relation query has no ORDER BY; sort so a resend keeps the same bytes.
+    for relation in sorted(relations, key=lambda item: str(item.id)):
         if relation.source_document_id not in {str(member.document_id) for member, _ in selected}:
             continue
         if relation.target_document_id not in {str(member.document_id) for member, _ in selected}:

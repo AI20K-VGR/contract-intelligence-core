@@ -82,5 +82,50 @@ def test_rebuilding_the_same_run_sends_an_identical_payload() -> None:
     assert first["snapshots"][0]["created_at"] == STORED_AT  # type: ignore[index]
 
 
+def test_relation_order_does_not_change_the_payload() -> None:
+    snapshots = {
+        doc: {
+            "schema_version": "ai1.snapshot.v1",
+            "snapshot_id": f"snap-{doc}",
+            "source_digest": "b" * 64,
+            "dossier_id": "dos-1",
+            "document_id": doc,
+            "pages": [],
+        }
+        for doc in ("doc-1", "doc-2", "doc-3")
+    }
+    members = [
+        SimpleNamespace(
+            id=f"member-{doc}",
+            included=True,
+            document_id=doc,
+            order_index=index,
+            doc_type="contract" if doc == "doc-1" else "annex",
+        )
+        for index, doc in enumerate(snapshots)
+    ]
+    relations = [
+        SimpleNamespace(
+            id=f"rel-{doc}",
+            source_document_id=doc,
+            target_document_id="doc-1",
+            relation_type="annex_of",
+        )
+        for doc in ("doc-2", "doc-3")
+    ]
+    common: dict[str, object] = {
+        "snapshots": snapshots,
+        "documents": [SimpleNamespace(id=doc) for doc in snapshots],
+        "members": members,
+        "snapshot_created_at": dict.fromkeys(snapshots, STORED_AT),
+    }
+
+    forward = _compact_request(**common, relations=relations)
+    backward = _compact_request(**common, relations=list(reversed(relations)))
+
+    assert forward is not None and backward is not None
+    assert strip_internal_fields(forward) == strip_internal_fields(backward)
+
+
 def test_compact_snapshot_without_a_stored_time_is_not_sent() -> None:
     assert _compact_request(snapshot_created_at={}) is None
