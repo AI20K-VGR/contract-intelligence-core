@@ -58,7 +58,7 @@ from contract_ocr.infrastructure.backend_ocr_job import (
 from contract_ocr.infrastructure.backend_ocr_job import (
     run_backend_ocr as _run_backend_ocr,
 )
-from contract_ocr.infrastructure.image.page_quality import OpenCvPageQuality
+from contract_ocr.infrastructure.image.page_quality import page_quality_from_env
 from contract_ocr.infrastructure.image.preprocessing import ImagePreprocessor, validate_steps
 from contract_ocr.infrastructure.image.renderer import PdfRenderer
 from contract_ocr.infrastructure.pdf.pymupdf_extractor import PyMuPDFExtractor
@@ -93,7 +93,7 @@ _processor = ProcessDocument(
     PdfRenderer(),
     ImagePreprocessor(),
     PdfPageClassifier(),
-    quality=OpenCvPageQuality(),
+    quality=page_quality_from_env(),
 )
 _engine_lock = threading.Lock()
 _process_lock = threading.Lock()

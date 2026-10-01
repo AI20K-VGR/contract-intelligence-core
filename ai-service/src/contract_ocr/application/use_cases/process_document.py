@@ -29,6 +29,9 @@ logger = logging.getLogger("contract_ocr.pages")
 # is refused unread: past it the reading would mostly be guesswork, paid for
 # page by page, and a rescan is the cheaper fix.
 MAX_LOW_QUALITY_SHARE = 0.3
+# ...and never on fewer poor pages than this: a text-layer contract whose only
+# scan is a speckled signature page (1 of 1 OCR pages) must still be read.
+MIN_LOW_QUALITY_PAGES = 3
 
 
 class LowQualityDocument(Exception):
@@ -52,10 +55,12 @@ class ProcessDocument:
         classifier: PdfPageClassifier,
         quality: PageQualityAssessor | None = None,
         max_low_quality_share: float = MAX_LOW_QUALITY_SHARE,
+        min_low_quality_pages: int = MIN_LOW_QUALITY_PAGES,
     ) -> None:
         """`quality` checks every page to OCR before any OCR call. At least
-        `max_low_quality_share` of them hard to read raises `LowQualityDocument`
-        and nothing is sent; below it each such page is read once only
+        `min_low_quality_pages` hard-to-read pages that are also at least
+        `max_low_quality_share` of them raise `LowQualityDocument` and nothing
+        is sent; otherwise each such page is read once only
         (`Context.low_quality`) and flagged `low_quality_scan:<reasons>`.
         None skips the check."""
         self.extractor, self.renderer, self.preprocessor, self.classifier = (
@@ -66,6 +71,7 @@ class ProcessDocument:
         )
         self.quality = quality
         self.max_low_quality_share = max_low_quality_share
+        self.min_low_quality_pages = min_low_quality_pages
 
     def execute(
         self,
@@ -312,7 +318,11 @@ class ProcessDocument:
                 self._finish_page(pages, index, page_result, start, experiment, run_id, document_id)
 
             poor = {job[0] + 1: job[7] for job in ocr_jobs if job[7]}
-            if poor and len(poor) >= self.max_low_quality_share * len(ocr_jobs):
+            if (
+                poor
+                and len(poor) >= self.min_low_quality_pages
+                and len(poor) >= self.max_low_quality_share * len(ocr_jobs)
+            ):
                 raise LowQualityDocument(poor, len(ocr_jobs))
 
             if ocr_jobs:

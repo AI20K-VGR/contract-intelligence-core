@@ -3,7 +3,12 @@ import numpy as np
 import pytest
 
 from contract_ocr.infrastructure.image.degradation import degrade
-from contract_ocr.infrastructure.image.page_quality import assess, measure
+from contract_ocr.infrastructure.image.page_quality import (
+    OpenCvPageQuality,
+    assess,
+    measure,
+    page_quality_from_env,
+)
 
 WIDTH, HEIGHT = 1240, 1754  # A4 at 150 DPI, the backend render default
 
@@ -95,3 +100,18 @@ def test_a_page_with_almost_no_ink_is_not_judged():
     blurred = cv2.GaussianBlur(image, (0, 0), 3)
     assert measure(blurred) is None
     assert assess(blurred) == []
+
+
+@pytest.mark.parametrize("value", ["false", "0", "no", " FALSE "])
+def test_the_env_switch_turns_the_check_off(monkeypatch, value):
+    monkeypatch.setenv("AI1_PAGE_QUALITY_CHECK", value)
+    assert page_quality_from_env() is None
+
+
+@pytest.mark.parametrize("value", [None, "true", "1"])
+def test_the_check_is_on_unless_turned_off(monkeypatch, value):
+    if value is None:
+        monkeypatch.delenv("AI1_PAGE_QUALITY_CHECK", raising=False)
+    else:
+        monkeypatch.setenv("AI1_PAGE_QUALITY_CHECK", value)
+    assert isinstance(page_quality_from_env(), OpenCvPageQuality)

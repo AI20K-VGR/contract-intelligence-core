@@ -14,7 +14,7 @@ from contract_ocr.application.use_cases.process_document import (
 )
 from contract_ocr.domain.bbox import BBox
 from contract_ocr.domain.entities import Context, Experiment, Line, OCRResult
-from contract_ocr.domain.enums import GeometryProvenance
+from contract_ocr.domain.enums import GeometryProvenance, Status
 from contract_ocr.infrastructure.image.preprocessing import ImagePreprocessor
 from contract_ocr.infrastructure.image.renderer import PdfRenderer
 from contract_ocr.infrastructure.pdf.pymupdf_extractor import PyMuPDFExtractor
@@ -80,13 +80,45 @@ def _process(path, tmp_path, engine, quality):
 
 def test_a_mostly_poor_scan_is_refused_without_any_ocr_call(tmp_path):
     engine = CountingEngine()
-    quality = ScriptedQuality({1: ["blur"], 3: ["speckle", "noise"]})
+    quality = ScriptedQuality({1: ["blur"], 3: ["speckle", "noise"], 5: ["low_contrast"]})
     with pytest.raises(LowQualityDocument) as refused:
-        _process(_pdf(tmp_path, 4), tmp_path, engine, quality)
+        _process(_pdf(tmp_path, 6), tmp_path, engine, quality)
     assert engine.contexts == []
-    assert refused.value.pages == {1: ["blur"], 3: ["speckle", "noise"]}
-    assert refused.value.ocr_pages == 4
+    assert refused.value.pages == {1: ["blur"], 3: ["speckle", "noise"], 5: ["low_contrast"]}
+    assert refused.value.ocr_pages == 6
     assert "rescan" in str(refused.value)
+
+
+def test_a_text_layer_contract_with_one_poor_scanned_page_is_still_read(tmp_path):
+    # The common case: a born-digital contract whose only scan is the signed page.
+    path = tmp_path / "contract.pdf"
+    with pymupdf.open() as pdf:
+        for number in range(1, 6):
+            pdf.new_page(width=300, height=400).insert_text(
+                (30, 60), f"Dieu {number}. Ben A va Ben B thoa thuan pham vi cong viec", fontsize=8
+            )
+        signed = Image.new("RGB", (600, 800), (245, 245, 245))
+        ImageDraw.Draw(signed).text((60, 600), "DAI DIEN BEN A", fill=(20, 20, 20))
+        buffer = BytesIO()
+        signed.save(buffer, format="PNG")
+        pdf.new_page(width=300, height=400).insert_image(
+            pymupdf.Rect(0, 0, 300, 400), stream=buffer.getvalue()
+        )
+        pdf.save(path)
+    engine = CountingEngine()
+    document = _process(str(path), tmp_path, engine, ScriptedQuality({1: ["speckle"]}))
+    assert [(c.page, c.low_quality) for c in engine.contexts] == [(6, True)]
+    assert "low_quality_scan:speckle" in document.pages[5].warnings
+    assert all(p.status == Status.SUCCESS for p in document.pages[:5])
+
+
+def test_a_short_scan_is_read_even_when_every_page_is_poor(tmp_path):
+    # 2 of 2 is 100%, but under the minimum number of poor pages.
+    engine = CountingEngine()
+    quality = ScriptedQuality({1: ["blur"], 2: ["blur"]})
+    document = _process(_pdf(tmp_path, 2), tmp_path, engine, quality)
+    assert [(c.page, c.low_quality) for c in engine.contexts] == [(1, True), (2, True)]
+    assert all("low_quality_scan:blur" in p.warnings for p in document.pages)
 
 
 def test_a_few_poor_pages_are_read_once_and_flagged(tmp_path):
