@@ -1,6 +1,6 @@
 # DEC-BE-AI1-01: Chia lệnh OCR theo cụm trang
 
-**Trạng thái:** `proposed`. Backend (Chương) đề xuất, chờ Đức Dũng (AI1) duyệt.
+**Trạng thái:** `accepted`. Chương (Backend) và Đức Dũng (AI1) duyệt ngày 01/10 (PR #48, commit `04f0def`); Trang approve PR #48 cùng ngày.
 **Ngày:** 2026-10-01
 **Người soạn:** Chương (Backend)
 **Người duyệt:** Đức Dũng (AI1), Chương (Backend)
@@ -17,7 +17,7 @@ Mỗi mục C1–C9 gồm **hiện trạng**, **đề xuất** và **ô duyệt*
 
 Khi hai bên duyệt xong:
 1. Đổi trạng thái sang `accepted`.
-2. Chép các quy tắc đã chốt vào DOC-05d (thêm §9 "Cụm trang").
+2. Chép các quy tắc đã chốt vào DOC-05d (thêm §9 "Cụm trang") khi xong bước 5 của [Thứ tự triển khai](#thứ-tự-triển-khai), vì DOC-05d mô tả hành vi đang chạy.
 3. Mỗi bên làm phần việc của mình ở [Việc của từng bên](#việc-của-từng-bên), theo thứ tự triển khai ở cuối tài liệu.
 
 **Hạn:** AI1 trả lời câu hỏi và duyệt trước **T6 02/10**, để hai bên làm trong Sprint 3.
@@ -78,7 +78,7 @@ Backend                                   AI1
 
 **Phương án đã cân nhắc và không chọn:** mỗi cụm trả một snapshot đầy đủ rồi Backend ghép lại. Không chọn vì Backend sẽ phải dựng lại cây điều khoản và nối bảng qua ranh giới cụm. Đó là logic hiểu tài liệu của AI1, Backend không nên giữ.
 
-- [ ] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
+- [x] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
 
 ## C2. Cỡ cụm
 
@@ -89,7 +89,7 @@ Backend                                   AI1
 
 **Vì sao 20:** với 8 trang chạy cùng lúc, một cụm xong trong khoảng 3 lượt gọi engine. Kết quả khoảng 71 KiB/trang (DOC-05d §6), tức khoảng 1,4 MiB cho một cụm. Hạn cụm 720 giây (C6) vẫn đủ ngắn để một trang treo không kéo dài quá lâu.
 
-- [ ] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
+- [x] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
 
 ## C3. Lệnh và sự kiện
 
@@ -212,7 +212,7 @@ Backend gửi khi mọi cụm của một tài liệu đã `chunk_completed`. To
 - `source_blob_get_url` và `source_sha256` **bắt buộc** (Q3): `BuildSnapshot` mở PDF gốc để tính `source_digest`, lấy kích thước từng trang và render ảnh trang (`build_snapshot.py:129–145`). Chỉ bỏ được khi pha 1 lưu sẵn kích thước và ảnh trang; khi đó sửa DEC trước.
 - AI1 kiểm tra `sha256` của từng kết quả cụm, dựng snapshot rồi trả `ai1.ocr.completed` hoặc `ai1.ocr.failed` **đúng như DOC-05d §5**. `result_target` là đường dẫn của cả tài liệu, giống hiện nay.
 
-- [ ] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
+- [x] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
 
 ## C4. Song song và trần số cụm
 
@@ -227,7 +227,7 @@ Backend gửi khi mọi cụm của một tài liệu đã `chunk_completed`. To
 - Compose hiện **không đặt** `AI1_COST_MODE`, và code mặc định là `accuracy` (`backend_ocr_job.py:188`). Compose phải đặt rõ giá trị này.
 - `AI1_WORKER_REPLICAS = 2` và `AI1_MAX_PAGES_IN_FLIGHT = 8` là giá trị tạm. E6 đo xem có bị 429 không, rồi mới chốt hai giá trị này. Đổi chúng không cần đổi contract.
 
-- [ ] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
+- [x] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
 
 ## C5. Lỗi một cụm
 
@@ -238,7 +238,7 @@ Backend gửi khi mọi cụm của một tài liệu đã `chunk_completed`. To
 - Kết quả cụm về muộn, sau khi run đã `failed`: vẫn được giữ, như quy tắc hiện tại với kết quả tài liệu.
 - Lỗi ở pha assemble: `ai1.ocr.failed` như hiện nay. "Chạy lại phần lỗi" chỉ gửi lại lệnh assemble, không OCR lại.
 
-- [ ] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
+- [x] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
 
 ## C6. Thời hạn
 
@@ -248,7 +248,7 @@ Backend gửi khi mọi cụm của một tài liệu đã `chunk_completed`. To
 - **Hạn run** giữ nguyên (600 + 30 × tổng số trang của hồ sơ) làm trần ngoài; presigned URL vẫn sống lâu hơn hạn run 10 phút.
 - Watchdog hiện có (`worker.py:1590`) kiểm tra thêm hạn cụm, theo cùng chu kỳ.
 
-- [ ] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
+- [x] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
 
 ## C7. Tiến độ
 
@@ -260,7 +260,7 @@ Backend gửi khi mọi cụm của một tài liệu đã `chunk_completed`. To
 
 SSE đã phát thay đổi của bước, nên không cần sự kiện SSE mới. Hiển thị trên UI là việc riêng của Frontend, cập nhật DOC-05b sau; AI1 không cần làm gì thêm ngoài `usage.failed_pages`.
 
-- [ ] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
+- [x] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
 
 ## C8. Idempotency
 
@@ -269,7 +269,7 @@ SSE đã phát thay đổi của bước, nên không cần sự kiện SSE mớ
 - AI1 giữ cách dedupe `event_id` trong bộ nhớ như hiện nay. Khi chạy nhiều replica, một lệnh gửi lại có thể rơi vào replica khác và bị OCR lần hai. Kết quả vẫn đúng vì Backend bỏ bản trùng, chỉ tốn thêm lượt gọi. Chấp nhận trong pha này.
 - Mỗi cụm tải lại cả PDF (tối đa 50 MiB) qua presigned GET: 10 cụm là khoảng 500 MiB trong mạng nội bộ, chấp nhận được. AI1 có thể cache theo `source_sha256` nếu muốn; contract không bắt buộc.
 
-- [ ] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
+- [x] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
 
 ## C9. Kiểm tra chất lượng trang khi chia cụm
 
@@ -318,7 +318,7 @@ SSE đã phát thay đổi của bước, nên không cần sự kiện SSE mớ
 - **Chạy lại phần lỗi:** run mới mang theo kết quả đo cùng các cụm đã xong, không đo lại. Kết quả đo chỉ phụ thuộc file nguồn (`source_sha256`), nên vẫn đúng.
 - **Dùng sau này (chưa làm lần này):** `ai1.ocr.inspected` có thể trả thêm danh sách trang phải OCR, để Backend chỉ chia cụm các trang đó.
 
-- [ ] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
+- [x] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
 
 ---
 
@@ -360,11 +360,11 @@ SSE đã phát thay đổi của bước, nên không cần sự kiện SSE mớ
 
 ## Thứ tự triển khai
 
-1. Hai bên duyệt DEC này. AI1 đã trả lời Q1–Q7 (01/10) và DEC đã sửa theo các câu trả lời.
+1. ~~Hai bên duyệt DEC này.~~ Xong 01/10: AI1 trả lời Q1–Q7, DEC sửa theo, hai bên duyệt.
 2. AI1 deploy K1–K5. Lệnh không có `chunk` vẫn chạy như cũ, nên Backend cũ không bị ảnh hưởng.
 3. Backend deploy E1–E5 và E7 với `AI1_OCR_CHUNK_PAGES=0` (tắt): hành vi chưa đổi.
 4. Bật `AI1_OCR_CHUNK_PAGES=20` trên máy test, chạy E6 và ghi số đo.
-5. Đặt 20 làm mặc định, chép quy tắc vào DOC-05d §9, đổi trạng thái DEC sang `accepted`.
+5. Đặt 20 làm mặc định, chép quy tắc vào DOC-05d §9.
 
 ## Lịch sử thay đổi
 
@@ -374,3 +374,4 @@ SSE đã phát thay đổi của bước, nên không cần sự kiện SSE mớ
 | 2026-10-01 | Thêm Q7: kiểm tra chất lượng trang (#47) khi chia cụm | Chương |
 | 2026-10-01 | Chốt Q7 theo trả lời của Đức Dũng: phương án (a). Thêm C9 (`ai1.ocr.inspect` / `ai1.ocr.inspected`, `chunk.low_quality_pages`), K5, E7 | Chương |
 | 2026-10-01 | Theo trả lời Q1–Q6 của Đức Dũng: C1 chuyển `mark_duplicate_pages` sang pha assemble; C3 lệnh assemble bắt buộc có `source_blob_get_url`; C4 tính trần provider theo số request, compose đặt rõ `AI1_COST_MODE`, E6 chốt số replica. Đánh dấu Q1–Q6 đã trả lời | Chương |
+| 2026-10-01 | `accepted`: Đức Dũng approve PR #48 (`04f0def`), đánh dấu ô duyệt C1–C9. Việc chép vào DOC-05d dời về bước 5 của thứ tự triển khai | Chương |
