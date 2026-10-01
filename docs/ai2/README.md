@@ -26,6 +26,7 @@ Tài liệu AI2 mô tả pipeline, thiết kế và trạng thái triển khai h
 20. [AI2-13 - Contract context, events and independent OCR-lab samples](AI2-13-contract-context-and-independent-samples.vi.md)
 21. [AI2-14 - Full flow đếm số bên](AI2-14-party-count-full-flow.vi.md)
 22. [AI2-15 - Contract profiles, structure, relations và free-form Q&A](AI2-15-contract-profiles-structure-relations-and-free-form-qa.vi.md)
+23. [AI2-16 - Clause key graph (AI2 v2): cơ chế, quyết định, bằng chứng và lộ trình](AI2-16-clause-key-graph-v2.vi.md) — đề xuất, chưa triển khai
 
 ## Authority
 

@@ -7,3 +7,12 @@
   done_ts: ''
   source_ref: plans/reports/ai2-catalog-oracle-critique-260928-critique-report.md
   actor: user:dungskbg2004@gmail.com
+- id: BL-002
+  text: develop tracks apps/web/node_modules (448 files) and apps/web/.vite; untrack and gitignore
+  type: chore
+  priority: P2
+  status: open
+  created_ts: '2026-10-01T18:42:52.493154+00:00'
+  done_ts: ''
+  source_ref: ''
+  actor: user:dungskbg2004@gmail.com
