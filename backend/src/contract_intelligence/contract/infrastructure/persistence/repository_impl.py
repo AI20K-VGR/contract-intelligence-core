@@ -34,6 +34,9 @@ from contract_intelligence.contract.domain.repositories.job_repository import (
 from contract_intelligence.contract.infrastructure.persistence.deletion_ledger import (
     DeletionLedgerORM,
 )
+from contract_intelligence.contract.infrastructure.persistence.dossier_status import (
+    advance_dossier_status,
+)
 from contract_intelligence.contract.infrastructure.persistence.orm import (
     DocumentORM,
     DossierORM,
@@ -528,6 +531,26 @@ class DossierRepositoryImpl(DossierRepository):
             orm.is_locked = locked
             orm.updated_at = utcnow()
             await self._session.flush()
+
+    async def advance_status(
+        self,
+        dossier_id: str,
+        *,
+        from_status: JobStatus,
+        to_status: JobStatus,
+        actor_id: str,
+        detail: dict[str, Any] | None = None,
+    ) -> bool:
+        """Human lifecycle step for the dossier and its latest job (audited)."""
+        return await advance_dossier_status(
+            self._session,
+            tenant_id=self._tenant_id,
+            dossier_id=dossier_id,
+            from_status=from_status,
+            to_status=to_status,
+            actor_id=actor_id,
+            detail=detail,
+        )
 
     async def approve(self, dossier_id: str, checksum: str) -> None:
         stmt = select(DossierORM).where(
