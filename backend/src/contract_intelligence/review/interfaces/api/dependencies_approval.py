@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import Depends, HTTPException, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +15,11 @@ from contract_intelligence.contract.infrastructure.persistence.repository_impl i
 from contract_intelligence.review.application.services.approval_service import (
     ApprovalService,
 )
-from contract_intelligence.shared.acl import AclAction, dossier_access_decision
+from contract_intelligence.shared.acl import (
+    AclAction,
+    dossier_access_decision,
+    dossier_denied_message,
+)
 from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user
 from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.shared.persistence import get_async_session
@@ -48,16 +52,17 @@ async def require_approval_access(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "NOT_FOUND", "message": f"Dossier {dossier_id} not found"},
         )
-    if not dossier_access_decision(
-        action=AclAction.APPROVE,
-        principal=user,
-        dossier_id=dossier_id,
-        dossier_tenant_id=dossier.tenant_id,
-        metadata=dossier.metadata_json,
-    ):
+    decision: dict[str, Any] = {
+        "action": AclAction.APPROVE,
+        "principal": user,
+        "dossier_id": dossier_id,
+        "dossier_tenant_id": dossier.tenant_id,
+        "metadata": dossier.metadata_json,
+    }
+    if not dossier_access_decision(**decision):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "ACL_DENIED", "message": "Dossier access denied"},
+            detail={"code": "ACL_DENIED", "message": dossier_denied_message(**decision)},
         )
 
 
@@ -73,16 +78,17 @@ async def require_lock_access(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "NOT_FOUND", "message": "Dossier not found"},
         )
-    if not dossier_access_decision(
-        action=AclAction.REVIEW_MUTATE,
-        principal=user,
-        dossier_id=dossier_id,
-        dossier_tenant_id=dossier.tenant_id,
-        metadata=dossier.metadata_json,
-    ):
+    decision: dict[str, Any] = {
+        "action": AclAction.REVIEW_MUTATE,
+        "principal": user,
+        "dossier_id": dossier_id,
+        "dossier_tenant_id": dossier.tenant_id,
+        "metadata": dossier.metadata_json,
+    }
+    if not dossier_access_decision(**decision):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "ACL_DENIED", "message": "Dossier access denied"},
+            detail={"code": "ACL_DENIED", "message": dossier_denied_message(**decision)},
         )
 
 
@@ -98,16 +104,17 @@ async def require_external_approval_access(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "NOT_FOUND", "message": "Dossier not found"},
         )
-    if not dossier_access_decision(
-        action=AclAction.APPROVE,
-        principal=user,
-        dossier_id=dossier_id,
-        dossier_tenant_id=dossier.tenant_id,
-        metadata=dossier.metadata_json,
-    ):
+    decision: dict[str, Any] = {
+        "action": AclAction.APPROVE,
+        "principal": user,
+        "dossier_id": dossier_id,
+        "dossier_tenant_id": dossier.tenant_id,
+        "metadata": dossier.metadata_json,
+    }
+    if not dossier_access_decision(**decision):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "ACL_DENIED", "message": "Dossier access denied"},
+            detail={"code": "ACL_DENIED", "message": dossier_denied_message(**decision)},
         )
 
 
@@ -123,16 +130,17 @@ async def require_external_approval_read_access(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "NOT_FOUND", "message": "Dossier not found"},
         )
-    if not dossier_access_decision(
-        action=AclAction.QUERY,
-        principal=user,
-        dossier_id=dossier_id,
-        dossier_tenant_id=dossier.tenant_id,
-        metadata=dossier.metadata_json,
-    ):
+    decision: dict[str, Any] = {
+        "action": AclAction.QUERY,
+        "principal": user,
+        "dossier_id": dossier_id,
+        "dossier_tenant_id": dossier.tenant_id,
+        "metadata": dossier.metadata_json,
+    }
+    if not dossier_access_decision(**decision):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "ACL_DENIED", "message": "Dossier access denied"},
+            detail={"code": "ACL_DENIED", "message": dossier_denied_message(**decision)},
         )
 
 

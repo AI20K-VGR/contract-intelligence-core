@@ -89,14 +89,10 @@ def dossier_access_decision(
     shared_with = meta.get("shared_with")
     if not isinstance(shared_with, list):
         return False
-    email = (principal.email or "").strip().lower()
     moment = now or datetime.now(tz=UTC)
     return any(
         isinstance(grant, dict)
-        and (
-            grant.get("id") == principal.user_id
-            or (email and str(grant.get("email") or "").strip().lower() == email)
-        )
+        and _grant_matches(grant, principal)
         and grant_is_live(grant, moment)
         and _grant_allows(grant, action, principal.role)
         for grant in shared_with
@@ -136,10 +132,83 @@ def _grant_allows(grant: dict[str, Any], action: AclAction, role: str) -> bool:
     return not (isinstance(actions, list) and actions and action.value not in actions)
 
 
+def _grant_matches(grant: dict[str, Any], principal: AuthenticatedUser) -> bool:
+    """The grant names this principal, by user id or (case-insensitive) email."""
+    if grant.get("id") == principal.user_id:
+        return True
+    email = (principal.email or "").strip().lower()
+    return bool(email) and str(grant.get("email") or "").strip().lower() == email
+
+
+_ROLE_DENIED: dict[AclAction, str] = {
+    AclAction.REVIEW_READ: "Chỉ người thẩm định hoặc quản trị viên được xem thẩm định.",
+    AclAction.REVIEW_MUTATE: "Chỉ người thẩm định hoặc quản trị viên được thẩm định.",
+    AclAction.APPROVE: "Chỉ quản trị viên được duyệt hồ sơ.",
+    AclAction.DOSSIER_EDIT: "Vai trò của bạn không được sửa hồ sơ.",
+}
+
+
+def dossier_denied_message(
+    *,
+    action: AclAction,
+    principal: AuthenticatedUser,
+    dossier_id: str,
+    dossier_tenant_id: str,
+    metadata: dict[str, Any] | None,
+) -> str:
+    """Vietnamese reason for a denied :func:`dossier_access_decision`.
+
+    Tells a viewer with a live ``read`` grant that they can only view, instead
+    of the generic "no access or expired" text.
+    """
+    if principal.role not in _ALLOWED_ROLES[action]:
+        return _ROLE_DENIED.get(action, "Vai trò của bạn không được làm việc này.")
+    if action is AclAction.DOSSIER_MANAGE:
+        return "Chỉ chủ hồ sơ hoặc quản trị viên được làm việc này."
+    if action in _EDIT_ACTIONS and dossier_access_decision(
+        action=AclAction.QUERY,
+        principal=principal,
+        dossier_id=dossier_id,
+        dossier_tenant_id=dossier_tenant_id,
+        metadata=metadata,
+    ):
+        return "Bạn chỉ có quyền xem hồ sơ này."
+    return "Bạn không có quyền trên hồ sơ này, hoặc quyền đã hết hạn."
+
+
+def visible_dossier_metadata(
+    metadata: dict[str, Any] | None, principal: AuthenticatedUser
+) -> dict[str, Any] | None:
+    """Metadata as ``principal`` may see it.
+
+    The owner and an ADMINISTRATOR see every grant. Anyone else sees only the
+    grant(s) naming them, so one recipient cannot read the others' emails and
+    permissions.
+    """
+    if not isinstance(metadata, dict):
+        return metadata
+    owner_id = metadata.get("created_by")
+    if principal.role == "ADMINISTRATOR" or (owner_id and owner_id == principal.user_id):
+        return metadata
+    shared_with = metadata.get("shared_with")
+    if not isinstance(shared_with, list):
+        return metadata
+    return {
+        **metadata,
+        "shared_with": [
+            grant
+            for grant in shared_with
+            if isinstance(grant, dict) and _grant_matches(grant, principal)
+        ],
+    }
+
+
 __all__ = [
     "SHARE_PERMISSIONS",
     "AclAction",
     "dossier_access_decision",
+    "dossier_denied_message",
     "grant_is_live",
     "grant_permission",
+    "visible_dossier_metadata",
 ]
