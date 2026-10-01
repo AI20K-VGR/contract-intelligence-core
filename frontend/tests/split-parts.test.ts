@@ -4,6 +4,7 @@ import {
   initialParts,
   removePart,
   resolveParts,
+  splitAtPage,
   toRequestParts,
   validateParts,
 } from '../src/split/parts'
@@ -67,5 +68,19 @@ describe('split parts', () => {
 
   it('refuses unknown page count', () => {
     expect(validateParts(initialParts(0), 0)).not.toBeNull()
+  })
+})
+
+describe('splitAtPage', () => {
+  it('makes a contract before the page and an annex from it to the end', () => {
+    expect(toRequestParts(splitAtPage(7, 10), 10)).toEqual([
+      { page_start: 1, page_end: 6, role: 'contract' },
+      { page_start: 7, page_end: 10, role: 'annex' },
+    ])
+  })
+
+  it('falls back to one contract for the first page or out of range', () => {
+    expect(toRequestParts(splitAtPage(1, 10), 10)).toHaveLength(1)
+    expect(toRequestParts(splitAtPage(11, 10), 10)).toHaveLength(1)
   })
 })

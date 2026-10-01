@@ -15,12 +15,14 @@ import { getDossierStructure, type DossierStructure } from '../api/structure'
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
+import { SplitPageStrip } from '../components/SplitPageStrip'
 import { progressPath } from '../data/dossiers'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 import {
   addPart,
   initialParts,
   removePart,
+  splitAtPage,
   resolveParts,
   toRequestParts,
   validateParts,
@@ -49,6 +51,7 @@ export function SplitConfirmPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState<SplitResult | null>(null)
+  const [warn, setWarn] = useState(false)
 
   usePageTitle(dossier?.name ?? 'Xác nhận tách file')
   const titleInHeader = useHeaderShowsPageTitle()
@@ -97,6 +100,21 @@ export function SplitConfirmPage() {
     setParts((current) =>
       current.map((part) => (part.key === key ? { ...part, ...patch } : part)),
     )
+  }
+
+  // Đổi các phần thì cảnh báo cũ không còn đúng, hỏi lại từ đầu.
+  useEffect(() => {
+    setWarn(false)
+  }, [parts])
+
+  function askConfirm() {
+    if (problem || saving) return
+    // Một phần phủ cả file: không tách, file gốc được giữ nguyên.
+    if (parts.length <= 1) {
+      void confirm()
+      return
+    }
+    setWarn(true)
   }
 
   async function confirm() {
@@ -193,6 +211,20 @@ export function SplitConfirmPage() {
             </button>
           </div>
 
+          <div className="mt-space-md">
+            <p className="mb-space-xs font-label-sm text-label-sm text-on-surface-variant">
+              Xem từng trang rồi bấm &quot;Phụ lục từ đây&quot; ở trang đầu tiên
+              của phụ lục. Viền vàng là hợp đồng, viền xanh là phụ lục.
+            </p>
+            <SplitPageStrip
+              disabled={saving}
+              documentId={source.id}
+              pageCount={pageCount}
+              parts={resolved}
+              onStartAnnex={(page) => setParts(splitAtPage(page, pageCount))}
+            />
+          </div>
+
           <ol className="mt-space-md flex flex-col gap-space-sm">
             {resolved.map((part, index) => {
               const last = index === resolved.length - 1
@@ -276,21 +308,48 @@ export function SplitConfirmPage() {
             </p>
           ) : null}
 
-          <div className="mt-space-md flex items-center justify-end gap-space-sm">
-            <Link
-              className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface"
-              to={backTo}
+          {warn ? (
+            <div
+              className="mt-space-md rounded-lg border border-amber-400 bg-amber-50 px-space-md py-space-sm font-body-sm text-body-sm text-on-surface"
+              role="alert"
             >
-              Để sau
-            </Link>
+              <p className="flex items-center gap-1 font-semibold text-amber-900">
+                <MaterialIcon name="warning" className="text-[18px]" />
+                Tách xong không sửa lại được
+              </p>
+              <p className="mt-1">
+                File gốc sẽ bị bỏ và thay bằng {parts.length} tài liệu riêng.
+                Nếu tách sai, bạn phải xóa hồ sơ rồi tải lên lại.
+              </p>
+            </div>
+          ) : null}
+
+          <div className="mt-space-md flex items-center justify-end gap-space-sm">
+            {warn ? (
+              <button
+                className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface disabled:opacity-50"
+                disabled={saving}
+                type="button"
+                onClick={() => setWarn(false)}
+              >
+                Quay lại chỉnh
+              </button>
+            ) : (
+              <Link
+                className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface"
+                to={backTo}
+              >
+                Để sau
+              </Link>
+            )}
             <button
               className="inline-flex h-10 items-center gap-1 rounded bg-primary px-space-lg font-label-md text-label-md font-semibold text-on-primary disabled:opacity-50"
               disabled={saving || problem !== null}
               type="button"
-              onClick={() => void confirm()}
+              onClick={() => (warn ? void confirm() : askConfirm())}
             >
               <MaterialIcon name="check" className="text-[18px]" />
-              {saving ? 'Đang tách…' : 'Xác nhận tách'}
+              {saving ? 'Đang tách…' : warn ? 'Vẫn tách' : 'Xác nhận tách'}
             </button>
           </div>
         </section>

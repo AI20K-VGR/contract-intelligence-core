@@ -95,3 +95,12 @@ export function toRequestParts(parts: DraftPart[], pageCount: number) {
     role: part.role,
   }))
 }
+
+/** Hợp đồng từ trang 1 đến trước `page`, phụ lục từ `page` đến hết file. */
+export function splitAtPage(page: number, pageCount: number): DraftPart[] {
+  if (page <= 1 || page > pageCount) return initialParts(pageCount)
+  return [
+    { key: nextKey(), end: page - 1, role: 'contract' },
+    { key: nextKey(), end: pageCount, role: 'annex' },
+  ]
+}
