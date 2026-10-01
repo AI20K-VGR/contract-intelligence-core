@@ -425,6 +425,20 @@ class TestMapKeycloakRole:
         )
         assert _map_keycloak_role(["some_other_role"]) == "OPERATOR"
 
+    def test_realm_role_names_priority_ignores_token_order(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Default role map nhận realm role không tiền tố; admin thắng dù đứng sau."""
+        monkeypatch.setattr(
+            "contract_intelligence.shared.auth.jwt_service.get_settings",
+            lambda: Settings(env="test", auth_mode="keycloak"),
+        )
+        assert _map_keycloak_role(["ADMINISTRATOR"]) == "ADMINISTRATOR"
+        assert _map_keycloak_role(["OPERATOR", "ADMINISTRATOR"]) == "ADMINISTRATOR"
+        assert _map_keycloak_role(["OPERATOR", "REVIEWER"]) == "REVIEWER"
+        assert _map_keycloak_role(["default-roles-contract-intelligence", "OPERATOR"]) == "OPERATOR"
+
 
 # -----------------------------------------------------------------------------
 # Helper: auto-patch settings cho mọi test

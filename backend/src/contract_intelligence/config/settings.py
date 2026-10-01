@@ -278,6 +278,11 @@ class Settings(BaseSettings):
     )
     keycloak_role_map: dict[str, str] = Field(
         default_factory=lambda: {
+            # Tên realm role trong keycloak/realm-export.json
+            "OPERATOR": "OPERATOR",
+            "REVIEWER": "REVIEWER",
+            "ADMINISTRATOR": "ADMINISTRATOR",
+            # Alias tiền tố ci_ (convention cũ)
             "ci_operator": "OPERATOR",
             "ci_reviewer": "REVIEWER",
             "ci_administrator": "ADMINISTRATOR",
