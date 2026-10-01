@@ -70,7 +70,6 @@ class PipelineRunRepositoryImpl:
     ) -> PipelineRun:
         from contract_intelligence.contract.infrastructure.persistence.orm import JobORM
         from contract_intelligence.shared.base import new_ulid, utcnow
-        from contract_intelligence.shared.persistence.job_queue import enqueue_job
 
         resolved_job_id = job_id
         if resolved_job_id is None:
@@ -124,13 +123,18 @@ class PipelineRunRepositoryImpl:
             self._session.add(step)
         await self._session.flush()
 
-        # Enqueue on Postgres job queue (worker claims via SKIP LOCKED).
-        await enqueue_job(self._session, job_id=resolved_job_id, current_run_id=run_id)
-        # Touch updated_at on job row for observability
+        # Point the job at the new run through the ORM, so the run_event flush
+        # hook records job.status_changed for the SSE stream (DOC-11 §8).
         job_row = (
             await self._session.execute(select(JobORM).where(JobORM.id == resolved_job_id))
         ).scalar_one_or_none()
         if job_row is not None:
+            job_row.status = "uploaded"
+            job_row.current_run_id = run_id
+            job_row.lease_owner = None
+            job_row.lease_expires_at = None
+            job_row.error_code = None
+            job_row.error_detail = None
             job_row.updated_at = utcnow()
             await self._session.flush()
 

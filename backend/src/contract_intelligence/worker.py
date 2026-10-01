@@ -204,6 +204,26 @@ def _durable_snapshots_from_run(run: PipelineRunORM | None) -> dict[str, dict[st
     return result
 
 
+def _snapshot_created_at(run: PipelineRunORM) -> dict[str, str]:
+    """When each AI1 snapshot on the run was stored, as the AI2 ``created_at``.
+
+    Runs recorded before this key existed fall back to the run's own
+    ``created_at``: still fixed, so a resend of the same attempt is identical.
+    """
+    document_ids = list(_durable_snapshots_from_run(run))
+    if not document_ids:
+        return {}
+    recorded = _run_payload(run).get("ai1_snapshot_recorded_at")
+    stamps = recorded if isinstance(recorded, dict) else {}
+    fallback = _as_utc(run.created_at).isoformat() if run.created_at else None
+    result: dict[str, str] = {}
+    for document_id in document_ids:
+        stamp = stamps.get(document_id) or fallback
+        if stamp:
+            result[document_id] = str(stamp)
+    return result
+
+
 def _run_payload(run: PipelineRunORM) -> dict[str, Any]:
     """Decode the run's ``config_snapshot`` JSON (the durable AI1 hand-off state)."""
     try:
@@ -264,11 +284,20 @@ async def _record_ai1_document(
         return {document_id}
     payload = _run_payload(run)
     if snapshot is not None:
+        previous_digest = (payload.get("ai1_snapshot_digests") or {}).get(document_id)
         payload["ai1_snapshots"] = _durable_snapshots_from_run(run)
         payload["ai1_snapshots"][document_id] = snapshot
         payload["ai1_snapshot_digests"] = {
             key: _snapshot_digest(value) for key, value in payload["ai1_snapshots"].items()
         }
+        # Stamp once per snapshot content: the AI2 request reuses this time, so
+        # a resend after a restart carries the same payload (DEC B1).
+        recorded_at = dict(payload.get("ai1_snapshot_recorded_at") or {})
+        if previous_digest != payload["ai1_snapshot_digests"][document_id] or (
+            document_id not in recorded_at
+        ):
+            recorded_at[document_id] = _utcnow_iso()
+        payload["ai1_snapshot_recorded_at"] = recorded_at
     extracted = {str(value) for value in payload.get("ai1_extracted_documents") or [] if value}
     extracted.add(document_id)
     payload["ai1_extracted_documents"] = sorted(extracted)
@@ -434,7 +463,12 @@ async def _resolve_result_job(
     return job
 
 
-_CARRIED_RUN_KEYS = ("ai1_snapshots", "ai1_snapshot_digests", "ai1_extracted_documents")
+_CARRIED_RUN_KEYS = (
+    "ai1_snapshots",
+    "ai1_snapshot_digests",
+    "ai1_snapshot_recorded_at",
+    "ai1_extracted_documents",
+)
 
 
 async def _carry_extractions(
@@ -1056,6 +1090,7 @@ async def _run_ai2_if_ready(
         documents=documents,
         members=members,
         relations=list(relation_result.scalars().all()),
+        snapshot_created_at=_snapshot_created_at(durable_run) if durable_run else {},
         attempt=attempt,
         max_processing_seconds=budget,
     )
