@@ -1,5 +1,4 @@
 # >>> harness worktree carry (generated — edits between markers are overwritten) >>>
-harness/afk/**
 harness/assets/**
 harness/bin/**
 harness/data/**
@@ -11,6 +10,7 @@ harness/schemas/**
 harness/scripts/**
 harness/standards/**
 harness/templates/**
+harness/DEBTS.md
 harness/LESSONS.md
 harness/constraints.txt
 harness/manifest.json

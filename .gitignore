@@ -117,3 +117,14 @@ lerna-debug.log*
 backend/backend/
 /tmp/
 .tmp-*
+# >>> harness (generated runtime — never commit) >>>
+harness/state/
+harness/standards/.snapshots/
+harness/e2e/RUN-LOG.md
+.harness/
+.claude/settings.json
+.claude/settings.local.json
+# <<< harness <<<
+
+# AI2 evaluation reports are generated locally and in CI.
+evals/results/
