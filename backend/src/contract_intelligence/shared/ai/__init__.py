@@ -3,7 +3,6 @@
 Public API cho backend dùng AI service:
     - AiServiceClient  : abstract interface (HTTP | Stub)
     - BackgroundDispatcher : chạy polling loop in-process
-    - PipelineOrchestrator : drive OCR → Extract → Compare chain
     - persistence      : ghi canonical payload xuống DB (Semantic Gate)
     - schemas          : DOC-05c Pydantic models (canonical handoffs)
 
