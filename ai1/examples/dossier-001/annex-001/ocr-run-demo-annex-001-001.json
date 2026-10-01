@@ -1,0 +1,121 @@
+{
+  "schema_version": "ai1.snapshot.v1",
+  "snapshot_id": "ocr-run-demo-annex-001-001",
+  "parent_snapshot_id": null,
+  "run_id": "ocr-run-demo-annex-001-001",
+  "created_at": "2026-09-22T12:17:02.920541Z",
+  "status": "SUCCESS",
+  "execution": {
+    "execution_manifest_id": "ocr-run-demo-annex-001-001:execution",
+    "config_digest": "sha256:6bed8844d44f92e1e42329879f43309d8d6a718d7fffce298a4f993ba560fe39",
+    "policy_digest": "sha256:747039fb5d8d3322b2fc2e3c528ce87b1f4cae5270ce7d2623e13b3a72b1b6c6",
+    "source_version_digest": "sha256:f0ac8651c2693aaa31a13c7ac9492cf08ef7c87b5eddadf7e67603046cc6bf3d",
+    "replay": true
+  },
+  "language": null,
+  "source_digest": "sha256:d7ef4840d4f6e88190235186305ac261c7454536ee091f4da567f7e1d2875011",
+  "dossier_id": "dossier-001",
+  "document_id": "annex-001",
+  "filename": "phu-luc-mau.pdf",
+  "document_role": "annex",
+  "input_type": "SCANNED_OCR",
+  "engine": {
+    "name": "pymupdf+demo-replay-stub",
+    "version": "1.28.2"
+  },
+  "page_count": 1,
+  "processing_ms": 101.95740003837273,
+  "pages": [
+    {
+      "page_number": 1,
+      "status": "SUCCESS",
+      "input_type": "SCANNED_OCR",
+      "source_page_width": 595.0,
+      "source_page_height": 842.0,
+      "rotation_degrees": 0,
+      "page_image_ref": {
+        "uri": "storage://ocr/ocr-run-demo-annex-001-001/page-001.png",
+        "width_px": 1240,
+        "height_px": 1755
+      },
+      "text": "SYNTHETIC PHU LUC 01 - BANG GIA CHI TIET\nMuc 1: 300.000.000.000 VND",
+      "lines": [
+        {
+          "line_id": "annex-001:s1:p001:l001",
+          "text": "SYNTHETIC PHU LUC 01 - BANG GIA CHI TIET",
+          "page_char_start": 0,
+          "page_char_end": 40,
+          "bbox_normalized": [
+            0.06722689075630252,
+            0.05338479447534702,
+            0.582356275029543,
+            0.07623040024854791
+          ],
+          "geometry_provenance": "MEASURED",
+          "word_ids": [],
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": 0.98
+        },
+        {
+          "line_id": "annex-001:s1:p001:l002",
+          "text": "Muc 1: 300.000.000.000 VND",
+          "page_char_start": 41,
+          "page_char_end": 67,
+          "bbox_normalized": [
+            0.06722689075630252,
+            0.08901424815705723,
+            0.37720334349560136,
+            0.11185985393025813
+          ],
+          "geometry_provenance": "MEASURED",
+          "word_ids": [],
+          "bbox_source": "MEASURED",
+          "geometry_status": "AVAILABLE",
+          "engine_confidence": 0.98
+        }
+      ],
+      "words": [],
+      "blocks": [],
+      "table_status": "NOT_PRESENT",
+      "tables": [],
+      "warnings": [],
+      "page_revision_id": "sha256:0e6f2771e7c416766c32e6588fbc1ffc1dee69f4b031840886a2632119b13f0c",
+      "raw_text_digest": "sha256:b8cbb577f7885d5f1b173f2574c5e800c2640d07848090abc8290dd1a0346c22",
+      "quality": {
+        "line_count": 2,
+        "lines_with_geometry": 2,
+        "low_confidence_lines": 0
+      },
+      "table_coverage": {
+        "status": "NOT_PRESENT",
+        "detected_table_count": 0,
+        "examined_area_ratio": null
+      },
+      "error": null
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "_unnumbered_1",
+      "type": "UNMARKED",
+      "label_raw": null,
+      "label_normalized": "UNMARKED__unnumbered_1",
+      "parent_id": null,
+      "page_start": 1,
+      "page_end": 1,
+      "line_ids": [
+        "annex-001:s1:p001:l001",
+        "annex-001:s1:p001:l002"
+      ],
+      "bbox_normalized": [
+        0.06722689075630252,
+        0.05338479447534702,
+        0.582356275029543,
+        0.11185985393025813
+      ],
+      "geometry_provenance": "DERIVED"
+    }
+  ],
+  "table_continuity": []
+}

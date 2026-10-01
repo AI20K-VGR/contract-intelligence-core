@@ -1,0 +1,44 @@
+{
+  "case": "HD-TONG-HOP",
+  "note": "Hai nguồn cùng ngữ cảnh. Không LEGAL_WINNER. So item_key + scope + hai giá trị đã chuẩn hóa.",
+  "required": [
+    {
+      "item_key": "mst_party_a",
+      "scope": "WITHIN_DOCUMENT",
+      "disposition": "COMPARABLE_DIFFERENCE",
+      "values": ["0312345678", "0399999999"]
+    },
+    {
+      "item_key": "penalty_general",
+      "scope": "CONTRACT_ANNEX",
+      "disposition": "CANDIDATE_AMENDMENT",
+      "values": ["0.2", "0.1"]
+    },
+    {
+      "item_key": "penalty_general",
+      "scope": "CONTRACT_ANNEX",
+      "disposition": "CANDIDATE_AMENDMENT",
+      "values": ["0.2", "0.05"]
+    },
+    {
+      "item_key": "contract_value",
+      "scope": "CONTRACT_ANNEX",
+      "disposition": "COMPARABLE_DIFFERENCE",
+      "values": ["1000000000", "1100000000"]
+    },
+    {
+      "item_key": "contract_value",
+      "scope": "WITHIN_DOCUMENT",
+      "disposition": "COMPARABLE_DIFFERENCE",
+      "values": ["1000000000", "900000000"]
+    }
+  ],
+  "forbidden_difference_keys": [
+    "penalty_construction",
+    "penalty_equipment",
+    "penalty_lt10",
+    "penalty_gte10",
+    "mst_party_b"
+  ],
+  "must_not_pair": [["0312345678", "0322222222"], ["0312345678", "0311111111"]]
+}

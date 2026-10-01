@@ -1,0 +1,8 @@
+﻿file,page_count,native_pages,scanned_pages,status,latency_seconds,estimated_cost_usd,trace_id,trace_url,error
+data/raw/digital/01_Bien_ban_ghi_nho_MOU.pdf,4,4,0,completed,0.954,0.0,26aa01ee154fb4564b10a4ba682f980b,https://us.cloud.langfuse.com/project/cmudva300014fad0c07vqhqca/traces/26aa01ee154fb4564b10a4ba682f980b,
+data/raw/digital/03_Hop_dong_mua_ban_hang_hoa.pdf,8,8,0,completed,2.738,0.0,ccc19f951cb53ebee3948b8e28b5a9bf,https://us.cloud.langfuse.com/project/cmudva300014fad0c07vqhqca/traces/ccc19f951cb53ebee3948b8e28b5a9bf,
+data/raw/digital/05_Hop_dong_thue_mat_bang.pdf,10,10,0,completed,2.252,0.0,72bc7fe8f9e3be6a830b78902a699ed1,https://us.cloud.langfuse.com/project/cmudva300014fad0c07vqhqca/traces/72bc7fe8f9e3be6a830b78902a699ed1,
+data/raw/digital/08_Hop_dong_chuyen_nhuong_co_phan.pdf,6,6,0,completed,1.588,0.0,ea63d014ffc196c17ad1f9ec917472b6,https://us.cloud.langfuse.com/project/cmudva300014fad0c07vqhqca/traces/ea63d014ffc196c17ad1f9ec917472b6,
+data/raw/digital/09_Hop_dong_chuyen_nhuong_phan_von_gop.pdf,6,6,0,completed,1.513,0.0,21c9728e387ddeceaab21836c708702b,https://us.cloud.langfuse.com/project/cmudva300014fad0c07vqhqca/traces/21c9728e387ddeceaab21836c708702b,
+data/raw/digital/14_Hop_dong_mua_ban_hang_hoa_qua_mang.pdf,10,10,0,completed,3.117,0.0,925edb200cae126f88349e3147ca1e0f,https://us.cloud.langfuse.com/project/cmudva300014fad0c07vqhqca/traces/925edb200cae126f88349e3147ca1e0f,
+data/raw/digital/15_Hop_dong_dao_tao_nghe_giua_NLD_va_NSDLĐ.pdf,5,5,0,completed,2.307,0.0,d0dfcf0ce141e377d9025118da3347a4,https://us.cloud.langfuse.com/project/cmudva300014fad0c07vqhqca/traces/d0dfcf0ce141e377d9025118da3347a4,

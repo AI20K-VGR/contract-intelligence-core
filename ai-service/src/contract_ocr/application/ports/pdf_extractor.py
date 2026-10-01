@@ -1,0 +1,25 @@
+from typing import Any, Protocol
+
+from contract_ocr.domain.entities import Page
+
+
+class PdfExtractor(Protocol):
+    def open(self, path: str) -> Any: ...
+    def extract(self, page: Any, document_id: str) -> Page: ...
+    def evidence(self, page: Any) -> tuple[int, int, int, float, str]: ...
+
+
+class Renderer(Protocol):
+    def render(self, page: Any, dpi: int) -> Any: ...
+
+
+class Preprocessor(Protocol):
+    def apply(self, image: Any, steps: list[str]) -> tuple[Any, Any]: ...
+    def restore(self, lines: list, transform: Any, shape: tuple, original_shape: tuple) -> None: ...
+
+
+class PageQualityAssessor(Protocol):
+    def assess(self, image: Any, dpi: int) -> list[str]:
+        """Reasons the page, rendered at `dpi`, is hard to read (e.g. "blur");
+        empty when fine."""
+        ...

@@ -1,0 +1,96 @@
+{
+  "document_id": "DOC-103",
+  "pages": [
+    {
+      "page_number": 1,
+      "text": "HOP DONG CUNG CAP DICH VU VA THIET BI\n(Tai lieu gia lap dung de kiem thu OCR / IDP - khong co gia tri phap ly)\nSo: 20/09/2026/HD-MAU\nHom nay, ngay 20 thang 09 nam 2026, tai Ha Noi, chung toi gom co cac ben sau day:\nBEN A - BEN DAT HANG\nCong ty TNHH Du lieu Mau Viet Nam; Dia chi: So 10 Duong Kiem Thu, Ha Noi; Ma so thue: 0100000000;\nDai dien: Nguyen Van A - Giam doc.\nBEN B - BEN CUNG CAP\nCong ty Co phan Giai phap OCR Demo; Dia chi: So 25 Duong Pipeline, Ha Noi; Ma so thue: 0100000001;\nDai dien: Tran Thi B - Giam doc du an.\nDIEU 1. NOI DUNG VA PHAM VI CONG VIEC\nBen B cung cap thiet bi, dich vu trien khai va ho tro van hanh theo bang khoi luong chi tiet tai Dieu 2.\nBang duoc co y thiet ke lien trang de kiem thu kha nang noi bang cua he thong OCR/IDP.\nDIEU 2. GIA TRI HOP DONG\nTong gia tri tam tinh: 486.750.000 VND (Da bao gom VAT). Gia tri cuoi cung duoc xac dinh theo khoi luong nghiem thu va cac phu luc kem theo.\nDIEU 3. THANH TOAN VA NGHIEM THU\n1. Dot 1: 30% sau khi ky hop dong va tiep nhan ke hoach trien khai.\n2. Dot 2: 50% sau khi hoan thanh ban giao thiet bi va nghiem thu ky thuat.\n3. Dot 3: 20% sau khi ket thuc bao hanh ban giao giai doan dau.\nBang chi tiet bat dau tu trang 2.\nTrang 1/4",
+      "critical_fields": [
+        {
+          "field_type": "contract_number",
+          "raw_value": "20/09/2026/HD-MAU"
+        },
+        {
+          "field_type": "tax_code",
+          "raw_value": "0100000000"
+        },
+        {
+          "field_type": "tax_code",
+          "raw_value": "0100000001"
+        },
+        {
+          "field_type": "total_amount",
+          "raw_value": "486.750.000 VND",
+          "normalized_value": "486750000"
+        },
+        {
+          "field_type": "contract_date",
+          "raw_value": "20/09/2026"
+        }
+      ],
+      "tables": []
+    },
+    {
+      "page_number": 2,
+      "text": "PHU LUC 01 - BANG KHOI LUONG THIET BI (BANG A)\nTest case A: mot dong bi cat doi tai mep trang va tiep tuc o trang sau.\nSTT | Hang muc / mo ta | DVT | SL | Don gia | Thanh tien\n1 | May scan A3 toc do cao, duplex | Bo | 02 | 42.500.000 | 85.000.000\n2 | May scan A4 nap giay tu dong | Bo | 04 | 18.750.000 | 75.000.000\n3 | May tram xu ly OCR RAM 64GB | Bo | 02 | 34.500.000 | 69.000.000\n4 | UPS 1500VA cho tram xu ly | Cai | 04 | 4.250.000 | 17.000.000\n5 | Bo chia mang Gigabit 24 port | Cai | 02 | 6.800.000 | 13.600.000\n6 | O cung NAS 8TB enterprise | Cai | 06 | 7.900.000 | 47.400.000\n7 | Tu rack 20U kem phu kien | Bo | 01 | 12.000.000 | 12.000.000\n8 | Dich vu cai dat va cau hinh pipeline OCR | Goi | 01 | 26.000.000 | 26.000.000\n9 | Dao tao van hanh va xu ly loi co ban | Goi | 01 | 18.000.000 | 18.000.000\n10 | Goi tich hop IDP: phan loai tai lieu, OCR, nhan dien bang, trich xuat truong va doi soat ket qua. Mo ta dai co y de dong bi tach sang trang tiep theo.\nTrang 2/4",
+      "critical_fields": [],
+      "tables": [
+        {
+          "table_id": "PHU-LUC-01-BANG-A",
+          "pages": [2, 3],
+          "is_multi_page": true,
+          "rows": [
+            ["STT", "Hang muc / mo ta", "DVT", "SL", "Don gia", "Thanh tien"],
+            ["1", "May scan A3 toc do cao, duplex", "Bo", "02", "42.500.000", "85.000.000"],
+            ["2", "May scan A4 nap giay tu dong", "Bo", "04", "18.750.000", "75.000.000"],
+            ["3", "May tram xu ly OCR RAM 64GB", "Bo", "02", "34.500.000", "69.000.000"],
+            ["4", "UPS 1500VA cho tram xu ly", "Cai", "04", "4.250.000", "17.000.000"],
+            ["5", "Bo chia mang Gigabit 24 port", "Cai", "02", "6.800.000", "13.600.000"],
+            ["6", "O cung NAS 8TB enterprise", "Cai", "06", "7.900.000", "47.400.000"],
+            ["7", "Tu rack 20U kem phu kien", "Bo", "01", "12.000.000", "12.000.000"],
+            ["8", "Dich vu cai dat va cau hinh pipeline OCR", "Goi", "01", "26.000.000", "26.000.000"],
+            ["9", "Dao tao van hanh va xu ly loi co ban", "Goi", "01", "18.000.000", "18.000.000"],
+            ["10", "Goi tich hop IDP: phan loai tai lieu, OCR, nhan dien bang, trich xuat truong va doi soat ket qua. Mo ta dai co y de dong bi tach sang trang tiep theo, bao gom co che mapping schema, kiem tra truong bat buoc, ghi log loi va xuat JSON ket qua.", "Goi", "01", "39.500.000", "39.500.000"],
+            ["11", "Kiem thu bo du lieu mau 500 trang", "Goi", "01", "14.500.000", "14.500.000"],
+            ["12", "Bao hanh, ho tro ky thuat 12 thang", "Goi", "01", "0", "0"],
+            ["13", "Tai lieu huong dan van hanh va runbook", "Bo", "01", "5.250.000", "5.250.000"],
+            ["", "TAM TINH BANG A", "", "", "", "421.250.000"]
+          ]
+        }
+      ]
+    },
+    {
+      "page_number": 3,
+      "text": "PHU LUC 01 - BANG KHOI LUONG THIET BI (TIEP)\n10 (tiep) | ... bao gom co che mapping schema, kiem tra truong bat buoc, ghi log loi va xuat JSON ket qua. Noi dung nay la phan con lai cua dong 10 tu trang truoc.\n11 | Kiem thu bo du lieu mau 500 trang | Goi | 01 | 14.500.000 | 14.500.000\n12 | Bao hanh, ho tro ky thuat 12 thang | Goi | 01 | 0 | 0\n13 | Tai lieu huong dan van hanh va runbook | Bo | 01 | 5.250.000 | 5.250.000\nTAM TINH BANG A | 421.250.000\nPHU LUC 02 - BANG DICH VU VAN HANH (BANG B)\nTest case B: bang thu hai tiep tuc sang trang 4 nhung khong lap lai header.\nSTT | Hang muc / mo ta | DVT | SL | Don gia | Thanh tien\n1 | Giam sat pipeline va canh bao loi hang thang | Thang | 03 | 6.500.000 | 19.500.000\n2 | Review chat luong OCR/IDP dinh ky | Lan | 03 | 4.000.000 | 12.000.000\n3 | Tinh chinh rule noi bang lien trang | Lan | 02 | 5.500.000 | 11.000.000\n4 | Cap nhat schema hop dong va truong nghiep vu | Lan | 02 | 4.500.000 | 9.000.000\n5 | Xu ly bo sung cac truong hop scan xau: nghieng trang, mo, bong den, con dau de len chu, chu ky viet tay va bang bi dut doan qua trang.\nTrang 3/4",
+      "critical_fields": [],
+      "tables": [
+        {
+          "table_id": "PHU-LUC-02-BANG-B",
+          "pages": [3, 4],
+          "is_multi_page": true,
+          "rows": [
+            ["STT", "Hang muc / mo ta", "DVT", "SL", "Don gia", "Thanh tien"],
+            ["1", "Giam sat pipeline va canh bao loi hang thang", "Thang", "03", "6.500.000", "19.500.000"],
+            ["2", "Review chat luong OCR/IDP dinh ky", "Lan", "03", "4.000.000", "12.000.000"],
+            ["3", "Tinh chinh rule noi bang lien trang", "Lan", "02", "5.500.000", "11.000.000"],
+            ["4", "Cap nhat schema hop dong va truong nghiep vu", "Lan", "02", "4.500.000", "9.000.000"],
+            ["5", "Xu ly bo sung cac truong hop scan xau: nghieng trang, mo, bong den, con dau de len chu, chu ky viet tay va bang bi dut doan qua trang, he thong can hop nhat thanh mot record duy nhat va khong tao them hang moi khi gap trang 4.", "Goi", "01", "14.000.000", "14.000.000"],
+            ["6", "Bao cao tong hop chat luong sau 30 ngay", "Bao cao", "01", "4.500.000", "4.500.000"],
+            ["7", "Ho tro xu ly su co uu tien cao", "Goi", "01", "9.500.000", "9.500.000"],
+            ["", "TAM TINH BANG B", "", "", "", "65.500.000"]
+          ]
+        }
+      ]
+    },
+    {
+      "page_number": 4,
+      "text": "PHU LUC 02 - BANG DICH VU VAN HANH (TIEP)\n5 (tiep) | ... phan noi tiep cua hang muc 5. He thong can hop nhat thanh mot record duy nhat va khong tao them hang moi khi gap trang 4.\n6 | Bao cao tong hop chat luong sau 30 ngay | Bao cao | 01 | 4.500.000 | 4.500.000\n7 | Ho tro xu ly su co uu tien cao | Goi | 01 | 9.500.000 | 9.500.000\nTAM TINH BANG B | 65.500.000\nGHI CHU KIEM THU\n- Bang A: dong 10 bi cat doi giua trang 2 va trang 3.\n- Bang B: dong 5 bi cat doi giua trang 3 va trang 4; trang 4 khong lap header.\n- Con dau do chong len chu ky va mot phan dong chu thich de test OCR/region detection.\nDAI DIEN BEN A\n(Ky, ghi ro ho ten)\nNGUYEN VAN A\nDAI DIEN BEN B\n(Ky, ghi ro ho ten)\nTRAN THI B\nTrang 4/4",
+      "critical_fields": [
+        {
+          "field_type": "signatory_name",
+          "raw_value": "TRAN THI B"
+        }
+      ],
+      "tables": []
+    }
+  ]
+}

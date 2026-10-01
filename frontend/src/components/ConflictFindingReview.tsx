@@ -5,18 +5,15 @@ import {
   getFindingReview,
   saveFindingReview,
   type FindingReview,
+  type FindingReviewAction,
   type FindingReviewEntry,
 } from '../api/findingReview'
 import type { ClauseNode } from '../api/structure'
 import { reviewerLabel } from '../review/reviewerLabel'
 import {
   actionLabel,
-  extraNoteLabel,
   mergeTimelines,
-  reviewActionOf,
   timelineEntries,
-  verdictOfAction,
-  type ReviewVerdict,
 } from '../review/timeline'
 import { MaterialIcon } from './icons'
 import { ReviewTimeline } from './ReviewTimeline'
@@ -31,6 +28,26 @@ export type LinkedClause = {
 }
 
 const NO_LINKS: LinkedClause[] = []
+
+type Verdict = 'correct' | 'deviation' | 'edit'
+
+const ACTION_OF: Record<Verdict, FindingReviewAction> = {
+  correct: 'confirm',
+  deviation: 'reject',
+  edit: 'correct',
+}
+
+const VERDICT_OF: Record<string, Verdict> = {
+  confirm: 'correct',
+  reject: 'deviation',
+  correct: 'edit',
+}
+
+const VERDICT_LABEL: Record<Verdict, string> = {
+  correct: 'Chính xác',
+  deviation: 'Sai lệch',
+  edit: 'Sửa nhận định',
+}
 
 function entryNote(entry: FindingReviewEntry) {
   return entry.assessment ?? entry.comment ?? ''
@@ -56,7 +73,7 @@ export function ConflictFindingReview({
   linkedClauses?: LinkedClause[]
   onReviewed?: (reviewed: boolean) => void
 }) {
-  const [verdict, setVerdict] = useState<ReviewVerdict | null>('dung')
+  const [verdict, setVerdict] = useState<Verdict>('correct')
   const [note, setNote] = useState('')
   const [saved, setSaved] = useState(false)
   const [review, setReview] = useState<FindingReview | null>(null)
@@ -127,10 +144,10 @@ export function ConflictFindingReview({
     setReview(next)
     onReviewed?.(Boolean(next.latest))
     if (next.latest) {
-      setVerdict(verdictOfAction(next.latest.action))
+      setVerdict(VERDICT_OF[next.latest.action] ?? 'correct')
       setNote(entryNote(next.latest))
     } else {
-      setVerdict('dung')
+      setVerdict('correct')
       setNote('')
     }
   }
@@ -158,22 +175,22 @@ export function ConflictFindingReview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [findingId])
 
-  function choose(next: ReviewVerdict) {
+  function choose(next: Verdict) {
     setVerdict(next)
     setSaved(false)
   }
 
   async function save() {
     if (saving || loading) return
-    if (!verdict) {
-      setMessage('Hãy chọn đúng hoặc sai.')
+    if (verdict === 'edit' && !note.trim()) {
+      setMessage('Sửa nhận định cần nhập nội dung nhận định mới.')
       return
     }
     setSaving(true)
     setMessage(null)
     try {
       const next = await saveFindingReview(findingId, {
-        action: reviewActionOf(verdict),
+        action: ACTION_OF[verdict],
         baseVersion: review?.version ?? 0,
         comment: note,
       })
@@ -198,11 +215,14 @@ export function ConflictFindingReview({
 
   return (
     <div className="mt-2 border-t border-outline-variant/30 pt-2">
+      <p className="font-label-sm text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">
+        Nhận định của chuyên viên
+      </p>
       {latest ? (
         <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">
           Lần gần nhất:{' '}
           <span className="font-semibold text-on-surface">
-            {actionLabel(latest.action)}
+            {VERDICT_LABEL[VERDICT_OF[latest.action] ?? 'correct']}
           </span>{' '}
           bởi {entryWho(latest)} · {entryWhen(latest)}
         </p>
@@ -228,7 +248,7 @@ export function ConflictFindingReview({
           </p>
           <p className="mt-0.5">
             <span className="font-semibold">
-              {actionLabel(review.stale.latest.action)}
+              {VERDICT_LABEL[VERDICT_OF[review.stale.latest.action] ?? 'correct']}
             </span>{' '}
             bởi {entryWho(review.stale.latest)} · {entryWhen(review.stale.latest)}
           </p>
@@ -243,30 +263,33 @@ export function ConflictFindingReview({
             </p>
           ) : null}
           <p className="mt-0.5 text-secondary">
-            Kết quả này không được tính cho lần phân tích hiện tại. Hãy chọn đúng hoặc sai rồi lưu lại.
+            Kết quả này không được tính cho lần phân tích hiện tại. Hãy chọn nhận định rồi lưu lại.
           </p>
         </div>
       ) : null}
-      <div className="mt-1 grid grid-cols-2 gap-1">
+      <div className="mt-1 grid grid-cols-3 gap-1">
         <VerdictButton
-          active={verdict === 'dung'}
+          active={verdict === 'correct'}
           icon="check_circle"
-          label="Đúng"
-          onClick={() => choose('dung')}
+          label="Chính xác"
+          onClick={() => choose('correct')}
         />
         <VerdictButton
-          active={verdict === 'sai'}
+          active={verdict === 'deviation'}
           icon="cancel"
-          label="Sai"
-          onClick={() => choose('sai')}
+          label="Sai lệch"
+          onClick={() => choose('deviation')}
+        />
+        <VerdictButton
+          active={verdict === 'edit'}
+          icon="edit_note"
+          label="Sửa nhận định"
+          onClick={() => choose('edit')}
         />
       </div>
-      <label className="mt-2 block font-label-sm text-label-sm font-semibold text-on-surface-variant">
-        {extraNoteLabel(verdict)}
-      </label>
       <textarea
-        className="mt-1 w-full resize-none rounded bg-surface-container-low p-2 font-body-sm text-body-sm text-on-surface outline-none focus:ring-1 focus:ring-outline-variant"
-        placeholder={extraNoteLabel(verdict)}
+        className="mt-2 w-full resize-none rounded bg-surface-container-low p-2 font-body-sm text-body-sm text-on-surface outline-none focus:ring-1 focus:ring-outline-variant"
+        placeholder="Ghi chú thẩm định..."
         rows={2}
         disabled={locked}
         value={note}

@@ -1,0 +1,42 @@
+{
+  "document_id": "DOC-001",
+  "pages": [
+    {
+      "page_number": 1,
+      "text": "Số hợp đồng: HĐ-2026-001\nTổng giá trị: 1.000.000.000 VNĐ",
+      "critical_fields": [
+        {
+          "field_type": "contract_number",
+          "raw_value": "HĐ-2026-001",
+          "normalized_value": "hđ-2026-001"
+        },
+        {
+          "field_type": "total_amount",
+          "raw_value": "1.000.000.000 VNĐ",
+          "normalized_value": "1000000000"
+        }
+      ],
+      "tables": [
+        {
+          "table_id": "TABLE-001",
+          "pages": [1, 2],
+          "is_multi_page": true,
+          "rows": [["STT", "Nội dung", "Thành tiền"], ["1", "Hạng mục A", "1000000"]]
+        }
+      ]
+    },
+    {
+      "page_number": 2,
+      "text": "Bảng tiếp theo",
+      "critical_fields": [],
+      "tables": [
+        {
+          "table_id": "TABLE-001",
+          "pages": [1, 2],
+          "is_multi_page": true,
+          "rows": [["STT", "Nội dung", "Thành tiền"], ["2", "Hạng mục B", "2000000"]]
+        }
+      ]
+    }
+  ]
+}

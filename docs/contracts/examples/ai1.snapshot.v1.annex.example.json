@@ -1,0 +1,56 @@
+{
+  "schema_version": "ai1.snapshot.v1",
+  "snapshot_id": "snap-annex-example-001",
+  "dossier_id": "dossier-example-001",
+  "document_id": "doc-annex-example-001",
+  "run_id": "ocr-run-annex-example-001",
+  "source_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+  "created_at": "2026-09-22T10:01:00Z",
+  "execution": {
+    "execution_manifest_id": "exec-example-002",
+    "config_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+    "policy_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+    "source_version_digest": "4444444444444444444444444444444444444444444444444444444444444444",
+    "replay": false
+  },
+  "producer": {
+    "engine_name": "ai1-ocr",
+    "engine_version": "example",
+    "code_image_digest": "5555555555555555555555555555555555555555555555555555555555555555"
+  },
+  "language": {
+    "declared_scope": "vi",
+    "detected_profile": "vi",
+    "detector": {
+      "name": "example-detector",
+      "version": "1.0.0"
+    }
+  },
+  "status": "SUCCESS",
+  "pages": [
+    {
+      "page_no": 1,
+      "page_revision_id": "page-annex-example-001",
+      "input_type": "SCANNED_OCR",
+      "status": "SUCCESS",
+      "raw_text_digest": "6666666666666666666666666666666666666666666666666666666666666666",
+      "transform": {
+        "rotation_degrees": 0,
+        "profile_version": "example-profile"
+      },
+      "quality": {
+        "coverage_status": "COMPLETE",
+        "ocr_confidence": 0.97,
+        "signals": []
+      },
+      "table_coverage": {
+        "status": "UNKNOWN",
+        "method": "example-detector",
+        "version": "1.0.0"
+      },
+      "lines": [],
+      "tables": [],
+      "warnings": []
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "schema_version": "ai2.eval_inputs.v2",
+  "description": "Input coverage for the AI2 boundary and product-flow evaluation. This is not an AI1 handoff payload.",
+  "catalog": {
+    "policy_schema": "ai2.ocr_edge_cases.v1",
+    "existing_cases": 65,
+    "synthetic_cases": 30,
+    "total_cases": 95,
+    "source": ["fixtures.catalog.all_cases", "fixtures.eval_suite.synthetic_cases"],
+    "coverage_selector": "all_eval_cases"
+  },
+  "input_files": [
+    {"id": "AI1-FULL-V1", "path": "fixtures/eval_inputs/snapshots/ai1.full.v1.json", "kind": "ai1_snapshot", "valid": true},
+    {"id": "AI1-NO-TABLE-V1", "path": "fixtures/eval_inputs/snapshots/ai1.no-table.v1.json", "kind": "ai1_snapshot", "valid": true},
+    {"id": "AI1-RELATION-V1", "path": "fixtures/eval_inputs/snapshots/ai1.relation-multi-hop.v1.json", "kind": "ai1_snapshot", "valid": true},
+    {"id": "AI1-LOW-QUALITY-V1", "path": "fixtures/eval_inputs/snapshots/ai1.low-quality.v1.json", "kind": "ai1_snapshot", "valid": true},
+    {"id": "AI1-PARTIAL-NO-GEOMETRY", "path": "fixtures/eval_inputs/snapshots/ai1.partial-no-geometry.v1.json", "kind": "ai1_snapshot", "valid": true},
+    {"id": "AI1-FAILED-PAGE", "path": "fixtures/eval_inputs/snapshots/ai1.failed-page.v1.json", "kind": "ai1_snapshot", "valid": true},
+    {"id": "LEGACY-TEXT-ONLY", "path": "fixtures/eval_inputs/legacy/legacy-text-only.json", "kind": "legacy_ocr_json", "valid": true},
+    {"id": "MALFORMED-SNAPSHOT", "path": "fixtures/eval_inputs/invalid/malformed-snapshot.json.txt", "kind": "invalid_json", "valid": false, "expected_error": "JSONDecodeError"},
+    {"id": "INVALID-DIGEST-V1", "path": "fixtures/eval_inputs/invalid/invalid-digest.v1.json", "kind": "ai1_snapshot", "valid": false, "expected_error": "SNAPSHOT_SEMANTIC_INVALID"},
+    {"id": "DUPLICATE-LINE-ID-V1", "path": "fixtures/eval_inputs/invalid/duplicate-line-id.v1.json", "kind": "ai1_snapshot", "valid": false, "expected_error": "SNAPSHOT_SEMANTIC_INVALID"},
+    {"id": "UNSUPPORTED-CATALOG", "path": "fixtures/eval_inputs/invalid/unsupported-ai2-catalog.json", "kind": "policy_catalog", "valid": false, "expected_error": "UNSUPPORTED_ARTIFACT_KIND"}
+  ],
+  "physical_inputs": [
+    {"id": "HD-TONG-HOP-PDF", "kind": "pdf_pair", "files": ["fixtures/contracts/HD-TONG-HOP.body.pdf", "fixtures/contracts/HD-TONG-HOP.annex.pdf"], "purpose": "body and annex relation flow; markdown fallback is allowed when PDFs are absent"},
+    {"id": "SALE-BRD-PDF", "kind": "pdf", "files": ["fixtures/contracts/SALE-BRD.sample.pdf"], "purpose": "comparison and review flow"},
+    {"id": "CATALOG-LONG-DOC", "kind": "synthetic_fixture", "case_ids": ["EC-001", "SYN-001", "SYN-005"], "purpose": "50-100 page and header/footer stress"},
+    {"id": "CATALOG-LARGE-TABLE", "kind": "synthetic_fixture", "case_ids": ["EC-010", "SYN-028"], "purpose": "300-1000 row table processing"}
+  ],
+  "coverage_matrix": [
+    {"id": "document_topology", "input_ids": ["AI1-FULL-V1", "AI1-RELATION-V1"], "case_ids": ["HD-TONG-HOP", "EC-009", "EC-029", "SYN-008", "SYN-009", "SYN-010"], "modes": ["deterministic", "live_llm", "hybrid_vector_recall"]},
+    {"id": "long_documents", "input_ids": ["AI1-FULL-V1"], "case_ids": ["EC-001", "EC-002", "SYN-001", "SYN-002", "SYN-005"], "modes": ["deterministic", "live_llm", "hybrid_vector_recall"]},
+    {"id": "ocr_quality_and_lineage", "input_ids": ["AI1-LOW-QUALITY-V1", "AI1-PARTIAL-NO-GEOMETRY", "AI1-FAILED-PAGE", "LEGACY-TEXT-ONLY"], "case_ids": ["EC-007", "EC-045", "SYN-006", "SYN-007", "SYN-016", "SYN-017"], "modes": ["deterministic", "live_llm"]},
+    {"id": "tables", "input_ids": ["AI1-FULL-V1", "AI1-NO-TABLE-V1", "AI1-PARTIAL-NO-GEOMETRY"], "case_ids": ["EC-010", "EC-011", "EC-012", "EC-013", "EC-017", "EC-018", "SYN-021", "SYN-022", "SYN-023", "SYN-024", "SYN-025", "SYN-026", "SYN-027", "SYN-028"], "modes": ["deterministic", "live_llm", "hybrid_vector_recall"]},
+    {"id": "relations_and_amendments", "input_ids": ["AI1-RELATION-V1"], "case_ids": ["EC-027", "EC-029", "SYN-010", "SYN-011", "SYN-012", "SYN-013", "SYN-014", "SYN-015"], "modes": ["deterministic", "live_llm", "hybrid_vector_recall"]},
+    {"id": "facts_locale_and_bilingual", "input_ids": ["AI1-RELATION-V1"], "case_ids": ["EC-020", "EC-021", "EC-022", "EC-023", "EC-024", "EC-031", "SYN-016", "SYN-017", "SYN-018", "SYN-019", "SYN-020"], "modes": ["deterministic", "live_llm"]},
+    {"id": "security_and_provider_faults", "input_ids": ["AI1-FULL-V1"], "case_ids": ["EC-035", "SYN-029", "SYN-030"], "modes": ["deterministic", "live_llm", "hybrid_vector_recall"]},
+    {"id": "policy_gates", "input_ids": ["AI1-FULL-V1"], "case_ids": ["EC-047", "EC-050", "EC-055", "SYN-030"], "modes": ["deterministic", "live_llm", "hybrid_vector_recall"]}
+  ],
+  "catalog_coverage": {
+    "selector": "all_eval_cases",
+    "input_ids": ["AI1-FULL-V1", "AI1-RELATION-V1", "AI1-LOW-QUALITY-V1", "AI1-NO-TABLE-V1", "AI1-PARTIAL-NO-GEOMETRY", "AI1-FAILED-PAGE"],
+    "require_all_case_ids": true
+  },
+  "safety": {
+    "deterministic_is_default": true,
+    "vector_is_recall_only": true,
+    "invalid_citation_blocks_answer": true,
+    "no_legal_winner_claim": true,
+    "invalid_inputs_never_call_external": true
+  }
+}

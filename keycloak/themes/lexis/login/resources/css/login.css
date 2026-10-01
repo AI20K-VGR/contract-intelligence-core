@@ -351,6 +351,77 @@ body {
   font-size: 16px;
 }
 
+a.lexis-submit {
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.lexis-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lexis-card form label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  line-height: 14px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--color-on-surface-variant);
+}
+
+.lexis-card form .required {
+  color: var(--color-error);
+  letter-spacing: 0;
+}
+
+.lexis-card form input[type='text']:not(.lexis-input),
+.lexis-card form input[type='email']:not(.lexis-input),
+.lexis-card form input[type='password']:not(.lexis-input) {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--color-surface-low);
+  color: var(--color-on-surface);
+  font-family: var(--font);
+  font-size: 14px;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.lexis-card form input[type='text']:not(.lexis-input):focus,
+.lexis-card form input[type='email']:not(.lexis-input):focus,
+.lexis-card form input[type='password']:not(.lexis-input):focus {
+  background: var(--color-surface-lowest);
+  box-shadow: 0 0 0 2px rgba(78, 127, 255, 0.3);
+}
+
+.lexis-card form input[type='submit'] {
+  width: 100%;
+  height: 40px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--color-primary-container);
+  color: var(--color-on-primary);
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lexis-card form span[id^='input-error'] {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--color-error);
+}
+
 .lexis-back {
   text-align: center;
   margin: 4px 0 0;

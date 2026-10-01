@@ -202,8 +202,8 @@ export function conflictTitle(marker: ConflictMarker) {
 /**
  * Chấm xung đột trên nút cây.
  * - Vàng đậm: có xung đột, chưa ai thẩm định.
- * - Vàng nhạt có dấu tick: đã thẩm định là đúng.
- * - Xám mờ: đã thẩm định là sai, không tính vào tổng.
+ * - Vàng nhạt có dấu tick: đã thẩm định (Chính xác / Sửa nhận định).
+ * - Xám mờ: đã thẩm định là Sai lệch, không tính vào tổng.
  * - Nút cha đang gấp: chấm vàng kèm số xung đột bên trong.
  */
 export function ConflictBadge({

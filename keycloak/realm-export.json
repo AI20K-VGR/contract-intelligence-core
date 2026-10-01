@@ -6,11 +6,14 @@
   "loginTheme": "lexis",
   "accountTheme": "keycloak.v2",
   "adminTheme": "keycloak.v2",
-  "emailTheme": "base",
+  "emailTheme": "lexis",
+  "attributes": {
+    "frontendUrl": "http://localhost:8080"
+  },
   "internationalizationEnabled": true,
   "supportedLocales": ["vi", "en"],
   "defaultLocale": "vi",
-  "accessTokenLifespan": 300,
+  "accessTokenLifespan": 900,
   "accessTokenLifespanForImplicitFlow": 900,
   "ssoSessionIdleTimeout": 1800,
   "accessCodeLifespan": 60,
@@ -23,6 +26,15 @@
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "noreply@ci.local",
+    "fromDisplayName": "Lexis Contract Intelligence",
+    "ssl": "false",
+    "starttls": "false",
+    "auth": "false"
+  },
   "editUsernameAllowed": false,
   "bruteForceProtected": false,
   "roles": {
@@ -145,6 +157,7 @@
       "id": "contract-intel-frontend",
       "clientId": "contract-intel-frontend",
       "name": "Contract Intelligence SPA",
+      "description": "React SPA — public OIDC client (Authorization Code + PKCE S256, no client secret)",
       "enabled": true,
       "publicClient": true,
       "bearerOnly": false,
@@ -152,23 +165,33 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "frontchannelLogout": true,
       "protocol": "openid-connect",
       "fullScopeAllowed": true,
       "redirectUris": [
+        "http://localhost:5173/",
         "http://localhost:5173/auth/callback",
-        "http://localhost:5173/auth/silent-callback"
+        "http://localhost:5173/auth/silent-callback",
+        "http://127.0.0.1:5173/",
+        "http://127.0.0.1:5173/auth/callback",
+        "http://127.0.0.1:5173/auth/silent-callback"
       ],
       "webOrigins": [
-        "http://localhost:5173"
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:5173/"
+        "post.logout.redirect.uris": "http://localhost:5173/*##http://127.0.0.1:5173/*",
+        "client.use.lightweight.access.token.enabled": "false",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "oidc.ciba.grant.enabled": "false"
       },
       "defaultClientScopes": [
         "basic",
-        "role_list",
         "roles",
+        "role_list",
         "profile",
         "email",
         "web-origins"
@@ -176,16 +199,15 @@
       "optionalClientScopes": [],
       "protocolMappers": [
         {
-          "name": "realm_roles_mapper",
+          "name": "contract-intel-backend-audience",
           "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "protocolMapper": "oidc-audience-mapper",
           "consentRequired": false,
           "config": {
-            "user.attribute": "realmRoles",
-            "claim.name": "realm_access",
+            "included.client.audience": "contract-intel-backend",
             "access.token.claim": "true",
             "id.token.claim": "false",
-            "userinfo.token.claim": "false"
+            "access.tokenResponse.claim": "false"
           }
         },
         {
@@ -310,6 +332,8 @@
       "clientRoles": {
         "realm-management": [
           "view-users",
+          "query-users",
+          "manage-users",
           "view-realm",
           "view-clients",
           "view-events",

@@ -1,0 +1,156 @@
+{
+  "case_id": "EC-014",
+  "title": "Header hai tầng raw path",
+  "tenant_id": "tenant_a",
+  "dossier_id": "d_hdr2",
+  "expected_state": "PASS",
+  "expected_no_claims": [
+    "flatten_header_loss"
+  ],
+  "n_pages": 1,
+  "n_nodes": 1,
+  "n_tables": 1,
+  "lifecycle": "ACTIVE",
+  "query": null,
+  "notes": "",
+  "tags": [
+    "edge",
+    "table"
+  ],
+  "pins": {
+    "manifest_version": 2,
+    "source_snapshot_digest": "sha256:aaa",
+    "tenant_profile_version": 5,
+    "policy_version": 2,
+    "ocr_run_version": 3,
+    "reconstruction_version": 2,
+    "extraction_version": 7,
+    "index_version": "idx_14"
+  },
+  "profile": {
+    "version": 5,
+    "aliases": {
+      "Công ty ABC": [
+        "ABC Co.",
+        "ABC"
+      ],
+      "Công ty XYZ": [
+        "XYZ Ltd",
+        "XYZ"
+      ]
+    },
+    "field_keys": [
+      "party_a",
+      "party_b",
+      "mst_seller",
+      "contract_value",
+      "payment_term"
+    ]
+  },
+  "acl_revision": 12,
+  "legal_hold": false,
+  "egress_approved": true,
+  "budget_exceeded": false,
+  "index_status": "READY",
+  "active_index_version": null,
+  "processing_index": false,
+  "envelope": {
+    "auth": {
+      "actor_id": "user_001",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_hdr2",
+      "acl_revision": 12,
+      "permissions": [
+        "READ_CONTENT"
+      ],
+      "lifecycle": "ACTIVE"
+    },
+    "pins": {
+      "manifest_version": 2,
+      "source_snapshot_digest": "sha256:aaa",
+      "tenant_profile_version": 5,
+      "policy_version": 2,
+      "ocr_run_version": 3,
+      "reconstruction_version": 2,
+      "extraction_version": 7,
+      "index_version": "idx_14"
+    }
+  },
+  "pages": [
+    {
+      "page_revision_id": "p1_rev1",
+      "page_number": 1,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p1_b1"
+      ],
+      "text": "Header hai tầng Q1/Q2",
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "t_h2",
+      "type": "TABLE",
+      "raw_label": "Header2",
+      "parent_id": null,
+      "order": 1,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Header2",
+      "page_range": [
+        1
+      ],
+      "page_revision_id": "p1_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "tables": [
+    {
+      "table_id": "t_h2",
+      "title": "Quarter",
+      "header": [
+        "Q1/amount",
+        "Q1/qty",
+        "Q2/amount",
+        "Q2/qty"
+      ],
+      "n_rows": 1,
+      "n_cols": 4,
+      "continuation": false,
+      "node_id": "t_h2",
+      "first_rows": [
+        [
+          "10",
+          "1",
+          "11",
+          "2"
+        ]
+      ],
+      "last_rows": [
+        [
+          "10",
+          "1",
+          "11",
+          "2"
+        ]
+      ],
+      "rows": [
+        [
+          "10",
+          "1",
+          "11",
+          "2"
+        ]
+      ],
+      "rows_omitted": false
+    }
+  ]
+}
