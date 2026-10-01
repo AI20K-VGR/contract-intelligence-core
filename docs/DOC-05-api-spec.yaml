@@ -153,7 +153,8 @@ paths:
         '422':
           description: |
             Metadata không đúng JSON, PDF không đọc được, hoặc quá 6 tệp
-            (`DOSSIER_TOO_MANY_DOCUMENTS`, "Hồ sơ tối đa 6 tài liệu"; DEC-BE-AI2-01 D5).
+            (`DOSSIER_TOO_MANY_DOCUMENTS`; DEC-BE-AI2-01 D5). Đếm tệp, không đếm trang;
+            message ví dụ "Hồ sơ tối đa 6 file PDF (1 hợp đồng và tối đa 5 phụ lục). Bạn đã chọn 7 file.".
             Bị từ chối trước khi tạo gì, không có hồ sơ dở dang.
           content:
             application/json:
@@ -655,7 +656,8 @@ paths:
           description: |
             Các phần không phủ đủ trang theo thứ tự, `page_end < page_start`, PDF không cắt được;
             hồ sơ không có đúng một hợp đồng (`contract_required`, `contract_not_unique`);
-            hoặc sau khi tách hồ sơ quá 6 tài liệu (`DOSSIER_TOO_MANY_DOCUMENTS`)
+            hoặc sau khi tách hồ sơ quá 6 tài liệu (`DOSSIER_TOO_MANY_DOCUMENTS`; message ví dụ
+            "Sau khi tách, hồ sơ tối đa 6 tài liệu. Cách tách này làm hồ sơ có 7 tài liệu.")
           content:
             application/json:
               schema:

@@ -169,7 +169,7 @@ Mọi phản hồi lỗi (HTTP status >= 400) đều tuân theo chuẩn RFC 7807
 | `404` | `NOT_FOUND` | Không tìm thấy ID hồ sơ / tài liệu / run | Hiển thị màn hình 404 hoặc thông báo mục đã bị xóa |
 | `409` | `VERSION_CONFLICT` | Phiên bản `base_version` gửi lên cũ hơn DB | **Refetch item mới nhất**, cảnh báo reviewer có xung đột chỉnh sửa |
 | `422` | `VALIDATION_ERROR` | Request body sai kiểu dữ liệu hoặc thiếu trường | Hiển thị lỗi tương ứng trên form input |
-| `422` | `DOSSIER_TOO_MANY_DOCUMENTS` | **v1.2.0.** Hồ sơ quá 6 tài liệu, khi tải lên (`POST /dossiers`) hoặc sau khi tách (`POST /dossiers/{id}/split`). `details`: `{ limit, count }` | Hiện "Hồ sơ tối đa 6 tài liệu" (`error.message`) |
+| `422` | `DOSSIER_TOO_MANY_DOCUMENTS` | **v1.2.0.** Hồ sơ quá 6 tài liệu, khi tải lên (`POST /dossiers`) hoặc sau khi tách (`POST /dossiers/{id}/split`). `details`: `{ limit, count }`. Giới hạn đếm **tài liệu** (mỗi file PDF tải lên, mỗi phần sau khi tách là một tài liệu), không đếm trang | Hiện `error.message`. Tải lên: "Hồ sơ tối đa 6 file PDF (1 hợp đồng và tối đa 5 phụ lục). Bạn đã chọn 7 file." Tách: "Sau khi tách, hồ sơ tối đa 6 tài liệu. Cách tách này làm hồ sơ có 7 tài liệu." (số lấy từ `details`) |
 | `422` | `contract_required` / `contract_not_unique` | **v1.2.0.** Hồ sơ không có, hoặc có nhiều hơn một, hợp đồng chính (`POST /dossiers/{id}/split`, `POST /dossiers/{id}/manifest/confirm`) | Yêu cầu chọn đúng một phần hoặc tài liệu là hợp đồng |
 | `500` | `INTERNAL_ERROR` | Lỗi phía server / database / AI service | Hiển thị toast lỗi và mã `X-Request-Id` để liên hệ IT |
 
@@ -723,7 +723,7 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
-| `v1.2.0` | 30/09/2026 | Theo DEC-BE-AI2-01 D5 (việc B4): hồ sơ tối đa 6 tài liệu, `422 DOSSIER_TOO_MANY_DOCUMENTS` ở `POST /dossiers` và `POST /dossiers/{id}/split`; hồ sơ cần đúng một hợp đồng, `422 contract_not_unique` (mới) cạnh `contract_required` ở `POST /dossiers/{id}/split` và `POST /dossiers/{id}/manifest/confirm`. Chỉ thêm mã lỗi; hồ sơ bị chặn là loại AI2 vốn không xử lý được, nên là MINOR |
+| `v1.2.0` | 30/09/2026 | Theo DEC-BE-AI2-01 D5 (việc B4): hồ sơ tối đa 6 tài liệu (đếm file và phần sau khi tách, không đếm trang), `422 DOSSIER_TOO_MANY_DOCUMENTS` ở `POST /dossiers` và `POST /dossiers/{id}/split`, câu lỗi riêng cho từng chỗ; hồ sơ cần đúng một hợp đồng, `422 contract_not_unique` (mới) cạnh `contract_required` ở `POST /dossiers/{id}/split` và `POST /dossiers/{id}/manifest/confirm`. Chỉ thêm mã lỗi; hồ sơ bị chặn là loại AI2 vốn không xử lý được, nên là MINOR |
 | `v1.1.0` | 30/09/2026 | Thêm `GET /dossiers/{id}/queries`, `POST /dossiers/{id}/ocr/retry-failed`, `POST /dossiers/{id}/split` và `metadata.split_pending` (đã có trong `DOC-05-api-spec.yaml`, PR #36). Chỉ thêm, không đổi hay xoá trường nào, nên là MINOR. Response của ba API mô tả theo envelope thật `{ data, meta }` (xem ghi chú §3.1 bên dưới). Các endpoint backend bỏ ở v2.0.0 (`POST /dossiers/upload`, webhook AI1/AI2, `/reviews` cũ) chưa từng có trong DOC-05b, nên không ảnh hưởng contract này |
 
 **§3.1 chưa khớp backend (đã biết):** backend trả mọi response, kể cả danh sách, trong `{ data, meta }`, với `meta` gồm `trace_id`, `request_id`, `page`, `page_size`, `total`. Envelope ở §3.1 (`items`, `total`, `page`, `page_size`, `total_pages`) không khớp endpoint danh sách nào. Ba API của v1.1.0 được mô tả theo `{ data, meta }`. Sửa §3.1 cho mọi endpoint là thay đổi contract chung, để ở bản sau khi frontend chốt.

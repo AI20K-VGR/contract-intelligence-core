@@ -803,7 +803,9 @@ async def split_dossier_document(
         raise HTTPException(status_code=422, detail=problem)
     document_count = len(others) + len(body.parts)
     if document_count > MAX_DOSSIER_DOCUMENTS:
-        raise DossierTooManyDocuments(limit=MAX_DOSSIER_DOCUMENTS, count=document_count)
+        raise DossierTooManyDocuments(
+            limit=MAX_DOSSIER_DOCUMENTS, count=document_count, after_split=True
+        )
     contracts = sum(d.role == DocumentRole.CONTRACT for d in others) + sum(
         part.role == "contract" for part in body.parts
     )

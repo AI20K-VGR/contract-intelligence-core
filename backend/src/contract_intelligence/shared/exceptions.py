@@ -169,12 +169,23 @@ class ManifestVersionConflict(DomainException):
 
 
 class DossierTooManyDocuments(DomainException):
-    """A dossier would hold more documents than AI2 accepts — HTTP 422."""
+    """A dossier would hold more documents than AI2 accepts — HTTP 422.
 
-    def __init__(self, *, limit: int, count: int) -> None:
+    The limit counts documents (one per uploaded PDF, one per split part), not
+    pages, so the message says which: files at upload, documents after a split.
+    """
+
+    def __init__(self, *, limit: int, count: int, after_split: bool = False) -> None:
+        message = (
+            f"Sau khi tách, hồ sơ tối đa {limit} tài liệu. "
+            f"Cách tách này làm hồ sơ có {count} tài liệu."
+            if after_split
+            else f"Hồ sơ tối đa {limit} file PDF (1 hợp đồng và tối đa {limit - 1} phụ lục). "
+            f"Bạn đã chọn {count} file."
+        )
         super().__init__(
             DomainErrorCode.DOSSIER_TOO_MANY_DOCUMENTS,
-            f"Hồ sơ tối đa {limit} tài liệu",
+            message,
             details={"limit": limit, "count": count},
         )
 

@@ -262,7 +262,7 @@ type DossierCreatedDTO = {
 | 400 | Missing contract file | Thiếu tệp PDF hợp đồng |
 | 403 | Insufficient role | Chỉ vận hành và quản trị |
 | 422 | Invalid metadata JSON | Metadata không đúng JSON |
-| 422 | `DOSSIER_TOO_MANY_DOCUMENTS` | Quá 6 tệp (1 hợp đồng + tối đa 5 phụ lục). Hiện `error.message`: "Hồ sơ tối đa 6 tài liệu". Không tạo hồ sơ nào |
+| 422 | `DOSSIER_TOO_MANY_DOCUMENTS` | Quá 6 tệp (1 hợp đồng + tối đa 5 phụ lục). Giới hạn đếm tệp, không đếm trang. Hiện `error.message`, ví dụ: "Hồ sơ tối đa 6 file PDF (1 hợp đồng và tối đa 5 phụ lục). Bạn đã chọn 7 file." Không tạo hồ sơ nào |
 
 Muốn chạy pipeline: `POST /dossiers/{id}/runs` ([4](#4-pipeline-run)).
 
@@ -1211,7 +1211,7 @@ Trả về: `{ dossier_id, status: "queued", documents: [{ id, role, filename, p
 |---|---|
 | 422 | Các phần không phủ đủ trang 1..N theo thứ tự (thiếu, chồng lấn), hoặc `page_end < page_start` |
 | 422 `contract_required` / `contract_not_unique` | Hồ sơ không có, hoặc có nhiều hơn **một**, hợp đồng |
-| 422 `DOSSIER_TOO_MANY_DOCUMENTS` | Sau khi tách hồ sơ quá 6 tài liệu ("Hồ sơ tối đa 6 tài liệu") |
+| 422 `DOSSIER_TOO_MANY_DOCUMENTS` | Sau khi tách hồ sơ quá 6 tài liệu (mỗi phần là một tài liệu, cộng các tài liệu khác của hồ sơ). Hiện `error.message`, ví dụ: "Sau khi tách, hồ sơ tối đa 6 tài liệu. Cách tách này làm hồ sơ có 7 tài liệu." |
 | 409 | Hồ sơ không tải lên với `split_pending`, hoặc đã bắt đầu xử lý (tách lúc này sẽ OCR lại) |
 | 403 | Không có quyền sửa hồ sơ |
 

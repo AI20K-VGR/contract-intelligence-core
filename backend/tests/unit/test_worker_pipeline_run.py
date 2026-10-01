@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncGenerator, Iterator
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -1120,6 +1121,75 @@ async def test_dossier_with_two_contracts_fails_before_ai2(
 
     assert fail.await_args.kwargs["code"] == "DOSSIER_CONTRACT_NOT_UNIQUE"
     submit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_six_document_dossier_reaches_ai2_whole(monkeypatch: pytest.MonkeyPatch) -> None:
+    """D5 upper bound: 1 contract + 5 annexes all go to AI2, one snapshot each."""
+    doc_ids = [f"doc_{n}" for n in range(1, 7)]
+    members = [
+        SimpleNamespace(
+            id=f"member_{n}",
+            included=True,
+            document_id=doc_id,
+            order_index=n,
+            doc_type="contract" if n == 1 else "annex",
+        )
+        for n, doc_id in enumerate(doc_ids, start=1)
+    ]
+    snapshots = {
+        doc_id: {
+            "schema_version": "ai1.snapshot.v1",
+            "snapshot_id": f"snap_{doc_id}",
+            "source_digest": "b" * 64,
+            "dossier_id": "dos_test",
+            "document_id": doc_id,
+            "pages": [],
+        }
+        for doc_id in doc_ids
+    }
+    durable_run = SimpleNamespace(
+        ai2_result_digest=None,
+        created_at=datetime(2026, 10, 1, 8, 0, tzinfo=UTC),
+        config_snapshot=json.dumps(
+            {
+                "ai1_snapshots": snapshots,
+                "ai1_snapshot_recorded_at": dict.fromkeys(doc_ids, "2026-10-01T08:00:00+00:00"),
+            }
+        ),
+    )
+    session = SimpleNamespace(
+        execute=AsyncMock(
+            side_effect=[
+                _ScalarResult(SimpleNamespace(status="extracted")),
+                _ScalarResult(SimpleNamespace(id="manifest_test", status="confirmed")),
+                _ScalarResult(durable_run),
+                _RowsResult(members),
+                _RowsResult([]),
+                _RowsResult([SimpleNamespace(id=doc_id, page_count=1) for doc_id in doc_ids]),
+            ]
+        ),
+        commit=AsyncMock(),
+        rollback=AsyncMock(),
+    )
+    submit = AsyncMock(return_value={"job_id": "ai2_six"})
+    monkeypatch.setattr(worker, "submit_ai2_processing", submit)
+    monkeypatch.setattr(worker, "poll_ai2_processing", AsyncMock(return_value={"status": "FAILED"}))
+    monkeypatch.setattr(worker, "update_pipeline_run_status", AsyncMock())
+    monkeypatch.setattr(worker, "update_pipeline_step", AsyncMock())
+    monkeypatch.setattr(worker, "_fail_ai2_run", AsyncMock())
+
+    await worker._run_ai2_if_ready(
+        session,  # type: ignore[arg-type]
+        dossier_id="dos_test",
+        tenant_id="tenant_test",
+        run_id="run_six",
+    )
+
+    request = submit.await_args.args[0]
+    assert [s["document_id"] for s in request["snapshots"]] == doc_ids
+    assert [m["role"] for m in request["dossier_members"]] == ["body"] + ["annex"] * 5
+    assert len(request["snapshot_identities"]) == 6
 
 
 @pytest.mark.asyncio

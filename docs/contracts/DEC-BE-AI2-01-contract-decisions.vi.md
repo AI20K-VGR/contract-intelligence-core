@@ -141,7 +141,7 @@ Khi cả hai bên duyệt xong:
 - Phụ lục không có quan hệ `ANNEX_OF` vẫn được gửi với `role=annex`. AI2 được so sánh nó với thân HĐ, nhưng mọi finding ghi rõ là "quan hệ chưa xác nhận" (khớp với DEC-1 của AI2).
 - Tài liệu tách ra từ file trộn mang `doc_type` từ bước phân loại. Người dùng sửa được role trước khi chạy AI2.
 - AI2 không suy luận, không sửa role hay quan hệ.
-- **Tối đa 6 file một hồ sơ.** Request của AI2 nhận `snapshots` từ 1 đến 6 phần tử (`be.ai2.processing.request.v1.schema.json`, `maxItems: 6`; `wire.py`). Backend chặn hồ sơ có hơn 6 tài liệu trước khi gửi: mã lỗi `DOSSIER_TOO_MANY_DOCUMENTS`, HTTP `422`, câu trên UI "Hồ sơ tối đa 6 tài liệu". `API-BE.md` và DOC-05b cập nhật cùng việc B4, không nằm trong PR này.
+- **Tối đa 6 file một hồ sơ.** Request của AI2 nhận `snapshots` từ 1 đến 6 phần tử (`be.ai2.processing.request.v1.schema.json`, `maxItems: 6`; `wire.py`). Backend chặn hồ sơ có hơn 6 tài liệu trước khi gửi: mã lỗi `DOSSIER_TOO_MANY_DOCUMENTS`, HTTP `422`, câu trên UI nêu rõ là file hoặc tài liệu, không phải trang: lúc tải lên "Hồ sơ tối đa 6 file PDF (1 hợp đồng và tối đa 5 phụ lục). Bạn đã chọn 7 file.", sau khi tách "Sau khi tách, hồ sơ tối đa 6 tài liệu. Cách tách này làm hồ sơ có 7 tài liệu." `API-BE.md` và DOC-05b cập nhật cùng việc B4, không nằm trong PR này.
 
 **Việc cần làm:**
 - Backend: chặn trường hợp có 0 hoặc nhiều hơn 1 body, và hồ sơ hơn 6 tài liệu, trước khi submit, kèm mã lỗi.
@@ -408,7 +408,7 @@ Review của Văn Dũng ở PR #37 xác nhận D2, D4, D5, D7 (409 và cùng `jo
 | B1 | D7 | Payload tất định: `created_at` của snapshot lấy từ lúc lưu, không `datetime.now()` | 01/10 |
 | B2 | D10 | Dùng `query_snapshot_digest` khi có, tạm tính như cũ khi chưa có; xoá hẳn `_ai2_query_snapshot_digest` và phương án `dossier.checksum` sau khi AI2 deploy A1 | Theo A1 |
 | B3 | D6 | Thôi gửi `egress_allowed` và `use_vector` trong `policy_flags`, bỏ các env cờ phía `backend`, `backend-worker`; nâng timeout `/query` lên 30 giây. Chỉ bỏ cờ sau khi AI2 deploy A8 | Sau A8 |
-| B4 | D5 | Chặn 0 hoặc nhiều body; hồ sơ hơn 6 tài liệu trả `422 DOSSIER_TOO_MANY_DOCUMENTS` ("Hồ sơ tối đa 6 tài liệu"); cập nhật `API-BE.md` và DOC-05b cùng lúc | 02/10 |
+| B4 | D5 | Chặn 0 hoặc nhiều body; hồ sơ hơn 6 tài liệu trả `422 DOSSIER_TOO_MANY_DOCUMENTS` (câu lỗi riêng cho tải lên và tách, xem D5); cập nhật `API-BE.md` và DOC-05b cùng lúc | 02/10 |
 | B5 | D8 | `SUCCEEDED` + `BLOCKED` → `failed`; bỏ qua `review_state` khi `status` khác `SUCCEEDED` | 02/10 |
 | B6 | D3, D11 | Override compose online: không publish 8002, healthcheck `/healthz`; image Postgres `pgvector/pgvector:pg16`; script khởi tạo DB tạo schema `ai2`, user `ai2_app` và chạy `CREATE EXTENSION vector` (DB local đang có dữ liệu thì cần `REINDEX`), đặt `AI2_DATABASE_URL`; bỏ volume `AI2_JOB_DB` và `vectors.sqlite` khi AI2 đã trên Postgres; các cờ egress, vector, LLM đặt ở env của `ai2-service` theo D6; không tắt `AI2_QUERY_REQUIRE_SIGNATURE` | Trước deploy online đầu tiên |
 | B7 | D1 | Xoá `submit_idp_job`/`get_idp_job`/`poll_idp_job`/`build_idp_request` trong `ai_adapters.py` | 02/10 |
@@ -441,3 +441,4 @@ Các mục sau để lại cho Sprint 3:
 | 2026-09-30 | Theo review của Văn Dũng (AI2) ở PR #37: D2 lệch đồng hồ 30 giây, TTL tối đa 3600 giây, tắt `/query` không chữ ký online; D5 tối đa 6 file; D6 bật vector cho `/query` online, dựa vào egress của `/query`, trần `max_embedding_tokens`; D7 payload tất định và định nghĩa retry; D8 `review_state=null`; D10 `state` thêm `BLOCKED`, chuyển tiếp digest, bỏ `query_binding`; D11 vector bật, volume gồm `vectors.sqlite`; D12 AI2 nhận `max_body_members` trước; thêm bảng việc của từng bên | Chương |
 | 2026-09-30 | Theo review của Trang ở PR #37 (lần 2): D1 tách Sprint 2 (HTTP) và Sprint 3 (Kafka theo DOC-05e v2, PR #36); PR này thôi sửa DOC-05e để không ghi đè PR #36; dòng mở đầu `BE-AI2-PROCESSING-CONTRACT` §6 ghi D6, D8, D11, D12 còn chờ Lead | Chương |
 | 2026-09-29 | Theo review của Trang ở PR #37: thêm D12 (nhiều hợp đồng); D5 chỉ áp dụng cho Sprint 2; D11 nêu mâu thuẫn với ADR-02 kèm phương án A/B và ADR-14 (Đề xuất); D4 sửa ADR-05 cho khớp; DOC-05e trỏ tới D1 (phần sửa DOC-05e đã rút ở `2bc7515`, PR này không còn sửa file đó) | Chương |
+| 2026-10-01 | D5/B4: câu lỗi `DOSSIER_TOO_MANY_DOCUMENTS` tách theo chỗ (tải lên nói "file PDF", tách nói "tài liệu") và nêu số đã chọn, vì "6 tài liệu" dễ đọc thành 6 trang (Trang đồng ý ở review PR #46). Mã lỗi và `details` không đổi | Chương |
