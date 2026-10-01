@@ -37,15 +37,24 @@ MAX_SPECKLE_PER_MEGAPIXEL = 300.0
 # Dots of at most this many pixels count as speckle: smaller than any glyph
 # part at 150 DPI, the size of dust and JPEG/scanner specks.
 SPECKLE_MAX_AREA = 2
+# Every threshold above was set on pages rendered at this resolution. A page
+# rendered finer is scaled down to it first: rendering a 150-200 DPI scan at
+# 300 DPI only enlarges it, softening every edge in pixel terms (a clean scan
+# measured sharpness 0.98 at 150 DPI and 0.69 at 300 DPI).
+REFERENCE_DPI = 150
 
 
 def _gray(image: np.ndarray) -> np.ndarray:
     return cv2.cvtColor(image, cv2.COLOR_RGB2GRAY) if image.ndim == 3 else image
 
 
-def measure(image: np.ndarray) -> dict[str, float] | None:
-    """The four signals behind `assess`, or None when the page has too little ink."""
+def measure(image: np.ndarray, dpi: int = REFERENCE_DPI) -> dict[str, float] | None:
+    """The four signals behind `assess` for a page rendered at `dpi`, or None
+    when the page has too little ink."""
     gray = _gray(image)
+    if dpi > REFERENCE_DPI:
+        scale = REFERENCE_DPI / dpi
+        gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
     paper = float(np.median(gray))
     candidate = gray < paper - INK_OFFSET
     if candidate.mean() < MIN_INK_SHARE:
@@ -73,9 +82,9 @@ def measure(image: np.ndarray) -> dict[str, float] | None:
     }
 
 
-def assess(image: np.ndarray) -> list[str]:
-    """What makes this page hard to read; empty when nothing does."""
-    signals = measure(image)
+def assess(image: np.ndarray, dpi: int = REFERENCE_DPI) -> list[str]:
+    """What makes this page, rendered at `dpi`, hard to read; empty when nothing does."""
+    signals = measure(image, dpi)
     if signals is None:
         return []
     reasons = []
@@ -93,5 +102,5 @@ def assess(image: np.ndarray) -> list[str]:
 class OpenCvPageQuality:
     """`PageQualityAssessor` port implementation."""
 
-    def assess(self, image: np.ndarray) -> list[str]:
-        return assess(image)
+    def assess(self, image: np.ndarray, dpi: int) -> list[str]:
+        return assess(image, dpi)

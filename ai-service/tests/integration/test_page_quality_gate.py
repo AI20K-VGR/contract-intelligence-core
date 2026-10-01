@@ -46,7 +46,7 @@ class ScriptedQuality:
     def __init__(self, by_order: dict[int, list[str]]) -> None:
         self.by_order, self.checked = by_order, 0
 
-    def assess(self, image) -> list[str]:
+    def assess(self, image, dpi) -> list[str]:
         self.checked += 1
         return self.by_order.get(self.checked, [])
 

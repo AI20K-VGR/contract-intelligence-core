@@ -53,6 +53,15 @@ def test_mild_jpeg_and_brightness_changes_are_not_flagged():
         assert assess(degrade(_page(), variant)[0]) == [], variant
 
 
+def test_a_clean_scan_rendered_finer_than_it_was_scanned_is_not_blur():
+    # Rendering a 150 DPI scan at 300 DPI only enlarges it: soft edges in
+    # pixel terms, same sharpness once measured back at 150 DPI.
+    enlarged = cv2.resize(_page(), (WIDTH * 2, HEIGHT * 2), interpolation=cv2.INTER_LINEAR)
+    assert assess(enlarged, dpi=300) == []
+    blurred = cv2.resize(degrade(_page(), "blur_mild")[0], (WIDTH * 2, HEIGHT * 2))
+    assert "blur" in assess(blurred, dpi=300)
+
+
 def test_a_page_with_almost_no_ink_is_not_judged():
     image = np.full((HEIGHT, WIDTH, 3), 245, dtype=np.uint8)
     cv2.putText(image, "Trang 3", (1000, 1700), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (20, 20, 20), 1)
