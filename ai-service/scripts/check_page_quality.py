@@ -16,7 +16,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from contract_ocr.application.use_cases.classify_pdf import PdfPageClassifier  # noqa: E402
-from contract_ocr.application.use_cases.process_document import MAX_LOW_QUALITY_SHARE  # noqa: E402
+from contract_ocr.application.use_cases.process_document import (  # noqa: E402
+    MAX_LOW_QUALITY_SHARE,
+    MIN_LOW_QUALITY_PAGES,
+)
 from contract_ocr.infrastructure.image.page_ink import is_blank  # noqa: E402
 from contract_ocr.infrastructure.image.page_quality import (  # noqa: E402
     GOOD_CONTRAST,
@@ -65,7 +68,9 @@ def check(path: str, dpi: int) -> None:
         print("no page would be OCR'd")
         return
     share = len(poor) / checked
-    refused = poor and len(poor) >= MAX_LOW_QUALITY_SHARE * checked
+    refused = (
+        len(poor) >= max(1, MIN_LOW_QUALITY_PAGES) and len(poor) >= MAX_LOW_QUALITY_SHARE * checked
+    )
     print(
         f"=> {len(poor)}/{checked} OCR pages poor ({share:.0%}): "
         + (
@@ -85,7 +90,7 @@ def main() -> None:
         f"thresholds: sharpness < {MIN_SHARPNESS}, contrast < {MIN_CONTRAST}, "
         f"noise > {MAX_NOISE}, speckle > {MAX_SPECKLE_PER_MEGAPIXEL}/MP "
         f"({MAX_SPECKLE_GOOD_CONTRAST}/MP when contrast >= {GOOD_CONTRAST}); "
-        f"refuse at >= {MAX_LOW_QUALITY_SHARE:.0%} poor pages"
+        f"refuse at >= {MIN_LOW_QUALITY_PAGES} and >= {MAX_LOW_QUALITY_SHARE:.0%} poor pages"
     )
     for pattern in args.pdfs:
         for path in sorted(glob.glob(pattern)) or [pattern]:

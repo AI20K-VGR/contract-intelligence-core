@@ -23,6 +23,8 @@ motion blur is not caught.
 
 from __future__ import annotations
 
+import os
+
 import cv2
 import numpy as np
 
@@ -115,3 +117,11 @@ class OpenCvPageQuality:
 
     def assess(self, image: np.ndarray, dpi: int) -> list[str]:
         return assess(image, dpi)
+
+
+def page_quality_from_env() -> OpenCvPageQuality | None:
+    """The check unless `AI1_PAGE_QUALITY_CHECK` turns it off (0/false/no); the
+    one switch for the Kafka worker, the web demo and the CLI alike."""
+    if os.environ.get("AI1_PAGE_QUALITY_CHECK", "true").strip().lower() in ("0", "false", "no"):
+        return None
+    return OpenCvPageQuality()

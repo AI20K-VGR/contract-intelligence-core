@@ -221,8 +221,8 @@ bẩn được nới khi tương phản tốt. Trang có mực dưới 0,2% di�
 
 | Tình huống | Hành vi | Chi phí |
 |---|---|---|
-| ≥ 30% số trang sắp OCR bị xấu (`MAX_LOW_QUALITY_SHARE`) | `LowQualityDocument` → job `failed`, `error.code = AI1_LOW_QUALITY_DOCUMENT`, `error.pages = {"3": ["blur", "speckle"], ...}`. Web demo trả HTTP 422 | **0**: chưa gọi model nào. Thử lại cũng ra kết quả như cũ; cách xử lý là scan lại |
-| Có trang xấu nhưng dưới 30% | Trang xấu: `Context.low_quality = True`, `evidence.reason_codes` thêm `LOW_QUALITY_SCAN`, cảnh báo trang `low_quality_scan:<lý do>`. Engine chỉ đọc một lần (mục 6.4) | Đúng 1 lời gọi cho trang đó |
+| Số trang xấu ≥ 3 (`MIN_LOW_QUALITY_PAGES`) **và** ≥ 30% số trang sắp OCR (`MAX_LOW_QUALITY_SHARE`) | `LowQualityDocument` → job `failed`, `error.code = AI1_LOW_QUALITY_DOCUMENT`, `error.pages = {"3": ["blur", "speckle"], ...}`. Web demo trả HTTP 422 | **0**: chưa gọi model nào. Thử lại cũng ra kết quả như cũ; cách xử lý là scan lại |
+| Có trang xấu nhưng chưa đủ cả hai điều kiện trên (vd PDF có lớp chữ, chỉ trang ký là scan lấm chấm: 1/1 = 100% nhưng dưới 3 trang) | Trang xấu: `Context.low_quality = True`, `evidence.reason_codes` thêm `LOW_QUALITY_SCAN`, cảnh báo trang `low_quality_scan:<lý do>`. Engine chỉ đọc một lần (mục 6.4) | Đúng 1 lời gọi cho trang đó |
 | Không có trang xấu | Như trước | Như trước |
 
 **Hiệu chỉnh.** Đo ở 150 DPI trên bản scan cục bộ (`data/raw/`, không commit) và trên ảnh làm xấu
@@ -661,7 +661,7 @@ Liên quan trực tiếp đến AI1 ở chỗ khác:
 | 2512 trả rỗng trên trang có dòng chữ | GPT đọc cả trang, cảnh báo `ocr:text_reader_empty_fallback` |
 | Cả 2512 và GPT lỗi | Trang `FAILED`, tài liệu vẫn có snapshot |
 | Mọi bản đọc đều rỗng trên trang có mực | Trang `PARTIAL` + `no_text_found` (không còn `FAILED`) |
-| ≥ 30% số trang sắp OCR là scan xấu | Từ chối trước khi gọi OCR: job `failed`, `AI1_LOW_QUALITY_DOCUMENT` + `error.pages`; web demo HTTP 422. Thử lại không giúp gì, cần scan lại (mục 5.1) |
+| ≥ 3 trang **và** ≥ 30% số trang sắp OCR là scan xấu | Từ chối trước khi gọi OCR: job `failed`, `AI1_LOW_QUALITY_DOCUMENT` + `error.pages`; web demo HTTP 422. Thử lại không giúp gì, cần scan lại (mục 5.1) |
 | Trang scan xấu, dưới ngưỡng trên | Đọc một lần, không 4-1/GPT; `low_quality_scan:<lý do>` (mục 6.4) |
 | 4-1 lỗi | Cảnh báo `ocr:verifier_failed`; dòng có token quan trọng → `critical_field_unverified`; bbox căn kém giữ CLAIMED |
 | GPT trọng tài lỗi | Các dòng cần phân xử → `needs_review:arbiter_unavailable`, giữ bản 2512 |
@@ -746,7 +746,8 @@ có bbox; 11/12 trang `SUCCESS`, 1 trang `PARTIAL` (tên người ký bị con d
 | `test_page_ink.py` | Trang trắng có bụi và bóng mép, một chữ số, chữ mờ vs chữ hằn mặt sau, dòng mực ngoài lớp chữ |
 | `integration/test_page_routing.py` | Router: trang trắng/ít chữ/trùng pixel không gọi OCR; trang có mực không ra chữ → `PARTIAL` |
 | `test_page_quality.py` | 4 chỉ số trên trang sạch và từng kiểu làm xấu; JPEG/độ sáng không gắn cờ; render 300 DPI không thành `blur`; chấm bẩn chịu được khi tương phản tốt; trang gần trắng không chấm |
-| `integration/test_page_quality_gate.py` | ≥ 30% trang xấu → `LowQualityDocument`, engine **không được gọi lần nào**; dưới ngưỡng → `low_quality` chỉ trên trang xấu, có cảnh báo và `LOW_QUALITY_SCAN` |
+| `integration/test_page_quality_gate.py` | 3/6 trang xấu → `LowQualityDocument`, engine **không được gọi lần nào**; PDF có lớp chữ + 1 trang scan xấu → vẫn OCR, trang đó có `low_quality_scan`; 2/2 trang xấu (dưới 3 trang) → vẫn OCR; dưới ngưỡng → `low_quality` chỉ trên trang xấu |
+| `test_page_quality.py` (công tắc) | `AI1_PAGE_QUALITY_CHECK` = `false`/`0`/`no` tắt kiểm tra; mặc định bật |
 | `test_verified_mistral_ocr.py` (phần trang xấu) | Trang `low_quality`: không 4-1 kể cả `AI1_VERIFY_ALL_PAGES`, không GPT phân xử, không GPT đọc lại khi rỗng |
 | `test_mistral_ocr.py` | Engine Mistral với SDK giả |
 

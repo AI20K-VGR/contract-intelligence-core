@@ -28,7 +28,7 @@ from contract_ocr.application.use_cases.process_document import (
     ProcessDocument,
 )
 from contract_ocr.domain.entities import Experiment
-from contract_ocr.infrastructure.image.page_quality import OpenCvPageQuality
+from contract_ocr.infrastructure.image.page_quality import page_quality_from_env
 from contract_ocr.infrastructure.image.preprocessing import ImagePreprocessor
 from contract_ocr.infrastructure.image.renderer import PdfRenderer
 from contract_ocr.infrastructure.observability import observation
@@ -47,9 +47,7 @@ _processor = ProcessDocument(
     PdfRenderer(),
     ImagePreprocessor(),
     PdfPageClassifier(),
-    quality=OpenCvPageQuality()
-    if os.environ.get("AI1_PAGE_QUALITY_CHECK", "true").lower() not in ("0", "false", "no")
-    else None,
+    quality=page_quality_from_env(),
 )
 _engine_lock = threading.Lock()
 _process_lock = threading.Lock()
