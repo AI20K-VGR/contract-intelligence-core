@@ -16,6 +16,7 @@ from contract_ocr.application.use_cases.run_benchmark import RunBenchmark
 from contract_ocr.domain.entities import Document, Experiment
 from contract_ocr.infrastructure.config import load_settings, read_manifest
 from contract_ocr.infrastructure.image.degradation import VARIANTS, degrade
+from contract_ocr.infrastructure.image.page_quality import page_quality_from_env
 from contract_ocr.infrastructure.image.preprocessing import ImagePreprocessor
 from contract_ocr.infrastructure.image.renderer import PdfRenderer
 from contract_ocr.infrastructure.metrics.evaluation import SampleEvaluator
@@ -90,6 +91,7 @@ def snapshot(args: argparse.Namespace) -> None:
         PdfRenderer(),
         ImagePreprocessor(),
         PdfPageClassifier(**settings.classifier),
+        quality=page_quality_from_env(),
     )
     experiment = Experiment(id="snapshot", engine=args.engine if engine else "pymupdf")
     document = processor.execute(

@@ -275,7 +275,11 @@ class VerifiedMistralOCREngine(OCREngine):
             input={"document_id": context.document_id, "page_number": context.page},
             metadata={"feature": "document-ocr", "engine": self.name},
         ) as span:
-            eager = self.verify_all_pages and self.verifier is not None
+            # A hard-to-read scan gets one paid reading: further readers mostly
+            # disagree with it on noise, each disagreement buying another call.
+            # What they would have checked is flagged for a person instead.
+            single_read = context.low_quality
+            eager = self.verify_all_pages and not single_read and self.verifier is not None
             with ThreadPoolExecutor(max_workers=3) as pool:
                 text_future = pool.submit(copy_context().run, self._read_text, page_image, context)
                 geometry_future = pool.submit(copy_context().run, self._measure, page_image)
@@ -291,7 +295,9 @@ class VerifiedMistralOCREngine(OCREngine):
             markdown = read.raw_markdown or "\n".join(line.text for line in read.lines)
             segments, md_tables = _parse_markdown(markdown)
             # `warnings` is non-empty only when the fallback reader already read it.
-            if not segments and boxes and not warnings:
+            if not segments and boxes and not warnings and single_read:
+                warnings = ["ocr:text_reader_empty"]
+            elif not segments and boxes and not warnings:
                 # Nothing read from a page with visible text lines (blank sheets
                 # never reach the engine): a silent miss, not an empty page.
                 read, warnings = self._reread_empty(page_image, context, read)
@@ -365,7 +371,7 @@ class VerifiedMistralOCREngine(OCREngine):
             )
 
             # -- stage 4: second reader (geometry, digits, word agreement) -------
-            if not eager and needs_verifier and self.verifier is not None:
+            if not eager and needs_verifier and not single_read and self.verifier is not None:
                 second, verify_warning = self._verify(page_image, context)
             if verify_warning:
                 warnings.append(verify_warning)
@@ -403,7 +409,10 @@ class VerifiedMistralOCREngine(OCREngine):
                 else {}
             )
             recovered: dict[str, str] = {}
-            if targets or ink_crops:
+            if single_read:
+                for i in targets:
+                    segments[i].review.append("low_quality_unverified")
+            elif targets or ink_crops:
                 recovered = self._arbitrate(
                     page_image, context, segments, reasons, second, line_height, ink_crops
                 )

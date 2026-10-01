@@ -23,8 +23,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from contract_ocr.application.ports.ocr_engine import OCREngine
 from contract_ocr.application.use_cases.build_snapshot import BuildSnapshot
 from contract_ocr.application.use_cases.classify_pdf import PdfPageClassifier
-from contract_ocr.application.use_cases.process_document import ProcessDocument
+from contract_ocr.application.use_cases.process_document import (
+    LowQualityDocument,
+    ProcessDocument,
+)
 from contract_ocr.domain.entities import Experiment
+from contract_ocr.infrastructure.image.page_quality import page_quality_from_env
 from contract_ocr.infrastructure.image.preprocessing import ImagePreprocessor
 from contract_ocr.infrastructure.image.renderer import PdfRenderer
 from contract_ocr.infrastructure.observability import observation
@@ -39,7 +43,11 @@ WEB_MAX_WORKERS = int(os.environ.get("AI1_MAX_PAGES_IN_FLIGHT", "8"))
 
 
 _processor = ProcessDocument(
-    PyMuPDFExtractor(), PdfRenderer(), ImagePreprocessor(), PdfPageClassifier()
+    PyMuPDFExtractor(),
+    PdfRenderer(),
+    ImagePreprocessor(),
+    PdfPageClassifier(),
+    quality=page_quality_from_env(),
 )
 _engine_lock = threading.Lock()
 _process_lock = threading.Lock()
@@ -371,6 +379,20 @@ def _run_backend_ocr(job_id: str, request: BackendOcrJobRequest) -> None:
             progress_pct=100,
             current_stage="completed",
             result=result,
+            finished_at=_now(),
+        )
+    except LowQualityDocument as exc:
+        # Refused before any OCR call: a rescan fixes it, a retry does not.
+        update_backend_job(
+            job_id,
+            status="failed",
+            progress_pct=100,
+            current_stage="failed",
+            error={
+                "code": "AI1_LOW_QUALITY_DOCUMENT",
+                "message": str(exc),
+                "pages": {str(page): reasons for page, reasons in exc.pages.items()},
+            },
             finished_at=_now(),
         )
     except Exception as exc:

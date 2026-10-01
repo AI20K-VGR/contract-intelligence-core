@@ -476,3 +476,37 @@ def test_fallback_text_is_not_counted_as_corroborated(tmp_path):
     )
     result = engine.recognize_page(_page([MONEY]), _ctx(tmp_path))
     assert result.lines[0].confidence == 0.90
+
+
+def _poor(tmp_path) -> Context:
+    return Context(document_id="doc", page=3, output_dir=str(tmp_path), low_quality=True)
+
+
+def test_a_low_quality_page_is_read_once_even_when_every_page_is_verified(tmp_path):
+    verifier = FakeReader(MONEY_VN)
+    engine = VerifiedMistralOCREngine(FakeReader(MONEY_VN), verifier, FakeArbiter("unused"))
+    result = engine.recognize_page(_page([MONEY]), _poor(tmp_path))
+    assert verifier.calls == 0
+    assert result.lines[0].text == MONEY_VN
+    assert any(w.startswith("needs_review:critical_field_unverified:") for w in result.warnings)
+
+
+def test_a_low_quality_page_is_flagged_instead_of_arbitrated(tmp_path):
+    CountingArbiter.calls = 0
+    engine = VerifiedMistralOCREngine(
+        FakeReader(GARBLED), FakeReader("unused"), CountingArbiter(CLEAN_VN[1])
+    )
+    result = engine.recognize_page(_page([PARA, PARA_2]), _poor(tmp_path))
+    assert CountingArbiter.calls == 0
+    assert result.lines[0].text == GARBLED
+    assert any(w.startswith("needs_review:low_quality_unverified:") for w in result.warnings)
+
+
+def test_an_empty_reading_of_a_low_quality_page_is_not_reread(tmp_path):
+    fallback = FakeReader("\n".join(CLEAN_VN))
+    engine = VerifiedMistralOCREngine(
+        FakeReader(""), FakeReader("unused"), FakeArbiter("unused"), fallback_reader=fallback
+    )
+    result = engine.recognize_page(_page(["DIEU 4. YEU CAU", PARA, PARA_2]), _poor(tmp_path))
+    assert fallback.calls == 0
+    assert "ocr:text_reader_empty" in result.warnings

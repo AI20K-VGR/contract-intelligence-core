@@ -9,7 +9,12 @@ from time import perf_counter
 import numpy as np
 
 from contract_ocr.application.ports.ocr_engine import EngineUnavailable, OCREngine
-from contract_ocr.application.ports.pdf_extractor import PdfExtractor, Preprocessor, Renderer
+from contract_ocr.application.ports.pdf_extractor import (
+    PageQualityAssessor,
+    PdfExtractor,
+    Preprocessor,
+    Renderer,
+)
 from contract_ocr.application.use_cases.classify_pdf import PdfPageClassifier
 from contract_ocr.application.use_cases.duplicate_pages import mark_duplicate_pages
 from contract_ocr.application.use_cases.extract_scanned_tables import build_scanned_tables
@@ -20,6 +25,26 @@ from contract_ocr.infrastructure.observability import observation
 
 logger = logging.getLogger("contract_ocr.pages")
 
+# Share of the pages to OCR that may be hard to read before the whole document
+# is refused unread: past it the reading would mostly be guesswork, paid for
+# page by page, and a rescan is the cheaper fix.
+MAX_LOW_QUALITY_SHARE = 0.3
+# ...and never on fewer poor pages than this: a text-layer contract whose only
+# scan is a speckled signature page (1 of 1 OCR pages) must still be read.
+MIN_LOW_QUALITY_PAGES = 3
+
+
+class LowQualityDocument(Exception):
+    """Too many pages are too poor to read; nothing was sent to the OCR engine."""
+
+    def __init__(self, pages: dict[int, list[str]], ocr_pages: int) -> None:
+        self.pages, self.ocr_pages = pages, ocr_pages
+        listed = ", ".join(f"p{page}:{'+'.join(reasons)}" for page, reasons in pages.items())
+        super().__init__(
+            f"{len(pages)} of {ocr_pages} scanned pages are too poor to read ({listed}); "
+            "rescan the document"
+        )
+
 
 class ProcessDocument:
     def __init__(
@@ -28,13 +53,25 @@ class ProcessDocument:
         renderer: Renderer,
         preprocessor: Preprocessor,
         classifier: PdfPageClassifier,
+        quality: PageQualityAssessor | None = None,
+        max_low_quality_share: float = MAX_LOW_QUALITY_SHARE,
+        min_low_quality_pages: int = MIN_LOW_QUALITY_PAGES,
     ) -> None:
+        """`quality` checks every page to OCR before any OCR call. At least
+        `min_low_quality_pages` hard-to-read pages that are also at least
+        `max_low_quality_share` of them raise `LowQualityDocument` and nothing
+        is sent; otherwise each such page is read once only
+        (`Context.low_quality`) and flagged `low_quality_scan:<reasons>`.
+        None skips the check."""
         self.extractor, self.renderer, self.preprocessor, self.classifier = (
             extractor,
             renderer,
             preprocessor,
             classifier,
         )
+        self.quality = quality
+        self.max_low_quality_share = max_low_quality_share
+        self.min_low_quality_pages = min_low_quality_pages
 
     def execute(
         self,
@@ -155,13 +192,31 @@ class ProcessDocument:
                             reused.append((index, page_result, first_page_with[digest], start))
                             continue
                         first_page_with[digest] = index
+                        # Judged on the scan as it came, before preprocessing.
+                        quality_issues = self.quality.assess(original, dpi) if self.quality else []
+                        if quality_issues:
+                            page_result.evidence = evidence.model_copy(
+                                update={
+                                    "reason_codes": [*evidence.reason_codes, "LOW_QUALITY_SCAN"]
+                                }
+                            )
                         context = Context(
                             document_id=document_id,
                             page=index + 1,
                             output_dir=str(output / f"p{index + 1:03d}"),
+                            low_quality=bool(quality_issues),
                         )
                         ocr_jobs.append(
-                            (index, page_result, image, transform, original.shape, context, start)
+                            (
+                                index,
+                                page_result,
+                                image,
+                                transform,
+                                original.shape,
+                                context,
+                                start,
+                                quality_issues,
+                            )
                         )
                 except Exception as exc:
                     page_result.status, page_result.error = (
@@ -173,7 +228,16 @@ class ProcessDocument:
                     )
 
             def run_ocr_job(job: tuple) -> None:
-                index, page_result, image, transform, original_shape, context, start = job
+                (
+                    index,
+                    page_result,
+                    image,
+                    transform,
+                    original_shape,
+                    context,
+                    start,
+                    quality_issues,
+                ) = job
                 with observation(
                     "process-page",
                     input={
@@ -233,6 +297,8 @@ class ProcessDocument:
                             Status.FAILED,
                             f"{type(exc).__name__}: {exc}",
                         )
+                    if quality_issues:
+                        page_result.warnings.append(f"low_quality_scan:{'+'.join(quality_issues)}")
                     if page_span is not None:
                         page_span.update(
                             output={
@@ -240,6 +306,7 @@ class ProcessDocument:
                                 "line_count": len(page_result.lines),
                                 "table_count": len(page_result.tables),
                                 "geometry_available": page_result.geometry_available,
+                                "low_quality_scan": quality_issues,
                             },
                             level="ERROR" if page_result.status == Status.FAILED else "DEFAULT",
                             status_message=(
@@ -249,6 +316,14 @@ class ProcessDocument:
                             ),
                         )
                 self._finish_page(pages, index, page_result, start, experiment, run_id, document_id)
+
+            poor = {job[0] + 1: job[7] for job in ocr_jobs if job[7]}
+            if (
+                poor
+                and len(poor) >= self.min_low_quality_pages
+                and len(poor) >= self.max_low_quality_share * len(ocr_jobs)
+            ):
+                raise LowQualityDocument(poor, len(ocr_jobs))
 
             if ocr_jobs:
                 if max_workers > 1 and len(ocr_jobs) > 1:
