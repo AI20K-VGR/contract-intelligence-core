@@ -16,7 +16,7 @@ Images and diagrams go in `assets/` (the only folder in the repo where image fil
 | `DOC-05b-frontend-backend-api-contract.md` | Frontend-Backend API Contract (v1.0.0) | Sprint 2 (04/10) | mentor / lead |
 | `DOC-05c-backend-ai-service-contract.md` | Backend-AI Service Contract (v1.0.0) | Sprint 2 (04/10) | mentor / lead |
 | `DOC-05d-kafka-ai1-ocr-contract.md` | Kafka Backend ↔ AI1 OCR Contract | Sprint 2 | mentor / lead |
-| `DOC-05e-kafka-ai2-idp-contract.md` | Kafka Backend ↔ AI2 IDP Contract (MVP body-only) | Sprint 2 | mentor / lead |
+| `DOC-05e-kafka-ai2-idp-contract.md` | Kafka Backend ↔ AI2 IDP Contract (runtime path, v2) | Sprint 3 | mentor / lead |
 | `DOC-06-eval-report.md` | Evaluation Report | Sprint 3 (18/10) | mentor |
 | `DOC-07-khung-project.md` | Project Framework | Sprint 2 (22/09) | team |
 | `DOC-08-eval-report.md` | Evaluation Report (alternate) | Sprint 3 (18/10) | mentor |

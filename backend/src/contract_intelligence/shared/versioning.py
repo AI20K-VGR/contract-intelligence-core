@@ -20,7 +20,15 @@ Changelog (ADR-12):
                 - BackgroundDispatcher + PipelineOrchestrator
                   drive OCR → Extract → Compare chain.
                 - canonical persistence (Semantic Gate — ADR-05)
-    v1.2.0 — Sprint 5 (planned). MinIO presigned URLs, Keycloak RS256, etc.
+    v2.0.0 — Sprint 3 backend (PR#28 và các commit sau). **Breaking:**
+                - bỏ POST /dossiers/upload (dùng POST /dossiers)
+                - bỏ webhook callback AI1/AI2 và API /reviews cũ
+             Thêm (MINOR, gộp vào bản này):
+                - POST /dossiers/{id}/ai2/retry, /ocr/retry-failed, /split
+                - chia sẻ read/edit có hạn, lịch sử hỏi đáp theo người dùng
+
+Nguồn duy nhất của version: ``pyproject.toml`` và ``contract_intelligence.__version__``
+phải bằng ``__version__`` ở đây (có test kiểm tra).
 
 Khi DOC-05b thay đổi breaking → bump MAJOR (v2.0.0).
 Khi DOC-05c thay đổi breaking → bump MAJOR (v2.0.0) + bump __ai_contract__.
@@ -29,16 +37,18 @@ Khi DOC-05c thay đổi breaking → bump MAJOR (v2.0.0) + bump __ai_contract__.
 from __future__ import annotations
 
 # SemVer — bump theo ADR-12 khi release
-__version__ = "1.1.0"
+__version__ = "2.0.0"
 
-# API contract version (DOC-05b) — vẫn giữ v1.0.0 vì client API KHÔNG thay đổi
-__api_contract__ = "v1.0.0"
+# API contract version = phiên bản DOC-05b. v1.1.0 (PR #41): thêm /queries,
+# /ocr/retry-failed, /split. MINOR vì các endpoint 2.0.0 bỏ đi chưa từng có trong
+# DOC-05b. Độc lập với __version__ (SemVer của backend, vẫn 2.0.0).
+__api_contract__ = "v1.1.0"
 
 # AI service contract version (DOC-05c) — wrap khi AI service sẵn sàng
 __ai_contract__ = "v1.0.0"
 
 # Build metadata (PEP 440) — informational only
-__build__ = "sprint4-ai-integration"
+__build__ = "sprint3-backend"
 
 
 def full_version() -> str:

@@ -358,6 +358,16 @@ class DossierDeletionService:
         return ok
 
     async def _purge_db_content(self, dossier_id: str) -> None:
+        # Q&A answers quote the contract. The audit trail (query_trace) is
+        # append-only and keeps no answer text; the answers go with the content.
+        from contract_intelligence.shared.query_history import QueryAnswerORM
+
+        await self._session.execute(
+            delete(QueryAnswerORM).where(
+                QueryAnswerORM.dossier_id == dossier_id,
+                QueryAnswerORM.tenant_id == self._tenant_id,
+            )
+        )
         bind = self._session.get_bind()
         dialect = bind.dialect.name if bind is not None else ""
         if dialect == "postgresql":
@@ -429,7 +439,9 @@ class DossierDeletionService:
             .values(
                 filename="[purged]",
                 blob_uri=None,
-                sha256="[purged]",
+                # Unique per document: (dossier_id, sha256) is unique, and a
+                # dossier with several documents could not be purged otherwise.
+                sha256="[purged]:" + DocumentORM.id,
                 signing_date=None,
                 effective_date=None,
             )
