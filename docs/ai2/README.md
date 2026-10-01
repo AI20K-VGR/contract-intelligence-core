@@ -27,6 +27,7 @@ Tài liệu AI2 mô tả pipeline, thiết kế và trạng thái triển khai h
 21. [AI2-14 - Full flow đếm số bên](AI2-14-party-count-full-flow.vi.md)
 22. [AI2-15 - Contract profiles, structure, relations và free-form Q&A](AI2-15-contract-profiles-structure-relations-and-free-form-qa.vi.md)
 23. [AI2-16 - Clause key graph (AI2 v2): cơ chế, quyết định, bằng chứng và lộ trình](AI2-16-clause-key-graph-v2.vi.md) — đề xuất, chưa triển khai
+24. [AI2-18 - Quy tắc phụ lục ký sau sửa văn bản ký trước (ST-068)](AI2-18-amendment-precedence-rules.vi.md) — đề xuất DEC + biên bản 3 cặp, chờ duyệt
 
 ## Authority
 
