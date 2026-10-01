@@ -7,37 +7,47 @@ missing evidence explicit while adapting it to the current AI2 record model.
 
 from __future__ import annotations
 
-import re
 import hashlib
 import json
+import os
+import re
 import unicodedata
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from app.contracts.errors import ContractValidationError
 from app.contracts.models import (
     AI2IdpRequest,
     AuthContext,
     Citation,
-    HandoffIssue,
     Fact,
+    HandoffIssue,
     LifecycleState,
     PageSnapshot,
-    ReviewState,
     ReviewItem,
+    ReviewState,
     SourceFile,
     StructuralNode,
-    TableCoverage,
     TableCell,
+    TableCoverage,
     TableSnapshot,
     TenantProfile,
     ToolEnvelope,
     VersionPins,
 )
-from app.contracts.errors import ContractValidationError
-from app.contracts.wire import BeAi2ProcessingRequest
 from app.contracts.schema_validation import validate_contract
+from app.contracts.wire import BeAi2ProcessingRequest
 from app.pipeline.citations import CitationResolver, quote_digest
 from app.tools.store import DossierRecord
+
+
+def processing_egress_allowed() -> bool:
+    """Server-side egress switch for processing (A8, default off).
+
+    The Backend request flag is a hint only; AI2 never widens egress from it.
+    """
+
+    return os.getenv("AI2_PROCESSING_EGRESS_ALLOWED", "false").strip().casefold() in {"1", "true", "yes", "on"}
 
 
 class SnapshotContractError(ValueError):
@@ -144,7 +154,7 @@ def adapt_be_ai2_processing_request(
         member_ids=[item.member_id for item in request.dossier_members],
         member_documents={item.member_id: item.document_id for item in request.dossier_members},
     )
-    result.record.egress_approved = request.policy_flags.egress_allowed
+    result.record.egress_approved = processing_egress_allowed()
     result.meta.update(
         {
             "source": "be.ai2.processing.request.v1",

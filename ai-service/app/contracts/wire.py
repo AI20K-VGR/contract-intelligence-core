@@ -16,7 +16,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.contracts.errors import ContractValidationError
 
-
 Id = str
 
 
@@ -92,10 +91,16 @@ class ProcessingBudgetLimits(BaseModel):
 
 
 class ProcessingPolicyFlags(BaseModel):
+    """Backend policy hints.
+
+    ``egress_allowed`` is accepted for compatibility but no longer decides
+    egress: AI2 reads ``AI2_PROCESSING_EGRESS_ALLOWED`` server-side (A8).
+    """
+
     model_config = ConfigDict(extra="forbid")
 
-    egress_allowed: bool
-    use_vector: bool
+    egress_allowed: bool = False
+    use_vector: bool = False
     budget_limits: ProcessingBudgetLimits
 
 
@@ -233,8 +238,17 @@ def _citation_wire(citation: Any, citation_id: str) -> dict[str, Any]:
     return value
 
 
-def job_result_to_wire(job: Any, request: BeAi2ProcessingRequest) -> dict[str, Any]:
-    """Map internal JobResult to the stable AI2 → Backend result envelope."""
+def job_result_to_wire(
+    job: Any,
+    request: BeAi2ProcessingRequest,
+    *,
+    query_snapshot_digest: str | None = None,
+) -> dict[str, Any]:
+    """Map internal JobResult to the stable AI2 → Backend result envelope.
+
+    ``query_snapshot_digest`` is the digest ``/query`` binds to; Backend echoes
+    it as ``snapshot_digest`` instead of recomputing it.
+    """
 
     citations: dict[str, dict[str, Any]] = {}
 
@@ -320,6 +334,9 @@ def job_result_to_wire(job: Any, request: BeAi2ProcessingRequest) -> dict[str, A
         "LLM_RETRY_EXHAUSTED",
         "AI2_WORKER_FAILED",
     }
+    # Backend reads errors[0].code as the blocking reason (B5), so BLOCKED
+    # issues lead; a stable sort keeps every other issue in emitted order.
+    handoff_issues.sort(key=lambda issue: issue.review_state.value != "BLOCKED")
     errors = [
         {
             "code": issue.code,
@@ -364,6 +381,8 @@ def job_result_to_wire(job: Any, request: BeAi2ProcessingRequest) -> dict[str, A
         "result": result,
         "errors": errors,
     }
+    if query_snapshot_digest:
+        payload["query_snapshot_digest"] = query_snapshot_digest
     validate_processing_result(payload, request=request)
     return payload
 

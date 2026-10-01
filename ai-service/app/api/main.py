@@ -25,7 +25,7 @@ from app.contracts.models import (
     ToolEnvelope,
 )
 from app.contracts.wire import BeAi2ProcessingRequest, job_result_to_wire
-from app.llm.client import NineRouterClient, llm_status
+from app.llm.client import DeadlineLLM, NineRouterClient, llm_status, query_llm_timeout_seconds
 from app.llm.embeddings import OpenAICompatibleEmbeddingClient
 from app.pipeline.ai1_ingest import ingest_files
 from app.pipeline.ai1_snapshot_adapter import (
@@ -33,6 +33,7 @@ from app.pipeline.ai1_snapshot_adapter import (
     adapt_ai1_input,
     adapt_ai1_result_v01,
     adapt_be_ai2_processing_request,
+    processing_egress_allowed,
 )
 from app.pipeline.citations import CitationResolver
 from app.pipeline.grounding import repair_active_nodes
@@ -148,7 +149,27 @@ class PublishBody(BaseModel):
     confirm: bool = False
 
 
-def _queued_wire_result(request: BeAi2ProcessingRequest, job_id: str) -> dict:
+def _env_flag(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    return raw.strip().casefold() in {"1", "true", "yes", "on"}
+
+
+def _query_policy_flags() -> dict[str, bool]:
+    """Server-side ``/query`` policy (A8). Request ``policy_flags`` are ignored:
+    Backend does not decide AI2 egress, LLM or vector use."""
+
+    return {
+        "egress_allowed": _env_flag("AI2_QUERY_EGRESS_ALLOWED", False),
+        "use_llm": _env_flag("AI2_QUERY_USE_LLM", False),
+        "use_vector": _env_flag("AI2_QUERY_USE_VECTOR", False),
+    }
+
+
+def _queued_wire_result(
+    request: BeAi2ProcessingRequest, job_id: str, query_snapshot_digest: str
+) -> dict:
     return {
         "schema_version": "ai2.be.processing.result.v1",
         "request_id": request.request_id,
@@ -160,6 +181,7 @@ def _queued_wire_result(request: BeAi2ProcessingRequest, job_id: str) -> dict:
         "input_snapshots": [item.model_dump() for item in request.snapshot_identities],
         "result": None,
         "errors": [],
+        "query_snapshot_digest": query_snapshot_digest,
     }
 
 
@@ -198,19 +220,21 @@ def _run_wire_job(job_id: str, payload: dict) -> None:
                 status="RUNNING",
                 wire=wire,
             )
+        egress_allowed = processing_egress_allowed()
         llm = None
-        if request.policy_flags.egress_allowed:
+        if egress_allowed:
             candidate = NineRouterClient()
             if candidate.configured():
                 llm = candidate
         runtime = ProcessingRuntime(
-            egress_allowed=request.policy_flags.egress_allowed,
+            egress_allowed=egress_allowed,
             use_vector=request.policy_flags.use_vector,
             max_processing_seconds=request.policy_flags.budget_limits.max_processing_seconds,
             max_llm_calls=request.policy_flags.budget_limits.max_llm_calls,
             max_embedding_tokens=request.policy_flags.budget_limits.max_embedding_tokens,
         )
-        # The request policy controls whether the configured NineRouter client
+        query_snapshot_digest = adapted.record.pins.source_snapshot_digest
+        # AI2_PROCESSING_EGRESS_ALLOWED controls whether the configured client
         # can be used. The pipeline itself owns retry/fallback accounting.
         result = run_idp(
             adapted.record,
@@ -221,7 +245,7 @@ def _run_wire_job(job_id: str, payload: dict) -> None:
             runtime=runtime,
         )
         JOBS[job_id] = result
-        wire = job_result_to_wire(result, request)
+        wire = job_result_to_wire(result, request, query_snapshot_digest=query_snapshot_digest)
         WIRE_JOBS[job_id] = wire
         JOB_STORE.set_wire(
             job_id,
@@ -761,9 +785,11 @@ def query_from_backend(payload: dict) -> dict:
     try:
         service_envelope = verify_service_envelope(payload, required_scope="ai2.query")
     except ServiceEnvelopeError as exc:
-        # The unsigned compatibility lane remains fail-closed. Only a signed
-        # backend query may read the authoritative dossier record.
-        if not isinstance(payload.get("service_envelope"), dict):
+        # AI2_QUERY_REQUIRE_SIGNATURE=false keeps the unsigned compatibility
+        # lane (local compose only); a present but invalid envelope is always
+        # rejected.
+        unsigned_allowed = not _env_flag("AI2_QUERY_REQUIRE_SIGNATURE", True)
+        if unsigned_allowed and not isinstance(payload.get("service_envelope"), dict):
             service_envelope = None
         else:
             raise HTTPException(
@@ -825,9 +851,9 @@ def query_from_backend(payload: dict) -> dict:
                         tenant_id=service_envelope.tenant_id,
                         dossier_id=dossier_id,
                         acl_revision=record.acl_revision,
-                        permissions=record.permissions_by_actor.get(
-                            service_envelope.actor_id, ["READ_CONTENT"]
-                        ),
+                        # D-5: a valid signed envelope for this tenant/dossier
+                        # carries READ_CONTENT; Backend owns per-user ACL.
+                        permissions=["READ_CONTENT"],
                         member_ids=member_ids,
                         member_documents={},
                         lifecycle=record.lifecycle,
@@ -836,14 +862,19 @@ def query_from_backend(payload: dict) -> dict:
                 )
             else:
                 envelope = stored_envelope
-            policy_flags = payload.get("policy_flags")
-            policy_flags = policy_flags if isinstance(policy_flags, dict) else {}
+            policy_flags = _query_policy_flags()
             llm = None
-            if policy_flags.get("egress_allowed") and policy_flags.get("use_llm"):
-                candidate = NineRouterClient()
+            if policy_flags["egress_allowed"] and policy_flags["use_llm"]:
+                timeout = query_llm_timeout_seconds()
+                candidate = NineRouterClient(timeout=timeout)
                 if candidate.configured():
-                    llm = candidate
-            result = QueryRouter(STORE, ToolGateway(STORE), llm=llm).query(
+                    llm = DeadlineLLM(candidate, timeout)
+            result = QueryRouter(
+                STORE,
+                ToolGateway(STORE, signed_principal=service_envelope is not None),
+                llm=llm,
+                vector_recall=_vector_service(policy_flags["use_vector"]),
+            ).query(
                 envelope,
                 query,
                 classify_ask(query),
@@ -1669,7 +1700,7 @@ def create_idp_job(payload: dict, background_tasks: BackgroundTasks) -> dict:
         ) from exc
 
     try:
-        request, _ = adapt_be_ai2_processing_request(
+        request, adapted = adapt_be_ai2_processing_request(
             payload,
             tenant_id=service_envelope.tenant_id,
             actor_id=service_envelope.actor_id,
@@ -1679,7 +1710,7 @@ def create_idp_job(payload: dict, background_tasks: BackgroundTasks) -> dict:
             status_code=422, detail={"code": exc.code, "message": str(exc)}
         ) from exc
 
-    queued = _queued_wire_result(request, "pending")
+    queued = _queued_wire_result(request, "pending", adapted.record.pins.source_snapshot_digest)
     try:
         stored, created = JOB_STORE.create_or_get(
             tenant_id=service_envelope.tenant_id,
@@ -1714,7 +1745,10 @@ def create_idp_job(payload: dict, background_tasks: BackgroundTasks) -> dict:
     )
     WIRE_JOBS[job_id] = wire
     if created or stored["status"] in {"QUEUED", "RUNNING"}:
-        background_tasks.add_task(_run_wire_job, job_id, request.model_dump())
+        # exclude_unset keeps the signed payload byte-identical: defaults
+        # filled in for omitted optional fields would break the worker's
+        # envelope re-verification (payload_sha256).
+        background_tasks.add_task(_run_wire_job, job_id, request.model_dump(exclude_unset=True))
     return wire
 
 

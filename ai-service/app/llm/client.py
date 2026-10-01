@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import os
 import re
+import threading
 import time
 from typing import Any, Callable
 
@@ -19,6 +20,7 @@ class NineRouterClient:
         api_key: str | None = None,
         model: str | None = None,
         strong_model: str | None = None,
+        timeout: float | None = None,
     ) -> None:
         self.base_url = base_url or os.getenv("AI2_LLM_BASE_URL", "http://localhost:20128/v1")
         if api_key is None:
@@ -27,7 +29,8 @@ class NineRouterClient:
             self.api_key = api_key
         self.model = model or os.getenv("AI2_LLM_MODEL", "gpt-4o-mini")
         self.strong_model = strong_model or os.getenv("AI2_LLM_STRONG_MODEL", self.model)
-        timeout = float(os.getenv("AI2_LLM_TIMEOUT_SECONDS", "45"))
+        if timeout is None:
+            timeout = float(os.getenv("AI2_LLM_TIMEOUT_SECONDS", "45"))
         self._client = OpenAI(base_url=self.base_url, api_key=self.api_key or "missing", timeout=timeout, max_retries=0)
         self.traces: list[dict[str, Any]] = []
 
@@ -86,6 +89,69 @@ class NineRouterClient:
         self.traces.append(trace)
         NineRouterClient.all_traces.append(dict(trace))
         return data
+
+
+QUERY_LLM_TIMEOUT_CAP_SECONDS = 15.0
+
+
+def query_llm_timeout_seconds() -> float:
+    """Total LLM budget for one ``/query``: ``min(15, AI2_QUERY_LLM_TIMEOUT_SECONDS)``.
+
+    A missing, unparsable or non-positive value falls back to the 15 s cap.
+    """
+
+    try:
+        value = float(os.getenv("AI2_QUERY_LLM_TIMEOUT_SECONDS", ""))
+    except ValueError:
+        return QUERY_LLM_TIMEOUT_CAP_SECONDS
+    return min(QUERY_LLM_TIMEOUT_CAP_SECONDS, value) if value > 0 else QUERY_LLM_TIMEOUT_CAP_SECONDS
+
+
+class DeadlineLLM:
+    """Bound the total wall time one request spends in LLM calls.
+
+    The SDK timeout covers a single HTTP attempt, but ``complete_json`` may
+    make two attempts and L2 may call more than once. The budget starts at the
+    first call and is shared by later ones. A call still running at the
+    deadline is abandoned on a daemon thread and the caller gets
+    ``TimeoutError``, which L2 turns into its retrieval-only fallback.
+    """
+
+    def __init__(self, llm: Any, seconds: float) -> None:
+        self._llm = llm
+        self._seconds = seconds
+        self._deadline: float | None = None
+
+    @property
+    def traces(self) -> list[dict[str, Any]]:
+        return self._llm.traces
+
+    def configured(self) -> bool:
+        return self._llm.configured()
+
+    def complete_json(self, system: str, user: str, **kwargs: Any) -> dict[str, Any]:
+        now = time.monotonic()
+        if self._deadline is None:
+            self._deadline = now + self._seconds
+        remaining = self._deadline - now
+        if remaining <= 0:
+            raise TimeoutError(f"query LLM budget of {self._seconds:g}s is spent")
+        outcome: dict[str, Any] = {}
+
+        def call() -> None:
+            try:
+                outcome["value"] = self._llm.complete_json(system, user, **kwargs)
+            except Exception as exc:  # re-raised on the caller thread below
+                outcome["error"] = exc
+
+        worker = threading.Thread(target=call, name="ai2-query-llm", daemon=True)
+        worker.start()
+        worker.join(remaining)
+        if worker.is_alive():
+            raise TimeoutError(f"query LLM exceeded its {self._seconds:g}s budget")
+        if "error" in outcome:
+            raise outcome["error"]
+        return outcome["value"]
 
 
 def llm_status(

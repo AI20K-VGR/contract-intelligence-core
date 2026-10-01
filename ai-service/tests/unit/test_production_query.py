@@ -84,7 +84,16 @@ def test_query_snapshot_round_trip_preserves_scope_and_citations(tmp_path, monke
     assert loaded_envelope.auth.tenant_id == "tenant-1"
 
 
-def test_query_without_persisted_snapshot_fails_closed() -> None:
+def _unsigned_lane_with_env_policy(monkeypatch, policy_flags: dict) -> None:
+    """A4/A8: these cases exercise the unsigned compatibility lane, and /query
+    egress/LLM policy now comes from server env instead of the request."""
+    monkeypatch.setenv("AI2_QUERY_REQUIRE_SIGNATURE", "false")
+    monkeypatch.setenv("AI2_QUERY_EGRESS_ALLOWED", str(bool(policy_flags.get("egress_allowed"))).lower())
+    monkeypatch.setenv("AI2_QUERY_USE_LLM", str(bool(policy_flags.get("use_llm"))).lower())
+
+
+def test_query_without_persisted_snapshot_fails_closed(monkeypatch) -> None:
+    _unsigned_lane_with_env_policy(monkeypatch, {"egress_allowed": True, "use_llm": True})
     response = client.post(
         "/query",
         json={
@@ -141,15 +150,19 @@ def test_query_enables_llm_only_after_policy_and_evidence(
     monkeypatch, policy_flags, configured, expect_llm
 ) -> None:
     dossier_id = _serve_fixture_dossier(monkeypatch)
+    _unsigned_lane_with_env_policy(monkeypatch, policy_flags)
 
     class FakeLLM:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
         def configured(self) -> bool:
             return configured
 
     seen: dict[str, object] = {}
 
     class RecordingRouter:
-        def __init__(self, store, gateway, llm=None) -> None:
+        def __init__(self, store, gateway, llm=None, vector_recall=None) -> None:
             seen["llm"] = llm
 
         def query(self, envelope, text, task, *, policy_flags):
@@ -163,16 +176,21 @@ def test_query_enables_llm_only_after_policy_and_evidence(
 
     body = _ask(dossier_id, policy_flags)
 
-    assert isinstance(seen["llm"], FakeLLM) is expect_llm
+    # The configured client reaches the router wrapped in the /query deadline.
+    assert (seen["llm"] is not None) is expect_llm
     assert body["used_llm"] is expect_llm
 
 
 def test_query_provider_failure_falls_back_to_grounded_retrieval(monkeypatch) -> None:
     """A rejected credential must degrade to review, never HTTP 500 or an LLM answer."""
     dossier_id = _serve_fixture_dossier(monkeypatch)
+    _unsigned_lane_with_env_policy(monkeypatch, {"egress_allowed": True, "use_llm": True})
     calls: list[str] = []
 
     class BrokenLLM:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
         def configured(self) -> bool:
             return True
 

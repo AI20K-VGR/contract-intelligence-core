@@ -174,7 +174,13 @@ class L2Planner:
             except TypeError as exc:
                 steps.append({"tool": name, "ok": False, "error": str(exc)})
                 if replans < MAX_REPLAN:
-                    plan = self._plan(task, l1, steps, table_ok, envelope)
+                    try:
+                        plan = self._plan(task, l1, steps, table_ok, envelope)
+                    except Exception:
+                        # Same contract as the draft call below: a provider
+                        # failure or spent /query deadline degrades to the
+                        # retrieval-only answer instead of escaping as a 500.
+                        return self._fallback_review(envelope, task, l1)
                     replans += 1
                     i = 0
                     continue
