@@ -360,10 +360,13 @@ export function AccessPage() {
                               </button>
                             ) : null}
                             {active ? (
-                              <div className="absolute right-0 top-10 z-50 w-96 max-w-[calc(100vw-2rem)] rounded bg-surface-container-lowest shadow-[0_8px_24px_rgba(15,23,42,0.12)] border border-surface-container p-space-sm flex flex-col gap-space-sm">
-                                <div className="flex flex-col gap-1 max-h-48 overflow-auto">
+                              <div className="absolute right-0 top-10 z-50 flex w-[26rem] max-w-[calc(100vw-2rem)] flex-col gap-space-sm rounded-lg border border-surface-container bg-surface-container-lowest p-space-md shadow-[0_8px_24px_rgba(15,23,42,0.12)]">
+                                <p className="font-label-sm text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">
+                                  Chia sẻ với
+                                </p>
+                                <div className="flex max-h-72 flex-col gap-space-xs overflow-auto">
                                   {tenants.length === 0 ? (
-                                    <p className="font-body-sm text-body-sm text-secondary px-1">
+                                    <p className="px-1 font-body-sm text-body-sm text-secondary">
                                       Tenant chưa có người dùng khác.
                                     </p>
                                   ) : (
@@ -379,11 +382,16 @@ export function AccessPage() {
                                       return (
                                         <div
                                           key={person.id}
-                                          className="rounded px-1 py-1 hover:bg-surface-container-low"
+                                          className={`rounded-lg border px-space-sm py-space-sm ${
+                                            isChosen
+                                              ? 'border-primary-container/30 bg-surface-container-low'
+                                              : 'border-transparent hover:bg-surface-container-low'
+                                          }`}
                                         >
-                                          <label className="inline-flex w-full items-center gap-2 font-body-sm text-body-sm">
+                                          <label className="flex cursor-pointer items-center gap-space-sm">
                                             <input
                                               checked={isChosen}
+                                              className="h-4 w-4 shrink-0"
                                               type="checkbox"
                                               onChange={() =>
                                                 setChosen((current) =>
@@ -396,65 +404,83 @@ export function AccessPage() {
                                                 )
                                               }
                                             />
-                                            <span className="min-w-0 flex-1 truncate">
-                                              {person.display_name} ·{' '}
-                                              {person.email}
+                                            <span className="min-w-0 flex-1">
+                                              <span className="block truncate font-body-sm text-body-sm font-semibold text-on-surface">
+                                                {person.display_name}
+                                              </span>
+                                              <span className="block truncate font-label-sm text-label-sm text-on-surface-variant">
+                                                {person.email}
+                                              </span>
                                             </span>
                                           </label>
                                           {isChosen ? (
-                                            <div className="mt-1 flex flex-wrap items-center gap-2 pl-6">
-                                              <select
-                                                aria-label={`Quyền của ${person.display_name}`}
-                                                className="h-8 rounded bg-surface-container-low px-2 font-body-sm text-body-sm"
-                                                value={option.permission}
-                                                onChange={(event) =>
-                                                  setOptions((current) => ({
-                                                    ...current,
-                                                    [person.id]: {
-                                                      ...option,
-                                                      permission: event.target
-                                                        .value as SharePermission,
-                                                    },
-                                                  }))
-                                                }
-                                              >
-                                                <option value="read">
-                                                  {permissionLabels.read}
-                                                </option>
-                                                <option value="edit">
-                                                  {permissionLabels.edit}
-                                                </option>
-                                              </select>
-                                              <input
-                                                aria-label={`Ngày hết hạn của ${person.display_name}`}
-                                                className="h-8 rounded bg-surface-container-low px-2 font-body-sm text-body-sm"
-                                                min={todayInput()}
-                                                type="date"
-                                                value={option.expires}
-                                                onChange={(event) =>
-                                                  setOptions((current) => ({
-                                                    ...current,
-                                                    [person.id]: {
-                                                      ...option,
-                                                      expires:
-                                                        event.target.value,
-                                                    },
-                                                  }))
-                                                }
-                                              />
-                                              <span
-                                                className={`font-label-sm text-label-sm ${
+                                            <div className="mt-space-sm grid grid-cols-2 gap-space-sm pl-7">
+                                              <label className="flex flex-col gap-1">
+                                                <span className="font-label-sm text-label-sm text-on-surface-variant">
+                                                  Quyền
+                                                </span>
+                                                <select
+                                                  aria-label={`Quyền của ${person.display_name}`}
+                                                  className="h-9 w-full rounded bg-surface-container-lowest px-2 font-body-sm text-body-sm text-on-surface ring-1 ring-surface-container-high"
+                                                  value={option.permission}
+                                                  onChange={(event) =>
+                                                    setOptions((current) => ({
+                                                      ...current,
+                                                      [person.id]: {
+                                                        ...option,
+                                                        permission: event.target
+                                                          .value as SharePermission,
+                                                      },
+                                                    }))
+                                                  }
+                                                >
+                                                  <option value="read">
+                                                    {permissionLabels.read}
+                                                  </option>
+                                                  <option value="edit">
+                                                    {permissionLabels.edit}
+                                                  </option>
+                                                </select>
+                                              </label>
+                                              <label className="flex flex-col gap-1">
+                                                <span className="font-label-sm text-label-sm text-on-surface-variant">
+                                                  Hết hạn
+                                                </span>
+                                                <input
+                                                  aria-label={`Ngày hết hạn của ${person.display_name}`}
+                                                  className={`h-9 w-full rounded bg-surface-container-lowest px-2 font-body-sm text-body-sm text-on-surface ring-1 ${
+                                                    pastDate
+                                                      ? 'ring-error'
+                                                      : 'ring-surface-container-high'
+                                                  }`}
+                                                  min={todayInput()}
+                                                  type="date"
+                                                  value={option.expires}
+                                                  onChange={(event) =>
+                                                    setOptions((current) => ({
+                                                      ...current,
+                                                      [person.id]: {
+                                                        ...option,
+                                                        expires:
+                                                          event.target.value,
+                                                      },
+                                                    }))
+                                                  }
+                                                />
+                                              </label>
+                                              <p
+                                                className={`col-span-2 font-label-sm text-label-sm ${
                                                   pastDate
                                                     ? 'text-error'
                                                     : 'text-secondary'
                                                 }`}
                                               >
                                                 {pastDate
-                                                  ? 'Ngày hết hạn đã qua'
+                                                  ? 'Ngày hết hạn đã qua, chọn ngày khác.'
                                                   : option.expires
-                                                    ? `Hết hạn ${formatExpiry(fromDateInput(option.expires))}`
-                                                    : 'Không hết hạn'}
-                                              </span>
+                                                    ? `Hết hạn hết ngày ${formatExpiry(fromDateInput(option.expires))}.`
+                                                    : 'Để trống ngày thì không hết hạn.'}
+                                              </p>
                                             </div>
                                           ) : null}
                                         </div>
