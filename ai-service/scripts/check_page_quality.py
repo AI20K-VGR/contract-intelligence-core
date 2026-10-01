@@ -19,7 +19,9 @@ from contract_ocr.application.use_cases.classify_pdf import PdfPageClassifier  #
 from contract_ocr.application.use_cases.process_document import MAX_LOW_QUALITY_SHARE  # noqa: E402
 from contract_ocr.infrastructure.image.page_ink import is_blank  # noqa: E402
 from contract_ocr.infrastructure.image.page_quality import (  # noqa: E402
+    GOOD_CONTRAST,
     MAX_NOISE,
+    MAX_SPECKLE_GOOD_CONTRAST,
     MAX_SPECKLE_PER_MEGAPIXEL,
     MIN_CONTRAST,
     MIN_SHARPNESS,
@@ -81,7 +83,8 @@ def main() -> None:
     args = parser.parse_args()
     print(
         f"thresholds: sharpness < {MIN_SHARPNESS}, contrast < {MIN_CONTRAST}, "
-        f"noise > {MAX_NOISE}, speckle > {MAX_SPECKLE_PER_MEGAPIXEL}/MP; "
+        f"noise > {MAX_NOISE}, speckle > {MAX_SPECKLE_PER_MEGAPIXEL}/MP "
+        f"({MAX_SPECKLE_GOOD_CONTRAST}/MP when contrast >= {GOOD_CONTRAST}); "
         f"refuse at >= {MAX_LOW_QUALITY_SHARE:.0%} poor pages"
     )
     for pattern in args.pdfs:

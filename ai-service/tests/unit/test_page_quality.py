@@ -62,6 +62,33 @@ def test_a_clean_scan_rendered_finer_than_it_was_scanned_is_not_blur():
     assert "blur" in assess(blurred, dpi=300)
 
 
+def _specks(image: np.ndarray, per_megapixel: float, shade: int) -> np.ndarray:
+    rng = np.random.default_rng(7)
+    count = int(per_megapixel * image.shape[0] * image.shape[1] / 1e6)
+    ys = rng.integers(20, image.shape[0] - 20, count)
+    xs = rng.integers(20, image.shape[1] - 20, count)
+    image[ys, xs] = shade
+    return image
+
+
+def test_speckle_is_tolerated_longer_when_the_ink_contrast_is_good():
+    # Dark ink, ~600 dots/MP: the dirty-but-readable `scanned_bad` case.
+    assert assess(_specks(_page(), 600, 20)) == []
+    # The same dots on a pale scan are flagged.
+    pale = np.full((HEIGHT, WIDTH, 3), 245, dtype=np.uint8)
+    for row in range(30):
+        cv2.putText(
+            pale,
+            f"Dieu {row + 1}. Ben A thanh toan",
+            (90, 120 + row * 50),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (85, 85, 85),
+            2,
+        )
+    assert "speckle" in assess(_specks(pale, 600, 85))
+
+
 def test_a_page_with_almost_no_ink_is_not_judged():
     image = np.full((HEIGHT, WIDTH, 3), 245, dtype=np.uint8)
     cv2.putText(image, "Trang 3", (1000, 1700), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (20, 20, 20), 1)
