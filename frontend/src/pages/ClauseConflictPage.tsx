@@ -36,7 +36,7 @@ import { clauseForCitation, regionsOf } from '../structure/conflictCite'
 import { buildStructureTree } from '../structure'
 import type { OcrLine } from '../structure/types'
 
-type Verdict = 'correct' | 'deviation' | 'edit'
+type Verdict = 'correct' | 'deviation'
 
 type CardSource = {
   label: string
@@ -882,27 +882,20 @@ export function ClauseConflictPage() {
                         }
                       />
                     ) : (
-                      <div className="grid grid-cols-3 gap-1.5">
+                      <div className="grid grid-cols-2 gap-1.5">
                         <VerdictButton
                           active={verdict === 'correct'}
                           icon="check"
                           iconClass="text-tertiary-container"
-                          label="Chính xác"
+                          label="Đúng"
                           onClick={() => choose(card.id, 'correct')}
                         />
                         <VerdictButton
                           active={verdict === 'deviation'}
                           icon="close"
                           iconClass="text-error"
-                          label="Sai lệch"
+                          label="Sai"
                           onClick={() => choose(card.id, 'deviation')}
-                        />
-                        <VerdictButton
-                          active={verdict === 'edit'}
-                          icon="edit"
-                          iconClass="text-secondary"
-                          label="Sửa"
-                          onClick={() => choose(card.id, 'edit')}
                         />
                       </div>
                     )}

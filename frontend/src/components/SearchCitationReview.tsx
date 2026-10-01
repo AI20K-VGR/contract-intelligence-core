@@ -18,24 +18,23 @@ import { ConflictNotice } from './ConflictNotice'
 import { MaterialIcon } from './icons'
 import { ReviewTimeline } from './ReviewTimeline'
 
-type Verdict = 'correct' | 'deviation' | 'edit'
+type Verdict = 'correct' | 'deviation'
 
 const ACTION_OF: Record<Verdict, ClauseReviewAction> = {
   correct: 'confirm',
   deviation: 'reject',
-  edit: 'correct',
 }
 
 const VERDICT_OF: Record<string, Verdict> = {
   confirm: 'correct',
   reject: 'deviation',
-  correct: 'edit',
+  // Bản ghi cũ "sửa nhận định" được tính là đúng kèm bổ sung.
+  correct: 'correct',
 }
 
 const VERDICT_LABEL: Record<Verdict, string> = {
-  correct: 'Chính xác',
-  deviation: 'Sai lệch',
-  edit: 'Sửa nhận định',
+  correct: 'Đúng',
+  deviation: 'Sai',
 }
 
 function entryNote(entry: ClauseReviewEntry) {
@@ -123,7 +122,12 @@ export function SearchCitationReview({
   const timeline = useMemo(
     () =>
       mergeTimelines(
-        timelineEntries('citation', '', `clause:${node.id}`, review?.history ?? []),
+        timelineEntries(
+          'citation',
+          '',
+          `clause:${node.id}`,
+          review?.history ?? [],
+        ),
         ...conflicts.map((spot) =>
           timelineEntries(
             'finding',
@@ -174,18 +178,17 @@ export function SearchCitationReview({
 
   async function save() {
     if (saving || loading) return
-    if (verdict === 'edit' && !note.trim()) {
-      setMessage('Sửa nhận định cần nhập nội dung nhận định mới.')
-      return
-    }
     setSaving(true)
     setMessage(null)
     try {
-      const next = await saveClauseReview({ documentId, node, ordinal }, {
-        action: ACTION_OF[verdict],
-        baseVersion: review?.version ?? 0,
-        comment: note,
-      })
+      const next = await saveClauseReview(
+        { documentId, node, ordinal },
+        {
+          action: ACTION_OF[verdict],
+          baseVersion: review?.version ?? 0,
+          comment: note,
+        },
+      )
       adopt(next)
       setSaved(true)
     } catch (cause: unknown) {
@@ -217,8 +220,7 @@ export function SearchCitationReview({
           Quay lại kết quả tìm kiếm
         </button>
         <span className="font-code-sm text-code-sm text-secondary">
-          Đối soát trích dẫn [{citeNo}]
-          {head ? ` / ${head}` : ''}
+          Đối soát trích dẫn [{citeNo}]{head ? ` / ${head}` : ''}
         </span>
       </div>
       <div className="grid min-h-0 flex-1 grid-cols-1 items-stretch gap-space-md lg:grid-cols-12">
@@ -242,7 +244,7 @@ export function SearchCitationReview({
               {body ? `“${body}”` : 'Không có nội dung trích dẫn.'}
             </p>
             <p className="mt-space-sm font-label-sm text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">
-              Nhận định của chuyên viên
+              Thẩm định của chuyên viên
             </p>
             {latest ? (
               <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">
@@ -265,9 +267,14 @@ export function SearchCitationReview({
                 </p>
                 <p className="mt-0.5">
                   <span className="font-semibold">
-                    {VERDICT_LABEL[VERDICT_OF[review.stale.latest.action] ?? 'correct']}
+                    {
+                      VERDICT_LABEL[
+                        VERDICT_OF[review.stale.latest.action] ?? 'correct'
+                      ]
+                    }
                   </span>{' '}
-                  bởi {entryWho(review.stale.latest)} · {entryWhen(review.stale.latest)}
+                  bởi {entryWho(review.stale.latest)} ·{' '}
+                  {entryWhen(review.stale.latest)}
                 </p>
                 {entryNote(review.stale.latest) ? (
                   <p className="mt-0.5 text-on-surface-variant">
@@ -280,33 +287,28 @@ export function SearchCitationReview({
                   </p>
                 ) : null}
                 <p className="mt-0.5 text-secondary">
-                  Kết quả này không được tính cho lần phân tích hiện tại. Hãy chọn nhận định rồi lưu lại.
+                  Kết quả này không được tính cho lần phân tích hiện tại. Hãy
+                  chọn đúng hoặc sai rồi lưu lại.
                 </p>
               </div>
             ) : null}
-            <div className="mt-1 grid grid-cols-3 gap-1">
+            <div className="mt-1 grid grid-cols-2 gap-1">
               <VerdictButton
                 active={verdict === 'correct'}
                 icon="check_circle"
-                label="Chính xác"
+                label="Đúng"
                 onClick={() => choose('correct')}
               />
               <VerdictButton
                 active={verdict === 'deviation'}
                 icon="cancel"
-                label="Sai lệch"
+                label="Sai"
                 onClick={() => choose('deviation')}
-              />
-              <VerdictButton
-                active={verdict === 'edit'}
-                icon="edit_note"
-                label="Sửa nhận định"
-                onClick={() => choose('edit')}
               />
             </div>
             <textarea
               className="mt-2 w-full resize-none rounded bg-surface-container-low p-2 font-body-sm text-body-sm text-on-surface outline-none focus:ring-1 focus:ring-outline-variant"
-              placeholder="Ghi chú thẩm định..."
+              placeholder="Bổ sung hoặc xử lý..."
               rows={2}
               disabled={locked}
               value={note}
@@ -316,7 +318,9 @@ export function SearchCitationReview({
               }}
             />
             {message ? (
-              <p className="mt-1 font-body-sm text-body-sm text-error">{message}</p>
+              <p className="mt-1 font-body-sm text-body-sm text-error">
+                {message}
+              </p>
             ) : null}
             <div className="mt-1 flex items-center justify-end gap-2">
               {locked ? (
@@ -330,8 +334,15 @@ export function SearchCitationReview({
                 disabled={loading || saving || locked}
                 onClick={() => void save()}
               >
-                <MaterialIcon name={saved ? 'check' : 'save'} className="text-[15px]" />
-                {saving ? 'Đang lưu...' : saved ? 'Đã lưu thẩm định' : 'Lưu thẩm định'}
+                <MaterialIcon
+                  name={saved ? 'check' : 'save'}
+                  className="text-[15px]"
+                />
+                {saving
+                  ? 'Đang lưu...'
+                  : saved
+                    ? 'Đã lưu thẩm định'
+                    : 'Lưu thẩm định'}
               </button>
             </div>
             {conflicts.length > 0 ? (

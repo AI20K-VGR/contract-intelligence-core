@@ -19,9 +19,9 @@ export const CONFLICT_STATE_LABEL: Record<ConflictState, string> = {
 }
 
 export const VERDICT_LABEL: Record<string, string> = {
-  confirm: 'Chính xác',
-  reject: 'Sai lệch',
-  correct: 'Sửa nhận định',
+  confirm: 'Đúng',
+  reject: 'Sai',
+  correct: 'Đúng (có bổ sung)',
 }
 
 /** Trạng thái một xung đột theo lượt thẩm định gần nhất. */
@@ -52,7 +52,7 @@ export type ConflictMarker = {
   spots: ReviewSpot[]
   /** Trạng thái nặng nhất của các xung đột trực tiếp. */
   state: ConflictState
-  /** Số xung đột còn hiệu lực (chưa bị đánh Sai lệch) nằm trong nhánh con. */
+  /** Số xung đột còn hiệu lực (chưa bị đánh Sai) nằm trong nhánh con. */
   below: number
 }
 
