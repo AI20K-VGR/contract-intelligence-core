@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu | **DOC-05b** / Contract Intelligence (PROD-01) |
-| Phiên bản / SemVer | **`v1.1.0`** — thêm 3 API (lịch sử hỏi đáp, chạy lại OCR lỗi, tách file trộn); không breaking. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
+| Phiên bản / SemVer | **`v1.2.0`** — thêm mã lỗi job bất đồng bộ (§3.4, `AI1_LOW_QUALITY_DOCUMENT`); v1.1.0 thêm 3 API (lịch sử hỏi đáp, chạy lại OCR lỗi, tách file trộn); không breaking. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
 | Trạng thái | Đã chốt — Sẵn sàng triển khai Frontend & Backend |
 | Owner | Tech Lead / Frontend Lead / Backend Lead |
 | Ngày hiệu lực | 17/09/2026 |
@@ -171,6 +171,31 @@ Mọi phản hồi lỗi (HTTP status >= 400) đều tuân theo chuẩn RFC 7807
 | `422` | `VALIDATION_ERROR` | Request body sai kiểu dữ liệu hoặc thiếu trường | Hiển thị lỗi tương ứng trên form input |
 | `500` | `INTERNAL_ERROR` | Lỗi phía server / database / AI service | Hiển thị toast lỗi và mã `X-Request-Id` để liên hệ IT |
 
+### 3.4 Mã lỗi của job xử lý (bất đồng bộ) — v1.2.0
+
+OCR và phân tích chạy **sau khi** upload đã trả `202`. Lỗi ở các bước này không phải là response HTTP của
+request upload. Job và run chuyển sang `failed`, kèm `error_code`. Frontend đọc mã này rồi hiển thị câu
+tương ứng. Mã giữ nguyên từ service phát ra, ví dụ `AI1_*` từ AI1 theo DOC-05d; Backend không đổi tên.
+
+**Frontend nhận `error_code` ở đâu:**
+
+| Kênh | Trạng thái |
+|---|---|
+| SSE `GET /runs/{id}/events`: sự kiện đầu (snapshot của run), `run.status_changed`, `job.status_changed` đều có `{ "status": "failed", "error_code": "..." }` | **Đã có** |
+| `GET /dossiers/{id}` và danh sách hồ sơ: trường mới `latest_job_error_code: string \| null` và `latest_job_error_pages: Record<string, string[]> \| null`. Đây là trường tuỳ chọn, thêm vào nên không phá contract cũ | **Đề xuất, Backend chưa có.** Cần khi người dùng mở lại hồ sơ đã lỗi mà không còn theo dõi SSE. Tên trường chờ Backend xác nhận |
+
+**Mã lỗi Frontend cần hiển thị riêng:**
+
+| `error_code` | Khi nào | Frontend hiển thị | Cho chạy lại? |
+|---|---|---|---|
+| `AI1_LOW_QUALITY_DOCUMENT` | AI1 từ chối tài liệu **trước khi gọi OCR**, vì có ít nhất 3 trang scan xấu **và** số trang xấu chiếm ít nhất 30% số trang phải OCR. Trang có lớp chữ và trang trắng không tính vào mẫu số. Lý do của từng trang: `blur` (mờ), `low_contrast` (chữ nhạt), `noise` (nhiễu hạt), `speckle` (chấm bẩn) | "Bản scan quá mờ hoặc bẩn, hệ thống chưa đọc được. Vui lòng scan lại rõ hơn rồi tải lên lại." Khi có `latest_job_error_pages` thì liệt kê thêm: "Trang 3 (mờ), trang 7 (chấm bẩn)…" | **Không.** Chạy lại cho cùng kết quả. Ẩn nút "Chạy lại OCR lỗi", chỉ cho thay file. `POST /dossiers/{id}/ocr/retry-failed` sẽ trả `409` với `code: AI1_LOW_QUALITY_DOCUMENT` (Backend sẽ thêm) |
+| Mã khác hoặc mã lạ | Lỗi xử lý còn lại (`AI1_OCR_FAILED`, `AI1_TIMEOUT`, `AI2_*`…) | Câu lỗi chung như hiện nay, kèm mã để hỗ trợ tra cứu | Theo quy tắc chạy lại ở Màn hình 4 |
+
+Tài liệu chỉ có vài trang scan xấu thì **không** bị từ chối. Ví dụ: hợp đồng PDF có lớp chữ, chỉ trang ký là
+ảnh scan lấm chấm. Khi đó tài liệu vẫn được xử lý. Các trang xấu mang cảnh báo trang `low_quality_scan:<lý do>`
+trong kết quả OCR, và các dòng chưa được kiểm lại mang cờ review. Frontend có thể đánh dấu các trang này trong
+trình xem tài liệu. Việc này không bắt buộc ở v1.2.0.
+
 ---
 
 ## 4. Tọa độ Bounding Box & Hiển thị PDF (CPS)
@@ -320,6 +345,7 @@ Theo dõi hành trình chạy của Pipeline AI qua 11 bước (S0..S10), xem lo
   { "data": { "dossier_id": "dos_…", "status": "queued" }, "meta": { "trace_id": null, "request_id": null, "page": null, "page_size": null, "total": null } }
   ```
   Nếu mọi tài liệu đã có kết quả thì run sang thẳng AI2, không OCR lại trang nào. Theo dõi bằng SSE của run mới. `409` khi job không lỗi ở bước OCR (lỗi AI2 thì dùng `POST /dossiers/{id}/ai2/retry`); `403` khi không có quyền sửa hồ sơ.
+  **v1.2.0 (Backend sẽ thêm):** `409` với `code: AI1_LOW_QUALITY_DOCUMENT` khi job lỗi vì bản scan quá xấu (§3.4). Chạy lại không giúp gì, người dùng phải thay file.
 
 ---
 
@@ -721,6 +747,7 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
+| `v1.2.0` | 01/10/2026 | Thêm §3.4: mã lỗi của job xử lý bất đồng bộ, gồm `AI1_LOW_QUALITY_DOCUMENT` (PR #47). Frontend nhận mã qua SSE (đã có). Đề xuất trường tuỳ chọn `latest_job_error_code` và `latest_job_error_pages` cho `GET /dossiers/{id}`, và `409 AI1_LOW_QUALITY_DOCUMENT` cho `ocr/retry-failed` (Backend chưa làm). Chỉ thêm, nên là MINOR |
 | `v1.1.0` | 30/09/2026 | Thêm `GET /dossiers/{id}/queries`, `POST /dossiers/{id}/ocr/retry-failed`, `POST /dossiers/{id}/split` và `metadata.split_pending` (đã có trong `DOC-05-api-spec.yaml`, PR #36). Chỉ thêm, không đổi hay xoá trường nào, nên là MINOR. Response của ba API mô tả theo envelope thật `{ data, meta }` (xem ghi chú §3.1 bên dưới). Các endpoint backend bỏ ở v2.0.0 (`POST /dossiers/upload`, webhook AI1/AI2, `/reviews` cũ) chưa từng có trong DOC-05b, nên không ảnh hưởng contract này |
 
 **§3.1 chưa khớp backend (đã biết):** backend trả mọi response, kể cả danh sách, trong `{ data, meta }`, với `meta` gồm `trace_id`, `request_id`, `page`, `page_size`, `total`. Envelope ở §3.1 (`items`, `total`, `page`, `page_size`, `total_pages`) không khớp endpoint danh sách nào. Ba API của v1.1.0 được mô tả theo `{ data, meta }`. Sửa §3.1 cho mọi endpoint là thay đổi contract chung, để ở bản sau khi frontend chốt.
@@ -735,4 +762,4 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 
 ---
 
-**Hết DOC-05b · Frontend-Backend API Contract v1.1.0 (SemVer)**
+**Hết DOC-05b · Frontend-Backend API Contract v1.2.0 (SemVer)**
