@@ -1209,7 +1209,7 @@
     "title": "Egress chưa approval",
     "tenant_id": "tenant_a",
     "dossier_id": "d_egress",
-    "expected_state": "BLOCKED",
+    "expected_state": "REVIEW",
     "expected_no_claims": [
       "silent_external_fallback"
     ],

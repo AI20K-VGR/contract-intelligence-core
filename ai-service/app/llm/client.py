@@ -8,7 +8,35 @@ import threading
 import time
 from typing import Any, Callable
 
-from openai import OpenAI
+from openai import BadRequestError, OpenAI, UnprocessableEntityError
+
+_FORMAT_ERRORS = (BadRequestError, UnprocessableEntityError)
+
+
+def call_with_timeout(fn: Callable[[], Any], seconds: float, *, name: str = "ai2-llm") -> Any:
+    """Run ``fn`` and give up after ``seconds``.
+
+    A call still running at the limit is abandoned on a daemon thread and the
+    caller gets ``TimeoutError``; the HTTP request itself is also bounded by the
+    SDK timeout, so the thread does not outlive it for long.
+    """
+
+    outcome: dict[str, Any] = {}
+
+    def run() -> None:
+        try:
+            outcome["value"] = fn()
+        except BaseException as exc:  # re-raised on the caller thread below
+            outcome["error"] = exc
+
+    worker = threading.Thread(target=run, name=name, daemon=True)
+    worker.start()
+    worker.join(max(seconds, 0.0))
+    if worker.is_alive():
+        raise TimeoutError(f"call exceeded {seconds:g}s")
+    if "error" in outcome:
+        raise outcome["error"]
+    return outcome["value"]
 
 
 class NineRouterClient:
@@ -37,8 +65,22 @@ class NineRouterClient:
     def configured(self) -> bool:
         return bool(self.api_key) and self.api_key != "sk-replace-me"
 
-    def complete_json(self, system: str, user: str, *, strong: bool = False) -> dict[str, Any]:
+    def complete_json(
+        self,
+        system: str,
+        user: str,
+        *,
+        strong: bool = False,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        """One logical completion. ``last_http_calls`` reports the HTTP requests it
+        made (2 when the provider rejected ``response_format``) so the caller can
+        charge every request to its budget. ``timeout`` overrides the per-request
+        SDK timeout, e.g. with the time left before a job deadline."""
+
         model = self.strong_model if strong else self.model
+        request_options: dict[str, Any] = {} if timeout is None else {"timeout": timeout}
+        self.last_http_calls = 1
         started = time.perf_counter()
         trace: dict[str, Any] = {
             "model": model,
@@ -58,16 +100,27 @@ class NineRouterClient:
                 messages=messages,
                 response_format={"type": "json_object"},
                 temperature=0,
+                **request_options,
             )
             text = resp.choices[0].message.content or "{}"
         except Exception as first_error:
+            # Only a rejected request shape is worth a second request without
+            # JSON mode; 429/5xx/timeouts go back to the caller's retry policy.
+            if not isinstance(first_error, _FORMAT_ERRORS):
+                trace["error_type"] = type(first_error).__name__
+                trace["latency_ms"] = round((time.perf_counter() - started) * 1000, 1)
+                self.traces.append(trace)
+                NineRouterClient.all_traces.append(dict(trace))
+                raise
             trace["fallback_without_json_format"] = True
             trace["first_error_type"] = type(first_error).__name__
+            self.last_http_calls = 2
             try:
                 resp = self._client.chat.completions.create(
                     model=model,
                     messages=messages,
                     temperature=0,
+                    **request_options,
                 )
                 text = resp.choices[0].message.content or "{}"
             except Exception as second_error:
@@ -136,22 +189,12 @@ class DeadlineLLM:
         remaining = self._deadline - now
         if remaining <= 0:
             raise TimeoutError(f"query LLM budget of {self._seconds:g}s is spent")
-        outcome: dict[str, Any] = {}
-
-        def call() -> None:
-            try:
-                outcome["value"] = self._llm.complete_json(system, user, **kwargs)
-            except Exception as exc:  # re-raised on the caller thread below
-                outcome["error"] = exc
-
-        worker = threading.Thread(target=call, name="ai2-query-llm", daemon=True)
-        worker.start()
-        worker.join(remaining)
-        if worker.is_alive():
-            raise TimeoutError(f"query LLM exceeded its {self._seconds:g}s budget")
-        if "error" in outcome:
-            raise outcome["error"]
-        return outcome["value"]
+        try:
+            return call_with_timeout(
+                lambda: self._llm.complete_json(system, user, **kwargs), remaining, name="ai2-query-llm"
+            )
+        except TimeoutError as exc:
+            raise TimeoutError(f"query LLM exceeded its {self._seconds:g}s budget") from exc
 
 
 def llm_status(

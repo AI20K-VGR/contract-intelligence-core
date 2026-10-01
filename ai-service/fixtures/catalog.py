@@ -983,7 +983,7 @@ def ec055() -> CasePack:
     rec.case_id = "EC-055"
     rec.dossier_id = "d_egress"
     rec.egress_approved = False
-    return CasePack("EC-055", "Egress chưa approval", "BLOCKED", ["silent_external_fallback"], rec, make_envelope(dossier="d_egress"), tags=["edge", "policy"])
+    return CasePack("EC-055", "Egress chưa approval", "REVIEW", ["silent_external_fallback"], rec, make_envelope(dossier="d_egress"), tags=["edge", "policy"])
 
 
 def ec056() -> CasePack:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 from app.contracts.models import (
+    ContractContext,
     ContractEvent,
     EvidenceIssue,
     HandoffIssue,
@@ -14,25 +15,29 @@ from app.contracts.models import (
     ReviewState,
     ToolEnvelope,
     ValidatedHandoff,
-    ContractContext,
 )
 from app.llm.client import NineRouterClient
 from app.pipeline.ai1_snapshot_adapter import fold_for_match
 from app.pipeline.candidate import CandidatePairer
+from app.pipeline.citations import CitationResolver
+from app.pipeline.clause import ClauseChunker
+from app.pipeline.clause_compare import compare_clauses_across_files
 from app.pipeline.compare import annex_keys_from_labels
 from app.pipeline.contract_context import build_contract_context
 from app.pipeline.contract_events import extract_contract_events
 from app.pipeline.edge_flags import dossier_edge_issues
-from app.pipeline.clause import ClauseChunker
-from app.pipeline.clause_compare import compare_clauses_across_files
 from app.pipeline.fact import FactExtractor
 from app.pipeline.handoff import HandoffValidator
 from app.pipeline.index import IndexStore
 from app.pipeline.router import ObjectRouter
-from app.pipeline.citations import CitationResolver
+from app.pipeline.runtime import (
+    ISSUE_MESSAGES_VI,
+    TERMINATION_CODES,
+    ProcessingRuntime,
+    ProcessingTimeout,
+)
 from app.pipeline.table import TableExtractionError, TablePipeline
 from app.pipeline.units import plan_units
-from app.pipeline.runtime import ProcessingRuntime, ProcessingTimeout
 from app.reasoning.relations import build_relation_graph
 from app.tools.gateway import ToolBlocked, ToolGateway
 from app.tools.store import DossierRecord, InMemorySnapshotStore
@@ -56,7 +61,7 @@ def run_idp(
     try:
         runtime.checkpoint()
     except ProcessingTimeout:
-        return _failed_result(job_id, [], "PROCESSING_TIMEOUT", "processing time budget exceeded")
+        return _failed_result(job_id, [], "PROCESSING_TIMEOUT", ISSUE_MESSAGES_VI["PROCESSING_TIMEOUT"])
     policy_issues: list[HandoffIssue] = []
     if record.index_status == "LEASED":
         policy_issues.append(
@@ -84,11 +89,13 @@ def run_idp(
             )
         )
     if not record.egress_approved:
+        # Local-only extraction is a complete, reviewable result (D-4), not a
+        # block: with B5 a BLOCKED review state fails the whole Backend run.
         deferred_blocks.append(
             HandoffIssue(
                 code="EGRESS_DENIED",
-                message="external model access is not approved; local extraction only",
-                review_state=ReviewState.BLOCKED,
+                message=ISSUE_MESSAGES_VI["EGRESS_DENIED"],
+                review_state=ReviewState.NEEDS_REVIEW,
             )
         )
         llm = None
@@ -183,7 +190,16 @@ def run_idp(
                 facts.extend(table_ex.extract(envelope, _table_id_for(record, node["node_id"])))
                 successful_extractions += 1
         except ProcessingTimeout:
-            return _failed_result(job_id, handoff.issues, "PROCESSING_TIMEOUT", "processing time budget exceeded")
+            # Keep every unit finished so far; the rest of the pipeline is local.
+            handoff.issues.append(HandoffIssue(
+                code="PROCESSING_TIMEOUT",
+                message=ISSUE_MESSAGES_VI["PROCESSING_TIMEOUT"],
+                review_state=ReviewState.NEEDS_REVIEW,
+                stage="EXTRACT",
+                location=str(node.get("node_id") or ""),
+                retryable=True,
+            ))
+            break
         except ToolBlocked:
             unit_failures.append(HandoffIssue(
                 code="TOOL_BLOCKED",
@@ -215,6 +231,17 @@ def run_idp(
             ))
             continue
     handoff.issues.extend(unit_failures)
+    handoff.issues.extend(
+        HandoffIssue(
+            code=code,
+            message=ISSUE_MESSAGES_VI[code],
+            review_state=ReviewState.NEEDS_REVIEW,
+            stage="EXTRACT",
+            retryable=code != "LLM_BUDGET_EXCEEDED",
+        )
+        for code in dict.fromkeys(code for code, _ in runtime.issues)
+        if code in TERMINATION_CODES
+    )
     if extraction_units and not successful_extractions and unit_failures:
         first = unit_failures[0]
         return _failed_result(job_id, handoff.issues, first.code, first.message)

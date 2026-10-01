@@ -16,7 +16,6 @@ from app.llm.embeddings import OpenAICompatibleEmbeddingClient
 from app.pipeline.runtime import ProcessingRuntime
 from app.tools.store import DossierRecord
 
-
 MAX_SEGMENT_CHARS = 1600
 SEGMENT_OVERLAP = 200
 
@@ -248,6 +247,23 @@ class VectorRecallService:
             return True
         estimated_tokens = sum(max(1, (len(text) + 3) // 4) for text in texts)
         return self.runtime.account_embedding_tokens(estimated_tokens)
+
+
+QUERY_EMBEDDING_TOKEN_CAP_DEFAULT = 100_000
+
+
+def query_embedding_token_cap() -> int:
+    """Embedding tokens one ``/query`` may spend (D6): env ``AI2_QUERY_MAX_EMBEDDING_TOKENS``.
+
+    The first ask embeds the whole dossier, so the cap is never unlimited: a
+    missing, unparsable or non-positive value falls back to the default.
+    """
+
+    try:
+        value = int(os.getenv("AI2_QUERY_MAX_EMBEDDING_TOKENS", ""))
+    except ValueError:
+        return QUERY_EMBEDDING_TOKEN_CAP_DEFAULT
+    return value if value > 0 else QUERY_EMBEDDING_TOKEN_CAP_DEFAULT
 
 
 def build_segments(record: DossierRecord) -> list[EvidenceSegment]:

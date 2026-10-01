@@ -20,7 +20,6 @@ from app.tools.durable import (
     SnapshotCorruptError,
 )
 
-
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB = ROOT / "data" / "ai2" / "jobs.sqlite"
 
@@ -311,6 +310,56 @@ class SQLiteJobStore:
             )
             cx.commit()
             return cur.rowcount == 1
+        finally:
+            cx.close()
+
+    def _fail_rows(self, cx: sqlite3.Connection, rows: list[sqlite3.Row], update: dict[str, Any], now: int) -> None:
+        for row in rows:
+            wire = {**json.loads(row["wire_json"]), **update, "status": "FAILED"}
+            cx.execute(
+                """
+                UPDATE jobs SET status='FAILED', wire_json=?, worker_token=NULL,
+                    lease_until_ms=NULL, updated_ms=?
+                WHERE job_id=?
+                """,
+                (json.dumps(wire, ensure_ascii=False), now, row["job_id"]),
+            )
+
+    def fail_unclaimed(self, job_id: str, update: dict[str, Any]) -> bool:
+        """Fail a job the worker gave up on before claiming it (still QUEUED)."""
+
+        now = self._now_ms()
+        cx = self._connect()
+        try:
+            cx.execute("BEGIN IMMEDIATE")
+            rows = cx.execute(
+                "SELECT job_id, wire_json FROM jobs WHERE job_id=? AND status='QUEUED'", (job_id,)
+            ).fetchall()
+            self._fail_rows(cx, rows, update, now)
+            cx.commit()
+            return bool(rows)
+        finally:
+            cx.close()
+
+    def sweep_stale(self, update: dict[str, Any], *, queued_grace_ms: int = 60_000) -> list[str]:
+        """Fail jobs no live worker owns: RUNNING past the lease, or QUEUED longer
+        than ``queued_grace_ms`` (their in-process background task died with it)."""
+
+        now = self._now_ms()
+        cx = self._connect()
+        try:
+            cx.execute("BEGIN IMMEDIATE")
+            rows = cx.execute(
+                """
+                SELECT job_id, wire_json FROM jobs
+                WHERE (status='RUNNING' AND COALESCE(lease_until_ms, 0) <= ?)
+                   OR (status='QUEUED' AND updated_ms <= ?)
+                """,
+                (now, now - queued_grace_ms),
+            ).fetchall()
+            self._fail_rows(cx, rows, update, now)
+            cx.commit()
+            return [row["job_id"] for row in rows]
         finally:
             cx.close()
 

@@ -40,12 +40,12 @@ from app.pipeline.grounding import repair_active_nodes
 from app.pipeline.idp import run_idp
 from app.pipeline.ocr_json_demo_adapter import is_ocr_json_demo, normalize_ocr_json
 from app.pipeline.outline import build_tree, locate
-from app.pipeline.runtime import ProcessingRuntime
+from app.pipeline.runtime import ISSUE_MESSAGES_VI, ProcessingRuntime
 from app.reasoning.gold import adhoc_tasks, tasks_from_outline
 from app.reasoning.query import QueryRouter, classify_ask
 from app.reasoning.relations import build_relation_graph
 from app.reasoning.stack import FourLayerReasoner
-from app.reasoning.vector_recall import VectorRecallService
+from app.reasoning.vector_recall import VectorRecallService, query_embedding_token_cap
 from app.security.service_envelope import ServiceEnvelopeError, verify_service_envelope
 from app.tools.gateway import ToolGateway
 from app.tools.jobs import (
@@ -119,6 +119,7 @@ def _hydrate_store_from_jobs() -> int:
 
 @app.on_event("startup")
 def hydrate_canonical_store() -> None:
+    _sweep_stale_jobs()
     _hydrate_store_from_jobs()
 
 
@@ -256,44 +257,47 @@ def _run_wire_job(job_id: str, payload: dict) -> None:
             wire=wire,
             result=result.model_dump(),
         )
-    except SnapshotContractError as exc:
-        current = WIRE_JOBS.get(job_id) or {}
-        wire = {
-            **current,
+    except Exception as exc:  # worker boundary: every failure ends the job
+        code = exc.code if isinstance(exc, SnapshotContractError) else "AI2_WORKER_FAILED"
+        update = {
             "status": "FAILED",
             "review_state": "BLOCKED",
             "result": None,
-            "errors": [{"code": exc.code, "message": str(exc), "retryable": False}],
+            "errors": [{"code": code, "message": str(exc), "retryable": False}],
         }
+        wire = {**(WIRE_JOBS.get(job_id) or {}), **update}
         WIRE_JOBS[job_id] = wire
-        if "worker_token" in locals():
+        if "worker_token" in locals() and worker_token:
             JOB_STORE.set_wire(
                 job_id,
-                tenant_id=request.service_envelope.tenant_id if "request" in locals() else "",
-                dossier_id=request.dossier_id if "request" in locals() else "",
+                tenant_id=request.service_envelope.tenant_id,
+                dossier_id=request.dossier_id,
                 worker_token=worker_token,
                 status="FAILED",
                 wire=wire,
             )
-    except Exception as exc:  # pragma: no cover - defensive worker boundary
-        current = WIRE_JOBS.get(job_id) or {}
-        wire = {
-            **current,
-            "status": "FAILED",
-            "review_state": "BLOCKED",
-            "result": None,
-            "errors": [{"code": "AI2_WORKER_FAILED", "message": str(exc), "retryable": False}],
-        }
-        WIRE_JOBS[job_id] = wire
-        if "worker_token" in locals():
-            JOB_STORE.set_wire(
-                job_id,
-                tenant_id=request.service_envelope.tenant_id if "request" in locals() else "",
-                dossier_id=request.dossier_id if "request" in locals() else "",
-                worker_token=worker_token,
-                status="FAILED",
-                wire=wire,
-            )
+        else:
+            # Failed before claiming: without this the job stays QUEUED forever.
+            JOB_STORE.fail_unclaimed(job_id, update)
+
+
+def _sweep_stale_jobs(store: SQLiteJobStore | None = None, *, queued_grace_ms: int = 60_000) -> list[str]:
+    """Fail jobs a dead worker left QUEUED/RUNNING so a poll always ends (ST-067)."""
+
+    update = {
+        "result": None,
+        "errors": [
+            {
+                "code": "AI2_WORKER_RESTARTED",
+                "message": ISSUE_MESSAGES_VI["AI2_WORKER_RESTARTED"],
+                "retryable": True,
+            }
+        ],
+    }
+    swept = (store or JOB_STORE).sweep_stale(update, queued_grace_ms=queued_grace_ms)
+    if swept:
+        logger.warning("ai2.jobs_swept count=%s job_ids=%s", len(swept), swept)
+    return swept
 
 
 @app.get("/")
@@ -873,7 +877,13 @@ def query_from_backend(payload: dict) -> dict:
                 STORE,
                 ToolGateway(STORE, signed_principal=service_envelope is not None),
                 llm=llm,
-                vector_recall=_vector_service(policy_flags["use_vector"]),
+                vector_recall=_vector_service(
+                    policy_flags["use_vector"],
+                    ProcessingRuntime(
+                        egress_allowed=policy_flags["egress_allowed"],
+                        max_embedding_tokens=query_embedding_token_cap(),
+                    ),
+                ),
             ).query(
                 envelope,
                 query,

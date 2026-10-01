@@ -2,33 +2,105 @@
 
 from __future__ import annotations
 
+import os
+import time
 from dataclasses import dataclass, field
-from time import monotonic
-from typing import Any
+from typing import Any, Callable
 
-from app.llm.client import NineRouterClient
+import openai
+
+from app.llm.client import NineRouterClient, call_with_timeout
+
+# Vietnamese messages for every code a job can end with (ST-067, D-4). The UI
+# shows them as-is, so they say what happened and that the result needs review.
+ISSUE_MESSAGES_VI: dict[str, str] = {
+    "LLM_RATE_LIMITED": (
+        "Nhà cung cấp LLM giới hạn tần suất (429) sau số lần thử cho phép; "
+        "phần còn lại chỉ trích xuất cục bộ, cần người xem lại."
+    ),
+    "LLM_UNAVAILABLE": (
+        "Dịch vụ LLM không phản hồi hoặc đang quá tải (5xx/529/mất kết nối); "
+        "phần còn lại chỉ trích xuất cục bộ, cần người xem lại."
+    ),
+    "LLM_TIMEOUT": "Lời gọi LLM quá thời gian chờ; phần còn lại chỉ trích xuất cục bộ, cần người xem lại.",
+    "LLM_BUDGET_EXCEEDED": (
+        "Đã dùng hết số lượt gọi LLM cho hồ sơ này; các mục còn lại chỉ trích xuất cục bộ, cần người xem lại."
+    ),
+    "PROCESSING_TIMEOUT": (
+        "Hết thời gian xử lý hồ sơ; kết quả gồm phần đã xong trước khi hết giờ, cần người xem lại."
+    ),
+    "EGRESS_DENIED": (
+        "Chưa cho phép gửi dữ liệu ra mô hình bên ngoài; hồ sơ chỉ được trích xuất cục bộ, cần người xem lại."
+    ),
+    "AI2_WORKER_RESTARTED": "Tiến trình xử lý AI2 bị dừng giữa chừng (khởi động lại); có thể gửi lại hồ sơ.",
+}
+
+# Runtime issues that explain why a job stopped using the LLM. They are
+# surfaced as handoff issues so the code reaches the wire ``errors[]``.
+TERMINATION_CODES = frozenset(
+    {"LLM_RATE_LIMITED", "LLM_UNAVAILABLE", "LLM_TIMEOUT", "LLM_BUDGET_EXCEEDED"}
+)
+
+_BACKOFF_BASE_SECONDS = 0.5
+_BACKOFF_CAP_SECONDS = 8.0
 
 
 class ProcessingTimeout(RuntimeError):
     """The request exceeded its Backend-provided processing deadline."""
 
 
-def _is_retryable_provider_error(exc: Exception) -> bool:
-    """Keep retries limited to transient transport/provider failures."""
+def classify_provider_error(exc: BaseException) -> str | None:
+    """Termination code for a transient provider failure, ``None`` if not retryable.
 
-    if isinstance(exc, (TimeoutError, ConnectionError)):
-        return True
+    ``APITimeoutError`` subclasses ``APIConnectionError``, so timeouts are
+    checked first.
+    """
+
+    if isinstance(exc, (openai.APITimeoutError, TimeoutError)):
+        return "LLM_TIMEOUT"
+    if isinstance(exc, openai.RateLimitError):
+        return "LLM_RATE_LIMITED"
+    if isinstance(exc, (openai.APIConnectionError, ConnectionError)):
+        return "LLM_UNAVAILABLE"
     status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
-    return isinstance(status, int) and (status == 408 or status == 409 or status == 429 or status >= 500)
+    if not isinstance(status, int):
+        return None
+    if status == 429:
+        return "LLM_RATE_LIMITED"
+    if status == 408:
+        return "LLM_TIMEOUT"
+    if status == 409 or status >= 500:
+        return "LLM_UNAVAILABLE"
+    return None
+
+
+def _retry_after_seconds(exc: BaseException) -> float | None:
+    headers = getattr(getattr(exc, "response", None), "headers", None)
+    if not headers:
+        return None
+    try:
+        value = float(headers.get("retry-after", ""))
+    except (TypeError, ValueError):
+        return None
+    return value if value >= 0 else None
+
+
+def _env_positive(name: str, default: float) -> float:
+    try:
+        value = float(os.getenv(name, ""))
+    except ValueError:
+        return default
+    return value if value > 0 else default
 
 
 @dataclass
 class ProcessingRuntime:
     """Mutable, request-scoped execution budget.
 
-    ``max_llm_calls`` counts logical completion operations. A provider-level
-    response-format fallback inside ``NineRouterClient`` remains one logical
-    operation from the request budget's perspective.
+    ``max_llm_calls`` counts HTTP requests to the provider, including retries
+    and the client's response-format fallback. ``max_attempts`` bounds retries
+    of one logical call (env ``AI2_LLM_MAX_RETRIES``, default 3). Each request
+    is cut at ``min(AI2_LLM_TIMEOUT_SECONDS, time left before the deadline)``.
     """
 
     egress_allowed: bool = False
@@ -36,24 +108,38 @@ class ProcessingRuntime:
     max_processing_seconds: int = 300
     max_llm_calls: int = 0
     max_embedding_tokens: int = 0
-    retry_limit: int = 1
-    started_at: float = field(default_factory=monotonic)
+    max_attempts: int = field(default_factory=lambda: int(_env_positive("AI2_LLM_MAX_RETRIES", 3)))
+    call_timeout_seconds: float = field(default_factory=lambda: _env_positive("AI2_LLM_TIMEOUT_SECONDS", 45))
+    clock: Callable[[], float] = time.monotonic
+    sleep: Callable[[float], None] = time.sleep
+    started_at: float | None = None
     llm_calls_used: int = 0
     embedding_tokens_used: int = 0
     fallback_count: int = 0
     issues: list[tuple[str, str]] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        if self.started_at is None:
+            self.started_at = self.clock()
+
     @property
     def deadline(self) -> float:
         return self.started_at + self.max_processing_seconds
 
+    def remaining(self) -> float:
+        return self.deadline - self.clock()
+
     def checkpoint(self) -> None:
-        if monotonic() > self.deadline:
+        if self.remaining() < 0:
             raise ProcessingTimeout("processing time budget exceeded")
 
     def add_issue(self, code: str, message: str) -> None:
         if (code, message) not in self.issues:
             self.issues.append((code, message))
+
+    def _fall_back(self, code: str, message: str | None = None) -> None:
+        self.add_issue(code, message or ISSUE_MESSAGES_VI.get(code, code))
+        self.fallback_count += 1
 
     def account_embedding_tokens(self, tokens: int) -> bool:
         """Account embedding work without allowing a provider call past quota."""
@@ -74,41 +160,63 @@ class ProcessingRuntime:
         *,
         strong: bool = False,
     ) -> dict[str, Any] | None:
-        """Call NineRouter with one retry, then return ``None`` for fallback."""
+        """Call the LLM within budget and deadline; ``None`` means use the local fallback.
+
+        Raises ``ProcessingTimeout`` when the job deadline passes, so the caller
+        can stop and keep what it already extracted.
+        """
 
         if not self.egress_allowed:
-            self.add_issue("EGRESS_DENIED", "external model access is not approved")
-            self.fallback_count += 1
+            self._fall_back("EGRESS_DENIED")
             return None
         if client is None or not client.configured():
-            self.add_issue("LLM_UNAVAILABLE", "NineRouter is not configured")
-            self.fallback_count += 1
+            self._fall_back("LLM_UNAVAILABLE", "NineRouter is not configured")
             return None
 
-        attempts = self.retry_limit + 1
-        for attempt in range(attempts):
-            self.checkpoint()
+        last_code: str | None = None
+        for attempt in range(max(self.max_attempts, 1)):
+            remaining = self.remaining()
+            if remaining <= 0:
+                raise ProcessingTimeout("processing time budget exceeded")
             if self.llm_calls_used >= self.max_llm_calls:
-                self.add_issue("LLM_BUDGET_EXCEEDED", "maximum logical LLM calls reached")
-                self.fallback_count += 1
+                self._fall_back(last_code or "LLM_BUDGET_EXCEEDED")
                 return None
             self.llm_calls_used += 1
+            call_timeout = min(self.call_timeout_seconds, remaining)
             try:
-                data = client.complete_json(system, user, strong=strong)
-                if not isinstance(data, dict):
-                    raise ValueError("NineRouter response must be a JSON object")
-                return data
+                data = call_with_timeout(lambda: self._invoke(client, system, user, strong, call_timeout), call_timeout)
             except Exception as exc:
-                if not _is_retryable_provider_error(exc):
-                    self.add_issue("LLM_NON_RETRYABLE", f"NineRouter rejected request: {type(exc).__name__}")
-                    self.fallback_count += 1
+                if self.remaining() <= 0:
+                    raise ProcessingTimeout("processing time budget exceeded") from exc
+                code = classify_provider_error(exc)
+                if code is None:
+                    self._fall_back("LLM_NON_RETRYABLE", f"NineRouter rejected request: {type(exc).__name__}")
                     return None
-                if attempt + 1 < attempts:
-                    continue
-                self.add_issue("LLM_RETRY_EXHAUSTED", f"NineRouter failed: {type(exc).__name__}")
-                self.fallback_count += 1
+                last_code = code
+                if attempt + 1 >= self.max_attempts or self.llm_calls_used >= self.max_llm_calls:
+                    break
+                delay = _retry_after_seconds(exc)
+                if delay is None:
+                    delay = min(_BACKOFF_CAP_SECONDS, _BACKOFF_BASE_SECONDS * 2**attempt)
+                if delay >= self.remaining():
+                    break  # waiting would run past the deadline
+                self.sleep(delay)
+                continue
+            self.llm_calls_used += max(int(getattr(client, "last_http_calls", 1) or 1) - 1, 0)
+            if not isinstance(data, dict):
+                self._fall_back("LLM_NON_RETRYABLE", "NineRouter response must be a JSON object")
                 return None
+            return data
+        self._fall_back(last_code or "LLM_BUDGET_EXCEEDED")
         return None
+
+    @staticmethod
+    def _invoke(client: Any, system: str, user: str, strong: bool, timeout: float) -> Any:
+        # Only the real client takes a per-request timeout; test doubles keep
+        # the plain signature and are bounded by ``call_with_timeout``.
+        if isinstance(client, NineRouterClient):
+            return client.complete_json(system, user, strong=strong, timeout=timeout)
+        return client.complete_json(system, user, strong=strong)
 
     def snapshot(self) -> dict[str, Any]:
         return {

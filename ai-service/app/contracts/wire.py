@@ -331,8 +331,11 @@ def job_result_to_wire(
     retryable_codes = {
         "PROCESSING_TIMEOUT",
         "LLM_TIMEOUT",
+        "LLM_RATE_LIMITED",
+        "LLM_UNAVAILABLE",
         "LLM_RETRY_EXHAUSTED",
         "AI2_WORKER_FAILED",
+        "AI2_WORKER_RESTARTED",
     }
     # Backend reads errors[0].code as the blocking reason (B5), so BLOCKED
     # issues lead; a stable sort keeps every other issue in emitted order.
