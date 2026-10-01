@@ -14,3 +14,12 @@ export function withinDocumentId(spot: {
 export function withinSideLabel(index: number) {
   return `Vế ${index + 1}`
 }
+
+export type ConflictKind = 'within' | 'between'
+
+/** Trong cùng một hợp đồng, hay giữa hai tài liệu (hợp đồng và phụ lục). */
+export function conflictKind(spot: {
+  sides: { documentId: string }[]
+}): ConflictKind {
+  return withinDocumentId(spot) ? 'within' : 'between'
+}
