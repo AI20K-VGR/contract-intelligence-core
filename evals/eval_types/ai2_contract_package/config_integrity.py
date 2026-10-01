@@ -2,25 +2,18 @@
 Config integrity check for ai2_contract_package — verifies the strategy card's canonical
 JSON still matches its sha256 sidecar before any eval turn is allowed to score.
 
-CONTRACT: stdlib only; no scaffold var below the docstring — path resolution
-is runtime, off __file__: this module is stamped at evals/eval_types/ai2_contract_package/,
-so `Path(__file__).resolve().parents[2]` is the evals/ root, where
-eval_config.json + eval_config.sha256 live (see eval_config.py Phase 2).
+CONTRACT: stdlib only; path resolution is runtime, off __file__. The domain
+card and its SHA-256 sidecar live under the evals/cards directory.
 
-This loader is the SINGLE source of dims/threshold at eval time — a
-later scorer reads config["dimensions"]/config["threshold"] from here instead
-of a stamped literal, so the card-hash covers the scoring axes too (editing
-them without re-approval trips the same drift check as any other card edit).
+Card bytes are hashed after CRLF-to-LF normalization for cross-platform stability.
 
-Honesty: same tamper-EVIDENT presence gate as eval_config.py — editing both
-files together by hand still passes physically; this catches drift, not fraud.
+Honesty: this catches drift, not fraud; editing both files together still passes.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-
 from pathlib import Path
 
 
@@ -30,39 +23,38 @@ class ConfigDriftError(Exception):
 
 
 def _default_evals_root() -> Path:
-    # evals/eval_types/ai2_contract_package/config_integrity.py -> parents[2] == evals/
     return Path(__file__).resolve().parents[2]
 
 
+def _domain_card_paths(root: Path):
+    return (
+        root / "cards" / "ai2_contract_package.json",
+        root / "cards" / "ai2_contract_package.sha256",
+    )
+
+
 def load_verified_config(evals_root=None) -> dict:
-    """Re-hash evals/eval_config.json against evals/eval_config.sha256 and
-    return the parsed card dict.
+    """Re-hash the domain card against its sidecar and return the parsed card.
 
     Raises ConfigDriftError on any of three distinct states: the card was
     never written, the sha256 sidecar is missing, or the hash no longer
     matches (card edited without re-approval).
     """
     root = Path(evals_root) if evals_root is not None else _default_evals_root()
-    json_path = root / "eval_config.json"
-    sha_path = root / "eval_config.sha256"
+    json_path, sha_path = _domain_card_paths(root)
 
     if not json_path.is_file():
-        raise ConfigDriftError(
-            "eval_config.json missing — bootstrap has not written the card "
-            "(run eval_config.py write)")
+        raise ConfigDriftError("ai2_contract_package.json missing — no domain card is installed")
     if not sha_path.is_file():
-        raise ConfigDriftError(
-            "eval_config.sha256 missing — config drift: the card has no hash "
-            "sidecar; re-run bootstrap")
+        raise ConfigDriftError("ai2_contract_package.sha256 missing — card has no SHA-256 sidecar")
 
     body = json_path.read_bytes().replace(b"\r\n", b"\n")
     expected = sha_path.read_text(encoding="utf-8").strip()
     actual = hashlib.sha256(body).hexdigest()
     if expected != actual:
         raise ConfigDriftError(
-            "eval_config.json hash mismatch (expected=%s actual=%s) — config "
-            "drift: card was edited without re-approval; re-run bootstrap"
-            % (expected, actual))
+            f"ai2_contract_package.json hash mismatch (expected={expected} actual={actual}) — "
+            "card was edited without re-approval")
 
     return json.loads(body.decode("utf-8"))
 
