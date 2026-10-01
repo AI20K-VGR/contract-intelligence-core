@@ -196,6 +196,7 @@ export function dossierFromSummary(
     shares,
     myGrant: access === 'shared_in' && mine ? { permission: grantPermission(mine), expires_at: mine.expires_at ?? null, expired: isGrantExpired(mine) } : undefined,
     jobStatus: job,
+    splitPending: summary.metadata?.split_pending === true,
     uploadedAt: summary.created_at,
   }
 }
@@ -787,7 +788,7 @@ export function MyDossiersPage() {
                             name: dossier.title,
                           }}
                           to={
-                            ocrOf(dossier) === 'running'
+                            ocrOf(dossier) === 'running' && !dossier.splitPending
                               ? progressPath(dossier.id)
                               : dossierOpenTo(dossier)
                           }

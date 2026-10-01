@@ -30,6 +30,8 @@ export type Dossier = {
   }
   jobStatus?: string | null
   uploadedAt?: string
+  /** File trộn hợp đồng và phụ lục đang chờ người dùng xác nhận các phần. */
+  splitPending?: boolean
 }
 
 export function structurePath(dossierId: string) {
@@ -45,12 +47,17 @@ export function conflictPagePath(dossierId: string, findingId?: string) {
   return `/doi-soat-xung-dot${search ? `?${search}` : ''}`
 }
 
+export function splitPath(dossierId: string) {
+  return `/tach-file/${encodeURIComponent(dossierId)}`
+}
+
 export function progressPath(dossierId: string) {
   return `/tien-trinh-phan-tich/${encodeURIComponent(dossierId)}`
 }
 
 export function dossierOpenTo(dossier: Dossier) {
   const job = dossier.jobStatus
+  if (dossier.splitPending && job === 'uploaded') return splitPath(dossier.id)
   if (
     dossier.status === 'processing' ||
     dossier.status === 'failed' ||

@@ -8,7 +8,7 @@ import {
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
-import { progressPath } from '../data/dossiers'
+import { progressPath, splitPath } from '../data/dossiers'
 import { dossierCategories } from '../data/upload'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 import {
@@ -144,6 +144,7 @@ export function CreateDossierPage() {
   const [structureMode, setStructureMode] = useState<StructureMode | null>(null)
   const [contract, setContract] = useState<PickedFile | null>(null)
   const [annexes, setAnnexes] = useState<PickedFile[]>([])
+  const [mixedFile, setMixedFile] = useState(false)
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
@@ -291,7 +292,9 @@ export function CreateDossierPage() {
       )
       const created = await createDossier({
         contract: contractPdf,
-        metadata: { name: trimmedName },
+        metadata: mixedFile
+          ? { name: trimmedName, split_pending: true }
+          : { name: trimmedName },
         annexes: annexPdfs,
       })
       if (!created?.dossier_id) {
@@ -306,6 +309,8 @@ export function CreateDossierPage() {
         [STRUCTURE_MODE_KEY]: structureMode,
       }
       if (code.trim()) extra.code = code.trim()
+      // PATCH thay toàn bộ metadata, nên phải giữ cờ này để backend còn chờ tách.
+      if (mixedFile) extra.split_pending = true
       try {
         await patchDossier(created.dossier_id, { metadata: extra })
       } catch {
@@ -313,9 +318,12 @@ export function CreateDossierPage() {
         // Loại cấu trúc vẫn được truyền qua state để trang cây dùng ngay.
       }
 
-      navigate(progressPath(created.dossier_id), {
-        state: { structureMode, name: trimmedName },
-      })
+      navigate(
+        mixedFile
+          ? splitPath(created.dossier_id)
+          : progressPath(created.dossier_id),
+        { state: { structureMode, name: trimmedName } },
+      )
     } catch (cause) {
       const message = createDossierErrorMessage(cause)
       if (message) setError(message)
@@ -459,6 +467,27 @@ export function CreateDossierPage() {
                   </div>
                 </div>
               </div>
+
+              {contract ? (
+                <label className="flex items-start gap-space-sm rounded-lg bg-surface-container-low px-space-md py-space-sm font-body-sm text-body-sm text-on-surface">
+                  <input
+                    checked={mixedFile}
+                    className="mt-0.5"
+                    disabled={busy}
+                    type="checkbox"
+                    onChange={(event) => setMixedFile(event.target.checked)}
+                  />
+                  <span>
+                    <span className="font-semibold">
+                      File hợp đồng này có cả phụ lục bên trong
+                    </span>
+                    <span className="block text-on-surface-variant">
+                      Sau khi tải lên, bạn chia file thành từng phần và xác
+                      nhận. Mỗi phần thành một tài liệu rồi mới OCR.
+                    </span>
+                  </span>
+                </label>
+              ) : null}
 
               <fieldset
                 className="flex flex-col gap-space-xs pt-space-xs"
