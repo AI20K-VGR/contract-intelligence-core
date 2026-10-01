@@ -124,7 +124,17 @@ class TestRequireRole:
             with pytest.raises(HTTPException) as exc_info:
                 await inner(user=valid_user)
             assert exc_info.value.status_code == 403
-            assert "Insufficient role" in exc_info.value.detail
+            assert exc_info.value.detail == (
+                "Vai trò của bạn (Thẩm định) không được làm việc này. Cần vai trò Quản trị."
+            )
+
+    def test_role_denied_message_lists_needed_roles(self) -> None:
+        from contract_intelligence.shared.auth.dependencies import role_denied_message
+
+        assert role_denied_message("OPERATOR", ("REVIEWER", "ADMINISTRATOR")) == (
+            "Vai trò của bạn (Vận hành) không được làm việc này."
+            " Cần vai trò Thẩm định hoặc Quản trị."
+        )
 
 
 # -----------------------------------------------------------------------
