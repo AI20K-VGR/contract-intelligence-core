@@ -34,7 +34,7 @@ Với một PDF 200 trang (khoảng 50 MiB), hiện tại:
 | Kafka | Topic `ci.ai1.ocr.commands` tự tạo (`KAFKA_AUTO_CREATE_TOPICS_ENABLE`), nên chỉ có 1 partition; compose có đúng một `ai1-worker` (`container_name`) | Không chạy thêm worker được |
 | Tiến độ | Backend chỉ nhận `completed` hoặc `failed` cho cả tài liệu | UI không biết trang nào xong, trang nào lỗi |
 
-Riêng `nodes[]` (cây điều khoản) và `table_continuity[]` được dựng trên **cả tài liệu** (`build_snapshot.py:165`). Nếu chia cụm mà mỗi cụm tự dựng snapshot, một điều khoản hoặc một bảng nằm vắt qua ranh giới hai cụm sẽ bị cắt đôi.
+Riêng `nodes[]` (cây điều khoản) và `table_continuity[]` được dựng trên **cả tài liệu** (`build_snapshot.py:165`), và `mark_duplicate_pages` cũng so mọi trang của tài liệu (`process_document.py:273`). Nếu chia cụm mà mỗi cụm tự dựng snapshot, một điều khoản hoặc một bảng nằm vắt qua ranh giới hai cụm sẽ bị cắt đôi.
 
 ## Tóm tắt
 
@@ -43,7 +43,7 @@ Riêng `nodes[]` (cây điều khoản) và `table_continuity[]` được dựng
 | C1 | Hai pha | Pha 1: AI1 OCR từng cụm, trả kết quả trang. Pha 2: AI1 dựng snapshot cuối từ mọi cụm (`ai1.ocr.assemble`). Snapshot cuối giữ đúng dạng `ai1.snapshot.v1` hiện tại |
 | C2 | Cỡ cụm | 20 trang (`AI1_OCR_CHUNK_PAGES`); tài liệu tới 20 trang đi một lệnh như hiện nay; `0` = tắt chia cụm |
 | C3 | Lệnh và sự kiện | Lệnh cụm thêm trường `chunk`; sự kiện mới `ai1.ocr.chunk_started`, `ai1.ocr.chunk_completed`, `ai1.ocr.chunk_failed`; kết quả cụm luôn ghi lên MinIO |
-| C4 | Song song và trần | Topic 6 partition, key = `chunk_id`; AI1 chạy nhiều replica; Backend gửi tối đa 2 cụm của một run cùng lúc |
+| C4 | Song song và trần | Topic 6 partition, key = `chunk_id`; AI1 chạy nhiều replica; Backend gửi tối đa 2 cụm của một run cùng lúc; trần provider tính theo số request (khoảng 32 ở `accuracy`), E6 chốt số replica |
 | C5 | Lỗi một cụm | Backend tự gửi lại cụm lỗi tạm 1 lần; quá số lần thì run `failed`, cụm đã xong được giữ, "chạy lại phần lỗi" chỉ gửi cụm còn thiếu |
 | C6 | Thời hạn | Hạn cụm = 120 + 30 × số trang của cụm, tính từ `chunk_started`; hạn run giữ nguyên làm trần ngoài |
 | C7 | Tiến độ | Backend ghi số cụm và số trang đã xong vào bước S2, SSE phát qua sự kiện bước sẵn có |
@@ -69,6 +69,10 @@ Backend                                   AI1
 
 - **Pha 1 (OCR cụm):** phần tốn tiền và tốn thời gian (gọi engine OCR). Mỗi cụm chỉ OCR các trang của nó, giữ **số trang tuyệt đối** trong tài liệu (cụm 3 là trang 41–60, không đánh lại 1–20).
 - **Pha 2 (assemble):** không gọi engine OCR. AI1 dựng `nodes[]`, `table_continuity[]` và snapshot `ai1.snapshot.v1` từ các trang của mọi cụm, rồi trả `ai1.ocr.completed` đúng như hiện nay.
+- **Bước nào cần nhìn cả tài liệu thì chạy ở pha 2**, không chạy theo cụm:
+  - `mark_duplicate_pages` (đánh dấu trang trùng hoặc gần trùng theo văn bản), hiện chạy cuối `ProcessDocument.execute` (`process_document.py:273`), chuyển sang assemble.
+  - Header/footer lặp (`running_text`) và nối bảng (`table_continuity`) đã nằm trong bước dựng snapshot, nên tự động thuộc pha 2.
+  - Chi phí chấp nhận trong pha đầu: trang trùng pixel chỉ được dùng lại trong cùng một cụm. Hai trang giống hệt nhau ở hai cụm khác nhau sẽ bị OCR hai lần.
 - Kết quả trang của pha 1 (`ai1.pages.v1`) **do AI1 định nghĩa**. Backend không đọc nội dung, chỉ giữ URI, sha256 và số byte để chuyển lại cho AI1 ở pha 2.
 - Phía sau `ai1.ocr.completed` không đổi gì: Backend xử lý như hiện nay (`_record_ai1_document`, `worker.py:253`), AI2 nhận cùng dạng snapshot.
 
@@ -205,6 +209,7 @@ Backend gửi khi mọi cụm của một tài liệu đã `chunk_completed`. To
 ```
 
 - `chunks` theo thứ tự trang và phủ đủ 1..`document_page_count`, không hở, không chồng.
+- `source_blob_get_url` và `source_sha256` **bắt buộc** (Q3): `BuildSnapshot` mở PDF gốc để tính `source_digest`, lấy kích thước từng trang và render ảnh trang (`build_snapshot.py:129–145`). Chỉ bỏ được khi pha 1 lưu sẵn kích thước và ảnh trang; khi đó sửa DEC trước.
 - AI1 kiểm tra `sha256` của từng kết quả cụm, dựng snapshot rồi trả `ai1.ocr.completed` hoặc `ai1.ocr.failed` **đúng như DOC-05d §5**. `result_target` là đường dẫn của cả tài liệu, giống hiện nay.
 
 - [ ] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
@@ -216,7 +221,11 @@ Backend gửi khi mọi cụm của một tài liệu đã `chunk_completed`. To
 - **AI1:** chạy `ai1-worker` thành **nhiều replica** trong cùng group `ci-ai1-ocr`: bỏ `container_name` trong compose, đặt `AI1_WORKER_REPLICAS`, mặc định 2. Mỗi replica vẫn OCR 8 trang cùng lúc như hiện nay.
 - **Backend:** mỗi run gửi tối đa **2 cụm cùng lúc** (`AI1_OCR_MAX_CHUNKS_IN_FLIGHT`). Mỗi khi một cụm xong hoặc lỗi hẳn, Backend gửi cụm kế tiếp. Nhờ vậy một tài liệu 200 trang không đổ cả 10 cụm vào hàng đợi, và cụm của hồ sơ khác được chen vào giữa.
 
-**Trần gọi provider:** số trang OCR cùng lúc tối đa = số replica × `AI1_MAX_PAGES_IN_FLIGHT` = 2 × 8 = 16. Khi bị provider giới hạn tốc độ (429) thì chỉnh hai biến này, không cần đổi contract.
+**Trần gọi provider (tính theo số request, không theo số trang):**
+- Số trang OCR cùng lúc tối đa = số replica × `AI1_MAX_PAGES_IN_FLIGHT` = 2 × 8 = 16 trang.
+- Mỗi trang gọi Mistral 1 lần ở `AI1_COST_MODE=budget`, 2 lần ở `accuracy` (2512 và 4-1 chạy song song), có thể thêm GPT cho các dòng mâu thuẫn. Vì vậy số request Mistral cùng lúc khoảng **16** ở `budget` và **32** ở `accuracy`.
+- Compose hiện **không đặt** `AI1_COST_MODE`, và code mặc định là `accuracy` (`backend_ocr_job.py:188`). Compose phải đặt rõ giá trị này.
+- `AI1_WORKER_REPLICAS = 2` và `AI1_MAX_PAGES_IN_FLIGHT = 8` là giá trị tạm. E6 đo xem có bị 429 không, rồi mới chốt hai giá trị này. Đổi chúng không cần đổi contract.
 
 - [ ] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
 
@@ -317,12 +326,12 @@ SSE đã phát thay đổi của bước, nên không cần sự kiện SSE mớ
 
 | # | Câu hỏi | Vì sao cần |
 |---|---|---|
-| Q1 | `ProcessDocument.execute` chạy được trên một tập trang (bỏ `align_pages_to_pdf` và kiểm tra ở `backend_ocr_job.py:283`) và giữ số trang tuyệt đối không? | Điều kiện của pha 1 |
-| Q2 | Kết quả trang (`document.pages` sau OCR) có lưu ra JSON rồi đọc lại để dựng snapshot được không? AI1 đặt tên schema (`ai1.pages.v1` là tên tạm) | Điều kiện của pha 2 |
-| Q3 | `BuildSnapshot` có cần PDF gốc hoặc render lại ảnh trang ở pha 2 không? Nếu không cần, lệnh assemble có thể bỏ `source_blob_get_url` | Giảm tải và thời gian của pha 2 |
-| Q4 | `ai1-worker` chạy nhiều replica được không (trạng thái cục bộ ngoài `_processed` và thư mục tạm)? | C4 |
-| Q5 | AI1 tách được mã lỗi và `retryable` như C3 không? Hiện mọi lỗi đều là `AI1_OCR_FAILED` | Backend cần biết lỗi nào gửi lại được (C5) |
-| Q6 | Cỡ cụm 20 trang và 8 trang cùng lúc có hợp với hạn mức provider đang dùng (Mistral) không? | C2, C4 |
+| Q1 | ~~`ProcessDocument.execute` chạy được trên một tập trang và giữ số trang tuyệt đối không?~~ **Được (K1).** AI1 thêm tham số danh sách trang, `page_number = index + 1` vẫn là số tuyệt đối; khi lệnh có `chunk` thì bỏ `align_pages_to_pdf` và kiểm tra ở `backend_ocr_job.py:283` | Điều kiện của pha 1 |
+| Q2 | ~~Kết quả trang có lưu ra JSON rồi đọc lại để dựng snapshot được không?~~ **Được.** `Page` là entity pydantic (`domain/entities.py:109`); giữ tên `ai1.pages.v1` | Điều kiện của pha 2 |
+| Q3 | ~~`BuildSnapshot` có cần PDF gốc ở pha 2 không?~~ **Có.** Giữ `source_blob_get_url` trong lệnh assemble (C3) | Giảm tải và thời gian của pha 2 |
+| Q4 | ~~`ai1-worker` chạy nhiều replica được không?~~ **Được.** Trạng thái cục bộ chỉ có `_processed`, `_backend_jobs`, `_engine_cache` và thư mục tạm của từng job; bỏ `container_name` là đủ | C4 |
+| Q5 | ~~AI1 tách được mã lỗi và `retryable` không?~~ **Được (K3).** Hiện có `AI1_OCR_FAILED`, `AI1_RESULT_UPLOAD_FAILED`, `AI1_LOW_QUALITY_DOCUMENT` (#47, `retryable=false`) | Backend cần biết lỗi nào gửi lại được (C5) |
+| Q6 | ~~Cỡ cụm 20 trang và 8 trang cùng lúc có hợp với hạn mức Mistral không?~~ **Chưa có số đo.** Ở `accuracy` là khoảng 32 request cùng lúc; E6 đo 429 rồi chốt (C4) | C2, C4 |
 | Q7 | ~~Kiểm tra chất lượng trang của #47 khi chia cụm: đo cả tài liệu trước (a) hay mỗi cụm tự đo (b)?~~ **Đã chốt 01/10: AI1 chọn (a), xem C9.** | Tránh hai cụm của cùng một tài liệu cho kết quả ngược nhau, và tránh OCR (tốn tiền) các cụm đầu rồi mới từ chối ở cụm sau |
 
 ## Việc của từng bên
@@ -332,7 +341,7 @@ SSE đã phát thay đổi của bước, nên không cần sự kiện SSE mớ
 | # | Mục | Việc |
 |---|---|---|
 | K1 | C1, C3 | Nhận lệnh có `chunk`: chỉ OCR `pages_to_process`, upload ảnh các trang đó, ghi kết quả trang lên `result_target`, trả `chunk_started` / `chunk_completed` / `chunk_failed`. Lệnh không có `chunk` chạy như hiện nay |
-| K2 | C1, C3 | Lệnh `ai1.ocr.assemble`: đọc kết quả các cụm, dựng `nodes`, `table_continuity` và snapshot, trả `ai1.ocr.completed` / `ai1.ocr.failed` như DOC-05d §5 |
+| K2 | C1, C3 | Lệnh `ai1.ocr.assemble`: đọc kết quả các cụm, chạy `mark_duplicate_pages` trên cả tài liệu, dựng `nodes`, `table_continuity` và snapshot, trả `ai1.ocr.completed` / `ai1.ocr.failed` như DOC-05d §5 |
 | K3 | C3, C5 | Mã lỗi và `retryable` theo mã |
 | K4 | C4 | `ai1-worker` chạy nhiều replica (bỏ `container_name`, `AI1_WORKER_REPLICAS`) |
 | K5 | C9 | Lệnh `ai1.ocr.inspect` trả `ai1.ocr.inspected` hoặc `ai1.ocr.failed` (`AI1_LOW_QUALITY_DOCUMENT`); lệnh cụm nhận `chunk.low_quality_pages` và không đo lại |
@@ -345,13 +354,13 @@ SSE đã phát thay đổi của bước, nên không cần sự kiện SSE mớ
 | E2 | C1, C8 | Lưu trạng thái từng cụm trên run, nhận kết quả cụm, gửi assemble khi đủ cụm |
 | E3 | C5, C6 | Hạn cụm trong watchdog, tự gửi lại cụm lỗi tạm; "chạy lại phần lỗi" theo cụm |
 | E4 | C7 | Tiến độ S2 |
-| E5 | C4 | Script tạo topic 6 partition; compose cho phép nhiều replica AI1 |
-| E6 | — | Test end-to-end với PDF khoảng 200 trang, khoảng 48 MiB; ghi số đo vào DOC-11 |
+| E5 | C4 | Script tạo topic 6 partition; compose cho phép nhiều replica AI1; compose đặt rõ `AI1_COST_MODE` |
+| E6 | C4 | Test end-to-end với PDF khoảng 200 trang, khoảng 48 MiB; đo thời gian và số lần 429, chốt `AI1_WORKER_REPLICAS` và `AI1_MAX_PAGES_IN_FLIGHT`; ghi số đo vào DOC-11 |
 | E7 | C9 | Gửi `ai1.ocr.inspect` trước khi chia cụm, lưu kết quả trên run (mang sang run mới khi chạy lại phần lỗi), đặt `chunk.low_quality_pages` cho từng cụm |
 
 ## Thứ tự triển khai
 
-1. Hai bên duyệt DEC này. AI1 trả lời Q1–Q7; nếu câu trả lời làm đổi đề xuất thì sửa DEC trước khi code.
+1. Hai bên duyệt DEC này. AI1 đã trả lời Q1–Q7 (01/10) và DEC đã sửa theo các câu trả lời.
 2. AI1 deploy K1–K5. Lệnh không có `chunk` vẫn chạy như cũ, nên Backend cũ không bị ảnh hưởng.
 3. Backend deploy E1–E5 và E7 với `AI1_OCR_CHUNK_PAGES=0` (tắt): hành vi chưa đổi.
 4. Bật `AI1_OCR_CHUNK_PAGES=20` trên máy test, chạy E6 và ghi số đo.
@@ -364,3 +373,4 @@ SSE đã phát thay đổi của bước, nên không cần sự kiện SSE mớ
 | 2026-10-01 | Bản đề xuất đầu tiên | Chương |
 | 2026-10-01 | Thêm Q7: kiểm tra chất lượng trang (#47) khi chia cụm | Chương |
 | 2026-10-01 | Chốt Q7 theo trả lời của Đức Dũng: phương án (a). Thêm C9 (`ai1.ocr.inspect` / `ai1.ocr.inspected`, `chunk.low_quality_pages`), K5, E7 | Chương |
+| 2026-10-01 | Theo trả lời Q1–Q6 của Đức Dũng: C1 chuyển `mark_duplicate_pages` sang pha assemble; C3 lệnh assemble bắt buộc có `source_blob_get_url`; C4 tính trần provider theo số request, compose đặt rõ `AI1_COST_MODE`, E6 chốt số replica. Đánh dấu Q1–Q6 đã trả lời | Chương |
