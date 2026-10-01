@@ -1,0 +1,17 @@
+schema: plan-approval/v1
+plan: 260929-2323-ai2-a-measure-baseline
+plan_hash: 6df717bc1f15
+file_hashes:
+  plan.md: 015536d67fd9
+  phases/phase-1-golden-set-synthetic.md: 3e158b07b672
+  phases/phase-2-scorer-and-thresholds.md: 868336f0ad21
+  phases/phase-3-live-llm-benchmark.md: 3a117fd566c8
+  phases/phase-4-ai2-ci-gate.md: 411a4031e426
+  plan-graph.yaml: 404a500ae3ec
+author: user:dungskbg2004@gmail.com
+reviewer: user:dungskbg2004@gmail.com
+verdict: APPROVED
+rationale: User explicitly approved this plan on 2026-09-30; the existing sizing
+  receipt records proceed because the scoped phases fit one plan.
+ts: '2026-09-30T14:52:13.221401+00:00'
+run_seq: null

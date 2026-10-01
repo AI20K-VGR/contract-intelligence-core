@@ -1,0 +1,63 @@
+{
+  "stage": "cook",
+  "plan": "260929-2323-ai2-a-measure-baseline",
+  "checks": [
+    {
+      "name": "tdd-red-green",
+      "status": "PASS"
+    },
+    {
+      "name": "golden-generator",
+      "status": "PASS"
+    },
+    {
+      "name": "blind-candidate-review",
+      "status": "PASS"
+    },
+    {
+      "name": "pipeline-smoke",
+      "status": "PASS"
+    },
+    {
+      "name": "golden-check-stats-variant",
+      "status": "PASS"
+    },
+    {
+      "name": "evals-tests-79",
+      "status": "PASS"
+    },
+    {
+      "name": "eval-types-36",
+      "status": "PASS"
+    },
+    {
+      "name": "reasoning-catalog-45",
+      "status": "PASS"
+    },
+    {
+      "name": "ruff",
+      "status": "PASS"
+    },
+    {
+      "name": "diff-check",
+      "status": "PASS"
+    },
+    {
+      "name": "spec-commit-ancestor",
+      "status": "PASS"
+    },
+    {
+      "name": "paired-implementation-commit",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P1",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-09-30T19:51:56+00:00",
+  "blastRadius": {
+    "unavailable": true,
+    "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF"
+  },
+  "run_seq": null
+}

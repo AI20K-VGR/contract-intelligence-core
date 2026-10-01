@@ -8,18 +8,56 @@
     "split_strategy": "hybrid"
   },
   "sizer_input": {
-    "features": ["golden-set-scorer", "live-llm-benchmark", "ai2-ci"],
-    "layers": ["api", "data", "infra"]
+    "features": [
+      "golden-set-scorer",
+      "live-llm-benchmark",
+      "ai2-ci"
+    ],
+    "layers": [
+      "api",
+      "data",
+      "infra"
+    ]
   },
-  "decision": "proceed",
+  "decision": "keep",
   "reason": "This plan is already sub-plan A of a user-approved 3-way split (parent sizing: 9 features, 2880 cells, user chose 'Tách 3 plan theo phụ thuộc' on 2026-09-29). The sizer's further split is by layer (api+data vs infra), which would separate the CI gate from the scorer it runs; A has 3 features, 4 phases and one owner (AI2), so one plan still fits.",
   "parent_split": {
     "decided_by": "user (AskUserQuestion, 2026-09-29)",
     "subPlans": [
-      {"id": "A-measure", "plan": "plans/260929-2323-ai2-a-measure-baseline", "features": ["golden-set-scorer", "live-llm-benchmark", "ai2-ci"]},
-      {"id": "B-service", "plan": "plans/260929-2323-ai2-b-versioned-service", "features": ["versioned-contracts", "versioned-ai2-image", "llm-enabled-ai2", "ai2-observability"]},
-      {"id": "C-integration", "plan": "plans/260929-2323-ai2-c-integration", "features": ["ai2-state-in-postgres", "backend-ai2-e2e", "quality-uplift-95"]}
+      {
+        "id": "A-measure",
+        "plan": "plans/260929-2323-ai2-a-measure-baseline",
+        "features": [
+          "golden-set-scorer",
+          "live-llm-benchmark",
+          "ai2-ci"
+        ]
+      },
+      {
+        "id": "B-service",
+        "plan": "plans/260929-2323-ai2-b-versioned-service",
+        "features": [
+          "versioned-contracts",
+          "versioned-ai2-image",
+          "llm-enabled-ai2",
+          "ai2-observability"
+        ]
+      },
+      {
+        "id": "C-integration",
+        "plan": "plans/260929-2323-ai2-c-integration",
+        "features": [
+          "ai2-state-in-postgres",
+          "backend-ai2-e2e",
+          "quality-uplift-95"
+        ]
+      }
     ],
-    "dependencies": ["A-measure -> B-service", "A-measure -> C-integration", "B-service -> C-integration"]
-  }
+    "dependencies": [
+      "A-measure -> B-service",
+      "A-measure -> C-integration",
+      "B-service -> C-integration"
+    ]
+  },
+  "decided_by": "user"
 }

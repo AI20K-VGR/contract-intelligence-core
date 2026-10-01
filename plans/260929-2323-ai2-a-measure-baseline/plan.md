@@ -2,7 +2,7 @@
 id: 260929-2323-ai2-a-measure-baseline
 title: "AI2-A measurement baseline: golden set, scorer, live-LLM benchmark, CI"
 description: "Đo AI2 trên pipeline thật: golden set giả lập có nhãn span, bộ chấm theo đơn vị (>=60 đơn vị/chỉ số, Wilson + cluster CI, chặn pass->fail so với baseline của nhánh đích), benchmark gpt-4o-mini có trần chi phí, CI thật cho ai-service."
-status: pending
+status: in_progress
 priority: P1
 effort: "10-12 ngày công agent + khoảng 1 ngày duyệt của Văn Dũng"
 mode: hard

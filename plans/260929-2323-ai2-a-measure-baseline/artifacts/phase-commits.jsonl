@@ -1,0 +1,4 @@
+{"actor": "user:dungskbg2004@gmail.com", "kind": "open", "mark": "5fc355d121ea1f2237b1979d5c3a78f1f75e5053", "phase": "P1", "ts": "2026-09-30T18:28:51+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "verify", "phase": "P1", "sha": ["bdcb297e2522a589539c359b2f864d860754c660"], "ts": "2026-09-30T19:41:29+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "open", "mark": "bdcb297e2522a589539c359b2f864d860754c660", "phase": "P2", "ts": "2026-09-30T19:41:39+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "verify", "phase": "P1", "sha": ["8d267ae95c35d7cc0ce9f5822c9b2a57137ef824", "bdcb297e2522a589539c359b2f864d860754c660"], "ts": "2026-09-30T19:51:56+00:00"}
