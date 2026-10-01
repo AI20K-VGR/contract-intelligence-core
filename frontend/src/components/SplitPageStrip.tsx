@@ -3,10 +3,14 @@ import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { loadDocumentPdf } from '../api/structure'
 import type { ResolvedPart } from '../split/parts'
+import { MaterialIcon } from './icons'
 
 GlobalWorkerOptions.workerSrc = workerUrl
 
 const THUMB_SCALE = 0.3
+const ZOOM_SCALE = 1.6
+
+type RenderLarge = (index: number, canvas: HTMLCanvasElement) => Promise<void>
 
 function roleOfPage(parts: ResolvedPart[], page: number) {
   return parts.find((part) => page >= part.pageStart && page <= part.pageEnd)
@@ -19,6 +23,7 @@ function Thumb({
   partNo,
   disabled,
   onStartAnnex,
+  onZoom,
 }: {
   page: number
   render: ((canvas: HTMLCanvasElement) => Promise<void>) | null
@@ -26,6 +31,7 @@ function Thumb({
   partNo: number
   disabled: boolean
   onStartAnnex: (page: number) => void
+  onZoom: (page: number | null) => void
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [drawn, setDrawn] = useState(false)
@@ -67,6 +73,18 @@ function Thumb({
         >
           Phần {partNo}
         </span>
+        <button
+          aria-label={`Xem phóng to trang ${page}`}
+          className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white shadow transition-colors hover:bg-black/80 focus:bg-black/80"
+          type="button"
+          onBlur={() => onZoom(null)}
+          onClick={() => onZoom(page)}
+          onFocus={() => onZoom(page)}
+          onMouseEnter={() => onZoom(page)}
+          onMouseLeave={() => onZoom(null)}
+        >
+          <MaterialIcon name="visibility" className="text-[16px]" />
+        </button>
       </div>
       <figcaption className="flex flex-col gap-1.5">
         <span className="font-code-sm text-code-sm text-on-surface">
@@ -95,6 +113,52 @@ function Thumb({
   )
 }
 
+/** Trang phóng to hiện giữa màn hình khi rê chuột vào biểu tượng con mắt. */
+function PagePreview({
+  page,
+  renderLarge,
+}: {
+  page: number
+  renderLarge: RenderLarge
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const [drawn, setDrawn] = useState(false)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    let cancelled = false
+    setDrawn(false)
+    renderLarge(page - 1, canvas)
+      .then(() => {
+        if (!cancelled) setDrawn(true)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [page, renderLarge])
+
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[900] flex items-center justify-center bg-black/40 p-space-lg">
+      <div className="relative flex max-h-full flex-col items-center gap-2 rounded-xl bg-white p-3 shadow-2xl">
+        <canvas
+          ref={canvasRef}
+          className="block max-h-[82vh] w-auto max-w-[min(92vw,60rem)]"
+        />
+        {drawn ? null : (
+          <span className="absolute inset-0 flex items-center justify-center font-label-sm text-label-sm text-on-surface-variant">
+            Đang tải…
+          </span>
+        )}
+        <span className="rounded-full bg-black/70 px-3 py-0.5 font-code-sm text-code-sm text-white">
+          Trang {page}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 /*
  * Xem trước từng trang của file gốc để chọn chỗ cắt. Chưa OCR nên chưa có ảnh
  * trang từ backend; vẽ thẳng từ PDF gốc (GET /documents/{id}/content) bằng pdf.js.
@@ -116,6 +180,8 @@ export function SplitPageStrip({
   const [renderers, setRenderers] = useState<
     ((canvas: HTMLCanvasElement) => Promise<void>)[] | null
   >(null)
+  const [renderLarge, setRenderLarge] = useState<RenderLarge | null>(null)
+  const [zoom, setZoom] = useState<number | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -123,6 +189,8 @@ export function SplitPageStrip({
     let destroy: (() => Promise<void>) | null = null
     setError(null)
     setRenderers(null)
+    setRenderLarge(null)
+    setZoom(null)
 
     async function open() {
       const bytes = await loadDocumentPdf(documentId, controller.signal)
@@ -148,6 +216,14 @@ export function SplitPageStrip({
         }
       })
       setRenderers(next)
+      setRenderLarge(() => async (index: number, canvas: HTMLCanvasElement) => {
+        if (cancelled) return
+        const page = await pdf.getPage(index + 1)
+        const viewport = page.getViewport({ scale: ZOOM_SCALE })
+        canvas.width = viewport.width
+        canvas.height = viewport.height
+        await page.render({ canvas, viewport }).promise
+      })
     }
 
     open().catch((cause: unknown) => {
@@ -189,9 +265,13 @@ export function SplitPageStrip({
             render={renderers?.[index] ?? null}
             part={part}
             onStartAnnex={onStartAnnex}
+            onZoom={setZoom}
           />
         )
       })}
+      {zoom !== null && renderLarge ? (
+        <PagePreview key={zoom} page={zoom} renderLarge={renderLarge} />
+      ) : null}
     </div>
   )
 }
