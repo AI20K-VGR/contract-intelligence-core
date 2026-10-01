@@ -10,6 +10,7 @@ import {
 } from '../api/findingReview'
 import type { ClauseNode } from '../api/structure'
 import { reviewerLabel } from '../review/reviewerLabel'
+import { reviewErrorMessage } from '../review/saveError'
 import {
   actionLabel,
   mergeTimelines,
@@ -167,9 +168,7 @@ export function ConflictFindingReview({
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return
         onReviewed?.(false)
-        setMessage(
-          cause instanceof Error ? cause.message : 'Không tải được thẩm định.',
-        )
+        setMessage(reviewErrorMessage(cause, 'Không tải được thẩm định.'))
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
@@ -204,9 +203,7 @@ export function ConflictFindingReview({
           `${who || 'Người khác'} vừa lưu thẩm định cho mục này. Đã tải bản mới nhất, hãy xem lại trước khi lưu.`,
         )
       } else {
-        setMessage(
-          cause instanceof Error ? cause.message : 'Không lưu được thẩm định.',
-        )
+        setMessage(reviewErrorMessage(cause, 'Không lưu được thẩm định.'))
       }
     } finally {
       setSaving(false)

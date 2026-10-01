@@ -10,6 +10,7 @@ import {
 import { getFindingReview, type FindingReview } from '../api/findingReview'
 import type { ClauseNode, ReviewSpot } from '../api/structure'
 import { reviewerLabel } from '../review/reviewerLabel'
+import { reviewErrorMessage } from '../review/saveError'
 import { mergeTimelines, timelineEntries } from '../review/timeline'
 import type { SearchCite } from '../structure/citations'
 import { bodyOf, headOf, nodeLabel } from '../structure/display'
@@ -161,9 +162,7 @@ export function SearchCitationReview({
       .then(adopt)
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return
-        setMessage(
-          cause instanceof Error ? cause.message : 'Không tải được thẩm định.',
-        )
+        setMessage(reviewErrorMessage(cause, 'Không tải được thẩm định.'))
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
@@ -199,9 +198,7 @@ export function SearchCitationReview({
           `${who || 'Người khác'} vừa lưu thẩm định cho trích dẫn này. Đã tải bản mới nhất, hãy xem lại trước khi lưu.`,
         )
       } else {
-        setMessage(
-          cause instanceof Error ? cause.message : 'Không lưu được thẩm định.',
-        )
+        setMessage(reviewErrorMessage(cause, 'Không lưu được thẩm định.'))
       }
     } finally {
       setSaving(false)

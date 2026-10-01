@@ -16,6 +16,7 @@ import {
   formatExpiry,
   fromDateInput,
   grantPermission,
+  isGrantExpired,
   permissionLabels,
   todayInput,
   toDateInput,
@@ -323,6 +324,39 @@ export function AccessPage() {
                         <div className="mt-1">
                           <ShareGrantBadge grant={item.myGrant} />
                         </div>
+                      ) : null}
+                      {item.access === 'shared_out' && item.shares?.length ? (
+                        <ul className="mt-2 flex flex-col gap-1">
+                          {item.shares.map((grant) => {
+                            const expired = isGrantExpired(grant)
+                            return (
+                              <li
+                                key={grant.id}
+                                className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-body-sm text-body-sm"
+                              >
+                                <span className="font-semibold text-on-surface">
+                                  {grant.display_name || grant.email}
+                                </span>
+                                <span className="rounded bg-surface-container px-1.5 py-0.5 font-label-sm text-label-sm text-on-surface">
+                                  {permissionLabels[grantPermission(grant)]}
+                                </span>
+                                <span
+                                  className={`font-label-sm text-label-sm ${
+                                    expired
+                                      ? 'text-error'
+                                      : 'text-on-surface-variant'
+                                  }`}
+                                >
+                                  {expired
+                                    ? 'Đã hết hạn'
+                                    : grant.expires_at
+                                      ? `Hết hạn ${formatExpiry(grant.expires_at)}`
+                                      : 'Không hết hạn'}
+                                </span>
+                              </li>
+                            )
+                          })}
+                        </ul>
                       ) : null}
                     </td>
                     {sharedOnly ? null : (
