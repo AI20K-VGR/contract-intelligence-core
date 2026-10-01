@@ -25,7 +25,7 @@ from app.contracts.models import (
     ToolEnvelope,
 )
 from app.contracts.wire import BeAi2ProcessingRequest, job_result_to_wire
-from app.llm.client import NineRouterClient
+from app.llm.client import NineRouterClient, llm_status
 from app.llm.embeddings import OpenAICompatibleEmbeddingClient
 from app.pipeline.ai1_ingest import ingest_files
 from app.pipeline.ai1_snapshot_adapter import (
@@ -54,6 +54,7 @@ from app.tools.jobs import (
     SQLiteJobStore,
 )
 from app.tools.persist import DATA, load_session, save_session
+from app.tools.query_store import load_query_snapshot, save_query_snapshot
 from app.tools.store import DossierRecord, InMemorySnapshotStore
 from fixtures.case_pdf import attach_case_pdf
 from fixtures.catalog import load_case
@@ -172,6 +173,10 @@ def _run_wire_job(job_id: str, payload: dict) -> None:
             tenant_id=service_envelope.tenant_id,
             actor_id=service_envelope.actor_id,
         )
+        # Keep the authoritative, citation-bearing record available to the
+        # separate HTTP query process after worker/API restarts.
+        STORE.put(adapted.record)
+        save_query_snapshot(adapted.record, adapted.envelope)
         tenant_id = request.service_envelope.tenant_id
         worker_token = JOB_STORE.claim(
             job_id,
@@ -688,7 +693,7 @@ def health() -> dict:
         embedding = {"status": "NOT_RUN", "models": [], "selected_model": None, "dimensions": None}
     return {
         "status": "ok",
-        "llm": "ready" if llm.configured() else "off",
+        "llm": llm_status(llm),
         "model": llm.model if llm.configured() else "",
         "persist": str(DATA),
         "embedding": embedding,
@@ -774,10 +779,20 @@ def query_from_backend(payload: dict) -> dict:
         raise HTTPException(status_code=422, detail={"code": "DOSSIER_ID_REQUIRED"})
     requested_digest = str(payload.get("snapshot_digest") or "").strip()
     query_contract_version = str(payload.get("query_contract_version") or "").strip()
-    if service_envelope is not None:
-        record = STORE.get(service_envelope.tenant_id, dossier_id)
-        if record is not None:
-            expected_digest = str(record.pins.source_snapshot_digest or "")
+    stored_envelope: ToolEnvelope | object | None = None
+    tenant_id = service_envelope.tenant_id if service_envelope is not None else str(
+        payload.get("tenant_id") or ""
+    ).strip()
+    record = STORE.get(tenant_id, dossier_id) if tenant_id else None
+    if record is None:
+        hydrated = load_query_snapshot(dossier_id, tenant_id=tenant_id or None)
+        if hydrated is not None:
+            record, stored_envelope = hydrated
+            STORE.put(record)
+
+    if record is not None:
+        expected_digest = str(record.pins.source_snapshot_digest or "")
+        if expected_digest:
             # The versioned Backend contract must bind the query to the
             # current canonical snapshot. Keep the older signed compatibility
             # lane readable for existing callers that predate this field.
@@ -802,25 +817,33 @@ def query_from_backend(payload: dict) -> dict:
                         }
                     ],
                 }
-            member_ids = [source.file_id for source in record.source_files if source.file_id]
-            envelope = ToolEnvelope(
-                auth=AuthContext(
-                    actor_id=service_envelope.actor_id,
-                    tenant_id=service_envelope.tenant_id,
-                    dossier_id=dossier_id,
-                    acl_revision=record.acl_revision,
-                    permissions=record.permissions_by_actor.get(
-                        service_envelope.actor_id, ["READ_CONTENT"]
+            if service_envelope is not None:
+                member_ids = [source.file_id for source in record.source_files if source.file_id]
+                envelope = ToolEnvelope(
+                    auth=AuthContext(
+                        actor_id=service_envelope.actor_id,
+                        tenant_id=service_envelope.tenant_id,
+                        dossier_id=dossier_id,
+                        acl_revision=record.acl_revision,
+                        permissions=record.permissions_by_actor.get(
+                            service_envelope.actor_id, ["READ_CONTENT"]
+                        ),
+                        member_ids=member_ids,
+                        member_documents={},
+                        lifecycle=record.lifecycle,
                     ),
-                    member_ids=member_ids,
-                    member_documents={},
-                    lifecycle=record.lifecycle,
-                ),
-                pins=record.pins,
-            )
+                    pins=record.pins,
+                )
+            else:
+                envelope = stored_envelope
             policy_flags = payload.get("policy_flags")
             policy_flags = policy_flags if isinstance(policy_flags, dict) else {}
-            result = QueryRouter(STORE, ToolGateway(STORE)).query(
+            llm = None
+            if policy_flags.get("egress_allowed") and policy_flags.get("use_llm"):
+                candidate = NineRouterClient()
+                if candidate.configured():
+                    llm = candidate
+            result = QueryRouter(STORE, ToolGateway(STORE), llm=llm).query(
                 envelope,
                 query,
                 classify_ask(query),
@@ -859,7 +882,7 @@ def query_from_backend(payload: dict) -> dict:
         },
         "reasoning_trace": [
             {
-                "code": "AI2_QUERY_EVIDENCE_REQUIRED",
+                "code": "AI2_QUERY_SNAPSHOT_NOT_FOUND",
                 "message": (
                     "Query chỉ được trả lời sau khi AI2 nhận canonical snapshot và citation map"
                 ),

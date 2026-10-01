@@ -71,6 +71,29 @@ def adapt_be_ai2_processing_request(
     """
 
     _require_mapping(payload, "Backend → AI2 processing request")
+    compatibility = _prepare_ocr_lab_compatibility_payload(payload)
+    if compatibility is not None:
+        normalized_payload, original_snapshots = compatibility
+        try:
+            request = BeAi2ProcessingRequest.model_validate(normalized_payload)
+            from app.pipeline.ai1_ocr_lab_adapter import adapt_ocr_lab_snapshot
+
+            adapted = adapt_ocr_lab_snapshot(
+                original_snapshots[0],
+                tenant_id=tenant_id,
+                actor_id=actor_id,
+                profile=profile,
+                acl_revision=acl_revision,
+                scope_id=request.dossier_id,
+            )
+            return request, adapted
+        except SnapshotContractError:
+            raise
+        except Exception as exc:
+            raise SnapshotContractError(
+                f"invalid OCR-lab compatibility request: {exc}",
+                code="PROCESSING_REQUEST_COMPAT_INVALID",
+            ) from exc
     try:
         validate_contract(
             payload,
@@ -133,6 +156,80 @@ def adapt_be_ai2_processing_request(
         }
     )
     return request, result
+
+
+def _prepare_ocr_lab_compatibility_payload(
+    payload: Mapping[str, Any],
+) -> tuple[dict[str, Any], list[Mapping[str, Any]]] | None:
+    """Prepare the current AI1 OCR-lab shape for the legacy Kafka wire DTO.
+
+    AI1 currently emits the richer OCR-lab snapshot with the same
+    ``ai1.snapshot.v1`` label used by the canonical Kafka contract.  The
+    normalizer is intentionally restricted to that recognizable shape and only
+    normalizes digest prefixes; the existing OCR-lab adapter remains the owner
+    of page/layout semantics and evidence preservation.
+
+    This compatibility path is for the internal Kafka boundary only.  It does
+    not make an ambiguous or incomplete snapshot valid, and canonical payloads
+    continue through the strict JSON-Schema path below.
+    """
+    raw_snapshots = payload.get("snapshots")
+    if not isinstance(raw_snapshots, list) or not raw_snapshots:
+        return None
+
+    from app.pipeline.ai1_ocr_lab_adapter import is_ocr_lab_snapshot
+
+    if not any(is_ocr_lab_snapshot(item) for item in raw_snapshots if isinstance(item, Mapping)):
+        return None
+    if not all(isinstance(item, Mapping) and is_ocr_lab_snapshot(item) for item in raw_snapshots):
+        raise SnapshotContractError(
+            "mixed canonical and OCR-lab snapshots are not supported in one request",
+            code="PROCESSING_REQUEST_COMPAT_MIXED_SHAPES",
+        )
+
+    normalized = json.loads(json.dumps(payload, ensure_ascii=False))
+    normalized_snapshots: list[dict[str, Any]] = []
+    digest_by_snapshot: dict[str, str] = {}
+    for raw_snapshot in raw_snapshots:
+        snapshot = json.loads(json.dumps(raw_snapshot, ensure_ascii=False))
+        source_digest = str(snapshot.get("source_digest") or "")
+        digest = source_digest.removeprefix("sha256:").lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise SnapshotContractError(
+                "OCR-lab source_digest must be sha256:<64 hex> or 64 hex",
+                code="OCR_LAB_DIGEST_INVALID",
+            )
+        snapshot["source_digest"] = digest
+        snapshot["dossier_id"] = str(payload.get("dossier_id") or snapshot.get("dossier_id") or "")
+        normalized_snapshots.append(snapshot)
+        digest_by_snapshot[str(snapshot.get("snapshot_id"))] = digest
+
+    normalized["snapshots"] = normalized_snapshots
+    identities = normalized.get("snapshot_identities")
+    if isinstance(identities, list):
+        for identity in identities:
+            if not isinstance(identity, dict):
+                continue
+            snapshot_id = str(identity.get("snapshot_id") or "")
+            snapshot = next(
+                (item for item in normalized_snapshots if str(item.get("snapshot_id")) == snapshot_id),
+                None,
+            )
+            if snapshot is None:
+                continue
+            identity["source_digest"] = digest_by_snapshot[snapshot_id]
+            identity["snapshot_digest"] = _canonical_digest(snapshot)
+
+    members = normalized.get("dossier_members")
+    if isinstance(members, list):
+        for member in members:
+            if not isinstance(member, dict):
+                continue
+            digest = digest_by_snapshot.get(str(member.get("snapshot_id") or ""))
+            if digest:
+                member["source_digest"] = digest
+
+    return normalized, raw_snapshots
 
 
 def adapt_ai2_request(
@@ -221,6 +318,15 @@ def adapt_ai2_request(
     record.nodes = [node for result in results for node in result.record.nodes]
     record.tables = [table for result in results for table in result.record.tables]
     record.handoff_issues = [issue for result in results for issue in result.record.handoff_issues]
+    # Each snapshot was enriched alone, before its dossier role was known, so
+    # the first record's active tree covers only its own file. Rebuild it over
+    # the merged dossier. Enrichment works per source file, so the issues it
+    # raises were already raised per snapshot; keep the merged list as is.
+    from app.pipeline.result_structure import enrich_result_structure
+
+    merged_issues = list(record.handoff_issues)
+    enrich_result_structure(record)
+    record.handoff_issues = merged_issues
     record.case_id = "AI2-IDP-REQUEST"
     record.permissions_by_actor = {actor_id: ["READ_CONTENT"]}
     snapshot_statuses = {str(item.get("status")) for item in snapshots.values()}
@@ -789,6 +895,9 @@ def adapt_snapshot(
         case_id="AI1-SNAPSHOT",
         handoff_issues=issues,
     )
+    from app.pipeline.result_structure import enrich_result_structure
+
+    enrich_result_structure(record)
     envelope = ToolEnvelope(
         auth=AuthContext(
             actor_id=actor_id,
@@ -2032,7 +2141,11 @@ def _adapt_page(
 
 def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[StructuralNode]:
     nodes: list[StructuralNode] = []
+    party: str | None = None
+    consumed: set[int] = set()
     for order, line in enumerate(lines):
+        if order in consumed:
+            continue
         if not isinstance(line, Mapping):
             continue
         raw = str(line.get("raw_text", line.get("text", "")))
@@ -2042,26 +2155,99 @@ def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[S
         bbox = _bbox(line.get("bbox")) if _has_geometry(line) else []
         normalized = fold_for_match(raw)
         is_clause = bool(re.match(r"^(?:dieu|khoan|diem)\s+\d", normalized))
-        amount = _explicit_contract_value(raw)
-        nodes.append(
-            StructuralNode(
-                node_id=f"line:{page_no}:{line_id}",
-                type="FIELD" if amount else ("CLAUSE" if is_clause else "UNNUMBERED_BLOCK"),
-                raw_label=raw[:160],
-                text=raw,
-                page_range=[page_no],
-                page_revision_id=page.page_revision_id,
-                bbox=bbox,
-                source_file_id=page.source_file_id,
-                page_in_file=page.page_in_file,
-                status="PARTIAL" if page.quality != "OK" else "CONFIRMED",
-                order=order,
-                structured_key="contract_value" if amount else None,
-                structured_value=amount,
-                source_line_ids=[line_id],
+        party = _track_party(normalized, party)
+        labelled = _labelled_line_facts(raw, normalized, party)
+        following = _amount_after_total_label(lines, order) if not labelled else None
+        if following:
+            labelled = [("contract_value", following[0])]
+            raw = following[0]
+            consumed.add(following[3])
+            if following[1]:
+                line_id = following[1]
+            if following[2]:
+                bbox = following[2]
+        if not labelled:
+            nodes.append(
+                _line_node(
+                    page,
+                    page_no=page_no,
+                    line_id=line_id,
+                    order=order,
+                    raw=raw,
+                    bbox=bbox,
+                    node_type="CLAUSE" if is_clause else "UNNUMBERED_BLOCK",
+                )
             )
-        )
+            continue
+        for index, (key, value) in enumerate(labelled):
+            nodes.append(
+                _line_node(
+                    page,
+                    page_no=page_no,
+                    line_id=line_id,
+                    node_suffix="" if index == 0 else f":{key}",
+                    order=order,
+                    raw=raw,
+                    bbox=bbox,
+                    node_type="FIELD",
+                    structured_key=key,
+                    structured_value=value,
+                )
+            )
     return nodes
+
+
+def _amount_after_total_label(lines: list[Any], index: int) -> tuple[str, str, list[float], int] | None:
+    """A bare 'Tổng cộng' line takes the amount on the next line, not a later line item."""
+
+    current = lines[index]
+    if not isinstance(current, Mapping):
+        return None
+    folded = fold_for_match(str(current.get("raw_text", current.get("text", "")))).strip(" |")
+    if not re.fullmatch(r"tong\s+cong", folded):
+        return None
+    for offset, nxt in enumerate(lines[index + 1 : index + 3], start=1):
+        if not isinstance(nxt, Mapping):
+            continue
+        text = str(nxt.get("raw_text", nxt.get("text", ""))).strip()
+        if not text:
+            continue
+        if not re.fullmatch(r"\d{1,3}(?:[.,]\d{3})+", text.replace(" ", "")):
+            return None
+        bbox = _bbox(nxt.get("bbox")) if _has_geometry(nxt) else []
+        return text, str(nxt.get("line_id") or ""), bbox, index + offset
+    return None
+
+
+def _line_node(
+    page: PageSnapshot,
+    *,
+    page_no: int,
+    line_id: str,
+    order: int,
+    raw: str,
+    bbox: list[float],
+    node_type: str,
+    node_suffix: str = "",
+    structured_key: str | None = None,
+    structured_value: str | None = None,
+) -> StructuralNode:
+    return StructuralNode(
+        node_id=f"line:{page_no}:{line_id}{node_suffix}",
+        type=node_type,
+        raw_label=raw[:160],
+        text=raw,
+        page_range=[page_no],
+        page_revision_id=page.page_revision_id,
+        bbox=bbox,
+        source_file_id=page.source_file_id,
+        page_in_file=page.page_in_file,
+        status="PARTIAL" if page.quality != "OK" else "CONFIRMED",
+        order=order,
+        structured_key=structured_key,
+        structured_value=structured_value,
+        source_line_ids=[line_id],
+    )
 
 
 def _explicit_contract_value(raw: str) -> str | None:
@@ -2081,10 +2267,85 @@ def _explicit_contract_value(raw: str) -> str | None:
     ):
         return None
     match = re.search(r"(\d[\d.,\s]*)\s*(?:vnd|dong)\b", folded, re.I)
-    if not match:
+    if match:
+        digits = re.sub(r"\D", "", match.group(1))
+        return digits or None
+    if not re.search(r"\b(?:vnd|dong)\b", folded):
         return None
-    digits = re.sub(r"\D", "", match.group(1))
-    return digits or None
+    later = re.search(r"(\d[\d.]{5,})", raw)
+    if not later:
+        return None
+    digits = re.sub(r"\D", "", later.group(1))
+    return digits if len(digits) >= 6 else None
+
+
+def _track_party(folded: str, party: str | None) -> str | None:
+    """Party sticks to the block under its heading. A later numbered section drops it.
+
+    A mid-sentence 'Bên A thanh toán' does not become the new party. The MST
+    extractor may still read a party named on its own line.
+    """
+
+    heading = re.match(r"^ben\s+([abcy])\b", folded)
+    if heading:
+        return heading.group(1)
+    section = re.search(r"\(\s*ben\s+([abcy])\b", folded)
+    if section:
+        return section.group(1)
+    if re.match(r"^\d+\.\d+\.", folded):
+        return None
+    return party
+
+
+def _party_name(raw: str, folded: str) -> str | None:
+    if not re.match(r"^ben\s+[abcy]\b", folded) or not re.search(r"[:：]", raw):
+        return None
+    tail = re.split(r"[:：]", raw, maxsplit=1)[1]
+    tail = re.split(
+        r"\.\s+|(?:đại diện|địa chỉ|mã số thuế|mst)\b",
+        tail,
+        maxsplit=1,
+        flags=re.IGNORECASE,
+    )[0]
+    name = tail.strip(" .:-")
+    return name if len(name) >= 3 else None
+
+
+def _labelled_line_facts(raw: str, folded: str, party: str | None) -> list[tuple[str, str]]:
+    """High-signal fields on one OCR line. Ordinary numbers stay unstructured."""
+
+    found: list[tuple[str, str]] = []
+    unit = re.match(r"^-?\s*ten\s+(?:don\s+vi|day\s+du)\s*[:：]\s*(.+)$", folded)
+    if unit and party:
+        name = raw.split(":", 1)[1].strip() if ":" in raw else raw.split("：", 1)[-1].strip()
+        found.append((f"party_{party}", name))
+    elif party and (heading_name := _party_name(raw, folded)):
+        found.append((f"party_{party}", heading_name))
+    tax = re.search(r"(?:ma\s+so\s+thue|mst)\b\D{0,40}([0-9]{8,14})", folded)
+    if tax:
+        named = re.search(r"\bben\s+([abcy])\b", folded)
+        tax_party = named.group(1) if named else party
+        found.append(((f"mst_party_{tax_party}" if tax_party else "mst"), tax.group(1)))
+    amount = _explicit_contract_value(raw)
+    if amount:
+        found.append(("contract_value", amount))
+    elif re.search(r"(?:^|\|)\s*(?:total|tong\s+cong|tong\s+gia\s+tri)\b", folded):
+        numbers = re.findall(r"\d[\d.]{5,}", raw)
+        if numbers:
+            digits = re.sub(r"\D", "", numbers[-1])
+            if len(digits) >= 6:
+                found.append(("contract_value", digits))
+    percents = re.findall(r"\d+(?:[.,]\d+)?\s*%", raw)
+    numbered_schedule = bool(re.match(r"^\d+\.\d+\.", folded)) and "thanh toan" in folded and percents
+    if numbered_schedule or ("thanh toan" in folded and len(percents) >= 2):
+        found.append(("payment_schedule", raw.strip()))
+    term = re.search(r"(?:thoi\s+han|phuong\s+thuc|hinh\s+thuc)\s+thanh\s+toan\s*[:：]\s*(.+)$", folded)
+    if term and not any(key == "payment_schedule" for key, _value in found):
+        value = raw.split(":", 1)[-1].strip() if ":" in raw else raw.split("：", 1)[-1].strip()
+        key = "payment_method" if re.search(r"(?:phuong\s+thuc|hinh\s+thuc)", folded) else "payment_term"
+        if value:
+            found.append((key, value))
+    return found
 
 
 def _adapt_tables(value: Any, page: PageSnapshot, *, page_no: int, source_file_id: str) -> list[TableSnapshot]:

@@ -5,7 +5,7 @@ import hashlib
 import os
 import re
 import time
-from typing import Any
+from typing import Any, Callable
 
 from openai import OpenAI
 
@@ -21,7 +21,10 @@ class NineRouterClient:
         strong_model: str | None = None,
     ) -> None:
         self.base_url = base_url or os.getenv("AI2_LLM_BASE_URL", "http://localhost:20128/v1")
-        self.api_key = api_key or os.getenv("AI2_LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
+        if api_key is None:
+            self.api_key = os.getenv("AI2_LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
+        else:
+            self.api_key = api_key
         self.model = model or os.getenv("AI2_LLM_MODEL", "gpt-4o-mini")
         self.strong_model = strong_model or os.getenv("AI2_LLM_STRONG_MODEL", self.model)
         timeout = float(os.getenv("AI2_LLM_TIMEOUT_SECONDS", "45"))
@@ -83,6 +86,31 @@ class NineRouterClient:
         self.traces.append(trace)
         NineRouterClient.all_traces.append(dict(trace))
         return data
+
+
+def llm_status(
+    client: NineRouterClient,
+    probe: Callable[[NineRouterClient], None] | None = None,
+) -> str:
+    """off = no key, ready = the configured model answered, unreachable = the call failed."""
+
+    if not client.configured():
+        return "off"
+    check = probe or _ping_configured_model
+    try:
+        check(client)
+    except Exception:
+        return "unreachable"
+    return "ready"
+
+
+def _ping_configured_model(client: NineRouterClient) -> None:
+    client._client.with_options(timeout=3.0, max_retries=0).chat.completions.create(
+        model=client.model,
+        messages=[{"role": "user", "content": "ping"}],
+        max_tokens=1,
+        temperature=0,
+    )
 
 
 def _parse_json(text: str) -> dict[str, Any]:

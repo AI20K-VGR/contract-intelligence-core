@@ -11,6 +11,7 @@ from app.reasoning.l2_plan import L2Planner
 from app.reasoning.l3_ground import L3Ground
 from app.reasoning.relations import doc_side, render_related_answer
 from app.reasoning.vector_recall import VectorRecallService
+from app.pipeline.result_structure import _is_running_furniture
 from app.tools.gateway import ToolGateway
 
 
@@ -52,14 +53,12 @@ class FourLayerReasoner:
 
         # An unscoped natural-language question still gets bounded lexical
         # retrieval before the outline hint; the hint is the last resort.
-        # Explicit vector policy also bypasses the deterministic L0 shortcut,
-        # otherwise a vector request can incorrectly report NOT_REQUESTED.
+        # L0 runs even when vector recall is allowed: skipping it made the
+        # "full" configuration answer 11/24 benchmark questions correctly
+        # against 21/24 without vector. A vector request answered by L0
+        # reports NOT_NEEDED, not NOT_REQUESTED.
         policy_flags = task.get("policy_flags") or {}
-        l0 = (
-            None
-            if task.get("type") == "unscoped" or policy_flags.get("use_vector") is True
-            else self.l0.run(envelope, task)
-        )
+        l0 = None if task.get("type") == "unscoped" else self.l0.run(envelope, task)
         if l0:
             layers.append("L0")
             grounded = self.l3.run(
@@ -76,6 +75,11 @@ class FourLayerReasoner:
                 "l0_notes": l0.get("notes"),
                 "steps": [],
                 "last_prompt_chars": 0,
+                "retrieval_trace": {
+                    "vector_status": "NOT_NEEDED"
+                    if policy_flags.get("use_vector") is True
+                    else "NOT_REQUESTED"
+                },
             }
 
         layers.append("L0")
@@ -115,9 +119,8 @@ class FourLayerReasoner:
                 "retrieval_trace": l1.get("retrieval_trace") or {},
             }
         allow_llm = (
-            policy_flags.get("use_llm") is True
-            and policy_flags.get("use_vector") is True
-            and policy_flags.get("egress_allowed") is True
+            policy_flags.get("egress_allowed") is True
+            and policy_flags.get("use_llm") is True
         )
         # Unflagged direct stack callers retain the deterministic L2 fallback
         # contract. API requests always carry policy flags and therefore stay
@@ -128,6 +131,7 @@ class FourLayerReasoner:
         )
         draft = None
         steps: list = []
+        llm_invoked = False
         if need_l2:
             layers.append("L2")
             l2 = self.l2.run(envelope, task, l1)
@@ -144,6 +148,7 @@ class FourLayerReasoner:
                 return {**grounded, "layers_used": layers, "steps": l2.get("steps") or []}
             steps = l2.get("steps") or []
             draft = l2.get("draft")
+            llm_invoked = not l2.get("fallback") and not l2.get("skipped") and not l2.get("blocked")
 
         if draft:
             state = (
@@ -155,10 +160,9 @@ class FourLayerReasoner:
                 state = ReviewState.NEEDS_REVIEW.value
             citations = draft.get("citations") or []
             answer = draft.get("answer")
-            # A relation answer is incomplete when the live model cites only
-            # one side of a multi-source comparison. Keep the LLM draft only
-            # when it addresses every deterministic candidate; otherwise the
-            # graph-backed renderer below supplies all sources and citations.
+            # A single cited node is not a comparison, so the renderer lists
+            # every source. Two cited nodes keep the model sentence; any
+            # source it skipped is still attached for review.
             if ttype in COMPARE_TYPES:
                 required_ids = {
                     str(hit.get("node_id") or hit.get("chunk_id"))
@@ -170,32 +174,58 @@ class FourLayerReasoner:
                     for c in citations
                     if isinstance(c, dict) and c.get("node_id")
                 }
-                if len(required_ids) > 1 and not required_ids.issubset(cited_ids):
+                # Citing "M1" or "4.2" covers the heading L1 retrieved; the
+                # model quotes the sub-clause that carries the value.
+                record = self.l1.gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
+                parent_of = {n.node_id: n.parent_id for n in record.evidence_nodes()} if record else {}
+                # Each citation covers one source: itself, else its parent.
+                # Counting both would let a single quote pass as a comparison.
+                covered = required_ids & {c if c in required_ids else str(parent_of.get(c)) for c in cited_ids}
+                # One cited node is not a comparison. Two or more keep the
+                # model sentence; sources it skipped stay attached for review.
+                if len(required_ids) > 1 and len(covered) < 2:
                     draft = None
-        if not draft and l1.get("hits"):
+                else:
+                    for hit in (l1.get("hits") or [])[:8]:
+                        nid = str(hit.get("node_id") or hit.get("chunk_id") or "")
+                        if nid and nid not in cited_ids:
+                            citations.append(hit.get("citation") or {"node_id": nid})
+        if ttype == "unscoped" and len(l1.get("hits") or []) > 1:
+            from app.reasoning.ask_assemble import unscoped_hint
+
+            hint = unscoped_hint([{"type": "CLAUSE", "raw_label": item.get("raw_label")} for item in (l1.get("outline_ids") or [])])
+            state = ReviewState.INSUFFICIENT_EVIDENCE.value
+            citations = []
+            answer = hint["answer"]
+        elif not draft and l1.get("hits"):
             packed = []
             citations = []
+            seen_ids: set[str] = set()
             for h in l1["hits"][:8]:
                 nid = h.get("node_id")
                 if not nid:
                     continue
-                try:
-                    full = self.l1.gateway.call("get_node", envelope, node_id=nid)
-                except Exception:
-                    citations.append(h.get("citation") or {"node_id": nid})
-                    continue
-                packed.append(
-                    {
-                        "node_id": nid,
-                        "label": full.get("raw_label"),
-                        "path": " › ".join(
-                            (full.get("ancestors") or []) + [full.get("raw_label") or ""]
-                        ),
-                        "text": (full.get("text") or "")[:800],
-                        "side": doc_side(full.get("ancestors"), full.get("raw_label")),
-                    }
-                )
-                citations.append(full.get("citation") or {"node_id": nid})
+                for candidate in _node_and_children(self.l1.gateway, envelope, str(nid)):
+                    if candidate in seen_ids or len(packed) >= 12:
+                        continue
+                    seen_ids.add(candidate)
+                    try:
+                        full = self.l1.gateway.call("get_node", envelope, node_id=candidate)
+                    except Exception:
+                        citations.append(h.get("citation") or {"node_id": candidate})
+                        continue
+                    packed.append(
+                        {
+                            "node_id": candidate,
+                            "label": full.get("raw_label"),
+                            "path": " › ".join(
+                                (full.get("ancestors") or []) + [full.get("raw_label") or ""]
+                            ),
+                            "text": (full.get("text") or "")[:800],
+                            "side": doc_side(full.get("ancestors"), full.get("raw_label")),
+                        }
+                    )
+                    citations.append(full.get("citation") or {"node_id": candidate})
             rels = l1.get("relations") or []
             multi = len(packed) > 1 or bool(rels)
             answer = render_related_answer(packed, rels) if packed else {"hits": l1["hits"][:6]}
@@ -257,6 +287,7 @@ class FourLayerReasoner:
             "relation_issues": l1.get("relation_issues") or [],
             "retrieval_trace": l1.get("retrieval_trace") or {},
             "last_prompt_chars": getattr(self.l2, "last_prompt_chars", 0),
+            "used_llm": llm_invoked,
         }
 
 
@@ -288,3 +319,17 @@ def _restrict_selected_members(
         if (item.get("node_id") or item.get("chunk_id")) in allowed
     ]
     return bounded
+
+
+def _node_and_children(gateway: ToolGateway, envelope: ToolEnvelope, node_id: str, limit: int = 6) -> list[str]:
+    """Return a heading plus the body lines stored under it."""
+
+    record = gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
+    if record is None:
+        return [node_id]
+    children = [
+        node.node_id
+        for node in record.evidence_nodes()
+        if node.parent_id == node_id and node.node_id != node_id and not _is_running_furniture(node.raw_label or "")
+    ]
+    return [node_id, *children[:limit]]

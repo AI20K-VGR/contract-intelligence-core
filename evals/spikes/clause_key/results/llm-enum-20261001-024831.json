@@ -1,0 +1,1442 @@
+{
+  "mode": "llm-enum",
+  "lexicon": "v0",
+  "n_clauses": 60,
+  "n_frames": 60,
+  "gold_span_errors": [],
+  "extract": {},
+  "key_accuracy": {
+    "k": 43,
+    "n": 60,
+    "rate": 0.717,
+    "wilson95": [
+      0.592,
+      0.815
+    ]
+  },
+  "coverage_mapped": {
+    "k": 56,
+    "n": 60,
+    "rate": 0.933,
+    "wilson95": [
+      0.841,
+      0.974
+    ]
+  },
+  "accuracy_when_mapped": {
+    "k": 40,
+    "n": 56,
+    "rate": 0.714,
+    "wilson95": [
+      0.585,
+      0.816
+    ]
+  },
+  "layers": {
+    "1": 29,
+    "2": 13,
+    "3": 1,
+    "5": 8,
+    "6": 5,
+    "7": 4
+  },
+  "layer_accuracy": {
+    "1": {
+      "k": 27,
+      "n": 29,
+      "rate": 0.931,
+      "wilson95": [
+        0.78,
+        0.981
+      ]
+    },
+    "2": {
+      "k": 8,
+      "n": 13,
+      "rate": 0.615,
+      "wilson95": [
+        0.355,
+        0.823
+      ]
+    },
+    "3": {
+      "k": 1,
+      "n": 1,
+      "rate": 1.0,
+      "wilson95": [
+        0.207,
+        1.0
+      ]
+    },
+    "5": {
+      "k": 3,
+      "n": 8,
+      "rate": 0.375,
+      "wilson95": [
+        0.137,
+        0.694
+      ]
+    },
+    "6": {
+      "k": 1,
+      "n": 5,
+      "rate": 0.2,
+      "wilson95": [
+        0.036,
+        0.624
+      ]
+    },
+    "7": {
+      "k": 3,
+      "n": 4,
+      "rate": 0.75,
+      "wilson95": [
+        0.301,
+        0.954
+      ]
+    }
+  },
+  "pair_precision": {
+    "k": 33,
+    "n": 37,
+    "rate": 0.892,
+    "wilson95": [
+      0.753,
+      0.957
+    ]
+  },
+  "pair_recall": {
+    "k": 33,
+    "n": 87,
+    "rate": 0.379,
+    "wilson95": [
+      0.285,
+      0.484
+    ]
+  },
+  "false_merges": [
+    [
+      "T18#0",
+      "T49#0",
+      "('SELLER', 'DELIVER', None)"
+    ],
+    [
+      "T18#0",
+      "T50#0",
+      "('SELLER', 'DELIVER', None)"
+    ],
+    [
+      "T18#0",
+      "T52#0",
+      "('SELLER', 'DELIVER', None)"
+    ],
+    [
+      "T39#0",
+      "T59#0",
+      "('RECIPIENT', 'ANY_OBLIGATION', None)"
+    ]
+  ],
+  "consequence_parse": {
+    "k": 43,
+    "n": 49,
+    "rate": 0.878,
+    "wilson95": [
+      0.758,
+      0.943
+    ]
+  },
+  "decision_gold_keys": {
+    "k": 10,
+    "n": 15,
+    "rate": 0.667,
+    "wilson95": [
+      0.417,
+      0.848
+    ]
+  },
+  "decision_end_to_end": {
+    "k": 9,
+    "n": 15,
+    "rate": 0.6,
+    "wilson95": [
+      0.357,
+      0.802
+    ]
+  },
+  "rows": [
+    {
+      "id": "T01#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "pred_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T02#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "pred_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T03#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "pred_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T04#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "pred_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T05#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "pred_key": [
+        "SELLER",
+        "ANY_OBLIGATION",
+        null
+      ],
+      "layer": 5
+    },
+    {
+      "id": "T06#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "DELIVER",
+        "DEFECTIVE"
+      ],
+      "pred_key": [
+        "SELLER",
+        "DELIVER",
+        "DEFECTIVE"
+      ],
+      "layer": 2
+    },
+    {
+      "id": "T07#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "DELIVER",
+        "WRONG_QTY"
+      ],
+      "pred_key": [
+        "SELLER",
+        "DELIVER",
+        "WRONG_QTY"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T08#0",
+      "profile": "SALES",
+      "gold_key": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T09#0",
+      "profile": "SALES",
+      "gold_key": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "BUYER",
+        "PAY",
+        null
+      ],
+      "layer": 6
+    },
+    {
+      "id": "T10#0",
+      "profile": "SALES",
+      "gold_key": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "SELLER",
+        "PAY",
+        null
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T11#0",
+      "profile": "SALES",
+      "gold_key": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T12#0",
+      "profile": "SALES",
+      "gold_key": [
+        "PARAM",
+        "PRICE",
+        "hàng hóa a"
+      ],
+      "pred_key": [
+        "PARAM",
+        "PRICE",
+        "hàng hóa a"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T13#0",
+      "profile": "SALES",
+      "gold_key": [
+        "PARAM",
+        "PRICE",
+        "hàng hóa a"
+      ],
+      "pred_key": [
+        "PARAM",
+        "PRICE",
+        "hàng hóa a"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T14#0",
+      "profile": "SALES",
+      "gold_key": [
+        "PARAM",
+        "CONTRACT_VALUE",
+        null
+      ],
+      "pred_key": [
+        "PARAM",
+        "CONTRACT_VALUE",
+        null
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T15#0",
+      "profile": "SALES",
+      "gold_key": [
+        "PARAM",
+        "CONTRACT_VALUE",
+        null
+      ],
+      "pred_key": [
+        "PARAM",
+        "CONTRACT_VALUE",
+        null
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T16#0",
+      "profile": "SALES",
+      "gold_key": [
+        "ANY_PARTY",
+        "ANY_OBLIGATION",
+        null
+      ],
+      "pred_key": [
+        "ANY_PARTY",
+        "ANY_OBLIGATION",
+        null
+      ],
+      "layer": 2
+    },
+    {
+      "id": "T17#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "WARRANT",
+        null
+      ],
+      "pred_key": [
+        "SELLER",
+        "WARRANT",
+        null
+      ],
+      "layer": 3
+    },
+    {
+      "id": "T18#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "DELIVER",
+        null
+      ],
+      "pred_key": [
+        "SELLER",
+        "DELIVER",
+        null
+      ],
+      "layer": 2
+    },
+    {
+      "id": "T19#0",
+      "profile": "LEASE",
+      "gold_key": [
+        "LESSEE",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "LESSEE",
+        "PAY",
+        "LATE"
+      ],
+      "layer": 2
+    },
+    {
+      "id": "T20#0",
+      "profile": "LEASE",
+      "gold_key": [
+        "LESSEE",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "LESSEE",
+        "PAY",
+        null
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T21#0",
+      "profile": "LEASE",
+      "gold_key": [
+        "LESSOR",
+        "HANDOVER_ASSET",
+        "LATE"
+      ],
+      "pred_key": [
+        "LESSOR",
+        "HANDOVER_ASSET",
+        "LATE"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T22#0",
+      "profile": "LEASE",
+      "gold_key": [
+        "LESSEE",
+        "RETURN_ASSET",
+        "LATE"
+      ],
+      "pred_key": [
+        "LESSEE",
+        "RETURN_ASSET",
+        null
+      ],
+      "layer": 2
+    },
+    {
+      "id": "T23#0",
+      "profile": "CONSTRUCTION_WORK",
+      "gold_key": [
+        "CONTRACTOR",
+        "COMPLETE_WORK",
+        "LATE"
+      ],
+      "pred_key": [
+        "CONTRACTOR",
+        "COMPLETE_WORK",
+        "LATE"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T24#0",
+      "profile": "CONSTRUCTION_WORK",
+      "gold_key": [
+        "CONTRACTOR",
+        "COMPLETE_WORK",
+        "LATE"
+      ],
+      "pred_key": [
+        "CONTRACTOR",
+        "COMPLETE_WORK",
+        null
+      ],
+      "layer": 2
+    },
+    {
+      "id": "T25#0",
+      "profile": "CONSTRUCTION_WORK",
+      "gold_key": [
+        "CONTRACTOR",
+        "COMPLETE_WORK",
+        "LATE"
+      ],
+      "pred_key": [
+        "CONTRACTOR",
+        "DELIVER",
+        null
+      ],
+      "layer": 2
+    },
+    {
+      "id": "T26#0",
+      "profile": "CONSTRUCTION_WORK",
+      "gold_key": [
+        "CONTRACTOR",
+        "COMPLETE_WORK",
+        "DEFECTIVE"
+      ],
+      "pred_key": [
+        "CONTRACTOR",
+        "COMPLETE_WORK",
+        "DEFECTIVE"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T27#0",
+      "profile": "CONSTRUCTION_WORK",
+      "gold_key": [
+        "OWNER",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "OWNER",
+        "PAY",
+        "LATE"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T28#0",
+      "profile": "SUPPLY_SERVICE",
+      "gold_key": [
+        "SUPPLIER",
+        "PROVIDE_SERVICE",
+        "LATE"
+      ],
+      "pred_key": [
+        "SUPPLIER",
+        "PROVIDE_SERVICE",
+        "LATE"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T29#0",
+      "profile": "SUPPLY_SERVICE",
+      "gold_key": null,
+      "pred_key": null,
+      "layer": 7
+    },
+    {
+      "id": "T30#0",
+      "profile": "SUPPLY_SERVICE",
+      "gold_key": null,
+      "pred_key": null,
+      "layer": 7
+    },
+    {
+      "id": "T31#0",
+      "profile": "SUPPLY_SERVICE",
+      "gold_key": [
+        "CUSTOMER",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "CUSTOMER",
+        "PAY",
+        "LATE"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T32#0",
+      "profile": "SUPPLY_SERVICE",
+      "gold_key": [
+        "SUPPLIER",
+        "DELIVER",
+        "DEFECTIVE"
+      ],
+      "pred_key": [
+        "SUPPLIER",
+        "DELIVER",
+        "DEFECTIVE"
+      ],
+      "layer": 2
+    },
+    {
+      "id": "T33#0",
+      "profile": "EMPLOYMENT",
+      "gold_key": [
+        "EMPLOYEE",
+        "TERMINATE_EARLY",
+        null
+      ],
+      "pred_key": [
+        "EMPLOYEE",
+        "TERMINATE_EARLY",
+        null
+      ],
+      "layer": 6
+    },
+    {
+      "id": "T34#0",
+      "profile": "EMPLOYMENT",
+      "gold_key": [
+        "EMPLOYER",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "EMPLOYER",
+        "PAY",
+        "LATE"
+      ],
+      "layer": 5
+    },
+    {
+      "id": "T35#0",
+      "profile": "EMPLOYMENT",
+      "gold_key": [
+        "EMPLOYEE",
+        "TERMINATE_EARLY",
+        null
+      ],
+      "pred_key": [
+        "EMPLOYEE",
+        "TERMINATE_EARLY",
+        null
+      ],
+      "layer": 5
+    },
+    {
+      "id": "T36#0",
+      "profile": "NDA",
+      "gold_key": [
+        "RECIPIENT",
+        "DISCLOSE",
+        "UNAUTHORIZED"
+      ],
+      "pred_key": [
+        "RECIPIENT",
+        "DISCLOSE",
+        "UNAUTHORIZED"
+      ],
+      "layer": 2
+    },
+    {
+      "id": "T37#0",
+      "profile": "NDA",
+      "gold_key": [
+        "RECIPIENT",
+        "DISCLOSE",
+        "UNAUTHORIZED"
+      ],
+      "pred_key": [
+        "RECIPIENT",
+        "DISCLOSE",
+        "UNAUTHORIZED"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T38#0",
+      "profile": "NDA",
+      "gold_key": [
+        "RECIPIENT",
+        "DISCLOSE",
+        "UNAUTHORIZED"
+      ],
+      "pred_key": [
+        "RECIPIENT",
+        "DISCLOSE",
+        null
+      ],
+      "layer": 5
+    },
+    {
+      "id": "T39#0",
+      "profile": "NDA",
+      "gold_key": null,
+      "pred_key": [
+        "RECIPIENT",
+        "ANY_OBLIGATION",
+        null
+      ],
+      "layer": 5
+    },
+    {
+      "id": "T40#0",
+      "profile": "SALES",
+      "gold_key": null,
+      "pred_key": [
+        "BUYER",
+        "ACCEPT",
+        "LATE"
+      ],
+      "layer": 5
+    },
+    {
+      "id": "T41#0",
+      "profile": "SALES",
+      "gold_key": null,
+      "pred_key": null,
+      "layer": 7
+    },
+    {
+      "id": "T42#0",
+      "profile": "SALES",
+      "gold_key": [
+        "PARAM",
+        "WARRANTY_PERIOD",
+        "hàng hóa"
+      ],
+      "pred_key": [
+        "PARAM",
+        "WARRANTY_PERIOD",
+        "hàng hóa"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T43#0",
+      "profile": "SALES",
+      "gold_key": [
+        "PARAM",
+        "WARRANTY_PERIOD",
+        "hàng hóa"
+      ],
+      "pred_key": null,
+      "layer": 7
+    },
+    {
+      "id": "T44#0",
+      "profile": "LEASE",
+      "gold_key": [
+        "PARAM",
+        "RENT",
+        null
+      ],
+      "pred_key": [
+        "PARAM",
+        "RENT",
+        null
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T45#0",
+      "profile": "LEASE",
+      "gold_key": [
+        "PARAM",
+        "RENT",
+        null
+      ],
+      "pred_key": [
+        "PARAM",
+        "RENT",
+        null
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T46#0",
+      "profile": "EMPLOYMENT",
+      "gold_key": [
+        "PARAM",
+        "SALARY",
+        null
+      ],
+      "pred_key": [
+        "PARAM",
+        "SALARY",
+        null
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T47#0",
+      "profile": "CONSTRUCTION_WORK",
+      "gold_key": null,
+      "pred_key": [
+        "PARAM",
+        "PRICE",
+        null
+      ],
+      "layer": 2
+    },
+    {
+      "id": "T48#0",
+      "profile": "SALES",
+      "gold_key": [
+        "PARAM",
+        "PRICE",
+        "hàng hóa b"
+      ],
+      "pred_key": [
+        "PARAM",
+        "PRICE",
+        "hàng hóa b"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T49#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "pred_key": [
+        "SELLER",
+        "DELIVER",
+        null
+      ],
+      "layer": 2
+    },
+    {
+      "id": "T50#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "pred_key": [
+        "SELLER",
+        "DELIVER",
+        null
+      ],
+      "layer": 6
+    },
+    {
+      "id": "T51#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "pred_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T52#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "pred_key": [
+        "SELLER",
+        "DELIVER",
+        null
+      ],
+      "layer": 6
+    },
+    {
+      "id": "T53#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "pred_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T54#0",
+      "profile": "SALES",
+      "gold_key": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T55#0",
+      "profile": "SALES",
+      "gold_key": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "BUYER",
+        "PAY",
+        null
+      ],
+      "layer": 6
+    },
+    {
+      "id": "T56#0",
+      "profile": "SALES",
+      "gold_key": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "layer": 2
+    },
+    {
+      "id": "T57#0",
+      "profile": "LEASE",
+      "gold_key": [
+        "LESSEE",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "LESSEE",
+        "PAY",
+        "LATE"
+      ],
+      "layer": 2
+    },
+    {
+      "id": "T58#0",
+      "profile": "CONSTRUCTION_WORK",
+      "gold_key": [
+        "CONTRACTOR",
+        "COMPLETE_WORK",
+        "LATE"
+      ],
+      "pred_key": [
+        "CONTRACTOR",
+        "COMPLETE_WORK",
+        "LATE"
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T59#0",
+      "profile": "NDA",
+      "gold_key": [
+        "RECIPIENT",
+        "DISCLOSE",
+        "UNAUTHORIZED"
+      ],
+      "pred_key": [
+        "RECIPIENT",
+        "ANY_OBLIGATION",
+        null
+      ],
+      "layer": 5
+    },
+    {
+      "id": "T60#0",
+      "profile": "EMPLOYMENT",
+      "gold_key": [
+        "EMPLOYER",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "EMPLOYER",
+        "PAY",
+        "LATE"
+      ],
+      "layer": 5
+    }
+  ],
+  "wrong_keys": [
+    {
+      "id": "T05#0",
+      "gold": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "pred": [
+        "SELLER",
+        "ANY_OBLIGATION",
+        null
+      ],
+      "layer": 5
+    },
+    {
+      "id": "T09#0",
+      "gold": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "pred": [
+        "BUYER",
+        "PAY",
+        null
+      ],
+      "layer": 6
+    },
+    {
+      "id": "T10#0",
+      "gold": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "pred": [
+        "SELLER",
+        "PAY",
+        null
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T20#0",
+      "gold": [
+        "LESSEE",
+        "PAY",
+        "LATE"
+      ],
+      "pred": [
+        "LESSEE",
+        "PAY",
+        null
+      ],
+      "layer": 1
+    },
+    {
+      "id": "T22#0",
+      "gold": [
+        "LESSEE",
+        "RETURN_ASSET",
+        "LATE"
+      ],
+      "pred": [
+        "LESSEE",
+        "RETURN_ASSET",
+        null
+      ],
+      "layer": 2
+    },
+    {
+      "id": "T24#0",
+      "gold": [
+        "CONTRACTOR",
+        "COMPLETE_WORK",
+        "LATE"
+      ],
+      "pred": [
+        "CONTRACTOR",
+        "COMPLETE_WORK",
+        null
+      ],
+      "layer": 2
+    },
+    {
+      "id": "T25#0",
+      "gold": [
+        "CONTRACTOR",
+        "COMPLETE_WORK",
+        "LATE"
+      ],
+      "pred": [
+        "CONTRACTOR",
+        "DELIVER",
+        null
+      ],
+      "layer": 2
+    },
+    {
+      "id": "T38#0",
+      "gold": [
+        "RECIPIENT",
+        "DISCLOSE",
+        "UNAUTHORIZED"
+      ],
+      "pred": [
+        "RECIPIENT",
+        "DISCLOSE",
+        null
+      ],
+      "layer": 5
+    },
+    {
+      "id": "T39#0",
+      "gold": null,
+      "pred": [
+        "RECIPIENT",
+        "ANY_OBLIGATION",
+        null
+      ],
+      "layer": 5
+    },
+    {
+      "id": "T40#0",
+      "gold": null,
+      "pred": [
+        "BUYER",
+        "ACCEPT",
+        "LATE"
+      ],
+      "layer": 5
+    },
+    {
+      "id": "T43#0",
+      "gold": [
+        "PARAM",
+        "WARRANTY_PERIOD",
+        "hàng hóa"
+      ],
+      "pred": null,
+      "layer": 7
+    },
+    {
+      "id": "T47#0",
+      "gold": null,
+      "pred": [
+        "PARAM",
+        "PRICE",
+        null
+      ],
+      "layer": 2
+    },
+    {
+      "id": "T49#0",
+      "gold": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "pred": [
+        "SELLER",
+        "DELIVER",
+        null
+      ],
+      "layer": 2
+    },
+    {
+      "id": "T50#0",
+      "gold": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "pred": [
+        "SELLER",
+        "DELIVER",
+        null
+      ],
+      "layer": 6
+    },
+    {
+      "id": "T52#0",
+      "gold": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "pred": [
+        "SELLER",
+        "DELIVER",
+        null
+      ],
+      "layer": 6
+    },
+    {
+      "id": "T55#0",
+      "gold": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "pred": [
+        "BUYER",
+        "PAY",
+        null
+      ],
+      "layer": 6
+    },
+    {
+      "id": "T59#0",
+      "gold": [
+        "RECIPIENT",
+        "DISCLOSE",
+        "UNAUTHORIZED"
+      ],
+      "pred": [
+        "RECIPIENT",
+        "ANY_OBLIGATION",
+        null
+      ],
+      "layer": 5
+    }
+  ],
+  "wrong_mapped_ids": [
+    "T05#0",
+    "T09#0",
+    "T10#0",
+    "T20#0",
+    "T22#0",
+    "T24#0",
+    "T25#0",
+    "T38#0",
+    "T39#0",
+    "T40#0",
+    "T47#0",
+    "T49#0",
+    "T50#0",
+    "T52#0",
+    "T55#0",
+    "T59#0"
+  ],
+  "consequence_errors": [
+    {
+      "id": "T21#0",
+      "gold": {
+        "type": "PENALTY_FIXED",
+        "value": null
+      },
+      "got": {
+        "type": null,
+        "value": null,
+        "unit": null,
+        "basis": null
+      }
+    },
+    {
+      "id": "T22#0",
+      "gold": {
+        "type": "PENALTY_FIXED",
+        "value": null
+      },
+      "got": {
+        "type": null,
+        "value": null,
+        "unit": null,
+        "basis": null
+      }
+    },
+    {
+      "id": "T24#0",
+      "gold": {
+        "type": "WITHHOLD",
+        "value": "10"
+      },
+      "got": {
+        "type": "PENALTY_RATE",
+        "value": "10",
+        "unit": "%",
+        "basis": null
+      }
+    },
+    {
+      "id": "T29#0",
+      "gold": {
+        "type": "WITHHOLD",
+        "value": "10"
+      },
+      "got": {
+        "type": "PENALTY_RATE",
+        "value": "10",
+        "unit": "%",
+        "basis": null
+      }
+    },
+    {
+      "id": "T40#0",
+      "gold": {
+        "type": "DAMAGES",
+        "value": "1000000"
+      },
+      "got": {
+        "type": null,
+        "value": "1000000",
+        "unit": "VND",
+        "basis": null
+      }
+    },
+    {
+      "id": "T41#0",
+      "gold": {
+        "type": "SUSPENSION",
+        "value": null
+      },
+      "got": {
+        "type": null,
+        "value": null,
+        "unit": null,
+        "basis": null
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "pair": "T01~T02",
+      "expected": "COMPARABLE_DIFFERENCE",
+      "gold_keys": "COMPARABLE_DIFFERENCE",
+      "e2e": "COMPARABLE_DIFFERENCE"
+    },
+    {
+      "pair": "T01~T03",
+      "expected": "CUMULATIVE",
+      "gold_keys": "GRADUATED",
+      "e2e": "GRADUATED"
+    },
+    {
+      "pair": "T01~T04",
+      "expected": "COMPARABLE_DIFFERENCE",
+      "gold_keys": "CUMULATIVE",
+      "e2e": "CUMULATIVE"
+    },
+    {
+      "pair": "T01~T53",
+      "expected": "CUMULATIVE",
+      "gold_keys": "CUMULATIVE",
+      "e2e": "CUMULATIVE"
+    },
+    {
+      "pair": "T02~T51",
+      "expected": "COMPARABLE_DIFFERENCE",
+      "gold_keys": "GRADUATED",
+      "e2e": "GRADUATED"
+    },
+    {
+      "pair": "T03~T53",
+      "expected": "DUPLICATE",
+      "gold_keys": "GRADUATED",
+      "e2e": "GRADUATED"
+    },
+    {
+      "pair": "T01~T16",
+      "expected": "GENERAL_VS_SPECIFIC",
+      "gold_keys": "GENERAL_VS_SPECIFIC",
+      "e2e": "GENERAL_VS_SPECIFIC"
+    },
+    {
+      "pair": "T08~T54",
+      "expected": "CUMULATIVE",
+      "gold_keys": "CUMULATIVE",
+      "e2e": "CUMULATIVE"
+    },
+    {
+      "pair": "T08~T11",
+      "expected": "CUMULATIVE",
+      "gold_keys": "CUMULATIVE",
+      "e2e": "CUMULATIVE"
+    },
+    {
+      "pair": "T19~T57",
+      "expected": "GRADUATED",
+      "gold_keys": "GRADUATED",
+      "e2e": "GRADUATED"
+    },
+    {
+      "pair": "T23~T58",
+      "expected": "COMPARABLE_DIFFERENCE",
+      "gold_keys": "NOT_COMPARABLE",
+      "e2e": "NOT_COMPARABLE"
+    },
+    {
+      "pair": "T36~T37",
+      "expected": "CUMULATIVE",
+      "gold_keys": "CUMULATIVE",
+      "e2e": "CUMULATIVE"
+    },
+    {
+      "pair": "T36~T59",
+      "expected": "COMPARABLE_DIFFERENCE",
+      "gold_keys": "COMPARABLE_DIFFERENCE",
+      "e2e": "GENERAL_VS_SPECIFIC"
+    },
+    {
+      "pair": "T31~T56",
+      "expected": null,
+      "gold_keys": null,
+      "e2e": null
+    },
+    {
+      "pair": "T01~T08",
+      "expected": null,
+      "gold_keys": null,
+      "e2e": null
+    }
+  ]
+}

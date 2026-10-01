@@ -1,0 +1,303 @@
+{
+  "version": "v1",
+  "note": "v0 + fixes tuned on clauses_dev.jsonl only (error classes seen on test v0 are known, so test v1 is optimistic).",
+  "roles": {
+    "SELLER": [
+      "bên bán",
+      "người bán"
+    ],
+    "BUYER": [
+      "bên mua",
+      "người mua"
+    ],
+    "SUPPLIER": [
+      "bên cung cấp",
+      "bên cung ứng",
+      "nhà cung cấp"
+    ],
+    "CUSTOMER": [
+      "bên sử dụng dịch vụ",
+      "khách hàng",
+      "bên nhận dịch vụ"
+    ],
+    "LESSOR": [
+      "bên cho thuê"
+    ],
+    "LESSEE": [
+      "bên thuê"
+    ],
+    "CONTRACTOR": [
+      "nhà thầu",
+      "bên nhận thầu"
+    ],
+    "OWNER": [
+      "chủ đầu tư",
+      "bên giao thầu"
+    ],
+    "EMPLOYER": [
+      "người sử dụng lao động"
+    ],
+    "EMPLOYEE": [
+      "người lao động"
+    ],
+    "DISCLOSER": [
+      "bên tiết lộ",
+      "bên cung cấp thông tin"
+    ],
+    "RECIPIENT": [
+      "bên nhận thông tin",
+      "bên nhận"
+    ],
+    "ANY_PARTY": [
+      "bên vi phạm",
+      "mỗi bên",
+      "một bên",
+      "bất kỳ bên nào"
+    ]
+  },
+  "counterparty": {
+    "SELLER": "BUYER",
+    "BUYER": "SELLER",
+    "SUPPLIER": "CUSTOMER",
+    "CUSTOMER": "SUPPLIER",
+    "LESSOR": "LESSEE",
+    "LESSEE": "LESSOR",
+    "CONTRACTOR": "OWNER",
+    "OWNER": "CONTRACTOR",
+    "EMPLOYER": "EMPLOYEE",
+    "EMPLOYEE": "EMPLOYER",
+    "DISCLOSER": "RECIPIENT",
+    "RECIPIENT": "DISCLOSER"
+  },
+  "actions": {
+    "DELIVER": {
+      "aliases": [
+        "giao hàng",
+        "giao",
+        "bàn giao hàng hóa",
+        "bàn giao hàng"
+      ],
+      "flip_on_passive": true,
+      "definition": "bên bán/bên cung cấp giao hàng hóa, thiết bị cho bên kia (KHÔNG gồm việc bên mua nhận hàng, KHÔNG gồm giao chứng từ/hóa đơn)"
+    },
+    "PAY": {
+      "aliases": [
+        "thanh toán",
+        "trả tiền",
+        "chi trả",
+        "trả lương",
+        "trả tiền lương"
+      ],
+      "flip_on_passive": true,
+      "definition": "trả tiền theo hợp đồng: tiền hàng, phí, tiền thuê, tiền lương (KHÔNG gồm xuất hóa đơn)"
+    },
+    "ACCEPT": {
+      "aliases": [
+        "nghiệm thu"
+      ],
+      "flip_on_passive": false,
+      "definition": "bên mua/chủ đầu tư kiểm tra và chấp nhận kết quả công việc (KHÔNG phải việc nhận/tiếp nhận hàng)"
+    },
+    "WARRANT": {
+      "aliases": [
+        "bảo hành",
+        "sửa chữa"
+      ],
+      "flip_on_passive": false,
+      "definition": "sửa chữa/thay thế trong thời gian bảo hành"
+    },
+    "HANDOVER_ASSET": {
+      "aliases": [
+        "bàn giao tài sản",
+        "bàn giao mặt bằng",
+        "bàn giao nhà"
+      ],
+      "flip_on_passive": true,
+      "definition": "bàn giao tài sản thuê/mặt bằng"
+    },
+    "RETURN_ASSET": {
+      "aliases": [
+        "hoàn trả tài sản",
+        "trả lại tài sản",
+        "trả mặt bằng"
+      ],
+      "flip_on_passive": false,
+      "definition": "trả lại tài sản thuê khi kết thúc"
+    },
+    "COMPLETE_WORK": {
+      "aliases": [
+        "hoàn thành công trình",
+        "thi công",
+        "hoàn thành hạng mục"
+      ],
+      "flip_on_passive": false,
+      "definition": "hoàn thành công việc/công trình xây dựng"
+    },
+    "PROVIDE_SERVICE": {
+      "aliases": [
+        "cung cấp dịch vụ",
+        "triển khai dịch vụ"
+      ],
+      "flip_on_passive": false,
+      "definition": "cung cấp dịch vụ theo hợp đồng"
+    },
+    "DISCLOSE": {
+      "aliases": [
+        "tiết lộ",
+        "công bố",
+        "để lộ",
+        "làm lộ",
+        "rò rỉ",
+        "để rò rỉ"
+      ],
+      "flip_on_passive": false,
+      "definition": "tiết lộ/để lộ/rò rỉ thông tin mật cho người khác (KHÔNG gồm việc tự sử dụng thông tin sai mục đích)",
+      "default_qualifier": "UNAUTHORIZED"
+    },
+    "WORK": {
+      "aliases": [
+        "làm việc",
+        "đi làm"
+      ],
+      "flip_on_passive": false,
+      "definition": "người lao động thực hiện công việc"
+    },
+    "TERMINATE_EARLY": {
+      "aliases": [
+        "đơn phương chấm dứt",
+        "chấm dứt trước hạn",
+        "nghỉ việc"
+      ],
+      "flip_on_passive": false,
+      "definition": "một bên tự chấm dứt/nghỉ việc trước thời hạn (KHÔNG gồm tự ý bỏ việc/vắng mặt)"
+    },
+    "ANY_OBLIGATION": {
+      "aliases": [
+        "vi phạm hợp đồng",
+        "vi phạm nghĩa vụ",
+        "vi phạm bất kỳ nghĩa vụ"
+      ],
+      "flip_on_passive": false,
+      "definition": "vi phạm nghĩa vụ chung, không chỉ rõ nghĩa vụ nào"
+    }
+  },
+  "qualifiers": {
+    "LATE": [
+      "chậm",
+      "chậm trễ",
+      "trễ hạn",
+      "quá hạn",
+      "không đúng hạn",
+      "không đúng thời hạn",
+      "trễ",
+      "muộn",
+      "vi phạm tiến độ",
+      "chậm hơn"
+    ],
+    "NOT_PERFORMED": [
+      "không thực hiện",
+      "không giao",
+      "không thanh toán",
+      "không bàn giao"
+    ],
+    "DEFECTIVE": [
+      "không đúng chất lượng",
+      "bị lỗi",
+      "hư hỏng",
+      "không đạt chất lượng",
+      "sai thiết kế",
+      "không đúng thiết kế",
+      "không đúng quy cách"
+    ],
+    "WRONG_QTY": [
+      "thiếu",
+      "không đủ số lượng",
+      "sai số lượng"
+    ],
+    "UNAUTHORIZED": [
+      "trái phép",
+      "không được phép",
+      "khi chưa có sự đồng ý"
+    ]
+  },
+  "parameters": {
+    "PRICE": [
+      "đơn giá",
+      "giá"
+    ],
+    "CONTRACT_VALUE": [
+      "giá trị hợp đồng",
+      "tổng giá trị"
+    ],
+    "RENT": [
+      "tiền thuê",
+      "giá thuê"
+    ],
+    "DEPOSIT": [
+      "tiền đặt cọc",
+      "đặt cọc"
+    ],
+    "SALARY": [
+      "mức lương",
+      "lương",
+      "tiền lương"
+    ],
+    "WARRANTY_PERIOD": [
+      "thời hạn bảo hành",
+      "thời gian bảo hành"
+    ],
+    "CONFIDENTIALITY_PERIOD": [
+      "thời hạn bảo mật"
+    ]
+  },
+  "stopwords": [
+    "việc",
+    "các",
+    "của",
+    "trong",
+    "đã",
+    "sự",
+    "những",
+    "theo",
+    "cho",
+    "bị",
+    "được",
+    "hợp đồng này"
+  ],
+  "profile_aliases": {
+    "CONSTRUCTION_WORK": {
+      "COMPLETE_WORK": [
+        "bàn giao",
+        "bàn giao công trình",
+        "hoàn thành",
+        "thi công"
+      ]
+    },
+    "LEASE": {
+      "HANDOVER_ASSET": [
+        "bàn giao"
+      ]
+    }
+  },
+  "qualifier_patterns": {
+    "LATE": [
+      "không (?:\\S+ ){0,6}?đúng (?:hạn|thời hạn|tiến độ)",
+      "quá (?:thời )?hạn"
+    ],
+    "UNAUTHORIZED": [
+      "(?:không|chưa) (?:được|có) (?:\\S+ ){0,4}?(?:chấp thuận|đồng ý|cho phép)"
+    ]
+  },
+  "compounds_block": {
+    "giá": [
+      "giá trị"
+    ]
+  },
+  "enum_exclude": [
+    "ANY_OBLIGATION"
+  ],
+  "object_as_none": [
+    "hợp đồng",
+    "hợp đồng này"
+  ]
+}

@@ -92,6 +92,35 @@ def test_compact_ocr_promotes_explicit_contract_value_with_line_citation():
     assert hits[0]["citation"]["text_span"] == line
 
 
+def test_clause_body_lines_hang_under_the_article_heading():
+    result = adapt_snapshot(
+        _snapshot(
+            pages=[
+                _page(
+                    text="ĐIỀU 4. GIÁ TRỊ\n4.1. Tổng giá trị hợp đồng là 1.286.400.000 đồng",
+                    lines=[
+                        {
+                            "line_id": "p1:l1",
+                            "raw_text": "ĐIỀU 4. GIÁ TRỊ HỢP ĐỒNG VÀ THANH TOÁN",
+                            "bbox": [0.1, 0.1, 0.8, 0.16],
+                        },
+                        {
+                            "line_id": "p1:l2",
+                            "raw_text": "4.1. Tổng giá trị hợp đồng tạm tính là 1.286.400.000 đồng",
+                            "bbox": [0.1, 0.2, 0.9, 0.28],
+                        },
+                    ],
+                )
+            ]
+        )
+    )
+    nodes = result.record.evidence_nodes()
+    heading = next(node for node in nodes if node.raw_label.startswith("ĐIỀU 4"))
+    body = next(node for node in nodes if node.raw_label.startswith("4.1"))
+    assert body.parent_id == heading.node_id
+    assert heading.has_children is True
+
+
 def test_compact_ocr_promotes_contract_price_label_with_line_citation():
     line = "Giá hợp đồng (chưa VAT) bằng số: 1.000.000.000 VND"
     result = adapt_snapshot(

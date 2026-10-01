@@ -13,6 +13,9 @@ class GroundingGate:
         if _exact_span(fact.raw_value, source_text) or _exact_span(fact.citation.text_span, source_text):
             if fact.review_state == ReviewState.BLOCKED:
                 return fact
+            if _rewritten_normalization(fact, source_text) and not _pinned_alias(fact, profile):
+                fact.review_state = ReviewState.NEEDS_REVIEW
+                return fact
             fact.review_state = ReviewState.PASS
             return fact
         if _fuzzy_ok(fact.raw_value, source_text):
@@ -169,6 +172,31 @@ def _repair_heading(node: StructuralNode, page_text: str) -> StructuralNode | No
 
 def _normalize_grounding_text(value: str) -> str:
     return " ".join((value or "").casefold().split())
+
+
+def _pinned_alias(fact: Fact, profile: TenantProfile | None) -> bool:
+    """A canonical name resolved from the pinned profile is not a model rewrite."""
+
+    if profile is None or not isinstance(fact.normalized_value, str):
+        return False
+    raw = (fact.raw_value or "").lower()
+    for canonical, aliases in profile.aliases.items():
+        if fact.normalized_value == canonical and any(raw == item.lower() for item in [canonical, *aliases]):
+            return True
+    return False
+
+
+def _rewritten_normalization(fact: Fact, source_text: str) -> bool:
+    """A model sentence that is not in the source must not inherit PASS from the raw OCR span."""
+
+    normalized = fact.normalized_value
+    if not isinstance(normalized, str) or not normalized.strip():
+        return False
+    if normalized == fact.raw_value or normalized in source_text:
+        return False
+    if re.fullmatch(r"\d+", normalized) and normalized in re.sub(r"\D", "", fact.raw_value or ""):
+        return False
+    return True
 
 
 def _exact_span(needle: str, haystack: str) -> bool:
