@@ -177,7 +177,7 @@ def test_query_enables_llm_only_after_policy_and_evidence(
     body = _ask(dossier_id, policy_flags)
 
     # The configured client reaches the router wrapped in the /query deadline.
-    assert (seen["llm"] is not None) is expect_llm
+    assert isinstance(getattr(seen["llm"], "_llm", None), FakeLLM) is expect_llm
     assert body["used_llm"] is expect_llm
 
 
