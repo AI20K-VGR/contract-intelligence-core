@@ -5,6 +5,7 @@
 | Status | Active (integration) |
 | Owner | Backend Lead / AI1 Lead |
 | Companion | [DOC-05c](DOC-05c-backend-ai-service-contract.md) (HTTP job shapes reused as Kafka payloads) |
+| Pending change | [DEC-BE-AI1-01](contracts/DEC-BE-AI1-01-ocr-page-chunks.vi.md): OCR commands split into page chunks (proposed) |
 
 ## 1. Goal
 
