@@ -309,8 +309,6 @@ export function CreateDossierPage() {
         [STRUCTURE_MODE_KEY]: structureMode,
       }
       if (code.trim()) extra.code = code.trim()
-      // PATCH thay toàn bộ metadata, nên phải giữ cờ này để backend còn chờ tách.
-      if (mixedFile) extra.split_pending = true
       try {
         await patchDossier(created.dossier_id, { metadata: extra })
       } catch {
