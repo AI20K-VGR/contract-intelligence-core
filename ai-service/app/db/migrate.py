@@ -65,6 +65,13 @@ def ensure_vector_column(cx: Connection) -> bool:
         AND table_name = 'vector_segments' AND column_name = 'embedding'""")).scalar()
     if not present:
         vector_type = f"{cx.dialect.identifier_preparer.quote(schema)}.vector"
-        cx.execute(text(f"ALTER TABLE ai2.vector_segments ADD COLUMN IF NOT EXISTS embedding {vector_type}"))
+        try:
+            # The extension may sit in a schema this role cannot use (no USAGE grant).
+            with cx.begin_nested():
+                cx.execute(text(f"ALTER TABLE ai2.vector_segments ADD COLUMN IF NOT EXISTS embedding {vector_type}"))
+        except DBAPIError as exc:
+            logger.warning("ai2.vector_unavailable reason_code=VECTOR_EXTENSION_UNAVAILABLE cause=%s schema=%s",
+                           type(exc.orig).__name__, schema)
+            return False
         logger.info("ai2.vector_column_added extension_schema=%s", schema)
     return True

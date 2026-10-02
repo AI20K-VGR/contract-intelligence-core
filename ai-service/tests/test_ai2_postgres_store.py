@@ -506,6 +506,27 @@ def test_non_superuser_ai2_role_migrates_with_public_vector_extension(ai2_role_d
     assert PostgresVectorIndex(role_url).available is True
 
 
+def test_vector_in_unusable_schema_degrades_instead_of_failing_boot(ai2_role_database):
+    """Vector installed later in a schema the AI2 role cannot use must not crash-loop boot."""
+    from sqlalchemy import text
+
+    from app.db.engine import get_engine
+    from app.db.migrate import migrate
+    from app.reasoning.vector_recall import PostgresVectorIndex
+
+    db_admin, role_url = ai2_role_database
+    migrate(get_engine(role_url))
+    with db_admin.connect() as cx:
+        cx.execute(text("CREATE SCHEMA ext"))
+        cx.execute(text("CREATE EXTENSION vector SCHEMA ext"))  # no GRANT USAGE to the AI2 role
+
+    migrate(get_engine(role_url))
+
+    column, version, head = _ai2_state(db_admin)
+    assert column is False
+    assert version == head
+    assert PostgresVectorIndex(role_url).available is False
+
 
 def test_postgres_sweep_respects_queued_hold_lease(pg_url, monkeypatch):
     """I3 on Postgres: a held QUEUED job survives any replica's sweep until its hold lapses."""
