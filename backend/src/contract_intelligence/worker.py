@@ -28,6 +28,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from contract_intelligence.config.settings import get_settings
+from contract_intelligence.contract.domain.entities.document import MAX_DOSSIER_DOCUMENTS
 from contract_intelligence.contract.domain.entities.job import JobStatus
 from contract_intelligence.contract.infrastructure.persistence.orm import (
     DocumentORM,
@@ -1063,6 +1064,22 @@ async def _run_ai2_if_ready(
         select(DocumentORM).where(DocumentORM.dossier_id == dossier_id)
     )
     documents = list(document_result.scalars().all())
+    members = list(member_result.scalars().all())
+    shape_error = _dossier_shape_error(members)
+    if shape_error is not None:
+        code, detail = shape_error
+        await _fail_ai2_run(
+            session,
+            tenant_id=tenant_id,
+            run_id=run_id,
+            code=code,
+            detail=detail,
+            audit_detail={"source": "pre_submit"},
+        )
+        logger.warning(
+            "worker.ai2.dossier_rejected", dossier_id=dossier_id, run_id=run_id, code=code
+        )
+        return
     snapshots = _durable_snapshots_from_run(durable_run)
     budget = ai2_deadline_seconds(sum(int(d.page_count or 0) for d in documents))
     attempt = _ai2_attempt(durable_run)
@@ -1071,7 +1088,7 @@ async def _run_ai2_if_ready(
         run_id=run_id,
         snapshots=snapshots,
         documents=documents,
-        members=list(member_result.scalars().all()),
+        members=members,
         relations=list(relation_result.scalars().all()),
         snapshot_created_at=_snapshot_created_at(durable_run) if durable_run else {},
         attempt=attempt,
@@ -1166,6 +1183,36 @@ async def _run_ai2_if_ready(
         logger.exception("worker.ai2.failed", dossier_id=dossier_id, run_id=run_id)
 
 
+def _dossier_shape_error(members: list[ManifestItemORM]) -> tuple[str, str] | None:
+    """Reject a dossier AI2 cannot take instead of waiting on it forever.
+
+    The API already refuses these at upload, split and manifest confirm
+    (DEC-BE-AI2-01 D5, B4); this covers dossiers stored before those checks.
+    """
+    included = [item for item in members if item.included and item.document_id]
+    if len(included) > MAX_DOSSIER_DOCUMENTS:
+        return (
+            "DOSSIER_TOO_MANY_DOCUMENTS",
+            f"Hồ sơ tối đa {MAX_DOSSIER_DOCUMENTS} tài liệu, hồ sơ này có {len(included)}",
+        )
+    contracts = sum(str(item.doc_type).lower() == "contract" for item in included)
+    if contracts != 1:
+        return (
+            "DOSSIER_CONTRACT_NOT_UNIQUE",
+            f"Hồ sơ cần đúng một hợp đồng, hồ sơ này có {contracts}",
+        )
+    return None
+
+
+def _ai2_block_reason(report: dict[str, Any]) -> tuple[str, str]:
+    """Code and message of a SUCCEEDED + BLOCKED result, from ``errors[]`` when given."""
+    errors = report.get("errors") or []
+    first = errors[0] if errors and isinstance(errors[0], dict) else {}
+    code = str(first.get("code") or "AI2_BLOCKED")
+    message = str(first.get("message") or "AI2 chặn kết quả của hồ sơ này")
+    return code, message
+
+
 async def _finalize_ai2_success(
     session: AsyncSession,
     *,
@@ -1197,6 +1244,19 @@ async def _finalize_ai2_success(
             job_status=job.status if job else None,
             source=source,
         )
+        return None
+    # DEC-BE-AI2-01 D8 (B5): SUCCEEDED + BLOCKED is a failure, not a review.
+    if str(report.get("review_state") or "").upper() == "BLOCKED":
+        code, message = _ai2_block_reason(report)
+        await _fail_ai2_run(
+            session,
+            tenant_id=tenant_id,
+            run_id=run_id,
+            code=code,
+            detail=message[:1000],
+            audit_detail={"source": source, "ai2_job_id": ai2_job_id, "review_state": "BLOCKED"},
+        )
+        logger.warning("worker.ai2.blocked", dossier_id=dossier_id, run_id=run_id, code=code)
         return None
     counts = await persist_ai2_processing_result(
         session,

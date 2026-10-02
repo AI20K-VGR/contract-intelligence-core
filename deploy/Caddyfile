@@ -19,9 +19,11 @@
 {$API_HOST} {
 	import common
 
-	# Several PDFs of up to 50 MB each per dossier upload.
+	# A dossier upload holds up to 6 PDFs of 50 MiB each (DEC-BE-AI2-01 D5):
+	# 300 MiB plus multipart overhead. Caddy reads "MB" as 10^6 bytes, so the
+	# old 300MB refused six full-size files before the backend could answer.
 	request_body {
-		max_size 300MB
+		max_size 320MiB
 	}
 
 	reverse_proxy backend:8000 {

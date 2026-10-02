@@ -126,7 +126,7 @@ Dùng để dựng lại màn sau refresh. FE không giữ manifest trong state 
 - `relations[].id`: id đã có, hoặc `null` khi người dùng thêm quan hệ mới trên màn.
 - `relations[].confirmation`: chỉ `confirmed` hoặc `rejected`. Gửi `unconfirmed` thì **422** `relations_unconfirmed`.
 - Quan hệ đang lưu mà body bỏ sót: **422** `relation_missing`. Nếu quan hệ đó còn `unconfirmed`, code ưu tiên `relations_unconfirmed`.
-- Ít nhất một member `included: true` và `role: "contract"`. Không thì **422** `contract_required`.
+- Đúng một member `included: true` và `role: "contract"` (DEC-BE-AI2-01 D5). Không có thì **422** `contract_required`, nhiều hơn một thì **422** `contract_not_unique`.
 - Quan hệ `confirmed` phải nối hai member `included: true`, hai id khác nhau, đúng `relation_type`. Quan hệ `rejected` được phép trỏ tới member `included: false`.
 - Trùng cùng nguồn, đích và `relation_type` trong các quan hệ không `rejected`: **422** `relation_duplicate`.
 
@@ -160,6 +160,7 @@ FE đọc `detail` (string) và `code` (nếu có).
 | 422 | `relations_unconfirmed` | Còn quan hệ `unconfirmed`, hoặc body gửi `confirmation: "unconfirmed"` |
 | 422 | `relation_missing` | Body bỏ một quan hệ đã có |
 | 422 | `contract_required` | Không còn hợp đồng chính thuộc hồ sơ |
+| 422 | `contract_not_unique` | Nhiều hơn một hợp đồng chính (AI2 nhận đúng một thân hợp đồng, tới khi làm D12) |
 | 422 | `member_missing` | Thiếu document của hồ sơ |
 | 422 | `member_unknown` | `document_id` không thuộc hồ sơ |
 | 422 | `member_role_invalid` | `role` ngoài `contract` \| `annex` |

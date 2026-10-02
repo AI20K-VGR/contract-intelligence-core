@@ -10,7 +10,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from contract_intelligence.config.logging import get_logger
-from contract_intelligence.shared.versioning import full_version
+from contract_intelligence.shared.versioning import __api_contract__, full_version
 
 logger = get_logger(__name__)
 
@@ -21,7 +21,7 @@ class BackendHeadersMiddleware(BaseHTTPMiddleware):
         X-Backend-Version  : ``1.0.0+sprint3-full-api``
         X-Request-Id       : UUIDv4 sinh bởi server (echo ``X-Request-Id`` header
                             từ client nếu có, để truy vết đầu cuối)
-        X-API-Contract     : ``v1.0.0`` — DOC-05b version hiện tại
+        X-API-Contract     : ``__api_contract__`` — DOC-05b version hiện tại
 
     Lý do:
         - Client verify compatibility trước khi parse response.
@@ -42,7 +42,7 @@ class BackendHeadersMiddleware(BaseHTTPMiddleware):
 
         response = await call_next(request)
         response.headers["X-Backend-Version"] = full_version()
-        response.headers["X-API-Contract"] = "v1.0.0"
+        response.headers["X-API-Contract"] = __api_contract__
         response.headers["X-Request-Id"] = request_id
         return response
 
