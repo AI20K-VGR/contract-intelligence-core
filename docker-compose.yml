@@ -14,6 +14,10 @@
 #   ai1-worker     — AI1 OCR Kafka consumer/producer (DOC-05d)
 #   minio          — MinIO S3-compatible (API 9000, Console 9001)
 #   minio-init     — one-shot: tạo bucket `dossiers` + `ci-render` (private)
+#   prometheus     — metrics store (internal only, no host port)
+#   grafana        — dashboards, embedded in /admin/monitoring via backend /grafana
+#   node-exporter  — host CPU / RAM / disk / load
+#   cadvisor       — per-container CPU / RAM / status / restarts
 #
 # Lưu ý: `docker compose` nhận diện theo TÊN SERVICE (backend-db, backend),
 # không phải container_name (ci-backend-db, ci-backend).
@@ -341,6 +345,19 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:5173}
+
+      # ---- Monitoring (admin only) — see SERVICE 9-12 below ----
+      # /grafana/* is proxied by this backend after an ADMINISTRATOR check.
+      GRAFANA_UPSTREAM_URL: http://grafana:3000
+      GRAFANA_DASHBOARD_UID: ${GRAFANA_DASHBOARD_UID:-ci-overview}
+      MONITORING_SESSION_SECRET: ${MONITORING_SESSION_SECRET:-ci_monitoring_session_secret_dev}
+      MONITORING_SESSION_TTL_SECONDS: ${MONITORING_SESSION_TTL_SECONDS:-300}
+      # Frontend (localhost:5173) and API (127.0.0.1:8000) are different sites:
+      # SameSite=None + Secure + Partitioned. Browsers accept Secure on localhost.
+      MONITORING_COOKIE_SAMESITE: ${MONITORING_COOKIE_SAMESITE:-none}
+      MONITORING_COOKIE_SECURE: ${MONITORING_COOKIE_SECURE:-true}
+      # Prometheus scrape port — internal (ci-monitoring), never published.
+      METRICS_PORT: "9101"
     ports:
       - "${BACKEND_HOST_PORT:-8000}:8000"
     volumes:
@@ -363,7 +380,10 @@ services:
       retries: 6
       start_period: 30s
     networks:
-      - ci-network
+      ci-network: {}
+      ci-monitoring:
+        # Fixed address: the only source Grafana accepts auth-proxy headers from.
+        ipv4_address: ${MONITORING_PROXY_IP:-172.30.240.10}
 
   # =============================================================================
   # SERVICE 5b — Backend Kafka orchestrator (dossier events + AI1 results)
@@ -433,10 +453,13 @@ services:
       KAFKA_AI1_OCR_RESULTS_TOPIC: ci.ai1.ocr.results
       KAFKA_AI1_OCR_GROUP_ID: ci-ai1-ocr
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Aggregate OCR metrics for Prometheus (internal port, not published).
+      AI1_METRICS_PORT: "9108"
     volumes:
       - ./ai-service/src:/app/src:ro
     networks:
       - ci-network
+      - ci-monitoring
 
   # =============================================================================
   # SERVICE 5d — AI2 canonical IDP HTTP service
@@ -539,6 +562,134 @@ services:
     networks:
       - ci-network
 
+  # =============================================================================
+  # MONITORING — Prometheus + Grafana + Node Exporter + cAdvisor
+  #
+  #   browser ─▶ backend /grafana/* ─(ADMINISTRATOR check, sets X-WEBAUTH-USER)─▶ grafana:3000
+  #                                                         grafana ─▶ prometheus:9090
+  #   prometheus ─▶ node-exporter:9100, cadvisor:8080, backend:9101, ai1-worker:9108
+  #
+  # None of these publish a port. They share `ci-monitoring` (internal: no
+  # route out), so only the backend — at its fixed IP — can reach Grafana with
+  # an auth-proxy header. Langfuse Cloud stays the per-trace tool; Prometheus
+  # holds aggregates only.
+  # =============================================================================
+
+  # SERVICE 9 — Prometheus (metrics store, internal only)
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: ci-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME:-15d}
+      - --storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-5GB}
+    volumes:
+      - ./infra/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - ci-monitoring
+
+  # SERVICE 10 — Grafana (embedded in /admin/monitoring through the backend)
+  grafana:
+    image: grafana/grafana-oss:12.1.1
+    container_name: ci-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      # ---- Served under the API origin at /grafana (backend proxy) ----
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://127.0.0.1:8000/grafana/}
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      # ---- Auth proxy: identity comes ONLY from the backend's fixed IP ----
+      GF_AUTH_PROXY_ENABLED: "true"
+      GF_AUTH_PROXY_HEADER_NAME: X-WEBAUTH-USER
+      GF_AUTH_PROXY_HEADER_PROPERTY: username
+      GF_AUTH_PROXY_HEADERS: Role:X-WEBAUTH-ROLE
+      GF_AUTH_PROXY_AUTO_SIGN_UP: "true"
+      GF_AUTH_PROXY_WHITELIST: ${MONITORING_PROXY_IP:-172.30.240.10}
+      GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN: "false"
+      # ---- No anonymous access, no other way in ----
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_AUTH_BASIC_ENABLED: "false"
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-ci-grafana-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-ci_grafana_admin_dev}
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      # ---- Application admins are Grafana Viewers, nothing more ----
+      GF_USERS_AUTO_ASSIGN_ORG: "true"
+      GF_USERS_AUTO_ASSIGN_ORG_ID: "1"
+      GF_USERS_AUTO_ASSIGN_ORG_ROLE: Viewer
+      GF_USERS_VIEWERS_CAN_EDIT: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_ALLOW_ORG_CREATE: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/ci-overview.json
+      # ---- Internal network has no Internet: no phoning home, no sharing ----
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_PLUGINS_PUBLIC_KEY_RETRIEVAL_DISABLED: "true"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"
+      GF_PUBLIC_DASHBOARDS_ENABLED: "false"
+      # The backend proxy does not carry websockets; panels poll instead.
+      GF_LIVE_MAX_CONNECTIONS: "0"
+      GF_LOG_LEVEL: ${GRAFANA_LOG_LEVEL:-warn}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+    networks:
+      - ci-monitoring
+
+  # SERVICE 11 — Node Exporter (host CPU / RAM / disk / load)
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: ci-node-exporter
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+)($$|/)
+    pid: host
+    volumes:
+      # Docker Desktop refuses rslave here; deploy/compose.prod.yml (Linux) adds it.
+      - /:/host:ro
+    networks:
+      - ci-monitoring
+
+  # SERVICE 12 — cAdvisor (per-container CPU / RAM / status / restarts)
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.53.0
+    container_name: ci-cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    command:
+      # Read containers through containerd (namespace "moby", where Docker runs
+      # every container). cAdvisor's Docker handler cannot read the containerd
+      # image store (default since Docker Engine 29 and on Docker Desktop), so
+      # it is switched off; no docker.sock is mounted either.
+      - --docker=unix:///nonexistent/docker.sock
+      - --containerd=/run/containerd/containerd.sock
+      - --containerd-namespace=moby
+      # Keep the root cgroup: its network counters are the host's interfaces.
+      - --docker_only=false
+      - --housekeeping_interval=15s
+      # Container labels/env can hold configuration; export usage only.
+      - --store_container_labels=false
+      - --disable_metrics=percpu,sched,tcp,udp,hugetlb,referenced_memory,cpu_topology,resctrl,advtcp,memory_numa,process
+    volumes:
+      - /:/rootfs:ro
+      - /sys:/sys:ro
+      - /dev/disk/:/dev/disk:ro
+      - /run/containerd/containerd.sock:/run/containerd/containerd.sock:ro
+    networks:
+      - ci-monitoring
+
 
 # -----------------------------------------------------------------------------
 # Volumes — named, local driver
@@ -554,6 +705,10 @@ volumes:
     driver: local
   ai2_data:
     driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
 
 
 # -----------------------------------------------------------------------------
@@ -563,3 +718,12 @@ networks:
   ci-network:
     name: ci-network
     driver: bridge
+  # Monitoring only. internal: no route to the Internet or the host. The fixed
+  # subnet lets Grafana whitelist the backend's address for auth-proxy headers.
+  ci-monitoring:
+    name: ci-monitoring
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: ${MONITORING_SUBNET:-172.30.240.0/24}

@@ -23,6 +23,8 @@ except ImportError:  # pragma: no cover - exercised only when langfuse isn't ins
     propagate_attributes = None  # type: ignore[assignment]
     MaskOtelSpansParams = MaskOtelSpansResult = OtelSpanPatch = None  # type: ignore[assignment,misc]
 
+from contract_ocr.infrastructure.prometheus_metrics import metrics_enabled, record_model_call
+
 logger = logging.getLogger(__name__)
 
 _FALSE_VALUES = {"0", "false", "no", "off"}
@@ -75,6 +77,30 @@ def get_langfuse() -> Langfuse | None:
         return None
 
 
+class _MeteredGeneration:
+    """A generation that also feeds Prometheus model-call and cost counters.
+
+    Engines report usage through ``generation.update(cost_details=...)``; the
+    same figures go to Langfuse (when configured) and to ``prometheus_metrics``.
+    """
+
+    __slots__ = ("_inner", "_model")
+
+    def __init__(self, inner: Any | None, model: str | None) -> None:
+        self._inner = inner
+        self._model = model
+
+    def update(self, **kwargs: Any) -> None:
+        record_model_call(kwargs.get("model") or self._model, kwargs.get("cost_details"))
+        if self._inner is not None:
+            self._inner.update(**kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        if self._inner is None:
+            raise AttributeError(name)
+        return getattr(self._inner, name)
+
+
 @contextmanager
 def observation(
     name: str,
@@ -95,8 +121,9 @@ def observation(
     presigned storage URLs.
     """
     client = get_langfuse()
+    metered = as_type == "generation" and metrics_enabled()
     if client is None:
-        yield None
+        yield _MeteredGeneration(None, model) if metered else None
         return
 
     trace_context = None
@@ -118,7 +145,7 @@ def observation(
             tags=tags,
             metadata=metadata,
         ):
-            yield current
+            yield _MeteredGeneration(current, model) if metered else current
 
 
 def response_usage(response: Any) -> dict[str, int] | None:

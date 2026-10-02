@@ -16,6 +16,9 @@
 #     tokens carry iss=https://$AUTH_HOST/realms/contract-intelligence.
 #   - No source bind-mounts: images run the code they were built with.
 #   - AI1 → backend stays Kafka, backend → AI2 stays HTTP, both internal.
+#   - Monitoring: Grafana is served at https://$API_HOST/grafana/ by the
+#     backend (ADMINISTRATOR only). Grafana, Prometheus, node-exporter and
+#     cAdvisor publish no port and sit on the internal ci-monitoring network.
 #
 # Needs Docker Compose >= 2.24 (`!reset`).
 # =============================================================================
@@ -86,6 +89,9 @@ services:
       # Caddy is another container: trust its X-Forwarded-* headers.
       FORWARDED_ALLOW_IPS: "*"
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      MONITORING_SESSION_SECRET: ${MONITORING_SESSION_SECRET:?set in deploy/.env.prod}
+      MONITORING_COOKIE_SAMESITE: ${MONITORING_COOKIE_SAMESITE:-none}
+      MONITORING_COOKIE_SECURE: "true"
     ports: !reset []
     volumes: !reset []
 
@@ -140,6 +146,18 @@ services:
   mailpit:
     profiles: !reset []
     ports: !reset []
+
+  grafana:
+    environment:
+      # Public URL of the backend's /grafana proxy (no Grafana host of its own).
+      GF_SERVER_ROOT_URL: https://${API_HOST:?set in deploy/.env.prod}/grafana/
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set in deploy/.env.prod}
+      GF_SECURITY_COOKIE_SECURE: "true"
+
+  node-exporter:
+    # Linux host: propagate mounts made after start (Docker Desktop refuses rslave).
+    volumes: !override
+      - /:/host:ro,rslave
 
   caddy:
     image: caddy:2.8-alpine

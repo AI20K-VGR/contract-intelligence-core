@@ -8,12 +8,14 @@ Chạy toàn bộ stack (Keycloak, Postgres ×2, Kafka, MinIO, backend, backend-
 |---|---|---|
 | `https://api-<ip>.sslip.io` | backend `:8000` (REST, SSE `/api/v1/runs/{id}/events`, `/docs`) | Frontend |
 | `https://auth-<ip>.sslip.io` | Keycloak `:8080` (đăng nhập, OIDC). `/admin` trả 404 | Frontend, người dùng |
+| `https://api-<ip>.sslip.io/grafana/` | Grafana qua backend. Chỉ ADMINISTRATOR; người lạ 401, user thường 403 | Trang `/admin/monitoring` |
 
 Những thứ không ra Internet, chỉ nằm trong mạng `ci-network`:
 
 - **AI1** nhận lệnh và trả kết quả qua Kafka.
 - **Backend gọi AI2** qua `http://ai2-service:8002`. Cổng 8002 không mở ra ngoài, theo yêu cầu mentor.
 - Postgres, Kafka, MinIO, mailpit và Keycloak admin.
+- Grafana, Prometheus, Node Exporter, cAdvisor: nằm trong mạng nội bộ `ci-monitoring`, không có cổng. Xem [docs/MONITORING.md](../docs/MONITORING.md).
 
 `sslip.io` phân giải `api-1-2-3-4.sslip.io` về `1.2.3.4`. Vì vậy không cần mua domain mà vẫn có chứng chỉ Let's Encrypt thật.
 
@@ -96,4 +98,4 @@ Mật khẩu admin Keycloak, mật khẩu tài khoản demo và mọi secret n�
 
 - **Kafka không lưu ra volume.** Mất message đang bay khi restart. Watchdog AI1 sẽ fail run bị ảnh hưởng với `AI1_TIMEOUT`, người dùng bấm chạy lại OCR.
 - **Một kết quả OCR gửi thẳng qua Kafka chỉ chứa được khoảng 144 trang** (khoảng 71 KiB/trang, trần 10 MiB), cho tới khi kết quả OCR đi qua MinIO + URI (DOC-11 §4.2 #2).
-- **Chưa có giám sát hay cảnh báo.** Cần theo dõi `docker compose ps` và log.
+- **Có giám sát, chưa có cảnh báo.** Dashboard Grafana ở `/admin/monitoring` (docs/MONITORING.md). Chưa có Alertmanager, nên vẫn phải có người xem.

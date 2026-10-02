@@ -20,6 +20,7 @@ Images and diagrams go in `assets/` (the only folder in the repo where image fil
 | `DOC-06-eval-report.md` | Evaluation Report | Sprint 3 (18/10) | mentor |
 | `DOC-07-khung-project.md` | Project Framework | Sprint 2 (22/09) | team |
 | `DOC-08-eval-report.md` | Evaluation Report (alternate) | Sprint 3 (18/10) | mentor |
+| `MONITORING.md` | Monitoring: Prometheus, Grafana, Node Exporter, cAdvisor, `/admin/monitoring` | Sprint 3 | lead |
 | `contracts/` | AI1/AI2 JSON Schema + wire contracts (`ai1.snapshot.v1`, `be.ai2.processing.request.v1`, …) | Sprint 2 | mentor / lead |
 
 Changes to a document go through a PR like code (2 approvals). The sprint tracker on OneDrive

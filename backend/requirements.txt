@@ -156,6 +156,8 @@ packaging==26.3
     #   opentelemetry-instrumentation
 passlib==1.7.4
     # via contract-intelligence-backend
+prometheus-client==0.26.0
+    # via contract-intelligence-backend
 propcache==0.5.4
     # via
     #   aiohttp

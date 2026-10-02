@@ -63,6 +63,8 @@ curl -fsS "$auth/realms/contract-intelligence/.well-known/openid-configuration" 
   | grep -o '"issuer":"[^"]*"'
 code=$(curl -s -o /dev/null -w '%{http_code}' "$auth/admin/master/console/")
 [ "$code" = 404 ] && echo "admin console blocked publicly: ok" || echo "WARNING: admin console answered $code"
+code=$(curl -s -o /dev/null -w '%{http_code}' -H 'X-WEBAUTH-USER: admin' "$api/grafana/")
+[ "$code" = 401 ] && echo "grafana refuses anonymous callers: ok" || echo "WARNING: /grafana answered $code"
 echo "Ports: run deploy/check_external.sh (or the deploy-external-check workflow) from"
 echo "another machine — probing this server's own public IP from here can bypass the"
 echo "provider firewall, so it is not a valid check."

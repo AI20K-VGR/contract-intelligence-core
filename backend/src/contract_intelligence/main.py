@@ -22,6 +22,7 @@ from fastapi.security import HTTPBearer
 
 from contract_intelligence.api.v1.admin_overview import router as admin_overview_router
 from contract_intelligence.api.v1.dossiers import router as dossier_query_router
+from contract_intelligence.api.v1.monitoring import router as monitoring_router
 from contract_intelligence.api.v1.users import router as users_router
 from contract_intelligence.config.logging import configure_logging, get_logger
 from contract_intelligence.config.settings import get_settings
@@ -50,6 +51,15 @@ from contract_intelligence.identity.interfaces.api.webhook_router import (
     router as webhook_router,
 )
 from contract_intelligence.infrastructure.messaging import start_producer, stop_producer
+from contract_intelligence.monitoring.grafana_proxy import (
+    close_grafana_client,
+    router as grafana_router,
+)
+from contract_intelligence.monitoring.metrics import (
+    HttpMetricsMiddleware,
+    start_metrics_server,
+    stop_metrics_server,
+)
 from contract_intelligence.review.interfaces.api.routers.approval_router import (
     router as approval_router,
 )
@@ -198,6 +208,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
         run_event_listener.start()
 
+    # Prometheus scrape endpoint on an internal-only port (never via Caddy).
+    if settings.metrics_port and settings.env != "test":
+        start_metrics_server(settings.metrics_port)
+
     yield
 
     # Shutdown
@@ -206,6 +220,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await run_event_listener.stop()
     await stop_producer()
     await stop_maintenance_loop()
+    await close_grafana_client()
+    stop_metrics_server()
     reset_background_dispatcher()
     reset_ai_service_client()
     reset_engine()
@@ -252,6 +268,9 @@ def create_app() -> FastAPI:
 
     # Backend headers — X-Backend-Version + X-Request-Id
     app.add_middleware(BackendHeadersMiddleware)
+
+    # Prometheus HTTP metrics (route template labels only).
+    app.add_middleware(HttpMetricsMiddleware)
 
     # Exception handlers
     @app.exception_handler(DomainException)
@@ -327,6 +346,7 @@ def create_app() -> FastAPI:
     )  # → /api/v1/auth/webhooks/keycloak
     app.include_router(users_router, prefix="/api/v1")  # → /api/v1/users*
     app.include_router(admin_overview_router, prefix="/api/v1")  # → /api/v1/admin/*
+    app.include_router(monitoring_router, prefix="/api/v1")  # → /api/v1/admin/monitoring/*
     app.include_router(contract_router, prefix="/api/v1", tags=["Contract"])
     app.include_router(extraction_router, prefix="/api/v1", tags=["Extraction"])
     app.include_router(conflict_router, prefix="/api/v1", tags=["Conflict"])
@@ -346,6 +366,9 @@ def create_app() -> FastAPI:
     # AI service health + proxy — DOC-05c §4.7
     # /healthz + /readyz + /ai/jobs/{id}
     app.include_router(ai_health_router, prefix="/api/v1", tags=["AI-Service"])
+
+    # Grafana behind ADMINISTRATOR check — /grafana/* (not in OpenAPI)
+    app.include_router(grafana_router)
 
     # Backend liveness (root — không qua /api/v1)
     @app.get("/health", tags=["health"])
