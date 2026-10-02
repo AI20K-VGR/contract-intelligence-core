@@ -5,7 +5,7 @@ run against a real Postgres migrated with ``alembic upgrade head``. Skipped unle
 ``CI_TEST_POSTGRES_URL`` points at a disposable database, e.g.::
 
     docker run -d --rm --name ci-pg-test -e POSTGRES_USER=ci -e POSTGRES_PASSWORD=ci \
-        -e POSTGRES_DB=ci_test -p 55432:5432 postgres:16-alpine
+        -e POSTGRES_DB=ci_test -p 55432:5432 pgvector/pgvector:pg16
     $env:CI_TEST_POSTGRES_URL="postgresql+asyncpg://ci:ci@127.0.0.1:55432/ci_test"
 """
 

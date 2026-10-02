@@ -186,7 +186,8 @@ services:
   # SERVICE 3 — Backend PostgreSQL (isolated)
   # =============================================================================
   backend-db:
-    image: postgres:16-alpine
+    # Postgres 16 with pgvector: AI2 keeps vectors in schema ai2 (ADR-14).
+    image: pgvector/pgvector:pg16
     container_name: ci-backend-db
     restart: unless-stopped
     environment:
@@ -274,6 +275,8 @@ services:
       # ---- DB ----
       # Host = service name `backend-db` (Compose DNS), NOT container_name.
       DATABASE_URL: postgresql+asyncpg://ci:${BACKEND_DB_PASSWORD:-ci_secret_dev}@backend-db:5432/contract_intelligence
+      # Password of the ai2 role (schema ai2 only), set at every start by the entrypoint.
+      AI2_DB_PASSWORD: ${AI2_DB_PASSWORD:-ai2_secret_dev}
       DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-10}
       DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-20}
       # ---- Keycloak SSO ----
