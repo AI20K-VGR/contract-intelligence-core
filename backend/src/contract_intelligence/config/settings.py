@@ -547,6 +547,13 @@ class Settings(BaseSettings):
         le=65535,
         description="Serve Prometheus metrics on this port (internal only). Empty = off.",
     )
+    metrics_bind_address: str = Field(
+        default="0.0.0.0",  # noqa: S104 - compose pins it to the ci-monitoring address
+        description=(
+            "Address the metrics port listens on. Compose sets the backend's "
+            "ci-monitoring IP so containers on ci-network cannot read /metrics."
+        ),
+    )
 
     @property
     def monitoring_enabled(self) -> bool:

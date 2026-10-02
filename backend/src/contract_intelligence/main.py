@@ -210,7 +210,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Prometheus scrape endpoint on an internal-only port (never via Caddy).
     if settings.metrics_port and settings.env != "test":
-        start_metrics_server(settings.metrics_port)
+        start_metrics_server(settings.metrics_port, settings.metrics_bind_address)
 
     yield
 

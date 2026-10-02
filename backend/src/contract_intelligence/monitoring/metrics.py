@@ -75,18 +75,18 @@ class HttpMetricsMiddleware:
             HTTP_DURATION.labels(method, route).observe(time.perf_counter() - started)
 
 
-def start_metrics_server(port: int) -> None:
-    """Expose /metrics on ``port``; a second call in the same process is a no-op."""
+def start_metrics_server(port: int, addr: str = "0.0.0.0") -> None:  # noqa: S104
+    """Expose /metrics on ``addr:port``; a second call in the same process is a no-op."""
     global _server  # noqa: PLW0603
     if _server is not None:
         return
     try:
-        _server, _thread = start_http_server(port)
+        _server, _thread = start_http_server(port, addr=addr)
     except OSError as exc:
         # Metrics must never stop the API from serving.
-        logger.warning("metrics.server_failed", port=port, error=str(exc))
+        logger.warning("metrics.server_failed", addr=addr, port=port, error=str(exc))
         return
-    logger.info("metrics.server_started", port=port)
+    logger.info("metrics.server_started", addr=addr, port=port)
 
 
 def stop_metrics_server() -> None:

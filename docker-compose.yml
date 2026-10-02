@@ -361,6 +361,8 @@ services:
       MONITORING_COOKIE_SECURE: ${MONITORING_COOKIE_SECURE:-true}
       # Prometheus scrape port — internal (ci-monitoring), never published.
       METRICS_PORT: "9101"
+      # Listen only on ci-monitoring: AI1/AI2 on ci-network cannot read /metrics.
+      METRICS_BIND_ADDRESS: ${MONITORING_PROXY_IP:-172.30.240.10}
     ports:
       - "${BACKEND_HOST_PORT:-8000}:8000"
     volumes:

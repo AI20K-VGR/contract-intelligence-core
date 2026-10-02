@@ -102,6 +102,7 @@ Giá trị label lấy từ tập đóng (engine, mã lỗi `[A-Z0-9_]`, model i
 | `MONITORING_COOKIE_SAMESITE` | backend | `none` | `lax` khi frontend và API cùng site |
 | `MONITORING_COOKIE_SECURE` | backend | `true` | |
 | `METRICS_PORT` | backend | `9101` | cổng scrape nội bộ |
+| `METRICS_BIND_ADDRESS` | backend | `MONITORING_PROXY_IP` | chỉ nghe trên `ci-monitoring`; container AI1/AI2 ở `ci-network` không đọc được `/metrics` |
 | `AI1_METRICS_PORT` | ai1-worker | `9108` | cổng scrape nội bộ |
 | `GRAFANA_ROOT_URL` | grafana | `http://127.0.0.1:8000/grafana/` | prod: `https://$API_HOST/grafana/` |
 | `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` | grafana | `ci-grafana-admin` / `ci_grafana_admin_dev` | **bắt buộc** ở prod |
@@ -121,6 +122,20 @@ cd frontend; npm run dev                # http://localhost:5173
 
 - Docker Desktop: Node Exporter đọc VM của Docker Desktop, không phải Windows. Ổ `C:\`, `D:\` hiện dưới dạng filesystem của VM.
 - Chạy frontend ở `localhost:5173` và API ở `127.0.0.1:8000` là hai site khác nhau. Cookie là `SameSite=None; Secure; Partitioned`, được Chrome, Edge và Firefox chấp nhận trên localhost. Safari không lưu cookie `Secure` qua http. Muốn dùng Safari thì đặt `MONITORING_COOKIE_SAMESITE=lax` + `MONITORING_COOKIE_SECURE=false`, và dùng `VITE_API_BASE_URL=http://localhost:8000` (cùng site với `localhost:5173`).
+
+### Khi `docker compose up` báo trùng subnet
+
+Lỗi dạng `Pool overlaps with other one on this address space` hoặc `invalid pool request` nghĩa là `172.30.240.0/24` đã có mạng khác dùng (Docker network khác, VPN, mạng công ty).
+
+1. Xem subnet đang dùng: `docker network inspect $(docker network ls -q) -f '{{.Name}} {{range .IPAM.Config}}{{.Subnet}}{{end}}'`; với VPN thì `ip route` (Linux) hoặc `route print` (Windows).
+2. Chọn một `/24` trống, rồi đặt **cả hai** biến trong `.env` ở thư mục gốc (local) hoặc `deploy/.env.prod` (prod). IP backend phải nằm trong subnet, và không phải `.1` (gateway):
+   ```env
+   MONITORING_SUBNET=10.213.40.0/24
+   MONITORING_PROXY_IP=10.213.40.10
+   ```
+3. Mạng cũ không tự đổi subnet. Xoá rồi tạo lại: `docker compose down` → `docker network rm ci-monitoring` → `docker compose up -d`.
+
+`MONITORING_PROXY_IP` vừa là IP cố định của backend, vừa là IP Grafana tin cho header auth-proxy (`GF_AUTH_PROXY_WHITELIST`), vừa là địa chỉ cổng metrics. Compose lấy cùng một biến cho cả ba chỗ, nên đổi một lần là đủ.
 
 ## Triển khai production
 
