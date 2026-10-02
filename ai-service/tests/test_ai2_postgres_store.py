@@ -505,3 +505,30 @@ def test_non_superuser_ai2_role_migrates_with_public_vector_extension(ai2_role_d
     assert _public_tables(db_admin) == public_before
     assert PostgresVectorIndex(role_url).available is True
 
+
+
+def test_postgres_sweep_respects_queued_hold_lease(pg_url, monkeypatch):
+    """I3 on Postgres: a held QUEUED job survives any replica's sweep until its hold lapses."""
+    from app.tools.jobs import PostgresJobStore
+
+    store = PostgresJobStore(pg_url)
+    now = [10_000]
+    monkeypatch.setattr(store, "_now_ms", lambda: now[0])
+    dossier = uuid4().hex
+
+    def queued(hint: str) -> str:
+        job, created = store.create_or_get(
+            tenant_id="pg-i3", dossier_id=dossier, request_id=hint, idempotency_key=f"{dossier}:{hint}",
+            attempt=1, request={}, wire={"status": "QUEUED", "errors": []},
+        )
+        assert created
+        return job["job_id"]
+
+    held, orphan = queued("held"), queued("orphan")
+    now[0] += 120_000
+    store.hold_queued([held], lease_ms=60_000)
+
+    assert store.sweep_stale({"errors": []}) == [orphan]
+    assert store.get(held)["status"] == "QUEUED"
+    now[0] += 120_000
+    assert store.sweep_stale({"errors": []}) == [held]

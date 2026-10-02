@@ -349,9 +349,30 @@ class SQLiteJobStore:
         finally:
             cx.close()
 
+    def hold_queued(self, job_ids: list[str], *, lease_ms: int) -> None:
+        """Renew the lease a live process holds on QUEUED jobs it will still run.
+
+        A held QUEUED job is not an orphan, however long it waits for a worker
+        thread; once the holder stops renewing, the lease lapses and any
+        replica's sweep fails it.
+        """
+
+        if not job_ids:
+            return
+        cx = self._connect()
+        try:
+            cx.execute("BEGIN IMMEDIATE")
+            cx.execute(
+                f"UPDATE jobs SET lease_until_ms=? WHERE status='QUEUED' AND job_id IN ({','.join('?' * len(job_ids))})",
+                (self._now_ms() + lease_ms, *job_ids),
+            )
+            cx.commit()
+        finally:
+            cx.close()
+
     def sweep_stale(self, update: dict[str, Any], *, queued_grace_ms: int = 60_000) -> list[str]:
-        """Fail jobs no live worker owns: RUNNING past the lease, or QUEUED longer
-        than ``queued_grace_ms`` (their in-process background task died with it)."""
+        """Fail jobs no live worker owns: RUNNING past the lease, or QUEUED past
+        its hold lease (or, never held, older than ``queued_grace_ms``)."""
 
         now = self._now_ms()
         cx = self._connect()
@@ -361,9 +382,9 @@ class SQLiteJobStore:
                 """
                 SELECT job_id, wire_json FROM jobs
                 WHERE (status='RUNNING' AND COALESCE(lease_until_ms, 0) <= ?)
-                   OR (status='QUEUED' AND updated_ms <= ?)
+                   OR (status='QUEUED' AND COALESCE(lease_until_ms, updated_ms + ?) <= ?)
                 """,
-                (now, now - queued_grace_ms),
+                (now, queued_grace_ms, now),
             ).fetchall()
             self._fail_rows(cx, rows, update, now)
             cx.commit()
@@ -572,6 +593,16 @@ class PostgresJobStore(SQLiteJobStore):
         from app.db.tables import jobs
         return bool(self._fail_matching(and_(jobs.c.job_id == job_id, jobs.c.status == "QUEUED"), update))
 
+    def hold_queued(self, job_ids, *, lease_ms):
+        from sqlalchemy import update
+
+        from app.db.tables import jobs
+        if not job_ids:
+            return
+        with self.engine.begin() as cx:
+            cx.execute(update(jobs).where(jobs.c.status == "QUEUED", jobs.c.job_id.in_(list(job_ids)))
+                       .values(lease_until_ms=self._now_ms() + lease_ms))
+
     def sweep_stale(self, update, *, queued_grace_ms=60_000):
         from sqlalchemy import and_, func, or_
 
@@ -579,7 +610,8 @@ class PostgresJobStore(SQLiteJobStore):
         now = self._now_ms()
         return self._fail_matching(or_(
             and_(jobs.c.status == "RUNNING", func.coalesce(jobs.c.lease_until_ms, 0) <= now),
-            and_(jobs.c.status == "QUEUED", jobs.c.updated_ms <= now - queued_grace_ms),
+            and_(jobs.c.status == "QUEUED",
+                 func.coalesce(jobs.c.lease_until_ms, jobs.c.updated_ms + queued_grace_ms) <= now),
         ), update)
 
 

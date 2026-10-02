@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import os
+import threading
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from uuid import uuid4
@@ -72,6 +73,11 @@ load_dotenv(ROOT / ".env")
 STATIC = Path(__file__).resolve().parent.parent / "static"
 
 JOB_SWEEP_INTERVAL_SECONDS = 1.0
+# Lease this process keeps on accepted jobs still waiting for a worker thread;
+# renewed on every sweep tick, so it only lapses when the process is gone.
+QUEUED_HOLD_MS = 60_000
+_HELD_JOB_IDS: set[str] = set()
+_HELD_LOCK = threading.Lock()
 
 
 async def _periodic_job_sweep() -> None:
@@ -222,6 +228,16 @@ def _queued_wire_result(
 
 
 def _run_wire_job(job_id: str, payload: dict) -> None:
+    """Execute one accepted wire request; this process stops holding it after."""
+
+    try:
+        _execute_wire_job(job_id, payload)
+    finally:
+        with _HELD_LOCK:
+            _HELD_JOB_IDS.discard(job_id)
+
+
+def _execute_wire_job(job_id: str, payload: dict) -> None:
     """Execute one accepted wire request and retain its public result."""
 
     try:
@@ -334,7 +350,12 @@ def _sweep_stale_jobs(store: SQLiteJobStore | None = None, *, queued_grace_ms: i
             }
         ],
     }
-    swept = (store or JOB_STORE).sweep_stale(update, queued_grace_ms=queued_grace_ms)
+    target = store or JOB_STORE
+    with _HELD_LOCK:
+        held = sorted(_HELD_JOB_IDS)
+    # Renew first: a held job waiting for a thread is live, not orphaned (I3).
+    target.hold_queued(held, lease_ms=QUEUED_HOLD_MS)
+    swept = target.sweep_stale(update, queued_grace_ms=queued_grace_ms)
     if swept:
         logger.warning("ai2.jobs_swept count=%s job_ids=%s", len(swept), swept)
     return swept
@@ -1806,6 +1827,8 @@ def create_idp_job(payload: dict, background_tasks: BackgroundTasks) -> dict:
         # Hand the worker the exact signed payload: a re-dumped model differs
         # from it (defaults, OCR-lab digest normalization) and would fail the
         # worker's envelope re-verification (payload_sha256).
+        with _HELD_LOCK:
+            _HELD_JOB_IDS.add(job_id)
         background_tasks.add_task(_run_wire_job, job_id, payload)
     return wire
 

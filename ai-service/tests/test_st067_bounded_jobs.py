@@ -611,3 +611,39 @@ def test_real_embedding_discovery_is_charged_before_provider_requests(tmp_path, 
     assert provider_tokens <= cap
     assert runtime.embedding_tokens_used == provider_tokens
     assert result.status == ("READY" if extra_tokens else "BUDGET_EXCEEDED")
+
+
+# I3: a QUEUED job still waiting for a worker thread in a live process is not
+# an orphan; only jobs nobody holds any more are swept.
+def test_sweep_keeps_queued_jobs_this_process_still_holds(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+    from test_a1_query_digest import _body_only_request
+
+    from app.api import main
+
+    monkeypatch.setenv("AI2_SERVICE_HMAC_SECRET", "test-secret")
+    store = SQLiteJobStore(tmp_path / "held.sqlite")
+    now = [1_000]
+    monkeypatch.setattr(store, "_now_ms", lambda: now[0])
+    monkeypatch.setattr(main, "JOB_STORE", store)
+    monkeypatch.setattr(main, "WIRE_JOBS", {})
+    monkeypatch.setattr(main, "WIRE_IDEMPOTENCY", {})
+    monkeypatch.setattr(main, "_HELD_JOB_IDS", set())
+    # The accepted task never gets a thread (pool saturated).
+    monkeypatch.setattr(main, "_run_wire_job", lambda *_args, **_kwargs: None)
+    accepted = TestClient(main.app).post("/jobs/idp", json=_body_only_request())
+    assert accepted.status_code == 202, accepted.text
+    held = accepted.json()["job_id"]
+    orphan = _queued_job(store, "orphan-i3")
+
+    now[0] += 120_000  # both are older than the 60 s queued grace
+    swept = _bounded(main._sweep_stale_jobs, store)
+
+    assert swept == [orphan]
+    assert store.get(held)["status"] == "QUEUED"
+    assert store.get(orphan)["wire"]["errors"][0]["code"] == "AI2_WORKER_RESTARTED"
+    # Another replica sharing the store sees the hold as a live lease...
+    assert store.sweep_stale({"errors": []}) == []
+    # ...until this process stops renewing it (crash), then it is an orphan.
+    now[0] += 120_000
+    assert store.sweep_stale({"errors": []}) == [held]
