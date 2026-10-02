@@ -15,6 +15,7 @@ class ExpectedState(StrEnum):
     NEEDS_REVIEW = "NEEDS_REVIEW"
     INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
     NOT_COMPARABLE = "NOT_COMPARABLE"
+    BLOCKED = "BLOCKED"
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,7 +25,8 @@ class MutationSpec:
     kind: str
 
 
-_QUESTION_KINDS = frozenset({"lookup", "clause_lookup", "broad", "comparison"})
+QUESTION_CATEGORIES = frozenset({"answerable", "not_in_document", "permission"})
+_QUESTION_KINDS = frozenset({"lookup", "clause_lookup", "broad", "comparison", "permission"})
 _REVIEW_MUTATIONS = frozenset(
     {
         "body_annex_conflict",
@@ -61,6 +63,8 @@ def expected_state_for(
 
     if question_kind not in _QUESTION_KINDS:
         raise ValueError(f"unknown question kind: {question_kind!r}")
+    if question_kind == "permission":
+        return ExpectedState.BLOCKED
 
     mutation_list = tuple(mutations)
     if any(not isinstance(mutation, MutationSpec) for mutation in mutation_list):

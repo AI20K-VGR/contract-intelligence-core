@@ -18,6 +18,14 @@ class QuestionSpec:
     def expected_state(self) -> ExpectedState:
         return expected_state_for(self.kind, self.mutations)
 
+    @property
+    def category(self) -> str | None:
+        return {
+            ExpectedState.ANSWERED: "answerable",
+            ExpectedState.INSUFFICIENT_EVIDENCE: "not_in_document",
+            ExpectedState.BLOCKED: "permission",
+        }.get(self.expected_state)
+
 
 @dataclass(frozen=True, slots=True)
 class ContractSpec:
