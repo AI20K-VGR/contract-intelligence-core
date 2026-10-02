@@ -1,0 +1,61 @@
+# Prometheus — scrape config for the Contract Intelligence stack.
+#
+# Every target lives on the internal `ci-monitoring` network; none of them, and
+# not Prometheus itself, has a published port. Grafana is the only reader.
+#
+# Metrics carry no contract content, OCR text, file names, user data or keys:
+# labels are engine / model / route template / status only (see
+# backend/src/contract_intelligence/monitoring/metrics.py and
+# ai-service/src/contract_ocr/infrastructure/prometheus_metrics.py).
+
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+  external_labels:
+    stack: contract-intelligence
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: grafana
+    static_configs:
+      - targets: ["grafana:3000"]
+    metrics_path: /grafana/metrics
+
+  - job_name: node-exporter
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+    metric_relabel_configs:
+      # Keep the series the dashboard uses; cAdvisor emits thousands more.
+      - source_labels: [__name__]
+        regex: container_(cpu_usage_seconds_total|memory_working_set_bytes|spec_memory_limit_bytes|last_seen|start_time_seconds|network_receive_bytes_total|network_transmit_bytes_total|fs_reads_bytes_total|fs_writes_bytes_total)|machine_.*|cadvisor_version_info
+        action: keep
+      # Through containerd, `name` is the 64-hex container id. Give each
+      # container a readable `container` label from its image
+      # (contract-intelligence-stack-backend:latest → backend) and keep a
+      # 12-char `short_id` to tell apart two containers of one image (the DBs).
+      - source_labels: [image]
+        regex: "(?:.*/)?(?:contract-intelligence-stack-)?([^/:@]+)(?:[:@].*)?"
+        target_label: container
+      # Where cAdvisor does know the Docker name (ci-backend …), prefer it.
+      - source_labels: [name]
+        regex: "(.*[^0-9a-f].*)"
+        target_label: container
+      - source_labels: [name]
+        regex: "([0-9a-f]{12})[0-9a-f]{52}"
+        target_label: short_id
+
+  - job_name: backend
+    static_configs:
+      - targets: ["backend:9101"]
+
+  - job_name: ai1-worker
+    static_configs:
+      - targets: ["ai1-worker:9108"]
