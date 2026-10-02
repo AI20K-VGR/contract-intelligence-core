@@ -33,6 +33,7 @@ class DomainErrorCode(StrEnum):
     RELATIONS_UNCONFIRMED = "relations_unconfirmed"
     RELATION_MISSING = "relation_missing"
     CONTRACT_REQUIRED = "contract_required"
+    CONTRACT_NOT_UNIQUE = "contract_not_unique"
     MEMBER_MISSING = "member_missing"
     MEMBER_UNKNOWN = "member_unknown"
     MEMBER_ROLE_INVALID = "member_role_invalid"
@@ -40,6 +41,9 @@ class DomainErrorCode(StrEnum):
     RELATION_SELF = "relation_self"
     RELATION_DUPLICATE = "relation_duplicate"
     RELATION_TYPE_INVALID = "relation_type_invalid"
+
+    # Dossier size (DEC-BE-AI2-01 D5)
+    DOSSIER_TOO_MANY_DOCUMENTS = "DOSSIER_TOO_MANY_DOCUMENTS"
 
     # Conflict
     INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
@@ -161,6 +165,28 @@ class ManifestVersionConflict(DomainException):
                 "expected_version": expected_version,
                 "current_version": current_version,
             },
+        )
+
+
+class DossierTooManyDocuments(DomainException):
+    """A dossier would hold more documents than AI2 accepts — HTTP 422.
+
+    The limit counts documents (one per uploaded PDF, one per split part), not
+    pages, so the message says which: files at upload, documents after a split.
+    """
+
+    def __init__(self, *, limit: int, count: int, after_split: bool = False) -> None:
+        message = (
+            f"Sau khi tách, hồ sơ tối đa {limit} tài liệu. "
+            f"Cách tách này làm hồ sơ có {count} tài liệu."
+            if after_split
+            else f"Hồ sơ tối đa {limit} file PDF (1 hợp đồng và tối đa {limit - 1} phụ lục). "
+            f"Bạn đã chọn {count} file."
+        )
+        super().__init__(
+            DomainErrorCode.DOSSIER_TOO_MANY_DOCUMENTS,
+            message,
+            details={"limit": limit, "count": count},
         )
 
 
