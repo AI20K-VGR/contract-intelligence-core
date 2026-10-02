@@ -32,7 +32,14 @@ from contract_intelligence.contract.infrastructure.persistence.repository_impl i
     JobRepositoryImpl,
 )
 from contract_intelligence.extraction.infrastructure.persistence.orm import PipelineRunORM
-from contract_intelligence.shared.acl import AclAction, dossier_access_decision, grant_is_live
+from contract_intelligence.shared.acl import (
+    AclAction,
+    dossier_access_decision,
+    dossier_denied_detail,
+    dossier_denied_message,
+    grant_is_live,
+    visible_dossier_metadata,
+)
 from contract_intelligence.shared.auth.schemas import AuthenticatedUser
 from contract_intelligence.shared.persistence import Base
 from contract_intelligence.shared.persistence.orm_registry import import_all_models
@@ -265,3 +272,85 @@ async def test_plain_patch_cannot_add_acl_fields(seeded: async_sessionmaker[Asyn
     assert dossier.metadata["note"] == "ok"
     assert dossier.metadata["created_by"] == "owner"
     assert dossier.metadata["shared_with"] == [{"id": "guest", "permission": "read"}]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Denial message and grant visibility
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def _denied(action: AclAction, user: AuthenticatedUser, meta: dict[str, Any]) -> str:
+    return dossier_denied_message(
+        action=action,
+        principal=user,
+        dossier_id="dos_1",
+        dossier_tenant_id=TENANT,
+        metadata=meta,
+    )
+
+
+def test_denial_tells_read_grantee_they_can_only_view() -> None:
+    reviewer = _user("guest", role="REVIEWER")
+    meta = _meta(permission="read")
+    assert not _allowed(AclAction.REVIEW_MUTATE, reviewer, meta)
+    assert _denied(AclAction.REVIEW_MUTATE, reviewer, meta) == "Bạn chỉ có quyền xem hồ sơ này."
+
+
+def test_denial_names_role_before_grant() -> None:
+    operator = _user("guest")
+    assert _denied(AclAction.REVIEW_MUTATE, operator, _meta(permission="edit")).startswith(
+        "Chỉ người thẩm định"
+    )
+    assert _denied(AclAction.APPROVE, operator, _meta()) == "Chỉ quản trị viên được duyệt hồ sơ."
+
+
+def test_denial_for_expired_or_missing_grant() -> None:
+    expired = _meta(permission="read", expires_at="2020-01-01T00:00:00+00:00")
+    message = "Bạn không có quyền trên hồ sơ này, hoặc quyền đã hết hạn."
+    assert _denied(AclAction.DOSSIER_EDIT, _user("guest"), expired) == message
+    assert _denied(AclAction.QUERY, _user("stranger"), _meta()) == message
+
+
+def _denied_code(action: AclAction, user: AuthenticatedUser, meta: dict[str, Any]) -> str:
+    return dossier_denied_detail(
+        action=action,
+        principal=user,
+        dossier_id="dos_1",
+        dossier_tenant_id=TENANT,
+        metadata=meta,
+    )["code"]
+
+
+def test_denial_code_says_why() -> None:
+    """The frontend branches on ``code``, never on the Vietnamese text."""
+    operator, reviewer = _user("guest"), _user("guest", role="REVIEWER")
+    expired = _meta(permission="edit", expires_at="2020-01-01T00:00:00+00:00")
+    assert _denied_code(AclAction.REVIEW_MUTATE, operator, _meta(permission="edit")) == (
+        "ROLE_DENIED"
+    )
+    assert _denied_code(AclAction.APPROVE, operator, _meta()) == "ROLE_DENIED"
+    assert _denied_code(AclAction.REVIEW_MUTATE, reviewer, _meta(permission="read")) == (
+        "READ_ONLY"
+    )
+    assert _denied_code(AclAction.DOSSIER_EDIT, operator, expired) == "ACL_DENIED"
+    assert _denied_code(AclAction.QUERY, _user("stranger"), _meta()) == "ACL_DENIED"
+
+
+def test_grantee_sees_only_own_grant_by_id_or_email() -> None:
+    meta = {
+        "created_by": "owner",
+        "shared_with": [
+            {"id": "guest", "permission": "read"},
+            {"id": "pending", "email": "Other@test.vn"},
+            {"id": "third", "email": "third@test.vn"},
+        ],
+    }
+    assert [g["id"] for g in visible_dossier_metadata(meta, _user("guest"))["shared_with"]] == [
+        "guest"
+    ]
+    other = AuthenticatedUser(
+        user_id="other", tenant_id=TENANT, email="other@test.vn", display_name="", role="OPERATOR"
+    )
+    assert [g["id"] for g in visible_dossier_metadata(meta, other)["shared_with"]] == ["pending"]
+    assert visible_dossier_metadata(meta, _user("owner")) == meta
+    assert visible_dossier_metadata(meta, _user("admin", role="ADMINISTRATOR")) == meta

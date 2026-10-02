@@ -6,6 +6,17 @@ from app.contracts.models import HandoffIssue, ReviewState, StructuralNode
 from app.pipeline.table_headers import fold
 
 
+def _is_running_furniture(label: str) -> bool:
+    """Page numbers and repeated contract codes are not clause text."""
+
+    folded = fold(label).strip()
+    if re.match(r"^trang\s+\d+(?:\s*/\s*\d+)?$", folded):
+        return True
+    if re.match(r"^phan\s+\d+\s*/\s*\d+$", folded):
+        return True
+    return bool(re.match(r"^\d{1,2}/\d{4}/[a-z0-9-]+$", folded))
+
+
 def enrich_result_structure(record):
     grouped = defaultdict(list)
     for node in record.nodes:
@@ -56,8 +67,14 @@ def enrich_result_structure(record):
                 clause = None
             else:
                 declared_parent = emitted.get(node.parent_id)
-                if declared_parent is None or declared_parent.scope_id != scope:
-                    node.parent_id = scope if node.type in {"CLAUSE", "TABLE", "FIELD"} else clause or scope
+                if declared_parent is not None and declared_parent.scope_id == scope:
+                    pass
+                elif _is_running_furniture(node.raw_label):
+                    node.parent_id = scope
+                elif node.type == "CLAUSE" or node.type == "TABLE" or (node.type == "FIELD" and clause is None):
+                    node.parent_id = scope
+                else:
+                    node.parent_id = clause or scope
                 if node.type == "CLAUSE":
                     clause = node.node_id
             node.scope_id = scope
@@ -81,6 +98,10 @@ def enrich_result_structure(record):
                         message=f"table {table.table_id}: candidate continuation of {prior.table_id}; header inherited, rows remain separate",
                         review_state=ReviewState.NEEDS_REVIEW))
             previous_table = (table, node)
+        child_parents = {node.parent_id for node in active if node.parent_id}
+        for node in active:
+            if node.node_id in child_parents:
+                node.has_children = True
     record.active_nodes = active
     scopes = {node.node_id: node.scope_id for node in active}
     for fact in record.facts:

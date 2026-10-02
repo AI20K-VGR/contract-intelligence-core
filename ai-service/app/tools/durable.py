@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from app.db.engine import database_url, ensure_database, get_engine, postgres_connection
+
 
 class DurableStoreError(RuntimeError):
     """Base class for durable run-store invariant failures."""
@@ -68,6 +70,7 @@ class DurableRunStore:
 
     def __init__(self, path: str | Path, *, now: Callable[[], Any] | None = None) -> None:
         self.path = str(path)
+        self._postgres = bool(database_url())
         self._clock = now or (lambda: time.time() * 1000)
         self._initialize()
 
@@ -78,6 +81,8 @@ class DurableRunStore:
         return int(value)
 
     def _connect(self) -> sqlite3.Connection:
+        if self._postgres:
+            return postgres_connection()
         if self.path != ":memory:":
             Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         cx = sqlite3.connect(self.path, timeout=10.0)
@@ -88,6 +93,9 @@ class DurableRunStore:
         return cx
 
     def _initialize(self) -> None:
+        if self._postgres:
+            ensure_database(get_engine())
+            return
         cx = self._connect()
         try:
             cx.executescript(
@@ -176,6 +184,13 @@ class DurableRunStore:
             cx.commit()
         finally:
             cx.close()
+
+    def _begin_write(self, cx) -> None:
+        if not self._postgres:
+            cx.execute("BEGIN IMMEDIATE")
+
+    def _locked(self, query: str) -> str:
+        return query + " FOR UPDATE" if self._postgres else query
 
     @staticmethod
     def _snapshot_digest(state: Mapping[str, Any]) -> str:
@@ -288,7 +303,7 @@ class DurableRunStore:
 
     def _assert_lease(self, cx: sqlite3.Connection, run_id: str, worker_token: str) -> sqlite3.Row:
         row = cx.execute(
-            "SELECT * FROM durable_runs WHERE run_id=? AND lease_token=?",
+            self._locked("SELECT * FROM durable_runs WHERE run_id=? AND lease_token=?"),
             (run_id, worker_token),
         ).fetchone()
         if row is None or (row["lease_until_ms"] or 0) <= self._now_ms():
@@ -302,8 +317,8 @@ class DurableRunStore:
         token = uuid4().hex
         cx = self._connect()
         try:
-            cx.execute("BEGIN IMMEDIATE")
-            row = cx.execute("SELECT lease_until_ms FROM durable_runs WHERE run_id=?", (run_id,)).fetchone()
+            self._begin_write(cx)
+            row = cx.execute(self._locked("SELECT lease_until_ms FROM durable_runs WHERE run_id=?"), (run_id,)).fetchone()
             if row is None or (row["lease_until_ms"] or 0) > now:
                 cx.rollback()
                 return None
@@ -346,8 +361,8 @@ class DurableRunStore:
         now = self._now_ms()
         cx = self._connect()
         try:
-            cx.execute("BEGIN IMMEDIATE")
-            row = cx.execute("SELECT * FROM durable_runs WHERE run_id=?", (run_id,)).fetchone()
+            self._begin_write(cx)
+            row = cx.execute(self._locked("SELECT * FROM durable_runs WHERE run_id=?"), (run_id,)).fetchone()
             if row is None:
                 raise DurableStoreError(f"unknown run {run_id}")
             if worker_token is not None:
@@ -382,8 +397,8 @@ class DurableRunStore:
         state_digest = _digest(state)
         cx = self._connect()
         try:
-            cx.execute("BEGIN IMMEDIATE")
-            run = cx.execute("SELECT tenant_id FROM durable_runs WHERE run_id=?", (run_id,)).fetchone()
+            self._begin_write(cx)
+            run = cx.execute(self._locked("SELECT tenant_id FROM durable_runs WHERE run_id=?"), (run_id,)).fetchone()
             if run is None:
                 raise DurableStoreError(f"unknown run {run_id}")
             if worker_token is not None:
@@ -439,7 +454,7 @@ class DurableRunStore:
         evidence_refs = evidence_refs or []
         cx = self._connect()
         try:
-            run = cx.execute("SELECT tenant_id FROM durable_runs WHERE run_id=?", (run_id,)).fetchone()
+            run = cx.execute(self._locked("SELECT tenant_id FROM durable_runs WHERE run_id=?"), (run_id,)).fetchone()
         finally:
             cx.close()
         if run is None:
@@ -466,8 +481,8 @@ class DurableRunStore:
         digest = _digest(unsigned)
         cx = self._connect()
         try:
-            cx.execute("BEGIN IMMEDIATE")
-            run = cx.execute("SELECT * FROM durable_runs WHERE run_id=?", (run_id,)).fetchone()
+            self._begin_write(cx)
+            run = cx.execute(self._locked("SELECT * FROM durable_runs WHERE run_id=?"), (run_id,)).fetchone()
             if run is None:
                 raise DurableStoreError(f"unknown run {run_id}")
             if worker_token is not None:
@@ -563,7 +578,7 @@ class DurableRunStore:
     def replay(self, run_id: str, *, after_sequence: int = 0) -> dict[str, Any]:
         cx = self._connect()
         try:
-            run = cx.execute("SELECT * FROM durable_runs WHERE run_id=?", (run_id,)).fetchone()
+            run = cx.execute(self._locked("SELECT * FROM durable_runs WHERE run_id=?"), (run_id,)).fetchone()
             if run is None:
                 raise DurableStoreError(f"unknown run {run_id}")
             snapshot = self._decode_snapshot(run)
@@ -616,8 +631,8 @@ class DurableRunStore:
         now = self._now_ms()
         cx = self._connect()
         try:
-            cx.execute("BEGIN IMMEDIATE")
-            run = cx.execute("SELECT tenant_id FROM durable_runs WHERE run_id=?", (run_id,)).fetchone()
+            self._begin_write(cx)
+            run = cx.execute(self._locked("SELECT tenant_id FROM durable_runs WHERE run_id=?"), (run_id,)).fetchone()
             if run is None:
                 raise DurableStoreError(f"unknown run {run_id}")
             if tenant_id is not None and tenant_id != run["tenant_id"]:
@@ -681,7 +696,7 @@ class DurableRunStore:
         try:
             query = """
                 SELECT * FROM durable_outbox
-                WHERE status='PENDING' OR (status='CLAIMED' AND lease_until_ms<=?)
+                WHERE (status='PENDING' OR (status='CLAIMED' AND lease_until_ms<=?))
             """
             args: list[Any] = [now]
             if run_id is not None:
@@ -719,14 +734,14 @@ class DurableRunStore:
             claim_token = uuid4().hex
             cx = self._connect()
             try:
-                cx.execute("BEGIN IMMEDIATE")
+                self._begin_write(cx)
                 row = cx.execute(
                     """
                     SELECT * FROM durable_outbox
                     WHERE available_after_ms<=?
                       AND (status='PENDING' OR (status='CLAIMED' AND lease_until_ms<=?))
                     ORDER BY available_after_ms, event_id LIMIT 1
-                    """,
+                    """ + (" FOR UPDATE SKIP LOCKED" if self._postgres else ""),
                     (now, now),
                 ).fetchone()
                 if row is None:

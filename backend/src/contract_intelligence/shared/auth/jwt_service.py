@@ -238,28 +238,33 @@ class JWTService:
 def _map_keycloak_role(realm_roles: list[str]) -> str:
     """Map Keycloak realm_access.roles[] → RBAC role nội bộ.
 
-    Thứ tự ưu tiên: administrator > reviewer > operator (admin bao trùm).
+    Thứ tự ưu tiên: ADMINISTRATOR > REVIEWER > OPERATOR (admin bao trùm),
+    xét trên role đã map, không phụ thuộc thứ tự role trong token.
 
     Args:
         realm_roles: Danh sách role names từ Keycloak realm_access.roles.
 
     Returns:
         Một trong "OPERATOR" | "REVIEWER" | "ADMINISTRATOR".
-        Mặc định "OPERATOR" nếu không match role nào.
+        Mặc định "OPERATOR" nếu không match role nào (có log cảnh báo).
     """
     settings = get_settings()
     role_map = settings.keycloak_role_map
 
-    # Ưu tiên cao nhất trước
-    for kc_role in ("ci_administrator", "ci_reviewer", "ci_operator"):
-        if kc_role in realm_roles and kc_role in role_map:
-            return role_map[kc_role]
+    mapped = {role_map[r] for r in realm_roles if r in role_map}
+    for rbac_role in ("ADMINISTRATOR", "REVIEWER", "OPERATOR"):
+        if rbac_role in mapped:
+            return rbac_role
 
-    # Fallback: thử match không phân biệt thứ tự trong realm_roles
-    for r in realm_roles:
-        if r in role_map:
-            return role_map[r]
+    # Không match role nào: thường do token thiếu realm_access.roles hoặc
+    # KEYCLOAK_ROLE_MAP không chứa tên realm role → log để dễ phát hiện.
+    import structlog
 
+    structlog.get_logger(__name__).warning(
+        "keycloak_role_unmapped_default_operator",
+        realm_roles=realm_roles,
+        role_map_keys=sorted(role_map),
+    )
     return "OPERATOR"
 
 

@@ -126,6 +126,56 @@ def assemble_party(
     }
 
 
+_VALUE_LABEL = re.compile(
+    r"(?:tong\s+gia\s+tri(?:\s+tam\s+tinh)?|gia\s+(?:tri\s+)?hop\s+dong|tong\s+cong|tri\s+gia|tong\s+tien)"
+)
+
+
+def labelled_contract_values(record) -> list[dict[str, Any]]:
+    """Read an explicit contract-total line when no structured fact exists.
+
+    A bare amount, a penalty, or a unit price is not a contract value.
+    """
+
+    from app.pipeline.fact import _scale_phrase_norm
+
+    found: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def consider(node_id: str, line: str) -> None:
+        folded = fold_for_match(line)
+        if not _VALUE_LABEL.search(folded):
+            return
+        amount = None
+        match = re.search(r"(\d[\d.\s]*)\s*(?:vnd|dong)\b", folded.replace("đ", "d"))
+        if match:
+            amount = re.sub(r"[^\d]", "", match.group(1))
+        else:
+            amount = _scale_phrase_norm(line)
+        if not amount:
+            return
+        key = (node_id, amount)
+        if key in seen:
+            return
+        seen.add(key)
+        found.append(
+            {
+                "node_id": node_id,
+                "amount": amount,
+                "line": line.strip()[:240],
+                "citation": {"node_id": node_id, "text_span": line.strip()[:240]},
+            }
+        )
+
+    for node in record.evidence_nodes():
+        for line in (node.text or node.raw_label or "").splitlines():
+            consider(node.node_id, line)
+    for page in record.pages:
+        for line in page.line_texts.values():
+            consider(f"page:{page.page_revision_id}", line)
+    return found
+
+
 def assemble_field(key: str, hits: list[dict[str, Any]]) -> dict[str, Any]:
     groups = group_hits(hits, canonical=lambda v: str(v or "").strip().lower())
     cites = []

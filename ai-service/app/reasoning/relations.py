@@ -38,11 +38,14 @@ def attach_ancestors(outline: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def clause_key(label: str | None, text: str | None = None) -> str | None:
-    blob = f"{label or ''} {text or ''}"
-    m = CLAUSE_RE.search(blob)
-    if not m:
-        return None
-    return f"Điều {m.group(1)}"
+    """The clause this node *is*, not a clause it merely mentions."""
+
+    for source in (label, text):
+        normalized = _normalize_relation_text((source or "").strip())
+        match = re.match(r"(?:dieu|article)\s+(\d+(?:\.\d+)?)", normalized, re.I)
+        if match:
+            return f"Điều {match.group(1)}"
+    return None
 
 
 def doc_side(ancestors: list[str] | None, label: str | None) -> str:
@@ -94,13 +97,230 @@ def related_node_ids(seed_ids: list[str], outline: list[dict[str, Any]]) -> tupl
     return extra[:8], rels[:12]
 
 
+_CROSS_RELATIONS = {
+    RelationType.SAME_CLAUSE,
+    RelationType.REFERENCES,
+    RelationType.AMENDS,
+    RelationType.DEFINES,
+}
+_RELATION_PHRASE = {
+    RelationType.SAME_CLAUSE: "cùng số điều",
+    RelationType.REFERENCES: "dẫn chiếu",
+    RelationType.AMENDS: "có ngôn ngữ sửa",
+    RelationType.DEFINES: "định nghĩa",
+}
+
+
+def _member_side(record: DossierRecord, node_id: str) -> str:
+    by_id = {node.node_id: node for node in record.evidence_nodes()}
+    node = by_id.get(node_id)
+    if node is None:
+        return ""
+    file_role = {item.file_id: item.role for item in record.source_files}.get(node.source_file_id or "")
+    if file_role in {"body", "annex"}:
+        return file_role
+    labels: list[str] = []
+    current = node
+    guard = 0
+    while current is not None and guard < 12:
+        labels.append(current.raw_label or "")
+        current = by_id.get(current.parent_id) if current.parent_id else None
+        guard += 1
+    blob = _normalize_relation_text(" ".join(labels))
+    if re.search(r"\bphu luc\b|\bannex\b", blob):
+        return "annex"
+    return "body"
+
+
+def render_same_item_relations(record: DossierRecord) -> dict[str, Any] | None:
+    """One sentence per item. Body values stay on the body; annex values stay on the annex."""
+
+    grouped: dict[str, list] = {}
+    for fact in record.facts:
+        key = str(fact.item_key or "")
+        if not key or key.startswith("party_") or key.startswith("mst_party_"):
+            continue
+        grouped.setdefault(key, []).append(fact)
+    lines = [
+        "Mỗi mục dưới đây chỉ ghép cùng một hạng mục giữa hợp đồng và phụ lục. Hai hạng mục khác nhau không bị gộp. Máy không kết luận bên nào có hiệu lực.",
+    ]
+    citations: list[dict[str, Any]] = []
+    wrote = False
+    for key in sorted(grouped):
+        facts = grouped[key]
+        bodies = [fact for fact in facts if fact.source_role != "annex"]
+        annexes = [fact for fact in facts if fact.source_role == "annex"]
+        if not bodies or not annexes:
+            continue
+        wrote = True
+        label = _item_label(key)
+        body_bits = [_value_phrase(fact) for fact in _unique_fact_values(bodies)]
+        annex_bits = [_value_phrase(fact) for fact in _unique_fact_values(annexes)]
+        currencies = {fact.currency for fact in [*bodies, *annexes] if fact.currency}
+        sentence = f"Cùng {label}: trên hợp đồng là {'; '.join(body_bits)}; trên phụ lục là {'; '.join(annex_bits)}."
+        when = _effective_when(annexes) or _effective_when(bodies)
+        if when:
+            sentence += f" Mốc ghi trên văn bản: {when}."
+        else:
+            sentence += " Không thấy ngày bắt đầu áp dụng trên đoạn đã trích."
+        if len(currencies) > 1:
+            sentence += " Hai bên khác tiền tệ, không quy đổi."
+        lines.append(sentence)
+        for fact in [*bodies, *annexes]:
+            if fact.citation and fact.citation.node_id:
+                citations.append({
+                    "node_id": fact.citation.node_id,
+                    "text_span": (fact.citation.text_span or fact.raw_value)[:200],
+                })
+    if not wrote:
+        return None
+    return {
+        "review_state": ReviewState.NEEDS_REVIEW.value,
+        "answer": "\n".join(lines),
+        "citations": citations[:8],
+        "notes": "same_item_relation",
+    }
+
+
+def _item_label(key: str) -> str:
+    names = {
+        "contract_value": "giá hợp đồng",
+        "penalty_general": "phạt chậm chung",
+        "penalty_construction": "phạt phần xây lắp",
+        "penalty_equipment": "phạt phần thiết bị",
+        "penalty_lt10": "phạt khi chậm dưới 10 ngày",
+        "penalty_gte10": "phạt khi chậm từ 10 ngày",
+        "price_usd": "đơn giá thiết bị nhập",
+    }
+    if key in names:
+        return names[key]
+    if len(key) <= 3:
+        return f"hạng mục {key}"
+    return key.replace("_", " ")
+
+
+def _unique_fact_values(facts: list) -> list:
+    seen: set[str] = set()
+    out = []
+    for fact in facts:
+        marker = str(fact.normalized_value or fact.raw_value)
+        if marker in seen:
+            continue
+        seen.add(marker)
+        out.append(fact)
+    return out
+
+
+def _value_phrase(fact) -> str:
+    number = _grouped_amount(fact.normalized_value or fact.raw_value)
+    if fact.currency:
+        shown = f"{number} {fact.currency}"
+    else:
+        raw = fact.raw_value or ""
+        shown = f"{number}%" if "%" in raw and "%" not in str(number) else str(number)
+    span = (fact.citation.text_span if fact.citation else "") or ""
+    folded = span.casefold()
+    if "bảng tóm tắt" in folded or "bang tom tat" in folded:
+        shown += " (bảng tóm tắt trên hợp đồng)"
+    return shown
+
+
+def _grouped_amount(value) -> str:
+    text = str(value or "")
+    if not text.isdigit() or len(text) <= 3:
+        return text
+    parts: list[str] = []
+    while text:
+        parts.append(text[-3:])
+        text = text[:-3]
+    return ".".join(reversed(parts))
+
+
+def _effective_when(facts: list) -> str | None:
+    for fact in facts:
+        if fact.period_start:
+            return f"kể từ {fact.period_start}"
+        text = fact.citation.text_span if fact.citation else ""
+        match = re.search(
+            r"(?:kể từ|ke tu|từ ngày|tu ngay)\s+(\d{1,2}/\d{1,2}/\d{2,4})",
+            text or "",
+            re.I,
+        )
+        if match:
+            return f"kể từ {match.group(1)}"
+    return None
+
+
+def render_relation_verdict(record: DossierRecord) -> dict[str, Any]:
+    """Say which annex clauses touch the contract. Do not dump node JSON."""
+
+    body_clauses: dict[str, Any] = {}
+    annex_clauses: dict[str, Any] = {}
+    for node in record.evidence_nodes():
+        if node.type != "CLAUSE":
+            continue
+        number = _clause_number(node.raw_label, node.text)
+        if not number:
+            continue
+        side = _member_side(record, node.node_id)
+        target = annex_clauses if side == "annex" else body_clauses
+        target.setdefault(number, node)
+
+    shared = sorted(set(body_clauses) & set(annex_clauses), key=int)
+    if not shared:
+        return {
+            "review_state": ReviewState.INSUFFICIENT_EVIDENCE.value,
+            "answer": "Không thấy điều nào của phụ lục trùng số với hợp đồng. Không suy ra là hai văn bản không liên quan.",
+            "citations": [],
+            "notes": "relation_absent",
+        }
+
+    lines = [
+        "Phụ lục gắn với hợp đồng ở các điều cùng số dưới đây. Phụ lục có chữ sửa thì đó là chỗ nó viết lại điều của hợp đồng. Máy không kết luận điều nào có hiệu lực.",
+    ]
+    citations: list[dict[str, Any]] = []
+    for number in shared:
+        body = body_clauses[number]
+        annex = annex_clauses[number]
+        annex_label = _short_clause_title(annex.raw_label)
+        body_label = _short_clause_title(body.raw_label)
+        amended = bool(re.search(r"sửa|sua|thay", _normalize_relation_text(annex.raw_label or ""), re.I))
+        action = "phụ lục có chữ sửa điều này" if amended else "cùng số điều, phụ lục không ghi chữ sửa"
+        lines.append(f"- Điều {number}: thân «{body_label}»; phụ lục «{annex_label}» — {action}.")
+        for node in (body, annex):
+            citations.append({
+                "node_id": node.node_id,
+                "text_span": (node.raw_label or "")[:160],
+            })
+    return {
+        "review_state": ReviewState.NEEDS_REVIEW.value,
+        "answer": "\n".join(lines),
+        "citations": citations[:8],
+        "notes": "relation_verdict",
+    }
+
+
+def _clause_number(label: str | None, text: str | None) -> str | None:
+    match = re.search(r"dieu\s+(\d+)", _normalize_relation_text(f"{label or ''} {text or ''}"))
+    return match.group(1) if match else None
+
+
+def _short_clause_title(label: str | None) -> str:
+    text = re.sub(r"^\s*Điều\s+\d+\.?\s*", "", label or "", flags=re.I).strip()
+    return text[:80] or (label or "không có tiêu đề")
+
+
 def render_related_answer(packed: list[dict[str, Any]], rels: list[dict[str, Any]]) -> str:
     lines = ["Các đoạn liên quan trên thân HĐ và phụ lục (trích nguyên văn). Không suy ra điều nào thắng / thứ tự hiệu lực."]
     for n in packed:
         side = n.get("side") or ""
         path = n.get("path") or n.get("label") or n.get("node_id")
-        text = (n.get("text") or "")[:400]
-        lines.append(f"- [{side}] {path}: {text}")
+        text = (n.get("text") or "").strip()
+        label = (n.get("label") or "").strip()
+        if text and text not in (path or "") and text != label:
+            lines.append(f"- [{side}] {path}: {text[:400]}")
+        else:
+            lines.append(f"- [{side}] {path}")
     if rels:
         lines.append("Quan hệ:")
         for r in rels:
@@ -332,9 +552,19 @@ def build_relation_graph(record: DossierRecord) -> RelationGraph:
 
 
 def _robust_clause_key(label: str | None, text: str | None = None) -> str | None:
-    normalized = _normalize_relation_text(f"{label or ''} {text or ''}")
-    match = re.search(r"(?:dieu|article)\s+(\d+(?:\.\d+)?)", normalized, re.I)
-    return f"dieu {match.group(1)}" if match else None
+    """Identity of a clause heading. A later mention of another article is not that clause."""
+
+    for source in (label, text):
+        normalized = _normalize_relation_text((source or "").strip())
+        match = re.match(r"(?:dieu|article)\s+(\d+(?:\.\d+)?)", normalized, re.I)
+        if match:
+            return f"dieu {match.group(1)}"
+    return None
+
+
+def _annex_numbers(text: str) -> set[int]:
+    normalized = _normalize_relation_text(text)
+    return {int(number) for number in re.findall(r"phu luc\s+0*(\d+)\b", normalized)}
 
 
 def _normalize_relation_text(value: str) -> str:
@@ -348,13 +578,16 @@ def _resolve_reference(kind: str, value: str, source: Any, nodes: list[Any]) -> 
         key = f"dieu {value}"
         return [node.node_id for node in nodes if _robust_clause_key(node.raw_label, node.text) == key and node.node_id != source.node_id]
     needle = _normalize_relation_text(f"phu luc {value}")
-    candidates = [
-        node.node_id
-        for node in nodes
-        if node.node_id != source.node_id
-        and node.type != "FIELD"
-        and needle in _normalize_relation_text(f"{node.raw_label} {node.text}")
-    ]
+    wanted = int(value) if str(value).isdigit() else None
+    candidates = []
+    for node in nodes:
+        if node.node_id == source.node_id or node.type == "FIELD":
+            continue
+        blob = _normalize_relation_text(f"{node.raw_label} {node.text}")
+        if wanted is not None and wanted in _annex_numbers(blob):
+            candidates.append(node.node_id)
+        elif wanted is None and needle in blob:
+            candidates.append(node.node_id)
     if len(candidates) <= 1:
         return candidates
     primary = []
@@ -362,7 +595,9 @@ def _resolve_reference(kind: str, value: str, source: Any, nodes: list[Any]) -> 
         if node.node_id not in candidates:
             continue
         label = _normalize_relation_text(node.raw_label or "").strip()
-        if re.match(rf"^phu\s+luc\s+{re.escape(value)}\b", label) and not re.search(r"\b(tiep\s+theo|continued|continue)\b", label):
+        if wanted is not None and re.match(rf"^phu\s+luc\s+0*{wanted}\b", label) and not re.search(
+            r"\b(tiep\s+theo|continued|continue)\b", label
+        ):
             primary.append(node.node_id)
     return primary if len(primary) == 1 else candidates
 

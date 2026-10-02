@@ -35,7 +35,11 @@ from contract_intelligence.extraction.infrastructure.persistence.orm import (
     PipelineRunORM,
 )
 from contract_intelligence.extraction.infrastructure.persistence.orm_reocr import ReOcrRequestORM
-from contract_intelligence.shared.acl import AclAction, dossier_access_decision
+from contract_intelligence.shared.acl import (
+    AclAction,
+    dossier_access_decision,
+    dossier_denied_message,
+)
 from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user
 from contract_intelligence.shared.persistence import get_async_session
 
@@ -112,16 +116,17 @@ async def require_dossier_action(
     dossier = await session.get(DossierORM, resolved) if resolved else None
     if dossier is None or dossier.deleted_at is not None or dossier.tenant_id != user.tenant_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
-    if not dossier_access_decision(
-        action=action,
-        principal=user,
-        dossier_id=dossier.id,
-        dossier_tenant_id=dossier.tenant_id,
-        metadata=dossier.metadata_json,
-    ):
+    decision: dict[str, Any] = {
+        "action": action,
+        "principal": user,
+        "dossier_id": dossier.id,
+        "dossier_tenant_id": dossier.tenant_id,
+        "metadata": dossier.metadata_json,
+    }
+    if not dossier_access_decision(**decision):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Bạn không có quyền trên hồ sơ này, hoặc quyền đã hết hạn.",
+            detail=dossier_denied_message(**decision),
         )
     return dossier
 

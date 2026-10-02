@@ -77,7 +77,9 @@ def test_backend_process_routes_accept_current_handoff_contract() -> None:
         assert body["evidence_gaps"][0]["code"] == "AI2_SNAPSHOT_CONTENT_REQUIRED"
 
 
-def test_backend_query_routes_fail_closed_without_snapshot_evidence() -> None:
+def test_backend_query_routes_fail_closed_without_snapshot_evidence(monkeypatch) -> None:
+    # A4: unsigned /query is only reachable with the signature requirement off.
+    monkeypatch.setenv("AI2_QUERY_REQUIRE_SIGNATURE", "false")
     client = TestClient(app)
     payload = {
         "query": "Giá trị hợp đồng là bao nhiêu?",

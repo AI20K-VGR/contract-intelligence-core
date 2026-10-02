@@ -5,11 +5,10 @@ from __future__ import annotations
 import hashlib
 import re
 
-from app.contracts.models import ContractEvent, Citation, ReviewState
+from app.contracts.models import Citation, ContractEvent, ReviewState
 from app.pipeline.ai1_snapshot_adapter import fold_for_match
 from app.pipeline.citations import CitationResolver, quote_digest
 from app.tools.store import DossierRecord
-
 
 EVENT_RULES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("PARTY_DECLARATION", "Thông tin các bên", ("ben a", "ben b", "ten don vi")),
@@ -36,6 +35,16 @@ ROLE_RE = re.compile(r"\bben\s+([a-z])\b", re.I)
 TRIGGER_RE = re.compile(r"\b(?:sau khi|truoc khi|ke tu|trong thoi han|neu|khi)\b[^.\n]{0,180}", re.I)
 
 
+def _party_heading(raw: str) -> bool:
+    """Party events belong on a party heading, not on every clause that mentions Bên A."""
+
+    for line in raw.splitlines():
+        folded = fold_for_match(line).strip()
+        if re.match(r"^(?:ben\s+[abcy]\b|ten\s+(?:don\s+vi|day\s+du)\b)", folded):
+            return True
+    return False
+
+
 def extract_contract_events(record: DossierRecord) -> list[ContractEvent]:
     """Extract bounded event signals without inferring dates or legal effect."""
 
@@ -56,6 +65,8 @@ def extract_contract_events(record: DossierRecord) -> list[ContractEvent]:
         trigger_match = TRIGGER_RE.search(folded)
         for event_type, label, terms in EVENT_RULES:
             if not any(term in folded for term in terms):
+                continue
+            if event_type == "PARTY_DECLARATION" and not _party_heading(raw):
                 continue
             key = (node.node_id, event_type)
             if key in seen:

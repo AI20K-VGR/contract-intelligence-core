@@ -43,7 +43,8 @@ __version__ = "2.0.0"
 # /ocr/retry-failed, /split. MINOR vì các endpoint 2.0.0 bỏ đi chưa từng có trong
 # DOC-05b. Độc lập với __version__ (SemVer của backend, vẫn 2.0.0).
 # v1.2.0 (DEC-BE-AI2-01 B4): thêm 422 DOSSIER_TOO_MANY_DOCUMENTS và contract_not_unique.
-__api_contract__ = "v1.2.0"
+# v1.3.0: finding.review.latest (lượt thẩm định gần nhất) trên /findings, /conflicts.
+__api_contract__ = "v1.3.0"
 
 # AI service contract version (DOC-05c) — wrap khi AI service sẵn sàng
 __ai_contract__ = "v1.0.0"

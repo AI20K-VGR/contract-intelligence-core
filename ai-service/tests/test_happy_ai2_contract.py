@@ -104,3 +104,73 @@ def test_relation_live_draft_cannot_drop_a_source():
     assert result["review_state"] == "NEEDS_REVIEW"
     assert {"a_5_pl1", "a_5_pl2"}.issubset(cited)
     assert "cl_5_body" in str(result["answer"])
+
+
+def _complete_draft_llm(node_ids):
+    class CompleteDraftLLM:
+        def configured(self):
+            return True
+
+        def complete_json(self, system, user, *, strong=False):
+            return {
+                "answer": "Thân HĐ 0,2%/ngày; PL1 0,1%/ngày; PL2 0,05%/ngày.",
+                "citations": [{"node_id": nid, "text_span": "x"} for nid in node_ids],
+                "sufficient": True,
+                "legal_winner": False,
+            }
+
+    return CompleteDraftLLM()
+
+
+def test_relation_draft_citing_every_anchor_is_kept_despite_noise_hits():
+    from fixtures.catalog import load_case
+
+    pack = load_case("HD-TONG-HOP")
+    store = InMemorySnapshotStore()
+    store.put(pack.record)
+    stack = FourLayerReasoner(
+        ToolGateway(store), llm=_complete_draft_llm(["cl_5_body", "a_5_pl1", "a_5_pl2"])
+    )
+    result = stack.run(
+        pack.envelope,
+        {"type": "compare", "query": "So sánh Điều 5 trên thân hợp đồng với Phụ lục 1 và Phụ lục 2"},
+    )
+
+    # L1 also returns unrelated hits (Article I, Phụ lục 6, Điều 19); citing
+    # the three Điều 5 anchors is enough to keep the model's answer.
+    assert "L2" in result["layers_used"]
+    assert str(result["answer"]).startswith("Thân HĐ 0,2%/ngày")
+    assert "Nguồn liên quan chưa được nêu" not in str(result["answer"])
+    assert result["review_state"] == "NEEDS_REVIEW"
+
+
+def test_relation_question_on_a_topic_ignores_off_topic_evidence():
+    from app.reasoning.l1_retrieval import L1Retrieval
+    from fixtures.catalog import load_case
+
+    pack = load_case("HD-TONG-HOP")
+    store = InMemorySnapshotStore()
+    store.put(pack.record)
+    l1 = L1Retrieval(ToolGateway(store)).run(
+        pack.envelope,
+        {"type": "compare", "query": "So sánh điều khoản thuế giữa thân hợp đồng và phụ lục"},
+    )
+
+    # Penalty clauses and "Article I. Định nghĩa" used to answer this tax
+    # question; no node of this dossier states a tax rule.
+    assert l1["hits"] == []
+
+
+def test_cascade_anchors_include_the_original_definition():
+    from app.reasoning.l1_retrieval import L1Retrieval
+    from fixtures.catalog import load_case
+
+    pack = load_case("HD-TONG-HOP")
+    store = InMemorySnapshotStore()
+    store.put(pack.record)
+    l1 = L1Retrieval(ToolGateway(store)).run(
+        pack.envelope,
+        {"type": "cascade", "query": "Phụ lục 13 đổi Ngày làm việc thì Điều 8 bị ảnh hưởng thế nào?"},
+    )
+
+    assert set(l1["anchor_ids"]) == {"cl_8", "pl13_def", "cl_1_1"}

@@ -659,10 +659,21 @@ type FindingSideDTO = {
   value_snapshot?: unknown
 }
 
+type FindingReviewLatestDTO = {
+  action: string                 // confirm | reject (dữ liệu cũ có thể là correct)
+  comment?: string | null
+  reviewer_id?: string | null
+  reviewer_name?: string | null
+  reviewer_email?: string | null
+  reviewed_at?: string | null    // ISO 8601
+  action_count?: number          // tổng số lượt thẩm định của item
+}
+
 type FindingReviewDTO = {
   item_id: string
   status: string
   current_version?: number
+  latest?: FindingReviewLatestDTO | null  // v1.3.0; null khi chưa ai thẩm định
 }
 
 type FindingDTO = {

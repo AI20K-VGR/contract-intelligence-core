@@ -24,8 +24,14 @@ class ToolGateway:
         "search_semantic",
     }
 
-    def __init__(self, store: InMemorySnapshotStore) -> None:
+    def __init__(self, store: InMemorySnapshotStore, *, signed_principal: bool = False) -> None:
+        """``signed_principal``: the caller verified a Backend service envelope
+        bound to this tenant/dossier. Backend owns per-user authorization
+        (D-5), so the record's processing-time actor ACL is not re-applied;
+        tenant, dossier, lifecycle, ACL revision and pins still are."""
+
         self.store = store
+        self.signed_principal = signed_principal
 
     def call(self, name: str, envelope: ToolEnvelope, **kwargs: Any) -> Any:
         if name not in self.ALLOWLIST:
@@ -37,8 +43,9 @@ class ToolGateway:
             raise ToolBlocked()
         if "READ_CONTENT" not in envelope.auth.permissions:
             raise ToolBlocked()
-        actor_perms = rec.permissions_by_actor.get(envelope.auth.actor_id, [])
-        if "READ_CONTENT" not in actor_perms:
+        if not self.signed_principal and "READ_CONTENT" not in rec.permissions_by_actor.get(
+            envelope.auth.actor_id, []
+        ):
             raise ToolBlocked()
         if envelope.auth.acl_revision != rec.acl_revision:
             raise ToolBlocked()

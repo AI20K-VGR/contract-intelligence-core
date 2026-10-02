@@ -31,7 +31,7 @@ function Thumb({
   partNo: number
   disabled: boolean
   onStartAnnex: (page: number) => void
-  onZoom: (page: number | null) => void
+  onZoom: (page: number) => void
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [drawn, setDrawn] = useState(false)
@@ -75,15 +75,11 @@ function Thumb({
         </span>
         <button
           aria-label={`Xem phóng to trang ${page}`}
-          className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white shadow transition-colors hover:bg-black/80 focus:bg-black/80"
+          className="absolute left-1/2 top-1/2 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white shadow transition-colors hover:bg-black/80 focus:bg-black/80"
           type="button"
-          onBlur={() => onZoom(null)}
           onClick={() => onZoom(page)}
-          onFocus={() => onZoom(page)}
-          onMouseEnter={() => onZoom(page)}
-          onMouseLeave={() => onZoom(null)}
         >
-          <MaterialIcon name="visibility" className="text-[16px]" />
+          <MaterialIcon name="visibility" className="text-[20px]" />
         </button>
       </div>
       <figcaption className="flex flex-col gap-1.5">
@@ -113,16 +109,24 @@ function Thumb({
   )
 }
 
-/** Trang phóng to hiện giữa màn hình khi rê chuột vào biểu tượng con mắt. */
+/** Trang phóng to giữa màn hình: bấm con mắt để mở, mũi tên để lật trang. */
 function PagePreview({
   page,
+  pageCount,
   renderLarge,
+  onNavigate,
+  onClose,
 }: {
   page: number
+  pageCount: number
   renderLarge: RenderLarge
+  onNavigate: (page: number) => void
+  onClose: () => void
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [drawn, setDrawn] = useState(false)
+  const hasPrev = page > 1
+  const hasNext = page < pageCount
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -139,12 +143,54 @@ function PagePreview({
     }
   }, [page, renderLarge])
 
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
+      else if (event.key === 'ArrowLeft' && hasPrev) onNavigate(page - 1)
+      else if (event.key === 'ArrowRight' && hasNext) onNavigate(page + 1)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [page, hasPrev, hasNext, onNavigate, onClose])
+
+  const arrow =
+    'flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-on-surface shadow-lg transition-colors hover:bg-surface-container disabled:opacity-30 disabled:hover:bg-white'
+
   return (
-    <div className="pointer-events-none fixed inset-0 z-[900] flex items-center justify-center bg-black/40 p-space-lg">
-      <div className="relative flex max-h-full flex-col items-center gap-2 rounded-xl bg-white p-3 shadow-2xl">
+    <div
+      aria-label={`Xem trang ${page}`}
+      aria-modal="true"
+      className="fixed inset-0 z-[900] flex items-center justify-center gap-space-md bg-black/60 p-space-lg"
+      role="dialog"
+      onClick={onClose}
+    >
+      <button
+        aria-label="Trang trước"
+        className={arrow}
+        disabled={!hasPrev}
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation()
+          onNavigate(page - 1)
+        }}
+      >
+        <MaterialIcon name="chevron_left" className="text-[28px]" />
+      </button>
+      <div
+        className="relative flex max-h-full flex-col items-center gap-2 rounded-xl bg-white p-3 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          aria-label="Đóng"
+          className="absolute -right-3 -top-3 flex h-8 w-8 items-center justify-center rounded-full bg-black text-white shadow"
+          type="button"
+          onClick={onClose}
+        >
+          <MaterialIcon name="close" className="text-[18px]" />
+        </button>
         <canvas
           ref={canvasRef}
-          className="block max-h-[82vh] w-auto max-w-[min(92vw,60rem)]"
+          className="block max-h-[82vh] w-auto max-w-[min(80vw,60rem)]"
         />
         {drawn ? null : (
           <span className="absolute inset-0 flex items-center justify-center font-label-sm text-label-sm text-on-surface-variant">
@@ -152,9 +198,21 @@ function PagePreview({
           </span>
         )}
         <span className="rounded-full bg-black/70 px-3 py-0.5 font-code-sm text-code-sm text-white">
-          Trang {page}
+          Trang {page} / {pageCount}
         </span>
       </div>
+      <button
+        aria-label="Trang sau"
+        className={arrow}
+        disabled={!hasNext}
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation()
+          onNavigate(page + 1)
+        }}
+      >
+        <MaterialIcon name="chevron_right" className="text-[28px]" />
+      </button>
     </div>
   )
 }
@@ -220,9 +278,16 @@ export function SplitPageStrip({
         if (cancelled) return
         const page = await pdf.getPage(index + 1)
         const viewport = page.getViewport({ scale: ZOOM_SCALE })
-        canvas.width = viewport.width
-        canvas.height = viewport.height
-        await page.render({ canvas, viewport }).promise
+        // Vẽ ra canvas tạm: React chạy effect hai lần (StrictMode) và pdf.js
+        // từ chối hai lần render cùng lúc trên một canvas.
+        const scratch = document.createElement('canvas')
+        scratch.width = viewport.width
+        scratch.height = viewport.height
+        await page.render({ canvas: scratch, viewport }).promise
+        if (cancelled) return
+        canvas.width = scratch.width
+        canvas.height = scratch.height
+        canvas.getContext('2d')?.drawImage(scratch, 0, 0)
       })
     }
 
@@ -270,7 +335,14 @@ export function SplitPageStrip({
         )
       })}
       {zoom !== null && renderLarge ? (
-        <PagePreview key={zoom} page={zoom} renderLarge={renderLarge} />
+        <PagePreview
+          key={zoom}
+          page={zoom}
+          pageCount={pageCount}
+          renderLarge={renderLarge}
+          onClose={() => setZoom(null)}
+          onNavigate={setZoom}
+        />
       ) : null}
     </div>
   )

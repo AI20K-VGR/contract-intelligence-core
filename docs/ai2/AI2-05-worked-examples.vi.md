@@ -573,8 +573,8 @@ State: `PASS` | `REVIEW` | `INSUFFICIENT` | `BLOCKED` (AI2-04). `PARTIAL` map v�
 - **Bối cảnh:** Reasoning muốn gọi LLM ngoài; tenant chưa opt-in / service register.
 - **Input:** `{ "policy.external_llm": false }`.
 - **Tool calls:** Policy gate block trước HTTP; audit event.
-- **Output:** `{ "error": "EGRESS_DENIED" }`, không fallback endpoint tùy ý.
-- **State:** `BLOCKED`.
+- **Output:** job `SUCCEEDED` chỉ với trích xuất cục bộ, issue `EGRESS_DENIED` (`review_state=NEEDS_REVIEW`), không fallback endpoint tùy ý.
+- **State:** `REVIEW`. Tắt egress chặn lời gọi ra ngoài, không chặn job (DEC-BE-AI2-01 D6, ST-067).
 - **Không làm:** Gửi clause text ra provider.
 
 ### EC-056 Legal hold / purge
