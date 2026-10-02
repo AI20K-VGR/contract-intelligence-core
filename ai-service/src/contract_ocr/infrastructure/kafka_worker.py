@@ -14,6 +14,7 @@ import hashlib
 import json
 import logging
 import os
+import time
 from datetime import UTC, datetime
 from typing import Any
 from urllib.error import URLError
@@ -29,6 +30,11 @@ from contract_ocr.infrastructure.backend_ocr_job import (
     run_backend_ocr,
 )
 from contract_ocr.infrastructure.observability import flush_langfuse
+from contract_ocr.infrastructure.prometheus_metrics import (
+    ocr_in_progress,
+    record_ocr_job,
+    start_metrics_server,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +126,12 @@ def _deliver_result(
     return None, ref, None
 
 
+def _command_engine(message: dict[str, Any]) -> Any:
+    payload = message.get("payload")
+    options = payload.get("options") if isinstance(payload, dict) else None
+    return options.get("engine", "pymupdf") if isinstance(options, dict) else None
+
+
 def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
     """Synchronously process one OCR command; return the result envelope."""
     event_id = str(message.get("event_id") or "")
@@ -127,6 +139,28 @@ def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
         logger.info("ai1.kafka.duplicate_event", extra={"event_id": event_id})
         return _processed[event_id]
 
+    started = time.monotonic()
+    with ocr_in_progress():
+        envelope, snapshot_result = _process_command(message)
+    payload = envelope["payload"]
+    record_ocr_job(
+        engine=_command_engine(message),
+        status=str(payload.get("status")),
+        error=payload.get("error"),
+        duration_seconds=time.monotonic() - started,
+        result=snapshot_result,
+    )
+    if event_id:
+        _processed[event_id] = envelope
+    return envelope
+
+
+def _process_command(message: dict[str, Any]) -> tuple[dict[str, Any], Any]:
+    """Run the OCR job; return the result envelope and the job's own result.
+
+    The job result is returned separately for page metrics: once uploaded by
+    reference, the envelope no longer carries it.
+    """
     if message.get("event_type") != EVENT_COMMAND:
         raise ValueError(f"unexpected event_type: {message.get('event_type')!r}")
 
@@ -140,7 +174,7 @@ def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
     run_backend_ocr(
         job_id,
         request,
-        trace_seed=str(message.get("trace_id") or event_id or job_id),
+        trace_seed=str(message.get("trace_id") or message.get("event_id") or job_id),
     )
     job = get_backend_job(job_id)
     if job is None:
@@ -177,9 +211,7 @@ def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
         command=message,
         payload=result_payload,
     )
-    if event_id:
-        _processed[event_id] = envelope
-    return envelope
+    return envelope, job.get("result")
 
 
 async def run_worker() -> None:
@@ -202,6 +234,7 @@ async def run_worker() -> None:
         # larger ones go to MinIO by reference (_deliver_result).
         max_request_size=MAX_MESSAGE_BYTES,
     )
+    start_metrics_server()
     await consumer.start()
     await producer.start()
     logger.info(
@@ -245,6 +278,7 @@ async def run_worker() -> None:
                     "ai1.kafka.command_failed event_id=%s",
                     message.get("event_id"),
                 )
+                record_ocr_job(engine=_command_engine(message), status="failed")
                 try:
                     failed = _build_result_envelope(
                         event_type=EVENT_FAILED,

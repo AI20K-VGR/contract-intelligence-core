@@ -1,0 +1,572 @@
+[
+  {
+    "case_id": "EC-001",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-002",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-003",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-004",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-005",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-006",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-007",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-008",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-009",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-010",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-011",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-012",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-013",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-014",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-015",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-016",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-017",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-018",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-019",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-020",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-021",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-022",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-023",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-024",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-025",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-026",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-027",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-028",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-029",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-030",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-031",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-032",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-033",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-034",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-035",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-036",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-037",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-038",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-039",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-040",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-041",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-042",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-043",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-044",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-045",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-046",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-047",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-048",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-049",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-050",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-051",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-052",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-053",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-054",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-055",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "EC-056",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "HAPPY-001",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "HAPPY-002",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "HAPPY-003",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "HAPPY-004",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "HAPPY-005",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "HAPPY-006",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "HD-TONG-HOP",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SALE-BRD-07",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SERVICE-BRD-08",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-001",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-002",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-003",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-004",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-005",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-006",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-007",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-008",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-009",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-010",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-011",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-012",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-013",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-014",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-015",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-016",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-017",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-018",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-019",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-020",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-021",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-022",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-023",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-024",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-025",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-026",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-027",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-028",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-029",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  },
+  {
+    "case_id": "SYN-030",
+    "decision": "PENDING",
+    "final_label": null,
+    "basis": null
+  }
+]

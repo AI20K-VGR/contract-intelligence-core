@@ -1,0 +1,80 @@
+{
+  "anonymized": false,
+  "approval": null,
+  "files": [
+    {
+      "contract_id": "G01",
+      "pages": 8,
+      "path": "snapshots/G01.json",
+      "sha256_lf": "6b2a747c25291fd49cc1b5711f07975e051919080e26edf304ed5264b1bdc89c",
+      "split": "dev"
+    },
+    {
+      "contract_id": "G02",
+      "pages": 12,
+      "path": "snapshots/G02.json",
+      "sha256_lf": "41d1cba59ebd4e25c2f1164a5d1c76b4b283b4abd2933bf037dd9ea7746c0d74",
+      "split": "dev"
+    },
+    {
+      "contract_id": "G03",
+      "pages": 14,
+      "path": "snapshots/G03.json",
+      "sha256_lf": "d7437a4512f8e380ca91132834ba6444d4e078c1e24c34244a7c5ee2e82015fd",
+      "split": "dev"
+    },
+    {
+      "contract_id": "G04",
+      "pages": 9,
+      "path": "snapshots/G04.json",
+      "sha256_lf": "7d20a9dd0740ad0ae7ef257ac94fa620d474ca04b2872d757640b2e2ef021779",
+      "split": "val"
+    },
+    {
+      "contract_id": "G05",
+      "pages": 56,
+      "path": "snapshots/G05.json",
+      "sha256_lf": "482bce084e73458143c304ead5791bb17a97ca148fc0b33f01750cb563dfa8f9",
+      "split": "dev"
+    },
+    {
+      "contract_id": "G06",
+      "pages": 7,
+      "path": "snapshots/G06.json",
+      "sha256_lf": "b43304fa5624441258cf42e640f06fdb8b9a35b67808a6630bf54e40616c7a79",
+      "split": "holdout"
+    },
+    {
+      "contract_id": "G07",
+      "pages": 6,
+      "path": "snapshots/G07.json",
+      "sha256_lf": "62f7b4aad74d0c917dc9c1c1c552a180316d41a13939bdd86220d7accf1826cc",
+      "split": "holdout"
+    },
+    {
+      "contract_id": "G08",
+      "pages": 10,
+      "path": "snapshots/G08.json",
+      "sha256_lf": "26c10b3bfe13a60576c8622576de59c655fef0f08befdd0ef1e61fc55980879e",
+      "split": "dev"
+    }
+  ],
+  "generator_version": "1.0.0",
+  "golden_version": "1.0.0",
+  "schema_version": "ai2.golden.synthetic.v1",
+  "spec_commit": "bdcb297e2522a589539c359b2f864d860754c660",
+  "synthetic": true,
+  "units": {
+    "comparisons": 16,
+    "gold_values": 96,
+    "non_answerable": 56,
+    "questions": 96,
+    "required_spans": 120,
+    "states": {
+      "ANSWERED": 40,
+      "INSUFFICIENT_EVIDENCE": 24,
+      "NEEDS_REVIEW": 24,
+      "NOT_COMPARABLE": 8
+    }
+  }
+}

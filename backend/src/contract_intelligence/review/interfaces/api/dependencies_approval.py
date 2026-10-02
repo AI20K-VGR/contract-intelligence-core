@@ -18,7 +18,7 @@ from contract_intelligence.review.application.services.approval_service import (
 from contract_intelligence.shared.acl import (
     AclAction,
     dossier_access_decision,
-    dossier_denied_message,
+    dossier_denied_detail,
 )
 from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user
 from contract_intelligence.shared.auth.tenant import get_tenant_id
@@ -62,7 +62,7 @@ async def require_approval_access(
     if not dossier_access_decision(**decision):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "ACL_DENIED", "message": dossier_denied_message(**decision)},
+            detail=dossier_denied_detail(**decision),
         )
 
 
@@ -88,7 +88,7 @@ async def require_lock_access(
     if not dossier_access_decision(**decision):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "ACL_DENIED", "message": dossier_denied_message(**decision)},
+            detail=dossier_denied_detail(**decision),
         )
 
 
@@ -114,7 +114,7 @@ async def require_external_approval_access(
     if not dossier_access_decision(**decision):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "ACL_DENIED", "message": dossier_denied_message(**decision)},
+            detail=dossier_denied_detail(**decision),
         )
 
 
@@ -140,7 +140,7 @@ async def require_external_approval_read_access(
     if not dossier_access_decision(**decision):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "ACL_DENIED", "message": dossier_denied_message(**decision)},
+            detail=dossier_denied_detail(**decision),
         )
 
 

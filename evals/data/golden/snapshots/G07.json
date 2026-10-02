@@ -1,0 +1,3200 @@
+{
+  "created_at": "2026-01-01T00:00:00Z",
+  "document_id": "document-g07",
+  "dossier_id": "dossier-g07",
+  "execution": {
+    "config_digest": "3d3a0c469e43be7eca7c978991e5fc61d670a7a5fd8fc70893de3e693aecb219",
+    "execution_manifest_id": "synthetic-golden-v1",
+    "policy_digest": "de95f60ecb1ebc476c3cd3713eee5e0102f70655a20e6824cbfd564e0f8f9d2b",
+    "replay": false,
+    "source_version_digest": "88dfbb1b1fff84ef38f23f46754d4972e666b89c4395e4b83ef2060109f68990"
+  },
+  "language": {
+    "declared_scope": "vi",
+    "detected_profile": "vi",
+    "detector": {
+      "name": "fixed-synthetic-profile",
+      "version": "1"
+    }
+  },
+  "pages": [
+    {
+      "input_type": "TEXT_LAYER",
+      "lines": [
+        {
+          "bbox": [
+            0.08,
+            0.035,
+            0.92,
+            0.055
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-q01-s01-l01",
+          "raw_text": "Điều 2.1. Phí tư vấn áp dụng cho trùng tên khác mã số thuế: 9.215.000 VND mỗi kỳ.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.061,
+            0.92,
+            0.081
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-q02-s01-l01",
+          "raw_text": "Điều 2.2. Thời điểm áp dụng tư vấn: 01/01/2026.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.087,
+            0.92,
+            0.107
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-q03-s01-l01",
+          "raw_text": "Điều 3.1. Bên B chịu trách nhiệm thực hiện tư vấn theo tiến độ đã thống nhất.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.113,
+            0.92,
+            0.133
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-q04-s01-l01",
+          "raw_text": "Chỉ tiêu thời hạn tư vấn: 30 ngày.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.139,
+            0.92,
+            0.159
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-q04-s02-l01",
+          "raw_text": "Chỉ tiêu chi phí tư vấn: 9.290.000 VND.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.165,
+            0.92,
+            0.185
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f06",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 06, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.191,
+            0.92,
+            0.211
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f07",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 07, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.217,
+            0.92,
+            0.237
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f08",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 08, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.243,
+            0.92,
+            0.263
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f09",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 09, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.269,
+            0.92,
+            0.289
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f10",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 10, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.295,
+            0.92,
+            0.315
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f11",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 11, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.321,
+            0.92,
+            0.341
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f12",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 12, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.347,
+            0.92,
+            0.367
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f13",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 13, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.373,
+            0.92,
+            0.393
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f14",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 14, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.399,
+            0.92,
+            0.419
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f15",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 15, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.425,
+            0.92,
+            0.445
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f16",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 16, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.451,
+            0.92,
+            0.471
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f17",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 17, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.477,
+            0.92,
+            0.497
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f18",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 18, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.503,
+            0.92,
+            0.523
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f19",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 19, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.529,
+            0.92,
+            0.549
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f20",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 20, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.555,
+            0.92,
+            0.575
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f21",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 21, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.581,
+            0.92,
+            0.601
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f22",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 22, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.607,
+            0.92,
+            0.627
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f23",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 23, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.633,
+            0.92,
+            0.653
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f24",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 24, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.659,
+            0.92,
+            0.679
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f25",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 25, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.685,
+            0.92,
+            0.705
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f26",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 26, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.711,
+            0.92,
+            0.731
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f27",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 27, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.737,
+            0.92,
+            0.757
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f28",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 28, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.763,
+            0.92,
+            0.783
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f29",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 29, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.789,
+            0.92,
+            0.809
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f30",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 30, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.815,
+            0.92,
+            0.835
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f31",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 31, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.841,
+            0.92,
+            0.861
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f32",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 32, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.867,
+            0.92,
+            0.887
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f33",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 33, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.893,
+            0.92,
+            0.913
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f34",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 34, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.919,
+            0.92,
+            0.939
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f35",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 35, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.945,
+            0.92,
+            0.965
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p001-f36",
+          "raw_text": "Nội dung mẫu trang 1, dòng phụ 36, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        }
+      ],
+      "page_no": 1,
+      "page_revision_id": "snapshot-g07:p1:r1",
+      "quality": {
+        "coverage_status": "COMPLETE",
+        "ocr_confidence": 1.0,
+        "signals": []
+      },
+      "raw_text_digest": "de4ae4881396c6e86d2c06ced3811205257b6bd57c99157c9e2a6c02f270843a",
+      "status": "SUCCESS",
+      "table_coverage": {
+        "method": "synthetic-layout-v1",
+        "status": "NOT_PRESENT"
+      },
+      "tables": [],
+      "transform": {
+        "profile_version": "synthetic-layout-v1",
+        "rotation_degrees": 0
+      },
+      "warnings": []
+    },
+    {
+      "input_type": "TEXT_LAYER",
+      "lines": [
+        {
+          "bbox": [
+            0.08,
+            0.035,
+            0.92,
+            0.055
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-q05-s01-l01",
+          "raw_text": "Hợp đồng chính ghi phí tư vấn là 9.315.000 VND.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.061,
+            0.92,
+            0.081
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-q05-s02-l01",
+          "raw_text": "Phụ lục sửa đổi ghi phí tư vấn là 10.565.000 VND.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.087,
+            0.92,
+            0.107
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-q06-s01-l01",
+          "raw_text": "Bên A: Công ty Sao Biển Hư Cấu; mã số thuế 0310001076.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.113,
+            0.92,
+            0.133
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-q06-s02-l01",
+          "raw_text": "Bên B: Công ty Sao Biển Hư Cấu; mã số thuế 0400001077.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.139,
+            0.92,
+            0.159
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-q07-s01-l01",
+          "raw_text": "Phụ lục số 1 sửa điều khoản này, hiệu lực từ 01/03/2026 đến 31/08/2026.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.165,
+            0.92,
+            0.185
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-q07-s02-l01",
+          "raw_text": "Phụ lục số 2 tiếp tục sửa cùng điều khoản, hiệu lực từ 01/06/2026 đến 30/09/2026.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.191,
+            0.92,
+            0.211
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-q08-s01-l01",
+          "raw_text": "Hồ sơ dẫn chiếu Phụ lục A để xác định nội dung chi tiết; phụ lục này không có trong bộ tài liệu.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.217,
+            0.92,
+            0.237
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f08",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 08, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.243,
+            0.92,
+            0.263
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f09",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 09, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.269,
+            0.92,
+            0.289
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f10",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 10, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.295,
+            0.92,
+            0.315
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f11",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 11, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.321,
+            0.92,
+            0.341
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f12",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 12, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.347,
+            0.92,
+            0.367
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f13",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 13, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.373,
+            0.92,
+            0.393
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f14",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 14, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.399,
+            0.92,
+            0.419
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f15",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 15, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.425,
+            0.92,
+            0.445
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f16",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 16, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.451,
+            0.92,
+            0.471
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f17",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 17, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.477,
+            0.92,
+            0.497
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f18",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 18, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.503,
+            0.92,
+            0.523
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f19",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 19, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.529,
+            0.92,
+            0.549
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f20",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 20, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.555,
+            0.92,
+            0.575
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f21",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 21, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.581,
+            0.92,
+            0.601
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f22",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 22, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.607,
+            0.92,
+            0.627
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f23",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 23, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.633,
+            0.92,
+            0.653
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f24",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 24, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.659,
+            0.92,
+            0.679
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f25",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 25, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.685,
+            0.92,
+            0.705
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f26",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 26, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.711,
+            0.92,
+            0.731
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f27",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 27, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.737,
+            0.92,
+            0.757
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f28",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 28, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.763,
+            0.92,
+            0.783
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f29",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 29, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.789,
+            0.92,
+            0.809
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f30",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 30, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.815,
+            0.92,
+            0.835
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f31",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 31, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.841,
+            0.92,
+            0.861
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f32",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 32, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.867,
+            0.92,
+            0.887
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f33",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 33, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.893,
+            0.92,
+            0.913
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f34",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 34, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.919,
+            0.92,
+            0.939
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f35",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 35, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.945,
+            0.92,
+            0.965
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p002-f36",
+          "raw_text": "Nội dung mẫu trang 2, dòng phụ 36, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        }
+      ],
+      "page_no": 2,
+      "page_revision_id": "snapshot-g07:p2:r1",
+      "quality": {
+        "coverage_status": "COMPLETE",
+        "ocr_confidence": 1.0,
+        "signals": []
+      },
+      "raw_text_digest": "f47b8ef3948a8263b4677bd972ff47a49724c70bac9edcda97a361fbfe69f582",
+      "status": "SUCCESS",
+      "table_coverage": {
+        "method": "synthetic-layout-v1",
+        "status": "NOT_PRESENT"
+      },
+      "tables": [],
+      "transform": {
+        "profile_version": "synthetic-layout-v1",
+        "rotation_degrees": 0
+      },
+      "warnings": []
+    },
+    {
+      "input_type": "TEXT_LAYER",
+      "lines": [
+        {
+          "bbox": [
+            0.08,
+            0.035,
+            0.92,
+            0.055
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-q09-s01-l01",
+          "raw_text": "Văn bản không nêu giá trị cụ thể cho tư vấn trong phạm vi điều khoản này.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.061,
+            0.92,
+            0.081
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-q11-s01-l01",
+          "raw_text": "Giá trị tư vấn tại kỳ 1 là 9.465.000 VND.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.087,
+            0.92,
+            0.107
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-q11-s01-l02",
+          "raw_text": "Giá trị tư vấn tại kỳ 2 là 9.965.000 VND.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.113,
+            0.92,
+            0.133
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-q12-s01-l01",
+          "raw_text": "Điều 8.2. Phạm vi và mức tư vấn được xác định tại khoản này.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.139,
+            0.92,
+            0.159
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f05",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 05, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.165,
+            0.92,
+            0.185
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f06",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 06, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.191,
+            0.92,
+            0.211
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f07",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 07, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.217,
+            0.92,
+            0.237
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f08",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 08, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.243,
+            0.92,
+            0.263
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f09",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 09, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.269,
+            0.92,
+            0.289
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f10",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 10, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.295,
+            0.92,
+            0.315
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f11",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 11, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.321,
+            0.92,
+            0.341
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f12",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 12, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.347,
+            0.92,
+            0.367
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f13",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 13, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.373,
+            0.92,
+            0.393
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f14",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 14, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.399,
+            0.92,
+            0.419
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f15",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 15, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.425,
+            0.92,
+            0.445
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f16",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 16, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.451,
+            0.92,
+            0.471
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f17",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 17, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.477,
+            0.92,
+            0.497
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f18",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 18, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.503,
+            0.92,
+            0.523
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f19",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 19, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.529,
+            0.92,
+            0.549
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f20",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 20, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.555,
+            0.92,
+            0.575
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f21",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 21, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.581,
+            0.92,
+            0.601
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f22",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 22, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.607,
+            0.92,
+            0.627
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f23",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 23, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.633,
+            0.92,
+            0.653
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f24",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 24, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.659,
+            0.92,
+            0.679
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f25",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 25, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.685,
+            0.92,
+            0.705
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f26",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 26, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.711,
+            0.92,
+            0.731
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f27",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 27, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.737,
+            0.92,
+            0.757
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f28",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 28, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.763,
+            0.92,
+            0.783
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f29",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 29, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.789,
+            0.92,
+            0.809
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f30",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 30, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.815,
+            0.92,
+            0.835
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f31",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 31, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.841,
+            0.92,
+            0.861
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f32",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 32, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.867,
+            0.92,
+            0.887
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f33",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 33, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.893,
+            0.92,
+            0.913
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f34",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 34, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.919,
+            0.92,
+            0.939
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f35",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 35, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.945,
+            0.92,
+            0.965
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p003-f36",
+          "raw_text": "Nội dung mẫu trang 3, dòng phụ 36, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        }
+      ],
+      "page_no": 3,
+      "page_revision_id": "snapshot-g07:p3:r1",
+      "quality": {
+        "coverage_status": "COMPLETE",
+        "ocr_confidence": 1.0,
+        "signals": []
+      },
+      "raw_text_digest": "0a46c171920b83c0ba72596aefd901a71ba7113e3377809b25e3d40675964892",
+      "status": "SUCCESS",
+      "table_coverage": {
+        "method": "synthetic-layout-v1",
+        "status": "NOT_PRESENT"
+      },
+      "tables": [],
+      "transform": {
+        "profile_version": "synthetic-layout-v1",
+        "rotation_degrees": 0
+      },
+      "warnings": []
+    },
+    {
+      "input_type": "TEXT_LAYER",
+      "lines": [
+        {
+          "bbox": [
+            0.08,
+            0.035,
+            0.92,
+            0.055
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f01",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 01, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.061,
+            0.92,
+            0.081
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f02",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 02, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.087,
+            0.92,
+            0.107
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f03",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 03, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.113,
+            0.92,
+            0.133
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f04",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 04, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.139,
+            0.92,
+            0.159
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f05",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 05, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.165,
+            0.92,
+            0.185
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f06",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 06, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.191,
+            0.92,
+            0.211
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f07",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 07, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.217,
+            0.92,
+            0.237
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f08",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 08, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.243,
+            0.92,
+            0.263
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f09",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 09, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.269,
+            0.92,
+            0.289
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f10",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 10, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.295,
+            0.92,
+            0.315
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f11",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 11, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.321,
+            0.92,
+            0.341
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f12",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 12, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.347,
+            0.92,
+            0.367
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f13",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 13, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.373,
+            0.92,
+            0.393
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f14",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 14, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.399,
+            0.92,
+            0.419
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f15",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 15, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.425,
+            0.92,
+            0.445
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f16",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 16, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.451,
+            0.92,
+            0.471
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f17",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 17, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.477,
+            0.92,
+            0.497
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f18",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 18, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.503,
+            0.92,
+            0.523
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f19",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 19, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.529,
+            0.92,
+            0.549
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f20",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 20, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.555,
+            0.92,
+            0.575
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f21",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 21, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.581,
+            0.92,
+            0.601
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f22",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 22, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.607,
+            0.92,
+            0.627
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f23",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 23, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.633,
+            0.92,
+            0.653
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f24",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 24, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.659,
+            0.92,
+            0.679
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f25",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 25, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.685,
+            0.92,
+            0.705
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f26",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 26, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.711,
+            0.92,
+            0.731
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f27",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 27, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.737,
+            0.92,
+            0.757
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f28",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 28, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.763,
+            0.92,
+            0.783
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f29",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 29, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.789,
+            0.92,
+            0.809
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f30",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 30, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.815,
+            0.92,
+            0.835
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f31",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 31, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.841,
+            0.92,
+            0.861
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f32",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 32, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.867,
+            0.92,
+            0.887
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f33",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 33, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.893,
+            0.92,
+            0.913
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f34",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 34, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.919,
+            0.92,
+            0.939
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f35",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 35, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.945,
+            0.92,
+            0.965
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p004-f36",
+          "raw_text": "Nội dung mẫu trang 4, dòng phụ 36, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        }
+      ],
+      "page_no": 4,
+      "page_revision_id": "snapshot-g07:p4:r1",
+      "quality": {
+        "coverage_status": "COMPLETE",
+        "ocr_confidence": 1.0,
+        "signals": []
+      },
+      "raw_text_digest": "cf8b654fcf0e97b3a1dad83097f71562d64ec99f8668fbc37652bd0340e6032a",
+      "status": "SUCCESS",
+      "table_coverage": {
+        "method": "synthetic-layout-v1",
+        "status": "NOT_PRESENT"
+      },
+      "tables": [],
+      "transform": {
+        "profile_version": "synthetic-layout-v1",
+        "rotation_degrees": 0
+      },
+      "warnings": []
+    },
+    {
+      "input_type": "TEXT_LAYER",
+      "lines": [
+        {
+          "bbox": [
+            0.08,
+            0.035,
+            0.92,
+            0.055
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f01",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 01, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.061,
+            0.92,
+            0.081
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f02",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 02, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.087,
+            0.92,
+            0.107
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f03",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 03, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.113,
+            0.92,
+            0.133
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f04",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 04, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.139,
+            0.92,
+            0.159
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f05",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 05, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.165,
+            0.92,
+            0.185
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f06",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 06, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.191,
+            0.92,
+            0.211
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f07",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 07, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.217,
+            0.92,
+            0.237
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f08",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 08, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.243,
+            0.92,
+            0.263
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f09",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 09, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.269,
+            0.92,
+            0.289
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f10",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 10, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.295,
+            0.92,
+            0.315
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f11",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 11, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.321,
+            0.92,
+            0.341
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f12",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 12, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.347,
+            0.92,
+            0.367
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f13",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 13, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.373,
+            0.92,
+            0.393
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f14",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 14, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.399,
+            0.92,
+            0.419
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f15",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 15, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.425,
+            0.92,
+            0.445
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f16",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 16, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.451,
+            0.92,
+            0.471
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f17",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 17, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.477,
+            0.92,
+            0.497
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f18",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 18, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.503,
+            0.92,
+            0.523
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f19",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 19, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.529,
+            0.92,
+            0.549
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f20",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 20, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.555,
+            0.92,
+            0.575
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f21",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 21, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.581,
+            0.92,
+            0.601
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f22",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 22, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.607,
+            0.92,
+            0.627
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f23",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 23, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.633,
+            0.92,
+            0.653
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f24",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 24, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.659,
+            0.92,
+            0.679
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f25",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 25, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.685,
+            0.92,
+            0.705
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f26",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 26, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.711,
+            0.92,
+            0.731
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f27",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 27, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.737,
+            0.92,
+            0.757
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f28",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 28, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.763,
+            0.92,
+            0.783
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f29",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 29, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.789,
+            0.92,
+            0.809
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f30",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 30, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.815,
+            0.92,
+            0.835
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f31",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 31, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.841,
+            0.92,
+            0.861
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f32",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 32, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.867,
+            0.92,
+            0.887
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f33",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 33, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.893,
+            0.92,
+            0.913
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f34",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 34, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.919,
+            0.92,
+            0.939
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f35",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 35, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.945,
+            0.92,
+            0.965
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p005-f36",
+          "raw_text": "Nội dung mẫu trang 5, dòng phụ 36, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        }
+      ],
+      "page_no": 5,
+      "page_revision_id": "snapshot-g07:p5:r1",
+      "quality": {
+        "coverage_status": "COMPLETE",
+        "ocr_confidence": 1.0,
+        "signals": []
+      },
+      "raw_text_digest": "5c0cf0d86e8fc27bbda48ab7e47cb8c4ca2e3954cc83d04c459ce1d5c22c8e58",
+      "status": "SUCCESS",
+      "table_coverage": {
+        "method": "synthetic-layout-v1",
+        "status": "NOT_PRESENT"
+      },
+      "tables": [],
+      "transform": {
+        "profile_version": "synthetic-layout-v1",
+        "rotation_degrees": 0
+      },
+      "warnings": []
+    },
+    {
+      "input_type": "TEXT_LAYER",
+      "lines": [
+        {
+          "bbox": [
+            0.08,
+            0.035,
+            0.92,
+            0.055
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f01",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 01, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.061,
+            0.92,
+            0.081
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f02",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 02, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.087,
+            0.92,
+            0.107
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f03",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 03, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.113,
+            0.92,
+            0.133
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f04",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 04, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.139,
+            0.92,
+            0.159
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f05",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 05, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.165,
+            0.92,
+            0.185
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f06",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 06, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.191,
+            0.92,
+            0.211
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f07",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 07, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.217,
+            0.92,
+            0.237
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f08",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 08, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.243,
+            0.92,
+            0.263
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f09",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 09, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.269,
+            0.92,
+            0.289
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f10",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 10, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.295,
+            0.92,
+            0.315
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f11",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 11, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.321,
+            0.92,
+            0.341
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f12",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 12, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.347,
+            0.92,
+            0.367
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f13",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 13, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.373,
+            0.92,
+            0.393
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f14",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 14, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.399,
+            0.92,
+            0.419
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f15",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 15, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.425,
+            0.92,
+            0.445
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f16",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 16, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.451,
+            0.92,
+            0.471
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f17",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 17, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.477,
+            0.92,
+            0.497
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f18",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 18, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.503,
+            0.92,
+            0.523
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f19",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 19, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.529,
+            0.92,
+            0.549
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f20",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 20, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.555,
+            0.92,
+            0.575
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f21",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 21, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.581,
+            0.92,
+            0.601
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f22",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 22, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.607,
+            0.92,
+            0.627
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f23",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 23, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.633,
+            0.92,
+            0.653
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f24",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 24, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.659,
+            0.92,
+            0.679
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f25",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 25, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.685,
+            0.92,
+            0.705
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f26",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 26, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.711,
+            0.92,
+            0.731
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f27",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 27, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.737,
+            0.92,
+            0.757
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f28",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 28, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.763,
+            0.92,
+            0.783
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f29",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 29, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.789,
+            0.92,
+            0.809
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f30",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 30, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.815,
+            0.92,
+            0.835
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f31",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 31, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.841,
+            0.92,
+            0.861
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f32",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 32, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.867,
+            0.92,
+            0.887
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f33",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 33, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.893,
+            0.92,
+            0.913
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f34",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 34, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.919,
+            0.92,
+            0.939
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f35",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 35, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        },
+        {
+          "bbox": [
+            0.08,
+            0.945,
+            0.92,
+            0.965
+          ],
+          "bbox_source": "derived",
+          "engine_confidence": 1.0,
+          "geometry_status": "derived",
+          "line_id": "g07-p006-f36",
+          "raw_text": "Nội dung mẫu trang 6, dòng phụ 36, không tạo thêm dữ kiện hợp đồng.",
+          "words": []
+        }
+      ],
+      "page_no": 6,
+      "page_revision_id": "snapshot-g07:p6:r1",
+      "quality": {
+        "coverage_status": "COMPLETE",
+        "ocr_confidence": 1.0,
+        "signals": []
+      },
+      "raw_text_digest": "d4ae2b0106e4d6d4e38c928134c4433e479f4cb7adb9db3a3aad387be2c4befc",
+      "status": "SUCCESS",
+      "table_coverage": {
+        "method": "synthetic-layout-v1",
+        "status": "NOT_PRESENT"
+      },
+      "tables": [],
+      "transform": {
+        "profile_version": "synthetic-layout-v1",
+        "rotation_degrees": 0
+      },
+      "warnings": []
+    }
+  ],
+  "producer": {
+    "code_image_digest": "45ec51a09a5240c0dc893ae5a33b3a8c189ae6f430851aecead704b953d7d291",
+    "engine_name": "synthetic-golden-renderer",
+    "engine_version": "1.0.0"
+  },
+  "run_id": "run-snapshot-g07",
+  "schema_version": "ai1.snapshot.v1",
+  "snapshot_id": "snapshot-g07",
+  "source_digest": "88dfbb1b1fff84ef38f23f46754d4972e666b89c4395e4b83ef2060109f68990",
+  "status": "SUCCESS"
+}

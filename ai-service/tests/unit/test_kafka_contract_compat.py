@@ -1,10 +1,6 @@
 import hashlib
 import json
-from pathlib import Path
 
-import pytest
-
-from app.contracts import schema_validation
 from app.pipeline.ai1_snapshot_adapter import adapt_be_ai2_processing_request
 
 
@@ -144,13 +140,7 @@ def _request(snapshot: dict) -> dict:
     }
 
 
-def test_kafka_boundary_accepts_current_ocr_lab_snapshot_shape(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        schema_validation,
-        "CONTRACT_ROOT",
-        Path(__file__).resolve().parents[3].parent.parent / "docs" / "contracts",
-    )
-
+def test_kafka_boundary_accepts_current_ocr_lab_snapshot_shape() -> None:
     snapshot = _ocr_lab_snapshot()
     request, adapted = adapt_be_ai2_processing_request(
         _request(snapshot), tenant_id="tenant-a", actor_id="backend"

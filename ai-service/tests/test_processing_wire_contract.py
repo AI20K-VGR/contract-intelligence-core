@@ -22,21 +22,24 @@ from app.contracts.models import (
     ModelDisposition,
     ReviewState,
 )
-from app.contracts.wire import BeAi2ProcessingRequest, job_result_to_wire, validate_processing_result
 from app.contracts.schema_validation import validate_contract
+from app.contracts.wire import (
+    BeAi2ProcessingRequest,
+    job_result_to_wire,
+    validate_processing_result,
+)
+from app.pipeline.ai1_snapshot_adapter import (
+    SnapshotContractError,
+    adapt_be_ai2_processing_request,
+)
 from app.pipeline.idp import _validate_output_citations
 from app.pipeline.runtime import ProcessingRuntime
 from app.reasoning.l2_plan import L2Planner
 from app.security.service_envelope import build_service_envelope
 from app.tools.gateway import ToolBlocked, ToolGateway
 from app.tools.store import InMemorySnapshotStore
-from fixtures import mock_record
 from fixtures import envelope as fixture_envelope
-from app.pipeline.ai1_snapshot_adapter import (
-    SnapshotContractError,
-    adapt_be_ai2_processing_request,
-)
-
+from fixtures import mock_record
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = ROOT / "docs" / "contracts" / "examples"
@@ -459,7 +462,8 @@ def test_runtime_exhaustion_returns_deterministic_fallback_signal():
     assert runtime.complete_json(BrokenLLM(), "system", "user") is None
     assert runtime.llm_calls_used == 2
     assert runtime.fallback_count == 1
-    assert any(code == "LLM_RETRY_EXHAUSTED" for code, _ in runtime.issues)
+    # TimeoutError is classified (ST-067); the budget ran out while retrying it.
+    assert [code for code, _ in runtime.issues] == ["LLM_TIMEOUT"]
 
 
 def test_runtime_denies_egress_without_calling_provider():
@@ -504,7 +508,7 @@ def test_runtime_does_not_retry_non_retryable_provider_errors():
             raise ValueError("invalid request")
 
     client = InvalidRequestLLM()
-    runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=4, retry_limit=3)
+    runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=4, max_attempts=4)
 
     assert runtime.complete_json(client, "system", "user") is None
     assert client.calls == 1

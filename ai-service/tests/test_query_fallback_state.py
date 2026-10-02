@@ -100,7 +100,7 @@ class SpyLlm:
 @pytest.mark.parametrize(
     ("flags", "vector_calls", "llm_calls"),
     [
-        ({"use_vector": False, "use_llm": True, "egress_allowed": True}, 0, 0),
+        ({"use_vector": False, "use_llm": True, "egress_allowed": True}, 0, 1),
         ({"use_vector": True, "use_llm": False, "egress_allowed": True}, 1, 0),
         ({"use_vector": True, "use_llm": True, "egress_allowed": False}, 1, 0),
     ],
@@ -186,7 +186,8 @@ def test_query_endpoint_round_trips_state_and_operational_fields(monkeypatch, st
 
     assert response.status_code == 200
     body = response.json()
-    assert body["state"] == state
+    assert body["state"] == ("ANSWERED" if state == "PASS" else state)
+    assert body["review_state"] == state
     assert body["connected"] is True
     assert body["used_llm"] is False
     assert body["reasoning_trace"] == [{"code": "TEST_TRACE"}]

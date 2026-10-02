@@ -57,10 +57,10 @@
     "policy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["egress_allowed", "use_vector", "budget_limits"],
+      "required": ["budget_limits"],
       "properties": {
-        "egress_allowed": {"type": "boolean"},
-        "use_vector": {"type": "boolean"},
+        "egress_allowed": {"type": "boolean", "description": "Advisory only; AI2 decides egress from AI2_PROCESSING_EGRESS_ALLOWED. Optional, default false."},
+        "use_vector": {"type": "boolean", "description": "Optional, default false."},
         "budget_limits": {"$ref": "#/$defs/budget"}
       }
     }

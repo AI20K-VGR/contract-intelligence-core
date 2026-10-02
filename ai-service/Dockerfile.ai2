@@ -13,13 +13,10 @@ ENV PYTHONPATH=/app \
 
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --extra web --extra openai --no-dev
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --python /app/.venv/bin/python pypdf reportlab jsonschema
+    uv sync --frozen --extra web --extra openai --no-dev --no-install-project
 
 COPY app/ app/
 COPY fixtures/ fixtures/
-COPY data/ data/
 
 EXPOSE 8002
 

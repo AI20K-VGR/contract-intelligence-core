@@ -70,7 +70,7 @@ Mỗi test phải ghi input snapshot/version, actor/tenant context, tool calls, 
 | EC-052 | Re-OCR một page | Revision lineage | Citation revision mới; review cũ stale | REVIEW | AC-009/024 |
 | EC-053 | Vector cross-tenant | ACL/vector index | Metadata tenant/dossier filter + citation recheck ở read/write | BLOCKED | AC-012 |
 | EC-054 | Cache sai quyền | Cache/ACL | Key có ACL revision; hit recheck ACL | BLOCKED | AC-012/017 |
-| EC-055 | Egress chưa approval | Policy/vector gate | Block vector/LLM + audit; deterministic retrieval vẫn chạy trong policy scope | BLOCKED | AC-025/033 |
+| EC-055 | Egress chưa approval | Policy/vector gate | Block vector/LLM + audit; deterministic retrieval vẫn chạy trong policy scope; job `SUCCEEDED` + issue `EGRESS_DENIED` (DEC-BE-AI2-01 D6, ST-067) | REVIEW | AC-025/033 |
 | EC-056 | Legal hold/purge | Lifecycle | Hold chặn purge; artifact nằm inventory | BLOCKED | AC-021/022 |
 
 ## Test record tối thiểu

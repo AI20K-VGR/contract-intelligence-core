@@ -1,0 +1,266 @@
+{
+  "schema_version": "ai1.snapshot.v1",
+  "snapshot_id": "snap-st065",
+  "dossier_id": "dos-st065",
+  "document_id": "doc-st065",
+  "run_id": "run-st065",
+  "source_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "created_at": "2026-09-22T10:00:00Z",
+  "execution": {
+    "execution_manifest_id": "exec-example-001",
+    "config_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "policy_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "source_version_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "replay": false
+  },
+  "producer": {
+    "engine_name": "ai1-ocr",
+    "engine_version": "example",
+    "model_version": "example-model",
+    "preprocess_version": "example-preprocess",
+    "code_image_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  },
+  "language": {
+    "declared_scope": "vi",
+    "detected_profile": "vi",
+    "detector": {
+      "name": "example-detector",
+      "version": "1.0.0"
+    }
+  },
+  "status": "SUCCESS",
+  "pages": [
+    {
+      "page_no": 1,
+      "page_revision_id": "page-st065-1",
+      "input_type": "TEXT_LAYER",
+      "status": "SUCCESS",
+      "raw_text_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "transform": {
+        "rotation_degrees": 0,
+        "profile_version": "example-profile"
+      },
+      "quality": {
+        "coverage_status": "COMPLETE",
+        "ocr_confidence": 0.99,
+        "signals": []
+      },
+      "table_coverage": {
+        "status": "NOT_PRESENT",
+        "method": "example-detector",
+        "version": "1.0.0"
+      },
+      "lines": [
+        {
+          "line_id": "p1:l1",
+          "raw_text": "HỢP ĐỒNG DỊCH VỤ",
+          "bbox": [
+            0.1,
+            0.14,
+            0.9,
+            0.18
+          ],
+          "bbox_source": "derived",
+          "geometry_status": "derived",
+          "words": []
+        },
+        {
+          "line_id": "p1:l2",
+          "raw_text": "Số: 01/2026/HĐ",
+          "bbox": [
+            0.1,
+            0.2,
+            0.9,
+            0.24
+          ],
+          "bbox_source": "derived",
+          "geometry_status": "derived",
+          "words": []
+        },
+        {
+          "line_id": "p1:l3",
+          "raw_text": "Bên A: Công ty ALPHA",
+          "bbox": [
+            0.1,
+            0.26,
+            0.9,
+            0.3
+          ],
+          "bbox_source": "derived",
+          "geometry_status": "derived",
+          "words": []
+        },
+        {
+          "line_id": "p1:l4",
+          "raw_text": "Mã số thuế: 0101234567",
+          "bbox": [
+            0.1,
+            0.32,
+            0.9,
+            0.36
+          ],
+          "bbox_source": "derived",
+          "geometry_status": "derived",
+          "words": []
+        },
+        {
+          "line_id": "p1:l5",
+          "raw_text": "Bên B: Công ty BETA",
+          "bbox": [
+            0.1,
+            0.38,
+            0.9,
+            0.42
+          ],
+          "bbox_source": "derived",
+          "geometry_status": "derived",
+          "words": []
+        },
+        {
+          "line_id": "p1:l6",
+          "raw_text": "Mã số thuế: 0201234567",
+          "bbox": [
+            0.1,
+            0.44,
+            0.9,
+            0.48
+          ],
+          "bbox_source": "derived",
+          "geometry_status": "derived",
+          "words": []
+        },
+        {
+          "line_id": "p1:l7",
+          "raw_text": "ĐIỀU 1. DỊCH VỤ",
+          "bbox": [
+            0.1,
+            0.5,
+            0.9,
+            0.54
+          ],
+          "bbox_source": "derived",
+          "geometry_status": "derived",
+          "words": []
+        }
+      ],
+      "tables": [],
+      "warnings": []
+    },
+    {
+      "page_no": 2,
+      "page_revision_id": "page-st065-2",
+      "input_type": "TEXT_LAYER",
+      "status": "SUCCESS",
+      "raw_text_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "transform": {
+        "rotation_degrees": 0,
+        "profile_version": "example-profile"
+      },
+      "quality": {
+        "coverage_status": "COMPLETE",
+        "ocr_confidence": 0.99,
+        "signals": []
+      },
+      "table_coverage": {
+        "status": "NOT_PRESENT",
+        "method": "example-detector",
+        "version": "1.0.0"
+      },
+      "lines": [
+        {
+          "line_id": "p2:l1",
+          "raw_text": "HỢP ĐỒNG DỊCH VỤ",
+          "bbox": [
+            0.1,
+            0.14,
+            0.9,
+            0.18
+          ],
+          "bbox_source": "derived",
+          "geometry_status": "derived",
+          "words": []
+        },
+        {
+          "line_id": "p2:l2",
+          "raw_text": "Số: 02/2026/HĐ",
+          "bbox": [
+            0.1,
+            0.2,
+            0.9,
+            0.24
+          ],
+          "bbox_source": "derived",
+          "geometry_status": "derived",
+          "words": []
+        },
+        {
+          "line_id": "p2:l3",
+          "raw_text": "Bên A: Công ty ALPHA",
+          "bbox": [
+            0.1,
+            0.26,
+            0.9,
+            0.3
+          ],
+          "bbox_source": "derived",
+          "geometry_status": "derived",
+          "words": []
+        },
+        {
+          "line_id": "p2:l4",
+          "raw_text": "Mã số thuế: 0101234567",
+          "bbox": [
+            0.1,
+            0.32,
+            0.9,
+            0.36
+          ],
+          "bbox_source": "derived",
+          "geometry_status": "derived",
+          "words": []
+        },
+        {
+          "line_id": "p2:l5",
+          "raw_text": "Bên B: Công ty GAMMA",
+          "bbox": [
+            0.1,
+            0.38,
+            0.9,
+            0.42
+          ],
+          "bbox_source": "derived",
+          "geometry_status": "derived",
+          "words": []
+        },
+        {
+          "line_id": "p2:l6",
+          "raw_text": "Mã số thuế: 0301234567",
+          "bbox": [
+            0.1,
+            0.44,
+            0.9,
+            0.48
+          ],
+          "bbox_source": "derived",
+          "geometry_status": "derived",
+          "words": []
+        },
+        {
+          "line_id": "p2:l7",
+          "raw_text": "ĐIỀU 1. DỊCH VỤ",
+          "bbox": [
+            0.1,
+            0.5,
+            0.9,
+            0.54
+          ],
+          "bbox_source": "derived",
+          "geometry_status": "derived",
+          "words": []
+        }
+      ],
+      "tables": [],
+      "warnings": []
+    }
+  ]
+}

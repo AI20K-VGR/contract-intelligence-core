@@ -35,6 +35,7 @@ from contract_intelligence.extraction.infrastructure.persistence.orm import Pipe
 from contract_intelligence.shared.acl import (
     AclAction,
     dossier_access_decision,
+    dossier_denied_detail,
     dossier_denied_message,
     grant_is_live,
     visible_dossier_metadata,
@@ -308,6 +309,31 @@ def test_denial_for_expired_or_missing_grant() -> None:
     message = "Bạn không có quyền trên hồ sơ này, hoặc quyền đã hết hạn."
     assert _denied(AclAction.DOSSIER_EDIT, _user("guest"), expired) == message
     assert _denied(AclAction.QUERY, _user("stranger"), _meta()) == message
+
+
+def _denied_code(action: AclAction, user: AuthenticatedUser, meta: dict[str, Any]) -> str:
+    return dossier_denied_detail(
+        action=action,
+        principal=user,
+        dossier_id="dos_1",
+        dossier_tenant_id=TENANT,
+        metadata=meta,
+    )["code"]
+
+
+def test_denial_code_says_why() -> None:
+    """The frontend branches on ``code``, never on the Vietnamese text."""
+    operator, reviewer = _user("guest"), _user("guest", role="REVIEWER")
+    expired = _meta(permission="edit", expires_at="2020-01-01T00:00:00+00:00")
+    assert _denied_code(AclAction.REVIEW_MUTATE, operator, _meta(permission="edit")) == (
+        "ROLE_DENIED"
+    )
+    assert _denied_code(AclAction.APPROVE, operator, _meta()) == "ROLE_DENIED"
+    assert _denied_code(AclAction.REVIEW_MUTATE, reviewer, _meta(permission="read")) == (
+        "READ_ONLY"
+    )
+    assert _denied_code(AclAction.DOSSIER_EDIT, operator, expired) == "ACL_DENIED"
+    assert _denied_code(AclAction.QUERY, _user("stranger"), _meta()) == "ACL_DENIED"
 
 
 def test_grantee_sees_only_own_grant_by_id_or_email() -> None:

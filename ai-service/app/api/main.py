@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
 import os
+import threading
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from uuid import uuid4
 
@@ -25,7 +28,8 @@ from app.contracts.models import (
     ToolEnvelope,
 )
 from app.contracts.wire import BeAi2ProcessingRequest, job_result_to_wire
-from app.llm.client import NineRouterClient
+from app.db.engine import database_url, ensure_database, get_engine, validate_database_config
+from app.llm.client import DeadlineLLM, NineRouterClient, llm_status, query_llm_timeout_seconds
 from app.llm.embeddings import OpenAICompatibleEmbeddingClient
 from app.pipeline.ai1_ingest import ingest_files
 from app.pipeline.ai1_snapshot_adapter import (
@@ -33,18 +37,20 @@ from app.pipeline.ai1_snapshot_adapter import (
     adapt_ai1_input,
     adapt_ai1_result_v01,
     adapt_be_ai2_processing_request,
+    bare_sha256_digest,
+    processing_egress_allowed,
 )
 from app.pipeline.citations import CitationResolver
 from app.pipeline.grounding import repair_active_nodes
 from app.pipeline.idp import run_idp
 from app.pipeline.ocr_json_demo_adapter import is_ocr_json_demo, normalize_ocr_json
 from app.pipeline.outline import build_tree, locate
-from app.pipeline.runtime import ProcessingRuntime
+from app.pipeline.runtime import ISSUE_MESSAGES_VI, ProcessingRuntime
 from app.reasoning.gold import adhoc_tasks, tasks_from_outline
 from app.reasoning.query import QueryRouter, classify_ask
 from app.reasoning.relations import build_relation_graph
 from app.reasoning.stack import FourLayerReasoner
-from app.reasoning.vector_recall import VectorRecallService
+from app.reasoning.vector_recall import VectorRecallService, query_embedding_token_cap
 from app.security.service_envelope import ServiceEnvelopeError, verify_service_envelope
 from app.tools.gateway import ToolGateway
 from app.tools.jobs import (
@@ -52,8 +58,10 @@ from app.tools.jobs import (
     JobOwnershipConflict,
     JobPayloadConflict,
     SQLiteJobStore,
+    job_store_from_env,
 )
 from app.tools.persist import DATA, load_session, save_session
+from app.tools.query_store import load_query_snapshot
 from app.tools.store import DossierRecord, InMemorySnapshotStore
 from fixtures.case_pdf import attach_case_pdf
 from fixtures.catalog import load_case
@@ -64,7 +72,39 @@ load_dotenv(ROOT / ".env")
 
 STATIC = Path(__file__).resolve().parent.parent / "static"
 
-app = FastAPI(title="VSF AI2 IDP", version="0.1.0")
+JOB_SWEEP_INTERVAL_SECONDS = 1.0
+# Lease this process keeps on accepted jobs still waiting for a worker thread;
+# renewed on every sweep tick, so it only lapses when the process is gone.
+QUEUED_HOLD_MS = 60_000
+_HELD_JOB_IDS: set[str] = set()
+_HELD_LOCK = threading.Lock()
+
+
+async def _periodic_job_sweep() -> None:
+    while True:
+        await asyncio.sleep(JOB_SWEEP_INTERVAL_SECONDS)
+        try:
+            await asyncio.to_thread(_sweep_stale_jobs)
+        except Exception:
+            logger.exception("ai2.job_sweep_failed")
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    validate_database_config()
+    if database_url():
+        await asyncio.to_thread(ensure_database, get_engine())
+    await asyncio.to_thread(hydrate_canonical_store)
+    sweeper = asyncio.create_task(_periodic_job_sweep())
+    try:
+        yield
+    finally:
+        sweeper.cancel()
+        with suppress(asyncio.CancelledError):
+            await sweeper
+
+
+app = FastAPI(title="VSF AI2 IDP", version="0.1.0", lifespan=_lifespan)
 if STATIC.exists():
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
@@ -73,7 +113,7 @@ logger = logging.getLogger(__name__)
 JOBS: dict[str, JobResult] = {}
 WIRE_JOBS: dict[str, dict] = {}
 WIRE_IDEMPOTENCY: dict[tuple[str, str, int], str] = {}
-JOB_STORE = SQLiteJobStore()
+JOB_STORE = job_store_from_env()
 LAST_CASE: dict[str, str] = {}
 SESSIONS: dict[str, dict] = {}
 EMBEDDING_CLIENT = OpenAICompatibleEmbeddingClient()
@@ -108,16 +148,23 @@ def _hydrate_store_from_jobs() -> int:
                 exc,
             )
             continue
-        STORE.put(adapted.record)
+        persisted = load_query_snapshot(adapted.record.dossier_id, tenant_id=adapted.record.tenant_id)
+        if persisted:
+            STORE.put(persisted[0])
+        else:
+            STORE.put(adapted.record)
         restored += 1
     if restored:
         logger.info("ai2.store_hydrated dossiers=%s", restored)
     return restored
 
 
-@app.on_event("startup")
 def hydrate_canonical_store() -> None:
-    _hydrate_store_from_jobs()
+    _sweep_stale_jobs()
+    # Postgres already is the /query read model (ai2.dossier_query_snapshots);
+    # replaying every SUCCEEDED job there only costs boot time and memory.
+    if not database_url():
+        _hydrate_store_from_jobs()
 
 
 class RunBody(BaseModel):
@@ -147,7 +194,27 @@ class PublishBody(BaseModel):
     confirm: bool = False
 
 
-def _queued_wire_result(request: BeAi2ProcessingRequest, job_id: str) -> dict:
+def _env_flag(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    return raw.strip().casefold() in {"1", "true", "yes", "on"}
+
+
+def _query_policy_flags() -> dict[str, bool]:
+    """Server-side ``/query`` policy (A8). Request ``policy_flags`` are ignored:
+    Backend does not decide AI2 egress, LLM or vector use."""
+
+    return {
+        "egress_allowed": _env_flag("AI2_QUERY_EGRESS_ALLOWED", False),
+        "use_llm": _env_flag("AI2_QUERY_USE_LLM", False),
+        "use_vector": _env_flag("AI2_QUERY_USE_VECTOR", False),
+    }
+
+
+def _queued_wire_result(
+    request: BeAi2ProcessingRequest, job_id: str, query_snapshot_digest: str
+) -> dict:
     return {
         "schema_version": "ai2.be.processing.result.v1",
         "request_id": request.request_id,
@@ -159,10 +226,21 @@ def _queued_wire_result(request: BeAi2ProcessingRequest, job_id: str) -> dict:
         "input_snapshots": [item.model_dump() for item in request.snapshot_identities],
         "result": None,
         "errors": [],
+        "query_snapshot_digest": query_snapshot_digest,
     }
 
 
 def _run_wire_job(job_id: str, payload: dict) -> None:
+    """Execute one accepted wire request; this process stops holding it after."""
+
+    try:
+        _execute_wire_job(job_id, payload)
+    finally:
+        with _HELD_LOCK:
+            _HELD_JOB_IDS.discard(job_id)
+
+
+def _execute_wire_job(job_id: str, payload: dict) -> None:
     """Execute one accepted wire request and retain its public result."""
 
     try:
@@ -177,6 +255,7 @@ def _run_wire_job(job_id: str, payload: dict) -> None:
             job_id,
             tenant_id=tenant_id,
             dossier_id=request.dossier_id,
+            lease_ms=request.policy_flags.budget_limits.max_processing_seconds * 1000 + 30_000,
         )
         if worker_token is None:
             return
@@ -193,32 +272,34 @@ def _run_wire_job(job_id: str, payload: dict) -> None:
                 status="RUNNING",
                 wire=wire,
             )
+        egress_allowed = processing_egress_allowed()
         llm = None
-        if request.policy_flags.egress_allowed:
+        if egress_allowed:
             candidate = NineRouterClient()
             if candidate.configured():
                 llm = candidate
         runtime = ProcessingRuntime(
-            egress_allowed=request.policy_flags.egress_allowed,
+            egress_allowed=egress_allowed,
             use_vector=request.policy_flags.use_vector,
             max_processing_seconds=request.policy_flags.budget_limits.max_processing_seconds,
             max_llm_calls=request.policy_flags.budget_limits.max_llm_calls,
             max_embedding_tokens=request.policy_flags.budget_limits.max_embedding_tokens,
         )
-        # The request policy controls whether the configured NineRouter client
+        query_snapshot_digest = adapted.record.pins.source_snapshot_digest
+        # AI2_PROCESSING_EGRESS_ALLOWED controls whether the configured client
         # can be used. The pipeline itself owns retry/fallback accounting.
+        processing_store = InMemorySnapshotStore()
         result = run_idp(
             adapted.record,
             adapted.envelope,
             llm=llm,
-            store=STORE,
+            store=processing_store,
             job_id=job_id,
             runtime=runtime,
         )
-        JOBS[job_id] = result
-        wire = job_result_to_wire(result, request)
-        WIRE_JOBS[job_id] = wire
-        JOB_STORE.set_wire(
+        processed_record = processing_store.get(adapted.record.tenant_id, adapted.record.dossier_id) or adapted.record
+        wire = job_result_to_wire(result, request, query_snapshot_digest=query_snapshot_digest)
+        accepted = JOB_STORE.complete_with_snapshot(
             job_id,
             tenant_id=tenant_id,
             dossier_id=request.dossier_id,
@@ -226,45 +307,61 @@ def _run_wire_job(job_id: str, payload: dict) -> None:
             status=wire["status"],
             wire=wire,
             result=result.model_dump(),
+            record=processed_record,
+            envelope=adapted.envelope,
         )
-    except SnapshotContractError as exc:
-        current = WIRE_JOBS.get(job_id) or {}
-        wire = {
-            **current,
+        if accepted:
+            JOBS[job_id] = result
+            WIRE_JOBS[job_id] = wire
+            persisted = load_query_snapshot(request.dossier_id, tenant_id=tenant_id)
+            if persisted is not None:
+                STORE.put(persisted[0])
+    except Exception as exc:  # worker boundary: every failure ends the job
+        code = exc.code if isinstance(exc, SnapshotContractError) else "AI2_WORKER_FAILED"
+        update = {
             "status": "FAILED",
             "review_state": "BLOCKED",
             "result": None,
-            "errors": [{"code": exc.code, "message": str(exc), "retryable": False}],
+            "errors": [{"code": code, "message": str(exc), "retryable": False}],
         }
+        wire = {**(WIRE_JOBS.get(job_id) or {}), **update}
         WIRE_JOBS[job_id] = wire
-        if "worker_token" in locals():
+        if "worker_token" in locals() and worker_token:
             JOB_STORE.set_wire(
                 job_id,
-                tenant_id=request.service_envelope.tenant_id if "request" in locals() else "",
-                dossier_id=request.dossier_id if "request" in locals() else "",
+                tenant_id=request.service_envelope.tenant_id,
+                dossier_id=request.dossier_id,
                 worker_token=worker_token,
                 status="FAILED",
                 wire=wire,
             )
-    except Exception as exc:  # pragma: no cover - defensive worker boundary
-        current = WIRE_JOBS.get(job_id) or {}
-        wire = {
-            **current,
-            "status": "FAILED",
-            "review_state": "BLOCKED",
-            "result": None,
-            "errors": [{"code": "AI2_WORKER_FAILED", "message": str(exc), "retryable": False}],
-        }
-        WIRE_JOBS[job_id] = wire
-        if "worker_token" in locals():
-            JOB_STORE.set_wire(
-                job_id,
-                tenant_id=request.service_envelope.tenant_id if "request" in locals() else "",
-                dossier_id=request.dossier_id if "request" in locals() else "",
-                worker_token=worker_token,
-                status="FAILED",
-                wire=wire,
-            )
+        else:
+            # Failed before claiming: without this the job stays QUEUED forever.
+            JOB_STORE.fail_unclaimed(job_id, update)
+
+
+def _sweep_stale_jobs(store: SQLiteJobStore | None = None, *, queued_grace_ms: int = 60_000) -> list[str]:
+    """Fail jobs a dead worker left QUEUED/RUNNING so a poll always ends (ST-067)."""
+
+    update = {
+        "result": None,
+        "errors": [
+            {
+                "code": "AI2_WORKER_RESTARTED",
+                "message": ISSUE_MESSAGES_VI["AI2_WORKER_RESTARTED"],
+                "retryable": True,
+            }
+        ],
+    }
+    target = store or JOB_STORE
+    with _HELD_LOCK:
+        held = sorted(_HELD_JOB_IDS)
+    # Renew first: a held job waiting for a thread is live, not orphaned (I3).
+    target.hold_queued(held, lease_ms=QUEUED_HOLD_MS)
+    swept = target.sweep_stale(update, queued_grace_ms=queued_grace_ms)
+    if swept:
+        logger.warning("ai2.jobs_swept count=%s job_ids=%s", len(swept), swept)
+    return swept
 
 
 @app.get("/")
@@ -688,7 +785,7 @@ def health() -> dict:
         embedding = {"status": "NOT_RUN", "models": [], "selected_model": None, "dimensions": None}
     return {
         "status": "ok",
-        "llm": "ready" if llm.configured() else "off",
+        "llm": llm_status(llm),
         "model": llm.model if llm.configured() else "",
         "persist": str(DATA),
         "embedding": embedding,
@@ -756,9 +853,11 @@ def query_from_backend(payload: dict) -> dict:
     try:
         service_envelope = verify_service_envelope(payload, required_scope="ai2.query")
     except ServiceEnvelopeError as exc:
-        # The unsigned compatibility lane remains fail-closed. Only a signed
-        # backend query may read the authoritative dossier record.
-        if not isinstance(payload.get("service_envelope"), dict):
+        # AI2_QUERY_REQUIRE_SIGNATURE=false keeps the unsigned compatibility
+        # lane (local compose only); a present but invalid envelope is always
+        # rejected.
+        unsigned_allowed = not _env_flag("AI2_QUERY_REQUIRE_SIGNATURE", True)
+        if unsigned_allowed and not isinstance(payload.get("service_envelope"), dict):
             service_envelope = None
         else:
             raise HTTPException(
@@ -774,10 +873,22 @@ def query_from_backend(payload: dict) -> dict:
         raise HTTPException(status_code=422, detail={"code": "DOSSIER_ID_REQUIRED"})
     requested_digest = str(payload.get("snapshot_digest") or "").strip()
     query_contract_version = str(payload.get("query_contract_version") or "").strip()
-    if service_envelope is not None:
-        record = STORE.get(service_envelope.tenant_id, dossier_id)
-        if record is not None:
-            expected_digest = str(record.pins.source_snapshot_digest or "")
+    stored_envelope: ToolEnvelope | object | None = None
+    tenant_id = service_envelope.tenant_id if service_envelope is not None else str(
+        payload.get("tenant_id") or ""
+    ).strip()
+    record = STORE.get(tenant_id, dossier_id) if tenant_id else None
+    if record is None or database_url() or service_envelope is None:
+        hydrated = load_query_snapshot(dossier_id, tenant_id=tenant_id or None)
+        if hydrated is not None:
+            record, stored_envelope = hydrated
+            STORE.put(record)
+        elif database_url() or service_envelope is None:
+            record = None
+
+    if record is not None:
+        expected_digest = bare_sha256_digest(record.pins.source_snapshot_digest)
+        if expected_digest:
             # The versioned Backend contract must bind the query to the
             # current canonical snapshot. Keep the older signed compatibility
             # lane readable for existing callers that predate this field.
@@ -785,7 +896,7 @@ def query_from_backend(payload: dict) -> dict:
                 requested_digest
             )
             if requires_evidence_context and (
-                not requested_digest or requested_digest != expected_digest
+                not requested_digest or bare_sha256_digest(requested_digest) != expected_digest
             ):
                 return {
                     "state": "INSUFFICIENT_EVIDENCE",
@@ -802,25 +913,46 @@ def query_from_backend(payload: dict) -> dict:
                         }
                     ],
                 }
-            member_ids = [source.file_id for source in record.source_files if source.file_id]
-            envelope = ToolEnvelope(
-                auth=AuthContext(
-                    actor_id=service_envelope.actor_id,
-                    tenant_id=service_envelope.tenant_id,
-                    dossier_id=dossier_id,
-                    acl_revision=record.acl_revision,
-                    permissions=record.permissions_by_actor.get(
-                        service_envelope.actor_id, ["READ_CONTENT"]
+            if service_envelope is not None:
+                member_ids = [source.file_id for source in record.source_files if source.file_id]
+                envelope = ToolEnvelope(
+                    auth=AuthContext(
+                        actor_id=service_envelope.actor_id,
+                        tenant_id=service_envelope.tenant_id,
+                        dossier_id=dossier_id,
+                        acl_revision=record.acl_revision,
+                        # D-5: a valid signed envelope for this tenant/dossier
+                        # carries READ_CONTENT; Backend owns per-user ACL.
+                        permissions=["READ_CONTENT"],
+                        member_ids=member_ids,
+                        member_documents={},
+                        lifecycle=record.lifecycle,
                     ),
-                    member_ids=member_ids,
-                    member_documents={},
-                    lifecycle=record.lifecycle,
+                    pins=record.pins,
+                )
+            else:
+                envelope = stored_envelope
+            policy_flags = _query_policy_flags()
+            llm = None
+            if policy_flags["egress_allowed"] and policy_flags["use_llm"]:
+                timeout = query_llm_timeout_seconds()
+                candidate = NineRouterClient(timeout=timeout)
+                if candidate.configured():
+                    llm = DeadlineLLM(candidate, timeout)
+            query_store = InMemorySnapshotStore()
+            query_store.put(record)
+            result = QueryRouter(
+                query_store,
+                ToolGateway(query_store, signed_principal=service_envelope is not None),
+                llm=llm,
+                vector_recall=_vector_service(
+                    policy_flags["use_vector"],
+                    ProcessingRuntime(
+                        egress_allowed=policy_flags["egress_allowed"],
+                        max_embedding_tokens=query_embedding_token_cap(),
+                    ),
                 ),
-                pins=record.pins,
-            )
-            policy_flags = payload.get("policy_flags")
-            policy_flags = policy_flags if isinstance(policy_flags, dict) else {}
-            result = QueryRouter(STORE, ToolGateway(STORE)).query(
+            ).query(
                 envelope,
                 query,
                 classify_ask(query),
@@ -830,15 +962,19 @@ def query_from_backend(payload: dict) -> dict:
             answer = result.get("answer")
             if answer is not None and not isinstance(answer, str):
                 answer = json.dumps(answer, ensure_ascii=False)
+            review_state = result.get("review_state")
+            state = review_state or result.get("state") or "INSUFFICIENT_EVIDENCE"
             return {
-                "state": result.get("review_state")
-                or result.get("state")
-                or "INSUFFICIENT_EVIDENCE",
+                "state": "ANSWERED" if state == "PASS" else state,
+                "review_state": review_state,
                 "connected": True,
                 "answer": answer,
                 "citations": citations,
                 "retrieval_layer": {
                     **(result.get("retrieval_layer") or {}),
+                    **({"reason_code": "EMBEDDING_BUDGET_EXCEEDED"}
+                       if (result.get("retrieval_layer") or {}).get("vector_status") == "BUDGET_EXCEEDED"
+                       else {}),
                     "dossier_id": dossier_id,
                     "snapshot_version": payload.get("snapshot_version"),
                     "snapshot_digest": expected_digest,
@@ -859,7 +995,7 @@ def query_from_backend(payload: dict) -> dict:
         },
         "reasoning_trace": [
             {
-                "code": "AI2_QUERY_EVIDENCE_REQUIRED",
+                "code": "AI2_QUERY_SNAPSHOT_NOT_FOUND",
                 "message": (
                     "Query chỉ được trả lời sau khi AI2 nhận canonical snapshot và citation map"
                 ),
@@ -1646,7 +1782,7 @@ def create_idp_job(payload: dict, background_tasks: BackgroundTasks) -> dict:
         ) from exc
 
     try:
-        request, _ = adapt_be_ai2_processing_request(
+        request, adapted = adapt_be_ai2_processing_request(
             payload,
             tenant_id=service_envelope.tenant_id,
             actor_id=service_envelope.actor_id,
@@ -1656,7 +1792,7 @@ def create_idp_job(payload: dict, background_tasks: BackgroundTasks) -> dict:
             status_code=422, detail={"code": exc.code, "message": str(exc)}
         ) from exc
 
-    queued = _queued_wire_result(request, "pending")
+    queued = _queued_wire_result(request, "pending", adapted.record.pins.source_snapshot_digest)
     try:
         stored, created = JOB_STORE.create_or_get(
             tenant_id=service_envelope.tenant_id,
@@ -1691,7 +1827,12 @@ def create_idp_job(payload: dict, background_tasks: BackgroundTasks) -> dict:
     )
     WIRE_JOBS[job_id] = wire
     if created or stored["status"] in {"QUEUED", "RUNNING"}:
-        background_tasks.add_task(_run_wire_job, job_id, request.model_dump())
+        # Hand the worker the exact signed payload: a re-dumped model differs
+        # from it (defaults, OCR-lab digest normalization) and would fail the
+        # worker's envelope re-verification (payload_sha256).
+        with _HELD_LOCK:
+            _HELD_JOB_IDS.add(job_id)
+        background_tasks.add_task(_run_wire_job, job_id, payload)
     return wire
 
 

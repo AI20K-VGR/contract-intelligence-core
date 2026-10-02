@@ -16,7 +16,7 @@ from contract_intelligence.review.infrastructure.persistence.repository_impl imp
 from contract_intelligence.shared.acl import (
     AclAction,
     dossier_access_decision,
-    dossier_denied_message,
+    dossier_denied_detail,
 )
 from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user
 from contract_intelligence.shared.auth.tenant import get_tenant_id
@@ -36,11 +36,8 @@ async def get_review_service(
 ReviewServiceDep = Annotated[ReviewService, Depends(get_review_service)]
 
 
-def _deny(message: str) -> HTTPException:
-    return HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail={"code": "ACL_DENIED", "message": message},
-    )
+def _deny(detail: dict[str, str]) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
 
 async def require_review_dossier_access(
@@ -62,7 +59,7 @@ async def require_review_dossier_access(
         "metadata": dossier.metadata_json,
     }
     if not dossier_access_decision(**decision):
-        raise _deny(dossier_denied_message(**decision))
+        raise _deny(dossier_denied_detail(**decision))
 
 
 async def require_review_item_access(
@@ -90,7 +87,7 @@ async def require_review_item_access(
         "metadata": dossier.metadata_json,
     }
     if not dossier_access_decision(**decision):
-        raise _deny(dossier_denied_message(**decision))
+        raise _deny(dossier_denied_detail(**decision))
 
 
 async def require_review_item_mutation_access(
@@ -118,7 +115,7 @@ async def require_review_item_mutation_access(
         "metadata": dossier.metadata_json,
     }
     if not dossier_access_decision(**decision):
-        raise _deny(dossier_denied_message(**decision))
+        raise _deny(dossier_denied_detail(**decision))
 
 
 __all__ = [

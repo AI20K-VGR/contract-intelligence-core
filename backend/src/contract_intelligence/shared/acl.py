@@ -148,6 +148,44 @@ _ROLE_DENIED: dict[AclAction, str] = {
 }
 
 
+# Stable codes for a 403 ``detail``; the frontend branches on these, not on the text.
+DENIED_ROLE = "ROLE_DENIED"
+DENIED_READ_ONLY = "READ_ONLY"
+DENIED_ACL = "ACL_DENIED"
+
+
+def dossier_denied_detail(
+    *,
+    action: AclAction,
+    principal: AuthenticatedUser,
+    dossier_id: str,
+    dossier_tenant_id: str,
+    metadata: dict[str, Any] | None,
+) -> dict[str, str]:
+    """``{code, message}`` for a denied :func:`dossier_access_decision`.
+
+    ``code`` says why: the role cannot do this at all (``ROLE_DENIED``), a live
+    ``read`` grant only lets the caller view (``READ_ONLY``), or there is no
+    usable grant (``ACL_DENIED``). ``message`` is the Vietnamese text to show.
+    """
+    if principal.role not in _ALLOWED_ROLES[action]:
+        message = _ROLE_DENIED.get(action, "Vai trò của bạn không được làm việc này.")
+        return {"code": DENIED_ROLE, "message": message}
+    if action is AclAction.DOSSIER_MANAGE:
+        message = "Chỉ chủ hồ sơ hoặc quản trị viên được làm việc này."
+        return {"code": DENIED_ACL, "message": message}
+    if action in _EDIT_ACTIONS and dossier_access_decision(
+        action=AclAction.QUERY,
+        principal=principal,
+        dossier_id=dossier_id,
+        dossier_tenant_id=dossier_tenant_id,
+        metadata=metadata,
+    ):
+        return {"code": DENIED_READ_ONLY, "message": "Bạn chỉ có quyền xem hồ sơ này."}
+    message = "Bạn không có quyền trên hồ sơ này, hoặc quyền đã hết hạn."
+    return {"code": DENIED_ACL, "message": message}
+
+
 def dossier_denied_message(
     *,
     action: AclAction,
@@ -156,24 +194,14 @@ def dossier_denied_message(
     dossier_tenant_id: str,
     metadata: dict[str, Any] | None,
 ) -> str:
-    """Vietnamese reason for a denied :func:`dossier_access_decision`.
-
-    Tells a viewer with a live ``read`` grant that they can only view, instead
-    of the generic "no access or expired" text.
-    """
-    if principal.role not in _ALLOWED_ROLES[action]:
-        return _ROLE_DENIED.get(action, "Vai trò của bạn không được làm việc này.")
-    if action is AclAction.DOSSIER_MANAGE:
-        return "Chỉ chủ hồ sơ hoặc quản trị viên được làm việc này."
-    if action in _EDIT_ACTIONS and dossier_access_decision(
-        action=AclAction.QUERY,
+    """Vietnamese text of :func:`dossier_denied_detail`."""
+    return dossier_denied_detail(
+        action=action,
         principal=principal,
         dossier_id=dossier_id,
         dossier_tenant_id=dossier_tenant_id,
         metadata=metadata,
-    ):
-        return "Bạn chỉ có quyền xem hồ sơ này."
-    return "Bạn không có quyền trên hồ sơ này, hoặc quyền đã hết hạn."
+    )["message"]
 
 
 def visible_dossier_metadata(
@@ -206,7 +234,11 @@ def visible_dossier_metadata(
 __all__ = [
     "SHARE_PERMISSIONS",
     "AclAction",
+    "DENIED_ACL",
+    "DENIED_READ_ONLY",
+    "DENIED_ROLE",
     "dossier_access_decision",
+    "dossier_denied_detail",
     "dossier_denied_message",
     "grant_is_live",
     "grant_permission",
