@@ -161,7 +161,10 @@ def _hydrate_store_from_jobs() -> int:
 
 def hydrate_canonical_store() -> None:
     _sweep_stale_jobs()
-    _hydrate_store_from_jobs()
+    # Postgres already is the /query read model (ai2.dossier_query_snapshots);
+    # replaying every SUCCEEDED job there only costs boot time and memory.
+    if not database_url():
+        _hydrate_store_from_jobs()
 
 
 class RunBody(BaseModel):

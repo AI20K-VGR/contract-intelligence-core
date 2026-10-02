@@ -532,3 +532,29 @@ def test_postgres_sweep_respects_queued_hold_lease(pg_url, monkeypatch):
     assert store.get(held)["status"] == "QUEUED"
     now[0] += 120_000
     assert store.sweep_stale({"errors": []}) == [held]
+
+
+@pytest.mark.parametrize(("database_url", "expected"), [
+    ("postgresql://ai2:unused@127.0.0.1:1/unused", []),
+    (None, ["hydrate"]),
+])
+def test_startup_hydrates_jobs_only_without_postgres_read_model(monkeypatch, database_url, expected):
+    """I4: /query reads ai2.dossier_query_snapshots in PG mode; replaying every job is waste."""
+    from fastapi.testclient import TestClient
+
+    from app.api import main
+
+    if database_url:
+        monkeypatch.setenv("AI2_DATABASE_URL", database_url)
+    else:
+        monkeypatch.delenv("AI2_DATABASE_URL", raising=False)
+    monkeypatch.delenv("AI2_REQUIRE_DATABASE", raising=False)
+    monkeypatch.setattr(main, "ensure_database", lambda _engine: None)
+    monkeypatch.setattr(main, "_sweep_stale_jobs", lambda *_args, **_kwargs: [])
+    calls: list[str] = []
+    monkeypatch.setattr(main, "_hydrate_store_from_jobs", lambda: calls.append("hydrate") or 0)
+
+    with TestClient(main.app):
+        pass
+
+    assert calls == expected
