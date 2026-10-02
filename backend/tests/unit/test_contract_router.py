@@ -1037,7 +1037,10 @@ class TestDossierAccessPermissions:
         )
         resp = await client.patch("/api/v1/dossiers/dos_TEST_01", json={"name": "x"})
         assert resp.status_code == 403
-        assert resp.json()["detail"] == "Bạn chỉ có quyền xem hồ sơ này."
+        assert resp.json()["detail"] == {
+            "code": "READ_ONLY",
+            "message": "Bạn chỉ có quyền xem hồ sơ này.",
+        }
 
     async def test_keeps_unchanged_expired_grant(
         self, client: AsyncClient, mock_svc: AsyncMock, monkeypatch: pytest.MonkeyPatch

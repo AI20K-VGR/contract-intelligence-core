@@ -38,7 +38,7 @@ from contract_intelligence.extraction.infrastructure.persistence.orm_reocr impor
 from contract_intelligence.shared.acl import (
     AclAction,
     dossier_access_decision,
-    dossier_denied_message,
+    dossier_denied_detail,
 )
 from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user
 from contract_intelligence.shared.persistence import get_async_session
@@ -126,7 +126,7 @@ async def require_dossier_action(
     if not dossier_access_decision(**decision):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=dossier_denied_message(**decision),
+            detail=dossier_denied_detail(**decision),
         )
     return dossier
 

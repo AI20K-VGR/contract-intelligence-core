@@ -20,7 +20,7 @@ from contract_intelligence.schemas.queries import (
 from contract_intelligence.shared.acl import (
     AclAction,
     dossier_access_decision,
-    dossier_denied_message,
+    dossier_denied_detail,
 )
 from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user
 from contract_intelligence.shared.auth.tenant import get_tenant_id
@@ -79,16 +79,13 @@ async def _acl_check_dossier_access(
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "code": "ACL_DENIED",
-                "message": dossier_denied_message(
-                    action=AclAction.QUERY,
-                    principal=user,
-                    dossier_id=dossier.id,
-                    dossier_tenant_id=dossier.tenant_id,
-                    metadata=dossier.metadata_json,
-                ),
-            },
+            detail=dossier_denied_detail(
+                action=AclAction.QUERY,
+                principal=user,
+                dossier_id=dossier.id,
+                dossier_tenant_id=dossier.tenant_id,
+                metadata=dossier.metadata_json,
+            ),
         )
     return dossier
 

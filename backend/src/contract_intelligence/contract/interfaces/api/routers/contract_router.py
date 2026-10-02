@@ -83,7 +83,7 @@ from contract_intelligence.infrastructure import messaging, storage
 from contract_intelligence.shared.acl import (
     AclAction,
     dossier_access_decision,
-    dossier_denied_message,
+    dossier_denied_detail,
     visible_dossier_metadata,
 )
 from contract_intelligence.shared.auth import (
@@ -271,7 +271,7 @@ async def _require_readable(
     if not dossier_access_decision(**decision):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=dossier_denied_message(**decision),
+            detail=dossier_denied_detail(**decision),
         )
     return dossier
 

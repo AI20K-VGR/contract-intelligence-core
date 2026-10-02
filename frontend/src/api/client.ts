@@ -25,9 +25,15 @@ type ProblemDetailItem = {
   msg?: string
 }
 
+/** FastAPI ``HTTPException(detail={code, message})``, e.g. a dossier 403. */
+type ProblemDetailObject = {
+  code?: string
+  message?: string
+}
+
 type ProblemBody = {
   title?: string
-  detail?: string | ProblemDetailItem[]
+  detail?: string | ProblemDetailItem[] | ProblemDetailObject
   code?: string
   error?: {
     code?: string
@@ -54,7 +60,7 @@ export class ApiError extends Error {
   }
 }
 
-function messageFromBody(
+export function messageFromBody(
   status: number,
   body: unknown,
 ): {
@@ -65,6 +71,15 @@ function messageFromBody(
     const problem = body as ProblemBody
     if (typeof problem.detail === 'string' && problem.detail) {
       return { message: problem.detail, code: problem.code }
+    }
+    if (
+      problem.detail &&
+      !Array.isArray(problem.detail) &&
+      typeof problem.detail === 'object' &&
+      typeof problem.detail.message === 'string' &&
+      problem.detail.message
+    ) {
+      return { message: problem.detail.message, code: problem.detail.code }
     }
     if (Array.isArray(problem.detail)) {
       const message = problem.detail

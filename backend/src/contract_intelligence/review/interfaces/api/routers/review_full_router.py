@@ -54,7 +54,7 @@ from contract_intelligence.review.interfaces.api.dependencies import (
 from contract_intelligence.shared.acl import (
     AclAction,
     dossier_access_decision,
-    dossier_denied_message,
+    dossier_denied_detail,
 )
 from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user, require_role
 from contract_intelligence.shared.exceptions import ReviewVersionConflict
@@ -218,7 +218,7 @@ async def _clause_with_access(
     if not dossier_access_decision(**decision):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "ACL_DENIED", "message": dossier_denied_message(**decision)},
+            detail=dossier_denied_detail(**decision),
         )
     return ctx
 
@@ -392,6 +392,6 @@ async def _finding_with_access(
     if not dossier_access_decision(**decision):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "ACL_DENIED", "message": dossier_denied_message(**decision)},
+            detail=dossier_denied_detail(**decision),
         )
     return ctx

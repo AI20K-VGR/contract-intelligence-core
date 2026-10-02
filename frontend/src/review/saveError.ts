@@ -15,6 +15,9 @@ export const EXPIRED_MESSAGE =
 
 export function reviewErrorMessage(cause: unknown, fallback: string) {
   if (cause instanceof ApiError && cause.status === 403) {
+    // Mã cố định từ backend (shared/acl.py) có trước; câu chữ chỉ là dự phòng.
+    if (cause.code === 'ROLE_DENIED') return ROLE_DENIED_MESSAGE
+    if (cause.code === 'READ_ONLY') return READ_ONLY_MESSAGE
     const text = cause.message
     if (/insufficient role/i.test(text) || /vai trò/i.test(text)) {
       return ROLE_DENIED_MESSAGE
