@@ -136,3 +136,57 @@ class TestGetFinding:
         mock_svc.get_finding.side_effect = NotFoundError(entity_type="Finding", entity_id="missing")
         resp = await client.get("/api/v1/findings/missing")
         assert resp.status_code == 404
+
+
+class TestFindingReviewLatest:
+    _LATEST_RAW = {
+        "action": "confirm",
+        "comment": None,
+        "reviewer_id": "u1",
+        "reviewer_name": "Admin",
+        "reviewer_email": "a@ci.local",
+        "reviewed_at": "2026-09-27T04:15:35Z",
+        "action_count": 1,
+    }
+
+    def test_from_row_passes_latest_through(self) -> None:
+        finding = _finding(
+            review={
+                "item_id": "ri_1",
+                "status": "resolved",
+                "current_version": 2,
+                "latest": dict(self._LATEST_RAW),
+            }
+        )
+        assert finding.review is not None
+        assert finding.review.latest is not None
+        assert finding.review.latest.action == "confirm"
+        assert finding.review.latest.action_count == 1
+
+    def test_from_row_latest_none_when_review_has_no_actions(self) -> None:
+        finding = _finding(
+            review={
+                "item_id": "ri_1",
+                "status": "open",
+                "current_version": 1,
+            }
+        )
+        assert finding.review is not None
+        assert finding.review.latest is None
+
+    async def test_endpoint_returns_latest_keys(
+        self, client: AsyncClient, mock_svc: AsyncMock
+    ) -> None:
+        finding = _finding(
+            review={
+                "item_id": "ri_1",
+                "status": "resolved",
+                "current_version": 2,
+                "latest": dict(self._LATEST_RAW),
+            }
+        )
+        mock_svc.list_conflicts.return_value = ([finding], 1)
+        resp = await client.get("/api/v1/dossiers/dos_1/conflicts")
+        assert resp.status_code == 200
+        latest = resp.json()["data"][0]["review"]["latest"]
+        assert latest == self._LATEST_RAW
