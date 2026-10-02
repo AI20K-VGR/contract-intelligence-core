@@ -80,6 +80,14 @@
   "properties": {
     "schema_version": {"const": "ai2.be.processing.result.v1"}, "request_id": {"$ref": "#/$defs/id"}, "idempotency_key": {"$ref": "#/$defs/id"}, "attempt": {"type": "integer", "minimum": 1}, "job_id": {"$ref": "#/$defs/id"},
     "status": {"enum": ["QUEUED", "RUNNING", "SUCCEEDED", "FAILED"]}, "review_state": {"anyOf": [{"enum": ["PASS", "NEEDS_REVIEW", "INSUFFICIENT_EVIDENCE", "BLOCKED"]}, {"type": "null"}]},
-    "input_snapshots": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/identity"}}, "result": {"anyOf": [{"$ref": "#/$defs/result"}, {"type": "null"}]}, "errors": {"type": "array", "items": {"$ref": "#/$defs/error"}}
+    "input_snapshots": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/identity"}}, "result": {"anyOf": [{"$ref": "#/$defs/result"}, {"type": "null"}]},
+    "errors": {
+      "description": "Ordered issue list. When status=SUCCEEDED and review_state=BLOCKED, errors[0] is the blocking issue (BLOCKED issues first, other issues keep their emitted order). AI2_JOB_FAILED, when present, is last.",
+      "type": "array", "items": {"$ref": "#/$defs/error"}
+    },
+    "query_snapshot_digest": {
+      "description": "Digest that POST /query binds to; Backend sends it back as snapshot_digest. Optional: absent when AI2 never adapted the request.",
+      "type": "string", "pattern": "^[0-9a-f]{64}$"
+    }
   }
 }

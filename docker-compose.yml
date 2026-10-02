@@ -453,13 +453,29 @@ services:
     env_file:
       - ./ai-service/.env
     environment:
-      AI2_LLM_BASE_URL: ${AI2_LLM_BASE_URL:-http://host.docker.internal:20128/v1}
+      # Temporary `ci` until backend-db ships the `ai2` role (#52); then set
+      # AI2_DATABASE_URL=postgresql+psycopg://ai2:${AI2_DB_PASSWORD}@backend-db:5432/contract_intelligence
+      AI2_DATABASE_URL: ${AI2_DATABASE_URL:-postgresql+psycopg://ci:${BACKEND_DB_PASSWORD:-ci_secret_dev}@backend-db:5432/contract_intelligence}
+      AI2_REQUIRE_DATABASE: "true"
+      AI2_LLM_BASE_URL: ${AI2_LLM_BASE_URL:-https://api.openai.com/v1}
       AI2_LLM_MODEL: ${AI2_LLM_MODEL:-gpt-4o-mini}
       AI2_LLM_STRONG_MODEL: ${AI2_LLM_STRONG_MODEL:-gpt-4o-mini}
       AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-ci_ai2_hmac_secret_dev}
       AI2_SERVICE_ISSUER: ${AI2_SERVICE_ISSUER:-backend-service}
       AI2_SERVICE_AUDIENCE: ${AI2_SERVICE_AUDIENCE:-vsf-ai2}
       AI2_SERVICE_KEY_ID: ${AI2_SERVICE_KEY_ID:-default}
+      AI2_QUERY_REQUIRE_SIGNATURE: "true"
+      AI2_PROCESSING_EGRESS_ALLOWED: ${AI2_PROCESSING_EGRESS_ALLOWED:-true}
+      AI2_QUERY_EGRESS_ALLOWED: ${AI2_QUERY_EGRESS_ALLOWED:-true}
+      AI2_QUERY_USE_LLM: ${AI2_QUERY_USE_LLM:-true}
+      AI2_QUERY_USE_VECTOR: ${AI2_QUERY_USE_VECTOR:-true}
+      AI2_VECTOR_RECALL_ENABLED: ${AI2_VECTOR_RECALL_ENABLED:-true}
+      AI2_QUERY_LLM_TIMEOUT_SECONDS: "15"
+      AI2_EMBEDDING_BASE_URL: ${AI2_EMBEDDING_BASE_URL:-https://api.openai.com/v1}
+      AI2_EMBEDDING_MODEL: ${AI2_EMBEDDING_MODEL:-text-embedding-3-small}
+    depends_on:
+      backend-db:
+        condition: service_healthy
     ports:
       - "${AI2_HOST_PORT:-8002}:8002"
     volumes:
@@ -474,7 +490,7 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - 'python -c "import urllib.request; urllib.request.urlopen(''http://localhost:8002/health'', timeout=3)"'
+        - '/app/.venv/bin/python -c "import urllib.request; urllib.request.urlopen(''http://localhost:8002/healthz'', timeout=3)"'
       interval: 15s
       timeout: 5s
       retries: 6

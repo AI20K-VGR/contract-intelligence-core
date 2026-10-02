@@ -16,11 +16,13 @@ class FactExtractor:
         gateway: ToolGateway,
         llm: NineRouterClient | None = None,
         runtime: ProcessingRuntime | None = None,
+        contract_unit_scopes: dict[str, str] | None = None,
     ) -> None:
         self.gateway = gateway
         self.llm = llm
         self.runtime = runtime
         self.gate = GroundingGate()
+        self.contract_unit_scopes = contract_unit_scopes or {}
 
     def extract(self, envelope: ToolEnvelope, node_id: str, profile: TenantProfile) -> Fact:
         payload = self.gateway.call("get_node", envelope, node_id=node_id)
@@ -39,7 +41,19 @@ class FactExtractor:
         if mper:
             period = mper.group(1)
         scope = sk.split(":", 1)[1] if sk.startswith("scope:") else None
-        if item_key is None and sk.startswith("mst"):
+        identity_unit = self.contract_unit_scopes.get(node_id) if sk.startswith(("party_", "mst_party_")) else None
+        if item_key is None and (
+            sk in {
+                "contract_value",
+                "contract_value_words",
+                "payment_schedule",
+                "payment_term",
+                "payment_method",
+                "contract_number",
+            }
+            or sk.startswith("party_")
+            or sk.startswith("mst")
+        ):
             item_key = sk
         if item_key is None and not scope:
             mi = re.search(r"\bitem\s+([A-Za-z0-9]+)\b", text, re.I) or re.search(
@@ -52,7 +66,7 @@ class FactExtractor:
             raw_value=raw,
             normalized_value=normalized,
             subject=_context_subject(anc, payload.get("raw_label")),
-            role=None,
+            role=sk if identity_unit else None,
             unit=_guess_unit(raw, text),
             currency="VND" if _guess_unit(raw, text) == "VND" else ("USD" if _guess_unit(raw, text) == "USD" else None),
             citation=citation,
@@ -61,7 +75,7 @@ class FactExtractor:
             item_key=item_key,
             period_start=period,
             source_role=source_role,  # type: ignore[arg-type]
-            scope=scope or item_key,
+            scope=identity_unit or scope or item_key,
             validity=f"PL{annex_m.group(1)}" if annex_m else None,
             condition=_fact_condition(text, item_key),
             tax_basis=_tax_basis(text),
@@ -76,6 +90,9 @@ class FactExtractor:
         compact = raw.replace(" ", "").replace(",", ".")
         if re.fullmatch(r"-?\d+(\.\d+)?%?", compact):
             return compact.rstrip("%"), "L0"
+        grouped = re.fullmatch(r"\d{1,3}(?:[.,]\d{3})+", raw.replace(" ", ""))
+        if grouped:
+            return re.sub(r"\D", "", raw), "L0"
         if "%" not in raw:
             digits = re.sub(r"[^\d]", "", raw)
             if digits and re.search(r"vnd|đồng", raw, re.I):
@@ -83,30 +100,78 @@ class FactExtractor:
         phrase = _scale_phrase_norm(raw)
         if phrase:
             return phrase, "L0"
+        # A masked or illegible value has nothing to normalize; asking a model
+        # turned "1.000.•••" into "1000".
+        if _unreadable(raw):
+            return None, "L0"
         if self.llm and (self.runtime is None or self.llm.configured()):
             if self.runtime is not None:
                 data = self.runtime.complete_json(
                     self.llm,
-                    "Normalize a contract field. Return JSON {normalized, unit}. Do not invent values. Keep the original meaning. No legal conclusion.",
+                    _NORMALIZE_SYSTEM,
                     f"raw={raw}\ncontext={text[:1500]}",
                 )
             else:
                 data = self.llm.complete_json(
-                    "Normalize a contract field. Return JSON {normalized, unit}. Do not invent values. Keep the original meaning. No legal conclusion.",
+                    _NORMALIZE_SYSTEM,
                     f"raw={raw}\ncontext={text[:1500]}",
                 )
             if not data:
                 return None, "L0"
             norm = data.get("normalized")
-            if norm is None:
+            if not isinstance(norm, str) or not norm.strip():
                 if self.runtime is not None:
-                    self.runtime.add_issue("LLM_INVALID_OUTPUT", "normalization response omitted normalized")
+                    self.runtime.add_issue("LLM_INVALID_OUTPUT", "normalization response omitted a string")
                     self.runtime.fallback_count += 1
                 return None, "L0"
-            if norm is not None and not isinstance(norm, str):
-                norm = str(norm)
-            return norm, "L2"
+            reason = _ungrounded_normalization(raw, norm)
+            if reason:
+                if self.runtime is not None:
+                    self.runtime.add_issue("LLM_NORMALIZATION_REJECTED", reason)
+                    self.runtime.fallback_count += 1
+                return None, "L0"
+            return norm.strip(), "L2"
         return None, "L0"
+
+
+_NORMALIZE_SYSTEM = (
+    "Normalize a contract field. Return JSON with keys normalized and unit. "
+    "normalized must be one string in the same language as raw. "
+    "Do not translate. Do not return an object or a list. Do not invent values. No legal conclusion. "
+    "Use the deterministic rules' conventions: a percentage becomes the bare number without % "
+    "(\"0,1%/ngày\" -> \"0.1\"); a money amount becomes digits only. "
+    "If the raw value is masked, cut off, illegible or states no value, return {\"normalized\": null}."
+)
+
+_MASK = re.compile(r"[•●■□▯�]|\?{2,}|\*{2,}|\.{4,}|…|x{3,}", re.I)
+_UNREADABLE_PHRASES = ("không rõ", "không đọc được", "khong ro", "khong doc duoc", "illegible", "unreadable")
+
+
+def _unreadable(raw: str) -> bool:
+    low = (raw or "").casefold()
+    return bool(_MASK.search(raw or "")) or any(p in low for p in _UNREADABLE_PHRASES)
+
+
+def _fold(value: str) -> str:
+    import unicodedata
+
+    text = unicodedata.normalize("NFD", value.casefold())
+    return "".join(c for c in text if unicodedata.category(c) != "Mn").replace("đ", "d")
+
+
+def _ungrounded_normalization(raw: str, norm: str) -> str | None:
+    """Reject a model normalization that adds digits or words the raw lacks."""
+
+    raw_digits = re.sub(r"\D", "", raw)
+    if raw_digits:
+        norm_digits = re.sub(r"\D", "", norm)
+        if norm_digits and norm_digits not in raw_digits and raw_digits not in norm_digits:
+            return f"normalized digits {norm!r} are not in raw value {raw!r}"
+    raw_words = set(re.findall(r"[a-z]+", _fold(raw)))
+    extra = [w for w in re.findall(r"[a-z]+", _fold(norm)) if len(w) > 2 and w not in raw_words]
+    if extra:
+        return f"normalized value adds words not in raw ({', '.join(extra[:3])}); translation is not normalization"
+    return None
 
 
 def _first_value(text: str) -> str:

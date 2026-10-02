@@ -169,8 +169,8 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
   - `/query` có trần embedding. **AI2 đọc trần này từ env của mình**, Backend không gửi trong request. Lần hỏi đầu tiên embed cả hồ sơ, nên không được để chi phí không giới hạn.
   - Luồng xử lý hồ sơ đặt `use_vector=false`: hiện là `true` (`canonical_processing.py:357`) nhưng không có tác dụng.
 - Bật egress thì phải ghi tên provider LLM và dữ liệu nào được gửi ra ngoài vào Architecture doc (O6).
-- Giữ các giới hạn ngân sách hiện tại. AI2 phải tuân thủ: vượt `max_llm_calls` thì trả `review_state=INSUFFICIENT_EVIDENCE` kèm lý do, không dừng job với `FAILED`.
-- Khi `egress_allowed=false`, AI2 không được gọi LLM bên ngoài. Kết quả vẫn phải `SUCCEEDED`, chỉ với phần xử lý bằng luật cố định, **không** được trả `LLM_UNAVAILABLE`.
+- Giữ các giới hạn ngân sách hiện tại. AI2 phải tuân thủ: vượt `max_llm_calls` thì trả `SUCCEEDED` + `review_state=NEEDS_REVIEW` kèm issue `LLM_BUDGET_EXCEEDED`, giữ phần đã xử lý, không dừng job với `FAILED` (Lead duyệt 02/10, PR #56).
+- Khi `egress_allowed=false`, AI2 không được gọi LLM bên ngoài. Kết quả vẫn phải `SUCCEEDED`, chỉ với phần xử lý bằng luật cố định, **không** được trả `LLM_UNAVAILABLE`. Issue `EGRESS_DENIED` mang `review_state=NEEDS_REVIEW`, không phải `BLOCKED` (Lead duyệt 02/10, PR #56).
 
 **Quyết định của Lead (Trang, 30/09, review PR #42).** Văn Dũng nhận quyết định này và đồng ý cách chia cờ (review PR #42, 30/09).
 - **Provider:** OpenAI, gọi thẳng `https://api.openai.com/v1`.
@@ -188,7 +188,7 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
 **Lịch:** đóng băng code giữ tối 02/10 (DOC-11); deploy 03/10.
 
 **Việc cần làm:**
-- AI2 (A3, A8): vector trên `/query` dựa vào egress của `/query`; trần embedding cho `/query` đọc từ env của AI2; đọc các cờ từ env và nhận cờ trong `policy_flags` là tuỳ chọn; viết test cho hai cam kết của mục này: egress tắt thì vẫn `SUCCEEDED`, vượt `max_llm_calls` thì trả `INSUFFICIENT_EVIDENCE`.
+- AI2 (A3, A8): vector trên `/query` dựa vào egress của `/query`; trần embedding cho `/query` đọc từ env của AI2; đọc các cờ từ env và nhận cờ trong `policy_flags` là tuỳ chọn; viết test cho hai cam kết của mục này: egress tắt thì vẫn `SUCCEEDED`, vượt `max_llm_calls` thì trả `NEEDS_REVIEW`.
 - Backend (B3): sau khi AI2 deploy A8, thôi gửi `egress_allowed` và `use_vector`, bỏ các env cờ phía `backend` và `backend-worker`; nâng timeout `/query` lên 30 giây.
 
 - [x] Chương duyệt  - [x] Dũng duyệt (review PR #42, 30/09)  - [x] Trang duyệt (review PR #42, 30/09)  Ghi chú: bật trên bản online sau khi A8 deploy; tên model cho bước suy luận khó do Văn Dũng ghi.
@@ -394,7 +394,7 @@ Review của Văn Dũng ở PR #37 xác nhận D2, D4, D5, D7 (409 và cùng `jo
 |---|---|---|---|
 | A1 | D10 | Thêm `query_snapshot_digest` vào result và schema (**gấp nhất**, Backend chờ việc này) | 01/10 |
 | A2 | D7 | `retryable` theo mã lỗi, không theo `review_state` (bỏ quy tắc đánh `retryable=true` cho mọi lỗi `BLOCKED`); retry chỉ khi `FAILED` và có lỗi `retryable=true` | 01/10 |
-| A3 | D6 | Vector `/query` dựa vào egress của `/query`; trần embedding của `/query` đọc từ env AI2; test egress tắt → `SUCCEEDED`, vượt `max_llm_calls` → `INSUFFICIENT_EVIDENCE` | 02/10 |
+| A3 | D6 | Vector `/query` dựa vào egress của `/query`; trần embedding của `/query` đọc từ env AI2; test egress tắt → `SUCCEEDED`, vượt `max_llm_calls` → `NEEDS_REVIEW` | 02/10 |
 | A4 | D2 | `AI2_QUERY_REQUIRE_SIGNATURE` (mặc định `true`, thiếu chữ ký → `401 SERVICE_ENVELOPE_MISSING`); vector ký mẫu cho CI của Backend | 02/10 |
 | A5 | D12 | Nhận `policy_flags.max_body_members` **trước** khi Backend gửi | Trước DOC-11 §4.2 mục 12 |
 | A6 | D1, D9 | Docstring `kafka_idp_worker.py`; comment lỗi thời về `table_id`/`cell_id` trong `wire.py` | 02/10 |
@@ -442,3 +442,4 @@ Các mục sau để lại cho Sprint 3:
 | 2026-09-30 | Theo review của Trang ở PR #37 (lần 2): D1 tách Sprint 2 (HTTP) và Sprint 3 (Kafka theo DOC-05e v2, PR #36); PR này thôi sửa DOC-05e để không ghi đè PR #36; dòng mở đầu `BE-AI2-PROCESSING-CONTRACT` §6 ghi D6, D8, D11, D12 còn chờ Lead | Chương |
 | 2026-09-29 | Theo review của Trang ở PR #37: thêm D12 (nhiều hợp đồng); D5 chỉ áp dụng cho Sprint 2; D11 nêu mâu thuẫn với ADR-02 kèm phương án A/B và ADR-14 (Đề xuất); D4 sửa ADR-05 cho khớp; DOC-05e trỏ tới D1 (phần sửa DOC-05e đã rút ở `2bc7515`, PR này không còn sửa file đó) | Chương |
 | 2026-10-01 | D5/B4: câu lỗi `DOSSIER_TOO_MANY_DOCUMENTS` tách theo chỗ (tải lên nói "file PDF", tách nói "tài liệu") và nêu số đã chọn, vì "6 tài liệu" dễ đọc thành 6 trang (Trang đồng ý ở review PR #46). Mã lỗi và `details` không đổi. Bỏ câu "`API-BE.md` và DOC-05b cập nhật cùng việc B4, không nằm trong PR này" ở D5, vì PR #46 đã cập nhật hai tài liệu đó (review của Trang) | Chương |
+| 2026-10-02 | D6: vượt `max_llm_calls` trả `NEEDS_REVIEW` (không còn `INSUFFICIENT_EVIDENCE`) và issue `EGRESS_DENIED` mang `NEEDS_REVIEW`, theo D-4 Sprint 3 và B5 (run `BLOCKED` bị đánh `failed`). Lead (Trang) đồng ý trong review PR #56; sửa cả mục D6, việc A3/A8 và bảng việc | Văn Dũng |

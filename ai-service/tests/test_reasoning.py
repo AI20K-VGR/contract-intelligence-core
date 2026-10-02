@@ -425,6 +425,139 @@ def test_count_entities_dedupes_same_mst():
 
 
 
+def test_ask_intent_does_not_swallow_the_question():
+    from app.reasoning.query import classify_ask
+
+    payment = classify_ask("Bên A phải thanh toán khi nào?")
+    assert payment["type"] == "lookup_term"
+    assert payment["attribute"] == "payment"
+    penalty = classify_ask("Điều 5 phạt bao nhiêu?")
+    assert penalty["type"] == "attribute_lookup"
+    assert penalty["attribute"] == "penalty"
+    assert classify_ask("tỷ suất hợp đồng là bao nhiêu?")["type"] != "compare"
+    assert classify_ask("Gộp phạt xây lắp và phạt thiết bị")["type"] == "not_comparable"
+    assert classify_ask("Quy đổi 100 USD sang VND theo hợp đồng")["type"] == "not_comparable"
+    assert classify_ask("Điều 9 nói về gì?")["type"] == "lookup_clause"
+
+
+def test_penalty_question_stays_inside_the_clause():
+    from app.reasoning.query import classify_ask
+
+    pack, stack = _stack()
+    out = stack.run(pack.envelope, classify_ask("Điều 5 phạt bao nhiêu?"))
+    answer = str(out["answer"])
+    assert "phạt" in answer.lower()
+    assert "các đoạn liên quan" not in answer.lower()
+    assert "a_5_pl1" not in {c.get("node_id") for c in out.get("citations") or []}
+
+
+def test_relation_question_answers_yes_or_missing():
+    from app.contracts.models import SourceFile, TenantProfile
+    from app.reasoning.query import classify_ask
+    from fixtures.catalog import make_envelope, make_node, make_page, make_pins, make_record
+
+    task = classify_ask("Điều khoản trong hợp đồng và phụ lục có liên quan đến nhau không?")
+    assert task["type"] == "relation_ask"
+    nodes = [
+        make_node("cl_5", "CLAUSE", "Điều 5", "Điều 5 thân.", page=1, source_file_id="body_file"),
+        make_node("pl_5", "CLAUSE", "Điều 5", "Phụ lục 1 Điều 5.", page=2, source_file_id="annex_file"),
+    ]
+    record = make_record(
+        case_id="REL",
+        dossier="rel-1",
+        pages=[make_page(1, "Điều 5 thân."), make_page(2, "Phụ lục 1 Điều 5.")],
+        nodes=nodes,
+        pins=make_pins(source_snapshot_digest="c" * 64),
+        profile=TenantProfile(version=1),
+        source_files=[
+            SourceFile(file_id="body_file", filename="body.pdf", role="body"),
+            SourceFile(file_id="annex_file", filename="annex.pdf", role="annex"),
+        ],
+    )
+    store = InMemorySnapshotStore()
+    store.put(record)
+    stack = FourLayerReasoner(ToolGateway(store), llm=None)
+    out = stack.run(make_envelope(dossier="rel-1", pins=record.pins), task)
+    assert str(out["answer"]).startswith("Có.")
+    assert "các đoạn liên quan" not in str(out["answer"]).lower()
+    assert {c.get("node_id") for c in out.get("citations") or []} >= {"cl_5", "pl_5"}
+
+
+def test_contract_value_reads_labelled_line_without_a_fact():
+    from app.contracts.models import TenantProfile
+    from app.reasoning.query import classify_ask
+    from fixtures.catalog import make_envelope, make_node, make_page, make_pins, make_record
+
+    nodes = [make_node("price", "CLAUSE", "Giá", "Giá trị hợp đồng: 1.000.000.000 đồng", page=1)]
+    record = make_record(
+        case_id="VAL",
+        dossier="val-1",
+        pages=[make_page(1, "Giá trị hợp đồng: 1.000.000.000 đồng")],
+        nodes=nodes,
+        pins=make_pins(source_snapshot_digest="d" * 64),
+        profile=TenantProfile(version=1),
+    )
+    store = InMemorySnapshotStore()
+    store.put(record)
+    stack = FourLayerReasoner(ToolGateway(store), llm=None)
+    out = stack.run(make_envelope(dossier="val-1", pins=record.pins), classify_ask("Giá trị hợp đồng là bao nhiêu?"))
+    assert out["review_state"] == "NEEDS_REVIEW"
+    assert "1000000000" in str(out["answer"])
+    assert out.get("l0_notes") == "value_from_text_not_fact"
+
+
+def test_contract_value_ignores_penalty_amounts():
+    from app.contracts.models import TenantProfile
+    from app.reasoning.query import classify_ask
+    from fixtures.catalog import make_envelope, make_node, make_page, make_pins, make_record
+
+    nodes = [make_node("pen", "CLAUSE", "Phạt", "Phạt chậm 0,1%/ngày.", page=1)]
+    record = make_record(
+        case_id="PEN",
+        dossier="pen-1",
+        pages=[make_page(1, "Phạt chậm 0,1%/ngày.")],
+        nodes=nodes,
+        pins=make_pins(source_snapshot_digest="e" * 64),
+        profile=TenantProfile(version=1),
+    )
+    store = InMemorySnapshotStore()
+    store.put(record)
+    stack = FourLayerReasoner(ToolGateway(store), llm=None)
+    out = stack.run(make_envelope(dossier="pen-1", pins=record.pins), classify_ask("Giá trị hợp đồng là bao nhiêu?"))
+    assert out["review_state"] == "INSUFFICIENT_EVIDENCE"
+    assert "0,1" not in str(out["answer"])
+
+
+def test_contract_value_question_lists_extracted_amounts():
+    from app.pipeline.ai1_ingest import ingest_files
+    from app.pipeline.idp import run_idp
+    from app.reasoning.query import classify_ask
+
+    root = Path(__file__).resolve().parents[1] / "fixtures" / "contracts" / "demo-xung-dot"
+    body = root / "Hop-dong-mua-ban-thiet-bi-xet-nghiem.pdf"
+    annex = root / "Phu-luc-01-sua-doi-gia-va-phat.pdf"
+    if not body.exists() or not annex.exists():
+        return
+    rec, env, _, _ = ingest_files([
+        (body.name, body.read_bytes(), "body"),
+        (annex.name, annex.read_bytes(), "annex"),
+    ])
+    job = run_idp(rec, env, llm=None)
+    rec.facts = job.contribution.facts
+    store = InMemorySnapshotStore()
+    store.put(rec)
+    task = classify_ask("So sánh giá trị hợp đồng giữa thân và phụ lục")
+    assert task["type"] == "field_card"
+    assert task["attribute"] == "contract_value"
+    out = FourLayerReasoner(ToolGateway(store), llm=None).run(env, task)
+    assert out["layers_used"] == ["L0", "L3"]
+    answer = str(out["answer"])
+    assert "Các đoạn liên quan" not in answer
+    assert "2450000000" in answer
+    assert "2860000000" in answer
+    assert "2180000000" in answer
+
+
 @pytest.mark.llm
 @pytest.mark.live
 def test_llm_compare_dieu5_guardrails():
