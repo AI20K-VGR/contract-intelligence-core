@@ -19,9 +19,19 @@ export type Dossier = {
     email: string
     display_name: string
     status?: 'invited' | 'active' | 'disabled'
+    permission?: 'read' | 'edit'
+    expires_at?: string | null
   }[]
+  /** Quyền chia sẻ cho người đang đăng nhập (chỉ có ở hồ sơ được chia sẻ). */
+  myGrant?: {
+    permission: 'read' | 'edit'
+    expires_at: string | null
+    expired: boolean
+  }
   jobStatus?: string | null
   uploadedAt?: string
+  /** File trộn hợp đồng và phụ lục đang chờ người dùng xác nhận các phần. */
+  splitPending?: boolean
 }
 
 export function structurePath(dossierId: string) {
@@ -37,12 +47,17 @@ export function conflictPagePath(dossierId: string, findingId?: string) {
   return `/doi-soat-xung-dot${search ? `?${search}` : ''}`
 }
 
+export function splitPath(dossierId: string) {
+  return `/tach-file/${encodeURIComponent(dossierId)}`
+}
+
 export function progressPath(dossierId: string) {
   return `/tien-trinh-phan-tich/${encodeURIComponent(dossierId)}`
 }
 
 export function dossierOpenTo(dossier: Dossier) {
   const job = dossier.jobStatus
+  if (dossier.splitPending && job === 'uploaded') return splitPath(dossier.id)
   if (
     dossier.status === 'processing' ||
     dossier.status === 'failed' ||

@@ -54,7 +54,7 @@ export function spotStatusText(spot: ReviewSpot) {
   const verdict = VERDICT_LABEL[latest.action] ?? latest.action
   const who = reviewerLabel(latest)
   if (conflictState(spot) === 'dismissed') {
-    return `${who} đã thẩm định Sai lệch${when ? ` lúc ${when}` : ''}: máy báo xung đột này không đúng.`
+    return `${who} đã thẩm định Sai${when ? ` lúc ${when}` : ''}: máy báo xung đột này không đúng.`
   }
   return `Đã được ${who} thẩm định ${verdict}${when ? ` lúc ${when}` : ''}.`
 }
