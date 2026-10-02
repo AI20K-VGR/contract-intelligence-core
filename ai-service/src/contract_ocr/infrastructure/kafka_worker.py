@@ -29,12 +29,12 @@ from contract_ocr.infrastructure.backend_ocr_job import (
     new_backend_job,
     run_backend_ocr,
 )
+from contract_ocr.infrastructure.observability import flush_langfuse
 from contract_ocr.infrastructure.prometheus_metrics import (
     ocr_in_progress,
     record_ocr_job,
     start_metrics_server,
 )
-from contract_ocr.infrastructure.observability import flush_langfuse
 
 logger = logging.getLogger(__name__)
 
