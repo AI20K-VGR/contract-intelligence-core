@@ -25,10 +25,8 @@ from app.contracts.models import (
     ReviewState,
 )
 from app.pipeline.ai1_snapshot_adapter import fold_for_match
-from app.pipeline.citations import quote_digest
-from app.pipeline.citations import CitationResolver
+from app.pipeline.citations import CitationResolver, quote_digest
 from app.tools.store import DossierRecord
-
 
 ANNEX_HEADING_RE = re.compile(r"^\s*phu\s+luc\s+(?:so\s*)?(\d+)\b", re.I)
 ANNEX_MENTION_RE = re.compile(r"\bphu\s+luc\s+(?:so\s*)?(\d+)\b", re.I)

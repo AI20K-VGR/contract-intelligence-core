@@ -8,11 +8,11 @@ root.  This module is shared by PDF-demo ingestion and official AI1 snapshots.
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections import defaultdict
 
-from app.contracts.models import HandoffIssue, ReviewState, StructuralNode
+from app.contracts.models import HandoffIssue, PageSnapshot, ReviewState, StructuralNode
 from app.tools.store import DossierRecord
-
 
 _ANNEX_HEADING = re.compile(
     r"^\s*phụ\s+lục\s+\d+(?:\s*(?:[-–—:]\s*.*)?)?\s*$", re.I
@@ -20,6 +20,120 @@ _ANNEX_HEADING = re.compile(
 _PART_HEADING = re.compile(r"^\s*(?:phần|chương|mục)\s+\d+(?:\s*[.:–—-].*)?\s*$", re.I)
 _ARTICLE_HEADING = re.compile(r"^\s*(?:điều|article)\s+[\d.]+(?:\s*[.:–—-].*)?\s*$", re.I)
 _SUBCLAUSE_HEADING = re.compile(r"^\s*(?:khoản|điểm)\s+\(?[a-z0-9]+\)?(?:\s*[.:–—-].*)?\s*$", re.I)
+
+
+def contract_unit_line_scopes(pages: list[PageSnapshot]) -> dict[tuple[str, str], str]:
+    """Split only explicit contract openings supported by a number and both parties."""
+    grouped: dict[str | None, list[PageSnapshot]] = defaultdict(list)
+    for page in pages:
+        grouped[page.source_file_id].append(page)
+    scopes: dict[tuple[str, str], str] = {}
+    for file_id, file_pages in grouped.items():
+        lines = [
+            (page, line_id, text)
+            for page in sorted(file_pages, key=lambda p: p.page_number)
+            for line_id, text in page.line_texts.items()
+        ]
+        folded = [_fold_contract_text(text) for _, _, text in lines]
+        titles = [
+            index for index, (_, _, text) in enumerate(lines)
+            if _is_contract_title(text)
+        ]
+        starts: dict[int, str] = {}
+        for title_index, start in enumerate(titles):
+            stop = min(start + 24, titles[title_index + 1] if title_index + 1 < len(titles) else len(lines))
+            opening = folded[start:stop]
+            # Running headers and prose references cannot start a contract unit.
+            has_number = any(re.search(r"\bso\s*[:：]?\s*\d", text) for text in opening)
+            parties = {
+                match.group(1) for text in opening
+                if (match := re.match(r"ben\s+([ab])(?:\s*\([^)]*\))?\s*[:：]", text))
+            }
+            if has_number and parties == {"a", "b"}:
+                page, line_id, _ = lines[start]
+                starts[start] = f"contract-unit:{file_id}:{page.page_revision_id}:{line_id}"
+        if len(starts) < 2:
+            continue
+        current: str | None = None
+        for index, (page, line_id, _) in enumerate(lines):
+            current = starts.get(index, current)
+            if current is not None:
+                scopes[(page.page_revision_id, line_id)] = current
+    return scopes
+
+
+def _fold_contract_text(text: str) -> str:
+    normalized = unicodedata.normalize("NFD", text.casefold())
+    return "".join(c for c in normalized if unicodedata.category(c) != "Mn").replace("đ", "d").strip()
+
+
+def _is_contract_title(text: str) -> bool:
+    return bool(re.match(r"^hop dong(?:\s|$)", _fold_contract_text(text))) and text.strip().isupper()
+
+
+def assign_contract_units(record: DossierRecord) -> None:
+    """Annotate the derived hierarchy; raw OCR nodes and snapshot stay immutable."""
+    scopes = contract_unit_line_scopes(record.pages)
+    if not scopes:
+        titles_by_file: dict[str | None, int] = defaultdict(int)
+        for page in record.pages:
+            titles_by_file[page.source_file_id] += sum(_is_contract_title(text) for text in page.line_texts.values())
+        if any(count > 1 for count in titles_by_file.values()) and not any(
+            issue.code == "CONTRACT_UNIT_BOUNDARY_AMBIGUOUS" for issue in record.handoff_issues
+        ):
+            record.handoff_issues.append(HandoffIssue(
+                code="CONTRACT_UNIT_BOUNDARY_AMBIGUOUS",
+                message="Tiêu đề hợp đồng lặp nhưng thiếu số hoặc khai báo hai bên; giữ nguyên ranh giới để người duyệt kiểm tra.",
+                review_state=ReviewState.NEEDS_REVIEW,
+            ))
+        return
+    if not any(issue.code == "CONTRACT_UNITS_DERIVED" for issue in record.handoff_issues):
+        record.handoff_issues.append(HandoffIssue(
+            code="CONTRACT_UNITS_DERIVED",
+            message="AI2 dẫn xuất ranh giới nhiều hợp đồng từ tiêu đề, số và khai báo các bên; cần xác nhận.",
+            review_state=ReviewState.NEEDS_REVIEW,
+        ))
+    nodes = [node.model_copy(deep=True) for node in record.evidence_nodes()]
+    node_units = {
+        node.node_id: scopes.get((node.page_revision_id or "", node.source_line_ids[0]))
+        for node in nodes if node.source_line_ids
+    }
+    for page in record.pages:
+        for line_id, text in page.line_texts.items():
+            unit_id = scopes.get((page.page_revision_id, line_id))
+            if unit_id != f"contract-unit:{page.source_file_id}:{page.page_revision_id}:{line_id}":
+                continue
+            nodes.append(StructuralNode(
+                node_id=unit_id, type="SECTION", raw_label=text, text=text,
+                parent_id=f"ai2-root:{page.source_file_id}", scope_id=unit_id,
+                structure_level="CONTRACT_UNIT", page_revision_id=page.page_revision_id,
+                page_range=[page.page_number], page_in_file=page.page_in_file,
+                bbox=page.line_bboxes.get(line_id, []), source_line_ids=[line_id],
+                source_file_id=page.source_file_id, provenance="AI2_REPAIRED",
+                heading_confidence=0.95, parent_confidence=0.95,
+            ))
+    for node in nodes:
+        unit_id = node_units.get(node.node_id)
+        if not unit_id:
+            continue
+        if node.structure_level == "ANNEX":
+            node.parent_id = unit_id
+            continue
+        # Preserve annex scope so annex evidence is never relabelled as body.
+        if node.scope_id and not node.scope_id.startswith("ai2-root:"):
+            continue
+        node.scope_id = unit_id
+        if node_units.get(node.parent_id) != unit_id:
+            node.parent_id = unit_id
+        node.provenance = "AI2_REPAIRED"
+    record.active_nodes = nodes
+    for fact in [*record.facts, *(record.input_facts or [])]:
+        citation = fact.citation
+        if not citation.line_ids or not _is_document_level_field(fact.item_key or fact.role):
+            continue
+        unit_id = scopes.get((citation.page_revision_id, citation.line_ids[0]))
+        if unit_id:
+            fact.scope = unit_id
 
 
 def is_structural_heading(label: str) -> bool:

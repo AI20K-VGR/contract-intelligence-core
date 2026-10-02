@@ -38,6 +38,7 @@ from app.contracts.models import (
 from app.contracts.schema_validation import validate_contract
 from app.contracts.wire import BeAi2ProcessingRequest
 from app.pipeline.citations import CitationResolver, quote_digest
+from app.pipeline.structure import assign_contract_units, contract_unit_line_scopes
 from app.tools.store import DossierRecord
 
 
@@ -337,6 +338,7 @@ def adapt_ai2_request(
     merged_issues = list(record.handoff_issues)
     enrich_result_structure(record)
     record.handoff_issues = merged_issues
+    assign_contract_units(record)
     record.case_id = "AI2-IDP-REQUEST"
     record.permissions_by_actor = {actor_id: ["READ_CONTENT"]}
     snapshot_statuses = {str(item.get("status")) for item in snapshots.values()}
@@ -777,6 +779,7 @@ def adapt_ai1_result_v01(
     )
     from app.pipeline.result_structure import enrich_result_structure
     enrich_result_structure(record)
+    assign_contract_units(record)
     envelope = ToolEnvelope(
         auth=AuthContext(
             actor_id=actor_id,
@@ -908,6 +911,7 @@ def adapt_snapshot(
     from app.pipeline.result_structure import enrich_result_structure
 
     enrich_result_structure(record)
+    assign_contract_units(record)
     envelope = ToolEnvelope(
         auth=AuthContext(
             actor_id=actor_id,
@@ -1420,6 +1424,11 @@ def _derive_result_facts(
 
     existing_keys = {_fact_key(f.role or "") for f in existing_facts}
     existing_values = {" ".join(f.raw_value.split()).casefold() for f in existing_facts}
+    unit_scopes = contract_unit_line_scopes(pages)
+    identity_keys = {
+        (unit_scopes.get((f.citation.page_revision_id, f.citation.line_ids[0])), _fact_key(f.role or f.item_key or ""))
+        for f in existing_facts if f.citation.line_ids
+    }
     facts: list[Fact] = []
     nodes: list[StructuralNode] = []
     citations: dict[str, Citation] = {}
@@ -1435,7 +1444,10 @@ def _derive_result_facts(
     ) -> None:
         role = _fact_key(fact_type)
         normalized_raw = " ".join(raw_value.split()).casefold()
-        if role in existing_keys or normalized_raw in existing_values:
+        unit_id = unit_scopes.get((page.page_revision_id, line_id)) if role.startswith(("party_", "mst_party_")) else None
+        if unit_id and (unit_id, role) in identity_keys:
+            return
+        if not unit_id and (role in existing_keys or normalized_raw in existing_values):
             return
         fact, node, local, local_issues = _make_derived_fact(
             fact_type=fact_type,
@@ -1445,7 +1457,7 @@ def _derive_result_facts(
             source_text=source_text,
             raw_citations=raw_citations,
             citation_index=citation_index,
-            scope_id=scope_id,
+            scope_id=unit_id or scope_id,
         )
         if fact and node:
             facts.append(fact)
@@ -1454,8 +1466,10 @@ def _derive_result_facts(
             issues.extend(local_issues)
             existing_keys.add(role)
             existing_values.add(normalized_raw)
+            identity_keys.add((unit_id, role))
 
     current_party: str | None = None
+    current_unit: str | None = None
     ordered_pages = sorted(pages, key=lambda item: (item.source_file_id or "", item.page_number))
     for page in ordered_pages:
         for line_id, text in page.line_texts.items():
@@ -1463,52 +1477,28 @@ def _derive_result_facts(
             if not value:
                 continue
             folded = fold_for_match(value)
+            unit_id = unit_scopes.get((page.page_revision_id, line_id))
+            if unit_id != current_unit:
+                current_party = None
+                current_unit = unit_id
             party_match = re.search(r"\bben\s+([abcy])(?:\s*\([^)]*\))?\s*[:：]\s*(.+)$", folded, re.I)
             if party_match:
                 party = party_match.group(1).lower()
                 current_party = party
                 party_value = value.split(":", 1)[1].strip() if ":" in value or "：" in value else party_match.group(2).strip()
-                if "party_" + party not in existing_keys and party_value.casefold() not in existing_values:
-                    fact, node, local, local_issues = _make_derived_fact(
-                        fact_type=f"party_{party}",
-                        raw_value=party_value,
-                        page=page,
-                        line_id=line_id,
-                        source_text=value,
-                        raw_citations=raw_citations,
-                        citation_index=citation_index,
-                        scope_id=scope_id,
-                    )
-                    if fact and node:
-                        facts.append(fact)
-                        nodes.append(node)
-                        citations.update(local)
-                        issues.extend(local_issues)
-                        existing_keys.add("party_" + party)
-                        existing_values.add(party_value.casefold())
+                emit_derived(
+                    fact_type=f"party_{party}", raw_value=party_value,
+                    page=page, line_id=line_id, source_text=value,
+                )
                 continue
 
             tax_match = re.search(r"(?:ma\s+so\s+thue|mst)\s*[:：]?\s*([0-9]{8,14})", folded, re.I)
             if tax_match:
                 role = f"mst_party_{current_party}" if current_party else "mst"
-                if role not in existing_keys and tax_match.group(1) not in existing_values:
-                    fact, node, local, local_issues = _make_derived_fact(
-                        fact_type=role,
-                        raw_value=tax_match.group(1),
-                        page=page,
-                        line_id=line_id,
-                        source_text=value,
-                        raw_citations=raw_citations,
-                        citation_index=citation_index,
-                        scope_id=scope_id,
-                    )
-                    if fact and node:
-                        facts.append(fact)
-                        nodes.append(node)
-                        citations.update(local)
-                        issues.extend(local_issues)
-                        existing_keys.add(role)
-                        existing_values.add(tax_match.group(1))
+                emit_derived(
+                    fact_type=role, raw_value=tax_match.group(1),
+                    page=page, line_id=line_id, source_text=value,
+                )
 
             contract_match = re.search(r"\bso\s*[:ï¼š]\s*([0-9][a-z0-9./_-]{3,})", folded, re.I)
             if contract_match:

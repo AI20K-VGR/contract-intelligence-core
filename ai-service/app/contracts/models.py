@@ -68,6 +68,7 @@ class Disposition(str, Enum):
 
 class ComparisonScope(str, Enum):
     WITHIN_DOCUMENT = "WITHIN_DOCUMENT"
+    CONTRACT_CONTRACT = "CONTRACT_CONTRACT"
     CONTRACT_ANNEX = "CONTRACT_ANNEX"
     ANNEX_ANNEX = "ANNEX_ANNEX"
 

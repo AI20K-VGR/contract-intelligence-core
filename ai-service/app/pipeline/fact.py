@@ -16,11 +16,13 @@ class FactExtractor:
         gateway: ToolGateway,
         llm: NineRouterClient | None = None,
         runtime: ProcessingRuntime | None = None,
+        contract_unit_scopes: dict[str, str] | None = None,
     ) -> None:
         self.gateway = gateway
         self.llm = llm
         self.runtime = runtime
         self.gate = GroundingGate()
+        self.contract_unit_scopes = contract_unit_scopes or {}
 
     def extract(self, envelope: ToolEnvelope, node_id: str, profile: TenantProfile) -> Fact:
         payload = self.gateway.call("get_node", envelope, node_id=node_id)
@@ -39,6 +41,7 @@ class FactExtractor:
         if mper:
             period = mper.group(1)
         scope = sk.split(":", 1)[1] if sk.startswith("scope:") else None
+        identity_unit = self.contract_unit_scopes.get(node_id) if sk.startswith(("party_", "mst_party_")) else None
         if item_key is None and (
             sk in {
                 "contract_value",
@@ -63,7 +66,7 @@ class FactExtractor:
             raw_value=raw,
             normalized_value=normalized,
             subject=_context_subject(anc, payload.get("raw_label")),
-            role=None,
+            role=sk if identity_unit else None,
             unit=_guess_unit(raw, text),
             currency="VND" if _guess_unit(raw, text) == "VND" else ("USD" if _guess_unit(raw, text) == "USD" else None),
             citation=citation,
@@ -72,7 +75,7 @@ class FactExtractor:
             item_key=item_key,
             period_start=period,
             source_role=source_role,  # type: ignore[arg-type]
-            scope=scope or item_key,
+            scope=identity_unit or scope or item_key,
             validity=f"PL{annex_m.group(1)}" if annex_m else None,
             condition=_fact_condition(text, item_key),
             tax_basis=_tax_basis(text),

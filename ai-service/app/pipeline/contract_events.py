@@ -5,11 +5,10 @@ from __future__ import annotations
 import hashlib
 import re
 
-from app.contracts.models import ContractEvent, Citation, ReviewState
+from app.contracts.models import Citation, ContractEvent, ReviewState
 from app.pipeline.ai1_snapshot_adapter import fold_for_match
 from app.pipeline.citations import CitationResolver, quote_digest
 from app.tools.store import DossierRecord
-
 
 EVENT_RULES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("PARTY_DECLARATION", "Thông tin các bên", ("ben a", "ben b", "ten don vi")),

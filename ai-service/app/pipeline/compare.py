@@ -7,7 +7,6 @@ from uuid import uuid4
 
 from app.contracts.models import (
     Candidate,
-    Citation,
     ComparisonScope,
     Disposition,
     EvidenceIssue,
@@ -58,7 +57,7 @@ def compare_facts(
             continue
         keyed[ck].append(f)
 
-    out: list[Candidate] = []
+    out: list[Candidate] = _compare_contract_identities(facts)
     for ctx, group in keyed.items():
         item = ctx[0]
         compact = _dedupe_facts(group)
@@ -87,11 +86,48 @@ def compare_facts(
 
 
 def _is_identity_fact(fact: Fact) -> bool:
-    """Party identity fields are metadata, not comparable contract terms."""
+    """Keep legacy term routing; unit identities use their own comparison lane."""
 
     role = str(fact.role or "").casefold()
     key = str(fact.item_key or "").casefold()
-    return role.startswith("party_") or role.startswith("mst_party_") or key.startswith("party_")
+    return (
+        role.startswith(("party_", "mst_party_"))
+        or key.startswith("party_")
+        or bool(fact.scope and fact.scope.startswith("contract-unit:") and key.startswith("mst_party_"))
+    )
+
+
+def _compare_contract_identities(facts: list[Fact]) -> list[Candidate]:
+    grouped: dict[tuple[str, str], dict[str, list[Fact]]] = defaultdict(lambda: defaultdict(list))
+    for fact in facts:
+        if not _is_identity_fact(fact) or not fact.scope or not fact.scope.startswith("contract-unit:"):
+            continue
+        if not fact.citation.source_file_id or fact.source_role == "annex":
+            continue
+        item = fact.item_key or fact.role
+        if item:
+            grouped[(fact.citation.source_file_id, item)][fact.scope].append(fact)
+    output: list[Candidate] = []
+    for (_, item), units in grouped.items():
+        representatives: list[Fact] = []
+        for values in units.values():
+            unique = {" ".join(f.raw_value.split()).casefold(): f for f in values}
+            # Ambiguous identities inside one unit must not be chosen silently.
+            if len(unique) == 1:
+                representatives.append(next(iter(unique.values())))
+        for index, left in enumerate(representatives):
+            for right in representatives[index + 1:]:
+                if " ".join(left.raw_value.split()).casefold() == " ".join(right.raw_value.split()).casefold():
+                    continue
+                output.append(_cand(
+                    left, right, FindingType.COMPARABLE_DIFFERENCE,
+                    Disposition.COMPARABLE_DIFFERENCE, ReviewState.NEEDS_REVIEW,
+                    ModelDisposition.UNCLEAR,
+                    "Định danh khác nhau giữa hai hợp đồng trong cùng PDF; cần người duyệt, "
+                    "AI2 không kết luận bên nào thắng.",
+                    ComparisonScope.CONTRACT_CONTRACT, item,
+                ))
+    return output
 
 
 def _context_key(f: Fact) -> tuple:

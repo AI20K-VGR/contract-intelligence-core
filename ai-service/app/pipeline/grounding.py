@@ -1,9 +1,16 @@
 from __future__ import annotations
 
-from difflib import SequenceMatcher
 import re
+from difflib import SequenceMatcher
 
-from app.contracts.models import Citation, Fact, HandoffIssue, ReviewState, StructuralNode, TenantProfile
+from app.contracts.models import (
+    Citation,
+    Fact,
+    HandoffIssue,
+    ReviewState,
+    StructuralNode,
+    TenantProfile,
+)
 from app.pipeline.structure import reconstruct_structure
 from app.tools.store import DossierRecord
 

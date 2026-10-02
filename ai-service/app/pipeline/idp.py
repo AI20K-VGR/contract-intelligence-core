@@ -171,7 +171,14 @@ def run_idp(
         for fact in facts
         if fact.citation and fact.citation.node_id
     }
-    fact_ex = FactExtractor(gateway, llm, runtime=runtime)
+    fact_ex = FactExtractor(
+        gateway, llm, runtime=runtime,
+        contract_unit_scopes={
+            node.node_id: node.scope_id
+            for node in record.evidence_nodes()
+            if node.scope_id and node.scope_id.startswith("contract-unit:")
+        },
+    )
     table_ex = TablePipeline(gateway, llm, runtime=runtime)
     unit_failures: list[HandoffIssue] = []
     extraction_units = 0
@@ -374,14 +381,15 @@ def run_idp(
 def _dedupe_same_published_key(facts: list) -> list:
     """One published fact per item key and value. Source nodes stay on the record."""
 
-    seen: set[tuple[str, str]] = set()
+    seen: set[tuple[str, str, str | None]] = set()
     kept = []
     for fact in facts:
         if not fact.item_key:
             kept.append(fact)
             continue
         value = fact.normalized_value if fact.normalized_value is not None else fact.raw_value
-        key = (fact.item_key, str(value))
+        unit_scope = fact.scope if fact.scope and fact.scope.startswith("contract-unit:") else None
+        key = (fact.item_key, str(value), unit_scope)
         if key in seen:
             continue
         seen.add(key)

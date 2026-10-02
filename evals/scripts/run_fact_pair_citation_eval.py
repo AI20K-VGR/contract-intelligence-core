@@ -12,7 +12,6 @@ import json
 import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 AI = ROOT / "ai-service"
 CASES = ROOT / "evals" / "eval_types" / "ai2_fact_pair_citation" / "cases.json"
@@ -79,12 +78,15 @@ def _score_case(case: dict) -> dict:
     expect = case["expect"]
     checks: list[tuple[str, bool]] = []
     if case.get("snapshot", "present") is None:
-        from app.pipeline.ai1_snapshot_adapter import adapt_snapshot
+        from app.pipeline.ai1_snapshot_adapter import (
+            SnapshotContractError,
+            adapt_snapshot,
+        )
 
         blocked = False
         try:
             adapt_snapshot(None)
-        except Exception:
+        except SnapshotContractError:
             blocked = True
         checks.append(("state", blocked))
         return {"case": case["case"], "checks": checks}
