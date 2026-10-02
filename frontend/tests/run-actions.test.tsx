@@ -51,3 +51,19 @@ describe('search audit', () => {
     expect(renderToStaticMarkup(<SearchAudit result={result} />)).toBe('')
   })
 })
+
+describe('search audit blocked state', () => {
+  it('says the query was blocked instead of "nothing found"', () => {
+    const result = normalizeAi2SearchResult(
+      {
+        state: 'BLOCKED',
+        hits: [],
+        retrieval_layer: { selected: 'NONE' },
+      },
+      'dos_1',
+    )
+    const html = renderToStaticMarkup(<SearchAudit result={result} />)
+    expect(html).toContain('BLOCKED')
+    expect(html).not.toContain('không tìm thấy đoạn nào')
+  })
+})

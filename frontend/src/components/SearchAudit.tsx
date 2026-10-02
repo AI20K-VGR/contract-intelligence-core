@@ -25,8 +25,22 @@ function show(value: unknown): string {
 export function SearchAudit({ result }: { result: Ai2SearchResult }) {
   const notice = aclNotice(result.aclDecision)
   const layer = Object.entries(result.retrievalLayer)
-  const notes = result.notes ?? []
-  if (!notice && layer.length === 0 && notes.length === 0) return null
+  // Backend có lúc chỉ gửi mã nội bộ (vd. QUERY_RETRIEVAL) không kèm lời giải thích.
+  const notes = (result.notes ?? []).filter((note) => !/^[A-Z0-9_]+$/.test(note))
+  const blocked = result.reviewState === 'BLOCKED' && result.hits.length === 0
+  const nothingFound =
+    !blocked &&
+    result.retrievalLayer.selected === 'NONE' &&
+    result.hits.length === 0
+  if (
+    !notice &&
+    !blocked &&
+    !nothingFound &&
+    layer.length === 0 &&
+    notes.length === 0
+  ) {
+    return null
+  }
 
   return (
     <div className="flex flex-col gap-space-xs">
@@ -37,6 +51,22 @@ export function SearchAudit({ result }: { result: Ai2SearchResult }) {
         >
           <MaterialIcon name="lock" className="mt-0.5 text-[16px]" />
           {notice}
+        </p>
+      ) : null}
+      {blocked ? (
+        <p
+          className="rounded-lg bg-error-container px-space-sm py-space-xs font-body-sm text-body-sm text-on-error-container"
+          role="alert"
+        >
+          AI2 từ chối truy vấn này (BLOCKED), không phải là không tìm thấy.
+          Thường do AI2 chưa cấp quyền đọc hồ sơ cho tài khoản đang đăng nhập.
+          Hãy báo nhóm Backend/AI2 kèm mã hồ sơ.
+        </p>
+      ) : null}
+      {nothingFound ? (
+        <p className="font-body-sm text-body-sm text-on-surface-variant" role="status">
+          AI2 không tìm thấy đoạn nào khớp câu hỏi. Thử hỏi đầy đủ hơn, ví dụ
+          “Điều 1 quy định gì?”.
         </p>
       ) : null}
       {notes.length > 0 ? (
