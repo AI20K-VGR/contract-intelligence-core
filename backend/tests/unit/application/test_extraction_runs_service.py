@@ -67,6 +67,10 @@ class FakePipelineRunRepo:
         run.status = PipelineRunStatus(status)
         _ = error_code
 
+    async def cancel(self, run_id: str, *, actor_id: str) -> None:
+        self.cancelled_by = actor_id
+        await self.update_status(run_id, "cancelled", error_code="RUN_CANCELLED")
+
     async def list_steps(self, run_id: str) -> list[dict[str, Any]]:
         return []
 

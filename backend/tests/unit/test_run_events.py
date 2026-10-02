@@ -33,6 +33,8 @@ from contract_intelligence.extraction.interfaces.api.routers.events_router impor
     _resume_id,
     _stream_run_events,
 )
+from contract_intelligence.review.infrastructure.persistence.orm import ReviewItemORM
+from contract_intelligence.shared.audit import AuditEventORM
 from contract_intelligence.shared.persistence import Base
 from contract_intelligence.shared.persistence.orm_registry import import_all_models
 from contract_intelligence.shared.run_events import (
@@ -245,6 +247,87 @@ async def test_new_run_moves_the_job_with_an_event(
             "error_code": None,
         }
     ]
+
+
+async def test_cancel_fails_the_job_with_events_and_audit(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """POST /runs/{id}/cancel: the job stops too, so late results are refused."""
+    async with factory() as session:
+        await PipelineRunRepositoryImpl(session, TENANT).cancel(RUN, actor_id="usr_op")
+        await session.commit()
+
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        run = await session.get(PipelineRunORM, RUN)
+        dossier = await session.get(DossierORM, DOSSIER)
+        audit = (
+            await session.execute(
+                select(AuditEventORM).where(AuditEventORM.action == "run.cancelled")
+            )
+        ).scalar_one()
+    assert job is not None and run is not None and dossier is not None
+    assert (run.status, run.error_code) == ("cancelled", "RUN_CANCELLED")
+    assert run.finished_at is not None
+    assert (job.status, job.error_code) == ("failed", "RUN_CANCELLED")
+    assert dossier.status == "failed"
+    assert (audit.actor_id, audit.from_state, audit.to_state) == ("usr_op", "processing", "failed")
+
+    events = [(e.type, json.loads(e.payload)) for e in await _events(factory)][-2:]
+    assert {(kind, payload["status"], payload["error_code"]) for kind, payload in events} == {
+        ("run.status_changed", "cancelled", "RUN_CANCELLED"),
+        ("job.status_changed", "failed", "RUN_CANCELLED"),
+    }
+
+
+async def test_cancel_leaves_a_job_in_review_alone(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.status = "pending_review"
+        await session.commit()
+
+    async with factory() as session:
+        await PipelineRunRepositoryImpl(session, TENANT).cancel(RUN, actor_id="usr_op")
+        await session.commit()
+
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+    assert job is not None
+    assert (job.status, job.error_code) == ("pending_review", None)
+
+
+async def test_review_counts_open_items_and_pending_conflicts(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    rows = [
+        ("ri_1", TENANT, "finding", "open"),
+        ("ri_2", TENANT, "finding", "awaiting_evidence"),
+        ("ri_3", TENANT, "finding", "resolved"),
+        ("ri_4", TENANT, "fact", "open"),
+        ("ri_5", "tenant_other", "finding", "open"),
+    ]
+    async with factory() as session:
+        for item_id, tenant_id, target_type, item_status in rows:
+            session.add(
+                ReviewItemORM(
+                    id=item_id,
+                    tenant_id=tenant_id,
+                    dossier_id=DOSSIER,
+                    run_id=RUN,
+                    target_type=target_type,
+                    target_id=f"tgt_{item_id}",
+                    reason="test",
+                    status=item_status,
+                )
+            )
+        await session.commit()
+
+    async with factory() as session:
+        counts = await DossierRepositoryImpl(session, TENANT).review_counts(DOSSIER)
+    assert counts == (3, 2)
 
 
 # ──────────────────────────────────────────────────────────────────────────────

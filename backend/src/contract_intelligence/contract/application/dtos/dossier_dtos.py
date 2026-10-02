@@ -66,6 +66,8 @@ class DossierDetailDTO(BaseModel):
     has_conflicts: bool = False
     latest_job_id: str | None = None
     latest_job_status: JobStatus | None = None
+    # Why the latest job failed (e.g. AI2_TIMEOUT, RUN_CANCELLED); picks the retry endpoint.
+    latest_job_error_code: str | None = None
     documents: list[DocumentSummaryDTO] = Field(default_factory=list)
     open_review_items: int = 0
     pending_conflicts: int = 0
@@ -81,6 +83,7 @@ class DossierDetailDTO(BaseModel):
         documents: list[Document] | None = None,
         latest_job_id: str | None = None,
         latest_job_status: JobStatus | None = None,
+        latest_job_error_code: str | None = None,
         open_review_items: int = 0,
         pending_conflicts: int = 0,
     ) -> DossierDetailDTO:
@@ -91,6 +94,7 @@ class DossierDetailDTO(BaseModel):
             has_conflicts=dossier.has_conflicts,
             latest_job_id=latest_job_id,
             latest_job_status=latest_job_status,
+            latest_job_error_code=latest_job_error_code,
             documents=[DocumentSummaryDTO.from_domain(d) for d in (documents or [])],
             open_review_items=open_review_items,
             pending_conflicts=pending_conflicts,

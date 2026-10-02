@@ -1967,11 +1967,21 @@ components:
         has_conflicts: { type: boolean }
         latest_job_id: { type: string, nullable: true }
         latest_job_status: { $ref: '#/components/schemas/JobStatus' }
+        latest_job_error_code:
+          type: string
+          nullable: true
+          description: >
+            Mã lỗi của job mới nhất (vd. AI2_TIMEOUT, RUN_CANCELLED). Mã thuộc
+            AI2_PROCESSING_FAILED/AI2_TIMEOUT thì chạy lại qua /ai2/retry, còn lại qua /ocr/retry-failed.
         documents:
           type: array
           items: { $ref: '#/components/schemas/Document' }
-        open_review_items: { type: integer, description: Tổng review_item chưa resolved }
-        pending_conflicts: { type: integer }
+        open_review_items:
+          type: integer
+          description: Số review_item còn mở (open, awaiting_evidence)
+        pending_conflicts:
+          type: integer
+          description: Số review_item còn mở trên finding (xung đột chưa xử lý)
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
