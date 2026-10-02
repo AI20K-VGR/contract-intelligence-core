@@ -180,6 +180,19 @@ class TestValidateConfirm:
             )
         assert exc.value.code == DomainErrorCode.CONTRACT_REQUIRED
 
+    def test_contract_not_unique(self) -> None:
+        """DEC-BE-AI2-01 D5: AI2 takes exactly one body until D12."""
+        body = _valid_body()
+        body.members[1].role = ManifestDocumentRole.CONTRACT
+        with pytest.raises(ManifestValidationError) as exc:
+            validate_and_prepare_confirmation(
+                manifest=_pending_manifest(),
+                request=body,
+                dossier_documents=_docs(),
+            )
+        assert exc.value.code == DomainErrorCode.CONTRACT_NOT_UNIQUE
+        assert exc.value.details == {"count": 2}
+
     def test_member_unknown(self) -> None:
         body = _valid_body()
         body.members.append(

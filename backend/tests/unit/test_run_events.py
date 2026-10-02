@@ -25,6 +25,9 @@ from contract_intelligence.extraction.infrastructure.persistence.orm import (
     PipelineRunORM,
     PipelineStepORM,
 )
+from contract_intelligence.extraction.infrastructure.persistence.repository_impl import (
+    PipelineRunRepositoryImpl,
+)
 from contract_intelligence.extraction.interfaces.api.routers.events_router import (
     _format_event,
     _resume_id,
@@ -203,6 +206,45 @@ async def test_dossier_deletion_closes_open_runs_with_an_event(
     assert last.type == "run.status_changed"
     assert json.loads(last.payload)["status"] == "cancelled"
     assert json.loads(last.payload)["error_code"] == "DOSSIER_DELETED"
+
+
+async def test_new_run_moves_the_job_with_an_event(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """POST /dossiers/{id}/runs re-queues the job; the new run's stream sees it."""
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        run = await session.get(PipelineRunORM, RUN)
+        assert job is not None and run is not None
+        job.status, job.error_code = "failed", "AI1_TIMEOUT"
+        run.status = "failed"
+        await session.commit()
+
+    async with factory() as session:
+        await PipelineRunRepositoryImpl(session, TENANT).create(
+            run_id="run_next",
+            dossier_id=DOSSIER,
+            pipeline_version="v1",
+            git_sha=None,
+            trace_id=None,
+            job_id=JOB,
+        )
+        await session.commit()
+
+    job_events = [
+        json.loads(e.payload)
+        for e in await _events(factory)
+        if e.type == "job.status_changed" and e.run_id == "run_next"
+    ]
+    assert job_events == [
+        {
+            "run_id": "run_next",
+            "job_id": JOB,
+            "dossier_id": DOSSIER,
+            "status": "uploaded",
+            "error_code": None,
+        }
+    ]
 
 
 # ──────────────────────────────────────────────────────────────────────────────

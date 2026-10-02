@@ -5,7 +5,6 @@ Mỗi test verify:
     - POST /dossiers (multipart) trả 202 + dossier_id + job_id; endpoint cũ
       POST /dossiers/upload đã bị gỡ
     - POST /dossiers/{id}/runs schedule pipeline run async qua BackgroundDispatcher
-    - Stub AI client trả completed ngay → orchestrator persist results
     - GET /runs/{id} trả status="succeeded"
     - GET /runs/{id}/events stream SSE events
     - POST /documents/{id}/re-ocr submits async + poll returns result
@@ -43,9 +42,6 @@ from tests.unit.conftest_contract import FakeFileStorage
 
 from contract_intelligence.config.settings import get_settings
 from contract_intelligence.main import app
-from contract_intelligence.shared.ai import (
-    reset_pipeline_orchestrator,
-)
 from contract_intelligence.shared.persistence import (
     Base,
     bind_engine,
@@ -123,8 +119,6 @@ async def client(db_engine: Any) -> AsyncGenerator[AsyncClient, None]:
     # POST /dossiers ghi blob qua MinIO (stub trong conftest) + FileStorage — dùng
     # bản in-memory để không ghi đường dẫn s3:// ra filesystem.
     set_file_storage(FakeFileStorage())
-    # Reset orchestrator singleton để nó pick up engine mới của test này
-    reset_pipeline_orchestrator()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:

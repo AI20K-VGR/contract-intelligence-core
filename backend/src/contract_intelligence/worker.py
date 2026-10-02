@@ -28,6 +28,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from contract_intelligence.config.settings import get_settings
+from contract_intelligence.contract.domain.entities.document import MAX_DOSSIER_DOCUMENTS
 from contract_intelligence.contract.domain.entities.job import JobStatus
 from contract_intelligence.contract.infrastructure.persistence.orm import (
     DocumentORM,
@@ -203,6 +204,26 @@ def _durable_snapshots_from_run(run: PipelineRunORM | None) -> dict[str, dict[st
     return result
 
 
+def _snapshot_created_at(run: PipelineRunORM) -> dict[str, str]:
+    """When each AI1 snapshot on the run was stored, as the AI2 ``created_at``.
+
+    Runs recorded before this key existed fall back to the run's own
+    ``created_at``: still fixed, so a resend of the same attempt is identical.
+    """
+    document_ids = list(_durable_snapshots_from_run(run))
+    if not document_ids:
+        return {}
+    recorded = _run_payload(run).get("ai1_snapshot_recorded_at")
+    stamps = recorded if isinstance(recorded, dict) else {}
+    fallback = _as_utc(run.created_at).isoformat() if run.created_at else None
+    result: dict[str, str] = {}
+    for document_id in document_ids:
+        stamp = stamps.get(document_id) or fallback
+        if stamp:
+            result[document_id] = str(stamp)
+    return result
+
+
 def _run_payload(run: PipelineRunORM) -> dict[str, Any]:
     """Decode the run's ``config_snapshot`` JSON (the durable AI1 hand-off state)."""
     try:
@@ -263,11 +284,20 @@ async def _record_ai1_document(
         return {document_id}
     payload = _run_payload(run)
     if snapshot is not None:
+        previous_digest = (payload.get("ai1_snapshot_digests") or {}).get(document_id)
         payload["ai1_snapshots"] = _durable_snapshots_from_run(run)
         payload["ai1_snapshots"][document_id] = snapshot
         payload["ai1_snapshot_digests"] = {
             key: _snapshot_digest(value) for key, value in payload["ai1_snapshots"].items()
         }
+        # Stamp once per snapshot content: the AI2 request reuses this time, so
+        # a resend after a restart carries the same payload (DEC B1).
+        recorded_at = dict(payload.get("ai1_snapshot_recorded_at") or {})
+        if previous_digest != payload["ai1_snapshot_digests"][document_id] or (
+            document_id not in recorded_at
+        ):
+            recorded_at[document_id] = _utcnow_iso()
+        payload["ai1_snapshot_recorded_at"] = recorded_at
     extracted = {str(value) for value in payload.get("ai1_extracted_documents") or [] if value}
     extracted.add(document_id)
     payload["ai1_extracted_documents"] = sorted(extracted)
@@ -433,7 +463,12 @@ async def _resolve_result_job(
     return job
 
 
-_CARRIED_RUN_KEYS = ("ai1_snapshots", "ai1_snapshot_digests", "ai1_extracted_documents")
+_CARRIED_RUN_KEYS = (
+    "ai1_snapshots",
+    "ai1_snapshot_digests",
+    "ai1_snapshot_recorded_at",
+    "ai1_extracted_documents",
+)
 
 
 async def _carry_extractions(
@@ -1029,6 +1064,22 @@ async def _run_ai2_if_ready(
         select(DocumentORM).where(DocumentORM.dossier_id == dossier_id)
     )
     documents = list(document_result.scalars().all())
+    members = list(member_result.scalars().all())
+    shape_error = _dossier_shape_error(members)
+    if shape_error is not None:
+        code, detail = shape_error
+        await _fail_ai2_run(
+            session,
+            tenant_id=tenant_id,
+            run_id=run_id,
+            code=code,
+            detail=detail,
+            audit_detail={"source": "pre_submit"},
+        )
+        logger.warning(
+            "worker.ai2.dossier_rejected", dossier_id=dossier_id, run_id=run_id, code=code
+        )
+        return
     snapshots = _durable_snapshots_from_run(durable_run)
     budget = ai2_deadline_seconds(sum(int(d.page_count or 0) for d in documents))
     attempt = _ai2_attempt(durable_run)
@@ -1037,8 +1088,9 @@ async def _run_ai2_if_ready(
         run_id=run_id,
         snapshots=snapshots,
         documents=documents,
-        members=list(member_result.scalars().all()),
+        members=members,
         relations=list(relation_result.scalars().all()),
+        snapshot_created_at=_snapshot_created_at(durable_run) if durable_run else {},
         attempt=attempt,
         max_processing_seconds=budget,
     )
@@ -1131,6 +1183,36 @@ async def _run_ai2_if_ready(
         logger.exception("worker.ai2.failed", dossier_id=dossier_id, run_id=run_id)
 
 
+def _dossier_shape_error(members: list[ManifestItemORM]) -> tuple[str, str] | None:
+    """Reject a dossier AI2 cannot take instead of waiting on it forever.
+
+    The API already refuses these at upload, split and manifest confirm
+    (DEC-BE-AI2-01 D5, B4); this covers dossiers stored before those checks.
+    """
+    included = [item for item in members if item.included and item.document_id]
+    if len(included) > MAX_DOSSIER_DOCUMENTS:
+        return (
+            "DOSSIER_TOO_MANY_DOCUMENTS",
+            f"Hồ sơ tối đa {MAX_DOSSIER_DOCUMENTS} tài liệu, hồ sơ này có {len(included)}",
+        )
+    contracts = sum(str(item.doc_type).lower() == "contract" for item in included)
+    if contracts != 1:
+        return (
+            "DOSSIER_CONTRACT_NOT_UNIQUE",
+            f"Hồ sơ cần đúng một hợp đồng, hồ sơ này có {contracts}",
+        )
+    return None
+
+
+def _ai2_block_reason(report: dict[str, Any]) -> tuple[str, str]:
+    """Code and message of a SUCCEEDED + BLOCKED result, from ``errors[]`` when given."""
+    errors = report.get("errors") or []
+    first = errors[0] if errors and isinstance(errors[0], dict) else {}
+    code = str(first.get("code") or "AI2_BLOCKED")
+    message = str(first.get("message") or "AI2 chặn kết quả của hồ sơ này")
+    return code, message
+
+
 async def _finalize_ai2_success(
     session: AsyncSession,
     *,
@@ -1162,6 +1244,19 @@ async def _finalize_ai2_success(
             job_status=job.status if job else None,
             source=source,
         )
+        return None
+    # DEC-BE-AI2-01 D8 (B5): SUCCEEDED + BLOCKED is a failure, not a review.
+    if str(report.get("review_state") or "").upper() == "BLOCKED":
+        code, message = _ai2_block_reason(report)
+        await _fail_ai2_run(
+            session,
+            tenant_id=tenant_id,
+            run_id=run_id,
+            code=code,
+            detail=message[:1000],
+            audit_detail={"source": source, "ai2_job_id": ai2_job_id, "review_state": "BLOCKED"},
+        )
+        logger.warning("worker.ai2.blocked", dossier_id=dossier_id, run_id=run_id, code=code)
         return None
     counts = await persist_ai2_processing_result(
         session,

@@ -162,6 +162,9 @@ class Context(Entity):
     document_id: str
     page: int
     output_dir: str
+    # The page quality check found the scan hard to read: pay for one reading
+    # only (no second reader, no re-read) and flag what would have been checked.
+    low_quality: bool = False
 
 
 class CriticalField(Entity):

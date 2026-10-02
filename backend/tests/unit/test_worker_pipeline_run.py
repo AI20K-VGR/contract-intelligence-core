@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncGenerator, Iterator
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -600,6 +601,9 @@ async def test_ai2_success_refused_after_job_failed(
 # ---------------------------------------------------------------------------
 
 
+_CONTRACT_MEMBER = SimpleNamespace(included=True, document_id="doc", doc_type="contract")
+
+
 class _ScalarResult:
     def __init__(self, value: object) -> None:
         self._value = value
@@ -632,7 +636,7 @@ async def test_ai2_transient_failure_can_be_retried(
             _ScalarResult(SimpleNamespace(status="extracted")),
             _ScalarResult(manifest),
             _ScalarResult(durable_run),
-            _RowsResult([]),
+            _RowsResult([_CONTRACT_MEMBER]),
             _RowsResult([]),
             _RowsResult([]),
         ]
@@ -703,7 +707,7 @@ async def test_ai2_deadline_miss_fails_run_as_ai2_timeout(
                 _ScalarResult(SimpleNamespace(status="extracted")),
                 _ScalarResult(manifest),
                 _ScalarResult(durable_run),
-                _RowsResult([]),
+                _RowsResult([_CONTRACT_MEMBER]),
                 _RowsResult([]),
                 _RowsResult(documents),
             ]
@@ -1057,3 +1061,279 @@ async def test_plain_restart_still_re_ocrs_everything(
         )
 
     assert sorted(c["correlation"]["document_id"] for c in ocr_commands) == [DOC_A, DOC_B]
+
+
+# ---------------------------------------------------------------------------
+# DEC-BE-AI2-01 B4 (dossier shape) and B5 (SUCCEEDED + BLOCKED)
+# ---------------------------------------------------------------------------
+
+
+def _member(doc_type: str, *, included: bool = True) -> SimpleNamespace:
+    return SimpleNamespace(included=included, document_id="doc", doc_type=doc_type)
+
+
+@pytest.mark.parametrize(
+    ("members", "code"),
+    [
+        ([_member("contract"), _member("annex")], None),
+        ([_member("contract"), _member("contract", included=False)], None),
+        ([_member("annex")], "DOSSIER_CONTRACT_NOT_UNIQUE"),
+        ([_member("contract"), _member("contract")], "DOSSIER_CONTRACT_NOT_UNIQUE"),
+        (
+            [_member("contract"), *(_member("annex") for _ in range(6))],
+            "DOSSIER_TOO_MANY_DOCUMENTS",
+        ),
+    ],
+)
+def test_dossier_shape_error(members: list[SimpleNamespace], code: str | None) -> None:
+    error = worker._dossier_shape_error(members)  # type: ignore[arg-type]
+    assert (error[0] if error else None) == code
+
+
+@pytest.mark.asyncio
+async def test_dossier_with_two_contracts_fails_before_ai2(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A dossier stored before the API checks fails with a code, never waits forever."""
+    session = SimpleNamespace(
+        execute=AsyncMock(
+            side_effect=[
+                _ScalarResult(SimpleNamespace(status="extracted")),
+                _ScalarResult(SimpleNamespace(id="manifest_test", status="confirmed")),
+                _ScalarResult(SimpleNamespace(ai2_result_digest=None, config_snapshot={})),
+                _RowsResult([_member("contract"), _member("contract")]),
+                _RowsResult([]),
+                _RowsResult([]),
+            ]
+        ),
+    )
+    fail = AsyncMock()
+    submit = AsyncMock()
+    monkeypatch.setattr(worker, "_fail_ai2_run", fail)
+    monkeypatch.setattr(worker, "submit_ai2_processing", submit)
+
+    await worker._run_ai2_if_ready(
+        session,  # type: ignore[arg-type]
+        dossier_id="dos_test",
+        tenant_id="tenant_test",
+        run_id="run_two_contracts",
+    )
+
+    assert fail.await_args.kwargs["code"] == "DOSSIER_CONTRACT_NOT_UNIQUE"
+    submit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_six_document_dossier_reaches_ai2_whole(monkeypatch: pytest.MonkeyPatch) -> None:
+    """D5 upper bound: 1 contract + 5 annexes all go to AI2, one snapshot each."""
+    doc_ids = [f"doc_{n}" for n in range(1, 7)]
+    members = [
+        SimpleNamespace(
+            id=f"member_{n}",
+            included=True,
+            document_id=doc_id,
+            order_index=n,
+            doc_type="contract" if n == 1 else "annex",
+        )
+        for n, doc_id in enumerate(doc_ids, start=1)
+    ]
+    snapshots = {
+        doc_id: {
+            "schema_version": "ai1.snapshot.v1",
+            "snapshot_id": f"snap_{doc_id}",
+            "source_digest": "b" * 64,
+            "dossier_id": "dos_test",
+            "document_id": doc_id,
+            "pages": [],
+        }
+        for doc_id in doc_ids
+    }
+    durable_run = SimpleNamespace(
+        ai2_result_digest=None,
+        created_at=datetime(2026, 10, 1, 8, 0, tzinfo=UTC),
+        config_snapshot=json.dumps(
+            {
+                "ai1_snapshots": snapshots,
+                "ai1_snapshot_recorded_at": dict.fromkeys(doc_ids, "2026-10-01T08:00:00+00:00"),
+            }
+        ),
+    )
+    session = SimpleNamespace(
+        execute=AsyncMock(
+            side_effect=[
+                _ScalarResult(SimpleNamespace(status="extracted")),
+                _ScalarResult(SimpleNamespace(id="manifest_test", status="confirmed")),
+                _ScalarResult(durable_run),
+                _RowsResult(members),
+                _RowsResult([]),
+                _RowsResult([SimpleNamespace(id=doc_id, page_count=1) for doc_id in doc_ids]),
+            ]
+        ),
+        commit=AsyncMock(),
+        rollback=AsyncMock(),
+    )
+    submit = AsyncMock(return_value={"job_id": "ai2_six"})
+    monkeypatch.setattr(worker, "submit_ai2_processing", submit)
+    monkeypatch.setattr(worker, "poll_ai2_processing", AsyncMock(return_value={"status": "FAILED"}))
+    monkeypatch.setattr(worker, "update_pipeline_run_status", AsyncMock())
+    monkeypatch.setattr(worker, "update_pipeline_step", AsyncMock())
+    monkeypatch.setattr(worker, "_fail_ai2_run", AsyncMock())
+
+    await worker._run_ai2_if_ready(
+        session,  # type: ignore[arg-type]
+        dossier_id="dos_test",
+        tenant_id="tenant_test",
+        run_id="run_six",
+    )
+
+    request = submit.await_args.args[0]
+    assert [s["document_id"] for s in request["snapshots"]] == doc_ids
+    assert [m["role"] for m in request["dossier_members"]] == ["body"] + ["annex"] * 5
+    assert len(request["snapshot_identities"]) == 6
+
+
+@pytest.mark.asyncio
+async def test_succeeded_but_blocked_fails_the_run_with_the_ai2_code(
+    factory: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = await _start(factory)
+    persist = AsyncMock()
+    monkeypatch.setattr(worker, "persist_ai2_processing_result", persist)
+
+    async with factory() as session:
+        counts = await worker._finalize_ai2_success(
+            session,
+            tenant_id=TENANT,
+            dossier_id=DOSSIER,
+            run_id=run_id,
+            report={
+                "status": "SUCCEEDED",
+                "review_state": "BLOCKED",
+                "errors": [{"code": "POLICY_BLOCKED", "message": "Hồ sơ bị khoá"}],
+            },
+            ai2_job_id="ai2_blocked",
+            source="http_poll",
+        )
+
+    assert counts is None
+    persist.assert_not_awaited()
+    job = await _job(factory)
+    assert (job.status, job.error_code) == ("failed", "POLICY_BLOCKED")
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+    assert run is not None and (run.status, run.error_code) == ("failed", "POLICY_BLOCKED")
+
+
+def test_blocked_without_errors_gets_a_default_code() -> None:
+    assert worker._ai2_block_reason({"review_state": "BLOCKED"})[0] == "AI2_BLOCKED"
+
+
+@pytest.mark.asyncio
+async def test_failed_result_ignores_review_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """D8: review_state has no meaning when AI2 did not succeed; errors[] decides."""
+    session = SimpleNamespace(
+        execute=AsyncMock(
+            side_effect=[
+                _ScalarResult(SimpleNamespace(status="extracted")),
+                _ScalarResult(SimpleNamespace(id="manifest_test", status="confirmed")),
+                _ScalarResult(SimpleNamespace(ai2_result_digest=None, config_snapshot={})),
+                _RowsResult([_member("contract")]),
+                _RowsResult([]),
+                _RowsResult([]),
+            ]
+        ),
+        commit=AsyncMock(),
+        rollback=AsyncMock(),
+    )
+    monkeypatch.setattr(worker, "build_processing_request", lambda **_kwargs: {"snapshots": [{}]})
+    monkeypatch.setattr(worker, "update_pipeline_run_status", AsyncMock())
+    monkeypatch.setattr(worker, "update_pipeline_step", AsyncMock())
+    monkeypatch.setattr(worker, "submit_ai2_processing", AsyncMock(return_value={"job_id": "j"}))
+    monkeypatch.setattr(
+        worker,
+        "poll_ai2_processing",
+        AsyncMock(
+            return_value={
+                "status": "FAILED",
+                "review_state": "PASS",
+                "errors": [{"code": "AI2_WORKER_ERROR", "message": "worker crashed"}],
+            }
+        ),
+    )
+    finalize = AsyncMock()
+    fail = AsyncMock()
+    monkeypatch.setattr(worker, "_finalize_ai2_success", finalize)
+    monkeypatch.setattr(worker, "_fail_ai2_run", fail)
+
+    await worker._run_ai2_if_ready(
+        session,  # type: ignore[arg-type]
+        dossier_id="dos_test",
+        tenant_id="tenant_test",
+        run_id="run_failed_pass",
+    )
+
+    finalize.assert_not_awaited()
+    assert fail.await_args.kwargs["code"] == "AI2_PROCESSING_FAILED"
+    assert fail.await_args.kwargs["detail"] == "worker crashed"
+
+
+# ---------------------------------------------------------------------------
+# DEC-BE-AI2-01 B1: the AI2 payload does not read the clock
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_snapshot_time_is_stamped_once_and_survives_redelivery(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+    stamped = (await _run_payload(factory, run_id))["ai1_snapshot_recorded_at"]
+    assert sorted(stamped) == [DOC_A, DOC_B]
+
+    # Worker restarts and Kafka redelivers DOC_A with the same snapshot.
+    worker._ai2_tasks.clear()
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+
+    assert (await _run_payload(factory, run_id))["ai1_snapshot_recorded_at"] == stamped
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+    assert run is not None
+    assert worker._snapshot_created_at(run) == stamped
+
+
+@pytest.mark.asyncio
+async def test_carried_snapshot_keeps_its_stored_time(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ocr_commands: list[dict[str, Any]],
+) -> None:
+    await _give_blobs(factory)
+    first_run = await _start(factory)
+    await _deliver(factory, _failed(first_run, DOC_A))
+    await _deliver(factory, _ocr_completed(first_run, DOC_B))
+    first_stamp = (await _run_payload(factory, first_run))["ai1_snapshot_recorded_at"][DOC_B]
+
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(
+            session,
+            {"event": "dossier.uploaded", "dossier_id": DOSSIER, "retry_failed": True},
+        )
+    retry_run = str((await _job(factory)).current_run_id)
+
+    carried = (await _run_payload(factory, retry_run))["ai1_snapshot_recorded_at"]
+    assert retry_run != first_run
+    assert carried[DOC_B] == first_stamp
+
+
+def test_run_stored_before_the_stamp_falls_back_to_the_run_time() -> None:
+    created = datetime(2026, 9, 30, 8, 0)  # SQLite hands back a naive UTC value
+    run = SimpleNamespace(
+        created_at=created,
+        config_snapshot='{"ai1_snapshots": {"doc_a": {"schema_version": "ai1.snapshot.v1"}}}',
+    )
+
+    assert worker._snapshot_created_at(run) == {  # type: ignore[arg-type]
+        DOC_A: created.replace(tzinfo=UTC).isoformat()
+    }

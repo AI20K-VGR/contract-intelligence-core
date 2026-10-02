@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
@@ -17,6 +18,9 @@ from contract_intelligence.contract.infrastructure.persistence.orm import (
     ManifestItemORM,
     ManifestRelationORM,
 )
+
+# be.ai2.processing.request.v1: ``snapshots`` holds 1..6 items (DEC-BE-AI2-01 D5).
+_MAX_SNAPSHOTS = 6
 
 
 def _digest(value: dict[str, Any]) -> str:
@@ -53,9 +57,13 @@ def _bbox(value: Any) -> list[float] | None:
 
 
 def _canonicalize_compact_snapshot(
-    snapshot: dict[str, Any], *, dossier_id: str, run_id: str
+    snapshot: dict[str, Any], *, dossier_id: str, run_id: str, created_at: str
 ) -> dict[str, Any]:
-    """Adapt the current AI1 compact snapshot into the closed v1 contract."""
+    """Adapt the current AI1 compact snapshot into the closed v1 contract.
+
+    ``created_at`` is when the Backend stored the snapshot, so rebuilding the
+    request for the same run yields the same payload (DEC-BE-AI2-01 D7, B1).
+    """
 
     snapshot_id = str(snapshot["snapshot_id"])
     document_id = str(snapshot["document_id"])
@@ -208,7 +216,7 @@ def _canonicalize_compact_snapshot(
         "document_id": document_id,
         "run_id": run_id,
         "source_digest": source_digest,
-        "created_at": datetime.now(tz=UTC).isoformat(),
+        "created_at": created_at,
         "execution": {
             "execution_manifest_id": f"exec:{run_id}",
             "config_digest": _digest({"engine": engine_name, "version": engine_version}),
@@ -239,6 +247,7 @@ def build_processing_request(
     documents: list[DocumentORM],
     members: list[ManifestItemORM],
     relations: list[ManifestRelationORM],
+    snapshot_created_at: Mapping[str, str],
     attempt: int = 1,
     max_processing_seconds: int = 300,
 ) -> dict[str, Any] | None:
@@ -246,6 +255,8 @@ def build_processing_request(
 
     ``attempt`` > 1 asks AI2 for a fresh job on the same idempotency key (a
     retry after a failed AI2 run); the same attempt returns AI2's stored job.
+    ``snapshot_created_at`` maps document id to the time its snapshot was
+    stored; the wire payload never reads the clock, so a resend is identical.
     """
 
     included = [item for item in members if item.included and item.document_id]
@@ -258,17 +269,24 @@ def build_processing_request(
             return None
         if snapshot.get("schema_version") != "ai1.snapshot.v1":
             return None
+        if "execution" not in snapshot and str(member.document_id) not in snapshot_created_at:
+            return None
         selected.append((member, snapshot))
 
     bodies = [item for item, _ in selected if str(item.doc_type).lower() == "contract"]
-    if len(bodies) != 1:
+    if len(bodies) != 1 or len(selected) > _MAX_SNAPSHOTS:
         return None
 
     wire_selected = [
         (
             member,
             (
-                _canonicalize_compact_snapshot(snapshot, dossier_id=dossier_id, run_id=run_id)
+                _canonicalize_compact_snapshot(
+                    snapshot,
+                    dossier_id=dossier_id,
+                    run_id=run_id,
+                    created_at=snapshot_created_at[str(member.document_id)],
+                )
                 if "execution" not in snapshot
                 else {
                     **snapshot,
@@ -300,7 +318,8 @@ def build_processing_request(
     ]
     selected_member_ids = {str(member.id) for member, _ in selected}
     role_relation_map: list[dict[str, Any]] = []
-    for relation in relations:
+    # The relation query has no ORDER BY; sort so a resend keeps the same bytes.
+    for relation in sorted(relations, key=lambda item: str(item.id)):
         if relation.source_document_id not in {str(member.document_id) for member, _ in selected}:
             continue
         if relation.target_document_id not in {str(member.document_id) for member, _ in selected}:
