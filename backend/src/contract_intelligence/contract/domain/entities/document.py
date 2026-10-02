@@ -10,6 +10,9 @@ from enum import StrEnum
 
 from contract_intelligence.shared.base import BaseEntity, new_ulid
 
+# AI2 takes 1..6 snapshots per request (DEC-BE-AI2-01 D5): a dossier never holds more.
+MAX_DOSSIER_DOCUMENTS = 6
+
 
 class DocumentRole(StrEnum):
     """Vai trò của document trong dossier."""
