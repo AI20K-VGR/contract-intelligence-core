@@ -274,6 +274,8 @@ def build_processing_request(
         selected.append((member, snapshot))
 
     bodies = [item for item, _ in selected if str(item.doc_type).lower() == "contract"]
+    # Defensive: the worker already fails such dossiers with a code
+    # (_dossier_shape_error), so this never decides the run's outcome.
     if len(bodies) != 1 or len(selected) > _MAX_SNAPSHOTS:
         return None
 
