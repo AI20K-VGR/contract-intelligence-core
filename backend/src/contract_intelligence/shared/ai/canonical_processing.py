@@ -19,6 +19,9 @@ from contract_intelligence.contract.infrastructure.persistence.orm import (
     ManifestRelationORM,
 )
 
+# be.ai2.processing.request.v1: ``snapshots`` holds 1..6 items (DEC-BE-AI2-01 D5).
+_MAX_SNAPSHOTS = 6
+
 
 def _digest(value: dict[str, Any]) -> str:
     raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -271,7 +274,7 @@ def build_processing_request(
         selected.append((member, snapshot))
 
     bodies = [item for item, _ in selected if str(item.doc_type).lower() == "contract"]
-    if len(bodies) != 1:
+    if len(bodies) != 1 or len(selected) > _MAX_SNAPSHOTS:
         return None
 
     wire_selected = [

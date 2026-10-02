@@ -67,6 +67,7 @@ from contract_intelligence.contract.application.dtos.manifest_dtos import (
     ManifestDTO,
 )
 from contract_intelligence.contract.domain.entities.document import (
+    MAX_DOSSIER_DOCUMENTS,
     Document,
     DocumentRole,
 )
@@ -87,7 +88,13 @@ from contract_intelligence.shared.auth import (
 )
 from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.shared.base import utcnow
-from contract_intelligence.shared.exceptions import InvalidStateTransition, NotFoundError
+from contract_intelligence.shared.exceptions import (
+    DomainErrorCode,
+    DossierTooManyDocuments,
+    InvalidStateTransition,
+    ManifestValidationError,
+    NotFoundError,
+)
 from contract_intelligence.shared.pdf import InvalidPdfError, count_pdf_pages, extract_pdf_pages
 from contract_intelligence.shared.persistence import get_session_factory
 from contract_intelligence.shared.query_policy import (
@@ -474,7 +481,11 @@ async def _publish_dossier_uploaded(*, dossier_id: str, file_path: str) -> None:
     responses={
         400: {"description": "Missing contract file"},
         403: {"description": "Insufficient role"},
-        422: {"description": "Invalid metadata JSON"},
+        422: {
+            "description": (
+                "Invalid metadata JSON, or more than 6 files (`DOSSIER_TOO_MANY_DOCUMENTS`)"
+            )
+        },
     },
 )
 async def create_dossier(
@@ -508,6 +519,12 @@ async def create_dossier(
     ):
         # Warn but don't reject — Sprint 3 local dev sometimes sends octet-stream
         pass
+
+    # AI2 takes at most 6 documents per dossier (DEC-BE-AI2-01 D5): refuse
+    # before reading any file, so nothing is created.
+    file_count = 1 + sum(1 for annex_file in annexes or [] if annex_file.filename)
+    if file_count > MAX_DOSSIER_DOCUMENTS:
+        raise DossierTooManyDocuments(limit=MAX_DOSSIER_DOCUMENTS, count=file_count)
 
     # Parse metadata
     meta = _parse_upload_metadata(metadata)
@@ -745,7 +762,13 @@ async def retry_failed_dossier_ocr(
     responses={
         404: {"description": "Dossier or document not found"},
         409: {"description": "Processing already started, or manifest confirmed"},
-        422: {"description": "Parts do not cover the file, or not exactly one contract"},
+        422: {
+            "description": (
+                "Parts do not cover the file; not exactly one contract "
+                "(`contract_required`, `contract_not_unique`); or more than 6 documents "
+                "(`DOSSIER_TOO_MANY_DOCUMENTS`)"
+            )
+        },
     },
 )
 async def split_dossier_document(
@@ -776,13 +799,24 @@ async def split_dossier_document(
         raise HTTPException(status_code=404, detail="Document not found in this dossier")
     problem = _check_split_parts(body.parts, int(source.page_count or 0))
     others = [d for d in await svc.list_documents(dossier_id) if d.id != source.id]
+    if problem is not None:
+        raise HTTPException(status_code=422, detail=problem)
+    document_count = len(others) + len(body.parts)
+    if document_count > MAX_DOSSIER_DOCUMENTS:
+        raise DossierTooManyDocuments(
+            limit=MAX_DOSSIER_DOCUMENTS, count=document_count, after_split=True
+        )
     contracts = sum(d.role == DocumentRole.CONTRACT for d in others) + sum(
         part.role == "contract" for part in body.parts
     )
-    if problem is None and contracts != 1:
-        problem = f"a dossier needs exactly one contract, these parts give {contracts}"
-    if problem is not None:
-        raise HTTPException(status_code=422, detail=problem)
+    if contracts != 1:
+        raise ManifestValidationError(
+            DomainErrorCode.CONTRACT_REQUIRED
+            if contracts == 0
+            else DomainErrorCode.CONTRACT_NOT_UNIQUE,
+            f"Hồ sơ cần đúng một hợp đồng, các phần này cho {contracts}",
+            count=contracts,
+        )
 
     created: list[SplitDocumentDTO] = []
     if len(body.parts) == 1:

@@ -139,14 +139,21 @@ def validate_and_prepare_confirmation(
                 role=str(member.role),
             ) from exc
 
-    # contract_required — at least one included contract
-    has_included_contract = any(
+    # contract_required / contract_not_unique — exactly one included contract:
+    # AI2 takes one body per request until D12 (DEC-BE-AI2-01 D5)
+    included_contracts = sum(
         m.included and m.role == ManifestDocumentRole.CONTRACT for m in request.members
     )
-    if not has_included_contract:
+    if included_contracts == 0:
         raise ManifestValidationError(
             DomainErrorCode.CONTRACT_REQUIRED,
             "At least one included member with role 'contract' is required",
+        )
+    if included_contracts > 1:
+        raise ManifestValidationError(
+            DomainErrorCode.CONTRACT_NOT_UNIQUE,
+            "Exactly one included member with role 'contract' is allowed",
+            count=included_contracts,
         )
 
     # relation_missing — every persisted relation id must be present in body
