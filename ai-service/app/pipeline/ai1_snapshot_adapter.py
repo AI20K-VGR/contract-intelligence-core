@@ -66,6 +66,13 @@ class SnapshotAdapterResult:
     meta: dict[str, Any]
 
 
+def bare_sha256_digest(value: str | None) -> str:
+    """Return a SHA-256 digest as bare lowercase hex (``sha256:`` prefix dropped)."""
+
+    text = str(value or "").strip().lower()
+    return text.removeprefix("sha256:")
+
+
 def adapt_be_ai2_processing_request(
     payload: Mapping[str, Any],
     *,
@@ -97,6 +104,11 @@ def adapt_be_ai2_processing_request(
                 acl_revision=acl_revision,
                 scope_id=request.dossier_id,
             )
+            # The OCR-lab adapter pins ``sha256:<hex>``; the result wire and
+            # /query bind to bare lowercase hex, so normalize once here.
+            query_digest = bare_sha256_digest(adapted.record.pins.source_snapshot_digest)
+            adapted.record.pins.source_snapshot_digest = query_digest
+            adapted.envelope.pins.source_snapshot_digest = query_digest
             return request, adapted
         except SnapshotContractError:
             raise

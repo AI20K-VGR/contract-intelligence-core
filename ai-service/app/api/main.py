@@ -36,6 +36,7 @@ from app.pipeline.ai1_snapshot_adapter import (
     adapt_ai1_input,
     adapt_ai1_result_v01,
     adapt_be_ai2_processing_request,
+    bare_sha256_digest,
     processing_egress_allowed,
 )
 from app.pipeline.citations import CitationResolver
@@ -862,7 +863,7 @@ def query_from_backend(payload: dict) -> dict:
             record = None
 
     if record is not None:
-        expected_digest = str(record.pins.source_snapshot_digest or "")
+        expected_digest = bare_sha256_digest(record.pins.source_snapshot_digest)
         if expected_digest:
             # The versioned Backend contract must bind the query to the
             # current canonical snapshot. Keep the older signed compatibility
@@ -871,7 +872,7 @@ def query_from_backend(payload: dict) -> dict:
                 requested_digest
             )
             if requires_evidence_context and (
-                not requested_digest or requested_digest != expected_digest
+                not requested_digest or bare_sha256_digest(requested_digest) != expected_digest
             ):
                 return {
                     "state": "INSUFFICIENT_EVIDENCE",
@@ -1802,10 +1803,10 @@ def create_idp_job(payload: dict, background_tasks: BackgroundTasks) -> dict:
     )
     WIRE_JOBS[job_id] = wire
     if created or stored["status"] in {"QUEUED", "RUNNING"}:
-        # exclude_unset keeps the signed payload byte-identical: defaults
-        # filled in for omitted optional fields would break the worker's
-        # envelope re-verification (payload_sha256).
-        background_tasks.add_task(_run_wire_job, job_id, request.model_dump(exclude_unset=True))
+        # Hand the worker the exact signed payload: a re-dumped model differs
+        # from it (defaults, OCR-lab digest normalization) and would fail the
+        # worker's envelope re-verification (payload_sha256).
+        background_tasks.add_task(_run_wire_job, job_id, payload)
     return wire
 
 

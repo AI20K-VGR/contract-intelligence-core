@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from uuid import uuid4
 
@@ -176,3 +177,82 @@ def test_result_schema_rejects_malformed_query_snapshot_digest(monkeypatch):
     with pytest.raises(Exception) as exc_info:
         validate_processing_result(wire)
     assert getattr(exc_info.value, "code", "") == "RESULT_SCHEMA_INVALID"
+
+
+# I1: the OCR-lab compatibility lane pins ``sha256:<hex>``; the wire contract
+# and /query must still see one bare-hex digest.
+BARE_HEX = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _ocr_lab_request() -> dict:
+    from unit.test_kafka_contract_compat import _ocr_lab_snapshot, _request
+
+    snapshot = _ocr_lab_snapshot()
+    snapshot["dossier_id"] = f"dossier-ocrlab-{uuid4().hex[:8]}"
+    payload = _request(snapshot)
+    payload["request_id"] = f"req-ocrlab-{uuid4().hex[:12]}"
+    payload["idempotency_key"] = f"{snapshot['dossier_id']}:{payload['request_id']}"
+    payload.pop("service_envelope")
+    payload["service_envelope"] = build_service_envelope(
+        payload, secret=SECRET, tenant_id=TENANT, dossier_id=payload["dossier_id"], actor_id=ACTOR
+    )
+    return payload
+
+
+def _ask(client: TestClient, dossier_id: str, digest: str) -> dict:
+    query = {
+        "query": "Giá trị hợp đồng là bao nhiêu?",
+        "dossier_id": dossier_id,
+        "snapshot_digest": digest,
+        "snapshot_version": "ai1.snapshot.v1",
+        "query_contract_version": "ai2.query.v1",
+    }
+    query["service_envelope"] = build_service_envelope(
+        query, secret=SECRET, tenant_id=TENANT, dossier_id=dossier_id, actor_id=ACTOR, scopes=["ai2.query"]
+    )
+    response = client.post("/query", json=query)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_ocr_lab_job_succeeds_with_bare_hex_query_digest():
+    payload = _ocr_lab_request()
+    _request, adapted = adapt_be_ai2_processing_request(payload, tenant_id=TENANT, actor_id=ACTOR)
+    assert adapted.meta["adapter"] == "ocr-lab"
+    client = TestClient(main.app)
+
+    accepted = client.post("/jobs/idp", json=payload)
+    assert accepted.status_code == 202, accepted.text
+    validate_processing_result(accepted.json())
+    wire = _poll(client, accepted.json()["job_id"], payload["dossier_id"])
+
+    assert wire["status"] == "SUCCEEDED", wire["errors"]
+    validate_processing_result(wire)
+    digest = wire["query_snapshot_digest"]
+    assert BARE_HEX.fullmatch(digest)
+    assert digest == _expected_digest(payload)
+    for sent in (digest, f"sha256:{digest}", f"SHA256:{digest.upper()}"):
+        body = _ask(client, payload["dossier_id"], sent)
+        codes = [step.get("code") for step in body["reasoning_trace"] if isinstance(step, dict)]
+        assert "AI2_QUERY_EVIDENCE_CONTEXT_REQUIRED" not in codes, sent
+        assert body["retrieval_layer"]["snapshot_digest"] == digest
+
+
+def test_kafka_ocr_lab_result_carries_bare_hex_digest():
+    payload = _ocr_lab_request()
+    command = {
+        "schema_version": kafka_worker.SCHEMA_VERSION,
+        "event_id": f"evt-{uuid4().hex}",
+        "event_type": kafka_worker.EVENT_COMMAND,
+        "trace_id": "trace-i1",
+        "tenant_id": TENANT,
+        "correlation": {"dossier_id": payload["dossier_id"]},
+        "payload": payload,
+    }
+
+    envelope = kafka_worker._handle_command(command)
+
+    wire = envelope["payload"]
+    assert envelope["event_type"] == kafka_worker.EVENT_COMPLETED, wire["errors"]
+    assert BARE_HEX.fullmatch(wire["query_snapshot_digest"])
+    validate_processing_result(wire)
