@@ -1196,7 +1196,10 @@ def _dossier_shape_error(members: list[ManifestItemORM]) -> tuple[str, str] | No
             f"Hồ sơ tối đa {MAX_DOSSIER_DOCUMENTS} tài liệu, hồ sơ này có {len(included)}",
         )
     contracts = sum(str(item.doc_type).lower() == "contract" for item in included)
-    if contracts != 1:
+    # Same split as the API's contract_required / contract_not_unique.
+    if contracts == 0:
+        return "DOSSIER_CONTRACT_REQUIRED", "Hồ sơ cần đúng một hợp đồng, hồ sơ này không có"
+    if contracts > 1:
         return (
             "DOSSIER_CONTRACT_NOT_UNIQUE",
             f"Hồ sơ cần đúng một hợp đồng, hồ sơ này có {contracts}",
