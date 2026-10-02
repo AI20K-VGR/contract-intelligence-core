@@ -24,6 +24,7 @@ from app.llm.client import NineRouterClient
 from app.pipeline.ai1_snapshot_adapter import (
     SnapshotContractError,
     adapt_be_ai2_processing_request,
+    processing_egress_allowed,
 )
 from app.pipeline.idp import run_idp
 from app.pipeline.runtime import ProcessingRuntime
@@ -155,13 +156,14 @@ def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
                 code="MVP_BODY_ONLY_VIOLATION",
             )
 
+        egress_allowed = processing_egress_allowed()
         llm = None
-        if request.policy_flags.egress_allowed:
+        if egress_allowed:
             candidate = NineRouterClient()
             if candidate.configured():
                 llm = candidate
         runtime = ProcessingRuntime(
-            egress_allowed=request.policy_flags.egress_allowed,
+            egress_allowed=egress_allowed,
             use_vector=request.policy_flags.use_vector,
             max_processing_seconds=request.policy_flags.budget_limits.max_processing_seconds,
             max_llm_calls=request.policy_flags.budget_limits.max_llm_calls,
@@ -169,9 +171,12 @@ def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
         )
         store = InMemorySnapshotStore()
         # The HTTP query API is a separate process. Preserve the adapted
-        # citation-bearing snapshot before the in-memory IDP run is discarded.
+        # citation-bearing snapshot before the in-memory IDP run is discarded,
+        # and hand Backend the digest that /query binds to.
+        query_snapshot_digest = None
         if isinstance(adapted.record, DossierRecord):
             save_query_snapshot(adapted.record, adapted.envelope)
+            query_snapshot_digest = adapted.record.pins.source_snapshot_digest
         result = run_idp(
             adapted.record,
             adapted.envelope,
@@ -180,7 +185,7 @@ def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
             job_id=job_id,
             runtime=runtime,
         )
-        wire = job_result_to_wire(result, request)
+        wire = job_result_to_wire(result, request, query_snapshot_digest=query_snapshot_digest)
         wire["job_id"] = job_id
         event_type = (
             EVENT_COMPLETED

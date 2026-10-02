@@ -1,10 +1,31 @@
 import csv
+import os
 from io import BytesIO
 from pathlib import Path
 
 import pymupdf
 import pytest
 from PIL import Image, ImageDraw
+
+
+@pytest.fixture(scope="session")
+def pg_url():
+    configured = os.getenv("AI2_TEST_DATABASE_URL")
+    if configured:
+        yield configured
+        return
+    try:
+        from testcontainers.postgres import PostgresContainer
+        container = PostgresContainer("postgres:16-alpine", driver="psycopg")
+        container.start()
+    except Exception as exc:
+        if os.getenv("AI2_REQUIRE_DOCKER") == "1":
+            pytest.fail(f"PostgreSQL Docker required: {type(exc).__name__}: {exc}")
+        pytest.skip(f"PostgreSQL Docker unavailable: {type(exc).__name__}")
+    try:
+        yield container.get_connection_url()
+    finally:
+        container.stop()
 
 
 @pytest.fixture

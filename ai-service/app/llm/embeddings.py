@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 import httpx
 from openai import OpenAI
-
 
 PROBE_TEXT = "ai2_embedding_capability_probe_v1"
 
@@ -73,7 +72,10 @@ class OpenAICompatibleEmbeddingClient:
     def configured(self) -> bool:
         return bool(self.api_key) and self.api_key != "sk-replace-me"
 
-    def discover(self, *, egress_approved: bool = True, force: bool = False) -> EmbeddingCapability:
+    def discover(
+        self, *, egress_approved: bool = True, force: bool = False,
+        before_probe: Callable[[list[str]], bool] | None = None,
+    ) -> EmbeddingCapability:
         if self._capability is not None and not force:
             return self._capability
         if not egress_approved:
@@ -98,6 +100,9 @@ class OpenAICompatibleEmbeddingClient:
         found: list[EmbeddingModelInfo] = []
         failures: list[str] = []
         for model in candidates[:16]:
+            if before_probe is not None and not before_probe([PROBE_TEXT]):
+                # A request quota is transient; do not cache it as provider capability.
+                return EmbeddingCapability(status="BUDGET_EXCEEDED")
             try:
                 vector = self._embed([PROBE_TEXT], model=model)[0]
                 if not vector or not all(isinstance(value, (int, float)) and value == value for value in vector):

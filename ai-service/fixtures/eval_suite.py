@@ -19,6 +19,8 @@ def _variant(case_id: str, title: str, scenario: str, *, base: str = "HD-TONG-HO
     pack.title = title
     pack.notes = scenario
     pack.expected_state = expected
+    # The base contract's ban list belongs to that contract, not to this scenario.
+    pack.expected_no_claims = []
     pack.query = query or "Điều 5 liên quan thế nào đến các phụ lục?"
     pack.tags = ["synthetic", "full_flow"]
     pack.record.case_id = case_id

@@ -13,13 +13,20 @@ from uuid import uuid4
 # P3 keeps the legacy Backend job path intact while exposing the canonical
 # durable run boundary from the existing tools entrypoint.
 from app.tools.durable import (
-    DurableRunStore,
-    EventDigestConflict,
-    EventGapError,
-    LeaseFencedError,
-    SnapshotCorruptError,
+    DurableRunStore as DurableRunStore,
 )
-
+from app.tools.durable import (
+    EventDigestConflict as EventDigestConflict,
+)
+from app.tools.durable import (
+    EventGapError as EventGapError,
+)
+from app.tools.durable import (
+    LeaseFencedError as LeaseFencedError,
+)
+from app.tools.durable import (
+    SnapshotCorruptError as SnapshotCorruptError,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB = ROOT / "data" / "ai2" / "jobs.sqlite"
@@ -293,7 +300,7 @@ class SQLiteJobStore:
             cur = cx.execute(
                 """
                 UPDATE jobs SET status=?, wire_json=?, result_json=?,
-                    worker_token=?, lease_until_ms=?, updated_ms=?
+                    worker_token=?, lease_until_ms=CASE WHEN ? THEN NULL ELSE lease_until_ms END, updated_ms=?
                 WHERE job_id=? AND tenant_id=? AND dossier_id=? AND worker_token=?
                 """,
                 (
@@ -301,7 +308,7 @@ class SQLiteJobStore:
                     json.dumps(wire, ensure_ascii=False),
                     json.dumps(result, ensure_ascii=False) if result is not None else None,
                     None if terminal else worker_token,
-                    None if terminal else now + 60_000,
+                    int(terminal),
                     now,
                     job_id,
                     tenant_id,
@@ -313,6 +320,87 @@ class SQLiteJobStore:
             return cur.rowcount == 1
         finally:
             cx.close()
+
+    def _fail_rows(self, cx: sqlite3.Connection, rows: list[sqlite3.Row], update: dict[str, Any], now: int) -> None:
+        for row in rows:
+            wire = {**json.loads(row["wire_json"]), **update, "status": "FAILED"}
+            cx.execute(
+                """
+                UPDATE jobs SET status='FAILED', wire_json=?, worker_token=NULL,
+                    lease_until_ms=NULL, updated_ms=?
+                WHERE job_id=?
+                """,
+                (json.dumps(wire, ensure_ascii=False), now, row["job_id"]),
+            )
+
+    def fail_unclaimed(self, job_id: str, update: dict[str, Any]) -> bool:
+        """Fail a job the worker gave up on before claiming it (still QUEUED)."""
+
+        now = self._now_ms()
+        cx = self._connect()
+        try:
+            cx.execute("BEGIN IMMEDIATE")
+            rows = cx.execute(
+                "SELECT job_id, wire_json FROM jobs WHERE job_id=? AND status='QUEUED'", (job_id,)
+            ).fetchall()
+            self._fail_rows(cx, rows, update, now)
+            cx.commit()
+            return bool(rows)
+        finally:
+            cx.close()
+
+    def hold_queued(self, job_ids: list[str], *, lease_ms: int) -> None:
+        """Renew the lease a live process holds on QUEUED jobs it will still run.
+
+        A held QUEUED job is not an orphan, however long it waits for a worker
+        thread; once the holder stops renewing, the lease lapses and any
+        replica's sweep fails it.
+        """
+
+        if not job_ids:
+            return
+        cx = self._connect()
+        try:
+            cx.execute("BEGIN IMMEDIATE")
+            cx.execute(
+                f"UPDATE jobs SET lease_until_ms=? WHERE status='QUEUED' AND job_id IN ({','.join('?' * len(job_ids))})",
+                (self._now_ms() + lease_ms, *job_ids),
+            )
+            cx.commit()
+        finally:
+            cx.close()
+
+    def sweep_stale(self, update: dict[str, Any], *, queued_grace_ms: int = 60_000) -> list[str]:
+        """Fail jobs no live worker owns: RUNNING past the lease, or QUEUED past
+        its hold lease (or, never held, older than ``queued_grace_ms``)."""
+
+        now = self._now_ms()
+        cx = self._connect()
+        try:
+            cx.execute("BEGIN IMMEDIATE")
+            rows = cx.execute(
+                """
+                SELECT job_id, wire_json FROM jobs
+                WHERE (status='RUNNING' AND COALESCE(lease_until_ms, 0) <= ?)
+                   OR (status='QUEUED' AND COALESCE(lease_until_ms, updated_ms + ?) <= ?)
+                """,
+                (now, queued_grace_ms, now),
+            ).fetchall()
+            self._fail_rows(cx, rows, update, now)
+            cx.commit()
+            return [row["job_id"] for row in rows]
+        finally:
+            cx.close()
+
+    def complete_with_snapshot(self, job_id, *, tenant_id, dossier_id, worker_token,
+                               status, wire, record, envelope, result=None):
+        from app.tools.query_store import save_query_snapshot
+
+        accepted = self.set_wire(job_id, tenant_id=tenant_id, dossier_id=dossier_id,
+                                 worker_token=worker_token, status=status, wire=wire, result=result)
+        if accepted and status == "SUCCEEDED":
+            save_query_snapshot(record, envelope)
+        return accepted
 
     def get(
         self,
@@ -356,3 +444,178 @@ class SQLiteJobStore:
             cx.commit()
         finally:
             cx.close()
+
+
+class PostgresJobStore(SQLiteJobStore):
+    """Atomic job/nonce writes and row-fenced claims in AI2's own schema."""
+
+    def __init__(self, url: str | None = None):
+        from app.db.engine import ensure_database, get_engine
+        self.engine = get_engine(url)
+        ensure_database(self.engine)
+
+    def _connect(self):
+        from app.db.engine import DurableConnection
+        return DurableConnection(self.engine)
+
+    def create_or_get(self, *, tenant_id, dossier_id, request_id, idempotency_key, attempt,
+                      request, wire, nonce=None, request_fingerprint=None):
+        from sqlalchemy import select
+        from sqlalchemy.dialects.postgresql import insert
+
+        from app.db.tables import jobs, service_nonces
+        now = self._now_ms()
+        job_id = f"job_{uuid4().hex}"
+        with self.engine.begin() as cx:
+            if nonce is not None:
+                prior = cx.execute(select(service_nonces).where(
+                    service_nonces.c.tenant_id == tenant_id, service_nonces.c.nonce == nonce,
+                ).with_for_update()).mappings().first()
+                if prior:
+                    if prior["payload_fingerprint"] != (request_fingerprint or ""):
+                        raise JobNonceReplayConflict("service nonce was reused with another payload")
+                    row = cx.execute(select(jobs).where(jobs.c.job_id == prior["job_id"])).mappings().first()
+                    if row:
+                        return self._decode(row), False
+            inserted = cx.execute(insert(jobs).values(
+                job_id=job_id, tenant_id=tenant_id, dossier_id=dossier_id, request_id=request_id,
+                idempotency_key=idempotency_key, attempt=attempt, status="QUEUED",
+                request_json=json.dumps(request, ensure_ascii=False, sort_keys=True),
+                wire_json=json.dumps({**wire, "job_id": job_id}, ensure_ascii=False),
+                request_fingerprint=request_fingerprint, created_ms=now, updated_ms=now,
+            ).on_conflict_do_nothing(index_elements=[jobs.c.tenant_id, jobs.c.idempotency_key, jobs.c.attempt])
+                .returning(jobs.c.job_id)).scalar()
+            row = cx.execute(select(jobs).where(
+                jobs.c.tenant_id == tenant_id, jobs.c.idempotency_key == idempotency_key, jobs.c.attempt == attempt,
+            ).with_for_update()).mappings().one()
+            if row["dossier_id"] != dossier_id:
+                raise JobOwnershipConflict("idempotency key is already associated with another dossier")
+            if row["request_fingerprint"] and request_fingerprint and row["request_fingerprint"] != request_fingerprint:
+                raise JobPayloadConflict("idempotency key was reused with another payload")
+            if nonce is not None:
+                cx.execute(insert(service_nonces).values(
+                    tenant_id=tenant_id, nonce=nonce, payload_fingerprint=request_fingerprint or "",
+                    job_id=row["job_id"], created_ms=now,
+                ).on_conflict_do_nothing(index_elements=[service_nonces.c.tenant_id, service_nonces.c.nonce]))
+                saved = cx.execute(select(service_nonces).where(
+                    service_nonces.c.tenant_id == tenant_id, service_nonces.c.nonce == nonce,
+                ).with_for_update()).mappings().one()
+                if saved["payload_fingerprint"] != (request_fingerprint or "") or saved["job_id"] != row["job_id"]:
+                    raise JobNonceReplayConflict("service nonce was reused with another payload")
+            return self._decode(row), bool(inserted)
+
+    def claim(self, job_id, *, tenant_id, dossier_id, lease_ms=60_000):
+        from sqlalchemy import and_, func, or_, update
+
+        from app.db.tables import jobs
+        now, token = self._now_ms(), uuid4().hex
+        with self.engine.begin() as cx:
+            return cx.execute(update(jobs).where(
+                jobs.c.job_id == job_id, jobs.c.tenant_id == tenant_id, jobs.c.dossier_id == dossier_id,
+                or_(jobs.c.status == "QUEUED", and_(jobs.c.status == "RUNNING", func.coalesce(jobs.c.lease_until_ms, 0) <= now)),
+            ).values(status="RUNNING", worker_token=token, lease_until_ms=now + lease_ms,
+                     updated_ms=now).returning(jobs.c.worker_token)).scalar()
+
+    def set_wire(self, job_id, *, tenant_id, dossier_id, worker_token, status, wire, result=None):
+        from sqlalchemy import update
+
+        from app.db.tables import jobs
+        terminal = status in {"SUCCEEDED", "FAILED", "CANCELLED"}
+        values = dict(status=status, wire_json=json.dumps(wire, ensure_ascii=False),
+                      result_json=json.dumps(result, ensure_ascii=False) if result is not None else None,
+                      updated_ms=self._now_ms())
+        if terminal:
+            values.update(worker_token=None, lease_until_ms=None)
+        with self.engine.begin() as cx:
+            return cx.execute(update(jobs).where(
+                jobs.c.job_id == job_id, jobs.c.tenant_id == tenant_id, jobs.c.dossier_id == dossier_id,
+                jobs.c.worker_token == worker_token,
+            ).values(**values)).rowcount == 1
+
+    def complete_with_snapshot(self, job_id, *, tenant_id, dossier_id, worker_token,
+                               status, wire, record, envelope, result=None):
+        """Commit the fenced result and its query read model in one transaction."""
+        from sqlalchemy import select, text, update
+        from sqlalchemy.dialects.postgresql import insert
+
+        from app.db.tables import jobs, query_snapshots
+        from app.tools.persist import record_to_dict
+
+        if (record.tenant_id != tenant_id or record.dossier_id != dossier_id
+                or envelope.auth.tenant_id != tenant_id or envelope.auth.dossier_id != dossier_id
+                or record.pins.source_snapshot_digest != envelope.pins.source_snapshot_digest
+                or wire.get("query_snapshot_digest", record.pins.source_snapshot_digest)
+                   != record.pins.source_snapshot_digest):
+            raise ValueError("job query snapshot ownership or digest mismatch")
+        payload = json.dumps({"record": record_to_dict(record), "envelope": envelope.model_dump()}, ensure_ascii=False)
+        with self.engine.begin() as cx:
+            # All completion writers for a dossier use the same transaction lock.
+            cx.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:scope, 0))"),
+                       {"scope": json.dumps([tenant_id, dossier_id])})
+            accepted = cx.execute(update(jobs).where(
+                jobs.c.job_id == job_id, jobs.c.tenant_id == tenant_id, jobs.c.dossier_id == dossier_id,
+                jobs.c.worker_token == worker_token, jobs.c.status == "RUNNING",
+            ).values(status=status, wire_json=json.dumps(wire, ensure_ascii=False),
+                     result_json=json.dumps(result, ensure_ascii=False) if result is not None else None,
+                     worker_token=None, lease_until_ms=None, updated_ms=self._now_ms())
+                .returning(jobs.c.job_id)).scalar()
+            if not accepted:
+                return False
+            latest = cx.execute(select(jobs.c.job_id).where(
+                jobs.c.tenant_id == tenant_id, jobs.c.dossier_id == dossier_id, jobs.c.status == "SUCCEEDED",
+            ).order_by(jobs.c.created_ms.desc(), jobs.c.job_id.desc()).limit(1)).scalar()
+            if status == "SUCCEEDED" and latest == job_id:
+                stmt = insert(query_snapshots).values(tenant_id=tenant_id, dossier_id=dossier_id,
+                    snapshot_digest=record.pins.source_snapshot_digest, payload=payload, updated_ms=self._now_ms())
+                cx.execute(stmt.on_conflict_do_update(index_elements=[query_snapshots.c.tenant_id, query_snapshots.c.dossier_id],
+                    set_={"snapshot_digest": stmt.excluded.snapshot_digest, "payload": stmt.excluded.payload,
+                          "updated_ms": stmt.excluded.updated_ms}))
+            return True
+
+    def _fail_matching(self, condition, update):
+        from sqlalchemy import select
+        from sqlalchemy import update as sql_update
+
+        from app.db.tables import jobs
+        with self.engine.begin() as cx:
+            rows = cx.execute(select(jobs).where(condition).with_for_update()).mappings().all()
+            for row in rows:
+                wire = {**json.loads(row["wire_json"]), **update, "status": "FAILED"}
+                cx.execute(sql_update(jobs).where(jobs.c.job_id == row["job_id"]).values(
+                    status="FAILED", wire_json=json.dumps(wire, ensure_ascii=False),
+                    worker_token=None, lease_until_ms=None, updated_ms=self._now_ms(),
+                ))
+            return [row["job_id"] for row in rows]
+
+    def fail_unclaimed(self, job_id, update):
+        from sqlalchemy import and_
+
+        from app.db.tables import jobs
+        return bool(self._fail_matching(and_(jobs.c.job_id == job_id, jobs.c.status == "QUEUED"), update))
+
+    def hold_queued(self, job_ids, *, lease_ms):
+        from sqlalchemy import update
+
+        from app.db.tables import jobs
+        if not job_ids:
+            return
+        with self.engine.begin() as cx:
+            cx.execute(update(jobs).where(jobs.c.status == "QUEUED", jobs.c.job_id.in_(list(job_ids)))
+                       .values(lease_until_ms=self._now_ms() + lease_ms))
+
+    def sweep_stale(self, update, *, queued_grace_ms=60_000):
+        from sqlalchemy import and_, func, or_
+
+        from app.db.tables import jobs
+        now = self._now_ms()
+        return self._fail_matching(or_(
+            and_(jobs.c.status == "RUNNING", func.coalesce(jobs.c.lease_until_ms, 0) <= now),
+            and_(jobs.c.status == "QUEUED",
+                 func.coalesce(jobs.c.lease_until_ms, jobs.c.updated_ms + queued_grace_ms) <= now),
+        ), update)
+
+
+def job_store_from_env():
+    from app.db.engine import database_url, validate_database_config
+    validate_database_config()
+    return PostgresJobStore() if database_url() else SQLiteJobStore()

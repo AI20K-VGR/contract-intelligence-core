@@ -1,0 +1,3 @@
+f79dcb229f0fe43ebd90eb42c7e8f76c848823e16e0d81676e5fd85ab1b987a6 *evals/spikes/clause_key/heldout.csv
+c0dec4af73ebfa67818b51199b706528801c6fe3b136a246d64c511265aa0d19 *evals/spikes/clause_key/heldout_sources.json
+f6b508126d2c97b8bd50dab1853e3ba5a80cadcf142f9dff399a5c457fd66bbb *evals/spikes/clause_key/build_heldout.py
