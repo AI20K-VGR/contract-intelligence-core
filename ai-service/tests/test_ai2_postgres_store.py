@@ -558,3 +558,41 @@ def test_startup_hydrates_jobs_only_without_postgres_read_model(monkeypatch, dat
         pass
 
     assert calls == expected
+
+
+def test_job_indexes_back_sweep_and_latest_success_queries(pg_url):
+    """I5: sweep (status/lease) and complete_with_snapshot's latest-success lookup are indexed."""
+    from sqlalchemy import inspect, text
+
+    from app.db.engine import get_engine
+    from app.db.migrate import migrate
+
+    engine = get_engine(pg_url)
+    with engine.begin() as cx:
+        had_public_version = cx.execute(text("SELECT to_regclass('public.alembic_version')")).scalar() is not None
+        if not had_public_version:  # a Backend-owned alembic table sharing the database
+            cx.execute(text("CREATE TABLE public.alembic_version (version_num varchar(32) PRIMARY KEY)"))
+            cx.execute(text("INSERT INTO public.alembic_version VALUES ('be_sentinel')"))
+        public_before = cx.execute(text("SELECT version_num FROM public.alembic_version ORDER BY 1")).scalars().all()
+    try:
+        migrate(engine)
+        migrate(engine)
+        indexes = {index["name"]: index for index in inspect(engine).get_indexes("jobs", schema="ai2")}
+        with engine.connect() as cx:
+            version = cx.execute(text("SELECT version_num FROM ai2.alembic_version")).scalar()
+            public_after = cx.execute(text("SELECT version_num FROM public.alembic_version ORDER BY 1")).scalars().all()
+            plans = {name: cx.execute(text("SELECT indexdef FROM pg_indexes WHERE schemaname='ai2' AND indexname=:n"),
+                                      {"n": name}).scalar() for name in indexes}
+    finally:
+        if not had_public_version:
+            with engine.begin() as cx:
+                cx.execute(text("DROP TABLE public.alembic_version"))
+
+    assert version == "0004_ai2_job_indexes"
+    assert public_after == public_before
+    sweep = indexes["idx_ai2_jobs_active_lease"]
+    assert sweep["column_names"] == ["status", "lease_until_ms", "updated_ms"]
+    assert "WHERE (status = ANY" in plans["idx_ai2_jobs_active_lease"]
+    latest = indexes["idx_ai2_jobs_owner_latest"]
+    assert latest["column_names"] == ["tenant_id", "dossier_id", "status", "created_ms", "job_id"]
+    assert "created_ms DESC, job_id DESC" in plans["idx_ai2_jobs_owner_latest"]

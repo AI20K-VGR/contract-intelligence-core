@@ -310,11 +310,13 @@ def test_query_vector_recall_embeds_within_the_default_cap(monkeypatch, tmp_path
 def test_query_embedding_cap_turns_vector_off_without_calling_the_provider(monkeypatch, tmp_path):
     from app.api import main
 
+    monkeypatch.setenv("AI2_QUERY_USE_LLM", "false")  # deterministic answer path
     body, fake = _bounded(_signed_query, main, monkeypatch, tmp_path, cap="10")
 
     assert fake.embedded_texts == 0
     assert body["retrieval_layer"]["vector_status"] == "BUDGET_EXCEEDED"
-    assert body["state"] in {"PASS", "NEEDS_REVIEW", "INSUFFICIENT_EVIDENCE"}
+    # Deterministic answer over mock_record; /query never emits PASS (now ANSWERED).
+    assert body["state"] == "NEEDS_REVIEW"
     assert body["citations"]
     assert body["retrieval_layer"]["reason_code"] == "EMBEDDING_BUDGET_EXCEEDED"
 
