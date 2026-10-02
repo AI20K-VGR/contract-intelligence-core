@@ -183,13 +183,26 @@ def require_role(*allowed_roles: str) -> Any:
         if not _user_meets_required_level(user.role, allowed_roles):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
-                    f"Insufficient role — required one of {list(allowed_roles)}, got {user.role!r}"
-                ),
+                detail=role_denied_message(user.role, allowed_roles),
             )
         return user
 
     return _role_checker
+
+
+# Nhãn vai trò hiển thị, khớp với frontend (SidebarLogout, OverviewPage).
+ROLE_LABELS = {"OPERATOR": "Vận hành", "REVIEWER": "Thẩm định", "ADMINISTRATOR": "Quản trị"}
+
+
+def role_denied_message(user_role: str, allowed_roles: tuple[str, ...]) -> str:
+    """Câu 403 tiếng Việt khi vai trò không đủ, kể tên vai trò cần có.
+
+    ADMINISTRATOR luôn được phép nên luôn có trong danh sách cần có.
+    """
+    needed = [*dict.fromkeys([*allowed_roles, "ADMINISTRATOR"])]
+    labels = " hoặc ".join(ROLE_LABELS.get(role, role) for role in needed)
+    current = ROLE_LABELS.get(user_role, user_role)
+    return f"Vai trò của bạn ({current}) không được làm việc này. Cần vai trò {labels}."
 
 
 # -----------------------------------------------------------------------------

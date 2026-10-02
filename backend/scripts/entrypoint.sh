@@ -18,5 +18,9 @@ until uv run alembic upgrade heads; do
 done
 echo "[entrypoint] alembic upgrade head OK"
 
+# Login role limited to schema ai2 for AI2 state (ADR-14). Skipped when
+# AI2_DB_PASSWORD is unset.
+uv run python -m contract_intelligence.infrastructure.ai2_db_role
+
 echo "[entrypoint] starting uvicorn"
 exec uv run uvicorn contract_intelligence.main:app --host 0.0.0.0 --port 8000
