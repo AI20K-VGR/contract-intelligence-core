@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from typing import Any
+from urllib.parse import unquote
 
 import httpx
 import pytest
@@ -108,6 +109,35 @@ async def client(
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://api.test") as ac:
         yield ac
     await upstream.aclose()
+
+
+async def _raw_asgi_get(app: Any, raw_path: bytes, token: str) -> int:
+    """GET with an unnormalized path, as uvicorn passes it on (curl --path-as-is)."""
+    sent: dict[str, int] = {}
+
+    async def receive() -> dict[str, Any]:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: dict[str, Any]) -> None:
+        if message["type"] == "http.response.start":
+            sent["status"] = message["status"]
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": unquote(raw_path.decode("latin-1")),
+        "raw_path": raw_path,
+        "query_string": b"",
+        "root_path": "",
+        "headers": [(b"host", b"api.test"), (b"authorization", f"Bearer {token}".encode())],
+        "client": ("203.0.113.5", 40000),
+        "server": ("api.test", 80),
+    }
+    await app(scope, receive, send)
+    return sent["status"]
 
 
 def _bearer(make_keycloak_token: Callable[..., str], role: str) -> dict[str, str]:
@@ -359,6 +389,61 @@ class TestGrafanaProxying:
         )
         assert resp.status_code == 403
         assert grafana.requests == []
+
+    @pytest.mark.parametrize(
+        "raw_path",
+        [
+            "/grafana/api/%61dmin/users",
+            "/grafana/api%2Fadmin/users",
+            "/grafana/api/ADMIN/users",
+            "/grafana/api/%2561dmin/users",
+            "/grafana/api//admin/users",
+        ],
+    )
+    async def test_admin_api_block_cannot_be_dodged_by_encoding(
+        self,
+        client: AsyncClient,
+        grafana: _FakeGrafana,
+        make_keycloak_token: Callable[..., str],
+        raw_path: str,
+    ) -> None:
+        resp = await client.get(raw_path, headers=_bearer(make_keycloak_token, "ADMINISTRATOR"))
+        assert resp.status_code in (400, 403)
+        assert grafana.requests == []
+
+    @pytest.mark.parametrize(
+        "raw_path",
+        [
+            b"/grafana/../grafana/api/admin/users",
+            b"/grafana/api/admin/../admin/users",
+            b"/grafana/api/%2e%2e/api/admin/users",
+        ],
+    )
+    async def test_dot_segments_never_reach_grafana(
+        self,
+        client: AsyncClient,
+        grafana: _FakeGrafana,
+        make_keycloak_token: Callable[..., str],
+        raw_path: bytes,
+    ) -> None:
+        # httpx normalizes "..", so send the raw request the way uvicorn hands it over.
+        token = make_keycloak_token(role="ADMINISTRATOR", user_id="usr_administrator")
+        status_code = await _raw_asgi_get(create_app(), raw_path, token)
+        assert status_code == 400
+        assert grafana.requests == []
+
+    async def test_forwarded_path_is_the_checked_one(
+        self,
+        client: AsyncClient,
+        grafana: _FakeGrafana,
+        make_keycloak_token: Callable[..., str],
+    ) -> None:
+        resp = await client.get(
+            "/grafana/api/%73earch?query=a%2Fb",
+            headers=_bearer(make_keycloak_token, "ADMINISTRATOR"),
+        )
+        assert resp.status_code == 200
+        assert grafana.requests[0].url.raw_path == b"/grafana/api/search?query=a%2Fb"
 
     async def test_cross_origin_post_is_refused(
         self,
