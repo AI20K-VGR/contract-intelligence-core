@@ -64,6 +64,13 @@ Cuối cùng script in sẵn các biến `VITE_*` cho frontend.
 cd /opt/contract-intelligence && sudo deploy/deploy.sh --pull
 ```
 
+Server cài trước 02/10/2026 (trước issue #52) cần làm thêm một lần trước lần cập nhật đầu tiên:
+
+1. `sudo deploy/backup.sh`. Image `backend-db` đổi từ `postgres:16-alpine` sang `pgvector/pgvector:pg16`; cùng Postgres 16 và DB dùng `--locale=C` nên dữ liệu dùng tiếp được, nhưng vẫn nên có bản backup.
+2. Thêm `AI2_DB_PASSWORD=$(openssl rand -hex 24)` vào `deploy/.env.prod`.
+
+Mỗi lần khởi động, backend tạo hoặc cập nhật role `ai2` với mật khẩu này. Role chỉ sở hữu schema `ai2` (ADR-14), không có quyền trên bảng nghiệp vụ.
+
 ## Frontend dùng API online
 
 ```env
@@ -88,7 +95,7 @@ VITE_KEYCLOAK_CLIENT_ID=contract-intel-frontend
 | Keycloak admin | Trên server lấy IP container: `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ci-keycloak`. Trên máy mình: `ssh -L 8080:<IP đó>:8080 <user>@<ip>`, rồi mở `http://localhost:8080/admin` (user `admin`, mật khẩu `KEYCLOAK_ADMIN_PASSWORD`) |
 | Đọc email (mailpit) | Như trên với `ci-mailpit` và cổng `8025`, rồi mở `http://localhost:8025` |
 | Backup | `sudo deploy/backup.sh` (2 DB + MinIO vào `/var/backups/contract-intelligence`, giữ 7 ngày). Cron: `0 2 * * * /opt/contract-intelligence/deploy/backup.sh >> /var/log/ci-backup.log 2>&1` |
-| Khôi phục DB backend | `docker exec -i ci-backend-db pg_restore -U ci -d contract_intelligence --clean < backend.dump` |
+| Khôi phục DB backend | Chạy stack trước để backend tạo extension `vector` và role `ai2` (`pg_dump` không lưu role), rồi `docker exec -i ci-backend-db pg_restore -U ci -d contract_intelligence --clean < backend.dump` |
 
 Mật khẩu admin Keycloak, mật khẩu tài khoản demo và mọi secret nằm trong `deploy/.env.prod` trên server (quyền 600, không commit). Gửi mật khẩu demo cho nhóm qua kênh riêng.
 

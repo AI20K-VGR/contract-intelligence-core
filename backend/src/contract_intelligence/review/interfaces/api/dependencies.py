@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import Depends, HTTPException, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +13,11 @@ from contract_intelligence.review.infrastructure.persistence.orm import ReviewIt
 from contract_intelligence.review.infrastructure.persistence.repository_impl import (
     ReviewRepositoryImpl,
 )
-from contract_intelligence.shared.acl import AclAction, dossier_access_decision
+from contract_intelligence.shared.acl import (
+    AclAction,
+    dossier_access_decision,
+    dossier_denied_message,
+)
 from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user
 from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.shared.persistence import get_async_session
@@ -32,7 +36,7 @@ async def get_review_service(
 ReviewServiceDep = Annotated[ReviewService, Depends(get_review_service)]
 
 
-def _deny(message: str = "Dossier access denied") -> HTTPException:
+def _deny(message: str) -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail={"code": "ACL_DENIED", "message": message},
@@ -50,14 +54,15 @@ async def require_review_dossier_access(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "NOT_FOUND", "message": f"Dossier {dossier_id} not found"},
         )
-    if not dossier_access_decision(
-        action=AclAction.REVIEW_READ,
-        principal=user,
-        dossier_id=dossier_id,
-        dossier_tenant_id=dossier.tenant_id,
-        metadata=dossier.metadata_json,
-    ):
-        raise _deny()
+    decision: dict[str, Any] = {
+        "action": AclAction.REVIEW_READ,
+        "principal": user,
+        "dossier_id": dossier_id,
+        "dossier_tenant_id": dossier.tenant_id,
+        "metadata": dossier.metadata_json,
+    }
+    if not dossier_access_decision(**decision):
+        raise _deny(dossier_denied_message(**decision))
 
 
 async def require_review_item_access(
@@ -77,14 +82,15 @@ async def require_review_item_access(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "NOT_FOUND", "message": f"Dossier {item.dossier_id} not found"},
         )
-    if not dossier_access_decision(
-        action=AclAction.REVIEW_READ,
-        principal=user,
-        dossier_id=item.dossier_id,
-        dossier_tenant_id=dossier.tenant_id,
-        metadata=dossier.metadata_json,
-    ):
-        raise _deny()
+    decision: dict[str, Any] = {
+        "action": AclAction.REVIEW_READ,
+        "principal": user,
+        "dossier_id": item.dossier_id,
+        "dossier_tenant_id": dossier.tenant_id,
+        "metadata": dossier.metadata_json,
+    }
+    if not dossier_access_decision(**decision):
+        raise _deny(dossier_denied_message(**decision))
 
 
 async def require_review_item_mutation_access(
@@ -104,14 +110,15 @@ async def require_review_item_mutation_access(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "NOT_FOUND", "message": f"Dossier {item.dossier_id} not found"},
         )
-    if not dossier_access_decision(
-        action=AclAction.REVIEW_MUTATE,
-        principal=user,
-        dossier_id=item.dossier_id,
-        dossier_tenant_id=dossier.tenant_id,
-        metadata=dossier.metadata_json,
-    ):
-        raise _deny()
+    decision: dict[str, Any] = {
+        "action": AclAction.REVIEW_MUTATE,
+        "principal": user,
+        "dossier_id": item.dossier_id,
+        "dossier_tenant_id": dossier.tenant_id,
+        "metadata": dossier.metadata_json,
+    }
+    if not dossier_access_decision(**decision):
+        raise _deny(dossier_denied_message(**decision))
 
 
 __all__ = [

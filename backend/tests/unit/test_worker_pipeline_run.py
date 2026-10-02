@@ -1077,7 +1077,8 @@ def _member(doc_type: str, *, included: bool = True) -> SimpleNamespace:
     [
         ([_member("contract"), _member("annex")], None),
         ([_member("contract"), _member("contract", included=False)], None),
-        ([_member("annex")], "DOSSIER_CONTRACT_NOT_UNIQUE"),
+        ([_member("annex")], "DOSSIER_CONTRACT_REQUIRED"),
+        ([_member("contract", included=False), _member("annex")], "DOSSIER_CONTRACT_REQUIRED"),
         ([_member("contract"), _member("contract")], "DOSSIER_CONTRACT_NOT_UNIQUE"),
         (
             [_member("contract"), *(_member("annex") for _ in range(6))],

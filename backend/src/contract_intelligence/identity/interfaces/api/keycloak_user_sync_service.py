@@ -29,7 +29,7 @@ from enum import StrEnum
 from typing import Any
 
 import structlog
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from contract_intelligence.identity.domain.entities.app_user import UserRole
 from contract_intelligence.identity.domain.repositories.user_repository import (
@@ -86,9 +86,36 @@ class KeycloakUserEvent(BaseModel):
     Note: Khác với phiên bản trước — Phase Two gửi raw Keycloak Event,
     không có nested ``user`` object. Full profile phải fetch qua
     ``KeycloakAdminClient.get_user_profile(userId)``.
+
+    Phase Two cũng có thể gửi dạng "extended" — user nằm trong
+    ``authDetails`` và ``type`` có tiền tố nhóm::
+
+        {"type": "access.LOGIN", "realmId": "...",
+         "authDetails": {"userId": "...", "clientId": "...", ...}}
+
+    ``_lift_extended_event`` đưa dạng này về shape phẳng ở trên. Event admin
+    (``admin.*``) giữ nguyên ``type`` nên rơi vào nhánh ignore.
     """
 
     model_config = {"populate_by_name": True, "extra": "ignore"}
+
+    @model_validator(mode="before")
+    @classmethod
+    def _lift_extended_event(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        auth = data.get("authDetails")
+        if isinstance(auth, dict):
+            for key in ("userId", "realmId", "clientId", "sessionId", "ipAddress"):
+                if not data.get(key) and auth.get(key):
+                    data[key] = auth[key]
+        event_type = data.get("type")
+        if isinstance(event_type, str) and event_type.startswith("access."):
+            data["type"] = event_type[len("access.") :]
+        if data.get("details") is None:
+            data.pop("details", None)
+        return data
 
     type: str  # LOGIN | REGISTER | UPDATE_PROFILE | DELETE_ACCOUNT | ...
     realmId: str = Field(default="", alias="realmId")  # noqa: N815

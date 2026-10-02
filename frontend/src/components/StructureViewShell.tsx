@@ -3,7 +3,9 @@ import { reviewerLabel } from '../review/reviewerLabel'
 import {
   CONFLICT_STATE_LABEL,
   VERDICT_LABEL,
+  directCount,
   type ConflictMarker,
+  type ConflictState,
 } from '../structure/conflictAnchors'
 import type { BranchTone } from '../structure/display'
 import { MaterialIcon } from './icons'
@@ -199,11 +201,20 @@ export function conflictTitle(marker: ConflictMarker) {
   return `${head}. ${VERDICT_LABEL[latest.action] ?? latest.action} · ${reviewerLabel(latest)}${when ? ` · ${when}` : ''}`
 }
 
+/** Lớp màu theo trạng thái xung đột — dùng chung cho badge trực tiếp và badge gấp. */
+function toneOf(state: ConflictState): string {
+  return state === 'open'
+    ? 'bg-amber-400 text-amber-950'
+    : state === 'reviewed'
+      ? 'border border-amber-400 bg-amber-50 text-amber-800'
+      : 'bg-slate-200 text-slate-500 opacity-70'
+}
+
 /**
  * Chấm xung đột trên nút cây.
  * - Vàng đậm: có xung đột, chưa ai thẩm định.
- * - Vàng nhạt có dấu tick: đã thẩm định (Chính xác / Sửa nhận định).
- * - Xám mờ: đã thẩm định là Sai lệch, không tính vào tổng.
+ * - Vàng nhạt có dấu tick: đã thẩm định (Đúng).
+ * - Xám mờ: đã thẩm định là Sai, không tính vào tổng.
  * - Nút cha đang gấp: chấm vàng kèm số xung đột bên trong.
  */
 export function ConflictBadge({
@@ -220,7 +231,7 @@ export function ConflictBadge({
     if (!collapsed || marker.below === 0) return null
     return (
       <span
-        className="inline-flex shrink-0 items-center justify-center rounded-full bg-amber-400 px-1 font-semibold leading-none text-amber-950"
+        className={`inline-flex shrink-0 items-center justify-center rounded-full px-1 font-semibold leading-none ${toneOf(marker.belowState)}`}
         style={{ height: size, minWidth: size, fontSize: Math.max(9, size - 6) }}
         title={title}
       >
@@ -228,12 +239,8 @@ export function ConflictBadge({
       </span>
     )
   }
-  const tone =
-    marker.state === 'open'
-      ? 'bg-amber-400 text-amber-950'
-      : marker.state === 'reviewed'
-        ? 'border border-amber-400 bg-amber-50 text-amber-800'
-        : 'bg-slate-200 text-slate-500 opacity-70'
+  const direct = directCount(marker)
+  const tone = toneOf(marker.state)
   const icon =
     marker.state === 'open'
       ? 'priority_high'
@@ -247,15 +254,15 @@ export function ConflictBadge({
       style={{
         height: size,
         minWidth: size,
-        paddingLeft: marker.spots.length > 1 ? 3 : 0,
-        paddingRight: marker.spots.length > 1 ? 3 : 0,
+        paddingLeft: direct > 1 ? 3 : 0,
+        paddingRight: direct > 1 ? 3 : 0,
       }}
       title={title}
     >
       <MaterialIcon name={icon} style={{ fontSize: size - 4 }} />
-      {marker.spots.length > 1 ? (
+      {direct > 1 ? (
         <span className="font-semibold" style={{ fontSize: Math.max(9, size - 6) }}>
-          {marker.spots.length}
+          {direct}
         </span>
       ) : null}
       {collapsed && marker.below > 0 ? (

@@ -21,12 +21,25 @@ class FindingSideDTO(BaseModel):
     value_snapshot: Any = None
 
 
+class FindingReviewLatestDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    action: str
+    comment: str | None = None
+    reviewer_id: str | None = None
+    reviewer_name: str | None = None
+    reviewer_email: str | None = None
+    reviewed_at: str | None = None
+    action_count: int = 0
+
+
 class FindingReviewDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     item_id: str
     status: str
     current_version: int = 0
+    latest: FindingReviewLatestDTO | None = None
 
 
 class FindingDTO(BaseModel):
@@ -77,10 +90,13 @@ class FindingDTO(BaseModel):
         review = None
         review_raw = row.get("review")
         if isinstance(review_raw, dict) and review_raw.get("item_id"):
+            latest_raw = review_raw.get("latest")
+            latest = FindingReviewLatestDTO(**latest_raw) if isinstance(latest_raw, dict) else None
             review = FindingReviewDTO(
                 item_id=str(review_raw["item_id"]),
                 status=str(review_raw.get("status") or "open"),
                 current_version=int(review_raw.get("current_version") or 0),
+                latest=latest,
             )
 
         return cls(
@@ -102,4 +118,4 @@ class FindingDTO(BaseModel):
         )
 
 
-__all__ = ["FindingDTO", "FindingReviewDTO", "FindingSideDTO"]
+__all__ = ["FindingDTO", "FindingReviewDTO", "FindingReviewLatestDTO", "FindingSideDTO"]

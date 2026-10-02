@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, ClassVar
 from unittest.mock import AsyncMock
 
 import pytest
@@ -450,6 +450,20 @@ class TestGetDocumentContentEndpoint:
         resp = await client.get("/api/v1/documents/doc_MISSING/content")
 
         assert resp.status_code == 404
+
+    def test_content_requires_dossier_read_access(self) -> None:
+        """PDF gốc chỉ trả cho người xem được hồ sơ (chủ hoặc grant còn hạn)."""
+        from fastapi.routing import APIRoute
+
+        from contract_intelligence.api.dossier_guard import acl_document
+        from contract_intelligence.contract.interfaces.api.routers.contract_router import router
+
+        (route,) = [
+            r
+            for r in router.routes
+            if isinstance(r, APIRoute) and r.path == "/documents/{document_id}/content"
+        ]
+        assert acl_document in [d.call for d in route.dependant.dependencies]
 
 
 # ---------------------------------------------------------------------------
@@ -1010,6 +1024,113 @@ class TestDossierAccessPermissions:
         mock_svc.list_documents.return_value = []
         resp = await client.get("/api/v1/dossiers/dos_TEST_01/documents")
         assert resp.status_code == 200
+
+    async def test_read_grant_denial_says_view_only(
+        self, client: AsyncClient, mock_svc: AsyncMock
+    ) -> None:
+        mock_svc.get_dossier.return_value = _make_dossier(
+            metadata={
+                "created_by": "usr_someone_else",
+                "access_scope": "shared_out",
+                "shared_with": [{"id": "usr_op_01", "permission": "read"}],
+            }
+        )
+        resp = await client.patch("/api/v1/dossiers/dos_TEST_01", json={"name": "x"})
+        assert resp.status_code == 403
+        assert resp.json()["detail"] == "Bạn chỉ có quyền xem hồ sơ này."
+
+    async def test_keeps_unchanged_expired_grant(
+        self, client: AsyncClient, mock_svc: AsyncMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Grant đã hết hạn gửi lại nguyên expires_at không chặn cả lần lưu."""
+        from contract_intelligence.contract.interfaces.api.routers import contract_router
+
+        monkeypatch.setattr(contract_router, "_record", AsyncMock())
+        mock_svc.get_dossier.return_value = _make_dossier(
+            metadata={
+                "created_by": "usr_op_01",
+                "access_scope": "shared_out",
+                "shared_with": [
+                    {
+                        "id": "usr_old",
+                        "permission": "read",
+                        "expires_at": "2020-01-01T00:00:00+00:00",
+                    }
+                ],
+            }
+        )
+        resp = await client.put(
+            "/api/v1/dossiers/dos_TEST_01/access",
+            json={
+                "scope": "shared_out",
+                "shared_with": [
+                    {"id": "usr_old", "permission": "read", "expires_at": "2020-01-01T00:00:00Z"},
+                    {"id": "usr_new", "permission": "edit"},
+                ],
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        stored = mock_svc.patch_dossier.await_args.kwargs["metadata"]["shared_with"]
+        assert [g["id"] for g in stored] == ["usr_old", "usr_new"]
+
+    async def test_rejects_changed_expiry_in_the_past(
+        self, client: AsyncClient, mock_svc: AsyncMock
+    ) -> None:
+        mock_svc.get_dossier.return_value = _make_dossier(
+            metadata={
+                "created_by": "usr_op_01",
+                "shared_with": [{"id": "usr_guest", "expires_at": "2020-01-01T00:00:00+00:00"}],
+            }
+        )
+        resp = await client.put(
+            "/api/v1/dossiers/dos_TEST_01/access",
+            json=self._body(expires_at="2021-01-01T00:00:00Z"),
+        )
+        assert resp.status_code == 422
+        mock_svc.patch_dossier.assert_not_awaited()
+
+
+class TestDossierAccessVisibility:
+    _META: ClassVar[dict[str, Any]] = {
+        "created_by": "usr_owner",
+        "access_scope": "shared_out",
+        "shared_with": [
+            {"id": "usr_op_01", "email": "operator@test.com", "permission": "read"},
+            {"id": "usr_other", "email": "other@test.com", "permission": "edit"},
+        ],
+    }
+
+    async def test_grantee_sees_only_own_grant(
+        self, client: AsyncClient, mock_svc: AsyncMock
+    ) -> None:
+        mock_svc.get_dossier.return_value = _make_dossier(metadata=self._META)
+        mock_svc.list_documents.return_value = []
+
+        resp = await client.get("/api/v1/dossiers/dos_TEST_01/access")
+        assert resp.status_code == 200, resp.text
+        data = resp.json()["data"]
+        assert data["scope"] == "shared_out"
+        assert [g["id"] for g in data["shared_with"]] == ["usr_op_01"]
+
+        resp = await client.get("/api/v1/dossiers/dos_TEST_01")
+        assert resp.status_code == 200, resp.text
+        shared = resp.json()["data"]["metadata"]["shared_with"]
+        assert [g["id"] for g in shared] == ["usr_op_01"]
+
+    async def test_owner_sees_every_grant(self, client: AsyncClient, mock_svc: AsyncMock) -> None:
+        mock_svc.get_dossier.return_value = _make_dossier(
+            metadata={**self._META, "created_by": "usr_op_01"}
+        )
+        resp = await client.get("/api/v1/dossiers/dos_TEST_01/access")
+        assert resp.status_code == 200, resp.text
+        assert [g["id"] for g in resp.json()["data"]["shared_with"]] == ["usr_op_01", "usr_other"]
+
+    async def test_no_access_is_forbidden(self, client: AsyncClient, mock_svc: AsyncMock) -> None:
+        mock_svc.get_dossier.return_value = _make_dossier(
+            metadata={"created_by": "usr_owner", "access_scope": "mine"}
+        )
+        resp = await client.get("/api/v1/dossiers/dos_TEST_01/access")
+        assert resp.status_code == 403
 
 
 class TestRetryFailedOcrEndpoint:

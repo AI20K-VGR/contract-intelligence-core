@@ -10,6 +10,7 @@ import {
 } from '../api/findingReview'
 import type { ClauseNode } from '../api/structure'
 import { reviewerLabel } from '../review/reviewerLabel'
+import { reviewErrorMessage } from '../review/saveError'
 import {
   actionLabel,
   mergeTimelines,
@@ -29,24 +30,23 @@ export type LinkedClause = {
 
 const NO_LINKS: LinkedClause[] = []
 
-type Verdict = 'correct' | 'deviation' | 'edit'
+type Verdict = 'correct' | 'deviation'
 
 const ACTION_OF: Record<Verdict, FindingReviewAction> = {
   correct: 'confirm',
   deviation: 'reject',
-  edit: 'correct',
 }
 
 const VERDICT_OF: Record<string, Verdict> = {
   confirm: 'correct',
   reject: 'deviation',
-  correct: 'edit',
+  // Bản ghi cũ "sửa nhận định" được tính là đúng kèm bổ sung.
+  correct: 'correct',
 }
 
 const VERDICT_LABEL: Record<Verdict, string> = {
-  correct: 'Chính xác',
-  deviation: 'Sai lệch',
-  edit: 'Sửa nhận định',
+  correct: 'Đúng',
+  deviation: 'Sai',
 }
 
 function entryNote(entry: FindingReviewEntry) {
@@ -127,7 +127,12 @@ export function ConflictFindingReview({
   const timeline = useMemo(
     () =>
       mergeTimelines(
-        timelineEntries('finding', '', `finding:${findingId}`, review?.history ?? []),
+        timelineEntries(
+          'finding',
+          '',
+          `finding:${findingId}`,
+          review?.history ?? [],
+        ),
         ...linkedClauses.map((link) =>
           timelineEntries(
             'citation',
@@ -163,9 +168,7 @@ export function ConflictFindingReview({
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return
         onReviewed?.(false)
-        setMessage(
-          cause instanceof Error ? cause.message : 'Không tải được thẩm định.',
-        )
+        setMessage(reviewErrorMessage(cause, 'Không tải được thẩm định.'))
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
@@ -182,10 +185,6 @@ export function ConflictFindingReview({
 
   async function save() {
     if (saving || loading) return
-    if (verdict === 'edit' && !note.trim()) {
-      setMessage('Sửa nhận định cần nhập nội dung nhận định mới.')
-      return
-    }
     setSaving(true)
     setMessage(null)
     try {
@@ -204,9 +203,7 @@ export function ConflictFindingReview({
           `${who || 'Người khác'} vừa lưu thẩm định cho mục này. Đã tải bản mới nhất, hãy xem lại trước khi lưu.`,
         )
       } else {
-        setMessage(
-          cause instanceof Error ? cause.message : 'Không lưu được thẩm định.',
-        )
+        setMessage(reviewErrorMessage(cause, 'Không lưu được thẩm định.'))
       }
     } finally {
       setSaving(false)
@@ -216,7 +213,7 @@ export function ConflictFindingReview({
   return (
     <div className="mt-2 border-t border-outline-variant/30 pt-2">
       <p className="font-label-sm text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">
-        Nhận định của chuyên viên
+        Thẩm định của chuyên viên
       </p>
       {latest ? (
         <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">
@@ -236,7 +233,10 @@ export function ConflictFindingReview({
           key={line}
           className="mt-0.5 flex items-start gap-1 font-body-sm text-body-sm text-sky-900"
         >
-          <MaterialIcon name="fact_check" className="mt-0.5 shrink-0 text-[14px]" />
+          <MaterialIcon
+            name="fact_check"
+            className="mt-0.5 shrink-0 text-[14px]"
+          />
           <span>{line} Đây là tham khảo, không thay kết luận về xung đột.</span>
         </p>
       ))}
@@ -248,9 +248,14 @@ export function ConflictFindingReview({
           </p>
           <p className="mt-0.5">
             <span className="font-semibold">
-              {VERDICT_LABEL[VERDICT_OF[review.stale.latest.action] ?? 'correct']}
+              {
+                VERDICT_LABEL[
+                  VERDICT_OF[review.stale.latest.action] ?? 'correct'
+                ]
+              }
             </span>{' '}
-            bởi {entryWho(review.stale.latest)} · {entryWhen(review.stale.latest)}
+            bởi {entryWho(review.stale.latest)} ·{' '}
+            {entryWhen(review.stale.latest)}
           </p>
           {entryNote(review.stale.latest) ? (
             <p className="mt-0.5 text-on-surface-variant">
@@ -263,33 +268,28 @@ export function ConflictFindingReview({
             </p>
           ) : null}
           <p className="mt-0.5 text-secondary">
-            Kết quả này không được tính cho lần phân tích hiện tại. Hãy chọn nhận định rồi lưu lại.
+            Kết quả này không được tính cho lần phân tích hiện tại. Hãy chọn
+            đúng hoặc sai rồi lưu lại.
           </p>
         </div>
       ) : null}
-      <div className="mt-1 grid grid-cols-3 gap-1">
+      <div className="mt-1 grid grid-cols-2 gap-1">
         <VerdictButton
           active={verdict === 'correct'}
           icon="check_circle"
-          label="Chính xác"
+          label="Đúng"
           onClick={() => choose('correct')}
         />
         <VerdictButton
           active={verdict === 'deviation'}
           icon="cancel"
-          label="Sai lệch"
+          label="Sai"
           onClick={() => choose('deviation')}
-        />
-        <VerdictButton
-          active={verdict === 'edit'}
-          icon="edit_note"
-          label="Sửa nhận định"
-          onClick={() => choose('edit')}
         />
       </div>
       <textarea
         className="mt-2 w-full resize-none rounded bg-surface-container-low p-2 font-body-sm text-body-sm text-on-surface outline-none focus:ring-1 focus:ring-outline-variant"
-        placeholder="Ghi chú thẩm định..."
+        placeholder="Bổ sung hoặc xử lý..."
         rows={2}
         disabled={locked}
         value={note}
@@ -313,8 +313,15 @@ export function ConflictFindingReview({
           disabled={loading || saving || locked}
           onClick={() => void save()}
         >
-          <MaterialIcon name={saved ? 'check' : 'save'} className="text-[15px]" />
-          {saving ? 'Đang lưu...' : saved ? 'Đã lưu thẩm định' : 'Lưu thẩm định'}
+          <MaterialIcon
+            name={saved ? 'check' : 'save'}
+            className="text-[15px]"
+          />
+          {saving
+            ? 'Đang lưu...'
+            : saved
+              ? 'Đã lưu thẩm định'
+              : 'Lưu thẩm định'}
         </button>
       </div>
       <ReviewTimeline entries={timeline} />

@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu | **DOC-05b** / Contract Intelligence (PROD-01) |
-| Phiên bản / SemVer | **`v1.2.0`** — thêm mã lỗi `422` cho hồ sơ quá 6 tài liệu và hồ sơ không có đúng một hợp đồng. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
+| Phiên bản / SemVer | **`v1.3.0`** — `review.latest` (lượt thẩm định gần nhất) trong finding của `GET /dossiers/{id}/findings`, `/conflicts` và `GET /findings/{id}`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
 | Trạng thái | Đã chốt — Sẵn sàng triển khai Frontend & Backend |
 | Owner | Tech Lead / Frontend Lead / Backend Lead |
 | Ngày hiệu lực | 17/09/2026 |
@@ -648,6 +648,23 @@ export interface FindingDTO {
   confidence: number;
   rationale?: string;
   sides: FindingSideDTO[];
+  review?: FindingReviewDTO | null;
+}
+
+export interface FindingReviewDTO {
+  item_id: string;
+  status: string;
+  current_version?: number;
+  // v1.3.0: lượt thẩm định gần nhất; null khi chưa ai thẩm định.
+  latest?: {
+    action: string; // confirm | reject (dữ liệu cũ có thể là correct)
+    comment?: string | null;
+    reviewer_id?: string | null;
+    reviewer_name?: string | null;
+    reviewer_email?: string | null;
+    reviewed_at?: string | null;
+    action_count?: number;
+  } | null;
 }
 
 // Review Queue & Actions
@@ -723,6 +740,7 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
+| `v1.3.0` | 02/10/2026 | Finding có thêm `review.latest` (`action`, `comment`, người thẩm định, `reviewed_at`, `action_count`), `null` khi chưa ai thẩm định. Trước đây Backend đã lấy giá trị này nhưng DTO làm rơi, nên FE không biết xung đột đã được đánh Đúng/Sai (liên quan #51). Chỉ thêm trường tuỳ chọn, nên là MINOR |
 | `v1.2.0` | 30/09/2026 | Theo DEC-BE-AI2-01 D5 (việc B4): hồ sơ tối đa 6 tài liệu (đếm file và phần sau khi tách, không đếm trang), `422 DOSSIER_TOO_MANY_DOCUMENTS` ở `POST /dossiers` và `POST /dossiers/{id}/split`, câu lỗi riêng cho từng chỗ; hồ sơ cần đúng một hợp đồng, `422 contract_not_unique` (mới) cạnh `contract_required` ở `POST /dossiers/{id}/split` và `POST /dossiers/{id}/manifest/confirm`. Chỉ thêm mã lỗi; hồ sơ bị chặn là loại AI2 vốn không xử lý được, nên là MINOR |
 | `v1.1.0` | 30/09/2026 | Thêm `GET /dossiers/{id}/queries`, `POST /dossiers/{id}/ocr/retry-failed`, `POST /dossiers/{id}/split` và `metadata.split_pending` (đã có trong `DOC-05-api-spec.yaml`, PR #36). Chỉ thêm, không đổi hay xoá trường nào, nên là MINOR. Response của ba API mô tả theo envelope thật `{ data, meta }` (xem ghi chú §3.1 bên dưới). Các endpoint backend bỏ ở v2.0.0 (`POST /dossiers/upload`, webhook AI1/AI2, `/reviews` cũ) chưa từng có trong DOC-05b, nên không ảnh hưởng contract này |
 
@@ -738,4 +756,4 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 
 ---
 
-**Hết DOC-05b · Frontend-Backend API Contract v1.2.0 (SemVer)**
+**Hết DOC-05b · Frontend-Backend API Contract v1.3.0 (SemVer)**

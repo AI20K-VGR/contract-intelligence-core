@@ -6,9 +6,9 @@ Endpoints:
     GET  /review-items/{id}/revisions      — Append-only audit trail
     POST /review-items/{id}/actions        — Submit action (optimistic locking)
     GET  /clause-nodes/{id}/review         — Thẩm định hiện hành + lịch sử của điều khoản
-    POST /clause-nodes/{id}/review         — Lưu thẩm định trích dẫn (confirm/reject/correct)
+    POST /clause-nodes/{id}/review         — Lưu thẩm định trích dẫn (confirm/reject)
     GET  /findings/{id}/review             — Thẩm định hiện hành + lịch sử của xung đột
-    POST /findings/{id}/review             — Lưu thẩm định xung đột (confirm/reject/correct)
+    POST /findings/{id}/review             — Lưu thẩm định xung đột (confirm/reject)
 
 Optimistic locking (P0-05 / openapi.yaml):
     ``/review-items/{id}/actions``: ``base_version`` = item ``version`` (starts at 1).
@@ -51,7 +51,11 @@ from contract_intelligence.review.interfaces.api.dependencies import (
     require_review_item_access,
     require_review_item_mutation_access,
 )
-from contract_intelligence.shared.acl import AclAction, dossier_access_decision
+from contract_intelligence.shared.acl import (
+    AclAction,
+    dossier_access_decision,
+    dossier_denied_message,
+)
 from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user, require_role
 from contract_intelligence.shared.exceptions import ReviewVersionConflict
 from contract_intelligence.shared.responses import ApiMeta, ApiResponse
@@ -204,16 +208,17 @@ async def _clause_with_access(
     node: dict[str, Any] | None,
 ) -> dict[str, Any]:
     ctx = await svc.get_clause_context(node_id, document_id=document_id, node=node)
-    if not dossier_access_decision(
-        action=action,
-        principal=user,
-        dossier_id=ctx["dossier_id"],
-        dossier_tenant_id=str(ctx.get("dossier_tenant_id") or ""),
-        metadata=ctx.get("dossier_metadata"),
-    ):
+    decision: dict[str, Any] = {
+        "action": action,
+        "principal": user,
+        "dossier_id": ctx["dossier_id"],
+        "dossier_tenant_id": str(ctx.get("dossier_tenant_id") or ""),
+        "metadata": ctx.get("dossier_metadata"),
+    }
+    if not dossier_access_decision(**decision):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "ACL_DENIED", "message": "Dossier access denied"},
+            detail={"code": "ACL_DENIED", "message": dossier_denied_message(**decision)},
         )
     return ctx
 
@@ -377,15 +382,16 @@ async def _finding_with_access(
     action: AclAction,
 ) -> dict[str, Any]:
     ctx = await svc.get_finding_context(finding_id)
-    if not dossier_access_decision(
-        action=action,
-        principal=user,
-        dossier_id=ctx["dossier_id"],
-        dossier_tenant_id=str(ctx.get("dossier_tenant_id") or ""),
-        metadata=ctx.get("dossier_metadata"),
-    ):
+    decision: dict[str, Any] = {
+        "action": action,
+        "principal": user,
+        "dossier_id": ctx["dossier_id"],
+        "dossier_tenant_id": str(ctx.get("dossier_tenant_id") or ""),
+        "metadata": ctx.get("dossier_metadata"),
+    }
+    if not dossier_access_decision(**decision):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "ACL_DENIED", "message": "Dossier access denied"},
+            detail={"code": "ACL_DENIED", "message": dossier_denied_message(**decision)},
         )
     return ctx

@@ -2263,6 +2263,20 @@ components:
             item_id: { type: string }
             status: { $ref: '#/components/schemas/ReviewItemStatus' }
             current_version: { type: integer }
+            latest:
+              type: object
+              nullable: true
+              description: >
+                Lượt thẩm định gần nhất của finding (DOC-05b v1.3.0); `null` khi chưa ai
+                thẩm định. FE dùng `action` để biết xung đột đã được đánh Đúng/Sai.
+              properties:
+                action: { type: string, description: "confirm | reject (dữ liệu cũ có thể là correct)" }
+                comment: { type: string, nullable: true }
+                reviewer_id: { type: string, nullable: true }
+                reviewer_name: { type: string, nullable: true }
+                reviewer_email: { type: string, nullable: true }
+                reviewed_at: { type: string, format: date-time, nullable: true }
+                action_count: { type: integer, description: Tổng số lượt thẩm định của item }
 
     # ── Review item & action ───────────────────────────────────────────────
     ReviewItem:
