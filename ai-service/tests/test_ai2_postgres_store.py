@@ -392,3 +392,116 @@ def test_pending_outbox_filter_never_returns_another_run(pg_url, monkeypatch, tm
         store.append_event(run_id=run_id, event_type="step", sequence=1, state_version=1,
                            generation_id="gen", correlation_id="corr", payload={})
     assert {event["run_id"] for event in store.pending_outbox(first)} == {first}
+
+
+@pytest.fixture
+def ai2_role_database(pg_url):
+    """A fresh database where AI2 runs as a non-superuser owner of schema ``ai2``.
+
+    Mirrors the Backend #52 deployment: superuser owns the database and the
+    ``vector`` extension; the AI2 role owns only schema ``ai2`` and resolves
+    ``vector`` through ``search_path = ai2, public``. Skips without pgvector.
+    """
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.engine import make_url
+
+    admin_url = make_url(pg_url).set(drivername="postgresql+psycopg")
+    admin = create_engine(admin_url, isolation_level="AUTOCOMMIT")
+    with admin.connect() as cx:
+        if not cx.execute(text("SELECT 1 FROM pg_available_extensions WHERE name='vector'")).scalar():
+            admin.dispose()
+            pytest.skip("pgvector image required (vector extension not installable)")
+    suffix = uuid4().hex[:10]
+    database, role, password = f"ai2_vec_{suffix}", f"ai2_role_{suffix}", "ai2-test-password"
+    with admin.connect() as cx:
+        cx.execute(text(f'CREATE DATABASE "{database}"'))
+        cx.execute(text(f"CREATE ROLE \"{role}\" LOGIN NOSUPERUSER PASSWORD '{password}'"))
+    db_admin = create_engine(admin_url.set(database=database), isolation_level="AUTOCOMMIT")
+    with db_admin.connect() as cx:
+        cx.execute(text(f'CREATE SCHEMA ai2 AUTHORIZATION "{role}"'))
+        cx.execute(text(f'ALTER ROLE "{role}" IN DATABASE "{database}" SET search_path = ai2, public'))
+    role_url = admin_url.set(database=database, username=role, password=password)
+    try:
+        yield db_admin, role_url.render_as_string(hide_password=False)
+    finally:
+        from app.db.engine import get_engine
+
+        get_engine(role_url.render_as_string(hide_password=False)).dispose()
+        db_admin.dispose()
+        with admin.connect() as cx:
+            cx.execute(text(f'DROP DATABASE IF EXISTS "{database}" WITH (FORCE)'))
+            cx.execute(text(f'DROP ROLE IF EXISTS "{role}"'))
+        admin.dispose()
+
+
+def _public_tables(db_admin) -> set[str]:
+    from sqlalchemy import text
+
+    with db_admin.connect() as cx:
+        return set(cx.execute(text("SELECT tablename FROM pg_tables WHERE schemaname='public'")).scalars())
+
+
+def _ai2_state(db_admin) -> tuple[bool, str, str]:
+    """(embedding column present, ai2.alembic_version, script head)."""
+    from pathlib import Path
+
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+    from sqlalchemy import text
+
+    import app.db.migrate as migrate_module
+
+    with db_admin.connect() as cx:
+        column = cx.execute(text("""SELECT 1 FROM information_schema.columns WHERE table_schema='ai2'
+            AND table_name='vector_segments' AND column_name='embedding'""")).scalar()
+        version = cx.execute(text("SELECT version_num FROM ai2.alembic_version")).scalar()
+    config = Config()
+    config.set_main_option("script_location", str(Path(migrate_module.__file__).parent / "migrations"))
+    return bool(column), version, ScriptDirectory.from_config(config).get_current_head()
+
+
+def test_vector_column_appears_when_extension_arrives_after_first_boot(ai2_role_database):
+    """I2: 0002 is one-shot; a later boot must still add the embedding column."""
+    from sqlalchemy import text
+
+    from app.db.engine import get_engine
+    from app.db.migrate import migrate
+    from app.reasoning.vector_recall import PostgresVectorIndex
+
+    db_admin, role_url = ai2_role_database
+    engine = get_engine(role_url)
+    migrate(engine)  # first boot: extension absent, role cannot create it
+    column, version, head = _ai2_state(db_admin)
+    assert (column, version) == (False, head)
+
+    with db_admin.connect() as cx:  # DBA installs the extension later (#52)
+        cx.execute(text("CREATE EXTENSION vector SCHEMA public"))
+    migrate(engine)  # reboot
+
+    column, version, head = _ai2_state(db_admin)
+    assert (column, version) == (True, head)
+    assert PostgresVectorIndex(role_url).available is True
+
+
+def test_non_superuser_ai2_role_migrates_with_public_vector_extension(ai2_role_database):
+    """#52 layout: vector in public, AI2 role without CREATE on the database."""
+    from sqlalchemy import text
+
+    from app.db.engine import get_engine
+    from app.db.migrate import migrate
+    from app.reasoning.vector_recall import PostgresVectorIndex
+
+    db_admin, role_url = ai2_role_database
+    with db_admin.connect() as cx:
+        cx.execute(text("CREATE EXTENSION vector SCHEMA public"))
+    public_before = _public_tables(db_admin)
+
+    migrate(get_engine(role_url))
+    migrate(get_engine(role_url))
+
+    column, version, head = _ai2_state(db_admin)
+    assert column is True
+    assert version == head
+    assert _public_tables(db_admin) == public_before
+    assert PostgresVectorIndex(role_url).available is True
+
