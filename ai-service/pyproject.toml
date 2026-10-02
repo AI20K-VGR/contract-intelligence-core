@@ -25,6 +25,7 @@ dependencies = [
     "scipy>=1.14",
     "psutil>=6",
     "langfuse>=4.15,<5",
+    "prometheus-client>=0.21",
 ]
 
 [project.optional-dependencies]
