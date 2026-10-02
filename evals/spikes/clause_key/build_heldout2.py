@@ -9,8 +9,9 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 sys.path.insert(0, ".")
-from build_heldout import R, grab  # noqa: E402
-from evals.spikes.clause_key.import_heldout import FIELDS  # noqa: E402
+from build_heldout import R, grab
+
+from evals.spikes.clause_key.import_heldout import FIELDS
 
 URLS = {
     "q43": "https://dichvuketoannhanh.com/mau-hop-dong-thi-cong-nha-o-dan-dung",

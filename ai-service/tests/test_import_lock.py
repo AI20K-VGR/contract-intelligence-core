@@ -21,9 +21,9 @@ Grep decision record (Phase 2, Implement step 1):
        move performed (see phase-2-restructure.md "Quyet dinh da kiem").
 """
 
-import contract_ocr  # noqa: F401
 import app  # noqa: F401
 import benchmark  # noqa: F401
+import contract_ocr  # noqa: F401
 import fixtures  # noqa: F401
 
 

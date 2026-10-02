@@ -15,7 +15,6 @@ fixture input and AI2 responses, but never API keys or prompts.
 from __future__ import annotations
 
 import argparse
-from copy import deepcopy
 import json
 import os
 import re
@@ -23,6 +22,7 @@ import sys
 import time
 import xml.etree.ElementTree as ET
 from collections import Counter
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -705,9 +705,10 @@ def main() -> int:
     if args.mode in {"live", "both"} or args.vector_mode == "on":
         _configure_live(args)
     from fastapi.testclient import TestClient
-    from fixtures.eval_suite import all_eval_cases
+
     from app.api.main import app
     from app.llm.client import NineRouterClient
+    from fixtures.eval_suite import all_eval_cases
 
     cases = all_eval_cases()
     if args.case_ids:

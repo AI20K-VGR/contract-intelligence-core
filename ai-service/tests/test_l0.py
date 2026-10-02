@@ -1,4 +1,12 @@
-from app.contracts.models import Candidate, FindingType, ModelDisposition, ReviewState
+from app.contracts.models import (
+    Candidate,
+    Citation,
+    Fact,
+    FindingType,
+    LifecycleState,
+    ModelDisposition,
+    ReviewState,
+)
 from app.pipeline.candidate import CandidatePairer
 from app.pipeline.clause import ClauseChunker
 from app.pipeline.fact import FactExtractor
@@ -11,7 +19,6 @@ from app.sandbox import SandboxError, run_user_code
 from app.tools.gateway import ToolBlocked, ToolGateway
 from app.tools.store import InMemorySnapshotStore
 from fixtures import envelope, mock_record
-from app.contracts.models import Citation, Fact, LifecycleState
 
 
 def test_handoff_rejects_pdf_bytes():

@@ -5,13 +5,13 @@ from typing import Any
 
 from app.contracts.models import ReviewState, ToolEnvelope
 from app.llm.client import NineRouterClient
+from app.pipeline.result_structure import _is_running_furniture
 from app.reasoning.l0_rules import L0Rules, query_too_broad
 from app.reasoning.l1_retrieval import COMPARE_TYPES, L1Retrieval
 from app.reasoning.l2_plan import L2Planner
 from app.reasoning.l3_ground import L3Ground
 from app.reasoning.relations import doc_side, render_related_answer
 from app.reasoning.vector_recall import VectorRecallService
-from app.pipeline.result_structure import _is_running_furniture
 from app.tools.gateway import ToolGateway
 
 

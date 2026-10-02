@@ -5,8 +5,8 @@ from typing import Any
 
 from app.contracts.models import Citation, ReviewState, ToolEnvelope
 from app.pipeline.citations import CitationResolver
-from app.pipeline.outline import citation_for_node
 from app.pipeline.grounding import GroundingGate
+from app.pipeline.outline import citation_for_node
 from app.tools.gateway import ToolBlocked, ToolGateway
 
 

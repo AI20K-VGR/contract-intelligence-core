@@ -328,7 +328,6 @@ def test_v1_enum_candidates_exclude_generic_obligation(norm1):
 
     def chooser(phrase, candidates):
         seen.extend(c["name"] for c in candidates)
-        return None
 
     norm1.normalize(_remedy("Bên Bán", "làm điều gì đó lạ"), "…", {}, chooser)
     assert seen and "ANY_OBLIGATION" not in seen

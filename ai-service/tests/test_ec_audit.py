@@ -4,9 +4,8 @@ has no source hash or line ids. That is unverified provenance, not an invented
 value.
 """
 
-from fixtures.catalog import BUILDERS, CasePack, all_cases
-
 from app.pipeline.idp import run_idp
+from fixtures.catalog import BUILDERS, CasePack, all_cases
 
 
 def _raw_case(case_id: str) -> CasePack:

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from fastapi.testclient import TestClient
+
 from app.api import main
 from app.llm.client import NineRouterClient, llm_status
-from fastapi.testclient import TestClient
 
 
 def test_llm_status_is_off_without_a_key(monkeypatch) -> None:

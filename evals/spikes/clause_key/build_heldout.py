@@ -12,7 +12,7 @@ import sys
 from html.parser import HTMLParser
 
 sys.path.insert(0, ".")
-from evals.spikes.clause_key.import_heldout import FIELDS  # noqa: E402
+from evals.spikes.clause_key.import_heldout import FIELDS
 
 W = pathlib.Path(__file__).parent / "web"
 FIX = pathlib.Path("ai-service/fixtures/contracts")
@@ -84,8 +84,8 @@ SVC_AB = "Bên A=CUSTOMER; Bên B=SUPPLIER"
 
 
 def R(b, a, q, anchor, ct, cv="", note=""):
-    return dict(frame_type="REMEDY", bearer=b, action=a, qualifier=q, anchor=anchor,
-                consequence_type=ct, consequence_value=cv, note=note)
+    return {"frame_type": "REMEDY", "bearer": b, "action": a, "qualifier": q, "anchor": anchor,
+            "consequence_type": ct, "consequence_value": cv, "note": note}
 
 
 C = [

@@ -5,10 +5,9 @@ plus zero handoff issues for these five. The forbidden claims in the catalog
 must also stay absent: no invented clause, no legal winner, no language pick.
 """
 
-from fixtures.catalog import all_cases
-
 from app.contracts.models import ReviewState
 from app.pipeline.idp import run_idp
+from fixtures.catalog import all_cases
 
 
 def _job(case_id: str):

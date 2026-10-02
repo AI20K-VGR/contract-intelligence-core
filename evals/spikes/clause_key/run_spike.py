@@ -59,7 +59,7 @@ def _load_env(path: Path) -> None:
 def _client():
     _load_env(REPO / "ai-service" / ".env")
     sys.path.insert(0, str(REPO / "ai-service"))
-    from app.llm.client import NineRouterClient  # noqa: PLC0415
+    from app.llm.client import NineRouterClient
 
     client = NineRouterClient()
     if not client.configured():
@@ -142,9 +142,9 @@ def _with_retry(call, attempts: int = 8):
     for i in range(attempts):
         try:
             return call()
-        except Exception as exc:  # noqa: BLE001 - provider errors are not typed consistently
+        except Exception as exc:
             msg = str(exc)
-            if i == attempts - 1 or not re.search(r"429|503|rate limit|timed out|timeout", msg, re.I):
+            if i == attempts - 1 or not re.search(r"429|503|rate limit|timed out|timeout", msg, re.IGNORECASE):
                 raise
             wait = re.search(r"reset after (?:(\d+)m\s*)?(\d+)s", msg)
             secs = int(wait.group(1) or 0) * 60 + int(wait.group(2)) if wait else 2 ** (i + 1)
