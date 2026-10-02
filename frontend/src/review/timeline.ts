@@ -25,9 +25,9 @@ export const KIND_LABEL: Record<TimelineKind, string> = {
 }
 
 export const ACTION_LABEL: Record<string, string> = {
-  confirm: 'Chính xác',
-  reject: 'Sai lệch',
-  correct: 'Sửa nhận định',
+  confirm: 'Đúng',
+  reject: 'Sai',
+  correct: 'Đúng (có bổ sung)',
 }
 
 export function actionLabel(action: string) {

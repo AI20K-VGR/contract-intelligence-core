@@ -8,7 +8,7 @@ import {
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
-import { progressPath } from '../data/dossiers'
+import { progressPath, splitPath } from '../data/dossiers'
 import { dossierCategories } from '../data/upload'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 import {
@@ -144,6 +144,7 @@ export function CreateDossierPage() {
   const [structureMode, setStructureMode] = useState<StructureMode | null>(null)
   const [contract, setContract] = useState<PickedFile | null>(null)
   const [annexes, setAnnexes] = useState<PickedFile[]>([])
+  const [mixedFile, setMixedFile] = useState(false)
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
@@ -291,7 +292,9 @@ export function CreateDossierPage() {
       )
       const created = await createDossier({
         contract: contractPdf,
-        metadata: { name: trimmedName },
+        metadata: mixedFile
+          ? { name: trimmedName, split_pending: true }
+          : { name: trimmedName },
         annexes: annexPdfs,
       })
       if (!created?.dossier_id) {
@@ -313,9 +316,12 @@ export function CreateDossierPage() {
         // Loại cấu trúc vẫn được truyền qua state để trang cây dùng ngay.
       }
 
-      navigate(progressPath(created.dossier_id), {
-        state: { structureMode, name: trimmedName },
-      })
+      navigate(
+        mixedFile
+          ? splitPath(created.dossier_id)
+          : progressPath(created.dossier_id),
+        { state: { structureMode, name: trimmedName } },
+      )
     } catch (cause) {
       const message = createDossierErrorMessage(cause)
       if (message) setError(message)
@@ -341,8 +347,8 @@ export function CreateDossierPage() {
               </h1>
             )}
             <p className="font-body-md text-body-md text-on-surface-variant">
-              Tải PDF hoặc ảnh chụp hợp đồng. Hệ thống OCR và hiện cây cấu
-              trúc khi xử lý xong.
+              Tải PDF hoặc ảnh chụp hợp đồng. Hệ thống OCR và hiện cây cấu trúc
+              khi xử lý xong.
             </p>
           </div>
         </div>
@@ -475,48 +481,50 @@ export function CreateDossierPage() {
                   {structureModes
                     .filter((item) => item.value !== 'tables')
                     .map((item) => {
-                    const active = structureMode === item.value
-                    return (
-                      <label
-                        key={item.value}
-                        className={`flex items-center justify-between p-space-md rounded-lg transition-colors cursor-pointer ${
-                          active
-                            ? 'bg-primary-container/10 ring-1 ring-primary-container'
-                            : 'bg-surface hover:bg-surface-container-low'
-                        }`}
-                      >
-                        <div className="flex items-center gap-space-md">
-                          <input
-                            aria-required="true"
-                            checked={active}
-                            className="w-4 h-4 accent-primary-container"
-                            name="structure-mode"
-                            type="radio"
-                            value={item.value}
-                            onChange={() => setStructureMode(item.value)}
-                          />
-                          <div className="flex flex-col">
-                            <span className="font-body-sm text-body-sm font-semibold text-primary">
-                              {item.label}
-                            </span>
-                            <span className="font-code-sm text-code-sm text-on-surface-variant">
-                              {item.hint}
-                            </span>
-                          </div>
-                        </div>
-                        <MaterialIcon
-                          name={
-                            item.value === 'numbered'
-                              ? 'format_list_numbered'
-                              : 'notes'
-                          }
-                          className={`text-[18px] ${
-                            active ? 'text-primary' : 'text-on-surface-variant'
+                      const active = structureMode === item.value
+                      return (
+                        <label
+                          key={item.value}
+                          className={`flex items-center justify-between p-space-md rounded-lg transition-colors cursor-pointer ${
+                            active
+                              ? 'bg-primary-container/10 ring-1 ring-primary-container'
+                              : 'bg-surface hover:bg-surface-container-low'
                           }`}
-                        />
-                      </label>
-                    )
-                  })}
+                        >
+                          <div className="flex items-center gap-space-md">
+                            <input
+                              aria-required="true"
+                              checked={active}
+                              className="w-4 h-4 accent-primary-container"
+                              name="structure-mode"
+                              type="radio"
+                              value={item.value}
+                              onChange={() => setStructureMode(item.value)}
+                            />
+                            <div className="flex flex-col">
+                              <span className="font-body-sm text-body-sm font-semibold text-primary">
+                                {item.label}
+                              </span>
+                              <span className="font-code-sm text-code-sm text-on-surface-variant">
+                                {item.hint}
+                              </span>
+                            </div>
+                          </div>
+                          <MaterialIcon
+                            name={
+                              item.value === 'numbered'
+                                ? 'format_list_numbered'
+                                : 'notes'
+                            }
+                            className={`text-[18px] ${
+                              active
+                                ? 'text-primary'
+                                : 'text-on-surface-variant'
+                            }`}
+                          />
+                        </label>
+                      )
+                    })}
                 </div>
               </fieldset>
             </div>
@@ -544,8 +552,9 @@ export function CreateDossierPage() {
                   </span>
                 </div>
                 <p className="font-body-sm text-body-sm text-on-surface-variant">
-                  Một tệp hợp đồng chính (bắt buộc) và phụ lục tùy chọn. Nhận PDF hoặc ảnh
-                  JPG, PNG, WebP, BMP; ảnh được chuyển thành PDF một trang khi tải lên.
+                  Một tệp hợp đồng chính (bắt buộc) và phụ lục tùy chọn. Nhận
+                  PDF hoặc ảnh JPG, PNG, WebP, BMP; ảnh được chuyển thành PDF
+                  một trang khi tải lên.
                 </p>
               </div>
               {files.length > 0 ? (
@@ -661,32 +670,75 @@ export function CreateDossierPage() {
               </div>
             ) : null}
 
+            {contract ? (
+              <label
+                className={`flex cursor-pointer items-start gap-space-md rounded-xl border-2 px-space-lg py-space-md transition-colors ${
+                  mixedFile
+                    ? 'border-sky-500 bg-sky-50'
+                    : 'border-amber-400 bg-amber-50 hover:bg-amber-100'
+                }`}
+              >
+                <input
+                  checked={mixedFile}
+                  className="mt-1 h-5 w-5 shrink-0"
+                  disabled={busy}
+                  type="checkbox"
+                  onChange={(event) => setMixedFile(event.target.checked)}
+                />
+                <span className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className="flex flex-wrap items-center gap-space-sm">
+                    <MaterialIcon
+                      name="call_split"
+                      className="text-[20px] text-on-surface"
+                    />
+                    <span className="font-title-sm text-title-sm font-bold text-on-surface">
+                      File này có cả hợp đồng và phụ lục?
+                    </span>
+                    <span
+                      className={`rounded px-2 py-0.5 font-label-sm text-label-sm font-semibold ${
+                        mixedFile
+                          ? 'bg-sky-600 text-white'
+                          : 'bg-amber-200 text-amber-900'
+                      }`}
+                    >
+                      {mixedFile ? 'Đã bật tách file' : 'Tick nếu có'}
+                    </span>
+                  </span>
+                  <span className="font-body-sm text-body-sm text-on-surface">
+                    Tick nếu hợp đồng và phụ lục nằm chung trong một file. Sau
+                    khi tải lên, bạn chia file thành từng phần và xác nhận. Mỗi
+                    phần thành một tài liệu riêng rồi mới OCR.
+                  </span>
+                </span>
+              </label>
+            ) : null}
+
             <div className="flex items-center justify-end gap-space-md pt-space-sm">
-          <button
-            className="h-10 px-space-lg font-body-sm text-body-sm font-medium text-on-surface-variant hover:text-primary transition-colors cursor-pointer rounded-lg hover:bg-surface-container-low"
-            disabled={busy}
-            type="button"
-            onClick={handleCancel}
-          >
-            Hủy bỏ
-          </button>
-          <button
-            className="h-10 px-space-lg bg-primary text-on-primary hover:bg-primary-container active:bg-tertiary transition-all font-body-sm text-body-sm font-semibold rounded-lg shadow-sm flex items-center gap-space-sm cursor-pointer disabled:opacity-80"
-            disabled={busy || !canUpload}
-            type="button"
-            onClick={() => {
-              void handleUpload()
-            }}
-          >
-            {busy ? (
-              <span>Đang tải lên…</span>
-            ) : (
-              <>
-                <MaterialIcon name="cloud_upload" className="text-[18px]" />
-                <span>Upload</span>
-              </>
-            )}
-          </button>
+              <button
+                className="h-10 px-space-lg font-body-sm text-body-sm font-medium text-on-surface-variant hover:text-primary transition-colors cursor-pointer rounded-lg hover:bg-surface-container-low"
+                disabled={busy}
+                type="button"
+                onClick={handleCancel}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                className="h-10 px-space-lg bg-primary text-on-primary hover:bg-primary-container active:bg-tertiary transition-all font-body-sm text-body-sm font-semibold rounded-lg shadow-sm flex items-center gap-space-sm cursor-pointer disabled:opacity-80"
+                disabled={busy || !canUpload}
+                type="button"
+                onClick={() => {
+                  void handleUpload()
+                }}
+              >
+                {busy ? (
+                  <span>Đang tải lên…</span>
+                ) : (
+                  <>
+                    <MaterialIcon name="cloud_upload" className="text-[18px]" />
+                    <span>Upload</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
