@@ -21,6 +21,7 @@ import { DossierReviewPage } from './pages/DossierReviewPage'
 import { CitationComparePage } from './pages/CitationComparePage'
 import { CitationSplitViewPage } from './pages/CitationSplitViewPage'
 import { CitationEditPage } from './pages/CitationEditPage'
+import { SplitConfirmPage } from './pages/SplitConfirmPage'
 import { ClauseConflictPage } from './pages/ClauseConflictPage'
 import { ForbiddenPage } from './pages/ForbiddenPage'
 import { MonitoringPage } from './pages/MonitoringPage'
@@ -118,6 +119,10 @@ export default function App() {
                 element={<DossierStructurePage />}
               />
               <Route path="/ocr/:dossierId" element={<OcrProgressPage />} />
+              <Route
+                path="/tach-file/:dossierId"
+                element={<SplitConfirmPage />}
+              />
               <Route
                 path="/xac-nhan-manifest/:dossierId"
                 element={<ManifestConfirmPage />}

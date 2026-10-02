@@ -89,14 +89,10 @@ def dossier_access_decision(
     shared_with = meta.get("shared_with")
     if not isinstance(shared_with, list):
         return False
-    email = (principal.email or "").strip().lower()
     moment = now or datetime.now(tz=UTC)
     return any(
         isinstance(grant, dict)
-        and (
-            grant.get("id") == principal.user_id
-            or (email and str(grant.get("email") or "").strip().lower() == email)
-        )
+        and _grant_matches(grant, principal)
         and grant_is_live(grant, moment)
         and _grant_allows(grant, action, principal.role)
         for grant in shared_with
@@ -136,10 +132,115 @@ def _grant_allows(grant: dict[str, Any], action: AclAction, role: str) -> bool:
     return not (isinstance(actions, list) and actions and action.value not in actions)
 
 
+def _grant_matches(grant: dict[str, Any], principal: AuthenticatedUser) -> bool:
+    """The grant names this principal, by user id or (case-insensitive) email."""
+    if grant.get("id") == principal.user_id:
+        return True
+    email = (principal.email or "").strip().lower()
+    return bool(email) and str(grant.get("email") or "").strip().lower() == email
+
+
+_ROLE_DENIED: dict[AclAction, str] = {
+    AclAction.REVIEW_READ: "Chỉ người thẩm định hoặc quản trị viên được xem thẩm định.",
+    AclAction.REVIEW_MUTATE: "Chỉ người thẩm định hoặc quản trị viên được thẩm định.",
+    AclAction.APPROVE: "Chỉ quản trị viên được duyệt hồ sơ.",
+    AclAction.DOSSIER_EDIT: "Vai trò của bạn không được sửa hồ sơ.",
+}
+
+
+# Stable codes for a 403 ``detail``; the frontend branches on these, not on the text.
+DENIED_ROLE = "ROLE_DENIED"
+DENIED_READ_ONLY = "READ_ONLY"
+DENIED_ACL = "ACL_DENIED"
+
+
+def dossier_denied_detail(
+    *,
+    action: AclAction,
+    principal: AuthenticatedUser,
+    dossier_id: str,
+    dossier_tenant_id: str,
+    metadata: dict[str, Any] | None,
+) -> dict[str, str]:
+    """``{code, message}`` for a denied :func:`dossier_access_decision`.
+
+    ``code`` says why: the role cannot do this at all (``ROLE_DENIED``), a live
+    ``read`` grant only lets the caller view (``READ_ONLY``), or there is no
+    usable grant (``ACL_DENIED``). ``message`` is the Vietnamese text to show.
+    """
+    if principal.role not in _ALLOWED_ROLES[action]:
+        message = _ROLE_DENIED.get(action, "Vai trò của bạn không được làm việc này.")
+        return {"code": DENIED_ROLE, "message": message}
+    if action is AclAction.DOSSIER_MANAGE:
+        message = "Chỉ chủ hồ sơ hoặc quản trị viên được làm việc này."
+        return {"code": DENIED_ACL, "message": message}
+    if action in _EDIT_ACTIONS and dossier_access_decision(
+        action=AclAction.QUERY,
+        principal=principal,
+        dossier_id=dossier_id,
+        dossier_tenant_id=dossier_tenant_id,
+        metadata=metadata,
+    ):
+        return {"code": DENIED_READ_ONLY, "message": "Bạn chỉ có quyền xem hồ sơ này."}
+    message = "Bạn không có quyền trên hồ sơ này, hoặc quyền đã hết hạn."
+    return {"code": DENIED_ACL, "message": message}
+
+
+def dossier_denied_message(
+    *,
+    action: AclAction,
+    principal: AuthenticatedUser,
+    dossier_id: str,
+    dossier_tenant_id: str,
+    metadata: dict[str, Any] | None,
+) -> str:
+    """Vietnamese text of :func:`dossier_denied_detail`."""
+    return dossier_denied_detail(
+        action=action,
+        principal=principal,
+        dossier_id=dossier_id,
+        dossier_tenant_id=dossier_tenant_id,
+        metadata=metadata,
+    )["message"]
+
+
+def visible_dossier_metadata(
+    metadata: dict[str, Any] | None, principal: AuthenticatedUser
+) -> dict[str, Any] | None:
+    """Metadata as ``principal`` may see it.
+
+    The owner and an ADMINISTRATOR see every grant. Anyone else sees only the
+    grant(s) naming them, so one recipient cannot read the others' emails and
+    permissions.
+    """
+    if not isinstance(metadata, dict):
+        return metadata
+    owner_id = metadata.get("created_by")
+    if principal.role == "ADMINISTRATOR" or (owner_id and owner_id == principal.user_id):
+        return metadata
+    shared_with = metadata.get("shared_with")
+    if not isinstance(shared_with, list):
+        return metadata
+    return {
+        **metadata,
+        "shared_with": [
+            grant
+            for grant in shared_with
+            if isinstance(grant, dict) and _grant_matches(grant, principal)
+        ],
+    }
+
+
 __all__ = [
     "SHARE_PERMISSIONS",
     "AclAction",
+    "DENIED_ACL",
+    "DENIED_READ_ONLY",
+    "DENIED_ROLE",
     "dossier_access_decision",
+    "dossier_denied_detail",
+    "dossier_denied_message",
     "grant_is_live",
     "grant_permission",
+    "visible_dossier_metadata",
 ]

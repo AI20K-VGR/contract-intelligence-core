@@ -75,6 +75,7 @@ services:
     environment:
       ENV: prod
       DATABASE_URL: postgresql+asyncpg://ci:${BACKEND_DB_PASSWORD:?set in deploy/.env.prod}@backend-db:5432/contract_intelligence
+      AI2_DB_PASSWORD: ${AI2_DB_PASSWORD:?set in deploy/.env.prod}
       # Tokens are minted through the public hostname.
       KEYCLOAK_SERVER_URL: https://${AUTH_HOST:?set in deploy/.env.prod}
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${BACKEND_KEYCLOAK_ADMIN_SECRET:?set in deploy/.env.prod}

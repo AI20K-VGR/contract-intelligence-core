@@ -3,6 +3,8 @@ import { ApiError, postMultipart, requestJson } from './client'
 /** OpenAPI `1.1.0+sprint4-ai-integration` — POST /api/v1/dossiers */
 export type CreateDossierMetadata = {
   name: string
+  /** File trộn hợp đồng + phụ lục: backend chờ POST /split trước khi OCR. */
+  split_pending?: boolean
   tags?: string[]
   notes?: string
 }
@@ -140,6 +142,53 @@ export async function createDossier(input: CreateDossierInput) {
   return data
 }
 
+export type SplitPartRequest = {
+  page_start: number
+  page_end: number
+  role: 'contract' | 'annex'
+}
+
+export type SplitResult = {
+  dossier_id: string
+  status: string
+  documents: {
+    id: string
+    role: string
+    filename: string
+    page_start: number
+    page_end: number
+    page_count: number
+  }[]
+}
+
+/** POST /api/v1/dossiers/{id}/split — mỗi phần thành một tài liệu rồi mới OCR. */
+export async function splitDossier(
+  dossierId: string,
+  documentId: string,
+  parts: SplitPartRequest[],
+) {
+  const { data } = await requestJson<SplitResult>(
+    `${DOSSIERS_PATH}/${encodeURIComponent(dossierId)}/split`,
+    { method: 'POST', json: { document_id: documentId, parts } },
+  )
+  return data
+}
+
+export function splitErrorMessage(error: unknown) {
+  if (error instanceof ApiError) {
+    if (error.status === 401) return null
+    if (error.status === 403) return 'Bạn chỉ có quyền xem hồ sơ này.'
+    if (error.status === 404) return 'Không tìm thấy hồ sơ hoặc file cần tách.'
+    if (error.status === 409)
+      return 'Hồ sơ này không chờ tách file, hoặc đã bắt đầu xử lý.'
+    if (error.status === 422)
+      return `Các phần chưa hợp lệ: ${error.message}`
+    return error.message
+  }
+  if (error instanceof TypeError) return 'Không kết nối được backend.'
+  return 'Không tách được file. Thử lại.'
+}
+
 export async function patchDossier(dossierId: string, body: DossierUpdateBody) {
   const { data } = await requestJson<unknown>(
     `${DOSSIERS_PATH}/${encodeURIComponent(dossierId)}`,
@@ -155,6 +204,10 @@ export type DossierShareGrant = {
   email: string
   display_name: string
   status?: 'invited' | 'active' | 'disabled'
+  /** Bỏ trống ở bản chia sẻ cũ, backend coi là 'edit'. */
+  permission?: 'read' | 'edit'
+  /** ISO-8601. null hoặc bỏ trống là không hết hạn. */
+  expires_at?: string | null
 }
 
 export async function updateDossierAccess(

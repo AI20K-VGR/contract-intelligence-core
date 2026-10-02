@@ -137,7 +137,7 @@ jobs:
     # LISTEN/NOTIFY, JSON share filter, alembic upgrade head). Disposable.
     services:
       postgres:
-        image: postgres:16-alpine
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: ci
           POSTGRES_PASSWORD: ci

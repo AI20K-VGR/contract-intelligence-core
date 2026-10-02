@@ -12,6 +12,7 @@ import {
   requireUserManager,
 } from './oidc'
 import { buildSessionUser } from './profile'
+import { SessionExpiredDialog } from './SessionExpiredDialog'
 import type { SessionUser } from './session'
 
 function isAuthCallbackPath(pathname: string) {
@@ -180,5 +181,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [completeSsoCallback, configured, loginWithSso, logout, ready, user],
   )
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      <SessionExpiredDialog />
+    </AuthContext.Provider>
+  )
 }

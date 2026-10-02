@@ -35,7 +35,9 @@ jobs:
       - name: PR title
         env:
           TITLE: ${{ github.event.pull_request.title }}
+          HEAD: ${{ github.head_ref }}
         run: |
+          if [[ "$HEAD" == dependabot/* ]]; then exit 0; fi
           if [[ ! "$TITLE" =~ ^(feat|fix|docs|chore|refactor|test|ci)\((frontend|backend|ai|ai-service|docs|infra|repo)\):\ .+ ]]; then
             echo "::error::PR title '$TITLE' must be '<type>(<scope>): <summary>' with type feat|fix|docs|chore|refactor|test|ci and scope frontend|backend|ai|ai-service|docs|infra|repo"
             exit 1

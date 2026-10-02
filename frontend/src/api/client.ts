@@ -1,4 +1,8 @@
 import { getAccessToken, tenantIdFromToken } from '../auth/oidc'
+import {
+  notifySessionExpired,
+  SESSION_EXPIRED_MESSAGE,
+} from '../auth/sessionExpired'
 
 export const apiBaseUrl = (
   import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8080'
@@ -113,10 +117,14 @@ export async function apiFetch(
   }
   headers.set('X-Request-Id', crypto.randomUUID())
 
-  return fetch(`${apiBaseUrl}${path}`, {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
     ...rest,
     headers,
   })
+  if (response.status === 401 && token) {
+    notifySessionExpired()
+  }
+  return response
 }
 
 export async function requestJson<T>(
@@ -142,7 +150,12 @@ export async function requestJson<T>(
   const payload: unknown = await response.json().catch(() => null)
 
   if (!response.ok) {
-    const { message, code } = messageFromBody(response.status, payload)
+    const { message: rawMessage, code } = messageFromBody(
+      response.status,
+      payload,
+    )
+    const message =
+      response.status === 401 ? SESSION_EXPIRED_MESSAGE : rawMessage
     throw new ApiError(response.status, message, code, payload)
   }
 
