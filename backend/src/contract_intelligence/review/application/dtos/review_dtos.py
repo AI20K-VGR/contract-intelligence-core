@@ -154,11 +154,13 @@ class ClauseReviewRequestDTO(BaseModel):
 
     ``base_version`` = ``version`` từ GET (0 khi điều khoản chưa có ai thẩm định).
     ``node`` bắt buộc khi id là nút dựng từ dòng OCR.
+    ``action`` chỉ còn đúng (confirm) / sai (reject) theo ST-051; ghi chú bổ sung
+    hoặc xử lý đi qua ``comment``. Bản ghi ``correct`` cũ vẫn đọc được qua GET.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    action: Literal["confirm", "reject", "correct"]
+    action: Literal["confirm", "reject"]
     base_version: int = Field(..., ge=0)
     comment: str | None = Field(default=None, max_length=2000)
     corrected_value: dict[str, Any] | None = None
@@ -247,7 +249,7 @@ class FindingReviewRequestDTO(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    action: Literal["confirm", "reject", "correct"]
+    action: Literal["confirm", "reject"]
     base_version: int = Field(..., ge=0)
     comment: str | None = Field(default=None, max_length=2000)
 

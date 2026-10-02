@@ -27,7 +27,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from io import BytesIO
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, TypeVar
 from urllib.parse import quote
 
 import structlog
@@ -80,7 +80,12 @@ from contract_intelligence.contract.interfaces.api.dependencies import (
     DossierDeletionServiceDep,
 )
 from contract_intelligence.infrastructure import messaging, storage
-from contract_intelligence.shared.acl import AclAction, dossier_access_decision
+from contract_intelligence.shared.acl import (
+    AclAction,
+    dossier_access_decision,
+    dossier_denied_message,
+    visible_dossier_metadata,
+)
 from contract_intelligence.shared.auth import (
     AuthenticatedUser,
     get_current_user,
@@ -211,6 +216,16 @@ def _as_utc(value: datetime) -> datetime:
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
+def _parse_expiry(value: Any) -> datetime | None:
+    """Stored ``expires_at`` as an aware UTC instant; None when absent or unreadable."""
+    if not value:
+        return None
+    try:
+        return _as_utc(datetime.fromisoformat(str(value)))
+    except ValueError:
+        return None
+
+
 def _stored_grant(item: AccessGrantBody) -> dict[str, Any]:
     """Grant as kept in metadata; ``expires_at`` as UTC ISO so SQL can compare it as text."""
     grant = item.model_dump()
@@ -246,24 +261,27 @@ async def _require_readable(
     action: AclAction = AclAction.QUERY,
 ) -> Any:
     dossier = await svc.get_dossier(dossier_id)
-    if not dossier_access_decision(
-        action=action,
-        principal=user,
-        dossier_id=dossier_id,
-        dossier_tenant_id=getattr(dossier, "tenant_id", user.tenant_id),
-        metadata=dossier.metadata,
-    ):
+    decision: dict[str, Any] = {
+        "action": action,
+        "principal": user,
+        "dossier_id": dossier_id,
+        "dossier_tenant_id": getattr(dossier, "tenant_id", user.tenant_id),
+        "metadata": dossier.metadata,
+    }
+    if not dossier_access_decision(**decision):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=_DENIED_MESSAGES.get(action, "Quyền xem hồ sơ này đã bị thu hồi."),
+            detail=dossier_denied_message(**decision),
         )
     return dossier
 
 
-_DENIED_MESSAGES = {
-    AclAction.DOSSIER_EDIT: "Bạn chỉ có quyền xem hồ sơ này, hoặc quyền đã hết hạn.",
-    AclAction.DOSSIER_MANAGE: "Chỉ chủ hồ sơ hoặc quản trị viên được làm việc này.",
-}
+_DossierDTO = TypeVar("_DossierDTO", DossierSummaryDTO, DossierDetailDTO)
+
+
+def _for_viewer(dto: _DossierDTO, user: AuthenticatedUser) -> _DossierDTO:
+    """Chỉ chủ hồ sơ / quản trị viên thấy toàn bộ ``shared_with``."""
+    return dto.model_copy(update={"metadata": visible_dossier_metadata(dto.metadata, user)})
 
 
 def _send_share_emails(
@@ -990,9 +1008,12 @@ async def list_dossiers(
     for d in items:
         latest = d.latest_job()
         summaries.append(
-            DossierSummaryDTO.from_domain(
-                d,
-                latest_job_status=latest.status if latest else None,
+            _for_viewer(
+                DossierSummaryDTO.from_domain(
+                    d,
+                    latest_job_status=latest.status if latest else None,
+                ),
+                user,
             )
         )
     return ApiResponse(
@@ -1375,11 +1396,14 @@ async def get_dossier(
     documents = await svc.list_documents(dossier_id)
     latest = dossier.latest_job()
     return ApiResponse(
-        data=DossierDetailDTO.from_domain(
-            dossier,
-            documents=documents,
-            latest_job_id=latest.id if latest else None,
-            latest_job_status=latest.status if latest else None,
+        data=_for_viewer(
+            DossierDetailDTO.from_domain(
+                dossier,
+                documents=documents,
+                latest_job_id=latest.id if latest else None,
+                latest_job_status=latest.status if latest else None,
+            ),
+            _user,
         ),
     )
 
@@ -1422,11 +1446,44 @@ async def patch_dossier(
     documents = await svc.list_documents(dossier_id)
     latest = dossier.latest_job()
     return ApiResponse(
-        data=DossierDetailDTO.from_domain(
-            dossier,
-            documents=documents,
-            latest_job_id=latest.id if latest else None,
-            latest_job_status=latest.status if latest else None,
+        data=_for_viewer(
+            DossierDetailDTO.from_domain(
+                dossier,
+                documents=documents,
+                latest_job_id=latest.id if latest else None,
+                latest_job_status=latest.status if latest else None,
+            ),
+            user,
+        ),
+    )
+
+
+@router.get(
+    "/dossiers/{dossier_id}/access",
+    response_model=ApiResponse[DossierAccessDTO],
+    responses={404: {"description": "Dossier not found"}},
+)
+async def get_dossier_access(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> ApiResponse[DossierAccessDTO]:
+    """Đọc quyền hồ sơ. Ai xem được hồ sơ đều gọi được.
+
+    Chủ hồ sơ và ADMINISTRATOR thấy mọi người được chia sẻ; người được chia sẻ
+    chỉ thấy grant của chính mình. Grant hết hạn vẫn trả về (kèm ``expires_at``).
+    """
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.QUERY)
+    metadata = visible_dossier_metadata(dict(dossier.metadata or {}), user) or {}
+    grants = [g for g in (metadata.get("shared_with") or []) if isinstance(g, dict)]
+    scope = metadata.get("access_scope")
+    if scope not in ("mine", "shared_out", "shared_in"):
+        scope = "shared_out" if grants else "mine"
+    return ApiResponse(
+        data=DossierAccessDTO(
+            dossier_id=dossier_id,
+            scope=scope,
+            shared_with=[AccessGrantBody.model_validate(item) for item in grants],
         )
     )
 
@@ -1445,17 +1502,27 @@ async def update_dossier_access(
     """Đặt quyền hồ sơ. Gộp vào metadata, giữ created_by.
 
     Chỉ chủ hồ sơ hoặc ADMINISTRATOR. Mỗi người được chia sẻ có ``permission``
-    (``read``/``edit``) và ``expires_at`` tuỳ chọn (phải ở tương lai).
+    (``read``/``edit``) và ``expires_at`` tuỳ chọn. ``expires_at`` mới đặt hoặc vừa
+    đổi phải ở tương lai; grant đã hết hạn mà gửi lại nguyên ``expires_at`` cũ thì
+    được giữ (vẫn không có tác dụng) để chủ hồ sơ sửa người khác không bị chặn.
     """
     dossier = await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_MANAGE)
     now = utcnow()
+    current = dict(dossier.metadata or {})
+    previous_expiry = {
+        str(item.get("id")): _parse_expiry(item.get("expires_at"))
+        for item in (current.get("shared_with") or [])
+        if isinstance(item, dict) and item.get("id")
+    }
     for item in body.shared_with:
-        if item.expires_at is not None and _as_utc(item.expires_at) <= now:
+        if item.expires_at is None:
+            continue
+        expires_at = _as_utc(item.expires_at)
+        if expires_at <= now and previous_expiry.get(item.id) != expires_at.replace(microsecond=0):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"expires_at của {item.email or item.id} đã ở quá khứ.",
             )
-    current = dict(dossier.metadata or {})
     previous_ids = {
         str(item.get("id"))
         for item in (current.get("shared_with") or [])
@@ -1629,6 +1696,7 @@ def _content_disposition(filename: str) -> str:
 
 @router.get(
     "/documents/{document_id}/content",
+    dependencies=[Depends(acl_document)],
     summary="Stream PDF binary từ MinIO/local storage",
     responses={
         200: {
@@ -1643,7 +1711,11 @@ async def get_document_content(
     svc: ContractServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> StreamingResponse:
-    """Tải PDF gốc — trả về binary stream từ storage."""
+    """Tải PDF gốc — trả về binary stream từ storage.
+
+    Có ngay sau khi tải lên, trước OCR (kể cả hồ sơ ``split_pending``), nên màn
+    tách file dựng ảnh trang bằng pdf.js từ đây. Cần quyền xem hồ sơ.
+    """
     data, filename = await svc.get_document_blob(document_id)
     return StreamingResponse(
         iter([data]),

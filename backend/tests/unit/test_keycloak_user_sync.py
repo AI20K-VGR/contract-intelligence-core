@@ -496,6 +496,34 @@ class TestKeycloakUserEventSchema:
         )
         assert event.userId == ""
 
+    def test_lifts_extended_phase_two_event(self) -> None:
+        """Dạng extended: user trong authDetails, type có tiền tố access."""
+        event = KeycloakUserEvent.model_validate(
+            {
+                "type": "access.LOGIN",
+                "realmId": "abc-123",
+                "uid": "evt-1",
+                "authDetails": {
+                    "realmId": "abc-123",
+                    "clientId": "contract-intel-frontend",
+                    "userId": "f8a7-uuid",
+                    "sessionId": "sess-1",
+                    "ipAddress": "10.0.0.1",
+                },
+                "details": None,
+            }
+        )
+        assert event.type == "LOGIN"
+        assert event.userId == "f8a7-uuid"
+        assert event.clientId == "contract-intel-frontend"
+        assert event.details == {}
+
+    def test_admin_extended_event_keeps_type(self) -> None:
+        event = KeycloakUserEvent.model_validate(
+            {"type": "admin.USER-CREATE", "authDetails": {"userId": "admin-1"}}
+        )
+        assert event.type == "admin.USER-CREATE"
+
 
 # -----------------------------------------------------------------------
 # Tests — WebhookResponse schema

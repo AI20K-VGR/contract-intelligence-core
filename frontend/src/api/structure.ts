@@ -664,7 +664,7 @@ export function structureErrorMessage(error: unknown) {
   if (error instanceof ApiError) {
     if (error.status === 401) return 'Phiên đăng nhập hết hạn. Đăng nhập lại.'
     if (error.status === 403)
-      return 'Quyền xem hồ sơ này đã bị thu hồi. Chờ email chia sẻ mới để mở lại.'
+      return 'Bạn không còn quyền mở hồ sơ này: quyền chia sẻ đã bị thu hồi hoặc đã hết hạn. Chờ chủ hồ sơ chia sẻ lại.'
     if (error.status === 404) return 'Không tìm thấy hồ sơ hoặc cây điều khoản.'
     return error.message
   }

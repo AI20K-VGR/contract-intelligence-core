@@ -5,6 +5,7 @@ import {
   conflictMarkers,
   conflictSignature,
   conflictState,
+  directCount,
   openConflictCount,
 } from '../src/structure/conflictAnchors'
 import type { OcrLine } from '../src/structure/types'
@@ -102,11 +103,23 @@ const l31 = line(1, 3, 0.2)
 const l32 = line(1, 4, 0.25)
 const l81 = line(3, 2, 0.1)
 const tree: ClauseNode[] = [
-  node('3', 1, [line(1, 2, 0.15)], [node('3.1', 1, [l31]), node('3.2', 1, [l32])]),
+  node(
+    '3',
+    1,
+    [line(1, 2, 0.15)],
+    [node('3.1', 1, [l31]), node('3.2', 1, [l32])],
+  ),
   node('8', 3, [line(3, 1, 0.05)], [node('8.1', 3, [l81])]),
   node('9', 4, [line(4, 1, 0.05)]),
 ]
-const lines = [line(1, 2, 0.15), l31, l32, line(3, 1, 0.05), l81, line(4, 1, 0.05)]
+const lines = [
+  line(1, 2, 0.15),
+  l31,
+  l32,
+  line(3, 1, 0.05),
+  l81,
+  line(4, 1, 0.05),
+]
 
 describe('conflictState', () => {
   it('is open without a review, dismissed on reject, reviewed otherwise', () => {
@@ -130,7 +143,12 @@ describe('anchorConflicts', () => {
   })
 
   it('ignores conflicts whose contract-side line is not in the tree', () => {
-    const anchors = anchorConflicts([spot('x', 9, 9, null)], tree, lines, CONTRACT)
+    const anchors = anchorConflicts(
+      [spot('x', 9, 9, null)],
+      tree,
+      lines,
+      CONTRACT,
+    )
     expect(anchors.size).toBe(0)
   })
 })
@@ -138,7 +156,11 @@ describe('anchorConflicts', () => {
 describe('conflictMarkers', () => {
   it('marks the node, rolls live counts up to ancestors and skips dismissed ones', () => {
     const anchors = anchorConflicts(
-      [spot('a', 1, 3, null), spot('c', 1, 4, 'confirm'), spot('b', 3, 2, 'reject')],
+      [
+        spot('a', 1, 3, null),
+        spot('c', 1, 4, 'confirm'),
+        spot('b', 3, 2, 'reject'),
+      ],
       tree,
       lines,
       CONTRACT,
@@ -146,11 +168,75 @@ describe('conflictMarkers', () => {
     const markers = conflictMarkers(anchors, tree)
     expect(markers.get('3.1')).toMatchObject({ state: 'open', below: 0 })
     expect(markers.get('3.2')).toMatchObject({ state: 'reviewed', below: 0 })
-    expect(markers.get('3')).toMatchObject({ state: 'dismissed', below: 2 })
+    expect(markers.get('3')).toMatchObject({
+      state: 'dismissed',
+      below: 2,
+      belowState: 'open',
+    })
     expect(markers.get('3')?.spots).toHaveLength(0)
     expect(markers.get('8.1')).toMatchObject({ state: 'dismissed' })
     expect(markers.get('8')).toBeUndefined()
     expect(markers.has('9')).toBe(false)
+  })
+
+  it('uses the worst non-dismissed descendant state when the collapsed node has no direct spots', () => {
+    const anchors = anchorConflicts([spot('c', 1, 4, 'confirm')], tree, lines, CONTRACT)
+    const markers = conflictMarkers(anchors, tree)
+    expect(markers.get('3')).toMatchObject({ below: 1, belowState: 'reviewed' })
+  })
+
+  it('excludes dismissed spots from directCount but keeps them in spots', () => {
+    const anchors = anchorConflicts(
+      [spot('d', 4, 1, null), spot('e', 4, 1, 'reject')],
+      tree,
+      lines,
+      CONTRACT,
+    )
+    const markers = conflictMarkers(anchors, tree)
+    expect(markers.get('9')?.spots).toHaveLength(2)
+    expect(directCount(markers.get('9')!)).toBe(1)
+  })
+
+  it('counts a spot once when it is anchored on a node and on its own descendant', () => {
+    const parentLine = line(6, 1, 0.1)
+    const childLine = line(6, 2, 0.2)
+    const leaf = node('leaf', 6, [childLine])
+    const root = node('nestedRoot', 6, [parentLine], [leaf])
+    const nested = spot('nested', 6, 1, null)
+    nested.sides = [
+      { ...nested.sides[0], documentId: CONTRACT, pageNo: 6, lineNo: 1 },
+      { ...nested.sides[1], documentId: CONTRACT, label: 'annex', pageNo: 6, lineNo: 2 },
+    ]
+    const anchors = anchorConflicts([nested], [root], [parentLine, childLine], CONTRACT)
+    const markers = conflictMarkers(anchors, [root])
+    expect(markers.get('nestedRoot')?.spots.map((item) => item.id)).toEqual(['nested'])
+    expect(markers.get('nestedRoot')?.below).toBe(0)
+  })
+})
+
+describe('same-file anchors', () => {
+  it('marks both pages of one document and counts the finding once on the parent', () => {
+    const page3 = line(3, 7, 0.2)
+    const page17 = line(17, 18, 0.4)
+    const body = node('body', 3, [page3])
+    const annex = node('annex', 17, [page17])
+    const pair = spot('pair', 3, 7, null)
+    pair.sides = [
+      { ...pair.sides[0], documentId: CONTRACT, pageNo: 3, lineNo: 7 },
+      {
+        ...pair.sides[1],
+        documentId: CONTRACT,
+        label: 'annex',
+        pageNo: 17,
+        lineNo: 18,
+      },
+    ]
+    const anchors = anchorConflicts([pair], [body, annex], [page3, page17], CONTRACT)
+    expect([...anchors.keys()].sort()).toEqual(['annex', 'body'])
+    const markers = conflictMarkers(anchors, [node('root', 1, [], [body, annex])])
+    expect(markers.get('body')?.spots.map((item) => item.id)).toEqual(['pair'])
+    expect(markers.get('annex')?.spots.map((item) => item.id)).toEqual(['pair'])
+    expect(markers.get('root')?.below).toBe(1)
   })
 })
 
@@ -160,5 +246,22 @@ describe('conflict summary helpers', () => {
     expect(openConflictCount(before)).toBe(1)
     const after = [spot('a', 1, 3, 'confirm'), before[1]]
     expect(conflictSignature(before)).not.toBe(conflictSignature(after))
+  })
+})
+
+describe('anchorConflicts within one contract', () => {
+  it('marks both clauses when both sides cite the same document', () => {
+    const inside = spot('w', 1, 3, null)
+    inside.sides[1] = {
+      ...inside.sides[1],
+      label: 'contract',
+      documentId: CONTRACT,
+      pageNo: 3,
+      lineNo: 2,
+    }
+    const anchors = anchorConflicts([inside], tree, lines, CONTRACT)
+    expect([...anchors.keys()].sort()).toEqual(['3.1', '8.1'])
+    expect(anchors.get('3.1')?.[0].id).toBe('w')
+    expect(anchors.get('8.1')?.[0].id).toBe('w')
   })
 })
