@@ -53,7 +53,15 @@ function tableNode(table: MergedDocumentTable, citeNo: number): ClauseNode {
   }
 }
 
-function TableGrid({ table }: { table: MergedDocumentTable }) {
+export type TableHighlight = { tableId: string; cellId: string | null }
+
+function TableGrid({
+  table,
+  cellId,
+}: {
+  table: MergedDocumentTable
+  cellId: string | null
+}) {
   const rowCount = Math.max(
     table.rows,
     ...table.cells.map((cell) => cell.row + cell.rowSpan),
@@ -75,7 +83,13 @@ function TableGrid({ table }: { table: MergedDocumentTable }) {
               {Array.from({ length: columnCount }, (_, column) => {
                 if (covered(table, row, column)) return null
                 const cell = cellAt(table, row, column)
-                return <Cell key={`${row}-${column}`} cell={cell} />
+                return (
+                  <Cell
+                    key={`${row}-${column}`}
+                    cell={cell}
+                    marked={Boolean(cellId && cell?.id === cellId)}
+                  />
+                )
               })}
             </tr>
           ))}
@@ -85,16 +99,25 @@ function TableGrid({ table }: { table: MergedDocumentTable }) {
   )
 }
 
-function Cell({ cell }: { cell: DocumentTableCell | undefined }) {
+function Cell({
+  cell,
+  marked,
+}: {
+  cell: DocumentTableCell | undefined
+  marked: boolean
+}) {
   const header = cell?.header === true
   const Tag = header ? 'th' : 'td'
   return (
     <Tag
       className={`border border-outline-variant/40 px-3 py-2 align-top ${
-        header
-          ? 'bg-surface-container font-semibold text-on-surface'
-          : 'bg-surface-container-lowest'
+        marked
+          ? 'bg-amber-100 font-semibold text-on-surface outline outline-2 outline-primary'
+          : header
+            ? 'bg-surface-container font-semibold text-on-surface'
+            : 'bg-surface-container-lowest'
       }`}
+      data-cell-id={cell?.id}
       colSpan={cell && cell.colSpan > 1 ? cell.colSpan : undefined}
       rowSpan={cell && cell.rowSpan > 1 ? cell.rowSpan : undefined}
     >
@@ -107,11 +130,13 @@ export function TableStructure({
   documentId,
   query,
   activeId,
+  highlight,
   onCite,
 }: {
   documentId: string
   query: string
   activeId?: string | null
+  highlight?: TableHighlight | null
   onCite?: (node: ClauseNode, citeNo: number) => void
 }) {
   const [tables, setTables] = useState<DocumentTable[] | null>(null)
@@ -171,10 +196,21 @@ export function TableStructure({
 
   return (
     <div className="flex flex-col gap-space-md pb-16">
-      {visible.map(({ table, index }) => (
+      {visible.map(({ table, index }) => {
+        const cited =
+          highlight?.tableId === table.id ||
+          Boolean(highlight && table.fragmentIds.includes(highlight.tableId))
+        return (
         <section
           key={table.id}
-          className="overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm"
+          className={`overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm ${
+            cited ? 'ring-2 ring-primary' : ''
+          }`}
+          ref={
+            cited
+              ? (node) => node?.scrollIntoView({ block: 'center' })
+              : undefined
+          }
         >
           <div className="flex items-center gap-space-sm border-b border-outline-variant/20 px-space-md py-3">
             <MaterialIcon
@@ -206,9 +242,13 @@ export function TableStructure({
                 : ''}
             </span>
           </div>
-          <TableGrid table={table} />
+          <TableGrid
+            cellId={cited ? (highlight?.cellId ?? null) : null}
+            table={table}
+          />
         </section>
-      ))}
+        )
+      })}
     </div>
   )
 }

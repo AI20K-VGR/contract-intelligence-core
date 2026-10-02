@@ -14,6 +14,7 @@ import {
   deleteDossier,
   loadDocumentOcrPages,
   restartDossierOcr,
+  retryDossierFailed,
   restartOcrErrorMessage,
   type OcrPageRow,
 } from '../api/dossiers'
@@ -26,6 +27,14 @@ import {
   type DossierStructure,
   type StructureDocument,
 } from '../api/structure'
+import { jobErrorInfo } from '../api/jobErrors'
+import {
+  cancelRun,
+  isCancellableRun,
+  latestDossierRun,
+  runActionErrorMessage,
+  runErrorCode,
+} from '../api/runs'
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
@@ -138,6 +147,7 @@ export function AnalysisProgressPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [attempt, setAttempt] = useState(0)
+  const [failureCode, setFailureCode] = useState<string | null>(null)
   const [steps, setSteps] = useState<Record<string, RunStep>>({})
   const [liveLog, setLiveLog] = useState<LogRowModel[]>([])
   const passedName = (location.state as { name?: string } | null)?.name
@@ -357,6 +367,24 @@ export function AnalysisProgressPage() {
   const jobStatus = detail?.latestJobStatus ?? null
   const ready = isOcrComplete(jobStatus)
   const failed = jobStatus === 'failed'
+  const failure = useMemo(() => jobErrorInfo(failureCode), [failureCode])
+
+  useEffect(() => {
+    setFailureCode(null)
+    if (!failed || !dossierId) return
+    const controller = new AbortController()
+    void (async () => {
+      try {
+        const run = await latestDossierRun(dossierId, controller.signal)
+        if (!run) return
+        const code = await runErrorCode(run.runId, controller.signal)
+        if (!controller.signal.aborted) setFailureCode(code)
+      } catch {
+        // Không đọc được mã lỗi thì giữ thông báo chung và nút chạy lại OCR.
+      }
+    })()
+    return () => controller.abort()
+  }, [attempt, dossierId, failed])
   const files = useMemo(() => {
     const current = documents.find((document) => {
       const pages = pagesByDoc[document.id] ?? []
@@ -454,7 +482,29 @@ export function AnalysisProgressPage() {
 
   async function cancelJob() {
     if (!dossierId || busy) return
-    if (!window.confirm('Dừng và xóa hồ sơ này? Tệp đã tải sẽ bị gỡ.')) return
+    if (!window.confirm('Hủy lần xử lý đang chạy? Hồ sơ và tệp đã tải vẫn được giữ.')) {
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const run = await latestDossierRun(dossierId)
+      if (!run || !isCancellableRun(run.status)) {
+        setError('Không có lần xử lý nào đang chạy để hủy.')
+        return
+      }
+      await cancelRun(run.runId)
+      setAttempt((value) => value + 1)
+    } catch (cause) {
+      setError(runActionErrorMessage(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function deleteJob() {
+    if (!dossierId || busy) return
+    if (!window.confirm('Xóa hồ sơ này? Tệp đã tải sẽ bị gỡ.')) return
     setBusy(true)
     try {
       await deleteDossier(dossierId)
@@ -465,7 +515,7 @@ export function AnalysisProgressPage() {
         },
       })
     } catch {
-      setError('Không hủy được tiến trình.')
+      setError('Không xóa được hồ sơ.')
       setBusy(false)
     }
   }
@@ -475,7 +525,11 @@ export function AnalysisProgressPage() {
     setBusy(true)
     setError(null)
     try {
-      await restartDossierOcr(dossierId)
+      if (failure.retry === 'none') {
+        setBusy(false)
+        return
+      }
+      await retryDossierFailed(dossierId, failure.retry)
       setAttempt((value) => value + 1)
       setBusy(false)
     } catch (cause) {
@@ -519,7 +573,7 @@ export function AnalysisProgressPage() {
           </nav>
           <div className="flex items-center gap-space-sm bg-surface-container-low px-space-md py-space-xs rounded-lg shadow-sm">
             <span className="relative flex h-2 w-2">
-              {ready || failed ? null : (
+              {ready ? null : (
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               )}
               <span
@@ -549,6 +603,20 @@ export function AnalysisProgressPage() {
           role="alert"
         >
           {error}
+        </p>
+      ) : null}
+
+      {failed ? (
+        <p
+          className="mb-gutter rounded-lg bg-error-container px-space-md py-space-sm font-body-sm text-body-sm text-on-error-container"
+          role="alert"
+        >
+          {failure.message}
+          {failure.code ? (
+            <span className="ml-space-sm font-code-sm text-code-sm opacity-80">
+              ({failure.code})
+            </span>
+          ) : null}
         </p>
       ) : null}
 
@@ -725,7 +793,7 @@ export function AnalysisProgressPage() {
 
       <div className="mt-gutter pt-space-md flex flex-col md:flex-row items-center justify-between gap-space-md">
         <div className="flex items-center gap-space-md">
-          {ready ? null : (
+          {ready || failed ? null : (
             <button
               className="font-body-sm text-body-sm text-error hover:underline flex items-center gap-space-xs disabled:opacity-60"
               disabled={busy || !dossierId}
@@ -738,7 +806,18 @@ export function AnalysisProgressPage() {
               <span>Hủy tiến trình này</span>
             </button>
           )}
-          {failed ? (
+          <button
+            className="font-body-sm text-body-sm text-on-surface-variant hover:text-error hover:underline flex items-center gap-space-xs disabled:opacity-60"
+            disabled={busy || !dossierId}
+            type="button"
+            onClick={() => {
+              void deleteJob()
+            }}
+          >
+            <MaterialIcon name="delete" className="text-[16px]" />
+            <span>Xóa hồ sơ</span>
+          </button>
+          {failed && failure.retry !== 'none' ? (
             <button
               className="font-body-sm text-body-sm text-primary hover:underline flex items-center gap-space-xs disabled:opacity-60"
               disabled={busy}
@@ -748,7 +827,9 @@ export function AnalysisProgressPage() {
               }}
             >
               <MaterialIcon name="refresh" className="text-[16px]" />
-              <span>Chạy lại OCR</span>
+              <span>
+                {failure.retry === 'ai2' ? 'Chạy lại AI2' : 'Chạy lại phần OCR lỗi'}
+              </span>
             </button>
           ) : null}
         </div>

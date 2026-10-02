@@ -27,6 +27,9 @@ export type DossierStructure = {
   latestJobStatus: string | null
   documents: StructureDocument[]
   metadata: Record<string, unknown> | null
+  hasConflicts: boolean
+  pendingConflicts: number
+  openReviewItems: number
   /** metadata.structure_mode do người dùng chọn khi tải lên. */
   structureMode: StructureMode | null
 }
@@ -275,6 +278,9 @@ export async function getDossierStructure(
       typeof row.latest_job_status === 'string' ? row.latest_job_status : null,
     documents,
     metadata,
+    hasConflicts: row.has_conflicts === true,
+    pendingConflicts: asNumber(row.pending_conflicts),
+    openReviewItems: asNumber(row.open_review_items),
     structureMode: parseStructureMode(metadata?.[STRUCTURE_MODE_KEY]),
   } satisfies DossierStructure
 }
@@ -566,6 +572,8 @@ export async function listReviewSpots(dossierId: string, signal?: AbortSignal) {
 }
 
 export type DocumentTableCell = {
+  // Backend chưa trả id ô; có thì dùng để khớp cell_id của citation.
+  id?: string
   row: number
   column: number
   rowSpan: number
@@ -606,6 +614,7 @@ export async function listDocumentTables(
           if (!record) return []
           return [
             {
+              id: asString(record.cell_id ?? record.id) || undefined,
               row: asNumber(record.row_idx),
               column: asNumber(record.col_idx),
               rowSpan: Math.max(1, asNumber(record.row_span) || 1),

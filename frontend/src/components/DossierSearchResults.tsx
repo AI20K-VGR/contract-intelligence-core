@@ -15,6 +15,9 @@ export type CitationNavigationState = {
   scope: CitationViewerScope
   status: Ai2SearchHit['citation']['status']
   quote: string
+  unverified?: boolean
+  tableId?: string | null
+  cellId?: string | null
 }
 
 export function buildCitationNavigationState(
@@ -35,6 +38,9 @@ export function buildCitationNavigationState(
     scope: hit.citation.scope ?? 'body',
     status: hit.citation.status,
     quote: hit.citation.quote || hit.text,
+    unverified: hit.citation.unverified,
+    tableId: hit.citation.tableId,
+    cellId: hit.citation.cellId,
   }
 }
 
@@ -44,6 +50,7 @@ type DossierSearchResultsProps = {
 }
 
 function citationLabel(hit: Ai2SearchHit) {
+  if (hit.citation.unverified) return 'Chưa xác minh nguồn'
   if (hit.citation.status === 'LOCATABLE') return 'Đã định vị nguồn'
   if (hit.citation.status === 'PARTIAL') return 'Nguồn chưa đủ tọa độ'
   return 'Chưa định vị được nguồn'
@@ -66,7 +73,7 @@ function MatchRow({
     [hit.sourceFileId, hit.lineId].filter(Boolean).join(' · ') ||
     'Chưa có source id'
   const statusColor =
-    hit.citation.status === 'LOCATABLE'
+    hit.citation.status === 'LOCATABLE' && !hit.citation.unverified
       ? 'bg-[#ECFDF5] text-[#065F46]'
       : 'bg-amber-50 text-amber-900'
 
@@ -110,7 +117,11 @@ function MatchRow({
           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-label-sm text-[11px] font-semibold ${statusColor}`}
         >
           <MaterialIcon
-            name={hit.citation.status === 'LOCATABLE' ? 'verified' : 'warning'}
+            name={
+              hit.citation.status === 'LOCATABLE' && !hit.citation.unverified
+                ? 'verified'
+                : 'warning'
+            }
             className="text-[13px]"
           />
           {citationLabel(hit)}

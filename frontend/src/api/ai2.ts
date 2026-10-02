@@ -22,6 +22,10 @@ export type EvidenceCitation = {
   nodeId: string | null
   scope?: CitationScope
   quote: string
+  // AI2 gắn UNVERIFIED khi chưa đối chiếu được nguồn (vd. ô bảng phụ lục chưa có offset).
+  unverified?: boolean
+  tableId?: string | null
+  cellId?: string | null
 }
 
 export type Ai2SearchHit = {
@@ -42,6 +46,10 @@ export type Ai2SearchResult = {
   retrievalLayer: Record<string, unknown>
   reasoningTrace: unknown[]
   usedLlm: boolean
+  /** Kết quả lọc quyền lần hai trên citation: passed, filtered hoặc denied. */
+  aclDecision?: string | null
+  traceId?: string | null
+  notes?: string[]
   hits: Ai2SearchHit[]
   contextFindings?: unknown[]
   evidenceIssues?: unknown[]
@@ -147,6 +155,13 @@ function citationFromHit(
   const scope = citationScope(
     row.scope ?? row.document_role ?? nested.scope ?? nested.document_role,
   )
+  const tableId =
+    asNullableString(row.table_id) ?? asNullableString(nested.table_id)
+  const cellId =
+    asNullableString(row.cell_id) ?? asNullableString(nested.cell_id)
+  const validation = asString(
+    row.validation_status ?? nested.validation_status,
+  ).toUpperCase()
   const status: CitationStatus =
     sourceFileId && lineId
       ? 'LOCATABLE'
@@ -165,6 +180,9 @@ function citationFromHit(
     nodeId,
     scope,
     quote,
+    unverified: validation === 'UNVERIFIED',
+    tableId,
+    cellId,
   }
 }
 
@@ -218,6 +236,11 @@ export function normalizeAi2SearchResult(
     retrievalLayer,
     reasoningTrace,
     usedLlm: row.used_llm === true,
+    aclDecision: asNullableString(row.acl_decision),
+    traceId: asNullableString(row.trace_id),
+    notes: Array.isArray(row.notes)
+      ? row.notes.filter((note): note is string => typeof note === 'string')
+      : [],
     hits,
     contextFindings: Array.isArray(row.context_findings)
       ? row.context_findings

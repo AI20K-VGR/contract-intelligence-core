@@ -1,16 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   loadContractOcrPages,
   restartDossierOcr,
   restartOcrErrorMessage,
+  retryDossierFailed,
   type OcrPageRow,
   type OcrState,
 } from '../api/dossiers'
+import { ApiError } from '../api/client'
 import { getDossierStructure } from '../api/structure'
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
+import { ReOcrPanel } from '../components/ReOcrPanel'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 
 const kindLabels: Record<string, string> = {
@@ -77,6 +80,13 @@ export function OcrProgressPage() {
   const [busy, setBusy] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [watching, setWatching] = useState(false)
+  const [documentId, setDocumentId] = useState<string | null>(null)
+  const [selectedPages, setSelectedPages] = useState<number[]>([])
+  const canReOcr =
+    user?.backendRole === 'OPERATOR' ||
+    user?.backendRole === 'REVIEWER' ||
+    user?.backendRole === 'ADMINISTRATOR'
+  const reloadPages = useCallback(() => setReloadKey((value) => value + 1), [])
 
   usePageTitle(name)
   const titleInHeader = useHeaderShowsPageTitle()
@@ -120,6 +130,7 @@ export function OcrProgressPage() {
         setName(detail.name)
         setJobStatus(detail.latestJobStatus)
         setFilename(ocr.filename)
+        setDocumentId(ocr.documentId)
         setPages(ocr.pages)
         setError(null)
         const state = overallState(detail.latestJobStatus, ocr.pages)
@@ -163,7 +174,17 @@ export function OcrProgressPage() {
     setBusy(true)
     setActionError(null)
     try {
-      await restartDossierOcr(dossierId)
+      if (failedPages.length > 0 && jobStatus === 'failed') {
+        // Giữ trang đã xong, chỉ chạy lại phần lỗi. Backend trả 409 khi job không lỗi ở bước OCR.
+        try {
+          await retryDossierFailed(dossierId, 'ocr')
+        } catch (cause) {
+          if (!(cause instanceof ApiError) || cause.status !== 409) throw cause
+          await restartDossierOcr(dossierId)
+        }
+      } else {
+        await restartDossierOcr(dossierId)
+      }
       setJobStatus('processing')
       setReloadKey((value) => value + 1)
     } catch (cause) {
@@ -207,7 +228,9 @@ export function OcrProgressPage() {
                 ? 'Đang gửi…'
                 : state === 'pending'
                   ? 'Tiếp tục OCR'
-                  : 'OCR lại'}
+                  : failedPages.length > 0 && failedPages.length < pages.length
+                    ? 'Chạy lại trang lỗi'
+                    : 'OCR lại'}
             </button>
           ) : null}
         </div>
@@ -274,6 +297,14 @@ export function OcrProgressPage() {
                 Từng trang
               </h2>
             </div>
+            {canReOcr && documentId && pages.length > 0 && state !== 'running' ? (
+              <ReOcrPanel
+                documentId={documentId}
+                selected={selectedPages}
+                onClear={() => setSelectedPages([])}
+                onFinished={reloadPages}
+              />
+            ) : null}
             {pages.length === 0 ? (
               <p className="px-space-lg py-space-lg font-body-sm text-body-sm text-on-surface-variant">
                 Chưa có trang nào. OCR chưa trả kết quả.
@@ -286,6 +317,21 @@ export function OcrProgressPage() {
                     className="px-space-lg py-space-md flex flex-col gap-1"
                   >
                     <div className="flex items-center gap-space-sm">
+                      {canReOcr && documentId && page.pageNo > 0 && state !== 'running' ? (
+                        <input
+                          aria-label={`Chọn trang ${page.pageNo} để OCR lại`}
+                          checked={selectedPages.includes(page.pageNo)}
+                          className="h-4 w-4 accent-primary"
+                          type="checkbox"
+                          onChange={(event) =>
+                            setSelectedPages((current) =>
+                              event.target.checked
+                                ? [...current, page.pageNo].sort((a, b) => a - b)
+                                : current.filter((n) => n !== page.pageNo),
+                            )
+                          }
+                        />
+                      ) : null}
                       <span className="font-title-sm text-title-sm text-on-surface">
                         Trang {page.pageNo > 0 ? page.pageNo : '—'}
                       </span>

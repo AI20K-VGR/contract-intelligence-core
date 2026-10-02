@@ -16,6 +16,9 @@ export type CitationViewerModel = {
   bbox: [number, number, number, number] | null
   documentName?: string | null
   documentRole?: string | null
+  unverified?: boolean
+  tableId?: string | null
+  cellId?: string | null
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -66,6 +69,11 @@ export function normalizeCitationViewerModel(
     bbox: asBbox(row.bbox),
     documentName: asString(row.documentName ?? row.document_name) || null,
     documentRole: asString(row.documentRole ?? row.document_role) || null,
+    unverified:
+      row.unverified === true ||
+      asString(row.validation_status).toUpperCase() === 'UNVERIFIED',
+    tableId: asString(row.tableId ?? row.table_id) || null,
+    cellId: asString(row.cellId ?? row.cell_id) || null,
   }
 }
 
@@ -132,6 +140,16 @@ export function DynamicCitationViewer({
         </span>
       </div>
 
+      {citation.unverified ? (
+        <p
+          className="mt-space-sm flex items-start gap-space-xs rounded bg-error-container px-space-sm py-space-xs font-body-sm text-body-sm text-on-error-container"
+          role="alert"
+        >
+          Chưa xác minh được trích dẫn này với nguồn OCR. Kiểm tra lại trên
+          trang gốc trước khi dùng.
+        </p>
+      ) : null}
+
       <dl className="mt-space-sm grid gap-x-space-md gap-y-space-xs sm:grid-cols-2 font-code-sm text-code-sm">
         <div>
           <dt className="text-secondary">dossier_id</dt>
@@ -156,6 +174,15 @@ export function DynamicCitationViewer({
             {citation.lineId ? ` · ${citation.lineId}` : ''}
           </dd>
         </div>
+        {citation.tableId ? (
+          <div>
+            <dt className="text-secondary">table / cell</dt>
+            <dd className="break-all text-on-surface">
+              {citation.tableId}
+              {citation.cellId ? ` · ${citation.cellId}` : ''}
+            </dd>
+          </div>
+        ) : null}
       </dl>
 
       <blockquote className="mt-space-sm rounded border border-outline-variant/20 bg-surface-container-low p-space-sm font-body-sm text-body-sm leading-relaxed text-on-surface">
