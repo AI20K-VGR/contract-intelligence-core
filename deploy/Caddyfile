@@ -15,7 +15,9 @@
 }
 
 # Backend API — for the frontend. AI1/AI2 never come through here: AI1 talks
-# over Kafka and AI2 over HTTP inside ci-network.
+# over Kafka and AI2 over HTTP inside ci-network. /grafana/* also lands on the
+# backend, which lets only ADMINISTRATOR through to the internal Grafana;
+# Grafana, Prometheus and the exporters have no route of their own.
 {$API_HOST} {
 	import common
 
@@ -29,6 +31,13 @@
 	reverse_proxy backend:8000 {
 		# SSE (/api/v1/runs/{id}/events): pass each event through at once.
 		flush_interval -1
+		# Grafana auth-proxy headers are set by the backend after its
+		# ADMINISTRATOR check, never by a client. The backend drops them too.
+		header_up -X-Webauth-User
+		header_up -X-Webauth-Role
+		header_up -X-Webauth-Name
+		header_up -X-Webauth-Email
+		header_up -X-Webauth-Groups
 	}
 }
 

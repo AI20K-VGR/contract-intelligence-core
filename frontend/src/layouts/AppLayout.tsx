@@ -1,5 +1,10 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { dossiersLabel, dossiersPath, type AppRole, type UserRole } from '../auth/session'
+import {
+  dossiersLabel,
+  dossiersPath,
+  type AppRole,
+  type UserRole,
+} from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { AccountMenu } from '../components/AccountMenu'
 import { MaterialIcon } from '../components/icons'
@@ -9,10 +14,12 @@ import { PageTitleProvider, useCurrentPageTitle } from '../hooks/usePageTitle'
 /*
  * Vỏ ứng dụng dùng chung cho mọi vai trò: cùng sidebar, header, khoảng cách.
  * Chỉ danh sách mục điều hướng khác nhau theo quyền — admin có thêm Tổng quan,
- * Quyền truy cập, Nhật ký hoạt động, Người dùng & Phân quyền.
+ * Quyền truy cập, Nhật ký hoạt động, Người dùng & Phân quyền và mục Quản trị
+ * → Giám sát hệ thống (/admin/monitoring).
  */
 
-type NavItem = { to: string; icon: string; label: string }
+/** `section`: items sharing one are grouped under that heading. */
+type NavItem = { to: string; icon: string; label: string; section?: string }
 
 function navItemsFor(role: UserRole): NavItem[] {
   const dossiers =
@@ -48,6 +55,14 @@ function navItemsFor(role: UserRole): NavItem[] {
     })
   }
   shared.push({ to: '/cai-dat', icon: 'settings', label: 'Cài đặt' })
+  if (role === 'ADMINISTRATOR') {
+    shared.push({
+      to: '/admin/monitoring',
+      icon: 'monitoring',
+      label: 'Giám sát hệ thống',
+      section: 'Quản trị',
+    })
+  }
   return shared
 }
 
@@ -93,7 +108,9 @@ export function AppLayout({ role }: { role: AppRole }) {
   const dossierSection = inDossierSection(location.pathname, role)
   const structurePage = location.pathname.startsWith('/cau-truc/')
   const fillViewport =
-    structurePage || location.pathname === '/doi-soat-xung-dot'
+    structurePage ||
+    location.pathname === '/doi-soat-xung-dot' ||
+    location.pathname === '/admin/monitoring'
 
   return (
     <PageTitleProvider>
@@ -134,7 +151,15 @@ export function AppLayout({ role }: { role: AppRole }) {
           </div>
 
           <nav className="flex-1 px-space-sm py-space-md flex flex-col gap-1">
-            {navItems.map((item) => (
+            {navItems.map((item, index) => [
+              item.section && item.section !== navItems[index - 1]?.section ? (
+                <p
+                  key={`section-${item.section}`}
+                  className="mt-space-md px-space-md pb-1 font-label-sm text-label-sm uppercase tracking-wider text-on-primary-container"
+                >
+                  {item.section}
+                </p>
+              ) : null,
               <NavLink
                 key={item.to}
                 to={item.to}
@@ -152,8 +177,8 @@ export function AppLayout({ role }: { role: AppRole }) {
                   <MaterialIcon name={item.icon} className="text-[20px]" />
                   <span>{item.label}</span>
                 </span>
-              </NavLink>
-            ))}
+              </NavLink>,
+            ])}
           </nav>
 
           <div className="px-space-sm pb-space-md">

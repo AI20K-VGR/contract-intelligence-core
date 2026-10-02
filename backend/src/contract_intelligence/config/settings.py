@@ -497,6 +497,61 @@ class Settings(BaseSettings):
         ),
     )
 
+    # -------------------------------------------------------------------------
+    # Monitoring — Prometheus metrics + Grafana behind /grafana (admin only)
+    #
+    # The browser never reaches Grafana directly: /grafana/* is served by this
+    # backend, which checks the caller is ADMINISTRATOR, drops any auth header
+    # the client sent and sets Grafana's auth-proxy header itself. Grafana only
+    # trusts that header from this container's fixed IP on ci-monitoring.
+    # An iframe cannot send a Bearer token, so the admin page first trades its
+    # Keycloak token for a short-lived HttpOnly cookie scoped to /grafana.
+    # -------------------------------------------------------------------------
+    grafana_upstream_url: str | None = Field(
+        default=None,
+        description="Internal Grafana URL (http://grafana:3000). Empty = monitoring off.",
+    )
+    grafana_dashboard_uid: str = Field(
+        default="ci-overview",
+        pattern=r"^[A-Za-z0-9_-]{1,40}$",
+        description="Dashboard shown on /admin/monitoring.",
+    )
+    grafana_proxy_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
+    monitoring_session_secret: str | None = Field(
+        default=None,
+        description="HMAC key for the /grafana session cookie; never commit.",
+    )
+    monitoring_session_ttl_seconds: int = Field(
+        default=300,
+        ge=60,
+        le=3600,
+        description=(
+            "Lifetime of the /grafana cookie. The page renews it with a fresh Keycloak "
+            "token, so a removed ADMINISTRATOR role stops working within this time."
+        ),
+    )
+    monitoring_cookie_secure: bool = Field(
+        default=True,
+        description="Secure flag on the /grafana cookie (browsers accept it on localhost).",
+    )
+    monitoring_cookie_samesite: Literal["lax", "strict", "none"] = Field(
+        default="none",
+        description=(
+            '"none" (+ Partitioned) when the frontend and API are on different sites; '
+            '"lax" when they share a site.'
+        ),
+    )
+    metrics_port: int | None = Field(
+        default=None,
+        ge=1024,
+        le=65535,
+        description="Serve Prometheus metrics on this port (internal only). Empty = off.",
+    )
+
+    @property
+    def monitoring_enabled(self) -> bool:
+        return bool(self.grafana_upstream_url and self.monitoring_session_secret)
+
     @model_validator(mode="after")
     def _refuse_dev_secrets_outside_dev(self) -> Settings:
         """Refuse to start in staging/prod with a dev default or placeholder secret.
@@ -515,6 +570,8 @@ class Settings(BaseSettings):
             "KEYCLOAK_WEBHOOK_SECRET": self.keycloak_webhook_secret,
             "AI2_SERVICE_HMAC_SECRET": self.ai2_service_hmac_secret,
         }
+        if self.grafana_upstream_url:
+            secrets["MONITORING_SESSION_SECRET"] = self.monitoring_session_secret
         problems = [name for name, value in secrets.items() if _is_dev_secret(value)]
         if not self.keycloak_webhook_verify_signature:
             problems.append("KEYCLOAK_WEBHOOK_VERIFY_SIGNATURE (must be true)")

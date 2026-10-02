@@ -23,6 +23,8 @@ import { CitationSplitViewPage } from './pages/CitationSplitViewPage'
 import { CitationEditPage } from './pages/CitationEditPage'
 import { SplitConfirmPage } from './pages/SplitConfirmPage'
 import { ClauseConflictPage } from './pages/ClauseConflictPage'
+import { ForbiddenPage } from './pages/ForbiddenPage'
+import { MonitoringPage } from './pages/MonitoringPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { UsersPage } from './pages/UsersPage'
@@ -70,6 +72,14 @@ export default function App() {
                 element={
                   <RequireRole allow="admin">
                     <MyDossiersPage />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/admin/monitoring"
+                element={
+                  <RequireRole allow="admin" fallback={<ForbiddenPage />}>
+                    <MonitoringPage />
                   </RequireRole>
                 }
               />
