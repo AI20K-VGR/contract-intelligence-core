@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import os
+import threading
 import time
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any, Callable
 
 import openai
 
-from app.llm.client import NineRouterClient, call_with_timeout
+from app.llm.client import LLMRequestBudgetExceeded, NineRouterClient, call_with_timeout
 
 # Vietnamese messages for every code a job can end with (ST-067, D-4). The UI
 # shows them as-is, so they say what happened and that the result needs review.
@@ -117,6 +119,7 @@ class ProcessingRuntime:
     embedding_tokens_used: int = 0
     fallback_count: int = 0
     issues: list[tuple[str, str]] = field(default_factory=list)
+    _request_lock: Any = field(default_factory=threading.Lock, repr=False)
 
     def __post_init__(self) -> None:
         if self.started_at is None:
@@ -181,10 +184,17 @@ class ProcessingRuntime:
             if self.llm_calls_used >= self.max_llm_calls:
                 self._fall_back(last_code or "LLM_BUDGET_EXCEEDED")
                 return None
-            self.llm_calls_used += 1
             call_timeout = min(self.call_timeout_seconds, remaining)
+            call_deadline = self.clock() + call_timeout
+            cancelled = threading.Event()
+            reserve = partial(self._reserve_http_request, call_deadline, cancelled)
             try:
-                data = call_with_timeout(lambda: self._invoke(client, system, user, strong, call_timeout), call_timeout)
+                data = call_with_timeout(
+                    partial(self._invoke, client, system, user, strong, call_timeout, reserve), call_timeout,
+                )
+            except LLMRequestBudgetExceeded:
+                self._fall_back("LLM_BUDGET_EXCEEDED")
+                return None
             except Exception as exc:
                 if self.remaining() <= 0:
                     raise ProcessingTimeout("processing time budget exceeded") from exc
@@ -202,7 +212,8 @@ class ProcessingRuntime:
                     break  # waiting would run past the deadline
                 self.sleep(delay)
                 continue
-            self.llm_calls_used += max(int(getattr(client, "last_http_calls", 1) or 1) - 1, 0)
+            finally:
+                cancelled.set()
             if not isinstance(data, dict):
                 self._fall_back("LLM_NON_RETRYABLE", "NineRouter response must be a JSON object")
                 return None
@@ -210,12 +221,30 @@ class ProcessingRuntime:
         self._fall_back(last_code or "LLM_BUDGET_EXCEEDED")
         return None
 
-    @staticmethod
-    def _invoke(client: Any, system: str, user: str, strong: bool, timeout: float) -> Any:
+    def _reserve_http_request(self, call_deadline: float, cancelled: threading.Event) -> float:
+        with self._request_lock:
+            remaining = self.remaining()
+            if remaining <= 0:
+                raise ProcessingTimeout("processing time budget exceeded")
+            if cancelled.is_set() or self.clock() >= call_deadline:
+                raise TimeoutError("LLM call deadline exceeded")
+            if self.llm_calls_used >= self.max_llm_calls:
+                raise LLMRequestBudgetExceeded("maximum LLM HTTP requests reached")
+            self.llm_calls_used += 1
+            return min(self.call_timeout_seconds, remaining, call_deadline - self.clock())
+
+    def _invoke(
+        self, client: Any, system: str, user: str, strong: bool, timeout: float,
+        reserve: Callable[[], float],
+    ) -> Any:
         # Only the real client takes a per-request timeout; test doubles keep
         # the plain signature and are bounded by ``call_with_timeout``.
         if isinstance(client, NineRouterClient):
-            return client.complete_json(system, user, strong=strong, timeout=timeout)
+            return client.complete_json(
+                system, user, strong=strong, timeout=timeout,
+                before_request=reserve,
+            )
+        reserve()
         return client.complete_json(system, user, strong=strong)
 
     def snapshot(self) -> dict[str, Any]:

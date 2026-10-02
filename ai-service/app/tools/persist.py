@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import time
 from pathlib import Path
 
 from app.contracts.models import (
@@ -23,6 +24,7 @@ from app.contracts.models import (
     ToolEnvelope,
     VersionPins,
 )
+from app.db.engine import database_url, ensure_database, get_engine, postgres_connection
 from app.tools.store import DossierRecord, InMemorySnapshotStore
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -35,6 +37,8 @@ DB = DATA / "runs.sqlite"
 
 
 def _conn() -> sqlite3.Connection:
+    if database_url():
+        return postgres_connection()
     DATA.mkdir(parents=True, exist_ok=True)
     (DATA / "blobs").mkdir(exist_ok=True)
     cx = sqlite3.connect(DB)
@@ -127,13 +131,14 @@ def save_session(sid: str, s: dict, store: InMemorySnapshotStore) -> None:
     rec: DossierRecord = s["record"]
     env: ToolEnvelope = s["envelope"]
     blobs: dict[str, bytes] = s.get("blobs") or {}
-    blob_dir = DATA / "blobs" / sid
-    blob_dir.mkdir(parents=True, exist_ok=True)
     blob_meta = {}
-    for fid, data in blobs.items():
-        path = blob_dir / fid
-        path.write_bytes(data)
-        blob_meta[fid] = str(path)
+    if not database_url():
+        blob_dir = DATA / "blobs" / sid
+        blob_dir.mkdir(parents=True, exist_ok=True)
+        for fid, data in blobs.items():
+            path = blob_dir / fid
+            path.write_bytes(data)
+            blob_meta[fid] = str(path)
     payload = {
         "filename": s["filename"],
         "source": s["source"],
@@ -151,31 +156,65 @@ def save_session(sid: str, s: dict, store: InMemorySnapshotStore) -> None:
         "job": s["job"].model_dump() if s.get("job") else None,
         "blobs": blob_meta,
     }
-    cx = _conn()
-    cx.execute(
-        "INSERT OR REPLACE INTO sessions(session_id, payload, updated_ms) VALUES (?,?, strftime('%s','now')*1000)",
-        (sid, json.dumps(payload, ensure_ascii=False)),
-    )
-    cx.commit()
-    cx.close()
+    if database_url():
+        from sqlalchemy import delete
+        from sqlalchemy.dialects.postgresql import insert
+
+        from app.db.tables import session_blobs, sessions
+        engine = get_engine()
+        ensure_database(engine)
+        with engine.begin() as cx:
+            stmt = insert(sessions).values(session_id=sid, payload=json.dumps(payload, ensure_ascii=False), updated_ms=int(time.time() * 1000))
+            cx.execute(stmt.on_conflict_do_update(index_elements=[sessions.c.session_id],
+                                                 set_={"payload": stmt.excluded.payload, "updated_ms": stmt.excluded.updated_ms}))
+            cx.execute(delete(session_blobs).where(session_blobs.c.session_id == sid))
+            if blobs:
+                cx.execute(insert(session_blobs), [{"session_id": sid, "file_id": fid, "content": data} for fid, data in blobs.items()])
+    else:
+        cx = _conn()
+        try:
+            cx.execute("INSERT OR REPLACE INTO sessions(session_id, payload, updated_ms) VALUES (?,?,?)",
+                       (sid, json.dumps(payload, ensure_ascii=False), int(time.time() * 1000)))
+            cx.commit()
+        finally:
+            cx.close()
     store.put(rec)
 
 
 def load_session(sid: str, store: InMemorySnapshotStore) -> dict | None:
-    cx = _conn()
-    row = cx.execute("SELECT payload FROM sessions WHERE session_id=?", (sid,)).fetchone()
-    cx.close()
-    if not row:
-        return None
-    payload = json.loads(row[0])
+    blobs = {}
+    if database_url():
+        from sqlalchemy import select
+
+        from app.db.tables import session_blobs, sessions
+
+        engine = get_engine()
+        ensure_database(engine)
+        with engine.connect() as cx:
+            rows = cx.execute(select(sessions.c.payload, session_blobs.c.file_id, session_blobs.c.content)
+                .select_from(sessions.outerjoin(session_blobs, sessions.c.session_id == session_blobs.c.session_id))
+                .where(sessions.c.session_id == sid)).mappings().all()
+        if not rows:
+            return None
+        payload = json.loads(rows[0]["payload"])
+        blobs = {row["file_id"]: bytes(row["content"]) for row in rows if row["file_id"] is not None}
+    else:
+        cx = _conn()
+        try:
+            row = cx.execute("SELECT payload FROM sessions WHERE session_id=?", (sid,)).fetchone()
+        finally:
+            cx.close()
+        if not row:
+            return None
+        payload = json.loads(row[0])
     rec = record_from_dict(payload["record"])
     env = ToolEnvelope.model_validate(payload["envelope"])
     store.put(rec)
-    blobs = {}
-    for fid, path in (payload.get("blobs") or {}).items():
-        p = Path(path)
-        if p.exists():
-            blobs[fid] = p.read_bytes()
+    if not database_url():
+        for fid, path in (payload.get("blobs") or {}).items():
+            p = Path(path)
+            if p.exists():
+                blobs[fid] = p.read_bytes()
     job = JobResult.model_validate(payload["job"]) if payload.get("job") else None
     return {
         "record": rec,

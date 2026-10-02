@@ -186,7 +186,8 @@ def test_query_endpoint_round_trips_state_and_operational_fields(monkeypatch, st
 
     assert response.status_code == 200
     body = response.json()
-    assert body["state"] == state
+    assert body["state"] == ("ANSWERED" if state == "PASS" else state)
+    assert body["review_state"] == state
     assert body["connected"] is True
     assert body["used_llm"] is False
     assert body["reasoning_trace"] == [{"code": "TEST_TRACE"}]

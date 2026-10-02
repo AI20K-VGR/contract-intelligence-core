@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
 import os
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from uuid import uuid4
 
@@ -25,6 +27,7 @@ from app.contracts.models import (
     ToolEnvelope,
 )
 from app.contracts.wire import BeAi2ProcessingRequest, job_result_to_wire
+from app.db.engine import database_url, ensure_database, get_engine, validate_database_config
 from app.llm.client import DeadlineLLM, NineRouterClient, llm_status, query_llm_timeout_seconds
 from app.llm.embeddings import OpenAICompatibleEmbeddingClient
 from app.pipeline.ai1_ingest import ingest_files
@@ -53,9 +56,10 @@ from app.tools.jobs import (
     JobOwnershipConflict,
     JobPayloadConflict,
     SQLiteJobStore,
+    job_store_from_env,
 )
 from app.tools.persist import DATA, load_session, save_session
-from app.tools.query_store import load_query_snapshot, save_query_snapshot
+from app.tools.query_store import load_query_snapshot
 from app.tools.store import DossierRecord, InMemorySnapshotStore
 from fixtures.case_pdf import attach_case_pdf
 from fixtures.catalog import load_case
@@ -66,7 +70,34 @@ load_dotenv(ROOT / ".env")
 
 STATIC = Path(__file__).resolve().parent.parent / "static"
 
-app = FastAPI(title="VSF AI2 IDP", version="0.1.0")
+JOB_SWEEP_INTERVAL_SECONDS = 1.0
+
+
+async def _periodic_job_sweep() -> None:
+    while True:
+        await asyncio.sleep(JOB_SWEEP_INTERVAL_SECONDS)
+        try:
+            await asyncio.to_thread(_sweep_stale_jobs)
+        except Exception:
+            logger.exception("ai2.job_sweep_failed")
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    validate_database_config()
+    if database_url():
+        await asyncio.to_thread(ensure_database, get_engine())
+    await asyncio.to_thread(hydrate_canonical_store)
+    sweeper = asyncio.create_task(_periodic_job_sweep())
+    try:
+        yield
+    finally:
+        sweeper.cancel()
+        with suppress(asyncio.CancelledError):
+            await sweeper
+
+
+app = FastAPI(title="VSF AI2 IDP", version="0.1.0", lifespan=_lifespan)
 if STATIC.exists():
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
@@ -75,7 +106,7 @@ logger = logging.getLogger(__name__)
 JOBS: dict[str, JobResult] = {}
 WIRE_JOBS: dict[str, dict] = {}
 WIRE_IDEMPOTENCY: dict[tuple[str, str, int], str] = {}
-JOB_STORE = SQLiteJobStore()
+JOB_STORE = job_store_from_env()
 LAST_CASE: dict[str, str] = {}
 SESSIONS: dict[str, dict] = {}
 EMBEDDING_CLIENT = OpenAICompatibleEmbeddingClient()
@@ -110,14 +141,17 @@ def _hydrate_store_from_jobs() -> int:
                 exc,
             )
             continue
-        STORE.put(adapted.record)
+        persisted = load_query_snapshot(adapted.record.dossier_id, tenant_id=adapted.record.tenant_id)
+        if persisted:
+            STORE.put(persisted[0])
+        else:
+            STORE.put(adapted.record)
         restored += 1
     if restored:
         logger.info("ai2.store_hydrated dossiers=%s", restored)
     return restored
 
 
-@app.on_event("startup")
 def hydrate_canonical_store() -> None:
     _sweep_stale_jobs()
     _hydrate_store_from_jobs()
@@ -196,15 +230,12 @@ def _run_wire_job(job_id: str, payload: dict) -> None:
             tenant_id=service_envelope.tenant_id,
             actor_id=service_envelope.actor_id,
         )
-        # Keep the authoritative, citation-bearing record available to the
-        # separate HTTP query process after worker/API restarts.
-        STORE.put(adapted.record)
-        save_query_snapshot(adapted.record, adapted.envelope)
         tenant_id = request.service_envelope.tenant_id
         worker_token = JOB_STORE.claim(
             job_id,
             tenant_id=tenant_id,
             dossier_id=request.dossier_id,
+            lease_ms=request.policy_flags.budget_limits.max_processing_seconds * 1000 + 30_000,
         )
         if worker_token is None:
             return
@@ -237,18 +268,18 @@ def _run_wire_job(job_id: str, payload: dict) -> None:
         query_snapshot_digest = adapted.record.pins.source_snapshot_digest
         # AI2_PROCESSING_EGRESS_ALLOWED controls whether the configured client
         # can be used. The pipeline itself owns retry/fallback accounting.
+        processing_store = InMemorySnapshotStore()
         result = run_idp(
             adapted.record,
             adapted.envelope,
             llm=llm,
-            store=STORE,
+            store=processing_store,
             job_id=job_id,
             runtime=runtime,
         )
-        JOBS[job_id] = result
+        processed_record = processing_store.get(adapted.record.tenant_id, adapted.record.dossier_id) or adapted.record
         wire = job_result_to_wire(result, request, query_snapshot_digest=query_snapshot_digest)
-        WIRE_JOBS[job_id] = wire
-        JOB_STORE.set_wire(
+        accepted = JOB_STORE.complete_with_snapshot(
             job_id,
             tenant_id=tenant_id,
             dossier_id=request.dossier_id,
@@ -256,7 +287,15 @@ def _run_wire_job(job_id: str, payload: dict) -> None:
             status=wire["status"],
             wire=wire,
             result=result.model_dump(),
+            record=processed_record,
+            envelope=adapted.envelope,
         )
+        if accepted:
+            JOBS[job_id] = result
+            WIRE_JOBS[job_id] = wire
+            persisted = load_query_snapshot(request.dossier_id, tenant_id=tenant_id)
+            if persisted is not None:
+                STORE.put(persisted[0])
     except Exception as exc:  # worker boundary: every failure ends the job
         code = exc.code if isinstance(exc, SnapshotContractError) else "AI2_WORKER_FAILED"
         update = {
@@ -814,11 +853,13 @@ def query_from_backend(payload: dict) -> dict:
         payload.get("tenant_id") or ""
     ).strip()
     record = STORE.get(tenant_id, dossier_id) if tenant_id else None
-    if record is None:
+    if record is None or database_url() or service_envelope is None:
         hydrated = load_query_snapshot(dossier_id, tenant_id=tenant_id or None)
         if hydrated is not None:
             record, stored_envelope = hydrated
             STORE.put(record)
+        elif database_url() or service_envelope is None:
+            record = None
 
     if record is not None:
         expected_digest = str(record.pins.source_snapshot_digest or "")
@@ -873,9 +914,11 @@ def query_from_backend(payload: dict) -> dict:
                 candidate = NineRouterClient(timeout=timeout)
                 if candidate.configured():
                     llm = DeadlineLLM(candidate, timeout)
+            query_store = InMemorySnapshotStore()
+            query_store.put(record)
             result = QueryRouter(
-                STORE,
-                ToolGateway(STORE, signed_principal=service_envelope is not None),
+                query_store,
+                ToolGateway(query_store, signed_principal=service_envelope is not None),
                 llm=llm,
                 vector_recall=_vector_service(
                     policy_flags["use_vector"],
@@ -894,15 +937,19 @@ def query_from_backend(payload: dict) -> dict:
             answer = result.get("answer")
             if answer is not None and not isinstance(answer, str):
                 answer = json.dumps(answer, ensure_ascii=False)
+            review_state = result.get("review_state")
+            state = review_state or result.get("state") or "INSUFFICIENT_EVIDENCE"
             return {
-                "state": result.get("review_state")
-                or result.get("state")
-                or "INSUFFICIENT_EVIDENCE",
+                "state": "ANSWERED" if state == "PASS" else state,
+                "review_state": review_state,
                 "connected": True,
                 "answer": answer,
                 "citations": citations,
                 "retrieval_layer": {
                     **(result.get("retrieval_layer") or {}),
+                    **({"reason_code": "EMBEDDING_BUDGET_EXCEEDED"}
+                       if (result.get("retrieval_layer") or {}).get("vector_status") == "BUDGET_EXCEEDED"
+                       else {}),
                     "dossier_id": dossier_id,
                     "snapshot_version": payload.get("snapshot_version"),
                     "snapshot_digest": expected_digest,

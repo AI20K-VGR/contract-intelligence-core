@@ -1,6 +1,6 @@
 """ST-067: every job ends with a named reason and keeps the work already done.
 
-Each case runs under a 5 s wall-clock bound (``concurrent.futures``; the lock
+Each case runs under a 5 s wall-clock bound (daemon worker; the lock
 has no ``pytest-timeout``). Provider failures use real ``openai`` exception
 types so the classification is tested against what the SDK actually raises.
 """
@@ -8,7 +8,6 @@ types so the classification is tested against what the SDK actually raises.
 from __future__ import annotations
 
 import time
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import httpx
@@ -26,8 +25,19 @@ _REQ = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
 
 
 def _bounded(fn, *args, **kwargs):
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        return pool.submit(fn, *args, **kwargs).result(timeout=CASE_BOUND_SECONDS)
+    import threading
+    from concurrent.futures import Future
+
+    outcome = Future()
+
+    def run():
+        try:
+            outcome.set_result(fn(*args, **kwargs))
+        except BaseException as exc:
+            outcome.set_exception(exc)
+
+    threading.Thread(target=run, daemon=True).start()
+    return outcome.result(timeout=CASE_BOUND_SECONDS)
 
 
 def _rate_limited(retry_after: str | None = None) -> openai.RateLimitError:
@@ -254,7 +264,7 @@ class FakeEmbeddings:
         return [[1.0, 0.0, 0.0] for _ in texts]
 
 
-def _signed_query(main, monkeypatch, tmp_path, *, cap: str) -> tuple[dict, FakeEmbeddings]:
+def _signed_query(main, monkeypatch, tmp_path, *, cap: str, egress: str = "true") -> tuple[dict, FakeEmbeddings]:
     from fastapi.testclient import TestClient
 
     from app.reasoning.vector_recall import VectorRecallService
@@ -263,7 +273,7 @@ def _signed_query(main, monkeypatch, tmp_path, *, cap: str) -> tuple[dict, FakeE
 
     fake = FakeEmbeddings()
     monkeypatch.setenv("AI2_SERVICE_HMAC_SECRET", "test-secret")
-    monkeypatch.setenv("AI2_QUERY_EGRESS_ALLOWED", "true")
+    monkeypatch.setenv("AI2_QUERY_EGRESS_ALLOWED", egress)
     monkeypatch.setenv("AI2_QUERY_USE_VECTOR", "true")
     monkeypatch.setenv("AI2_QUERY_MAX_EMBEDDING_TOKENS", cap)
     monkeypatch.setenv("AI2_VECTOR_DB", str(tmp_path / "vectors.sqlite"))
@@ -272,7 +282,7 @@ def _signed_query(main, monkeypatch, tmp_path, *, cap: str) -> tuple[dict, FakeE
     main.STORE._dossiers.clear()
     main.STORE.put(mock_record())
     payload = {
-        "query": "Các bên thoả thuận gì về nghĩa vụ bảo mật thông tin?",
+        "query": "Các bên thoả thuận gì về việc thanh toán và nghiệm thu?",
         "dossier_id": "dossier_001",
         "snapshot_version": "ai1.snapshot.v1",
     }
@@ -305,6 +315,17 @@ def test_query_embedding_cap_turns_vector_off_without_calling_the_provider(monke
     assert fake.embedded_texts == 0
     assert body["retrieval_layer"]["vector_status"] == "BUDGET_EXCEEDED"
     assert body["state"] in {"PASS", "NEEDS_REVIEW", "INSUFFICIENT_EVIDENCE"}
+    assert body["citations"]
+    assert body["retrieval_layer"]["reason_code"] == "EMBEDDING_BUDGET_EXCEEDED"
+
+
+def test_signed_query_egress_flag_blocks_vector_provider(monkeypatch, tmp_path):
+    from app.api import main
+
+    body, fake = _bounded(_signed_query, main, monkeypatch, tmp_path, cap="100000", egress="false")
+    assert fake.embedded_texts == 0
+    assert body["retrieval_layer"]["vector_status"] == "EGRESS_DENIED"
+    assert body["citations"]
 
 
 # 6. Failure before claim -> the job is FAILED, never stuck in QUEUED.
@@ -363,3 +384,230 @@ def test_startup_sweep_fails_jobs_left_by_a_dead_worker(monkeypatch, tmp_path):
         assert error["message"] == ISSUE_MESSAGES_VI["AI2_WORKER_RESTARTED"]
         assert error["retryable"] is True
     assert store.get(live)["status"] == "RUNNING"
+
+
+def _http_llm(handler):
+    from app.llm.client import NineRouterClient
+
+    client = NineRouterClient(base_url="https://provider.test/v1", api_key="test-local")
+    client._client = openai.OpenAI(
+        api_key="test-local", base_url="https://provider.test/v1", max_retries=0,
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    _ = client._client.chat.completions
+    return client
+
+
+def _provider_reply(request, *, status=200, param="response_format"):
+    if status != 200:
+        return httpx.Response(status, request=request, json={
+            "error": {"message": "unsupported parameter", "type": "invalid_request_error", "param": param},
+        })
+    return httpx.Response(200, request=request, json={
+        "id": "completion-test", "object": "chat.completion", "created": 1, "model": "test",
+        "choices": [{"index": 0, "message": {"role": "assistant", "content": "{}"}, "finish_reason": "stop"}],
+    })
+
+
+def test_format_fallback_reserves_each_http_request_before_sending():
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        return _provider_reply(request, status=400 if len(requests) == 1 else 200)
+
+    runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=1)
+    assert runtime.complete_json(_http_llm(handler), "system", "user") is None
+    assert len(requests) == runtime.llm_calls_used == 1
+    assert "LLM_BUDGET_EXCEEDED" in _codes(runtime)
+
+
+def test_failed_format_fallback_is_counted_against_retry_budget():
+    requests = []
+
+    def handler(request):
+        import json
+        requests.append(request)
+        payload = json.loads(request.content)
+        return _provider_reply(request, status=400 if "response_format" in payload else 429)
+
+    runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=3, sleep=lambda _seconds: None)
+    assert runtime.complete_json(_http_llm(handler), "system", "user") is None
+    assert len(requests) == runtime.llm_calls_used == 3
+
+
+@pytest.mark.parametrize("status", [400, 422])
+def test_unrelated_request_errors_never_retry_without_json_format(status):
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        return _provider_reply(request, status=status, param="model")
+
+    with pytest.raises(openai.APIStatusError):
+        _http_llm(handler).complete_json("system", "user")
+    assert len(requests) == 1
+
+
+def test_timed_out_http_request_cannot_start_a_later_format_fallback():
+    from app.pipeline.runtime import ProcessingTimeout
+
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        time.sleep(0.08)
+        return _provider_reply(request, status=400)
+
+    client = _http_llm(handler)
+    runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=3, max_processing_seconds=0.03)
+    with pytest.raises(ProcessingTimeout):
+        runtime.complete_json(client, "system", "user")
+    time.sleep(0.2)
+    assert len(requests) == runtime.llm_calls_used == 1
+
+
+def test_call_timeout_cancels_fallback_even_before_the_job_deadline():
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        time.sleep(0.08)
+        return _provider_reply(request, status=400)
+
+    client = _http_llm(handler)
+    runtime = ProcessingRuntime(
+        egress_allowed=True, max_llm_calls=3, max_processing_seconds=2,
+        call_timeout_seconds=0.03, max_attempts=1,
+    )
+    assert runtime.complete_json(client, "system", "user") is None
+    assert _codes(runtime) == ["LLM_TIMEOUT"]
+    time.sleep(0.2)
+    assert len(requests) == runtime.llm_calls_used == 1
+
+
+def test_periodic_sweep_catches_jobs_whose_lease_expires_after_startup(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from app.api import main
+
+    store = SQLiteJobStore(tmp_path / "periodic.sqlite")
+    now = [1000]
+    monkeypatch.setattr(store, "_now_ms", lambda: now[0])
+    monkeypatch.setattr(main, "JOB_STORE", store)
+    job_id = _queued_job(store, "expires-later")
+    store.claim(job_id, tenant_id="tenant_a", dossier_id="dossier-st067", lease_ms=50)
+    monkeypatch.setattr(main, "JOB_SWEEP_INTERVAL_SECONDS", 0.01, raising=False)
+    with TestClient(main.app):
+        assert store.get(job_id)["status"] == "RUNNING"
+        now[0] += 100
+        until = time.monotonic() + 1
+        while store.get(job_id)["status"] != "FAILED" and time.monotonic() < until:
+            time.sleep(0.01)
+        assert store.get(job_id)["status"] == "FAILED"
+        assert store.get(job_id)["wire"]["errors"][0]["code"] == "AI2_WORKER_RESTARTED"
+
+
+def test_over_cap_dossier_skips_embedding_capability_discovery(tmp_path):
+    from app.reasoning.vector_recall import SQLiteVectorIndex, VectorRecallService
+    from fixtures import mock_record
+
+    class ColdEmbeddings(FakeEmbeddings):
+        def discover(self, **kwargs):
+            raise AssertionError("discovery would call the external embedding provider")
+
+    runtime = ProcessingRuntime(egress_allowed=True, max_embedding_tokens=1)
+    service = VectorRecallService(
+        embedding_client=ColdEmbeddings(), index=SQLiteVectorIndex(tmp_path / "cold.sqlite"),
+        enabled=True, runtime=runtime,
+    )
+    result = service.recall(mock_record(), "Thanh toán?")
+    assert result.status == "BUDGET_EXCEEDED"
+    assert result.trace["reason_code"] == "EMBEDDING_BUDGET_EXCEEDED"
+
+
+def test_live_worker_lease_covers_the_processing_budget(monkeypatch, tmp_path):
+    from test_a1_query_digest import _body_only_request
+
+    from app.api import main
+    from app.tools.store import InMemorySnapshotStore
+
+    monkeypatch.setenv("AI2_SERVICE_HMAC_SECRET", "test-secret")
+    monkeypatch.setenv("AI2_PROCESSING_EGRESS_ALLOWED", "false")
+    payload = _body_only_request()
+    store = SQLiteJobStore(tmp_path / "budget-lease.sqlite")
+    now = [1000]
+    monkeypatch.setattr(store, "_now_ms", lambda: now[0])
+    monkeypatch.setattr(main, "JOB_STORE", store)
+    monkeypatch.setattr(main, "STORE", InMemorySnapshotStore())
+    monkeypatch.setattr(main, "WIRE_JOBS", {})
+    from app.tools import query_store
+    monkeypatch.setattr(query_store, "save_query_snapshot", lambda *_args: None)
+    job, _ = store.create_or_get(
+        tenant_id="tenant_a", dossier_id=payload["dossier_id"], request_id=payload["request_id"],
+        idempotency_key=payload["idempotency_key"], attempt=1, request=payload,
+        wire={"status": "QUEUED", "result": None, "errors": []},
+    )
+    original_run = main.run_idp
+
+    def after_seventy_five_seconds(*args, **kwargs):
+        now[0] += 75_000
+        assert main._sweep_stale_jobs(store) == []
+        assert store.get(job["job_id"])["status"] == "RUNNING"
+        return original_run(*args, **kwargs)
+
+    monkeypatch.setattr(main, "run_idp", after_seventy_five_seconds)
+    main._run_wire_job(job["job_id"], payload)
+    assert store.get(job["job_id"])["status"] == "SUCCEEDED"
+
+
+def test_case_timeout_does_not_keep_the_test_process_alive():
+    import ast
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    source = Path(__file__).read_text(encoding="utf-8")
+    helper = next(node for node in ast.parse(source).body if isinstance(node, ast.FunctionDef) and node.name == "_bounded")
+    code = "import time\nCASE_BOUND_SECONDS=.02\n"
+    code += ast.get_source_segment(source, helper)
+    code += "\ntry:\n _bounded(time.sleep, 10)\nexcept TimeoutError:\n print('caller_timed_out', flush=True)\n"
+    completed = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=2)
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "caller_timed_out"
+
+
+@pytest.mark.parametrize("extra_tokens", [0, 9])
+def test_real_embedding_discovery_is_charged_before_provider_requests(tmp_path, extra_tokens):
+    from types import SimpleNamespace
+
+    from app.llm.embeddings import OpenAICompatibleEmbeddingClient
+    from app.reasoning.vector_recall import SQLiteVectorIndex, VectorRecallService, build_segments
+    from fixtures import mock_record
+
+    sent = []
+
+    def create(**kwargs):
+        sent.extend(kwargs["input"])
+        return {"data": [{"index": i, "embedding": [1.0, 0.0, 0.0]} for i in range(len(kwargs["input"]))]}
+
+    record = mock_record()
+    record.egress_approved = True
+    query = "nghĩa vụ bảo mật"
+    tokens = lambda text: max(1, (len(text) + 3) // 4)  # noqa: E731
+    corpus_tokens = sum(tokens(segment.text) for segment in build_segments(record)) + tokens(query)
+    cap = corpus_tokens + extra_tokens
+    runtime = ProcessingRuntime(egress_allowed=True, max_embedding_tokens=cap)
+    client = OpenAICompatibleEmbeddingClient(
+        api_key="probe-only", model="fake-embed", dimensions=3,
+        client=SimpleNamespace(embeddings=SimpleNamespace(create=create)),
+    )
+    service = VectorRecallService(
+        embedding_client=client, index=SQLiteVectorIndex(tmp_path / "discovery.sqlite"),
+        enabled=True, runtime=runtime,
+    )
+    result = service.recall(record, query)
+    provider_tokens = sum(tokens(text) for text in sent)
+    assert provider_tokens <= cap
+    assert runtime.embedding_tokens_used == provider_tokens
+    assert result.status == ("READY" if extra_tokens else "BUDGET_EXCEEDED")

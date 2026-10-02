@@ -15,6 +15,7 @@ import time
 from typing import Any
 
 from app.contracts.models import ToolEnvelope
+from app.db.engine import database_url, postgres_connection
 from app.tools.persist import DATA, record_from_dict, record_to_dict
 from app.tools.store import DossierRecord
 
@@ -22,6 +23,8 @@ DB = DATA / "runs.sqlite"
 
 
 def _conn() -> sqlite3.Connection:
+    if database_url():
+        return postgres_connection()
     DATA.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(DB)
     connection.execute(

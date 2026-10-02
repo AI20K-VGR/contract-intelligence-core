@@ -13,6 +13,27 @@ from openai import BadRequestError, OpenAI, UnprocessableEntityError
 _FORMAT_ERRORS = (BadRequestError, UnprocessableEntityError)
 
 
+class LLMRequestBudgetExceeded(RuntimeError):
+    """No provider request may start after the per-job call quota is spent."""
+
+
+def _is_format_error(error: Exception) -> bool:
+    if not isinstance(error, _FORMAT_ERRORS):
+        return False
+    body = getattr(error, "body", None)
+    if not isinstance(body, dict):
+        return False
+    detail = body.get("error", body)
+    if not isinstance(detail, dict):
+        return False
+    param = str(detail.get("param") or "")
+    message = str(detail.get("message") or "").casefold()
+    return param == "response_format" or param.startswith("response_format.") or (
+        any(token in message for token in ("response_format", "json_object"))
+        and any(token in message for token in ("unsupported", "not supported", "invalid"))
+    )
+
+
 def call_with_timeout(fn: Callable[[], Any], seconds: float, *, name: str = "ai2-llm") -> Any:
     """Run ``fn`` and give up after ``seconds``.
 
@@ -72,6 +93,7 @@ class NineRouterClient:
         *,
         strong: bool = False,
         timeout: float | None = None,
+        before_request: Callable[[], float] | None = None,
     ) -> dict[str, Any]:
         """One logical completion. ``last_http_calls`` reports the HTTP requests it
         made (2 when the provider rejected ``response_format``) so the caller can
@@ -80,7 +102,7 @@ class NineRouterClient:
 
         model = self.strong_model if strong else self.model
         request_options: dict[str, Any] = {} if timeout is None else {"timeout": timeout}
-        self.last_http_calls = 1
+        self.last_http_calls = 0
         started = time.perf_counter()
         trace: dict[str, Any] = {
             "model": model,
@@ -95,6 +117,9 @@ class NineRouterClient:
             {"role": "user", "content": user},
         ]
         try:
+            if before_request is not None:
+                request_options["timeout"] = before_request()
+            self.last_http_calls += 1
             resp = self._client.chat.completions.create(
                 model=model,
                 messages=messages,
@@ -106,7 +131,7 @@ class NineRouterClient:
         except Exception as first_error:
             # Only a rejected request shape is worth a second request without
             # JSON mode; 429/5xx/timeouts go back to the caller's retry policy.
-            if not isinstance(first_error, _FORMAT_ERRORS):
+            if not _is_format_error(first_error):
                 trace["error_type"] = type(first_error).__name__
                 trace["latency_ms"] = round((time.perf_counter() - started) * 1000, 1)
                 self.traces.append(trace)
@@ -114,8 +139,10 @@ class NineRouterClient:
                 raise
             trace["fallback_without_json_format"] = True
             trace["first_error_type"] = type(first_error).__name__
-            self.last_http_calls = 2
             try:
+                if before_request is not None:
+                    request_options["timeout"] = before_request()
+                self.last_http_calls += 1
                 resp = self._client.chat.completions.create(
                     model=model,
                     messages=messages,

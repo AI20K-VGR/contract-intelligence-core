@@ -80,6 +80,37 @@ def test_signature_flag_off_keeps_unsigned_compatibility_lane(monkeypatch):
     assert body["citations"] == []
 
 
+@pytest.mark.parametrize("warm", [False, True])
+def test_unsigned_compatibility_uses_persisted_envelope_for_warm_and_cold_cache(monkeypatch, warm):
+    monkeypatch.setenv("AI2_QUERY_REQUIRE_SIGNATURE", "false")
+    monkeypatch.delenv("AI2_DATABASE_URL", raising=False)
+    record = mock_record()
+    main.STORE._dossiers.clear()
+    if warm:
+        main.STORE.put(record)
+    calls = []
+
+    def load(dossier_id, *, tenant_id=None):
+        calls.append((dossier_id, tenant_id))
+        return record, fixture_envelope()
+
+    monkeypatch.setattr(main, "load_query_snapshot", load)
+    response = TestClient(main.app).post("/query", json=_query(tenant_id="tenant_a"))
+    assert response.status_code == 200
+    assert response.json()["state"] == "NEEDS_REVIEW"
+    assert calls == [(DOSSIER, "tenant_a")]
+
+
+def test_unsigned_compatibility_cache_without_persisted_envelope_cannot_answer(monkeypatch):
+    monkeypatch.setenv("AI2_QUERY_REQUIRE_SIGNATURE", "false")
+    monkeypatch.delenv("AI2_DATABASE_URL", raising=False)
+    monkeypatch.setattr(main, "load_query_snapshot", lambda *args, **kwargs: None)
+    response = TestClient(main.app).post("/query", json=_query(tenant_id="tenant_a"))
+    assert response.status_code == 200
+    assert response.json()["state"] == "INSUFFICIENT_EVIDENCE"
+    assert response.json()["citations"] == []
+
+
 def test_signed_query_by_another_actor_reads_content():
     response = TestClient(main.app).post("/query", json=_signed(_query(), actor_id="reviewer-42"))
 
@@ -98,6 +129,22 @@ def test_signed_query_for_another_tenant_reads_nothing():
     body = response.json()
     assert body["state"] in {"BLOCKED", "INSUFFICIENT_EVIDENCE"}
     assert body["citations"] == []
+
+
+@pytest.mark.parametrize("review_state,expected", [
+    ("PASS", "ANSWERED"),
+    ("NEEDS_REVIEW", "NEEDS_REVIEW"),
+    ("BLOCKED", "BLOCKED"),
+    ("INSUFFICIENT_EVIDENCE", "INSUFFICIENT_EVIDENCE"),
+])
+def test_query_response_separates_answer_state_from_review(monkeypatch, review_state, expected):
+    monkeypatch.setattr(QueryRouter, "query", lambda *args, **kwargs: {
+        "review_state": review_state, "answer": "value", "citations": [],
+    })
+    response = TestClient(main.app).post("/query", json=_signed(_query()))
+    assert response.status_code == 200
+    assert response.json()["state"] == expected
+    assert response.json()["review_state"] == review_state
 
 
 def test_signed_query_with_tampered_payload_is_rejected():

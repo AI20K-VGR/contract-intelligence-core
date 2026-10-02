@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from app.contracts.models import Citation
+from app.db.engine import database_url, ensure_database, get_engine
 from app.llm.embeddings import OpenAICompatibleEmbeddingClient
 from app.pipeline.runtime import ProcessingRuntime
 from app.tools.store import DossierRecord
@@ -165,6 +166,63 @@ class SQLiteVectorIndex:
         return scored[: max(1, k)]
 
 
+class PostgresVectorIndex:
+    def __init__(self, url: str | None = None):
+        from sqlalchemy import text
+        self.engine = get_engine(url)
+        ensure_database(self.engine)
+        with self.engine.connect() as cx:
+            self.available = bool(cx.execute(text("""SELECT 1 FROM information_schema.columns
+                WHERE table_schema='ai2' AND table_name='vector_segments' AND column_name='embedding'""")).scalar())
+
+    def has_snapshot(self, snapshot_digest: str, *, model: str, dimensions: int) -> bool:
+        from sqlalchemy import text
+        with self.engine.connect() as cx:
+            return bool(cx.execute(text("""SELECT 1 FROM ai2.vector_segments
+                WHERE snapshot_digest=:digest AND embedding_model=:model AND dimensions=:dimensions LIMIT 1"""),
+                {"digest": snapshot_digest, "model": model, "dimensions": dimensions}).scalar())
+
+    def upsert(self, segments, vectors, *, model, dimensions):
+        from dataclasses import asdict
+
+        from sqlalchemy import text
+        if not self.available:
+            raise RuntimeError("VECTOR_EXTENSION_UNAVAILABLE")
+        if len(segments) != len(vectors):
+            raise ValueError("segments and vectors must have equal length")
+        with self.engine.begin() as cx:
+            for segment, vector in zip(segments, vectors):
+                if len(vector) != dimensions:
+                    raise ValueError("vector dimension mismatch")
+                values = {**asdict(segment), "embedding_model": model, "dimensions": dimensions,
+                          "vector_json": json.dumps(vector), "embedding": json.dumps(vector)}
+                names = list(values)
+                bindings = ["CAST(:embedding AS vector)" if name == "embedding" else f":{name}" for name in names]
+                updates = [f"{name}=excluded.{name}" for name in names if name != "segment_id"]
+                cx.execute(text(f"INSERT INTO ai2.vector_segments ({','.join(names)}) VALUES ({','.join(bindings)}) "
+                                f"ON CONFLICT (segment_id) DO UPDATE SET {','.join(updates)}"), values)
+
+    def search(self, snapshot_digest, vector, *, k, filters=None):
+        from sqlalchemy import text
+        filters = filters or {}
+        where = ["snapshot_digest=:digest"]
+        values = {"digest": snapshot_digest, "embedding": json.dumps(vector), "k": max(1, k)}
+        for filter_name in ("embedding_model", "dimensions", "source_role", "source_file_id"):
+            if filters.get(filter_name) is not None:
+                where.append(f"{filter_name}=:{filter_name}")
+                values[filter_name] = filters[filter_name]
+        # Partition dimensions before distance evaluation: pgvector rejects
+        # comparisons across dimensions, and the column intentionally has no typmod.
+        where.append("dimensions=:query_dimensions")
+        values["query_dimensions"] = len(vector)
+        with self.engine.connect() as cx:
+            rows = cx.execute(text("SELECT *, 1-(embedding <=> CAST(:embedding AS vector)) AS score "
+                                   "FROM ai2.vector_segments WHERE " + " AND ".join(where)
+                                   + " ORDER BY embedding <=> CAST(:embedding AS vector), segment_id LIMIT :k"), values).mappings()
+            fields = EvidenceSegment.__dataclass_fields__
+            return [(EvidenceSegment(**{name: row[name] for name in fields}), float(row["score"])) for row in rows]
+
+
 class VectorRecallService:
     def __init__(
         self,
@@ -175,7 +233,7 @@ class VectorRecallService:
         runtime: ProcessingRuntime | None = None,
     ) -> None:
         self.embedding_client = embedding_client or OpenAICompatibleEmbeddingClient()
-        self.index = index or SQLiteVectorIndex()
+        self.index = index or (PostgresVectorIndex() if database_url() else SQLiteVectorIndex())
         self.batch_size = max(1, int(os.getenv("AI2_EMBEDDING_BATCH_SIZE", "16")))
         self.enabled = enabled if enabled is not None else os.getenv("AI2_VECTOR_RECALL_ENABLED", "false").casefold() in {"1", "true", "yes", "on"}
         self.runtime = runtime
@@ -185,13 +243,29 @@ class VectorRecallService:
             return VectorRecallResult("DISABLED", trace={"vector_status": "DISABLED"})
         if record.embedding_budget_hit():
             return VectorRecallResult("BUDGET_EXCEEDED", trace={"vector_status": "BUDGET_EXCEEDED"})
-        if not record.egress_approved:
+        if not record.egress_approved or (self.runtime is not None and not self.runtime.egress_allowed):
             return VectorRecallResult("EGRESS_DENIED", trace={"vector_status": "EGRESS_DENIED"})
-        capability = self.embedding_client.discover(egress_approved=record.egress_approved)
+        if isinstance(self.index, PostgresVectorIndex) and not self.index.available:
+            return VectorRecallResult("UNAVAILABLE", trace={
+                "vector_status": "UNAVAILABLE", "reason_code": "VECTOR_EXTENSION_UNAVAILABLE",
+            })
+        segments = build_segments(record)
+        if self.runtime is not None and self.runtime.max_embedding_tokens:
+            required = sum(max(1, (len(text) + 3) // 4) for text in [query, *(s.text for s in segments)])
+            if self.runtime.embedding_tokens_used + required > self.runtime.max_embedding_tokens:
+                self.runtime.add_issue("EMBEDDING_BUDGET_EXCEEDED", "maximum embedding tokens reached")
+                return VectorRecallResult("BUDGET_EXCEEDED", trace={
+                    "vector_status": "BUDGET_EXCEEDED", "reason_code": "EMBEDDING_BUDGET_EXCEEDED",
+                })
+        if isinstance(self.embedding_client, OpenAICompatibleEmbeddingClient):
+            capability = self.embedding_client.discover(
+                egress_approved=record.egress_approved, before_probe=self._account_embedding_budget,
+            )
+        else:
+            capability = self.embedding_client.discover(egress_approved=record.egress_approved)
         trace = {"vector_status": capability.status, "embedding_model": capability.selected_model, "embedding_dimensions": capability.dimensions}
         if capability.status != "READY" or not capability.selected_model or not capability.dimensions:
             return VectorRecallResult(capability.status, trace=trace)
-        segments = build_segments(record)
         if not segments:
             return VectorRecallResult("UNAVAILABLE", trace={**trace, "reason": "no evidence segments"})
         has_snapshot = getattr(self.index, "has_snapshot", None)
