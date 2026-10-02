@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import hashlib
 from typing import Annotated
-from urllib.parse import urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -48,6 +48,8 @@ _ALLOWED_METHODS = ("GET", "HEAD", "POST")
 _SAFE_METHODS = frozenset({"GET", "HEAD"})
 # Server admin API: refused here even though Grafana would refuse a Viewer too.
 _BLOCKED_PREFIXES = ("/grafana/api/admin",)
+# RFC 3986 pchar minus "%": what may stay unencoded in a forwarded path.
+_PATH_SAFE = "/:@!$&'()*+,;=-._~"
 _MAX_BODY_BYTES = 1_048_576
 _HOP_BY_HOP = frozenset(
     {
@@ -171,6 +173,29 @@ def _response_headers(upstream: httpx.Response, settings: Settings) -> list[tupl
     return headers
 
 
+def checked_path(raw_path: str) -> str:
+    """Canonical upstream path, or 400/403 before anything reaches Grafana.
+
+    The blocklist is applied to the decoded path, and exactly that path is
+    forwarded (re-encoded), so ``..``, ``//``, ``%61dmin`` or ``api%2Fadmin``
+    cannot make Grafana see a path other than the one checked here.
+    """
+    decoded = unquote(raw_path)
+    segments = decoded.split("/")
+    if (
+        unquote(decoded) != decoded  # double encoding (%2561 …)
+        or "\\" in decoded
+        or any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in decoded)
+        or any(segment in (".", "..") for segment in segments)
+        or "" in segments[1:-1]
+    ):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid path")
+    lowered = decoded.lower()
+    if any(lowered == prefix or lowered.startswith(prefix + "/") for prefix in _BLOCKED_PREFIXES):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not available through monitoring")
+    return quote(decoded, safe=_PATH_SAFE)
+
+
 def _check_origin(request: Request) -> None:
     """Refuse a cross-site write even if a browser attached the cookie."""
     if request.method in _SAFE_METHODS:
@@ -185,9 +210,7 @@ def _check_origin(request: Request) -> None:
 async def grafana_proxy(request: Request, login: GrafanaLogin) -> Response:
     settings = get_settings()
     raw_path = request.scope.get("raw_path") or request.url.path.encode()
-    path = raw_path.decode("latin-1")
-    if any(path == prefix or path.startswith(prefix + "/") for prefix in _BLOCKED_PREFIXES):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not available through monitoring")
+    path = checked_path(raw_path.decode("latin-1"))
     _check_origin(request)
 
     body = await request.body()
