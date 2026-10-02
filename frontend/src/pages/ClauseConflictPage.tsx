@@ -33,6 +33,7 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { findClause, findClauseByQuote } from '../structure/citations'
 import { bodyOf, headOf } from '../structure/display'
 import { clauseForCitation, regionsOf } from '../structure/conflictCite'
+import { reviewTargetNode } from '../structure/reviewTarget'
 import { buildStructureTree } from '../structure'
 import {
   conflictKind,
@@ -76,6 +77,13 @@ type ComparePane = {
   /** Nút cây đang chứa trích dẫn, để nối với thẩm định trích dẫn cùng vị trí. */
   clause: ClauseNode | null
   ordinal: number
+  /**
+   * Nút của cây `numbered` chứa trích dẫn. Màn tìm kiếm lưu thẩm định theo id nút
+   * này, nên tra thẩm định trích dẫn phải dùng nó, không dùng cây theo
+   * `structureMode` của hồ sơ.
+   */
+  reviewNode: ClauseNode | null
+  reviewOrdinal: number
 }
 
 function paneRoleLabel(label: string) {
@@ -85,18 +93,18 @@ function paneRoleLabel(label: string) {
 }
 
 function linkedClausesOf(panes: ComparePane[]): LinkedClause[] {
-  return panes.flatMap((pane) =>
-    pane.clause
-      ? [
-          {
-            label: paneRoleLabel(pane.label),
-            documentId: pane.document.id,
-            node: pane.clause,
-            ordinal: pane.ordinal,
-          },
-        ]
-      : [],
-  )
+  return panes.flatMap((pane) => {
+    const node = pane.reviewNode ?? pane.clause
+    if (!node) return []
+    return [
+      {
+        label: paneRoleLabel(pane.label),
+        documentId: pane.document.id,
+        node,
+        ordinal: pane.reviewNode ? pane.reviewOrdinal : pane.ordinal,
+      },
+    ]
+  })
 }
 
 type KindFilter = 'all' | ConflictKind
@@ -226,6 +234,7 @@ function linkPane(
   mark: 'amber' | 'sky',
   nodes: ClauseNode[],
   lines: OcrLine[] | undefined,
+  numberedNodes: ClauseNode[],
   pick?: { side: ReviewSpotSide | null; key: string; missing: string },
 ): ComparePane {
   const side = pick
@@ -235,6 +244,9 @@ function linkPane(
     lines && side
       ? clauseForCitation(nodes, lines, side.pageNo, side.lineNo)
       : null
+  const reviewTarget = side
+    ? reviewTargetNode(numberedNodes, lines ?? [], side)
+    : null
   const fromTree = regionsOf(clause).map((region) => ({
     ...region,
     accent: mark,
@@ -273,6 +285,8 @@ function linkPane(
     emptyNote: linked ? '' : missing,
     clause,
     ordinal: clause ? clauseOrdinal(nodes, clause.id) : 0,
+    reviewNode: reviewTarget?.node ?? null,
+    reviewOrdinal: reviewTarget?.ordinal ?? 0,
   }
 }
 
@@ -281,6 +295,7 @@ function locatePanes(
   documents: StructureDocument[],
   nodesByDocument: Record<string, ClauseNode[]>,
   linesByDocument: Record<string, OcrLine[] | undefined>,
+  numberedByDocument: Record<string, ClauseNode[]>,
 ): ComparePane[] {
   if (!spot || documents.length === 0) return []
   const withinId = withinDocumentId(spot)
@@ -299,6 +314,7 @@ function locatePanes(
         marks[index],
         nodesByDocument[within.id] ?? [],
         linesByDocument[within.id],
+        numberedByDocument[within.id] ?? [],
         {
           side,
           key: `${within.id}:${index}`,
@@ -321,6 +337,7 @@ function locatePanes(
           PANE_ROLES[0].mark,
           nodesByDocument[contract.id] ?? [],
           linesByDocument[contract.id],
+          numberedByDocument[contract.id] ?? [],
         )
       : null,
     annex
@@ -331,6 +348,7 @@ function locatePanes(
           PANE_ROLES[1].mark,
           nodesByDocument[annex.id] ?? [],
           linesByDocument[annex.id],
+          numberedByDocument[annex.id] ?? [],
         )
       : null,
   ].filter((pane): pane is ComparePane => pane !== null)
@@ -542,6 +560,17 @@ export function ClauseConflictPage() {
     }
     return map
   }, [linesByDocument, nodesByDocument, structureMode])
+  // Màn tìm kiếm lưu thẩm định theo id nút của cây numbered.
+  const numberedTrees = useMemo(() => {
+    const map: Record<string, ClauseNode[]> = {}
+    for (const [id, lines] of Object.entries(linesByDocument)) {
+      map[id] =
+        lines.length > 0
+          ? buildStructureTree(lines, 'numbered')
+          : (nodesByDocument[id] ?? [])
+    }
+    return map
+  }, [linesByDocument, nodesByDocument])
   const active =
     inKind.find((card) => card.id === activeId) ??
     visible[0] ??
@@ -552,10 +581,13 @@ export function ClauseConflictPage() {
     const map = new Map<string, ComparePane[]>()
     const documents = detail?.documents ?? []
     for (const spot of spots) {
-      map.set(spot.id, locatePanes(spot, documents, trees, linesByDocument))
+      map.set(
+        spot.id,
+        locatePanes(spot, documents, trees, linesByDocument, numberedTrees),
+      )
     }
     return map
-  }, [detail?.documents, linesByDocument, spots, trees])
+  }, [detail?.documents, linesByDocument, numberedTrees, spots, trees])
   const located = linksById.get(active?.id ?? '') ?? []
   const comparing = located.length > 1
 
