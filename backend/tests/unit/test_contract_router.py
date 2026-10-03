@@ -645,6 +645,66 @@ class TestCreateDossierEndpoint:
 
 
 # ---------------------------------------------------------------------------
+# POST /api/v1/dossiers/{dossier_id}/ocr  (full OCR restart)
+# ---------------------------------------------------------------------------
+
+
+class TestRestartOcrEndpoint:
+    @staticmethod
+    def _dossier(**job_fields: Any) -> Dossier:
+        from contract_intelligence.contract.domain.entities.job import Job
+
+        dossier = _make_dossier(id="dos_O", metadata={"created_by": "usr_op_01"})
+        dossier.jobs = [Job(id="job_O", dossier_id="dos_O", **job_fields)]
+        return dossier
+
+    async def test_names_the_run_the_restart_replaces(
+        self, client: AsyncClient, mock_svc: AsyncMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from contract_intelligence.contract.domain.entities.job import JobStatus
+        from contract_intelligence.contract.interfaces.api.routers import contract_router
+
+        mock_svc.get_dossier.return_value = self._dossier(
+            status=JobStatus.FAILED, error_code="AI1_TIMEOUT", current_run_id="run_7"
+        )
+        mock_svc.list_documents.return_value = [object()]
+        publish = AsyncMock()
+        monkeypatch.setattr(contract_router.messaging, "publish_event", publish)
+        monkeypatch.setattr(contract_router, "_record", AsyncMock())
+
+        resp = await client.post("/api/v1/dossiers/dos_O/ocr")
+
+        assert resp.status_code == 202
+        publish.assert_awaited_once_with(
+            "dossier_events",
+            {
+                "event": "dossier.uploaded",
+                "dossier_id": "dos_O",
+                "restart": True,
+                "expected_run_id": "run_7",
+            },
+        )
+
+    async def test_refused_while_the_dossier_is_being_ocrd(
+        self, client: AsyncClient, mock_svc: AsyncMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from contract_intelligence.contract.domain.entities.job import JobStatus
+        from contract_intelligence.contract.interfaces.api.routers import contract_router
+
+        mock_svc.get_dossier.return_value = self._dossier(
+            status=JobStatus.PROCESSING, current_run_id="run_7"
+        )
+        mock_svc.list_documents.return_value = [object()]
+        publish = AsyncMock()
+        monkeypatch.setattr(contract_router.messaging, "publish_event", publish)
+
+        resp = await client.post("/api/v1/dossiers/dos_O/ocr")
+
+        assert resp.status_code == 409
+        publish.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
 # POST /api/v1/dossiers/{dossier_id}/ai2/retry
 # ---------------------------------------------------------------------------
 
@@ -1188,6 +1248,7 @@ class TestRetryFailedOcrEndpoint:
                 "dossier_id": "dos_R",
                 "restart": True,
                 "retry_failed": True,
+                "expected_run_id": "run_1",
             },
         )
 
