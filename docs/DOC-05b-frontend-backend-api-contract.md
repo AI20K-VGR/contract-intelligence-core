@@ -316,12 +316,18 @@ Theo dõi hành trình chạy của Pipeline AI qua 11 bước (S0..S10), xem lo
 | `GET` | `/runs/{id}/steps` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Chi tiết tiến độ 11 bước (S0..S10) kèm số trang và thời gian ms |
 | `POST` | `/runs/{id}/cancel` | `OPERATOR`, `ADMINISTRATOR` | Hủy run đang trong trạng thái `running` |
 | `POST` | `/dossiers/{id}/ocr/retry-failed` | `OPERATOR`, `ADMINISTRATOR` | **v1.1.0.** Hồ sơ lỗi ở bước OCR: mở run mới, giữ kết quả OCR đã có, chỉ OCR lại tài liệu còn thiếu |
+| `POST` | `/dossiers/{id}/ai2/reindex` | `OPERATOR`, `ADMINISTRATOR` | **v1.4.0.** Hồ sơ đã phân tích xong: gửi lại kết quả OCR đã lưu cho AI2 dựng lại dữ liệu hỏi đáp. Không OCR lại |
 
 - **Chạy lại OCR lỗi (v1.1.0):** response `202`:
   ```json
   { "data": { "dossier_id": "dos_…", "status": "queued" }, "meta": { "trace_id": null, "request_id": null, "page": null, "page_size": null, "total": null } }
   ```
   Nếu mọi tài liệu đã có kết quả thì run sang thẳng AI2, không OCR lại trang nào. Theo dõi bằng SSE của run mới. `409` khi job không lỗi ở bước OCR (lỗi AI2 thì dùng `POST /dossiers/{id}/ai2/retry`); `403` khi không có quyền sửa hồ sơ.
+- **Dựng lại dữ liệu AI2 (v1.4.0):** dùng khi hỏi đáp báo AI2 chưa nhận snapshot (`AI2_QUERY_SNAPSHOT_NOT_FOUND`) dù hồ sơ đã phân tích xong, ví dụ sau khi AI2 mất dữ liệu. Response `202` giống trên. Worker gửi lại các snapshot AI1 đã lưu trên run hiện tại cho AI2, dưới lượt (`attempt`) kế tiếp:
+  - **Không OCR lại**, AI1 không nhận lệnh nào.
+  - Facts, xung đột, thẩm định và trạng thái job **giữ nguyên**; chỉ cập nhật `ai2_snapshot_digest` mà hỏi đáp dùng.
+  - Lỗi AI2 không làm hỏng hồ sơ; audit ghi `ai2.reindex_failed`, thành công ghi `ai2.reindexed`.
+  - `409` khi job chưa ở `pending_review` / `reviewed` / `approved`; `403` khi không có quyền sửa hồ sơ.
 
 ---
 

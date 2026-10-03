@@ -342,18 +342,19 @@ def _forget_run(run_id: str | None) -> None:
         task.cancel()
 
 
-def _schedule_ai2(*, dossier_id: str, tenant_id: str, run_id: str) -> None:
+def _schedule_ai2(*, dossier_id: str, tenant_id: str, run_id: str, reindex: bool = False) -> None:
     """Hand ``run_id`` to AI2 in the background so the consumer keeps draining.
 
     Submitting and polling AI2 can take minutes; awaiting it inside the
     consumer loop would stall every other dossier's OCR results meanwhile.
+    A reindex shares the run's slot, so it never overlaps a regular hand-off.
     """
     existing = _ai2_tasks.get(run_id)
     if existing is not None and not existing.done():
         logger.info("worker.ai2.already_in_flight", dossier_id=dossier_id, run_id=run_id)
         return
     task = asyncio.create_task(
-        _ai2_hand_off(dossier_id=dossier_id, tenant_id=tenant_id, run_id=run_id),
+        _ai2_hand_off(dossier_id=dossier_id, tenant_id=tenant_id, run_id=run_id, reindex=reindex),
         name=f"ai2:{run_id}",
     )
     _ai2_tasks[run_id] = task
@@ -367,15 +368,18 @@ def _ai2_task_done(run_id: str, task: asyncio.Task[None]) -> None:
         logger.error("worker.ai2.hand_off_crashed", run_id=run_id, error=repr(error))
 
 
-async def _ai2_hand_off(*, dossier_id: str, tenant_id: str, run_id: str) -> None:
+async def _ai2_hand_off(
+    *, dossier_id: str, tenant_id: str, run_id: str, reindex: bool = False
+) -> None:
     global _ai2_semaphore  # noqa: PLW0603
     if _session_factory is None:
         msg = "worker session factory is not bound — start via run_consumer()"
         raise RuntimeError(msg)
     if _ai2_semaphore is None:
         _ai2_semaphore = asyncio.Semaphore(get_settings().worker_ai2_max_concurrency)
+    run = _run_ai2_reindex if reindex else _run_ai2_if_ready
     async with _ai2_semaphore, _session_factory() as session:
-        await _run_ai2_if_ready(session, dossier_id=dossier_id, tenant_id=tenant_id, run_id=run_id)
+        await run(session, dossier_id=dossier_id, tenant_id=tenant_id, run_id=run_id)
 
 
 async def _resume_pending_ai2(session_factory: async_sessionmaker[AsyncSession]) -> None:
@@ -1016,6 +1020,24 @@ async def _complete_carried_run(
     _schedule_ai2(dossier_id=dossier_id, tenant_id=job.tenant_id, run_id=run_id)
 
 
+async def _manifest_inputs(
+    session: AsyncSession, *, manifest_id: str, dossier_id: str
+) -> tuple[list[ManifestItemORM], list[ManifestRelationORM], list[DocumentORM]]:
+    """Manifest members, relations and documents an AI2 request is built from."""
+    member_result = await session.execute(
+        select(ManifestItemORM).where(ManifestItemORM.manifest_id == manifest_id)
+    )
+    relation_result = await session.execute(
+        select(ManifestRelationORM).where(ManifestRelationORM.manifest_id == manifest_id)
+    )
+    document_result = await session.execute(
+        select(DocumentORM).where(DocumentORM.dossier_id == dossier_id)
+    )
+    documents = list(document_result.scalars().all())
+    members = list(member_result.scalars().all())
+    return members, list(relation_result.scalars().all()), documents
+
+
 async def _run_ai2_if_ready(
     session: AsyncSession,
     *,
@@ -1054,17 +1076,9 @@ async def _run_ai2_if_ready(
         logger.info("worker.ai2.already_persisted", dossier_id=dossier_id, run_id=run_id)
         return
 
-    member_result = await session.execute(
-        select(ManifestItemORM).where(ManifestItemORM.manifest_id == manifest.id)
+    members, relations, documents = await _manifest_inputs(
+        session, manifest_id=manifest.id, dossier_id=dossier_id
     )
-    relation_result = await session.execute(
-        select(ManifestRelationORM).where(ManifestRelationORM.manifest_id == manifest.id)
-    )
-    document_result = await session.execute(
-        select(DocumentORM).where(DocumentORM.dossier_id == dossier_id)
-    )
-    documents = list(document_result.scalars().all())
-    members = list(member_result.scalars().all())
     shape_error = _dossier_shape_error(members)
     if shape_error is not None:
         code, detail = shape_error
@@ -1089,7 +1103,7 @@ async def _run_ai2_if_ready(
         snapshots=snapshots,
         documents=documents,
         members=members,
-        relations=list(relation_result.scalars().all()),
+        relations=relations,
         snapshot_created_at=_snapshot_created_at(durable_run) if durable_run else {},
         attempt=attempt,
         max_processing_seconds=budget,
@@ -1790,6 +1804,144 @@ async def _reopen_for_ai2_retry(session: AsyncSession, run_id: str) -> JobORM | 
     return job
 
 
+# Jobs whose AI2 result is already in the Backend tables: the only ones a
+# reindex may touch. Earlier states still have their own hand-off coming.
+AI2_REINDEXABLE_STATUSES = frozenset(
+    {JobStatus.PENDING_REVIEW.value, JobStatus.REVIEWED.value, JobStatus.APPROVED.value}
+)
+
+
+async def _run_ai2_reindex(
+    session: AsyncSession,
+    *,
+    dossier_id: str,
+    tenant_id: str,
+    run_id: str,
+) -> None:
+    """Send a finished run's stored AI1 snapshots to AI2 again.
+
+    For when AI2 lost its own state (canonical store, query snapshot): AI2
+    rebuilds it from the same OCR output, under the next attempt. Nothing goes
+    to AI1 — no OCR command, no OCR cost. The Backend's facts, findings and
+    reviews stay as they are; only the AI2 snapshot identity that binds later
+    queries is updated. A failure leaves the run and job untouched.
+    """
+    job = await _job_for_run(session, run_id)
+    run = await _load_run(session, run_id)
+    if (
+        job is None
+        or run is None
+        or job.dossier_id != dossier_id
+        or job.tenant_id != tenant_id
+        or job.status not in AI2_REINDEXABLE_STATUSES
+        or not run.ai2_result_digest
+    ):
+        logger.warning(
+            "worker.ai2.reindex_refused",
+            dossier_id=dossier_id,
+            run_id=run_id,
+            job_status=job.status if job else None,
+            has_result=bool(run and run.ai2_result_digest),
+        )
+        return
+    manifest = (
+        await session.execute(select(ManifestORM).where(ManifestORM.dossier_id == dossier_id))
+    ).scalar_one_or_none()
+    if manifest is None or manifest.status != "confirmed":
+        logger.warning("worker.ai2.reindex_refused", dossier_id=dossier_id, reason="manifest")
+        return
+    members, relations, documents = await _manifest_inputs(
+        session, manifest_id=manifest.id, dossier_id=dossier_id
+    )
+    attempt = _ai2_attempt(run) + 1
+    budget = ai2_deadline_seconds(sum(int(d.page_count or 0) for d in documents))
+    request = build_processing_request(
+        dossier_id=dossier_id,
+        run_id=run_id,
+        snapshots=_durable_snapshots_from_run(run),
+        documents=documents,
+        members=members,
+        relations=relations,
+        snapshot_created_at=_snapshot_created_at(run),
+        attempt=attempt,
+        max_processing_seconds=budget,
+    )
+    if request is None:
+        logger.warning("worker.ai2.reindex_refused", dossier_id=dossier_id, reason="snapshots")
+        return
+
+    # Claim the attempt before AI2 sees it: a crash or a second reindex then
+    # moves on to the next attempt instead of reusing this one.
+    payload = _run_payload(run)
+    payload["ai2_attempt"] = attempt
+    run.config_snapshot = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    add_audit_event(
+        session,
+        tenant_id=tenant_id,
+        action="ai2.reindex_requested",
+        entity_type="pipeline_run",
+        entity_id=run_id,
+        dossier_id=dossier_id,
+        run_id=run_id,
+        detail={"attempt": attempt},
+    )
+    await session.commit()
+
+    ai2_job_id = ""
+    try:
+        submission = await submit_ai2_processing(
+            strip_internal_fields(request), tenant_id=tenant_id, dossier_id=dossier_id
+        )
+        ai2_job_id = str(submission.get("job_id") or "")
+        if not ai2_job_id:
+            raise AiAdapterError("AI2 submission did not return job_id")
+        report = await poll_ai2_processing(
+            ai2_job_id,
+            tenant_id=tenant_id,
+            dossier_id=dossier_id,
+            timeout_seconds=budget + get_settings().ai2_poll_grace_seconds,
+        )
+        if str(report.get("status", "")).upper() != "SUCCEEDED":
+            errors = report.get("errors") or [{"message": "AI2 returned FAILED"}]
+            first = errors[0]
+            raise AiAdapterError(str(first.get("message") if isinstance(first, dict) else first))
+    except Exception as exc:
+        await session.rollback()
+        add_audit_event(
+            session,
+            tenant_id=tenant_id,
+            action="ai2.reindex_failed",
+            entity_type="pipeline_run",
+            entity_id=run_id,
+            dossier_id=dossier_id,
+            run_id=run_id,
+            detail={"attempt": attempt, "ai2_job_id": ai2_job_id, "error": str(exc)[:500]},
+        )
+        await session.commit()
+        logger.exception("worker.ai2.reindex_failed", dossier_id=dossier_id, run_id=run_id)
+        return
+
+    snapshot_id = str((request.get("snapshots") or [{}])[0].get("snapshot_id") or "")
+    await _persist_ai2_snapshot_identity(
+        session,
+        dossier_id=dossier_id,
+        snapshot_digest=_ai2_query_snapshot_digest(request),
+        snapshot_id=snapshot_id,
+    )
+    add_audit_event(
+        session,
+        tenant_id=tenant_id,
+        action="ai2.reindexed",
+        entity_type="pipeline_run",
+        entity_id=run_id,
+        dossier_id=dossier_id,
+        run_id=run_id,
+        detail={"attempt": attempt, "ai2_job_id": ai2_job_id},
+    )
+    await session.commit()
+    logger.info("worker.ai2.reindexed", dossier_id=dossier_id, run_id=run_id, attempt=attempt)
+
+
 async def handle_dossier_event(session: AsyncSession, message: dict[str, Any]) -> None:
     event_type = message.get("event")
     if event_type == "dossier.uploaded":
@@ -1803,6 +1955,16 @@ async def handle_dossier_event(session: AsyncSession, message: dict[str, Any]) -
         dossier_id, tenant_id = job.dossier_id, job.tenant_id
         await session.commit()
         _schedule_ai2(dossier_id=dossier_id, tenant_id=tenant_id, run_id=run_id)
+        return
+    if event_type == "dossier.ai2.reindex":
+        run_id = str(message.get("run_id") or "")
+        job = await _job_for_run(session, run_id) if run_id else None
+        if job is None or job.dossier_id != str(message.get("dossier_id") or ""):
+            logger.warning("worker.ai2.reindex_ignored", run_id=run_id)
+            return
+        _schedule_ai2(
+            dossier_id=job.dossier_id, tenant_id=job.tenant_id, run_id=run_id, reindex=True
+        )
         return
     if event_type == "dossier.manifest.confirmed":
         dossier_id = str(message.get("dossier_id") or "")
