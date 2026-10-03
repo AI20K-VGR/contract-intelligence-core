@@ -17,5 +17,8 @@ class SqlPageRepository:
     async def list_by_document(self, document_id: str) -> list[Page]:
         raise NotImplementedError
 
+    async def list_lines_by_document(self, document_id: str) -> list[dict[str, object]]:
+        raise NotImplementedError
+
     async def add(self, page: Page) -> None:
         raise NotImplementedError
