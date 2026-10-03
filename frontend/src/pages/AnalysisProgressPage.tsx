@@ -33,7 +33,6 @@ import {
   isCancellableRun,
   latestDossierRun,
   runActionErrorMessage,
-  runErrorCode,
 } from '../api/runs'
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
@@ -42,7 +41,14 @@ import { structurePath } from '../data/dossiers'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 import { parseStructureMode, type StructureMode } from '../structure'
 
-type FileStatus = 'done' | 'reading' | 'waiting' | 'failed'
+const POLL_INTERVAL_MS = 2000
+
+// Job đã dừng hẳn: lỗi, hoặc bị hủy (hủy run đưa job về failed/RUN_CANCELLED).
+function isStoppedJob(status: string | null | undefined) {
+  return status === 'failed' || status === 'cancelled'
+}
+
+type FileStatus ='done' | 'reading' | 'waiting' | 'failed'
 
 type FileRowModel = {
   id: string
@@ -147,7 +153,6 @@ export function AnalysisProgressPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [attempt, setAttempt] = useState(0)
-  const [failureCode, setFailureCode] = useState<string | null>(null)
   const [steps, setSteps] = useState<Record<string, RunStep>>({})
   const [liveLog, setLiveLog] = useState<LogRowModel[]>([])
   const passedName = (location.state as { name?: string } | null)?.name
@@ -183,8 +188,22 @@ export function AnalysisProgressPage() {
     let loading = false
     let reloadQueued = false
     let finishedRunId: string | null = null
+    let polling = false
     setSteps({})
     setLiveLog([])
+
+    // SSE bị từ chối hoặc không thấy run: quay lại hỏi định kỳ cho tới khi job kết thúc.
+    function startPolling() {
+      if (stopped || polling) return
+      polling = true
+      schedulePoll()
+    }
+
+    function schedulePoll() {
+      if (stopped) return
+      if (timer !== undefined) window.clearTimeout(timer)
+      timer = window.setTimeout(requestReload, POLL_INTERVAL_MS)
+    }
 
     // Server đẩy tin xuống thì chỉ tải lại số liệu; không hẹn giờ hỏi định kỳ.
     function requestReload() {
@@ -226,7 +245,12 @@ export function AnalysisProgressPage() {
             if (stopped) return
           }
         }
-        if (!runId || stopped || runId === finishedRunId) return
+        if (stopped) return
+        if (!runId) {
+          startPolling()
+          return
+        }
+        if (runId === finishedRunId) return
         await watchRun(
           runId,
           {
@@ -269,16 +293,19 @@ export function AnalysisProgressPage() {
             onLost: requestReload,
             onRejected: () => {
               setError('Không nhận được tiến độ trực tiếp từ máy chủ.')
+              startPolling()
             },
           },
           controller.signal,
         )
         if (stopped) return
-        finishedRunId = runId
+        // Bị từ chối thì không có run.completed: không đánh dấu run đã xong.
+        if (!polling) finishedRunId = runId
         await syncSteps(runId)
         requestReload()
       } catch {
-        // Không lấy được run: số liệu vẫn có từ lần tải đầu, trang tải lại là thấy.
+        // Không lấy được run: hỏi định kỳ để vẫn thấy job kết thúc.
+        startPolling()
       } finally {
         watching = false
       }
@@ -323,12 +350,13 @@ export function AnalysisProgressPage() {
           }
           return
         }
-        if (next.latestJobStatus === 'failed') {
+        if (isStoppedJob(next.latestJobStatus)) {
           void syncSteps()
           return
         }
         setClauseCount(null)
-        void watch()
+        if (polling) schedulePoll()
+        else void watch()
       } catch (cause) {
         if (controller.signal.aborted || stopped) return
         const message = structureErrorMessage(cause)
@@ -366,25 +394,11 @@ export function AnalysisProgressPage() {
   const documents = useMemo(() => detail?.documents ?? [], [detail])
   const jobStatus = detail?.latestJobStatus ?? null
   const ready = isOcrComplete(jobStatus)
-  const failed = jobStatus === 'failed'
-  const failure = useMemo(() => jobErrorInfo(failureCode), [failureCode])
-
-  useEffect(() => {
-    setFailureCode(null)
-    if (!failed || !dossierId) return
-    const controller = new AbortController()
-    void (async () => {
-      try {
-        const run = await latestDossierRun(dossierId, controller.signal)
-        if (!run) return
-        const code = await runErrorCode(run.runId, controller.signal)
-        if (!controller.signal.aborted) setFailureCode(code)
-      } catch {
-        // Không đọc được mã lỗi thì giữ thông báo chung và nút chạy lại OCR.
-      }
-    })()
-    return () => controller.abort()
-  }, [attempt, dossierId, failed])
+  const failed = isStoppedJob(jobStatus)
+  const failure = useMemo(
+    () => jobErrorInfo(detail?.latestJobErrorCode),
+    [detail?.latestJobErrorCode],
+  )
   const files = useMemo(() => {
     const current = documents.find((document) => {
       const pages = pagesByDoc[document.id] ?? []

@@ -13,6 +13,12 @@ describe('jobErrorInfo', () => {
     expect(jobErrorInfo('dossier_deleted').retry).toBe('none')
   })
 
+  it('tells the user a cancelled run can resume through the OCR retry', () => {
+    const info = jobErrorInfo('RUN_CANCELLED')
+    expect(info.retry).toBe('ocr')
+    expect(info.message).toContain('hủy')
+  })
+
   it('falls back to the OCR retry for a missing or unknown code', () => {
     expect(jobErrorInfo(null).retry).toBe('ocr')
     expect(jobErrorInfo('SOMETHING_NEW').retry).toBe('ocr')

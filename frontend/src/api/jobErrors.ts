@@ -22,6 +22,7 @@ const MESSAGES: Record<string, string> = {
   PROCESSING_TIMEOUT: 'AI2 xử lý quá thời gian. Có thể chạy lại.',
   AI2_PROCESSING_FAILED: 'AI2 xử lý lỗi tạm thời. Có thể chạy lại.',
   AI2_UNAVAILABLE: 'Dịch vụ AI2 chưa sẵn sàng. Thử lại sau.',
+  RUN_CANCELLED: 'Đã hủy lần xử lý. Có thể chạy tiếp phần OCR.',
   DISPATCH_FAILED: 'Không gửi được hồ sơ đi xử lý. Thử lại.',
 }
 

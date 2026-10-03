@@ -25,6 +25,8 @@ export type DossierStructure = {
   id: string
   name: string
   latestJobStatus: string | null
+  /** Mã lỗi của job mới nhất (AI2_TIMEOUT, RUN_CANCELLED...): chọn endpoint chạy lại. */
+  latestJobErrorCode: string | null
   documents: StructureDocument[]
   metadata: Record<string, unknown> | null
   hasConflicts: boolean
@@ -276,6 +278,10 @@ export async function getDossierStructure(
     name: asString(row.name) || 'Hồ sơ chưa đặt tên',
     latestJobStatus:
       typeof row.latest_job_status === 'string' ? row.latest_job_status : null,
+    latestJobErrorCode:
+      typeof row.latest_job_error_code === 'string' && row.latest_job_error_code
+        ? row.latest_job_error_code
+        : null,
     documents,
     metadata,
     hasConflicts: row.has_conflicts === true,

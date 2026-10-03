@@ -96,22 +96,6 @@ function parseSseBlock(block: string): RunSseEvent | null {
   return { id, event, data }
 }
 
-// Run đã kết thúc: SSE phát run.started (kèm error_code) rồi run.completed.
-export async function runErrorCode(
-  runId: string,
-  signal: AbortSignal,
-): Promise<string | null> {
-  let code: string | null = null
-  await streamRunEvents(runId, {
-    signal,
-    onEvent: (event) => {
-      const value = event.data?.error_code
-      if (typeof value === 'string' && value) code = value
-    },
-  })
-  return code
-}
-
 export async function streamRunEvents(
   runId: string,
   options: {
