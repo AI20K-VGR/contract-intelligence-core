@@ -307,6 +307,10 @@ class ContractService:
         if page.items:
             dossier.jobs = [cast(Job, page.items[0])]
 
+    async def review_counts(self, dossier_id: str) -> tuple[int, int]:
+        """``(open_review_items, pending_conflicts)`` of the dossier."""
+        return await self._dossier_repo.review_counts(dossier_id)
+
     async def list_documents(self, dossier_id: str) -> list[Document]:
         await self.get_dossier(dossier_id)
         return await self._document_repo.list_by_dossier(dossier_id)

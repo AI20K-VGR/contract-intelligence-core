@@ -284,6 +284,25 @@ def _for_viewer(dto: _DossierDTO, user: AuthenticatedUser) -> _DossierDTO:
     return dto.model_copy(update={"metadata": visible_dossier_metadata(dto.metadata, user)})
 
 
+async def _dossier_detail(svc: Any, dossier: Any, user: AuthenticatedUser) -> DossierDetailDTO:
+    """Detail DTO with documents, latest job and open review / conflict counts."""
+    documents = await svc.list_documents(dossier.id)
+    open_review_items, pending_conflicts = await svc.review_counts(dossier.id)
+    latest = dossier.latest_job()
+    return _for_viewer(
+        DossierDetailDTO.from_domain(
+            dossier,
+            documents=documents,
+            latest_job_id=latest.id if latest else None,
+            latest_job_status=latest.status if latest else None,
+            latest_job_error_code=latest.error_code if latest else None,
+            open_review_items=open_review_items,
+            pending_conflicts=pending_conflicts,
+        ),
+        user,
+    )
+
+
 def _send_share_emails(
     *,
     dossier_name: str,
@@ -1393,19 +1412,7 @@ async def get_dossier(
 ) -> ApiResponse[DossierDetailDTO]:
     """Dossier detail kèm documents list."""
     dossier = await _require_readable(svc, dossier_id, _user, action=AclAction.QUERY)
-    documents = await svc.list_documents(dossier_id)
-    latest = dossier.latest_job()
-    return ApiResponse(
-        data=_for_viewer(
-            DossierDetailDTO.from_domain(
-                dossier,
-                documents=documents,
-                latest_job_id=latest.id if latest else None,
-                latest_job_status=latest.status if latest else None,
-            ),
-            _user,
-        ),
-    )
+    return ApiResponse(data=await _dossier_detail(svc, dossier, _user))
 
 
 # -----------------------------------------------------------------------------
@@ -1443,19 +1450,7 @@ async def patch_dossier(
         detail=None,
         kind="dossier.updated",
     )
-    documents = await svc.list_documents(dossier_id)
-    latest = dossier.latest_job()
-    return ApiResponse(
-        data=_for_viewer(
-            DossierDetailDTO.from_domain(
-                dossier,
-                documents=documents,
-                latest_job_id=latest.id if latest else None,
-                latest_job_status=latest.status if latest else None,
-            ),
-            user,
-        ),
-    )
+    return ApiResponse(data=await _dossier_detail(svc, dossier, user))
 
 
 @router.get(

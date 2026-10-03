@@ -176,6 +176,7 @@ export async function splitDossier(
 
 export function splitErrorMessage(error: unknown) {
   if (error instanceof ApiError) {
+    if (error.code === 'DOSSIER_TOO_MANY_DOCUMENTS') return TOO_MANY_DOCUMENTS
     if (error.status === 401) return null
     if (error.status === 403) return 'Bạn chỉ có quyền xem hồ sơ này.'
     if (error.status === 404) return 'Không tìm thấy hồ sơ hoặc file cần tách.'
@@ -226,11 +227,15 @@ export async function updateDossierAccess(
   return data
 }
 
+export const MAX_DOSSIER_DOCUMENTS = 6
+export const TOO_MANY_DOCUMENTS = `Hồ sơ tối đa ${MAX_DOSSIER_DOCUMENTS} tài liệu`
+
 export function createDossierErrorMessage(error: unknown) {
   if (error instanceof DOMException && error.name === 'AbortError') {
     return null
   }
   if (error instanceof ApiError) {
+    if (error.code === 'DOSSIER_TOO_MANY_DOCUMENTS') return TOO_MANY_DOCUMENTS
     if (error.status === 401) {
       return 'Phiên đăng nhập hết hạn. Đăng nhập lại.'
     }
@@ -391,9 +396,49 @@ export async function inspectDossierOcr(
   return inspectionFromPages(jobStatus, loaded.pages)
 }
 
+export type DocumentCounts = { contracts: number; annexes: number }
+
+/** Đếm tài liệu của hồ sơ theo vai trò (API danh sách không trả số này). */
+export async function loadDocumentCounts(
+  dossierId: string,
+  signal?: AbortSignal,
+): Promise<DocumentCounts> {
+  const { data } = await requestJson<unknown>(
+    `${DOSSIERS_PATH}/${encodeURIComponent(dossierId)}/documents`,
+    { signal },
+  )
+  const counts: DocumentCounts = { contracts: 0, annexes: 0 }
+  for (const item of Array.isArray(data) ? data : []) {
+    const role = asString(asRecord(item)?.role).toLowerCase()
+    if (role === 'contract') counts.contracts += 1
+    else if (role === 'annex') counts.annexes += 1
+  }
+  return counts
+}
+
+/** "1 hợp đồng · 3 phụ lục"; bỏ phần bằng 0. Rỗng khi hồ sơ chưa có tài liệu. */
+export function formatDocumentCounts(counts: DocumentCounts): string {
+  const parts: string[] = []
+  if (counts.contracts > 0) parts.push(`${counts.contracts} hợp đồng`)
+  if (counts.annexes > 0) parts.push(`${counts.annexes} phụ lục`)
+  return parts.join(' · ')
+}
+
 export async function restartDossierOcr(dossierId: string) {
   await requestJson(
     `/api/v1/dossiers/${encodeURIComponent(dossierId)}/ocr`,
+    { method: 'POST', json: {} },
+  )
+}
+
+/** Chạy lại đúng bước lỗi: OCR giữ kết quả đã xong, AI2 không OCR lại. */
+export async function retryDossierFailed(
+  dossierId: string,
+  kind: 'ai2' | 'ocr',
+) {
+  const path = kind === 'ai2' ? 'ai2/retry' : 'ocr/retry-failed'
+  await requestJson(
+    `/api/v1/dossiers/${encodeURIComponent(dossierId)}/${path}`,
     { method: 'POST', json: {} },
   )
 }

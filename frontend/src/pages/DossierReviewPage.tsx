@@ -50,8 +50,14 @@ import {
   type StructuredEvidence,
 } from '../api/analysis'
 import type { Ai2SearchHit } from '../api/ai2'
+import { QueryHistoryPanel } from '../components/QueryHistoryPanel'
+import { RecordDetail } from '../components/RecordDetail'
+import { RunHistoryPanel } from '../components/RunHistoryPanel'
+import { SearchAudit } from '../components/SearchAudit'
+import { useAuth } from '../auth/useAuth'
+import { progressPath } from '../data/dossiers'
 
-type ReviewTab = 'search' | 'activity' | 'clauses' | 'risk'
+type ReviewTab = 'search' | 'activity' | 'clauses' | 'risk' | 'runs'
 type ExportState = 'idle' | 'saving' | 'done'
 
 const tabs: Array<{
@@ -69,6 +75,7 @@ const tabs: Array<{
   },
   { id: 'clauses', icon: 'gavel', label: 'Đối chiếu Điều khoản' },
   { id: 'risk', icon: 'shield_with_heart', label: 'Đánh giá Rủi ro' },
+  { id: 'runs', icon: 'timeline', label: 'Lịch sử chạy' },
 ]
 
 function csvCell(value: unknown) {
@@ -125,6 +132,9 @@ function exportDossierEvidence(
 export function DossierReviewPage() {
   const location = useLocation()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const canManageRuns =
+    user?.backendRole === 'OPERATOR' || user?.backendRole === 'ADMINISTRATOR'
   const params = useParams<{ dossierId?: string }>()
   const state = location.state as {
     dossierId?: string
@@ -151,6 +161,7 @@ export function DossierReviewPage() {
     null,
   )
   const [searchError, setSearchError] = useState<string | null>(null)
+  const [historyRefresh, setHistoryRefresh] = useState(0)
   const [detail, setDetail] = useState<DossierStructure | null>(null)
   const [exportState, setExportState] = useState<ExportState>('idle')
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([])
@@ -295,6 +306,9 @@ export function DossierReviewPage() {
       bbox: citation.bbox,
       documentName: document?.filename ?? null,
       documentRole: document?.role ?? null,
+      unverified: citation.unverified,
+      tableId: citation.tableId,
+      cellId: citation.cellId,
     }
   }, [detail?.documents, dossierId, selectedCitation])
 
@@ -432,6 +446,7 @@ export function DossierReviewPage() {
       )
     } finally {
       setSearching(false)
+      setHistoryRefresh((count) => count + 1)
     }
   }
 
@@ -593,6 +608,15 @@ export function DossierReviewPage() {
               <span className="bg-surface-container-low text-on-surface-variant px-space-xs py-0.5 rounded font-label-sm text-label-sm">
                 {detail?.name ?? state?.name ?? 'Hồ sơ hợp đồng'}
               </span>
+              {detail && detail.pendingConflicts > 0 ? (
+                <span className="bg-error-container text-on-error-container px-space-xs py-0.5 rounded font-label-sm text-label-sm font-semibold">
+                  {detail.pendingConflicts} xung đột chờ xử lý
+                </span>
+              ) : detail?.hasConflicts ? (
+                <span className="bg-amber-50 text-amber-900 px-space-xs py-0.5 rounded font-label-sm text-label-sm font-semibold">
+                  Có xung đột đã xử lý
+                </span>
+              ) : null}
             </div>
           </div>
           <button
@@ -735,6 +759,7 @@ export function DossierReviewPage() {
 
           {searchResult ? (
             <div className="space-y-space-md">
+              <SearchAudit result={searchResult} />
               <DossierSearchResults
                 result={searchResult}
                 onSelectCitation={openCitation}
@@ -748,6 +773,17 @@ export function DossierReviewPage() {
             <DossierStructurePreview
               dossierId={dossierId}
               title={detail?.name ?? 'Hồ sơ hợp đồng'}
+            />
+          ) : null}
+
+          {dossierId ? (
+            <QueryHistoryPanel
+              dossierId={dossierId}
+              refreshKey={historyRefresh}
+              onReuse={(question) => {
+                setQuery(question)
+                searchRef.current?.focus()
+              }}
             />
           ) : null}
         </>
@@ -951,6 +987,20 @@ export function DossierReviewPage() {
         )
       ) : null}
 
+      {tab === 'runs' ? (
+        dossierId ? (
+          <RunHistoryPanel
+            canManage={canManageRuns}
+            dossierId={dossierId}
+            onReprocessed={() => navigate(progressPath(dossierId))}
+          />
+        ) : (
+          <p className="font-body-sm text-body-sm text-secondary">
+            Chọn hồ sơ cụ thể để xem lịch sử chạy.
+          </p>
+        )
+      ) : null}
+
       {tab === 'risk' ? (
         dossierId ? (
           <section className="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm space-y-space-lg">
@@ -1018,20 +1068,30 @@ export function DossierReviewPage() {
                               ? ` · ${fact.evidence.citationId}`
                               : ''}
                           </span>
-                          {canOpen ? (
-                            <button
-                              className="text-primary underline"
-                              type="button"
-                              onClick={() =>
-                                openStructuredEvidence(
-                                  fact.evidence,
-                                  fact.rawText,
-                                )
-                              }
-                            >
-                              Mở nguồn
-                            </button>
-                          ) : null}
+                          <span className="flex items-start gap-space-sm">
+                            <RecordDetail kind="fact" id={fact.id} />
+                            {fact.evidence.citationId ? (
+                              <RecordDetail
+                                kind="citation"
+                                id={fact.evidence.citationId}
+                                label="Citation"
+                              />
+                            ) : null}
+                            {canOpen ? (
+                              <button
+                                className="text-primary underline"
+                                type="button"
+                                onClick={() =>
+                                  openStructuredEvidence(
+                                    fact.evidence,
+                                    fact.rawText,
+                                  )
+                                }
+                              >
+                                Mở nguồn
+                              </button>
+                            ) : null}
+                          </span>
                         </div>
                         {fact.evidence.quote ? (
                           <p className="mt-space-xs line-clamp-2 font-body-sm text-body-sm text-secondary">
@@ -1072,6 +1132,9 @@ export function DossierReviewPage() {
                         {finding.rationale ||
                           'Không có diễn giải; cần kiểm tra nguồn.'}
                       </p>
+                      <div className="mt-space-xs font-body-sm text-body-sm">
+                        <RecordDetail kind="finding" id={finding.id} />
+                      </div>
                       <div className="mt-space-sm grid gap-space-xs md:grid-cols-2">
                         {finding.sides.map((side, index) => (
                           <div

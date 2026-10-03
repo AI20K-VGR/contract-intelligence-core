@@ -228,7 +228,8 @@ class ExtractionService:
 
         return cast(list[dict[str, Any]], await self._pipeline_run_repo.list_steps(run_id))
 
-    async def cancel_pipeline_run(self, run_id: str) -> PipelineRun:
+    async def cancel_pipeline_run(self, run_id: str, *, actor_id: str = "system") -> PipelineRun:
+        """Cancel a queued/running run; its job fails with ``RUN_CANCELLED``."""
         run = await self.get_pipeline_run(run_id)
         if run.status not in (PipelineRunStatus.RUNNING, PipelineRunStatus.QUEUED):
             raise InvalidStateTransition(
@@ -236,7 +237,7 @@ class ExtractionService:
                 to_state="cancelled",
                 entity="PipelineRun",
             )
-        await self._pipeline_run_repo.update_status(run_id, "cancelled")
+        await self._pipeline_run_repo.cancel(run_id, actor_id=actor_id)
         run.status = PipelineRunStatus.CANCELLED
         return run
 

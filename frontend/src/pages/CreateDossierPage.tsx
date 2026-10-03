@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import {
   createDossier,
   createDossierErrorMessage,
+  MAX_DOSSIER_DOCUMENTS,
+  TOO_MANY_DOCUMENTS,
   patchDossier,
 } from '../api/dossiers'
 import { dossiersLabel, dossiersPath } from '../auth/session'
@@ -178,6 +180,10 @@ export function CreateDossierPage() {
 
   function addAnnexes(list: FileList | File[]) {
     const next: PickedFile[] = []
+    if (files.length + list.length > MAX_DOSSIER_DOCUMENTS) {
+      setError(TOO_MANY_DOCUMENTS)
+      return
+    }
     for (const file of Array.from(list)) {
       if (!isUploadable(file)) {
         setError(UNSUPPORTED_FILE)
@@ -279,6 +285,10 @@ export function CreateDossierPage() {
     }
     if (!canUpload) {
       setError('Chỉ vận hành và quản trị mới tải hồ sơ được.')
+      return
+    }
+    if (files.length > MAX_DOSSIER_DOCUMENTS) {
+      setError(TOO_MANY_DOCUMENTS)
       return
     }
 

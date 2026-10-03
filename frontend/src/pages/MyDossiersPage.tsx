@@ -2,11 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   deleteDossier,
+  formatDocumentCounts,
   inspectDossierOcr,
+  loadDocumentCounts,
   listDossiers,
   listDossiersErrorMessage,
   type DossierShareGrant,
   type DossierSummary,
+  type DocumentCounts,
   type OcrInspection,
   type OcrState,
 } from '../api/dossiers'
@@ -413,6 +416,9 @@ export function MyDossiersPage() {
   const [pendingDelete, setPendingDelete] = useState<Dossier | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [ocrById, setOcrById] = useState<Record<string, OcrInspection>>({})
+  const [countsById, setCountsById] = useState<Record<string, DocumentCounts>>(
+    {},
+  )
   const [restartAt, setRestartAt] = useState<Record<string, number>>({})
   /** Thông báo kết quả thao tác (đã xóa…), tự ẩn sau vài giây. */
   const [notice, setNotice] = useState<{
@@ -475,6 +481,32 @@ export function MyDossiersPage() {
       })
     return () => controller.abort()
   }, [reloadKey])
+
+  useEffect(() => {
+    const missing = dossiers.filter((item) => !countsById[item.id])
+    if (missing.length === 0) return
+    const controller = new AbortController()
+    void Promise.all(
+      missing.map(async (item) => {
+        try {
+          const counts = await loadDocumentCounts(item.id, controller.signal)
+          return [item.id, counts] as const
+        } catch {
+          return null
+        }
+      }),
+    ).then((entries) => {
+      if (controller.signal.aborted) return
+      setCountsById((current) => {
+        const next = { ...current }
+        for (const entry of entries) if (entry) next[entry[0]] = entry[1]
+        return next
+      })
+    })
+    return () => controller.abort()
+    // countsById chỉ để bỏ qua hồ sơ đã đếm; đổi nó không cần tải lại.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dossiers])
 
   useEffect(() => {
     if (dossiers.length === 0) return
@@ -672,11 +704,14 @@ export function MyDossiersPage() {
           <table className="w-full text-left font-body-sm text-body-sm border-collapse">
             <thead>
               <tr className="bg-surface-container-low text-on-secondary-container font-label-sm text-label-sm uppercase tracking-wider">
-                <th className="py-3 px-space-md font-semibold w-[36%] min-w-[300px]">
+                <th className="py-3 px-space-md font-semibold w-[30%] min-w-[260px]">
                   Tên hồ sơ
                 </th>
-                <th className="py-3 px-space-md font-semibold w-[26%] min-w-[240px]">
+                <th className="py-3 px-space-md font-semibold w-[22%] min-w-[220px]">
                   Trạng thái & Tiến trình
+                </th>
+                <th className="py-3 px-space-md font-semibold w-[14%] min-w-[150px]">
+                  Tài liệu
                 </th>
                 <th className="py-3 px-space-md font-semibold w-[12%]">
                   Tải lên
@@ -692,7 +727,7 @@ export function MyDossiersPage() {
             <tbody className="divide-y divide-surface-container-low text-on-surface">
               {error ? (
                 <tr>
-                  <td className="py-10 px-space-md" colSpan={5}>
+                  <td className="py-10 px-space-md" colSpan={6}>
                     <div className="flex flex-col items-start gap-space-sm">
                       <p
                         className="font-body-sm text-body-sm text-error"
@@ -715,7 +750,7 @@ export function MyDossiersPage() {
                 <tr>
                   <td
                     className="py-10 px-space-md text-on-surface-variant"
-                    colSpan={5}
+                    colSpan={6}
                   >
                     Đang tải lịch sử hồ sơ…
                   </td>
@@ -723,7 +758,7 @@ export function MyDossiersPage() {
               ) : null}
               {!loading && !error && dossiers.length === 0 ? (
                 <tr>
-                  <td className="py-12 px-space-md" colSpan={5}>
+                  <td className="py-12 px-space-md" colSpan={6}>
                     <div className="flex flex-col items-center gap-space-sm text-center">
                       <MaterialIcon
                         name="folder_open"
@@ -746,7 +781,7 @@ export function MyDossiersPage() {
                 <tr>
                   <td
                     className="py-10 px-space-md text-on-surface-variant"
-                    colSpan={5}
+                    colSpan={6}
                   >
                     Không có hồ sơ khớp bộ lọc.
                   </td>
@@ -803,6 +838,13 @@ export function MyDossiersPage() {
                         </span>
                       </div>
                     </div>
+                  </td>
+                  <td className="py-3.5 px-space-md whitespace-nowrap">
+                    <span className="text-on-surface-variant text-body-sm">
+                      {countsById[dossier.id]
+                        ? formatDocumentCounts(countsById[dossier.id]) || '—'
+                        : '…'}
+                    </span>
                   </td>
                   <td className="py-3.5 px-space-md">
                     <StatusCell

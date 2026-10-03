@@ -2,9 +2,19 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import {
+  findLatestRunId,
+  listRunSteps,
+  RUN_STEP_LABELS,
+  RUN_STEP_ORDER,
+  stepFromEvent,
+  watchRun,
+  type RunStep,
+} from '../api/runEvents'
+import {
   deleteDossier,
   loadDocumentOcrPages,
   restartDossierOcr,
+  retryDossierFailed,
   restartOcrErrorMessage,
   type OcrPageRow,
 } from '../api/dossiers'
@@ -17,6 +27,13 @@ import {
   type DossierStructure,
   type StructureDocument,
 } from '../api/structure'
+import { jobErrorInfo } from '../api/jobErrors'
+import {
+  cancelRun,
+  isCancellableRun,
+  latestDossierRun,
+  runActionErrorMessage,
+} from '../api/runs'
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
@@ -24,7 +41,14 @@ import { structurePath } from '../data/dossiers'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 import { parseStructureMode, type StructureMode } from '../structure'
 
-type FileStatus = 'done' | 'reading' | 'waiting' | 'failed'
+const POLL_INTERVAL_MS = 2000
+
+// Job đã dừng hẳn: lỗi, hoặc bị hủy (hủy run đưa job về failed/RUN_CANCELLED).
+function isStoppedJob(status: string | null | undefined) {
+  return status === 'failed' || status === 'cancelled'
+}
+
+type FileStatus ='done' | 'reading' | 'waiting' | 'failed'
 
 type FileRowModel = {
   id: string
@@ -38,6 +62,7 @@ type LogRowModel = {
   id: string
   text: string
   status: 'done' | 'active' | 'failed'
+  step?: string
 }
 
 function pageDone(page: OcrPageRow) {
@@ -128,6 +153,8 @@ export function AnalysisProgressPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [attempt, setAttempt] = useState(0)
+  const [steps, setSteps] = useState<Record<string, RunStep>>({})
+  const [liveLog, setLiveLog] = useState<LogRowModel[]>([])
   const passedName = (location.state as { name?: string } | null)?.name
 
   usePageTitle(detail?.name ?? passedName ?? 'Tiến trình phân tích')
@@ -157,8 +184,135 @@ export function AnalysisProgressPage() {
     let timer: number | undefined
     let stopped = false
     let notFoundTries = 0
+    let watching = false
+    let loading = false
+    let reloadQueued = false
+    let finishedRunId: string | null = null
+    let polling = false
+    setSteps({})
+    setLiveLog([])
+
+    // SSE bị từ chối hoặc không thấy run: quay lại hỏi định kỳ cho tới khi job kết thúc.
+    function startPolling() {
+      if (stopped || polling) return
+      polling = true
+      schedulePoll()
+    }
+
+    function schedulePoll() {
+      if (stopped) return
+      if (timer !== undefined) window.clearTimeout(timer)
+      timer = window.setTimeout(requestReload, POLL_INTERVAL_MS)
+    }
+
+    // Server đẩy tin xuống thì chỉ tải lại số liệu; không hẹn giờ hỏi định kỳ.
+    function requestReload() {
+      if (loading) {
+        reloadQueued = true
+        return
+      }
+      void load()
+    }
+
+    // Lấy trạng thái bước đã lưu: dùng khi mở trang lúc run đã chạy xong,
+    // hoặc để chốt lại sau khi stream kết thúc.
+    async function syncSteps(knownRunId?: string | null) {
+      try {
+        const runId =
+          knownRunId ?? (await findLatestRunId(dossierId, controller.signal))
+        if (!runId || stopped) return
+        const rows = await listRunSteps(runId, controller.signal)
+        if (stopped || rows.length === 0) return
+        setSteps((current) => ({
+          ...current,
+          ...Object.fromEntries(rows.map((row) => [row.step, row])),
+        }))
+      } catch {
+        // Không có số liệu bước: panel vẫn hiện theo tin đã nhận.
+      }
+    }
+
+    async function watch() {
+      if (watching) return
+      watching = true
+      try {
+        let runId: string | null = null
+        // Run có thể chưa được tạo ngay sau khi tải lên.
+        for (let tries = 0; tries < 15 && !runId; tries += 1) {
+          runId = await findLatestRunId(dossierId, controller.signal)
+          if (!runId) {
+            await new Promise((resolve) => window.setTimeout(resolve, 1000))
+            if (stopped) return
+          }
+        }
+        if (stopped) return
+        if (!runId) {
+          startPolling()
+          return
+        }
+        if (runId === finishedRunId) return
+        await watchRun(
+          runId,
+          {
+            onEvent: (event) => {
+              const step = stepFromEvent(event)
+              if (step) {
+                setSteps((current) => ({ ...current, [step.step]: step }))
+                const label = RUN_STEP_LABELS[step.step] ?? step.step
+                const text =
+                  step.status === 'succeeded'
+                    ? `${step.step} · ${label}: xong${
+                        step.durationMs !== null
+                          ? ` (${(step.durationMs / 1000).toFixed(1)}s)`
+                          : ''
+                      }`
+                    : step.status === 'running'
+                      ? `${step.step} · ${label}: đang chạy`
+                      : step.status === 'failed'
+                        ? `${step.step} · ${label}: lỗi`
+                        : null
+                if (text) {
+                  setLiveLog((rows) => [
+                    ...rows,
+                    {
+                      id: `${event.id ?? rows.length}-${step.step}-${step.status}`,
+                      step: step.step,
+                      status:
+                        step.status === 'succeeded'
+                          ? 'done'
+                          : step.status === 'failed'
+                            ? 'failed'
+                            : 'active',
+                      text: `${new Date().toLocaleTimeString('vi-VN')} — ${text}`,
+                    },
+                  ])
+                }
+              }
+              if (event.event !== 'run.started') requestReload()
+            },
+            onLost: requestReload,
+            onRejected: () => {
+              setError('Không nhận được tiến độ trực tiếp từ máy chủ.')
+              startPolling()
+            },
+          },
+          controller.signal,
+        )
+        if (stopped) return
+        // Bị từ chối thì không có run.completed: không đánh dấu run đã xong.
+        if (!polling) finishedRunId = runId
+        await syncSteps(runId)
+        requestReload()
+      } catch {
+        // Không lấy được run: hỏi định kỳ để vẫn thấy job kết thúc.
+        startPolling()
+      } finally {
+        watching = false
+      }
+    }
 
     async function load() {
+      loading = true
       try {
         const next = await getDossierStructure(dossierId, controller.signal)
         if (stopped) return
@@ -181,6 +335,7 @@ export function AnalysisProgressPage() {
         setError(null)
         notFoundTries = 0
         if (isOcrComplete(next.latestJobStatus)) {
+          void syncSteps()
           const contract =
             next.documents.find(
               (document) => document.role.toLowerCase() === 'contract',
@@ -195,17 +350,23 @@ export function AnalysisProgressPage() {
           }
           return
         }
-        if (next.latestJobStatus === 'failed') return
+        if (isStoppedJob(next.latestJobStatus)) {
+          void syncSteps()
+          return
+        }
         setClauseCount(null)
-        timer = window.setTimeout(() => {
-          void load()
-        }, 2000)
+        if (polling) schedulePoll()
+        else void watch()
       } catch (cause) {
         if (controller.signal.aborted || stopped) return
         const message = structureErrorMessage(cause)
         if (!message) return
         // POST commits just as this page opens. A 404 in that window is not final.
-        if (cause instanceof ApiError && cause.status === 404 && notFoundTries < 10) {
+        if (
+          cause instanceof ApiError &&
+          cause.status === 404 &&
+          notFoundTries < 10
+        ) {
           notFoundTries += 1
           timer = window.setTimeout(() => {
             void load()
@@ -213,6 +374,12 @@ export function AnalysisProgressPage() {
           return
         }
         setError(message)
+      } finally {
+        loading = false
+        if (reloadQueued && !stopped) {
+          reloadQueued = false
+          void load()
+        }
       }
     }
 
@@ -227,7 +394,11 @@ export function AnalysisProgressPage() {
   const documents = useMemo(() => detail?.documents ?? [], [detail])
   const jobStatus = detail?.latestJobStatus ?? null
   const ready = isOcrComplete(jobStatus)
-  const failed = jobStatus === 'failed'
+  const failed = isStoppedJob(jobStatus)
+  const failure = useMemo(
+    () => jobErrorInfo(detail?.latestJobErrorCode),
+    [detail?.latestJobErrorCode],
+  )
   const files = useMemo(() => {
     const current = documents.find((document) => {
       const pages = pagesByDoc[document.id] ?? []
@@ -256,8 +427,14 @@ export function AnalysisProgressPage() {
     },
     { total: 0, done: 0 },
   )
-  const percent =
-    pageTotals.total > 0
+  const stepList = RUN_STEP_ORDER.flatMap((code) =>
+    steps[code] ? [steps[code]] : [],
+  )
+  const stepsDone = stepList.filter((row) => row.status === 'succeeded').length
+  const hasSteps = stepList.length > 0
+  const percent = hasSteps
+    ? Math.round((stepsDone / RUN_STEP_ORDER.length) * 100)
+    : pageTotals.total > 0
       ? Math.round((pageTotals.done / pageTotals.total) * 100)
       : ready
         ? 100
@@ -300,14 +477,48 @@ export function AnalysisProgressPage() {
         text: 'Đã dựng xong cấu trúc. Có thể mở hồ sơ.',
       })
     }
-    return rows
-  }, [documents.length, files, ready])
+    if (liveLog.length === 0) return rows
+    // Có tin trực tiếp từ BE thì hiện đúng các tin đó, kèm dòng đã tiếp nhận / hoàn tất.
+    const received = rows.filter((row) => row.id === 'received')
+    const finish = rows.filter((row) => row.id === 'finish')
+    // Dòng "đang chạy" chỉ còn xoay khi bước đó vẫn đang chạy.
+    const live = liveLog.map((row) =>
+      row.status === 'active' &&
+      row.step &&
+      (ready || steps[row.step]?.status !== 'running')
+        ? { ...row, status: 'done' as const }
+        : row,
+    )
+    return [...received, ...live, ...finish]
+  }, [documents.length, files, liveLog, ready, steps])
 
   const mode = detail?.structureMode ?? stateStructureMode(location.state)
 
   async function cancelJob() {
     if (!dossierId || busy) return
-    if (!window.confirm('Dừng và xóa hồ sơ này? Tệp đã tải sẽ bị gỡ.')) return
+    if (!window.confirm('Hủy lần xử lý đang chạy? Hồ sơ và tệp đã tải vẫn được giữ.')) {
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const run = await latestDossierRun(dossierId)
+      if (!run || !isCancellableRun(run.status)) {
+        setError('Không có lần xử lý nào đang chạy để hủy.')
+        return
+      }
+      await cancelRun(run.runId)
+      setAttempt((value) => value + 1)
+    } catch (cause) {
+      setError(runActionErrorMessage(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function deleteJob() {
+    if (!dossierId || busy) return
+    if (!window.confirm('Xóa hồ sơ này? Tệp đã tải sẽ bị gỡ.')) return
     setBusy(true)
     try {
       await deleteDossier(dossierId)
@@ -318,7 +529,7 @@ export function AnalysisProgressPage() {
         },
       })
     } catch {
-      setError('Không hủy được tiến trình.')
+      setError('Không xóa được hồ sơ.')
       setBusy(false)
     }
   }
@@ -328,7 +539,11 @@ export function AnalysisProgressPage() {
     setBusy(true)
     setError(null)
     try {
-      await restartDossierOcr(dossierId)
+      if (failure.retry === 'none') {
+        setBusy(false)
+        return
+      }
+      await retryDossierFailed(dossierId, failure.retry)
       setAttempt((value) => value + 1)
       setBusy(false)
     } catch (cause) {
@@ -345,6 +560,18 @@ export function AnalysisProgressPage() {
         ? 'Đang xử lý tự động'
         : 'Đang chờ worker nhận tệp'
 
+  const finished = ready || failed
+  const runningStep = finished
+    ? undefined
+    : stepList.find((row) => row.status === 'running')
+  const activeLabel = failed
+    ? 'OCR thất bại'
+    : ready
+      ? 'Đã dựng xong cấu trúc hồ sơ'
+      : runningStep
+        ? `Đang chạy: ${runningStep.step} · ${RUN_STEP_LABELS[runningStep.step] ?? ''}`
+        : 'Đang chờ máy chủ nhận tệp'
+
   return (
     <div className="flex flex-col w-full pb-margin-lg">
       <div className="flex flex-col gap-space-sm pt-space-md mb-gutter">
@@ -360,16 +587,12 @@ export function AnalysisProgressPage() {
           </nav>
           <div className="flex items-center gap-space-sm bg-surface-container-low px-space-md py-space-xs rounded-lg shadow-sm">
             <span className="relative flex h-2 w-2">
-              {ready || failed ? null : (
+              {ready ? null : (
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               )}
               <span
                 className={`relative inline-flex rounded-full h-2 w-2 ${
-                  failed
-                    ? 'bg-error'
-                    : ready
-                      ? 'bg-emerald-600'
-                      : 'bg-emerald-600'
+                  failed ? 'bg-error' : 'bg-emerald-600'
                 }`}
               />
             </span>
@@ -378,30 +601,14 @@ export function AnalysisProgressPage() {
             </span>
           </div>
         </div>
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-space-md mt-space-xs">
-          <div className="flex flex-col gap-space-xs">
-            {titleInHeader ? null : (
-              <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">
-                Tiến trình phân tích hợp đồng
-              </h1>
-            )}
-            <div className="flex flex-wrap items-center gap-x-space-md gap-y-space-xs text-on-surface-variant font-body-sm text-body-sm">
-              <span className="font-title-sm text-title-sm text-on-surface font-semibold">
-                {detail?.name ?? passedName ?? 'Hồ sơ vừa tải'}
-              </span>
-              <span className="text-outline-variant">•</span>
-              <span className="bg-surface-container px-space-sm py-0.5 rounded text-on-surface font-medium">
-                {documents.length} tài liệu
-              </span>
-              {pageTotals.total > 0 ? (
-                <>
-                  <span className="text-outline-variant">•</span>
-                  <span>{pageTotals.total} trang tài liệu</span>
-                </>
-              ) : null}
-            </div>
-          </div>
-        </div>
+        {titleInHeader ? null : (
+          <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">
+            Tiến trình phân tích hợp đồng
+          </h1>
+        )}
+        <span className="font-title-sm text-title-sm text-on-surface font-semibold">
+          {detail?.name ?? passedName ?? 'Hồ sơ vừa tải'}
+        </span>
       </div>
 
       {error ? (
@@ -413,82 +620,151 @@ export function AnalysisProgressPage() {
         </p>
       ) : null}
 
-      <div className="w-full bg-surface-container-lowest rounded-lg p-gutter shadow-sm mb-gutter">
-        <div className="flex items-center justify-between mb-space-md">
-          <div className="flex items-center gap-space-sm">
+      {failed ? (
+        <p
+          className="mb-gutter rounded-lg bg-error-container px-space-md py-space-sm font-body-sm text-body-sm text-on-error-container"
+          role="alert"
+        >
+          {failure.message}
+          {failure.code ? (
+            <span className="ml-space-sm font-code-sm text-code-sm opacity-80">
+              ({failure.code})
+            </span>
+          ) : null}
+        </p>
+      ) : null}
+
+      <section className="bg-surface-container-lowest rounded-lg p-space-lg shadow-sm mb-gutter">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-space-lg">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline justify-between gap-space-md mb-space-sm">
+              <span
+                className={`font-title-sm text-title-sm font-semibold ${
+                  failed ? 'text-error' : 'text-on-surface'
+                }`}
+              >
+                {activeLabel}
+              </span>
+              <span className="font-headline-md text-headline-md text-primary font-bold">
+                {ready ? '100%' : `${percent}%`}
+              </span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-surface-container overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  failed ? 'bg-error' : 'bg-primary'
+                }`}
+                style={{ width: `${ready ? 100 : percent}%` }}
+              />
+            </div>
+            <span className="font-label-sm text-label-sm text-on-surface-variant mt-space-xs block">
+              {finished
+                ? 'Đã kết thúc'
+                : `${stepsDone}/${RUN_STEP_ORDER.length} bước hoàn thành`}{' '}
+              · cập nhật trực tiếp từ máy chủ
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-space-sm lg:w-[420px] shrink-0">
+            <Stat label="Tài liệu" value={String(documents.length)} />
+            <Stat
+              label="Trang đã đọc"
+              value={`${pageTotals.done}/${pageTotals.total || '—'}`}
+            />
+            <Stat label="Điều khoản" value={String(clauseCount ?? '—')} />
+          </div>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-gutter">
+        <section className="xl:col-span-7 bg-surface-container-lowest rounded-lg p-space-lg shadow-sm">
+          <div className="flex items-center gap-space-sm mb-space-md">
             <MaterialIcon
               name="checklist"
               className="text-on-tertiary-container text-[20px]"
             />
             <span className="font-title-sm text-title-sm text-on-surface font-semibold">
-              Các bước xử lý tự động
+              Các bước xử lý
             </span>
           </div>
-          <span className="font-body-sm text-body-sm text-on-tertiary-container font-medium">
-            Tiến độ: {ready ? 'Đã hoàn thành' : `${percent}%`}
-          </span>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-space-md">
-          <PhaseCard
-            title="1. Tải tệp"
-            status={documents.length > 0 ? 'done' : 'active'}
-            detail={documents.length > 0 ? 'Hoàn tất' : 'Đang tải'}
-          />
-          <PhaseCard
-            title="2. Nhận diện chữ"
-            status={
-              failed
-                ? 'failed'
-                : ready
-                  ? 'done'
-                  : documents.length > 0
-                    ? 'active'
-                    : 'waiting'
-            }
-            detail={
-              failed
-                ? 'Lỗi'
-                : ready
-                  ? 'Hoàn tất'
-                  : pageTotals.total > 0
-                    ? `${percent}%`
-                    : 'Đang gửi tệp'
-            }
-            extra={
-              pageTotals.total > 0
-                ? `${pageTotals.done}/${pageTotals.total}`
-                : undefined
-            }
-          />
-          <PhaseCard
-            title="3. Phân tích điều khoản"
-            status={ready ? 'done' : 'waiting'}
-            detail={ready ? 'Hoàn tất' : 'Chờ xử lý'}
-          />
-          <PhaseCard
-            title="4. Hoàn tất"
-            status={ready ? 'done' : 'waiting'}
-            detail={ready ? 'Hoàn tất' : 'Chờ xử lý'}
-            icon="folder_check"
-          />
-        </div>
-      </div>
+          <ol className="flex flex-col">
+            {RUN_STEP_ORDER.map((code, index) => {
+              const row = steps[code]
+              const rawStatus = row?.status ?? 'queued'
+              // Run đã kết thúc mà BE không ghi nhận bước này thì không để xoay/chờ mãi.
+              const status =
+                finished && rawStatus !== 'succeeded' && rawStatus !== 'failed'
+                  ? 'unrecorded'
+                  : rawStatus
+              const last = index === RUN_STEP_ORDER.length - 1
+              return (
+                <li key={code} className="flex gap-space-md">
+                  <div className="flex flex-col items-center">
+                    <StepDot status={status} />
+                    {last ? null : (
+                      <div
+                        className={`w-px flex-1 min-h-4 ${
+                          status === 'succeeded'
+                            ? 'bg-emerald-300'
+                            : 'bg-outline-variant'
+                        }`}
+                      />
+                    )}
+                  </div>
+                  <div className="flex flex-1 items-start justify-between gap-space-sm pb-space-md">
+                    <div className="flex flex-col">
+                      <span
+                        className={`font-body-sm text-body-sm ${
+                          status === 'queued'
+                            ? 'text-on-surface-variant'
+                            : 'text-on-surface font-semibold'
+                        }`}
+                      >
+                        {RUN_STEP_LABELS[code]}
+                      </span>
+                      <span className="font-label-sm text-label-sm text-on-surface-variant">
+                        {code}
+                        {row?.pages != null ? ` · ${row.pages} trang` : ''}
+                      </span>
+                    </div>
+                    <span
+                      className={`font-label-sm text-label-sm font-semibold shrink-0 ${
+                        status === 'succeeded'
+                          ? 'text-emerald-700'
+                          : status === 'failed'
+                            ? 'text-error'
+                            : status === 'running'
+                              ? 'text-on-tertiary-container'
+                              : 'text-on-surface-variant'
+                      }`}
+                    >
+                      {status === 'succeeded'
+                        ? row?.durationMs != null
+                          ? `Xong · ${(row.durationMs / 1000).toFixed(1)}s`
+                          : 'Xong'
+                        : status === 'running'
+                          ? 'Đang chạy…'
+                          : status === 'failed'
+                            ? 'Lỗi'
+                            : status === 'unrecorded'
+                              ? 'Không ghi nhận'
+                              : 'Chờ'}
+                    </span>
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
+        </section>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-gutter">
-        <div className="xl:col-span-7 flex flex-col gap-gutter">
+        <div className="xl:col-span-5 flex flex-col gap-gutter">
           <section className="bg-surface-container-lowest rounded-lg p-space-lg shadow-sm">
-            <div className="flex items-center justify-between mb-space-md pb-space-sm">
-              <div className="flex items-center gap-space-sm">
-                <MaterialIcon
-                  name="description"
-                  className="text-primary text-[20px]"
-                />
-                <span className="font-title-sm text-title-sm text-on-surface font-semibold">
-                  Tiến độ đọc tài liệu hồ sơ
-                </span>
-              </div>
-              <span className="font-label-sm text-label-sm text-on-surface-variant">
-                Tự động cập nhật
+            <div className="flex items-center gap-space-sm mb-space-md">
+              <MaterialIcon
+                name="description"
+                className="text-primary text-[20px]"
+              />
+              <span className="font-title-sm text-title-sm text-on-surface font-semibold">
+                Tài liệu trong hồ sơ
               </span>
             </div>
             <div className="flex flex-col gap-space-sm">
@@ -501,71 +777,29 @@ export function AnalysisProgressPage() {
               )}
             </div>
           </section>
-          <section className="bg-surface-container-lowest rounded-lg p-space-lg shadow-sm flex flex-col">
-            <div className="flex items-center justify-between pb-space-sm mb-space-sm">
-              <div className="flex items-center gap-space-sm">
-                <MaterialIcon
-                  name="history"
-                  className="text-on-tertiary-container text-[20px]"
-                />
-                <span className="font-title-sm text-title-sm text-on-surface font-semibold">
-                  Nhật ký xử lý
-                </span>
-              </div>
-              <span className="font-body-sm text-body-sm text-on-surface-variant">
-                Theo trạng thái job trên backend
+          <section className="bg-surface-container-lowest rounded-lg p-space-lg shadow-sm">
+            <div className="flex items-center gap-space-sm mb-space-md">
+              <MaterialIcon
+                name="history"
+                className="text-on-tertiary-container text-[20px]"
+              />
+              <span className="font-title-sm text-title-sm text-on-surface font-semibold">
+                Nhật ký xử lý
+              </span>
+              <span className="ml-auto font-label-sm text-label-sm text-on-surface-variant">
+                Mới nhất ở trên
               </span>
             </div>
-            <div className="flex flex-col gap-space-sm">
+            <div className="flex flex-col gap-space-xs max-h-80 overflow-y-auto">
               {logs.length === 0 ? (
                 <p className="font-body-sm text-body-sm text-on-surface-variant">
                   Chưa có bước nào được ghi nhận.
                 </p>
               ) : (
-                logs.map((log) => <LogRow key={log.id} log={log} />)
+                [...logs]
+                  .reverse()
+                  .map((log) => <LogRow key={log.id} log={log} />)
               )}
-            </div>
-          </section>
-        </div>
-        <div className="xl:col-span-5 flex flex-col gap-gutter">
-          <section className="bg-surface-container-lowest rounded-lg p-space-lg shadow-sm flex flex-col">
-            <div className="flex items-center justify-between mb-space-md pb-space-sm">
-              <div className="flex items-center gap-space-sm">
-                <MaterialIcon
-                  name="insights"
-                  className="text-primary text-[20px]"
-                />
-                <span className="font-title-sm text-title-sm text-on-surface font-semibold">
-                  Thông tin ghi nhận
-                </span>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-space-sm mb-space-md">
-              <div className="p-space-md rounded-lg bg-surface-container-low flex flex-col">
-                <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant font-medium">
-                  Điều khoản
-                </span>
-                <span className="font-headline-lg text-headline-lg text-primary font-bold mt-space-xs">
-                  {clauseCount ?? '—'}
-                </span>
-              </div>
-              <div className="p-space-md rounded-lg bg-surface-container-low flex flex-col">
-                <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant font-medium">
-                  Trang đã đọc
-                </span>
-                <span className="font-headline-md text-headline-md text-primary font-bold mt-space-xs">
-                  {pageTotals.done}/{pageTotals.total || '—'}
-                </span>
-              </div>
-            </div>
-            <div className="mt-auto p-space-sm bg-surface-container-low rounded-lg flex items-center gap-space-sm">
-              <MaterialIcon
-                name="verified_user"
-                className="text-on-tertiary-container text-[18px] shrink-0"
-              />
-              <span className="font-label-sm text-label-sm text-on-surface-variant font-medium">
-                Mã hóa riêng biệt & Bảo mật tuyệt đối
-              </span>
             </div>
           </section>
         </div>
@@ -573,7 +807,7 @@ export function AnalysisProgressPage() {
 
       <div className="mt-gutter pt-space-md flex flex-col md:flex-row items-center justify-between gap-space-md">
         <div className="flex items-center gap-space-md">
-          {ready ? null : (
+          {ready || failed ? null : (
             <button
               className="font-body-sm text-body-sm text-error hover:underline flex items-center gap-space-xs disabled:opacity-60"
               disabled={busy || !dossierId}
@@ -586,7 +820,18 @@ export function AnalysisProgressPage() {
               <span>Hủy tiến trình này</span>
             </button>
           )}
-          {failed ? (
+          <button
+            className="font-body-sm text-body-sm text-on-surface-variant hover:text-error hover:underline flex items-center gap-space-xs disabled:opacity-60"
+            disabled={busy || !dossierId}
+            type="button"
+            onClick={() => {
+              void deleteJob()
+            }}
+          >
+            <MaterialIcon name="delete" className="text-[16px]" />
+            <span>Xóa hồ sơ</span>
+          </button>
+          {failed && failure.retry !== 'none' ? (
             <button
               className="font-body-sm text-body-sm text-primary hover:underline flex items-center gap-space-xs disabled:opacity-60"
               disabled={busy}
@@ -596,7 +841,9 @@ export function AnalysisProgressPage() {
               }}
             >
               <MaterialIcon name="refresh" className="text-[16px]" />
-              <span>Chạy lại OCR</span>
+              <span>
+                {failure.retry === 'ai2' ? 'Chạy lại AI2' : 'Chạy lại phần OCR lỗi'}
+              </span>
             </button>
           ) : null}
         </div>
@@ -623,77 +870,47 @@ export function AnalysisProgressPage() {
   )
 }
 
-function PhaseCard({
-  title,
-  status,
-  detail,
-  extra,
-  icon = 'hourglass_empty',
-}: {
-  title: string
-  status: 'done' | 'active' | 'waiting' | 'failed'
-  detail: string
-  extra?: string
-  icon?: string
-}) {
-  const shell =
-    status === 'done'
-      ? 'bg-surface-container-low'
-      : status === 'active'
-        ? 'bg-surface-container-high'
-        : 'bg-surface-container-lowest opacity-75'
+function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div
-      className={`flex flex-col p-space-md rounded-lg transition-all ${shell}`}
-    >
-      <div className="flex items-center justify-between mb-space-xs">
-        <span className="font-title-sm text-title-sm text-on-surface font-bold">
-          {title}
-        </span>
-        {status === 'done' ? (
-          <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700">
-            <MaterialIcon name="check" className="text-[14px]" />
-          </div>
-        ) : null}
-        {status === 'active' ? (
-          <div className="w-5 h-5 rounded-full bg-primary-container flex items-center justify-center text-primary-fixed">
-            <MaterialIcon
-              name="progress_activity"
-              className="text-[14px] animate-spin"
-            />
-          </div>
-        ) : null}
-        {status === 'failed' ? (
-          <div className="w-5 h-5 rounded-full bg-error-container flex items-center justify-center text-error">
-            <MaterialIcon name="error" className="text-[14px]" />
-          </div>
-        ) : null}
-        {status === 'waiting' ? (
-          <div className="w-5 h-5 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant">
-            <MaterialIcon name={icon} className="text-[14px]" />
-          </div>
-        ) : null}
+    <div className="p-space-md rounded-lg bg-surface-container-low flex flex-col">
+      <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant font-medium">
+        {label}
+      </span>
+      <span className="font-headline-md text-headline-md text-primary font-bold mt-space-xs">
+        {value}
+      </span>
+    </div>
+  )
+}
+
+function StepDot({ status }: { status: string }) {
+  if (status === 'succeeded') {
+    return (
+      <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
+        <MaterialIcon name="check" className="text-[16px]" />
       </div>
-      <div className="mt-auto flex items-center justify-between">
-        <span
-          className={`font-label-sm text-label-sm font-semibold ${
-            status === 'done'
-              ? 'text-emerald-700'
-              : status === 'active'
-                ? 'text-on-tertiary-container'
-                : status === 'failed'
-                  ? 'text-error'
-                  : 'text-on-secondary-container font-medium'
-          }`}
-        >
-          {detail}
-        </span>
-        {extra ? (
-          <span className="font-label-sm text-label-sm text-on-surface-variant font-medium">
-            {extra}
-          </span>
-        ) : null}
+    )
+  }
+  if (status === 'running') {
+    return (
+      <div className="w-6 h-6 rounded-full bg-primary-container flex items-center justify-center text-primary-fixed shrink-0">
+        <MaterialIcon
+          name="progress_activity"
+          className="text-[16px] animate-spin"
+        />
       </div>
+    )
+  }
+  if (status === 'failed') {
+    return (
+      <div className="w-6 h-6 rounded-full bg-error-container flex items-center justify-center text-error shrink-0">
+        <MaterialIcon name="error" className="text-[16px]" />
+      </div>
+    )
+  }
+  return (
+    <div className="w-6 h-6 rounded-full bg-surface-container flex items-center justify-center shrink-0">
+      <span className="w-2 h-2 rounded-full bg-outline-variant" />
     </div>
   )
 }

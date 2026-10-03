@@ -7,6 +7,7 @@ import {
   useParams,
 } from 'react-router-dom'
 import {
+  MAX_DOSSIER_DOCUMENTS,
   splitDossier,
   splitErrorMessage,
   type SplitResult,
@@ -94,7 +95,11 @@ export function SplitConfirmPage() {
     [parts, pageCount],
   )
   const lastPart = resolved[resolved.length - 1]
-  const canAdd = Boolean(lastPart && lastPart.pageEnd > lastPart.pageStart)
+  // Tệp gốc được thay bằng các phần; các tài liệu còn lại của hồ sơ vẫn tính vào trần.
+  const otherDocuments = Math.max(0, (dossier?.documents.length ?? 1) - 1)
+  const canAdd =
+    Boolean(lastPart && lastPart.pageEnd > lastPart.pageStart) &&
+    parts.length + otherDocuments < MAX_DOSSIER_DOCUMENTS
 
   function updatePart(key: string, patch: Partial<DraftPart>) {
     setParts((current) =>

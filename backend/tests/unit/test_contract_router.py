@@ -28,6 +28,7 @@ from contract_intelligence.contract.application.services.contract_service import
 )
 from contract_intelligence.contract.domain.entities.document import Document, DocumentRole
 from contract_intelligence.contract.domain.entities.dossier import Dossier
+from contract_intelligence.contract.domain.entities.job import Job, JobStatus
 from contract_intelligence.contract.interfaces.api.routers.contract_router import _hits_from_ai2
 from contract_intelligence.main import app
 from contract_intelligence.shared.auth.schemas import AuthenticatedUser
@@ -131,6 +132,7 @@ async def mock_svc() -> AsyncMock:
     """
     svc = AsyncMock(spec=ContractService)
     svc.get_dossier.return_value = _make_dossier(metadata={"created_by": "usr_op_01"})
+    svc.review_counts.return_value = (0, 0)
     return svc
 
 
@@ -237,6 +239,27 @@ class TestGetDossierEndpoint:
             "created_by": "usr_op_01",
         }
         assert body["data"]["documents"] == []
+
+    async def test_returns_review_counts_and_job_error_code(
+        self, client: AsyncClient, mock_svc: AsyncMock
+    ) -> None:
+        dossier = _make_dossier(has_conflicts=True, metadata={"created_by": "usr_op_01"})
+        dossier.jobs = [
+            Job(dossier_id=dossier.id, status=JobStatus.FAILED, error_code="AI2_TIMEOUT")
+        ]
+        mock_svc.get_dossier.return_value = dossier
+        mock_svc.list_documents.return_value = []
+        mock_svc.review_counts.return_value = (5, 2)
+
+        resp = await client.get("/api/v1/dossiers/dos_TEST_01")
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["open_review_items"] == 5
+        assert data["pending_conflicts"] == 2
+        assert data["latest_job_status"] == "failed"
+        assert data["latest_job_error_code"] == "AI2_TIMEOUT"
+        mock_svc.review_counts.assert_awaited_once_with("dos_TEST_01")
 
     async def test_returns_404_when_not_found(
         self, client: AsyncClient, mock_svc: AsyncMock

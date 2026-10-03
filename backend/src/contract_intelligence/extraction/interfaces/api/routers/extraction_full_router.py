@@ -224,7 +224,7 @@ async def cancel_run(
 ) -> ApiResponse[PipelineRunSummaryDTO]:
     """Hủy run đang chạy. RBAC: ADMINISTRATOR inherits OPERATOR."""
     await require_dossier_action(session, user, action=AclAction.DOSSIER_EDIT, run_id=run_id)
-    run = await svc.cancel_pipeline_run(run_id)
+    run = await svc.cancel_pipeline_run(run_id, actor_id=user.user_id)
     return ApiResponse(data=svc.to_summary(run))
 
 

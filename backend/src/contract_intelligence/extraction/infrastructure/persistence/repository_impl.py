@@ -6,7 +6,7 @@ import json
 import re
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from contract_intelligence.extraction.domain.entities.pipeline_run import (
@@ -29,6 +29,10 @@ from contract_intelligence.shared.base import Page
 # ============================================================================
 # PipelineRun
 # ============================================================================
+
+RUN_CANCELLED = "RUN_CANCELLED"
+# Job states still owned by the pipeline (before human review starts).
+_CANCELLABLE_JOB_STATUSES = frozenset({"uploaded", "processing", "extracted"})
 
 
 def _pipeline_run_to_domain(orm: PipelineRunORM) -> PipelineRun:
@@ -176,6 +180,55 @@ class PipelineRunRepositoryImpl:
             if status in ("succeeded", "failed", "cancelled"):
                 orm.finished_at = utcnow()
             await self._session.flush()
+
+    async def cancel(self, run_id: str, *, actor_id: str) -> None:
+        """Cancel ``run_id`` and fail the job still running it.
+
+        The job goes to ``failed`` (not ``cancelled``, which is final after a
+        dossier delete) with ``RUN_CANCELLED``: the worker refuses late AI1/AI2
+        results for a failed job, and an OCR retry can still reopen it.
+        """
+        from contract_intelligence.contract.infrastructure.persistence.orm import (
+            DossierORM,
+            JobORM,
+        )
+        from contract_intelligence.shared.audit import add_audit_event
+        from contract_intelligence.shared.base import utcnow
+
+        await self.update_status(run_id, "cancelled", error_code=RUN_CANCELLED)
+        job = (
+            await self._session.execute(
+                select(JobORM).where(
+                    JobORM.current_run_id == run_id, JobORM.tenant_id == self._tenant_id
+                )
+            )
+        ).scalar_one_or_none()
+        if job is None or job.status not in _CANCELLABLE_JOB_STATUSES:
+            return
+        now = utcnow()
+        previous = job.status
+        job.status = "failed"
+        job.error_code = RUN_CANCELLED
+        job.updated_at = now
+        await self._session.execute(
+            update(DossierORM)
+            .where(DossierORM.id == job.dossier_id)
+            .values(status="failed", updated_at=now)
+        )
+        add_audit_event(
+            self._session,
+            tenant_id=job.tenant_id,
+            action="run.cancelled",
+            entity_type="job",
+            entity_id=job.id,
+            actor_id=actor_id,
+            dossier_id=job.dossier_id,
+            run_id=run_id,
+            from_state=previous,
+            to_state="failed",
+            detail={"error_code": RUN_CANCELLED},
+        )
+        await self._session.flush()
 
     async def list_steps(self, run_id: str) -> list[dict[str, Any]]:
         stmt = (

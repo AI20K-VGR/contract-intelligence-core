@@ -585,6 +585,27 @@ class DossierRepositoryImpl(DossierRepository):
             "status": str(orm.status),
         }
 
+    async def review_counts(self, dossier_id: str) -> tuple[int, int]:
+        """Open review items of the dossier, and how many of them are conflicts.
+
+        Open means ``open`` or ``awaiting_evidence``, as in the review queue; a
+        pending conflict is an open item on a ``finding``. Raw SQL keeps the
+        review BC's ORM out of this module (import-linter).
+        """
+        stmt = text(
+            "SELECT COUNT(*), "
+            "COALESCE(SUM(CASE WHEN target_type = 'finding' THEN 1 ELSE 0 END), 0) "
+            "FROM review_item "
+            "WHERE dossier_id = :dossier_id AND tenant_id = :tenant_id "
+            "AND status IN ('open', 'awaiting_evidence')"
+        )
+        row = (
+            await self._session.execute(
+                stmt, {"dossier_id": dossier_id, "tenant_id": self._tenant_id}
+            )
+        ).one()
+        return int(row[0] or 0), int(row[1] or 0)
+
     async def is_tombstoned(self, dossier_id: str) -> bool:
         """True when dossier exists for tenant but has been tombstoned."""
         stmt = select(DossierORM.deleted_at).where(

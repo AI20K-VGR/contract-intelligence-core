@@ -72,6 +72,10 @@ class DossierRepository(Protocol):
         """
         ...
 
+    async def review_counts(self, dossier_id: str) -> tuple[int, int]:
+        """Return ``(open_review_items, pending_conflicts)`` of the dossier."""
+        ...
+
     async def is_tombstoned(self, dossier_id: str) -> bool:
         """True when the dossier exists but has been soft-deleted (tombstoned)."""
         ...

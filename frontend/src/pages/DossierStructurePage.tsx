@@ -37,6 +37,7 @@ import { SearchCitationReview } from '../components/SearchCitationReview'
 import { StructureDocument } from '../components/StructureDocument'
 import { StructureMindmap } from '../components/StructureMindmap'
 import { StructureOutline } from '../components/StructureOutline'
+import { SearchAudit } from '../components/SearchAudit'
 import { TableStructure } from '../components/TableStructure'
 import { MaterialIcon } from '../components/icons'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
@@ -194,6 +195,12 @@ export function DossierStructurePage() {
   usePageTitle(detail?.name ?? 'Cấu trúc hợp đồng')
 
   const activeMode: StructureMode = mode ?? 'numbered'
+  const tableHighlight = useMemo(() => {
+    const hit = searchResult?.hits.find((item) => item.citation.tableId)
+    return hit?.citation.tableId
+      ? { tableId: hit.citation.tableId, cellId: hit.citation.cellId ?? null }
+      : null
+  }, [searchResult])
   const nodes = useMemo(
     () => (lines ? buildStructureTree(lines, activeMode) : fallbackNodes),
     [lines, activeMode, fallbackNodes],
@@ -621,6 +628,15 @@ export function DossierStructurePage() {
                     />
                     {statusLabel}
                   </span>
+                  {detail && detail.pendingConflicts > 0 ? (
+                    <span className="inline-flex items-center rounded bg-error-container px-space-xs py-0.5 font-label-sm text-label-sm font-semibold text-on-error-container">
+                      {detail.pendingConflicts} xung đột chờ xử lý
+                    </span>
+                  ) : detail?.hasConflicts ? (
+                    <span className="inline-flex items-center rounded bg-amber-50 px-space-xs py-0.5 font-label-sm text-label-sm font-semibold text-amber-900">
+                      Có xung đột đã xử lý
+                    </span>
+                  ) : null}
                 </div>
               </div>
               {phase === 'ready' ? (
@@ -790,6 +806,7 @@ export function DossierStructurePage() {
                   <p className="font-label-sm text-label-sm font-semibold uppercase tracking-wide text-on-surface-variant">
                     Câu trả lời tổng hợp AI
                   </p>
+                  <SearchAudit result={searchResult} />
                   {searchResult.answer ? (
                     <CitedAnswer
                       activeId={reviewCiteId}
@@ -862,6 +879,7 @@ export function DossierStructurePage() {
             <TableStructure
               activeId={tableCite?.node.id}
               documentId={documentId}
+              highlight={tableHighlight}
               query=""
               onCite={(node, citeNo) => {
                 setShowLines(false)
