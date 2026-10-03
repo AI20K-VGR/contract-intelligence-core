@@ -247,6 +247,26 @@ class ExtractionService:
         rows = await self._page_repo.list_by_document(document_id)
         return [PageDTO.from_row(r) for r in rows]
 
+    async def list_document_lines(self, document_id: str) -> list[dict[str, Any]]:
+        """Pages (size) with their OCR lines: what ``/pages/{id}`` gives, for all pages.
+
+        Two queries instead of one request per page: a 200-page contract made
+        the structure view wait for 200 round trips.
+        """
+        pages = await self._page_repo.list_by_document(document_id)
+        by_page: dict[int, list[dict[str, Any]]] = {}
+        for line in await self._page_repo.list_lines_by_document(document_id):
+            by_page.setdefault(int(line.pop("page_no")), []).append(line)
+        return [
+            {
+                "page_no": page["page_no"],
+                "width_pt": page["width_pt"],
+                "height_pt": page["height_pt"],
+                "ocr_lines": by_page.get(int(page["page_no"]), []),
+            }
+            for page in pages
+        ]
+
     async def get_page(self, page_id: str) -> dict[str, Any]:
         data = await self._page_repo.get(page_id)
         if data is None:
