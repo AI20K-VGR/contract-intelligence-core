@@ -165,13 +165,28 @@ def response_usage(response: Any) -> dict[str, int] | None:
         "pages_processed": ("pages_processed",),
         "document_size_bytes": ("doc_size_bytes", "document_size_bytes"),
     }
+
+    def field(holder: Any, name: str) -> Any:
+        return holder.get(name) if isinstance(holder, dict) else getattr(holder, name, None)
+
     result: dict[str, int] = {}
     for target, names in aliases.items():
         for name in names:
-            value = source.get(name) if isinstance(source, dict) else getattr(source, name, None)
+            value = field(source, name)
             if isinstance(value, int):
                 result[target] = value
                 break
+    # OpenAI prompt caching: both counts are part of "input" and billed at their
+    # own rate (cached reads ~10% of input, cache writes above it).
+    details = field(source, "prompt_tokens_details") or field(source, "input_tokens_details")
+    if details is not None:
+        for target, name in (
+            ("input_cached", "cached_tokens"),
+            ("input_cache_write", "cache_write_tokens"),
+        ):
+            value = field(details, name)
+            if isinstance(value, int) and value > 0:
+                result[target] = value
     return result or None
 
 

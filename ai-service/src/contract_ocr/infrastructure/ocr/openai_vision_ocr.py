@@ -24,18 +24,37 @@ DEFAULT_MODEL = "gpt-5.6-terra"
 # only auto-prices models it recognizes by name; a model id it doesn't know (any of this
 # module's, so far) shows $0 unless we compute and attach the cost ourselves. Update
 # alongside DEFAULT_MODEL's price comment above when OpenAI's pricing changes.
+# Standard tier, https://developers.openai.com/api/docs/pricing (checked 2026-10-04).
 _PRICE_PER_TOKEN_USD = {
-    "gpt-5.6-terra": {"input": 2.00 / 1_000_000, "output": 12.00 / 1_000_000},
+    "gpt-5.6-terra": {
+        "input": 2.00 / 1_000_000,
+        "input_cached": 0.20 / 1_000_000,
+        "input_cache_write": 2.50 / 1_000_000,
+        "output": 12.00 / 1_000_000,
+    },
 }
 
 
 def _cost_details(model: str, usage: dict[str, int] | None) -> dict[str, float] | None:
+    """Cost of one call as OpenAI bills it.
+
+    ``usage["input"]`` counts every prompt token, including the cached reads and
+    cache writes, which have their own rates; only the rest is ordinary input.
+    Reasoning tokens are already inside ``output``.
+    """
     prices = _PRICE_PER_TOKEN_USD.get(model)
     if not prices or not usage:
         return None
-    input_cost = usage.get("input", 0) * prices["input"]
-    output_cost = usage.get("output", 0) * prices["output"]
-    return {"input": input_cost, "output": output_cost, "total": input_cost + output_cost}
+    cached = usage.get("input_cached", 0)
+    cache_write = usage.get("input_cache_write", 0)
+    ordinary = max(0, usage.get("input", 0) - cached - cache_write)
+    costs = {
+        "input": ordinary * prices["input"],
+        "input_cached": cached * prices["input_cached"],
+        "input_cache_write": cache_write * prices["input_cache_write"],
+        "output": usage.get("output", 0) * prices["output"],
+    }
+    return {**costs, "total": sum(costs.values())}
 
 
 class OpenAIVisionOCREngine(OCREngine):
