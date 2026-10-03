@@ -533,6 +533,29 @@ class PageRepositoryImpl:
         result = await self._session.execute(stmt)
         return [_page_to_dict(p) for p in result.scalars().all()]
 
+    async def list_lines_by_document(self, document_id: str) -> list[dict[str, Any]]:
+        """Every OCR line of the document in reading order, in one query."""
+        stmt = (
+            select(OcrLineORM)
+            .where(
+                OcrLineORM.document_id == document_id,
+                OcrLineORM.tenant_id == self._tenant_id,
+            )
+            .order_by(OcrLineORM.page_no, OcrLineORM.line_no)
+        )
+        result = await self._session.execute(stmt)
+        return [
+            {
+                "page_no": ln.page_no,
+                "id": ln.id,
+                "line_no": ln.line_no,
+                "text": ln.text,
+                "bbox": ln.bbox,
+                "confidence": stored_line_confidence(ln.confidence),
+            }
+            for ln in result.scalars().all()
+        ]
+
     async def get_by_document_and_page_no(
         self, document_id: str, page_no: int
     ) -> dict[str, Any] | None:
