@@ -52,9 +52,9 @@ export const LEVEL = {
 const TRAIL = String.raw`[\s.:\-–—)]*`
 
 // "Phụ lục 01", "PHỤ LỤC A", "Phụ lục:" (không số). Phụ lục đóng mọi nút đang
-// mở của hợp đồng chính nên xếp cùng cấp Phần.
+// mở của hợp đồng chính nên xếp cùng cấp Phần. OCR đôi khi bỏ dấu ("PHU LUC").
 const ANNEX_RE = new RegExp(
-  String.raw`^(Phụ\s*lục|PHỤ\s*LỤC|Annex|ANNEX|Appendix|APPENDIX)(?:\s+([IVXLC]+|\d{1,2}|[A-Z]))?\b${TRAIL}`,
+  String.raw`^(Phụ\s*lục|PHỤ\s*LỤC|Phu\s*luc|PHU\s*LUC|Annex|ANNEX|Appendix|APPENDIX)(?:\s+([IVXLC]+|\d{1,2}|[A-Z]))?\b${TRAIL}`,
   'u',
 )
 const PART_RE = new RegExp(
@@ -110,8 +110,12 @@ function textual(
   const rest = stripLead(text.slice(match[0].length))
   // "Điều 3 của Hợp đồng này..." là câu văn, không phải tiêu đề.
   if (rest && LOWER_START_RE.test(rest)) return null
-  // "Khoản 2 Điều 5 ..." là tham chiếu chéo, không mở khoản mới.
-  if (rest && CROSS_REF_RE.test(rest)) return null
+  // "Khoản 2 Điều 5 ..." là tham chiếu chéo, không mở khoản mới. Có dấu chấm
+  // hay hai chấm sau số thì là tiêu đề, dù tên điều bắt đầu bằng "Điều…":
+  // "Điều 2. Điều khoản thanh toán".
+  if (rest && CROSS_REF_RE.test(rest) && !CLOSED_MARKER_RE.test(match[0])) {
+    return null
+  }
   return {
     kind,
     level,
@@ -123,6 +127,8 @@ function textual(
 
 const CROSS_REF_RE =
   /^(Điều|ĐIỀU|Khoản|KHOẢN|Điểm|ĐIỂM|Chương|CHƯƠNG|Mục|MỤC)\s+\S/u
+// Ký hiệu kết thúc bằng "." hoặc ":" ("Điều 2.", "Điều 2:"): dạng tiêu đề.
+const CLOSED_MARKER_RE = /[.:]\s*$/
 
 export function parseMarker(input: string): Marker | null {
   const text = input.trim()
