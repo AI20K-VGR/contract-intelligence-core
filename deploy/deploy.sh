@@ -30,6 +30,12 @@ if [ -z "$(envval AI2_LLM_BASE_URL)" ]; then
   echo "AI2_LLM_BASE_URL is empty in $ENV_FILE (Lead picks the LLM provider)" >&2
   exit 1
 fi
+for required in AI2_LLM_API_KEY AI2_EMBEDDING_BASE_URL AI2_EMBEDDING_API_KEY APP_HOST; do
+  if [ -z "$(envval "$required")" ]; then
+    echo "$required is empty in $ENV_FILE; full online LLM/vector startup is fail-fast" >&2
+    exit 1
+  fi
+done
 
 if [ "${1:-}" = "--pull" ]; then
   git pull --ff-only
@@ -51,6 +57,24 @@ done
 # Inside the running backend container, not `compose run`: a second backend
 # container would ask for the same fixed ci-monitoring address and fail with
 # "Address already in use".
+echo "[deploy] waiting for AI2 full LLM/vector readiness"
+ai2_ready=0
+for _ in $(seq 1 60); do
+  if "${COMPOSE[@]}" exec -T ai2-service /app/.venv/bin/python -c \
+      "import urllib.request; urllib.request.urlopen('http://localhost:8002/readyz', timeout=5)" \
+      >/dev/null 2>&1; then
+    ai2_ready=1
+    break
+  fi
+  sleep 5
+done
+if [ "$ai2_ready" -ne 1 ]; then
+  echo "[deploy] AI2 did not become ready; refusing to report a successful deployment" >&2
+  "${COMPOSE[@]}" logs --tail 120 ai2-service >&2 || true
+  exit 1
+fi
+echo "[deploy] AI2 full capability: ready"
+
 echo "[deploy] configuring Keycloak"
 "${COMPOSE[@]}" exec -T \
   -e KEYCLOAK_ADMIN_PASSWORD="$(envval KEYCLOAK_ADMIN_PASSWORD)" \
@@ -73,6 +97,8 @@ for _ in $(seq 1 30); do
   sleep 5  # first run: Caddy is fetching certificates
 done
 curl -fsS "$api/health" && echo
+app="https://$(envval APP_HOST)"
+curl -fsS "$app/healthz" >/dev/null && echo "frontend health: ok"
 curl -fsS "$auth/realms/contract-intelligence/.well-known/openid-configuration" \
   | grep -o '"issuer":"[^"]*"'
 code=$(curl -s -o /dev/null -w '%{http_code}' "$auth/admin/master/console/")
@@ -100,6 +126,7 @@ cat <<INFO
   deploy/check_external.sh $(envval API_HOST) $(envval AUTH_HOST) $app_host
 Frontend online: $frontend_note
 Frontend on a dev machine (.env.local):
+  VITE_APP_URL=$app
   VITE_API_BASE_URL=$api
   VITE_KEYCLOAK_URL=$auth
   VITE_KEYCLOAK_REALM=contract-intelligence

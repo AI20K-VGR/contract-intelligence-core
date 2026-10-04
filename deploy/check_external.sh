@@ -3,16 +3,16 @@
 # Probing the VPS's own public IP from the VPS can loop back inside the host
 # and skip the cloud firewall, so a "closed" result there proves little.
 #
-#   deploy/check_external.sh api-1-2-3-4.sslip.io auth-1-2-3-4.sslip.io [app-1-2-3-4.sslip.io]
+#   deploy/check_external.sh api-1-2-3-4.sslip.io auth-1-2-3-4.sslip.io app-1-2-3-4.sslip.io
 #
 # Exit code 0 only when HTTPS works, /admin is blocked, /grafana refuses an
 # anonymous caller and every internal port (AI2 8002, databases, Kafka, MinIO,
 # Keycloak, mailpit, Grafana, Prometheus, exporters) is unreachable.
 set -uo pipefail
 
-API_HOST=${1:?usage: check_external.sh API_HOST AUTH_HOST}
-AUTH_HOST=${2:?usage: check_external.sh API_HOST AUTH_HOST}
-APP_HOST=${3:-}
+API_HOST=${1:?usage: check_external.sh API_HOST AUTH_HOST APP_HOST}
+AUTH_HOST=${2:?usage: check_external.sh API_HOST AUTH_HOST APP_HOST}
+APP_HOST=${3:?usage: check_external.sh API_HOST AUTH_HOST APP_HOST}
 IP=$(python3 -c "import socket, sys; print(socket.gethostbyname(sys.argv[1]))" "$API_HOST")
 # Every port the local stack publishes; production must publish none of them.
 INTERNAL_PORTS=(8002 8000 8080 8443 5432 5433 5434 9000 9001 9092 9093 29092 1025 8025
@@ -22,7 +22,16 @@ failures=0
 ok() { echo "  ok    $*"; }
 fail() { echo "  FAIL  $*"; failures=$((failures + 1)); }
 
-echo "Checking $API_HOST / $AUTH_HOST ($IP) from $(hostname)"
+echo "Checking $APP_HOST / $API_HOST / $AUTH_HOST ($IP) from $(hostname)"
+
+if body=$(curl -fsS --max-time 10 "https://$APP_HOST/"); then
+  case "$body" in
+    *"<html"*|*"<!doctype"*) ok "https://$APP_HOST/ serves the frontend" ;;
+    *) fail "https://$APP_HOST/ did not return an HTML frontend" ;;
+  esac
+else
+  fail "https://$APP_HOST/ unreachable"
+fi
 
 if body=$(curl -fsS --max-time 10 "https://$API_HOST/health"); then
   ok "https://$API_HOST/health → $body"

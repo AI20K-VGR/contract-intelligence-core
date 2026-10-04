@@ -34,6 +34,7 @@ desktop.ini
 
 # ---------- Secrets / Local env ----------
 .env
+.env.e2e
 .env.local
 .env.*.local
 *.pem
