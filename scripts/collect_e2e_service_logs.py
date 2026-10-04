@@ -34,6 +34,8 @@ def _redact(text: str) -> str:
 
 def _service_for_line(line: str) -> str:
     lowered = line.casefold()
+    if "ai1-worker" in lowered or "ai1." in lowered:
+        return "ai1"
     if "ai2-service" in lowered or "ai2." in lowered:
         return "ai2"
     if "frontend" in lowered or "vite" in lowered:
@@ -77,7 +79,18 @@ def docker_logs(project: str, since: str, compose_file: str | None = None) -> li
     command = ["docker", "compose", "--project-name", project]
     if compose_file:
         command.extend(["--file", compose_file])
-    command.extend(["logs", "--no-color", "--since", since, "backend", "backend-worker", "ai2-service"])
+    command.extend(
+        [
+            "logs",
+            "--no-color",
+            "--since",
+            since,
+            "backend",
+            "backend-worker",
+            "ai1-worker",
+            "ai2-service",
+        ]
+    )
     completed = subprocess.run(
         command,
         check=True,
@@ -132,7 +145,7 @@ def main() -> int:
         "collected_at": datetime.now(UTC).isoformat(),
         "counts": {
             service: sum(1 for event in events if event.get("service") == service)
-            for service in ("backend", "ai2", "frontend")
+            for service in ("backend", "ai1", "ai2", "frontend")
         },
         "error_count": sum(1 for event in events if event.get("level") in {"ERROR", "CRITICAL"}),
         "events": events,
