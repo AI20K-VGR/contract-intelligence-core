@@ -169,6 +169,12 @@ async def _semantic_result(session: AsyncSession, dossier: DossierORM) -> dict[s
         if raw is None:
             result.update(state="NOT_MEASURED", reason="LEGACY_EXTENSION_ABSENT")
             return result
+        # Validate the persisted payload, then return the wire shape as stored.
+        # ``model_dump`` would materialize optional Pydantic defaults and make
+        # the FE see a different semantic result after a reload (for example,
+        # omitted pair fields become ``null``/``[]``).  The digest and schema
+        # validation above already protect the immutable payload, so preserve
+        # its exact optional-field contract here.
         extension = SemanticExtension.model_validate(raw)
         config = json.loads(run.config_snapshot or "{}")
         if (extension.tenant_id, extension.dossier_id) != (
@@ -199,9 +205,7 @@ async def _semantic_result(session: AsyncSession, dossier: DossierORM) -> dict[s
             for e in evidence
         ):
             raise ValueError("semantic source outside dossier")
-        result.update(
-            state="NEEDS_REVIEW", reason=None, semantic_extension=extension.model_dump(mode="json")
-        )
+        result.update(state="NEEDS_REVIEW", reason=None, semantic_extension=raw)
     except (ValidationError, ValueError, TypeError, LookupError) as exc:
         raise HTTPException(409, detail={"code": "SEMANTIC_RESULT_INVALID"}) from exc
     return result
