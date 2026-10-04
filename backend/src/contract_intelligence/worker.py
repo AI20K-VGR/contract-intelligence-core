@@ -62,7 +62,7 @@ from contract_intelligence.shared.ai.persistence import (
 )
 from contract_intelligence.shared.audit import add_audit_event
 from contract_intelligence.shared.base import new_ulid
-from contract_intelligence.shared.pdf import count_pdf_pages
+from contract_intelligence.shared.pdf import InvalidPdfError, count_pdf_pages
 from contract_intelligence.shared.processed_events import (
     already_processed,
     event_key,
@@ -1014,6 +1014,10 @@ async def handle_dossier_uploaded(session: AsyncSession, event: dict[str, Any]) 
         )
 
 
+# sha256 of stored files that are not a readable PDF (see _fill_missing_page_counts).
+_uncountable_pdfs: set[str] = set()
+
+
 async def _fill_missing_page_counts(session: AsyncSession, documents: list[DocumentORM]) -> None:
     """Count the pages of documents stored without a page count.
 
@@ -1027,9 +1031,18 @@ async def _fill_missing_page_counts(session: AsyncSession, documents: list[Docum
     for document in documents:
         if int(document.page_count or 0) > 0 or not document.blob_uri:
             continue
+        if document.sha256 in _uncountable_pdfs:
+            continue
         try:
             data = await storage.download_object(document.blob_uri)
             document.page_count = await asyncio.to_thread(count_pdf_pages, data)
+        except InvalidPdfError as exc:
+            # The same bytes will never count: do not download them on every re-run.
+            _uncountable_pdfs.add(document.sha256)
+            logger.warning(
+                "worker.page_count_unavailable", document_id=document.id, error=repr(exc)[:200]
+            )
+            continue
         except Exception as exc:  # noqa: BLE001 - keep OCR going on the old estimate
             logger.warning(
                 "worker.page_count_unavailable", document_id=document.id, error=repr(exc)[:200]
@@ -1860,6 +1873,36 @@ AI2_REINDEXABLE_STATUSES = frozenset(
 )
 
 
+async def _refuse_ai2_reindex(
+    session: AsyncSession,
+    *,
+    dossier_id: str,
+    tenant_id: str,
+    run_id: str,
+    reason: str,
+    **detail: Any,
+) -> None:
+    """Audit a reindex the worker will not run.
+
+    The API answered 202 from the job status alone; this row is how the caller
+    learns the dossier cannot be reindexed (no AI2 result, no confirmed manifest).
+    """
+    logger.warning(
+        "worker.ai2.reindex_refused", dossier_id=dossier_id, run_id=run_id, reason=reason, **detail
+    )
+    add_audit_event(
+        session,
+        tenant_id=tenant_id,
+        action="ai2.reindex_refused",
+        entity_type="pipeline_run",
+        entity_id=run_id,
+        dossier_id=dossier_id,
+        run_id=run_id,
+        detail={"reason": reason, **detail},
+    )
+    await session.commit()
+
+
 async def _run_ai2_reindex(
     session: AsyncSession,
     *,
@@ -1877,27 +1920,23 @@ async def _run_ai2_reindex(
     """
     job = await _job_for_run(session, run_id)
     run = await _load_run(session, run_id)
-    if (
-        job is None
-        or run is None
-        or job.dossier_id != dossier_id
-        or job.tenant_id != tenant_id
-        or job.status not in AI2_REINDEXABLE_STATUSES
-        or not run.ai2_result_digest
-    ):
-        logger.warning(
-            "worker.ai2.reindex_refused",
-            dossier_id=dossier_id,
-            run_id=run_id,
-            job_status=job.status if job else None,
-            has_result=bool(run and run.ai2_result_digest),
-        )
+    if job is None or run is None or job.dossier_id != dossier_id or job.tenant_id != tenant_id:
+        logger.warning("worker.ai2.reindex_refused", dossier_id=dossier_id, run_id=run_id)
+        return
+    refuse = functools.partial(
+        _refuse_ai2_reindex, session, dossier_id=dossier_id, tenant_id=tenant_id, run_id=run_id
+    )
+    if job.status not in AI2_REINDEXABLE_STATUSES:
+        await refuse(reason="job_status", job_status=job.status)
+        return
+    if not run.ai2_result_digest:
+        await refuse(reason="no_ai2_result")
         return
     manifest = (
         await session.execute(select(ManifestORM).where(ManifestORM.dossier_id == dossier_id))
     ).scalar_one_or_none()
     if manifest is None or manifest.status != "confirmed":
-        logger.warning("worker.ai2.reindex_refused", dossier_id=dossier_id, reason="manifest")
+        await refuse(reason="manifest")
         return
     members, relations, documents = await _manifest_inputs(
         session, manifest_id=manifest.id, dossier_id=dossier_id
@@ -1916,7 +1955,7 @@ async def _run_ai2_reindex(
         max_processing_seconds=budget,
     )
     if request is None:
-        logger.warning("worker.ai2.reindex_refused", dossier_id=dossier_id, reason="snapshots")
+        await refuse(reason="snapshots")
         return
 
     # Claim the attempt before AI2 sees it: a crash or a second reindex then
