@@ -736,7 +736,7 @@ export function ClauseConflictPage() {
         </details>
       ) : null}
 
-      <div className="grid min-h-0 w-full flex-1 grid-cols-1 overflow-hidden rounded border border-outline-variant/50 bg-surface-container-low shadow-sm xl:grid-cols-12">
+      <div className="grid min-h-0 w-full flex-1 grid-cols-1 overflow-hidden rounded border border-outline-variant/50 bg-surface-container-low shadow-sm max-xl:grid-rows-[minmax(420px,1fr)_minmax(420px,1fr)] max-xl:overflow-y-auto xl:grid-cols-12">
         <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-r border-outline-variant/60 xl:col-span-7">
           {comparing ? (
             <div className="grid h-full min-h-0 flex-1 grid-rows-2">
@@ -915,9 +915,19 @@ export function ClauseConflictPage() {
           </div>
           <div className="flex-1 space-y-space-sm overflow-y-auto p-space-md">
             {loading ? (
-              <p className="font-body-sm text-body-sm text-on-surface-variant">
-                Đang tải các chỗ cần kiểm tra…
-              </p>
+              <div aria-live="polite" className="space-y-space-sm">
+                <p className="font-body-sm text-body-sm text-on-surface-variant">
+                  Đang tải các chỗ cần kiểm tra…
+                </p>
+                <div aria-hidden="true" className="space-y-space-sm">
+                  {Array.from({ length: 6 }, (_, index) => (
+                    <div
+                      key={index}
+                      className="h-28 animate-pulse rounded border border-outline-variant/30 bg-surface-container-low"
+                    />
+                  ))}
+                </div>
+              </div>
             ) : null}
             {error ? (
               <p className="font-body-sm text-body-sm text-error">{error}</p>
