@@ -54,6 +54,7 @@ done
 echo "[deploy] configuring Keycloak"
 "${COMPOSE[@]}" exec -T \
   -e KEYCLOAK_ADMIN_PASSWORD="$(envval KEYCLOAK_ADMIN_PASSWORD)" \
+  -e KEYCLOAK_PUBLIC_URL="https://$(envval AUTH_HOST)" \
   -e FRONTEND_ORIGINS="$(envval FRONTEND_ORIGINS)" \
   -e BACKEND_KEYCLOAK_ADMIN_SECRET="$(envval BACKEND_KEYCLOAK_ADMIN_SECRET)" \
   -e DEMO_ADMIN_PASSWORD="$(envval DEMO_ADMIN_PASSWORD)" \
