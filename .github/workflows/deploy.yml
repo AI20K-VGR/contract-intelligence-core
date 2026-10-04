@@ -13,6 +13,9 @@
 #   DEPLOY_KNOWN_HOSTS  the server's line(s) from `ssh-keyscan -t ed25519 <host>`,
 #                       checked by hand once, so the runner never trusts an unknown host
 # Without DEPLOY_HOST the job reports "not configured" and succeeds.
+#
+# Who may deploy is decided by the "production" environment, not by this file
+# (deploy/README.md, "Duyệt trước khi deploy").
 name: deploy
 
 on:
@@ -32,6 +35,10 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # Approval gate: when the "production" environment has required reviewers
+    # (repo Settings → Environments), the job waits for one of them. Until an
+    # admin adds that rule the job starts at once, as before.
+    environment: production
     env:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}

@@ -182,6 +182,26 @@ Chưa có `DEPLOY_HOST` thì workflow báo "not configured" và không làm gì.
 
 Workflow chỉ fast-forward: nếu checkout trên server có commit riêng thì deploy dừng lại, không ghi đè. Hai lần deploy không chạy chồng nhau; lần sau chờ lần trước xong.
 
+### Duyệt trước khi deploy
+
+Job `deploy` chạy trong GitHub Environment `production`. Khi environment này có người duyệt bắt buộc, mỗi lần merge vào `develop` chỉ tạo một lần chạy ở trạng thái "Waiting"; server không đổi cho tới khi người duyệt bấm **Review deployments → Approve** ở trang của lần chạy đó. Từ chối thì lần chạy bị huỷ. Lần chạy chờ quá 30 ngày tự hết hạn.
+
+Luật duyệt nằm ở cấu hình repo, không nằm trong file workflow, và **chỉ tài khoản có quyền admin repo đặt được**:
+
+- Giao diện: Settings → Environments → `production` → Required reviewers → thêm người duyệt (hiện là `Chuongpham2004`) → Save. Nên đặt thêm Deployment branches = `develop`.
+- Hoặc bằng API (thay `<id>` bằng kết quả của `gh api users/<login> --jq .id`):
+
+  ```bash
+  gh api -X PUT repos/AI20K-VGR/contract-intelligence-core/environments/production --input - <<'JSON'
+  {"wait_timer": 0, "prevent_self_review": false,
+   "reviewers": [{"type": "User", "id": <id>}],
+   "deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}}
+  JSON
+  gh api -X POST repos/AI20K-VGR/contract-intelligence-core/environments/production/deployment-branch-policies -f name=develop
+  ```
+
+Chưa có luật này thì environment `production` chỉ là một cái tên: workflow chạy ngay như trước. Kiểm tra luật đã có chưa: `gh api repos/AI20K-VGR/contract-intelligence-core/environments/production --jq .protection_rules`.
+
 Server cài trước 02/10/2026 (trước issue #52) cần làm thêm một lần trước lần cập nhật đầu tiên:
 
 1. `sudo deploy/backup.sh`. Image `backend-db` đổi từ `postgres:16-alpine` sang `pgvector/pgvector:pg16`; cùng Postgres 16 và DB dùng `--locale=C` nên dữ liệu dùng tiếp được, nhưng vẫn nên có bản backup.
