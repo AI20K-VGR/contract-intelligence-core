@@ -315,6 +315,13 @@ async def test_snapshot_result_read_model_query_and_review_flow(
     assert persisted["review_state"] == "PASS"
     assert persisted["evidence_ready"] is False
 
+    semantic_response = await client.get(f"/api/v1/dossiers/{DOSSIER_ID}/semantic-results")
+    assert semantic_response.status_code == 200
+    assert semantic_response.json()["data"]["run_id"] == RUN_ID
+    assert semantic_response.json()["data"]["state"] == "NOT_MEASURED"
+    assert semantic_response.json()["data"]["reason"] == "LEGACY_EXTENSION_ABSENT"
+    assert semantic_response.json()["data"]["semantic_extension"] is None
+
     with patch(
         "contract_intelligence.api.v1.dossiers.query_ai2",
         new=AsyncMock(
@@ -357,7 +364,14 @@ async def test_review_queue_rejects_stale_version_after_invalid_evidence(
     invalid_result["result"]["facts"][0]["citation_ids"] = ["citation-does-not-exist"]
 
     async with db_session_factory() as session:
-        session.add(JobORM(id="job-vsf-ai2-review", tenant_id=TENANT_ID, dossier_id=DOSSIER_ID))
+        session.add(
+            JobORM(
+                id="job-vsf-ai2-review",
+                tenant_id=TENANT_ID,
+                dossier_id=DOSSIER_ID,
+                current_run_id=REVIEW_RUN_ID,
+            )
+        )
         session.add(
             PipelineRunORM(
                 id=REVIEW_RUN_ID,

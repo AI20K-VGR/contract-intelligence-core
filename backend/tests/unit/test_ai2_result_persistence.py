@@ -30,6 +30,73 @@ IDEMPOTENCY_KEY = "idem-ai2"
 HASH = "a" * 64
 
 
+@pytest.mark.asyncio
+async def test_semantic_scope_rejected_before_writes():
+    engine, factory = await _session_factory()
+    try:
+        async with factory() as session:
+            await _seed_run(session)
+            result = complete_result()
+            result["result"]["semantic_extension"] = {
+                "schema_version": "ai2.semantic.v1",
+                "tenant_id": "different-tenant",
+                "dossier_id": DOSSIER_ID,
+                "profile_digest": HASH,
+                "alias_version": 0,
+                "alias_digest": None,
+                "frames": [],
+                "rows": [],
+                "pairs": [],
+                "timeline": [],
+                "alias_drafts": [],
+                "coverage": {
+                    "state": "NOT_MEASURED",
+                    "attempted_nodes": 0,
+                    "frames": 0,
+                    "grounded_slots": 0,
+                    "unresolved_slots": 0,
+                    "invalid_evidence": 0,
+                    "reasons": [],
+                    "context_nodes": 0,
+                    "context_calls": 0,
+                },
+            }
+            with pytest.raises(ValueError, match="semantic.*scope"):
+                await persist_ai2_processing_result(
+                    session,
+                    tenant_id=TENANT_ID,
+                    dossier_id=DOSSIER_ID,
+                    result=result,
+                    run_id=RUN_ID,
+                )
+            assert await session.scalar(select(func.count()).select_from(ReviewItemORM)) == 0
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_negotiated_run_legacy_result_is_partial_after_rollback():
+    engine, factory = await _session_factory()
+    try:
+        async with factory() as session:
+            await _seed_run(session)
+            run = await session.get(PipelineRunORM, RUN_ID)
+            run.config_snapshot = '{"semantic_profile":{"digest":"pinned"}}'
+            result = complete_result()
+            stored = await persist_ai2_processing_result(
+                session, tenant_id=TENANT_ID, dossier_id=DOSSIER_ID, result=result, run_id=RUN_ID
+            )
+            await session.commit()
+            assert (
+                stored["reason_code"] == "SEMANTIC_NOT_MEASURED"
+                and stored["evidence_ready"] is False
+            )
+            loaded = await load_ai2_read_model(session, tenant_id=TENANT_ID, run_id=RUN_ID)
+            assert loaded.payload == result and loaded.completeness_state == "NEEDS_REVIEW"
+    finally:
+        await engine.dispose()
+
+
 def _citation(citation_id: str, document_id: str) -> dict[str, object]:
     return {
         "citation_id": citation_id,
@@ -399,5 +466,30 @@ async def test_findings_project_real_two_sided_citations_and_skip_single_documen
             for finding in findings:
                 documents = {s.document_id for s in sides if s.finding_id == finding.id}
                 assert documents == {"document-body", "document-annex"}
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_worker_persisted_off_pin_survives_later_enable(monkeypatch):
+    import json
+
+    from contract_intelligence.worker import _freeze_semantic_profile
+
+    engine, factory = await _session_factory()
+    try:
+        monkeypatch.setenv("AI2_SEMANTIC_ENABLED", "false")
+        async with factory() as session:
+            await _seed_run(session)
+            run = await session.get(PipelineRunORM, RUN_ID)
+            assert await _freeze_semantic_profile(session, run, TENANT_ID) is None
+            await session.commit()
+        monkeypatch.setenv("AI2_SEMANTIC_ENABLED", "true")
+        monkeypatch.delenv("AI2_SEMANTIC_PROFILE_CONFIG", raising=False)
+        async with factory() as session:
+            reopened = await session.get(PipelineRunORM, RUN_ID)
+            assert "semantic_profile" in json.loads(reopened.config_snapshot)
+            assert await _freeze_semantic_profile(session, reopened, TENANT_ID) is None
+            assert json.loads(reopened.config_snapshot)["semantic_profile"] is None
     finally:
         await engine.dispose()

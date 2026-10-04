@@ -335,7 +335,9 @@ def test_slow_query_llm_returns_retrieval_answer_within_deadline(monkeypatch):
     body = response.json()
     assert _llm_calls() == 1
     assert body["citations"]
-    assert body["used_llm"] is False
+    # The result falls back to retrieval, but the provider call was actually
+    # attempted and must be reflected in telemetry.
+    assert body["used_llm"] is True
     assert body["state"] != "BLOCKED"
     assert FakeLLM.instances[0].kwargs.get("timeout") == 0.5
 

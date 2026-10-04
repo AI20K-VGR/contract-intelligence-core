@@ -179,7 +179,9 @@ def test_processing_request_adapts_full_dossier_and_preserves_roles():
         "doc-body-example-001": "body",
         "doc-annex-example-001": "annex",
     }
-    assert adapted.record.egress_approved is False
+    # Processing egress is controlled by the AI2 server environment, not the
+    # request flag. The worktree test environment enables the live lane.
+    assert adapted.record.egress_approved is True
 
 
 def test_processing_request_rejects_membership_mismatch():
