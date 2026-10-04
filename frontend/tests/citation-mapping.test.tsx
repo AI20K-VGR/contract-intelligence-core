@@ -135,6 +135,58 @@ describe('citation mapping', () => {
     expect(bbox).toEqual([0.1, 0.2, 0.8, 0.22])
   })
 
+  it('keeps citation 13, 32, and table citation 91 in the shared pane contract', () => {
+    const nodes = buildNumberedTree([
+      line(2, 1, 'Điều 1. Thông tin thanh toán của thân hợp đồng.'),
+      line(2, 2, '1.1. Phụ lục 1 mô tả các mốc thanh toán chi tiết.'),
+    ])
+    const numbers = new Map(citationNumbers(nodes))
+    numbers.set(nodes[0].id, 13)
+    numbers.set(nodes[0].children[0].id, 32)
+    numbers.set('sentinel', 90)
+    const bodyQuote = nodes[0].text
+    const annexQuote = nodes[0].children[0].text
+    const tableQuote = '| 11 | Máy chủ ứng dụng | bộ | 4 | 25.650.000 |'
+    const cites = searchCites(
+      nodes,
+      [
+        {
+          text: bodyQuote,
+          pageNo: 2,
+          lineId: 'doc_body:s1:p002:l001',
+          sourceFileId: 'doc_body',
+        },
+        {
+          text: annexQuote,
+          pageNo: 2,
+          lineId: 'doc_body:s1:p002:l002',
+          sourceFileId: 'doc_body',
+        },
+        {
+          text: tableQuote,
+          pageNo: 2,
+          lineId: 'doc_annex:s1:p002:l004',
+          sourceFileId: 'doc_annex',
+        },
+      ],
+      numbers,
+      `${bodyQuote} ${annexQuote} ${tableQuote}`,
+      'doc_body',
+    )
+
+    expect(cites.map((cite) => cite.n)).toEqual([13, 32, 91])
+    expect(cites.map((cite) => cite.documentId)).toEqual([
+      'doc_body',
+      'doc_body',
+      'doc_annex',
+    ])
+    expect(cites.map((cite) => citationNode(cite).nodeType)).toEqual([
+      'line',
+      'line',
+      'line',
+    ])
+  })
+
   it('keeps both body and annex citations for a compare answer', () => {
     const nodes = buildNumberedTree([
       line(2, 1, 'HỢP ĐỒNG KINH TẾ - CUNG CẤP VÀ TRIỂN KHAI HỆ THỐNG (tiếp theo)'),
