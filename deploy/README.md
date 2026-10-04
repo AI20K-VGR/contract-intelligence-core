@@ -1,8 +1,8 @@
-# Triển khai online — 1 VPS + Docker Compose
+# Triển khai online — 1 máy chủ Linux + Docker Compose
 
-Chạy toàn bộ stack (Keycloak, Postgres ×2, Kafka, MinIO, backend, backend-worker, AI1, AI2) trên một máy Linux. Caddy đứng trước, lo HTTPS.
+Chạy toàn bộ stack (Keycloak, Postgres ×2, Kafka, MinIO, backend, backend-worker, AI1, AI2, giám sát) trên một máy chủ cloud Linux, bằng chính `docker-compose.yml` của dự án cộng với `deploy/compose.prod.yml`. Caddy đứng trước, lo HTTPS. Frontend có thể chạy trên cùng máy (tuỳ chọn).
 
-Triển khai lên Azure Pay-As-You-Go (tạo VM bằng Azure CLI, kèm frontend): xem [AZURE.md](AZURE.md).
+Mọi thao tác làm qua SSH từ máy dev. Không cần công cụ của nhà cung cấp cloud nào.
 
 ## Cái gì ra Internet
 
@@ -24,26 +24,77 @@ Những thứ không ra Internet, chỉ nằm trong mạng `ci-network`:
 
 ## Máy chủ cần
 
-- Ubuntu 22.04/24.04 (hoặc Debian 12).
-- Tối thiểu 4 vCPU, 8 GB RAM (khuyên dùng 16 GB), 60 GB đĩa.
-- Cổng 80 và 443 mở từ Internet.
+- Ubuntu 22.04/24.04 (hoặc Debian 12), kiến trúc x86-64, có quyền `sudo`.
+- Tối thiểu 4 vCPU, 8 GB RAM (khuyên dùng 16 GB), 60 GB đĩa. Stack local dùng khoảng 2,7 GB RAM khi nhàn rỗi (đo 04/10/2026); build image và OCR hồ sơ lớn cần thêm.
+- Một IPv4 công khai **cố định**: tên miền `sslip.io` và chứng chỉ gắn với IP này.
+- Cổng 80 và 443 mở từ Internet ở firewall của nhà cung cấp (security group). Cổng 22 mở cho người vận hành.
 
-## Lần đầu
+## Kế hoạch triển khai qua SSH
+
+### Thông tin cần có trước khi bắt đầu
+
+| Thông tin | Dùng để |
+|---|---|
+| IP công khai, user SSH, khoá SSH (hoặc mật khẩu) | Đăng nhập máy chủ |
+| Nhánh cần deploy (thường `develop`) | `git checkout` |
+| Quyền đọc repo từ máy chủ | Repo riêng tư thì cần Personal Access Token hoặc deploy key |
+| `MISTRAL_API_KEY`, `OPENAI_API_KEY` | AI1 OCR (`ai-service/.env`) |
+| `AI2_LLM_BASE_URL`, `AI2_LLM_API_KEY` | AI2 (`deploy/.env.prod`) |
+| SMTP (tuỳ chọn) | Thư mời và chia sẻ; trống thì thư vào mailpit |
+| Frontend chạy trên máy này hay ở nơi khác | Quyết định `APP_HOST` |
+
+### Bước 1. Kiểm tra máy chủ
+
+```bash
+ssh <user>@<ip> 'lsb_release -ds; uname -m; nproc; free -g | sed -n 2p; df -h / | tail -1; sudo -n true && echo "sudo ok"'
+ssh <user>@<ip> 'sudo ss -ltnp | grep -E ":(80|443) " || echo "80/443 free"'
+```
+
+Cần thấy: Ubuntu/Debian, `x86_64`, đủ CPU/RAM/đĩa như trên, `sudo ok`, và chưa có gì chiếm cổng 80/443. Nếu máy đã chạy web server khác ở 80/443 thì phải dừng nó hoặc chọn máy khác: Caddy cần hai cổng này để xin chứng chỉ.
+
+### Bước 2. Lấy mã nguồn và cài nền
 
 ```bash
 ssh <user>@<ip>
 sudo git clone https://github.com/AI20K-VGR/contract-intelligence-core.git /opt/contract-intelligence
 cd /opt/contract-intelligence
 sudo git checkout <nhánh cần deploy>
-sudo deploy/bootstrap.sh          # Docker (xoay vòng log 5 × 20 MB), firewall, swap, deploy/.env.prod với secret ngẫu nhiên
-sudo nano deploy/.env.prod        # điền AI2_LLM_BASE_URL / AI2_LLM_API_KEY (Lead chốt provider)
-sudo nano ai-service/.env         # MISTRAL_API_KEY cho AI1
+sudo deploy/bootstrap.sh
+```
+
+`bootstrap.sh` cài Docker (xoay vòng log 5 × 20 MB), bật firewall trong máy (chỉ SSH, 80, 443), thêm swap nếu RAM dưới 16 GB, và tạo `deploy/.env.prod` với:
+
+- `API_HOST`, `AUTH_HOST`, `APP_HOST` theo IP công khai của máy;
+- `FRONTEND_ORIGINS`, `FRONTEND_BASE_URL` trỏ về `https://app-<ip>.sslip.io`;
+- mọi secret được sinh ngẫu nhiên.
+
+Chạy lại được: `deploy/.env.prod` đã có thì script không đụng tới.
+
+### Bước 3. Điền cấu hình
+
+```bash
+sudo nano deploy/.env.prod        # AI2_LLM_BASE_URL, AI2_LLM_API_KEY; SMTP_* nếu gửi thư thật
+sudo nano ai-service/.env         # MISTRAL_API_KEY, OPENAI_API_KEY; AI2_EMBEDDING_* nếu dùng vector
+```
+
+Có sẵn `ai-service/.env` trên máy dev thì chép lên thay vì gõ lại:
+
+```bash
+scp ai-service/.env <user>@<ip>:/tmp/ai.env
+ssh <user>@<ip> 'sudo install -m 600 /tmp/ai.env /opt/contract-intelligence/ai-service/.env && rm /tmp/ai.env'
+```
+
+Không muốn máy này phục vụ frontend: để `APP_HOST=` trống và bỏ `https://app-…` khỏi `FRONTEND_ORIGINS`.
+
+### Bước 4. Triển khai
+
+```bash
 sudo deploy/deploy.sh
 ```
 
 `deploy.sh` làm các bước sau:
 
-1. Build image.
+1. Build image (và frontend nếu có `APP_HOST`).
 2. `up -d`.
 3. Chờ backend healthy. Backend tự chạy `alembic upgrade head`.
 4. Chạy `keycloak_configure.py`:
@@ -52,16 +103,31 @@ sudo deploy/deploy.sh
    - **Đổi mật khẩu 3 tài khoản demo** (mật khẩu trong `realm-export.json` là công khai).
    - Cấu hình SMTP nếu có.
    - Bật chống dò mật khẩu: khoá tạm tài khoản sau 5 lần sai, tối đa 15 phút.
-5. Smoke test trên máy chủ: `/health`, issuer OIDC, `/admin` bị chặn.
+5. Smoke test trên máy chủ: `/health`, issuer OIDC, `/admin` bị chặn, `/grafana` từ chối người lạ, frontend trả 200 (nếu có).
 
-**Kiểm tra cổng phải chạy từ máy khác.** Từ chính VPS gọi IP công khai của nó có thể đi vòng trong máy và bỏ qua firewall. Cách chạy:
+Lần đầu Caddy cần khoảng một phút để xin chứng chỉ. Cuối cùng script in địa chỉ frontend và các biến `VITE_*` cho frontend chạy trên máy dev.
 
-- GitHub → Actions → `deploy-external-check` → nhập `api-…` và `auth-…`; hoặc
-- trên máy dev: `deploy/check_external.sh api-<ip>.sslip.io auth-<ip>.sslip.io`.
+### Bước 5. Kiểm tra từ bên ngoài
 
-Script kiểm HTTPS, `/admin` 404 và 14 cổng nội bộ (8002, DB, Kafka, MinIO, Keycloak, mailpit) đều đóng.
+**Kiểm tra cổng phải chạy từ máy khác.** Từ chính máy chủ gọi IP công khai của nó có thể đi vòng trong máy và bỏ qua firewall. Cách chạy:
 
-Cuối cùng script in sẵn các biến `VITE_*` cho frontend.
+- trên máy dev: `deploy/check_external.sh api-<ip>.sslip.io auth-<ip>.sslip.io [app-<ip>.sslip.io]`; hoặc
+- GitHub → Actions → `deploy-external-check` → nhập các host.
+
+Script kiểm HTTPS, issuer OIDC, `/admin` 404, `/grafana` 401, frontend 200 (nếu truyền host) và 19 cổng nội bộ (8002, DB, Kafka, MinIO, Keycloak, mailpit, giám sát) đều đóng.
+
+### Bước 6. Chạy thử luồng chính
+
+Trên `https://app-<ip>.sslip.io` (hoặc frontend ở máy dev trỏ vào server):
+
+| # | Việc | Kết quả mong đợi |
+|---|---|---|
+| 1 | Đăng nhập `operator@ci.local` (mật khẩu `DEMO_OPERATOR_PASSWORD` trong `deploy/.env.prod`) | Vào được trang danh sách hồ sơ |
+| 2 | Tải lên một hợp đồng PDF vài trang | Hồ sơ chuyển sang OCR, tiến độ cập nhật trực tiếp (SSE) |
+| 3 | Xác nhận manifest | Hồ sơ sang bước AI2 rồi `pending_review` |
+| 4 | Mở trang cấu trúc và hỏi đáp trên hồ sơ | Có cây điều khoản; câu trả lời kèm trích dẫn |
+| 5 | Đăng nhập `reviewer@ci.local`, thẩm định một xung đột | Trạng thái xung đột đổi |
+| 6 | Đăng nhập `admin@ci.local`, mở Giám sát hệ thống | Dashboard Grafana hiện, có số liệu OCR vừa chạy |
 
 ## Cập nhật
 
@@ -103,7 +169,7 @@ Server đã cài từ trước không có `APP_HOST` nên không đổi gì. Mu�
 
 | Việc | Lệnh |
 |---|---|
-| Trạng thái | `docker compose -f docker-compose.yml -f deploy/compose.prod.yml --env-file deploy/.env.prod ps` |
+| Trạng thái | `docker compose -f docker-compose.yml -f deploy/compose.prod.yml --env-file deploy/.env.prod ps` (thêm `-f deploy/compose.frontend.yml` trước `--env-file` khi `APP_HOST` có giá trị) |
 | Log backend / worker | `... logs -f backend backend-worker` |
 | Keycloak admin | Trên server lấy IP container: `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ci-keycloak`. Trên máy mình: `ssh -L 8080:<IP đó>:8080 <user>@<ip>`, rồi mở `http://localhost:8080/admin` (user `admin`, mật khẩu `KEYCLOAK_ADMIN_PASSWORD`) |
 | Đọc email (mailpit) | Như trên với `ci-mailpit` và cổng `8025`, rồi mở `http://localhost:8025` |
