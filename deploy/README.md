@@ -29,6 +29,28 @@ Những thứ không ra Internet, chỉ nằm trong mạng `ci-network`:
 - Một IPv4 công khai **cố định**: tên miền `sslip.io` và chứng chỉ gắn với IP này.
 - Cổng 80 và 443 mở từ Internet ở firewall của nhà cung cấp (security group). Cổng 22 mở cho người vận hành.
 
+### Máy chủ ít RAM (4 GB)
+
+Chạy được cho demo ít người dùng, chậm hơn và ít dư địa hơn. Làm ba việc trước khi chạy `deploy.sh`:
+
+1. Swap tổng cộng 4 GB trở lên, để lúc build hoặc OCR vọt bộ nhớ thì máy chậm lại chứ tiến trình không bị giết. `bootstrap.sh` chỉ thêm swap khi máy chưa có swap nào; máy đã có sẵn swap nhỏ thì thêm tay:
+
+   ```bash
+   sudo fallocate -l 4G /swapfile2 && sudo chmod 600 /swapfile2 && sudo mkswap /swapfile2 && sudo swapon /swapfile2
+   echo '/swapfile2 none swap sw 0 0' | sudo tee -a /etc/fstab
+   ```
+
+2. Trong `deploy/.env.prod`:
+
+   ```env
+   KAFKA_HEAP_OPTS="-Xmx256m -Xms256m"
+   KEYCLOAK_HEAP_OPTS="-Xms128m -Xmx384m"
+   ```
+
+3. Trong `ai-service/.env`, giảm số trang OCR song song: `AI1_MAX_PAGES_IN_FLIGHT=2`.
+
+Hồ sơ hàng trăm trang vẫn có thể đẩy máy vào swap. Máy 2 GB không đủ: stack dùng khoảng 2,7 GB ngay khi nhàn rỗi.
+
 ## Kế hoạch triển khai qua SSH
 
 ### Thông tin cần có trước khi bắt đầu

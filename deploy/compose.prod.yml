@@ -52,6 +52,9 @@ services:
       KC_LOG_LEVEL: INFO
       KC_SPI_THEME_CACHE_THEMES: "true"
       KC_SPI_THEME_CACHE_TEMPLATES: "true"
+      # Empty = Keycloak's own default, a heap of up to 70% of the machine's
+      # RAM. Cap it on a small server (deploy/README.md, "Máy chủ ít RAM").
+      JAVA_OPTS_KC_HEAP: ${KEYCLOAK_HEAP_OPTS:-}
     ports: !reset []
     # Theme is baked into the image; keep only the realm import.
     volumes: !override
