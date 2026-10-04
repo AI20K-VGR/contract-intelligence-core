@@ -101,7 +101,26 @@ def start_metrics_server() -> None:
     except (OSError, ValueError):
         logger.exception("ai1.metrics.server_failed port=%s", port)
         return
+    _prime_series()
     logger.info("ai1.metrics.server_started port=%s", port)
+
+
+def _prime_series() -> None:
+    """Expose every bounded label combination at 0 before the first OCR.
+
+    increase() only counts growth between samples of one series. A series that
+    first appears at 1 (the first OCR after a restart) shows no increase, so that
+    OCR would be missing from every rate and percentile panel. Error codes and
+    model ids are not a fixed set and are left out.
+    """
+    for engine in (*_ENGINES, "other"):
+        for status in ("completed", "failed"):
+            OCR_REQUESTS.labels(engine, status)
+        OCR_DURATION.labels(engine)
+        for page_status in (*_PAGE_STATUSES, "OTHER"):
+            OCR_PAGES.labels(engine, page_status)
+        OCR_FALLBACK_PAGES.labels(engine)
+        OCR_REVIEW_PAGES.labels(engine)
 
 
 def _engine(value: Any) -> str:

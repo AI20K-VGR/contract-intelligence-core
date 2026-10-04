@@ -1,6 +1,7 @@
 from prometheus_client import REGISTRY, generate_latest
 
 from contract_ocr.infrastructure import kafka_worker as kw
+from contract_ocr.infrastructure import prometheus_metrics
 from contract_ocr.infrastructure.observability import observation, reset_langfuse_for_tests
 from contract_ocr.infrastructure.prometheus_metrics import record_model_call, record_ocr_job
 
@@ -134,3 +135,21 @@ def test_worker_records_each_command_once(monkeypatch):
     assert first["payload"]["result"] == SNAPSHOT_RESULT
     assert _value("ai1_ocr_requests_total", engine="mistral", status="completed") == before + 1
     assert _value("ai1_ocr_in_progress") == 0
+
+
+def test_metrics_server_exposes_ocr_series_at_zero_before_the_first_ocr(monkeypatch):
+    """increase() would miss the first OCR after a restart if its series started at 1."""
+    monkeypatch.setenv("AI1_METRICS_PORT", "9108")
+    monkeypatch.setattr(prometheus_metrics, "start_http_server", lambda port: None)
+
+    prometheus_metrics.start_metrics_server()
+
+    for name, labels in (
+        ("ai1_ocr_requests_total", {"engine": "pymupdf", "status": "completed"}),
+        ("ai1_ocr_requests_total", {"engine": "pymupdf", "status": "failed"}),
+        ("ai1_ocr_request_duration_seconds_count", {"engine": "pymupdf"}),
+        ("ai1_ocr_pages_processed_total", {"engine": "pymupdf", "page_status": "FAILED"}),
+        ("ai1_ocr_fallback_pages_total", {"engine": "pymupdf"}),
+        ("ai1_ocr_review_pages_total", {"engine": "pymupdf"}),
+    ):
+        assert REGISTRY.get_sample_value(name, labels) == 0.0, name
