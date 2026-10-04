@@ -8,12 +8,23 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 ENV_FILE=deploy/.env.prod
-COMPOSE=(docker compose -f docker-compose.yml -f deploy/compose.prod.yml --env-file "$ENV_FILE")
 
 [ -f "$ENV_FILE" ] || { echo "missing $ENV_FILE — run deploy/bootstrap.sh first" >&2; exit 1; }
 [ -f ai-service/.env ] || { echo "missing ai-service/.env" >&2; exit 1; }
 
 envval() { grep -E "^$1=" "$ENV_FILE" | tail -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//'; }
+
+# APP_HOST set: this server also builds and serves the frontend.
+app_host=$(envval APP_HOST)
+COMPOSE=(docker compose -f docker-compose.yml -f deploy/compose.prod.yml)
+if [ -n "$app_host" ]; then
+  COMPOSE+=(-f deploy/compose.frontend.yml)
+  case ",$(envval FRONTEND_ORIGINS)," in
+    *",https://$app_host,"*) ;;
+    *) echo "FRONTEND_ORIGINS in $ENV_FILE must contain https://$app_host" >&2; exit 1 ;;
+  esac
+fi
+COMPOSE+=(--env-file "$ENV_FILE")
 
 if [ -z "$(envval AI2_LLM_BASE_URL)" ]; then
   echo "AI2_LLM_BASE_URL is empty in $ENV_FILE (Lead picks the LLM provider)" >&2
@@ -65,15 +76,27 @@ code=$(curl -s -o /dev/null -w '%{http_code}' "$auth/admin/master/console/")
 [ "$code" = 404 ] && echo "admin console blocked publicly: ok" || echo "WARNING: admin console answered $code"
 code=$(curl -s -o /dev/null -w '%{http_code}' -H 'X-WEBAUTH-USER: admin' "$api/grafana/")
 [ "$code" = 401 ] && echo "grafana refuses anonymous callers: ok" || echo "WARNING: /grafana answered $code"
+if [ -n "$app_host" ]; then
+  # A client-side route has no file behind it: 200 proves the index.html fallback.
+  code=$(curl -s -o /dev/null -w '%{http_code}' "https://$app_host/dossiers")
+  [ "$code" = 200 ] && echo "frontend served at https://$app_host: ok" || echo "WARNING: frontend answered $code"
+fi
 echo "Ports: run deploy/check_external.sh (or the deploy-external-check workflow) from"
 echo "another machine — probing this server's own public IP from here can bypass the"
 echo "provider firewall, so it is not a valid check."
 
+if [ -n "$app_host" ]; then
+  frontend_note="https://$app_host"
+else
+  frontend_note="not served by this server (APP_HOST is empty)"
+fi
+
 cat <<INFO
 
 [deploy] done. Next, from outside this server:
-  deploy/check_external.sh $(envval API_HOST) $(envval AUTH_HOST)
-Frontend (.env.local):
+  deploy/check_external.sh $(envval API_HOST) $(envval AUTH_HOST) $app_host
+Frontend online: $frontend_note
+Frontend on a dev machine (.env.local):
   VITE_API_BASE_URL=$api
   VITE_KEYCLOAK_URL=$auth
   VITE_KEYCLOAK_REALM=contract-intelligence

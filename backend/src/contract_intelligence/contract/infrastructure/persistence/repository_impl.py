@@ -157,10 +157,9 @@ class DossierRepositoryImpl(DossierRepository):
                 " AND (COALESCE(share_grant->>'expires_at', '') = ''"
                 " OR share_grant->>'expires_at' > :now_iso))"
             ).bindparams(viewer_id=viewer_id, viewer_email=viewer_email, now_iso=now_iso)
+        # A dossier without an owner is listed for nobody: shared.acl denies every
+        # read of it, so listing it only gave rows that answer 403 when opened.
         return or_(
-            meta.is_(None),
-            owner.is_(None),
-            owner == "",
             owner == viewer_id,
             and_(or_(scope.is_(None), scope != "mine"), shared),
         )

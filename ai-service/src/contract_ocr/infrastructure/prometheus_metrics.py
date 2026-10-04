@@ -101,7 +101,42 @@ def start_metrics_server() -> None:
     except (OSError, ValueError):
         logger.exception("ai1.metrics.server_failed port=%s", port)
         return
+    _create_zero_series()
     logger.info("ai1.metrics.server_started port=%s", port)
+
+
+def _known_models() -> tuple[str, ...]:
+    from contract_ocr.infrastructure.ocr.openai_vision_ocr import DEFAULT_MODEL as gpt_model
+
+    return (
+        os.environ.get("AI1_TEXT_MODEL", "mistral-ocr-2512"),
+        os.environ.get("AI1_VERIFIER_MODEL", "mistral-ocr-4-1"),
+        gpt_model,
+    )
+
+
+def _create_zero_series() -> None:
+    """Expose every known series at 0 before the first OCR command.
+
+    A labelled series does not exist until its first increment, and it is then
+    born at 1. Prometheus ``increase()`` measures growth between samples of one
+    series, so that first command counted as 0: after a worker restart the
+    dashboard showed no request, no pages and no P50/P95/P99 for it. Error
+    codes are not known in advance, so the first failure of a code is still
+    missed by "Failures by error code".
+    """
+    for engine in sorted(_ENGINES):
+        for status in ("completed", "failed"):
+            OCR_REQUESTS.labels(engine, status)
+        OCR_DURATION.labels(engine)
+        for page_status in sorted(_PAGE_STATUSES):
+            OCR_PAGES.labels(engine, page_status)
+        OCR_FALLBACK_PAGES.labels(engine)
+        OCR_REVIEW_PAGES.labels(engine)
+    for model in _known_models():
+        label = _model(model)
+        MODEL_CALLS.labels(label)
+        MODEL_COST.labels(label)
 
 
 def _engine(value: Any) -> str:
