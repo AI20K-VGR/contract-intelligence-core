@@ -984,6 +984,176 @@ async def test_reindex_event_schedules_a_reindex_hand_off(
 
 
 # ---------------------------------------------------------------------------
+# Restart clicked twice / documents stored without a page count
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def ocr_publish(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """Give the documents a blob, stub presigning, capture published OCR commands."""
+    monkeypatch.setattr(
+        worker.storage, "generate_presigned_get_url", AsyncMock(return_value="http://get")
+    )
+    monkeypatch.setattr(
+        worker.storage,
+        "generate_presigned_put_url",
+        AsyncMock(side_effect=lambda *, key, expires_in, **_: f"http://put/{key}"),
+    )
+    publish = AsyncMock()
+    monkeypatch.setattr(worker.messaging, "publish_event", publish)
+    return publish
+
+
+async def _with_blobs(factory: async_sessionmaker[AsyncSession], pages: int | None) -> None:
+    async with factory() as session:
+        for doc_id in (DOC_A, DOC_B):
+            document = await session.get(DocumentORM, doc_id)
+            assert document is not None
+            document.blob_uri = f"s3://dossiers/{doc_id}.pdf"
+            document.page_count = pages
+        await session.commit()
+
+
+def _restart(expected_run_id: str | None) -> dict[str, Any]:
+    return {
+        "event": "dossier.uploaded",
+        "dossier_id": DOSSIER,
+        "restart": True,
+        "expected_run_id": expected_run_id,
+    }
+
+
+@pytest.mark.asyncio
+async def test_double_clicked_restart_opens_one_run_and_ocrs_once(
+    factory: async_sessionmaker[AsyncSession], ocr_publish: AsyncMock
+) -> None:
+    await _with_blobs(factory, pages=2)
+    first_run = await _start(factory)
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.status = "failed"
+        await session.commit()
+    ocr_publish.reset_mock()
+
+    # Two clicks: both events name the run the user saw.
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(session, _restart(first_run))
+    second_run = (await _job(factory)).current_run_id
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(session, _restart(first_run))
+
+    job = await _job(factory)
+    assert second_run != first_run
+    assert job.current_run_id == second_run  # the duplicate did not supersede it
+    assert ocr_publish.await_count == 2  # one OCR command per document, once
+    async with factory() as session:
+        runs = (await session.execute(select(PipelineRunORM))).scalars().all()
+    assert len(runs) == 2
+
+
+@pytest.mark.asyncio
+async def test_restart_without_expected_run_still_works(
+    factory: async_sessionmaker[AsyncSession], ocr_publish: AsyncMock
+) -> None:
+    """Events published before expected_run_id existed keep the old behaviour."""
+    await _with_blobs(factory, pages=2)
+    first_run = await _start(factory)
+
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(
+            session, {"event": "dossier.uploaded", "dossier_id": DOSSIER, "restart": True}
+        )
+
+    assert (await _job(factory)).current_run_id != first_run
+
+
+@pytest.mark.asyncio
+async def test_missing_page_count_is_read_from_the_pdf(
+    factory: async_sessionmaker[AsyncSession],
+    ocr_publish: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tests.pdf_bytes import make_pdf
+
+    await _with_blobs(factory, pages=0)
+    monkeypatch.setattr(
+        worker.storage, "download_object", AsyncMock(return_value=make_pdf(pages=200))
+    )
+
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(
+            session, {"event": "dossier.uploaded", "dossier_id": DOSSIER}
+        )
+
+    async with factory() as session:
+        counts = [(await session.get(DocumentORM, d)).page_count for d in (DOC_A, DOC_B)]
+    assert counts == [200, 200]
+    payload = ocr_publish.await_args_list[0].args[1]["payload"]
+    assert payload["pages_to_process"] == list(range(1, 201))
+    assert len(payload["render_target"]["presigned_put_urls"]) == 200
+
+
+@pytest.mark.asyncio
+async def test_retry_with_every_page_kept_sends_no_ocr_and_still_counts_pages(
+    factory: async_sessionmaker[AsyncSession],
+    ocr_publish: AsyncMock,
+    ai2_ready: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A run that timed out but whose OCR result came in late: no OCR is paid twice."""
+    from tests.pdf_bytes import make_pdf
+
+    await _with_blobs(factory, pages=0)
+    failed_run = await _start(factory)
+    await _deliver(factory, _ocr_completed(failed_run, DOC_A))
+    await _deliver(factory, _ocr_completed(failed_run, DOC_B))
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.status, job.error_code = "failed", "AI1_TIMEOUT"
+        await session.commit()
+    ocr_publish.reset_mock()
+    ai2_ready.reset_mock()
+    monkeypatch.setattr(
+        worker.storage, "download_object", AsyncMock(return_value=make_pdf(pages=200))
+    )
+
+    retry = {**_restart(failed_run), "retry_failed": True}
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(session, retry)
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(session, retry)  # clicked twice
+
+    ocr_publish.assert_not_awaited()
+    job = await _job(factory)
+    assert job.current_run_id != failed_run and job.status == "extracted"
+    ai2_ready.assert_called_once()
+    async with factory() as session:
+        document = await session.get(DocumentORM, DOC_A)
+    assert document is not None and document.page_count == 200
+
+
+@pytest.mark.asyncio
+async def test_unreadable_pdf_keeps_ocr_going_on_the_old_estimate(
+    factory: async_sessionmaker[AsyncSession],
+    ocr_publish: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _with_blobs(factory, pages=0)
+    monkeypatch.setattr(
+        worker.storage, "download_object", AsyncMock(side_effect=OSError("storage down"))
+    )
+
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(
+            session, {"event": "dossier.uploaded", "dossier_id": DOSSIER}
+        )
+
+    assert ocr_publish.await_count == 2  # OCR still requested for both documents
+
+
+# ---------------------------------------------------------------------------
 # AI1 result uploaded to MinIO (payload.result_ref) instead of inlined
 # ---------------------------------------------------------------------------
 
