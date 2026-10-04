@@ -69,9 +69,17 @@ def _asks_full_payment_schedule(query: str) -> bool:
 
 
 def _grounded_user_prompt(task: dict[str, Any], steps: list[dict[str, Any]]) -> str:
+    coverage_ids = task.get("coverage_group_ids") or []
+    coverage_instruction = (
+        f"This is a grouped clause question. Cover every one of the {len(coverage_ids)} "
+        "retrieved sibling clauses in the answer; do not stop after the first match.\n"
+        if coverage_ids
+        else ""
+    )
     prefix = (
         f"query={str(task.get('query') or '')[:2_000]}\n"
         f"type={str(task.get('type') or '')[:200]}\n"
+        f"{coverage_instruction}"
         f"{RETRIEVED_TEXT_TAINT_INSTRUCTION}\n"
         f"{RETRIEVED_TEXT_START}\n"
     )

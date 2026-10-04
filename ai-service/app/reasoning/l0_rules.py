@@ -231,6 +231,21 @@ class L0Rules:
                 "notes": linked["notes"],
             }
 
+        if ttype == "payment_card":
+            from app.reasoning.ask_assemble import assemble_payment
+
+            linked = assemble_payment(
+                outline,
+                lambda nid: self.gateway.call("get_node", envelope, node_id=nid),
+            )
+            return {
+                "resolved": True,
+                "review_state": linked["review_state"],
+                "answer": linked["answer"],
+                "citations": linked["citations"],
+                "notes": linked["notes"],
+            }
+
         if ttype == "field_card":
             from app.reasoning.ask_assemble import assemble_field, assemble_mst
             from app.reasoning.fact_link import relate_mst

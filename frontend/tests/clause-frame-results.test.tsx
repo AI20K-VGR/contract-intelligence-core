@@ -220,8 +220,14 @@ describe('semantic results closed boundary and projections', () => {
       profile_digest: extension.profile_digest,
       alias_version: 7,
       alias_digest: extension.alias_digest,
+      alignment_key: ['PAY', 'scope:invoice'],
+      conflict_kind: 'SEMANTIC_CONFLICT',
+      slots_in_difference: ['modality_negation'],
     })
     expect(semantic?.pair?.disposition).toBe('SCOPE_DIFFERS')
+    expect(semantic?.alignment_key).toEqual(['PAY', 'scope:invoice'])
+    expect(semantic?.conflict_kind).toBe('SEMANTIC_CONFLICT')
+    expect(semantic?.slots_in_difference).toEqual(['modality_negation'])
     expect(semantic?.frame.slots.amount.value).toBe('9007199254740993')
     expect(decodeFindingSemantic(undefined)).toBeNull()
     expect(() =>

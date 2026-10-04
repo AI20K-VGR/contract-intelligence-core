@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import re
 
 
 FLAGS = (
@@ -15,6 +16,13 @@ FLAGS = (
     "AI2_VECTOR_RECALL_ENABLED",
 )
 
+SEMANTIC_PROFILE_KEYS = (
+    "version",
+    "contract_type",
+    "context_bounds",
+    "alias_proposal_minimum_length",
+)
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -23,6 +31,7 @@ def main() -> int:
     root = args.root.resolve()
     base = (root / "docker-compose.yml").read_text(encoding="utf-8")
     prod = (root / "deploy" / "compose.prod.yml").read_text(encoding="utf-8")
+    compatibility = (root / "docker-compose.golive-e2e.yml").read_text(encoding="utf-8")
     engine = (root / "ai-service" / "app" / "db" / "engine.py").read_text(encoding="utf-8")
     api = (root / "ai-service" / "app" / "api" / "main.py").read_text(encoding="utf-8")
     deploy = (root / "deploy" / "deploy.sh").read_text(encoding="utf-8")
@@ -31,6 +40,29 @@ def main() -> int:
 
     if "AI2_DATABASE_URL" not in base or "AI2_REQUIRE_DATABASE" not in base:
         errors.append("canonical compose does not require AI2_DATABASE_URL")
+    for label, text in (("canonical", base), ("compatibility", compatibility)):
+        for service in ("backend", "backend-worker"):
+            match = re.search(rf"^  {re.escape(service)}:\s*(?:#.*)?$", text, re.MULTILINE)
+            block = text[match.end() :] if match else ""
+            if match is None:
+                errors.append(f"{label} compose is missing {service}")
+                continue
+            next_service = re.search(r"\n  [A-Za-z0-9_.-]+:\s*(?:#.*)?$", block, re.MULTILINE)
+            if next_service:
+                block = block[: next_service.start()]
+            if "AI2_SEMANTIC_ENABLED:" not in block:
+                errors.append(f"{label} {service} does not enable semantic processing")
+            if "AI2_SEMANTIC_PROFILE_CONFIG:" not in block:
+                errors.append(f"{label} {service} is missing AI2_SEMANTIC_PROFILE_CONFIG")
+            for key in SEMANTIC_PROFILE_KEYS:
+                if key not in block:
+                    errors.append(f"{label} {service} semantic profile misses {key}")
+            if service == "backend-worker" and not re.search(
+                r"\n\s+backend:\s*\n\s+condition:\s+service_healthy\s*$",
+                block,
+                re.MULTILINE,
+            ):
+                errors.append(f"{label} backend-worker does not wait for healthy backend migrations")
     if "ai2_data:/app/data/ai2" in base or "ai2_data:/app/data/ai2" in prod:
         errors.append("runtime still mounts the legacy SQLite volume")
     if "postgresql+psycopg://ai2:" not in prod:

@@ -434,6 +434,8 @@ services:
     restart: unless-stopped
     command: ["uv", "run", "python", "-m", "contract_intelligence.worker"]
     depends_on:
+      backend:
+        condition: service_healthy
       backend-db:
         condition: service_healthy
       kafka:

@@ -19,6 +19,17 @@ class FindingSideSemanticDTO(BaseModel):
     profile_digest: str
     alias_version: int
     alias_digest: str | None
+    # Semantic v2 pair diagnostics are copied beside the nested pair so the
+    # finding list can render alignment/conflict details without rehydrating
+    # the full AI2 result.
+    alignment_key: list[str] | None = None
+    conflict_kind: Literal[
+        "SEMANTIC_CONFLICT",
+        "ARITHMETIC_INCONSISTENCY",
+        "AMENDMENT_REVIEW",
+        "COMPARABLE_DIFFERENCE",
+    ] | None = None
+    slots_in_difference: list[str] = Field(default_factory=list)
 
 
 class FindingSemanticDTO(BaseModel):
@@ -31,6 +42,18 @@ class FindingSemanticDTO(BaseModel):
     profile_digest: str
     alias_version: int
     alias_digest: str | None
+    # Keep the v2 alignment diagnostics in the list projection as well as in
+    # each side's semantic snapshot.  The repository intentionally exposes
+    # both projections so the conflict page can render without another AI2
+    # round trip.
+    alignment_key: list[str] | None = None
+    conflict_kind: Literal[
+        "SEMANTIC_CONFLICT",
+        "ARITHMETIC_INCONSISTENCY",
+        "AMENDMENT_REVIEW",
+        "COMPARABLE_DIFFERENCE",
+    ] | None = None
+    slots_in_difference: list[str] = Field(default_factory=list)
 
 
 class FindingSideDTO(BaseModel):

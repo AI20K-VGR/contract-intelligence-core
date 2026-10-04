@@ -358,6 +358,11 @@ services:
       # Docker DNS — do NOT interpolate host .env (localhost:8002 breaks in-container).
       AI2_BASE_URL: http://ai2-service:8002
       AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-local_hmac_secret}
+      # Clause-frame producer: freeze one trusted semantic profile per run.
+      # This must be present in the API and Kafka worker so both paths build
+      # the same request contract when semantic processing is enabled.
+      AI2_SEMANTIC_ENABLED: ${AI2_SEMANTIC_ENABLED:-true}
+      AI2_SEMANTIC_PROFILE_CONFIG: '{"version":1,"contract_type":"SALES","context_bounds":{"max_hops":2,"max_nodes":256,"max_context_tokens":32768,"max_output_tokens":8192,"max_llm_calls":20,"max_seconds":300},"alias_proposal_minimum_length":4}'
 
       # ---- CORS ----
       CORS_ALLOW_ORIGINS: "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173,http://127.0.0.1:3000"
@@ -426,6 +431,8 @@ services:
     restart: unless-stopped
     command: ["uv", "run", "python", "-m", "contract_intelligence.worker"]
     depends_on:
+      backend:
+        condition: service_healthy
       backend-db:
         condition: service_healthy
       kafka:
@@ -453,6 +460,8 @@ services:
       # Docker DNS — do NOT interpolate host .env (localhost:8002 breaks in-container).
       AI2_BASE_URL: http://ai2-service:8002
       AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-local_hmac_secret}
+      AI2_SEMANTIC_ENABLED: ${AI2_SEMANTIC_ENABLED:-true}
+      AI2_SEMANTIC_PROFILE_CONFIG: '{"version":1,"contract_type":"SALES","context_bounds":{"max_hops":2,"max_nodes":256,"max_context_tokens":32768,"max_output_tokens":8192,"max_llm_calls":20,"max_seconds":300},"alias_proposal_minimum_length":4}'
       AI1_OCR_ENGINE: ${AI1_OCR_ENGINE:-mistral}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     volumes:
@@ -533,6 +542,7 @@ services:
       AI2_EMBEDDING_API_KEY: ${AI2_EMBEDDING_API_KEY:-}
       AI2_EMBEDDING_DISCOVERY_ENABLED: ${AI2_EMBEDDING_DISCOVERY_ENABLED:-true}
       AI2_EMBEDDING_MODEL: ${AI2_EMBEDDING_MODEL:-text-embedding-3-small}
+      AI2_SEMANTIC_CONTEXT_CAPS: '{"max_hops":2,"max_nodes":256,"max_context_tokens":32768,"max_output_tokens":8192,"max_llm_calls":20,"max_seconds":300}'
     depends_on:
       backend-db:
         condition: service_healthy

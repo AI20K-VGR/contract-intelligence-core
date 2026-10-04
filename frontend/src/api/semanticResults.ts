@@ -143,6 +143,9 @@ export type FindingSemantic = {
   profile_digest: string
   alias_version: number
   alias_digest: string | null
+  alignment_key?: string[] | null
+  conflict_kind?: 'SEMANTIC_CONFLICT' | 'ARITHMETIC_INCONSISTENCY' | 'AMENDMENT_REVIEW' | 'COMPARABLE_DIFFERENCE' | null
+  slots_in_difference?: string[]
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -510,6 +513,9 @@ export function decodeFindingSemantic(value: unknown): FindingSemantic | null {
     profile_digest: hash(row.profile_digest),
     alias_version: integer(row.alias_version),
     alias_digest: row.alias_digest === null ? null : hash(row.alias_digest),
+    alignment_key: row.alignment_key === null || row.alignment_key === undefined ? null : array(row.alignment_key, (v) => text(v)),
+    conflict_kind: row.conflict_kind === null || row.conflict_kind === undefined ? null : choice(row.conflict_kind, ['SEMANTIC_CONFLICT', 'ARITHMETIC_INCONSISTENCY', 'AMENDMENT_REVIEW', 'COMPARABLE_DIFFERENCE']),
+    slots_in_difference: row.slots_in_difference === undefined ? [] : array(row.slots_in_difference, (v) => text(v)),
   }
   if (Boolean(result.pair) === Boolean(result.timeline))
     throw new Error('Finding cần đúng một semantic variant.')

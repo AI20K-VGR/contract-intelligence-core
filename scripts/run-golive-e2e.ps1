@@ -23,6 +23,22 @@ $missing = @($required | Where-Object { -not $values.ContainsKey($_) -or [string
 if ($missing.Count -gt 0) {
   throw "Full LLM/vector preflight refused: required provider values are empty ($($missing -join ', ')). Values are never printed."
 }
+$profileText = if ($values.ContainsKey('AI2_SEMANTIC_PROFILE_CONFIG')) {
+  [string]$values['AI2_SEMANTIC_PROFILE_CONFIG']
+} else { '' }
+if ([string]::IsNullOrWhiteSpace($profileText)) {
+  throw 'Full semantic preflight refused: AI2_SEMANTIC_PROFILE_CONFIG is missing.'
+}
+try {
+  $profile = $profileText | ConvertFrom-Json -ErrorAction Stop
+  foreach ($name in @('version', 'contract_type', 'context_bounds', 'alias_proposal_minimum_length')) {
+    if (-not ($profile.PSObject.Properties.Name -contains $name)) {
+      throw "missing $name"
+    }
+  }
+} catch {
+  throw 'Full semantic preflight refused: AI2_SEMANTIC_PROFILE_CONFIG is not a valid trusted profile.'
+}
 foreach ($flag in @('AI2_SEMANTIC_ENABLED','AI2_PROCESSING_EGRESS_ALLOWED','AI2_QUERY_EGRESS_ALLOWED','AI2_QUERY_USE_LLM','AI2_QUERY_USE_VECTOR','AI2_VECTOR_RECALL_ENABLED')) {
   $flagValue = if ($values.ContainsKey($flag)) { [string]$values[$flag] } else { '' }
   if ($flagValue.ToLowerInvariant() -notin @('1','true','yes','on')) { throw "Full AI2 preflight refused: $flag must be true." }
@@ -48,6 +64,9 @@ if (-not $ready) {
   docker compose @compose ps
   throw 'Frontend/backend health did not become ready. AI2 is internal-only; inspect it with docker compose exec ai2-service.'
 }
+
+python scripts/check_frontend_pdf_worker.py
+if ($LASTEXITCODE -ne 0) { throw 'PDF.js worker asset is not served as a JavaScript module.' }
 
 Write-Host 'E2E stack is ready.'
 Write-Host 'UI:      http://localhost:5173'

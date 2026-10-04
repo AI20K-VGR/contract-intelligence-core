@@ -337,6 +337,121 @@ def render_related_answer(packed: list[dict[str, Any]], rels: list[dict[str, Any
     return "\n".join(lines)
 
 
+def render_comparison_answer(packed: list[dict[str, Any]], query: str = "") -> str | None:
+    """Render a stable, descriptive body/annex comparison from grounded nodes.
+
+    The LLM is allowed to compose a richer answer when it cites both anchors.
+    If that draft is rejected by the citation gate, the fallback must still be
+    useful and repeatable.  This renderer deliberately describes the two
+    document roles and quotes one representative node from each side; it does
+    not infer precedence or a legal winner.
+    """
+
+    body = [item for item in packed if _comparison_side(item.get("side")) == "body"]
+    annex = [item for item in packed if _comparison_side(item.get("side")) == "annex"]
+    if not body or not annex:
+        return None
+
+    body_root = next((item for item in body if item.get("is_root")), body[0])
+    annex_root = next((item for item in annex if item.get("is_root")), annex[0])
+    body_detail = _comparison_detail(body, prefer="working_day")
+    annex_detail = _comparison_detail(annex, prefer="table_row")
+    body_text = _comparison_text(body_detail or body_root)
+    annex_text = _comparison_text(annex_detail or annex_root)
+    if not body_text or not annex_text:
+        return None
+
+    body_label = _comparison_label(body_root, "Điều")
+    annex_label = _comparison_label(annex_root, "Phụ lục")
+    body_title = _comparison_title(body_root.get("label") or body_root.get("path") or "")
+    annex_title = _comparison_title(annex_root.get("label") or annex_root.get("path") or "")
+    body_folded = _comparison_fold(body_title)
+    annex_folded = _comparison_fold(annex_title)
+
+    if "ngay lam viec" in _comparison_fold(body_text):
+        body_sentence = (
+            f'{body_label} định nghĩa các thuật ngữ và quy định về "Ngày làm việc", '
+            f'cụ thể là "{body_text}".'
+        )
+    elif any(cue in body_folded for cue in ("dinh nghia", "giai thich", "definition")):
+        body_sentence = f'{body_label} tập trung vào định nghĩa và giải thích; nội dung tiêu biểu là "{body_text}".'
+    else:
+        body_sentence = f'{body_label} quy định về {body_title or "nội dung trong thân hợp đồng"}; nội dung tiêu biểu là "{body_text}".'
+
+    if "thiet bi" in annex_folded or "dich vu" in annex_folded:
+        annex_sentence = (
+            f'Trong khi đó, {annex_label} liệt kê các thiết bị và dịch vụ, '
+            f'ví dụ như "{annex_text}".'
+        )
+        conclusion = (
+            f'Điều này cho thấy {body_label} tập trung vào định nghĩa và giải thích, '
+            f'còn {annex_label} cung cấp thông tin chi tiết về các thiết bị và dịch vụ cụ thể.'
+        )
+    else:
+        annex_sentence = f'Trong khi đó, {annex_label} cung cấp thông tin theo nội dung "{annex_title or annex_text}"; ví dụ là "{annex_text}".'
+        conclusion = f'Điều này cho thấy {body_label} và {annex_label} đang mô tả hai phạm vi nội dung khác nhau trong cùng hồ sơ.'
+
+    return " ".join(
+        [
+            body_sentence,
+            annex_sentence,
+            conclusion,
+        ]
+    )
+
+
+def _comparison_side(value: Any) -> str:
+    folded = _comparison_fold(str(value or ""))
+    if "phu luc" in folded or "annex" in folded or "appendix" in folded:
+        return "annex"
+    if "than" in folded or "contract" in folded or "body" in folded:
+        return "body"
+    return ""
+
+
+def _comparison_fold(value: str) -> str:
+    text = unicodedata.normalize("NFD", value.casefold())
+    text = "".join(char for char in text if unicodedata.category(char) != "Mn")
+    return text.replace("đ", "d")
+
+
+def _comparison_text(item: dict[str, Any]) -> str:
+    return str(item.get("text") or item.get("label") or "").strip()[:800]
+
+
+def _comparison_detail(items: list[dict[str, Any]], *, prefer: str) -> dict[str, Any] | None:
+    candidates = [item for item in items if not item.get("is_root") and _comparison_text(item)]
+    if not candidates:
+        return None
+    if prefer == "working_day":
+        working = [item for item in candidates if "ngay lam viec" in _comparison_fold(_comparison_text(item))]
+        if working:
+            return working[0]
+    if prefer == "table_row":
+        rows = [item for item in candidates if re.match(r"^\s*\|\s*\d+\s*\|", _comparison_text(item))]
+        if rows:
+            return rows[0]
+    return candidates[0]
+
+
+def _comparison_label(item: dict[str, Any], fallback: str) -> str:
+    text = str(item.get("label") or item.get("path") or "")
+    folded = _comparison_fold(text)
+    match = re.search(r"(?:dieu|article)\s+0*(\d+)", folded)
+    if match:
+        return f"Điều {int(match.group(1))}"
+    match = re.search(r"(?:phu luc|annex|appendix)\s+0*(\d+)", folded)
+    if match:
+        return f"Phụ lục {int(match.group(1))}"
+    return fallback
+
+
+def _comparison_title(value: str) -> str:
+    text = re.sub(r"^\s*(?:ĐIỀU|DIEU|ARTICLE)\s+\d+\.?\s*", "", value, flags=re.I).strip()
+    text = re.sub(r"^\s*(?:PHỤ LỤC|PHU LUC|ANNEX|APPENDIX)\s+\d+\s*[-–:]?\s*", "", text, flags=re.I).strip()
+    return text[:160]
+
+
 _REFERENCE_PATTERNS = (
     ("ANNEX", re.compile("(?:ph\\u1ee5\\s+l\\u1ee5c|phu luc|annex)\\s+(\\d+)", re.I)),
     ("CLAUSE", re.compile("(?:\\u0111i\\u1ec1u|dieu|article)\\s+(\\d+(?:\\.\\d+)?)", re.I)),

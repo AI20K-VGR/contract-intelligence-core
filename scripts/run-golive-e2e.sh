@@ -28,6 +28,27 @@ if ((${#missing[@]})); then
   echo "Full LLM/vector preflight refused: required provider values are empty (${missing[*]}). Values are never printed." >&2
   exit 2
 fi
+if [[ -z "${AI2_SEMANTIC_PROFILE_CONFIG:-}" ]]; then
+  echo 'Full semantic preflight refused: AI2_SEMANTIC_PROFILE_CONFIG is missing.' >&2
+  exit 2
+fi
+if ! AI2_SEMANTIC_PROFILE_CONFIG="$AI2_SEMANTIC_PROFILE_CONFIG" python - <<'PY'
+import json
+import os
+import sys
+
+try:
+    profile = json.loads(os.environ["AI2_SEMANTIC_PROFILE_CONFIG"])
+    required = {"version", "contract_type", "context_bounds", "alias_proposal_minimum_length"}
+    if not isinstance(profile, dict) or not required.issubset(profile):
+        raise ValueError
+except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+    sys.exit(1)
+PY
+then
+  echo 'Full semantic preflight refused: AI2_SEMANTIC_PROFILE_CONFIG is not a valid trusted profile.' >&2
+  exit 2
+fi
 for name in AI2_SEMANTIC_ENABLED AI2_PROCESSING_EGRESS_ALLOWED AI2_QUERY_EGRESS_ALLOWED AI2_QUERY_USE_LLM AI2_QUERY_USE_VECTOR AI2_VECTOR_RECALL_ENABLED; do
   case "${!name:-}" in 1|true|yes|on) ;; *) echo "Full AI2 preflight refused: $name must be true." >&2; exit 2 ;; esac
 done
@@ -41,6 +62,8 @@ until curl -fsS --max-time 3 http://localhost:5173/healthz >/dev/null && curl -f
   (( SECONDS < deadline )) || { "${compose[@]}" ps; echo 'Frontend/backend health did not become ready. AI2 is internal-only; inspect it with docker compose exec ai2-service.' >&2; exit 1; }
   sleep 5
 done
+
+python scripts/check_frontend_pdf_worker.py
 
 echo 'E2E stack is ready.'
 echo 'UI:      http://localhost:5173'

@@ -8,6 +8,7 @@ the compatibility E2E file, and the production override before a build.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 from pathlib import Path
 
@@ -22,6 +23,20 @@ REQUIRED_FLAGS = (
     "AI2_EMBEDDING_DISCOVERY_ENABLED",
 )
 
+SEMANTIC_PROFILE = {
+    "version": 1,
+    "contract_type": "SALES",
+    "context_bounds": {
+        "max_hops": 2,
+        "max_nodes": 256,
+        "max_context_tokens": 32768,
+        "max_output_tokens": 8192,
+        "max_llm_calls": 20,
+        "max_seconds": 300,
+    },
+    "alias_proposal_minimum_length": 4,
+}
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -33,6 +48,7 @@ def main() -> int:
     prod = (root / "deploy" / "compose.prod.yml").read_text(encoding="utf-8")
     env = (root / ".env.e2e.example").read_text(encoding="utf-8")
     client = (root / "frontend" / "src" / "api" / "client.ts").read_text(encoding="utf-8")
+    nginx = (root / "frontend" / "nginx.conf").read_text(encoding="utf-8")
     deploy = (root / "deploy" / "deploy.sh").read_text(encoding="utf-8")
     errors: list[str] = []
 
@@ -55,12 +71,22 @@ def main() -> int:
         if f"{flag}=true" not in env:
             errors.append(f"E2E example does not enable {flag}")
 
+    env_profile_match = re.search(r"^AI2_SEMANTIC_PROFILE_CONFIG=(.+)$", env, re.MULTILINE)
+    if not env_profile_match:
+        errors.append("E2E example is missing AI2_SEMANTIC_PROFILE_CONFIG")
+    else:
+        try:
+            env_profile = json.loads(env_profile_match.group(1).strip().strip("'\""))
+        except json.JSONDecodeError:
+            env_profile = None
+        if env_profile != SEMANTIC_PROFILE:
+            errors.append("E2E example semantic profile is invalid or not pinned")
+
     def service_block(text: str, service: str) -> str:
-        marker = f"  {service}:"
-        start = text.find(marker)
-        if start < 0:
+        match = re.search(rf"^  {re.escape(service)}:\s*(?:#.*)?$", text, re.MULTILINE)
+        if match is None:
             return ""
-        rest = text[start + len(marker) :]
+        rest = text[match.end() :]
         next_service = re.search(r"\n  [A-Za-z0-9_.-]+:\s*(?:#.*)?$", rest, re.MULTILINE)
         return rest if next_service is None else rest[: next_service.start()]
 
@@ -84,6 +110,34 @@ def main() -> int:
         if "ai2_data:/app/data/ai2" in block:
             errors.append(f"{label} AI2 still mounts the legacy SQLite data volume")
 
+    def profile_from_service(text: str, service: str) -> dict | None:
+        block = service_block(text, service)
+        match = re.search(r"^\s+AI2_SEMANTIC_PROFILE_CONFIG:\s*'(.+)'\s*$", block, re.MULTILINE)
+        if not match:
+            return None
+        try:
+            return json.loads(match.group(1))
+        except json.JSONDecodeError:
+            return None
+
+    for label, compose in (("canonical", e2e), ("compatibility", compatibility)):
+        profiles = {
+            service: profile_from_service(compose, service)
+            for service in ("backend", "backend-worker")
+        }
+        for service, profile in profiles.items():
+            if profile != SEMANTIC_PROFILE:
+                errors.append(f"{label} {service} semantic profile is missing or not pinned")
+            block = service_block(compose, service)
+            if not has_enabled_flag(block, "AI2_SEMANTIC_ENABLED"):
+                errors.append(f"{label} {service} does not enable AI2_SEMANTIC_ENABLED")
+            if service == "backend-worker" and not re.search(
+                r"\n\s+backend:\s*\n\s+condition:\s+service_healthy\s*$",
+                block,
+                re.MULTILINE,
+            ):
+                errors.append(f"{label} backend-worker does not wait for healthy backend migrations")
+
     compatibility_services = {line.strip()[:-1] for line in compatibility.splitlines() if line.startswith("  ") and line.endswith(":")}
     canonical_services = {line.strip()[:-1] for line in e2e.splitlines() if line.startswith("  ") and line.endswith(":")}
     if "frontend" not in compatibility_services:
@@ -101,6 +155,8 @@ def main() -> int:
         errors.append("canonical AI2 healthcheck does not require /readyz")
     if "127.0.0.1:8080" in client:
         errors.append("frontend client still has the wrong API fallback")
+    if "location ~* \\.mjs$" not in nginx or "default_type application/javascript" not in nginx:
+        errors.append("frontend nginx does not serve PDF.js .mjs workers as JavaScript")
     for path in (root / "frontend" / "Dockerfile", root / "frontend" / "nginx.conf"):
         if not path.is_file():
             errors.append(f"missing frontend image file: {path.relative_to(root)}")

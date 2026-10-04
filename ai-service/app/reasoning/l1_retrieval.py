@@ -6,6 +6,7 @@ import time
 from typing import Any
 
 from app.contracts.models import ToolEnvelope
+from app.pipeline.result_structure import _is_running_furniture
 from app.reasoning.relations import build_relation_graph
 from app.reasoning.vector_recall import VectorRecallService
 from app.tools.gateway import ToolBlocked, ToolGateway
@@ -82,6 +83,7 @@ class L1Retrieval:
         exact_ids: list[str] = []
         structured_ids: list[str] = []
         topic_ids: list[str] = []
+        coverage_groups: list[str] = []
         record = None
         logical_tables: list[dict[str, Any]] = []
         try:
@@ -103,7 +105,7 @@ class L1Retrieval:
                 found = self.gateway.call("search_structured", envelope, key=key) or []
                 structured_ids.extend(str(h.get("node_id")) for h in found if h.get("node_id"))
                 hits.extend(found)
-            if ttype in EXPAND_SEMANTIC or (not hits and ttype == "lookup_term"):
+            if ttype in EXPAND_SEMANTIC or (not hits and ttype in {"lookup_term", "payment_card"}):
                 sem = (
                     self.gateway.call("search_semantic", envelope, query=expand_query(q), k=8) or []
                 )
@@ -138,7 +140,7 @@ class L1Retrieval:
             # A term lookup must stay local to its matched evidence.  Expanding
             # from an empty/weak seed through the parent graph turns a missing
             # term into an answer containing the entire outline.
-            if ttype == "lookup_term":
+            if ttype in {"lookup_term", "payment_card"}:
                 hits = _filter_term_hits(q, hits)
 
             graph_edges = []
@@ -191,6 +193,8 @@ class L1Retrieval:
                             "retrieval_method": candidate.retrieval_method,
                         }
                     )
+            if record is not None and _is_responsibility_query(q):
+                hits, coverage_groups = _expand_responsibility_groups(record, hits)
             if ttype in COMPARE_TYPES:
                 filtered = _filter_relation_hits(q, hits)
                 protected = [h for h in hits if str(h.get("node_id") or "") in set(exact_ids)]
@@ -212,6 +216,7 @@ class L1Retrieval:
                 "outline_ids": [],
                 "structured_keys": [],
                 "logical_tables": [],
+                "coverage_groups": [],
                 "retrieval_trace": {"vector_status": "NOT_REQUESTED"},
             }
 
@@ -253,6 +258,7 @@ class L1Retrieval:
             if vector_result
             else {"vector_status": "NOT_REQUESTED"},
             "logical_tables": logical_tables,
+            "coverage_groups": coverage_groups,
         }
 
 
@@ -445,6 +451,92 @@ def _merge_hits(*groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
             seen.add(key)
             merged.append(hit)
     return merged
+
+
+_RESPONSIBILITY_QUERY_CUES = (
+    "trach nhiem",
+    "nghia vu",
+    "phai thuc hien",
+    "phai lam gi",
+    "duties",
+    "obligation",
+    "responsibilit",
+)
+_RESPONSIBILITY_SECTION_CUES = (
+    "quyen va nghia vu",
+    "trach nhiem",
+    "duties",
+    "obligation",
+    "responsibilit",
+)
+
+
+def _is_responsibility_query(query: str) -> bool:
+    normalized = _plain_query(query)
+    return any(cue in normalized for cue in _RESPONSIBILITY_QUERY_CUES)
+
+
+def _expand_responsibility_groups(
+    record: Any, hits: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Keep all children of a retrieved responsibility/obligation section.
+
+    A vector hit commonly lands on 6.1 because it contains the word
+    ``responsibility``.  6.2 and 6.3 are semantically part of the same named
+    clause even when their text does not repeat that word.  Expand the section
+    before the twelve-hit cap so L2 and deterministic fallback see the group.
+    """
+
+    nodes = {str(node.node_id): node for node in record.evidence_nodes()}
+    children: dict[str, list[Any]] = {}
+    for node in record.evidence_nodes():
+        if node.parent_id:
+            children.setdefault(str(node.parent_id), []).append(node)
+    for group in children.values():
+        group.sort(key=lambda node: node.order)
+
+    parent_ids: list[str] = []
+    for hit in hits:
+        node = nodes.get(str(hit.get("node_id") or hit.get("chunk_id") or ""))
+        if node is None:
+            continue
+        candidate_ids = [str(node.node_id)]
+        if node.parent_id:
+            candidate_ids.append(str(node.parent_id))
+        for candidate_id in candidate_ids:
+            candidate = nodes.get(candidate_id)
+            if candidate is None or not children.get(candidate_id):
+                continue
+            label = _plain_query(" ".join((candidate.raw_label or "", candidate.text or "")))
+            if any(cue in label for cue in _RESPONSIBILITY_SECTION_CUES):
+                if candidate_id not in parent_ids:
+                    parent_ids.append(candidate_id)
+                break
+
+    if not parent_ids:
+        return hits, []
+
+    by_id = {str(hit.get("node_id") or hit.get("chunk_id")): hit for hit in hits}
+    grouped: list[dict[str, Any]] = []
+    coverage: list[str] = []
+    for parent_id in parent_ids[:4]:
+        for child in children.get(parent_id, []):
+            # A repeated page/header line can be attached to the previous
+            # clause by OCR repair. It is structural furniture, not another
+            # responsibility clause. Likewise, a SECTION/CLAUSE child is a
+            # heading boundary, not a sibling obligation body.
+            folded_label = _plain_query(child.raw_label or "")
+            if (
+                _is_running_furniture(child.raw_label or "")
+                or "tiep theo" in folded_label
+                or child.type in {"SECTION", "CLAUSE"}
+            ):
+                continue
+            child_id = str(child.node_id)
+            if child_id not in coverage:
+                coverage.append(child_id)
+            grouped.append(by_id.get(child_id) or _hit_from_node(child.model_dump()))
+    return _merge_hits(grouped, hits), coverage
 
 
 def _lexical_hits(record: Any, query: str) -> list[dict[str, Any]]:
