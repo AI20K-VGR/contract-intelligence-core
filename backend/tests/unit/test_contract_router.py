@@ -768,6 +768,62 @@ class TestRetryAi2Endpoint:
 
 
 # ---------------------------------------------------------------------------
+# POST /api/v1/dossiers/{dossier_id}/ai2/reindex
+# ---------------------------------------------------------------------------
+
+
+class TestReindexAi2Endpoint:
+    @pytest.mark.parametrize("status", ["pending_review", "reviewed", "approved"])
+    async def test_publishes_reindex_for_a_finished_run(
+        self,
+        client: AsyncClient,
+        mock_svc: AsyncMock,
+        monkeypatch: pytest.MonkeyPatch,
+        status: str,
+    ) -> None:
+        from contract_intelligence.contract.domain.entities.job import JobStatus
+        from contract_intelligence.contract.interfaces.api.routers import contract_router
+
+        mock_svc.get_dossier.return_value = TestRetryAi2Endpoint._dossier_with_job(
+            status=JobStatus(status), current_run_id="run_9"
+        )
+        publish = AsyncMock()
+        monkeypatch.setattr(contract_router.messaging, "publish_event", publish)
+        monkeypatch.setattr(contract_router, "_record", AsyncMock())
+
+        resp = await client.post("/api/v1/dossiers/dos_AI2_01/ai2/reindex")
+
+        assert resp.status_code == 202
+        assert resp.json()["data"]["status"] == "queued"
+        publish.assert_awaited_once_with(
+            "dossier_events",
+            {"event": "dossier.ai2.reindex", "dossier_id": "dos_AI2_01", "run_id": "run_9"},
+        )
+
+    @pytest.mark.parametrize("status", ["uploaded", "processing", "extracted", "failed"])
+    async def test_rejects_a_run_that_has_not_finished_ai2(
+        self,
+        client: AsyncClient,
+        mock_svc: AsyncMock,
+        monkeypatch: pytest.MonkeyPatch,
+        status: str,
+    ) -> None:
+        from contract_intelligence.contract.domain.entities.job import JobStatus
+        from contract_intelligence.contract.interfaces.api.routers import contract_router
+
+        mock_svc.get_dossier.return_value = TestRetryAi2Endpoint._dossier_with_job(
+            status=JobStatus(status), current_run_id="run_9"
+        )
+        publish = AsyncMock()
+        monkeypatch.setattr(contract_router.messaging, "publish_event", publish)
+
+        resp = await client.post("/api/v1/dossiers/dos_AI2_01/ai2/reindex")
+
+        assert resp.status_code == 409
+        publish.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
 # POST /api/v1/dossiers/{dossier_id}/search  (AI2 /query)
 # ---------------------------------------------------------------------------
 

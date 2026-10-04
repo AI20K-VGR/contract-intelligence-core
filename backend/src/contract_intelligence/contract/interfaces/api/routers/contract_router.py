@@ -1009,6 +1009,55 @@ async def retry_dossier_ai2(
     return ApiResponse(data=OcrRestartDTO(dossier_id=dossier_id, status="queued"))
 
 
+_AI2_REINDEXABLE = frozenset({JobStatus.PENDING_REVIEW, JobStatus.REVIEWED, JobStatus.APPROVED})
+
+
+@router.post(
+    "/dossiers/{dossier_id}/ai2/reindex",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ApiResponse[OcrRestartDTO],
+    summary="Gửi lại kết quả OCR đã có cho AI2 dựng lại dữ liệu hỏi đáp (không OCR lại)",
+    responses={
+        404: {"description": "Dossier not found"},
+        409: {"description": "The dossier has not finished AI2 processing"},
+    },
+)
+async def reindex_dossier_ai2(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+) -> ApiResponse[OcrRestartDTO]:
+    """Cho AI2 dựng lại dữ liệu của hồ sơ từ kết quả OCR đã lưu.
+
+    Dùng khi AI2 mất dữ liệu của mình (hỏi đáp báo chưa nhận snapshot). AI1
+    không chạy lại, không tốn OCR; facts, xung đột và thẩm định trong Backend
+    giữ nguyên. Chỉ nhận hồ sơ đã phân tích xong (chờ/đã thẩm định, đã duyệt).
+    """
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_EDIT)
+    job = dossier.latest_job()
+    if job is None or job.current_run_id is None or job.status not in _AI2_REINDEXABLE:
+        raise HTTPException(
+            status_code=409,
+            detail="Chỉ dựng lại dữ liệu AI2 được khi hồ sơ đã phân tích xong.",
+        )
+    await messaging.publish_event(
+        "dossier_events",
+        {
+            "event": "dossier.ai2.reindex",
+            "dossier_id": str(dossier_id),
+            "run_id": job.current_run_id,
+        },
+    )
+    await _record(
+        tenant_id=user.tenant_id,
+        title=f"Dựng lại dữ liệu AI2 hồ sơ {dossier.name}",
+        actor_display_name=user.email or user.display_name,
+        detail=None,
+        kind="dossier.ai2_reindex",
+    )
+    return ApiResponse(data=OcrRestartDTO(dossier_id=dossier_id, status="queued"))
+
+
 # -----------------------------------------------------------------------------
 # GET /dossiers — List (Per openapi.yaml line 150)
 # -----------------------------------------------------------------------------

@@ -25,6 +25,7 @@ from contract_intelligence.contract.infrastructure.persistence.orm import (
     DocumentORM,
     DossierORM,
     JobORM,
+    ManifestORM,
 )
 from contract_intelligence.extraction.infrastructure.persistence.orm import (
     PipelineRunORM,
@@ -986,6 +987,167 @@ async def test_unreadable_pdf_keeps_ocr_going_on_the_old_estimate(
         )
 
     assert ocr_publish.await_count == 2  # OCR still requested for both documents
+# AI2 reindex: rebuild AI2 state from the stored AI1 snapshots, no OCR
+# ---------------------------------------------------------------------------
+
+
+async def _finished_run(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock, status: str = "pending_review"
+) -> str:
+    """Both documents OCR'd, AI2 result persisted, job past AI2 (``status``)."""
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        run = await session.get(PipelineRunORM, run_id)
+        assert job is not None and run is not None
+        job.status = status
+        run.ai2_result_digest = "result_v1"
+        session.add(
+            ManifestORM(id="man_test", tenant_id=TENANT, dossier_id=DOSSIER, status="confirmed")
+        )
+        await session.commit()
+    ai2_ready.reset_mock()
+    return run_id
+
+
+@pytest.fixture
+def ai2_service(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    """Stub AI2 submit/poll and record the request the worker builds."""
+    built: list[dict[str, Any]] = []
+
+    def build(**kwargs: Any) -> dict[str, Any]:
+        request = {
+            "request_id": f"{kwargs['run_id']}:ai2",
+            "attempt": kwargs["attempt"],
+            "task_id": kwargs["run_id"],
+            "dossier_id": kwargs["dossier_id"],
+            "dossier_members": [
+                {"document_id": DOC_A, "snapshot_id": "snap_a", "role": "contract"}
+            ],
+            "snapshots": [{"snapshot_id": "snap_a"}],
+            "_snapshot_ids": sorted(kwargs["snapshots"]),
+        }
+        built.append(request)
+        return request
+
+    stubs = SimpleNamespace(
+        built=built,
+        submit=AsyncMock(return_value={"job_id": "ai2_job_2"}),
+        poll=AsyncMock(return_value={"status": "SUCCEEDED"}),
+        persist=AsyncMock(),
+    )
+    monkeypatch.setattr(worker, "build_processing_request", build)
+    monkeypatch.setattr(worker, "submit_ai2_processing", stubs.submit)
+    monkeypatch.setattr(worker, "poll_ai2_processing", stubs.poll)
+    monkeypatch.setattr(worker, "persist_ai2_processing_result", stubs.persist)
+    return stubs
+
+
+async def _reindex(factory: async_sessionmaker[AsyncSession], run_id: str) -> None:
+    async with factory() as session:
+        await worker._run_ai2_reindex(session, dossier_id=DOSSIER, tenant_id=TENANT, run_id=run_id)
+
+
+@pytest.mark.asyncio
+async def test_ai2_reindex_resends_stored_snapshots_under_next_attempt(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ai2_service: SimpleNamespace,
+) -> None:
+    run_id = await _finished_run(factory, ai2_ready)
+
+    await _reindex(factory, run_id)
+
+    [request] = ai2_service.built
+    assert request["attempt"] == 2
+    assert request["_snapshot_ids"] == [DOC_A, DOC_B]  # the stored AI1 output, no new OCR
+    ai2_service.submit.assert_awaited_once()
+    ai2_service.persist.assert_not_awaited()  # Backend facts/findings/reviews untouched
+    job = await _job(factory)
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+        dossier = await session.get(DossierORM, DOSSIER)
+    assert job.status == "pending_review" and job.current_run_id == run_id
+    assert run is not None and run.ai2_result_digest == "result_v1"
+    assert worker._ai2_attempt(run) == 2
+    assert dossier is not None
+    clean = {k: v for k, v in request.items() if not k.startswith("_")}
+    assert dossier.metadata_json["ai2_snapshot_digest"] == worker._ai2_query_snapshot_digest(clean)
+    assert len(await _audits(factory, "ai2.reindexed")) == 1
+    ai2_ready.assert_not_called()  # no regular AI2 hand-off, no OCR command
+
+
+@pytest.mark.asyncio
+async def test_ai2_reindex_twice_moves_to_the_next_attempt_each_time(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ai2_service: SimpleNamespace,
+) -> None:
+    run_id = await _finished_run(factory, ai2_ready)
+
+    await _reindex(factory, run_id)
+    await _reindex(factory, run_id)
+
+    assert [request["attempt"] for request in ai2_service.built] == [2, 3]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["processing", "extracted", "failed", "cancelled"])
+async def test_ai2_reindex_refused_unless_ai2_finished(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ai2_service: SimpleNamespace,
+    status: str,
+) -> None:
+    run_id = await _finished_run(factory, ai2_ready, status=status)
+
+    await _reindex(factory, run_id)
+
+    ai2_service.submit.assert_not_awaited()
+    assert (await _job(factory)).status == status
+
+
+@pytest.mark.asyncio
+async def test_ai2_reindex_failure_keeps_the_run_and_its_results(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ai2_service: SimpleNamespace,
+) -> None:
+    run_id = await _finished_run(factory, ai2_ready)
+    ai2_service.poll.side_effect = RuntimeError("AI2 down")
+
+    await _reindex(factory, run_id)
+
+    job = await _job(factory)
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+        dossier = await session.get(DossierORM, DOSSIER)
+    assert job.status == "pending_review" and job.error_code is None
+    assert run is not None and run.ai2_result_digest == "result_v1"
+    assert dossier is not None and "ai2_snapshot_digest" not in (dossier.metadata_json or {})
+    (audit,) = await _audits(factory, "ai2.reindex_failed")
+    assert "AI2 down" in str(audit.detail)
+
+
+@pytest.mark.asyncio
+async def test_reindex_event_schedules_a_reindex_hand_off(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _finished_run(factory, ai2_ready)
+
+    async with factory() as session:
+        await worker.handle_dossier_event(
+            session, {"event": "dossier.ai2.reindex", "dossier_id": DOSSIER, "run_id": run_id}
+        )
+        await worker.handle_dossier_event(
+            session, {"event": "dossier.ai2.reindex", "dossier_id": "dos_other", "run_id": run_id}
+        )
+
+    ai2_ready.assert_called_once_with(
+        dossier_id=DOSSIER, tenant_id=TENANT, run_id=run_id, reindex=True
+    )
 
 
 # ---------------------------------------------------------------------------
