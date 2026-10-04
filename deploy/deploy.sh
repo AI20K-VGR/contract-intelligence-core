@@ -48,9 +48,11 @@ for _ in $(seq 1 60); do
 done
 [ "$status" = healthy ] || { "${COMPOSE[@]}" logs --tail 80 backend; exit 1; }
 
+# Inside the running backend container, not `compose run`: a second backend
+# container would ask for the same fixed ci-monitoring address and fail with
+# "Address already in use".
 echo "[deploy] configuring Keycloak"
-"${COMPOSE[@]}" run --rm --no-deps -T \
-  -v "$PWD/deploy:/deploy:ro" \
+"${COMPOSE[@]}" exec -T \
   -e KEYCLOAK_ADMIN_PASSWORD="$(envval KEYCLOAK_ADMIN_PASSWORD)" \
   -e FRONTEND_ORIGINS="$(envval FRONTEND_ORIGINS)" \
   -e BACKEND_KEYCLOAK_ADMIN_SECRET="$(envval BACKEND_KEYCLOAK_ADMIN_SECRET)" \
@@ -60,7 +62,7 @@ echo "[deploy] configuring Keycloak"
   -e SMTP_HOST="$(envval SMTP_HOST)" -e SMTP_PORT="$(envval SMTP_PORT)" \
   -e SMTP_FROM="$(envval SMTP_FROM)" -e SMTP_USER="$(envval SMTP_USER)" \
   -e SMTP_PASSWORD="$(envval SMTP_PASSWORD)" -e SMTP_STARTTLS="$(envval SMTP_STARTTLS)" \
-  backend python /deploy/keycloak_configure.py
+  backend python - < deploy/keycloak_configure.py
 
 api="https://$(envval API_HOST)"
 auth="https://$(envval AUTH_HOST)"
