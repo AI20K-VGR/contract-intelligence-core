@@ -19,6 +19,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer
+from starlette.middleware.gzip import DEFAULT_EXCLUDED_CONTENT_TYPES, GZipMiddleware
 
 from contract_intelligence.api.v1.admin_overview import router as admin_overview_router
 from contract_intelligence.api.v1.dossiers import router as dossier_query_router
@@ -268,6 +269,16 @@ def create_app() -> FastAPI:
 
     # Backend headers — X-Backend-Version + X-Request-Id
     app.add_middleware(BackendHeadersMiddleware)
+
+    # JSON compresses ~5x (OCR lines of a 200-page contract: ~4.5 MB → <1 MB).
+    # SSE (text/event-stream) stays unbuffered; PDFs and images are already
+    # compressed; bodies that already carry Content-Encoding pass untouched.
+    app.add_middleware(
+        GZipMiddleware,
+        minimum_size=1024,
+        compresslevel=6,
+        exclude_content_types=(*DEFAULT_EXCLUDED_CONTENT_TYPES, "application/pdf"),
+    )
 
     # Prometheus HTTP metrics (route template labels only).
     app.add_middleware(HttpMetricsMiddleware)

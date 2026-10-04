@@ -20,6 +20,10 @@ class FakePageRepo:
     def __init__(self) -> None:
         self.pages: dict[tuple[str, int], dict[str, Any]] = {}
         self.by_id: dict[str, dict[str, Any]] = {}
+        self.lines: list[dict[str, Any]] = []
+
+    async def list_lines_by_document(self, document_id: str) -> list[dict[str, Any]]:
+        return [dict(line) for line in self.lines]
 
     async def list_by_document(self, document_id: str) -> list[dict[str, Any]]:
         return sorted(
@@ -190,6 +194,26 @@ class TestGetPageImage:
     async def test_missing_page_raises(self, service: ExtractionService) -> None:
         with pytest.raises(NotFoundError):
             await service.get_page_image("doc_1", 99)
+
+
+class TestListDocumentLines:
+    async def test_groups_lines_by_page(
+        self, service: ExtractionService, page_repo: FakePageRepo
+    ) -> None:
+        for no in (1, 2):
+            page_repo.pages[("doc_1", no)] = {"page_no": no, "width_pt": 595.0, "height_pt": 842.0}
+        page_repo.lines = [
+            {"page_no": 1, "id": "l1", "line_no": 1, "text": "A", "bbox": None, "confidence": 0.9},
+            {"page_no": 1, "id": "l2", "line_no": 2, "text": "B", "bbox": None, "confidence": None},
+        ]
+
+        pages = await service.list_document_lines("doc_1")
+
+        assert [p["page_no"] for p in pages] == [1, 2]
+        assert pages[0]["width_pt"] == 595.0
+        assert [line["id"] for line in pages[0]["ocr_lines"]] == ["l1", "l2"]
+        assert "page_no" not in pages[0]["ocr_lines"][0]
+        assert pages[1]["ocr_lines"] == []
 
 
 class TestListClausesAndTables:
