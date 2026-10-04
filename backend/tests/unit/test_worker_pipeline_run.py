@@ -987,6 +987,9 @@ async def test_unreadable_pdf_keeps_ocr_going_on_the_old_estimate(
         )
 
     assert ocr_publish.await_count == 2  # OCR still requested for both documents
+
+
+# ---------------------------------------------------------------------------
 # AI2 reindex: rebuild AI2 state from the stored AI1 snapshots, no OCR
 # ---------------------------------------------------------------------------
 
