@@ -12,7 +12,10 @@ const HEADING_MIN_SCORE = 4
 const SIZE_CLUSTER_TOLERANCE = 0.1
 
 const KEYWORD_RE =
-  /^(Phần|Chương|Mục|Điều|Phụ\s*lục|Article|Section|Chapter|Part|Annex|Appendix)\b/iu
+  /^(Phần|Chương|Mục|Điều|Phụ\s*lục|Phu\s*luc|Article|Section|Chapter|Part|Annex|Appendix)\b/iu
+// Số hiệu văn bản ("Số: 02/2026/HĐ-DV", "No. 12/2026"): viết hoa, ngắn như tiêu
+// đề, nhưng là một dòng của phần mở đầu, không phải mục chứa các Điều.
+const DOC_NUMBER_RE = /^(Số|SỐ|Số\s+hiệu|No\.?|Ref\.?)\s*[:.]?\s*\S*\d/u
 const SENTENCE_END_RE = /[.,;]$/
 const LOWER_START_RE = /^\p{Ll}/u
 const LETTER_RE = /\p{L}/gu
@@ -117,7 +120,11 @@ export function buildFreeformTree(input: OcrLine[]): ClauseNode[] {
 
     // Không có tọa độ thì mất tín hiệu cỡ chữ và khoảng trống: hạ ngưỡng.
     const minScore = line.bbox ? HEADING_MIN_SCORE : HEADING_MIN_SCORE - 1
-    const heading = letters >= 2 && (short || keyword) && score >= minScore
+    const heading =
+      letters >= 2 &&
+      (short || keyword) &&
+      score >= minScore &&
+      !DOC_NUMBER_RE.test(text)
 
     const sizeKey = (ratio ?? 1) + (upper ? 0.12 : 0) + (centered ? 0.06 : 0)
 
