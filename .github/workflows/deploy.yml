@@ -1,6 +1,7 @@
 # Deploy `develop` to the online server over SSH, then check it from outside.
 #
-# Runs on every push to develop (i.e. after a PR is merged) and on demand.
+# Runs on every push to develop (i.e. after a PR is merged) and on demand
+# ("Run workflow" deploys the branch it is started from).
 # The server is prepared once by hand (deploy/README.md, steps 1-3): clone in
 # /opt/contract-intelligence, deploy/bootstrap.sh, deploy/.env.prod and
 # ai-service/.env filled in. This workflow only updates and restarts it.
@@ -16,7 +17,8 @@ name: deploy
 
 on:
   push:
-    branches: [develop]
+    # feature/code-full: temporary, to prove the workflow before it reaches develop.
+    branches: [develop, feature/code-full]
   workflow_dispatch:
 
 permissions:
@@ -73,13 +75,14 @@ jobs:
         if: steps.target.outputs.configured == 'true'
         env:
           SHA: ${{ github.sha }}
+          BRANCH: ${{ github.ref_name }}
         run: |
-          ssh server "APP_DIR='$APP_DIR' SHA='$SHA' bash -s" <<'REMOTE'
+          ssh server "APP_DIR='$APP_DIR' SHA='$SHA' BRANCH='$BRANCH' bash -s" <<'REMOTE'
           set -euo pipefail
           sudo=""; [ "$(id -u)" -eq 0 ] || sudo="sudo"
           cd "$APP_DIR"
-          $sudo git fetch --quiet origin develop
-          $sudo git checkout --quiet develop
+          $sudo git fetch --quiet origin "$BRANCH"
+          $sudo git checkout --quiet "$BRANCH"
           # Fast-forward only: a server checkout that diverged is a problem to look at, not to overwrite.
           $sudo git merge --ff-only "$SHA"
           $sudo deploy/deploy.sh
