@@ -1,0 +1,7 @@
+# Frontend site, imported by deploy/Caddyfile when deploy/compose.frontend.yml
+# is in use. The frontend container is a static file server on ci-network.
+{$APP_HOST} {
+	import common
+
+	reverse_proxy frontend:80
+}

@@ -2,12 +2,15 @@
 
 Chạy toàn bộ stack (Keycloak, Postgres ×2, Kafka, MinIO, backend, backend-worker, AI1, AI2) trên một máy Linux. Caddy đứng trước, lo HTTPS.
 
+Triển khai lên Azure Pay-As-You-Go (tạo VM bằng Azure CLI, kèm frontend): xem [AZURE.md](AZURE.md).
+
 ## Cái gì ra Internet
 
 | Địa chỉ | Tới | Dùng bởi |
 |---|---|---|
 | `https://api-<ip>.sslip.io` | backend `:8000` (REST, SSE `/api/v1/runs/{id}/events`, `/docs`) | Frontend |
 | `https://auth-<ip>.sslip.io` | Keycloak `:8080` (đăng nhập, OIDC). `/admin` trả 404 | Frontend, người dùng |
+| `https://app-<ip>.sslip.io` | frontend (bản build tĩnh). Chỉ có khi `APP_HOST` được đặt trong `deploy/.env.prod` | Người dùng |
 | `https://api-<ip>.sslip.io/grafana/` | Grafana qua backend. Chỉ ADMINISTRATOR; người lạ 401, user thường 403 | Trang `/admin/monitoring` |
 
 Những thứ không ra Internet, chỉ nằm trong mạng `ci-network`:
@@ -82,7 +85,15 @@ VITE_KEYCLOAK_REALM=contract-intelligence
 VITE_KEYCLOAK_CLIENT_ID=contract-intel-frontend
 ```
 
-`http://localhost:5173` đã được cho phép sẵn, nên frontend chạy trên máy dev gọi thẳng server được. Khi frontend có địa chỉ online, làm như sau:
+## Frontend chạy trên chính server
+
+Khi `APP_HOST` có giá trị trong `deploy/.env.prod` (server cài mới: `bootstrap.sh` đặt sẵn `app-<ip>.sslip.io`), `deploy.sh` thêm `deploy/compose.frontend.yml`: build frontend với địa chỉ API và Keycloak của server, rồi Caddy phục vụ nó ở `https://$APP_HOST`. `FRONTEND_ORIGINS` phải chứa `https://$APP_HOST`; `deploy.sh` dừng lại nếu thiếu.
+
+Server đã cài từ trước không có `APP_HOST` nên không đổi gì. Muốn bật thì thêm ba dòng `APP_HOST`, `FRONTEND_ORIGINS`, `FRONTEND_BASE_URL` như trong `deploy/.env.prod.example` rồi chạy lại `deploy.sh`.
+
+## Frontend chạy ở nơi khác
+
+`http://localhost:5173` đã được cho phép sẵn, nên frontend chạy trên máy dev gọi thẳng server được. Khi frontend có địa chỉ online riêng, làm như sau:
 
 1. Thêm địa chỉ đó vào `FRONTEND_ORIGINS` trong `deploy/.env.prod`.
 2. Đặt `FRONTEND_BASE_URL` cho link trong email.

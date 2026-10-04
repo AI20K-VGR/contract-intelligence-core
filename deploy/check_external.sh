@@ -3,7 +3,7 @@
 # Probing the VPS's own public IP from the VPS can loop back inside the host
 # and skip the cloud firewall, so a "closed" result there proves little.
 #
-#   deploy/check_external.sh api-1-2-3-4.sslip.io auth-1-2-3-4.sslip.io
+#   deploy/check_external.sh api-1-2-3-4.sslip.io auth-1-2-3-4.sslip.io [app-1-2-3-4.sslip.io]
 #
 # Exit code 0 only when HTTPS works, /admin is blocked, /grafana refuses an
 # anonymous caller and every internal port (AI2 8002, databases, Kafka, MinIO,
@@ -12,6 +12,7 @@ set -uo pipefail
 
 API_HOST=${1:?usage: check_external.sh API_HOST AUTH_HOST}
 AUTH_HOST=${2:?usage: check_external.sh API_HOST AUTH_HOST}
+APP_HOST=${3:-}
 IP=$(python3 -c "import socket, sys; print(socket.gethostbyname(sys.argv[1]))" "$API_HOST")
 # Every port the local stack publishes; production must publish none of them.
 INTERNAL_PORTS=(8002 8000 8080 8443 5432 5433 5434 9000 9001 9092 9093 29092 1025 8025
@@ -45,6 +46,12 @@ code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "https://$AUTH_HOST/
 # forged auth-proxy header must not help.
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10   -H 'X-WEBAUTH-USER: admin' "https://$API_HOST/grafana/")
 [ "$code" = 401 ] && ok "/grafana refuses anonymous + forged header (401)"   || fail "/grafana answered $code to an anonymous caller"
+
+if [ -n "$APP_HOST" ]; then
+  # /dossiers is a client-side route: 200 means the SPA fallback answers.
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "https://$APP_HOST/dossiers")
+  [ "$code" = 200 ] && ok "frontend https://$APP_HOST (200)" || fail "frontend answered $code"
+fi
 
 for port in "${INTERNAL_PORTS[@]}"; do
   if timeout 4 bash -c "exec 3<>/dev/tcp/$IP/$port" 2>/dev/null; then

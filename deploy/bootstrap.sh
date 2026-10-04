@@ -4,8 +4,9 @@
 #   sudo deploy/bootstrap.sh
 #
 # Installs Docker, opens only SSH/HTTP/HTTPS, adds swap on small machines and
-# writes deploy/.env.prod with random secrets and sslip.io hostnames for this
-# server's public IP. Safe to re-run: an existing deploy/.env.prod is kept.
+# writes deploy/.env.prod with random secrets and sslip.io hostnames (API,
+# Keycloak, frontend) for this server's public IP. Safe to re-run: an existing
+# deploy/.env.prod is kept.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -83,9 +84,13 @@ if [ -f "$ENV_FILE" ]; then
 else
   ip=$(curl -fsS https://api.ipify.org)
   dashed=${ip//./-}
-  echo "[bootstrap] public IP $ip → api-$dashed.sslip.io / auth-$dashed.sslip.io"
+  app=app-$dashed.sslip.io
+  echo "[bootstrap] public IP $ip → api-$dashed.sslip.io / auth-$dashed.sslip.io / $app"
   cp deploy/.env.prod.example "$ENV_FILE"
   sed -i "s/^API_HOST=.*/API_HOST=api-$dashed.sslip.io/; s/^AUTH_HOST=.*/AUTH_HOST=auth-$dashed.sslip.io/" "$ENV_FILE"
+  sed -i "s|^APP_HOST=.*|APP_HOST=$app|" "$ENV_FILE"
+  sed -i "s|^FRONTEND_ORIGINS=.*|FRONTEND_ORIGINS=https://$app,http://localhost:5173,http://127.0.0.1:5173|" "$ENV_FILE"
+  sed -i "s|^FRONTEND_BASE_URL=.*|FRONTEND_BASE_URL=https://$app|" "$ENV_FILE"
   while grep -q '=generate$' "$ENV_FILE"; do
     sed -i "0,/=generate\$/s//=$(openssl rand -hex 24)/" "$ENV_FILE"
   done
