@@ -390,13 +390,7 @@ export async function listPages(documentId: string, signal?: AbortSignal) {
     .sort((a, b) => a.pageNo - b.pageNo)
 }
 
-export async function getPageLines(page: DocumentPage, signal?: AbortSignal) {
-  const data = await getJson<unknown>(
-    `/api/v1/pages/${encodeURIComponent(page.id)}`,
-    { signal },
-  )
-  const row = asRecord(data)
-  const rows = row?.ocr_lines
+function pageLines(page: DocumentPage, rows: unknown, fallbackId: string) {
   if (!Array.isArray(rows)) return []
   return rows.flatMap((item, index): OcrLine[] => {
     const line = asRecord(item)
@@ -405,7 +399,7 @@ export async function getPageLines(page: DocumentPage, signal?: AbortSignal) {
     if (!text.trim()) return []
     return [
       {
-        id: asString(line.id) || `${page.id}-${index}`,
+        id: asString(line.id) || `${fallbackId}-${index}`,
         pageNo: page.pageNo,
         lineNo: asNumber(line.line_no) || index + 1,
         text,
@@ -418,13 +412,18 @@ export async function getPageLines(page: DocumentPage, signal?: AbortSignal) {
   })
 }
 
+export async function getPageLines(page: DocumentPage, signal?: AbortSignal) {
+  const data = await getJson<unknown>(
+    `/api/v1/pages/${encodeURIComponent(page.id)}`,
+    { signal },
+  )
+  return pageLines(page, asRecord(data)?.ocr_lines, page.id)
+}
+
 const PAGE_FETCH_BATCH = 4
 
-/** Toàn bộ dòng OCR của tài liệu, theo thứ tự trang rồi thứ tự dòng. */
-export async function loadDocumentLines(
-  documentId: string,
-  signal?: AbortSignal,
-) {
+/** Cách cũ: một request mỗi trang, cho backend chưa có `/documents/{id}/lines`. */
+async function loadLinesPerPage(documentId: string, signal?: AbortSignal) {
   const pages = await listPages(documentId, signal)
   const lines: OcrLine[] = []
   for (let start = 0; start < pages.length; start += PAGE_FETCH_BATCH) {
@@ -435,6 +434,40 @@ export async function loadDocumentLines(
     for (const result of results) lines.push(...result)
   }
   return lines
+}
+
+/** Toàn bộ dòng OCR của tài liệu, theo thứ tự trang rồi thứ tự dòng. */
+export async function loadDocumentLines(
+  documentId: string,
+  signal?: AbortSignal,
+) {
+  let data: unknown
+  try {
+    data = await getJson<unknown>(
+      `/api/v1/documents/${encodeURIComponent(documentId)}/lines`,
+      { signal },
+    )
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return loadLinesPerPage(documentId, signal)
+    }
+    throw error
+  }
+  if (!Array.isArray(data)) return []
+  return data
+    .flatMap((item) => {
+      const row = asRecord(item)
+      if (!row) return []
+      const page: DocumentPage = {
+        id: `${documentId}-p${asNumber(row.page_no)}`,
+        pageNo: asNumber(row.page_no),
+        widthPt: asNumber(row.width_pt),
+        heightPt: asNumber(row.height_pt),
+      }
+      return [{ page, lines: pageLines(page, row.ocr_lines, page.id) }]
+    })
+    .sort((a, b) => a.page.pageNo - b.page.pageNo)
+    .flatMap(({ lines }) => lines)
 }
 
 function lineNoOf(row: Record<string, unknown>) {
