@@ -16,8 +16,9 @@ from app.contracts.models import (
     ReviewState,
 )
 
-AMEND_RE = re.compile(r"sửa|sua doi|thay thế|thành\s+|amends?", re.I)
+AMEND_RE = re.compile(r"sửa|sua|thay thế|thay the|điều chỉnh|dieu chinh|amends?", re.I)
 ANNEX_REF_RE = re.compile(r"(?:phụ lục|phu luc)\s+(\d+)", re.I)
+MAX_PAIRINGS_PER_ITEM = 500
 
 
 def money_decimal(value: str | None, *, unit: str | None = None) -> Decimal | None:
@@ -62,6 +63,14 @@ def compare_facts(
         item = ctx[0]
         compact = _dedupe_facts(group)
         issues.extend(_missing_pairing_evidence(compact, item, relation_pairs))
+        if _pairing_count(compact) > MAX_PAIRINGS_PER_ITEM:
+            issues.append(EvidenceIssue(
+                issue_id=f"pairing-cap:{item}",
+                missing="PAIRING_COVERAGE_CAPPED",
+                reason=f"Pairing cap {MAX_PAIRINGS_PER_ITEM} reached for item {item}; remaining pairs need review.",
+                citation=compact[0].citation if compact else None,
+                review_state=ReviewState.NEEDS_REVIEW,
+            ))
         out.extend(_pair_two_sources(compact, item, relation_pairs))
 
     fee_keys = {ctx[0] for ctx in keyed if ctx[0] and not str(ctx[0]).startswith("mst")}
@@ -148,13 +157,22 @@ def _pair_two_sources(
     body_vals = _unique_values(bodies)
     if bodies and annexes:
         body_rep = _prefer_body(body_vals)
+        emitted = 0
         for _pl, afs in annexes.items():
             for annex_rep in _unique_values(afs):
-                if not _pairing_allowed(body_rep, annex_rep, relation_pairs):
-                    continue
+                if emitted >= MAX_PAIRINGS_PER_ITEM:
+                    break
                 cand = _pair(body_rep, annex_rep, item)
                 if cand:
+                    if not _relation_confirmed(body_rep, annex_rep, relation_pairs):
+                        cand = cand.model_copy(update={
+                            "reason": "relation_unconfirmed; " + cand.reason,
+                            "review_state": ReviewState.NEEDS_REVIEW,
+                        })
                     out.append(cand)
+                    emitted += 1
+            if emitted >= MAX_PAIRINGS_PER_ITEM:
+                break
         if len(body_vals) >= 2:
             cand = _pair(body_vals[0], body_vals[1], item)
             if cand:
@@ -185,12 +203,12 @@ def _relation_key(left: str, right: str) -> tuple[str, str]:
     return tuple(sorted((str(left), str(right))))
 
 
-def _pairing_allowed(left: Fact, right: Fact, relation_pairs: set[tuple[str, str]]) -> bool:
-    left_file = left.citation.source_file_id
-    right_file = right.citation.source_file_id
-    if not left_file or not right_file or left_file == right_file:
-        return True
-    return _relation_key(left.citation.node_id, right.citation.node_id) in relation_pairs
+def _relation_confirmed(left: Fact, right: Fact, relation_pairs: set[tuple[str, str]]) -> bool:
+    left_file, right_file = left.citation.source_file_id, right.citation.source_file_id
+    return (
+        not left_file or not right_file or left_file == right_file
+        or _relation_key(left.citation.node_id, right.citation.node_id) in relation_pairs
+    )
 
 
 def _missing_pairing_evidence(
@@ -201,10 +219,16 @@ def _missing_pairing_evidence(
     if not bodies or not annexes:
         return []
     missing: list[tuple[Fact, Fact]] = []
+    scanned = 0
     for body in bodies:
         for annex in annexes:
-            if not _pairing_allowed(body, annex, relation_pairs):
+            if scanned >= MAX_PAIRINGS_PER_ITEM:
+                break
+            scanned += 1
+            if not _relation_confirmed(body, annex, relation_pairs):
                 missing.append((body, annex))
+        if scanned >= MAX_PAIRINGS_PER_ITEM:
+            break
     if not missing:
         return []
     body, annex = missing[0]
@@ -267,6 +291,18 @@ def _pair(left: Fact, right: Fact, item: str) -> Candidate | None:
             scope,
             item,
         )
+    if left.tax_basis and right.tax_basis and left.tax_basis != right.tax_basis:
+        return _cand(
+            left, right, FindingType.GAP, Disposition.NOT_COMPARABLE,
+            ReviewState.NOT_COMPARABLE, ModelDisposition.INCOMPLETE,
+            "Khác cơ sở thuế; không so trực tiếp các giá trị.", scope, item,
+        )
+    if bool(left.tax_basis) != bool(right.tax_basis) and (left.currency or right.currency):
+        return _cand(
+            left, right, FindingType.NEEDS_EVIDENCE, Disposition.NEEDS_EVIDENCE,
+            ReviewState.INSUFFICIENT_EVIDENCE, ModelDisposition.INCOMPLETE,
+            "Thiếu căn cứ xác định giá trị đã gồm thuế hay chưa.", scope, item,
+        )
     if left.unit and right.unit and left.unit != right.unit:
         if {left.unit, right.unit} == {"VND", "USD"} or (
             left.currency and right.currency and left.currency != right.currency
@@ -327,7 +363,7 @@ def _pair(left: Fact, right: Fact, item: str) -> Candidate | None:
     cite_blob = f"{right.citation.text_span} {left.citation.text_span} {right.raw_value} {left.raw_value}"
     if str(item).startswith("penalty") or str(item) in {"A", "B"}:
         cite_blob += f" {right.subject or ''} {left.subject or ''}"
-    is_amend = bool(AMEND_RE.search(cite_blob))
+    is_amend = _explicit_amend_pair(left, right)
     left_period, right_period = left.period_start, right.period_start
     if is_amend and scope != ComparisonScope.ANNEX_ANNEX:
         return _cand(
@@ -437,6 +473,31 @@ def _money(f: Fact) -> Decimal | None:
     return money_decimal(f.normalized_value or f.raw_value, unit=f.unit)
 
 
+def _explicit_amend_pair(left: Fact, right: Fact) -> bool:
+    def clause_number(fact: Fact) -> str | None:
+        text = f"{fact.subject or ''} {fact.citation.text_span}"
+        match = re.search(r"(?:điều|dieu|article)\s+(\d+(?:\.\d+)?)", text, re.I)
+        return match.group(1) if match else None
+
+    for source, target in ((left, right), (right, left)):
+        number = clause_number(target)
+        source_text = f"{source.subject or ''} {source.citation.text_span}"
+        if number and AMEND_RE.search(source_text) and re.search(
+            rf"(?:sửa|sua|sửa đổi|sua doi|thay thế|thay the|điều chỉnh|dieu chinh|amends?)\s+(?:điều\s+|dieu\s+|article\s+)?{re.escape(number)}\b",
+            source_text,
+            re.I,
+        ):
+            return True
+        item = str(target.item_key or "")
+        if item and AMEND_RE.search(source_text) and re.search(
+            rf"(?:sửa|sua)\s+(?:mục\s+|item\s+)?{re.escape(item)}\s+(?:thành|thanh|to)\b",
+            source_text,
+            re.I,
+        ):
+            return True
+    return False
+
+
 def _cand(
     left: Fact,
     right: Fact,
@@ -482,6 +543,21 @@ def annex_keys_from_labels(labels: set[str] | list[str]) -> set[str]:
         if match:
             out.add(f"Phụ lục {match.group(1)}")
     return out
+
+
+def _pairing_count(group: list[Fact]) -> int:
+    bodies = [fact for fact in group if (fact.source_role or "body") != "annex"]
+    annexes: dict[str, list[Fact]] = defaultdict(list)
+    for fact in group:
+        if (fact.source_role or "body") == "annex":
+            annexes[fact.validity or "PL"].append(fact)
+    if bodies and annexes:
+        emitted = sum(len(_unique_values(values)) for values in annexes.values())
+        relation_checks = len(bodies) * sum(len(values) for values in annexes.values())
+        return max(emitted, relation_checks)
+    if len(bodies) > 1:
+        return 1
+    return 1 if len(annexes) > 1 else 0
 
 
 def _annex_listed(num: str, present: set[str]) -> bool:

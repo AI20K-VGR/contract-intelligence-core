@@ -38,13 +38,27 @@ from contract_intelligence.extraction.domain.repositories.page_repository import
     PageRepository,
 )
 from contract_intelligence.shared.base import new_ulid
-from contract_intelligence.shared.exceptions import InvalidStateTransition, NotFoundError
+from contract_intelligence.shared.exceptions import (
+    InvalidStateTransition,
+    InvariantViolation,
+    NotFoundError,
+)
 from contract_intelligence.shared.storage import FileStorage
 
 logger = structlog.get_logger(__name__)
 
 # Hands a committed, queued run to the Kafka worker (publishes ``dossier.uploaded``).
 RunPublisher = Callable[[str], Awaitable[None]]
+
+
+class ReprocessRequestConflict(InvariantViolation):
+    """The key was reused with a different source or base-run binding."""
+
+    def __init__(self, idempotency_key: str) -> None:
+        super().__init__(
+            "Idempotency-Key is already bound to a different reprocess request",
+            idempotency_key=idempotency_key,
+        )
 
 
 class ExtractionService:
@@ -145,10 +159,51 @@ class ExtractionService:
         self,
         *,
         dossier_id: str,
+        actor_id: str,
+        idempotency_key: str,
+        base_run_id: str,
+        source_snapshot_digest: str,
         trace_id: str | None = None,
     ) -> ReprocessAcceptedDTO:
-        """Create a new immutable pipeline run for an existing dossier (reprocess)."""
-        run = await self.trigger_pipeline_run(dossier_id=dossier_id, trace_id=trace_id)
+        """Create or replay one immutable run for this actor-bound request key.
+
+        The database claim is durable. Publishing remains at-least-once because
+        the current queue boundary has no transactional outbox in this route;
+        duplicate deliveries must be deduplicated by the run/job identity.
+        """
+        await self._ensure_has_documents(dossier_id)
+        run, created = await self._pipeline_run_repo.create_reprocess(
+            dossier_id=dossier_id,
+            actor_id=actor_id,
+            idempotency_key=idempotency_key,
+            base_run_id=base_run_id,
+            source_snapshot_digest=source_snapshot_digest,
+            trace_id=trace_id or actor_id,
+            pipeline_version="v1.0.0",
+        )
+        await self._commit()
+
+        # A retry may republish only while its run is still current and active.
+        # Terminal replays return the same run without dispatching a newer one.
+        if self._run_publisher is None:
+            raise RuntimeError(
+                "run_publisher is not wired â€” ExtractionService cannot dispatch runs"
+            )
+        if created or run.status in (PipelineRunStatus.QUEUED, PipelineRunStatus.RUNNING):
+            try:
+                await self._run_publisher(dossier_id)
+            except Exception:
+                if created:
+                    await self._pipeline_run_repo.update_status(
+                        run.id, "failed", error_code="DISPATCH_FAILED"
+                    )
+                    await self._commit()
+                logger.exception(
+                    "pipeline_run.reprocess_dispatch_failed",
+                    run_id=run.id,
+                    dossier_id=dossier_id,
+                )
+                raise
         return ReprocessAcceptedDTO(dossier_id=dossier_id, job_id=run.id)
 
     async def _commit(self) -> None:

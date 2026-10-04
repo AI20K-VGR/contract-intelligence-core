@@ -17,6 +17,8 @@ from app.contracts.models import (
     PageSnapshot,
     RelationGraph,
     ReviewItem,
+    SemanticExtension,
+    SemanticProfile,
     SourceFile,
     StructuralNode,
     TableSnapshot,
@@ -83,6 +85,9 @@ def record_to_dict(rec: DossierRecord) -> dict:
         "citation_index": {key: value.model_dump() for key, value in rec.citation_index.items()},
         "review_items": [item.model_dump() for item in rec.review_items],
         "events": [event.model_dump() for event in rec.events],
+        "semantic_profile": rec.semantic_profile.model_dump(mode="json") if rec.semantic_profile else None,
+        "semantic_extension": rec.semantic_extension.model_dump(mode="json") if rec.semantic_extension else None,
+        "semantic_snapshots": dict(rec.semantic_snapshots),
     }
 
 
@@ -124,6 +129,9 @@ def record_from_dict(d: dict) -> DossierRecord:
         },
         review_items=[ReviewItem.model_validate(item) for item in d.get("review_items") or []],
         events=[ContractEvent.model_validate(event) for event in d.get("events") or []],
+        semantic_profile=SemanticProfile.model_validate(d["semantic_profile"]) if d.get("semantic_profile") else None,
+        semantic_extension=SemanticExtension.model_validate(d["semantic_extension"]) if d.get("semantic_extension") else None,
+        semantic_snapshots=dict(d.get("semantic_snapshots") or {}),
     )
 
 

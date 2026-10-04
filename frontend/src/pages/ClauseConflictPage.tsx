@@ -18,6 +18,7 @@ import {
 } from '../api/structure'
 import { dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
+import { ClauseFrameResults } from '../components/ClauseFrameResults'
 import {
   ConflictFindingReview,
   type LinkedClause,
@@ -723,6 +724,18 @@ export function ClauseConflictPage() {
         </div>
       </section>
 
+      {dossierId ? (
+        <details className="max-h-[60vh] overflow-auto rounded border border-outline-variant/40 p-2">
+          <summary className="cursor-pointer font-semibold">
+            Điều khoản, cặp nghi vấn và dòng thời gian
+          </summary>
+          <ClauseFrameResults
+            dossierId={dossierId}
+            expectedRun={spots.find((spot) => spot.runId)?.runId ?? undefined}
+          />
+        </details>
+      ) : null}
+
       <div className="grid min-h-0 w-full flex-1 grid-cols-1 overflow-hidden rounded border border-outline-variant/50 bg-surface-container-low shadow-sm xl:grid-cols-12">
         <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-r border-outline-variant/60 xl:col-span-7">
           {comparing ? (
@@ -1047,6 +1060,9 @@ export function ClauseConflictPage() {
                   {dossierId ? (
                     <ConflictFindingReview
                       findingId={card.id}
+                      semantic={
+                        spots.find((spot) => spot.id === card.id)?.semantic
+                      }
                       linkedClauses={linkedClausesOf(
                         linksById.get(card.id) ?? [],
                       )}

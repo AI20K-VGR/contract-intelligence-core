@@ -5,7 +5,7 @@ import {
 } from '../auth/sessionExpired'
 
 export const apiBaseUrl = (
-  import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8080'
+  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 ).replace(/\/$/, '')
 
 export type ApiMeta = {

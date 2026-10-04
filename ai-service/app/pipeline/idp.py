@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from uuid import uuid4
 
 from app.contracts.models import (
@@ -27,6 +28,7 @@ from app.pipeline.contract_context import build_contract_context
 from app.pipeline.contract_events import extract_contract_events
 from app.pipeline.edge_flags import dossier_edge_issues
 from app.pipeline.fact import FactExtractor
+from app.pipeline.frame_context import build_semantic_extension, effective_context_bounds
 from app.pipeline.handoff import HandoffValidator
 from app.pipeline.index import IndexStore
 from app.pipeline.router import ObjectRouter
@@ -180,6 +182,8 @@ def run_idp(
         },
     )
     table_ex = TablePipeline(gateway, llm, runtime=runtime)
+    payment_schedules = []
+    boq_checks = []
     unit_failures: list[HandoffIssue] = []
     extraction_units = 0
     successful_extractions = 0
@@ -194,7 +198,12 @@ def run_idp(
                 successful_extractions += 1
             elif route == ObjectRoute.TABLE:
                 extraction_units += 1
-                facts.extend(table_ex.extract(envelope, _table_id_for(record, node["node_id"])))
+                table_result = table_ex.extract_with_projection(envelope, _table_id_for(record, node["node_id"]))
+                facts.extend(table_result.facts)
+                if table_result.payment_schedule is not None:
+                    payment_schedules.append(table_result.payment_schedule)
+                if table_result.boq_check is not None:
+                    boq_checks.append(table_result.boq_check)
                 successful_extractions += 1
         except ProcessingTimeout:
             # Keep every unit finished so far; the rest of the pipeline is local.
@@ -303,6 +312,10 @@ def run_idp(
                 review_state=ReviewState.NEEDS_REVIEW,
             ))
     _downgrade_uncertain_candidates(candidates, facts)
+    # Keep typed table projections available to the semantic bridge for this run;
+    # raw OCR tables remain immutable and are never appended to here.
+    record.payment_schedules = list(payment_schedules)
+    record.boq_checks = list(boq_checks)
     contract_context: ContractContext = build_contract_context(record, candidates=candidates, facts=facts)
     context_issues = [
         EvidenceIssue(
@@ -317,6 +330,18 @@ def run_idp(
     ]
     issues.extend(context_issues)
     store_idx = index or IndexStore()
+    record.semantic_extension = None
+    if record.semantic_profile is not None:
+        if os.getenv("AI2_SEMANTIC_ENABLED", "false").strip().casefold() == "true":
+            bounds = effective_context_bounds(record.semantic_profile.context_bounds)
+            record.semantic_extension = build_semantic_extension(record, runtime, llm, bounds)
+            issues.append(EvidenceIssue(issue_id="semantic:review", missing="SEMANTIC_REVIEW",
+                reason="Semantic projections require independent review; timeline remains a proposal.",
+                review_state=ReviewState.NEEDS_REVIEW))
+        else:
+            issues.append(EvidenceIssue(issue_id="semantic:disabled", missing="SEMANTIC_PRODUCER_DISABLED",
+                reason="Semantic profile is pinned; producer rollout has not been enabled.",
+                review_state=ReviewState.NEEDS_REVIEW))
     contrib = store_idx.propose(
         facts=facts,
         chunks=chunks,
@@ -324,7 +349,9 @@ def run_idp(
         evidence_issues=issues,
         contract_context=contract_context,
         events=events,
+        semantic_extension=record.semantic_extension,
         coverage={
+            **({"semantic_requested": True} if record.semantic_profile else {}),
             "n_facts": len(facts),
             "n_findings": len(candidates) + len(contract_context.findings),
             "n_candidate_findings": len(candidates),
@@ -339,6 +366,7 @@ def run_idp(
         extraction_version=record.pins.extraction_version,
         proposed_index_version=f"idx_{record.pins.extraction_version}",
     )
+    contrib = contrib.model_copy(update={"payment_schedules": payment_schedules, "boq_checks": boq_checks})
     record.facts = facts
     record.chunks = chunks
     record.events = events

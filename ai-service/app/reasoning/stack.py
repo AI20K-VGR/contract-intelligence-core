@@ -97,10 +97,13 @@ class FourLayerReasoner:
                 outline_ids=outline_ids,
             )
             layers.append("L3")
-            return {**grounded, "layers_used": layers, "steps": []}
+            return {
+                **grounded, "layers_used": layers, "steps": [], "used_llm": False,
+                "retrieval_trace": {"vector_status": "NOT_REQUESTED"},
+            }
 
         ttype = task.get("type")
-        if ttype in COMPARE_TYPES and not (l1.get("hits") or []):
+        if ttype in COMPARE_TYPES and not (l1.get("hits") or l1.get("logical_tables")):
             grounded = self.l3.run(
                 envelope,
                 task,
@@ -117,6 +120,8 @@ class FourLayerReasoner:
                 "relation_edges": l1.get("relation_edges") or [],
                 "relation_issues": l1.get("relation_issues") or [],
                 "retrieval_trace": l1.get("retrieval_trace") or {},
+                "used_llm": False,
+                "logical_tables": [],
             }
         allow_llm = (
             policy_flags.get("egress_allowed") is True
@@ -145,10 +150,17 @@ class FourLayerReasoner:
                     outline_ids=outline_ids,
                 )
                 layers.append("L3")
-                return {**grounded, "layers_used": layers, "steps": l2.get("steps") or []}
+                return {
+                    **grounded, "layers_used": layers, "steps": l2.get("steps") or [],
+                    "used_llm": bool(l2.get("llm_called")),
+                    "retrieval_trace": l1.get("retrieval_trace") or {"vector_status": "NOT_REQUESTED"},
+                }
             steps = l2.get("steps") or []
             draft = l2.get("draft")
-            llm_invoked = not l2.get("fallback") and not l2.get("skipped") and not l2.get("blocked")
+            llm_invoked = l2.get(
+                "llm_called",
+                not l2.get("fallback") and not l2.get("skipped") and not l2.get("blocked"),
+            )
 
         if draft:
             state = (
@@ -197,6 +209,19 @@ class FourLayerReasoner:
             state = ReviewState.INSUFFICIENT_EVIDENCE.value
             citations = []
             answer = hint["answer"]
+        elif not draft and l1.get("logical_tables") and not l1.get("hits"):
+            tables = l1["logical_tables"]
+            citations = [
+                citation
+                for table in tables for row in table.get("rows", [])
+                for citation in row.get("cell_citations", {}).values()
+            ]
+            answer = {
+                "logical_tables": tables,
+                "coverage": [table.get("coverage") for table in tables],
+                "note": "Source table rows are shown for human review.",
+            }
+            state = ReviewState.NEEDS_REVIEW.value
         elif not draft and l1.get("hits"):
             packed = []
             citations = []
@@ -288,6 +313,7 @@ class FourLayerReasoner:
             "retrieval_trace": l1.get("retrieval_trace") or {},
             "last_prompt_chars": getattr(self.l2, "last_prompt_chars", 0),
             "used_llm": llm_invoked,
+            "logical_tables": l1.get("logical_tables") or [],
         }
 
 
@@ -317,6 +343,15 @@ def _restrict_selected_members(
         item
         for item in result.get("hits") or []
         if (item.get("node_id") or item.get("chunk_id")) in allowed
+    ]
+    allowed_tables = {
+        table.table_id
+        for table in record.tables
+        if table.node_id in allowed or table.table_id in allowed
+    }
+    bounded["logical_tables"] = [
+        table for table in result.get("logical_tables") or []
+        if table.get("table_id") in allowed_tables
     ]
     return bounded
 

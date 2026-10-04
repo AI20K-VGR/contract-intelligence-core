@@ -34,8 +34,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    if op.get_bind().dialect.name != "postgresql":
-        return
-    # AI2 tables live in the schema; dropping it discards AI2 state.
-    op.execute("DROP SCHEMA IF EXISTS ai2 CASCADE")
-    op.execute("DROP EXTENSION IF EXISTS vector")
+    # Deliberately forward-only for live safety. Dropping ``ai2 CASCADE`` or
+    # the vector extension would destroy runs, findings and embeddings. A
+    # reviewed backup/data migration is required for any eventual retirement.
+    return

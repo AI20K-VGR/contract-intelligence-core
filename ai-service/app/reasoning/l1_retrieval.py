@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import re
+import time
 from typing import Any
 
 from app.contracts.models import ToolEnvelope
@@ -11,6 +12,10 @@ from app.tools.gateway import ToolBlocked, ToolGateway
 
 COMPARE_TYPES = {"compare", "cascade"}
 EXPAND_SEMANTIC = COMPARE_TYPES
+LOGICAL_TABLE_ROW_CAP = 200
+LOGICAL_TABLE_CELL_CAP = 5000
+LOGICAL_TABLE_PAGE_CAP = 100
+LOGICAL_TABLE_TIME_CAP_SECONDS = 2.0
 
 KNOWN_STRUCTURED_KEYS = frozenset(
     {
@@ -78,10 +83,13 @@ class L1Retrieval:
         structured_ids: list[str] = []
         topic_ids: list[str] = []
         record = None
+        logical_tables: list[dict[str, Any]] = []
         try:
             record = self.gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
             if record is not None and record.relation_graph is None:
                 record.relation_graph = build_relation_graph(record)
+            if record is not None and ttype in COMPARE_TYPES and _asks_payment_schedule(q):
+                logical_tables = expand_logical_tables(self.gateway, envelope, q)
             outline = self.gateway.call(
                 "list_structure", envelope, dossier_id=envelope.auth.dossier_id
             )
@@ -203,6 +211,8 @@ class L1Retrieval:
                 "hits": [],
                 "outline_ids": [],
                 "structured_keys": [],
+                "logical_tables": [],
+                "retrieval_trace": {"vector_status": "NOT_REQUESTED"},
             }
 
         seen: set[str] = set()
@@ -242,7 +252,95 @@ class L1Retrieval:
             "retrieval_trace": vector_result.trace
             if vector_result
             else {"vector_status": "NOT_REQUESTED"},
+            "logical_tables": logical_tables,
         }
+
+
+def expand_logical_tables(
+    gateway: ToolGateway,
+    envelope: ToolEnvelope,
+    query: str,
+    *,
+    max_rows: int = LOGICAL_TABLE_ROW_CAP,
+    max_cells: int = LOGICAL_TABLE_CELL_CAP,
+    max_pages: int = LOGICAL_TABLE_PAGE_CAP,
+    max_seconds: float = LOGICAL_TABLE_TIME_CAP_SECONDS,
+) -> list[dict[str, Any]]:
+    """Fetch bounded, row-identified payment tables through the ACL gateway."""
+    if not _asks_payment_schedule(query):
+        return []
+    tables = gateway.call("list_tables", envelope, dossier_id=envelope.auth.dossier_id) or []
+    results = []
+    for table in tables[:8]:
+        table_id = str(table.get("table_id") or "")
+        if not table_id:
+            continue
+        meta = gateway.call("get_table_meta", envelope, table_id=table_id)
+        headers = [str(value or "") for value in meta.get("header", [])]
+        folded = " ".join(_plain_query(value) for value in headers)
+        if not any(token in folded for token in ("thanh toan", "payment", "milestone")):
+            continue
+        source_rows = max(0, int(meta.get("n_rows", 0)))
+        n_cols = max(0, int(meta.get("n_cols", len(headers))))
+        row_limit = min(source_rows, max_rows)
+        if n_cols:
+            row_limit = min(row_limit, max_cells // n_cols)
+        elif source_rows:
+            row_limit = 0
+        started = time.monotonic()
+        fetched = gateway.call("get_table_rows", envelope, table_id=table_id, start=0, end=row_limit)
+        rows, pages, time_hit, page_hit = [], set(), False, False
+        for source in fetched:
+            if time.monotonic() - started > max_seconds:
+                time_hit = True
+                break
+            row = {
+                "row_index": int(source.get("row_index", len(rows))),
+                "cells": [str(value) if value is not None else None for value in source.get("cells", [])[:n_cols]],
+                "cell_citations": {},
+            }
+            for column, citation in (source.get("cell_citations") or {}).items():
+                if int(column) >= len(row["cells"]):
+                    continue
+                page_id = citation.get("page_revision_id")
+                if page_id:
+                    pages.add(page_id)
+                if len(pages) > max_pages:
+                    page_hit = True
+                    break
+                row["cell_citations"][str(column)] = citation
+            if page_hit:
+                break
+            rows.append(row)
+        if time.monotonic() - started > max_seconds:
+            time_hit = True
+            rows = []
+        reason = (
+            "processing time cap reached" if time_hit else
+            "page cap reached" if page_hit else
+            "row or cell cap reached" if row_limit < source_rows else None
+        )
+        complete = not reason and len(rows) == source_rows
+        results.append({
+            "table_id": table_id,
+            "header": headers,
+            "source_role": meta.get("source_role"),
+            "rows": rows,
+            "coverage": {
+                "complete": complete,
+                "source_rows": source_rows,
+                "processed_rows": len(rows),
+                "source_cells": source_rows * n_cols,
+                "processed_cells": sum(len(row["cells"]) for row in rows),
+                "reason": reason,
+            },
+        })
+    return results
+
+
+def _asks_payment_schedule(query: str) -> bool:
+    normalized = _plain_query(query)
+    return any(term in normalized for term in ("thanh toan", "payment", "milestone", "cac dot"))
 
 
 def structured_keys(query: str, ttype: str | None) -> list[str]:

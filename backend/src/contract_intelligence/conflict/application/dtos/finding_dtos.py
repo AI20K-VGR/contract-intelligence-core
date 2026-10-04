@@ -4,9 +4,33 @@ from __future__ import annotations
 
 import contextlib
 import json
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from contract_intelligence.shared.ai.schemas import SemanticFrame, SemanticPair, SemanticTimeline
+
+
+class FindingSideSemanticDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    frame: SemanticFrame
+    pair: SemanticPair | None = None
+    timeline: SemanticTimeline | None = None
+    profile_digest: str
+    alias_version: int
+    alias_digest: str | None
+
+
+class FindingSemanticDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["PAIR", "TIMELINE"]
+    disposition: str
+    reason: str
+    review_state: Literal["NEEDS_REVIEW"]
+    method: Literal["CLOSED_SYMBOL", "TENANT_ALIAS"]
+    profile_digest: str
+    alias_version: int
+    alias_digest: str | None
 
 
 class FindingSideDTO(BaseModel):
@@ -19,6 +43,7 @@ class FindingSideDTO(BaseModel):
     clause_node_id: str | None = None
     citation: dict[str, Any] | None = None
     value_snapshot: Any = None
+    semantic: FindingSideSemanticDTO | None = None
 
 
 class FindingReviewLatestDTO(BaseModel):
@@ -61,6 +86,7 @@ class FindingDTO(BaseModel):
     sides: list[FindingSideDTO] = Field(default_factory=list)
     disclaimer: str = "Kết quả so sánh kỹ thuật, không phải kết luận pháp lý."
     review: FindingReviewDTO | None = None
+    semantic: FindingSemanticDTO | None = None
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> FindingDTO:
@@ -84,6 +110,9 @@ class FindingDTO(BaseModel):
                     if isinstance(side.get("citation"), dict)
                     else None,
                     value_snapshot=snapshot,
+                    semantic=FindingSideSemanticDTO.model_validate(snapshot["semantic"])
+                    if isinstance(snapshot, dict) and isinstance(snapshot.get("semantic"), dict)
+                    else None,
                 )
             )
 
@@ -115,6 +144,9 @@ class FindingDTO(BaseModel):
             disclaimer=row.get("disclaimer")
             or "Kết quả so sánh kỹ thuật, không phải kết luận pháp lý.",
             review=review,
+            semantic=FindingSemanticDTO.model_validate(row["semantic"])
+            if row.get("semantic")
+            else None,
         )
 
 

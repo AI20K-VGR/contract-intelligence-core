@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Response, status
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Path, Query, Response, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -46,6 +46,7 @@ from contract_intelligence.extraction.application.dtos.run_dtos import (
     CreateRunRequestDTO,
     PipelineRunSummaryDTO,
     ReprocessAcceptedDTO,
+    ReprocessRequestDTO,
 )
 from contract_intelligence.extraction.application.dtos.table_dtos import DocTableDTO
 from contract_intelligence.extraction.interfaces.api.dependencies import (
@@ -108,6 +109,7 @@ async def trigger_run(
         403: {"description": "Insufficient role"},
         404: {"description": "Dossier not found"},
         409: {"description": "Active run already exists"},
+        422: {"description": "Missing or invalid idempotency binding"},
     },
 )
 async def reprocess_dossier(
@@ -115,12 +117,18 @@ async def reprocess_dossier(
     svc: ExtractionServiceDep,
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
     session: Annotated[AsyncSession, Depends(get_async_session)],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1, max_length=200)],
+    body: Annotated[ReprocessRequestDTO, Body()],
 ) -> ApiResponse[ReprocessAcceptedDTO]:
     await require_dossier_action(
         session, user, action=AclAction.DOSSIER_EDIT, dossier_id=dossier_id
     )
     accepted = await svc.reprocess_dossier(
         dossier_id=dossier_id,
+        actor_id=str(user.user_id),
+        idempotency_key=idempotency_key,
+        base_run_id=body.base_run_id,
+        source_snapshot_digest=body.source_snapshot_digest.lower(),
         trace_id=str(user.user_id),
     )
     return ApiResponse(data=accepted)

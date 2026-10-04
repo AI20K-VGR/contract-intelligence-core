@@ -109,6 +109,7 @@ def adapt_be_ai2_processing_request(
             query_digest = bare_sha256_digest(adapted.record.pins.source_snapshot_digest)
             adapted.record.pins.source_snapshot_digest = query_digest
             adapted.envelope.pins.source_snapshot_digest = query_digest
+            _semantic_profile(request, adapted.record)
             return request, adapted
         except SnapshotContractError:
             raise
@@ -168,6 +169,7 @@ def adapt_be_ai2_processing_request(
         member_documents={item.member_id: item.document_id for item in request.dossier_members},
     )
     result.record.egress_approved = processing_egress_allowed()
+    _semantic_profile(request, result.record)
     result.meta.update(
         {
             "source": "be.ai2.processing.request.v1",
@@ -179,6 +181,18 @@ def adapt_be_ai2_processing_request(
         }
     )
     return request, result
+
+
+def _semantic_profile(request: BeAi2ProcessingRequest, record: DossierRecord) -> None:
+    if request.semantic_profile and os.getenv("AI2_SEMANTIC_ENABLED", "false").strip().casefold() == "true":
+        from app.pipeline.frame_context import effective_context_bounds
+
+        try:
+            effective_context_bounds(request.semantic_profile.context_bounds)
+        except ValueError as exc:
+            raise SnapshotContractError(str(exc), code="SEMANTIC_BOUNDS_INVALID") from exc
+    record.semantic_profile = request.semantic_profile.model_copy(deep=True) if request.semantic_profile else None
+    record.semantic_snapshots = {m.document_id: m.snapshot_id for m in request.dossier_members}
 
 
 def _prepare_ocr_lab_compatibility_payload(

@@ -20,7 +20,6 @@ from app.tools.store import DossierRecord
 
 CLAUSE_RE = re.compile(r"(?:điều|dieu|article)\s+(\d+(?:\.\d+)?)", re.I)
 ANNEX_RE = re.compile(r"(?:phụ lục|phu luc|annex)\s+(\d+)", re.I)
-AMEND_RE = re.compile(r"(sửa|sua doi|amends?|điều chỉnh)", re.I)
 
 
 def attach_ancestors(outline: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -92,7 +91,12 @@ def related_node_ids(seed_ids: list[str], outline: list[dict[str, Any]]) -> tupl
                         "right_side": side,
                     }
                 )
-            if AMEND_RE.search(blob) and side != "Thân HĐ":
+            clause_number = re.search(r"\d+(?:\.\d+)?", k)
+            if (
+                clause_number
+                and side != "Thân HĐ"
+                and _explicit_amend_reference(blob, clause_number.group(0))
+            ):
                 rels.append({"type": "AMENDS", "clause": k, "from": nid, "side": side})
     return extra[:8], rels[:12]
 
@@ -487,7 +491,7 @@ def build_relation_graph(record: DossierRecord) -> RelationGraph:
                     target_id = targets[0]
                     refs = [citation(node.node_id, match.group(0)), citation(target_id)]
                     add_edge(node.node_id, target_id, RelationType.REFERENCES, RelationSupport.EXPLICIT_TEXT, refs)
-                    if _has_amend_marker(blob) and kind == "CLAUSE":
+                    if _explicit_amend_reference(blob, match.group(1)) and kind == "CLAUSE":
                         add_edge(node.node_id, target_id, RelationType.AMENDS, RelationSupport.EXPLICIT_TEXT, refs)
                 elif not targets:
                     issues.append(_graph_issue(digest, f"missing {kind.lower()} {match.group(1)}", citation(node.node_id, match.group(0))))
@@ -615,9 +619,16 @@ def _graph_issue(digest: str, missing: str, citation: Citation) -> EvidenceIssue
     )
 
 
-def _has_amend_marker(value: str) -> bool:
+def _explicit_amend_reference(value: str, target_number: str) -> bool:
+    """Require a specific amendment marker tied to the referenced clause."""
     normalized = _normalize_relation_text(value)
-    return bool(AMEND_RE.search(value) or re.search(r"(?:sua|thay the|dieu chinh|amend)", normalized, re.I))
+    number = re.escape(str(int(target_number))) if str(target_number).isdigit() else re.escape(target_number)
+    marker = r"(?:sua doi|thay the|dieu chinh|amends?)"
+    target = rf"(?:dieu|article)\s+0*{number}\b"
+    return bool(
+        re.search(rf"{marker}\s+(?:noi dung\s+)?{target}", normalized, re.I)
+        or re.search(rf"{target}[^.;\n]{{0,80}}{marker}", normalized, re.I)
+    )
 
 
 def _is_heading_reference(node: Any, reference: str) -> bool:

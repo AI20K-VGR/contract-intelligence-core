@@ -2,15 +2,24 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import re
 import time
 from typing import Annotated, Any, Literal
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from contract_intelligence.contract.infrastructure.persistence.orm import DocumentORM, DossierORM
+from contract_intelligence.contract.infrastructure.persistence.orm import (
+    DocumentORM,
+    DossierORM,
+    JobORM,
+)
+from contract_intelligence.extraction.infrastructure.persistence.orm import PipelineRunORM
 from contract_intelligence.infrastructure.ai_adapters import AiAdapterError, query_ai2
 from contract_intelligence.schemas.queries import (
     DossierQueryRequest,
@@ -22,6 +31,8 @@ from contract_intelligence.shared.acl import (
     dossier_access_decision,
     dossier_denied_detail,
 )
+from contract_intelligence.shared.ai.persistence import load_ai2_read_model
+from contract_intelligence.shared.ai.schemas import SemanticExtension
 from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user
 from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.shared.persistence import get_async_session
@@ -100,6 +111,175 @@ async def _dossier_document_ids(session: AsyncSession, dossier: DossierORM) -> s
     return {str(value) for value in result.scalars().all()}
 
 
+async def _semantic_result(session: AsyncSession, dossier: DossierORM) -> dict[str, Any]:
+    """Current job owner is authoritative; a pending run never falls back to old data."""
+    result: dict[str, Any] = {
+        "dossier_id": dossier.id,
+        "run_id": None,
+        "result_digest": None,
+        "state": "NOT_MEASURED",
+        "reason": "CURRENT_RUN_ABSENT",
+        "semantic_extension": None,
+        "typed_table_projections": {"payment_schedules": [], "boq_checks": []},
+    }
+    job = await session.scalar(
+        select(JobORM)
+        .where(JobORM.dossier_id == dossier.id, JobORM.tenant_id == dossier.tenant_id)
+        .order_by(JobORM.created_at.desc(), JobORM.id.desc())
+        .limit(1)
+    )
+    if job is None or not job.current_run_id:
+        return result
+    result.update(run_id=job.current_run_id, state="NOT_READY", reason="CURRENT_RESULT_NOT_READY")
+    run = await session.get(PipelineRunORM, job.current_run_id)
+    if run is None or (run.tenant_id, run.dossier_id, run.job_id) != (
+        dossier.tenant_id,
+        dossier.id,
+        job.id,
+    ):
+        raise HTTPException(409, detail={"code": "CURRENT_RUN_SCOPE_CONFLICT"})
+    if not run.ai2_result_json:
+        return result
+    try:
+        loaded = await load_ai2_read_model(session, tenant_id=dossier.tenant_id, run_id=run.id)
+        digest = hashlib.sha256(
+            json.dumps(
+                loaded.payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            ).encode()
+        ).hexdigest()
+        if digest != run.ai2_result_digest:
+            raise ValueError("persisted result digest mismatch")
+        result["result_digest"] = digest
+        loaded_result = loaded.payload.get("result", {})
+        typed = (
+            loaded_result.get("index_contribution", {})
+            .get("coverage", {})
+            .get("typed_table_projections", {})
+        )
+        if isinstance(typed, dict):
+            result["typed_table_projections"] = {
+                "payment_schedules": [
+                    item for item in typed.get("payment_schedules", []) if isinstance(item, dict)
+                ],
+                "boq_checks": [
+                    item for item in typed.get("boq_checks", []) if isinstance(item, dict)
+                ],
+            }
+        raw = loaded_result.get("semantic_extension")
+        if raw is None:
+            result.update(state="NOT_MEASURED", reason="LEGACY_EXTENSION_ABSENT")
+            return result
+        extension = SemanticExtension.model_validate(raw)
+        config = json.loads(run.config_snapshot or "{}")
+        if (extension.tenant_id, extension.dossier_id) != (
+            dossier.tenant_id,
+            dossier.id,
+        ) or config.get("semantic_profile", {}).get("digest") != extension.profile_digest:
+            raise ValueError("semantic owner/profile pin mismatch")
+        allowed = await _dossier_document_ids(session, dossier)
+        evidence = [
+            e
+            for frame in extension.frames
+            for e in [*frame.evidence, *(e for slot in frame.slots.values() for e in slot.evidence)]
+        ]
+        evidence.extend(
+            e for pair in extension.pairs for e in [*pair.left_evidence, *pair.right_evidence]
+        )
+        evidence.extend(
+            e
+            for edge in extension.timeline
+            for e in [
+                *edge.evidence,
+                *(edge.acceptance.evidence if edge.acceptance else []),
+                *(edge.proposed_value.evidence if edge.proposed_value else []),
+            ]
+        )
+        if any(
+            e.document_id not in allowed or e.citation.source_file_id != e.document_id
+            for e in evidence
+        ):
+            raise ValueError("semantic source outside dossier")
+        result.update(
+            state="NEEDS_REVIEW", reason=None, semantic_extension=extension.model_dump(mode="json")
+        )
+    except (ValidationError, ValueError, TypeError, LookupError) as exc:
+        raise HTTPException(409, detail={"code": "SEMANTIC_RESULT_INVALID"}) from exc
+    return result
+
+
+def _semantic_query(result: dict[str, Any], query: str) -> dict[str, Any]:
+    extension = result["semantic_extension"]
+    trace = {
+        "code": "PINNED_SEMANTIC_QUERY",
+        "run_id": result["run_id"],
+        "result_digest": result["result_digest"],
+    }
+    if extension is None:
+        return {
+            "state": "BLOCKED",
+            "answer": "",
+            "citations": [],
+            "retrieval_layer": {"selected": "PERSISTED_SEMANTIC", "run_id": result["run_id"]},
+            "reasoning_trace": [{**trace, "reason": result["reason"]}],
+        }
+    tokens = {token for token in re.findall(r"\w+", query.casefold()) if len(token) >= 2}
+    selected = [
+        frame
+        for frame in extension["frames"]
+        if any(
+            token in " ".join(e["raw"] for e in frame["evidence"]).casefold() for token in tokens
+        )
+    ]
+    evidence = [
+        e
+        for frame in selected
+        for e in frame["evidence"]
+        if e["citation"]["validation_status"] == "VALID"
+    ]
+    return {
+        "state": "NEEDS_REVIEW" if evidence else "INSUFFICIENT_EVIDENCE",
+        "answer": "\n".join(dict.fromkeys(e["raw"] for e in evidence)),
+        "citations": [e["citation"] for e in evidence],
+        "retrieval_layer": {
+            "selected": "PERSISTED_SEMANTIC",
+            "run_id": result["run_id"],
+            "profile_digest": extension["profile_digest"],
+            "alias_version": extension["alias_version"],
+        },
+        "reasoning_trace": [trace],
+    }
+
+
+async def _ensure_current_semantic_run(
+    session: AsyncSession, dossier: DossierORM, result: dict[str, Any]
+) -> None:
+    current = await session.scalar(
+        select(JobORM.current_run_id)
+        .where(JobORM.dossier_id == dossier.id, JobORM.tenant_id == dossier.tenant_id)
+        .order_by(JobORM.created_at.desc(), JobORM.id.desc())
+        .limit(1)
+    )
+    if current != result["run_id"]:
+        raise HTTPException(409, detail={"code": "CURRENT_RUN_CHANGED"})
+
+
+@router.get("/{id}/semantic-results", response_model=ApiResponse[dict[str, Any]])
+async def semantic_results(
+    id: str,
+    session: Annotated[AsyncSession, Depends(get_async_session)],
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> ApiResponse[dict[str, Any]]:  # noqa: A002
+    dossier = await _acl_check_dossier_access(session, dossier_id=id, user=user)
+    if not _acl_allows(user, dossier, AclAction.CITATION_READ):
+        raise HTTPException(403, detail={"code": "CITATION_ACCESS_DENIED"})
+    result = await _semantic_result(session, dossier)
+    await session.refresh(dossier)
+    if dossier.deleted_at is not None or not _acl_allows(user, dossier, AclAction.CITATION_READ):
+        raise HTTPException(403, detail={"code": "CITATION_ACCESS_DENIED"})
+    await _ensure_current_semantic_run(session, dossier, result)
+    return ApiResponse(data=result)
+
+
 async def _run_dossier_query(
     *,
     endpoint: QueryEndpoint,
@@ -145,7 +325,11 @@ async def _run_dossier_query(
 
     started = time.monotonic()
     try:
-        ai2_raw = await query_ai2(ai2_payload)
+        semantic = await _semantic_result(session, dossier)
+        if semantic["semantic_extension"] is not None or semantic["state"] == "NOT_READY":
+            ai2_raw = _semantic_query(semantic, body.query)
+        else:
+            ai2_raw = await query_ai2(ai2_payload)
     except AiAdapterError as exc:
         logger.error("dossiers.query.ai2_failed", dossier_id=dossier_id, error=str(exc))
         await save_query_trace(
@@ -166,6 +350,8 @@ async def _run_dossier_query(
 
     # Access may have been revoked while AI2 was answering.
     await session.refresh(dossier)
+    if semantic["semantic_extension"] is not None or semantic["state"] == "NOT_READY":
+        await _ensure_current_semantic_run(session, dossier, semantic)
     filtered, acl = enforce_result_acl(
         ai2_raw if isinstance(ai2_raw, dict) else {},
         can_read_citations=dossier.deleted_at is None

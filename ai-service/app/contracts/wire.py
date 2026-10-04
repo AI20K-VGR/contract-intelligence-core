@@ -15,6 +15,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.contracts.errors import ContractValidationError
+from app.contracts.models import SemanticExtension, SemanticProfile
 
 Id = str
 
@@ -121,9 +122,12 @@ class BeAi2ProcessingRequest(BaseModel):
     dossier_members: list[DossierMemberWire] = Field(min_length=1, max_length=6)
     role_relation_map: list[RoleRelationWire] = Field(default_factory=list, max_length=32)
     policy_flags: ProcessingPolicyFlags
+    semantic_profile: SemanticProfile | None = None
 
     @model_validator(mode="after")
     def validate_membership(self) -> "BeAi2ProcessingRequest":
+        if self.semantic_profile and self.semantic_profile.tenant_id != self.service_envelope.tenant_id:
+            raise ValueError("[SEMANTIC] profile tenant must match signed envelope")
         if any(snapshot.get("schema_version") != "ai1.snapshot.v1" for snapshot in self.snapshots):
             raise ValueError("snapshots must use ai1.snapshot.v1")
 
@@ -236,6 +240,45 @@ def _citation_wire(citation: Any, citation_id: str) -> dict[str, Any]:
     value = {key: item for key, item in value.items() if key in allowed}
     value["citation_id"] = citation_id
     return value
+
+
+def typed_projection_coverage_to_wire(
+    coverage: Mapping[str, Any],
+    payment_schedules: list[Any],
+    boq_checks: list[Any],
+    register_citation,
+) -> dict[str, Any]:
+    """Add optional typed tables inside the extensible coverage object."""
+    result = dict(coverage)
+    if not payment_schedules and not boq_checks:
+        return result
+    result["typed_table_projections"] = {
+        "payment_schedules": [
+            {
+                **item.model_dump(mode="json", exclude={"milestones"}),
+                "milestones": [
+                    {
+                        **milestone.model_dump(mode="json", exclude={"citation", "cell_citations"}),
+                        "citation_ids": [register_citation(milestone.citation)],
+                        "cell_citation_ids": {
+                            index: register_citation(citation)
+                            for index, citation in milestone.cell_citations.items()
+                        },
+                    }
+                    for milestone in item.milestones
+                ],
+            }
+            for item in payment_schedules
+        ],
+        "boq_checks": [
+            {
+                **item.model_dump(mode="json", exclude={"citations"}),
+                "citation_ids": [register_citation(citation) for citation in item.citations],
+            }
+            for item in boq_checks
+        ],
+    }
+    return result
 
 
 def job_result_to_wire(
@@ -354,6 +397,12 @@ def job_result_to_wire(
     status = job.status.value
     review_state = job.review_state.value if job.review_state else None
     result = None
+    coverage_wire = typed_projection_coverage_to_wire(
+        contribution.coverage if contribution is not None else {},
+        getattr(contribution, "payment_schedules", []) if contribution is not None else [],
+        getattr(contribution, "boq_checks", []) if contribution is not None else [],
+        register,
+    )
     if status == "SUCCEEDED" and contribution is not None:
         result = {
             "facts": facts,
@@ -365,12 +414,16 @@ def job_result_to_wire(
                 "state": "propose",
                 "chunks": chunks,
                 "evidence_issues": evidence_issues,
-                "coverage": contribution.coverage,
+                "coverage": coverage_wire,
                 "extraction_version": contribution.extraction_version,
                 "proposed_index_version": contribution.proposed_index_version,
                 "contract_context": contract_context,
             },
         }
+        if contribution.semantic_extension is not None:
+            if request.semantic_profile is None:
+                raise ValueError("semantic result requires negotiated profile")
+            result["semantic_extension"] = contribution.semantic_extension.model_dump(mode="json")
 
     payload = {
         "schema_version": "ai2.be.processing.result.v1",
@@ -440,6 +493,22 @@ def validate_processing_result(
         fail("SUCCEEDED result must contain result payload", "RESULT_SEMANTIC_INVALID")
     if result is None:
         return
+    if result.get("semantic_extension") is not None:
+        try:
+            extension = SemanticExtension.model_validate(result["semantic_extension"])
+            if request is not None:
+                profile = expected.semantic_profile
+                if (profile is None or extension.tenant_id != expected.service_envelope.tenant_id
+                        or extension.dossier_id != expected.dossier_id or extension.profile_digest != profile.digest
+                        or extension.alias_version != profile.alias_version or extension.alias_digest != profile.alias_digest):
+                    raise ValueError("semantic profile pin mismatch")
+                members = {(m.document_id, m.snapshot_id) for m in expected.dossier_members}
+                if any((f.document_id, f.snapshot_id) not in members for f in extension.frames):
+                    raise ValueError("semantic frame membership mismatch")
+            if any(f.snapshot_id not in set(identity_ids) for f in extension.frames):
+                raise ValueError("semantic snapshot identity mismatch")
+        except ValueError as exc:
+            fail(str(exc), "RESULT_SEMANTIC_INVALID")
 
     citations = result["citations"]
     citation_ids = [item["citation_id"] for item in citations]
@@ -461,6 +530,14 @@ def validate_processing_result(
     for issue in result["index_contribution"].get("evidence_issues", []):
         if isinstance(issue, Mapping):
             check_refs(issue.get("citation_ids", []), "evidence issue")
+    projections = result["index_contribution"].get("coverage", {}).get("typed_table_projections", {})
+    for schedule in projections.get("payment_schedules", []):
+        for milestone in schedule.get("milestones", []):
+            check_refs(milestone.get("citation_ids", []), "payment milestone")
+            for refs in milestone.get("cell_citation_ids", {}).values():
+                check_refs(refs, "payment milestone cell")
+    for check in projections.get("boq_checks", []):
+        check_refs(check.get("citation_ids", []), "BOQ arithmetic")
 
 
 validate_result_wire = validate_processing_result

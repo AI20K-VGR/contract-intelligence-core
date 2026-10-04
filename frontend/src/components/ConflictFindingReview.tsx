@@ -18,6 +18,7 @@ import {
 } from '../review/timeline'
 import { MaterialIcon } from './icons'
 import { ReviewTimeline } from './ReviewTimeline'
+import type { FindingSemantic } from '../api/semanticResults'
 
 /** Điều khoản trên từng tài liệu mà xung đột này trích dẫn. */
 export type LinkedClause = {
@@ -67,11 +68,13 @@ export function ConflictFindingReview({
   findingId,
   linkedClauses = NO_LINKS,
   onReviewed,
+  semantic,
 }: {
   findingId: string
   /** Điều khoản hai bên để kéo lịch sử thẩm định trích dẫn về cùng dòng thời gian. */
   linkedClauses?: LinkedClause[]
   onReviewed?: (reviewed: boolean) => void
+  semantic?: FindingSemantic | null
 }) {
   const [verdict, setVerdict] = useState<Verdict>('correct')
   const [note, setNote] = useState('')
@@ -212,6 +215,25 @@ export function ConflictFindingReview({
 
   return (
     <div className="mt-2 border-t border-outline-variant/30 pt-2">
+      {semantic ? (
+        <div className="rounded border border-amber-200 p-2 font-body-sm text-body-sm">
+          <p>
+            {semantic.pair?.disposition ?? 'CANDIDATE_AMENDMENT'} · NEEDS_REVIEW
+            · {semantic.pair?.method ?? semantic.frame.key.method}
+          </p>
+          <p>
+            {semantic.pair?.reason ?? semantic.timeline?.reasons.join('; ')}
+          </p>
+          <p>
+            Alias v{semantic.alias_version} · {semantic.frame.key.certainty} ·{' '}
+            {semantic.frame.key.reason}
+          </p>
+          <p>
+            Thẩm định lưu riêng; timeline kỹ thuật và nhãn nghi vấn không tự trở
+            thành chắc chắn.
+          </p>
+        </div>
+      ) : null}
       <p className="font-label-sm text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">
         Thẩm định của chuyên viên
       </p>

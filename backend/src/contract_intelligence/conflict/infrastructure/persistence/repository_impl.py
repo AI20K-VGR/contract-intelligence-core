@@ -13,7 +13,7 @@ from contract_intelligence.conflict.infrastructure.persistence.orm import (
     FindingORM,
     FindingSideORM,
 )
-from contract_intelligence.contract.infrastructure.persistence.orm import DocumentORM
+from contract_intelligence.contract.infrastructure.persistence.orm import DocumentORM, JobORM
 from contract_intelligence.extraction.infrastructure.persistence.orm import CitationORM
 from contract_intelligence.identity.infrastructure.persistence.orm import AppUserORM
 from contract_intelligence.review.infrastructure.persistence.orm import (
@@ -25,9 +25,32 @@ from contract_intelligence.review.infrastructure.persistence.orm import (
 _CONFLICT_DISPOSITIONS = (
     "comparable_difference",
     "candidate_amendment",
+    "conflict_candidate",
+    "arithmetic_inconsistency",
+    "amendment_review",
     "insufficient_evidence",
 )
 _CONFLICT_CONFIDENCE_THRESHOLD = 0.6
+_SEMANTIC_DISPOSITIONS = frozenset(
+    {
+        "DUPLICATE",
+        "COMPARABLE_DIFFERENCE",
+        "NOT_COMPARABLE",
+        "GENERAL_VS_SPECIFIC",
+        "SCOPE_DIFFERS",
+        "NEEDS_REVIEW_UNPARSED",
+        "NEEDS_REVIEW_BACKOFF",
+        "GRADUATED",
+        "CUMULATIVE",
+        "CONFLICT_CANDIDATE",
+        "CANDIDATE_AMENDMENT",
+        "ARITHMETIC_INCONSISTENCY",
+        "AMENDMENT_REVIEW",
+        "conflict_candidate",
+        "arithmetic_inconsistency",
+        "amendment_review",
+    }
+)
 
 
 def _citation_payload(orm: CitationORM) -> dict[str, Any]:
@@ -52,6 +75,15 @@ class FindingRepositoryImpl:
         self._session = session
         self._tenant_id = tenant_id
 
+    async def _current_job_run(self, dossier_id: str) -> tuple[bool, str | None]:
+        job = await self._session.scalar(
+            select(JobORM)
+            .where(JobORM.dossier_id == dossier_id, JobORM.tenant_id == self._tenant_id)
+            .order_by(JobORM.created_at.desc(), JobORM.id.desc())
+            .limit(1)
+        )
+        return job is not None, job.current_run_id if job else None
+
     async def list_by_dossier(
         self,
         dossier_id: str,
@@ -65,10 +97,23 @@ class FindingRepositoryImpl:
             FindingORM.dossier_id == dossier_id,
             FindingORM.tenant_id == self._tenant_id,
         )
-        if disposition:
+        has_job, current_run = await self._current_job_run(dossier_id)
+        if has_job:
+            stmt = stmt.where(FindingORM.run_id == (current_run or ""))
+        semantic_filter = disposition in _SEMANTIC_DISPOSITIONS
+        if disposition and not semantic_filter:
             stmt = stmt.where(FindingORM.disposition == disposition)
         if scope:
             stmt = stmt.where(FindingORM.scope == scope)
+        if semantic_filter:
+            result = await self._session.execute(stmt.order_by(FindingORM.created_at.desc()))
+            enriched = await self._enrich_findings(list(result.scalars().all()))
+            filtered = [
+                row
+                for row in enriched
+                if (row.get("semantic") or {}).get("disposition") == disposition
+            ]
+            return filtered[offset : offset + limit], len(filtered)
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total = int((await self._session.execute(count_stmt)).scalar() or 0)
         stmt = stmt.order_by(FindingORM.created_at.desc()).limit(limit).offset(offset)
@@ -108,19 +153,23 @@ class FindingRepositoryImpl:
         rows = list(result.scalars().all())
         # Findings are append-only; a re-run appends a fresh set. Only the
         # latest run reflects the current documents, so older runs are hidden.
-        latest_run = next((f.run_id for f in rows if f.run_id), None)
+        has_job, current_run = await self._current_job_run(dossier_id)
+        latest_run = current_run if has_job else next((f.run_id for f in rows if f.run_id), None)
+        if has_job and not current_run:
+            return [], 0
         if latest_run:
             rows = [f for f in rows if f.run_id == latest_run]
+        enriched_rows = await self._enrich_findings(rows)
         filtered = [
             f
-            for f in rows
-            if f.disposition in _CONFLICT_DISPOSITIONS
-            or float(f.confidence) < _CONFLICT_CONFIDENCE_THRESHOLD
+            for f in enriched_rows
+            if f["disposition"] in _CONFLICT_DISPOSITIONS
+            or float(f["confidence"]) < _CONFLICT_CONFIDENCE_THRESHOLD
+            or (f.get("semantic") or {}).get("review_state") == "NEEDS_REVIEW"
         ]
         total = len(filtered)
         page = filtered[offset : offset + limit]
-        enriched = await self._enrich_findings(page)
-        return enriched, total
+        return page, total
 
     async def add(self, finding: object) -> None:
         """Stub: real impl sẽ convert dict → FindingORM."""
@@ -175,10 +224,10 @@ class FindingRepositoryImpl:
             cit_rows = await self._session.execute(cit_stmt)
             by_id = {row.id: _citation_payload(row) for row in cit_rows.scalars().all()}
             for sides in sides_by_finding.values():
-                for side in sides:
-                    payload = by_id.get(str(side.get("citation_id") or ""))
+                for side_payload in sides:
+                    payload = by_id.get(str(side_payload.get("citation_id") or ""))
                     if payload:
-                        side["citation"] = payload
+                        side_payload["citation"] = payload
 
         review_stmt = select(ReviewItemORM).where(
             ReviewItemORM.tenant_id == self._tenant_id,
@@ -257,6 +306,33 @@ class FindingRepositoryImpl:
                 "current_version": int(review.version or 0),
                 "latest": latest,
             }
+        semantic = None
+        for side in sides or []:
+            snapshot = side.get("value_snapshot")
+            if isinstance(snapshot, str):
+                snapshot = json.loads(snapshot)
+            metadata = snapshot.get("semantic") if isinstance(snapshot, dict) else None
+            if not isinstance(metadata, dict):
+                continue
+            pair = metadata.get("pair")
+            timeline = metadata.get("timeline")
+            projection = pair if isinstance(pair, dict) else timeline
+            if not isinstance(projection, dict):
+                continue
+            semantic = {
+                "kind": "PAIR" if pair else "TIMELINE",
+                "disposition": pair["disposition"] if pair else "CANDIDATE_AMENDMENT",
+                "reason": projection.get("reason") or ";".join(projection.get("reasons") or []),
+                "review_state": projection["review_state"],
+                "method": orm.method,
+                "profile_digest": metadata["profile_digest"],
+                "alias_version": metadata["alias_version"],
+                "alias_digest": metadata["alias_digest"],
+                "alignment_key": metadata.get("alignment_key"),
+                "conflict_kind": metadata.get("conflict_kind"),
+                "slots_in_difference": metadata.get("slots_in_difference", []),
+            }
+            break
         return {
             "id": orm.id,
             "dossier_id": orm.dossier_id,
@@ -272,6 +348,7 @@ class FindingRepositoryImpl:
             "sides": sides or [],
             "disclaimer": "Kết quả so sánh kỹ thuật, không phải kết luận pháp lý.",
             "review": review_payload,
+            "semantic": semantic,
         }
 
 

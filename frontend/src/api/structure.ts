@@ -13,6 +13,7 @@ import {
 } from './ai2'
 import { buildStructureTree, inferStructureMode } from '../structure'
 import { asConfidence } from '../structure/confidence'
+import { decodeFindingSemantic, type FindingSemantic } from './semanticResults'
 
 export type StructureDocument = {
   id: string
@@ -94,6 +95,8 @@ export type ReviewSpotSide = {
   lineNo: number | null
   /** Bbox thật từ citation. Rỗng thì UI lấy region của nút cây cấu trúc. */
   regions: ClauseRegion[]
+  valueSnapshot?: unknown
+  semantic?: FindingSemantic | null
 }
 
 export type ReviewSpot = {
@@ -104,6 +107,8 @@ export type ReviewSpot = {
   clauseIds: string[]
   sides: ReviewSpotSide[]
   review: ReviewSpotLink | null
+  semantic?: FindingSemantic | null
+  runId?: string | null
 }
 
 const DONE_STATUSES = new Set([
@@ -497,7 +502,8 @@ function citationAnchor(citation: Record<string, unknown> | null): {
       return { regions: [], pageNo: null, lineNo: null }
     }
   }
-  if (!Array.isArray(segments)) return { regions: [], pageNo: null, lineNo: null }
+  if (!Array.isArray(segments))
+    return { regions: [], pageNo: null, lineNo: null }
   let pageNo: number | null = null
   let lineNo: number | null = null
   const regions: ClauseRegion[] = []
@@ -519,6 +525,8 @@ function snapshotText(value: unknown) {
   if (typeof value === 'number' && Number.isFinite(value)) return String(value)
   const row = asRecord(value)
   if (!row) return ''
+  const semantic = decodeFindingSemantic(row.semantic)
+  if (semantic) return semantic.frame.evidence.map((e) => e.raw).join('\n')
   return (
     asString(row.value) ||
     asString(row.text) ||
@@ -549,6 +557,10 @@ function asReviewSpot(value: unknown): ReviewSpot | null {
             pageNo: anchor.pageNo,
             lineNo: anchor.lineNo,
             regions: anchor.regions,
+            valueSnapshot: side.value_snapshot ?? null,
+            semantic: decodeFindingSemantic(
+              asRecord(side.value_snapshot)?.semantic ?? side.semantic,
+            ),
           },
         ]
       })
@@ -569,6 +581,8 @@ function asReviewSpot(value: unknown): ReviewSpot | null {
     severity: asString(row.severity),
     clauseIds,
     sides,
+    semantic: sides.find((side) => side.semantic)?.semantic ?? null,
+    runId: typeof row.run_id === 'string' ? row.run_id : null,
     review: reviewId
       ? {
           itemId: reviewId,
@@ -591,7 +605,8 @@ function asReviewLatest(value: unknown): ReviewSpotLatest | null {
     action,
     comment: typeof row.comment === 'string' ? row.comment : null,
     reviewerId: asString(row.reviewer_id),
-    reviewerName: typeof row.reviewer_name === 'string' ? row.reviewer_name : null,
+    reviewerName:
+      typeof row.reviewer_name === 'string' ? row.reviewer_name : null,
     reviewerEmail:
       typeof row.reviewer_email === 'string' ? row.reviewer_email : null,
     reviewedAt: typeof row.reviewed_at === 'string' ? row.reviewed_at : null,
