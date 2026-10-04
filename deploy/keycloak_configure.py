@@ -1,10 +1,13 @@
 """Make the imported realm safe and usable online. Idempotent; stdlib only.
 
-Runs inside the backend image on ci-network (deploy/deploy.sh does it):
+Runs inside the running backend container on ci-network (deploy/deploy.sh does it):
 
-    docker compose ... run --rm --no-deps -v ./deploy:/deploy:ro \
-        -e KEYCLOAK_ADMIN_PASSWORD=... backend python /deploy/keycloak_configure.py
+    docker compose ... exec -T -e KEYCLOAK_ADMIN_PASSWORD=... \
+        backend python - < deploy/keycloak_configure.py
 
+- realm frontend URL: KEYCLOAK_PUBLIC_URL replaces the http://localhost:8080 of
+  realm-export.json, which overrides --hostname and makes Keycloak answer
+  "HTTPS required" to every caller from the Internet;
 - frontend client: add FRONTEND_ORIGINS to redirect URIs, web origins and
   post-logout redirects (localhost:5173 stays for local frontend work);
 - backend client: replace the repo's dev secret with BACKEND_KEYCLOAK_ADMIN_SECRET;
@@ -128,6 +131,14 @@ def configure_frontend(token: str, origins: list[str]) -> None:
     print(f"[keycloak] frontend client allows {', '.join(origins)}")
 
 
+def configure_frontend_url(token: str, public_url: str) -> None:
+    realm = _request("GET", f"/admin/realms/{REALM}", token)
+    attributes = realm.setdefault("attributes", {})
+    attributes["frontendUrl"] = public_url
+    _request("PUT", f"/admin/realms/{REALM}", token, realm)
+    print(f"[keycloak] realm frontend URL: {public_url}")
+
+
 def configure_backend_secret(token: str, secret: str) -> None:
     client = _client(token, BACKEND_CLIENT)
     client["secret"] = secret
@@ -197,6 +208,7 @@ def enable_brute_force_protection(token: str) -> None:
 def main() -> None:
     origins = [o.strip().rstrip("/") for o in _env("FRONTEND_ORIGINS").split(",") if o.strip()]
     token = _admin_token()
+    configure_frontend_url(token, _env("KEYCLOAK_PUBLIC_URL").rstrip("/"))
     configure_frontend(token, origins)
     configure_backend_secret(token, _env("BACKEND_KEYCLOAK_ADMIN_SECRET"))
     reset_demo_passwords(token)

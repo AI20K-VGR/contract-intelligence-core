@@ -29,6 +29,28 @@ Những thứ không ra Internet, chỉ nằm trong mạng `ci-network`:
 - Một IPv4 công khai **cố định**: tên miền `sslip.io` và chứng chỉ gắn với IP này.
 - Cổng 80 và 443 mở từ Internet ở firewall của nhà cung cấp (security group). Cổng 22 mở cho người vận hành.
 
+### Máy chủ ít RAM (4 GB)
+
+Chạy được cho demo ít người dùng, chậm hơn và ít dư địa hơn. Làm ba việc trước khi chạy `deploy.sh`:
+
+1. Swap tổng cộng 4 GB trở lên, để lúc build hoặc OCR vọt bộ nhớ thì máy chậm lại chứ tiến trình không bị giết. `bootstrap.sh` chỉ thêm swap khi máy chưa có swap nào; máy đã có sẵn swap nhỏ thì thêm tay:
+
+   ```bash
+   sudo fallocate -l 4G /swapfile2 && sudo chmod 600 /swapfile2 && sudo mkswap /swapfile2 && sudo swapon /swapfile2
+   echo '/swapfile2 none swap sw 0 0' | sudo tee -a /etc/fstab
+   ```
+
+2. Trong `deploy/.env.prod`:
+
+   ```env
+   KAFKA_HEAP_OPTS="-Xmx256m -Xms256m"
+   KEYCLOAK_HEAP_OPTS="-Xms128m -Xmx384m"
+   ```
+
+3. Trong `ai-service/.env`, giảm số trang OCR song song: `AI1_MAX_PAGES_IN_FLIGHT=2`.
+
+Hồ sơ hàng trăm trang vẫn có thể đẩy máy vào swap. Máy 2 GB không đủ: stack dùng khoảng 2,7 GB ngay khi nhàn rỗi.
+
 ## Kế hoạch triển khai qua SSH
 
 ### Thông tin cần có trước khi bắt đầu
@@ -131,9 +153,34 @@ Trên `https://app-<ip>.sslip.io` (hoặc frontend ở máy dev trỏ vào serve
 
 ## Cập nhật
 
+Tự động: workflow `deploy` (`.github/workflows/deploy.yml`) chạy sau mỗi lần merge vào `develop`, hoặc bấm tay ở GitHub → Actions → `deploy` → Run workflow. Nó SSH vào server, fast-forward checkout tới commit vừa merge, chạy `deploy/deploy.sh`, rồi chạy `deploy/check_external.sh` từ runner (tức từ bên ngoài server).
+
+Bằng tay, trên server:
+
 ```bash
 cd /opt/contract-intelligence && sudo deploy/deploy.sh --pull
 ```
+
+### Cài CI/CD (một lần)
+
+Server phải được chuẩn bị xong bước 1–3 ở trên trước. Sau đó tạo một khoá riêng cho GitHub Actions và khai bốn secret của repo (Settings → Secrets and variables → Actions):
+
+```bash
+ssh-keygen -t ed25519 -N "" -C github-actions-deploy -f ./deploy_key
+ssh <user>@<ip> 'cat >> ~/.ssh/authorized_keys' < ./deploy_key.pub
+ssh-keyscan -t ed25519 <ip>        # so với khoá máy chủ đã biết rồi mới dùng
+```
+
+| Secret | Giá trị |
+|---|---|
+| `DEPLOY_HOST` | IP hoặc tên máy chủ |
+| `DEPLOY_USER` | User SSH (`root`, hoặc user có `sudo` không hỏi mật khẩu) |
+| `DEPLOY_SSH_KEY` | Nội dung file `deploy_key` (khoá bí mật). Xoá file sau khi khai |
+| `DEPLOY_KNOWN_HOSTS` | Dòng `ssh-keyscan` ở trên |
+
+Chưa có `DEPLOY_HOST` thì workflow báo "not configured" và không làm gì. Muốn tạm dừng deploy tự động (ví dụ khi bảo trì server), xoá secret `DEPLOY_HOST`.
+
+Workflow chỉ fast-forward: nếu checkout trên server có commit riêng thì deploy dừng lại, không ghi đè. Hai lần deploy không chạy chồng nhau; lần sau chờ lần trước xong.
 
 Server cài trước 02/10/2026 (trước issue #52) cần làm thêm một lần trước lần cập nhật đầu tiên:
 
