@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu | **DOC-05b** / Contract Intelligence (PROD-01) |
-| Phiên bản / SemVer | **`v1.3.0`** — `review.latest` (lượt thẩm định gần nhất) trong finding của `GET /dossiers/{id}/findings`, `/conflicts` và `GET /findings/{id}`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
+| Phiên bản / SemVer | **`v1.5.0`** — `GET /documents/{id}/lines` (dòng OCR của mọi trang trong một request) và `409` của `POST /dossiers/{id}/ocr` khi hồ sơ đang OCR. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
 | Trạng thái | Đã chốt — Sẵn sàng triển khai Frontend & Backend |
 | Owner | Tech Lead / Frontend Lead / Backend Lead |
 | Ngày hiệu lực | 17/09/2026 |
@@ -327,6 +327,7 @@ Theo dõi hành trình chạy của Pipeline AI qua 11 bước (S0..S10), xem lo
   - **Không OCR lại**, AI1 không nhận lệnh nào.
   - Facts, xung đột, thẩm định và trạng thái job **giữ nguyên**; chỉ cập nhật `ai2_snapshot_digest` mà hỏi đáp dùng.
   - Lỗi AI2 không làm hỏng hồ sơ; audit ghi `ai2.reindex_failed`, thành công ghi `ai2.reindexed`.
+  - API chỉ xét trạng thái job. Hồ sơ không có kết quả AI2 hoặc manifest chưa xác nhận (hồ sơ xử lý trước khi có tích hợp AI2) vẫn nhận `202`, nhưng worker không gửi gì cho AI2 và audit ghi `ai2.reindex_refused` kèm `reason` (`job_status`, `no_ai2_result`, `manifest`, `snapshots`).
   - `409` khi job chưa ở `pending_review` / `reviewed` / `approved`; `403` khi không có quyền sửa hồ sơ.
 
 ---
@@ -340,6 +341,7 @@ Giao diện xem văn bản trực quan chia đôi màn hình: Bên trái là câ
 | `GET` | `/documents/{id}/content` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Tải về hoặc stream nhị phân file PDF gốc (`application/pdf`) |
 | `GET` | `/documents/{id}/pages` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Danh sách trang, kích thước points và link ảnh thumbnail |
 | `GET` | `/pages/{id}` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Chi tiết trang kèm danh sách các dòng OCR (`ocr_line`) và Bbox |
+| `GET` | `/documents/{id}/lines` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | **v1.5.0.** Dòng OCR của mọi trang trong một response: `[{ page_no, width_pt, height_pt, ocr_lines: [{ id, line_no, text, bbox, confidence }] }]`, theo thứ tự trang rồi dòng. Trang chưa có dòng trả `ocr_lines: []`. Không phân trang. Thay cho gọi `/pages/{id}` từng trang |
 | `GET` | `/documents/{id}/clauses` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Cây Điều khoản hoàn chỉnh dựng theo quan hệ cha-con (`parent_id`) |
 | `GET` | `/documents/{id}/tables` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Danh sách bảng phát hiện được, danh sách cell (`row`, `col`, `span`, text) |
 | `GET` | `/dossiers/{id}/queries` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | **v1.1.0.** Lịch sử hỏi đáp trên hồ sơ, mới nhất trước; còn sau khi server khởi động lại |
@@ -746,6 +748,8 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
+| `v1.5.0` | 04/10/2026 | Thêm `GET /documents/{id}/lines`. `POST /dossiers/{id}/ocr` trả `409` khi hồ sơ đang OCR (job `processing`) thay vì thay run đang chạy; chờ xong hoặc hủy run rồi chạy lại. Response JSON trên 1 KB được gzip khi client gửi `Accept-Encoding: gzip` (SSE, ảnh và PDF không nén). Chỉ thêm endpoint và mã lỗi, nên là MINOR |
+| `v1.4.0` | 04/10/2026 | Thêm `POST /dossiers/{id}/ai2/reindex`: AI2 dựng lại dữ liệu hỏi đáp từ kết quả OCR đã lưu, không OCR lại. Chỉ thêm endpoint, nên là MINOR |
 | `v1.3.0` | 02/10/2026 | Finding có thêm `review.latest` (`action`, `comment`, người thẩm định, `reviewed_at`, `action_count`), `null` khi chưa ai thẩm định. Trước đây Backend đã lấy giá trị này nhưng DTO làm rơi, nên FE không biết xung đột đã được đánh Đúng/Sai (liên quan #51). Chỉ thêm trường tuỳ chọn, nên là MINOR |
 | `v1.2.0` | 30/09/2026 | Theo DEC-BE-AI2-01 D5 (việc B4): hồ sơ tối đa 6 tài liệu (đếm file và phần sau khi tách, không đếm trang), `422 DOSSIER_TOO_MANY_DOCUMENTS` ở `POST /dossiers` và `POST /dossiers/{id}/split`, câu lỗi riêng cho từng chỗ; hồ sơ cần đúng một hợp đồng, `422 contract_not_unique` (mới) cạnh `contract_required` ở `POST /dossiers/{id}/split` và `POST /dossiers/{id}/manifest/confirm`. Chỉ thêm mã lỗi; hồ sơ bị chặn là loại AI2 vốn không xử lý được, nên là MINOR |
 | `v1.1.0` | 30/09/2026 | Thêm `GET /dossiers/{id}/queries`, `POST /dossiers/{id}/ocr/retry-failed`, `POST /dossiers/{id}/split` và `metadata.split_pending` (đã có trong `DOC-05-api-spec.yaml`, PR #36). Chỉ thêm, không đổi hay xoá trường nào, nên là MINOR. Response của ba API mô tả theo envelope thật `{ data, meta }` (xem ghi chú §3.1 bên dưới). Các endpoint backend bỏ ở v2.0.0 (`POST /dossiers/upload`, webhook AI1/AI2, `/reviews` cũ) chưa từng có trong DOC-05b, nên không ảnh hưởng contract này |
@@ -762,4 +766,4 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 
 ---
 
-**Hết DOC-05b · Frontend-Backend API Contract v1.3.0 (SemVer)**
+**Hết DOC-05b · Frontend-Backend API Contract v1.5.0 (SemVer)**

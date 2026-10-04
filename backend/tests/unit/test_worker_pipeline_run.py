@@ -889,6 +889,35 @@ async def test_double_clicked_restart_opens_one_run_and_ocrs_once(
 
 
 @pytest.mark.asyncio
+async def test_restart_locks_the_job_row_before_checking_its_run(
+    factory: async_sessionmaker[AsyncSession], ocr_publish: AsyncMock
+) -> None:
+    """Two consumers handling the two clicks at once: the second must wait for the first.
+
+    sqlite has no row locks, so this checks the statement the worker sends.
+    """
+    from sqlalchemy.dialects import postgresql
+
+    await _with_blobs(factory, pages=2)
+    first_run = await _start(factory)
+    statements: list[str] = []
+
+    async with factory() as session:
+        execute = session.execute
+
+        async def recording(statement: Any, *args: Any, **kwargs: Any) -> Any:
+            if getattr(statement, "is_select", False):
+                statements.append(str(statement.compile(dialect=postgresql.dialect())))
+            return await execute(statement, *args, **kwargs)
+
+        session.execute = recording  # type: ignore[method-assign]
+        await worker._mark_processing(session, DOSSIER, restart=True, expected_run_id=first_run)
+
+    job_select = next(sql for sql in statements if "FROM job" in sql)
+    assert job_select.rstrip().endswith("FOR UPDATE")
+
+
+@pytest.mark.asyncio
 async def test_restart_without_expected_run_still_works(
     factory: async_sessionmaker[AsyncSession], ocr_publish: AsyncMock
 ) -> None:
@@ -987,6 +1016,27 @@ async def test_unreadable_pdf_keeps_ocr_going_on_the_old_estimate(
         )
 
     assert ocr_publish.await_count == 2  # OCR still requested for both documents
+
+
+@pytest.mark.asyncio
+async def test_unreadable_pdf_is_not_downloaded_again_on_the_next_run(
+    factory: async_sessionmaker[AsyncSession],
+    ocr_publish: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _with_blobs(factory, pages=0)
+    download = AsyncMock(return_value=b"not a pdf")
+    monkeypatch.setattr(worker.storage, "download_object", download)
+    monkeypatch.setattr(worker, "_uncountable_pdfs", set())
+
+    for _ in range(2):
+        async with factory() as session:
+            await worker.handle_dossier_uploaded(
+                session, {"event": "dossier.uploaded", "dossier_id": DOSSIER, "restart": True}
+            )
+
+    assert download.await_count == 2  # once per document, not once per run
+    assert ocr_publish.await_count == 4  # OCR still requested on both runs
 
 
 # ---------------------------------------------------------------------------
@@ -1110,6 +1160,29 @@ async def test_ai2_reindex_refused_unless_ai2_finished(
 
     ai2_service.submit.assert_not_awaited()
     assert (await _job(factory)).status == status
+    (audit,) = await _audits(factory, "ai2.reindex_refused")
+    assert "job_status" in str(audit.detail)
+
+
+@pytest.mark.asyncio
+async def test_ai2_reindex_refusal_of_a_run_without_ai2_result_is_audited(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ai2_service: SimpleNamespace,
+) -> None:
+    """The API accepts on job status alone; the audit row tells the caller why nothing ran."""
+    run_id = await _finished_run(factory, ai2_ready)
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+        assert run is not None
+        run.ai2_result_digest = None
+        await session.commit()
+
+    await _reindex(factory, run_id)
+
+    ai2_service.submit.assert_not_awaited()
+    (audit,) = await _audits(factory, "ai2.reindex_refused")
+    assert "no_ai2_result" in str(audit.detail)
 
 
 @pytest.mark.asyncio
