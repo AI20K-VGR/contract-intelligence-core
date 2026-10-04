@@ -131,9 +131,34 @@ Trên `https://app-<ip>.sslip.io` (hoặc frontend ở máy dev trỏ vào serve
 
 ## Cập nhật
 
+Tự động: workflow `deploy` (`.github/workflows/deploy.yml`) chạy sau mỗi lần merge vào `develop`, hoặc bấm tay ở GitHub → Actions → `deploy` → Run workflow. Nó SSH vào server, fast-forward checkout tới commit vừa merge, chạy `deploy/deploy.sh`, rồi chạy `deploy/check_external.sh` từ runner (tức từ bên ngoài server).
+
+Bằng tay, trên server:
+
 ```bash
 cd /opt/contract-intelligence && sudo deploy/deploy.sh --pull
 ```
+
+### Cài CI/CD (một lần)
+
+Server phải được chuẩn bị xong bước 1–3 ở trên trước. Sau đó tạo một khoá riêng cho GitHub Actions và khai bốn secret của repo (Settings → Secrets and variables → Actions):
+
+```bash
+ssh-keygen -t ed25519 -N "" -C github-actions-deploy -f ./deploy_key
+ssh <user>@<ip> 'cat >> ~/.ssh/authorized_keys' < ./deploy_key.pub
+ssh-keyscan -t ed25519 <ip>        # so với khoá máy chủ đã biết rồi mới dùng
+```
+
+| Secret | Giá trị |
+|---|---|
+| `DEPLOY_HOST` | IP hoặc tên máy chủ |
+| `DEPLOY_USER` | User SSH (`root`, hoặc user có `sudo` không hỏi mật khẩu) |
+| `DEPLOY_SSH_KEY` | Nội dung file `deploy_key` (khoá bí mật). Xoá file sau khi khai |
+| `DEPLOY_KNOWN_HOSTS` | Dòng `ssh-keyscan` ở trên |
+
+Chưa có `DEPLOY_HOST` thì workflow báo "not configured" và không làm gì. Muốn tạm dừng deploy tự động (ví dụ khi bảo trì server), xoá secret `DEPLOY_HOST`.
+
+Workflow chỉ fast-forward: nếu checkout trên server có commit riêng thì deploy dừng lại, không ghi đè. Hai lần deploy không chạy chồng nhau; lần sau chờ lần trước xong.
 
 Server cài trước 02/10/2026 (trước issue #52) cần làm thêm một lần trước lần cập nhật đầu tiên:
 

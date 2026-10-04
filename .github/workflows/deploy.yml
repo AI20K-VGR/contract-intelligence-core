@@ -1,0 +1,93 @@
+# Deploy `develop` to the online server over SSH, then check it from outside.
+#
+# Runs on every push to develop (i.e. after a PR is merged) and on demand.
+# The server is prepared once by hand (deploy/README.md, steps 1-3): clone in
+# /opt/contract-intelligence, deploy/bootstrap.sh, deploy/.env.prod and
+# ai-service/.env filled in. This workflow only updates and restarts it.
+#
+# Repository secrets:
+#   DEPLOY_HOST         server address (IP or name)
+#   DEPLOY_USER         SSH user (root, or a user with passwordless sudo)
+#   DEPLOY_SSH_KEY      private key whose public half is in that user's authorized_keys
+#   DEPLOY_KNOWN_HOSTS  the server's line(s) from `ssh-keyscan -t ed25519 <host>`,
+#                       checked by hand once, so the runner never trusts an unknown host
+# Without DEPLOY_HOST the job reports "not configured" and succeeds.
+name: deploy
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time; a newer push waits instead of interrupting a build.
+concurrency:
+  group: deploy-server
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      APP_DIR: /opt/contract-intelligence
+    steps:
+      - name: Is a server configured?
+        id: target
+        run: |
+          if [ -z "$DEPLOY_HOST" ]; then
+            echo "::notice::DEPLOY_HOST is not set: nothing deployed (see .github/workflows/deploy.yml)."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.target.outputs.configured == 'true'
+
+      - name: SSH key and pinned host key
+        if: steps.target.outputs.configured == 'true'
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<CONFIG
+          Host server
+            HostName $DEPLOY_HOST
+            User $DEPLOY_USER
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 30
+          CONFIG
+
+      - name: Update the checkout and run deploy/deploy.sh
+        if: steps.target.outputs.configured == 'true'
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          ssh server "APP_DIR='$APP_DIR' SHA='$SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+          sudo=""; [ "$(id -u)" -eq 0 ] || sudo="sudo"
+          cd "$APP_DIR"
+          $sudo git fetch --quiet origin develop
+          $sudo git checkout --quiet develop
+          # Fast-forward only: a server checkout that diverged is a problem to look at, not to overwrite.
+          $sudo git merge --ff-only "$SHA"
+          $sudo deploy/deploy.sh
+          REMOTE
+
+      - name: Check from outside the server
+        if: steps.target.outputs.configured == 'true'
+        run: |
+          hosts=$(ssh server "sudo=''; [ \"\$(id -u)\" -eq 0 ] || sudo=sudo; \$sudo grep -E '^(API_HOST|AUTH_HOST|APP_HOST)=' '$APP_DIR/deploy/.env.prod'")
+          value() { printf '%s\n' "$hosts" | grep -E "^$1=" | tail -1 | cut -d= -f2-; }
+          bash deploy/check_external.sh "$(value API_HOST)" "$(value AUTH_HOST)" "$(value APP_HOST)"
