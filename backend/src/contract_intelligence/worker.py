@@ -522,11 +522,15 @@ async def _mark_processing(
     new run, whose OCR is paid for and would otherwise be thrown away.
     """
     now = datetime.now(tz=UTC)
+    # Row lock: restart events carry no Kafka key, so two of them can reach two
+    # consumers at once. The second waits here, then reads the run the first
+    # one opened and is dropped by the expected_run_id check below.
     result = await session.execute(
         select(JobORM)
         .where(JobORM.dossier_id == dossier_id)
         .order_by(JobORM.created_at.desc())
         .limit(1)
+        .with_for_update()
     )
     job = result.scalar_one_or_none()
     if job is None:

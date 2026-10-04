@@ -889,6 +889,35 @@ async def test_double_clicked_restart_opens_one_run_and_ocrs_once(
 
 
 @pytest.mark.asyncio
+async def test_restart_locks_the_job_row_before_checking_its_run(
+    factory: async_sessionmaker[AsyncSession], ocr_publish: AsyncMock
+) -> None:
+    """Two consumers handling the two clicks at once: the second must wait for the first.
+
+    sqlite has no row locks, so this checks the statement the worker sends.
+    """
+    from sqlalchemy.dialects import postgresql
+
+    await _with_blobs(factory, pages=2)
+    first_run = await _start(factory)
+    statements: list[str] = []
+
+    async with factory() as session:
+        execute = session.execute
+
+        async def recording(statement: Any, *args: Any, **kwargs: Any) -> Any:
+            if getattr(statement, "is_select", False):
+                statements.append(str(statement.compile(dialect=postgresql.dialect())))
+            return await execute(statement, *args, **kwargs)
+
+        session.execute = recording  # type: ignore[method-assign]
+        await worker._mark_processing(session, DOSSIER, restart=True, expected_run_id=first_run)
+
+    job_select = next(sql for sql in statements if "FROM job" in sql)
+    assert job_select.rstrip().endswith("FOR UPDATE")
+
+
+@pytest.mark.asyncio
 async def test_restart_without_expected_run_still_works(
     factory: async_sessionmaker[AsyncSession], ocr_publish: AsyncMock
 ) -> None:
