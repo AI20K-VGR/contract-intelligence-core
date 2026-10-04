@@ -85,6 +85,48 @@ class TestListPages:
         assert body["data"][0]["preview_uri"] == "previews/pg_1.webp"
 
 
+class TestListDocumentLines:
+    async def test_returns_all_pages_with_lines(
+        self, client: AsyncClient, mock_svc: AsyncMock
+    ) -> None:
+        mock_svc.list_document_lines.return_value = [
+            {
+                "page_no": 1,
+                "width_pt": 595.0,
+                "height_pt": 842.0,
+                "ocr_lines": [{"id": "l1", "line_no": 1, "text": "Điều 1", "bbox": None}],
+            }
+        ]
+        resp = await client.get("/api/v1/documents/doc_1/lines")
+        assert resp.status_code == 200
+        assert resp.json()["data"][0]["ocr_lines"][0]["text"] == "Điều 1"
+        mock_svc.list_document_lines.assert_called_once_with("doc_1")
+
+    async def test_large_response_is_gzipped(
+        self, client: AsyncClient, mock_svc: AsyncMock
+    ) -> None:
+        lines = [{"id": f"l{i}", "line_no": i, "text": "Điều khoản " * 5} for i in range(200)]
+        mock_svc.list_document_lines.return_value = [
+            {"page_no": 1, "width_pt": 595.0, "height_pt": 842.0, "ocr_lines": lines}
+        ]
+        resp = await client.get(
+            "/api/v1/documents/doc_1/lines", headers={"Accept-Encoding": "gzip"}
+        )
+        assert resp.status_code == 200
+        assert resp.headers.get("content-encoding") == "gzip"
+        assert len(resp.json()["data"][0]["ocr_lines"]) == 200
+
+    async def test_page_image_is_not_gzipped(
+        self, client: AsyncClient, mock_svc: AsyncMock
+    ) -> None:
+        mock_svc.get_page_image.return_value = (b"png-bytes" * 1000, "image/png")
+        resp = await client.get(
+            "/api/v1/documents/doc_1/pages/1/image", headers={"Accept-Encoding": "gzip"}
+        )
+        assert resp.status_code == 200
+        assert "content-encoding" not in resp.headers
+
+
 class TestGetPageImage:
     async def test_returns_png_binary(self, client: AsyncClient, mock_svc: AsyncMock) -> None:
         mock_svc.get_page_image.return_value = (b"\x89PNG", "image/png")
