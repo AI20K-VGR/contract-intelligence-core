@@ -62,6 +62,7 @@ from contract_intelligence.shared.ai.persistence import (
 )
 from contract_intelligence.shared.audit import add_audit_event
 from contract_intelligence.shared.base import new_ulid
+from contract_intelligence.shared.pdf import count_pdf_pages
 from contract_intelligence.shared.processed_events import (
     already_processed,
     event_key,
@@ -497,18 +498,28 @@ async def _carry_extractions(
     return {str(value) for value in carried["ai1_extracted_documents"] if value}
 
 
+# ``expected_run_id`` not given (upload events, events published before it existed).
+_ANY_RUN = object()
+
+
 async def _mark_processing(
     session: AsyncSession,
     dossier_id: str,
     *,
     restart: bool = False,
     retry_failed: bool = False,
+    expected_run_id: str | None | object = _ANY_RUN,
 ) -> str | None:
     """Start (or resume) the OCR run of the dossier's latest job. Returns its run id.
 
     A redelivered ``dossier.uploaded`` resumes the active run. ``restart`` (OCR
     re-run) always opens a new run and supersedes the old one, so late results
     of the old run can no longer change the job.
+
+    ``expected_run_id`` is the run the user saw when asking for the restart.
+    If the job has moved to another run since, the request was already acted
+    on (a double click, two tabs): it is dropped instead of superseding that
+    new run, whose OCR is paid for and would otherwise be thrown away.
     """
     now = datetime.now(tz=UTC)
     result = await session.execute(
@@ -523,6 +534,14 @@ async def _mark_processing(
         return None
 
     previous_status = job.status
+    if restart and expected_run_id is not _ANY_RUN and job.current_run_id != expected_run_id:
+        logger.info(
+            "worker.ocr_restart.duplicate",
+            dossier_id=dossier_id,
+            expected_run_id=expected_run_id,
+            current_run_id=job.current_run_id,
+        )
+        return None
     if restart:
         if previous_status in (JobStatus.APPROVED.value, JobStatus.CANCELLED.value):
             logger.warning(
@@ -947,6 +966,7 @@ async def handle_dossier_uploaded(session: AsyncSession, event: dict[str, Any]) 
         dossier_id,
         restart=bool(event.get("restart")) or retry_failed,
         retry_failed=retry_failed,
+        expected_run_id=event.get("expected_run_id", _ANY_RUN),
     )
     await session.commit()
     if run_id is None:
@@ -956,6 +976,8 @@ async def handle_dossier_uploaded(session: AsyncSession, event: dict[str, Any]) 
     if not documents:
         logger.error("worker.dossier_uploaded.no_documents", dossier_id=dossier_id)
         return
+    # Before the carried shortcut too: the AI2 budget is per page as well.
+    await _fill_missing_page_counts(session, documents)
     carried = await _recorded_extractions(session, run_id) or set()
     missing = [document for document in documents if str(document.id) not in carried]
     if carried and not missing:
@@ -990,6 +1012,33 @@ async def handle_dossier_uploaded(session: AsyncSession, event: dict[str, Any]) 
             run_id=envelope["correlation"]["run_id"],
             event_id=envelope["event_id"],
         )
+
+
+async def _fill_missing_page_counts(session: AsyncSession, documents: list[DocumentORM]) -> None:
+    """Count the pages of documents stored without a page count.
+
+    Documents uploaded before pages were counted at upload have ``page_count``
+    0. The AI1 deadline, the page render URLs and their lifetime, and the AI2
+    budget all derive from it: a 200-page PDF would get 630s and one render
+    URL. A PDF that
+    cannot be read keeps 0 (the previous behaviour).
+    """
+    counted = False
+    for document in documents:
+        if int(document.page_count or 0) > 0 or not document.blob_uri:
+            continue
+        try:
+            data = await storage.download_object(document.blob_uri)
+            document.page_count = await asyncio.to_thread(count_pdf_pages, data)
+        except Exception as exc:  # noqa: BLE001 - keep OCR going on the old estimate
+            logger.warning(
+                "worker.page_count_unavailable", document_id=document.id, error=repr(exc)[:200]
+            )
+            continue
+        counted = True
+        logger.info("worker.page_count_filled", document_id=document.id, pages=document.page_count)
+    if counted:
+        await session.commit()
 
 
 async def _complete_carried_run(

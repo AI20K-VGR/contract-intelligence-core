@@ -706,24 +706,40 @@ class OcrRestartDTO(BaseModel):
     status_code=status.HTTP_202_ACCEPTED,
     response_model=ApiResponse[OcrRestartDTO],
     summary="Chạy lại OCR cho hồ sơ đã tải",
-    responses={404: {"description": "Dossier or document not found"}},
+    responses={
+        404: {"description": "Dossier or document not found"},
+        409: {"description": "The dossier is being OCR'd right now"},
+    },
 )
 async def restart_dossier_ocr(
     dossier_id: Annotated[str, Path(min_length=1)],
     svc: ContractServiceDep,
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
 ) -> ApiResponse[OcrRestartDTO]:
-    """Đăng lại dossier.uploaded để worker gửi lệnh OCR."""
+    """Đăng lại dossier.uploaded để worker gửi lệnh OCR.
+
+    Không nhận khi hồ sơ đang OCR: lần chạy mới sẽ thay lần đang chạy, kết quả
+    của nó bị bỏ và các trang bị OCR (và trả tiền) lần nữa.
+    """
     dossier = await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_EDIT)
     documents = await svc.list_documents(dossier_id)
     if not documents:
         raise HTTPException(status_code=404, detail="Dossier has no document to OCR")
+    job = dossier.latest_job()
+    if job is not None and job.status == JobStatus.PROCESSING:
+        raise HTTPException(
+            status_code=409,
+            detail="Hồ sơ đang OCR. Chờ xong hoặc hủy lần chạy hiện tại rồi mới chạy lại.",
+        )
     await messaging.publish_event(
         "dossier_events",
         {
             "event": "dossier.uploaded",
             "dossier_id": str(dossier_id),
             "restart": True,
+            # Two clicks publish two events for the same run; the worker only
+            # acts on the first one (see _mark_processing).
+            "expected_run_id": job.current_run_id if job is not None else None,
         },
     )
     await _record(
@@ -779,6 +795,7 @@ async def retry_failed_dossier_ocr(
             "dossier_id": str(dossier_id),
             "restart": True,
             "retry_failed": True,
+            "expected_run_id": job.current_run_id,
         },
     )
     await _record(

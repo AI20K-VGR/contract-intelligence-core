@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   loadContractOcrPages,
+  rerunDossierOcr,
   restartDossierOcr,
   restartOcrErrorMessage,
   retryDossierFailed,
@@ -52,10 +53,7 @@ function describeActivity(jobStatus: string | null, pages: OcrPageRow[]) {
   return `Đã nhận diện xong ${pages.length} trang.`
 }
 
-function overallState(
-  jobStatus: string | null,
-  pages: OcrPageRow[],
-): OcrState {
+function overallState(jobStatus: string | null, pages: OcrPageRow[]): OcrState {
   if (pages.some(pageFailed)) return 'error'
   if (pages.length === 0) {
     return jobStatus === 'processing' ? 'running' : 'pending'
@@ -91,16 +89,20 @@ export function OcrProgressPage() {
   usePageTitle(name)
   const titleInHeader = useHeaderShowsPageTitle()
 
+  // Một lần điều hướng chỉ gửi một lệnh chạy lại (StrictMode chạy effect hai lần).
+  const restartSentFor = useRef<string | null>(null)
   useEffect(() => {
     const restart = Boolean(
       (location.state as { restart?: boolean } | null)?.restart,
     )
     if (!restart || !dossierId) return
+    if (restartSentFor.current === location.key) return
+    restartSentFor.current = location.key
     navigate(location.pathname, { replace: true, state: null })
     setWatching(true)
     setBusy(true)
     setActionError(null)
-    void restartDossierOcr(dossierId)
+    void rerunDossierOcr(dossierId)
       .then(() => {
         setJobStatus('processing')
         setReloadKey((value) => value + 1)
@@ -112,7 +114,7 @@ export function OcrProgressPage() {
       .finally(() => {
         setBusy(false)
       })
-  }, [dossierId, location.pathname, location.state, navigate])
+  }, [dossierId, location.key, location.pathname, location.state, navigate])
 
   useEffect(() => {
     if (!dossierId) return
@@ -143,7 +145,9 @@ export function OcrProgressPage() {
       } catch (cause) {
         if (controller.signal.aborted || stopped) return
         setError(
-          cause instanceof Error ? cause.message : 'Không tải được tiến trình OCR.',
+          cause instanceof Error
+            ? cause.message
+            : 'Không tải được tiến trình OCR.',
         )
       }
     }
@@ -250,7 +254,10 @@ export function OcrProgressPage() {
               {activity}
             </p>
             {actionError ? (
-              <p className="mt-space-sm font-body-sm text-body-sm text-error" role="alert">
+              <p
+                className="mt-space-sm font-body-sm text-body-sm text-error"
+                role="alert"
+              >
                 {actionError}
               </p>
             ) : null}
@@ -284,7 +291,9 @@ export function OcrProgressPage() {
                 title="2. Nhận diện chữ"
               />
               <Step
-                detail={state === 'done' ? 'Đã ghi dòng OCR' : 'Chờ nhận diện xong'}
+                detail={
+                  state === 'done' ? 'Đã ghi dòng OCR' : 'Chờ nhận diện xong'
+                }
                 status={state === 'done' ? 'done' : 'waiting'}
                 title="3. Ghi kết quả"
               />
@@ -297,7 +306,10 @@ export function OcrProgressPage() {
                 Từng trang
               </h2>
             </div>
-            {canReOcr && documentId && pages.length > 0 && state !== 'running' ? (
+            {canReOcr &&
+            documentId &&
+            pages.length > 0 &&
+            state !== 'running' ? (
               <ReOcrPanel
                 documentId={documentId}
                 selected={selectedPages}
@@ -317,7 +329,10 @@ export function OcrProgressPage() {
                     className="px-space-lg py-space-md flex flex-col gap-1"
                   >
                     <div className="flex items-center gap-space-sm">
-                      {canReOcr && documentId && page.pageNo > 0 && state !== 'running' ? (
+                      {canReOcr &&
+                      documentId &&
+                      page.pageNo > 0 &&
+                      state !== 'running' ? (
                         <input
                           aria-label={`Chọn trang ${page.pageNo} để OCR lại`}
                           checked={selectedPages.includes(page.pageNo)}
@@ -326,7 +341,9 @@ export function OcrProgressPage() {
                           onChange={(event) =>
                             setSelectedPages((current) =>
                               event.target.checked
-                                ? [...current, page.pageNo].sort((a, b) => a - b)
+                                ? [...current, page.pageNo].sort(
+                                    (a, b) => a - b,
+                                  )
                                 : current.filter((n) => n !== page.pageNo),
                             )
                           }
