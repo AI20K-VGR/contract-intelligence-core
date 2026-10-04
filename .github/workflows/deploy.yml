@@ -17,8 +17,7 @@ name: deploy
 
 on:
   push:
-    # feature/code-full: temporary, to prove the workflow before it reaches develop.
-    branches: [develop, feature/code-full]
+    branches: [develop]
   workflow_dispatch:
 
 permissions:
