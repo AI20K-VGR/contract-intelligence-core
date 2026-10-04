@@ -566,7 +566,8 @@ paths:
         Theo dõi tiến độ qua SSE `/runs/{run_id}/events` của run mới.
 
         Lỗi ở bước AI2 (`AI2_PROCESSING_FAILED`, `AI2_TIMEOUT`) không dùng endpoint này mà dùng `POST /dossiers/{dossier_id}/ai2/retry`.
-        `POST /dossiers/{dossier_id}/ocr` (OCR lại toàn bộ) giữ nguyên hành vi.
+        `POST /dossiers/{dossier_id}/ocr` (OCR lại toàn bộ) vẫn mở run mới và OCR lại mọi tài liệu, nhưng trả `409`
+        khi hồ sơ đang OCR (job `processing`): chờ xong hoặc hủy run đang chạy rồi mới chạy lại.
       operationId: retryFailedDossierOcr
       x-rbac: [OPERATOR, ADMINISTRATOR]
       responses:
@@ -588,6 +589,48 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           description: Job mới nhất không lỗi ở bước OCR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /dossiers/{dossier_id}/ai2/reindex:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    post:
+      tags: [dossiers]
+      summary: Gửi lại kết quả OCR đã lưu cho AI2 dựng lại dữ liệu hỏi đáp, không OCR lại
+      description: |
+        Dùng khi hỏi đáp báo `AI2_QUERY_SNAPSHOT_NOT_FOUND` dù hồ sơ đã phân tích xong (AI2 mất dữ liệu của mình).
+        Worker gửi lại các snapshot AI1 đã lưu trên run hiện tại cho AI2, dưới lượt (`attempt`) kế tiếp.
+        AI1 không nhận lệnh nào. Facts, xung đột, thẩm định và trạng thái job giữ nguyên; chỉ `ai2_snapshot_digest`
+        của hồ sơ được cập nhật.
+
+        API chỉ xét trạng thái job. Hồ sơ không có kết quả AI2 hoặc manifest chưa xác nhận vẫn nhận `202`, nhưng
+        worker không gửi gì cho AI2 và audit ghi `ai2.reindex_refused` kèm `reason`
+        (`job_status`, `no_ai2_result`, `manifest`, `snapshots`). Thành công ghi `ai2.reindexed`, lỗi AI2 ghi
+        `ai2.reindex_failed` và không đổi run hay job.
+      operationId: reindexDossierAi2
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      responses:
+        '202':
+          description: Đã nhận, lệnh dựng lại được xếp hàng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeOcrRestart'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Không có role phù hợp hoặc không có quyền sửa hồ sơ (chia sẻ `read`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Job mới nhất chưa ở `pending_review`, `reviewed` hoặc `approved`
           content:
             application/json:
               schema:
@@ -1056,6 +1099,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiEnvelopePageList'
+
+  /documents/{document_id}/lines:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [pages]
+      summary: Dòng OCR của mọi trang trong một response
+      description: |
+        Thay cho gọi chi tiết từng trang khi dựng cây cấu trúc. Trang theo thứ tự `page_no`, dòng theo `line_no`.
+        Trang chưa có dòng trả `ocr_lines: []`. Không phân trang. Response JSON trên 1 KB được gzip khi client gửi
+        `Accept-Encoding: gzip`.
+      operationId: listDocumentLines
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Các trang kèm dòng OCR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeDocumentLines'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /documents/{document_id}/pages/{page_no}/image:
     parameters:
@@ -3287,6 +3356,34 @@ components:
               properties:
                 dossier_id: { type: string }
                 status: { type: string, enum: [queued] }
+
+    ApiEnvelopeDocumentLines:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                type: object
+                required: [page_no, ocr_lines]
+                properties:
+                  page_no: { type: integer, minimum: 1 }
+                  width_pt: { type: number, nullable: true }
+                  height_pt: { type: number, nullable: true }
+                  ocr_lines:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, line_no, text]
+                      properties:
+                        id: { type: string }
+                        line_no: { type: integer }
+                        text: { type: string }
+                        bbox:
+                          description: Bbox của dòng như lưu trong `ocr_line` (CPS `[x0,y0,x1,y1]`), cùng dạng với chi tiết trang
+                          nullable: true
+                        confidence: { type: number, nullable: true, minimum: 0, maximum: 1 }
 
     ApiEnvelopeDossierSplit:
       allOf:
