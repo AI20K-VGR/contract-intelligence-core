@@ -108,6 +108,9 @@ services:
       AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:?set in deploy/.env.prod}
       CORS_ALLOW_ORIGINS: ${FRONTEND_ORIGINS:?set in deploy/.env.prod}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:?set in deploy/.env.prod}
+      # Where the password-set e-mail sends the user once done: the login page
+      # ("/"), already a redirect URI of the frontend client (keycloak_configure.py).
+      KEYCLOAK_INVITE_REDIRECT_URI: ${FRONTEND_BASE_URL:?set in deploy/.env.prod}/
       # Caddy is another container: trust its X-Forwarded-* headers.
       FORWARDED_ALLOW_IPS: "*"
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
