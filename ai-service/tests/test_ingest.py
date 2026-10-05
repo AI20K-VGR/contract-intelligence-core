@@ -5,6 +5,7 @@ from app.reasoning.query import classify_ask
 from app.reasoning.stack import FourLayerReasoner
 from app.tools.gateway import ToolGateway
 from app.tools.store import InMemorySnapshotStore
+from tests.fixture_text import plain_fixture_bytes
 
 
 def test_upload_does_not_feed_pdf_bytes_to_ai2():
@@ -59,7 +60,9 @@ def test_two_files_tree_and_locate():
     assert mloc["page_in_file"] == mst.page_in_file
     store = InMemorySnapshotStore()
     store.put(rec)
-    out = FourLayerReasoner(ToolGateway(store), llm=None).run(env, classify_ask("Điều 9 nói về gì?"))
+    out = FourLayerReasoner(ToolGateway(store), llm=None).run(
+        env, classify_ask("Điều 9 nói về gì?")
+    )
     assert out["review_state"] == "ANSWERED"
     assert "Phụ lục 7" in str(out["answer"])
 
@@ -78,8 +81,8 @@ def test_ingest_compare_item_and_fee_fields():
     assert ("scope:X", "50%") in keys
     assert ("scope:Y", "10%") in keys
     assert any(n.structured_key == "annex_ref" for n in rec.nodes)
-    from app.pipeline.idp import run_idp
     from app.contracts.models import Disposition
+    from app.pipeline.idp import run_idp
 
     job = run_idp(rec, env)
     cands = job.contribution.candidates if job.contribution else []
@@ -88,9 +91,15 @@ def test_ingest_compare_item_and_fee_fields():
 
 
 def test_ingest_party_b_not_all_cong_ty():
-    body = "Bên A: Công ty ABC MST 0312345678\nBên B: Công ty XYZ MST 0322222222\nCông ty khác không vai.\n".encode("utf-8")
+    body = "Bên A: Công ty ABC MST 0312345678\nBên B: Công ty XYZ MST 0322222222\nCông ty khác không vai.\n".encode(
+        "utf-8"
+    )
     rec, env, meta, blobs = ingest_files([("p.md", body, "body")])
-    roles = {n.structured_key: n.structured_value for n in rec.nodes if n.structured_key in {"party_a", "party_b"}}
+    roles = {
+        n.structured_key: n.structured_value
+        for n in rec.nodes
+        if n.structured_key in {"party_a", "party_b"}
+    }
     assert roles.get("party_a", "").startswith("Công ty ABC")
     assert roles.get("party_b", "").startswith("Công ty XYZ")
     assert not any(
@@ -115,13 +124,12 @@ def test_ingest_same_line_extracts_all_parties_msts_and_value():
     )
 
 
-def test_hd_tong_hop_sample_pdf_extracts_and_answers_dieu_9():
-    from pathlib import Path
-
+def test_hd_tong_hop_sample_fixture_extracts_and_answers_dieu_9():
     from app.pipeline.idp import run_idp
 
-    pdf = Path(__file__).resolve().parents[1] / "fixtures" / "contracts" / "HD-TONG-HOP.sample.pdf"
-    rec, env, meta, blobs = ingest_files([(pdf.name, pdf.read_bytes(), "body")])
+    rec, env, meta, blobs = ingest_files(
+        [("HD-TONG-HOP.sample.md", plain_fixture_bytes("HD-TONG-HOP.vi.md"), "body")]
+    )
     assert rec.pages
     job = run_idp(rec, env)
     assert job.status.value == "SUCCEEDED"
@@ -131,20 +139,30 @@ def test_hd_tong_hop_sample_pdf_extracts_and_answers_dieu_9():
     assert "phụ lục 1" not in missing
     store = InMemorySnapshotStore()
     store.put(rec)
-    out = FourLayerReasoner(ToolGateway(store), llm=None).run(env, classify_ask("Dieu 9 noi ve gi?"))
+    out = FourLayerReasoner(ToolGateway(store), llm=None).run(
+        env, classify_ask("Dieu 9 noi ve gi?")
+    )
     assert out["review_state"] == "ANSWERED"
     ans = str(out["answer"]).lower()
     assert "giá" in ans or "gia" in ans or "tạm ứng" in ans or "tam ung" in ans
     assert classify_ask("Thong tin ben A?")["type"] == "party_card"
-    party = FourLayerReasoner(ToolGateway(store), llm=None).run(env, classify_ask("Thong tin ben A?"))
+    party = FourLayerReasoner(ToolGateway(store), llm=None).run(
+        env, classify_ask("Thong tin ben A?")
+    )
     assert party["review_state"] in {"ANSWERED", "NEEDS_REVIEW"}
-    assert "Bên A" in str(party.get("answer")) or "ben a" in str(party.get("answer")).lower() or "ABC" in str(party.get("answer"))
+    assert (
+        "Bên A" in str(party.get("answer"))
+        or "ben a" in str(party.get("answer")).lower()
+        or "ABC" in str(party.get("answer"))
+    )
     mst_findings = [x for x in job.contribution.candidates if x.item_key == "mst_party_a"]
     assert any(
         x.disposition and x.disposition.value == "COMPARABLE_DIFFERENCE" for x in mst_findings
     )
     assert not any(
-        x.item_key == "mst_seller" and x.disposition and x.disposition.value == "COMPARABLE_DIFFERENCE"
+        x.item_key == "mst_seller"
+        and x.disposition
+        and x.disposition.value == "COMPARABLE_DIFFERENCE"
         for x in job.contribution.candidates
     )
     keys = {n.structured_key for n in rec.nodes}
@@ -163,17 +181,20 @@ def test_hd_tong_hop_sample_pdf_extracts_and_answers_dieu_9():
         x.item_key == "contract_value" and x.scope and x.scope.value == "CONTRACT_ANNEX"
         for x in job.contribution.candidates
     )
-    assert not any(
-        x.item_key == "penalty"
-        for x in job.contribution.candidates
-    )
+    assert not any(x.item_key == "penalty" for x in job.contribution.candidates)
     party_a = [n for n in rec.nodes if n.structured_key == "party_a"]
     assert len(party_a) < 15
 
 
 def test_clause_body_keeps_following_lines():
     rec, env, meta, blobs = ingest_files(
-        [("c.md", "Điều 9. Giá hợp đồng\nTạm ứng 10 phần trăm.\nĐiều 10. Khác\n".encode("utf-8"), "body")]
+        [
+            (
+                "c.md",
+                "Điều 9. Giá hợp đồng\nTạm ứng 10 phần trăm.\nĐiều 10. Khác\n".encode("utf-8"),
+                "body",
+            )
+        ]
     )
     dieu9 = next(n for n in rec.nodes if (n.raw_label or "").startswith("Điều 9"))
     assert "Tạm ứng" in (dieu9.text or "")
