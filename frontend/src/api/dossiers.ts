@@ -182,8 +182,7 @@ export function splitErrorMessage(error: unknown) {
     if (error.status === 404) return 'Không tìm thấy hồ sơ hoặc file cần tách.'
     if (error.status === 409)
       return 'Hồ sơ này không chờ tách file, hoặc đã bắt đầu xử lý.'
-    if (error.status === 422)
-      return `Các phần chưa hợp lệ: ${error.message}`
+    if (error.status === 422) return `Các phần chưa hợp lệ: ${error.message}`
     return error.message
   }
   if (error instanceof TypeError) return 'Không kết nối được backend.'
@@ -425,10 +424,10 @@ export function formatDocumentCounts(counts: DocumentCounts): string {
 }
 
 export async function restartDossierOcr(dossierId: string) {
-  await requestJson(
-    `/api/v1/dossiers/${encodeURIComponent(dossierId)}/ocr`,
-    { method: 'POST', json: {} },
-  )
+  await requestJson(`/api/v1/dossiers/${encodeURIComponent(dossierId)}/ocr`, {
+    method: 'POST',
+    json: {},
+  })
 }
 
 /** Chạy lại đúng bước lỗi: OCR giữ kết quả đã xong, AI2 không OCR lại. */
@@ -441,6 +440,22 @@ export async function retryDossierFailed(
     `/api/v1/dossiers/${encodeURIComponent(dossierId)}/${path}`,
     { method: 'POST', json: {} },
   )
+}
+
+/**
+ * "Chạy lại OCR" mà không trả tiền lại cho trang đã đọc: thử chạy lại phần lỗi
+ * trước (giữ kết quả OCR đã có, kể cả kết quả về sau khi run bị lỗi). Chỉ chạy
+ * lại toàn bộ khi backend báo không có phần lỗi để chạy lại (409).
+ */
+export async function rerunDossierOcr(dossierId: string) {
+  try {
+    await retryDossierFailed(dossierId, 'ocr')
+    return 'retry-failed' as const
+  } catch (cause) {
+    if (!(cause instanceof ApiError) || cause.status !== 409) throw cause
+  }
+  await restartDossierOcr(dossierId)
+  return 'restart' as const
 }
 
 export function restartOcrErrorMessage(error: unknown) {

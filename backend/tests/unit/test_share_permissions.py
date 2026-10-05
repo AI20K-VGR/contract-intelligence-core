@@ -187,6 +187,32 @@ async def test_list_hides_expired_and_disabled_grants(
     assert sorted(d.id for d in page.items) == ["dos_forever", "dos_live"]
 
 
+async def test_list_hides_dossiers_without_an_owner(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """The ACL denies every read of an ownerless dossier, so the list must not offer it."""
+    rows: dict[str, dict[str, Any] | None] = {
+        "dos_mine": {"created_by": "guest"},
+        "dos_no_metadata": None,
+        "dos_no_owner": {},
+        "dos_empty_owner": {"created_by": ""},
+    }
+    async with factory() as session:
+        for dossier_id, metadata in rows.items():
+            session.add(
+                DossierORM(id=dossier_id, tenant_id=TENANT, name=dossier_id, metadata_json=metadata)
+            )
+        await session.commit()
+
+    async with factory() as session:
+        page = await DossierRepositoryImpl(session, TENANT).list(viewer_id="guest")
+    listed = [d.id for d in page.items]
+
+    assert listed == ["dos_mine"]
+    for dossier_id, metadata in rows.items():
+        assert _allowed(AclAction.QUERY, _user("guest"), metadata or {}) == (dossier_id in listed)
+
+
 @pytest_asyncio.fixture
 async def seeded(factory: async_sessionmaker[AsyncSession]) -> async_sessionmaker[AsyncSession]:
     async with factory() as session:

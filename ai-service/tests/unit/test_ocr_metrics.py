@@ -42,16 +42,44 @@ def test_finished_job_counts_pages_fallback_and_review():
     assert _value("ai1_ocr_requests_total", engine="mistral", status="completed") == (
         before["requests"] + 1
     )
-    assert _value(
-        "ai1_ocr_pages_processed_total", engine="mistral", page_status="SUCCESS"
-    ) == (before["success"] + 1)
-    assert _value(
-        "ai1_ocr_pages_processed_total", engine="mistral", page_status="PARTIAL"
-    ) == (before["partial"] + 2)
+    assert _value("ai1_ocr_pages_processed_total", engine="mistral", page_status="SUCCESS") == (
+        before["success"] + 1
+    )
+    assert _value("ai1_ocr_pages_processed_total", engine="mistral", page_status="PARTIAL") == (
+        before["partial"] + 2
+    )
     assert _value("ai1_ocr_fallback_pages_total", engine="mistral") == before["fallback"] + 1
     assert _value("ai1_ocr_review_pages_total", engine="mistral") == before["review"] + 2
     assert _value("ai1_ocr_request_duration_seconds_count", engine="mistral") == (
         before["duration"] + 1
+    )
+
+
+def test_series_exist_at_zero_before_the_first_command(monkeypatch):
+    """increase() cannot see a series born at 1, so the first OCR after a restart was lost."""
+    from contract_ocr.infrastructure import prometheus_metrics as pm
+
+    monkeypatch.setenv("AI1_TEXT_MODEL", "mistral-ocr-unit-a")
+    monkeypatch.setenv("AI1_VERIFIER_MODEL", "mistral-ocr-unit-b")
+
+    pm._create_zero_series()
+
+    # "gemini" is never used by the other tests here: still exposed, at 0.
+    for name, labels in (
+        ("ai1_ocr_requests_total", {"engine": "gemini", "status": "completed"}),
+        ("ai1_ocr_requests_total", {"engine": "gemini", "status": "failed"}),
+        ("ai1_ocr_request_duration_seconds_count", {"engine": "gemini"}),
+        ("ai1_ocr_request_duration_seconds_bucket", {"engine": "gemini", "le": "30.0"}),
+        ("ai1_ocr_pages_processed_total", {"engine": "gemini", "page_status": "PARTIAL"}),
+        ("ai1_ocr_fallback_pages_total", {"engine": "gemini"}),
+        ("ai1_ocr_review_pages_total", {"engine": "gemini"}),
+        ("ai1_ocr_model_calls_total", {"model": "mistral-ocr-unit-a"}),
+        ("ai1_ocr_cost_usd_total", {"model": "mistral-ocr-unit-b"}),
+    ):
+        assert REGISTRY.get_sample_value(name, labels) == 0.0, (name, labels)
+    # Other tests may already have charged this model: it only has to exist.
+    assert (
+        REGISTRY.get_sample_value("ai1_ocr_cost_usd_total", {"model": "gpt-5.6-terra"}) is not None
     )
 
 

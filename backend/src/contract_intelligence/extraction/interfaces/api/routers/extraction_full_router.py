@@ -292,6 +292,24 @@ async def get_page(
 
 
 @router.get(
+    "/documents/{document_id}/lines",
+    dependencies=[Depends(acl_document)],
+    response_model=ApiResponse[list[dict[str, Any]]],
+    summary="OCR lines of every page of a document, in one response",
+)
+async def list_document_lines(
+    document_id: Annotated[str, Path(min_length=1)],
+    svc: ExtractionServiceDep,
+    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> ApiResponse[list[dict[str, Any]]]:
+    """``[{page_no, width_pt, height_pt, ocr_lines: [{id, line_no, text, bbox, confidence}]}]``.
+
+    Thay cho gọi ``/pages/{id}`` từng trang khi dựng cây cấu trúc.
+    """
+    return ApiResponse(data=await svc.list_document_lines(document_id))
+
+
+@router.get(
     "/documents/{document_id}/clauses",
     dependencies=[Depends(acl_document)],
     response_model=ApiResponse[list[ClauseNodeDTO]],

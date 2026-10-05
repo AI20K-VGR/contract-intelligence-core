@@ -60,7 +60,7 @@ Tất cả đã merge vào `develop` (đầu `bb17cec`, 30/09). PR #36 merge sau
 
 | Việc | Tình trạng |
 |---|---|
-| Bản online trên server | Có kịch bản `deploy/` và `compose.prod.yml` (không mở cổng AI2), nhưng chưa deploy; DOC-12 chờ mentor duyệt |
+| Bản online trên server | Đã deploy 04/10/2026 lên một máy chủ Ubuntu (`app-`, `api-`, `auth-150-95-104-132.sslip.io`) bằng `deploy/` và workflow `deploy` (tự chạy khi merge vào `develop`); kiểm tra từ bên ngoài qua, cổng AI2 không mở. Chưa xong: nghiệm thu luồng tải lên → OCR → AI2 → thẩm định trên server; máy mới có 2 GB RAM (đang dùng swap); bước duyệt trước khi deploy chờ admin repo bật (`deploy/README.md`) |
 | Nghiệm thu file ~50 MB và PDF ~200 trang | Chưa chạy trên server (DOC-11 §1 mục 10–11) |
 | Gửi lại cùng attempt sang AI2 không bị 409 (DEC B1) | Lỗi đã biết: `created_at` của snapshot lấy giờ hiện tại mỗi lần dựng request, nên worker gửi lại sau khi restart bị AI2 trả 409. Hạn 01/10 |
 | Việc Backend còn lại của DEC-BE-AI2-01 (B2–B8) | Digest `/query` do AI2 trả, chặn hồ sơ quá 6 tài liệu, ánh xạ `BLOCKED`, override compose online và DB `ai2`/pgvector, xoá hàm AI2 cũ, test ký mẫu. Theo lịch 01–03/10 |

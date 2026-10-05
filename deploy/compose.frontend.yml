@@ -1,0 +1,37 @@
+# =============================================================================
+# Optional override — serve the frontend from the same server.
+#
+#   docker compose -f docker-compose.yml -f deploy/compose.prod.yml \
+#       -f deploy/compose.frontend.yml --env-file deploy/.env.prod up -d --build
+#
+# deploy/deploy.sh adds this file when APP_HOST is set in deploy/.env.prod.
+#
+#   https://$APP_HOST → caddy → frontend:80 (static build, no public port)
+#
+# The bundle is built against https://$API_HOST and https://$AUTH_HOST.
+# FRONTEND_ORIGINS must contain https://$APP_HOST (CORS + Keycloak redirects)
+# and FRONTEND_BASE_URL should be https://$APP_HOST (links in e-mails).
+# =============================================================================
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../deploy/frontend.Dockerfile
+      args:
+        VITE_API_BASE_URL: https://${API_HOST:?set in deploy/.env.prod}
+        VITE_KEYCLOAK_URL: https://${AUTH_HOST:?set in deploy/.env.prod}
+        VITE_KEYCLOAK_REALM: contract-intelligence
+        VITE_KEYCLOAK_CLIENT_ID: contract-intel-frontend
+    container_name: ci-frontend
+    restart: unless-stopped
+    networks:
+      - ci-network
+
+  caddy:
+    depends_on:
+      - frontend
+    environment:
+      APP_HOST: ${APP_HOST:?set in deploy/.env.prod}
+    volumes:
+      - ./deploy/frontend.caddy:/etc/caddy/sites/frontend.caddy:ro

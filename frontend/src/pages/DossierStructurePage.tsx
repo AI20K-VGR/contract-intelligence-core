@@ -693,13 +693,21 @@ export function DossierStructurePage() {
                 className="text-primary text-[22px] animate-spin"
               />
               <div className="flex flex-col gap-space-xs">
-                <h2 className="font-title-sm text-title-sm text-primary">
-                  Đang OCR và dựng cấu trúc
-                </h2>
-                <p className="font-body-sm text-body-sm text-on-surface-variant">
-                  Trang này tự cập nhật. Cây hiện khi job sang trạng thái đã
-                  trích xuất. Worker backend và AI1 cần đang chạy.
-                </p>
+                {phase === 'ocr' ? (
+                  <>
+                    <h2 className="font-title-sm text-title-sm text-primary">
+                      Đang OCR và dựng cấu trúc
+                    </h2>
+                    <p className="font-body-sm text-body-sm text-on-surface-variant">
+                      Trang này tự cập nhật. Cây hiện khi job sang trạng thái
+                      đã trích xuất. Worker backend và AI1 cần đang chạy.
+                    </p>
+                  </>
+                ) : (
+                  <h2 className="font-title-sm text-title-sm text-primary">
+                    Đang tải cấu trúc hợp đồng
+                  </h2>
+                )}
               </div>
             </section>
           ) : null}

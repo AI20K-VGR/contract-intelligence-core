@@ -525,7 +525,13 @@ services:
   # SERVICE 6 — MinIO S3-compatible object storage
   # =============================================================================
   minio:
-    image: quay.io/minio/minio:latest
+    # MinIO took its own images off Docker Hub (2026-09-11) and closed anonymous
+    # pulls on quay.io (2026-09-24). Chainguard builds the same server from
+    # source and publishes it for anonymous pulls.
+    image: cgr.dev/chainguard/minio:latest
+    # The image defaults to uid 65532; volumes written by the old image belong
+    # to root, so keep running as root to read and write them.
+    user: "0:0"
     container_name: ci-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -559,7 +565,8 @@ services:
   # SERVICE 8 — MinIO bucket initialization (create `dossiers`, private)
   # =============================================================================
   minio-init:
-    image: quay.io/minio/mc:latest
+    # -dev: the variant with a shell, which the entrypoint below needs.
+    image: cgr.dev/chainguard/minio-client:latest-dev
     container_name: ci-minio-init
     depends_on:
       - minio

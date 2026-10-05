@@ -52,3 +52,7 @@
 
 	reverse_proxy keycloak:8080
 }
+
+# Optional sites mounted by compose overrides (deploy/compose.frontend.yml adds
+# the frontend). No file there means no extra site.
+import /etc/caddy/sites/*.caddy

@@ -25,6 +25,7 @@ from contract_intelligence.contract.infrastructure.persistence.orm import (
     DocumentORM,
     DossierORM,
     JobORM,
+    ManifestORM,
 )
 from contract_intelligence.extraction.infrastructure.persistence.orm import (
     PipelineRunORM,
@@ -816,6 +817,413 @@ async def test_ai2_retry_is_a_no_op_once_the_run_is_back_in_flight(
         run = await session.get(PipelineRunORM, run_id)
     assert worker._ai2_attempt(run) == 2
     assert ai2_ready.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Restart clicked twice / documents stored without a page count
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def ocr_publish(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """Give the documents a blob, stub presigning, capture published OCR commands."""
+    monkeypatch.setattr(
+        worker.storage, "generate_presigned_get_url", AsyncMock(return_value="http://get")
+    )
+    monkeypatch.setattr(
+        worker.storage,
+        "generate_presigned_put_url",
+        AsyncMock(side_effect=lambda *, key, expires_in, **_: f"http://put/{key}"),
+    )
+    publish = AsyncMock()
+    monkeypatch.setattr(worker.messaging, "publish_event", publish)
+    return publish
+
+
+async def _with_blobs(factory: async_sessionmaker[AsyncSession], pages: int | None) -> None:
+    async with factory() as session:
+        for doc_id in (DOC_A, DOC_B):
+            document = await session.get(DocumentORM, doc_id)
+            assert document is not None
+            document.blob_uri = f"s3://dossiers/{doc_id}.pdf"
+            document.page_count = pages
+        await session.commit()
+
+
+def _restart(expected_run_id: str | None) -> dict[str, Any]:
+    return {
+        "event": "dossier.uploaded",
+        "dossier_id": DOSSIER,
+        "restart": True,
+        "expected_run_id": expected_run_id,
+    }
+
+
+@pytest.mark.asyncio
+async def test_double_clicked_restart_opens_one_run_and_ocrs_once(
+    factory: async_sessionmaker[AsyncSession], ocr_publish: AsyncMock
+) -> None:
+    await _with_blobs(factory, pages=2)
+    first_run = await _start(factory)
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.status = "failed"
+        await session.commit()
+    ocr_publish.reset_mock()
+
+    # Two clicks: both events name the run the user saw.
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(session, _restart(first_run))
+    second_run = (await _job(factory)).current_run_id
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(session, _restart(first_run))
+
+    job = await _job(factory)
+    assert second_run != first_run
+    assert job.current_run_id == second_run  # the duplicate did not supersede it
+    assert ocr_publish.await_count == 2  # one OCR command per document, once
+    async with factory() as session:
+        runs = (await session.execute(select(PipelineRunORM))).scalars().all()
+    assert len(runs) == 2
+
+
+@pytest.mark.asyncio
+async def test_restart_locks_the_job_row_before_checking_its_run(
+    factory: async_sessionmaker[AsyncSession], ocr_publish: AsyncMock
+) -> None:
+    """Two consumers handling the two clicks at once: the second must wait for the first.
+
+    sqlite has no row locks, so this checks the statement the worker sends.
+    """
+    from sqlalchemy.dialects import postgresql
+
+    await _with_blobs(factory, pages=2)
+    first_run = await _start(factory)
+    statements: list[str] = []
+
+    async with factory() as session:
+        execute = session.execute
+
+        async def recording(statement: Any, *args: Any, **kwargs: Any) -> Any:
+            if getattr(statement, "is_select", False):
+                statements.append(str(statement.compile(dialect=postgresql.dialect())))
+            return await execute(statement, *args, **kwargs)
+
+        session.execute = recording  # type: ignore[method-assign]
+        await worker._mark_processing(session, DOSSIER, restart=True, expected_run_id=first_run)
+
+    job_select = next(sql for sql in statements if "FROM job" in sql)
+    assert job_select.rstrip().endswith("FOR UPDATE")
+
+
+@pytest.mark.asyncio
+async def test_restart_without_expected_run_still_works(
+    factory: async_sessionmaker[AsyncSession], ocr_publish: AsyncMock
+) -> None:
+    """Events published before expected_run_id existed keep the old behaviour."""
+    await _with_blobs(factory, pages=2)
+    first_run = await _start(factory)
+
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(
+            session, {"event": "dossier.uploaded", "dossier_id": DOSSIER, "restart": True}
+        )
+
+    assert (await _job(factory)).current_run_id != first_run
+
+
+@pytest.mark.asyncio
+async def test_missing_page_count_is_read_from_the_pdf(
+    factory: async_sessionmaker[AsyncSession],
+    ocr_publish: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tests.pdf_bytes import make_pdf
+
+    await _with_blobs(factory, pages=0)
+    monkeypatch.setattr(
+        worker.storage, "download_object", AsyncMock(return_value=make_pdf(pages=200))
+    )
+
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(
+            session, {"event": "dossier.uploaded", "dossier_id": DOSSIER}
+        )
+
+    async with factory() as session:
+        counts = [(await session.get(DocumentORM, d)).page_count for d in (DOC_A, DOC_B)]
+    assert counts == [200, 200]
+    payload = ocr_publish.await_args_list[0].args[1]["payload"]
+    assert payload["pages_to_process"] == list(range(1, 201))
+    assert len(payload["render_target"]["presigned_put_urls"]) == 200
+
+
+@pytest.mark.asyncio
+async def test_retry_with_every_page_kept_sends_no_ocr_and_still_counts_pages(
+    factory: async_sessionmaker[AsyncSession],
+    ocr_publish: AsyncMock,
+    ai2_ready: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A run that timed out but whose OCR result came in late: no OCR is paid twice."""
+    from tests.pdf_bytes import make_pdf
+
+    await _with_blobs(factory, pages=0)
+    failed_run = await _start(factory)
+    await _deliver(factory, _ocr_completed(failed_run, DOC_A))
+    await _deliver(factory, _ocr_completed(failed_run, DOC_B))
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.status, job.error_code = "failed", "AI1_TIMEOUT"
+        await session.commit()
+    ocr_publish.reset_mock()
+    ai2_ready.reset_mock()
+    monkeypatch.setattr(
+        worker.storage, "download_object", AsyncMock(return_value=make_pdf(pages=200))
+    )
+
+    retry = {**_restart(failed_run), "retry_failed": True}
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(session, retry)
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(session, retry)  # clicked twice
+
+    ocr_publish.assert_not_awaited()
+    job = await _job(factory)
+    assert job.current_run_id != failed_run and job.status == "extracted"
+    ai2_ready.assert_called_once()
+    async with factory() as session:
+        document = await session.get(DocumentORM, DOC_A)
+    assert document is not None and document.page_count == 200
+
+
+@pytest.mark.asyncio
+async def test_unreadable_pdf_keeps_ocr_going_on_the_old_estimate(
+    factory: async_sessionmaker[AsyncSession],
+    ocr_publish: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _with_blobs(factory, pages=0)
+    monkeypatch.setattr(
+        worker.storage, "download_object", AsyncMock(side_effect=OSError("storage down"))
+    )
+
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(
+            session, {"event": "dossier.uploaded", "dossier_id": DOSSIER}
+        )
+
+    assert ocr_publish.await_count == 2  # OCR still requested for both documents
+
+
+@pytest.mark.asyncio
+async def test_unreadable_pdf_is_not_downloaded_again_on_the_next_run(
+    factory: async_sessionmaker[AsyncSession],
+    ocr_publish: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _with_blobs(factory, pages=0)
+    download = AsyncMock(return_value=b"not a pdf")
+    monkeypatch.setattr(worker.storage, "download_object", download)
+    monkeypatch.setattr(worker, "_uncountable_pdfs", set())
+
+    for _ in range(2):
+        async with factory() as session:
+            await worker.handle_dossier_uploaded(
+                session, {"event": "dossier.uploaded", "dossier_id": DOSSIER, "restart": True}
+            )
+
+    assert download.await_count == 2  # once per document, not once per run
+    assert ocr_publish.await_count == 4  # OCR still requested on both runs
+
+
+# ---------------------------------------------------------------------------
+# AI2 reindex: rebuild AI2 state from the stored AI1 snapshots, no OCR
+# ---------------------------------------------------------------------------
+
+
+async def _finished_run(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock, status: str = "pending_review"
+) -> str:
+    """Both documents OCR'd, AI2 result persisted, job past AI2 (``status``)."""
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        run = await session.get(PipelineRunORM, run_id)
+        assert job is not None and run is not None
+        job.status = status
+        run.ai2_result_digest = "result_v1"
+        session.add(
+            ManifestORM(id="man_test", tenant_id=TENANT, dossier_id=DOSSIER, status="confirmed")
+        )
+        await session.commit()
+    ai2_ready.reset_mock()
+    return run_id
+
+
+@pytest.fixture
+def ai2_service(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    """Stub AI2 submit/poll and record the request the worker builds."""
+    built: list[dict[str, Any]] = []
+
+    def build(**kwargs: Any) -> dict[str, Any]:
+        request = {
+            "request_id": f"{kwargs['run_id']}:ai2",
+            "attempt": kwargs["attempt"],
+            "task_id": kwargs["run_id"],
+            "dossier_id": kwargs["dossier_id"],
+            "dossier_members": [
+                {"document_id": DOC_A, "snapshot_id": "snap_a", "role": "contract"}
+            ],
+            "snapshots": [{"snapshot_id": "snap_a"}],
+            "_snapshot_ids": sorted(kwargs["snapshots"]),
+        }
+        built.append(request)
+        return request
+
+    stubs = SimpleNamespace(
+        built=built,
+        submit=AsyncMock(return_value={"job_id": "ai2_job_2"}),
+        poll=AsyncMock(return_value={"status": "SUCCEEDED"}),
+        persist=AsyncMock(),
+    )
+    monkeypatch.setattr(worker, "build_processing_request", build)
+    monkeypatch.setattr(worker, "submit_ai2_processing", stubs.submit)
+    monkeypatch.setattr(worker, "poll_ai2_processing", stubs.poll)
+    monkeypatch.setattr(worker, "persist_ai2_processing_result", stubs.persist)
+    return stubs
+
+
+async def _reindex(factory: async_sessionmaker[AsyncSession], run_id: str) -> None:
+    async with factory() as session:
+        await worker._run_ai2_reindex(session, dossier_id=DOSSIER, tenant_id=TENANT, run_id=run_id)
+
+
+@pytest.mark.asyncio
+async def test_ai2_reindex_resends_stored_snapshots_under_next_attempt(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ai2_service: SimpleNamespace,
+) -> None:
+    run_id = await _finished_run(factory, ai2_ready)
+
+    await _reindex(factory, run_id)
+
+    [request] = ai2_service.built
+    assert request["attempt"] == 2
+    assert request["_snapshot_ids"] == [DOC_A, DOC_B]  # the stored AI1 output, no new OCR
+    ai2_service.submit.assert_awaited_once()
+    ai2_service.persist.assert_not_awaited()  # Backend facts/findings/reviews untouched
+    job = await _job(factory)
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+        dossier = await session.get(DossierORM, DOSSIER)
+    assert job.status == "pending_review" and job.current_run_id == run_id
+    assert run is not None and run.ai2_result_digest == "result_v1"
+    assert worker._ai2_attempt(run) == 2
+    assert dossier is not None
+    clean = {k: v for k, v in request.items() if not k.startswith("_")}
+    assert dossier.metadata_json["ai2_snapshot_digest"] == worker._ai2_query_snapshot_digest(clean)
+    assert len(await _audits(factory, "ai2.reindexed")) == 1
+    ai2_ready.assert_not_called()  # no regular AI2 hand-off, no OCR command
+
+
+@pytest.mark.asyncio
+async def test_ai2_reindex_twice_moves_to_the_next_attempt_each_time(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ai2_service: SimpleNamespace,
+) -> None:
+    run_id = await _finished_run(factory, ai2_ready)
+
+    await _reindex(factory, run_id)
+    await _reindex(factory, run_id)
+
+    assert [request["attempt"] for request in ai2_service.built] == [2, 3]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["processing", "extracted", "failed", "cancelled"])
+async def test_ai2_reindex_refused_unless_ai2_finished(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ai2_service: SimpleNamespace,
+    status: str,
+) -> None:
+    run_id = await _finished_run(factory, ai2_ready, status=status)
+
+    await _reindex(factory, run_id)
+
+    ai2_service.submit.assert_not_awaited()
+    assert (await _job(factory)).status == status
+    (audit,) = await _audits(factory, "ai2.reindex_refused")
+    assert "job_status" in str(audit.detail)
+
+
+@pytest.mark.asyncio
+async def test_ai2_reindex_refusal_of_a_run_without_ai2_result_is_audited(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ai2_service: SimpleNamespace,
+) -> None:
+    """The API accepts on job status alone; the audit row tells the caller why nothing ran."""
+    run_id = await _finished_run(factory, ai2_ready)
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+        assert run is not None
+        run.ai2_result_digest = None
+        await session.commit()
+
+    await _reindex(factory, run_id)
+
+    ai2_service.submit.assert_not_awaited()
+    (audit,) = await _audits(factory, "ai2.reindex_refused")
+    assert "no_ai2_result" in str(audit.detail)
+
+
+@pytest.mark.asyncio
+async def test_ai2_reindex_failure_keeps_the_run_and_its_results(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ai2_service: SimpleNamespace,
+) -> None:
+    run_id = await _finished_run(factory, ai2_ready)
+    ai2_service.poll.side_effect = RuntimeError("AI2 down")
+
+    await _reindex(factory, run_id)
+
+    job = await _job(factory)
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+        dossier = await session.get(DossierORM, DOSSIER)
+    assert job.status == "pending_review" and job.error_code is None
+    assert run is not None and run.ai2_result_digest == "result_v1"
+    assert dossier is not None and "ai2_snapshot_digest" not in (dossier.metadata_json or {})
+    (audit,) = await _audits(factory, "ai2.reindex_failed")
+    assert "AI2 down" in str(audit.detail)
+
+
+@pytest.mark.asyncio
+async def test_reindex_event_schedules_a_reindex_hand_off(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _finished_run(factory, ai2_ready)
+
+    async with factory() as session:
+        await worker.handle_dossier_event(
+            session, {"event": "dossier.ai2.reindex", "dossier_id": DOSSIER, "run_id": run_id}
+        )
+        await worker.handle_dossier_event(
+            session, {"event": "dossier.ai2.reindex", "dossier_id": "dos_other", "run_id": run_id}
+        )
+
+    ai2_ready.assert_called_once_with(
+        dossier_id=DOSSIER, tenant_id=TENANT, run_id=run_id, reindex=True
+    )
 
 
 # ---------------------------------------------------------------------------

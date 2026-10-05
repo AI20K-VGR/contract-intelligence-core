@@ -1586,7 +1586,7 @@
       "type": "bargauge",
       "id": 23,
       "title": "Container status (seconds since last seen)",
-      "description": "Running: seen by cAdvisor in the last minute. Stopped: red, seen within the last hour only.",
+      "description": "One row per container name, from its most recently seen instance: a recreated container does not leave its old IDs behind as Stopped. Running: seen by cAdvisor in the last minute. Stopped: red, seen within the last hour only.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1667,8 +1667,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "time() - max by (container, short_id) (max_over_time(container_last_seen{image!=\"\"}[1h]))",
-          "legendFormat": "{{container}} {{short_id}}",
+          "expr": "min by (container) (time() - max by (container, short_id) (max_over_time(container_last_seen{image!=\"\"}[1h])))",
+          "legendFormat": "{{container}}",
           "refId": "A",
           "range": false,
           "instant": true

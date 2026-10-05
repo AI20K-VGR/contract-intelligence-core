@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import {
@@ -13,7 +13,7 @@ import {
 import {
   deleteDossier,
   loadDocumentOcrPages,
-  restartDossierOcr,
+  rerunDossierOcr,
   retryDossierFailed,
   restartOcrErrorMessage,
   type OcrPageRow,
@@ -57,7 +57,7 @@ function isStoppedJob(status: string | null | undefined) {
   return status === 'failed' || status === 'cancelled'
 }
 
-type FileStatus ='done' | 'reading' | 'waiting' | 'failed'
+type FileStatus = 'done' | 'reading' | 'waiting' | 'failed'
 
 type FileRowModel = {
   id: string
@@ -173,19 +173,25 @@ export function AnalysisProgressPage() {
     navigate(backTo, { replace: true })
   }, [backTo, dossierId, navigate])
 
+  // Một lần điều hướng chỉ gửi một lệnh chạy lại. StrictMode chạy effect hai
+  // lần khi mở trang, và state.restart chưa kịp xóa ở lần thứ hai: không có cờ
+  // này thì hai run OCR cùng một hồ sơ, run sau thay run trước.
+  const restartSentFor = useRef<string | null>(null)
   useEffect(() => {
     const restart = Boolean(
       (location.state as { restart?: boolean } | null)?.restart,
     )
     if (!restart || !dossierId) return
+    if (restartSentFor.current === location.key) return
+    restartSentFor.current = location.key
     navigate(location.pathname, { replace: true, state: null })
     setBusy(true)
     setError(null)
-    void restartDossierOcr(dossierId)
+    void rerunDossierOcr(dossierId)
       .then(() => setAttempt((value) => value + 1))
       .catch((cause: unknown) => setError(restartOcrErrorMessage(cause)))
       .finally(() => setBusy(false))
-  }, [dossierId, location.pathname, location.state, navigate])
+  }, [dossierId, location.key, location.pathname, location.state, navigate])
 
   useEffect(() => {
     if (!dossierId) return
@@ -510,7 +516,11 @@ export function AnalysisProgressPage() {
 
   async function cancelJob() {
     if (!dossierId || busy) return
-    if (!window.confirm('Hủy lần xử lý đang chạy? Hồ sơ và tệp đã tải vẫn được giữ.')) {
+    if (
+      !window.confirm(
+        'Hủy lần xử lý đang chạy? Hồ sơ và tệp đã tải vẫn được giữ.',
+      )
+    ) {
       return
     }
     setBusy(true)
@@ -858,7 +868,9 @@ export function AnalysisProgressPage() {
             >
               <MaterialIcon name="refresh" className="text-[16px]" />
               <span>
-                {failure.retry === 'ai2' ? 'Chạy lại AI2' : 'Chạy lại phần OCR lỗi'}
+                {failure.retry === 'ai2'
+                  ? 'Chạy lại AI2'
+                  : 'Chạy lại phần OCR lỗi'}
               </span>
             </button>
           ) : null}

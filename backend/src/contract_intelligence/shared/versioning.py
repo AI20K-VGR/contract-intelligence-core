@@ -44,7 +44,9 @@ __version__ = "2.0.0"
 # DOC-05b. Độc lập với __version__ (SemVer của backend, vẫn 2.0.0).
 # v1.2.0 (DEC-BE-AI2-01 B4): thêm 422 DOSSIER_TOO_MANY_DOCUMENTS và contract_not_unique.
 # v1.3.0: finding.review.latest (lượt thẩm định gần nhất) trên /findings, /conflicts.
-__api_contract__ = "v1.3.0"
+# v1.4.0: POST /dossiers/{id}/ai2/reindex — AI2 dựng lại dữ liệu từ OCR đã lưu.
+# v1.5.0: GET /documents/{id}/lines; 409 trên POST /dossiers/{id}/ocr khi đang OCR.
+__api_contract__ = "v1.5.0"
 
 # AI service contract version (DOC-05c) — wrap khi AI service sẵn sàng
 __ai_contract__ = "v1.0.0"
