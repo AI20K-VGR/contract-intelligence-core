@@ -28,7 +28,7 @@ import {
   type DossierStructure,
   type StructureDocument,
 } from '../api/structure'
-import { isAi2Failure, jobErrorInfo } from '../api/jobErrors'
+import { isAi2Failure, isCancelledJob, jobErrorInfo } from '../api/jobErrors'
 import { getManifest, manifestConfirmPath } from '../api/manifest'
 import {
   cancelRun,
@@ -44,6 +44,8 @@ import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 import { parseStructureMode, type StructureMode } from '../structure'
 
 const POLL_INTERVAL_MS = 2000
+// Job đứng ở 'extracted' chờ người dùng xác nhận manifest có thể mất hàng giờ.
+const WAITING_POLL_INTERVAL_MS = 5000
 
 // Job đã dừng hẳn: lỗi, hoặc bị hủy (hủy run đưa job về failed/RUN_CANCELLED).
 function isStoppedJob(status: string | null | undefined) {
@@ -80,12 +82,13 @@ function fileModel(
   pages: OcrPageRow[],
   jobStatus: string | null,
   current: boolean,
+  ocrFailed: boolean,
 ): FileRowModel {
   const total = Math.max(document.pageCount, pages.length)
   const done = pages.filter(pageDone).length
   const failed = pages.filter(pageFailed).length
   const meta = total > 0 ? `• ${total} trang` : '• PDF'
-  if (failed > 0 && jobStatus === 'failed') {
+  if (failed > 0 && ocrFailed) {
     return {
       id: document.id,
       name: document.filename,
@@ -199,6 +202,9 @@ export function AnalysisProgressPage() {
     let reloadQueued = false
     let finishedRunId: string | null = null
     let polling = false
+    // Trang OCR, điều khoản và manifest không đổi khi job đã 'extracted': tải một lần.
+    let settled = false
+    let slowPoll = false
     setSteps({})
     setLiveLog([])
 
@@ -212,7 +218,10 @@ export function AnalysisProgressPage() {
     function schedulePoll() {
       if (stopped) return
       if (timer !== undefined) window.clearTimeout(timer)
-      timer = window.setTimeout(requestReload, POLL_INTERVAL_MS)
+      timer = window.setTimeout(
+        requestReload,
+        slowPoll ? WAITING_POLL_INTERVAL_MS : POLL_INTERVAL_MS,
+      )
     }
 
     // Server đẩy tin xuống thì chỉ tải lại số liệu; không hẹn giờ hỏi định kỳ.
@@ -260,7 +269,11 @@ export function AnalysisProgressPage() {
           startPolling()
           return
         }
-        if (runId === finishedRunId) return
+        if (runId === finishedRunId) {
+          // Stream đã đóng mà job chưa kết thúc: hỏi định kỳ, không thì trang đứng im.
+          startPolling()
+          return
+        }
         await watchRun(
           runId,
           {
@@ -326,49 +339,56 @@ export function AnalysisProgressPage() {
       try {
         const next = await getDossierStructure(dossierId, controller.signal)
         if (stopped) return
-        const pages = await Promise.all(
-          next.documents.map(async (document) => {
-            try {
-              const rows = await loadDocumentOcrPages(
-                document.id,
-                controller.signal,
-              )
-              return [document.id, rows] as const
-            } catch {
-              return [document.id, [] as OcrPageRow[]] as const
-            }
-          }),
-        )
+        const pages = settled
+          ? null
+          : await Promise.all(
+              next.documents.map(async (document) => {
+                try {
+                  const rows = await loadDocumentOcrPages(
+                    document.id,
+                    controller.signal,
+                  )
+                  return [document.id, rows] as const
+                } catch {
+                  return [document.id, [] as OcrPageRow[]] as const
+                }
+              }),
+            )
         if (stopped) return
         setDetail(next)
-        setPagesByDoc(Object.fromEntries(pages))
+        if (pages) setPagesByDoc(Object.fromEntries(pages))
         setError(null)
         notFoundTries = 0
         if (isOcrComplete(next.latestJobStatus)) {
-          void syncSteps()
-          const contract =
-            next.documents.find(
-              (document) => document.role.toLowerCase() === 'contract',
-            ) ?? next.documents[0]
-          if (contract) {
-            try {
-              const tree = await listClauses(contract.id, controller.signal)
-              if (!stopped) setClauseCount(countClauses(tree))
-            } catch {
-              if (!stopped) setClauseCount(null)
+          const finishedRun = isRunFinished(next.latestJobStatus)
+          if (finishedRun) setAwaitingManifest(false)
+          if (!settled || polling || finishedRun) void syncSteps()
+          if (!settled) {
+            settled = true
+            const contract =
+              next.documents.find(
+                (document) => document.role.toLowerCase() === 'contract',
+              ) ?? next.documents[0]
+            if (contract) {
+              try {
+                const tree = await listClauses(contract.id, controller.signal)
+                if (!stopped) setClauseCount(countClauses(tree))
+              } catch {
+                if (!stopped) setClauseCount(null)
+              }
+            }
+            if (!finishedRun) {
+              try {
+                const manifest = await getManifest(dossierId, controller.signal)
+                const waiting = manifest.status !== 'confirmed'
+                slowPoll = waiting
+                if (!stopped) setAwaitingManifest(waiting)
+              } catch {
+                if (!stopped) setAwaitingManifest(false)
+              }
             }
           }
-          if (isRunFinished(next.latestJobStatus)) {
-            setAwaitingManifest(false)
-            return
-          }
-          try {
-            const manifest = await getManifest(dossierId, controller.signal)
-            if (!stopped) setAwaitingManifest(manifest.status !== 'confirmed')
-          } catch {
-            if (!stopped) setAwaitingManifest(false)
-          }
-          if (stopped) return
+          if (stopped || finishedRun) return
           // Mới dựng xong cấu trúc: AI2 còn chạy nên tiếp tục theo dõi tiến độ.
           if (polling) schedulePoll()
           else void watch()
@@ -424,6 +444,11 @@ export function AnalysisProgressPage() {
     () => jobErrorInfo(detail?.latestJobErrorCode),
     [detail?.latestJobErrorCode],
   )
+  // Job dừng sau khi OCR đã xong (AI2 lỗi) hoặc do người dùng hủy thì không phải lỗi OCR.
+  const cancelled = isCancelledJob(jobStatus, detail?.latestJobErrorCode)
+  const ai2Failed =
+    failed && !cancelled && isAi2Failure(detail?.latestJobErrorCode, steps)
+  const ocrFailed = failed && !cancelled && !ai2Failed
   const files = useMemo(() => {
     const current = documents.find((document) => {
       const pages = pagesByDoc[document.id] ?? []
@@ -437,9 +462,10 @@ export function AnalysisProgressPage() {
         pagesByDoc[document.id] ?? [],
         jobStatus,
         current?.id === document.id,
+        ocrFailed,
       ),
     )
-  }, [documents, jobStatus, pagesByDoc])
+  }, [documents, jobStatus, ocrFailed, pagesByDoc])
 
   const pageTotals = documents.reduce(
     (totals, document) => {
@@ -460,7 +486,8 @@ export function AnalysisProgressPage() {
   const percent = hasSteps
     ? Math.round((stepsDone / RUN_STEP_ORDER.length) * 100)
     : pageTotals.total > 0
-      ? Math.round((pageTotals.done / pageTotals.total) * 100)
+      ? // Đọc xong mọi trang mới là phần OCR: chưa tới 100 khi AI2 chưa xong.
+        Math.min(99, Math.round((pageTotals.done / pageTotals.total) * 100))
       : runDone
         ? 100
         : 0
@@ -581,10 +608,17 @@ export function AnalysisProgressPage() {
     }
   }
 
-  const failedLabel = isAi2Failure(detail?.latestJobErrorCode)
-    ? 'Phân tích AI2 thất bại'
-    : 'OCR thất bại'
-  const waitingManifest = ready && !runDone && !failed && awaitingManifest
+  const failedLabel = cancelled
+    ? 'Đã hủy lần xử lý'
+    : ai2Failed
+      ? 'Phân tích AI2 thất bại'
+      : 'OCR thất bại'
+  const waitingManifest =
+    ready &&
+    !runDone &&
+    !failed &&
+    awaitingManifest &&
+    steps.S4?.status !== 'running'
 
   const statusText = failed
     ? failedLabel
@@ -864,7 +898,7 @@ export function AnalysisProgressPage() {
 
       <div className="mt-gutter pt-space-md flex flex-col md:flex-row items-center justify-between gap-space-md">
         <div className="flex items-center gap-space-md">
-          {ready || failed ? null : (
+          {finished ? null : (
             <button
               className="font-body-sm text-body-sm text-error hover:underline flex items-center gap-space-xs disabled:opacity-60"
               disabled={busy || !dossierId}

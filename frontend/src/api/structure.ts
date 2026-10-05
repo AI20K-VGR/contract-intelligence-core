@@ -111,12 +111,9 @@ export type ReviewSpot = {
   runId?: string | null
 }
 
-const DONE_STATUSES = new Set([
-  'extracted',
-  'pending_review',
-  'reviewed',
-  'approved',
-])
+// Job đã tới bước rà soát: AI2 xong. 'extracted' đứng trước đó.
+const REVIEW_STATUSES = new Set(['pending_review', 'reviewed', 'approved'])
+const DONE_STATUSES = new Set(['extracted', ...REVIEW_STATUSES])
 
 export function isOcrComplete(status: string | null) {
   return status !== null && DONE_STATUSES.has(status)
@@ -125,11 +122,7 @@ export function isOcrComplete(status: string | null) {
 // 'extracted' chỉ là OCR/dựng cấu trúc xong: AI2 (S4–S10) còn chạy sau đó,
 // nên run chỉ xong hẳn khi job sang bước rà soát.
 export function isRunFinished(status: string | null | undefined) {
-  return (
-    status === 'pending_review' ||
-    status === 'reviewed' ||
-    status === 'approved'
-  )
+  return status != null && REVIEW_STATUSES.has(status)
 }
 
 export function countClauses(nodes: ClauseNode[]): number {

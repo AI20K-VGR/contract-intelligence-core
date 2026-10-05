@@ -26,15 +26,35 @@ const MESSAGES: Record<string, string> = {
   DISPATCH_FAILED: 'Không gửi được hồ sơ đi xử lý. Thử lại.',
 }
 
-// Job failed sau khi OCR đã xong: lỗi nằm ở AI2, không phải OCR.
+// Mã worker gắn khi AI2 lỗi (xem _fail_ai2_run).
 const AI2_FAILURES = new Set([
   ...AI2_RETRYABLE,
   'AI2_UNAVAILABLE',
+  'AI2_BLOCKED',
   'PROCESSING_TIMEOUT',
 ])
 
-export function isAi2Failure(code: string | null | undefined) {
-  return AI2_FAILURES.has(code?.trim() ?? '')
+export function isCancelledJob(
+  status: string | null | undefined,
+  code: string | null | undefined,
+) {
+  return status === 'cancelled' || code?.trim() === 'RUN_CANCELLED'
+}
+
+type StepStatuses = Record<string, { status: string } | undefined>
+
+// Job failed khi OCR đã xong thì lỗi nằm ở AI2. Xác định theo bước đã chạy
+// (S8 xong = OCR đủ tài liệu; S4 lỗi = AI2 gãy), vì AI2 trả cả mã tùy ý
+// (errors[0].code) và DOSSIER_* nên danh sách mã không bao hết.
+export function isAi2Failure(
+  code: string | null | undefined,
+  steps: StepStatuses = {},
+) {
+  if (steps.S4?.status === 'failed' || steps.S8?.status === 'succeeded') {
+    return true
+  }
+  const normalized = code?.trim() ?? ''
+  return AI2_FAILURES.has(normalized) || normalized.startsWith('DOSSIER_')
 }
 
 export function jobErrorInfo(code: string | null | undefined): JobErrorInfo {

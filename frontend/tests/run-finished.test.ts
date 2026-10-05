@@ -20,3 +20,12 @@ describe('isRunFinished', () => {
     expect(isRunFinished(undefined)).toBe(false)
   })
 })
+
+describe('shared dossier status meaning', () => {
+  it('treats every finished status as OCR-complete too', () => {
+    for (const status of ['pending_review', 'reviewed', 'approved']) {
+      expect(isOcrComplete(status)).toBe(true)
+      expect(isRunFinished(status)).toBe(true)
+    }
+  })
+})
