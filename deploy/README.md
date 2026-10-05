@@ -8,6 +8,7 @@ Mọi thao tác làm qua SSH từ máy dev. Không cần công cụ của nhà c
 
 | Địa chỉ | Tới | Dùng bởi |
 |---|---|---|
+| `https://app-<ip>.sslip.io` | frontend `:80` qua Caddy | Người dùng cuối |
 | `https://api-<ip>.sslip.io` | backend `:8000` (REST, SSE `/api/v1/runs/{id}/events`, `/docs`) | Frontend |
 | `https://auth-<ip>.sslip.io` | Keycloak `:8080` (đăng nhập, OIDC). `/admin` trả 404 | Frontend, người dùng |
 | `https://app-<ip>.sslip.io` | frontend (bản build tĩnh). Chỉ có khi `APP_HOST` được đặt trong `deploy/.env.prod` | Người dùng |
@@ -20,7 +21,9 @@ Những thứ không ra Internet, chỉ nằm trong mạng `ci-network`:
 - Postgres, Kafka, MinIO, mailpit và Keycloak admin.
 - Grafana, Prometheus, Node Exporter, cAdvisor: nằm trong mạng nội bộ `ci-monitoring`, không có cổng. Xem [docs/MONITORING.md](../docs/MONITORING.md).
 
-`sslip.io` phân giải `api-1-2-3-4.sslip.io` về `1.2.3.4`. Vì vậy không cần mua domain mà vẫn có chứng chỉ Let's Encrypt thật.
+`sslip.io` phân giải `app-1-2-3-4.sslip.io`, `api-1-2-3-4.sslip.io` và
+`auth-1-2-3-4.sslip.io` về `1.2.3.4`. Vì vậy không cần mua domain mà vẫn có
+chứng chỉ Let's Encrypt thật.
 
 ## Máy chủ cần
 
@@ -130,6 +133,8 @@ sudo deploy/deploy.sh
 Lần đầu Caddy cần khoảng một phút để xin chứng chỉ. Cuối cùng script in địa chỉ frontend và các biến `VITE_*` cho frontend chạy trên máy dev.
 
 ### Bước 5. Kiểm tra từ bên ngoài
+- GitHub → Actions → `deploy-external-check` → nhập `api-…` và `auth-…`; hoặc
+- trên máy dev: `deploy/check_external.sh api-<ip>.sslip.io auth-<ip>.sslip.io app-<ip>.sslip.io`.
 
 **Kiểm tra cổng phải chạy từ máy khác.** Từ chính máy chủ gọi IP công khai của nó có thể đi vòng trong máy và bỏ qua firewall. Cách chạy:
 

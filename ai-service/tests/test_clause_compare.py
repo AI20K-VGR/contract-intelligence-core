@@ -223,10 +223,17 @@ def test_clause_candidates_survive_run_idp_and_reach_the_wire():
 
     wire = job_result_to_wire(result, request)
     findings = wire["result"]["findings"]
-    assert len(findings) == 5
-    assert {finding["disposition"] for finding in findings} == {"COMPARABLE_DIFFERENCE"}
+    # P2 typed projections are now first-class findings. Keep the original
+    # five clause alignments as the cross-file wire contract and assert the
+    # typed payment candidate separately instead of dropping it from the wire.
+    clause_findings = [
+        finding for finding in findings if finding["item_key"].startswith("Điều ")
+    ]
+    assert len(clause_findings) == 5
+    assert {finding["disposition"] for finding in clause_findings} == {"COMPARABLE_DIFFERENCE"}
+    assert any(finding["item_key"] == "payment_schedule" for finding in findings)
     citations = {item["citation_id"]: item for item in wire["result"]["citations"]}
-    for finding in findings:
+    for finding in clause_findings:
         left = citations[finding["evidence_left_citation_ids"][0]]
         right = citations[finding["evidence_right_citation_ids"][0]]
         assert (left["source_file_id"], right["source_file_id"]) == ("doc_body", "doc_annex")

@@ -17,6 +17,7 @@ import asyncio
 import functools
 import hashlib
 import json
+import os
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -244,6 +245,88 @@ async def _load_run(session: AsyncSession, run_id: str) -> PipelineRunORM | None
     ).scalar_one_or_none()
 
 
+async def _freeze_semantic_profile(
+    session: AsyncSession, run: PipelineRunORM | None, tenant_id: str
+) -> dict[str, Any] | None:
+    """Resolve G3 once; retry/recovery keeps the immutable config snapshot."""
+    if run is None:
+        return None
+    from contract_intelligence.shared.ai.schemas import SemanticProfile
+    from contract_intelligence.shared.ai.tenant_lexicon_contracts import digest_json
+    from contract_intelligence.shared.ai.tenant_lexicon_service import TenantLexiconService
+
+    payload = _run_payload(run)
+    if "semantic_profile" in payload and payload["semantic_profile"] is None:
+        return None  # Frozen legacy OFF pin survives retry and later producer enable.
+    if (
+        "semantic_profile" not in payload
+        and os.getenv("AI2_SEMANTIC_ENABLED", "false").strip().casefold() != "true"
+    ):
+        # Legacy processing adds no database roundtrip. The existing worker commit
+        # persists this OFF pin together with its durable handoff; retry keeps it.
+        payload["semantic_profile"] = None
+        run.config_snapshot = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        return None
+    locked = await session.scalar(
+        select(PipelineRunORM)
+        .where(PipelineRunORM.id == run.id, PipelineRunORM.tenant_id == tenant_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if locked is None:
+        raise ValueError("semantic run scope missing")
+    run = locked
+    payload = _run_payload(run)
+    if "semantic_profile" in payload:
+        profile = payload["semantic_profile"]
+        return (
+            SemanticProfile.model_validate(profile).model_dump(mode="json")
+            if profile is not None
+            else None
+        )
+    if os.getenv("AI2_SEMANTIC_ENABLED", "false").strip().casefold() != "true":
+        payload["semantic_profile"] = None
+    else:
+        config = json.loads(os.environ.get("AI2_SEMANTIC_PROFILE_CONFIG", "{}"))
+        if set(config) != {
+            "version",
+            "contract_type",
+            "context_bounds",
+            "alias_proposal_minimum_length",
+        }:
+            raise ValueError("semantic trusted server config absent or invalid")
+        # Same gate as the lexicon API: an expired expert assignment or a
+        # policy mismatch pins no alias, whatever the latest version stores.
+        resolved = await TenantLexiconService(session).resolve_for_run(tenant_id)
+        alias_version = int(resolved["version"])
+        aliases = sorted(resolved["aliases"], key=lambda a: (a["kind"], a["source"]))
+        profile = {
+            "schema_version": "ai2.semantic-profile.v1",
+            "capability": "ai2.semantic.v1",
+            "tenant_id": tenant_id,
+            "version": config["version"],
+            "contract_type": config["contract_type"],
+            "alias_version": alias_version,
+            "aliases": aliases,
+            "alias_digest": digest_json(
+                {"tenant_id": tenant_id, "version": alias_version, "aliases": aliases}
+            )
+            if alias_version
+            else None,
+            "activation_state": "ACTIVE" if aliases else "DRAFT_ONLY",
+            "context_bounds": config["context_bounds"],
+            "alias_proposal_minimum_length": config["alias_proposal_minimum_length"],
+        }
+        profile["digest"] = digest_json(profile)
+        payload["semantic_profile"] = SemanticProfile.model_validate(profile).model_dump(
+            mode="json"
+        )
+    run.config_snapshot = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    await session.flush()
+    frozen_profile = payload.get("semantic_profile")
+    return frozen_profile if isinstance(frozen_profile, dict) else None
+
+
 async def _recorded_extractions(session: AsyncSession, run_id: str) -> set[str] | None:
     """Documents of ``run_id`` that already have a recorded AI1 result (None: no run)."""
     run = await _load_run(session, run_id)
@@ -329,8 +412,13 @@ def _worker_transition_allowed(current: str | None, target: str) -> bool:
     return target_rank is not None and target_rank >= current_rank
 
 
-async def _job_for_run(session: AsyncSession, run_id: str) -> JobORM | None:
-    result = await session.execute(select(JobORM).where(JobORM.current_run_id == run_id).limit(1))
+async def _job_for_run(
+    session: AsyncSession, run_id: str, *, for_update: bool = False
+) -> JobORM | None:
+    statement = select(JobORM).where(JobORM.current_run_id == run_id).limit(1)
+    if for_update:
+        statement = statement.with_for_update()
+    result = await session.execute(statement)
     return result.scalar_one_or_none()
 
 
@@ -432,7 +520,7 @@ async def _resolve_result_job(
     if not run_id:
         logger.error("worker.result.missing_run_id", source=source, event_id=event_id)
         return None
-    job = await _job_for_run(session, run_id)
+    job = await _job_for_run(session, run_id, for_update=True)
     if job is None:
         logger.warning("worker.result.stale_run", source=source, event_id=event_id, run_id=run_id)
         return None
@@ -624,11 +712,26 @@ async def _mark_processing(
             )
         await session.flush()
     elif pipeline_run.status == "queued":
-        # A run queued by POST /runs or /reprocess: start it like a fresh upload.
+        # A run queued by POST /runs starts like a fresh upload. Reprocess runs
+        # are different: their immutable AI1 hand-off is carried from the base
+        # run, so the event must go straight to AI2 without issuing OCR work.
         pipeline_run.status = "running"
         for step_code, step_status in (("S0", "succeeded"), ("S1", "succeeded"), ("S2", "running")):
             await update_pipeline_step(
                 session, tenant_id=job.tenant_id, run_id=run_id, step=step_code, status=step_status
+            )
+        if pipeline_run.reprocess_base_run_id:
+            carried = await _carry_extractions(
+                session,
+                from_run_id=pipeline_run.reprocess_base_run_id,
+                to_run=pipeline_run,
+            )
+            logger.info(
+                "worker.reprocess.snapshots_carried",
+                dossier_id=dossier_id,
+                run_id=run_id,
+                base_run_id=pipeline_run.reprocess_base_run_id,
+                documents=len(carried),
             )
     await session.execute(
         update(DossierORM)
@@ -1163,51 +1266,56 @@ async def _run_ai2_if_ready(
     snapshots = _durable_snapshots_from_run(durable_run)
     budget = ai2_deadline_seconds(sum(int(d.page_count or 0) for d in documents))
     attempt = _ai2_attempt(durable_run)
-    request = build_processing_request(
-        dossier_id=dossier_id,
-        run_id=run_id,
-        snapshots=snapshots,
-        documents=documents,
-        members=members,
-        relations=relations,
-        snapshot_created_at=_snapshot_created_at(durable_run) if durable_run else {},
-        attempt=attempt,
-        max_processing_seconds=budget,
-    )
-    if request is None:
-        logger.info(
-            "worker.ai2.waiting_for_snapshots",
-            dossier_id=dossier_id,
-            run_id=run_id,
-            snapshot_count=len(snapshots),
-        )
-        return
-
-    query_snapshot_digest = _ai2_query_snapshot_digest(request)
-
-    await update_pipeline_run_status(
-        session,
-        tenant_id=tenant_id,
-        run_id=run_id,
-        status="running",
-    )
-    await update_pipeline_step(
-        session,
-        tenant_id=tenant_id,
-        run_id=run_id,
-        step="S4",
-        status="running",
-        metrics={
-            "service": "ai2",
-            "contract": "be.ai2.processing.request.v1",
-            "attempt": attempt,
-            "budget_seconds": budget,
-        },
-    )
-    await session.commit()
-
     ai2_job_id = ""
     try:
+        # Profile resolution and request construction are part of the handled
+        # boundary. A bad trusted profile must fail the durable run instead of
+        # escaping the background task and leaving it stuck at EXTRACTED.
+        semantic_profile = await _freeze_semantic_profile(session, durable_run, tenant_id)
+        request = build_processing_request(
+            dossier_id=dossier_id,
+            run_id=run_id,
+            snapshots=snapshots,
+            documents=documents,
+            members=members,
+            relations=relations,
+            snapshot_created_at=_snapshot_created_at(durable_run) if durable_run else {},
+            attempt=attempt,
+            max_processing_seconds=budget,
+            semantic_profile=semantic_profile,
+        )
+        if request is None:
+            logger.info(
+                "worker.ai2.waiting_for_snapshots",
+                dossier_id=dossier_id,
+                run_id=run_id,
+                snapshot_count=len(snapshots),
+            )
+            return
+
+        query_snapshot_digest = _ai2_query_snapshot_digest(request)
+
+        await update_pipeline_run_status(
+            session,
+            tenant_id=tenant_id,
+            run_id=run_id,
+            status="running",
+        )
+        await update_pipeline_step(
+            session,
+            tenant_id=tenant_id,
+            run_id=run_id,
+            step="S4",
+            status="running",
+            metrics={
+                "service": "ai2",
+                "contract": "be.ai2.processing.request.v1",
+                "attempt": attempt,
+                "budget_seconds": budget,
+            },
+        )
+        await session.commit()
+
         submission = await submit_ai2_processing(
             strip_internal_fields(request),
             tenant_id=tenant_id,
@@ -1313,7 +1421,7 @@ async def _finalize_ai2_success(
     Returns None (nothing written) when ``run_id`` is no longer the job's
     current run or the job already left the pipeline (FAILED, reviewed, ...).
     """
-    job = await _job_for_run(session, run_id)
+    job = await _job_for_run(session, run_id, for_update=True)
     if (
         job is None
         or job.tenant_id != tenant_id

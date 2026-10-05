@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import threading
 import time
@@ -118,6 +119,8 @@ class ProcessingRuntime:
     llm_calls_used: int = 0
     embedding_tokens_used: int = 0
     fallback_count: int = 0
+    default_max_output_tokens: int | None = None
+    default_operation_deadline: float | None = None
     issues: list[tuple[str, str]] = field(default_factory=list)
     _request_lock: Any = field(default_factory=threading.Lock, repr=False)
 
@@ -162,6 +165,8 @@ class ProcessingRuntime:
         user: str,
         *,
         strong: bool = False,
+        max_output_tokens: int | None = None,
+        operation_deadline: float | None = None,
     ) -> dict[str, Any] | None:
         """Call the LLM within budget and deadline; ``None`` means use the local fallback.
 
@@ -169,6 +174,17 @@ class ProcessingRuntime:
         can stop and keep what it already extracted.
         """
 
+        max_output_tokens = max_output_tokens if max_output_tokens is not None else self.default_max_output_tokens
+        operation_deadline = operation_deadline if operation_deadline is not None else self.default_operation_deadline
+        if operation_deadline is not None and (type(operation_deadline) not in {int, float}
+                                               or not math.isfinite(operation_deadline)):
+            raise ValueError("operation_deadline must be finite")
+        def operation_remaining():
+            return min(self.remaining(), operation_deadline - self.clock()) if operation_deadline is not None else self.remaining()
+        def context_exhausted():
+            self._fall_back("CONTEXT_TIME_CAP", "Context operation deadline exceeded; job remains reviewable")
+        if max_output_tokens is not None and (type(max_output_tokens) is not int or max_output_tokens <= 0):
+            raise ValueError("max_output_tokens must be a positive integer")
         if not self.egress_allowed:
             self._fall_back("EGRESS_DENIED")
             return None
@@ -178,9 +194,12 @@ class ProcessingRuntime:
 
         last_code: str | None = None
         for attempt in range(max(self.max_attempts, 1)):
-            remaining = self.remaining()
-            if remaining <= 0:
+            if self.remaining() <= 0:
                 raise ProcessingTimeout("processing time budget exceeded")
+            remaining = operation_remaining()
+            if remaining <= 0:
+                context_exhausted()
+                return None
             if self.llm_calls_used >= self.max_llm_calls:
                 self._fall_back(last_code or "LLM_BUDGET_EXCEEDED")
                 return None
@@ -190,7 +209,7 @@ class ProcessingRuntime:
             reserve = partial(self._reserve_http_request, call_deadline, cancelled)
             try:
                 data = call_with_timeout(
-                    partial(self._invoke, client, system, user, strong, call_timeout, reserve), call_timeout,
+                    partial(self._invoke, client, system, user, strong, call_timeout, reserve, max_output_tokens), call_timeout,
                 )
             except LLMRequestBudgetExceeded:
                 self._fall_back("LLM_BUDGET_EXCEEDED")
@@ -198,6 +217,9 @@ class ProcessingRuntime:
             except Exception as exc:
                 if self.remaining() <= 0:
                     raise ProcessingTimeout("processing time budget exceeded") from exc
+                if operation_remaining() <= 0:
+                    context_exhausted()
+                    return None
                 code = classify_provider_error(exc)
                 if code is None:
                     self._fall_back("LLM_NON_RETRYABLE", f"NineRouter rejected request: {type(exc).__name__}")
@@ -208,12 +230,18 @@ class ProcessingRuntime:
                 delay = _retry_after_seconds(exc)
                 if delay is None:
                     delay = min(_BACKOFF_CAP_SECONDS, _BACKOFF_BASE_SECONDS * 2**attempt)
-                if delay >= self.remaining():
+                if delay >= operation_remaining():
+                    if operation_deadline is not None and operation_deadline < self.deadline:
+                        context_exhausted()
+                        return None
                     break  # waiting would run past the deadline
                 self.sleep(delay)
                 continue
             finally:
                 cancelled.set()
+            if operation_remaining() <= 0:
+                context_exhausted()
+                return None
             if not isinstance(data, dict):
                 self._fall_back("LLM_NON_RETRYABLE", "NineRouter response must be a JSON object")
                 return None
@@ -236,13 +264,16 @@ class ProcessingRuntime:
     def _invoke(
         self, client: Any, system: str, user: str, strong: bool, timeout: float,
         reserve: Callable[[], float],
+        max_output_tokens: int | None = None,
     ) -> Any:
         # Only the real client takes a per-request timeout; test doubles keep
         # the plain signature and are bounded by ``call_with_timeout``.
         if isinstance(client, NineRouterClient):
+            token_options = {} if max_output_tokens is None else {"max_output_tokens": max_output_tokens}
             return client.complete_json(
                 system, user, strong=strong, timeout=timeout,
                 before_request=reserve,
+                **token_options,
             )
         reserve()
         return client.complete_json(system, user, strong=strong)
@@ -255,6 +286,10 @@ class ProcessingRuntime:
             "max_llm_calls": self.max_llm_calls,
             "max_embedding_tokens": self.max_embedding_tokens,
             "llm_calls_used": self.llm_calls_used,
+            "llm_calls_remaining": max(0, self.max_llm_calls - self.llm_calls_used),
             "embedding_tokens_used": self.embedding_tokens_used,
+            "embedding_tokens_remaining": max(0, self.max_embedding_tokens - self.embedding_tokens_used)
+            if self.max_embedding_tokens
+            else None,
             "fallback_count": self.fallback_count,
         }

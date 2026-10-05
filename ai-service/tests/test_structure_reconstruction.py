@@ -4,22 +4,25 @@ from app.pipeline.ai1_ingest import ingest_files
 from app.pipeline.ai1_snapshot_adapter import adapt_ai1_input
 from app.pipeline.grounding import repair_active_nodes
 from app.pipeline.outline import build_tree, citation_for_node
-from fixtures.catalog import make_node, make_page, make_record
 from app.reasoning.query import classify_ask
 from app.reasoning.stack import FourLayerReasoner
 from app.tools.gateway import ToolGateway
 from app.tools.store import InMemorySnapshotStore
-
+from fixtures.catalog import make_node, make_page, make_record
+from tests.fixture_text import plain_fixture_bytes
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def _master_record():
-    contracts = ROOT / "fixtures" / "contracts"
     return ingest_files(
         [
-            ("AI2-TEST-MASTER.body.pdf", (contracts / "AI2-TEST-MASTER.body.pdf").read_bytes(), "body"),
-            ("AI2-TEST-MASTER.annexes.pdf", (contracts / "AI2-TEST-MASTER.annexes.pdf").read_bytes(), "annex"),
+            ("AI2-TEST-MASTER.body.md", plain_fixture_bytes("AI2-TEST-MASTER.body.md"), "body"),
+            (
+                "AI2-TEST-MASTER.annexes.md",
+                plain_fixture_bytes("AI2-TEST-MASTER.annexes.md"),
+                "annex",
+            ),
         ]
     )
 
@@ -95,8 +98,11 @@ def test_citation_contains_full_structure_path_and_source_scope():
     assert clause["geometry_available"] is False
 
     assert annex is not None
-    assert annex["breadcrumb"] == ["Phụ lục — AI2-TEST-MASTER.annexes.pdf", "Phụ lục 2 — Định nghĩa và thanh toán sửa đổi"]
-    assert annex["page"] == 5
+    assert annex["breadcrumb"] == [
+        "Phụ lục — AI2-TEST-MASTER.annexes.md",
+        "Phụ lục 2 — Định nghĩa và thanh toán sửa đổi",
+    ]
+    assert annex["page"] == 6
 
 
 def test_flat_ai1_snapshot_gets_a_synthetic_root_and_clause_parenting():
@@ -137,7 +143,7 @@ def test_flat_ai1_snapshot_gets_a_synthetic_root_and_clause_parenting():
     assert block.parent_id == "line:1:l1"
 
 
-def test_pdf_party_declarations_are_not_confused_with_clause_mentions():
+def test_party_declarations_are_not_confused_with_clause_mentions():
     record, env, _, _ = _master_record()
     record.active_nodes, _ = repair_active_nodes(record)
     store = InMemorySnapshotStore()
@@ -164,8 +170,17 @@ def test_structure_repair_deduplicates_without_inventing_missing_parent():
         pages=[make_page(1, "Điều 1. Nội dung")],
         nodes=[
             make_node("root", "SECTION", "Hợp đồng", "", order=9),
-            make_node("clause", "CLAUSE", "Điều 1", "Điều 1. Nội dung", parent_id="missing", order=2),
-            make_node("clause", "CLAUSE", "Điều 1 duplicate", "Điều 1. Nội dung", parent_id="root", order=2),
+            make_node(
+                "clause", "CLAUSE", "Điều 1", "Điều 1. Nội dung", parent_id="missing", order=2
+            ),
+            make_node(
+                "clause",
+                "CLAUSE",
+                "Điều 1 duplicate",
+                "Điều 1. Nội dung",
+                parent_id="root",
+                order=2,
+            ),
         ],
     )
     active, issues = repair_active_nodes(record)

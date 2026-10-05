@@ -115,6 +115,7 @@ class L3Ground:
             "attribute_lookup",
             "relation_ask",
             "raw_fact_check",
+            "payment_card",
         }:
             normalized = self._normalize_citations(envelope, citations, allowed)
             review_state = _downgrade_if_attribute_missing(task, review_state, answer, normalized)

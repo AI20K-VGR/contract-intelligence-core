@@ -24,6 +24,24 @@
 # =============================================================================
 
 services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: "https://${API_HOST:?set in deploy/.env.prod}"
+        VITE_KEYCLOAK_URL: "https://${AUTH_HOST:?set in deploy/.env.prod}"
+        VITE_KEYCLOAK_REALM: "${VITE_KEYCLOAK_REALM:-contract-intelligence}"
+        VITE_KEYCLOAK_CLIENT_ID: "${VITE_KEYCLOAK_CLIENT_ID:-contract-intel-frontend}"
+    container_name: ci-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - keycloak
+    ports: !reset []
+    networks:
+      - ci-network
+
   keycloak-db:
     ports: !reset []
     environment:
@@ -122,11 +140,25 @@ services:
     volumes: !reset []
 
   ai2-service:
+    env_file: !reset []
     environment:
+      AI2_DATABASE_URL: postgresql+psycopg://ai2:${AI2_DB_PASSWORD:?set in deploy/.env.prod}@backend-db:5432/contract_intelligence
+      AI2_REQUIRE_DATABASE: "true"
       AI2_LLM_BASE_URL: ${AI2_LLM_BASE_URL:?set the LLM provider in deploy/.env.prod}
-      AI2_LLM_API_KEY: ${AI2_LLM_API_KEY:-}
+      AI2_LLM_API_KEY: ${AI2_LLM_API_KEY:?set the LLM key in deploy/.env.prod}
       AI2_LLM_MODEL: ${AI2_LLM_MODEL:-gpt-4o-mini}
       AI2_LLM_STRONG_MODEL: ${AI2_LLM_STRONG_MODEL:-gpt-4o-mini}
+      AI2_EMBEDDING_BASE_URL: ${AI2_EMBEDDING_BASE_URL:?set the embedding provider in deploy/.env.prod}
+      AI2_EMBEDDING_API_KEY: ${AI2_EMBEDDING_API_KEY:?set the embedding key in deploy/.env.prod}
+      AI2_EMBEDDING_MODEL: ${AI2_EMBEDDING_MODEL:-text-embedding-3-small}
+      AI2_EMBEDDING_DISCOVERY_ENABLED: "true"
+      AI2_SEMANTIC_ENABLED: "true"
+      AI2_PROCESSING_EGRESS_ALLOWED: "true"
+      AI2_QUERY_EGRESS_ALLOWED: "true"
+      AI2_QUERY_USE_LLM: "true"
+      AI2_QUERY_USE_VECTOR: "true"
+      AI2_VECTOR_RECALL_ENABLED: "true"
+      AI2_QUERY_REQUIRE_SIGNATURE: "true"
       AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:?set in deploy/.env.prod}
     # Internal only — the backend reaches it as http://ai2-service:8002.
     ports: !reset []
@@ -177,9 +209,11 @@ services:
     depends_on:
       - backend
       - keycloak
+      - frontend
     environment:
       API_HOST: ${API_HOST:?set in deploy/.env.prod}
       AUTH_HOST: ${AUTH_HOST:?set in deploy/.env.prod}
+      APP_HOST: ${APP_HOST:?set in deploy/.env.prod}
     ports:
       - "80:80"
       - "443:443"

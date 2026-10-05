@@ -1,0 +1,63 @@
+{
+  "schema_version": "ai2.semantic.v2.baseline",
+  "purpose": "Synthetic mechanism fixtures only; they are not business ground truth.",
+  "cases": [
+    {
+      "name": "opposite_polarity",
+      "source_shape": {
+        "left": "same actor/action/object and trigger, required",
+        "right": "same actor/action/object and trigger, prohibited"
+      },
+      "expected_before": {
+        "candidate_count": 0,
+        "desired_disposition": "CONFLICT_CANDIDATE",
+        "review_only": true
+      }
+    },
+    {
+      "name": "same_milestone_value_delta",
+      "source_shape": {
+        "left": "same payment event and scope, percentage alpha",
+        "right": "same payment event and scope, percentage beta"
+      },
+      "expected_before": {
+        "candidate_count": 0,
+        "desired_disposition": "CONFLICT_CANDIDATE",
+        "review_only": true
+      }
+    },
+    {
+      "name": "percentage_deadline_units",
+      "source_shape": {
+        "amount": "percentage",
+        "deadline": "business-day quantity"
+      },
+      "expected_before": {
+        "review_only": true,
+        "amount_unit_must_not_be_overwritten": true
+      }
+    },
+    {
+      "name": "entire_agreement_negative",
+      "source_shape": {
+        "left": "general confirmation of contract clauses",
+        "right": "structural heading"
+      },
+      "expected_before": {
+        "desired_disposition": "NOT_COMPARABLE",
+        "review_only": true
+      }
+    },
+    {
+      "name": "different_milestone_negative",
+      "source_shape": {
+        "left": "payment after signing",
+        "right": "payment after acceptance"
+      },
+      "expected_before": {
+        "desired_disposition": "NOT_COMPARABLE",
+        "review_only": true
+      }
+    }
+  ]
+}

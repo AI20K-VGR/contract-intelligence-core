@@ -44,6 +44,23 @@ async def session() -> AsyncSession:
                 doc_char_end=11,
             )
         )
+        # AI2 returns page-local offsets for this second page while the
+        # backend stores document-global offsets.  The page starts at 12 in
+        # the persisted OCR coordinate space.
+        sess.add(
+            OcrLineORM(
+                id=new_ulid("ln_"),
+                tenant_id="ten_test",
+                document_id=doc_id,
+                page_no=2,
+                line_no=1,
+                text="Second page",
+                bbox="[0,0,100,20]",
+                confidence="0.99",
+                doc_char_start=12,
+                doc_char_end=23,
+            )
+        )
         await sess.commit()
         yield sess
     await engine.dispose()
@@ -79,6 +96,32 @@ async def test_verify_citation_accepts_matching_quote(session: AsyncSession) -> 
     result = await verify_citation(session, document_id="doc_cit_1", citation=cit)
     assert result.accepted is True
     assert result.quote_sha256 == sha256_hex("Hello World")
+
+
+async def test_verify_citation_resolves_page_local_offsets(
+    session: AsyncSession,
+) -> None:
+    cit = CitationItem(
+        quote="Second page",
+        quote_sha256=sha256_hex("Second page"),
+        # These are the page-local AI2 coordinates, not the persisted global
+        # coordinates (12..23).
+        doc_char_start=0,
+        doc_char_end=11,
+        segments=[
+            CitationSegmentItem(
+                page_no=2,
+                line_id="doc_cit_1:s1:p002:l001",
+                char_start=0,
+                char_end=11,
+                bbox=[0.0, 0.0, 1.0, 1.0],
+            )
+        ],
+    )
+    result = await verify_citation(session, document_id="doc_cit_1", citation=cit)
+    assert result.accepted is True
+    assert result.resolved_doc_char_start == 12
+    assert result.resolved_doc_char_end == 23
 
 
 async def test_verify_citation_rejects_mismatch(session: AsyncSession) -> None:

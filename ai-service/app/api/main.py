@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import hashlib
 import json
 import logging
@@ -251,6 +252,11 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
             actor_id=service_envelope.actor_id,
         )
         tenant_id = request.service_envelope.tenant_id
+        if request.semantic_profile is not None:
+            from app.pipeline.frame_context import effective_context_bounds
+
+            if os.getenv("AI2_SEMANTIC_ENABLED", "false").strip().casefold() == "true":
+                effective_context_bounds(request.semantic_profile.context_bounds)
         worker_token = JOB_STORE.claim(
             job_id,
             tenant_id=tenant_id,
@@ -771,8 +777,14 @@ def _table_view(rec: DossierRecord, table_id: str, offset: int, limit: int) -> d
     }
 
 
-@app.get("/health")
-def health() -> dict:
+def _capability_snapshot() -> dict:
+    """Return provider capability without exposing credentials.
+
+    Liveness stays cheap at /healthz. The explicit readiness route is used by
+    runners/deployments before an LLM/vector E2E run so a missing provider is
+    visible instead of silently becoming lexical-only behavior.
+    """
+
     llm = NineRouterClient()
     if os.getenv("AI2_EMBEDDING_DISCOVERY_ENABLED", "false").casefold() in {
         "1",
@@ -783,13 +795,43 @@ def health() -> dict:
         embedding = EMBEDDING_CLIENT.discover(egress_approved=True).as_dict()
     else:
         embedding = {"status": "NOT_RUN", "models": [], "selected_model": None, "dimensions": None}
+    llm_state = llm_status(llm)
     return {
-        "status": "ok",
-        "llm": llm_status(llm),
+        "llm_status": llm_state,
+        "llm": llm_state,
         "model": llm.model if llm.configured() else "",
         "persist": str(DATA),
         "embedding": embedding,
     }
+
+
+@app.get("/health")
+def health() -> dict:
+    capabilities = _capability_snapshot()
+    return {"status": "ok", **capabilities}
+
+
+@app.get("/readyz")
+def readyz() -> dict:
+    capabilities = _capability_snapshot()
+    full_path = all(
+        _env_flag(name, False)
+        for name in (
+            "AI2_SEMANTIC_ENABLED",
+            "AI2_PROCESSING_EGRESS_ALLOWED",
+            "AI2_QUERY_EGRESS_ALLOWED",
+            "AI2_QUERY_USE_LLM",
+            "AI2_QUERY_USE_VECTOR",
+            "AI2_VECTOR_RECALL_ENABLED",
+        )
+    )
+    llm_ready = str(capabilities["llm_status"]).casefold() == "ready"
+    embedding_ready = capabilities["embedding"].get("status") == "READY"
+    if full_path and (not llm_ready or not embedding_ready):
+        capabilities["status"] = "blocked"
+        capabilities["reason"] = "full_llm_vector_capability_not_ready"
+        raise HTTPException(status_code=503, detail=capabilities)
+    return {"status": "ready", **capabilities}
 
 
 @app.get("/healthz")
@@ -1800,7 +1842,7 @@ def create_idp_job(payload: dict, background_tasks: BackgroundTasks) -> dict:
             request_id=request.request_id,
             idempotency_key=request.idempotency_key,
             attempt=request.attempt,
-            request=request.model_dump(),
+            request=copy.deepcopy(payload),
             wire=queued,
             nonce=service_envelope.nonce,
             request_fingerprint=service_envelope.payload_sha256,

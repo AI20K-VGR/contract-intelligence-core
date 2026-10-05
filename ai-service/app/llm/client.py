@@ -6,6 +6,7 @@ import os
 import re
 import threading
 import time
+import uuid
 from typing import Any, Callable
 
 from openai import BadRequestError, OpenAI, UnprocessableEntityError
@@ -94,6 +95,7 @@ class NineRouterClient:
         strong: bool = False,
         timeout: float | None = None,
         before_request: Callable[[], float] | None = None,
+        max_output_tokens: int | None = None,
     ) -> dict[str, Any]:
         """One logical completion. ``last_http_calls`` reports the HTTP requests it
         made (2 when the provider rejected ``response_format``) so the caller can
@@ -102,9 +104,14 @@ class NineRouterClient:
 
         model = self.strong_model if strong else self.model
         request_options: dict[str, Any] = {} if timeout is None else {"timeout": timeout}
+        if max_output_tokens is not None:
+            if type(max_output_tokens) is not int or max_output_tokens <= 0:
+                raise ValueError("max_output_tokens must be a positive integer")
+            request_options["max_tokens"] = max_output_tokens
         self.last_http_calls = 0
         started = time.perf_counter()
         trace: dict[str, Any] = {
+            "trace_id": uuid.uuid4().hex,
             "model": model,
             "strong": strong,
             "request_digest": hashlib.sha256((system + "\n" + user).encode("utf-8")).hexdigest()[:16],
@@ -133,6 +140,7 @@ class NineRouterClient:
             # JSON mode; 429/5xx/timeouts go back to the caller's retry policy.
             if not _is_format_error(first_error):
                 trace["error_type"] = type(first_error).__name__
+                trace["http_calls"] = self.last_http_calls
                 trace["latency_ms"] = round((time.perf_counter() - started) * 1000, 1)
                 self.traces.append(trace)
                 NineRouterClient.all_traces.append(dict(trace))
@@ -152,12 +160,14 @@ class NineRouterClient:
                 text = resp.choices[0].message.content or "{}"
             except Exception as second_error:
                 trace["error_type"] = type(second_error).__name__
+                trace["http_calls"] = self.last_http_calls
                 trace["latency_ms"] = round((time.perf_counter() - started) * 1000, 1)
                 self.traces.append(trace)
                 NineRouterClient.all_traces.append(dict(trace))
                 raise
         data = _parse_json(text)
         trace["latency_ms"] = round((time.perf_counter() - started) * 1000, 1)
+        trace["http_calls"] = self.last_http_calls
         trace["response_chars"] = len(text)
         trace["json_keys"] = sorted(data)[:32]
         usage = getattr(resp, "usage", None)

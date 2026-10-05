@@ -3,20 +3,24 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.contracts.models import (
+    BoqCheckProjection,
     Chunk,
+    Citation,
+    ContractEvent,
     Fact,
+    HandoffIssue,
     LifecycleState,
     PageSnapshot,
+    PaymentScheduleProjection,
     RelationGraph,
+    ReviewItem,
+    SemanticExtension,
+    SemanticProfile,
     SourceFile,
     StructuralNode,
     TableSnapshot,
     TenantProfile,
     VersionPins,
-    HandoffIssue,
-    Citation,
-    ReviewItem,
-    ContractEvent,
 )
 
 
@@ -52,6 +56,12 @@ class DossierRecord:
     citation_index: dict[str, Citation] = field(default_factory=dict)
     review_items: list[ReviewItem] = field(default_factory=list)
     events: list[ContractEvent] = field(default_factory=list)
+    semantic_profile: SemanticProfile | None = None
+    semantic_extension: SemanticExtension | None = None
+    semantic_snapshots: dict[str, str] = field(default_factory=dict)
+    # Typed projections are derived per run and remain separate from immutable OCR.
+    payment_schedules: list[PaymentScheduleProjection] = field(default_factory=list)
+    boq_checks: list[BoqCheckProjection] = field(default_factory=list)
 
     def evidence_nodes(self) -> list[StructuralNode]:
         """Nodes allowed for UI/reasoning; raw ``nodes`` remains immutable."""

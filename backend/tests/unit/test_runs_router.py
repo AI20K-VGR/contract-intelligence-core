@@ -116,9 +116,21 @@ class TestReprocess:
         mock_svc.reprocess_dossier.return_value = ReprocessAcceptedDTO(
             dossier_id="dos_1", job_id="run_new"
         )
-        resp = await client.post("/api/v1/dossiers/dos_1/reprocess")
+        resp = await client.post(
+            "/api/v1/dossiers/dos_1/reprocess",
+            headers={"Idempotency-Key": "reprocess-test-001"},
+            json={"base_run_id": "run_base", "source_snapshot_digest": "a" * 64},
+        )
         assert resp.status_code == 202
         assert resp.json()["data"]["job_id"] == "run_new"
+        kwargs = mock_svc.reprocess_dossier.call_args.kwargs
+        assert kwargs["idempotency_key"] == "reprocess-test-001"
+        assert kwargs["base_run_id"] == "run_base"
+        assert kwargs["source_snapshot_digest"] == "a" * 64
+
+    async def test_requires_idempotency_binding(self, client: AsyncClient) -> None:
+        resp = await client.post("/api/v1/dossiers/dos_1/reprocess")
+        assert resp.status_code == 422
 
 
 class TestListRuns:

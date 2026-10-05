@@ -14,6 +14,12 @@
 	}
 }
 
+# Frontend browser application. API and OIDC calls use the public hosts below.
+{$APP_HOST} {
+	import common
+	reverse_proxy frontend:80
+}
+
 # Backend API — for the frontend. AI1/AI2 never come through here: AI1 talks
 # over Kafka and AI2 over HTTP inside ci-network. /grafana/* also lands on the
 # backend, which lets only ADMINISTRATOR through to the internal Grafana;

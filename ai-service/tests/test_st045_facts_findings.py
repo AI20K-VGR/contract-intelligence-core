@@ -44,7 +44,13 @@ def test_cross_document_body_annex_requires_relation_evidence():
 
     candidates, issues = compare_facts([body, annex])
 
-    assert candidates == []
+    # DEC-1 keeps the grounded pair visible while annotating the missing
+    # body/annex relation; relation absence must not silently drop evidence.
+    assert len(candidates) == 1
+    assert candidates[0].disposition.value == "COMPARABLE_DIFFERENCE"
+    assert candidates[0].review_state.value == "NEEDS_REVIEW"
+    assert "relation_unconfirmed" in candidates[0].reason
+    assert any(issue.missing == "BODY_ANNEX_RELATION" for issue in issues)
     assert any(issue.missing == "BODY_ANNEX_RELATION" for issue in issues)
 
 

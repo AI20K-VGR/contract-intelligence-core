@@ -7,6 +7,7 @@ from typing import Any
 from app.pipeline.ai1_snapshot_adapter import fold_for_match
 from app.reasoning.fact_link import digits_only, group_hits
 from app.reasoning.relations import doc_side
+from app.tools.gateway import ToolBlocked
 
 ROLE_LETTER = {"a": "A", "b": "B", "c": "C", "y": "Y"}
 MENTION_SKIP = re.compile(r"thanh toán|phạt chậm|ngày làm việc|nghiệm thu", re.I)
@@ -197,6 +198,116 @@ def assemble_field(key: str, hits: list[dict[str, Any]]) -> dict[str, Any]:
         "notes": "field_card",
         "answer": ans,
         "citations": cites,
+    }
+
+
+_PAYMENT_METHOD = re.compile(r"\b(?:chuyen khoan|tai khoan|tien mat|cash)\b", re.I)
+_PAYMENT_TERM = re.compile(
+    r"\b(?:trong\s+vong|sau\s+khi|ke\s+t[uừ]\s+khi|khi\s+nhan)\b.*\b(?:ngay|ho\s+so|nghiem\s+thu|ky)\b",
+    re.I,
+)
+_PAYMENT_PERCENT = re.compile(r"\b\d{1,3}\s*%\b")
+_PAYMENT_AMOUNT = re.compile(
+    r"\b(?:tong\s+gia\s+tri|gia\s+(?:tri\s+)?hop\s+dong|tong\s+cong)\b.*\b\d[\d.\s]*\b",
+    re.I,
+)
+_PAYMENT_MILESTONE = re.compile(r"\b(?:moc|dot|m)\s*\d+\b", re.I)
+
+
+def _payment_kind(line: str, context: str) -> str | None:
+    """Classify an extractive payment line without interpreting precedence."""
+
+    folded = fold_for_match(line)
+    context_folded = fold_for_match(context)
+    if not folded.strip() or folded == context_folded:
+        return None
+    if re.fullmatch(r"(?:thanh toan|payment|tra tien|cac khoan thanh toan)", folded.strip()):
+        return None
+    if re.search(r"nghia vu thanh toan|da thanh toan day du", folded):
+        return None
+    topic = any(token in context_folded for token in ("thanh toan", "tra tien", "payment"))
+    if not topic:
+        return None
+    if _PAYMENT_METHOD.search(folded):
+        return "method"
+    if _PAYMENT_PERCENT.search(folded) or _PAYMENT_MILESTONE.search(folded):
+        return "schedule"
+    if _PAYMENT_TERM.search(folded):
+        return "term"
+    if _PAYMENT_AMOUNT.search(folded):
+        return "amount"
+    # A line that only repeats the topic is too weak to answer a generic ask.
+    return None
+
+
+def assemble_payment(outline: list[dict[str, Any]], get_node) -> dict[str, Any]:
+    """Return a short, source-preserving payment card from the active tree."""
+
+    grouped: OrderedDict[str, list[dict[str, Any]]] = OrderedDict(
+        (key, []) for key in ("amount", "method", "schedule", "term")
+    )
+    seen: set[tuple[str, str]] = set()
+    for node in sorted(outline or [], key=lambda item: item.get("order", 0)):
+        node_id = node.get("node_id")
+        if not node_id:
+            continue
+        try:
+            full = get_node(node_id)
+        except (ToolBlocked, TypeError):
+            full = node
+        label = full.get("raw_label") or node.get("raw_label") or ""
+        blob = str(full.get("text") or node.get("text") or "")
+        context = "\n".join([*(full.get("ancestors") or []), label, blob])
+        for line in blob.splitlines() or [label]:
+            kind = _payment_kind(line, context)
+            if kind is None:
+                continue
+            normalized = re.sub(r"\s+", " ", line).strip()
+            key = (str(node_id), fold_for_match(normalized))
+            if not normalized or key in seen:
+                continue
+            seen.add(key)
+            citation = dict(full.get("citation") or {"node_id": node_id, "text_span": normalized[:240]})
+            citation["text_span"] = normalized[:240]
+            grouped[kind].append(
+                {
+                    "node_id": str(node_id),
+                    "side": doc_side(full.get("ancestors"), label),
+                    "text": normalized[:400],
+                    "citation": citation,
+                }
+            )
+
+    selected = [entry for entries in grouped.values() for entry in entries[:4]]
+    if not selected:
+        return {
+            "review_state": "INSUFFICIENT_EVIDENCE",
+            "notes": "payment_card_none",
+            "answer": "Không tách được căn cứ thanh toán từ snapshot. Không suy đoán.",
+            "citations": [],
+        }
+
+    labels = {
+        "amount": "Giá trị được nêu",
+        "method": "Phương thức",
+        "schedule": "Lịch/mốc thanh toán",
+        "term": "Thời hạn/điều kiện",
+    }
+    lines = ["Thông tin thanh toán trích từ snapshot:"]
+    citations: list[dict[str, Any]] = []
+    for kind, entries in grouped.items():
+        chosen = entries[:4]
+        if not chosen:
+            continue
+        evidence = "; ".join(f"[{item['side']}] {item['text']}" for item in chosen)
+        lines.append(f"- {labels[kind]}: {evidence}")
+        citations.extend(item["citation"] for item in chosen)
+    sides = {item["side"] for item in selected}
+    return {
+        "review_state": "NEEDS_REVIEW" if len(sides) > 1 else "ANSWERED",
+        "notes": "payment_card",
+        "answer": "\n".join(lines),
+        "citations": citations[:12],
     }
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import unicodedata
 from typing import Any
 
@@ -56,17 +57,55 @@ def _answer_language_instruction(query: str) -> str:
     return "Answer in the same language as the query."
 
 
+def _asks_full_payment_schedule(query: str) -> bool:
+    folded = "".join(
+        char for char in unicodedata.normalize("NFD", query.casefold())
+        if unicodedata.category(char) != "Mn"
+    ).replace("đ", "d")
+    return any(
+        term in folded
+        for term in ("lich thanh toan", "payment schedule", "cac dot thanh toan", "tung dot")
+    )
+
+
 def _grounded_user_prompt(task: dict[str, Any], steps: list[dict[str, Any]]) -> str:
+    coverage_ids = task.get("coverage_group_ids") or []
+    coverage_instruction = (
+        f"This is a grouped clause question. Cover every one of the {len(coverage_ids)} "
+        "retrieved sibling clauses in the answer; do not stop after the first match.\n"
+        if coverage_ids
+        else ""
+    )
     prefix = (
         f"query={str(task.get('query') or '')[:2_000]}\n"
         f"type={str(task.get('type') or '')[:200]}\n"
+        f"{coverage_instruction}"
         f"{RETRIEVED_TEXT_TAINT_INSTRUCTION}\n"
         f"{RETRIEVED_TEXT_START}\n"
     )
     suffix = f"\n{RETRIEVED_TEXT_END}"
     remaining = max(0, PROMPT_CHAR_CAP - len(prefix) - len(suffix))
-    retrieved_payload = repr(steps[-6:])[:remaining]
+    table_steps = [step for step in steps if step.get("tool") == "logical_table_evidence"]
+    other_steps = [step for step in steps if step.get("tool") != "logical_table_evidence"]
+    keep_other = max(0, 6 - len(table_steps))
+    selected_steps = table_steps + (other_steps[-keep_other:] if keep_other else [])
+    retrieved_payload = repr(selected_steps)[:remaining]
     return f"{prefix}{retrieved_payload}{suffix}"
+
+
+def _valid_draft(value: Any) -> bool:
+    """Reject malformed model output before downstream citation handling."""
+    if not isinstance(value, dict):
+        return False
+    if not isinstance(value.get("answer"), str):
+        return False
+    if type(value.get("sufficient")) is not bool or type(value.get("legal_winner")) is not bool:
+        return False
+    citations = value.get("citations")
+    return isinstance(citations, list) and all(
+        isinstance(item, dict) and isinstance(item.get("node_id"), str) and bool(item["node_id"])
+        for item in citations
+    )
 
 
 def _trim(name: str, result: Any, table_ok: bool) -> Any:
@@ -112,8 +151,13 @@ class L2Planner:
         self.gateway = gateway
         self.llm = llm
         self.last_prompt_chars = 0
+        self.llm_called = False
 
     def run(self, envelope: ToolEnvelope, task: dict[str, Any], l1: dict[str, Any]) -> dict[str, Any]:
+        # Planner instances can serve multiple queries; call state belongs to
+        # this run, not the previous query.
+        self.last_prompt_chars = 0
+        self.llm_called = False
         if query_too_broad(task.get("query") or "") or task.get("type") == "too_broad":
             return {
                 "steps": [],
@@ -121,6 +165,7 @@ class L2Planner:
                 "skipped": True,
                 "too_broad": True,
                 "last_prompt_chars": 0,
+                "llm_called": False,
             }
         if not self.llm or not self.llm.configured():
             return self._fallback_review(envelope, task, l1)
@@ -170,11 +215,18 @@ class L2Planner:
                 raw = self.gateway.call(name, envelope, **args)
                 steps.append({"tool": name, "ok": True, "result": _trim(name, raw, table_ok)})
             except ToolBlocked:
-                return {"steps": steps, "draft": None, "blocked": True, "last_prompt_chars": self.last_prompt_chars}
+                return {
+                    "steps": steps,
+                    "draft": None,
+                    "blocked": True,
+                    "last_prompt_chars": self.last_prompt_chars,
+                    "llm_called": self.llm_called,
+                }
             except TypeError as exc:
                 steps.append({"tool": name, "ok": False, "error": str(exc)})
                 if replans < MAX_REPLAN:
                     try:
+                        self.llm_called = True
                         plan = self._plan(task, l1, steps, table_ok, envelope)
                     except Exception:
                         # Same contract as the draft call below: a provider
@@ -185,9 +237,12 @@ class L2Planner:
                     i = 0
                     continue
             i += 1
+        for table in l1.get("logical_tables") or []:
+            steps.append({"tool": "logical_table_evidence", "ok": True, "result": table})
         user = _grounded_user_prompt(task, steps)
         self.last_prompt_chars = len(user)
         try:
+            self.llm_called = True
             draft = self.llm.complete_json(
                 "Answer only from trimmed tool results. JSON {answer, citations:[{node_id,text_span}], sufficient:bool, legal_winner:false}. "
                 f"{_answer_language_instruction(str(task.get('query') or ''))} "
@@ -196,6 +251,8 @@ class L2Planner:
                 user,
             )
         except Exception:
+            return self._fallback_review(envelope, task, l1)
+        if not _valid_draft(draft):
             return self._fallback_review(envelope, task, l1)
         if draft.get("legal_winner"):
             draft["legal_winner"] = False
@@ -206,11 +263,42 @@ class L2Planner:
                 h.get("citation") or {"node_id": h.get("node_id")} for h in (l1.get("hits") or [])[:6]
             ]
             draft["sufficient"] = False
+        logical_tables = l1.get("logical_tables") or []
+        if logical_tables:
+            table_citations = [
+                citation
+                for table in logical_tables
+                for row in table.get("rows", [])
+                for citation in row.get("cell_citations", {}).values()
+            ]
+            cited_nodes = {
+                str(item.get("node_id")) for item in draft.get("citations", [])
+                if isinstance(item, dict) and item.get("node_id")
+            }
+            draft["citations"].extend(
+                citation for citation in table_citations
+                if str(citation.get("node_id") or "") not in cited_nodes
+            )
+            if any(not table.get("coverage", {}).get("complete") for table in logical_tables):
+                draft["sufficient"] = False
+            if _asks_full_payment_schedule(str(task.get("query") or "")):
+                expected = {
+                    str(row.get("cells", [None])[0])
+                    for table in logical_tables for row in table.get("rows", [])
+                    if row.get("cells") and row["cells"][0]
+                }
+                answer_ids = {
+                    value.upper()
+                    for value in re.findall(r"M\d+", str(draft.get("answer") or ""), re.I)
+                }
+                if not expected.issubset(answer_ids):
+                    draft["sufficient"] = False
         return {
             "steps": steps,
             "draft": draft,
             "skipped": False,
             "last_prompt_chars": self.last_prompt_chars,
+            "llm_called": self.llm_called,
         }
 
     def _evidence_plan(
@@ -314,6 +402,7 @@ class L2Planner:
             "skipped": False,
             "fallback": True,
             "last_prompt_chars": 0,
+            "llm_called": self.llm_called,
         }
 
 
