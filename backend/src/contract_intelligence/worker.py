@@ -20,7 +20,7 @@ import json
 import os
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any
 
 import structlog
 from aiokafka import AIOKafkaConsumer, TopicPartition
@@ -253,7 +253,7 @@ async def _freeze_semantic_profile(
         return None
     from contract_intelligence.shared.ai.schemas import SemanticProfile
     from contract_intelligence.shared.ai.tenant_lexicon_contracts import digest_json
-    from contract_intelligence.shared.ai.tenant_lexicon_store import LexiconVersionORM
+    from contract_intelligence.shared.ai.tenant_lexicon_service import TenantLexiconService
 
     payload = _run_payload(run)
     if "semantic_profile" in payload and payload["semantic_profile"] is None:
@@ -295,23 +295,24 @@ async def _freeze_semantic_profile(
             "alias_proposal_minimum_length",
         }:
             raise ValueError("semantic trusted server config absent or invalid")
-        lexicon = await session.scalar(
-            select(LexiconVersionORM)
-            .where(LexiconVersionORM.tenant_id == tenant_id)
-            .order_by(LexiconVersionORM.version.desc())
-            .limit(1)
-        )
-        lexicon_profile = cast(dict[str, Any], lexicon.profile) if lexicon else {}
-        aliases = list(lexicon_profile.get("active_aliases") or [])
+        # Same gate as the lexicon API: an expired expert assignment or a
+        # policy mismatch pins no alias, whatever the latest version stores.
+        resolved = await TenantLexiconService(session).resolve_for_run(tenant_id)
+        alias_version = int(resolved["version"])
+        aliases = sorted(resolved["aliases"], key=lambda a: (a["kind"], a["source"]))
         profile = {
             "schema_version": "ai2.semantic-profile.v1",
             "capability": "ai2.semantic.v1",
             "tenant_id": tenant_id,
             "version": config["version"],
             "contract_type": config["contract_type"],
-            "alias_version": lexicon.version if lexicon else 0,
+            "alias_version": alias_version,
             "aliases": aliases,
-            "alias_digest": lexicon_profile.get("alias_digest"),
+            "alias_digest": digest_json(
+                {"tenant_id": tenant_id, "version": alias_version, "aliases": aliases}
+            )
+            if alias_version
+            else None,
             "activation_state": "ACTIVE" if aliases else "DRAFT_ONLY",
             "context_bounds": config["context_bounds"],
             "alias_proposal_minimum_length": config["alias_proposal_minimum_length"],

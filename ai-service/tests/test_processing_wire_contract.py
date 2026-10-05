@@ -33,6 +33,7 @@ from app.pipeline.ai1_snapshot_adapter import (
     adapt_be_ai2_processing_request,
 )
 from app.pipeline.idp import _validate_output_citations
+from app.pipeline.payment_schedule import project_payment_schedule
 from app.pipeline.runtime import ProcessingRuntime
 from app.reasoning.l2_plan import L2Planner
 from app.security.service_envelope import build_service_envelope
@@ -385,6 +386,50 @@ def test_result_maps_findings_and_resolvable_citations_without_new_geometry():
     assert wire["result"]["facts"][0]["citation_ids"][0] in citation_ids
     assert wire["result"]["findings"][0]["evidence_left_citation_ids"][0] in citation_ids
     assert wire["result"]["citations"][0]["bbox"] == []
+
+
+def test_result_with_cell_cited_payment_schedule_passes_its_own_validator():
+    """A payment table whose rows carry per-cell citations must not make AI2
+    reject its own result as RESULT_SEMANTIC_INVALID."""
+    headers = ["Đợt", "Tỷ lệ", "Mốc thanh toán"]
+    rows = [
+        {
+            "row_index": 0,
+            "cells": ["M1", "100%", "Nghiệm thu"],
+            "cell_citations": {
+                str(index): {
+                    "node_id": "table-row-0",
+                    "page_revision_id": "page-1",
+                    "source_file_id": "synthetic-annex",
+                    "page": 1,
+                    "text_span": value,
+                }
+                for index, value in enumerate(["M1", "100%", "Nghiệm thu"])
+            },
+        }
+    ]
+    schedule = project_payment_schedule("payments", headers, rows, source_role="annex")
+    job = JobResult(
+        job_id="job-wire-cells",
+        status=JobStatus.SUCCEEDED,
+        review_state=ReviewState.NEEDS_REVIEW,
+        contribution=IndexContribution(
+            payment_schedules=[schedule],
+            extraction_version=1,
+            proposed_index_version="idx_1",
+        ),
+    )
+
+    wire = job_result_to_wire(job, BeAi2ProcessingRequest.model_validate(_request()))
+    validate_processing_result(wire)
+
+    milestone = wire["result"]["index_contribution"]["coverage"]["typed_table_projections"][
+        "payment_schedules"
+    ][0]["milestones"][0]
+    citation_ids = {item["citation_id"] for item in wire["result"]["citations"]}
+    assert milestone["cell_citation_ids"]
+    for refs in milestone["cell_citation_ids"].values():
+        assert isinstance(refs, list) and set(refs) <= citation_ids
 
 
 def test_api_accepts_idempotent_async_processing_job(monkeypatch):

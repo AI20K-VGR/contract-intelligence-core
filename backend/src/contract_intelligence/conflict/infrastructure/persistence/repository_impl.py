@@ -44,13 +44,14 @@ _SEMANTIC_DISPOSITIONS = frozenset(
         "CUMULATIVE",
         "CONFLICT_CANDIDATE",
         "CANDIDATE_AMENDMENT",
-        "ARITHMETIC_INCONSISTENCY",
-        "AMENDMENT_REVIEW",
-        "conflict_candidate",
-        "arithmetic_inconsistency",
-        "amendment_review",
     }
 )
+# Conflict kinds have no ``semantic.disposition`` of their own: persistence
+# stores them on ``FindingORM.disposition`` (lower case), so filter there.
+_FINDING_DISPOSITION_ALIASES = {
+    "ARITHMETIC_INCONSISTENCY": "arithmetic_inconsistency",
+    "AMENDMENT_REVIEW": "amendment_review",
+}
 
 
 def _citation_payload(orm: CitationORM) -> dict[str, Any]:
@@ -100,6 +101,7 @@ class FindingRepositoryImpl:
         has_job, current_run = await self._current_job_run(dossier_id)
         if has_job:
             stmt = stmt.where(FindingORM.run_id == (current_run or ""))
+        disposition = _FINDING_DISPOSITION_ALIASES.get(disposition or "", disposition)
         semantic_filter = disposition in _SEMANTIC_DISPOSITIONS
         if disposition and not semantic_filter:
             stmt = stmt.where(FindingORM.disposition == disposition)

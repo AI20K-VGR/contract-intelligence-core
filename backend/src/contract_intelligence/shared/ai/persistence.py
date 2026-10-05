@@ -1174,7 +1174,12 @@ async def persist_ai2_processing_result(
         for edge in semantic.timeline:
             if edge.proposed_value is None or edge.target_id is None:
                 continue
-            source, target = frames[edge.source_id], frames[edge.target_id]
+            target = frames.get(edge.target_id)
+            if target is None:
+                # "missing_target" edges stay visible in the semantic timeline;
+                # without a target frame there is no second side for a finding.
+                continue
+            source = frames[edge.source_id]
 
             def timeline_side(
                 frame: SemanticFrame, timeline: SemanticTimeline = edge

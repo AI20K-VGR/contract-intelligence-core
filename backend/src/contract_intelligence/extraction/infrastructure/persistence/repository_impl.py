@@ -174,6 +174,9 @@ class PipelineRunRepositoryImpl:
                 JobORM.dossier_id == dossier_id,
                 JobORM.tenant_id == self._tenant_id,
             )
+            # A dossier can have several jobs: the newest owns the current run.
+            .order_by(JobORM.created_at.desc(), JobORM.id.desc())
+            .limit(1)
             .with_for_update()
         )
         job = (await self._session.execute(job_stmt)).scalar_one_or_none()

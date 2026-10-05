@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import time
 from typing import Annotated, Any, Literal
@@ -111,6 +112,31 @@ async def _dossier_document_ids(session: AsyncSession, dossier: DossierORM) -> s
     return {str(value) for value in result.scalars().all()}
 
 
+_ENDED_WITHOUT_RESULT = {"failed": "CURRENT_RUN_FAILED", "cancelled": "CURRENT_RUN_CANCELLED"}
+
+
+def _no_semantic_result_coming(run: PipelineRunORM) -> str | None:
+    """Why ``run`` can never get a semantic result, or None while one may still come.
+
+    Mirrors the worker's semantic pin: a run frozen with ``semantic_profile:
+    null`` (or not yet frozen while semantic is off) is legacy processing.
+    """
+    ended = _ENDED_WITHOUT_RESULT.get(run.status)
+    if ended is not None:
+        return ended
+    try:
+        config = json.loads(run.config_snapshot or "{}")
+    except (TypeError, json.JSONDecodeError):
+        config = {}
+    if not isinstance(config, dict):
+        config = {}
+    if "semantic_profile" in config:
+        return "SEMANTIC_DISABLED_FOR_RUN" if config["semantic_profile"] is None else None
+    if os.getenv("AI2_SEMANTIC_ENABLED", "false").strip().casefold() != "true":
+        return "SEMANTIC_DISABLED"
+    return None
+
+
 async def _semantic_result(session: AsyncSession, dossier: DossierORM) -> dict[str, Any]:
     """Current job owner is authoritative; a pending run never falls back to old data."""
     result: dict[str, Any] = {
@@ -139,6 +165,11 @@ async def _semantic_result(session: AsyncSession, dossier: DossierORM) -> dict[s
     ):
         raise HTTPException(409, detail={"code": "CURRENT_RUN_SCOPE_CONFLICT"})
     if not run.ai2_result_json:
+        reason = _no_semantic_result_coming(run)
+        if reason is not None:
+            # No semantic result will ever land on this run: answer through
+            # AI2 as before instead of blocking every question.
+            result.update(state="NOT_MEASURED", reason=reason)
         return result
     try:
         loaded = await load_ai2_read_model(session, tenant_id=dossier.tenant_id, run_id=run.id)

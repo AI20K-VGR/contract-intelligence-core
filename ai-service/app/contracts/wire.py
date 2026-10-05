@@ -261,7 +261,7 @@ def typed_projection_coverage_to_wire(
                         **milestone.model_dump(mode="json", exclude={"citation", "cell_citations"}),
                         "citation_ids": [register_citation(milestone.citation)],
                         "cell_citation_ids": {
-                            index: register_citation(citation)
+                            index: [register_citation(citation)]
                             for index, citation in milestone.cell_citations.items()
                         },
                     }

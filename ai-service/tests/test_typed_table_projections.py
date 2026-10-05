@@ -144,6 +144,11 @@ def test_typed_projection_wire_is_optional_and_preserves_old_coverage_shape():
     milestone = typed["typed_table_projections"]["payment_schedules"][0]["milestones"][0]
     assert len(milestone["citation_ids"]) == 1
     assert set(milestone["cell_citation_ids"]) == {"0", "1", "2"}
+    # Same list shape as every other *_citation_ids, which the result validator requires.
+    assert all(
+        isinstance(refs, list) and len(refs) == 1 and refs[0] in registered
+        for refs in milestone["cell_citation_ids"].values()
+    )
     assert len(registered) == 4
 
 
