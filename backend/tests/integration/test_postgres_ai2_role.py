@@ -101,6 +101,33 @@ async def test_ai2_cannot_run_the_security_definer_purge(ai2: AsyncEngine) -> No
     await _denied(ai2, "SELECT purge_dossier_contract_content('dos_missing')")
 
 
+async def test_ai2_takes_over_tables_the_backend_role_created(migrated: None) -> None:
+    # Before the ai2 role existed, AI2 ran its migrations over the backend's
+    # connection, so schema ai2 already holds tables owned by that role.
+    backend = create_async_engine(PG_URL)
+    try:
+        async with backend.begin() as connection:
+            await connection.execute(text("CREATE SCHEMA IF NOT EXISTS ai2"))
+            await connection.execute(
+                text("CREATE TABLE ai2.legacy_version (id serial PRIMARY KEY, num text)")
+            )
+            await connection.execute(text("INSERT INTO ai2.legacy_version (num) VALUES ('a1')"))
+        await _ensure(PASSWORD)
+        ai2 = _ai2_engine()
+        try:
+            async with ai2.begin() as connection:
+                await connection.execute(text("INSERT INTO legacy_version (num) VALUES ('a2')"))
+                count = await connection.execute(text("SELECT count(*) FROM legacy_version"))
+                rows = count.scalar_one()
+        finally:
+            await ai2.dispose()
+        assert rows == 2
+    finally:
+        async with backend.begin() as connection:
+            await connection.execute(text("DROP TABLE IF EXISTS ai2.legacy_version"))
+        await backend.dispose()
+
+
 async def test_ai2_role_is_idempotent_and_follows_the_password(ai2: AsyncEngine) -> None:
     await _ensure("ai2_rotated_password")
     rotated = _ai2_engine("ai2_rotated_password")
