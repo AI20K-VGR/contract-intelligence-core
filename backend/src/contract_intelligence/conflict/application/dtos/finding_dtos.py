@@ -23,12 +23,15 @@ class FindingSideSemanticDTO(BaseModel):
     # finding list can render alignment/conflict details without rehydrating
     # the full AI2 result.
     alignment_key: list[str] | None = None
-    conflict_kind: Literal[
-        "SEMANTIC_CONFLICT",
-        "ARITHMETIC_INCONSISTENCY",
-        "AMENDMENT_REVIEW",
-        "COMPARABLE_DIFFERENCE",
-    ] | None = None
+    conflict_kind: (
+        Literal[
+            "SEMANTIC_CONFLICT",
+            "ARITHMETIC_INCONSISTENCY",
+            "AMENDMENT_REVIEW",
+            "COMPARABLE_DIFFERENCE",
+        ]
+        | None
+    ) = None
     slots_in_difference: list[str] = Field(default_factory=list)
 
 
@@ -47,12 +50,15 @@ class FindingSemanticDTO(BaseModel):
     # both projections so the conflict page can render without another AI2
     # round trip.
     alignment_key: list[str] | None = None
-    conflict_kind: Literal[
-        "SEMANTIC_CONFLICT",
-        "ARITHMETIC_INCONSISTENCY",
-        "AMENDMENT_REVIEW",
-        "COMPARABLE_DIFFERENCE",
-    ] | None = None
+    conflict_kind: (
+        Literal[
+            "SEMANTIC_CONFLICT",
+            "ARITHMETIC_INCONSISTENCY",
+            "AMENDMENT_REVIEW",
+            "COMPARABLE_DIFFERENCE",
+        ]
+        | None
+    ) = None
     slots_in_difference: list[str] = Field(default_factory=list)
 
 

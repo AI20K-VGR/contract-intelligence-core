@@ -55,7 +55,9 @@ from contract_intelligence.shared.ai.schemas import (
     FindingItem,
     FindingSideItem,
     SemanticExtension,
+    SemanticFrame,
     SemanticPair,
+    SemanticTimeline,
     UsageLedgerReport,
 )
 from contract_intelligence.shared.base import new_ulid
@@ -1174,7 +1176,9 @@ async def persist_ai2_processing_result(
                 continue
             source, target = frames[edge.source_id], frames[edge.target_id]
 
-            def timeline_side(frame, timeline=edge):
+            def timeline_side(
+                frame: SemanticFrame, timeline: SemanticTimeline = edge
+            ) -> FindingSideItem:
                 return FindingSideItem(
                     document_id=frame.document_id,
                     citation=_canonical_citation_item(frame.evidence[0].citation.model_dump()),
@@ -1211,7 +1215,7 @@ async def persist_ai2_processing_result(
     for raw_finding in body.get("findings", []):
         if not isinstance(raw_finding, dict):
             continue
-        left = next(
+        left_citation = next(
             (
                 citation_by_id[item]
                 for item in raw_finding.get("evidence_left_citation_ids", [])
@@ -1219,19 +1223,19 @@ async def persist_ai2_processing_result(
             ),
             None,
         )
-        right = next(
+        right_citation = next(
             (
                 citation_by_id[item]
                 for item in raw_finding.get("evidence_right_citation_ids", [])
                 if item in citation_by_id
             ),
-            left,
+            left_citation,
         )
         if (
-            not left
-            or not right
-            or not left.get("source_file_id")
-            or not right.get("source_file_id")
+            not left_citation
+            or not right_citation
+            or not left_citation.get("source_file_id")
+            or not right_citation.get("source_file_id")
         ):
             finding_ref = str(
                 raw_finding.get("finding_id") or raw_finding.get("item_key") or "unknown"
@@ -1258,12 +1262,12 @@ async def persist_ai2_processing_result(
                 rationale=str(raw_finding.get("reason") or ""),
                 method="ai2.canonical",
                 side_a=FindingSideItem(
-                    document_id=str(left["source_file_id"]),
-                    citation=_canonical_citation_item(left),
+                    document_id=str(left_citation["source_file_id"]),
+                    citation=_canonical_citation_item(left_citation),
                 ),
                 side_b=FindingSideItem(
-                    document_id=str(right["source_file_id"]),
-                    citation=_canonical_citation_item(right),
+                    document_id=str(right_citation["source_file_id"]),
+                    citation=_canonical_citation_item(right_citation),
                 ),
             )
         )

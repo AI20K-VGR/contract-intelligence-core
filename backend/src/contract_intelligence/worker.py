@@ -20,7 +20,7 @@ import json
 import os
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 import structlog
 from aiokafka import AIOKafkaConsumer, TopicPartition
@@ -301,7 +301,8 @@ async def _freeze_semantic_profile(
             .order_by(LexiconVersionORM.version.desc())
             .limit(1)
         )
-        aliases = list(lexicon.profile["active_aliases"]) if lexicon else []
+        lexicon_profile = cast(dict[str, Any], lexicon.profile) if lexicon else {}
+        aliases = list(lexicon_profile.get("active_aliases") or [])
         profile = {
             "schema_version": "ai2.semantic-profile.v1",
             "capability": "ai2.semantic.v1",
@@ -310,7 +311,7 @@ async def _freeze_semantic_profile(
             "contract_type": config["contract_type"],
             "alias_version": lexicon.version if lexicon else 0,
             "aliases": aliases,
-            "alias_digest": lexicon.profile["alias_digest"] if lexicon else None,
+            "alias_digest": lexicon_profile.get("alias_digest"),
             "activation_state": "ACTIVE" if aliases else "DRAFT_ONLY",
             "context_bounds": config["context_bounds"],
             "alias_proposal_minimum_length": config["alias_proposal_minimum_length"],
@@ -321,7 +322,8 @@ async def _freeze_semantic_profile(
         )
     run.config_snapshot = json.dumps(payload, ensure_ascii=False, sort_keys=True)
     await session.flush()
-    return payload["semantic_profile"]
+    frozen_profile = payload.get("semantic_profile")
+    return frozen_profile if isinstance(frozen_profile, dict) else None
 
 
 async def _recorded_extractions(session: AsyncSession, run_id: str) -> set[str] | None:

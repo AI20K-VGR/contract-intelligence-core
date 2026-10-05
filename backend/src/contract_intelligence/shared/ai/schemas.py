@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -493,7 +493,7 @@ class SemanticProfile(SemanticClosedModel):
     alias_proposal_minimum_length: int | None = Field(default=None, ge=4, le=120, strict=True)
 
     @model_validator(mode="after")
-    def pinned_digest(self):
+    def pinned_digest(self) -> Self:
         import hashlib
         import json
 
@@ -561,7 +561,7 @@ class SemanticSlot(SemanticClosedModel):
     reason: str
 
     @model_validator(mode="after")
-    def typed_value(self):
+    def typed_value(self) -> Self:
         if self.value_type == "NONE" and self.value is not None:
             raise ValueError("NONE value must be null")
         if self.value_type != "NONE" and self.value is None:
@@ -569,8 +569,11 @@ class SemanticSlot(SemanticClosedModel):
         if self.value_type == "DECIMAL":
             from decimal import InvalidOperation
 
+            value = self.value
+            if value is None:
+                raise ValueError("typed value required")
             try:
-                valid = Decimal(self.value).is_finite()
+                valid = Decimal(value).is_finite()
             except InvalidOperation as exc:
                 raise ValueError("invalid decimal text") from exc
             if not valid:
@@ -594,7 +597,7 @@ class SemanticKey(SemanticClosedModel):
     alias_proposal_ids: list[str]
 
     @model_validator(mode="after")
-    def certainty_and_method(self):
+    def certainty_and_method(self) -> Self:
         if self.certainty == "UNKNOWN" and self.key is not None:
             raise ValueError("unknown key cannot carry identity")
         if self.certainty == "DEFINITE" and (not self.key or any(not s.strip() for s in self.key)):
@@ -618,7 +621,7 @@ class SemanticFrame(SemanticClosedModel):
     key: SemanticKey
 
     @model_validator(mode="after")
-    def scoped_slots(self):
+    def scoped_slots(self) -> Self:
         slot_names = {
             "actor",
             "beneficiary",
@@ -699,7 +702,7 @@ class SemanticTimeline(SemanticClosedModel):
     review_state: Literal["NEEDS_REVIEW"] = "NEEDS_REVIEW"
 
     @model_validator(mode="after")
-    def review_only_proposal(self):
+    def review_only_proposal(self) -> Self:
         from datetime import date
 
         if self.date_value is not None:
@@ -718,7 +721,12 @@ class SemanticTimeline(SemanticClosedModel):
         if self.proposed_value is not None:
             import unicodedata
 
-            def folded(value):
+            acceptance = self.acceptance
+            date_value = self.date_value
+            if acceptance is None or date_value is None:
+                raise ValueError("unproven amendment proposal")
+
+            def folded(value: str) -> str:
                 return "".join(
                     c
                     for c in unicodedata.normalize("NFD", value.casefold()).replace("đ", "d")
@@ -726,13 +734,11 @@ class SemanticTimeline(SemanticClosedModel):
                 )
 
             if not any(
-                folded(e.raw).startswith("cac ben dong y sua doi ")
-                for e in self.acceptance.evidence
+                folded(e.raw).startswith("cac ben dong y sua doi ") for e in acceptance.evidence
             ):
                 raise ValueError("affirmative amendment acceptance evidence required")
             if not any(
-                self.date_value in e.raw and "co hieu luc tu" in folded(e.raw)
-                for e in self.evidence
+                date_value in e.raw and "co hieu luc tu" in folded(e.raw) for e in self.evidence
             ):
                 raise ValueError("effective date source required")
         return self
@@ -753,7 +759,7 @@ class SemanticCoverage(SemanticClosedModel):
     by_output: dict[str, dict[str, int]] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def counters(self):
+    def counters(self) -> Self:
         for groups in (self.by_family, self.by_slot, self.by_output):
             for values in groups.values():
                 if set(values) != {"attempted", "covered", "review", "missing"} or any(
@@ -790,7 +796,7 @@ class SemanticExtension(SemanticClosedModel):
     coverage: SemanticCoverage
 
     @model_validator(mode="after")
-    def references(self):
+    def references(self) -> Self:
         frames = {f.frame_id: f for f in self.frames}
         if (
             len(frames) != len(self.frames)
@@ -888,11 +894,13 @@ class SemanticExtension(SemanticClosedModel):
                     key_fields.add("action")
                 for name in required - key_fields:
                     a, b = left.slots[name], right.slots[name]
-                    values = (
-                        (Decimal(a.value), Decimal(b.value))
-                        if a.value_type == b.value_type == "DECIMAL"
-                        else (a.value, b.value)
-                    )
+                    values: tuple[object, object]
+                    if a.value_type == b.value_type == "DECIMAL":
+                        if a.value is None or b.value is None:
+                            raise ValueError("decimal slot value required")
+                        values = (Decimal(a.value), Decimal(b.value))
+                    else:
+                        values = (a.value, b.value)
                     if a.state != b.state or a.value_type != b.value_type or values[0] != values[1]:
                         raise ValueError("DUPLICATE cannot hide assessed slot differences")
         if len({p.pair_id for p in self.pairs}) != len(self.pairs):

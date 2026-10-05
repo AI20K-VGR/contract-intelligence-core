@@ -5,7 +5,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS = (
     ROOT / "alembic/versions/v20__ai2_schema.py",
@@ -25,14 +24,14 @@ FORBIDDEN = {
 
 def _downgrade_calls(path: Path) -> set[str]:
     tree = ast.parse(path.read_text(encoding="utf-8-sig"))
-    function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "downgrade")
+    function = next(
+        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "downgrade"
+    )
     calls: set[str] = set()
     for node in ast.walk(function):
         if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
             continue
-        if isinstance(node.func.value, ast.Name) and node.func.value.id == "op":
-            calls.add(node.func.attr)
-        elif isinstance(node.func.value, ast.Name) and node.func.value.id == "batch":
+        if isinstance(node.func.value, ast.Name) and node.func.value.id in {"op", "batch"}:
             calls.add(node.func.attr)
     return calls
 
