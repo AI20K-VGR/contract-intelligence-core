@@ -30,6 +30,12 @@ if [ -z "$(envval AI2_LLM_BASE_URL)" ]; then
   echo "AI2_LLM_BASE_URL is empty in $ENV_FILE (Lead picks the LLM provider)" >&2
   exit 1
 fi
+for required in AI2_LLM_API_KEY AI2_EMBEDDING_BASE_URL AI2_EMBEDDING_API_KEY APP_HOST; do
+  if [ -z "$(envval "$required")" ]; then
+    echo "$required is empty in $ENV_FILE; full online LLM/vector startup is fail-fast" >&2
+    exit 1
+  fi
+done
 
 if [ "${1:-}" = "--pull" ]; then
   git pull --ff-only
@@ -38,6 +44,38 @@ echo "[deploy] commit $(git rev-parse --short HEAD) on $(git rev-parse --abbrev-
 
 "${COMPOSE[@]}" config --quiet
 "${COMPOSE[@]}" build
+
+# Preflight: probe AI2's LLM and embedding providers with the NEW image and
+# env in a throwaway container, before `up -d` replaces the running stack (and
+# before the backend or AI2 apply migrations). A missing key or unreachable
+# provider then fails the deploy while the previous version keeps serving.
+# The probe imports only the provider clients, never the app, so it opens no
+# database; AI2 on PostgreSQL is checked through /readyz after `up -d`.
+echo "[deploy] preflight: AI2 LLM/embedding providers (new image, old stack untouched)"
+ai2_probe='
+from app.llm.client import NineRouterClient, llm_status
+from app.llm.embeddings import OpenAICompatibleEmbeddingClient
+llm = llm_status(NineRouterClient())
+embedding = OpenAICompatibleEmbeddingClient().discover(egress_approved=True).as_dict()["status"]
+print(f"llm={llm} embedding={embedding}")
+raise SystemExit(0 if (llm, embedding) == ("ready", "READY") else 1)
+'
+ai2_preflight=0
+for attempt in 1 2 3; do
+  if "${COMPOSE[@]}" run --rm --no-deps -T ai2-service       /app/.venv/bin/python -c "$ai2_probe" >/tmp/ai2-preflight.log 2>&1; then
+    ai2_preflight=1
+    break
+  fi
+  echo "[deploy] AI2 preflight attempt $attempt: $(tail -n 1 /tmp/ai2-preflight.log)" >&2
+  sleep 10
+done
+if [ "$ai2_preflight" -ne 1 ]; then
+  echo "[deploy] AI2 providers are not ready with the new build; nothing was restarted." >&2
+  tail -n 40 /tmp/ai2-preflight.log >&2 || true
+  exit 1
+fi
+echo "[deploy] AI2 preflight: $(tail -n 1 /tmp/ai2-preflight.log)"
+
 "${COMPOSE[@]}" up -d --remove-orphans
 
 echo "[deploy] waiting for backend health"
@@ -51,6 +89,24 @@ done
 # Inside the running backend container, not `compose run`: a second backend
 # container would ask for the same fixed ci-monitoring address and fail with
 # "Address already in use".
+echo "[deploy] waiting for AI2 full LLM/vector readiness"
+ai2_ready=0
+for _ in $(seq 1 60); do
+  if "${COMPOSE[@]}" exec -T ai2-service /app/.venv/bin/python -c \
+      "import urllib.request; urllib.request.urlopen('http://localhost:8002/readyz', timeout=5)" \
+      >/dev/null 2>&1; then
+    ai2_ready=1
+    break
+  fi
+  sleep 5
+done
+if [ "$ai2_ready" -ne 1 ]; then
+  echo "[deploy] AI2 did not become ready; refusing to report a successful deployment" >&2
+  "${COMPOSE[@]}" logs --tail 120 ai2-service >&2 || true
+  exit 1
+fi
+echo "[deploy] AI2 full capability: ready"
+
 echo "[deploy] configuring Keycloak"
 "${COMPOSE[@]}" exec -T \
   -e KEYCLOAK_ADMIN_PASSWORD="$(envval KEYCLOAK_ADMIN_PASSWORD)" \
@@ -73,6 +129,8 @@ for _ in $(seq 1 30); do
   sleep 5  # first run: Caddy is fetching certificates
 done
 curl -fsS "$api/health" && echo
+app="https://$(envval APP_HOST)"
+curl -fsS "$app/healthz" >/dev/null && echo "frontend health: ok"
 curl -fsS "$auth/realms/contract-intelligence/.well-known/openid-configuration" \
   | grep -o '"issuer":"[^"]*"'
 code=$(curl -s -o /dev/null -w '%{http_code}' "$auth/admin/master/console/")
@@ -100,6 +158,7 @@ cat <<INFO
   deploy/check_external.sh $(envval API_HOST) $(envval AUTH_HOST) $app_host
 Frontend online: $frontend_note
 Frontend on a dev machine (.env.local):
+  VITE_APP_URL=$app
   VITE_API_BASE_URL=$api
   VITE_KEYCLOAK_URL=$auth
   VITE_KEYCLOAK_REALM=contract-intelligence

@@ -25,3 +25,18 @@ def test_runtime_normalizes_through_complete_json() -> None:
     assert data == {"normalized": "CONG TY CO PHAN PHUC THINH", "unit": None}
     assert runtime.issues == []
     assert runtime.llm_calls_used == 1
+    trace = client.traces[-1]
+    assert trace["trace_id"]
+    assert trace["http_calls"] == 1
+    assert "raw=" not in str(trace)
+
+
+def test_runtime_snapshot_reports_remaining_budgets_without_payload_data() -> None:
+    runtime = ProcessingRuntime(max_llm_calls=3, max_embedding_tokens=20)
+    runtime.llm_calls_used = 2
+    runtime.embedding_tokens_used = 7
+
+    snapshot = runtime.snapshot()
+
+    assert snapshot["llm_calls_remaining"] == 1
+    assert snapshot["embedding_tokens_remaining"] == 13

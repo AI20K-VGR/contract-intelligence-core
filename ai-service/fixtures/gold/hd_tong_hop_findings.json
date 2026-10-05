@@ -23,13 +23,13 @@
     {
       "item_key": "contract_value",
       "scope": "CONTRACT_ANNEX",
-      "disposition": "COMPARABLE_DIFFERENCE",
+      "disposition": "NEEDS_EVIDENCE",
       "values": ["1000000000", "1100000000"]
     },
     {
       "item_key": "contract_value",
       "scope": "WITHIN_DOCUMENT",
-      "disposition": "COMPARABLE_DIFFERENCE",
+      "disposition": "NEEDS_EVIDENCE",
       "values": ["1000000000", "900000000"]
     }
   ],

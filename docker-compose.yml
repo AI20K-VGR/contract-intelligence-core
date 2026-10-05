@@ -62,6 +62,31 @@
 name: contract-intelligence-stack
 
 services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+        VITE_KEYCLOAK_URL: ${VITE_KEYCLOAK_URL:-http://localhost:8080}
+        VITE_KEYCLOAK_REALM: ${VITE_KEYCLOAK_REALM:-contract-intelligence}
+        VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID:-contract-intel-frontend}
+    container_name: ci-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - keycloak
+    ports:
+      - "${FRONTEND_HOST_PORT:-5173}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    networks:
+      - ci-network
+
   # =============================================================================
   # SERVICE 1 — Keycloak PostgreSQL (isolated)
   # =============================================================================
@@ -332,7 +357,12 @@ services:
       AI_SERVICE_MODE: http
       # Docker DNS — do NOT interpolate host .env (localhost:8002 breaks in-container).
       AI2_BASE_URL: http://ai2-service:8002
-      AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-ci_ai2_hmac_secret_dev}
+      AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-local_hmac_secret}
+      # Clause-frame producer: freeze one trusted semantic profile per run.
+      # This must be present in the API and Kafka worker so both paths build
+      # the same request contract when semantic processing is enabled.
+      AI2_SEMANTIC_ENABLED: ${AI2_SEMANTIC_ENABLED:-true}
+      AI2_SEMANTIC_PROFILE_CONFIG: '{"version":1,"contract_type":"SALES","context_bounds":{"max_hops":2,"max_nodes":256,"max_context_tokens":32768,"max_output_tokens":8192,"max_llm_calls":20,"max_seconds":300},"alias_proposal_minimum_length":4}'
 
       # ---- CORS ----
       CORS_ALLOW_ORIGINS: "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173,http://127.0.0.1:3000"
@@ -401,6 +431,8 @@ services:
     restart: unless-stopped
     command: ["uv", "run", "python", "-m", "contract_intelligence.worker"]
     depends_on:
+      backend:
+        condition: service_healthy
       backend-db:
         condition: service_healthy
       kafka:
@@ -427,7 +459,9 @@ services:
       MINIO_BUCKET_RENDER: ci-render
       # Docker DNS — do NOT interpolate host .env (localhost:8002 breaks in-container).
       AI2_BASE_URL: http://ai2-service:8002
-      AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-ci_ai2_hmac_secret_dev}
+      AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-local_hmac_secret}
+      AI2_SEMANTIC_ENABLED: ${AI2_SEMANTIC_ENABLED:-true}
+      AI2_SEMANTIC_PROFILE_CONFIG: '{"version":1,"contract_type":"SALES","context_bounds":{"max_hops":2,"max_nodes":256,"max_context_tokens":32768,"max_output_tokens":8192,"max_llm_calls":20,"max_seconds":300},"alias_proposal_minimum_length":4}'
       AI1_OCR_ENGINE: ${AI1_OCR_ENGINE:-mistral}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     volumes:
@@ -450,7 +484,10 @@ services:
       minio:
         condition: service_started
     env_file:
-      - ./ai-service/.env
+      - path: ./ai-service/.env
+        required: false
+      - path: ./.env.e2e
+        required: false
     environment:
       # Compose network overrides host defaults from ai-service/.env
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
@@ -476,20 +513,25 @@ services:
     container_name: ci-ai2-service
     restart: unless-stopped
     env_file:
-      - ./ai-service/.env
+      - path: ./ai-service/.env
+        required: false
+      - path: ./.env.e2e
+        required: false
     environment:
       # Temporary `ci` until backend-db ships the `ai2` role (#52); then set
       # AI2_DATABASE_URL=postgresql+psycopg://ai2:${AI2_DB_PASSWORD}@backend-db:5432/contract_intelligence
       AI2_DATABASE_URL: ${AI2_DATABASE_URL:-postgresql+psycopg://ci:${BACKEND_DB_PASSWORD:-ci_secret_dev}@backend-db:5432/contract_intelligence}
       AI2_REQUIRE_DATABASE: "true"
       AI2_LLM_BASE_URL: ${AI2_LLM_BASE_URL:-https://api.openai.com/v1}
+      AI2_LLM_API_KEY: ${AI2_LLM_API_KEY:-}
       AI2_LLM_MODEL: ${AI2_LLM_MODEL:-gpt-4o-mini}
       AI2_LLM_STRONG_MODEL: ${AI2_LLM_STRONG_MODEL:-gpt-4o-mini}
-      AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-ci_ai2_hmac_secret_dev}
+      AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-local_hmac_secret}
       AI2_SERVICE_ISSUER: ${AI2_SERVICE_ISSUER:-backend-service}
       AI2_SERVICE_AUDIENCE: ${AI2_SERVICE_AUDIENCE:-vsf-ai2}
       AI2_SERVICE_KEY_ID: ${AI2_SERVICE_KEY_ID:-default}
       AI2_QUERY_REQUIRE_SIGNATURE: "true"
+      AI2_SEMANTIC_ENABLED: ${AI2_SEMANTIC_ENABLED:-true}
       AI2_PROCESSING_EGRESS_ALLOWED: ${AI2_PROCESSING_EGRESS_ALLOWED:-true}
       AI2_QUERY_EGRESS_ALLOWED: ${AI2_QUERY_EGRESS_ALLOWED:-true}
       AI2_QUERY_USE_LLM: ${AI2_QUERY_USE_LLM:-true}
@@ -497,14 +539,15 @@ services:
       AI2_VECTOR_RECALL_ENABLED: ${AI2_VECTOR_RECALL_ENABLED:-true}
       AI2_QUERY_LLM_TIMEOUT_SECONDS: "15"
       AI2_EMBEDDING_BASE_URL: ${AI2_EMBEDDING_BASE_URL:-https://api.openai.com/v1}
+      AI2_EMBEDDING_API_KEY: ${AI2_EMBEDDING_API_KEY:-}
+      AI2_EMBEDDING_DISCOVERY_ENABLED: ${AI2_EMBEDDING_DISCOVERY_ENABLED:-true}
       AI2_EMBEDDING_MODEL: ${AI2_EMBEDDING_MODEL:-text-embedding-3-small}
+      AI2_SEMANTIC_CONTEXT_CAPS: '{"max_hops":2,"max_nodes":256,"max_context_tokens":32768,"max_output_tokens":8192,"max_llm_calls":20,"max_seconds":300}'
     depends_on:
       backend-db:
         condition: service_healthy
-    ports:
-      - "${AI2_HOST_PORT:-8002}:8002"
+    # AI2 is internal-only; browser/API traffic enters through backend.
     volumes:
-      - ai2_data:/app/data/ai2
       - ./docs:/docs:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -515,7 +558,7 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - '/app/.venv/bin/python -c "import urllib.request; urllib.request.urlopen(''http://localhost:8002/healthz'', timeout=3)"'
+        - '/app/.venv/bin/python -c "import urllib.request; urllib.request.urlopen(''http://localhost:8002/readyz'', timeout=5)"'
       interval: 15s
       timeout: 5s
       retries: 6
@@ -714,8 +757,6 @@ volumes:
   kafka_data_v2:
     driver: local
   minio_data:
-    driver: local
-  ai2_data:
     driver: local
   prometheus_data:
     driver: local

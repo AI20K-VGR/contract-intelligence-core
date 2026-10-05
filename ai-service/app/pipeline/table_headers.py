@@ -10,15 +10,32 @@ def fold(value: str) -> str:
 
 
 def amount_column(header: list[str]) -> int | None:
-    matches = [i for i, value in enumerate(header) if fold(value) in {"amount", "thanh tien", "total amount", "line total"}]
+    aliases = ("amount", "thanh tien", "total amount", "line total", "tong cong", "gia tri", "subtotal", "total")
+    matches = [i for i, value in enumerate(header) if any(alias == fold(value) or alias in fold(value) for alias in aliases)]
     return matches[0] if len(matches) == 1 else None
 
 
 def identify_header(rows):
-    for index, row in enumerate(rows[:3]):
+    """Return a conservative header and contiguous unit/continuation rows."""
+    for index, row in enumerate(rows[:5]):
         header = [str(value or "") for value in row]
-        if amount_column(header) is not None and any(fold(v) in {"description", "mo ta", "noi dung", "noi dung / dien giai", "unit", "dvt", "qty", "sl"} for v in header):
-            return header, [index]
+        folded = [fold(v) for v in header]
+        aliases = ("description", "mo ta", "noi dung", "dien giai", "hang muc", "item", "unit", "dvt", "qty", "sl", "quantity", "don gia", "unit price")
+        if amount_column(header) is not None and any(
+            any(alias == value or alias in value for alias in aliases) for value in folded
+        ):
+            header_rows = [index]
+            for continuation_index, continuation in enumerate(rows[index + 1:index + 3], index + 1):
+                values = [str(value or "").strip() for value in continuation]
+                non_empty = [fold(value) for value in values if value]
+                if not non_empty or all(
+                    value.startswith(("(", "[")) or any(token in value for token in ("vnd", "usd", "don vi", "quantity", "price", "amount"))
+                    for value in non_empty
+                ):
+                    header_rows.append(continuation_index)
+                    continue
+                break
+            return header, header_rows
     return [], []
 
 

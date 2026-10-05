@@ -25,6 +25,8 @@ def import_all_models() -> None:
     import contract_intelligence.shared.run_events  # noqa: F401
     import contract_intelligence.shared.processed_events  # noqa: F401
     import contract_intelligence.shared.query_history  # noqa: F401
+    import contract_intelligence.shared.ai.tenant_lexicon_store  # noqa: F401
+    import contract_intelligence.admin.service_log  # noqa: F401
     # isort: on
 
 

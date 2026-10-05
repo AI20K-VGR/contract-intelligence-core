@@ -2,15 +2,21 @@ from __future__ import annotations
 
 import math
 import re
+import time
 from typing import Any
 
 from app.contracts.models import ToolEnvelope
+from app.pipeline.result_structure import _is_running_furniture
 from app.reasoning.relations import build_relation_graph
 from app.reasoning.vector_recall import VectorRecallService
 from app.tools.gateway import ToolBlocked, ToolGateway
 
 COMPARE_TYPES = {"compare", "cascade"}
 EXPAND_SEMANTIC = COMPARE_TYPES
+LOGICAL_TABLE_ROW_CAP = 200
+LOGICAL_TABLE_CELL_CAP = 5000
+LOGICAL_TABLE_PAGE_CAP = 100
+LOGICAL_TABLE_TIME_CAP_SECONDS = 2.0
 
 KNOWN_STRUCTURED_KEYS = frozenset(
     {
@@ -77,11 +83,15 @@ class L1Retrieval:
         exact_ids: list[str] = []
         structured_ids: list[str] = []
         topic_ids: list[str] = []
+        coverage_groups: list[str] = []
         record = None
+        logical_tables: list[dict[str, Any]] = []
         try:
             record = self.gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
             if record is not None and record.relation_graph is None:
                 record.relation_graph = build_relation_graph(record)
+            if record is not None and ttype in COMPARE_TYPES and _asks_payment_schedule(q):
+                logical_tables = expand_logical_tables(self.gateway, envelope, q)
             outline = self.gateway.call(
                 "list_structure", envelope, dossier_id=envelope.auth.dossier_id
             )
@@ -95,7 +105,7 @@ class L1Retrieval:
                 found = self.gateway.call("search_structured", envelope, key=key) or []
                 structured_ids.extend(str(h.get("node_id")) for h in found if h.get("node_id"))
                 hits.extend(found)
-            if ttype in EXPAND_SEMANTIC or (not hits and ttype == "lookup_term"):
+            if ttype in EXPAND_SEMANTIC or (not hits and ttype in {"lookup_term", "payment_card"}):
                 sem = (
                     self.gateway.call("search_semantic", envelope, query=expand_query(q), k=8) or []
                 )
@@ -130,7 +140,7 @@ class L1Retrieval:
             # A term lookup must stay local to its matched evidence.  Expanding
             # from an empty/weak seed through the parent graph turns a missing
             # term into an answer containing the entire outline.
-            if ttype == "lookup_term":
+            if ttype in {"lookup_term", "payment_card"}:
                 hits = _filter_term_hits(q, hits)
 
             graph_edges = []
@@ -183,6 +193,8 @@ class L1Retrieval:
                             "retrieval_method": candidate.retrieval_method,
                         }
                     )
+            if record is not None and _is_responsibility_query(q):
+                hits, coverage_groups = _expand_responsibility_groups(record, hits)
             if ttype in COMPARE_TYPES:
                 filtered = _filter_relation_hits(q, hits)
                 protected = [h for h in hits if str(h.get("node_id") or "") in set(exact_ids)]
@@ -203,6 +215,9 @@ class L1Retrieval:
                 "hits": [],
                 "outline_ids": [],
                 "structured_keys": [],
+                "logical_tables": [],
+                "coverage_groups": [],
+                "retrieval_trace": {"vector_status": "NOT_REQUESTED"},
             }
 
         seen: set[str] = set()
@@ -242,7 +257,96 @@ class L1Retrieval:
             "retrieval_trace": vector_result.trace
             if vector_result
             else {"vector_status": "NOT_REQUESTED"},
+            "logical_tables": logical_tables,
+            "coverage_groups": coverage_groups,
         }
+
+
+def expand_logical_tables(
+    gateway: ToolGateway,
+    envelope: ToolEnvelope,
+    query: str,
+    *,
+    max_rows: int = LOGICAL_TABLE_ROW_CAP,
+    max_cells: int = LOGICAL_TABLE_CELL_CAP,
+    max_pages: int = LOGICAL_TABLE_PAGE_CAP,
+    max_seconds: float = LOGICAL_TABLE_TIME_CAP_SECONDS,
+) -> list[dict[str, Any]]:
+    """Fetch bounded, row-identified payment tables through the ACL gateway."""
+    if not _asks_payment_schedule(query):
+        return []
+    tables = gateway.call("list_tables", envelope, dossier_id=envelope.auth.dossier_id) or []
+    results = []
+    for table in tables[:8]:
+        table_id = str(table.get("table_id") or "")
+        if not table_id:
+            continue
+        meta = gateway.call("get_table_meta", envelope, table_id=table_id)
+        headers = [str(value or "") for value in meta.get("header", [])]
+        folded = " ".join(_plain_query(value) for value in headers)
+        if not any(token in folded for token in ("thanh toan", "payment", "milestone")):
+            continue
+        source_rows = max(0, int(meta.get("n_rows", 0)))
+        n_cols = max(0, int(meta.get("n_cols", len(headers))))
+        row_limit = min(source_rows, max_rows)
+        if n_cols:
+            row_limit = min(row_limit, max_cells // n_cols)
+        elif source_rows:
+            row_limit = 0
+        started = time.monotonic()
+        fetched = gateway.call("get_table_rows", envelope, table_id=table_id, start=0, end=row_limit)
+        rows, pages, time_hit, page_hit = [], set(), False, False
+        for source in fetched:
+            if time.monotonic() - started > max_seconds:
+                time_hit = True
+                break
+            row = {
+                "row_index": int(source.get("row_index", len(rows))),
+                "cells": [str(value) if value is not None else None for value in source.get("cells", [])[:n_cols]],
+                "cell_citations": {},
+            }
+            for column, citation in (source.get("cell_citations") or {}).items():
+                if int(column) >= len(row["cells"]):
+                    continue
+                page_id = citation.get("page_revision_id")
+                if page_id:
+                    pages.add(page_id)
+                if len(pages) > max_pages:
+                    page_hit = True
+                    break
+                row["cell_citations"][str(column)] = citation
+            if page_hit:
+                break
+            rows.append(row)
+        if time.monotonic() - started > max_seconds:
+            time_hit = True
+            rows = []
+        reason = (
+            "processing time cap reached" if time_hit else
+            "page cap reached" if page_hit else
+            "row or cell cap reached" if row_limit < source_rows else None
+        )
+        complete = not reason and len(rows) == source_rows
+        results.append({
+            "table_id": table_id,
+            "header": headers,
+            "source_role": meta.get("source_role"),
+            "rows": rows,
+            "coverage": {
+                "complete": complete,
+                "source_rows": source_rows,
+                "processed_rows": len(rows),
+                "source_cells": source_rows * n_cols,
+                "processed_cells": sum(len(row["cells"]) for row in rows),
+                "reason": reason,
+            },
+        })
+    return results
+
+
+def _asks_payment_schedule(query: str) -> bool:
+    normalized = _plain_query(query)
+    return any(term in normalized for term in ("thanh toan", "payment", "milestone", "cac dot"))
 
 
 def structured_keys(query: str, ttype: str | None) -> list[str]:
@@ -347,6 +451,92 @@ def _merge_hits(*groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
             seen.add(key)
             merged.append(hit)
     return merged
+
+
+_RESPONSIBILITY_QUERY_CUES = (
+    "trach nhiem",
+    "nghia vu",
+    "phai thuc hien",
+    "phai lam gi",
+    "duties",
+    "obligation",
+    "responsibilit",
+)
+_RESPONSIBILITY_SECTION_CUES = (
+    "quyen va nghia vu",
+    "trach nhiem",
+    "duties",
+    "obligation",
+    "responsibilit",
+)
+
+
+def _is_responsibility_query(query: str) -> bool:
+    normalized = _plain_query(query)
+    return any(cue in normalized for cue in _RESPONSIBILITY_QUERY_CUES)
+
+
+def _expand_responsibility_groups(
+    record: Any, hits: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Keep all children of a retrieved responsibility/obligation section.
+
+    A vector hit commonly lands on 6.1 because it contains the word
+    ``responsibility``.  6.2 and 6.3 are semantically part of the same named
+    clause even when their text does not repeat that word.  Expand the section
+    before the twelve-hit cap so L2 and deterministic fallback see the group.
+    """
+
+    nodes = {str(node.node_id): node for node in record.evidence_nodes()}
+    children: dict[str, list[Any]] = {}
+    for node in record.evidence_nodes():
+        if node.parent_id:
+            children.setdefault(str(node.parent_id), []).append(node)
+    for group in children.values():
+        group.sort(key=lambda node: node.order)
+
+    parent_ids: list[str] = []
+    for hit in hits:
+        node = nodes.get(str(hit.get("node_id") or hit.get("chunk_id") or ""))
+        if node is None:
+            continue
+        candidate_ids = [str(node.node_id)]
+        if node.parent_id:
+            candidate_ids.append(str(node.parent_id))
+        for candidate_id in candidate_ids:
+            candidate = nodes.get(candidate_id)
+            if candidate is None or not children.get(candidate_id):
+                continue
+            label = _plain_query(" ".join((candidate.raw_label or "", candidate.text or "")))
+            if any(cue in label for cue in _RESPONSIBILITY_SECTION_CUES):
+                if candidate_id not in parent_ids:
+                    parent_ids.append(candidate_id)
+                break
+
+    if not parent_ids:
+        return hits, []
+
+    by_id = {str(hit.get("node_id") or hit.get("chunk_id")): hit for hit in hits}
+    grouped: list[dict[str, Any]] = []
+    coverage: list[str] = []
+    for parent_id in parent_ids[:4]:
+        for child in children.get(parent_id, []):
+            # A repeated page/header line can be attached to the previous
+            # clause by OCR repair. It is structural furniture, not another
+            # responsibility clause. Likewise, a SECTION/CLAUSE child is a
+            # heading boundary, not a sibling obligation body.
+            folded_label = _plain_query(child.raw_label or "")
+            if (
+                _is_running_furniture(child.raw_label or "")
+                or "tiep theo" in folded_label
+                or child.type in {"SECTION", "CLAUSE"}
+            ):
+                continue
+            child_id = str(child.node_id)
+            if child_id not in coverage:
+                coverage.append(child_id)
+            grouped.append(by_id.get(child_id) or _hit_from_node(child.model_dump()))
+    return _merge_hits(grouped, hits), coverage
 
 
 def _lexical_hits(record: Any, query: str) -> list[dict[str, Any]]:

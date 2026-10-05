@@ -108,10 +108,13 @@ function readFocusedCitation(value: unknown): {
   }
 }
 import {
+  citationTableBbox,
+  citationNode,
   citationNumbers,
   findClause,
   findClauseByQuote,
   searchCites,
+  type SearchCite,
 } from '../structure/citations'
 import {
   anchorConflicts,
@@ -189,6 +192,7 @@ export function DossierStructurePage() {
   const [searchCite, setSearchCite] = useState<{
     node: ClauseNode
     citeNo: number
+    documentId: string
   } | null>(null)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -463,10 +467,46 @@ export function DossierStructurePage() {
       setPdfDocumentId(null)
       setCiteId(null)
       setTableCite(null)
-      setSearchCite({ node, citeNo: index + 1 })
+      setSearchCite({ node, citeNo: index + 1, documentId })
     },
     [citeOf, documentId, nodes, openTreeCite],
   )
+
+  const openForeignSearchCitation = useCallback((cite: SearchCite) => {
+    const foreignDocumentId = cite.documentId
+    if (!foreignDocumentId) return
+    setReviewCiteId(null)
+    setPdfDocumentId(null)
+    setCiteId(null)
+    setTableCite(null)
+    const node = citationNode(cite)
+    setSearchCite({ node, citeNo: cite.n, documentId: foreignDocumentId })
+
+    // Một số dòng bảng hợp lệ nhưng AI2 không có bbox dòng. Lấy bbox của cả
+    // dòng từ endpoint bảng để vẫn mở cùng CitationPane và khoanh đúng nguồn.
+    if (node.regions.length > 0) return
+    listDocumentTables(foreignDocumentId)
+      .then((tables) => {
+        const bbox = citationTableBbox(cite, tables)
+        if (!bbox) return
+        setSearchCite((current) => {
+          if (
+            !current ||
+            current.documentId !== foreignDocumentId ||
+            current.node.id !== node.id
+          ) {
+            return current
+          }
+          return {
+            ...current,
+            node: citationNode({ ...cite, bbox }),
+          }
+        })
+      })
+      .catch(() => {
+        // CitationPane vẫn hiển thị trang nguồn nếu bảng không có geometry.
+      })
+  }, [])
 
   useEffect(() => {
     if (phase !== 'ready' || !documentId || searchCite) return
@@ -816,13 +856,20 @@ export function DossierStructurePage() {
                   </p>
                   <SearchAudit result={searchResult} />
                   {searchResult.answer ? (
-                    <CitedAnswer
-                      activeId={reviewCiteId}
-                      answer={searchResult.answer}
-                      citationOf={answerCiteOf}
-                      hits={searchResult.hits}
-                      nodes={answerNodes}
-                      onCite={setReviewCiteId}
+                  <CitedAnswer
+                    activeId={reviewCiteId}
+                    answer={searchResult.answer}
+                    citationOf={answerCiteOf}
+                    documentId={documentId}
+                    hits={searchResult.hits}
+                    nodes={answerNodes}
+                    onCite={(cite) => {
+                      if (cite.documentId && cite.documentId !== documentId) {
+                        openForeignSearchCitation(cite)
+                        return
+                      }
+                      setReviewCiteId(cite.id)
+                    }}
                     />
                   ) : (
                     <p className="font-body-sm text-body-sm text-on-surface">
@@ -836,6 +883,7 @@ export function DossierStructurePage() {
                     searchResult.hits,
                     answerCiteOf,
                     searchResult.answer ?? '',
+                    documentId,
                   ).length === 0 && searchResult.hits.length > 0 ? (
                     <ul className="flex flex-col gap-1">
                       {searchResult.hits
@@ -914,6 +962,10 @@ export function DossierStructurePage() {
                       searchResult.hits,
                       answerCiteOf,
                       searchResult.answer ?? '',
+                      documentId,
+                    ).filter(
+                      (cite) =>
+                        !cite.documentId || cite.documentId === documentId,
                     )
                   : []
               }
@@ -977,7 +1029,12 @@ export function DossierStructurePage() {
           <CitationPane
             key={searchCite.node.id}
             citeNo={searchCite.citeNo}
-            documentId={documentId}
+            documentId={searchCite.documentId}
+            filename={
+              detail?.documents.find(
+                (document) => document.id === searchCite.documentId,
+              )?.filename ?? filename
+            }
             node={searchCite.node}
             onClose={() => setSearchCite(null)}
           />

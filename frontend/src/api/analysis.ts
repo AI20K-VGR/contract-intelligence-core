@@ -1,4 +1,5 @@
 import { getJson } from './client'
+import { decodeFindingSemantic, type FindingSemantic } from './semanticResults'
 
 export type EvidenceStatus = 'LOCATABLE' | 'PARTIAL' | 'UNRESOLVED'
 
@@ -31,6 +32,7 @@ export type FindingSide = {
   documentRole: string | null
   valueSnapshot: unknown
   evidence: StructuredEvidence
+  semantic?: FindingSemantic | null
 }
 
 export type DossierFinding = {
@@ -44,6 +46,8 @@ export type DossierFinding = {
   rationale: string
   disclaimer: string
   sides: FindingSide[]
+  semantic?: FindingSemantic | null
+  runId?: string | null
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -149,6 +153,9 @@ export function normalizeFinding(value: unknown): DossierFinding {
             documentId: asString(side.document_id),
             documentRole: asNullableString(side.document_role),
             valueSnapshot: side.value_snapshot ?? null,
+            semantic: decodeFindingSemantic(
+              asRecord(side.value_snapshot)?.semantic ?? side.semantic,
+            ),
             evidence: citationEvidence(
               side.citation,
               asString(side.document_id) || undefined,
@@ -168,6 +175,8 @@ export function normalizeFinding(value: unknown): DossierFinding {
     rationale: asString(row.rationale),
     disclaimer: asString(row.disclaimer),
     sides,
+    semantic: sides.find((side) => side.semantic)?.semantic ?? null,
+    runId: asNullableString(row.run_id),
   }
 }
 

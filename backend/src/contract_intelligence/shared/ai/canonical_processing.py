@@ -7,6 +7,7 @@ closed ``be.ai2.processing.request.v1`` envelope.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from collections.abc import Mapping
@@ -18,6 +19,7 @@ from contract_intelligence.contract.infrastructure.persistence.orm import (
     ManifestItemORM,
     ManifestRelationORM,
 )
+from contract_intelligence.shared.ai.schemas import SemanticProfile
 
 # be.ai2.processing.request.v1: ``snapshots`` holds 1..6 items (DEC-BE-AI2-01 D5).
 _MAX_SNAPSHOTS = 6
@@ -250,6 +252,7 @@ def build_processing_request(
     snapshot_created_at: Mapping[str, str],
     attempt: int = 1,
     max_processing_seconds: int = 300,
+    semantic_profile: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Return a canonical request only when the confirmed manifest is complete.
 
@@ -362,7 +365,7 @@ def build_processing_request(
         return None
 
     request_id = f"{run_id}:ai2"
-    return {
+    result = {
         "schema_version": "be.ai2.processing.request.v1",
         "request_id": request_id,
         "idempotency_key": request_id,
@@ -384,6 +387,11 @@ def build_processing_request(
         },
         "_created_at": datetime.now(tz=UTC).isoformat(),
     }
+    if semantic_profile is not None:
+        result["semantic_profile"] = SemanticProfile.model_validate(
+            copy.deepcopy(semantic_profile)
+        ).model_dump(mode="json")
+    return result
 
 
 def strip_internal_fields(payload: dict[str, Any]) -> dict[str, Any]:

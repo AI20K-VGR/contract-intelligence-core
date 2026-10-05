@@ -24,6 +24,7 @@ from starlette.middleware.gzip import DEFAULT_EXCLUDED_CONTENT_TYPES, GZipMiddle
 from contract_intelligence.api.v1.admin_overview import router as admin_overview_router
 from contract_intelligence.api.v1.dossiers import router as dossier_query_router
 from contract_intelligence.api.v1.monitoring import router as monitoring_router
+from contract_intelligence.api.v1.service_logs import router as service_logs_router
 from contract_intelligence.api.v1.users import router as users_router
 from contract_intelligence.config.logging import configure_logging, get_logger
 from contract_intelligence.config.settings import get_settings
@@ -370,6 +371,7 @@ def create_app() -> FastAPI:
     app.include_router(approval_router, prefix="/api/v1", tags=["Approval"])
     app.include_router(reocr_router, prefix="/api/v1", tags=["ReOCR"])
     app.include_router(admin_router, prefix="/api/v1", tags=["Admin/Ops"])
+    app.include_router(service_logs_router, prefix="/api/v1")
 
     # Real-time events (SSE) — DOC-05b §7 chiến lược realtime
     app.include_router(events_router, prefix="/api/v1", tags=["Events"])
@@ -377,6 +379,10 @@ def create_app() -> FastAPI:
     # AI service health + proxy — DOC-05c §4.7
     # /healthz + /readyz + /ai/jobs/{id}
     app.include_router(ai_health_router, prefix="/api/v1", tags=["AI-Service"])
+
+    from contract_intelligence.shared.ai.tenant_lexicon_router import router as lexicon_router
+
+    app.include_router(lexicon_router, prefix="/api/v1")
 
     # Grafana behind ADMINISTRATOR check — /grafana/* (not in OpenAPI)
     app.include_router(grafana_router)

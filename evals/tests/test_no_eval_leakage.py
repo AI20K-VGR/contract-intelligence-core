@@ -15,12 +15,12 @@ ALLOWLIST = frozenset(
         ("reasoning/gold.py", 16, "unnum_pay"),
         ("reasoning/gold.py", 158, "tom tat toan bo hop ong va rui ro chinh"),
         ("reasoning/gold.py", 200, "co bao nhieu phap nhan trong hop ong"),
-        ("reasoning/l0_rules.py", 292, "inj"),
-        ("reasoning/l0_rules.py", 411, "cl_9"),
-        ("reasoning/l0_rules.py", 428, "field_usd"),
-        ("reasoning/l0_rules.py", 438, "field_penalty_build"),
-        ("reasoning/l0_rules.py", 439, "field_penalty_equip"),
-        ("reasoning/l0_rules.py", 519, "tbl_300"),
+        ("reasoning/l0_rules.py", 307, "inj"),
+        ("reasoning/l0_rules.py", 426, "cl_9"),
+        ("reasoning/l0_rules.py", 443, "field_usd"),
+        ("reasoning/l0_rules.py", 453, "field_penalty_build"),
+        ("reasoning/l0_rules.py", 454, "field_penalty_equip"),
+        ("reasoning/l0_rules.py", 534, "tbl_300"),
     }
 )
 

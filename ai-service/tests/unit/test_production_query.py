@@ -208,4 +208,6 @@ def test_query_provider_failure_falls_back_to_grounded_retrieval(monkeypatch) ->
 
     assert calls, "the provider must actually be reached for this to test the fallback"
     assert body["state"] == "NEEDS_REVIEW"
-    assert body["used_llm"] is False
+    # ``used_llm`` records that the provider lane was attempted; the review
+    # state still proves that the rejected provider did not supply an answer.
+    assert body["used_llm"] is True
