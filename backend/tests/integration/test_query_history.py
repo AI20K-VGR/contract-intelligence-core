@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from tests.integration.test_ai2_review_fixes_flow import (
     DOSSIER_ID,
@@ -32,7 +32,7 @@ from tests.unit.conftest_contract import FakeFileStorage
 from contract_intelligence.contract.infrastructure.persistence.dossier_deletion_service import (
     DossierDeletionService,
 )
-from contract_intelligence.contract.infrastructure.persistence.orm import DossierORM
+from contract_intelligence.contract.infrastructure.persistence.orm import DossierORM, JobORM
 from contract_intelligence.infrastructure.ai_adapters import AiAdapterError
 from contract_intelligence.main import app
 from contract_intelligence.shared.ai.client import StubAiServiceClient
@@ -78,6 +78,10 @@ async def db(tmp_path: Path) -> AsyncGenerator[Path, None]:
             {"id": "expired-user", "expires_at": past},
         ]
         dossier.metadata_json = metadata
+        # No pending current run: otherwise queries answer BLOCKED without AI2.
+        await session.execute(
+            update(JobORM).where(JobORM.dossier_id == DOSSIER_ID).values(current_run_id=None)
+        )
         await session.commit()
     await engine.dispose()
     yield path

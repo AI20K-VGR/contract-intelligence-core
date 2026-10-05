@@ -118,6 +118,17 @@ async def _job_and_dossier(session: AsyncSession) -> tuple[JobORM, DossierORM]:
     return job, dossier
 
 
+@pytest_asyncio.fixture
+async def no_current_run(factory: async_sessionmaker[AsyncSession]) -> None:
+    """Detach the seeded pending run: queries on a dossier whose current run has
+    no result yet are answered BLOCKED without calling AI2, so the query-policy
+    tests below need a dossier with no current run to reach the AI2 path."""
+    async with factory() as session:
+        job, _ = await _job_and_dossier(session)
+        job.current_run_id = None
+        await session.commit()
+
+
 async def _audit_rows(session: AsyncSession, action: str) -> list[AuditEventORM]:
     rows = await session.execute(
         select(AuditEventORM).where(AuditEventORM.action == action).order_by(AuditEventORM.id)
@@ -290,6 +301,7 @@ def _ai2_answer(*source_file_ids: str) -> dict[str, Any]:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("endpoint", ["query", "ask"])
+@pytest.mark.usefixtures("no_current_run")
 async def test_query_and_ask_persist_query_trace_in_db(
     factory: async_sessionmaker[AsyncSession], client: AsyncClient, endpoint: str
 ) -> None:
@@ -319,6 +331,7 @@ async def test_query_and_ask_persist_query_trace_in_db(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("no_current_run")
 async def test_query_second_acl_pass_drops_citation_outside_dossier(
     factory: async_sessionmaker[AsyncSession], client: AsyncClient
 ) -> None:
@@ -343,6 +356,7 @@ async def test_query_second_acl_pass_drops_citation_outside_dossier(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("no_current_run")
 async def test_tenant_daily_quota_returns_429_before_ai2(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -359,6 +373,7 @@ async def test_tenant_daily_quota_returns_429_before_ai2(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("no_current_run")
 async def test_ai2_failure_still_writes_query_trace(
     factory: async_sessionmaker[AsyncSession], client: AsyncClient
 ) -> None:
@@ -378,6 +393,7 @@ async def test_ai2_failure_still_writes_query_trace(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("no_current_run")
 async def test_query_policy_flags_come_from_server_not_client(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -413,6 +429,7 @@ async def test_query_rejects_tombstoned_dossier(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("no_current_run")
 async def test_query_requires_tenant_header(client: AsyncClient) -> None:
     app.dependency_overrides.pop(get_tenant_id, None)
     with patch(_QUERY_AI2, new=AsyncMock(return_value=_ai2_answer(BODY_DOCUMENT_ID))) as ai2:

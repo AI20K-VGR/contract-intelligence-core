@@ -124,7 +124,7 @@ def _replace_purge_function() -> None:
                 UPDATE document
                    SET filename = '[purged]',
                        blob_uri = NULL,
-                       sha256 = '[purged:' || id || ']',
+                       sha256 = '[purged]:' || id,
                        signing_date = NULL,
                        effective_date = NULL
                  WHERE dossier_id = p_dossier_id;

@@ -151,6 +151,8 @@ jobs:
           --health-retries 20
     env:
       CI_TEST_POSTGRES_URL: postgresql+asyncpg://ci:ci@127.0.0.1:5432/ci_test
+      # Lexicon tests migrate/downgrade their own tables: keep them off ci_test.
+      LEXICON_TEST_DATABASE_URL: postgresql+asyncpg://ci:ci@127.0.0.1:5432/ci_lexicon
     steps:
       - uses: actions/checkout@v4
 
@@ -165,5 +167,9 @@ jobs:
       - name: Install test dependencies
         run: uv sync --frozen --extra dev
 
+      - name: Create dedicated lexicon database
+        run: PGPASSWORD=ci psql -h 127.0.0.1 -U ci -d ci_test -c "CREATE DATABASE ci_lexicon"
+
+      # ai2_local_e2e tests spawn the Windows-only local AI2 service (docs/ai2 runbooks).
       - name: Run integration tests (SQLite + PostgreSQL)
-        run: uv run pytest tests/integration/ -v --tb=short
+        run: uv run pytest tests/integration/ -v --tb=short -m "not ai2_local_e2e"
