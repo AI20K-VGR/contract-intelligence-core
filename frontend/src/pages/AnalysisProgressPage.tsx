@@ -44,6 +44,15 @@ import { parseStructureMode, type StructureMode } from '../structure'
 const POLL_INTERVAL_MS = 2000
 
 // Job đã dừng hẳn: lỗi, hoặc bị hủy (hủy run đưa job về failed/RUN_CANCELLED).
+// 'extracted' chỉ là OCR/dựng cấu trúc xong: AI2 (S4–S10) vẫn đang chạy sau đó.
+function isRunFinished(status: string | null | undefined) {
+  return (
+    status === 'pending_review' ||
+    status === 'reviewed' ||
+    status === 'approved'
+  )
+}
+
 function isStoppedJob(status: string | null | undefined) {
   return status === 'failed' || status === 'cancelled'
 }
@@ -348,6 +357,10 @@ export function AnalysisProgressPage() {
               if (!stopped) setClauseCount(null)
             }
           }
+          // Mới dựng xong cấu trúc: AI2 còn chạy nên tiếp tục theo dõi tiến độ.
+          if (isRunFinished(next.latestJobStatus)) return
+          if (polling) schedulePoll()
+          else void watch()
           return
         }
         if (isStoppedJob(next.latestJobStatus)) {
@@ -395,6 +408,7 @@ export function AnalysisProgressPage() {
   const jobStatus = detail?.latestJobStatus ?? null
   const ready = isOcrComplete(jobStatus)
   const failed = isStoppedJob(jobStatus)
+  const runDone = isRunFinished(jobStatus)
   const failure = useMemo(
     () => jobErrorInfo(detail?.latestJobErrorCode),
     [detail?.latestJobErrorCode],
@@ -436,7 +450,7 @@ export function AnalysisProgressPage() {
     ? Math.round((stepsDone / RUN_STEP_ORDER.length) * 100)
     : pageTotals.total > 0
       ? Math.round((pageTotals.done / pageTotals.total) * 100)
-      : ready
+      : runDone
         ? 100
         : 0
 
@@ -485,12 +499,12 @@ export function AnalysisProgressPage() {
     const live = liveLog.map((row) =>
       row.status === 'active' &&
       row.step &&
-      (ready || steps[row.step]?.status !== 'running')
+      (runDone || failed || steps[row.step]?.status !== 'running')
         ? { ...row, status: 'done' as const }
         : row,
     )
     return [...received, ...live, ...finish]
-  }, [documents.length, files, liveLog, ready, steps])
+  }, [documents.length, failed, files, liveLog, ready, runDone, steps])
 
   const mode = detail?.structureMode ?? stateStructureMode(location.state)
 
@@ -554,19 +568,21 @@ export function AnalysisProgressPage() {
 
   const statusText = failed
     ? 'OCR thất bại'
-    : ready
+    : runDone
       ? 'Đã xử lý xong'
-      : jobStatus === 'processing' || pageTotals.done > 0
+      : ready
+        ? 'Đang phân tích nội dung'
+        : jobStatus === 'processing' || pageTotals.done > 0
         ? 'Đang xử lý tự động'
         : 'Đang chờ worker nhận tệp'
 
-  const finished = ready || failed
+  const finished = runDone || failed
   const runningStep = finished
     ? undefined
     : stepList.find((row) => row.status === 'running')
   const activeLabel = failed
     ? 'OCR thất bại'
-    : ready
+    : runDone
       ? 'Đã dựng xong cấu trúc hồ sơ'
       : runningStep
         ? `Đang chạy: ${runningStep.step} · ${RUN_STEP_LABELS[runningStep.step] ?? ''}`
@@ -587,7 +603,7 @@ export function AnalysisProgressPage() {
           </nav>
           <div className="flex items-center gap-space-sm bg-surface-container-low px-space-md py-space-xs rounded-lg shadow-sm">
             <span className="relative flex h-2 w-2">
-              {ready ? null : (
+              {finished ? null : (
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               )}
               <span
@@ -646,7 +662,7 @@ export function AnalysisProgressPage() {
                 {activeLabel}
               </span>
               <span className="font-headline-md text-headline-md text-primary font-bold">
-                {ready ? '100%' : `${percent}%`}
+                {runDone ? '100%' : `${percent}%`}
               </span>
             </div>
             <div className="h-2 w-full rounded-full bg-surface-container overflow-hidden">
@@ -654,7 +670,7 @@ export function AnalysisProgressPage() {
                 className={`h-full rounded-full transition-all duration-500 ${
                   failed ? 'bg-error' : 'bg-primary'
                 }`}
-                style={{ width: `${ready ? 100 : percent}%` }}
+                style={{ width: `${runDone ? 100 : percent}%` }}
               />
             </div>
             <span className="font-label-sm text-label-sm text-on-surface-variant mt-space-xs block">
