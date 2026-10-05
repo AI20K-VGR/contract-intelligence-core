@@ -650,9 +650,7 @@ async def test_worker_does_not_pin_aliases_after_the_expert_assignment_expired(m
             await _seed_run(session)
             session.add_all(
                 [
-                    LexiconVersionORM(
-                        tenant_id=TENANT_ID, version=3, digest=HASH, profile=stored
-                    ),
+                    LexiconVersionORM(tenant_id=TENANT_ID, version=3, digest=HASH, profile=stored),
                     ExpertAssignmentORM(
                         tenant_id=TENANT_ID,
                         version=1,
