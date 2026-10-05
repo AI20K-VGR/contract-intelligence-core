@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { normalizeAi2SearchResult } from '../src/api/ai2'
-import { jobErrorInfo } from '../src/api/jobErrors'
+import { isAi2Failure, jobErrorInfo } from '../src/api/jobErrors'
 
 describe('jobErrorInfo', () => {
   it('routes AI2 retryable codes to the AI2 retry', () => {
@@ -48,5 +48,20 @@ describe('citation validation fields', () => {
     expect(citation.unverified).toBe(true)
     expect(citation.tableId).toBe('tbl_1')
     expect(citation.cellId).toBe('c_2')
+  })
+})
+
+describe('isAi2Failure', () => {
+  it('flags AI2 error codes so the page does not say OCR failed', () => {
+    expect(isAi2Failure('AI2_PROCESSING_FAILED')).toBe(true)
+    expect(isAi2Failure('AI2_TIMEOUT')).toBe(true)
+    expect(isAi2Failure(' AI2_UNAVAILABLE ')).toBe(true)
+  })
+
+  it('leaves OCR, cancelled and missing codes alone', () => {
+    expect(isAi2Failure('DISPATCH_FAILED')).toBe(false)
+    expect(isAi2Failure('RUN_CANCELLED')).toBe(false)
+    expect(isAi2Failure(null)).toBe(false)
+    expect(isAi2Failure(undefined)).toBe(false)
   })
 })

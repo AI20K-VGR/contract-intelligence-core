@@ -26,6 +26,17 @@ const MESSAGES: Record<string, string> = {
   DISPATCH_FAILED: 'Không gửi được hồ sơ đi xử lý. Thử lại.',
 }
 
+// Job failed sau khi OCR đã xong: lỗi nằm ở AI2, không phải OCR.
+const AI2_FAILURES = new Set([
+  ...AI2_RETRYABLE,
+  'AI2_UNAVAILABLE',
+  'PROCESSING_TIMEOUT',
+])
+
+export function isAi2Failure(code: string | null | undefined) {
+  return AI2_FAILURES.has(code?.trim() ?? '')
+}
+
 export function jobErrorInfo(code: string | null | undefined): JobErrorInfo {
   const normalized = code?.trim() || null
   if (!normalized) {

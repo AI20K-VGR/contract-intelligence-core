@@ -122,6 +122,16 @@ export function isOcrComplete(status: string | null) {
   return status !== null && DONE_STATUSES.has(status)
 }
 
+// 'extracted' chỉ là OCR/dựng cấu trúc xong: AI2 (S4–S10) còn chạy sau đó,
+// nên run chỉ xong hẳn khi job sang bước rà soát.
+export function isRunFinished(status: string | null | undefined) {
+  return (
+    status === 'pending_review' ||
+    status === 'reviewed' ||
+    status === 'approved'
+  )
+}
+
 export function countClauses(nodes: ClauseNode[]): number {
   return nodes.reduce(
     (total, node) => total + 1 + countClauses(node.children),

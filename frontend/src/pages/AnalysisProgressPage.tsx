@@ -22,12 +22,14 @@ import {
   countClauses,
   getDossierStructure,
   isOcrComplete,
+  isRunFinished,
   listClauses,
   structureErrorMessage,
   type DossierStructure,
   type StructureDocument,
 } from '../api/structure'
-import { jobErrorInfo } from '../api/jobErrors'
+import { isAi2Failure, jobErrorInfo } from '../api/jobErrors'
+import { getManifest, manifestConfirmPath } from '../api/manifest'
 import {
   cancelRun,
   isCancellableRun,
@@ -44,15 +46,6 @@ import { parseStructureMode, type StructureMode } from '../structure'
 const POLL_INTERVAL_MS = 2000
 
 // Job đã dừng hẳn: lỗi, hoặc bị hủy (hủy run đưa job về failed/RUN_CANCELLED).
-// 'extracted' chỉ là OCR/dựng cấu trúc xong: AI2 (S4–S10) vẫn đang chạy sau đó.
-function isRunFinished(status: string | null | undefined) {
-  return (
-    status === 'pending_review' ||
-    status === 'reviewed' ||
-    status === 'approved'
-  )
-}
-
 function isStoppedJob(status: string | null | undefined) {
   return status === 'failed' || status === 'cancelled'
 }
@@ -159,6 +152,8 @@ export function AnalysisProgressPage() {
   const [detail, setDetail] = useState<DossierStructure | null>(null)
   const [pagesByDoc, setPagesByDoc] = useState<Record<string, OcrPageRow[]>>({})
   const [clauseCount, setClauseCount] = useState<number | null>(null)
+  // Worker chỉ gọi AI2 sau khi manifest được xác nhận: chưa xác nhận thì job đứng ở 'extracted'.
+  const [awaitingManifest, setAwaitingManifest] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -363,8 +358,18 @@ export function AnalysisProgressPage() {
               if (!stopped) setClauseCount(null)
             }
           }
+          if (isRunFinished(next.latestJobStatus)) {
+            setAwaitingManifest(false)
+            return
+          }
+          try {
+            const manifest = await getManifest(dossierId, controller.signal)
+            if (!stopped) setAwaitingManifest(manifest.status !== 'confirmed')
+          } catch {
+            if (!stopped) setAwaitingManifest(false)
+          }
+          if (stopped) return
           // Mới dựng xong cấu trúc: AI2 còn chạy nên tiếp tục theo dõi tiến độ.
-          if (isRunFinished(next.latestJobStatus)) return
           if (polling) schedulePoll()
           else void watch()
           return
@@ -576,27 +581,38 @@ export function AnalysisProgressPage() {
     }
   }
 
+  const failedLabel = isAi2Failure(detail?.latestJobErrorCode)
+    ? 'Phân tích AI2 thất bại'
+    : 'OCR thất bại'
+  const waitingManifest = ready && !runDone && !failed && awaitingManifest
+
   const statusText = failed
-    ? 'OCR thất bại'
+    ? failedLabel
     : runDone
       ? 'Đã xử lý xong'
-      : ready
-        ? 'Đang phân tích nội dung'
-        : jobStatus === 'processing' || pageTotals.done > 0
-        ? 'Đang xử lý tự động'
-        : 'Đang chờ worker nhận tệp'
+      : waitingManifest
+        ? 'Chờ xác nhận hồ sơ'
+        : ready
+          ? 'Đang phân tích nội dung'
+          : jobStatus === 'processing' || pageTotals.done > 0
+            ? 'Đang xử lý tự động'
+            : 'Đang chờ worker nhận tệp'
 
   const finished = runDone || failed
   const runningStep = finished
     ? undefined
     : stepList.find((row) => row.status === 'running')
   const activeLabel = failed
-    ? 'OCR thất bại'
+    ? failedLabel
     : runDone
-      ? 'Đã dựng xong cấu trúc hồ sơ'
-      : runningStep
-        ? `Đang chạy: ${runningStep.step} · ${RUN_STEP_LABELS[runningStep.step] ?? ''}`
-        : 'Đang chờ máy chủ nhận tệp'
+      ? 'Đã phân tích xong'
+      : waitingManifest
+        ? 'Chờ bạn xác nhận hồ sơ để bắt đầu phân tích'
+        : runningStep
+          ? `Đang chạy: ${runningStep.step} · ${RUN_STEP_LABELS[runningStep.step] ?? ''}`
+          : ready
+            ? 'Đang chờ AI2 bắt đầu phân tích'
+            : 'Đang chờ máy chủ nhận tệp'
 
   return (
     <div className="flex flex-col w-full pb-margin-lg">
@@ -643,6 +659,21 @@ export function AnalysisProgressPage() {
           role="alert"
         >
           {error}
+        </p>
+      ) : null}
+
+      {waitingManifest && dossierId ? (
+        <p
+          className="mb-gutter rounded-lg bg-surface-container-low px-space-md py-space-sm font-body-sm text-body-sm text-on-surface"
+          role="status"
+        >
+          OCR đã xong nhưng AI2 chỉ bắt đầu sau khi hồ sơ được xác nhận.{' '}
+          <Link
+            className="font-semibold text-primary hover:underline"
+            to={manifestConfirmPath(dossierId)}
+          >
+            Xác nhận hồ sơ
+          </Link>
         </p>
       ) : null}
 
