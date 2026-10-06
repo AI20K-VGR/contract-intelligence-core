@@ -301,6 +301,7 @@ def _run_backend_ocr(job_id: str, request: BackendOcrJobRequest) -> None:
             tmp_path = Path(tmp)
             pdf_path = tmp_path / "source.pdf"
             pdf_path.write_bytes(content)
+            del content  # up to 50 MB; the OCR reads the file from here on
             engine = _get_engine(engine_id)
             max_workers = WEB_MAX_WORKERS if engine_id in PARALLEL_ENGINES else 1
             with observation(
