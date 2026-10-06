@@ -48,6 +48,7 @@ Chạy được cho demo ít người dùng, chậm hơn và ít dư địa hơn
    ```env
    KAFKA_HEAP_OPTS="-Xmx256m -Xms256m"
    KEYCLOAK_HEAP_OPTS="-Xms128m -Xmx384m"
+   AI1_WORKER_REPLICAS=1
    ```
 
 3. Trong `ai-service/.env`, giảm số trang OCR song song: `AI1_MAX_PAGES_IN_FLIGHT=2`.

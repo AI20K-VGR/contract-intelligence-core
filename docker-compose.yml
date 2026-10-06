@@ -280,6 +280,36 @@ services:
     networks:
       - ci-network
 
+  # One-shot: create the AI1 command topic with several partitions before any
+  # producer or consumer touches it. An auto-created topic has one partition,
+  # and Kafka gives a partition to one consumer of a group, so extra
+  # ai1-worker replicas would sit idle. An existing topic is only ever grown
+  # (Kafka cannot shrink one). Commands are keyed by document id.
+  kafka-init:
+    image: apache/kafka:3.7.0
+    container_name: ci-kafka-init
+    depends_on:
+      kafka:
+        condition: service_started
+    environment:
+      TOPIC: ci.ai1.ocr.commands
+      PARTITIONS: ${AI1_OCR_COMMAND_PARTITIONS:-6}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        bin=/opt/kafka/bin/kafka-topics.sh; bs=kafka:29092
+        until $$bin --bootstrap-server $$bs --list >/dev/null 2>&1; do echo 'waiting for kafka...'; sleep 2; done
+        $$bin --bootstrap-server $$bs --create --if-not-exists --topic "$$TOPIC" --partitions "$$PARTITIONS" --replication-factor 1
+        have=$$($$bin --bootstrap-server $$bs --describe --topic "$$TOPIC" | grep -c 'Partition: ')
+        if [ "$$have" -lt "$$PARTITIONS" ]; then
+          $$bin --bootstrap-server $$bs --alter --topic "$$TOPIC" --partitions "$$PARTITIONS"
+        fi
+        echo "$$TOPIC: $$($$bin --bootstrap-server $$bs --describe --topic "$$TOPIC" | grep -c 'Partition: ') partitions"
+    restart: "no"
+    networks:
+      - ci-network
+
   # =============================================================================
   # SERVICE 5 — Contract Intelligence Backend (FastAPI)
   # =============================================================================
@@ -437,6 +467,9 @@ services:
         condition: service_healthy
       kafka:
         condition: service_started
+      # Publishes the AI1 commands: the topic must exist with its partitions first.
+      kafka-init:
+        condition: service_completed_successfully
       minio:
         condition: service_started
     environment:
@@ -476,11 +509,18 @@ services:
     build:
       context: ./ai-service
       dockerfile: Dockerfile
-    container_name: ci-ai1-worker
+    # No container_name, so the worker can run as several replicas in one
+    # consumer group (DEC-BE-AI1-01 C4). Each takes its share of the command
+    # topic's partitions; at most AI1_WORKER_REPLICAS x AI1_MAX_PAGES_IN_FLIGHT
+    # pages are read at once, all on the same Mistral/OpenAI keys.
+    deploy:
+      replicas: ${AI1_WORKER_REPLICAS:-2}
     restart: unless-stopped
     depends_on:
       kafka:
         condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
       minio:
         condition: service_started
     env_file:
@@ -622,7 +662,7 @@ services:
   #
   #   browser ─▶ backend /grafana/* ─(ADMINISTRATOR check, sets X-WEBAUTH-USER)─▶ grafana:3000
   #                                                         grafana ─▶ prometheus:9090
-  #   prometheus ─▶ node-exporter:9100, cadvisor:8080, backend:9101, ai1-worker:9108
+  #   prometheus ─▶ node-exporter:9100, cadvisor:8080, backend:9101, ai1-worker:9108 (each replica)
   #
   # None of these publish a port. They share `ci-monitoring` (internal: no
   # route out), so only the backend — at its fixed IP — can reach Grafana with

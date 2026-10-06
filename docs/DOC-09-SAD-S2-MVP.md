@@ -136,7 +136,7 @@ Chạy như một tiến trình riêng (`python -m contract_intelligence.worker`
 
 | Hạng mục | Nội dung |
 |---|---|
-| Chạy dưới dạng | Kafka worker (`infrastructure/kafka_worker.py`), container `ci-ai1-worker` |
+| Chạy dưới dạng | Kafka worker (`infrastructure/kafka_worker.py`), service `ai1-worker` (nhiều replica, `AI1_WORKER_REPLICAS`) |
 | Đầu vào | Lệnh OCR: link tải PDF, mã hash để kiểm tra file, danh sách trang, engine, link ghi ảnh trang |
 | Cách xử lý | Trang có sẵn lớp chữ (PDF gõ máy) → đọc trực tiếp bằng PyMuPDF, nhanh và miễn phí. Trang scan → gọi engine OCR. Engine mặc định trong compose: **Mistral OCR** (có bản "verified": đọc 2 lần bằng 2 model để đối chiếu chữ và tọa độ). Tuỳ chọn khác: OpenAI Vision, Gemini Vision, hoặc `pymupdf` thuần để test không tốn phí |
 | Dựng cấu trúc | `reconstruction/` — tách header/footer, gộp đoạn, nhận diện Điều/Khoản/Điểm; `table_reconstruct/` — dựng bảng, nối bảng qua trang |
@@ -565,10 +565,10 @@ Mentor có thể dùng bảng này để tick. Mỗi dòng ghi cách kiểm tra 
 
 | # | Hạng mục | Cách kiểm tra | Đạt |
 |---|---|---|---|
-| 1 | Dựng được toàn bộ hệ thống bằng một lệnh | `docker compose --profile core up -d --build`; `docker compose ps` thấy `ci-backend` healthy, `ci-backend-worker`, `ci-ai1-worker`, `ci-ai2-service`, `ci-keycloak`, `ci-kafka`, `ci-minio` Up | ☐ |
+| 1 | Dựng được toàn bộ hệ thống bằng một lệnh | `docker compose --profile core up -d --build`; `docker compose ps` thấy `ci-backend` healthy, `ci-backend-worker`, `ai1-worker` (2 replica), `ci-ai2-service`, `ci-keycloak`, `ci-kafka`, `ci-minio` Up | ☐ |
 | 2 | Đăng nhập SSO và phân quyền | Mở `http://localhost:5173`, đăng nhập `admin@ci.local`; thấy menu admin (Tổng quan, Người dùng). Tạo user role REVIEWER, nhận thư mời trong Mailpit, đăng nhập bằng user đó thấy menu khác | ☐ |
 | 3 | Tải hồ sơ (hợp đồng + phụ lục) | Trang "Tải lên tài liệu", chọn PDF; API trả 202 với `dossier_id`, `job_id`; file xuất hiện trong MinIO bucket `dossiers` | ☐ |
-| 4 | OCR chạy qua Kafka | Log `ci-backend-worker` có `ocr_command_published`; log `ci-ai1-worker` nhận lệnh và gửi kết quả; log worker có `ai1_result.persisted`; trang "Tiến trình OCR" hiện ảnh từng trang | ☐ |
+| 4 | OCR chạy qua Kafka | Log `ci-backend-worker` có `ocr_command_published`; log `ai1-worker` (`docker compose logs ai1-worker`) nhận lệnh và gửi kết quả; log worker có `ai1_result.persisted`; trang "Tiến trình OCR" hiện ảnh từng trang | ☐ |
 | 5 | Xác nhận vai trò file | Trang "Xác nhận vai trò và quan hệ" hiển thị file nào là hợp đồng, file nào là phụ lục; xác nhận được | ☐ |
 | 6 | AI2 phân tích | Log worker có `worker.ai2.completed` với số `facts`, `findings`; hồ sơ chuyển `pending_review`; trang "Tiến trình phân tích" thấy các bước S0…S10 xong | ☐ |
 | 7 | Xem cấu trúc | Trang "Cấu trúc hợp đồng" hiện cây Điều/Khoản/Điểm, bảng, sơ đồ tư duy; bấm một điều khoản thì mở đúng trang và tô đúng vùng | ☐ |
