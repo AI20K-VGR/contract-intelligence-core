@@ -21,8 +21,8 @@ from contract_intelligence.shared.base import utcnow
 from contract_intelligence.shared.persistence.base import Base
 from contract_intelligence.shared.query_policy import QueryTraceORM
 
-# Endpoints that produce an answer; /search returns hits, not an answer.
-HISTORY_ENDPOINTS = ("query", "ask")
+# Endpoints that produce an answer; the FE search box posts to /search.
+HISTORY_ENDPOINTS = ("query", "ask", "search")
 
 
 class QueryAnswerORM(Base):

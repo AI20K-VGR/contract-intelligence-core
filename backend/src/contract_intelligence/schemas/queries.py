@@ -45,7 +45,7 @@ class QueryHistoryItem(BaseModel):
     """One past question on a dossier, with the answer given at the time."""
 
     trace_id: str
-    endpoint: Literal["query", "ask"]
+    endpoint: Literal["query", "ask", "search"]
     actor_id: str
     question: str
     answer: str | None = Field(

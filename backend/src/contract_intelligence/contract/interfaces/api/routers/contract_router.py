@@ -102,6 +102,7 @@ from contract_intelligence.shared.exceptions import (
 )
 from contract_intelligence.shared.pdf import InvalidPdfError, count_pdf_pages, extract_pdf_pages
 from contract_intelligence.shared.persistence import get_session_factory
+from contract_intelligence.shared.query_history import record_query_answer
 from contract_intelligence.shared.query_policy import (
     QueryLimitExceeded,
     enforce_query_limits,
@@ -1330,12 +1331,17 @@ async def _enforce_search_limits(factory: Any, user: AuthenticatedUser) -> None:
         ) from exc
 
 
-async def _save_search_trace(factory: Any, **fields: Any) -> str | None:
+async def _save_search_trace(
+    factory: Any, *, answer: str | None = None, **fields: Any
+) -> str | None:
+    """Trace + answer in one transaction; a failed AI2 call keeps no answer row."""
     if factory is None:
         logger.warning("dossier.search.trace_skipped_no_db", dossier_id=fields.get("dossier_id"))
         return None
     async with factory() as session:
         trace = await save_query_trace(session, **fields)
+        if answer is not None:
+            record_query_answer(session, trace, answer)
         await session.commit()
         return trace.id
 
@@ -1457,6 +1463,7 @@ async def search_dossier(
         citations=list(filtered.get("citations") or filtered.get("hits") or []),
         acl=acl,
         latency_ms=latency_ms,
+        answer=dto.answer or "",
     )
     return ApiResponse(data=dto)
 
