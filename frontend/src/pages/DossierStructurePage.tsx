@@ -33,6 +33,7 @@ import { CitationPane } from '../components/CitationPane'
 import { ConflictNotice } from '../components/ConflictNotice'
 import { UploadedPdfPane } from '../components/UploadedPdfPane'
 import { CitedAnswer } from '../components/CitedAnswer'
+import { QueryHistoryPanel } from '../components/QueryHistoryPanel'
 import { SearchCitationReview } from '../components/SearchCitationReview'
 import { StructureDocument } from '../components/StructureDocument'
 import { StructureMindmap } from '../components/StructureMindmap'
@@ -195,6 +196,10 @@ export function DossierStructurePage() {
     documentId: string
   } | null>(null)
   const [searchError, setSearchError] = useState<string | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  // Tăng sau mỗi câu hỏi (kể cả lỗi) để lịch sử tải lại.
+  const [historyRefresh, setHistoryRefresh] = useState(0)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
   usePageTitle(detail?.name ?? 'Cấu trúc hợp đồng')
 
@@ -237,6 +242,7 @@ export function DossierStructurePage() {
       )
     } finally {
       setSearching(false)
+      setHistoryRefresh((current) => current + 1)
     }
   }
 
@@ -716,6 +722,7 @@ export function DossierStructurePage() {
                     aria-label="Hỏi về hợp đồng"
                     className="h-10 w-full rounded-full border border-outline-variant/30 bg-surface-container-lowest pl-9 pr-space-md font-body-sm text-body-sm text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-secondary"
                     placeholder="Hỏi về hợp đồng này…"
+                    ref={searchInputRef}
                     type="search"
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
@@ -929,6 +936,30 @@ export function DossierStructurePage() {
                 </div>
               ) : null}
             </section>
+          ) : null}
+
+          {phase === 'ready' ? (
+            <div className="mb-space-md flex flex-col gap-space-sm">
+              <button
+                aria-expanded={historyOpen}
+                className="flex h-9 items-center gap-1 self-start rounded-full bg-surface-container px-space-md font-label-sm text-label-sm text-on-surface hover:bg-surface-container-high"
+                type="button"
+                onClick={() => setHistoryOpen((open) => !open)}
+              >
+                <MaterialIcon name="history" className="text-[16px]" />
+                Lịch sử hỏi đáp
+              </button>
+              {historyOpen ? (
+                <QueryHistoryPanel
+                  dossierId={dossierId}
+                  refreshKey={historyRefresh}
+                  onReuse={(question) => {
+                    setQuery(question)
+                    searchInputRef.current?.focus()
+                  }}
+                />
+              ) : null}
+            </div>
           ) : null}
 
           {phase === 'ready' && activeMode === 'tables' && documentId ? (

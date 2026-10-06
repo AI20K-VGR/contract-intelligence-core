@@ -38,6 +38,22 @@ describe('normalizeQueryHistoryItem', () => {
     expect(item?.endpoint).toBe('query')
   })
 
+  it('keeps questions asked through the search bar', () => {
+    const item = normalizeQueryHistoryItem({
+      trace_id: 'qtr_3',
+      endpoint: 'search',
+      actor_id: 'usr_1',
+      question: 'điều 1 là gì',
+      answer: null,
+      state: null,
+      citations: [],
+      error_code: null,
+      created_at: '2026-10-06T03:00:00+00:00',
+    })
+    expect(item?.endpoint).toBe('search')
+    expect(item?.question).toBe('điều 1 là gì')
+  })
+
   it('drops rows without a trace id', () => {
     expect(normalizeQueryHistoryItem({ question: 'x' })).toBeNull()
     expect(normalizeQueryHistoryItem(null)).toBeNull()

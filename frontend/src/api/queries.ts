@@ -9,7 +9,7 @@ export type QueryHistoryCitation = {
 
 export type QueryHistoryItem = {
   traceId: string
-  endpoint: 'ask' | 'query'
+  endpoint: 'ask' | 'query' | 'search'
   actorId: string
   question: string
   /** null khi AI2 lỗi hoặc câu hỏi có trước khi có lịch sử. */
@@ -56,7 +56,10 @@ export function normalizeQueryHistoryItem(
   if (!traceId) return null
   return {
     traceId,
-    endpoint: row.endpoint === 'query' ? 'query' : 'ask',
+    endpoint:
+      row.endpoint === 'query' || row.endpoint === 'search'
+        ? row.endpoint
+        : 'ask',
     actorId: asText(row.actor_id),
     question: asText(row.question),
     answer: asText(row.answer) || null,
