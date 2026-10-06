@@ -56,6 +56,12 @@ scrape_configs:
     static_configs:
       - targets: ["backend:9101"]
 
+  # ai1-worker runs as several replicas. A static target would reach one
+  # replica per scrape, picked by Docker DNS, and mix their counters; DNS
+  # discovery scrapes each replica's own address instead.
   - job_name: ai1-worker
-    static_configs:
-      - targets: ["ai1-worker:9108"]
+    dns_sd_configs:
+      - names: ["ai1-worker"]
+        type: A
+        port: 9108
+        refresh_interval: 30s

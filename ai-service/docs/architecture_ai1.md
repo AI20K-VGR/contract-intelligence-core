@@ -59,7 +59,7 @@ flowchart LR
     BE -->|dossier.uploaded| BW[Backend worker]
     BE <-->|file gốc / ảnh trang| S3[(MinIO<br/>dossiers, ci-render)]
     BW -->|ai1.ocr.command<br/>ci.ai1.ocr.commands| K[(Kafka)]
-    K --> A1[AI1 Kafka worker<br/>ci-ai1-worker]
+    K --> A1[AI1 Kafka worker<br/>ai1-worker × N]
     A1 -->|tải PDF qua presigned GET| S3
     A1 -->|Mistral OCR 2512 / 4-1| MI[(Mistral API)]
     A1 -->|GPT-5.6-terra vision| OA[(OpenAI API)]
@@ -73,7 +73,7 @@ flowchart LR
 | Thành phần | Container | Vai trò với AI1 |
 |---|---|---|
 | Backend worker | `ci-backend-worker` | Phát lệnh OCR, nhận kết quả, lưu, kích hoạt AI2, cập nhật trạng thái job |
-| AI1 Kafka worker | `ci-ai1-worker` | Chạy toàn bộ AI1 (tài liệu này) |
+| AI1 Kafka worker | `ai1-worker` (`AI1_WORKER_REPLICAS` replica, mặc định 2) | Chạy toàn bộ AI1 (tài liệu này) |
 | Kafka | `ci-kafka` | Topic `ci.ai1.ocr.commands` / `ci.ai1.ocr.results`, group `ci-ai1-ocr` |
 | MinIO | `ci-minio` | Bucket `dossiers` (file gốc), `ci-render` (ảnh trang AI1 render) |
 | AI2 | `ci-ai2-service` | Nhận snapshot của AI1 qua backend (request ký HMAC) |
@@ -175,7 +175,7 @@ File: `application/use_cases/process_document.py`, `classify_pdf.py`.
      | Còn lại | `SCANNED` / `MIXED` | `preprocessing=[]`, gửi engine OCR |
 
 2. Đọc PDF, phân loại, render luôn tuần tự (đối tượng trang PyMuPDF không an toàn đa luồng).
-   Chỉ lời gọi engine được song song: `AI1_MAX_PAGES_IN_FLIGHT` trang (mặc định 8) cho engine gọi API
+   Chỉ lời gọi engine được song song: `AI1_MAX_PAGES_IN_FLIGHT` trang (mặc định 16) cho engine gọi API
    (`openai`, `gemini`, `mistral`).
 3. Nếu engine không trả bảng, `build_scanned_tables` dò bảng có kẻ viền bằng pixel làm dự phòng.
 4. Engine không đọc ra chữ nào trên trang có mực (trang chỉ có chữ ký/con dấu/ảnh, hoặc đọc sót):
@@ -622,7 +622,7 @@ Engine theo `options.engine`: `pymupdf` (chỉ native), `openai`, `gemini`, `mis
 
 ## 10. Cấu hình
 
-`ai-service/.env` (nạp vào `ci-ai1-worker` qua `env_file`; mẫu ở `.env.example`):
+`ai-service/.env` (nạp vào mọi replica `ai1-worker` qua `env_file`; mẫu ở `.env.example`):
 
 | Biến | Mặc định | Ý nghĩa |
 |---|---|---|
@@ -636,7 +636,7 @@ Engine theo `options.engine`: `pymupdf` (chỉ native), `openai`, `gemini`, `mis
 | `AI1_VERIFIER_PRICE_PER_PAGE_USD` | `0.004` | Giá công bố Mistral OCR 4 ($4/1.000 trang) |
 | `AI1_COST_MODE` | `accuracy` trong code; **`budget`** trong `.env` / `.env.example` | `budget`: 4-1 chỉ khi ≥ 25% dòng căn kém / mực bỏ sót / bảng không viền; critical field thành cờ review; GPT chỉ đọc crop (mục 19) |
 | `AI1_GPT_REASONING_EFFORT` | `none` | Mức suy luận ẩn của GPT; `none` rẻ hơn 17%, CER không đổi |
-| `AI1_MAX_PAGES_IN_FLIGHT` | `8` | Số trang OCR song song mỗi tài liệu |
+| `AI1_MAX_PAGES_IN_FLIGHT` | `16` | Số trang OCR song song mỗi tài liệu, trong mỗi replica `ai1-worker` |
 | `AI1_PAGE_QUALITY_CHECK` | `true` | Kiểm tra chất lượng scan trước OCR (mục 5.1); `false` = tắt, mọi trang đọc như trước |
 | `LANGFUSE_*` | tắt | Tracing và chi phí |
 
@@ -773,7 +773,7 @@ docker compose --profile core up -d mailpit      # hộp thư test cho email m�
 cd frontend && npm run dev                       # http://localhost:5173
 
 # Theo dõi AI1
-docker logs -f ci-ai1-worker
+docker compose logs -f ai1-worker
 ```
 
 - Sau khi đổi `ai-service/.env`: `docker compose up -d ai1-worker`.

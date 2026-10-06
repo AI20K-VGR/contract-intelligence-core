@@ -87,7 +87,7 @@ docker compose ps
 |---|---|
 | `ci-backend` | healthy — http://127.0.0.1:8000/health → `"status":"ok"` |
 | `ci-backend-worker` | Up — log có `worker.dossier_events.started` + `worker.ai1_results.started` |
-| `ci-ai1-worker` | Up — `ai1.kafka.worker.started` |
+| `ai1-worker` (2 replica) | Up — `ai1.kafka.worker.started` |
 | `ci-ai2-service` | Up — http://127.0.0.1:8002/health (worker gọi AI2 qua HTTP) |
 | `ci-keycloak` | Up — http://localhost:8080/realms/contract-intelligence |
 | `ci-kafka` / `ci-minio` / DB | Up / healthy |
@@ -96,7 +96,7 @@ Log nhanh:
 
 ```powershell
 docker logs ci-backend-worker --tail 30
-docker logs ci-ai1-worker --tail 20
+docker compose logs ai1-worker --tail 20
 docker logs ci-ai2-service --tail 20
 ```
 
@@ -170,7 +170,7 @@ Tìm: `worker.dossier_uploaded.ocr_command_published`
 ### Hop B — AI1 OCR
 
 ```powershell
-docker logs ci-ai1-worker --tail 100
+docker compose logs ai1-worker --tail 100
 ```
 
 Tìm consume command + publish result.  

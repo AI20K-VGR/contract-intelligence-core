@@ -39,7 +39,10 @@ ENGINE_IDS = {"pymupdf", "openai", "gemini", "mistral"}
 PARALLEL_ENGINES = {"openai", "gemini", "mistral"}
 # Pages OCR'd concurrently: every model call is network-bound, so more pages in
 # flight shortens a document almost linearly until provider rate limits bite.
-WEB_MAX_WORKERS = int(os.environ.get("AI1_MAX_PAGES_IN_FLIGHT", "8"))
+# Measured on a 20-page scan (budget mode): 8 -> 39 s, 16 -> 26 s, 24 -> 20 s,
+# and 32 in flight on 43 pages without a single 429. 16 leaves room for two
+# worker replicas (32 pages at once) under that.
+WEB_MAX_WORKERS = int(os.environ.get("AI1_MAX_PAGES_IN_FLIGHT", "16"))
 
 
 _processor = ProcessDocument(
