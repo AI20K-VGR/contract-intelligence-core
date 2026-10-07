@@ -352,8 +352,8 @@ function DossierToolbar({
   onStatusChange: (value: StatusFilter) => void
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-space-md flex-1">
-      <div className="inline-flex items-center bg-surface-container-low p-1 rounded-lg gap-1">
+    <div className="flex items-center shrink-0">
+      <div className="inline-flex items-center bg-surface-container p-1 rounded-lg gap-0.5 whitespace-nowrap">
         {filters.map((item) => {
           const active = status === item.id
           const count =
@@ -363,7 +363,7 @@ function DossierToolbar({
           return (
             <button
               key={item.id}
-              className={`px-3 py-1 rounded font-label-sm text-label-sm uppercase tracking-wide flex items-center gap-1.5 transition-colors ${
+              className={`px-3 h-8 rounded font-label-sm text-label-sm uppercase tracking-wide whitespace-nowrap flex items-center gap-1.5 transition-colors ${
                 active
                   ? 'bg-surface-container-lowest text-on-surface shadow-sm font-semibold'
                   : 'text-on-surface-variant hover:text-on-surface'
@@ -647,31 +647,27 @@ export function MyDossiersPage() {
 
   return (
     <div className="flex flex-col w-full pb-margin-lg">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-space-md pt-space-lg pb-space-lg">
-        <div className="flex flex-col gap-space-xs">
-          <div className="flex items-center gap-space-sm">
-            {titleInHeader ? null : (
-              <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight">
-                {heading}
-              </h1>
-            )}
-            <span className="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant font-code-sm text-code-sm">
-              {loading ? 'Đang tải…' : `${total} hồ sơ`}
-            </span>
-          </div>
-          <p className="font-body-sm text-body-sm text-on-surface-variant">
-            Quản lý, phân tích ngữ nghĩa và tra cứu tài liệu hợp đồng pháp lý cá
-            nhân
-          </p>
-        </div>
-        <div className="flex items-center gap-space-sm">
-          <div className="relative w-[36rem] max-w-full">
+      {titleInHeader ? null : (
+        <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight pt-space-lg">
+          {heading}
+        </h1>
+      )}
+
+      <div className="flex flex-col xl:flex-row xl:items-center gap-space-md pt-space-lg pb-space-md">
+        <DossierToolbar
+          dossiers={dossiers}
+          ocrOf={ocrOf}
+          status={status}
+          onStatusChange={setStatus}
+        />
+        <div className="flex flex-1 min-w-0 items-center justify-end gap-space-sm">
+          <div className="relative flex-1 max-w-xl min-w-0">
             <MaterialIcon
               name="search"
               className="absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]"
             />
             <input
-              className="w-full h-9 pl-9 pr-space-md bg-surface-container-lowest text-on-surface placeholder:text-outline font-body-sm text-body-sm rounded shadow-[0_1px_2px_rgba(15,23,42,0.06)] focus:outline-none focus:ring-1 focus:ring-secondary"
+              className="w-full h-10 pl-9 pr-space-md bg-surface-container-lowest text-on-surface placeholder:text-outline font-body-sm text-body-sm rounded border border-outline-variant focus:outline-none focus:ring-1 focus:ring-secondary"
               placeholder="Tìm kiếm theo tên, mã hồ sơ..."
               type="search"
               value={query}
@@ -680,7 +676,7 @@ export function MyDossiersPage() {
           </div>
           {user?.backendRole === 'REVIEWER' ? null : (
             <button
-              className="flex items-center gap-space-xs h-9 px-space-md bg-primary text-on-primary font-title-sm text-body-sm rounded shadow-sm hover:bg-primary-container transition-colors shrink-0"
+              className="flex items-center gap-space-xs h-10 px-space-md bg-brand-100 text-brand-700 font-title-sm text-body-sm rounded shadow-sm hover:bg-brand-200 transition-colors shrink-0 whitespace-nowrap"
               type="button"
               onClick={() => navigate('/tao-ho-so')}
             >
@@ -692,15 +688,6 @@ export function MyDossiersPage() {
       </div>
 
       <div className="bg-surface-container-lowest rounded-lg shadow-[0_1px_3px_rgba(15,23,42,0.06)] flex flex-col overflow-hidden">
-        <div className="p-space-md flex flex-col xl:flex-row xl:items-center justify-between gap-space-md bg-surface-container-lowest">
-          <DossierToolbar
-            dossiers={dossiers}
-            ocrOf={ocrOf}
-            status={status}
-            onStatusChange={setStatus}
-          />
-        </div>
-
         <div className="w-full overflow-x-auto">
           <table className="w-full text-left font-body-sm text-body-sm border-collapse">
             <thead>

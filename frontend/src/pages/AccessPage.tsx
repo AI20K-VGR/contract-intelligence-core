@@ -387,7 +387,7 @@ export function AccessPage() {
                             <button
                               className={`h-9 px-space-sm rounded font-body-sm text-body-sm disabled:opacity-50 ${
                                 active
-                                  ? 'bg-primary-container text-on-primary'
+                                  ? 'bg-brand-100 text-brand-700 ring-1 ring-brand-200'
                                   : 'bg-surface-container-low text-on-surface hover:bg-surface-container'
                               }`}
                               disabled={savingId === item.id}
@@ -554,7 +554,7 @@ export function AccessPage() {
                                     Hủy
                                   </button>
                                   <button
-                                    className="h-8 flex-1 px-space-sm rounded bg-primary-container text-on-primary font-label-sm text-label-sm disabled:opacity-50"
+                                    className="h-8 flex-1 px-space-sm rounded bg-brand-100 text-brand-700 hover:bg-brand-200 font-label-sm text-label-sm disabled:opacity-50"
                                     disabled={
                                       savingId === item.id ||
                                       chosen.length === 0 ||

@@ -29,5 +29,6 @@
         </form>
     <#elseif section = "info">
         Nhập email tài khoản. Keycloak sẽ gửi hướng dẫn đặt lại mật khẩu nếu tài khoản tồn tại.
+        Tài khoản quản trị không tự đặt lại được, vui lòng liên hệ quản trị viên khác.
     </#if>
 </@layout.registrationLayout>

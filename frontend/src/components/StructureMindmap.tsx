@@ -38,12 +38,23 @@ import { ConflictBadge } from './StructureViewShell'
 
 const tones = branchTones
 
+// Gốc mang màu chủ đạo ở Cài đặt, tông nhạt; biến CSS nên đổi màu là đổi ngay.
 const rootTone: BranchTone = {
-  line: '#475569',
-  bg: '#0b1f3a',
-  bgSoft: '#0b1f3a',
-  border: '#0b1f3a',
-  text: '#ffffff',
+  line: 'var(--color-brand-600)',
+  bg: 'var(--color-brand-100)',
+  bgSoft: 'var(--color-brand-100)',
+  border: 'var(--color-brand-300)',
+  text: 'var(--color-brand-800)',
+}
+
+/** Canvas không hiểu var(--…): đổi sang mã màu đang áp dụng trước khi vẽ. */
+function paint(color: string) {
+  const name = /^var\((--[\w-]+)\)$/.exec(color)?.[1]
+  if (!name) return color
+  return (
+    getComputedStyle(document.documentElement).getPropertyValue(name).trim() ||
+    color
+  )
 }
 
 const FONT_FAMILY = "'IBM Plex Sans', sans-serif"
@@ -483,7 +494,7 @@ async function mindmapPdf({
       ctx.beginPath()
       ctx.moveTo(ends.x1, ends.y1)
       ctx.bezierCurveTo(c.c1x, c.c1y, c.c2x, c.c2y, ends.x2, ends.y2)
-      ctx.strokeStyle = toneOf(child).line
+      ctx.strokeStyle = paint(toneOf(child).line)
       ctx.lineWidth = 1.6
       ctx.stroke()
     }
@@ -494,12 +505,14 @@ async function mindmapPdf({
     const tone = toneOf(box)
     const isRoot = box.depth === 0
     roundRect(ctx, box.x, box.y, box.width, box.height, isRoot ? 12 : 8)
-    ctx.fillStyle = isRoot ? tone.bg : box.depth === 1 ? tone.bg : tone.bgSoft
+    ctx.fillStyle = paint(
+      isRoot || box.depth === 1 ? tone.bg : tone.bgSoft,
+    )
     ctx.fill()
     ctx.lineWidth = 1
-    ctx.strokeStyle = tone.border
+    ctx.strokeStyle = paint(tone.border)
     ctx.stroke()
-    ctx.fillStyle = tone.text
+    ctx.fillStyle = paint(tone.text)
     ctx.font = isRoot ? ROOT_FONT : NODE_FONT
     const lineH = isRoot ? ROOT_LINE : NODE_LINE
     const padX = isRoot ? ROOT_PAD_X : NODE_PAD_X
@@ -544,7 +557,7 @@ async function mindmapPdf({
       roundRect(ctx, box.x - 6, box.y - 8, badgeWidth, 16, 8)
       ctx.fillStyle = '#ffffff'
       ctx.fill()
-      ctx.strokeStyle = tone.line
+      ctx.strokeStyle = paint(tone.line)
       ctx.stroke()
       ctx.fillStyle = '#0f172a'
       ctx.fillText(
@@ -960,7 +973,7 @@ export function StructureMindmap({
 
       <div
         ref={viewportRef}
-        className={`relative min-h-0 flex-1 touch-none overflow-hidden bg-[#fafbff] ${
+        className={`relative min-h-0 flex-1 touch-none overflow-hidden bg-tone-50 ${
           dragging ? 'cursor-grabbing' : 'cursor-grab'
         }`}
         onPointerCancel={endDrag}
@@ -1011,7 +1024,7 @@ export function StructureMindmap({
         </div>
 
         <div
-          className="absolute bottom-3 right-3 z-20 flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md"
+          className="absolute bottom-3 right-3 z-20 flex flex-col overflow-hidden rounded-lg border border-tone-200 bg-white shadow-md"
           aria-label="Thu phóng"
         >
           <IconButton
@@ -1020,14 +1033,14 @@ export function StructureMindmap({
             square
             onClick={() => zoomBy(1.25)}
           />
-          <span className="h-px w-full bg-slate-200" />
+          <span className="h-px w-full bg-tone-200" />
           <IconButton
             icon="remove"
             label="Thu nhỏ"
             square
             onClick={() => zoomBy(0.8)}
           />
-          <span className="h-px w-full bg-slate-200" />
+          <span className="h-px w-full bg-tone-200" />
           <IconButton
             icon="fit_screen"
             label="Vừa khung"
@@ -1038,7 +1051,7 @@ export function StructureMindmap({
             }}
           />
         </div>
-        <p className="pointer-events-none absolute bottom-3 left-3 z-20 select-none text-[11px] text-slate-400">
+        <p className="pointer-events-none absolute bottom-3 left-3 z-20 select-none text-[11px] text-tone-400">
           Kéo để di chuyển • Cuộn để thu phóng • Bấm mũi tên để mở nhánh
         </p>
       </div>
@@ -1073,7 +1086,7 @@ function NodeBox({
     >
       <button
         className={`block h-full w-full text-left shadow-sm transition-shadow hover:shadow-md ${
-          active ? 'ring-2 ring-[#0b1f3a] ring-offset-1' : ''
+          active ? 'ring-2 ring-brand-600 ring-offset-1' : ''
         }`}
         style={{
           backgroundColor: background,
@@ -1115,7 +1128,7 @@ function NodeBox({
       </button>
       {cite ? (
         <span
-          className="pointer-events-none absolute -left-1.5 -top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full border bg-white px-1 text-[10px] font-semibold leading-none text-slate-800"
+          className="pointer-events-none absolute -left-1.5 -top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full border bg-white px-1 text-[10px] font-semibold leading-none text-tone-800"
           style={{ borderColor: tone.line }}
         >
           {cite}
@@ -1125,7 +1138,7 @@ function NodeBox({
         <button
           aria-expanded={box.open}
           aria-label={box.open ? 'Thu nhánh' : 'Mở nhánh'}
-          className={`absolute flex items-center justify-center rounded-full border bg-white shadow-sm transition-colors hover:bg-slate-50 ${
+          className={`absolute flex items-center justify-center rounded-full border bg-white shadow-sm transition-colors hover:bg-tone-50 ${
             vertical ? 'left-1/2 -translate-x-1/2' : 'top-1/2 -translate-y-1/2'
           }`}
           style={{
@@ -1174,7 +1187,7 @@ function IconButton({
   return (
     <button
       aria-label={label}
-      className={`flex items-center justify-center text-slate-600 transition-colors hover:bg-slate-200/70 hover:text-slate-900 ${
+      className={`flex items-center justify-center text-tone-600 transition-colors hover:bg-tone-200/70 hover:text-tone-900 ${
         square ? 'h-9 w-9' : 'h-8 w-8 rounded-full'
       }`}
       title={label}

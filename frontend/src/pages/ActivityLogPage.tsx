@@ -178,12 +178,12 @@ function shortId(id: string) {
 }
 
 function avatarClass(type: ActionType) {
-  if (type === 'flagged') return 'bg-error text-on-error'
-  if (type === 'verified') return 'bg-emerald-700 text-white'
-  if (type === 'uploaded' || type === 'added') return 'bg-secondary text-on-secondary'
-  if (type === 'created') return 'bg-primary-container text-on-primary'
+  if (type === 'flagged') return 'bg-error-container text-on-error-container'
+  if (type === 'verified') return 'bg-emerald-100 text-emerald-800'
+  if (type === 'uploaded' || type === 'added') return 'bg-tone-100 text-tone-700'
+  if (type === 'created') return 'bg-brand-100 text-brand-700'
   if (type === 'viewed' || type === 'other') return 'bg-surface-container text-secondary'
-  return 'bg-primary-container text-on-primary'
+  return 'bg-brand-100 text-brand-700'
 }
 
 export function ActivityLogPage() {
@@ -387,7 +387,7 @@ export function ActivityLogPage() {
                 key={item.id}
                 className={`flex items-center gap-1.5 px-space-md py-1 rounded font-label-md text-label-md transition-colors ${
                   active
-                    ? 'bg-primary-container text-on-primary'
+                    ? 'bg-brand-100 text-brand-700 ring-1 ring-brand-200'
                     : 'bg-surface-container-low text-on-surface hover:bg-surface-container'
                 }`}
                 type="button"

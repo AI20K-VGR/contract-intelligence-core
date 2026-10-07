@@ -132,6 +132,33 @@
   --text-code-sm--font-weight: 500;
 }
 
+/*
+ * Màu chủ đạo người dùng chọn ở Cài đặt (src/theme/palette.ts). Đây là giá trị
+ * mặc định (xanh dương); themeColor.ts ghi đè lên <html> lúc chạy.
+ */
+@theme {
+  --color-brand-50: #f1f7ff;
+  --color-brand-100: #deedff;
+  --color-brand-200: #c2deff;
+  --color-brand-300: #94c5ff;
+  --color-brand-400: #53a4ff;
+  --color-brand-500: #0086f4;
+  --color-brand-600: #0071d0;
+  --color-brand-700: #005dae;
+  --color-brand-800: #004a8c;
+  --color-brand-900: #003568;
+  --color-tone-50: #f8fafd;
+  --color-tone-100: #f0f5fa;
+  --color-tone-200: #e0e7ef;
+  --color-tone-300: #cbd5e1;
+  --color-tone-400: #91a0b2;
+  --color-tone-500: #5d6d81;
+  --color-tone-600: #455466;
+  --color-tone-700: #324153;
+  --color-tone-800: #1d2a39;
+  --color-tone-900: #0d1927;
+}
+
 @layer base {
   html,
   body {
@@ -175,4 +202,92 @@
     'wght' 400,
     'GRAD' 0,
     'opsz' 24;
+}
+
+/*
+ * Giao diện mới cho sidebar và các trang quản trị, theo màu chủ đạo ở Cài đặt.
+ * Đè token màu trong phạm vi lớp này nên các trang dùng token cũ tự đổi theo.
+ */
+.theme-soft {
+  --color-background: var(--color-tone-50);
+  --color-surface: #ffffff;
+  --color-surface-bright: #ffffff;
+  --color-surface-dim: var(--color-tone-200);
+  --color-surface-variant: var(--color-tone-100);
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: var(--color-tone-50);
+  --color-surface-container: var(--color-brand-50);
+  --color-surface-container-high: var(--color-brand-100);
+  --color-surface-container-highest: var(--color-tone-200);
+  --color-on-surface: var(--color-tone-900);
+  --color-on-background: var(--color-tone-900);
+  --color-on-surface-variant: var(--color-tone-600);
+  --color-primary: var(--color-brand-600);
+  --color-on-primary: #ffffff;
+  --color-primary-container: var(--color-brand-700);
+  --color-on-primary-container: var(--color-brand-200);
+  --color-primary-fixed: var(--color-brand-100);
+  --color-primary-fixed-dim: var(--color-brand-200);
+  --color-secondary: var(--color-tone-500);
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: var(--color-brand-100);
+  --color-on-secondary-container: var(--color-brand-700);
+  --color-tertiary: var(--color-brand-800);
+  --color-tertiary-container: var(--color-brand-800);
+  --color-on-tertiary-container: var(--color-brand-600);
+  --color-on-tertiary-fixed-variant: var(--color-brand-700);
+  --color-inverse-surface: var(--color-tone-900);
+  --color-inverse-on-surface: #ffffff;
+  --color-outline: var(--color-tone-400);
+  --color-outline-variant: var(--color-tone-200);
+  --radius: 0.5rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.75rem;
+}
+
+/* Thẻ trắng: viền mảnh + bóng rất nhẹ theo màu chủ đạo, như các ô trên Tổng quan. */
+.theme-soft .bg-surface-container-lowest.shadow-sm,
+.theme-soft .bg-surface-container-lowest.shadow-md {
+  border: 1px solid var(--color-tone-200);
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 12px
+    color-mix(in srgb, var(--color-brand-600) 6%, transparent);
+}
+
+/* Thanh chọn màu ở Cài đặt: nền cầu vồng đặt inline, nút kéo tròn trắng. */
+.hue-slider {
+  appearance: none;
+  height: 14px;
+  border-radius: 9999px;
+  cursor: pointer;
+}
+
+.hue-slider::-moz-range-track {
+  background: transparent;
+}
+
+.hue-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: #ffffff;
+  border: 3px solid var(--color-brand-600);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.3);
+}
+
+.hue-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #ffffff;
+  border: 3px solid var(--color-brand-600);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.3);
+}
+
+.hue-slider:focus-visible {
+  outline: 2px solid var(--color-brand-600);
+  outline-offset: 4px;
 }

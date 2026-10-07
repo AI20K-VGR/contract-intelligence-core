@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react'
-import { ApiError } from '../api/client'
 import {
   listDossierQueries,
   QUERY_HISTORY_PAGE,
   type QueryHistoryItem,
-  type QueryScope,
 } from '../api/queries'
 import { structureErrorMessage } from '../api/structure'
 import { MaterialIcon } from './icons'
@@ -30,7 +28,7 @@ function formatWhen(value: string) {
 }
 
 function failureText(item: QueryHistoryItem) {
-  if (item.errorCode) return `AI2 lỗi (${item.errorCode}). Chưa có câu trả lời.`
+  if (item.errorCode) return `AI chưa trả lời được câu này (mã ${item.errorCode}).`
   return 'Chưa có câu trả lời được lưu.'
 }
 
@@ -39,19 +37,18 @@ export function QueryHistoryPanel({
   refreshKey,
   onReuse,
 }: QueryHistoryPanelProps) {
-  const [scope, setScope] = useState<QueryScope>('mine')
   const [items, setItems] = useState<QueryHistoryItem[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
     setLoading(true)
     setError(null)
     listDossierQueries(dossierId, {
-      scope,
+      // Chỉ câu hỏi của chính người dùng; không xem được của người khác.
+      scope: 'mine',
       limit: QUERY_HISTORY_PAGE,
       offset: 0,
       signal: controller.signal,
@@ -63,25 +60,20 @@ export function QueryHistoryPanel({
       })
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return
-        if (scope === 'all' && cause instanceof ApiError && cause.status === 403) {
-          setNotice('Chỉ chủ hồ sơ hoặc quản trị viên xem được câu hỏi của mọi người.')
-          setScope('mine')
-          return
-        }
         setError(structureErrorMessage(cause) ?? 'Không tải được lịch sử hỏi đáp.')
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
       })
     return () => controller.abort()
-  }, [dossierId, scope, refreshKey])
+  }, [dossierId, refreshKey])
 
   async function loadMore() {
     if (loading) return
     setLoading(true)
     try {
       const page = await listDossierQueries(dossierId, {
-        scope,
+        scope: 'mine',
         limit: QUERY_HISTORY_PAGE,
         offset: items.length,
       })
@@ -99,42 +91,10 @@ export function QueryHistoryPanel({
       aria-label="Lịch sử hỏi đáp"
       className="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm space-y-space-md"
     >
-      <div className="flex flex-wrap items-center justify-between gap-space-sm">
-        <h2 className="font-title-sm text-title-sm text-primary uppercase tracking-wider">
-          Lịch sử hỏi đáp
-        </h2>
-        <div className="flex gap-space-xs" role="group" aria-label="Phạm vi">
-          {(
-            [
-              ['mine', 'Của tôi'],
-              ['all', 'Mọi người'],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              aria-pressed={scope === value}
-              className={`h-8 px-space-md rounded-full font-label-sm text-label-sm ${
-                scope === value
-                  ? 'bg-primary text-on-primary'
-                  : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
-              }`}
-              type="button"
-              onClick={() => {
-                setNotice(null)
-                setScope(value)
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <h2 className="font-title-sm text-title-sm text-primary uppercase tracking-wider">
+        Lịch sử hỏi đáp
+      </h2>
 
-      {notice ? (
-        <p className="font-label-sm text-label-sm text-on-surface-variant">
-          {notice}
-        </p>
-      ) : null}
       {error ? (
         <p className="font-label-sm text-label-sm text-error" role="alert">
           {error}

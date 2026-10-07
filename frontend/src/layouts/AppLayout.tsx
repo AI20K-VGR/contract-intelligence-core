@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   dossiersLabel,
   dossiersPath,
@@ -8,8 +8,14 @@ import {
 import { useAuth } from '../auth/useAuth'
 import { AccountMenu } from '../components/AccountMenu'
 import { MaterialIcon } from '../components/icons'
+import { NotificationBell } from '../components/NotificationBell'
 import { SidebarLogout } from '../components/SidebarLogout'
-import { PageTitleProvider, useCurrentPageTitle } from '../hooks/usePageTitle'
+import {
+  PageTitleProvider,
+  useCurrentBreadcrumb,
+  useCurrentPageTitle,
+  type Crumb,
+} from '../hooks/usePageTitle'
 
 /*
  * Vỏ ứng dụng dùng chung cho mọi vai trò: cùng sidebar, header, khoảng cách.
@@ -66,6 +72,21 @@ function navItemsFor(role: UserRole): NavItem[] {
   return shared
 }
 
+/** Trang dùng giao diện mới theo màu chủ đạo ở Cài đặt (lớp theme-soft trong index.css). */
+const MONO_PAGES = [
+  '/tong-quan',
+  '/ho-so',
+  '/ho-so-cua-toi',
+  '/quyen-truy-cap',
+  '/nhat-ky-hoat-dong',
+  '/nguoi-dung-phan-quyen',
+  '/cai-dat',
+  '/admin/monitoring',
+]
+
+/** Trang có mã hồ sơ trong đường dẫn: so theo phần đầu. */
+const MONO_PAGE_PREFIXES = ['/cau-truc/']
+
 /** Các trang con của luồng hồ sơ: vẫn sáng mục "Hồ sơ" trên sidebar. */
 function inDossierSection(pathname: string, role: AppRole) {
   return (
@@ -74,6 +95,7 @@ function inDossierSection(pathname: string, role: AppRole) {
     ) ||
     pathname.startsWith('/tien-trinh-phan-tich') ||
     pathname.startsWith('/cau-truc/') ||
+    pathname.startsWith('/lich-su-hoi-dap/') ||
     pathname.startsWith('/ocr/') ||
     pathname.startsWith('/xac-nhan-manifest')
   )
@@ -81,6 +103,8 @@ function inDossierSection(pathname: string, role: AppRole) {
 
 function HeaderPageTitle() {
   const title = useCurrentPageTitle()
+  const crumbs = useCurrentBreadcrumb()
+  if (crumbs?.length) return <HeaderBreadcrumb crumbs={crumbs} />
   if (!title) return null
   return (
     <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight">
@@ -89,12 +113,56 @@ function HeaderPageTitle() {
   )
 }
 
+/** Đường dẫn một dòng thay cho tiêu đề, vd. Hồ sơ › abc › Cấu trúc cây. */
+function HeaderBreadcrumb({ crumbs }: { crumbs: Crumb[] }) {
+  return (
+    <nav aria-label="Đường dẫn" className="mr-space-md min-w-0">
+      <ol className="flex min-w-0 items-center gap-1.5 font-headline-lg text-headline-lg tracking-tight">
+        {crumbs.map((crumb, index) => {
+          const first = index === 0
+          const last = index === crumbs.length - 1
+          return (
+            <li
+              key={`${index}-${crumb.label}`}
+              // Tên hồ sơ dài thì cắt tên, giữ nguyên mục đầu và mục cuối.
+              className={`flex items-center gap-1.5 ${first || last ? 'shrink-0' : 'min-w-0'}`}
+            >
+              {first ? null : (
+                <MaterialIcon
+                  name="chevron_right"
+                  className="shrink-0 text-[22px] text-outline"
+                />
+              )}
+              {last ? (
+                <h1 aria-current="page" className="truncate text-on-surface">
+                  {crumb.label}
+                </h1>
+              ) : crumb.to ? (
+                <Link
+                  className="truncate font-normal text-on-surface-variant transition-colors hover:text-primary"
+                  to={crumb.to}
+                >
+                  {crumb.label}
+                </Link>
+              ) : (
+                <span className="truncate font-normal text-on-surface-variant">
+                  {crumb.label}
+                </span>
+              )}
+            </li>
+          )
+        })}
+      </ol>
+    </nav>
+  )
+}
+
 function navClassName(isActive: boolean) {
   return [
-    'flex items-center gap-space-md px-space-md py-space-sm rounded transition-colors whitespace-nowrap',
+    'flex items-center gap-space-md px-space-md py-2 rounded-[8px] text-[14px] transition-colors whitespace-nowrap',
     isActive
-      ? 'bg-inverse-surface text-surface font-title-sm text-body-md'
-      : 'text-surface-container-highest hover:bg-tertiary-container hover:text-surface font-body-md text-body-md',
+      ? 'bg-white text-brand-700 font-medium shadow-[0_1px_3px_rgba(0,0,0,0.06)]'
+      : 'text-tone-600 hover:bg-brand-100 hover:text-tone-900',
   ].join(' ')
 }
 
@@ -107,6 +175,9 @@ export function AppLayout({ role }: { role: AppRole }) {
   const dossiersTo = dossiersPath(role)
   const dossierSection = inDossierSection(location.pathname, role)
   const structurePage = location.pathname.startsWith('/cau-truc/')
+  const mono =
+    MONO_PAGES.includes(location.pathname) ||
+    MONO_PAGE_PREFIXES.some((prefix) => location.pathname.startsWith(prefix))
   const fillViewport =
     structurePage ||
     location.pathname === '/doi-soat-xung-dot' ||
@@ -115,35 +186,37 @@ export function AppLayout({ role }: { role: AppRole }) {
   return (
     <PageTitleProvider>
       <div
-        className={`bg-background font-body-md text-on-surface antialiased ${
+        className={`bg-background font-body-md text-on-surface antialiased ${mono ? 'theme-soft' : ''} ${
           fillViewport ? 'h-screen overflow-hidden' : 'min-h-screen'
         }`}
       >
         <aside
           aria-label="Điều hướng chính"
-          className="fixed left-0 top-0 h-full w-64 bg-primary-container text-surface flex flex-col z-50 shadow-[0_1px_8px_rgba(0,0,0,0.08)]"
+          className="fixed left-0 top-0 h-full w-64 bg-brand-50 text-tone-900 border-r border-brand-100 flex flex-col z-50"
         >
           <div className="h-16 flex items-center px-space-lg gap-space-sm">
-            <MaterialIcon
-              name="shield"
-              className="text-primary-fixed text-[22px]"
-            />
+            <span className="w-8 h-8 rounded-[8px] bg-brand-100 flex items-center justify-center shrink-0">
+              <MaterialIcon
+                name="shield"
+                className="text-brand-700 text-[18px]"
+              />
+            </span>
             <div className="flex flex-col">
-              <span className="font-label-md text-label-md tracking-wider text-surface uppercase">
+              <span className="text-[13px] font-semibold tracking-wide text-tone-900 uppercase">
                 LEXIS INTELLIGENCE
               </span>
-              <span className="font-label-sm text-label-sm text-on-primary-container uppercase">
+              <span className="text-[11px] text-tone-500 uppercase tracking-wide">
                 Enterprise Legal AI
               </span>
             </div>
           </div>
 
           <div className="px-space-md py-space-xs">
-            <div className="bg-tertiary-container/60 rounded px-space-md py-space-xs flex items-center justify-between">
-              <span className="font-label-sm text-label-sm text-surface-variant flex items-center gap-1">
+            <div className="bg-brand-100 rounded-[8px] px-space-md py-1.5 flex items-center justify-between">
+              <span className="text-[12px] text-tone-600 flex items-center gap-1">
                 <MaterialIcon
                   name="verified_user"
-                  className="text-[14px] text-emerald-400"
+                  className="text-[14px] text-[#1f9d6b]"
                 />
                 SOC2 Type II Active
               </span>
@@ -155,7 +228,7 @@ export function AppLayout({ role }: { role: AppRole }) {
               item.section && item.section !== navItems[index - 1]?.section ? (
                 <p
                   key={`section-${item.section}`}
-                  className="mt-space-md px-space-md pb-1 font-label-sm text-label-sm uppercase tracking-wider text-on-primary-container"
+                  className="mt-space-md px-space-md pb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-tone-400"
                 >
                   {item.section}
                 </p>
@@ -174,7 +247,7 @@ export function AppLayout({ role }: { role: AppRole }) {
                 }}
               >
                 <span className="flex items-center gap-space-md">
-                  <MaterialIcon name={item.icon} className="text-[20px]" />
+                  <MaterialIcon name={item.icon} className="text-[18px]" />
                   <span>{item.label}</span>
                 </span>
               </NavLink>,
@@ -182,23 +255,19 @@ export function AppLayout({ role }: { role: AppRole }) {
           </nav>
 
           <div className="px-space-sm pb-space-md">
-            <SidebarLogout tone="inverse" />
+            <SidebarLogout tone="light" />
           </div>
         </aside>
 
         <div className={fillViewport ? 'h-full pl-64' : 'pl-64'}>
-          <header className="fixed top-0 left-64 right-0 h-16 bg-surface/90 backdrop-blur-md z-40 flex items-center justify-between px-gutter shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
+          <header className="fixed top-0 left-64 right-0 h-16 bg-white/90 backdrop-blur-md z-40 flex items-center justify-between px-gutter border-b border-tone-200">
             <HeaderPageTitle />
 
             <div className="flex items-center gap-space-md">
-              <button
-                aria-label="Thông báo"
-                className="w-9 h-9 rounded flex items-center justify-center text-secondary hover:bg-surface-container hover:text-on-surface relative transition-colors"
-                type="button"
-              >
-                <MaterialIcon name="notifications" className="text-[20px]" />
-                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-error" />
-              </button>
+              <NotificationBell
+                buttonClassName="w-9 h-9 rounded flex items-center justify-center text-secondary hover:bg-surface-container hover:text-on-surface relative transition-colors"
+                dotClassName="absolute top-2 right-2 w-2 h-2 rounded-full bg-error"
+              />
               <div className="h-5 w-[1px] bg-outline-variant" />
               <AccountMenu
                 gapClassName="gap-space-sm"

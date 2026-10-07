@@ -12,8 +12,7 @@ import type { ClauseNode, ReviewSpot } from '../api/structure'
 import { reviewerLabel } from '../review/reviewerLabel'
 import { reviewErrorMessage } from '../review/saveError'
 import { mergeTimelines, timelineEntries } from '../review/timeline'
-import type { SearchCite } from '../structure/citations'
-import { bodyOf, headOf, nodeLabel } from '../structure/display'
+import { bodyOf, headOf } from '../structure/display'
 import { CitationPane } from './CitationPane'
 import { ConflictNotice } from './ConflictNotice'
 import { MaterialIcon } from './icons'
@@ -61,10 +60,8 @@ export function SearchCitationReview({
   filename,
   node,
   ordinal,
-  related,
   conflicts = NO_CONFLICTS,
   onBack,
-  onPick,
   onOpenConflict,
 }: {
   citeNo: number
@@ -73,11 +70,9 @@ export function SearchCitationReview({
   filename: string | null
   node: ClauseNode
   ordinal: number
-  related: SearchCite[]
   /** Xung đột máy phát hiện neo vào đúng điều khoản này. */
   conflicts?: ReviewSpot[]
   onBack: () => void
-  onPick: (id: string) => void
   onOpenConflict?: (findingId: string) => void
 }) {
   const [verdict, setVerdict] = useState<Verdict>('correct')
@@ -93,7 +88,6 @@ export function SearchCitationReview({
   const head = headOf(node)
   const body = bodyOf(node) || node.text.replace(/\s+/g, ' ').trim()
   const page = node.pageStart || node.regions[0]?.pageNo || 1
-  const others = related.filter((item) => item.id !== node.id)
   const latest = review?.latest ?? null
   const locked = review?.dossierLocked ?? false
   const conflictKey = conflicts.map((spot) => spot.id).join('|')
@@ -326,7 +320,7 @@ export function SearchCitationReview({
                 </span>
               ) : null}
               <button
-                className="inline-flex items-center gap-1 rounded bg-primary px-3 py-1 font-label-sm text-label-sm font-semibold text-on-primary disabled:opacity-50"
+                className="inline-flex items-center gap-1 rounded bg-brand-100 px-3 py-1 font-label-sm text-label-sm font-semibold text-brand-700 hover:bg-brand-200 disabled:opacity-50"
                 type="button"
                 disabled={loading || saving || locked}
                 onClick={() => void save()}
@@ -377,52 +371,6 @@ export function SearchCitationReview({
             ) : null}
             <ReviewTimeline entries={timeline} />
           </section>
-          <section className="rounded bg-surface-container-lowest p-space-sm shadow-sm">
-            <div className="flex items-center justify-between px-1">
-              <span className="font-label-sm text-label-sm font-semibold uppercase text-secondary">
-                Trích dẫn liên đới
-              </span>
-              <span className="font-code-sm text-code-sm text-secondary">
-                {related.length} điều khoản
-              </span>
-            </div>
-            <button
-              className="mt-1 flex w-full items-center justify-between rounded bg-surface-container-low px-2 py-1 text-left"
-              type="button"
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="flex h-4 min-w-4 items-center justify-center rounded bg-primary-container text-[10px] font-bold text-on-primary">
-                  {citeNo}
-                </span>
-                <span className="truncate font-body-sm text-body-sm font-medium text-on-surface">
-                  {nodeLabel(node)}
-                </span>
-              </span>
-              <span className="ml-2 shrink-0 font-label-sm text-label-sm font-semibold text-[#059669]">
-                Hiện tại
-              </span>
-            </button>
-            {others.map((item) => (
-              <button
-                key={item.id}
-                className="mt-1 flex w-full items-center justify-between rounded px-2 py-1 text-left text-on-surface-variant hover:bg-surface-container-low"
-                type="button"
-                onClick={() => onPick(item.id)}
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="flex h-4 min-w-4 items-center justify-center rounded bg-surface-container-high text-[10px] font-bold text-on-surface">
-                    {item.n}
-                  </span>
-                  <span className="truncate font-body-sm text-body-sm">
-                    Trích dẫn {item.n}
-                  </span>
-                </span>
-                <span className="ml-2 shrink-0 font-label-sm text-label-sm text-secondary">
-                  Mở
-                </span>
-              </button>
-            ))}
-          </section>
         </div>
         <div className="flex min-h-[480px] overflow-hidden rounded bg-surface-container-lowest shadow-sm lg:col-span-7">
           <CitationPane
@@ -465,7 +413,7 @@ function VerdictButton({
     <button
       className={`flex items-center justify-center gap-1 rounded px-1 py-1 font-label-sm text-label-sm ${
         active
-          ? 'bg-primary-container font-semibold text-on-primary shadow-sm'
+          ? 'bg-brand-100 font-semibold text-brand-700 shadow-sm ring-1 ring-brand-200'
           : 'bg-surface-container font-medium text-on-surface-variant hover:bg-surface-container-high'
       }`}
       type="button"
