@@ -1463,7 +1463,7 @@ async def search_dossier(
         citations=list(filtered.get("citations") or filtered.get("hits") or []),
         acl=acl,
         latency_ms=latency_ms,
-        answer=dto.answer or "",
+        answer=dto.answer,
     )
     return ApiResponse(data=dto)
 
