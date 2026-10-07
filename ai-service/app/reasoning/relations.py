@@ -16,11 +16,11 @@ from app.contracts.models import (
     ReviewState,
 )
 from app.pipeline.citations import CitationResolver, quote_digest
+from app.pipeline.relation_markers import defined_term, has_amend_marker
 from app.tools.store import DossierRecord
 
 CLAUSE_RE = re.compile(r"(?:điều|dieu|article)\s+(\d+(?:\.\d+)?)", re.I)
 ANNEX_RE = re.compile(r"(?:phụ lục|phu luc|annex)\s+(\d+)", re.I)
-AMEND_RE = re.compile(r"(sửa|sua doi|amends?|điều chỉnh)", re.I)
 
 
 def attach_ancestors(outline: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -92,7 +92,7 @@ def related_node_ids(seed_ids: list[str], outline: list[dict[str, Any]]) -> tupl
                         "right_side": side,
                     }
                 )
-            if AMEND_RE.search(blob) and side != "Thân HĐ":
+            if has_amend_marker(blob) and side != "Thân HĐ":
                 rels.append({"type": "AMENDS", "clause": k, "from": nid, "side": side})
     return extra[:8], rels[:12]
 
@@ -337,14 +337,6 @@ _REFERENCE_PATTERNS = (
     ("ANNEX", re.compile("(?:ph\\u1ee5\\s+l\\u1ee5c|phu luc|annex)\\s+(\\d+)", re.I)),
     ("CLAUSE", re.compile("(?:\\u0111i\\u1ec1u|dieu|article)\\s+(\\d+(?:\\.\\d+)?)", re.I)),
 )
-_DEFINE_RE = re.compile(
-    "(?:\\u0111\\u1ecbnh ngh\\u0129a|dinh nghia|defined as|c\\u00f3 ngh\\u0129a l\\u00e0|co nghia la|shall mean)"
-    r"\\s*[:\\-]?\\s*[\\\"“]?([^\\\"”\\.;\\n]{2,100})",
-    re.I,
-)
-_DEFINE_ASCII_RE = re.compile(r'(?:dinh nghia|defined as|co nghia la|shall mean)\s*[:\-]?\s*["“]?([^"”\.;\n]{2,100})', re.I)
-
-
 def build_relation_graph(record: DossierRecord) -> RelationGraph:
     """Build a bounded, evidence-linked graph from one pinned snapshot."""
 
@@ -505,10 +497,9 @@ def build_relation_graph(record: DossierRecord) -> RelationGraph:
 
     for definition in evidence_nodes:
         definition_blob = f"{definition.raw_label}\n{definition.text}"
-        match = _DEFINE_RE.search(definition_blob) or _DEFINE_ASCII_RE.search(_normalize_relation_text(definition_blob))
-        if not match:
+        term = defined_term(definition_blob)
+        if not term:
             continue
-        term = match.group(1).strip(" \\t\\\"“”'()")
         term_id = "term:" + hashlib.sha256(
             f"{digest}|{definition.node_id}|{term.casefold()}".encode("utf-8")
         ).hexdigest()[:24]
@@ -616,8 +607,7 @@ def _graph_issue(digest: str, missing: str, citation: Citation) -> EvidenceIssue
 
 
 def _has_amend_marker(value: str) -> bool:
-    normalized = _normalize_relation_text(value)
-    return bool(AMEND_RE.search(value) or re.search(r"(?:sua|thay the|dieu chinh|amend)", normalized, re.I))
+    return has_amend_marker(value) or has_amend_marker(_normalize_relation_text(value))
 
 
 def _is_heading_reference(node: Any, reference: str) -> bool:

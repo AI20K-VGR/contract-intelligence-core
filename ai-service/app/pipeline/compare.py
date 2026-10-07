@@ -15,8 +15,8 @@ from app.contracts.models import (
     ModelDisposition,
     ReviewState,
 )
+from app.pipeline.relation_markers import has_amend_marker
 
-AMEND_RE = re.compile(r"sửa|sua doi|thay thế|thành\s+|amends?", re.I)
 ANNEX_REF_RE = re.compile(r"(?:phụ lục|phu luc)\s+(\d+)", re.I)
 
 
@@ -327,7 +327,7 @@ def _pair(left: Fact, right: Fact, item: str) -> Candidate | None:
     cite_blob = f"{right.citation.text_span} {left.citation.text_span} {right.raw_value} {left.raw_value}"
     if str(item).startswith("penalty") or str(item) in {"A", "B"}:
         cite_blob += f" {right.subject or ''} {left.subject or ''}"
-    is_amend = bool(AMEND_RE.search(cite_blob))
+    is_amend = has_amend_marker(cite_blob)
     left_period, right_period = left.period_start, right.period_start
     if is_amend and scope != ComparisonScope.ANNEX_ANNEX:
         return _cand(
