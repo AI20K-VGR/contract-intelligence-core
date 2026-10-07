@@ -3,16 +3,28 @@ import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { loadDocumentPdf, type ClauseNode } from '../api/structure'
 import {
-  confidenceBadgeClasses,
+  AUTO_ACCEPT_THRESHOLD,
   confidenceBoxClasses,
   confidenceLabels,
   confidenceLevel,
   formatConfidence,
   needsReview,
+  REVIEW_THRESHOLD,
+  type ConfidenceLevel,
 } from '../structure/confidence'
 import { MaterialIcon } from './icons'
 
 GlobalWorkerOptions.workerSrc = workerUrl
+
+const high = Math.round(AUTO_ACCEPT_THRESHOLD * 100)
+const review = Math.round(REVIEW_THRESHOLD * 100)
+
+/** Chú thích màu khung OCR: chấm màu + mức tin cậy. */
+const LEGEND: { level: ConfidenceLevel; dot: string; range: string }[] = [
+  { level: 'high', dot: 'bg-emerald-600', range: `≥ ${high}%` },
+  { level: 'medium', dot: 'bg-amber-500', range: `${review}–${high - 1}%` },
+  { level: 'low', dot: 'bg-red-600', range: `< ${review}%` },
+]
 
 export function CitationPane({
   documentId,
@@ -42,6 +54,7 @@ export function CitationPane({
   const [pageNo, setPageNo] = useState(pages[0] ?? 1)
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
+  const [showBoxes, setShowBoxes] = useState(true)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
@@ -141,8 +154,8 @@ export function CitationPane({
                   key={page}
                   className={`h-7 min-w-7 rounded-full px-2 text-xs font-semibold ${
                     page === pageNo
-                      ? 'bg-[#0b1f3a] text-white'
-                      : 'bg-slate-100 text-slate-700'
+                      ? 'bg-brand-100 text-brand-700 ring-1 ring-brand-200'
+                      : 'bg-tone-100 text-tone-700'
                   }`}
                   type="button"
                   onClick={() => setPageNo(page)}
@@ -154,7 +167,7 @@ export function CitationPane({
           ) : null}
           {onClose ? (
             <button
-              className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-tone-500 hover:bg-tone-100"
               type="button"
               onClick={onClose}
             >
@@ -164,39 +177,67 @@ export function CitationPane({
         </div>
       </div>
       {banner}
-      <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-4">
+      {boxes.length > 0 ? (
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-outline-variant/20 px-4 py-1.5 text-xs text-on-surface-variant">
+          <ul
+            aria-label="Mức tin cậy OCR"
+            className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${showBoxes ? '' : 'opacity-50'}`}
+          >
+            {LEGEND.map((item) => (
+              <li key={item.level} className="flex items-center gap-1.5">
+                <span className={`h-2 w-2 rounded-full ${item.dot}`} />
+                {confidenceLabels[item.level]} {item.range}
+              </li>
+            ))}
+          </ul>
+          <button
+            aria-checked={showBoxes}
+            className="flex items-center gap-2 font-medium text-on-surface"
+            role="switch"
+            type="button"
+            onClick={() => setShowBoxes((current) => !current)}
+          >
+            Khung OCR
+            <span
+              className={`relative h-4 w-7 rounded-full transition-colors ${showBoxes ? 'bg-brand-600' : 'bg-tone-300'}`}
+            >
+              <span
+                className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-all ${showBoxes ? 'left-3.5' : 'left-0.5'}`}
+              />
+            </span>
+          </button>
+        </div>
+      ) : null}
+      <div className="min-h-0 flex-1 overflow-auto bg-tone-100 p-4">
         {error ? <p className="mb-3 text-sm text-red-700">{error}</p> : null}
         {!ready && !error ? (
-          <p className="mb-3 text-sm text-slate-500">Đang mở trang hợp đồng…</p>
+          <p className="mb-3 text-sm text-tone-500">Đang mở trang hợp đồng…</p>
         ) : null}
         <div
           className={`relative mx-auto w-full max-w-3xl bg-white shadow ${ready ? '' : 'hidden'}`}
         >
           <canvas ref={canvasRef} className="block h-auto w-full" />
-          {boxes.map((region, index) => {
+          {(showBoxes ? boxes : []).map((region, index) => {
             const confidence = region.confidence ?? null
             const level = confidence === null ? null : confidenceLevel(confidence)
             return (
               <div
                 key={`${region.pageNo}-${index}`}
-                className={`pointer-events-none absolute border-2 ${
+                className={`absolute border-2 ${
                   level ? confidenceBoxClasses[level] : 'border-amber-500 bg-amber-300/40'
                 }`}
+                title={
+                  level && confidence !== null
+                    ? `OCR ${formatConfidence(confidence)} · ${confidenceLabels[level]}`
+                    : undefined
+                }
                 style={{
                   left: `${region.bbox[0] * 100}%`,
                   top: `${region.bbox[1] * 100}%`,
                   width: `${(region.bbox[2] - region.bbox[0]) * 100}%`,
                   height: `${(region.bbox[3] - region.bbox[1]) * 100}%`,
                 }}
-              >
-                {level && confidence !== null ? (
-                  <span
-                    className={`absolute bottom-full left-0 mb-px whitespace-nowrap rounded-sm px-1 text-[10px] font-semibold leading-4 ${confidenceBadgeClasses[level]}`}
-                  >
-                    OCR {formatConfidence(confidence)} · {confidenceLabels[level]}
-                  </span>
-                ) : null}
-              </div>
+              />
             )
           })}
         </div>

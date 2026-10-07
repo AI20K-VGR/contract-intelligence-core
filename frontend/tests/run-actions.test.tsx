@@ -63,7 +63,7 @@ describe('search audit blocked state', () => {
       'dos_1',
     )
     const html = renderToStaticMarkup(<SearchAudit result={result} />)
-    expect(html).toContain('BLOCKED')
+    expect(html).toContain('chưa được phép đọc hồ sơ')
     expect(html).not.toContain('không tìm thấy đoạn nào')
   })
 })

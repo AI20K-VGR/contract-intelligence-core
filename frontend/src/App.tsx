@@ -16,6 +16,7 @@ import { AnalysisProgressPage } from './pages/AnalysisProgressPage'
 import { CreateDossierPage } from './pages/CreateDossierPage'
 import { DossierStructurePage } from './pages/DossierStructurePage'
 import { OcrProgressPage } from './pages/OcrProgressPage'
+import { QueryHistoryPage } from './pages/QueryHistoryPage'
 import { ManifestConfirmPage } from './pages/ManifestConfirmPage'
 import { DossierReviewPage } from './pages/DossierReviewPage'
 import { CitationComparePage } from './pages/CitationComparePage'
@@ -117,6 +118,10 @@ export default function App() {
               <Route
                 path="/cau-truc/:dossierId"
                 element={<DossierStructurePage />}
+              />
+              <Route
+                path="/lich-su-hoi-dap/:dossierId"
+                element={<QueryHistoryPage />}
               />
               <Route path="/ocr/:dossierId" element={<OcrProgressPage />} />
               <Route

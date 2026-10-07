@@ -17,7 +17,7 @@
                     <li class="lexis-step-line" aria-hidden="true"></li>
                     <li class="lexis-step lexis-step-current" aria-current="step">
                         <span class="lexis-step-index" aria-hidden="true">2</span>
-                        <span class="lexis-step-label">Mật khẩu</span>
+                        <span class="lexis-step-label">SSO</span>
                     </li>
                 </ol>
                 <div class="lexis-field">

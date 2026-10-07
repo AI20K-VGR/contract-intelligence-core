@@ -1,10 +1,14 @@
 import { useMemo, type ReactNode } from 'react'
 import type { ClauseNode, DossierSearchHit } from '../api/structure'
-import { searchCites, type SearchCite } from '../structure/citations'
+import {
+  searchCites,
+  sentenceEnd,
+  type SearchCite,
+} from '../structure/citations'
 import { branchMap, toneAt } from '../structure/display'
 import { CiteBadge } from './StructureViewShell'
 
-/** Vị trí hết dòng chứa đoạn khớp. Số đứng sau cả câu trích, không đứng sau nhãn đầu dòng. */
+/** Vị trí đặt số trích dẫn cho đoạn khớp: hết câu chứa đoạn đó. */
 function locateEnd(answer: string, needle: string): number {
   const normalizedNeedle = needle.replace(/\s+/g, ' ').trim().toLowerCase()
   if (!normalizedNeedle) return answer.length
@@ -29,8 +33,7 @@ function locateEnd(answer: string, needle: string): number {
     at < 0
       ? answer.length
       : (ends[at + normalizedNeedle.length - 1] ?? answer.length)
-  const lineEnd = answer.indexOf('\n', matchEnd)
-  return lineEnd < 0 ? answer.length : lineEnd
+  return sentenceEnd(answer, matchEnd)
 }
 
 /** OCR trả về từng dòng; câu trả lời hiện thành một đoạn, không giữ ngắt dòng đó. */

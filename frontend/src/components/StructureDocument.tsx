@@ -347,7 +347,7 @@ function Section({
             <ConflictBadge marker={marker} />
           ) : null}
           {pages ? (
-            <span className="font-mono text-[10px] text-slate-400">
+            <span className="font-mono text-[10px] text-tone-400">
               {pages}
             </span>
           ) : null}
@@ -359,7 +359,7 @@ function Section({
           />
           <MaterialIcon
             name="open_in_new"
-            className="text-[14px] text-slate-300 opacity-0 transition-opacity group-hover:opacity-100"
+            className="text-[14px] text-tone-300 opacity-0 transition-opacity group-hover:opacity-100"
           />
         </span>
       </div>

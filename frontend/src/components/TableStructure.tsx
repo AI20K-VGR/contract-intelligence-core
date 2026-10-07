@@ -224,8 +224,8 @@ export function TableStructure({
               <button
                 className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full border px-1 text-[11px] font-semibold leading-none ${
                   activeId === table.id
-                    ? 'border-[#0b1f3a] bg-[#0b1f3a] text-white'
-                    : 'border-slate-300 bg-white text-slate-700 hover:border-slate-500'
+                    ? 'border-brand-300 bg-brand-100 text-brand-700'
+                    : 'border-tone-300 bg-white text-tone-700 hover:border-tone-500'
                 }`}
                 type="button"
                 onClick={() => onCite(tableNode(table, index + 1), index + 1)}

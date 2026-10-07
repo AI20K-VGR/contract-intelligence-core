@@ -18,6 +18,11 @@ const toneClass = {
     button:
       'text-surface-container-highest transition-colors hover:bg-tertiary-container hover:text-surface',
   },
+  light: {
+    role: 'bg-brand-100 text-tone-600 text-[14px]',
+    button:
+      'text-tone-600 text-[14px] transition-colors hover:bg-brand-100 hover:text-tone-900',
+  },
   surface: {
     role: 'bg-surface-container-high text-on-surface',
     button:

@@ -237,7 +237,7 @@ export function UsersPage() {
           </p>
         </div>
         <button
-          className="flex items-center gap-space-xs px-space-lg py-2 rounded bg-primary-container text-on-primary hover:bg-inverse-surface transition-colors shadow-sm font-label-md text-label-md self-start md:self-auto"
+          className="flex items-center gap-space-xs px-space-lg py-2 rounded bg-brand-100 text-brand-700 hover:bg-brand-200 transition-colors shadow-sm font-label-md text-label-md self-start md:self-auto"
           type="button"
           onClick={() => setCreateOpen(true)}
         >
@@ -499,7 +499,7 @@ function UserRow({
           <div
             className={`w-8 h-8 rounded-full flex items-center justify-center font-title-sm text-title-sm font-semibold shrink-0 ${
               member.role === 'ADMINISTRATOR'
-                ? 'bg-primary-container text-on-primary'
+                ? 'bg-brand-200 text-brand-800'
                 : 'bg-surface-container text-secondary'
             } ${muted ? 'opacity-60' : ''}`}
           >
@@ -841,7 +841,7 @@ function CreateUserDialog({
             Hủy
           </button>
           <button
-            className="px-space-lg py-2 rounded bg-primary-container text-on-primary hover:bg-inverse-surface font-label-md text-label-md disabled:opacity-70"
+            className="px-space-lg py-2 rounded bg-brand-100 text-brand-700 hover:bg-brand-200 font-label-md text-label-md disabled:opacity-70"
             type="submit"
             disabled={saving}
           >
@@ -928,7 +928,7 @@ function ConfirmDialog({
             Hủy
           </button>
           <button
-            className="px-space-lg py-2 rounded bg-primary-container text-on-primary hover:bg-inverse-surface font-label-md text-label-md disabled:opacity-70"
+            className="px-space-lg py-2 rounded bg-brand-100 text-brand-700 hover:bg-brand-200 font-label-md text-label-md disabled:opacity-70"
             type="button"
             onClick={onConfirm}
             disabled={busy}

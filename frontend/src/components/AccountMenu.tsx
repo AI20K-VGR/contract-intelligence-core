@@ -22,8 +22,8 @@ export function AccountMenu({
         <span className={nameClassName}>{user.name}</span>
         <span className={emailClassName}>{user.email}</span>
       </div>
-      <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
-        <MaterialIcon name="person" className="text-on-primary text-[18px]" />
+      <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+        <MaterialIcon name="person" className="text-brand-700 text-[18px]" />
       </div>
     </div>
   )
