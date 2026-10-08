@@ -2,7 +2,7 @@
 id: 261007-1735-ai2-contract-graph-op-first
 title: "AI2 contract graph - luong 1 operation-first"
 description: "Đồ thị cạnh sửa đổi (INSERTION/SUBSTITUTION/REPEAL/REJECTION/SCOPE_LIMIT) deterministic, sau flag tắt mặc định, đo trên bộ VBHN, gửi BE dưới dạng AMENDS."
-status: in_progress
+status: completed
 priority: P2
 effort: "~6 ngày công (P1 1,5 · P2 1 · P3 2 · P4 1,5)"
 mode: hard

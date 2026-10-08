@@ -16,16 +16,12 @@
     },
     {
       "name": "postgres_migration",
-      "status": "BLOCKED"
+      "status": "PASS"
     }
   ],
   "verdict": "PASS",
   "phase": "P4",
   "actor": "user:unknown",
-  "ts": "2026-10-08T05:04:39+00:00",
-  "blastRadius": {
-    "unavailable": true,
-    "reason": "no codemap.yaml at C:\\Users\\dungtv62\\Documents\\VSF\\contract-intelligence-develop"
-  },
+  "ts": "2026-10-08T05:26:58+00:00",
   "run_seq": null
 }
