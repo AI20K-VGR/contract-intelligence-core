@@ -1,0 +1,722 @@
+{
+ "clusters": [
+  {
+   "cluster_id": "cl-0fa3021b56",
+   "doc_ids": [
+    "pd-b300e5ad70"
+   ],
+   "split": "dev"
+  },
+  {
+   "cluster_id": "cl-1027a3caf6",
+   "doc_ids": [
+    "pd-bf1d9346b4"
+   ],
+   "split": "dev"
+  },
+  {
+   "cluster_id": "cl-4637ce270e",
+   "doc_ids": [
+    "pd-ae9bb69ee7"
+   ],
+   "split": "dev"
+  },
+  {
+   "cluster_id": "cl-61cf8fa90c",
+   "doc_ids": [
+    "pd-e0d65645f2"
+   ],
+   "split": "dev"
+  },
+  {
+   "cluster_id": "cl-66c3003368",
+   "doc_ids": [
+    "pd-1e78e105fc"
+   ],
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-6ef7261d72",
+   "doc_ids": [
+    "pd-b6d8628d32"
+   ],
+   "split": "dev"
+  },
+  {
+   "cluster_id": "cl-79aeaf564f",
+   "doc_ids": [
+    "pd-2e28a08bfa"
+   ],
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-7e7b2d2767",
+   "doc_ids": [
+    "pd-43cd896d78"
+   ],
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-827a747788",
+   "doc_ids": [
+    "pd-0cd20d2016"
+   ],
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-8b59038c24",
+   "doc_ids": [
+    "pd-a3a3c94483"
+   ],
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-920467d2f1",
+   "doc_ids": [
+    "pd-0ef7060ac8"
+   ],
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-94f7b2cf53",
+   "doc_ids": [
+    "pd-3d8842533f"
+   ],
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-a00a96d219",
+   "doc_ids": [
+    "pd-1c0f85fee4"
+   ],
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-a1b67a0d3c",
+   "doc_ids": [
+    "pd-21d3913039"
+   ],
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-b8007cde81",
+   "doc_ids": [
+    "pd-fa299625d8"
+   ],
+   "split": "dev"
+  },
+  {
+   "cluster_id": "cl-c2c7bcdf6c",
+   "doc_ids": [
+    "pd-176a825fca"
+   ],
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-c62f273a33",
+   "doc_ids": [
+    "pd-96be63cf8b"
+   ],
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-d10ad02902",
+   "doc_ids": [
+    "pd-eec95ad3b2"
+   ],
+   "split": "dev"
+  },
+  {
+   "cluster_id": "cl-ed52f83937",
+   "doc_ids": [
+    "pd-0dd5942e4e"
+   ],
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-f73dec390c",
+   "doc_ids": [
+    "pd-242e0b7a96"
+   ],
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-f9b79e7bb2",
+   "doc_ids": [
+    "pd-4b7adfd987"
+   ],
+   "split": "heldout"
+  }
+ ],
+ "digest": "sha256 of UTF-8 text with LF line endings",
+ "docs": [
+  {
+   "cluster_id": "cl-827a747788",
+   "contaminated": false,
+   "doc_id": "pd-0cd20d2016",
+   "files": {
+    "doc.json": "96d8898da4647420e8fc5f44650245b08e0403718054003d2d89dde526fecac5",
+    "labels.gpt.jsonl": "7a73a8b0b38676583c290c4d92da2fa6618f25654699a6d476af4da56ff45348",
+    "pool.jsonl": "7f8105eb8862ea6d694a739b1d1887353f880ae2ac1ba1be22b4bc6248064166"
+   },
+   "labels_by_label": {
+    "GENERAL_SPECIFIC": 3,
+    "UNRELATED": 37
+   },
+   "n_articles": 13,
+   "n_nodes": 13,
+   "n_pairs_by_stratum": {
+    "S1": 0,
+    "S2": 0,
+    "S3": 40
+   },
+   "n_unlabeled": 0,
+   "profile": "SUPPLY_SERVICE",
+   "split": "heldout",
+   "url": "https://hoatieu.vn/bieu-mau/mau-hop-dong-thue-don-dep-ve-sinh-177082"
+  },
+  {
+   "cluster_id": "cl-ed52f83937",
+   "contaminated": false,
+   "doc_id": "pd-0dd5942e4e",
+   "files": {
+    "doc.json": "586f15153b5c27bca70ef5be628d10558aeafd7a3b268e8f098cc5d8be936c4f",
+    "labels.gpt.jsonl": "dd60955ac984e278eff3256e99fd8cb198bead90e7705b34d467cf5c6e9528da",
+    "pool.jsonl": "e4e9f14ac8c957ccaf14739cbddbea731c3124ee3b8af81a384e4bd06ff05d40"
+   },
+   "labels_by_label": {
+    "CONFLICT": 1,
+    "GENERAL_SPECIFIC": 5,
+    "UNRELATED": 19
+   },
+   "n_articles": 5,
+   "n_nodes": 8,
+   "n_pairs_by_stratum": {
+    "S1": 1,
+    "S2": 0,
+    "S3": 24
+   },
+   "n_unlabeled": 0,
+   "profile": "SUPPLY_SERVICE",
+   "split": "heldout",
+   "url": "https://hoatieu.vn/bieu-mau/mau-hop-dong-dich-vu-ke-toan-137717"
+  },
+  {
+   "cluster_id": "cl-920467d2f1",
+   "contaminated": false,
+   "doc_id": "pd-0ef7060ac8",
+   "files": {
+    "doc.json": "76e364d56ad6d75f54e43270b38636f8b045ed4a5783aa5abdf74302762f187c",
+    "labels.gpt.jsonl": "bac326620a4ec848768ce3964b91c9e8fe89f4846d24b0e20e8b5bfaad9a6af6",
+    "pool.jsonl": "337115f5d71baaa59211bf2af9fc1a9c9b32839fbd0a0ded78fdd984cfe5724a"
+   },
+   "labels_by_label": {
+    "CONFLICT": 1,
+    "GENERAL_SPECIFIC": 2,
+    "UNRELATED": 37
+   },
+   "n_articles": 15,
+   "n_nodes": 15,
+   "n_pairs_by_stratum": {
+    "S1": 0,
+    "S2": 0,
+    "S3": 40
+   },
+   "n_unlabeled": 0,
+   "profile": "SALES",
+   "split": "heldout",
+   "url": "https://docs.google.com/document/d/1R5IB7PJTcfS8TcCfNlXMmNkAIcLsiIcW/export?format=docx"
+  },
+  {
+   "cluster_id": "cl-c2c7bcdf6c",
+   "contaminated": false,
+   "doc_id": "pd-176a825fca",
+   "files": {
+    "doc.json": "5e432ffbc022e875b88ce602e6e3c4649363c6cfb7c2e3d4cea3613d3c48ffb2",
+    "labels.gpt.jsonl": "3068a476748f3c78b2e48824fee3ea463bb0a7e0d7245d45e863b11c95b0385b",
+    "pool.jsonl": "bf20d6f7c2f7bd86b61be9d5f1c0e45aa678ea1b66eb903495c2846477ac4c62"
+   },
+   "labels_by_label": {
+    "CONFLICT": 12,
+    "DUPLICATE": 2,
+    "GENERAL_SPECIFIC": 9,
+    "UNRELATED": 53
+   },
+   "n_articles": 9,
+   "n_nodes": 36,
+   "n_pairs_by_stratum": {
+    "S1": 36,
+    "S2": 0,
+    "S3": 40
+   },
+   "n_unlabeled": 0,
+   "profile": "SALES",
+   "split": "heldout",
+   "url": "https://docs.google.com/document/d/1MKmp8C_chQSVYHHiqScNqTllHYHa2GEC/export?format=docx"
+  },
+  {
+   "cluster_id": "cl-a00a96d219",
+   "contaminated": false,
+   "doc_id": "pd-1c0f85fee4",
+   "files": {
+    "doc.json": "b95e0f8e8b4ac06375f82fcf2ce95025f72571b09ccdca4cb8e8c0c764178121",
+    "labels.gpt.jsonl": "dd6ce70bc605ce871d0b3516babffafb194b284225386b4697e7ced5a8d85ec5",
+    "pool.jsonl": "8a32e94ad8ebe1d3d165a9290389c16b1e6fe27a89e1ac7b3bcbe132ce3a0fe4"
+   },
+   "labels_by_label": {
+    "CONFLICT": 1,
+    "DUPLICATE": 14,
+    "GENERAL_SPECIFIC": 7,
+    "UNRELATED": 72
+   },
+   "n_articles": 8,
+   "n_nodes": 23,
+   "n_pairs_by_stratum": {
+    "S1": 32,
+    "S2": 22,
+    "S3": 40
+   },
+   "n_unlabeled": 0,
+   "profile": "SALES",
+   "split": "heldout",
+   "url": "https://hoatieu.vn/bieu-mau/hop-dong-cung-cap-hang-hoa-72638"
+  },
+  {
+   "cluster_id": "cl-66c3003368",
+   "contaminated": false,
+   "doc_id": "pd-1e78e105fc",
+   "files": {
+    "doc.json": "c8d8b7750501123df72d1b774b04fb4c8445c835ed8a3bf5c5f95eeac236e2b2",
+    "labels.gpt.jsonl": "a955971f0f328e29ea040dbe0c4b7acfd14a02520dc1d6d4d8427a130baad576",
+    "pool.jsonl": "89ab833854ebe812e92df7193ef62e7d9ef0527719e57bd61d2e3a4592666906"
+   },
+   "labels_by_label": {
+    "UNRELATED": 40
+   },
+   "n_articles": 12,
+   "n_nodes": 12,
+   "n_pairs_by_stratum": {
+    "S1": 0,
+    "S2": 0,
+    "S3": 40
+   },
+   "n_unlabeled": 0,
+   "profile": "SUPPLY_SERVICE",
+   "split": "heldout",
+   "url": "https://docs.google.com/document/d/1YvNJjV3jJdZEdFXEmzlE3DGdWl6oFfkf/export?format=docx"
+  },
+  {
+   "cluster_id": "cl-a1b67a0d3c",
+   "contaminated": false,
+   "doc_id": "pd-21d3913039",
+   "files": {
+    "doc.json": "49a540424725a63869e0f28bb90cbf733f9600f1b1b730786f27ce6eed5be249",
+    "labels.gpt.jsonl": "97dc04bc3479cb5305d260f993e6bd6ac027a485bca4b9033fa86f29be6aeffe",
+    "pool.jsonl": "b24d48dcf48765cc8a0f1bbca9d64aa87195df67f9502c9f2f7a3dfeb3ccd65d"
+   },
+   "labels_by_label": {
+    "DUPLICATE": 5,
+    "UNRELATED": 71
+   },
+   "n_articles": 13,
+   "n_nodes": 24,
+   "n_pairs_by_stratum": {
+    "S1": 36,
+    "S2": 0,
+    "S3": 40
+   },
+   "n_unlabeled": 0,
+   "profile": "SUPPLY_SERVICE",
+   "split": "heldout",
+   "url": "https://luatminhkhue.vn/hop-dong-su-dung-phan-mem-la-gi-mau-hop-dong-su-dung-phan-mem.aspx"
+  },
+  {
+   "cluster_id": "cl-f73dec390c",
+   "contaminated": false,
+   "doc_id": "pd-242e0b7a96",
+   "files": {
+    "doc.json": "8a099f9d343ef4d54c56f081210afec6473fb97ce810dd9cab0374de314bd54b",
+    "labels.gpt.jsonl": "a56ddd3a48a364f653fbb25187bf123f2e118707bc946503de657e9b39b4fb09",
+    "pool.jsonl": "dcefa07d70b2886d49c1d98d9c7051cea783d1534e0b3a4d1b4c789cb207a7fd"
+   },
+   "labels_by_label": {
+    "UNRELATED": 20
+   },
+   "n_articles": 6,
+   "n_nodes": 7,
+   "n_pairs_by_stratum": {
+    "S1": 0,
+    "S2": 0,
+    "S3": 20
+   },
+   "n_unlabeled": 0,
+   "profile": "SALES",
+   "split": "heldout",
+   "url": "https://luatminhkhue.vn/mau-hop-dong-mua-ban-vat-lieu-xay-dung.aspx"
+  },
+  {
+   "cluster_id": "cl-79aeaf564f",
+   "contaminated": false,
+   "doc_id": "pd-2e28a08bfa",
+   "files": {
+    "doc.json": "a6cc82b0f02d20257f07316b1f86b3b7f79f17b3f24b4bb0652533417dbe1ee4",
+    "labels.gpt.jsonl": "51b6d5345d702a6bedb4f442554d55e9caf06143b8f775694ee16242ce861f60",
+    "pool.jsonl": "10f2997a8178cfd9efec810598fbf0730481dd09e5cd326298f84d71484b050f"
+   },
+   "labels_by_label": {
+    "GENERAL_SPECIFIC": 1,
+    "UNRELATED": 40
+   },
+   "n_articles": 12,
+   "n_nodes": 14,
+   "n_pairs_by_stratum": {
+    "S1": 1,
+    "S2": 0,
+    "S3": 40
+   },
+   "n_unlabeled": 0,
+   "profile": "SALES",
+   "split": "heldout",
+   "url": "https://luatminhkhue.vn/mau-hop-dong-thu-mua-nong-san-hang-hoa.aspx"
+  },
+  {
+   "cluster_id": "cl-94f7b2cf53",
+   "contaminated": false,
+   "doc_id": "pd-3d8842533f",
+   "files": {
+    "doc.json": "8b8a2d2e72a5ea26125a464cb6364662dc0cbb22f49b04bdbe303a2784962e8b",
+    "labels.gpt.jsonl": "1ed9ead13beff4f3dea176b8e269f3039af21a3d03c7c195f87a69df6f8d210e",
+    "pool.jsonl": "3499ef5174cabb70fb8e78d21c9f876a03410d8a5f73c2174629688936e2e5d6"
+   },
+   "labels_by_label": {
+    "CONFLICT": 1,
+    "GENERAL_SPECIFIC": 1,
+    "REFERENCE": 1,
+    "UNRELATED": 12
+   },
+   "n_articles": 6,
+   "n_nodes": 6,
+   "n_pairs_by_stratum": {
+    "S1": 0,
+    "S2": 0,
+    "S3": 15
+   },
+   "n_unlabeled": 0,
+   "profile": "SALES",
+   "split": "heldout",
+   "url": "https://docs.google.com/document/d/17lkUFcxABsUqT0KQSUL9Egi6ni1I2S66GU6rEvR3a7U/export?format=docx"
+  },
+  {
+   "cluster_id": "cl-7e7b2d2767",
+   "contaminated": false,
+   "doc_id": "pd-43cd896d78",
+   "files": {
+    "doc.json": "d36d379c1f3d23b26f8a923599eb3176cde317bfff48dd621c5aaa936f383cb9",
+    "labels.gpt.jsonl": "938cf3071ba943c7bbda1412fdd19ee81e05ef3ad6428e626c6315f4801e5b73",
+    "pool.jsonl": "be9d680048072eeba585466ee6593b623c7caa2c7f998e32b2825d5f3df3f6ab"
+   },
+   "labels_by_label": {
+    "CONFLICT": 1,
+    "DUPLICATE": 8,
+    "GENERAL_SPECIFIC": 1,
+    "UNRELATED": 62
+   },
+   "n_articles": 7,
+   "n_nodes": 27,
+   "n_pairs_by_stratum": {
+    "S1": 32,
+    "S2": 0,
+    "S3": 40
+   },
+   "n_unlabeled": 0,
+   "profile": "SUPPLY_SERVICE",
+   "split": "heldout",
+   "url": "https://luatduonggia.vn/phap-luat/mau-hop-dong-dich-vu-quang-cao-thuong-mai-moi-nhat/"
+  },
+  {
+   "cluster_id": "cl-f9b79e7bb2",
+   "contaminated": false,
+   "doc_id": "pd-4b7adfd987",
+   "files": {
+    "doc.json": "afb652c24528211a7d1273a1f6f27be90ec33175f5ef4dc99804a4779b970cbf",
+    "labels.gpt.jsonl": "e03be6ee4a7637783b8a62e402a0359ffcf0d389240b9e82ba95b0718b02b007",
+    "pool.jsonl": "81406363c8d6dcd41d3477470ebe2bd7cce64ebe081b99d0bb97a9bc4bf0bf73"
+   },
+   "labels_by_label": {
+    "UNRELATED": 21
+   },
+   "n_articles": 7,
+   "n_nodes": 7,
+   "n_pairs_by_stratum": {
+    "S1": 0,
+    "S2": 0,
+    "S3": 21
+   },
+   "n_unlabeled": 0,
+   "profile": "SUPPLY_SERVICE",
+   "split": "heldout",
+   "url": "https://hoatieu.vn/bieu-mau/hop-dong-dich-vu-quang-cao-thuong-mai-66917"
+  },
+  {
+   "cluster_id": "cl-c62f273a33",
+   "contaminated": false,
+   "doc_id": "pd-96be63cf8b",
+   "files": {
+    "doc.json": "d305fb6ad75dd3df9df46c54148605f99d4edab604bb2ea80d552d82c4cedb72",
+    "labels.gpt.jsonl": "8469a4ef4d004777c4de5665441b98119305db58f91ff186064d554d707bc07a",
+    "pool.jsonl": "6161fc264e0fe615af4baeff843a53faed82b030d173006295d4559a1abfb3b7"
+   },
+   "labels_by_label": {
+    "DUPLICATE": 7,
+    "GENERAL_SPECIFIC": 1,
+    "REFERENCE": 1,
+    "UNRELATED": 41
+   },
+   "n_articles": 7,
+   "n_nodes": 12,
+   "n_pairs_by_stratum": {
+    "S1": 10,
+    "S2": 0,
+    "S3": 40
+   },
+   "n_unlabeled": 0,
+   "profile": "SALES",
+   "split": "heldout",
+   "url": "https://luatminhkhue.vn/mau-hop-dong-mua-ban-thiet-bi-dieu-khien.aspx"
+  },
+  {
+   "cluster_id": "cl-8b59038c24",
+   "contaminated": false,
+   "doc_id": "pd-a3a3c94483",
+   "files": {
+    "doc.json": "9919fba2b96fd7acecdd884dab9aeec0de5fc56fa034e0c192bce65acd6dec42",
+    "labels.gpt.jsonl": "af2306e57b7f4c69a7cfb85e59869d1c8ec21ea6171285088e9547df0d02e624",
+    "pool.jsonl": "9f0c8afe0aa81489e16448bf5370b3bb01bbdeaa0a3fe551d54e8da9feab8b84"
+   },
+   "labels_by_label": {
+    "CONFLICT": 11,
+    "DUPLICATE": 5,
+    "GENERAL_SPECIFIC": 6,
+    "UNRELATED": 63
+   },
+   "n_articles": 12,
+   "n_nodes": 42,
+   "n_pairs_by_stratum": {
+    "S1": 45,
+    "S2": 0,
+    "S3": 40
+   },
+   "n_unlabeled": 0,
+   "profile": "SALES",
+   "split": "heldout",
+   "url": "https://docs.google.com/document/d/1ZXaSYgt99nvDxIaS6NqB0FbbgAjs0IIh/export?format=docx"
+  },
+  {
+   "cluster_id": "cl-4637ce270e",
+   "contaminated": false,
+   "doc_id": "pd-ae9bb69ee7",
+   "files": {
+    "doc.json": "82b1b76dd76bf0944a7cee7afefbe6381d91e7c0a4d81c98cb168b3628f68893",
+    "labels.gpt.jsonl": "7df4dd9f218ccd10248683bd0a2d6622cbdd479bd64dcc0b93aad564e4a7e38a",
+    "pool.jsonl": "2eb466e462241e2fdb3ab32a4d86685869c1b2f3b08f94b5b3e59f224da4ae96"
+   },
+   "labels_by_label": {
+    "CONFLICT": 2,
+    "DUPLICATE": 1,
+    "GENERAL_SPECIFIC": 2,
+    "UNRELATED": 42
+   },
+   "n_articles": 9,
+   "n_nodes": 18,
+   "n_pairs_by_stratum": {
+    "S1": 7,
+    "S2": 0,
+    "S3": 40
+   },
+   "n_unlabeled": 0,
+   "profile": "SALES",
+   "split": "dev",
+   "url": "https://luatminhkhue.vn/mau-hop-dong-tieu-thu-nong-san-hang-hoa.aspx"
+  },
+  {
+   "cluster_id": "cl-0fa3021b56",
+   "contaminated": false,
+   "doc_id": "pd-b300e5ad70",
+   "files": {
+    "doc.json": "babb882fe3990de6192a62bd9cece4a3606bfb2977aa99a6f64b3a7cc8655e8d",
+    "labels.gpt.jsonl": "c0057285ebd1fd4de78fe467575c3a5e941960ad39ec5dee2d3bfbf3f459b172",
+    "pool.jsonl": "c141c1ef3017659552ca994782572afc9ede86be3f66de15738753fdeac6315b"
+   },
+   "labels_by_label": {
+    "GENERAL_SPECIFIC": 1,
+    "REFERENCE": 1,
+    "UNRELATED": 8
+   },
+   "n_articles": 5,
+   "n_nodes": 5,
+   "n_pairs_by_stratum": {
+    "S1": 0,
+    "S2": 0,
+    "S3": 10
+   },
+   "n_unlabeled": 0,
+   "profile": "SUPPLY_SERVICE",
+   "split": "dev",
+   "url": "https://docs.google.com/document/d/11w9dUdI05j6lD6u4wz3rhhp6mWS-SSlgF5u0MQXXhiY/export?format=docx"
+  },
+  {
+   "cluster_id": "cl-6ef7261d72",
+   "contaminated": false,
+   "doc_id": "pd-b6d8628d32",
+   "files": {
+    "doc.json": "c13eebd5f9678056887b50d58df84c8b7cc8579c8173001bf34b5fb8a1b026ce",
+    "labels.gpt.jsonl": "7f75cce817ec1ed19605d3cce750bf7dd5ca02ee6b4a0cc4c3fcb34d20b9082a",
+    "pool.jsonl": "dcc859f26c15ca58cf272aa4d693f0200013a9f4fcb1cfe5f4eff60ccb02c8ee"
+   },
+   "labels_by_label": {
+    "DUPLICATE": 4,
+    "GENERAL_SPECIFIC": 4,
+    "UNRELATED": 78
+   },
+   "n_articles": 13,
+   "n_nodes": 24,
+   "n_pairs_by_stratum": {
+    "S1": 46,
+    "S2": 0,
+    "S3": 40
+   },
+   "n_unlabeled": 0,
+   "profile": "SUPPLY_SERVICE",
+   "split": "dev",
+   "url": "https://luatminhkhue.vn/mau-hop-dong-nguyen-tac-cung-cap-phan-mem.aspx"
+  },
+  {
+   "cluster_id": "cl-1027a3caf6",
+   "contaminated": false,
+   "doc_id": "pd-bf1d9346b4",
+   "files": {
+    "doc.json": "1ff14fa089460aef1a4a58c677bff959cbe665890b4ab9c4fe1074db84aae202",
+    "labels.gpt.jsonl": "337a11b59ab73eaf876eb6784274e2d6102211523782c8febb6d1a717c647b7a",
+    "pool.jsonl": "ee484ff68bb003b22e4ea56e0df51cab17fc96a9ee09160f5cc6bc9efdf9ce4d"
+   },
+   "labels_by_label": {
+    "DUPLICATE": 1,
+    "GENERAL_SPECIFIC": 4,
+    "UNRELATED": 48
+   },
+   "n_articles": 7,
+   "n_nodes": 16,
+   "n_pairs_by_stratum": {
+    "S1": 13,
+    "S2": 0,
+    "S3": 40
+   },
+   "n_unlabeled": 0,
+   "profile": "SALES",
+   "split": "dev",
+   "url": "https://accgroup.vn/mau-hop-dong-nguyen-tac-mua-ban-vat-tu-cap-nhap-nam-2022/"
+  },
+  {
+   "cluster_id": "cl-61cf8fa90c",
+   "contaminated": false,
+   "doc_id": "pd-e0d65645f2",
+   "files": {
+    "doc.json": "d95eb102aafb377757058a1c97f6f33938fec0d5159e4156b1054425441eb1ea",
+    "labels.gpt.jsonl": "cfe9b5ca8bc4cbb138e0eeaa0e81cf2de5d0df8d1f165e227ad0cb0b864b4f8a",
+    "pool.jsonl": "0fcac97ab3021ff056eb8e0fe8c44a0cc165c1627a3498fa6cfdf2923c714b25"
+   },
+   "labels_by_label": {
+    "UNRELATED": 28
+   },
+   "n_articles": 8,
+   "n_nodes": 8,
+   "n_pairs_by_stratum": {
+    "S1": 0,
+    "S2": 0,
+    "S3": 28
+   },
+   "n_unlabeled": 0,
+   "profile": "SUPPLY_SERVICE",
+   "split": "dev",
+   "url": "https://luatminhkhue.vn/mau-hop-dong-dich-vu-an-uong.aspx"
+  },
+  {
+   "cluster_id": "cl-d10ad02902",
+   "contaminated": false,
+   "doc_id": "pd-eec95ad3b2",
+   "files": {
+    "doc.json": "8543e996db8fd7fa75c06aba653cdc5776ff50274d0515712ed183f034f2ea9b",
+    "labels.gpt.jsonl": "81429ad6fe5c8db262a0a7ff667eff626df55d9449f0d348de622202857881e4",
+    "pool.jsonl": "f2588b80083b6e72d2ec6610d677236a83280c98ec26324f48c4743ecdf0db01"
+   },
+   "labels_by_label": {
+    "CONFLICT": 2,
+    "DUPLICATE": 1,
+    "GENERAL_SPECIFIC": 3,
+    "UNRELATED": 62
+   },
+   "n_articles": 5,
+   "n_nodes": 13,
+   "n_pairs_by_stratum": {
+    "S1": 28,
+    "S2": 0,
+    "S3": 40
+   },
+   "n_unlabeled": 0,
+   "profile": "SUPPLY_SERVICE",
+   "split": "dev",
+   "url": "https://luatminhkhue.vn/hop-dong-tu-van-quan-tri-doanh-nghiep.aspx"
+  },
+  {
+   "cluster_id": "cl-b8007cde81",
+   "contaminated": false,
+   "doc_id": "pd-fa299625d8",
+   "files": {
+    "doc.json": "5e79fedb662cc6c74e93bb440ecdf31cc4d9aa06cdd8cd5bf9f68037dd5eadfd",
+    "labels.gpt.jsonl": "3d6073089d65497c06fcdf8a92983e51db98ca0a3ed5dea8ab6226e304ef5aac",
+    "pool.jsonl": "b5a6ae0fc6498e2778e6851524141df3a02b5a523f9ab340771614ec47b74e66"
+   },
+   "labels_by_label": {
+    "CONFLICT": 2,
+    "GENERAL_SPECIFIC": 1,
+    "UNRELATED": 31
+   },
+   "n_articles": 7,
+   "n_nodes": 9,
+   "n_pairs_by_stratum": {
+    "S1": 0,
+    "S2": 0,
+    "S3": 34
+   },
+   "n_unlabeled": 0,
+   "profile": "SUPPLY_SERVICE",
+   "split": "dev",
+   "url": "https://accgroup.vn/dich-vu-don-dep-ve-sinh"
+  }
+ ],
+ "extension_s4": null,
+ "frozen_at": "2026-10-08T15:35:40Z",
+ "ground_truth": "GPT labeler pairs-labeler-v1 (approved=false; HG-1 human review pending, P2/P5)",
+ "heldout_review": null,
+ "labeler": {
+  "family": "openai",
+  "prompt_version": "pairs-labeler-v1",
+  "requested_model": "gpt-4o-mini",
+  "served_model": "gpt-4o-mini-2024-07-18"
+ },
+ "pool_params": {
+  "S1": "all same-article pairs",
+  "S2_cap_per_doc": 200,
+  "S3_per_doc": 40
+ },
+ "pool_seed": 20261008,
+ "review_selection": null,
+ "schema": "contract-graph-pairs-dataset/1",
+ "split_stats": {
+  "clusters": 21,
+  "dev_clusters": 7,
+  "forced_dev_clusters": 0,
+  "forced_dev_contaminated": 0,
+  "heldout_clusters": 14
+ }
+}

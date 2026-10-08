@@ -1,0 +1,558 @@
+{
+ "clusters": {
+  "by_split": {
+   "dev": 7,
+   "heldout": 14
+  },
+  "docs_in_near_duplicate_clusters": 0,
+  "n": 21,
+  "near_duplicate_clusters": 0
+ },
+ "contaminated_docs": 0,
+ "contaminated_in_heldout": 0,
+ "docs": {
+  "by_profile": {
+   "SALES": 10,
+   "SUPPLY_SERVICE": 11
+  },
+  "by_profile_split": {
+   "SALES/dev": 2,
+   "SALES/heldout": 8,
+   "SUPPLY_SERVICE/dev": 5,
+   "SUPPLY_SERVICE/heldout": 6
+  },
+  "by_split": {
+   "dev": 7,
+   "heldout": 14
+  },
+  "with_annex": 1
+ },
+ "excluded_luong1": 0,
+ "floors": {
+  "dev_min": 5,
+  "heldout_min": 10,
+  "met": true,
+  "per_profile_min": 6,
+  "usable_min": 15
+ },
+ "forced_dev_contaminated": 0,
+ "ground_truth": "GPT labeler pairs-labeler-v1 (approved=false; HG-1 human review pending, P2/P5)",
+ "hg1_estimate": {
+  "by_label": {
+   "CONFLICT": {
+    "gpt_positive": 34,
+    "selected": 34
+   },
+   "DUPLICATE": {
+    "gpt_positive": 48,
+    "selected": 48
+   },
+   "GENERAL_SPECIFIC": {
+    "gpt_positive": 51,
+    "selected": 51
+   },
+   "REFERENCE": {
+    "gpt_positive": 3,
+    "selected": 3
+   }
+  },
+  "includes_s4": false,
+  "over_cap": false,
+  "row_cap": 380,
+  "total_rows": 216,
+  "unrelated": {
+   "by_stratum": {
+    "S1": 17,
+    "S2": 10,
+    "S3": 53
+   },
+   "gpt_unrelated": 885,
+   "selected": 80
+  }
+ },
+ "labeler": {
+  "family": "openai",
+  "prompt_version": "pairs-labeler-v1",
+  "requested_model": "gpt-4o-mini",
+  "served_model": "gpt-4o-mini-2024-07-18"
+ },
+ "labels": {
+  "by_split_label": {
+   "dev/CONFLICT": 6,
+   "dev/DUPLICATE": 7,
+   "dev/GENERAL_SPECIFIC": 15,
+   "dev/REFERENCE": 1,
+   "dev/UNRELATED": 297,
+   "heldout/CONFLICT": 28,
+   "heldout/DUPLICATE": 41,
+   "heldout/GENERAL_SPECIFIC": 36,
+   "heldout/REFERENCE": 2,
+   "heldout/UNRELATED": 588
+  },
+  "by_stratum_label": {
+   "S1/CONFLICT": 29,
+   "S1/DUPLICATE": 47,
+   "S1/GENERAL_SPECIFIC": 20,
+   "S1/UNRELATED": 191,
+   "S2/DUPLICATE": 1,
+   "S2/GENERAL_SPECIFIC": 3,
+   "S2/UNRELATED": 18,
+   "S3/CONFLICT": 5,
+   "S3/GENERAL_SPECIFIC": 28,
+   "S3/REFERENCE": 3,
+   "S3/UNRELATED": 676
+  },
+  "grounded_false": {
+   "denominator": 136,
+   "passed": 10,
+   "rate": 0.0735,
+   "wilson95": [
+    0.0404,
+    0.1301
+   ]
+  },
+  "grounded_false_scope": "nhãn hợp lệ ≠ UNRELATED (span bắt buộc)",
+  "label_invalid": {
+   "denominator": 1021,
+   "passed": 0,
+   "rate": 0.0,
+   "wilson95": [
+    0.0,
+    0.0037
+   ]
+  },
+  "label_invalid_by_reason": {},
+  "labeled": 1021,
+  "unlabeled": 0
+ },
+ "pairs": {
+  "by_split_stratum": {
+   "dev/S1": 94,
+   "dev/S3": 232,
+   "heldout/S1": 193,
+   "heldout/S2": 22,
+   "heldout/S3": 480
+  },
+  "by_stratum": {
+   "S1": 287,
+   "S2": 22,
+   "S3": 712
+  },
+  "total": 1021,
+  "universe_by_stratum": {
+   "S1": 287,
+   "S2": 22,
+   "S3": 3083
+  }
+ },
+ "per_doc": [
+  {
+   "cluster_id": "cl-827a747788",
+   "contaminated": false,
+   "doc_id": "pd-0cd20d2016",
+   "has_annex": false,
+   "labels_by_label": {
+    "GENERAL_SPECIFIC": 3,
+    "UNRELATED": 37
+   },
+   "n_articles": 13,
+   "n_nodes": 13,
+   "pairs_by_stratum": {
+    "S3": 40
+   },
+   "profile": "SUPPLY_SERVICE",
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-ed52f83937",
+   "contaminated": false,
+   "doc_id": "pd-0dd5942e4e",
+   "has_annex": false,
+   "labels_by_label": {
+    "CONFLICT": 1,
+    "GENERAL_SPECIFIC": 5,
+    "UNRELATED": 19
+   },
+   "n_articles": 5,
+   "n_nodes": 8,
+   "pairs_by_stratum": {
+    "S1": 1,
+    "S3": 24
+   },
+   "profile": "SUPPLY_SERVICE",
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-920467d2f1",
+   "contaminated": false,
+   "doc_id": "pd-0ef7060ac8",
+   "has_annex": false,
+   "labels_by_label": {
+    "CONFLICT": 1,
+    "GENERAL_SPECIFIC": 2,
+    "UNRELATED": 37
+   },
+   "n_articles": 15,
+   "n_nodes": 15,
+   "pairs_by_stratum": {
+    "S3": 40
+   },
+   "profile": "SALES",
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-c2c7bcdf6c",
+   "contaminated": false,
+   "doc_id": "pd-176a825fca",
+   "has_annex": false,
+   "labels_by_label": {
+    "CONFLICT": 12,
+    "DUPLICATE": 2,
+    "GENERAL_SPECIFIC": 9,
+    "UNRELATED": 53
+   },
+   "n_articles": 9,
+   "n_nodes": 36,
+   "pairs_by_stratum": {
+    "S1": 36,
+    "S3": 40
+   },
+   "profile": "SALES",
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-a00a96d219",
+   "contaminated": false,
+   "doc_id": "pd-1c0f85fee4",
+   "has_annex": true,
+   "labels_by_label": {
+    "CONFLICT": 1,
+    "DUPLICATE": 14,
+    "GENERAL_SPECIFIC": 7,
+    "UNRELATED": 72
+   },
+   "n_articles": 8,
+   "n_nodes": 23,
+   "pairs_by_stratum": {
+    "S1": 32,
+    "S2": 22,
+    "S3": 40
+   },
+   "profile": "SALES",
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-66c3003368",
+   "contaminated": false,
+   "doc_id": "pd-1e78e105fc",
+   "has_annex": false,
+   "labels_by_label": {
+    "UNRELATED": 40
+   },
+   "n_articles": 12,
+   "n_nodes": 12,
+   "pairs_by_stratum": {
+    "S3": 40
+   },
+   "profile": "SUPPLY_SERVICE",
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-a1b67a0d3c",
+   "contaminated": false,
+   "doc_id": "pd-21d3913039",
+   "has_annex": false,
+   "labels_by_label": {
+    "DUPLICATE": 5,
+    "UNRELATED": 71
+   },
+   "n_articles": 13,
+   "n_nodes": 24,
+   "pairs_by_stratum": {
+    "S1": 36,
+    "S3": 40
+   },
+   "profile": "SUPPLY_SERVICE",
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-f73dec390c",
+   "contaminated": false,
+   "doc_id": "pd-242e0b7a96",
+   "has_annex": false,
+   "labels_by_label": {
+    "UNRELATED": 20
+   },
+   "n_articles": 6,
+   "n_nodes": 7,
+   "pairs_by_stratum": {
+    "S3": 20
+   },
+   "profile": "SALES",
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-79aeaf564f",
+   "contaminated": false,
+   "doc_id": "pd-2e28a08bfa",
+   "has_annex": false,
+   "labels_by_label": {
+    "GENERAL_SPECIFIC": 1,
+    "UNRELATED": 40
+   },
+   "n_articles": 12,
+   "n_nodes": 14,
+   "pairs_by_stratum": {
+    "S1": 1,
+    "S3": 40
+   },
+   "profile": "SALES",
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-94f7b2cf53",
+   "contaminated": false,
+   "doc_id": "pd-3d8842533f",
+   "has_annex": false,
+   "labels_by_label": {
+    "CONFLICT": 1,
+    "GENERAL_SPECIFIC": 1,
+    "REFERENCE": 1,
+    "UNRELATED": 12
+   },
+   "n_articles": 6,
+   "n_nodes": 6,
+   "pairs_by_stratum": {
+    "S3": 15
+   },
+   "profile": "SALES",
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-7e7b2d2767",
+   "contaminated": false,
+   "doc_id": "pd-43cd896d78",
+   "has_annex": false,
+   "labels_by_label": {
+    "CONFLICT": 1,
+    "DUPLICATE": 8,
+    "GENERAL_SPECIFIC": 1,
+    "UNRELATED": 62
+   },
+   "n_articles": 7,
+   "n_nodes": 27,
+   "pairs_by_stratum": {
+    "S1": 32,
+    "S3": 40
+   },
+   "profile": "SUPPLY_SERVICE",
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-f9b79e7bb2",
+   "contaminated": false,
+   "doc_id": "pd-4b7adfd987",
+   "has_annex": false,
+   "labels_by_label": {
+    "UNRELATED": 21
+   },
+   "n_articles": 7,
+   "n_nodes": 7,
+   "pairs_by_stratum": {
+    "S3": 21
+   },
+   "profile": "SUPPLY_SERVICE",
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-c62f273a33",
+   "contaminated": false,
+   "doc_id": "pd-96be63cf8b",
+   "has_annex": false,
+   "labels_by_label": {
+    "DUPLICATE": 7,
+    "GENERAL_SPECIFIC": 1,
+    "REFERENCE": 1,
+    "UNRELATED": 41
+   },
+   "n_articles": 7,
+   "n_nodes": 12,
+   "pairs_by_stratum": {
+    "S1": 10,
+    "S3": 40
+   },
+   "profile": "SALES",
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-8b59038c24",
+   "contaminated": false,
+   "doc_id": "pd-a3a3c94483",
+   "has_annex": false,
+   "labels_by_label": {
+    "CONFLICT": 11,
+    "DUPLICATE": 5,
+    "GENERAL_SPECIFIC": 6,
+    "UNRELATED": 63
+   },
+   "n_articles": 12,
+   "n_nodes": 42,
+   "pairs_by_stratum": {
+    "S1": 45,
+    "S3": 40
+   },
+   "profile": "SALES",
+   "split": "heldout"
+  },
+  {
+   "cluster_id": "cl-4637ce270e",
+   "contaminated": false,
+   "doc_id": "pd-ae9bb69ee7",
+   "has_annex": false,
+   "labels_by_label": {
+    "CONFLICT": 2,
+    "DUPLICATE": 1,
+    "GENERAL_SPECIFIC": 2,
+    "UNRELATED": 42
+   },
+   "n_articles": 9,
+   "n_nodes": 18,
+   "pairs_by_stratum": {
+    "S1": 7,
+    "S3": 40
+   },
+   "profile": "SALES",
+   "split": "dev"
+  },
+  {
+   "cluster_id": "cl-0fa3021b56",
+   "contaminated": false,
+   "doc_id": "pd-b300e5ad70",
+   "has_annex": false,
+   "labels_by_label": {
+    "GENERAL_SPECIFIC": 1,
+    "REFERENCE": 1,
+    "UNRELATED": 8
+   },
+   "n_articles": 5,
+   "n_nodes": 5,
+   "pairs_by_stratum": {
+    "S3": 10
+   },
+   "profile": "SUPPLY_SERVICE",
+   "split": "dev"
+  },
+  {
+   "cluster_id": "cl-6ef7261d72",
+   "contaminated": false,
+   "doc_id": "pd-b6d8628d32",
+   "has_annex": false,
+   "labels_by_label": {
+    "DUPLICATE": 4,
+    "GENERAL_SPECIFIC": 4,
+    "UNRELATED": 78
+   },
+   "n_articles": 13,
+   "n_nodes": 24,
+   "pairs_by_stratum": {
+    "S1": 46,
+    "S3": 40
+   },
+   "profile": "SUPPLY_SERVICE",
+   "split": "dev"
+  },
+  {
+   "cluster_id": "cl-1027a3caf6",
+   "contaminated": false,
+   "doc_id": "pd-bf1d9346b4",
+   "has_annex": false,
+   "labels_by_label": {
+    "DUPLICATE": 1,
+    "GENERAL_SPECIFIC": 4,
+    "UNRELATED": 48
+   },
+   "n_articles": 7,
+   "n_nodes": 16,
+   "pairs_by_stratum": {
+    "S1": 13,
+    "S3": 40
+   },
+   "profile": "SALES",
+   "split": "dev"
+  },
+  {
+   "cluster_id": "cl-61cf8fa90c",
+   "contaminated": false,
+   "doc_id": "pd-e0d65645f2",
+   "has_annex": false,
+   "labels_by_label": {
+    "UNRELATED": 28
+   },
+   "n_articles": 8,
+   "n_nodes": 8,
+   "pairs_by_stratum": {
+    "S3": 28
+   },
+   "profile": "SUPPLY_SERVICE",
+   "split": "dev"
+  },
+  {
+   "cluster_id": "cl-d10ad02902",
+   "contaminated": false,
+   "doc_id": "pd-eec95ad3b2",
+   "has_annex": false,
+   "labels_by_label": {
+    "CONFLICT": 2,
+    "DUPLICATE": 1,
+    "GENERAL_SPECIFIC": 3,
+    "UNRELATED": 62
+   },
+   "n_articles": 5,
+   "n_nodes": 13,
+   "pairs_by_stratum": {
+    "S1": 28,
+    "S3": 40
+   },
+   "profile": "SUPPLY_SERVICE",
+   "split": "dev"
+  },
+  {
+   "cluster_id": "cl-b8007cde81",
+   "contaminated": false,
+   "doc_id": "pd-fa299625d8",
+   "has_annex": false,
+   "labels_by_label": {
+    "CONFLICT": 2,
+    "GENERAL_SPECIFIC": 1,
+    "UNRELATED": 31
+   },
+   "n_articles": 7,
+   "n_nodes": 9,
+   "pairs_by_stratum": {
+    "S3": 34
+   },
+   "profile": "SUPPLY_SERVICE",
+   "split": "dev"
+  }
+ ],
+ "pool_sha256": "7ff6505063fc07ce23088d5ce5c307da7f4da6d0764eb8e5642d0d65be6d005b",
+ "schema": "contract-graph-pairs-summary/1",
+ "sources": {
+  "failed": 0,
+  "listed": 21,
+  "listed_by_profile": {
+   "SALES": 10,
+   "SUPPLY_SERVICE": 11
+  },
+  "rejected_segmentation": 0,
+  "rejected_segmentation_detail": [],
+  "usable": 21
+ },
+ "split_stats": {
+  "clusters": 21,
+  "dev_clusters": 7,
+  "forced_dev_clusters": 0,
+  "forced_dev_contaminated": 0,
+  "heldout_clusters": 14
+ }
+}
