@@ -3277,7 +3277,7 @@ components:
       required: [trace_id, endpoint, actor_id, question, citations, created_at]
       properties:
         trace_id: { type: string, example: qtr_01HZX }
-        endpoint: { type: string, enum: [query, ask] }
+        endpoint: { type: string, enum: [query, ask, search] }
         actor_id: { type: string }
         question: { type: string }
         answer:

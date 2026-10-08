@@ -38,6 +38,37 @@ describe('normalizeQueryHistoryItem', () => {
     expect(item?.endpoint).toBe('query')
   })
 
+  it('keeps questions asked through the search bar', () => {
+    const item = normalizeQueryHistoryItem({
+      trace_id: 'qtr_3',
+      endpoint: 'search',
+      actor_id: 'usr_1',
+      question: 'điều 1 là gì',
+      answer: null,
+      state: null,
+      citations: [],
+      error_code: null,
+      created_at: '2026-10-06T03:00:00+00:00',
+    })
+    expect(item?.endpoint).toBe('search')
+    expect(item?.question).toBe('điều 1 là gì')
+  })
+
+  it('reads citations stored by the search box (text_span, page)', () => {
+    const item = normalizeQueryHistoryItem({
+      trace_id: 'qtr_4',
+      endpoint: 'search',
+      actor_id: 'usr_1',
+      question: 'điều 6',
+      answer: 'ĐIỀU 6. QUYỀN VÀ NGHĨA VỤ CỦA BÊN A',
+      citations: [{ text_span: 'ĐIỀU 6. QUYỀN VÀ NGHĨA VỤ CỦA BÊN A', page: 4 }],
+      created_at: '2026-10-08T05:03:00+00:00',
+    })
+    expect(item?.citations).toEqual([
+      { quote: 'ĐIỀU 6. QUYỀN VÀ NGHĨA VỤ CỦA BÊN A', pageNo: 4 },
+    ])
+  })
+
   it('drops rows without a trace id', () => {
     expect(normalizeQueryHistoryItem({ question: 'x' })).toBeNull()
     expect(normalizeQueryHistoryItem(null)).toBeNull()

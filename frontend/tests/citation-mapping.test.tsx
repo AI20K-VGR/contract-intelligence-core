@@ -9,6 +9,7 @@ import {
 } from '../src/structure/citations'
 import type { OcrLine } from '../src/structure/types'
 import { CitedAnswer } from '../src/components/CitedAnswer'
+import { sentenceEnd } from '../src/structure/citations'
 
 function line(pageNo: number, lineNo: number, text: string): OcrLine {
   return {
@@ -270,5 +271,22 @@ describe('citation mapping', () => {
       />,
     )
     expect((html.match(/title="Trích dẫn/g) ?? []).length).toBe(2)
+  })
+})
+
+describe('sentenceEnd', () => {
+  it('puts the citation after the whole sentence, not mid OCR line', () => {
+    const answer =
+      'ĐIỀU 4. GIÁ TRỊ HỢP ĐỒNG\n4.1. Tổng giá trị là 1.286.400.000 đồng (Bằng chữ: Một tỷ hai trăm tám mươi sáu triệu bốn trăm nghìn\nđồng), đã bao gồm thuế. 4.2. Thanh toán 30% sau khi ký; 40% sau nghiệm thu giữa\nkỳ; 30% còn lại.'
+    const after = (needle: string) =>
+      answer.slice(0, sentenceEnd(answer, answer.indexOf(needle) + needle.length))
+    expect(after('bốn trăm nghìn')).toMatch(/đã bao gồm thuế\.$/)
+    expect(after('nghiệm thu giữa')).toMatch(/giữa\nkỳ;$/)
+    expect(after('ĐIỀU 4. GIÁ TRỊ HỢP ĐỒNG')).toBe('ĐIỀU 4. GIÁ TRỊ HỢP ĐỒNG')
+  })
+
+  it('stops at the end of a table row', () => {
+    const answer = '- [Phụ lục] | 12 | Thiết bị | 27.000.000 |\n- [Thân HĐ] 1.1. Hệ thống.'
+    expect(sentenceEnd(answer, 20)).toBe(answer.indexOf('\n'))
   })
 })

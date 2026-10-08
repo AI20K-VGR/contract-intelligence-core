@@ -9,7 +9,7 @@ export type QueryHistoryCitation = {
 
 export type QueryHistoryItem = {
   traceId: string
-  endpoint: 'ask' | 'query'
+  endpoint: 'ask' | 'query' | 'search'
   actorId: string
   question: string
   /** null khi AI2 lỗi hoặc câu hỏi có trước khi có lịch sử. */
@@ -35,12 +35,14 @@ function citationOf(value: unknown): QueryHistoryCitation | null {
   const row = asRecord(value)
   if (!row) return null
   const nested = asRecord(row.citation) ?? {}
+  // Trace của /search lưu nguyên citation AI2 (text_span, page) ở cấp ngoài.
   const quote =
     asText(row.quote) ||
+    asText(row.text_span) ||
     asText(nested.text_span) ||
     asText(row.text) ||
     asText(nested.quote)
-  const page = row.page_no ?? nested.page_no
+  const page = row.page_no ?? row.page ?? nested.page_no ?? nested.page
   return {
     quote,
     pageNo: typeof page === 'number' && Number.isFinite(page) ? page : null,
@@ -56,7 +58,10 @@ export function normalizeQueryHistoryItem(
   if (!traceId) return null
   return {
     traceId,
-    endpoint: row.endpoint === 'query' ? 'query' : 'ask',
+    endpoint:
+      row.endpoint === 'query' || row.endpoint === 'search'
+        ? row.endpoint
+        : 'ask',
     actorId: asText(row.actor_id),
     question: asText(row.question),
     answer: asText(row.answer) || null,

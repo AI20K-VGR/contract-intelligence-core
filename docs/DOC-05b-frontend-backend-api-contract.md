@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu | **DOC-05b** / Contract Intelligence (PROD-01) |
-| Phiên bản / SemVer | **`v1.5.0`** — `GET /documents/{id}/lines` (dòng OCR của mọi trang trong một request) và `409` của `POST /dossiers/{id}/ocr` khi hồ sơ đang OCR. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
+| Phiên bản / SemVer | **`v1.5.1`** — lịch sử hỏi đáp có thêm câu hỏi gửi qua `POST /dossiers/{id}/search` (`endpoint: "search"`) và mã lỗi `AI2_UNAVAILABLE`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
 | Trạng thái | Đã chốt — Sẵn sàng triển khai Frontend & Backend |
 | Owner | Tech Lead / Frontend Lead / Backend Lead |
 | Ngày hiệu lực | 17/09/2026 |
@@ -365,7 +365,7 @@ Giao diện xem văn bản trực quan chia đôi màn hình: Bên trái là câ
     "meta": { "trace_id": null, "request_id": null, "page": 1, "page_size": 20, "total": 1 }
   }
   ```
-  `endpoint` là `ask` hoặc `query`. Lần hỏi mà AI2 lỗi vẫn có trong lịch sử, với `answer: null` và `error_code`.
+  `endpoint` là `ask`, `query` hoặc `search` (thanh hỏi đáp, từ v1.5.1). Lần hỏi mà AI2 lỗi vẫn có trong lịch sử, với `answer: null` và `error_code`. Với `search`, `error_code` là `AI2_UNAVAILABLE` khi AI2 lỗi hoặc quá thời gian chờ. Câu hỏi gửi qua `search` trước v1.5.1 chỉ có trace, nên hiện với `answer: null` và `error_code: null`.
 
 ---
 
@@ -748,6 +748,7 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
+| `v1.5.1` | 07/10/2026 | `GET /dossiers/{id}/queries` trả thêm câu hỏi gửi qua `POST /dossiers/{id}/search` (`endpoint: "search"`) và mã lỗi `AI2_UNAVAILABLE`. Endpoint và các trường giữ nguyên, nên là PATCH |
 | `v1.5.0` | 04/10/2026 | Thêm `GET /documents/{id}/lines`. `POST /dossiers/{id}/ocr` trả `409` khi hồ sơ đang OCR (job `processing`) thay vì thay run đang chạy; chờ xong hoặc hủy run rồi chạy lại. Response JSON trên 1 KB được gzip khi client gửi `Accept-Encoding: gzip` (SSE, ảnh và PDF không nén). Chỉ thêm endpoint và mã lỗi, nên là MINOR |
 | `v1.4.0` | 04/10/2026 | Thêm `POST /dossiers/{id}/ai2/reindex`: AI2 dựng lại dữ liệu hỏi đáp từ kết quả OCR đã lưu, không OCR lại. Chỉ thêm endpoint, nên là MINOR |
 | `v1.3.0` | 02/10/2026 | Finding có thêm `review.latest` (`action`, `comment`, người thẩm định, `reviewed_at`, `action_count`), `null` khi chưa ai thẩm định. Trước đây Backend đã lấy giá trị này nhưng DTO làm rơi, nên FE không biết xung đột đã được đánh Đúng/Sai (liên quan #51). Chỉ thêm trường tuỳ chọn, nên là MINOR |
@@ -766,4 +767,4 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 
 ---
 
-**Hết DOC-05b · Frontend-Backend API Contract v1.5.0 (SemVer)**
+**Hết DOC-05b · Frontend-Backend API Contract v1.5.1 (SemVer)**

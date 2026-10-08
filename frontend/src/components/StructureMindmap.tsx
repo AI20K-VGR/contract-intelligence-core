@@ -8,16 +8,13 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import type { ClauseNode } from '../api/structure'
-import { jpegPdf } from '../pdf/jpegPdf'
 import { citationNumbers } from '../structure/citations'
 import type { ConflictMarker } from '../structure/conflictAnchors'
 import {
   branchTones,
   countOf,
   dataDepth,
-  downloadBlob,
   expandableIds,
-  exportOutlineText,
   fullLabel,
   hasVisibleContent,
   nodeLabel,
@@ -38,12 +35,13 @@ import { ConflictBadge } from './StructureViewShell'
 
 const tones = branchTones
 
+// Gốc mang màu chủ đạo ở Cài đặt, tông nhạt; biến CSS nên đổi màu là đổi ngay.
 const rootTone: BranchTone = {
-  line: '#475569',
-  bg: '#0b1f3a',
-  bgSoft: '#0b1f3a',
-  border: '#0b1f3a',
-  text: '#ffffff',
+  line: 'var(--color-brand-600)',
+  bg: 'var(--color-brand-100)',
+  bgSoft: 'var(--color-brand-100)',
+  border: 'var(--color-brand-300)',
+  text: 'var(--color-brand-800)',
 }
 
 const FONT_FAMILY = "'IBM Plex Sans', sans-serif"
@@ -412,167 +410,6 @@ function layoutEdges(layout: Layout, orientation: TreeOrientation): Edge[] {
 // Xuất PDF từ cùng bố cục đang hiển thị
 // ---------------------------------------------------------------------------
 
-function roundRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-) {
-  const radius = Math.min(r, w / 2, h / 2)
-  ctx.beginPath()
-  ctx.moveTo(x + radius, y)
-  ctx.arcTo(x + w, y, x + w, y + h, radius)
-  ctx.arcTo(x + w, y + h, x, y + h, radius)
-  ctx.arcTo(x, y + h, x, y, radius)
-  ctx.arcTo(x, y, x + w, y, radius)
-  ctx.closePath()
-}
-
-async function mindmapPdf({
-  layout,
-  orientation,
-  heading,
-  caption,
-  numbers,
-}: {
-  layout: Layout
-  orientation: TreeOrientation
-  heading: string
-  caption: string
-  numbers?: ReadonlyMap<string, number>
-}) {
-  const HEADER = 52
-  const pageWidth = Math.max(720, layout.width)
-  const pageHeight = HEADER + layout.height
-  const scale = Math.min(2, 16000 / pageWidth, 16000 / pageHeight)
-  const canvas = document.createElement('canvas')
-  canvas.width = Math.max(1, Math.floor(pageWidth * scale))
-  canvas.height = Math.max(1, Math.floor(pageHeight * scale))
-  const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Trình duyệt không vẽ được sơ đồ.')
-  ctx.scale(scale, scale)
-  ctx.fillStyle = '#fafbff'
-  ctx.fillRect(0, 0, pageWidth, pageHeight)
-  ctx.fillStyle = '#f8fafc'
-  ctx.fillRect(0, 0, pageWidth, HEADER)
-  ctx.strokeStyle = '#e2e8f0'
-  ctx.beginPath()
-  ctx.moveTo(0, HEADER)
-  ctx.lineTo(pageWidth, HEADER)
-  ctx.stroke()
-  ctx.fillStyle = '#0f172a'
-  ctx.font = `600 15px ${FONT_FAMILY}`
-  ctx.fillText(heading, 24, 32)
-  ctx.font = `500 11px ${FONT_FAMILY}`
-  const captionWidth = ctx.measureText(caption).width + 20
-  roundRect(ctx, pageWidth - 24 - captionWidth, 16, captionWidth, 22, 11)
-  ctx.fillStyle = '#eef2f7'
-  ctx.fill()
-  ctx.fillStyle = '#64748b'
-  ctx.fillText(caption, pageWidth - 14 - captionWidth, 31)
-
-  ctx.save()
-  ctx.translate(0, HEADER)
-  ctx.lineCap = 'round'
-  for (const box of layout.boxes) {
-    for (const child of box.children) {
-      const ends = edgeEnds(box, child, orientation)
-      const c = edgeControls(ends, orientation)
-      ctx.beginPath()
-      ctx.moveTo(ends.x1, ends.y1)
-      ctx.bezierCurveTo(c.c1x, c.c1y, c.c2x, c.c2y, ends.x2, ends.y2)
-      ctx.strokeStyle = toneOf(child).line
-      ctx.lineWidth = 1.6
-      ctx.stroke()
-    }
-  }
-
-  ctx.textBaseline = 'middle'
-  for (const box of layout.boxes) {
-    const tone = toneOf(box)
-    const isRoot = box.depth === 0
-    roundRect(ctx, box.x, box.y, box.width, box.height, isRoot ? 12 : 8)
-    ctx.fillStyle = isRoot ? tone.bg : box.depth === 1 ? tone.bg : tone.bgSoft
-    ctx.fill()
-    ctx.lineWidth = 1
-    ctx.strokeStyle = tone.border
-    ctx.stroke()
-    ctx.fillStyle = tone.text
-    ctx.font = isRoot ? ROOT_FONT : NODE_FONT
-    const lineH = isRoot ? ROOT_LINE : NODE_LINE
-    const padX = isRoot ? ROOT_PAD_X : NODE_PAD_X
-    const padY = isRoot ? ROOT_PAD_Y : NODE_PAD_Y
-    box.lines.forEach((line, index) => {
-      ctx.fillText(line, box.x + padX, box.y + padY + index * lineH + lineH / 2)
-    })
-    if (markerVisible(box.marker, box.open) && box.marker) {
-      const marker = box.marker
-      const direct = marker.spots.length > 0
-      const label = direct
-        ? marker.state === 'open'
-          ? '!'
-          : marker.state === 'reviewed'
-            ? '✓'
-            : '–'
-        : String(marker.below)
-      const cx = box.x + box.width - padX - 6
-      const cy = box.y + padY + NODE_LINE / 2
-      ctx.beginPath()
-      ctx.arc(cx, cy, 7, 0, Math.PI * 2)
-      ctx.fillStyle = !direct
-        ? '#fbbf24'
-        : marker.state === 'open'
-          ? '#fbbf24'
-          : marker.state === 'reviewed'
-            ? '#fffbeb'
-            : '#e2e8f0'
-      ctx.fill()
-      ctx.lineWidth = 1
-      ctx.strokeStyle = marker.state === 'dismissed' && direct ? '#cbd5e1' : '#f59e0b'
-      ctx.stroke()
-      ctx.fillStyle = marker.state === 'dismissed' && direct ? '#64748b' : '#78350f'
-      ctx.font = `700 9px ${FONT_FAMILY}`
-      ctx.fillText(label, cx - ctx.measureText(label).width / 2, cy)
-    }
-    const n = box.node ? numbers?.get(box.node.id) : undefined
-    if (n) {
-      const badge = String(n)
-      ctx.font = `600 10px ${FONT_FAMILY}`
-      const badgeWidth = Math.max(16, ctx.measureText(badge).width + 8)
-      roundRect(ctx, box.x - 6, box.y - 8, badgeWidth, 16, 8)
-      ctx.fillStyle = '#ffffff'
-      ctx.fill()
-      ctx.strokeStyle = tone.line
-      ctx.stroke()
-      ctx.fillStyle = '#0f172a'
-      ctx.fillText(
-        badge,
-        box.x - 6 + (badgeWidth - ctx.measureText(badge).width) / 2,
-        box.y,
-      )
-    }
-  }
-  ctx.restore()
-
-  const jpeg = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (blob) =>
-        blob ? resolve(blob) : reject(new Error('Không tạo được ảnh sơ đồ.')),
-      'image/jpeg',
-      0.92,
-    )
-  })
-  return jpegPdf(
-    new Uint8Array(await jpeg.arrayBuffer()),
-    Math.round(pageWidth),
-    Math.round(pageHeight),
-    canvas.width,
-    canvas.height,
-  )
-}
-
 // ---------------------------------------------------------------------------
 // Thành phần chính
 // ---------------------------------------------------------------------------
@@ -585,7 +422,6 @@ function clamp(value: number, min: number, max: number) {
 
 export function StructureMindmap({
   title,
-  subtitle,
   nodes,
   markers,
   citationOf,
@@ -594,7 +430,6 @@ export function StructureMindmap({
   onCite,
 }: {
   title: string
-  subtitle?: string | null
   nodes: ClauseNode[]
   /** id nút → xung đột neo vào nút và số xung đột trong nhánh con. */
   markers?: ReadonlyMap<string, ConflictMarker>
@@ -882,21 +717,6 @@ export function StructureMindmap({
     }
   }
 
-  async function exportStructure() {
-    const blob = await mindmapPdf({
-      layout,
-      orientation,
-      heading: `${heading} cấu trúc hợp đồng`,
-      caption: subtitle ? `${subtitle} • ${caption}` : caption,
-      numbers,
-    })
-    downloadBlob(vertical ? 'cay-cau-truc.pdf' : 'so-do-tu-duy.pdf', blob)
-  }
-
-  function exportData() {
-    exportOutlineText(title, nodes)
-  }
-
   if (nodes.length === 0) {
     return (
       <div className="flex h-full min-h-48 items-center rounded-xl bg-surface-container-lowest px-6 shadow-sm">
@@ -941,16 +761,6 @@ export function StructureMindmap({
           />
           <span className="mx-1 h-4 w-px bg-outline-variant/40" />
           <IconButton
-            icon="picture_as_pdf"
-            label="Xuất sơ đồ (PDF)"
-            onClick={() => void exportStructure()}
-          />
-          <IconButton
-            icon="download"
-            label="Xuất dữ liệu (TXT)"
-            onClick={exportData}
-          />
-          <IconButton
             icon={fullscreen ? 'fullscreen_exit' : 'fullscreen'}
             label={fullscreen ? 'Thoát toàn màn hình' : 'Toàn màn hình'}
             onClick={toggleFullscreen}
@@ -960,7 +770,7 @@ export function StructureMindmap({
 
       <div
         ref={viewportRef}
-        className={`relative min-h-0 flex-1 touch-none overflow-hidden bg-[#fafbff] ${
+        className={`relative min-h-0 flex-1 touch-none overflow-hidden bg-tone-50 ${
           dragging ? 'cursor-grabbing' : 'cursor-grab'
         }`}
         onPointerCancel={endDrag}
@@ -1011,7 +821,7 @@ export function StructureMindmap({
         </div>
 
         <div
-          className="absolute bottom-3 right-3 z-20 flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md"
+          className="absolute bottom-3 right-3 z-20 flex flex-col overflow-hidden rounded-lg border border-tone-200 bg-white shadow-md"
           aria-label="Thu phóng"
         >
           <IconButton
@@ -1020,14 +830,14 @@ export function StructureMindmap({
             square
             onClick={() => zoomBy(1.25)}
           />
-          <span className="h-px w-full bg-slate-200" />
+          <span className="h-px w-full bg-tone-200" />
           <IconButton
             icon="remove"
             label="Thu nhỏ"
             square
             onClick={() => zoomBy(0.8)}
           />
-          <span className="h-px w-full bg-slate-200" />
+          <span className="h-px w-full bg-tone-200" />
           <IconButton
             icon="fit_screen"
             label="Vừa khung"
@@ -1038,7 +848,7 @@ export function StructureMindmap({
             }}
           />
         </div>
-        <p className="pointer-events-none absolute bottom-3 left-3 z-20 select-none text-[11px] text-slate-400">
+        <p className="pointer-events-none absolute bottom-3 left-3 z-20 select-none text-[11px] text-tone-400">
           Kéo để di chuyển • Cuộn để thu phóng • Bấm mũi tên để mở nhánh
         </p>
       </div>
@@ -1073,7 +883,7 @@ function NodeBox({
     >
       <button
         className={`block h-full w-full text-left shadow-sm transition-shadow hover:shadow-md ${
-          active ? 'ring-2 ring-[#0b1f3a] ring-offset-1' : ''
+          active ? 'ring-2 ring-brand-600 ring-offset-1' : ''
         }`}
         style={{
           backgroundColor: background,
@@ -1115,7 +925,7 @@ function NodeBox({
       </button>
       {cite ? (
         <span
-          className="pointer-events-none absolute -left-1.5 -top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full border bg-white px-1 text-[10px] font-semibold leading-none text-slate-800"
+          className="pointer-events-none absolute -left-1.5 -top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full border bg-white px-1 text-[10px] font-semibold leading-none text-tone-800"
           style={{ borderColor: tone.line }}
         >
           {cite}
@@ -1125,7 +935,7 @@ function NodeBox({
         <button
           aria-expanded={box.open}
           aria-label={box.open ? 'Thu nhánh' : 'Mở nhánh'}
-          className={`absolute flex items-center justify-center rounded-full border bg-white shadow-sm transition-colors hover:bg-slate-50 ${
+          className={`absolute flex items-center justify-center rounded-full border bg-white shadow-sm transition-colors hover:bg-tone-50 ${
             vertical ? 'left-1/2 -translate-x-1/2' : 'top-1/2 -translate-y-1/2'
           }`}
           style={{
@@ -1174,7 +984,7 @@ function IconButton({
   return (
     <button
       aria-label={label}
-      className={`flex items-center justify-center text-slate-600 transition-colors hover:bg-slate-200/70 hover:text-slate-900 ${
+      className={`flex items-center justify-center text-tone-600 transition-colors hover:bg-tone-200/70 hover:text-tone-900 ${
         square ? 'h-9 w-9' : 'h-8 w-8 rounded-full'
       }`}
       title={label}

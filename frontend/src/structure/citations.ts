@@ -327,3 +327,29 @@ export function searchCites(
   }
   return cites
 }
+
+/** Dòng mới bắt đầu một mục khác: khoản đánh số, Điều/Chương, gạch đầu dòng, bảng, đoạn trống. */
+const NEW_ITEM = /^[ \t]*(\d+(\.\d+)*\.?\s|(điều|chương|mục|phụ lục)\s|[-•*|]|\n|$)/i
+
+/**
+ * Chỗ đặt số trích dẫn sau đoạn khớp: hết câu (. ; ! ? rồi khoảng trắng), để câu
+ * trích đọc trọn nghĩa. OCR ngắt dòng giữa câu nên không dừng ở cuối dòng, trừ
+ * khi dòng sau là mục mới. Dòng bảng (có |) không có dấu câu: dừng ở cuối dòng.
+ */
+export function sentenceEnd(answer: string, from: number): number {
+  const lineStart = answer.lastIndexOf('\n', from - 1) + 1
+  const lineEnd = answer.indexOf('\n', from)
+  const line = answer.slice(lineStart, lineEnd < 0 ? answer.length : lineEnd)
+  if (line.includes('|')) return lineEnd < 0 ? answer.length : lineEnd
+  for (let index = from; index < answer.length; index += 1) {
+    const char = answer[index] ?? ''
+    if (char === '\n' && NEW_ITEM.test(answer.slice(index + 1))) return index
+    if (!'.;!?'.includes(char)) continue
+    // 1.286.400 hay 4.2. là số, không phải hết câu.
+    if (/\d/.test(answer[index - 1] ?? '')) continue
+    const next = answer[index + 1]
+    if (next === undefined || /\s/.test(next)) return index + 1
+  }
+  return answer.length
+}
+

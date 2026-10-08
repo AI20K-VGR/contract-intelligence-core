@@ -6,8 +6,9 @@ the DB, but a redelivered ``dossier.uploaded`` or AI1 result still costs work
 (and AI1 money when it re-dispatches OCR). One row per handled record lets the
 worker skip it outright.
 
-The key is the message ``event_id`` when it has one; backend-published events
-without one use the Kafka coordinates, which a redelivery keeps.
+The key is the message ``event_id``. ``messaging.publish_event`` gives every
+backend event one; a message without one (published before that) falls back to
+the Kafka coordinates, which a redelivery keeps but a recreated topic reuses.
 """
 
 from __future__ import annotations

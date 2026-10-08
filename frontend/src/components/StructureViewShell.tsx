@@ -18,8 +18,9 @@ export function ViewShell({
   controls,
   children,
 }: {
-  icon: string
-  title: string
+  /** Bỏ trống thì đầu khung chỉ còn các nút điều khiển. */
+  icon?: string
+  title?: string
   caption?: string
   controls?: ReactNode
   children: ReactNode
@@ -28,13 +29,17 @@ export function ViewShell({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-outline-variant/20 bg-surface-container-lowest shadow-sm">
       <div className="z-10 flex items-center justify-between gap-3 border-b border-outline-variant/20 bg-surface-container-low/60 px-4 py-2">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex min-w-0 items-center gap-2 font-title-sm text-title-sm text-primary">
-            <MaterialIcon
-              name={icon}
-              className="shrink-0 text-[20px] text-primary"
-            />
-            <span className="truncate font-semibold">{title}</span>
-          </div>
+          {title ? (
+            <div className="flex min-w-0 items-center gap-2 font-title-sm text-title-sm text-primary">
+              {icon ? (
+                <MaterialIcon
+                  name={icon}
+                  className="shrink-0 text-[20px] text-primary"
+                />
+              ) : null}
+              <span className="truncate font-semibold">{title}</span>
+            </div>
+          ) : null}
           {caption ? (
             <span
               className="hidden shrink-0 bg-surface-container px-2.5 py-0.5 font-mono text-[11px] text-secondary xl:inline"
@@ -74,8 +79,8 @@ export function IconButton({
         square ? 'h-9 w-9' : 'h-8 w-8 rounded-full'
       } ${
         active
-          ? 'bg-primary text-white hover:bg-primary-container'
-          : 'text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+          ? 'bg-brand-100 text-brand-700 hover:bg-brand-200'
+          : 'text-tone-600 hover:bg-tone-200/70 hover:text-tone-900'
       }`}
       title={label}
       type="button"
@@ -117,7 +122,7 @@ export function FilterField({
       {value ? (
         <button
           aria-label="Xoá lọc"
-          className="absolute right-1.5 flex h-5 w-5 items-center justify-center rounded-full text-slate-500 hover:bg-slate-200"
+          className="absolute right-1.5 flex h-5 w-5 items-center justify-center rounded-full text-tone-500 hover:bg-tone-200"
           type="button"
           onClick={() => onChange('')}
         >
@@ -142,12 +147,12 @@ export function CiteBadge({
 }) {
   if (!n) return null
   const className = `inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full border px-1 text-[10px] font-semibold leading-none ${
-    active ? 'text-white' : 'bg-white text-slate-800'
+    active
+      ? 'border-brand-600 bg-brand-600 text-white ring-2 ring-brand-200'
+      : 'bg-white text-tone-800'
   }`
-  const style = {
-    borderColor: tone.line,
-    backgroundColor: active ? tone.line : undefined,
-  }
+  // Đang xem: tô màu chủ đạo cho nổi bật; còn lại viền theo màu nhánh.
+  const style = active ? undefined : { borderColor: tone.line }
   if (!onClick) {
     return (
       <span className={className} style={style}>
@@ -207,7 +212,7 @@ function toneOf(state: ConflictState): string {
     ? 'bg-amber-400 text-amber-950'
     : state === 'reviewed'
       ? 'border border-amber-400 bg-amber-50 text-amber-800'
-      : 'bg-slate-200 text-slate-500 opacity-70'
+      : 'bg-tone-200 text-tone-500 opacity-70'
 }
 
 /**

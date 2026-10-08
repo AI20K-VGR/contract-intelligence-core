@@ -1,5 +1,5 @@
 import { useRef, useState, type DragEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import {
   createDossier,
   createDossierErrorMessage,
@@ -7,11 +7,10 @@ import {
   TOO_MANY_DOCUMENTS,
   patchDossier,
 } from '../api/dossiers'
-import { dossiersLabel, dossiersPath } from '../auth/session'
+import { dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
 import { progressPath, splitPath } from '../data/dossiers'
-import { dossierCategories } from '../data/upload'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 import {
   asUploadPdf,
@@ -68,7 +67,7 @@ function FileCard({
             <span
               className={`font-label-sm text-label-sm px-space-sm py-0.5 rounded font-semibold uppercase tracking-wider ${
                 contract
-                  ? 'bg-primary-container text-primary-fixed'
+                  ? 'bg-brand-200 text-brand-800'
                   : 'bg-secondary-container text-on-secondary-container'
               }`}
             >
@@ -132,7 +131,6 @@ export function CreateDossierPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const backTo = user ? dossiersPath(user.role) : '/'
-  const backLabel = user ? dossiersLabel(user.role) : 'Hồ sơ'
   const canUpload =
     user?.backendRole === 'OPERATOR' || user?.backendRole === 'ADMINISTRATOR'
 
@@ -142,7 +140,6 @@ export function CreateDossierPage() {
 
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
-  const [category, setCategory] = useState(dossierCategories[0])
   const [structureMode, setStructureMode] = useState<StructureMode | null>(null)
   const [contract, setContract] = useState<PickedFile | null>(null)
   const [annexes, setAnnexes] = useState<PickedFile[]>([])
@@ -315,7 +312,6 @@ export function CreateDossierPage() {
 
       const extra: Record<string, unknown> = {
         privacy: 'private',
-        category,
         [STRUCTURE_MODE_KEY]: structureMode,
       }
       if (code.trim()) extra.code = code.trim()
@@ -341,28 +337,11 @@ export function CreateDossierPage() {
 
   return (
     <div className="flex flex-col w-full pb-margin-lg">
-      <div className="flex flex-col gap-space-sm pt-space-md mb-space-xl">
-        <nav className="flex items-center gap-space-xs font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
-          <Link className="hover:text-primary transition-colors" to={backTo}>
-            {backLabel}
-          </Link>
-          <MaterialIcon name="chevron_right" className="text-[14px]" />
-          <span className="text-on-surface font-semibold">Tạo hồ sơ mới</span>
-        </nav>
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
-          <div className="flex flex-col gap-space-xs max-w-3xl">
-            {titleInHeader ? null : (
-              <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">
-                Tải lên tài liệu
-              </h1>
-            )}
-            <p className="font-body-md text-body-md text-on-surface-variant">
-              Tải PDF hoặc ảnh chụp hợp đồng. Hệ thống OCR và hiện cây cấu trúc
-              khi xử lý xong.
-            </p>
-          </div>
-        </div>
-      </div>
+      {titleInHeader ? null : (
+        <h1 className="mb-space-xl pt-space-md font-headline-lg text-headline-lg text-primary tracking-tight">
+          Tải lên tài liệu
+        </h1>
+      )}
 
       {!canUpload ? (
         <div className="mb-space-lg px-space-md py-space-sm rounded bg-surface-container text-on-surface font-body-sm text-body-sm">
@@ -380,9 +359,10 @@ export function CreateDossierPage() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter-lg items-start">
-        <div className="lg:col-span-4 flex flex-col gap-gutter">
-          <section className="bg-surface-container-lowest p-space-xl rounded-xl shadow-sm flex flex-col gap-space-lg">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter-lg items-start lg:items-stretch">
+        <div className="lg:col-span-5 flex flex-col gap-gutter">
+          {/* Màn rộng: thẻ này cao bằng phần tải tệp bên phải */}
+          <section className="bg-surface-container-lowest p-space-xl rounded-xl shadow-sm flex flex-col gap-space-lg lg:flex-1">
             <div className="flex items-center justify-between pb-space-xs">
               <div className="flex items-center gap-space-sm">
                 <MaterialIcon
@@ -446,34 +426,6 @@ export function CreateDossierPage() {
                     />
                   </div>
                 </div>
-
-                <div className="flex flex-col gap-space-xs">
-                  <label
-                    className="font-label-sm text-label-sm text-primary tracking-wider uppercase font-semibold"
-                    htmlFor="dossier-category"
-                  >
-                    Phân loại lĩnh vực pháp lý
-                  </label>
-                  <div className="relative flex items-center">
-                    <select
-                      className="w-full h-10 px-space-md appearance-none bg-surface text-on-surface font-body-sm text-body-sm rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-on-tertiary-container cursor-pointer"
-                      disabled={busy}
-                      id="dossier-category"
-                      value={category}
-                      onChange={(event) => setCategory(event.target.value)}
-                    >
-                      {dossierCategories.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                    <MaterialIcon
-                      name="expand_more"
-                      className="absolute right-space-md pointer-events-none text-on-surface-variant text-[18px]"
-                    />
-                  </div>
-                </div>
               </div>
 
               <fieldset
@@ -497,7 +449,7 @@ export function CreateDossierPage() {
                           key={item.value}
                           className={`flex items-center justify-between p-space-md rounded-lg transition-colors cursor-pointer ${
                             active
-                              ? 'bg-primary-container/10 ring-1 ring-primary-container'
+                              ? 'bg-brand-50 ring-1 ring-brand-300'
                               : 'bg-surface hover:bg-surface-container-low'
                           }`}
                         >
@@ -514,9 +466,6 @@ export function CreateDossierPage() {
                             <div className="flex flex-col">
                               <span className="font-body-sm text-body-sm font-semibold text-primary">
                                 {item.label}
-                              </span>
-                              <span className="font-code-sm text-code-sm text-on-surface-variant">
-                                {item.hint}
                               </span>
                             </div>
                           </div>
@@ -541,7 +490,7 @@ export function CreateDossierPage() {
           </section>
         </div>
 
-        <div className="lg:col-span-8 flex flex-col gap-gutter">
+        <div className="lg:col-span-7 flex flex-col gap-gutter">
           <div className="p-space-xl bg-surface-container-lowest rounded-xl shadow-sm flex flex-col gap-space-lg">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm pb-space-xs">
               <div className="flex flex-col gap-space-xs">
@@ -631,7 +580,7 @@ export function CreateDossierPage() {
                     phụ lục sau.
                   </p>
                   <button
-                    className="mt-space-xs h-10 px-space-lg bg-primary text-on-primary hover:bg-primary-container font-body-sm text-body-sm font-semibold rounded-lg shadow-sm"
+                    className="mt-space-xs h-10 px-space-lg bg-brand-100 text-brand-700 hover:bg-brand-200 font-body-sm text-body-sm font-semibold rounded-lg shadow-sm"
                     disabled={busy}
                     type="button"
                     onClick={() => contractInputRef.current?.click()}
@@ -707,7 +656,7 @@ export function CreateDossierPage() {
                     <span
                       className={`rounded px-2 py-0.5 font-label-sm text-label-sm font-semibold ${
                         mixedFile
-                          ? 'bg-sky-600 text-white'
+                          ? 'bg-brand-100 text-brand-700'
                           : 'bg-amber-200 text-amber-900'
                       }`}
                     >
@@ -733,7 +682,7 @@ export function CreateDossierPage() {
                 Hủy bỏ
               </button>
               <button
-                className="h-10 px-space-lg bg-primary text-on-primary hover:bg-primary-container active:bg-tertiary transition-all font-body-sm text-body-sm font-semibold rounded-lg shadow-sm flex items-center gap-space-sm cursor-pointer disabled:opacity-80"
+                className="h-10 px-space-lg bg-brand-100 text-brand-700 hover:bg-brand-200 active:bg-brand-300 transition-all font-body-sm text-body-sm font-semibold rounded-lg shadow-sm flex items-center gap-space-sm cursor-pointer disabled:opacity-80"
                 disabled={busy || !canUpload}
                 type="button"
                 onClick={() => {

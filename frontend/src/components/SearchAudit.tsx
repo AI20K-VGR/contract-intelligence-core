@@ -58,14 +58,13 @@ export function SearchAudit({ result }: { result: Ai2SearchResult }) {
           className="rounded-lg bg-error-container px-space-sm py-space-xs font-body-sm text-body-sm text-on-error-container"
           role="alert"
         >
-          AI2 từ chối truy vấn này (BLOCKED), không phải là không tìm thấy.
-          Thường do AI2 chưa cấp quyền đọc hồ sơ cho tài khoản đang đăng nhập.
-          Hãy báo nhóm Backend/AI2 kèm mã hồ sơ.
+          AI chưa được phép đọc hồ sơ này bằng tài khoản của bạn, nên chưa trả
+          lời được. Hãy báo quản trị viên kèm mã hồ sơ.
         </p>
       ) : null}
       {nothingFound ? (
         <p className="font-body-sm text-body-sm text-on-surface-variant" role="status">
-          AI2 không tìm thấy đoạn nào khớp câu hỏi. Thử hỏi đầy đủ hơn, ví dụ
+          AI không tìm thấy đoạn nào khớp câu hỏi. Thử hỏi đầy đủ hơn, ví dụ
           “Điều 1 quy định gì?”.
         </p>
       ) : null}
@@ -79,7 +78,7 @@ export function SearchAudit({ result }: { result: Ai2SearchResult }) {
       {layer.length > 0 ? (
         <details className="rounded-lg border border-outline-variant/30 px-space-sm py-space-xs">
           <summary className="cursor-pointer font-label-sm text-label-sm text-secondary">
-            Cách AI2 tìm căn cứ
+            Cách AI tìm căn cứ
           </summary>
           <dl className="mt-space-xs grid gap-x-space-sm gap-y-1 font-code-sm text-code-sm sm:grid-cols-[max-content_1fr]">
             {layer.map(([key, value]) => (

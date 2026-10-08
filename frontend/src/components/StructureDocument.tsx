@@ -3,7 +3,6 @@ import type { ClauseNode } from '../api/structure'
 import {
   bodyOf,
   branchMap,
-  countOf,
   exportOutlineText,
   fullLabel,
   headOf,
@@ -49,18 +48,6 @@ function tocItems(
   return items
 }
 
-function pageSpan(nodes: ClauseNode[]) {
-  let min = Number.POSITIVE_INFINITY
-  let max = 0
-  function walk(node: ClauseNode) {
-    if (node.pageStart > 0) min = Math.min(min, node.pageStart)
-    if (node.pageEnd > 0) max = Math.max(max, node.pageEnd)
-    node.children.forEach(walk)
-  }
-  nodes.forEach(walk)
-  return Number.isFinite(min) && max >= min ? max - min + 1 : 0
-}
-
 export function StructureDocument({
   title,
   nodes,
@@ -84,10 +71,6 @@ export function StructureDocument({
   const [selected, setSelected] = useState<string | null>(null)
   const paneRef = useRef<HTMLDivElement | null>(null)
   const tocRef = useRef<HTMLElement | null>(null)
-
-  const articleCount = countOf(nodes, 'article') || visibleRoots(nodes).length
-  const pages = pageSpan(nodes)
-  const caption = `${articleCount} điều khoản${pages ? ` • ${pages} trang` : ''}`
 
   // Scroll-spy: mục đang đọc là mục lục cuối cùng có đỉnh nằm trên vạch 1/4 khung.
   useEffect(() => {
@@ -155,7 +138,6 @@ export function StructureDocument({
 
   return (
     <ViewShell
-      caption={caption}
       controls={
         <>
           <IconButton
@@ -172,8 +154,6 @@ export function StructureDocument({
           />
         </>
       }
-      icon="article"
-      title="Văn bản"
     >
       <div className="flex min-h-0 flex-1">
         {tocOpen ? (
@@ -238,9 +218,6 @@ export function StructureDocument({
         ) : null}
         <div ref={paneRef} className="min-h-0 flex-1 overflow-auto bg-white">
           <article className="mx-auto max-w-3xl px-8 py-8 pb-24">
-            <h1 className="mb-6 border-b border-outline-variant/30 pb-4 font-headline-md text-headline-md text-primary">
-              {title}
-            </h1>
             {visibleRoots(source).map((node) => (
               <Section
                 key={node.id}
@@ -347,7 +324,7 @@ function Section({
             <ConflictBadge marker={marker} />
           ) : null}
           {pages ? (
-            <span className="font-mono text-[10px] text-slate-400">
+            <span className="font-mono text-[10px] text-tone-400">
               {pages}
             </span>
           ) : null}
@@ -359,7 +336,7 @@ function Section({
           />
           <MaterialIcon
             name="open_in_new"
-            className="text-[14px] text-slate-300 opacity-0 transition-opacity group-hover:opacity-100"
+            className="text-[14px] text-tone-300 opacity-0 transition-opacity group-hover:opacity-100"
           />
         </span>
       </div>

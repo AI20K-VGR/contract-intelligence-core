@@ -156,8 +156,8 @@ export function StructureSearchResult({
           ) : (
             <p className="font-body-sm text-body-sm text-on-surface-variant">
               {result.connected
-                ? 'AI2 chưa có câu trả lời cho câu hỏi này.'
-                : 'AI2 chưa nối được. Backend đã nhận câu hỏi nhưng dịch vụ AI2 không phản hồi (chưa chạy container ai2, hoặc quá thời gian chờ).'}
+                ? 'AI chưa tìm được câu trả lời cho câu hỏi này.'
+                : 'AI đang bận hoặc phản hồi quá lâu nên chưa trả lời được. Thử hỏi lại sau ít phút.'}
             </p>
           )}
 

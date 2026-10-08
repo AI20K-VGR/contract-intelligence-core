@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { listDossiers, listDossiersErrorMessage } from '../api/dossiers'
@@ -22,6 +22,29 @@ import { MaterialIcon } from '../components/icons'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 
 const PAGE_SIZE = 5
+
+/** Thẻ trắng viền mảnh, chữ nhỏ, nhấn bằng màu chủ đạo tông nhạt. */
+const CARD =
+  'bg-white rounded-[12px] border border-tone-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'
+const INK = 'text-tone-900'
+const MUTED = 'text-tone-500'
+const ACCENT_FILL = 'bg-brand-100 text-brand-600'
+const AVATAR_FILL = 'bg-brand-50 text-brand-700'
+
+/** Màu icon từng ô thống kê theo bảng màu: petrol, navy, teal, blush. */
+const STAT_TONE = {
+  blue: ACCENT_FILL,
+  indigo: 'bg-tone-100 text-brand-900',
+  sky: 'bg-ice/50 text-brand-500',
+  amber: 'bg-blush-100 text-blush-700',
+} as const
+type StatTone = keyof typeof STAT_TONE
+
+const roleTone: Record<ManagedUserRole, string> = {
+  ADMINISTRATOR: 'bg-brand-100 text-brand-700 ring-1 ring-brand-200',
+  OPERATOR: 'bg-tone-100 text-brand-900 ring-1 ring-tone-200',
+  REVIEWER: 'bg-blush-50 text-blush-700 ring-1 ring-blush-100',
+}
 
 const roleLabel: Record<ManagedUserRole, string> = {
   OPERATOR: 'Vận hành',
@@ -82,8 +105,6 @@ export function OverviewPage() {
   const [activityLoading, setActivityLoading] = useState(true)
   const [activityMissing, setActivityMissing] = useState(false)
   const [activityError, setActivityError] = useState<string | null>(null)
-  const membersPanelRef = useRef<HTMLDivElement>(null)
-  const [activityHeight, setActivityHeight] = useState<number | null>(null)
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -228,23 +249,6 @@ export function OverviewPage() {
     return () => controller.abort()
   }, [])
 
-  useEffect(() => {
-    const panel = membersPanelRef.current
-    if (!panel) return
-    const media = window.matchMedia('(min-width: 1024px)')
-    const sync = () => {
-      setActivityHeight(media.matches ? Math.round(panel.getBoundingClientRect().height) : null)
-    }
-    sync()
-    const observer = new ResizeObserver(sync)
-    observer.observe(panel)
-    media.addEventListener('change', sync)
-    return () => {
-      observer.disconnect()
-      media.removeEventListener('change', sync)
-    }
-  }, [])
-
   const from = members.length === 0 ? 0 : offset + 1
   const to = offset + members.length
   const hasPrev = offset > 0
@@ -275,6 +279,7 @@ export function OverviewPage() {
         ) : null}
         <StatCard
           icon="inventory_2"
+          tone="indigo"
           label="Hồ sơ hoạt động"
           to="/ho-so"
           value={formatCount(dossierTotal)}
@@ -287,6 +292,7 @@ export function OverviewPage() {
         {isAdmin ? (
           <StatCard
             icon="mark_email_unread"
+            tone="amber"
             label="Lời mời chờ duyệt"
             to="/nguoi-dung-phan-quyen"
             value={formatCount(inviteTotal)}
@@ -294,29 +300,14 @@ export function OverviewPage() {
         ) : null}
       </div>
 
-      <div className="w-full bg-surface-container-low px-space-lg py-space-md rounded flex items-center justify-between gap-space-md">
-        <div className="flex items-center gap-space-md min-w-0">
-          <div className="w-7 h-7 rounded bg-surface-container flex items-center justify-center shrink-0">
-            <MaterialIcon name="lock" className="text-secondary text-[16px]" />
-          </div>
-          <p className="font-body-sm text-body-sm text-on-surface-variant truncate md:whitespace-normal">
-            <strong className="font-title-sm text-title-sm text-on-surface">
-              Chính sách:
-            </strong>{' '}
-            Admin chỉ xem được hồ sơ khi người dùng chủ động chia sẻ.
-          </p>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
         {isAdmin ? (
         <div
-          ref={membersPanelRef}
-          className="lg:col-span-8 flex flex-col bg-surface-container-lowest rounded shadow-sm overflow-hidden"
+          className={`lg:col-span-8 flex flex-col overflow-hidden ${CARD}`}
         >
-          <div className="p-space-lg flex flex-col sm:flex-row sm:items-center justify-between gap-space-md bg-surface-container-lowest">
+          <div className="p-space-lg flex flex-col sm:flex-row sm:items-center justify-between gap-space-md">
             <div>
-              <h2 className="font-headline-md text-headline-md text-on-surface font-semibold">
+              <h2 className={`text-[16px] font-medium ${INK}`}>
                 Thành viên nhóm
               </h2>
             </div>
@@ -327,7 +318,7 @@ export function OverviewPage() {
                   className="absolute left-2.5 text-secondary text-[16px]"
                 />
                 <input
-                  className="pl-8 pr-space-md py-1.5 bg-surface-container text-on-surface rounded font-body-sm text-body-sm placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest focus:ring-1 focus:ring-secondary w-44 sm:w-56"
+                  className="pl-8 pr-space-md py-2 bg-tone-100 text-tone-900 rounded-[8px] font-body-sm text-body-sm placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest focus:ring-1 focus:ring-brand-300 w-44 sm:w-56"
                   placeholder="Tìm theo tên, email..."
                   type="search"
                   value={queryInput}
@@ -336,7 +327,7 @@ export function OverviewPage() {
               </div>
               <div className="relative">
                 <select
-                  className="appearance-none bg-surface-container text-on-surface font-body-sm text-body-sm py-1.5 pl-3 pr-8 rounded focus:outline-none cursor-pointer"
+                  className="appearance-none bg-tone-100 text-tone-900 font-body-sm text-body-sm py-2 pl-4 pr-8 rounded-[8px] focus:outline-none focus:ring-1 focus:ring-brand-300 cursor-pointer"
                   value={role}
                   aria-label="Vai trò"
                   onChange={(event) => {
@@ -351,7 +342,7 @@ export function OverviewPage() {
                 </select>
                 <MaterialIcon
                   name="expand_more"
-                  className="absolute right-2 top-2 pointer-events-none text-secondary text-[16px]"
+                  className="absolute right-2.5 top-2.5 pointer-events-none text-secondary text-[16px]"
                 />
               </div>
             </div>
@@ -363,25 +354,25 @@ export function OverviewPage() {
             </div>
           ) : null}
 
-          <div className="w-full overflow-x-auto">
-            <table className="w-full text-left text-on-surface font-body-sm text-body-sm min-w-[720px]">
+          <div className="w-full">
+            <table className="w-full text-left text-on-surface font-body-sm text-body-sm table-fixed">
               <thead>
-                <tr className="bg-surface-container-low text-secondary font-label-sm text-label-sm uppercase tracking-wider">
-                  <th className="py-3 px-space-lg" scope="col">
+                <tr className={`${MUTED} text-[11px] font-semibold uppercase tracking-[0.06em] border-y border-tone-100`}>
+                  <th className="py-3 px-space-lg w-[40%]" scope="col">
                     Thành viên
                   </th>
-                  <th className="py-3 px-space-md" scope="col">
+                  <th className="py-3 px-space-md w-[18%]" scope="col">
                     Vai trò
                   </th>
-                  <th className="py-3 px-space-md" scope="col">
+                  <th className="py-3 px-space-md w-[22%]" scope="col">
                     Đăng nhập gần nhất
                   </th>
-                  <th className="py-3 px-space-md" scope="col">
+                  <th className="py-3 px-space-md w-[20%]" scope="col">
                     Trạng thái
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-surface-container-low">
+              <tbody className="divide-y divide-tone-100">
                 {membersLoading && members.length === 0 ? (
                   <tr>
                     <td className="py-10 px-space-lg text-secondary" colSpan={4}>
@@ -418,7 +409,7 @@ export function OverviewPage() {
             </table>
           </div>
 
-          <div className="p-space-md bg-surface-container-lowest flex items-center justify-between">
+          <div className="px-space-lg py-space-md border-t border-tone-100 flex items-center justify-between">
             <span className="font-body-sm text-body-sm text-secondary">
               Hiển thị{' '}
               <span className="font-semibold text-on-surface">
@@ -430,7 +421,7 @@ export function OverviewPage() {
             </span>
             <div className="flex items-center gap-space-xs">
               <button
-                className="px-space-md py-1 rounded bg-surface-container-low text-on-surface hover:bg-surface-container font-label-sm text-label-sm transition-colors disabled:text-outline disabled:cursor-not-allowed"
+                className="px-4 py-1.5 rounded-[8px] border border-tone-200 bg-white text-tone-900 hover:bg-tone-100 font-label-sm text-label-sm transition-colors disabled:text-tone-300 disabled:hover:bg-white disabled:cursor-not-allowed"
                 disabled={!hasPrev || membersLoading}
                 type="button"
                 onClick={() =>
@@ -440,7 +431,7 @@ export function OverviewPage() {
                 Trước
               </button>
               <button
-                className="px-space-md py-1 rounded bg-surface-container text-on-surface hover:bg-surface-container-high font-label-sm text-label-sm transition-colors disabled:text-outline disabled:cursor-not-allowed"
+                className="px-4 py-1.5 rounded-[8px] bg-brand-100 text-brand-700 font-medium hover:bg-brand-200 font-label-sm text-label-sm transition-colors disabled:bg-brand-50 disabled:text-tone-300 disabled:font-normal disabled:cursor-not-allowed"
                 disabled={!hasNext || membersLoading}
                 type="button"
                 onClick={() => setOffset((current) => current + PAGE_SIZE)}
@@ -453,18 +444,16 @@ export function OverviewPage() {
         ) : null}
 
         <div
-          className={`${isAdmin ? 'lg:col-span-4' : 'lg:col-span-12'} flex flex-col bg-surface-container-lowest rounded shadow-sm p-space-lg min-h-0 overflow-hidden`}
-          style={activityHeight != null ? { height: activityHeight } : undefined}
+          className={`${isAdmin ? 'lg:col-span-4' : 'lg:col-span-12'} flex flex-col p-space-lg min-h-0 overflow-hidden lg:h-[380px] ${CARD}`}
         >
           <div className="flex items-center justify-between mb-space-md shrink-0">
             <div className="flex items-center gap-space-xs min-w-0">
-              <MaterialIcon name="history" className="text-[18px] text-secondary shrink-0" />
-              <h2 className="font-headline-md text-headline-md text-on-surface font-semibold truncate">
+              <h2 className={`text-[16px] font-medium ${INK} truncate`}>
                 Hoạt động gần đây
               </h2>
             </div>
             <Link
-              className="font-label-sm text-label-sm text-primary hover:underline shrink-0"
+              className="font-label-sm text-label-sm font-semibold text-tone-900 underline-offset-4 hover:underline shrink-0"
               to="/nhat-ky-hoat-dong"
             >
               Xem tất cả
@@ -493,22 +482,30 @@ export function OverviewPage() {
               </div>
             ) : null}
             {!activityLoading && activity.length > 0 ? (
-              <ul className="flex flex-col divide-y divide-surface-container-low">
+              <ul className="flex flex-col gap-space-sm">
                 {activity.map((event) => (
-                  <li key={event.id} className="flex flex-col gap-0.5 py-space-sm">
-                    <span className="font-title-sm text-title-sm text-on-surface">
-                      {event.actor_display_name
-                        ? `${event.actor_display_name} · ${event.title}`
-                        : event.title}
+                  <li key={event.id} className="flex items-start gap-space-sm rounded-[10px] border border-tone-100 bg-tone-50 p-3">
+                    <span
+                      aria-hidden="true"
+                      className={`w-8 h-8 rounded-full ${AVATAR_FILL} flex items-center justify-center text-[11px] font-bold shrink-0`}
+                    >
+                      {initials(event.actor_display_name ?? '', event.actor_display_name ?? '?')}
                     </span>
-                    <span className="font-body-sm text-body-sm text-secondary">
-                      {formatWhen(event.occurred_at)}
-                    </span>
-                    {event.detail ? (
-                      <span className="font-body-sm text-body-sm text-secondary truncate">
-                        {event.detail}
+                    <span className="flex flex-col gap-0.5 min-w-0">
+                      <span className={`font-body-sm text-body-sm font-semibold ${INK}`}>
+                        {event.actor_display_name
+                          ? `${event.actor_display_name} · ${event.title}`
+                          : event.title}
                       </span>
-                    ) : null}
+                      <span className={`text-[12px] ${MUTED}`}>
+                        {formatWhen(event.occurred_at)}
+                      </span>
+                      {event.detail ? (
+                        <span className={`text-[12px] ${MUTED} truncate`}>
+                          {event.detail}
+                        </span>
+                      ) : null}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -538,43 +535,54 @@ function StorageCard({
   else if (missing) emptyNote = 'Backend chưa có API dung lượng lưu trữ.'
 
   return (
-    <div className="bg-surface-container-lowest p-space-lg rounded shadow-sm flex flex-col justify-between">
-      <div className="flex items-center justify-between text-secondary">
-        <span className="font-label-sm text-label-sm tracking-wider uppercase">
-          Dung lượng
-        </span>
-        <MaterialIcon name="cloud_done" className="text-[20px] text-secondary" />
-      </div>
+    <div className={`${CARD} px-space-lg py-space-md flex flex-col`}>
+      <CardHead icon="cloud_done" label="Dung lượng" tone="sky" />
       {storage ? (
-        <div className="mt-space-md">
-          <span className="font-display-lg text-display-lg text-on-surface font-semibold">
+        <div className="mt-space-sm">
+          <span className={`text-[26px] leading-none font-semibold ${INK}`}>
             {formatBytes(used)}
           </span>
           {percent !== null ? (
             <div className="mt-space-sm">
-              <div className="h-1.5 rounded bg-surface-container overflow-hidden">
-                <div className="h-full bg-secondary" style={{ width: `${percent}%` }} />
+              <div className="h-1.5 rounded-full bg-brand-100 overflow-hidden">
+                <div className="h-full rounded-full bg-brand-600" style={{ width: `${percent}%` }} />
               </div>
-              <p className="font-body-sm text-body-sm text-secondary mt-space-xs">
+              <p className={`text-[12px] ${MUTED} mt-space-xs`}>
                 {percent}% của {formatBytes(quota ?? 0)}
               </p>
             </div>
           ) : (
-            <p className="font-body-sm text-body-sm text-secondary mt-space-xs">
+            <p className={`text-[12px] ${MUTED} mt-space-xs`}>
               Tổng dung lượng tệp đã tải lên.
             </p>
           )}
         </div>
       ) : (
         <div className="mt-space-md">
-          <span className="font-headline-md text-headline-md text-secondary font-semibold">
-            Chưa có số liệu
-          </span>
-          <p className="font-body-sm text-body-sm text-secondary mt-space-xs">
-            {emptyNote}
-          </p>
+          <span className={`text-[20px] font-bold ${MUTED}`}>Chưa có số liệu</span>
+          <p className={`text-[12px] ${MUTED} mt-space-xs`}>{emptyNote}</p>
         </div>
       )}
+    </div>
+  )
+}
+
+/** Nhãn bên trái, icon trong ô vuông màu nhạt bên phải. */
+function CardHead({
+  icon,
+  label,
+  tone = 'blue',
+}: {
+  icon: string
+  label: string
+  tone?: StatTone
+}) {
+  return (
+    <div className="flex items-center justify-between gap-space-sm">
+      <span className="text-[13px] font-medium text-tone-700">{label}</span>
+      <span className={`w-7 h-7 rounded-[6px] ${STAT_TONE[tone]} flex items-center justify-center shrink-0`}>
+        <MaterialIcon name={icon} className="text-[16px]" />
+      </span>
     </div>
   )
 }
@@ -584,35 +592,31 @@ function StatCard({
   label,
   value,
   to,
+  tone,
 }: {
   icon: string
   label: string
   value: string
   to?: string
+  tone?: StatTone
 }) {
   const body = (
     <>
-      <div className="flex items-center justify-between text-secondary">
-        <span className="font-label-sm text-label-sm tracking-wider uppercase">
-          {label}
-        </span>
-        <MaterialIcon name={icon} className="text-[20px] text-secondary" />
-      </div>
-      <div className="mt-space-md flex items-baseline justify-between">
-        <span className="font-display-lg text-display-lg text-on-surface font-semibold">
+      <CardHead icon={icon} label={label} tone={tone} />
+      <div className="mt-space-sm">
+        <span className={`text-[26px] leading-none font-semibold ${INK}`}>
           {value}
         </span>
       </div>
     </>
   )
-  const className =
-    'bg-surface-container-lowest p-space-lg rounded shadow-sm flex flex-col justify-between'
+  const className = `${CARD} px-space-lg py-space-md flex flex-col`
   if (!to) {
     return <div className={className}>{body}</div>
   }
   return (
     <Link
-      className={`${className} hover:bg-surface-container-low transition-colors`}
+      className={`${className} transition-all hover:border-brand-200 hover:shadow-[0_6px_20px_rgba(0,0,0,0.07)]`}
       to={to}
     >
       {body}
@@ -623,44 +627,38 @@ function StatCard({
 function MemberRow({ member }: { member: ManagedUser }) {
   const muted = member.status === 'disabled' || member.status === 'invited'
   return (
-    <tr className="hover:bg-surface-container-low/60 transition-colors">
+    <tr className="hover:bg-tone-50 transition-colors">
       <td className="py-3.5 px-space-lg">
         <div className="flex items-center gap-space-md">
           <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center font-title-sm text-title-sm font-semibold shrink-0 ${
-              member.role === 'ADMINISTRATOR'
-                ? 'bg-primary-container text-on-primary'
-                : 'bg-surface-container text-secondary'
+            className={`w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-medium shrink-0 ${
+              roleTone[member.role]
             } ${muted ? 'opacity-60' : ''}`}
           >
             {initials(member.display_name, member.email)}
           </div>
           <div className="flex flex-col min-w-0">
             <span
-              className={`font-title-sm text-title-sm text-on-surface truncate ${
+              className={`font-body-sm text-body-sm font-semibold ${INK} truncate ${
                 muted ? 'opacity-75' : ''
               }`}
             >
               {member.display_name}
             </span>
-            <span className="font-body-sm text-body-sm text-secondary truncate">
-              {member.email}
-            </span>
+            <span className={`text-[12px] ${MUTED} truncate`}>{member.email}</span>
           </div>
         </div>
       </td>
       <td className="py-3.5 px-space-md">
         <span
-          className={`inline-flex items-center px-2 py-0.5 rounded font-label-sm text-label-sm ${
-            member.role === 'ADMINISTRATOR'
-              ? 'bg-primary-container text-on-primary'
-              : 'bg-surface-container text-secondary'
+          className={`inline-flex items-center px-2.5 py-1 rounded-[6px] text-[12px] font-medium whitespace-nowrap ${
+            roleTone[member.role]
           }`}
         >
           {roleLabel[member.role]}
         </span>
       </td>
-      <td className="py-3.5 px-space-md text-secondary">
+      <td className={`py-3.5 px-space-md ${MUTED} break-words`}>
         {member.status === 'invited'
           ? 'Chưa đăng nhập'
           : formatWhen(member.last_login_at)}
@@ -673,25 +671,27 @@ function MemberRow({ member }: { member: ManagedUser }) {
 }
 
 function StatusBadge({ status }: { status: ManagedUserStatus }) {
+  const pill =
+    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] bg-tone-100 text-tone-700 whitespace-nowrap text-[12px] font-medium'
   if (status === 'active') {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container text-on-surface font-label-sm text-label-sm">
-        <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
+      <span className={`${pill}`}>
+        <span className="w-1.5 h-1.5 rounded-full bg-[#22a55e]" />
         Đang hoạt động
       </span>
     )
   }
   if (status === 'invited') {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container-high text-secondary font-label-sm text-label-sm">
-        <span className="w-1.5 h-1.5 rounded-full bg-outline" />
+      <span className={`${pill}`}>
+        <span className="w-1.5 h-1.5 rounded-full bg-brand-300" />
         Đã mời
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-error-container text-on-error-container font-label-sm text-label-sm">
-      <span className="w-1.5 h-1.5 rounded-full bg-error" />
+    <span className={`${pill} text-[#b42318]`}>
+      <span className="w-1.5 h-1.5 rounded-full bg-[#e5484d]" />
       Đã khóa
     </span>
   )
