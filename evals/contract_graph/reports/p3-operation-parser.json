@@ -878,7 +878,7 @@
   "tt14-2019-nhnn": {
    "all": {
     "n_gold": 3,
-    "n_pred": 2,
+    "n_pred": 0,
     "op_lexical_agreement": {
      "denominator": 3,
      "passed": 0,
@@ -889,12 +889,12 @@
      ]
     },
     "op_precision": {
-     "denominator": 2,
+     "denominator": 0,
      "passed": 0,
-     "rate": 0.0,
+     "rate": null,
      "wilson95": [
       0.0,
-      0.6576
+      1.0
      ]
     },
     "src_found": {
@@ -919,7 +919,7 @@
    "by_op": {
     "INSERTION": {
      "n_gold": 2,
-     "n_pred": 1,
+     "n_pred": 0,
      "op_lexical_agreement": {
       "denominator": 2,
       "passed": 0,
@@ -930,12 +930,12 @@
       ]
      },
      "op_precision": {
-      "denominator": 1,
+      "denominator": 0,
       "passed": 0,
-      "rate": 0.0,
+      "rate": null,
       "wilson95": [
        0.0,
-       0.7935
+       1.0
       ]
      },
      "src_found": {
@@ -999,7 +999,7 @@
     },
     "SUBSTITUTION": {
      "n_gold": 1,
-     "n_pred": 1,
+     "n_pred": 0,
      "op_lexical_agreement": {
       "denominator": 1,
       "passed": 0,
@@ -1010,12 +1010,12 @@
       ]
      },
      "op_precision": {
-      "denominator": 1,
+      "denominator": 0,
       "passed": 0,
-      "rate": 0.0,
+      "rate": null,
       "wilson95": [
        0.0,
-       0.7935
+       1.0
       ]
      },
      "src_found": {
@@ -1228,40 +1228,40 @@
   "tt23-2016-nhnn": {
    "all": {
     "n_gold": 6,
-    "n_pred": 3,
+    "n_pred": 7,
     "op_lexical_agreement": {
      "denominator": 6,
-     "passed": 3,
-     "rate": 0.5,
+     "passed": 5,
+     "rate": 0.8333,
      "wilson95": [
-      0.1876,
-      0.8124
+      0.4365,
+      0.9699
      ]
     },
     "op_precision": {
-     "denominator": 3,
-     "passed": 3,
-     "rate": 1.0,
+     "denominator": 7,
+     "passed": 5,
+     "rate": 0.7143,
      "wilson95": [
-      0.4385,
-      1.0
+      0.3589,
+      0.9178
      ]
     },
     "src_found": {
      "denominator": 6,
-     "passed": 3,
-     "rate": 0.5,
+     "passed": 5,
+     "rate": 0.8333,
      "wilson95": [
-      0.1876,
-      0.8124
+      0.4365,
+      0.9699
      ]
     },
     "target_accuracy": {
-     "denominator": 3,
-     "passed": 3,
+     "denominator": 5,
+     "passed": 5,
      "rate": 1.0,
      "wilson95": [
-      0.4385,
+      0.5655,
       1.0
      ]
     }
@@ -1309,40 +1309,40 @@
     },
     "REPEAL": {
      "n_gold": 2,
-     "n_pred": 0,
+     "n_pred": 4,
      "op_lexical_agreement": {
       "denominator": 2,
-      "passed": 0,
-      "rate": 0.0,
+      "passed": 2,
+      "rate": 1.0,
       "wilson95": [
-       0.0,
-       0.6576
+       0.3424,
+       1.0
       ]
      },
      "op_precision": {
-      "denominator": 0,
-      "passed": 0,
-      "rate": null,
+      "denominator": 4,
+      "passed": 2,
+      "rate": 0.5,
       "wilson95": [
-       0.0,
-       1.0
+       0.15,
+       0.85
       ]
      },
      "src_found": {
       "denominator": 2,
-      "passed": 0,
-      "rate": 0.0,
+      "passed": 2,
+      "rate": 1.0,
       "wilson95": [
-       0.0,
-       0.6576
+       0.3424,
+       1.0
       ]
      },
      "target_accuracy": {
-      "denominator": 0,
-      "passed": 0,
-      "rate": null,
+      "denominator": 2,
+      "passed": 2,
+      "rate": 1.0,
       "wilson95": [
-       0.0,
+       0.3424,
        1.0
       ]
      }
@@ -1403,40 +1403,40 @@
   "tt26-2015-btc": {
    "all": {
     "n_gold": 17,
-    "n_pred": 15,
+    "n_pred": 12,
     "op_lexical_agreement": {
      "denominator": 17,
-     "passed": 12,
-     "rate": 0.7059,
+     "passed": 10,
+     "rate": 0.5882,
      "wilson95": [
-      0.4687,
-      0.8672
+      0.3601,
+      0.7839
      ]
     },
     "op_precision": {
-     "denominator": 15,
-     "passed": 12,
-     "rate": 0.8,
+     "denominator": 12,
+     "passed": 10,
+     "rate": 0.8333,
      "wilson95": [
-      0.5481,
-      0.9295
+      0.552,
+      0.953
      ]
     },
     "src_found": {
      "denominator": 17,
-     "passed": 12,
-     "rate": 0.7059,
+     "passed": 10,
+     "rate": 0.5882,
      "wilson95": [
-      0.4687,
-      0.8672
+      0.3601,
+      0.7839
      ]
     },
     "target_accuracy": {
-     "denominator": 12,
-     "passed": 12,
+     "denominator": 10,
+     "passed": 10,
      "rate": 1.0,
      "wilson95": [
-      0.7575,
+      0.7225,
       1.0
      ]
     }
@@ -1524,40 +1524,40 @@
     },
     "SUBSTITUTION": {
      "n_gold": 12,
-     "n_pred": 11,
+     "n_pred": 8,
      "op_lexical_agreement": {
       "denominator": 12,
-      "passed": 8,
-      "rate": 0.6667,
+      "passed": 6,
+      "rate": 0.5,
       "wilson95": [
-       0.3906,
-       0.8619
+       0.2538,
+       0.7462
       ]
      },
      "op_precision": {
-      "denominator": 11,
-      "passed": 8,
-      "rate": 0.7273,
+      "denominator": 8,
+      "passed": 6,
+      "rate": 0.75,
       "wilson95": [
-       0.4343,
-       0.9025
+       0.4093,
+       0.9285
       ]
      },
      "src_found": {
       "denominator": 12,
-      "passed": 8,
-      "rate": 0.6667,
+      "passed": 6,
+      "rate": 0.5,
       "wilson95": [
-       0.3906,
-       0.8619
+       0.2538,
+       0.7462
       ]
      },
      "target_accuracy": {
-      "denominator": 8,
-      "passed": 8,
+      "denominator": 6,
+      "passed": 6,
       "rate": 1.0,
       "wilson95": [
-       0.6756,
+       0.6097,
        1.0
       ]
      }
@@ -1578,40 +1578,40 @@
   "tt27-2014-nhnn": {
    "all": {
     "n_gold": 6,
-    "n_pred": 6,
+    "n_pred": 10,
     "op_lexical_agreement": {
      "denominator": 6,
-     "passed": 3,
-     "rate": 0.5,
+     "passed": 6,
+     "rate": 1.0,
      "wilson95": [
-      0.1876,
-      0.8124
+      0.6097,
+      1.0
      ]
     },
     "op_precision": {
-     "denominator": 6,
-     "passed": 3,
-     "rate": 0.5,
+     "denominator": 10,
+     "passed": 6,
+     "rate": 0.6,
      "wilson95": [
-      0.1876,
-      0.8124
+      0.3127,
+      0.8318
      ]
     },
     "src_found": {
      "denominator": 6,
-     "passed": 3,
-     "rate": 0.5,
+     "passed": 6,
+     "rate": 1.0,
      "wilson95": [
-      0.1876,
-      0.8124
+      0.6097,
+      1.0
      ]
     },
     "target_accuracy": {
-     "denominator": 3,
-     "passed": 3,
+     "denominator": 6,
+     "passed": 6,
      "rate": 1.0,
      "wilson95": [
-      0.4385,
+      0.6097,
       1.0
      ]
     }
@@ -1699,40 +1699,40 @@
     },
     "SUBSTITUTION": {
      "n_gold": 6,
-     "n_pred": 6,
+     "n_pred": 10,
      "op_lexical_agreement": {
       "denominator": 6,
-      "passed": 3,
-      "rate": 0.5,
+      "passed": 6,
+      "rate": 1.0,
       "wilson95": [
-       0.1876,
-       0.8124
+       0.6097,
+       1.0
       ]
      },
      "op_precision": {
-      "denominator": 6,
-      "passed": 3,
-      "rate": 0.5,
+      "denominator": 10,
+      "passed": 6,
+      "rate": 0.6,
       "wilson95": [
-       0.1876,
-       0.8124
+       0.3127,
+       0.8318
       ]
      },
      "src_found": {
       "denominator": 6,
-      "passed": 3,
-      "rate": 0.5,
+      "passed": 6,
+      "rate": 1.0,
       "wilson95": [
-       0.1876,
-       0.8124
+       0.6097,
+       1.0
       ]
      },
      "target_accuracy": {
-      "denominator": 3,
-      "passed": 3,
+      "denominator": 6,
+      "passed": 6,
       "rate": 1.0,
       "wilson95": [
-       0.4385,
+       0.6097,
        1.0
       ]
      }
@@ -2052,18 +2052,11 @@
    "target_address": null
   },
   {
-   "note_no": 8,
-   "op": "REPEAL",
-   "pair_id": "tt23-2016-nhnn",
-   "src_address": "dieu 2",
-   "target_address": "dieu 4"
-  },
-  {
-   "note_no": 14,
-   "op": "REPEAL",
-   "pair_id": "tt23-2016-nhnn",
-   "src_address": "dieu 2",
-   "target_address": "dieu 11"
+   "note_no": 5,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt26-2015-btc",
+   "src_address": "khoan 3 dieu 1",
+   "target_address": "diem a khoan 8 dieu 4"
   },
   {
    "note_no": 12,
@@ -2078,6 +2071,13 @@
    "pair_id": "tt26-2015-btc",
    "src_address": "khoan 4 dieu 4",
    "target_address": "khoan 22 dieu 7"
+  },
+  {
+   "note_no": 29,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt26-2015-btc",
+   "src_address": "khoan 10 dieu 1",
+   "target_address": "dieu 15"
   },
   {
    "note_no": 30,
@@ -2099,27 +2099,6 @@
    "pair_id": "tt26-2015-btc",
    "src_address": "khoan 12 dieu 1",
    "target_address": "dieu 18"
-  },
-  {
-   "note_no": 15,
-   "op": "SUBSTITUTION",
-   "pair_id": "tt27-2014-nhnn",
-   "src_address": "dieu 2",
-   "target_address": "diem d khoan 1 dieu 12"
-  },
-  {
-   "note_no": 16,
-   "op": "SUBSTITUTION",
-   "pair_id": "tt27-2014-nhnn",
-   "src_address": "dieu 2",
-   "target_address": "khoan 2 dieu 16"
-  },
-  {
-   "note_no": 22,
-   "op": "SUBSTITUTION",
-   "pair_id": "tt27-2014-nhnn",
-   "src_address": "dieu 2",
-   "target_address": "dieu 19"
   },
   {
    "note_no": 23,
@@ -2174,48 +2153,48 @@
  "overall": {
   "all": {
    "n_gold": 113,
-   "n_pred": 93,
+   "n_pred": 96,
    "op_lexical_agreement": {
     "denominator": 113,
-    "passed": 79,
-    "rate": 0.6991,
+    "passed": 82,
+    "rate": 0.7257,
     "wilson95": [
-     0.6091,
-     0.776
+     0.637,
+     0.7995
     ]
    },
    "op_precision": {
-    "denominator": 93,
-    "passed": 79,
-    "rate": 0.8495,
+    "denominator": 96,
+    "passed": 82,
+    "rate": 0.8542,
     "wilson95": [
-     0.763,
-     0.9082
+     0.77,
+     0.9111
     ]
    },
    "src_found": {
     "denominator": 113,
-    "passed": 79,
-    "rate": 0.6991,
+    "passed": 82,
+    "rate": 0.7257,
     "wilson95": [
-     0.6091,
-     0.776
+     0.637,
+     0.7995
     ]
    },
    "target_accuracy": {
-    "denominator": 79,
-    "passed": 77,
-    "rate": 0.9747,
+    "denominator": 82,
+    "passed": 80,
+    "rate": 0.9756,
     "wilson95": [
-     0.9123,
-     0.993
+     0.9154,
+     0.9933
     ]
    }
   },
   "by_op": {
    "INSERTION": {
     "n_gold": 18,
-    "n_pred": 17,
+    "n_pred": 16,
     "op_lexical_agreement": {
      "denominator": 18,
      "passed": 16,
@@ -2226,12 +2205,12 @@
      ]
     },
     "op_precision": {
-     "denominator": 17,
+     "denominator": 16,
      "passed": 16,
-     "rate": 0.9412,
+     "rate": 1.0,
      "wilson95": [
-      0.7302,
-      0.9895
+      0.8064,
+      1.0
      ]
     },
     "src_found": {
@@ -2255,40 +2234,40 @@
    },
    "REPEAL": {
     "n_gold": 12,
-    "n_pred": 4,
+    "n_pred": 8,
     "op_lexical_agreement": {
      "denominator": 12,
-     "passed": 4,
-     "rate": 0.3333,
+     "passed": 6,
+     "rate": 0.5,
      "wilson95": [
-      0.1381,
-      0.6094
+      0.2538,
+      0.7462
      ]
     },
     "op_precision": {
-     "denominator": 4,
-     "passed": 4,
-     "rate": 1.0,
+     "denominator": 8,
+     "passed": 6,
+     "rate": 0.75,
      "wilson95": [
-      0.5101,
-      1.0
+      0.4093,
+      0.9285
      ]
     },
     "src_found": {
      "denominator": 12,
-     "passed": 4,
-     "rate": 0.3333,
+     "passed": 6,
+     "rate": 0.5,
      "wilson95": [
-      0.1381,
-      0.6094
+      0.2538,
+      0.7462
      ]
     },
     "target_accuracy": {
-     "denominator": 4,
-     "passed": 4,
+     "denominator": 6,
+     "passed": 6,
      "rate": 1.0,
      "wilson95": [
-      0.5101,
+      0.6097,
       1.0
      ]
     }
@@ -2298,38 +2277,38 @@
     "n_pred": 72,
     "op_lexical_agreement": {
      "denominator": 83,
-     "passed": 59,
-     "rate": 0.7108,
+     "passed": 60,
+     "rate": 0.7229,
      "wilson95": [
-      0.6057,
-      0.7973
+      0.6184,
+      0.8077
      ]
     },
     "op_precision": {
      "denominator": 72,
-     "passed": 59,
-     "rate": 0.8194,
+     "passed": 60,
+     "rate": 0.8333,
      "wilson95": [
-      0.7152,
-      0.8913
+      0.7309,
+      0.902
      ]
     },
     "src_found": {
      "denominator": 83,
-     "passed": 59,
-     "rate": 0.7108,
+     "passed": 60,
+     "rate": 0.7229,
      "wilson95": [
-      0.6057,
-      0.7973
+      0.6184,
+      0.8077
      ]
     },
     "target_accuracy": {
-     "denominator": 59,
-     "passed": 58,
-     "rate": 0.9831,
+     "denominator": 60,
+     "passed": 59,
+     "rate": 0.9833,
      "wilson95": [
-      0.91,
-      0.997
+      0.9114,
+      0.9971
      ]
     }
    }
@@ -2357,10 +2336,10 @@
    },
    "p3": {
     "n_gold": 113,
-    "n_pred": 93,
+    "n_pred": 96,
     "noise": 14,
-    "op_lexical_agreement": 79,
-    "target_correct": 77
+    "op_lexical_agreement": 82,
+    "target_correct": 80
    }
   },
   "by_op": {
@@ -2374,8 +2353,8 @@
     },
     "p3": {
      "n_gold": 18,
-     "n_pred": 17,
-     "noise": 1,
+     "n_pred": 16,
+     "noise": 0,
      "op_lexical_agreement": 16,
      "target_correct": 15
     }
@@ -2390,10 +2369,10 @@
     },
     "p3": {
      "n_gold": 12,
-     "n_pred": 4,
-     "noise": 0,
-     "op_lexical_agreement": 4,
-     "target_correct": 4
+     "n_pred": 8,
+     "noise": 2,
+     "op_lexical_agreement": 6,
+     "target_correct": 6
     }
    },
    "SUBSTITUTION": {
@@ -2407,9 +2386,9 @@
     "p3": {
      "n_gold": 83,
      "n_pred": 72,
-     "noise": 13,
-     "op_lexical_agreement": 59,
-     "target_correct": 58
+     "noise": 12,
+     "op_lexical_agreement": 60,
+     "target_correct": 59
     }
    }
   },
@@ -2462,27 +2441,21 @@
   },
   {
    "op": "SUBSTITUTION",
-   "pair_id": "tt14-2019-nhnn",
-   "src_address": "diem a khoan 1 dieu 1",
-   "target_address": null
-  },
-  {
-   "op": "INSERTION",
-   "pair_id": "tt14-2019-nhnn",
-   "src_address": "diem b khoan 1 dieu 1",
-   "target_address": "khoan 3a dieu 4"
-  },
-  {
-   "op": "SUBSTITUTION",
    "pair_id": "tt21-2018-bct",
    "src_address": "khoan 2 dieu 1",
    "target_address": "dieu 13"
   },
   {
-   "op": "SUBSTITUTION",
-   "pair_id": "tt26-2015-btc",
-   "src_address": "khoan 3 dieu 1",
-   "target_address": "dieu 8"
+   "op": "REPEAL",
+   "pair_id": "tt23-2016-nhnn",
+   "src_address": "dieu 2",
+   "target_address": "dieu 4"
+  },
+  {
+   "op": "REPEAL",
+   "pair_id": "tt23-2016-nhnn",
+   "src_address": "dieu 2",
+   "target_address": "dieu 11"
   },
   {
    "op": "SUBSTITUTION",
@@ -2513,6 +2486,12 @@
    "pair_id": "tt27-2014-nhnn",
    "src_address": "khoan 6 dieu 1",
    "target_address": "dieu 17"
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt27-2014-nhnn",
+   "src_address": "dieu 2",
+   "target_address": null
   },
   {
    "op": "SUBSTITUTION",

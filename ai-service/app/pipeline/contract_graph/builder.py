@@ -34,7 +34,8 @@ from app.contracts.models import (
     StructuralNode,
 )
 from app.pipeline.citations import CitationResolver
-from app.pipeline.contract_graph.address import Address, inherit, parse_parent_context
+from app.pipeline.contract_graph.address import Address, canonical, inherit, parse_parent_context
+from app.pipeline.contract_graph.documents import named_document
 from app.pipeline.contract_graph.implicit import implicit_matches
 from app.pipeline.contract_graph.operations import (
     Operation,
@@ -125,15 +126,19 @@ def plan_edges(
     index: StructureIndex,
     *,
     stats: Counter[str] | None = None,
+    known_documents: Iterable[str] = (),
 ) -> list[PlannedEdge]:
     """Every operation of ``source_nodes`` with its target resolved in ``index``.
 
     A unit (or node) whose sub-items carry operations is context only (``parse_parent_context``)
     and plans nothing itself. REJECTION/SCOPE_LIMIT are planned only from an annex part or
     under an operation unit (RT-06); otherwise counted as ``scope_rejection_out_of_context``.
+    An operation whose named document (own sentence, else nearest heading — ``documents``) is
+    not in ``known_documents`` is ``FOREIGN_DOCUMENT``: never resolved by number (BL-005).
     """
 
     stats = stats if stats is not None else Counter()
+    known = {d.casefold() for d in known_documents}
     nodes = sorted(
         (n for n in source_nodes if n.type not in _SKIPPED_TYPES),
         key=lambda n: (_position(index, n.node_id), n.node_id),
@@ -176,8 +181,17 @@ def plan_edges(
             else:
                 context, group_key = None, None
             source_address = _source_address(index, node.node_id, item.units, i)
+            document = _acted_document(
+                op, item, ancestors, parent_item, node_context_op, node, parsed
+            )
+            foreign = document is not None and document not in known
+            if foreign:
+                stats["foreign_document_targets"] += len(op.addresses)
             for addr in op.addresses:
                 target = inherit(addr, context)
+                if foreign:
+                    planned.append(_foreign(node.node_id, source_address, op, target))
+                    continue
                 planned.append(_plan(index, node.node_id, source_address, op, target))
                 if group_key is not None:
                     groups.setdefault(group_key, []).append(len(planned) - 1)
@@ -340,6 +354,49 @@ def _plan(
     )
 
 
+def _acted_document(
+    op: Operation,
+    item: _Parsed,
+    ancestors: Iterable[int],
+    parent_item: _Parsed | None,
+    node_context_op: int | None,
+    node: StructuralNode,
+    parsed: dict[str, _Parsed],
+) -> str | None:
+    """The document an operation acts on: its own sentence, then the nearest heading above it
+    (parent units, the parent node's announcing op, this node's and its parent's first line)."""
+
+    candidates = [op.span]
+    candidates += [head_of(item.units[a].text) for a in ancestors]
+    if parent_item is not None and node_context_op is not None:
+        candidates.append(parent_item.ops[node_context_op].span)
+    candidates.append(_first_line(node.text))
+    if parent_item is not None:
+        candidates.append(_first_line(parent_item.node.text))
+    for text in candidates:
+        if found := named_document(text):
+            return found
+    return None
+
+
+def _first_line(text: str | None) -> str:
+    return (text or "").split("\n", 1)[0]
+
+
+def _foreign(node_id: str, source_address: str | None, op: Operation, target: Address) -> PlannedEdge:
+    return PlannedEdge(
+        op=op.op,
+        source_node_id=node_id,
+        source_address=source_address,
+        source_span=op.span,
+        resolution=Resolution(Status.FOREIGN_DOCUMENT, canonical=canonical(target)),
+        anchor_node_id=None,
+        standard=op.standard,
+        new_text=op.new_text,
+        scope_text=op.scope_text,
+    )
+
+
 def _replace_resolution(plan: PlannedEdge, res: Resolution) -> PlannedEdge:
     return replace(plan, resolution=res)
 
@@ -493,6 +550,8 @@ def _issue_stat(plan: PlannedEdge) -> str:
         return "unresolved_targets"
     if plan.status == Status.AMBIGUOUS:
         return "ambiguous_targets"
+    if plan.status == Status.FOREIGN_DOCUMENT:
+        return "foreign_document_issues"
     return "new_unit_insertions"
 
 
@@ -500,6 +559,7 @@ def _planned_issue(digest: str, plan: PlannedEdge, citation: Citation | None) ->
     kind = {
         Status.NOT_FOUND: "TARGET_NOT_FOUND",
         Status.AMBIGUOUS: "TARGET_AMBIGUOUS",
+        Status.FOREIGN_DOCUMENT: "TARGET_FOREIGN_DOCUMENT",
     }.get(plan.status, "NEW_UNIT_ADDITION")
     key = f"{plan.source_node_id}|{plan.op.value}|{plan.target_address}|{plan.source_span}"
     return _issue(digest, kind, key, plan.target_address or "?", citation)
@@ -511,11 +571,16 @@ _REASONS = {
     "NEW_UNIT_ADDITION": (
         "Thao tác bổ sung đơn vị mới {key}: văn bản gốc không có node đích; cần người duyệt."
     ),
+    "TARGET_FOREIGN_DOCUMENT": (
+        "Thao tác sửa đổi {key} nêu một văn bản không xác định được trong hồ sơ; "
+        "không nối theo số điều trùng, cần người duyệt."
+    ),
 }
 _STATES = {
     "TARGET_NOT_FOUND": ReviewState.INSUFFICIENT_EVIDENCE,
     "TARGET_AMBIGUOUS": ReviewState.NEEDS_REVIEW,
     "NEW_UNIT_ADDITION": ReviewState.NEEDS_REVIEW,
+    "TARGET_FOREIGN_DOCUMENT": ReviewState.NEEDS_REVIEW,
 }
 
 

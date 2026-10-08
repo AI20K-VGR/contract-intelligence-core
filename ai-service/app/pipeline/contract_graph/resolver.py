@@ -37,6 +37,7 @@ class Status(StrEnum):
     UNIQUE = "UNIQUE"
     AMBIGUOUS = "AMBIGUOUS"
     NOT_FOUND = "NOT_FOUND"
+    FOREIGN_DOCUMENT = "FOREIGN_DOCUMENT"  # the operation names a document outside the dossier
 
 
 class Method(StrEnum):

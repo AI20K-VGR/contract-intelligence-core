@@ -25,7 +25,7 @@ from pathlib import Path
 
 from evals.contract_graph import run_eval
 from evals.contract_graph.baseline_predictor import _operative_article
-from evals.contract_graph.normalize import operative_body
+from evals.contract_graph.normalize import _outside_quotes, operative_body
 from evals.contract_graph.segment import collapse_to_articles, segment
 
 AI_SERVICE = Path(__file__).resolve().parents[2] / "ai-service"
@@ -51,26 +51,37 @@ def predict_article_only(pair_dir: Path) -> list[dict]:
 
 
 def _predict(pair_dir: Path, shape: str) -> list[dict]:
-    StructuralNode, builder, resolver = _app()
+    StructuralNode, builder, resolver, documents = _app()
     pair_id = pair_dir.name
-    article = _operative_article(pair_dir)
     amending = (pair_dir / "amending.txt").read_text(encoding="utf-8")
-    body = _own_article(operative_body(amending, article, str(int(article) + 1)), article)
-    heading = re.match(rf"Điều\s+{re.escape(article)}\s*\.\s*", body)
-    source = StructuralNode(
-        node_id=f"{pair_id}:amending",
-        type="CLAUSE",
-        raw_label=f"Điều {article}",
-        text=body[heading.end() :] if heading else body,
-        source_file_id=AMENDING_FILE,
-    )
+    # Every article of the amending text is a source node, as run_idp sees every node: operations
+    # also live outside the manifest's operative article ("Điều 2. Bãi bỏ Điều 4 và Điều 11").
+    sources = []
+    operative = _operative_article(pair_dir)
+    for article in _amending_articles(amending, operative):
+        body = _own_article(operative_body(amending, article, str(int(article) + 1)), article)
+        heading = re.match(rf"Điều\s+{re.escape(article)}\s*\.\s*", body)
+        sources.append(
+            StructuralNode(
+                node_id=f"{pair_id}:amending:{article}",
+                type="CLAUSE",
+                raw_label=f"Điều {article}",
+                text=body[heading.end() :] if heading else body,
+                source_file_id=AMENDING_FILE,
+            )
+        )
     targets = segment((pair_dir / "vbhn.txt").read_text(encoding="utf-8"), pair_id)
     if shape == "article-only":
         targets = collapse_to_articles(targets)
     index = resolver.StructureIndex.build(
-        [source, *(StructuralNode(**node) for node in targets)],
+        [*sources, *(StructuralNode(**node) for node in targets)],
         {AMENDING_FILE: "annex", pair_id: "body"},
     )
+    # Identity of the VBHN's base document = the one the manifest's operative article names
+    # (BL-005, direction B). Runtime has no such identity yet, so it refuses every named document.
+    operative_node = next(s for s in sources if s.raw_label == f"Điều {operative}")
+    base = documents.named_document((operative_node.text or "").split("\n", 1)[0])
+    known = {base} if base else set()
     return [
         {
             "src_address": plan.source_address,
@@ -81,8 +92,22 @@ def _predict(pair_dir: Path, shape: str) -> list[dict]:
             "standard": plan.standard,
             "head": plan.source_span[:160],
         }
-        for plan in builder.plan_edges([source], index)
+        for plan in builder.plan_edges(sources, index, known_documents=known)
+        # a refused foreign-document target is an issue at runtime, not an edge
+        if plan.status != "FOREIGN_DOCUMENT"
     ]
+
+
+def _amending_articles(amending: str, operative: str) -> list[str]:
+    """Article numbers with a heading outside quotes, ascending; the operative one always kept."""
+
+    outside = _outside_quotes(amending)
+    found = {
+        m.group(1)
+        for m in re.finditer(r"(?:^|(?<=[.:;”\"] ))Điều\s+(\d+)\s*\.", amending, re.M)
+        if outside(m.start())
+    }
+    return sorted(found | {operative}, key=int)
 
 
 def write_reports(data: Path, out_dir: Path, baseline: Path = DEFAULT_BASELINE) -> dict[str, dict]:
@@ -211,8 +236,11 @@ def _own_article(body: str, article: str) -> str:
     skips headings it believes quoted; one missing closing quote in the source (tt01-2022-bct)
     then carries the next articles, which amend other documents, into this one."""
 
-    next_heading = re.compile(rf"^Điều\s+{int(article) + 1}\s*\.", re.M)
-    m = next_heading.search(body)
+    # Any later line-start heading ends this article, not only ``article + 1``: with every article
+    # now a source node, a table-of-contents "Điều 2." line would otherwise swallow Điều 1's body.
+    heading = re.match(rf"Điều\s+{re.escape(article)}\s*\.", body)
+    next_heading = re.compile(r"^Điều\s+\d+[a-zđ]?\s*\.", re.M)
+    m = next_heading.search(body, heading.end() if heading else 0)
     return body[: m.start()].rstrip() if m else body
 
 
@@ -222,9 +250,9 @@ def _app():
     if str(AI_SERVICE) not in sys.path:
         sys.path.insert(0, str(AI_SERVICE))
     from app.contracts.models import StructuralNode
-    from app.pipeline.contract_graph import builder, resolver
+    from app.pipeline.contract_graph import builder, documents, resolver
 
-    return StructuralNode, builder, resolver
+    return StructuralNode, builder, resolver, documents
 
 
 if __name__ == "__main__":

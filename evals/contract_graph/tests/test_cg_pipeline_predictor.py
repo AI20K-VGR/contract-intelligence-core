@@ -134,3 +134,27 @@ def test_p3_nd50_no_wrong_unique_target():
 
     assert p3["by_pair"]["nd50-2021"]["all"]["n_gold"] == 26
     assert _wrong_unique(p3, "nd50-2021") == []
+
+
+def test_operations_outside_article_1_are_predicted(tmp_path: Path):
+    """Amending documents also operate from Điều 2+ ("Điều 2. Bãi bỏ Điều 4 và Điều 11")."""
+    pair = tmp_path / "multi-article"
+    pair.mkdir()
+    (pair / "amending.txt").write_text(
+        "Điều 1. Sửa đổi, bổ sung một số điều như sau:\n"
+        "1. Sửa đổi khoản 1 Điều 5 như sau:\n“1. Nội dung mới.”\n"
+        "Điều 2. Bãi bỏ Điều 4 và Điều 11.\n"
+        "Điều 3. Hiệu lực thi hành\nThông tư này có hiệu lực kể từ ngày ký.\n",
+        encoding="utf-8",
+    )
+    (pair / "vbhn.txt").write_text(
+        "Điều 4. Nội dung A\nVăn bản.\n"
+        "Điều 5. Nội dung B\n1. Khoản một.\n2. Khoản hai.\n"
+        "Điều 11. Nội dung C\nVăn bản.\n",
+        encoding="utf-8",
+    )
+    got = {(p["src_address"], p["op"], p["target_address"]) for p in pipeline_predictor.predict(pair)}
+    assert ("khoan 1 dieu 1", "SUBSTITUTION", "khoan 1 dieu 5") in got
+    assert ("dieu 2", "REPEAL", "dieu 4") in got
+    assert ("dieu 2", "REPEAL", "dieu 11") in got
+    assert not any(src and src.endswith("dieu 3") for src, _, _ in got)
