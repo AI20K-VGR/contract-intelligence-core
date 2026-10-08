@@ -8,6 +8,7 @@
 - BL-001 [debt] contract_edges giữ cạnh của snapshot cũ khi job mới có contract_graph_ran=False; ghi bất biến vào AI2-19/COMMENT hoặc xoá cạnh (review F2, jobs.py:575)
 - BL-002 [bug] resolver _resolve_options trả method=EXACT cho kết quả lọc-theo-tồn-tại; tách method trước khi mở cổng PASS (review F4, resolver.py:250)
 - BL-006 [feature] Contract graph direction A: supply dossier document identities (contract number of the body, annex numbers) from BE/AI1 metadata to build_contract_graph(known_documents=...). Until then runtime refuses every operation that names a numbered document (FOREIGN_DOCUMENT), including annexes citing their own contract number.
+- BL-007 [feature] Contract graph đợt 1.5 (deferred by user 2026-10-08): thin FE slice listing 'phụ lục X sửa khoản Y' with both citations; needs BE to read edges (AMENDS findings or ai2.contract_edges). Goal: first user feedback on graph value.
 
 ### P3
 - BL-003 [debt] builder MAX_EDGES không giới hạn số EvidenceIssue (review F5, builder.py:221)

@@ -52,3 +52,12 @@
   done_ts: ''
   source_ref: ''
   actor: user:unknown
+- id: BL-007
+  text: 'Contract graph đợt 1.5 (deferred by user 2026-10-08): thin FE slice listing ''phụ lục X sửa khoản Y'' with both citations; needs BE to read edges (AMENDS findings or ai2.contract_edges). Goal: first user feedback on graph value.'
+  type: feature
+  priority: P2
+  status: open
+  created_ts: '2026-10-08T07:52:32.503832+00:00'
+  done_ts: ''
+  source_ref: ''
+  actor: user:unknown
