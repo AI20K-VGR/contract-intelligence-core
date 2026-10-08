@@ -228,6 +228,7 @@ Nguồn: `reports/from-code-reviewer-to-planner-red-team-eval-integrity-plan-rev
 - VL-3 | validate interview 2026-10-08 | Q1: người dùng duyệt mẫu gold; Q3: tắt `AMENDMENT_SIGNAL` cũ khi flag bật (thêm `contract_context.py` vào P4) | Q2 ngoài phạm vi; Q4 cook chọn nguồn theo khả năng truy cập.
 - VL-4 | consistency sweep | không còn tham chiếu tới cách làm cũ (rollback alembic CLI, test rollback-cả-transaction, "16/26 đúng") ngoài báo cáo red-team | 0 mâu thuẫn còn mở.
 - VL-5 | cook P1 2026-10-08 | nd50 ra 25/26 dưới ghép một-một RT-13 (chú thích [8],[9] cùng src, 1 câu "Bổ sung điểm d1, d2") | người dùng chọn giữ 26, sửa scorer: pred mang `target_addresses` ghép tối đa một gold mỗi đích liệt kê; thêm `.gitattributes` `evals/contract_graph/data/** text eol=lf`. Dataset 11 cặp / 4 cơ quan (không có Quốc hội) / 12 REPEAL.
+- VL-6 | cook P2 2026-10-08 | deviation bảo thủ (không đoán), main chấp nhận: (a) nhãn không đọc được (`điểm b.7`, `Phụ lục XXV`) ⇒ bỏ địa chỉ, không lùi cấp thô; (b) `disambiguate_by_order` dùng span cây con; (c) bảng parity bỏ `Phụ lục số N`/La Mã (gold P1 chưa hỗ trợ, ghi giới hạn). P3 lưu ý: INSERTION Điều/Phụ lục mới ⇒ `UNIQUE` với `node_id=None`. Số: nd50 target 26/26 (P1 13/26); toàn bộ UNIQUE đúng 63/65, NOT_FOUND 4; ORDER_INFERENCE 0 ca thật `[ASSUMED]`.
 
 ## Câu hỏi mở
 

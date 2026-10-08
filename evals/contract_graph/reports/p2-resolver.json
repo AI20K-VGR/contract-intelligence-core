@@ -1,0 +1,7849 @@
+{
+ "dataset": {
+  "manifest_sha256": "f74399ae07193ba8975e2cb58e8d83af8abaaa112c00a3b9c31c24b615b05220",
+  "pairs": 11
+ },
+ "ground_truth": "vbhn-note auto-gold (approved=false)",
+ "limitations": [
+  "Cây đích là VBHN (đã chứa phần sửa đổi), không phải văn bản gốc: INSERTION được chấm bằng địa chỉ mới (canonical), không bằng node; anchor/container được kiểm trên cây VBHN.",
+  "Câu thao tác + head lấy từ parser baseline P1; item không được baseline phát hiện là gold bị bỏ sót (missed_gold), không phải lỗi resolver.",
+  "ORDER_INFERENCE dựa trên giả định [ASSUMED] mục con liệt kê theo thứ tự văn bản gốc; số đúng/sai của nhánh này báo riêng.",
+  "Gold tự trích từ chú thích VBHN (approved=false): không phải độ chính xác nghiệp vụ.",
+  "Phụ lục: resolver đọc cả `Phụ lục số N` và số La Mã (`Phụ lục II` → `phu luc 2`); `gold.canonical_address` không đọc `số` và giữ La Mã (`phu luc ii`). Gold chỉ sinh địa chỉ phụ lục từ nhãn `Phụ lục <n>` của VBHN, bộ dữ liệu hiện không có gold phụ lục La Mã."
+ ],
+ "p1_baseline": {
+  "nd50-2021": {
+   "target_correct": 13,
+   "target_denominator": 26
+  },
+  "tt01-2022-bct": {
+   "target_correct": 2,
+   "target_denominator": 6
+  },
+  "tt119-2014-btc": {
+   "target_correct": 6,
+   "target_denominator": 8
+  },
+  "tt13-2023-btc": {
+   "target_correct": 3,
+   "target_denominator": 3
+  },
+  "tt130-2016-btc": {
+   "target_correct": 5,
+   "target_denominator": 5
+  },
+  "tt14-2019-nhnn": {
+   "target_correct": 0,
+   "target_denominator": 1
+  },
+  "tt21-2018-bct": {
+   "target_correct": 2,
+   "target_denominator": 2
+  },
+  "tt23-2016-nhnn": {
+   "target_correct": 0,
+   "target_denominator": 1
+  },
+  "tt26-2015-btc": {
+   "target_correct": 10,
+   "target_denominator": 13
+  },
+  "tt27-2014-nhnn": {
+   "target_correct": 3,
+   "target_denominator": 3
+  },
+  "tt43-2018-nhnn": {
+   "target_correct": 0,
+   "target_denominator": 0
+  }
+ },
+ "parser": "baseline (P1 spike port): items + heads",
+ "tree_shapes": {
+  "article-only": {
+   "by_pair": {
+    "nd50-2021": {
+     "accuracy": {
+      "denominator": 26,
+      "passed": 26,
+      "rate": 1.0,
+      "wilson95": [
+       0.8713,
+       1.0
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 20,
+       "precision": {
+        "denominator": 20,
+        "passed": 20,
+        "rate": 1.0,
+        "wilson95": [
+         0.8389,
+         1.0
+        ]
+       },
+       "unique": 20
+      },
+      "EXACT": {
+       "correct": 6,
+       "precision": {
+        "denominator": 6,
+        "passed": 6,
+        "rate": 1.0,
+        "wilson95": [
+         0.6097,
+         1.0
+        ]
+       },
+       "unique": 6
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 26,
+      "passed": 26,
+      "rate": 1.0,
+      "wilson95": [
+       0.8713,
+       1.0
+      ]
+     },
+     "items": 26,
+     "precision": {
+      "denominator": 26,
+      "passed": 26,
+      "rate": 1.0,
+      "wilson95": [
+       0.8713,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 0,
+      "UNIQUE": 26
+     },
+     "unique_correct": 26
+    },
+    "tt01-2022-bct": {
+     "accuracy": {
+      "denominator": 6,
+      "passed": 5,
+      "rate": 0.8333,
+      "wilson95": [
+       0.4365,
+       0.9699
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "EXACT": {
+       "correct": 5,
+       "precision": {
+        "denominator": 5,
+        "passed": 5,
+        "rate": 1.0,
+        "wilson95": [
+         0.5655,
+         1.0
+        ]
+       },
+       "unique": 5
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 6,
+      "passed": 5,
+      "rate": 0.8333,
+      "wilson95": [
+       0.4365,
+       0.9699
+      ]
+     },
+     "items": 6,
+     "precision": {
+      "denominator": 5,
+      "passed": 5,
+      "rate": 1.0,
+      "wilson95": [
+       0.5655,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 1,
+      "UNIQUE": 5
+     },
+     "unique_correct": 5
+    },
+    "tt119-2014-btc": {
+     "accuracy": {
+      "denominator": 8,
+      "passed": 7,
+      "rate": 0.875,
+      "wilson95": [
+       0.5291,
+       0.9776
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 7,
+       "precision": {
+        "denominator": 7,
+        "passed": 7,
+        "rate": 1.0,
+        "wilson95": [
+         0.6457,
+         1.0
+        ]
+       },
+       "unique": 7
+      },
+      "EXACT": {
+       "correct": 0,
+       "precision": {
+        "denominator": 1,
+        "passed": 0,
+        "rate": 0.0,
+        "wilson95": [
+         0.0,
+         0.7935
+        ]
+       },
+       "unique": 1
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 8,
+      "passed": 8,
+      "rate": 1.0,
+      "wilson95": [
+       0.6756,
+       1.0
+      ]
+     },
+     "items": 8,
+     "precision": {
+      "denominator": 8,
+      "passed": 7,
+      "rate": 0.875,
+      "wilson95": [
+       0.5291,
+       0.9776
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 0,
+      "UNIQUE": 8
+     },
+     "unique_correct": 7
+    },
+    "tt13-2023-btc": {
+     "accuracy": {
+      "denominator": 4,
+      "passed": 4,
+      "rate": 1.0,
+      "wilson95": [
+       0.5101,
+       1.0
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 4,
+       "precision": {
+        "denominator": 4,
+        "passed": 4,
+        "rate": 1.0,
+        "wilson95": [
+         0.5101,
+         1.0
+        ]
+       },
+       "unique": 4
+      },
+      "EXACT": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 4,
+      "passed": 4,
+      "rate": 1.0,
+      "wilson95": [
+       0.5101,
+       1.0
+      ]
+     },
+     "items": 4,
+     "precision": {
+      "denominator": 4,
+      "passed": 4,
+      "rate": 1.0,
+      "wilson95": [
+       0.5101,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 0,
+      "UNIQUE": 4
+     },
+     "unique_correct": 4
+    },
+    "tt130-2016-btc": {
+     "accuracy": {
+      "denominator": 5,
+      "passed": 5,
+      "rate": 1.0,
+      "wilson95": [
+       0.5655,
+       1.0
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 4,
+       "precision": {
+        "denominator": 4,
+        "passed": 4,
+        "rate": 1.0,
+        "wilson95": [
+         0.5101,
+         1.0
+        ]
+       },
+       "unique": 4
+      },
+      "EXACT": {
+       "correct": 1,
+       "precision": {
+        "denominator": 1,
+        "passed": 1,
+        "rate": 1.0,
+        "wilson95": [
+         0.2065,
+         1.0
+        ]
+       },
+       "unique": 1
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 5,
+      "passed": 5,
+      "rate": 1.0,
+      "wilson95": [
+       0.5655,
+       1.0
+      ]
+     },
+     "items": 5,
+     "precision": {
+      "denominator": 5,
+      "passed": 5,
+      "rate": 1.0,
+      "wilson95": [
+       0.5655,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 0,
+      "UNIQUE": 5
+     },
+     "unique_correct": 5
+    },
+    "tt14-2019-nhnn": {
+     "accuracy": {
+      "denominator": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.7935
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "EXACT": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.7935
+      ]
+     },
+     "items": 1,
+     "precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 1,
+      "UNIQUE": 0
+     },
+     "unique_correct": 0
+    },
+    "tt21-2018-bct": {
+     "accuracy": {
+      "denominator": 2,
+      "passed": 2,
+      "rate": 1.0,
+      "wilson95": [
+       0.3424,
+       1.0
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "EXACT": {
+       "correct": 2,
+       "precision": {
+        "denominator": 2,
+        "passed": 2,
+        "rate": 1.0,
+        "wilson95": [
+         0.3424,
+         1.0
+        ]
+       },
+       "unique": 2
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 2,
+      "passed": 2,
+      "rate": 1.0,
+      "wilson95": [
+       0.3424,
+       1.0
+      ]
+     },
+     "items": 2,
+     "precision": {
+      "denominator": 2,
+      "passed": 2,
+      "rate": 1.0,
+      "wilson95": [
+       0.3424,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 0,
+      "UNIQUE": 2
+     },
+     "unique_correct": 2
+    },
+    "tt23-2016-nhnn": {
+     "accuracy": {
+      "denominator": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.7935
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "EXACT": {
+       "correct": 0,
+       "precision": {
+        "denominator": 1,
+        "passed": 0,
+        "rate": 0.0,
+        "wilson95": [
+         0.0,
+         0.7935
+        ]
+       },
+       "unique": 1
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 1,
+      "passed": 1,
+      "rate": 1.0,
+      "wilson95": [
+       0.2065,
+       1.0
+      ]
+     },
+     "items": 1,
+     "precision": {
+      "denominator": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.7935
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 0,
+      "UNIQUE": 1
+     },
+     "unique_correct": 0
+    },
+    "tt26-2015-btc": {
+     "accuracy": {
+      "denominator": 13,
+      "passed": 11,
+      "rate": 0.8462,
+      "wilson95": [
+       0.5776,
+       0.9567
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 8,
+       "precision": {
+        "denominator": 8,
+        "passed": 8,
+        "rate": 1.0,
+        "wilson95": [
+         0.6756,
+         1.0
+        ]
+       },
+       "unique": 8
+      },
+      "EXACT": {
+       "correct": 3,
+       "precision": {
+        "denominator": 3,
+        "passed": 3,
+        "rate": 1.0,
+        "wilson95": [
+         0.4385,
+         1.0
+        ]
+       },
+       "unique": 3
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 13,
+      "passed": 11,
+      "rate": 0.8462,
+      "wilson95": [
+       0.5776,
+       0.9567
+      ]
+     },
+     "items": 13,
+     "precision": {
+      "denominator": 11,
+      "passed": 11,
+      "rate": 1.0,
+      "wilson95": [
+       0.7412,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 2,
+      "UNIQUE": 11
+     },
+     "unique_correct": 11
+    },
+    "tt27-2014-nhnn": {
+     "accuracy": {
+      "denominator": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "wilson95": [
+       0.4385,
+       1.0
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 1,
+       "precision": {
+        "denominator": 1,
+        "passed": 1,
+        "rate": 1.0,
+        "wilson95": [
+         0.2065,
+         1.0
+        ]
+       },
+       "unique": 1
+      },
+      "EXACT": {
+       "correct": 2,
+       "precision": {
+        "denominator": 2,
+        "passed": 2,
+        "rate": 1.0,
+        "wilson95": [
+         0.3424,
+         1.0
+        ]
+       },
+       "unique": 2
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "wilson95": [
+       0.4385,
+       1.0
+      ]
+     },
+     "items": 3,
+     "precision": {
+      "denominator": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "wilson95": [
+       0.4385,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 0,
+      "UNIQUE": 3
+     },
+     "unique_correct": 3
+    },
+    "tt43-2018-nhnn": {
+     "accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "EXACT": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "items": 0,
+     "precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 0,
+      "UNIQUE": 0
+     },
+     "unique_correct": 0
+    }
+   },
+   "context_items": 10,
+   "missed_gold": [
+    {
+     "note_no": 2,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "diem a khoan 1 dieu 3"
+    },
+    {
+     "note_no": 3,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "diem a khoan 1 dieu 3"
+    },
+    {
+     "note_no": 4,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "diem a khoan 1 dieu 3"
+    },
+    {
+     "note_no": 6,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "diem a khoan 1 dieu 3"
+    },
+    {
+     "note_no": 9,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "diem a khoan 1 dieu 3"
+    },
+    {
+     "note_no": 29,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "diem a khoan 1 dieu 3"
+    },
+    {
+     "note_no": 21,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "src_address": "khoan 3 dieu 3"
+    },
+    {
+     "note_no": 23,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "src_address": "khoan 3 dieu 3"
+    },
+    {
+     "note_no": 29,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "src_address": "khoan 6 dieu 3"
+    },
+    {
+     "note_no": 36,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "src_address": "khoan 3 dieu 1"
+    },
+    {
+     "note_no": 30,
+     "op": "INSERTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 1 dieu 2"
+    },
+    {
+     "note_no": 31,
+     "op": "INSERTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 1 dieu 2"
+    },
+    {
+     "note_no": 11,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 12,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 13,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 14,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 19,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 20,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 21,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 22,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 26,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 27,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 32,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 34,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 5,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt23-2016-nhnn",
+     "src_address": "khoan 1 dieu 1"
+    },
+    {
+     "note_no": 6,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt23-2016-nhnn",
+     "src_address": "khoan 2 dieu 1"
+    },
+    {
+     "note_no": 8,
+     "op": "REPEAL",
+     "pair_id": "tt23-2016-nhnn",
+     "src_address": "dieu 2"
+    },
+    {
+     "note_no": 9,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt23-2016-nhnn",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 14,
+     "op": "REPEAL",
+     "pair_id": "tt23-2016-nhnn",
+     "src_address": "dieu 2"
+    },
+    {
+     "note_no": 14,
+     "op": "REPEAL",
+     "pair_id": "tt26-2015-btc",
+     "src_address": "khoan 4 dieu 4"
+    },
+    {
+     "note_no": 19,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "src_address": "khoan 8 dieu 1"
+    },
+    {
+     "note_no": 30,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "src_address": "khoan 10 dieu 1"
+    },
+    {
+     "note_no": 33,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "src_address": "khoan 12 dieu 1"
+    },
+    {
+     "note_no": 15,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "src_address": "dieu 2"
+    },
+    {
+     "note_no": 16,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "src_address": "dieu 2"
+    },
+    {
+     "note_no": 22,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "src_address": "dieu 2"
+    },
+    {
+     "note_no": 10,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt43-2018-nhnn",
+     "src_address": "khoan 1 dieu 1"
+    },
+    {
+     "note_no": 23,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt43-2018-nhnn",
+     "src_address": "khoan 2 dieu 1"
+    },
+    {
+     "note_no": 24,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt43-2018-nhnn",
+     "src_address": "khoan 2 dieu 1"
+    },
+    {
+     "note_no": 25,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt43-2018-nhnn",
+     "src_address": "khoan 2 dieu 1"
+    },
+    {
+     "note_no": 26,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt43-2018-nhnn",
+     "src_address": "khoan 2 dieu 1"
+    },
+    {
+     "note_no": 27,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt43-2018-nhnn",
+     "src_address": "khoan 2 dieu 1"
+    },
+    {
+     "note_no": 28,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt43-2018-nhnn",
+     "src_address": "khoan 2 dieu 1"
+    },
+    {
+     "note_no": 29,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt43-2018-nhnn",
+     "src_address": "khoan 2 dieu 1"
+    }
+   ],
+   "multi_clause": {
+    "by_pair": {
+     "nd50-2021": {
+      "accuracy": {
+       "denominator": 14,
+       "passed": 14,
+       "rate": 1.0,
+       "wilson95": [
+        0.7847,
+        1.0
+       ]
+      },
+      "by_method": {
+       "ANCESTOR": {
+        "correct": 13,
+        "precision": {
+         "denominator": 13,
+         "passed": 13,
+         "rate": 1.0,
+         "wilson95": [
+          0.7719,
+          1.0
+         ]
+        },
+        "unique": 13
+       },
+       "EXACT": {
+        "correct": 1,
+        "precision": {
+         "denominator": 1,
+         "passed": 1,
+         "rate": 1.0,
+         "wilson95": [
+          0.2065,
+          1.0
+         ]
+        },
+        "unique": 1
+       },
+       "ORDER_INFERENCE": {
+        "correct": 0,
+        "precision": {
+         "denominator": 0,
+         "passed": 0,
+         "rate": null,
+         "wilson95": [
+          0.0,
+          1.0
+         ]
+        },
+        "unique": 0
+       },
+       "SELF": {
+        "correct": 0,
+        "precision": {
+         "denominator": 0,
+         "passed": 0,
+         "rate": null,
+         "wilson95": [
+          0.0,
+          1.0
+         ]
+        },
+        "unique": 0
+       }
+      },
+      "coverage": {
+       "denominator": 14,
+       "passed": 14,
+       "rate": 1.0,
+       "wilson95": [
+        0.7847,
+        1.0
+       ]
+      },
+      "items": 14,
+      "precision": {
+       "denominator": 14,
+       "passed": 14,
+       "rate": 1.0,
+       "wilson95": [
+        0.7847,
+        1.0
+       ]
+      },
+      "status": {
+       "AMBIGUOUS": 0,
+       "NOT_FOUND": 0,
+       "UNIQUE": 14
+      },
+      "unique_correct": 14
+     }
+    },
+    "overall": {
+     "accuracy": {
+      "denominator": 14,
+      "passed": 14,
+      "rate": 1.0,
+      "wilson95": [
+       0.7847,
+       1.0
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 13,
+       "precision": {
+        "denominator": 13,
+        "passed": 13,
+        "rate": 1.0,
+        "wilson95": [
+         0.7719,
+         1.0
+        ]
+       },
+       "unique": 13
+      },
+      "EXACT": {
+       "correct": 1,
+       "precision": {
+        "denominator": 1,
+        "passed": 1,
+        "rate": 1.0,
+        "wilson95": [
+         0.2065,
+         1.0
+        ]
+       },
+       "unique": 1
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 14,
+      "passed": 14,
+      "rate": 1.0,
+      "wilson95": [
+       0.7847,
+       1.0
+      ]
+     },
+     "items": 14,
+     "precision": {
+      "denominator": 14,
+      "passed": 14,
+      "rate": 1.0,
+      "wilson95": [
+       0.7847,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 0,
+      "UNIQUE": 14
+     },
+     "unique_correct": 14
+    }
+   },
+   "order_inference": {
+    "correct": 0,
+    "locked": 0,
+    "wrong": 0
+   },
+   "overall": {
+    "accuracy": {
+     "denominator": 69,
+     "passed": 63,
+     "rate": 0.913,
+     "wilson95": [
+      0.823,
+      0.9595
+     ]
+    },
+    "by_method": {
+     "ANCESTOR": {
+      "correct": 44,
+      "precision": {
+       "denominator": 44,
+       "passed": 44,
+       "rate": 1.0,
+       "wilson95": [
+        0.9197,
+        1.0
+       ]
+      },
+      "unique": 44
+     },
+     "EXACT": {
+      "correct": 19,
+      "precision": {
+       "denominator": 21,
+       "passed": 19,
+       "rate": 0.9048,
+       "wilson95": [
+        0.7109,
+        0.9735
+       ]
+      },
+      "unique": 21
+     },
+     "ORDER_INFERENCE": {
+      "correct": 0,
+      "precision": {
+       "denominator": 0,
+       "passed": 0,
+       "rate": null,
+       "wilson95": [
+        0.0,
+        1.0
+       ]
+      },
+      "unique": 0
+     },
+     "SELF": {
+      "correct": 0,
+      "precision": {
+       "denominator": 0,
+       "passed": 0,
+       "rate": null,
+       "wilson95": [
+        0.0,
+        1.0
+       ]
+      },
+      "unique": 0
+     }
+    },
+    "coverage": {
+     "denominator": 69,
+     "passed": 65,
+     "rate": 0.942,
+     "wilson95": [
+      0.8602,
+      0.9772
+     ]
+    },
+    "items": 69,
+    "precision": {
+     "denominator": 65,
+     "passed": 63,
+     "rate": 0.9692,
+     "wilson95": [
+      0.8946,
+      0.9915
+     ]
+    },
+    "status": {
+     "AMBIGUOUS": 0,
+     "NOT_FOUND": 4,
+     "UNIQUE": 65
+    },
+    "unique_correct": 63
+   },
+   "rows": [
+    {
+     "correct": true,
+     "gold_target_address": "khoan 2 dieu 1",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 2,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "khoan 2 dieu 1",
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem c khoan 1 dieu 3",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "note_no": 3,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem c khoan 1 dieu 3",
+     "src_address": "diem a khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem đ khoan 1 dieu 3",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "note_no": 4,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem đ khoan 1 dieu 3",
+     "src_address": "diem b khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem e khoan 1 dieu 3",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "note_no": 5,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem e khoan 1 dieu 3",
+     "src_address": "diem c khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem g khoan 1 dieu 3",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "note_no": 6,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem g khoan 1 dieu 3",
+     "src_address": "diem d khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem i1 khoan 1 dieu 3",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "note_no": 7,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem i1 khoan 1 dieu 3",
+     "src_address": "diem đ khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem d1 khoan 2 dieu 3",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "note_no": 8,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem d1 khoan 2 dieu 3",
+     "src_address": "diem e khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem d2 khoan 2 dieu 3",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "note_no": 9,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem d2 khoan 2 dieu 3",
+     "src_address": "diem e khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem đ khoan 2 dieu 3",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "note_no": 10,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem đ khoan 2 dieu 3",
+     "src_address": "diem g khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 5 dieu 4",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 11,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "khoan 5 dieu 4",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 7 dieu 7",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 12,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "khoan 7 dieu 7",
+     "src_address": "khoan 4 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem d1 khoan 3 dieu 15",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "note_no": 13,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem d1 khoan 3 dieu 15",
+     "src_address": "diem a khoan 5 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem d1 khoan 5 dieu 15",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "note_no": 14,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem d1 khoan 5 dieu 15",
+     "src_address": "diem b khoan 5 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem a1 khoan 4 dieu 18",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "note_no": 15,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem a1 khoan 4 dieu 18",
+     "src_address": "diem a khoan 6 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 5a dieu 18",
+     "method": "EXACT",
+     "multi_clause": true,
+     "note_no": 16,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "khoan 5a dieu 18",
+     "src_address": "diem b khoan 6 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 3 dieu 22",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 17,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "khoan 3 dieu 22",
+     "src_address": "khoan 7 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 23",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 18,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "dieu 23",
+     "src_address": "khoan 8 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem d khoan 2 dieu 31",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 19,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem d khoan 2 dieu 31",
+     "src_address": "khoan 9 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem e khoan 2 dieu 32",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 20,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem e khoan 2 dieu 32",
+     "src_address": "khoan 10 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 2 dieu 35",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 21,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "khoan 2 dieu 35",
+     "src_address": "khoan 11 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 36",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 22,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "dieu 36",
+     "src_address": "khoan 12 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 3 dieu 37",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 23,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "khoan 3 dieu 37",
+     "src_address": "khoan 13 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem b khoan 2 dieu 38",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "note_no": 24,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem b khoan 2 dieu 38",
+     "src_address": "diem a khoan 14 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem a khoan 3 dieu 38",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "note_no": 25,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem a khoan 3 dieu 38",
+     "src_address": "diem b khoan 14 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 42",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 26,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "dieu 42",
+     "src_address": "khoan 15 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 2 dieu 54",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 29,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "khoan 2 dieu 54",
+     "src_address": "khoan 16 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 5",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 5,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "pred_target_address": "dieu 5",
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": false,
+     "gold_target_address": null,
+     "method": null,
+     "multi_clause": false,
+     "note_no": 7,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "pred_target_address": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "NOT_FOUND"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 20",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 15,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "pred_target_address": "dieu 20",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 20a",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 16,
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "pred_target_address": "dieu 20a",
+     "src_address": "khoan 4 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 28a",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 24,
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "pred_target_address": "dieu 28a",
+     "src_address": "khoan 5 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 29a",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 25,
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "pred_target_address": "dieu 29a",
+     "src_address": "khoan 6 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem g khoan 7 dieu 5",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 9,
+     "op": "INSERTION",
+     "pair_id": "tt119-2014-btc",
+     "pred_target_address": "diem g khoan 7 dieu 5",
+     "src_address": "khoan 1 dieu 3",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 4 dieu 7",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 11,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "pred_target_address": "khoan 4 dieu 7",
+     "src_address": "khoan 2 dieu 3",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 3 dieu 12",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 20,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "pred_target_address": "khoan 3 dieu 12",
+     "src_address": "khoan 3 dieu 3",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 4 dieu 12",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 22,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "pred_target_address": "khoan 4 dieu 12",
+     "src_address": "khoan 3 dieu 3",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 1 dieu 13",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 24,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "pred_target_address": "khoan 1 dieu 13",
+     "src_address": "khoan 4 dieu 3",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": false,
+     "gold_target_address": "diem a khoan 4 dieu 14",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 27,
+     "op": "INSERTION",
+     "pair_id": "tt119-2014-btc",
+     "pred_target_address": "khoan 4 dieu 14",
+     "src_address": "khoan 5 dieu 3",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 3 dieu 15",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 30,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "pred_target_address": "khoan 3 dieu 15",
+     "src_address": "diem b khoan 6 dieu 3",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 4 dieu 16",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 32,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "pred_target_address": "khoan 4 dieu 16",
+     "src_address": "khoan 7 dieu 3",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 10 dieu 7",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 12,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "pred_target_address": "khoan 10 dieu 7",
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 13 dieu 7",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 13,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "pred_target_address": "khoan 13 dieu 7",
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 2 dieu 18",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 34,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "pred_target_address": "khoan 2 dieu 18",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 3 dieu 18",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 35,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "pred_target_address": "khoan 3 dieu 18",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 9 dieu 4",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 6,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "pred_target_address": "khoan 9 dieu 4",
+     "src_address": "diem a khoan 1 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 16 dieu 4",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 7,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "pred_target_address": "khoan 16 dieu 4",
+     "src_address": "diem b khoan 1 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 23 dieu 4",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 8,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "pred_target_address": "khoan 23 dieu 4",
+     "src_address": "diem c khoan 1 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 3 dieu 9",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 15,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "pred_target_address": "khoan 3 dieu 9",
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 18",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 33,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "pred_target_address": "dieu 18",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": false,
+     "gold_target_address": "dieu 17",
+     "method": null,
+     "multi_clause": false,
+     "note_no": 17,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "pred_target_address": null,
+     "src_address": "khoan 1 dieu 1",
+     "status": "NOT_FOUND"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 8",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 8,
+     "op": "REPEAL",
+     "pair_id": "tt21-2018-bct",
+     "pred_target_address": "dieu 8",
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 21",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 17,
+     "op": "REPEAL",
+     "pair_id": "tt21-2018-bct",
+     "pred_target_address": "dieu 21",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": false,
+     "gold_target_address": null,
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 7,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt23-2016-nhnn",
+     "pred_target_address": "dieu 5",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 1 dieu 4",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 3,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "khoan 1 dieu 4",
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 3a dieu 4",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 4,
+     "op": "INSERTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "khoan 3a dieu 4",
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem a khoan 8 dieu 4",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 5,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "diem a khoan 8 dieu 4",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": false,
+     "gold_target_address": "khoan 10 dieu 7",
+     "method": null,
+     "multi_clause": false,
+     "note_no": 12,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": null,
+     "src_address": "khoan 4 dieu 1",
+     "status": "NOT_FOUND"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 3 dieu 9",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 15,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "khoan 3 dieu 9",
+     "src_address": "khoan 5 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 2 dieu 10",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 16,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "khoan 2 dieu 10",
+     "src_address": "khoan 6 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 3 dieu 10",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 17,
+     "op": "REPEAL",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "khoan 3 dieu 10",
+     "src_address": "khoan 7 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 10 dieu 10",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 18,
+     "op": "REPEAL",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "khoan 10 dieu 10",
+     "src_address": "khoan 7 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 2 dieu 14",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 25,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "khoan 2 dieu 14",
+     "src_address": "diem a khoan 9 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 14a dieu 14",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 28,
+     "op": "INSERTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "khoan 14a dieu 14",
+     "src_address": "diem b khoan 9 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 15",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 29,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "dieu 15",
+     "src_address": "khoan 10 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": false,
+     "gold_target_address": "diem b khoan 3 dieu 16",
+     "method": null,
+     "multi_clause": false,
+     "note_no": 31,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": null,
+     "src_address": "khoan 11 dieu 1",
+     "status": "NOT_FOUND"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 4 dieu 18",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 36,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "khoan 4 dieu 18",
+     "src_address": "diem b khoan 12 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 7",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 11,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "pred_target_address": "dieu 7",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 2 dieu 8",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "note_no": 12,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "pred_target_address": "khoan 2 dieu 8",
+     "src_address": "khoan 4 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 10",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 13,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "pred_target_address": "dieu 10",
+     "src_address": "khoan 5 dieu 1",
+     "status": "UNIQUE"
+    }
+   ],
+   "slots": [
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 2 Điều 1 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 1"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm c của khoản 1 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem a khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem c khoan 1 dieu 3"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm đ của khoản 1 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem b khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem đ khoan 1 dieu 3"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm e của khoản 1 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem c khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem e khoan 1 dieu 3"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm g của khoản 1 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem d khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem g khoan 1 dieu 3"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung điểm i1 vào sau điểm i khoản 1 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem đ khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem i1 khoan 1 dieu 3"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung điểm d1, d2 vào sau điểm d khoản 2 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem e khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem d1 khoan 2 dieu 3"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung điểm d1, d2 vào sau điểm d khoản 2 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem e khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem d2 khoan 2 dieu 3"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm đ khoản 2 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem g khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem đ khoan 2 dieu 3"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung khoản 5 vào sau khoản 4 Điều 4 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 5 dieu 4"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung khoản 7 vào sau khoản 6 Điều 7 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 4 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 7 dieu 7"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung điểm d1 vào sau điểm d khoản 3 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem a khoan 5 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem d1 khoan 3 dieu 15"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung điểm d1 vào sau điểm d khoản 5 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem b khoan 5 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem d1 khoan 5 dieu 15"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung điểm a1 vào sau điểm a khoản 4 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem a khoan 6 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem a1 khoan 4 dieu 18"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung khoản 5a vào sau khoản 5 như sau",
+     "method": "EXACT",
+     "multi_clause": true,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem b khoan 6 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 5a dieu 18"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 3 Điều 22 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 7 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 22"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 23 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 8 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 23"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm d khoản 2 Điều 31 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 9 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem d khoan 2 dieu 31"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm e khoản 2 Điều 32 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 10 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem e khoan 2 dieu 32"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 2 Điều 35 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 11 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 35"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 36 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 12 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 36"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 3 Điều 37 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 13 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 37"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm b khoản 2 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem a khoan 14 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem b khoan 2 dieu 38"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm a khoản 3 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": true,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem b khoan 14 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem a khoan 3 dieu 38"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 42 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 15 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 42"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 2 Điều 54 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 16 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 54"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 5 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 5"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung tên của Chương II như sau",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": "no_address",
+     "src_address": "khoan 2 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 20 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 20"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung Điều 20a dưới Điều 20 tại Chương II như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 4 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 20a"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung Điều 20a dưới Điều 20 tại Chương II như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 4 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 20"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung Điều 28a sau Điều 28 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 5 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 28a"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung Điều 28a sau Điều 28 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 5 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 28"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung Điều 29a sau Điều 29 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 6 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 29a"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung Điều 29a sau Điều 29 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 6 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 29"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 2 Điều 2 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 2"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 1 Điều 5 như sau",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 2 Điều 1, Điều 3, 4, 6 và Điều 13. b) Thay thế Phụ lục Đơn đăng ký website cung cấp dịch vụ thương mại điện tử (Mẫu TMĐT-1) thành Phụ lục Đơn đăng ",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "diem a khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 1"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 2 Điều 1, Điều 3, 4, 6 và Điều 13. b) Thay thế Phụ lục Đơn đăng ký website cung cấp dịch vụ thương mại điện tử (Mẫu TMĐT-1) thành Phụ lục Đơn đăng ",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "diem a khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 3"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 2 Điều 1, Điều 3, 4, 6 và Điều 13. b) Thay thế Phụ lục Đơn đăng ký website cung cấp dịch vụ thương mại điện tử (Mẫu TMĐT-1) thành Phụ lục Đơn đăng ",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "diem a khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 13"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 2 Điều 1, khoản 8 Điều 3, Điều 10 và Điều 13 tại Thông tư số 59/2015/TT-BCT. Điều 4. Điều khoản thi hành 1. Thông tư này có hiệu lực kể từ ngày 08 ",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 1"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 2 Điều 1, khoản 8 Điều 3, Điều 10 và Điều 13 tại Thông tư số 59/2015/TT-BCT. Điều 4. Điều khoản thi hành 1. Thông tư này có hiệu lực kể từ ngày 08 ",
+     "method": null,
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 2 Điều 1, khoản 8 Điều 3, Điều 10 và Điều 13 tại Thông tư số 59/2015/TT-BCT. Điều 4. Điều khoản thi hành 1. Thông tư này có hiệu lực kể từ ngày 08 ",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 10"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 2 Điều 1, khoản 8 Điều 3, Điều 10 và Điều 13 tại Thông tư số 59/2015/TT-BCT. Điều 4. Điều khoản thi hành 1. Thông tư này có hiệu lực kể từ ngày 08 ",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 13"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 2 Điều 1, khoản 8 Điều 3, Điều 10 và Điều 13 tại Thông tư số 59/2015/TT-BCT. Điều 4. Điều khoản thi hành 1. Thông tư này có hiệu lực kể từ ngày 08 ",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 4"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung điểm g khoản 7 Điều 5 Thông tư số 219/2013/TT-BTC như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "khoan 1 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "diem g khoan 7 dieu 5"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 4 Điều 7 Thông tư số 219/2013/TT-BTC như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "khoan 2 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "khoan 4 dieu 7"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 3, 4 Điều 12 Thông tư số 219/2013/TT-BTC như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "khoan 3 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 12"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 3, 4 Điều 12 Thông tư số 219/2013/TT-BTC như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "khoan 3 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "khoan 4 dieu 12"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi khoản 1 Điều 13 Thông tư số 219/2013/TT-BTC như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "khoan 4 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "khoan 1 dieu 13"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung ví dụ số 58a tại khoản 4 Điều 14 Thông tư số 219/2013/TT-BTC như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "khoan 5 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "khoan 4 dieu 14"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi khổ thứ nhất điểm c khoản 3 Điều 15 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "diem a khoan 6 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "diem c khoan 3 dieu 15"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khổ đầu khoản 3 Điều 15 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "diem b khoan 6 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 15"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm c khoản 4 Điều 15 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "diem c khoan 6 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "diem c khoan 4 dieu 15"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi khoản 4 Điều 16 Thông tư số 219/2013/TT-BTC như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "khoan 7 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "khoan 4 dieu 16"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 10 Điều 7 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "reason": null,
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 10 dieu 7"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 13 Điều 7 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 13 dieu 7"
+    },
+    {
+     "candidates": 0,
+     "head": "Thay thế khoản 2, khoản 3 Điều 18 bằng khoản 2 mới như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 18"
+    },
+    {
+     "candidates": 0,
+     "head": "Thay thế khoản 2, khoản 3 Điều 18 bằng khoản 2 mới như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 18"
+    },
+    {
+     "candidates": 0,
+     "head": "Thay thế khoản 2, khoản 3 Điều 18 bằng khoản 2 mới như sau",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Khoản 9 Điều 4 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "reason": null,
+     "src_address": "diem a khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 9 dieu 4"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Khoản 16 Điều 4 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "reason": null,
+     "src_address": "diem b khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 16 dieu 4"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Khoản 23 Điều 4 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "reason": null,
+     "src_address": "diem c khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 23 dieu 4"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Khoản 3 Điều 9 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 9"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 18 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 18"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo hoạt động thông tin tín dụng tại Thông tư số 16/2010/TT-NHNN ngày 25 tháng 6 năm 2010 của Thống đốc Ngân hàng Nhà nước Việt Nam ",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 1 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo tình hình hoạt động ATM tại Thông tư số 36/2012/TT-NHNN ngày 28 tháng 12 năm 2012 của Thống đốc Ngân hàng Nhà nước Việt Nam quy ",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 2 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo mạng lưới hoạt động của ngân hàng thương mại tại Thông tư số 21/2013/TT-NHNN ngày 09 tháng 09 năm 2013 của Thống đốc Ngân hàng N",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 3 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo công tác an toàn kho quỹ tại Thông tư số 01/2014/TT-NHNN ngày 06 tháng 01 năm 2014 của Thống đốc Ngân hàng Nhà nước Việt Nam quy",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 4 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo về Quỹ bảo đảm an toàn hệ thống quỹ tín dụng nhân dân tại Thông tư số 03/2014/TT-NHNN ngày 23 tháng 01 năm 2014 của Thống đốc Ng",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 5 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo quản lý, sử dụng chứng thư số Ngân hàng Nhà nước tại Thông tư số 28/2015/TT-NHNN ngày 18 tháng 12 năm 2015 của Thống đốc Ngân hà",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 6 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo thanh lý tài sản, phân chia tài sản và các vấn đề phát sinh khác tại Thông tư số 24/2017/TT-NHNN ngày 29 tháng 12 năm 2017 của T",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 7 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo số liệu cho vay đặc biệt tại Thông tư số 01/2018/TT-NHNN ngày 26 tháng 01 năm 2018 của Thống đốc Ngân hàng Nhà nước Việt Nam quy",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 8 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo về hệ thống kiểm soát nội bộ tại Thông tư số 13/2018/TT-NHNN ngày 18 tháng 5 năm 2018 của Thống đốc Ngân hàng Nhà nước Việt Nam ",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 9 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo sự cố gây gián đoạn hoạt động của hệ thống thanh toán tại Thông tư số 20/2018/TT-NHNN ngày 30 tháng 8 năm 2018 của Thống đốc Ngâ",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 10 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo tình hình nhập khẩu và sử dụng hàng hóa đã nhập khẩu của cơ sở in đúc tiền tại Thông tư số 38/2018/TT-NHNN ngày 25 tháng 12 năm ",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 11 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung khoản 3a Điều 4 Thông tư số 46/2018/TT-NHNN như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": null,
+     "src_address": "diem b khoan 12 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3a dieu 4"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ Điều 8 Thông tư số 47/2014/TT-BCT. 2. Điều 13 Thông tư số 47/2014/TT-BCT được sửa đổi như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt21-2018-bct",
+     "reason": null,
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 8"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ Điều 8 Thông tư số 47/2014/TT-BCT. 2. Điều 13 Thông tư số 47/2014/TT-BCT được sửa đổi như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt21-2018-bct",
+     "reason": null,
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 13"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ Điều 21 Thông tư số 47/2014/TT-BCT. 4. Thay thế cụm từ “Cục Thương mại điện tử và Công nghệ thông tin” bằng cụm từ “Cục Thương mại điện tử và Kinh tế số”",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt21-2018-bct",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 21"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung tiêu đề Chương II thành “THỦ TỤC CẤP GIẤY CHỨNG NHẬN”. 4. Điều 5 được sửa đổi, bổ sung như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt23-2016-nhnn",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 5"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi khoản 1 Điều 4 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 1 dieu 4"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung khoản 3a vào Điều 4 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3a dieu 4"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm a Khoản 8 Điều 4 (đã được sửa đổi, bổ sung tại Điều 8 Thông tư số 151/2014/TT-BTC ngày 10/10/2014 của Bộ Tài chính) như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem a khoan 8 dieu 4"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm a Khoản 8 Điều 4 (đã được sửa đổi, bổ sung tại Điều 8 Thông tư số 151/2014/TT-BTC ngày 10/10/2014 của Bộ Tài chính) như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 8"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung điểm a.8, a.9 vào khoản 10 Điều 7 như sau",
+     "method": null,
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": "no_address",
+     "src_address": "khoan 4 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi gạch đầu dòng thứ nhất Khoản 3 Điều 9 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 5 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 9"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi khoản 2 Điều 10 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 6 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 10"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 3 và khoản 10 Điều 10. 8. Sửa đổi, bổ sung Khoản 11 Điều 10 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 7 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 10"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 3 và khoản 10 Điều 10. 8. Sửa đổi, bổ sung Khoản 11 Điều 10 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 7 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 10 dieu 10"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 3 và khoản 10 Điều 10. 8. Sửa đổi, bổ sung Khoản 11 Điều 10 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 7 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 11 dieu 10"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi khoản 2 Điều 14 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "diem a khoan 9 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 14"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung khoản 14a vào Điều 14 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "diem b khoan 9 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 14a dieu 14"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 15 (đã được sửa đổi, bổ sung tại Thông tư số 119/2014/TT-BTC ngày 25/8/2014 và Thông tư số 151/2014/TT-BTC ngày 10/10/2014 của Bộ Tài chín",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 10 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 15"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm b.7 Khoản 3 Điều 16 như sau",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": "no_address",
+     "src_address": "khoan 11 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Khoản 3 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "diem a khoan 12 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 18"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Khoản 4 Điều 18 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "diem b khoan 12 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 4 dieu 18"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Khoản 5 Điều 18 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "diem c khoan 12 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 5 dieu 18"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 3 Điều 4 như sau",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "reason": null,
+     "src_address": "khoan 1 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 2 Điều 5 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 5"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 7 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 7"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 2 Điều 8 như sau",
+     "method": "ANCESTOR",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "reason": null,
+     "src_address": "khoan 4 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 8"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 10 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "reason": null,
+     "src_address": "khoan 5 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 10"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 17 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "reason": null,
+     "src_address": "khoan 6 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 17"
+    }
+   ],
+   "unmatched_slots": [
+    {
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 4 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 20"
+    },
+    {
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 5 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 28"
+    },
+    {
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 6 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 29"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 2"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 2 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "diem a khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 1"
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "diem a khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 3"
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "diem a khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 13"
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 1"
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 2 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 10"
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 13"
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 4"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "src_address": "diem a khoan 6 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "diem c khoan 3 dieu 15"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "src_address": "diem c khoan 6 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "diem c khoan 4 dieu 15"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "src_address": "khoan 3 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 2 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 3 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 4 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 5 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 6 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 7 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 8 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 9 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 10 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 11 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "INSERTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "diem b khoan 12 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3a dieu 4"
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 13"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 8"
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt26-2015-btc",
+     "src_address": "khoan 7 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 11 dieu 10"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "src_address": "diem a khoan 12 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 18"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "src_address": "diem c khoan 12 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 5 dieu 18"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "src_address": "khoan 1 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 5"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "src_address": "khoan 6 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 17"
+    }
+   ],
+   "wrong_unique": [
+    {
+     "correct": false,
+     "gold_target_address": "diem a khoan 4 dieu 14",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 27,
+     "op": "INSERTION",
+     "pair_id": "tt119-2014-btc",
+     "pred_target_address": "khoan 4 dieu 14",
+     "src_address": "khoan 5 dieu 3",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": false,
+     "gold_target_address": null,
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 7,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt23-2016-nhnn",
+     "pred_target_address": "dieu 5",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    }
+   ]
+  },
+  "full": {
+   "by_pair": {
+    "nd50-2021": {
+     "accuracy": {
+      "denominator": 26,
+      "passed": 26,
+      "rate": 1.0,
+      "wilson95": [
+       0.8713,
+       1.0
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "EXACT": {
+       "correct": 26,
+       "precision": {
+        "denominator": 26,
+        "passed": 26,
+        "rate": 1.0,
+        "wilson95": [
+         0.8713,
+         1.0
+        ]
+       },
+       "unique": 26
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 26,
+      "passed": 26,
+      "rate": 1.0,
+      "wilson95": [
+       0.8713,
+       1.0
+      ]
+     },
+     "items": 26,
+     "precision": {
+      "denominator": 26,
+      "passed": 26,
+      "rate": 1.0,
+      "wilson95": [
+       0.8713,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 0,
+      "UNIQUE": 26
+     },
+     "unique_correct": 26
+    },
+    "tt01-2022-bct": {
+     "accuracy": {
+      "denominator": 6,
+      "passed": 5,
+      "rate": 0.8333,
+      "wilson95": [
+       0.4365,
+       0.9699
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "EXACT": {
+       "correct": 5,
+       "precision": {
+        "denominator": 5,
+        "passed": 5,
+        "rate": 1.0,
+        "wilson95": [
+         0.5655,
+         1.0
+        ]
+       },
+       "unique": 5
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 6,
+      "passed": 5,
+      "rate": 0.8333,
+      "wilson95": [
+       0.4365,
+       0.9699
+      ]
+     },
+     "items": 6,
+     "precision": {
+      "denominator": 5,
+      "passed": 5,
+      "rate": 1.0,
+      "wilson95": [
+       0.5655,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 1,
+      "UNIQUE": 5
+     },
+     "unique_correct": 5
+    },
+    "tt119-2014-btc": {
+     "accuracy": {
+      "denominator": 8,
+      "passed": 7,
+      "rate": 0.875,
+      "wilson95": [
+       0.5291,
+       0.9776
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "EXACT": {
+       "correct": 7,
+       "precision": {
+        "denominator": 8,
+        "passed": 7,
+        "rate": 0.875,
+        "wilson95": [
+         0.5291,
+         0.9776
+        ]
+       },
+       "unique": 8
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 8,
+      "passed": 8,
+      "rate": 1.0,
+      "wilson95": [
+       0.6756,
+       1.0
+      ]
+     },
+     "items": 8,
+     "precision": {
+      "denominator": 8,
+      "passed": 7,
+      "rate": 0.875,
+      "wilson95": [
+       0.5291,
+       0.9776
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 0,
+      "UNIQUE": 8
+     },
+     "unique_correct": 7
+    },
+    "tt13-2023-btc": {
+     "accuracy": {
+      "denominator": 4,
+      "passed": 4,
+      "rate": 1.0,
+      "wilson95": [
+       0.5101,
+       1.0
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "EXACT": {
+       "correct": 4,
+       "precision": {
+        "denominator": 4,
+        "passed": 4,
+        "rate": 1.0,
+        "wilson95": [
+         0.5101,
+         1.0
+        ]
+       },
+       "unique": 4
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 4,
+      "passed": 4,
+      "rate": 1.0,
+      "wilson95": [
+       0.5101,
+       1.0
+      ]
+     },
+     "items": 4,
+     "precision": {
+      "denominator": 4,
+      "passed": 4,
+      "rate": 1.0,
+      "wilson95": [
+       0.5101,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 0,
+      "UNIQUE": 4
+     },
+     "unique_correct": 4
+    },
+    "tt130-2016-btc": {
+     "accuracy": {
+      "denominator": 5,
+      "passed": 5,
+      "rate": 1.0,
+      "wilson95": [
+       0.5655,
+       1.0
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "EXACT": {
+       "correct": 5,
+       "precision": {
+        "denominator": 5,
+        "passed": 5,
+        "rate": 1.0,
+        "wilson95": [
+         0.5655,
+         1.0
+        ]
+       },
+       "unique": 5
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 5,
+      "passed": 5,
+      "rate": 1.0,
+      "wilson95": [
+       0.5655,
+       1.0
+      ]
+     },
+     "items": 5,
+     "precision": {
+      "denominator": 5,
+      "passed": 5,
+      "rate": 1.0,
+      "wilson95": [
+       0.5655,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 0,
+      "UNIQUE": 5
+     },
+     "unique_correct": 5
+    },
+    "tt14-2019-nhnn": {
+     "accuracy": {
+      "denominator": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.7935
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "EXACT": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.7935
+      ]
+     },
+     "items": 1,
+     "precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 1,
+      "UNIQUE": 0
+     },
+     "unique_correct": 0
+    },
+    "tt21-2018-bct": {
+     "accuracy": {
+      "denominator": 2,
+      "passed": 2,
+      "rate": 1.0,
+      "wilson95": [
+       0.3424,
+       1.0
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "EXACT": {
+       "correct": 2,
+       "precision": {
+        "denominator": 2,
+        "passed": 2,
+        "rate": 1.0,
+        "wilson95": [
+         0.3424,
+         1.0
+        ]
+       },
+       "unique": 2
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 2,
+      "passed": 2,
+      "rate": 1.0,
+      "wilson95": [
+       0.3424,
+       1.0
+      ]
+     },
+     "items": 2,
+     "precision": {
+      "denominator": 2,
+      "passed": 2,
+      "rate": 1.0,
+      "wilson95": [
+       0.3424,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 0,
+      "UNIQUE": 2
+     },
+     "unique_correct": 2
+    },
+    "tt23-2016-nhnn": {
+     "accuracy": {
+      "denominator": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.7935
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "EXACT": {
+       "correct": 0,
+       "precision": {
+        "denominator": 1,
+        "passed": 0,
+        "rate": 0.0,
+        "wilson95": [
+         0.0,
+         0.7935
+        ]
+       },
+       "unique": 1
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 1,
+      "passed": 1,
+      "rate": 1.0,
+      "wilson95": [
+       0.2065,
+       1.0
+      ]
+     },
+     "items": 1,
+     "precision": {
+      "denominator": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.7935
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 0,
+      "UNIQUE": 1
+     },
+     "unique_correct": 0
+    },
+    "tt26-2015-btc": {
+     "accuracy": {
+      "denominator": 13,
+      "passed": 11,
+      "rate": 0.8462,
+      "wilson95": [
+       0.5776,
+       0.9567
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "EXACT": {
+       "correct": 11,
+       "precision": {
+        "denominator": 11,
+        "passed": 11,
+        "rate": 1.0,
+        "wilson95": [
+         0.7412,
+         1.0
+        ]
+       },
+       "unique": 11
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 13,
+      "passed": 11,
+      "rate": 0.8462,
+      "wilson95": [
+       0.5776,
+       0.9567
+      ]
+     },
+     "items": 13,
+     "precision": {
+      "denominator": 11,
+      "passed": 11,
+      "rate": 1.0,
+      "wilson95": [
+       0.7412,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 2,
+      "UNIQUE": 11
+     },
+     "unique_correct": 11
+    },
+    "tt27-2014-nhnn": {
+     "accuracy": {
+      "denominator": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "wilson95": [
+       0.4385,
+       1.0
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "EXACT": {
+       "correct": 3,
+       "precision": {
+        "denominator": 3,
+        "passed": 3,
+        "rate": 1.0,
+        "wilson95": [
+         0.4385,
+         1.0
+        ]
+       },
+       "unique": 3
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "wilson95": [
+       0.4385,
+       1.0
+      ]
+     },
+     "items": 3,
+     "precision": {
+      "denominator": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "wilson95": [
+       0.4385,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 0,
+      "UNIQUE": 3
+     },
+     "unique_correct": 3
+    },
+    "tt43-2018-nhnn": {
+     "accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "EXACT": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "items": 0,
+     "precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 0,
+      "UNIQUE": 0
+     },
+     "unique_correct": 0
+    }
+   },
+   "context_items": 10,
+   "missed_gold": [
+    {
+     "note_no": 2,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "diem a khoan 1 dieu 3"
+    },
+    {
+     "note_no": 3,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "diem a khoan 1 dieu 3"
+    },
+    {
+     "note_no": 4,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "diem a khoan 1 dieu 3"
+    },
+    {
+     "note_no": 6,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "diem a khoan 1 dieu 3"
+    },
+    {
+     "note_no": 9,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "diem a khoan 1 dieu 3"
+    },
+    {
+     "note_no": 29,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "diem a khoan 1 dieu 3"
+    },
+    {
+     "note_no": 21,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "src_address": "khoan 3 dieu 3"
+    },
+    {
+     "note_no": 23,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "src_address": "khoan 3 dieu 3"
+    },
+    {
+     "note_no": 29,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "src_address": "khoan 6 dieu 3"
+    },
+    {
+     "note_no": 36,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "src_address": "khoan 3 dieu 1"
+    },
+    {
+     "note_no": 30,
+     "op": "INSERTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 1 dieu 2"
+    },
+    {
+     "note_no": 31,
+     "op": "INSERTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 1 dieu 2"
+    },
+    {
+     "note_no": 11,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 12,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 13,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 14,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 19,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 20,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 21,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 22,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 26,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 27,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 32,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 34,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 5,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt23-2016-nhnn",
+     "src_address": "khoan 1 dieu 1"
+    },
+    {
+     "note_no": 6,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt23-2016-nhnn",
+     "src_address": "khoan 2 dieu 1"
+    },
+    {
+     "note_no": 8,
+     "op": "REPEAL",
+     "pair_id": "tt23-2016-nhnn",
+     "src_address": "dieu 2"
+    },
+    {
+     "note_no": 9,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt23-2016-nhnn",
+     "src_address": "khoan 4 dieu 1"
+    },
+    {
+     "note_no": 14,
+     "op": "REPEAL",
+     "pair_id": "tt23-2016-nhnn",
+     "src_address": "dieu 2"
+    },
+    {
+     "note_no": 14,
+     "op": "REPEAL",
+     "pair_id": "tt26-2015-btc",
+     "src_address": "khoan 4 dieu 4"
+    },
+    {
+     "note_no": 19,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "src_address": "khoan 8 dieu 1"
+    },
+    {
+     "note_no": 30,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "src_address": "khoan 10 dieu 1"
+    },
+    {
+     "note_no": 33,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "src_address": "khoan 12 dieu 1"
+    },
+    {
+     "note_no": 15,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "src_address": "dieu 2"
+    },
+    {
+     "note_no": 16,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "src_address": "dieu 2"
+    },
+    {
+     "note_no": 22,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "src_address": "dieu 2"
+    },
+    {
+     "note_no": 10,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt43-2018-nhnn",
+     "src_address": "khoan 1 dieu 1"
+    },
+    {
+     "note_no": 23,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt43-2018-nhnn",
+     "src_address": "khoan 2 dieu 1"
+    },
+    {
+     "note_no": 24,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt43-2018-nhnn",
+     "src_address": "khoan 2 dieu 1"
+    },
+    {
+     "note_no": 25,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt43-2018-nhnn",
+     "src_address": "khoan 2 dieu 1"
+    },
+    {
+     "note_no": 26,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt43-2018-nhnn",
+     "src_address": "khoan 2 dieu 1"
+    },
+    {
+     "note_no": 27,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt43-2018-nhnn",
+     "src_address": "khoan 2 dieu 1"
+    },
+    {
+     "note_no": 28,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt43-2018-nhnn",
+     "src_address": "khoan 2 dieu 1"
+    },
+    {
+     "note_no": 29,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt43-2018-nhnn",
+     "src_address": "khoan 2 dieu 1"
+    }
+   ],
+   "multi_clause": {
+    "by_pair": {
+     "nd50-2021": {
+      "accuracy": {
+       "denominator": 14,
+       "passed": 14,
+       "rate": 1.0,
+       "wilson95": [
+        0.7847,
+        1.0
+       ]
+      },
+      "by_method": {
+       "ANCESTOR": {
+        "correct": 0,
+        "precision": {
+         "denominator": 0,
+         "passed": 0,
+         "rate": null,
+         "wilson95": [
+          0.0,
+          1.0
+         ]
+        },
+        "unique": 0
+       },
+       "EXACT": {
+        "correct": 14,
+        "precision": {
+         "denominator": 14,
+         "passed": 14,
+         "rate": 1.0,
+         "wilson95": [
+          0.7847,
+          1.0
+         ]
+        },
+        "unique": 14
+       },
+       "ORDER_INFERENCE": {
+        "correct": 0,
+        "precision": {
+         "denominator": 0,
+         "passed": 0,
+         "rate": null,
+         "wilson95": [
+          0.0,
+          1.0
+         ]
+        },
+        "unique": 0
+       },
+       "SELF": {
+        "correct": 0,
+        "precision": {
+         "denominator": 0,
+         "passed": 0,
+         "rate": null,
+         "wilson95": [
+          0.0,
+          1.0
+         ]
+        },
+        "unique": 0
+       }
+      },
+      "coverage": {
+       "denominator": 14,
+       "passed": 14,
+       "rate": 1.0,
+       "wilson95": [
+        0.7847,
+        1.0
+       ]
+      },
+      "items": 14,
+      "precision": {
+       "denominator": 14,
+       "passed": 14,
+       "rate": 1.0,
+       "wilson95": [
+        0.7847,
+        1.0
+       ]
+      },
+      "status": {
+       "AMBIGUOUS": 0,
+       "NOT_FOUND": 0,
+       "UNIQUE": 14
+      },
+      "unique_correct": 14
+     }
+    },
+    "overall": {
+     "accuracy": {
+      "denominator": 14,
+      "passed": 14,
+      "rate": 1.0,
+      "wilson95": [
+       0.7847,
+       1.0
+      ]
+     },
+     "by_method": {
+      "ANCESTOR": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "EXACT": {
+       "correct": 14,
+       "precision": {
+        "denominator": 14,
+        "passed": 14,
+        "rate": 1.0,
+        "wilson95": [
+         0.7847,
+         1.0
+        ]
+       },
+       "unique": 14
+      },
+      "ORDER_INFERENCE": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      },
+      "SELF": {
+       "correct": 0,
+       "precision": {
+        "denominator": 0,
+        "passed": 0,
+        "rate": null,
+        "wilson95": [
+         0.0,
+         1.0
+        ]
+       },
+       "unique": 0
+      }
+     },
+     "coverage": {
+      "denominator": 14,
+      "passed": 14,
+      "rate": 1.0,
+      "wilson95": [
+       0.7847,
+       1.0
+      ]
+     },
+     "items": 14,
+     "precision": {
+      "denominator": 14,
+      "passed": 14,
+      "rate": 1.0,
+      "wilson95": [
+       0.7847,
+       1.0
+      ]
+     },
+     "status": {
+      "AMBIGUOUS": 0,
+      "NOT_FOUND": 0,
+      "UNIQUE": 14
+     },
+     "unique_correct": 14
+    }
+   },
+   "order_inference": {
+    "correct": 0,
+    "locked": 0,
+    "wrong": 0
+   },
+   "overall": {
+    "accuracy": {
+     "denominator": 69,
+     "passed": 63,
+     "rate": 0.913,
+     "wilson95": [
+      0.823,
+      0.9595
+     ]
+    },
+    "by_method": {
+     "ANCESTOR": {
+      "correct": 0,
+      "precision": {
+       "denominator": 0,
+       "passed": 0,
+       "rate": null,
+       "wilson95": [
+        0.0,
+        1.0
+       ]
+      },
+      "unique": 0
+     },
+     "EXACT": {
+      "correct": 63,
+      "precision": {
+       "denominator": 65,
+       "passed": 63,
+       "rate": 0.9692,
+       "wilson95": [
+        0.8946,
+        0.9915
+       ]
+      },
+      "unique": 65
+     },
+     "ORDER_INFERENCE": {
+      "correct": 0,
+      "precision": {
+       "denominator": 0,
+       "passed": 0,
+       "rate": null,
+       "wilson95": [
+        0.0,
+        1.0
+       ]
+      },
+      "unique": 0
+     },
+     "SELF": {
+      "correct": 0,
+      "precision": {
+       "denominator": 0,
+       "passed": 0,
+       "rate": null,
+       "wilson95": [
+        0.0,
+        1.0
+       ]
+      },
+      "unique": 0
+     }
+    },
+    "coverage": {
+     "denominator": 69,
+     "passed": 65,
+     "rate": 0.942,
+     "wilson95": [
+      0.8602,
+      0.9772
+     ]
+    },
+    "items": 69,
+    "precision": {
+     "denominator": 65,
+     "passed": 63,
+     "rate": 0.9692,
+     "wilson95": [
+      0.8946,
+      0.9915
+     ]
+    },
+    "status": {
+     "AMBIGUOUS": 0,
+     "NOT_FOUND": 4,
+     "UNIQUE": 65
+    },
+    "unique_correct": 63
+   },
+   "rows": [
+    {
+     "correct": true,
+     "gold_target_address": "khoan 2 dieu 1",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 2,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "khoan 2 dieu 1",
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem c khoan 1 dieu 3",
+     "method": "EXACT",
+     "multi_clause": true,
+     "note_no": 3,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem c khoan 1 dieu 3",
+     "src_address": "diem a khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem đ khoan 1 dieu 3",
+     "method": "EXACT",
+     "multi_clause": true,
+     "note_no": 4,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem đ khoan 1 dieu 3",
+     "src_address": "diem b khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem e khoan 1 dieu 3",
+     "method": "EXACT",
+     "multi_clause": true,
+     "note_no": 5,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem e khoan 1 dieu 3",
+     "src_address": "diem c khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem g khoan 1 dieu 3",
+     "method": "EXACT",
+     "multi_clause": true,
+     "note_no": 6,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem g khoan 1 dieu 3",
+     "src_address": "diem d khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem i1 khoan 1 dieu 3",
+     "method": "EXACT",
+     "multi_clause": true,
+     "note_no": 7,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem i1 khoan 1 dieu 3",
+     "src_address": "diem đ khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem d1 khoan 2 dieu 3",
+     "method": "EXACT",
+     "multi_clause": true,
+     "note_no": 8,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem d1 khoan 2 dieu 3",
+     "src_address": "diem e khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem d2 khoan 2 dieu 3",
+     "method": "EXACT",
+     "multi_clause": true,
+     "note_no": 9,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem d2 khoan 2 dieu 3",
+     "src_address": "diem e khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem đ khoan 2 dieu 3",
+     "method": "EXACT",
+     "multi_clause": true,
+     "note_no": 10,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem đ khoan 2 dieu 3",
+     "src_address": "diem g khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 5 dieu 4",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 11,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "khoan 5 dieu 4",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 7 dieu 7",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 12,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "khoan 7 dieu 7",
+     "src_address": "khoan 4 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem d1 khoan 3 dieu 15",
+     "method": "EXACT",
+     "multi_clause": true,
+     "note_no": 13,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem d1 khoan 3 dieu 15",
+     "src_address": "diem a khoan 5 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem d1 khoan 5 dieu 15",
+     "method": "EXACT",
+     "multi_clause": true,
+     "note_no": 14,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem d1 khoan 5 dieu 15",
+     "src_address": "diem b khoan 5 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem a1 khoan 4 dieu 18",
+     "method": "EXACT",
+     "multi_clause": true,
+     "note_no": 15,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem a1 khoan 4 dieu 18",
+     "src_address": "diem a khoan 6 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 5a dieu 18",
+     "method": "EXACT",
+     "multi_clause": true,
+     "note_no": 16,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "khoan 5a dieu 18",
+     "src_address": "diem b khoan 6 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 3 dieu 22",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 17,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "khoan 3 dieu 22",
+     "src_address": "khoan 7 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 23",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 18,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "dieu 23",
+     "src_address": "khoan 8 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem d khoan 2 dieu 31",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 19,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem d khoan 2 dieu 31",
+     "src_address": "khoan 9 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem e khoan 2 dieu 32",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 20,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem e khoan 2 dieu 32",
+     "src_address": "khoan 10 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 2 dieu 35",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 21,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "khoan 2 dieu 35",
+     "src_address": "khoan 11 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 36",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 22,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "dieu 36",
+     "src_address": "khoan 12 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 3 dieu 37",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 23,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "khoan 3 dieu 37",
+     "src_address": "khoan 13 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem b khoan 2 dieu 38",
+     "method": "EXACT",
+     "multi_clause": true,
+     "note_no": 24,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem b khoan 2 dieu 38",
+     "src_address": "diem a khoan 14 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem a khoan 3 dieu 38",
+     "method": "EXACT",
+     "multi_clause": true,
+     "note_no": 25,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "diem a khoan 3 dieu 38",
+     "src_address": "diem b khoan 14 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 42",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 26,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "dieu 42",
+     "src_address": "khoan 15 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 2 dieu 54",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 29,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "pred_target_address": "khoan 2 dieu 54",
+     "src_address": "khoan 16 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 5",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 5,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "pred_target_address": "dieu 5",
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": false,
+     "gold_target_address": null,
+     "method": null,
+     "multi_clause": false,
+     "note_no": 7,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "pred_target_address": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "NOT_FOUND"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 20",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 15,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "pred_target_address": "dieu 20",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 20a",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 16,
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "pred_target_address": "dieu 20a",
+     "src_address": "khoan 4 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 28a",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 24,
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "pred_target_address": "dieu 28a",
+     "src_address": "khoan 5 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 29a",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 25,
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "pred_target_address": "dieu 29a",
+     "src_address": "khoan 6 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem g khoan 7 dieu 5",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 9,
+     "op": "INSERTION",
+     "pair_id": "tt119-2014-btc",
+     "pred_target_address": "diem g khoan 7 dieu 5",
+     "src_address": "khoan 1 dieu 3",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 4 dieu 7",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 11,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "pred_target_address": "khoan 4 dieu 7",
+     "src_address": "khoan 2 dieu 3",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 3 dieu 12",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 20,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "pred_target_address": "khoan 3 dieu 12",
+     "src_address": "khoan 3 dieu 3",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 4 dieu 12",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 22,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "pred_target_address": "khoan 4 dieu 12",
+     "src_address": "khoan 3 dieu 3",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 1 dieu 13",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 24,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "pred_target_address": "khoan 1 dieu 13",
+     "src_address": "khoan 4 dieu 3",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": false,
+     "gold_target_address": "diem a khoan 4 dieu 14",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 27,
+     "op": "INSERTION",
+     "pair_id": "tt119-2014-btc",
+     "pred_target_address": "khoan 4 dieu 14",
+     "src_address": "khoan 5 dieu 3",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 3 dieu 15",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 30,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "pred_target_address": "khoan 3 dieu 15",
+     "src_address": "diem b khoan 6 dieu 3",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 4 dieu 16",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 32,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "pred_target_address": "khoan 4 dieu 16",
+     "src_address": "khoan 7 dieu 3",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 10 dieu 7",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 12,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "pred_target_address": "khoan 10 dieu 7",
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 13 dieu 7",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 13,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "pred_target_address": "khoan 13 dieu 7",
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 2 dieu 18",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 34,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "pred_target_address": "khoan 2 dieu 18",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 3 dieu 18",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 35,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "pred_target_address": "khoan 3 dieu 18",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 9 dieu 4",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 6,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "pred_target_address": "khoan 9 dieu 4",
+     "src_address": "diem a khoan 1 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 16 dieu 4",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 7,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "pred_target_address": "khoan 16 dieu 4",
+     "src_address": "diem b khoan 1 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 23 dieu 4",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 8,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "pred_target_address": "khoan 23 dieu 4",
+     "src_address": "diem c khoan 1 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 3 dieu 9",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 15,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "pred_target_address": "khoan 3 dieu 9",
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 18",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 33,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "pred_target_address": "dieu 18",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": false,
+     "gold_target_address": "dieu 17",
+     "method": null,
+     "multi_clause": false,
+     "note_no": 17,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "pred_target_address": null,
+     "src_address": "khoan 1 dieu 1",
+     "status": "NOT_FOUND"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 8",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 8,
+     "op": "REPEAL",
+     "pair_id": "tt21-2018-bct",
+     "pred_target_address": "dieu 8",
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 21",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 17,
+     "op": "REPEAL",
+     "pair_id": "tt21-2018-bct",
+     "pred_target_address": "dieu 21",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": false,
+     "gold_target_address": null,
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 7,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt23-2016-nhnn",
+     "pred_target_address": "dieu 5",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 1 dieu 4",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 3,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "khoan 1 dieu 4",
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 3a dieu 4",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 4,
+     "op": "INSERTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "khoan 3a dieu 4",
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "diem a khoan 8 dieu 4",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 5,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "diem a khoan 8 dieu 4",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": false,
+     "gold_target_address": "khoan 10 dieu 7",
+     "method": null,
+     "multi_clause": false,
+     "note_no": 12,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": null,
+     "src_address": "khoan 4 dieu 1",
+     "status": "NOT_FOUND"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 3 dieu 9",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 15,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "khoan 3 dieu 9",
+     "src_address": "khoan 5 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 2 dieu 10",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 16,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "khoan 2 dieu 10",
+     "src_address": "khoan 6 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 3 dieu 10",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 17,
+     "op": "REPEAL",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "khoan 3 dieu 10",
+     "src_address": "khoan 7 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 10 dieu 10",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 18,
+     "op": "REPEAL",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "khoan 10 dieu 10",
+     "src_address": "khoan 7 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 2 dieu 14",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 25,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "khoan 2 dieu 14",
+     "src_address": "diem a khoan 9 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 14a dieu 14",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 28,
+     "op": "INSERTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "khoan 14a dieu 14",
+     "src_address": "diem b khoan 9 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 15",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 29,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "dieu 15",
+     "src_address": "khoan 10 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": false,
+     "gold_target_address": "diem b khoan 3 dieu 16",
+     "method": null,
+     "multi_clause": false,
+     "note_no": 31,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": null,
+     "src_address": "khoan 11 dieu 1",
+     "status": "NOT_FOUND"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 4 dieu 18",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 36,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "pred_target_address": "khoan 4 dieu 18",
+     "src_address": "diem b khoan 12 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 7",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 11,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "pred_target_address": "dieu 7",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "khoan 2 dieu 8",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 12,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "pred_target_address": "khoan 2 dieu 8",
+     "src_address": "khoan 4 dieu 1",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": true,
+     "gold_target_address": "dieu 10",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 13,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "pred_target_address": "dieu 10",
+     "src_address": "khoan 5 dieu 1",
+     "status": "UNIQUE"
+    }
+   ],
+   "slots": [
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 2 Điều 1 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 1"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm c của khoản 1 như sau",
+     "method": "EXACT",
+     "multi_clause": true,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem a khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem c khoan 1 dieu 3"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm đ của khoản 1 như sau",
+     "method": "EXACT",
+     "multi_clause": true,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem b khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem đ khoan 1 dieu 3"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm e của khoản 1 như sau",
+     "method": "EXACT",
+     "multi_clause": true,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem c khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem e khoan 1 dieu 3"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm g của khoản 1 như sau",
+     "method": "EXACT",
+     "multi_clause": true,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem d khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem g khoan 1 dieu 3"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung điểm i1 vào sau điểm i khoản 1 như sau",
+     "method": "EXACT",
+     "multi_clause": true,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem đ khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem i1 khoan 1 dieu 3"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung điểm d1, d2 vào sau điểm d khoản 2 như sau",
+     "method": "EXACT",
+     "multi_clause": true,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem e khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem d1 khoan 2 dieu 3"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung điểm d1, d2 vào sau điểm d khoản 2 như sau",
+     "method": "EXACT",
+     "multi_clause": true,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem e khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem d2 khoan 2 dieu 3"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm đ khoản 2 như sau",
+     "method": "EXACT",
+     "multi_clause": true,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem g khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem đ khoan 2 dieu 3"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung khoản 5 vào sau khoản 4 Điều 4 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 5 dieu 4"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung khoản 7 vào sau khoản 6 Điều 7 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 4 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 7 dieu 7"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung điểm d1 vào sau điểm d khoản 3 như sau",
+     "method": "EXACT",
+     "multi_clause": true,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem a khoan 5 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem d1 khoan 3 dieu 15"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung điểm d1 vào sau điểm d khoản 5 như sau",
+     "method": "EXACT",
+     "multi_clause": true,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem b khoan 5 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem d1 khoan 5 dieu 15"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung điểm a1 vào sau điểm a khoản 4 như sau",
+     "method": "EXACT",
+     "multi_clause": true,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem a khoan 6 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem a1 khoan 4 dieu 18"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung khoản 5a vào sau khoản 5 như sau",
+     "method": "EXACT",
+     "multi_clause": true,
+     "op": "INSERTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem b khoan 6 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 5a dieu 18"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 3 Điều 22 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 7 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 22"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 23 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 8 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 23"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm d khoản 2 Điều 31 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 9 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem d khoan 2 dieu 31"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm e khoản 2 Điều 32 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 10 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem e khoan 2 dieu 32"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 2 Điều 35 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 11 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 35"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 36 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 12 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 36"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 3 Điều 37 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 13 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 37"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm b khoản 2 như sau",
+     "method": "EXACT",
+     "multi_clause": true,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem a khoan 14 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem b khoan 2 dieu 38"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm a khoản 3 như sau",
+     "method": "EXACT",
+     "multi_clause": true,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "diem b khoan 14 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem a khoan 3 dieu 38"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 42 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 15 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 42"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 2 Điều 54 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "nd50-2021",
+     "reason": null,
+     "src_address": "khoan 16 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 54"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 5 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 5"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung tên của Chương II như sau",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": "no_address",
+     "src_address": "khoan 2 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 20 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 20"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung Điều 20a dưới Điều 20 tại Chương II như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 4 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 20a"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung Điều 20a dưới Điều 20 tại Chương II như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 4 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 20"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung Điều 28a sau Điều 28 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 5 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 28a"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung Điều 28a sau Điều 28 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 5 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 28"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung Điều 29a sau Điều 29 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 6 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 29a"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung Điều 29a sau Điều 29 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 6 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 29"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 2 Điều 2 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 2"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 1 Điều 5 như sau",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 2 Điều 1, Điều 3, 4, 6 và Điều 13. b) Thay thế Phụ lục Đơn đăng ký website cung cấp dịch vụ thương mại điện tử (Mẫu TMĐT-1) thành Phụ lục Đơn đăng ",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "diem a khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 1"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 2 Điều 1, Điều 3, 4, 6 và Điều 13. b) Thay thế Phụ lục Đơn đăng ký website cung cấp dịch vụ thương mại điện tử (Mẫu TMĐT-1) thành Phụ lục Đơn đăng ",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "diem a khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 3"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 2 Điều 1, Điều 3, 4, 6 và Điều 13. b) Thay thế Phụ lục Đơn đăng ký website cung cấp dịch vụ thương mại điện tử (Mẫu TMĐT-1) thành Phụ lục Đơn đăng ",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "diem a khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 13"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 2 Điều 1, khoản 8 Điều 3, Điều 10 và Điều 13 tại Thông tư số 59/2015/TT-BCT. Điều 4. Điều khoản thi hành 1. Thông tư này có hiệu lực kể từ ngày 08 ",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 1"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 2 Điều 1, khoản 8 Điều 3, Điều 10 và Điều 13 tại Thông tư số 59/2015/TT-BCT. Điều 4. Điều khoản thi hành 1. Thông tư này có hiệu lực kể từ ngày 08 ",
+     "method": null,
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 2 Điều 1, khoản 8 Điều 3, Điều 10 và Điều 13 tại Thông tư số 59/2015/TT-BCT. Điều 4. Điều khoản thi hành 1. Thông tư này có hiệu lực kể từ ngày 08 ",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 10"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 2 Điều 1, khoản 8 Điều 3, Điều 10 và Điều 13 tại Thông tư số 59/2015/TT-BCT. Điều 4. Điều khoản thi hành 1. Thông tư này có hiệu lực kể từ ngày 08 ",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 13"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 2 Điều 1, khoản 8 Điều 3, Điều 10 và Điều 13 tại Thông tư số 59/2015/TT-BCT. Điều 4. Điều khoản thi hành 1. Thông tư này có hiệu lực kể từ ngày 08 ",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 4"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung điểm g khoản 7 Điều 5 Thông tư số 219/2013/TT-BTC như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "khoan 1 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "diem g khoan 7 dieu 5"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 4 Điều 7 Thông tư số 219/2013/TT-BTC như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "khoan 2 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "khoan 4 dieu 7"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 3, 4 Điều 12 Thông tư số 219/2013/TT-BTC như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "khoan 3 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 12"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 3, 4 Điều 12 Thông tư số 219/2013/TT-BTC như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "khoan 3 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "khoan 4 dieu 12"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi khoản 1 Điều 13 Thông tư số 219/2013/TT-BTC như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "khoan 4 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "khoan 1 dieu 13"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung ví dụ số 58a tại khoản 4 Điều 14 Thông tư số 219/2013/TT-BTC như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "khoan 5 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "khoan 4 dieu 14"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi khổ thứ nhất điểm c khoản 3 Điều 15 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "diem a khoan 6 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "diem c khoan 3 dieu 15"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khổ đầu khoản 3 Điều 15 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "diem b khoan 6 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 15"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm c khoản 4 Điều 15 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "diem c khoan 6 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "diem c khoan 4 dieu 15"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi khoản 4 Điều 16 Thông tư số 219/2013/TT-BTC như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "reason": null,
+     "src_address": "khoan 7 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "khoan 4 dieu 16"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 10 Điều 7 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "reason": null,
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 10 dieu 7"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 13 Điều 7 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 13 dieu 7"
+    },
+    {
+     "candidates": 0,
+     "head": "Thay thế khoản 2, khoản 3 Điều 18 bằng khoản 2 mới như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 18"
+    },
+    {
+     "candidates": 0,
+     "head": "Thay thế khoản 2, khoản 3 Điều 18 bằng khoản 2 mới như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 18"
+    },
+    {
+     "candidates": 0,
+     "head": "Thay thế khoản 2, khoản 3 Điều 18 bằng khoản 2 mới như sau",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Khoản 9 Điều 4 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "reason": null,
+     "src_address": "diem a khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 9 dieu 4"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Khoản 16 Điều 4 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "reason": null,
+     "src_address": "diem b khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 16 dieu 4"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Khoản 23 Điều 4 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "reason": null,
+     "src_address": "diem c khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 23 dieu 4"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Khoản 3 Điều 9 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 9"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 18 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt130-2016-btc",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 18"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo hoạt động thông tin tín dụng tại Thông tư số 16/2010/TT-NHNN ngày 25 tháng 6 năm 2010 của Thống đốc Ngân hàng Nhà nước Việt Nam ",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 1 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo tình hình hoạt động ATM tại Thông tư số 36/2012/TT-NHNN ngày 28 tháng 12 năm 2012 của Thống đốc Ngân hàng Nhà nước Việt Nam quy ",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 2 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo mạng lưới hoạt động của ngân hàng thương mại tại Thông tư số 21/2013/TT-NHNN ngày 09 tháng 09 năm 2013 của Thống đốc Ngân hàng N",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 3 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo công tác an toàn kho quỹ tại Thông tư số 01/2014/TT-NHNN ngày 06 tháng 01 năm 2014 của Thống đốc Ngân hàng Nhà nước Việt Nam quy",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 4 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo về Quỹ bảo đảm an toàn hệ thống quỹ tín dụng nhân dân tại Thông tư số 03/2014/TT-NHNN ngày 23 tháng 01 năm 2014 của Thống đốc Ng",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 5 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo quản lý, sử dụng chứng thư số Ngân hàng Nhà nước tại Thông tư số 28/2015/TT-NHNN ngày 18 tháng 12 năm 2015 của Thống đốc Ngân hà",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 6 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo thanh lý tài sản, phân chia tài sản và các vấn đề phát sinh khác tại Thông tư số 24/2017/TT-NHNN ngày 29 tháng 12 năm 2017 của T",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 7 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo số liệu cho vay đặc biệt tại Thông tư số 01/2018/TT-NHNN ngày 26 tháng 01 năm 2018 của Thống đốc Ngân hàng Nhà nước Việt Nam quy",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 8 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo về hệ thống kiểm soát nội bộ tại Thông tư số 13/2018/TT-NHNN ngày 18 tháng 5 năm 2018 của Thống đốc Ngân hàng Nhà nước Việt Nam ",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 9 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo sự cố gây gián đoạn hoạt động của hệ thống thanh toán tại Thông tư số 20/2018/TT-NHNN ngày 30 tháng 8 năm 2018 của Thống đốc Ngâ",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 10 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung chế độ báo cáo tình hình nhập khẩu và sử dụng hàng hóa đã nhập khẩu của cơ sở in đúc tiền tại Thông tư số 38/2018/TT-NHNN ngày 25 tháng 12 năm ",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": "no_address",
+     "src_address": "khoan 11 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung khoản 3a Điều 4 Thông tư số 46/2018/TT-NHNN như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt14-2019-nhnn",
+     "reason": null,
+     "src_address": "diem b khoan 12 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3a dieu 4"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ Điều 8 Thông tư số 47/2014/TT-BCT. 2. Điều 13 Thông tư số 47/2014/TT-BCT được sửa đổi như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt21-2018-bct",
+     "reason": null,
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 8"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ Điều 8 Thông tư số 47/2014/TT-BCT. 2. Điều 13 Thông tư số 47/2014/TT-BCT được sửa đổi như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt21-2018-bct",
+     "reason": null,
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 13"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ Điều 21 Thông tư số 47/2014/TT-BCT. 4. Thay thế cụm từ “Cục Thương mại điện tử và Công nghệ thông tin” bằng cụm từ “Cục Thương mại điện tử và Kinh tế số”",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt21-2018-bct",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 21"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung tiêu đề Chương II thành “THỦ TỤC CẤP GIẤY CHỨNG NHẬN”. 4. Điều 5 được sửa đổi, bổ sung như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt23-2016-nhnn",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 5"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi khoản 1 Điều 4 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 1 dieu 4"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung khoản 3a vào Điều 4 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3a dieu 4"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm a Khoản 8 Điều 4 (đã được sửa đổi, bổ sung tại Điều 8 Thông tư số 151/2014/TT-BTC ngày 10/10/2014 của Bộ Tài chính) như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "diem a khoan 8 dieu 4"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm a Khoản 8 Điều 4 (đã được sửa đổi, bổ sung tại Điều 8 Thông tư số 151/2014/TT-BTC ngày 10/10/2014 của Bộ Tài chính) như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 8"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung điểm a.8, a.9 vào khoản 10 Điều 7 như sau",
+     "method": null,
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": "no_address",
+     "src_address": "khoan 4 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi gạch đầu dòng thứ nhất Khoản 3 Điều 9 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 5 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 9"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi khoản 2 Điều 10 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 6 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 10"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 3 và khoản 10 Điều 10. 8. Sửa đổi, bổ sung Khoản 11 Điều 10 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 7 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 10"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 3 và khoản 10 Điều 10. 8. Sửa đổi, bổ sung Khoản 11 Điều 10 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 7 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 10 dieu 10"
+    },
+    {
+     "candidates": 0,
+     "head": "Bãi bỏ khoản 3 và khoản 10 Điều 10. 8. Sửa đổi, bổ sung Khoản 11 Điều 10 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "REPEAL",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 7 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 11 dieu 10"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi khoản 2 Điều 14 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "diem a khoan 9 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 14"
+    },
+    {
+     "candidates": 0,
+     "head": "Bổ sung khoản 14a vào Điều 14 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "INSERTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "diem b khoan 9 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 14a dieu 14"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 15 (đã được sửa đổi, bổ sung tại Thông tư số 119/2014/TT-BTC ngày 25/8/2014 và Thông tư số 151/2014/TT-BTC ngày 10/10/2014 của Bộ Tài chín",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "khoan 10 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 15"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung điểm b.7 Khoản 3 Điều 16 như sau",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": "no_address",
+     "src_address": "khoan 11 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Khoản 3 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "diem a khoan 12 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 18"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Khoản 4 Điều 18 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "diem b khoan 12 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 4 dieu 18"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Khoản 5 Điều 18 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "reason": null,
+     "src_address": "diem c khoan 12 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 5 dieu 18"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 3 Điều 4 như sau",
+     "method": null,
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "reason": null,
+     "src_address": "khoan 1 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 2 Điều 5 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "reason": null,
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 5"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 7 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "reason": null,
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 7"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung khoản 2 Điều 8 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "reason": null,
+     "src_address": "khoan 4 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 8"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 10 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "reason": null,
+     "src_address": "khoan 5 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 10"
+    },
+    {
+     "candidates": 0,
+     "head": "Sửa đổi, bổ sung Điều 17 như sau",
+     "method": "EXACT",
+     "multi_clause": false,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "reason": null,
+     "src_address": "khoan 6 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 17"
+    }
+   ],
+   "unmatched_slots": [
+    {
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 4 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 20"
+    },
+    {
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 5 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 28"
+    },
+    {
+     "op": "INSERTION",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 6 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 29"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 2"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 2 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "diem a khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 1"
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "diem a khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 3"
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "diem a khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 13"
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 1"
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 2 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 10"
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 13"
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt01-2022-bct",
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 4"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "src_address": "diem a khoan 6 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "diem c khoan 3 dieu 15"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt119-2014-btc",
+     "src_address": "diem c khoan 6 dieu 3",
+     "status": "UNIQUE",
+     "target_address": "diem c khoan 4 dieu 15"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt13-2023-btc",
+     "src_address": "khoan 3 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 2 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 3 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 4 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 5 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 6 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 7 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 8 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 9 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 10 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "khoan 11 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "INSERTION",
+     "pair_id": "tt14-2019-nhnn",
+     "src_address": "diem b khoan 12 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3a dieu 4"
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt21-2018-bct",
+     "src_address": "khoan 1 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 13"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 8"
+    },
+    {
+     "op": "REPEAL",
+     "pair_id": "tt26-2015-btc",
+     "src_address": "khoan 7 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 11 dieu 10"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "src_address": "diem a khoan 12 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 3 dieu 18"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt26-2015-btc",
+     "src_address": "diem c khoan 12 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 5 dieu 18"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "src_address": "khoan 1 dieu 1",
+     "status": "NOT_FOUND",
+     "target_address": null
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "src_address": "khoan 2 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "khoan 2 dieu 5"
+    },
+    {
+     "op": "SUBSTITUTION",
+     "pair_id": "tt27-2014-nhnn",
+     "src_address": "khoan 6 dieu 1",
+     "status": "UNIQUE",
+     "target_address": "dieu 17"
+    }
+   ],
+   "wrong_unique": [
+    {
+     "correct": false,
+     "gold_target_address": "diem a khoan 4 dieu 14",
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 27,
+     "op": "INSERTION",
+     "pair_id": "tt119-2014-btc",
+     "pred_target_address": "khoan 4 dieu 14",
+     "src_address": "khoan 5 dieu 3",
+     "status": "UNIQUE"
+    },
+    {
+     "correct": false,
+     "gold_target_address": null,
+     "method": "EXACT",
+     "multi_clause": false,
+     "note_no": 7,
+     "op": "SUBSTITUTION",
+     "pair_id": "tt23-2016-nhnn",
+     "pred_target_address": "dieu 5",
+     "src_address": "khoan 3 dieu 1",
+     "status": "UNIQUE"
+    }
+   ]
+  }
+ }
+}
