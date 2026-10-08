@@ -34,6 +34,7 @@ def fresh_url(pg_url):
     with admin.connect() as cx:
         cx.execute(text(f'CREATE DATABASE "{database}"'))
     url = admin_url.set(database=database).render_as_string(hide_password=False)
+    get_engine.cache_clear()  # a None-keyed engine cached by an earlier test must not answer for this DB
     try:
         yield url
     finally:

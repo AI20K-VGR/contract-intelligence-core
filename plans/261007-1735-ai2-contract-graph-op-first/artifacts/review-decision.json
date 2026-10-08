@@ -1,12 +1,12 @@
 {
-  "verdict": "PASS_WITH_RISK",
+  "verdict": "PASS",
   "reviewer": "agent:code-reviewer",
   "role": "reviewer",
   "reviewer_engine": "claude",
   "reviewer_model": "claude-opus-5-5",
-  "rationale": "Review độc lập diff 70998af..a921193 (P1-P4). Code production không có lỗi chặn: K2 giữ được (OBSERVED: tests/test_contract_graph_flag_off_regression.py 9 passed; flag tắt không import builder; record_to_dict không đổi; key coverage giữ đúng thứ tự). K3 giữ được (projection chỉ phát AMENDS với reason chung; mã issue TARGET_NOT_FOUND/TARGET_AMBIGUOUS/NEW_UNIT_ADDITION/CONTRACT_GRAPH_TRUNCATED/CONTRACT_GRAPH_FAILED không chứa chuỗi op; không sửa file schema). Đường ghi D7 đúng khi đọc tĩnh (cùng transaction và pg_advisory_xact_lock, chặn theo latest-SUCCEEDED, savepoint begin_nested, dựng row trước DELETE, lọc NUL cả trong citation JSON, MetaData riêng theo D9, entrypoint downgrade chạy dưới migration lock). Eval: ghép một-một + mở rộng theo danh sách đích (VL-5) đúng; cả 113 bản ghi gold đều approved=false; MIN_N=60 / MIN_WILSON_LOWER=0.85 không đổi; calibration n=0. Đây là chấp nhận có rủi ro, KHÔNG phải giấy phép ship: tiêu chí migration 0005 trên Postgres vẫn mở (SKIP, không có Docker), và test_edge_write_failure_keeps_job_succeeded (tests/test_contract_graph_postgres_store.py:205-206) sẽ fail khi chạy cả suite vì get_engine() lru-cache theo key không tham số (app/db/engine.py:22) và bỏ qua setenv AI2_DATABASE_URL (OBSERVED bằng probe). Cần sửa test đó, chạy 8 test Postgres + RT-11 trên Postgres 16 thật với AI2_REQUIRE_DOCKER=1, rồi review lại để có PASS trước /hs:ship.",
-  "plan_hash": "061121f3168a",
-  "rounds_run": 1,
+  "rationale": "Vòng 2: review lại delta a921193..c820a97. Finding 1 đã sửa: fixture fresh_url gọi get_engine.cache_clear() lúc teardown (tests/test_contract_graph_postgres_store.py:41-43), nên test 2-8 luôn resolve engine theo AI2_DATABASE_URL hiện tại. Finding 3 đã sửa: run_idp đọc cờ một lần vào graph_enabled (idp.py:281) và dùng cho cả builder lẫn projection. Finding 6 đã sửa: exc_info=True (jobs.py:593). Findings 2/4/5/7 đã vào backlog BL-001..BL-004, không chặn. OBSERVED trên c820a97: flag-off regression, wire, projection, idp_integration, edge_store được 62 passed / 8 skipped (Postgres); sha golden 091421c523715af741bfaca7cad7125a381d6063e0471a7e58d063bd7f64cac2 không đổi, fixtures không bị sửa. Kết quả Postgres là do main chạy và báo lại, reviewer không tự chạy (server đã tắt): Postgres 16.4 không pgvector, AI2_REQUIRE_DOCKER=1, các file Postgres 28 passed / 3 skipped (chỉ test pgvector) ở cả hai thứ tự file; full suite 13 failed (đúng danh sách môi trường) / 1300 passed / 19 skipped; ghi ở VL-9. Rủi ro còn lại (Low, không chặn): cache_clear chỉ chạy lúc teardown, không chạy trước yield, nên nếu chọn riêng test_edge_write_failure_keeps_job_succeeded (-k hoặc thứ tự ngẫu nhiên) sau test_ai2_postgres_store.py thì vẫn đọc engine của session cũ.",
+  "plan_hash": "766ad68167a6",
+  "rounds_run": 2,
   "strategy": "staff-production-readiness",
   "architecture_review": {
     "checked": true,

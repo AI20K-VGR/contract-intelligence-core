@@ -1,0 +1,36 @@
+- id: BL-001
+  text: contract_edges giữ cạnh của snapshot cũ khi job mới có contract_graph_ran=False; ghi bất biến vào AI2-19/COMMENT hoặc xoá cạnh (review F2, jobs.py:575)
+  type: debt
+  priority: P2
+  status: open
+  created_ts: '2026-10-08T05:24:04.228963+00:00'
+  done_ts: ''
+  source_ref: ''
+  actor: user:unknown
+- id: BL-002
+  text: resolver _resolve_options trả method=EXACT cho kết quả lọc-theo-tồn-tại; tách method trước khi mở cổng PASS (review F4, resolver.py:250)
+  type: bug
+  priority: P2
+  status: open
+  created_ts: '2026-10-08T05:24:04.453434+00:00'
+  done_ts: ''
+  source_ref: ''
+  actor: user:unknown
+- id: BL-003
+  text: builder MAX_EDGES không giới hạn số EvidenceIssue (review F5, builder.py:221)
+  type: debt
+  priority: P3
+  status: open
+  created_ts: '2026-10-08T05:24:04.675869+00:00'
+  done_ts: ''
+  source_ref: ''
+  actor: user:unknown
+- id: BL-004
+  text: golden flag-off so sha256_json(sort_keys) chứ không phải bytes thô (review F7)
+  type: debt
+  priority: P3
+  status: open
+  created_ts: '2026-10-08T05:24:04.907942+00:00'
+  done_ts: ''
+  source_ref: ''
+  actor: user:unknown

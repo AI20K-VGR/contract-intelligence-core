@@ -37,6 +37,10 @@ Backend request → verify signed service envelope/ACL → validate snapshots/id
 
 `POST /jobs/idp` và `GET /jobs/{job_id}` là boundary thật hiện tại. POST trả `202`/`QUEUED`; local demo chạy background task trong process. Backend worker có hydrate/reconcile snapshot đã persist và bounded idempotent recovery, nhưng đây chưa phải external queue, durable scheduler, HA hoặc live authenticated deployment.
 
+### Contract graph (luồng 1, operation-first) — sau cờ
+
+`AI2_CONTRACT_GRAPH_ENABLED` (mặc định tắt; đọc một lần mỗi lượt `run_idp`). Bật: `app/pipeline/contract_graph/` đọc câu thao tác tường minh, resolve địa chỉ đích tới node có thật (UNIQUE/AMBIGUOUS/NOT_FOUND, không đoán), sinh cạnh `INSERTION/SUBSTITUTION/REPEAL/REJECTION/SCOPE_LIMIT` deterministic (không LLM), mặc định `NEEDS_REVIEW`. Ra BE chỉ dưới dạng finding `AMENDS` + `index_contribution.coverage.contract_graph`; contract `ai2.be.processing.result.v1` không đổi. Cạnh lưu ở `ai2.contract_edges` (migration `0005`), ghi trong transaction `PostgresJobStore.complete_with_snapshot` trong savepoint, chỉ cho job SUCCEEDED mới nhất; lỗi ghi cạnh không làm FAILED job. Tắt: output `run_idp` khớp golden flag-off. Đo bằng `evals/contract_graph/`; chi tiết `docs/ai2/AI2-19-contract-graph-operation-first.vi.md`.
+
 ### Workspace và package lane
 
 Workspace: session JSON → adapter → SQLite session + in-memory store → `/extract` chạy `run_idp` synchronous hoặc `/reason` implicit extraction → `/ask` qua reasoning stack → FE hiển thị answer/citations. Review overlay/publish endpoints là workspace demo, không phải multi-user authorization/HITL state machine P2 đã route hóa.
