@@ -10,7 +10,7 @@ const roleLabel: Record<UserRole, string> = {
 }
 
 const row =
-  'flex w-full items-center gap-space-md rounded px-space-md py-space-sm font-body-md text-body-md'
+  'flex w-full items-center gap-space-md rounded py-space-sm font-body-md text-body-md'
 
 const toneClass = {
   inverse: {
@@ -18,10 +18,15 @@ const toneClass = {
     button:
       'text-surface-container-highest transition-colors hover:bg-tertiary-container hover:text-surface',
   },
-  light: {
-    role: 'bg-brand-100 text-tone-600 text-[14px]',
+  side: {
+    role: 'bg-side-chip text-side-muted text-[14px]',
     button:
-      'text-tone-600 text-[14px] transition-colors hover:bg-brand-100 hover:text-tone-900',
+      'text-side-muted text-[14px] transition-colors hover:bg-side-hover hover:text-side-ink',
+  },
+  light: {
+    role: 'bg-tone-100 text-tone-700 text-[14px]',
+    button:
+      'text-tone-600 text-[14px] transition-colors hover:bg-tone-100 hover:text-tone-900',
   },
   surface: {
     role: 'bg-surface-container-high text-on-surface',
@@ -32,9 +37,11 @@ const toneClass = {
 
 type SidebarLogoutProps = {
   tone: keyof typeof toneClass
+  /** Menu thu gọn: chỉ còn icon, ẩn ô vai trò. */
+  compact?: boolean
 }
 
-export function SidebarLogout({ tone }: SidebarLogoutProps) {
+export function SidebarLogout({ tone, compact = false }: SidebarLogoutProps) {
   const { logout, user } = useAuth()
   const navigate = useNavigate()
   const role = user ? roleLabel[user.backendRole] : ''
@@ -47,21 +54,22 @@ export function SidebarLogout({ tone }: SidebarLogoutProps) {
 
   return (
     <div className="flex w-full flex-col gap-1">
-      {role ? (
-        <div className={`${row} ${colors.role}`}>
+      {role && !compact ? (
+        <div className={`${row} px-space-md ${colors.role}`}>
           <MaterialIcon name="badge" className="text-[20px]" />
           <span>{role}</span>
         </div>
       ) : null}
       <button
-        className={`${row} ${colors.button}`}
+        className={`${row} ${colors.button} ${compact ? 'justify-center' : 'px-space-md'}`}
+        title={compact ? 'Đăng xuất' : undefined}
         type="button"
         onClick={() => {
           void handleLogout()
         }}
       >
         <MaterialIcon name="logout" className="text-[20px]" />
-        <span>Đăng xuất</span>
+        <span className={compact ? 'sr-only' : undefined}>Đăng xuất</span>
       </button>
     </div>
   )

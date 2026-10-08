@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { listDossiers, listDossiersErrorMessage } from '../api/dossiers'
@@ -28,12 +28,22 @@ const CARD =
   'bg-white rounded-[12px] border border-tone-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'
 const INK = 'text-tone-900'
 const MUTED = 'text-tone-500'
-const ACCENT_FILL = 'bg-brand-100 text-brand-700'
+const ACCENT_FILL = 'bg-brand-100 text-brand-600'
+const AVATAR_FILL = 'bg-brand-50 text-brand-700'
+
+/** Màu icon từng ô thống kê theo bảng màu: petrol, navy, teal, blush. */
+const STAT_TONE = {
+  blue: ACCENT_FILL,
+  indigo: 'bg-tone-100 text-brand-900',
+  sky: 'bg-ice/50 text-brand-500',
+  amber: 'bg-blush-100 text-blush-700',
+} as const
+type StatTone = keyof typeof STAT_TONE
 
 const roleTone: Record<ManagedUserRole, string> = {
-  ADMINISTRATOR: 'bg-brand-200 text-brand-800',
-  OPERATOR: 'bg-brand-50 text-brand-700 ring-1 ring-brand-100',
-  REVIEWER: 'bg-white text-tone-700 ring-1 ring-tone-200',
+  ADMINISTRATOR: 'bg-brand-100 text-brand-700 ring-1 ring-brand-200',
+  OPERATOR: 'bg-tone-100 text-brand-900 ring-1 ring-tone-200',
+  REVIEWER: 'bg-blush-50 text-blush-700 ring-1 ring-blush-100',
 }
 
 const roleLabel: Record<ManagedUserRole, string> = {
@@ -95,8 +105,6 @@ export function OverviewPage() {
   const [activityLoading, setActivityLoading] = useState(true)
   const [activityMissing, setActivityMissing] = useState(false)
   const [activityError, setActivityError] = useState<string | null>(null)
-  const membersPanelRef = useRef<HTMLDivElement>(null)
-  const [activityHeight, setActivityHeight] = useState<number | null>(null)
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -241,23 +249,6 @@ export function OverviewPage() {
     return () => controller.abort()
   }, [])
 
-  useEffect(() => {
-    const panel = membersPanelRef.current
-    if (!panel) return
-    const media = window.matchMedia('(min-width: 1024px)')
-    const sync = () => {
-      setActivityHeight(media.matches ? Math.round(panel.getBoundingClientRect().height) : null)
-    }
-    sync()
-    const observer = new ResizeObserver(sync)
-    observer.observe(panel)
-    media.addEventListener('change', sync)
-    return () => {
-      observer.disconnect()
-      media.removeEventListener('change', sync)
-    }
-  }, [])
-
   const from = members.length === 0 ? 0 : offset + 1
   const to = offset + members.length
   const hasPrev = offset > 0
@@ -288,6 +279,7 @@ export function OverviewPage() {
         ) : null}
         <StatCard
           icon="inventory_2"
+          tone="indigo"
           label="Hồ sơ hoạt động"
           to="/ho-so"
           value={formatCount(dossierTotal)}
@@ -300,6 +292,7 @@ export function OverviewPage() {
         {isAdmin ? (
           <StatCard
             icon="mark_email_unread"
+            tone="amber"
             label="Lời mời chờ duyệt"
             to="/nguoi-dung-phan-quyen"
             value={formatCount(inviteTotal)}
@@ -310,7 +303,6 @@ export function OverviewPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
         {isAdmin ? (
         <div
-          ref={membersPanelRef}
           className={`lg:col-span-8 flex flex-col overflow-hidden ${CARD}`}
         >
           <div className="p-space-lg flex flex-col sm:flex-row sm:items-center justify-between gap-space-md">
@@ -326,7 +318,7 @@ export function OverviewPage() {
                   className="absolute left-2.5 text-secondary text-[16px]"
                 />
                 <input
-                  className="pl-8 pr-space-md py-2 bg-brand-50 text-tone-900 rounded-[8px] font-body-sm text-body-sm placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest focus:ring-1 focus:ring-brand-300 w-44 sm:w-56"
+                  className="pl-8 pr-space-md py-2 bg-tone-100 text-tone-900 rounded-[8px] font-body-sm text-body-sm placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest focus:ring-1 focus:ring-brand-300 w-44 sm:w-56"
                   placeholder="Tìm theo tên, email..."
                   type="search"
                   value={queryInput}
@@ -335,7 +327,7 @@ export function OverviewPage() {
               </div>
               <div className="relative">
                 <select
-                  className="appearance-none bg-brand-50 text-tone-900 font-body-sm text-body-sm py-2 pl-4 pr-8 rounded-[8px] focus:outline-none focus:ring-1 focus:ring-brand-300 cursor-pointer"
+                  className="appearance-none bg-tone-100 text-tone-900 font-body-sm text-body-sm py-2 pl-4 pr-8 rounded-[8px] focus:outline-none focus:ring-1 focus:ring-brand-300 cursor-pointer"
                   value={role}
                   aria-label="Vai trò"
                   onChange={(event) => {
@@ -429,7 +421,7 @@ export function OverviewPage() {
             </span>
             <div className="flex items-center gap-space-xs">
               <button
-                className="px-4 py-1.5 rounded-[8px] border border-tone-200 bg-white text-tone-900 hover:bg-brand-50 font-label-sm text-label-sm transition-colors disabled:text-tone-300 disabled:hover:bg-white disabled:cursor-not-allowed"
+                className="px-4 py-1.5 rounded-[8px] border border-tone-200 bg-white text-tone-900 hover:bg-tone-100 font-label-sm text-label-sm transition-colors disabled:text-tone-300 disabled:hover:bg-white disabled:cursor-not-allowed"
                 disabled={!hasPrev || membersLoading}
                 type="button"
                 onClick={() =>
@@ -452,8 +444,7 @@ export function OverviewPage() {
         ) : null}
 
         <div
-          className={`${isAdmin ? 'lg:col-span-4' : 'lg:col-span-12'} flex flex-col p-space-lg min-h-0 overflow-hidden ${CARD}`}
-          style={activityHeight != null ? { height: activityHeight } : undefined}
+          className={`${isAdmin ? 'lg:col-span-4' : 'lg:col-span-12'} flex flex-col p-space-lg min-h-0 overflow-hidden lg:h-[380px] ${CARD}`}
         >
           <div className="flex items-center justify-between mb-space-md shrink-0">
             <div className="flex items-center gap-space-xs min-w-0">
@@ -496,7 +487,7 @@ export function OverviewPage() {
                   <li key={event.id} className="flex items-start gap-space-sm rounded-[10px] border border-tone-100 bg-tone-50 p-3">
                     <span
                       aria-hidden="true"
-                      className={`w-8 h-8 rounded-full ${ACCENT_FILL} flex items-center justify-center text-[11px] font-bold shrink-0`}
+                      className={`w-8 h-8 rounded-full ${AVATAR_FILL} flex items-center justify-center text-[11px] font-bold shrink-0`}
                     >
                       {initials(event.actor_display_name ?? '', event.actor_display_name ?? '?')}
                     </span>
@@ -544,11 +535,11 @@ function StorageCard({
   else if (missing) emptyNote = 'Backend chưa có API dung lượng lưu trữ.'
 
   return (
-    <div className={`${CARD} p-space-lg flex flex-col`}>
-      <CardHead icon="cloud_done" label="Dung lượng" />
+    <div className={`${CARD} px-space-lg py-space-md flex flex-col`}>
+      <CardHead icon="cloud_done" label="Dung lượng" tone="sky" />
       {storage ? (
-        <div className="mt-space-md">
-          <span className={`text-[30px] leading-none font-semibold ${INK}`}>
+        <div className="mt-space-sm">
+          <span className={`text-[26px] leading-none font-semibold ${INK}`}>
             {formatBytes(used)}
           </span>
           {percent !== null ? (
@@ -561,7 +552,7 @@ function StorageCard({
               </p>
             </div>
           ) : (
-            <p className={`text-[12px] ${MUTED} mt-space-sm`}>
+            <p className={`text-[12px] ${MUTED} mt-space-xs`}>
               Tổng dung lượng tệp đã tải lên.
             </p>
           )}
@@ -576,12 +567,20 @@ function StorageCard({
   )
 }
 
-/** Nhãn bên trái, icon trắng trong ô vuông đen nhỏ bên phải. */
-function CardHead({ icon, label }: { icon: string; label: string }) {
+/** Nhãn bên trái, icon trong ô vuông màu nhạt bên phải. */
+function CardHead({
+  icon,
+  label,
+  tone = 'blue',
+}: {
+  icon: string
+  label: string
+  tone?: StatTone
+}) {
   return (
     <div className="flex items-center justify-between gap-space-sm">
       <span className="text-[13px] font-medium text-tone-700">{label}</span>
-      <span className={`w-7 h-7 rounded-[6px] ${ACCENT_FILL} flex items-center justify-center shrink-0`}>
+      <span className={`w-7 h-7 rounded-[6px] ${STAT_TONE[tone]} flex items-center justify-center shrink-0`}>
         <MaterialIcon name={icon} className="text-[16px]" />
       </span>
     </div>
@@ -593,23 +592,25 @@ function StatCard({
   label,
   value,
   to,
+  tone,
 }: {
   icon: string
   label: string
   value: string
   to?: string
+  tone?: StatTone
 }) {
   const body = (
     <>
-      <CardHead icon={icon} label={label} />
-      <div className="mt-space-md">
-        <span className={`text-[30px] leading-none font-semibold ${INK}`}>
+      <CardHead icon={icon} label={label} tone={tone} />
+      <div className="mt-space-sm">
+        <span className={`text-[26px] leading-none font-semibold ${INK}`}>
           {value}
         </span>
       </div>
     </>
   )
-  const className = `${CARD} p-space-lg flex flex-col`
+  const className = `${CARD} px-space-lg py-space-md flex flex-col`
   if (!to) {
     return <div className={className}>{body}</div>
   }
@@ -671,7 +672,7 @@ function MemberRow({ member }: { member: ManagedUser }) {
 
 function StatusBadge({ status }: { status: ManagedUserStatus }) {
   const pill =
-    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] bg-brand-50 text-tone-700 whitespace-nowrap text-[12px] font-medium'
+    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] bg-tone-100 text-tone-700 whitespace-nowrap text-[12px] font-medium'
   if (status === 'active') {
     return (
       <span className={`${pill}`}>

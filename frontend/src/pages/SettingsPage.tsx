@@ -1,7 +1,7 @@
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 import { useAuth } from '../auth/useAuth'
+import { PalettePicker } from '../components/PalettePicker'
 import { TenantLexiconPanel } from '../components/TenantLexiconPanel'
-import { ThemeColorPicker } from '../components/ThemeColorPicker'
 
 export function SettingsPage() {
   usePageTitle('Cài đặt')
@@ -16,7 +16,7 @@ export function SettingsPage() {
         </h1>
       )}
 
-      <ThemeColorPicker />
+      <PalettePicker />
 
       {user?.tenantId ? (
         <TenantLexiconPanel tenantId={user.tenantId} actorId={user.id} />
