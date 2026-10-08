@@ -1,0 +1,152 @@
+{
+ "note": "Mẫu hợp đồng SALES / SUPPLY_SERVICE công khai cho bộ nhãn cặp luồng 2 (plan 261008-1500, P1). Chọn ngày 2026-10-08: tải được bằng urllib (không 403/paywall), tách được ≥5 Điều, không trùng URL spike clause_key. split KHÔNG ghi tay: manifest.assign_splits theo cụm gần trùng. has_annex_section: có phần PHỤ LỤC trong cùng văn bản (quan sát khi chọn).",
+ "sources": [
+  {
+   "url": "https://docs.google.com/document/d/1ZXaSYgt99nvDxIaS6NqB0FbbgAjs0IIh/export?format=docx",
+   "profile": "SALES",
+   "title": "Hợp đồng nguyên tắc mua bán hàng hóa",
+   "has_annex_section": false,
+   "note": "Google Docs, xuất docx (văn bản sạch, không lẫn trang web)."
+  },
+  {
+   "url": "https://docs.google.com/document/d/1MKmp8C_chQSVYHHiqScNqTllHYHa2GEC/export?format=docx",
+   "profile": "SALES",
+   "title": "Mẫu hợp đồng mua bán hàng hóa điện tử",
+   "has_annex_section": false,
+   "note": "Google Docs, xuất docx (văn bản sạch, không lẫn trang web)."
+  },
+  {
+   "url": "https://docs.google.com/document/d/1R5IB7PJTcfS8TcCfNlXMmNkAIcLsiIcW/export?format=docx",
+   "profile": "SALES",
+   "title": "Hợp đồng mua bán hàng hóa (cung cấp hàng hóa, bảo hành, chống trục lợi)",
+   "has_annex_section": false,
+   "note": "Google Docs, xuất docx (văn bản sạch, không lẫn trang web). Đánh số khoản tự động của Word không vào văn bản ⇒ chỉ tách tới Điều."
+  },
+  {
+   "url": "https://docs.google.com/document/d/17lkUFcxABsUqT0KQSUL9Egi6ni1I2S66GU6rEvR3a7U/export?format=docx",
+   "profile": "SALES",
+   "title": "Hợp đồng mua bán (gia súc hơi)",
+   "has_annex_section": false,
+   "note": "Google Docs, xuất docx (văn bản sạch, không lẫn trang web). Đánh số khoản tự động của Word không vào văn bản ⇒ chỉ tách tới Điều."
+  },
+  {
+   "url": "https://hoatieu.vn/bieu-mau/hop-dong-cung-cap-hang-hoa-72638",
+   "profile": "SALES",
+   "title": "Mẫu hợp đồng cung cấp hàng hóa (kèm phụ lục danh mục hàng hóa)",
+   "has_annex_section": true,
+   "note": "Trang web: node cuối có thể lẫn nội dung trang sau hợp đồng (bình luận, chân trang)."
+  },
+  {
+   "url": "https://luatminhkhue.vn/mau-hop-dong-mua-ban-thiet-bi-dieu-khien.aspx",
+   "profile": "SALES",
+   "title": "Mẫu hợp đồng mua bán thiết bị điều khiển",
+   "has_annex_section": false,
+   "note": "Trang web: node cuối có thể lẫn nội dung trang sau hợp đồng (bình luận, chân trang)."
+  },
+  {
+   "url": "https://accgroup.vn/mau-hop-dong-nguyen-tac-mua-ban-vat-tu-cap-nhap-nam-2022/",
+   "profile": "SALES",
+   "title": "Mẫu hợp đồng nguyên tắc mua bán vật tư",
+   "has_annex_section": false,
+   "note": "Trang web: node cuối có thể lẫn nội dung trang sau hợp đồng (bình luận, chân trang)."
+  },
+  {
+   "url": "https://luatminhkhue.vn/mau-hop-dong-mua-ban-vat-lieu-xay-dung.aspx",
+   "profile": "SALES",
+   "title": "Mẫu hợp đồng mua bán vật liệu xây dựng",
+   "has_annex_section": false,
+   "note": "Trang web: node cuối có thể lẫn nội dung trang sau hợp đồng (bình luận, chân trang)."
+  },
+  {
+   "url": "https://luatminhkhue.vn/mau-hop-dong-tieu-thu-nong-san-hang-hoa.aspx",
+   "profile": "SALES",
+   "title": "Mẫu hợp đồng tiêu thụ nông sản hàng hóa",
+   "has_annex_section": false,
+   "note": "Trang web: node cuối có thể lẫn nội dung trang sau hợp đồng (bình luận, chân trang)."
+  },
+  {
+   "url": "https://luatminhkhue.vn/mau-hop-dong-thu-mua-nong-san-hang-hoa.aspx",
+   "profile": "SALES",
+   "title": "Mẫu hợp đồng thu mua nông sản hàng hóa",
+   "has_annex_section": false,
+   "note": "Trang web: node cuối có thể lẫn nội dung trang sau hợp đồng (bình luận, chân trang)."
+  },
+  {
+   "url": "https://docs.google.com/document/d/1YvNJjV3jJdZEdFXEmzlE3DGdWl6oFfkf/export?format=docx",
+   "profile": "SUPPLY_SERVICE",
+   "title": "Mẫu hợp đồng dịch vụ điện tử",
+   "has_annex_section": false,
+   "note": "Google Docs, xuất docx (văn bản sạch, không lẫn trang web). Đánh số khoản tự động của Word không vào văn bản ⇒ chỉ tách tới Điều."
+  },
+  {
+   "url": "https://docs.google.com/document/d/11w9dUdI05j6lD6u4wz3rhhp6mWS-SSlgF5u0MQXXhiY/export?format=docx",
+   "profile": "SUPPLY_SERVICE",
+   "title": "Hợp đồng dịch vụ đào tạo",
+   "has_annex_section": false,
+   "note": "Google Docs, xuất docx (văn bản sạch, không lẫn trang web). Đánh số khoản tự động của Word không vào văn bản ⇒ chỉ tách tới Điều."
+  },
+  {
+   "url": "https://hoatieu.vn/bieu-mau/mau-hop-dong-thue-don-dep-ve-sinh-177082",
+   "profile": "SUPPLY_SERVICE",
+   "title": "Mẫu hợp đồng thuê dọn dẹp vệ sinh",
+   "has_annex_section": false,
+   "note": "Trang web: node cuối có thể lẫn nội dung trang sau hợp đồng (bình luận, chân trang)."
+  },
+  {
+   "url": "https://hoatieu.vn/bieu-mau/hop-dong-dich-vu-quang-cao-thuong-mai-66917",
+   "profile": "SUPPLY_SERVICE",
+   "title": "Mẫu hợp đồng dịch vụ quảng cáo thương mại (hoatieu)",
+   "has_annex_section": false,
+   "note": "Trang web: node cuối có thể lẫn nội dung trang sau hợp đồng (bình luận, chân trang)."
+  },
+  {
+   "url": "https://luatduonggia.vn/phap-luat/mau-hop-dong-dich-vu-quang-cao-thuong-mai-moi-nhat/",
+   "profile": "SUPPLY_SERVICE",
+   "title": "Mẫu hợp đồng dịch vụ quảng cáo thương mại (luatduonggia)",
+   "has_annex_section": false,
+   "note": "Trang web: node cuối có thể lẫn nội dung trang sau hợp đồng (bình luận, chân trang)."
+  },
+  {
+   "url": "https://luatminhkhue.vn/hop-dong-tu-van-quan-tri-doanh-nghiep.aspx",
+   "profile": "SUPPLY_SERVICE",
+   "title": "Mẫu hợp đồng tư vấn quản trị doanh nghiệp",
+   "has_annex_section": false,
+   "note": "Trang web: node cuối có thể lẫn nội dung trang sau hợp đồng (bình luận, chân trang)."
+  },
+  {
+   "url": "https://luatminhkhue.vn/hop-dong-su-dung-phan-mem-la-gi-mau-hop-dong-su-dung-phan-mem.aspx",
+   "profile": "SUPPLY_SERVICE",
+   "title": "Mẫu hợp đồng sử dụng phần mềm",
+   "has_annex_section": false,
+   "note": "Trang web: node cuối có thể lẫn nội dung trang sau hợp đồng (bình luận, chân trang)."
+  },
+  {
+   "url": "https://luatminhkhue.vn/mau-hop-dong-nguyen-tac-cung-cap-phan-mem.aspx",
+   "profile": "SUPPLY_SERVICE",
+   "title": "Mẫu hợp đồng nguyên tắc cung cấp phần mềm",
+   "has_annex_section": false,
+   "note": "Trang web: node cuối có thể lẫn nội dung trang sau hợp đồng (bình luận, chân trang)."
+  },
+  {
+   "url": "https://luatminhkhue.vn/mau-hop-dong-dich-vu-an-uong.aspx",
+   "profile": "SUPPLY_SERVICE",
+   "title": "Mẫu hợp đồng dịch vụ ăn uống",
+   "has_annex_section": false,
+   "note": "Trang web: node cuối có thể lẫn nội dung trang sau hợp đồng (bình luận, chân trang)."
+  },
+  {
+   "url": "https://hoatieu.vn/bieu-mau/mau-hop-dong-dich-vu-ke-toan-137717",
+   "profile": "SUPPLY_SERVICE",
+   "title": "Mẫu hợp đồng dịch vụ kế toán",
+   "has_annex_section": false,
+   "note": "Trang web: node cuối có thể lẫn nội dung trang sau hợp đồng (bình luận, chân trang)."
+  },
+  {
+   "url": "https://accgroup.vn/dich-vu-don-dep-ve-sinh",
+   "profile": "SUPPLY_SERVICE",
+   "title": "Mẫu hợp đồng thuê dịch vụ dọn dẹp vệ sinh nhà cửa",
+   "has_annex_section": false,
+   "note": "Trang web: node cuối có thể lẫn nội dung trang sau hợp đồng (bình luận, chân trang)."
+  }
+ ]
+}

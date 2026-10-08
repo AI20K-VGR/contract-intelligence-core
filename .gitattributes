@@ -7,3 +7,4 @@ evals/baselines/* text eol=lf
 evals/corpus/*.json text eol=lf
 evals/contract_graph/data/** text eol=lf
 ai-service/fixtures/contract_graph/*.json text eol=lf
+evals/contract_graph/pairs/*.json text eol=lf
