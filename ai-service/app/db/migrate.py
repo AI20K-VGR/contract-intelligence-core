@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 from alembic import command
@@ -13,9 +14,14 @@ MIGRATION_LOCK = 261002064
 logger = logging.getLogger(__name__)
 
 
-def migrate(engine: Engine) -> None:
+def _config() -> Config:
     config = Config()
     config.set_main_option("script_location", str(Path(__file__).parent / "migrations"))
+    return config
+
+
+def migrate(engine: Engine) -> None:
+    config = _config()
     with engine.connect() as cx:
         cx.execute(text("SELECT pg_advisory_lock(:key)"), {"key": MIGRATION_LOCK})
         cx.commit()
@@ -75,3 +81,53 @@ def ensure_vector_column(cx: Connection) -> bool:
             return False
         logger.info("ai2.vector_column_added extension_schema=%s", schema)
     return True
+
+
+def downgrade(engine: Engine, revision: str) -> None:
+    """Step ``ai2`` back to ``revision`` under the migration lock (RT-03).
+
+    The ``alembic`` CLI cannot do this: ``migrations/env.py`` needs the connection handed in
+    through ``config.attributes``. Run it BEFORE reverting the code of a newer revision, or
+    ``migrate()`` fails at boot with "Can't locate revision".
+    """
+    config = _config()
+    with engine.connect() as cx:
+        cx.execute(text("SELECT pg_advisory_lock(:key)"), {"key": MIGRATION_LOCK})
+        cx.commit()
+        try:
+            with cx.begin():
+                config.attributes["connection"] = cx
+                command.downgrade(config, revision)
+        finally:
+            if cx.in_transaction():
+                cx.rollback()
+            cx.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": MIGRATION_LOCK})
+            cx.commit()
+
+
+def _engine_from_env() -> Engine:
+    from app.db.engine import database_url, get_engine
+
+    if not database_url():
+        raise SystemExit("AI2_DATABASE_URL is required")
+    return get_engine()
+
+
+def main(argv: list[str] | None = None) -> int:
+    """``python -m app.db.migrate downgrade <revision>`` (from ``ai-service/``)."""
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="python -m app.db.migrate")
+    commands = parser.add_subparsers(dest="command", required=True)
+    down = commands.add_parser("downgrade", help="downgrade schema ai2 to a revision")
+    down.add_argument("revision")
+    args = parser.parse_args(argv)
+    if not os.getenv("AI2_DATABASE_URL"):
+        parser.error("AI2_DATABASE_URL is required")
+    downgrade(_engine_from_env(), args.revision)
+    print(f"ai2 schema downgraded to {args.revision}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

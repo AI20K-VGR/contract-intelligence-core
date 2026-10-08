@@ -72,12 +72,16 @@ def build_contract_context(
     *,
     candidates: Iterable[Candidate] = (),
     facts: Iterable[Fact] = (),
+    suppress_amendment_signal: bool = False,
 ) -> ContractContext:
     """Return the context inventory for one ``DossierRecord``.
 
     Annex detection is conservative: only a page whose line starts with a
     normalized ``PHỤ LỤC <n>`` heading opens an annex range.  A casual mention
     of an appendix in a clause never reclassifies the rest of the contract.
+
+    ``suppress_amendment_signal`` drops the annex-level ``AMENDMENT_SIGNAL``; ``run_idp`` sets
+    it only when the contract graph ran and replaces it with per-edge findings (Q3).
     """
 
     digest = record.pins.source_snapshot_digest
@@ -205,7 +209,7 @@ def build_contract_context(
             )
 
         annex_text = "\n".join(_node_text(record, node_id) for node_id in part.node_ids)
-        if AMENDMENT_RE.search(fold_for_match(annex_text)):
+        if not suppress_amendment_signal and AMENDMENT_RE.search(fold_for_match(annex_text)):
             clauses = sorted({match.group(1) for match in CLAUSE_RE.finditer(fold_for_match(annex_text))})
             dates = sorted({match.group(0) for match in DATE_RE.finditer(annex_text)})
             findings.append(

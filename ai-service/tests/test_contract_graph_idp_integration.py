@@ -163,10 +163,29 @@ def test_flag_on_keeps_existing_review_item_ids(monkeypatch):
     assert graph.edges and graph.issues
     off_issues, off_other = _review_ids(off_record)
     on_issues, on_other = _review_ids(on_record)
-    assert on_issues[: len(off_issues)] == off_issues
-    assert len(on_issues) == len(off_issues) + len(graph.issues)
-    added = [i for i in on_record.review_items if i.review_item_id in on_issues[len(off_issues) :]]
-    assert [i.kind for i in added] == [issue.issue_id for issue in graph.issues]
+    # P4/Q3: flag on drops the legacy annex AMENDMENT_SIGNAL; every old issue before it keeps
+    # its positional id, then come the per-edge context issues, then the graph issues (D4).
+    off_missing = {i.issue_id: i.missing for i in off.contribution.evidence_issues}
+    off_kinds = {i.review_item_id: i.kind for i in off_record.review_items}
+    legacy = [
+        k for k, rid in enumerate(off_issues)
+        if off_missing.get(off_kinds[rid]) == "CONTRACT_CONTEXT_AMENDMENT_SIGNAL"
+    ]
+    assert legacy == [len(off_issues) - 1]  # on this dossier the legacy signal is the last old issue
+    cut = legacy[0]
+    assert on_issues[:cut] == off_issues[:cut]
+    edge_finding_ids = [
+        f.finding_id
+        for f in on.contribution.contract_context.findings
+        if f.finding_id.startswith("contract-graph:")
+    ]
+    assert edge_finding_ids
+    added = [i for i in on_record.review_items if i.review_item_id in on_issues[cut:]]
+    assert [i.kind for i in added] == [
+        *(f"contract-context:{fid}" for fid in edge_finding_ids),
+        *(issue.issue_id for issue in graph.issues),
+    ]
+    assert len(on_issues) == cut + len(edge_finding_ids) + len(graph.issues)
     assert on_other == off_other
 
 
@@ -247,7 +266,7 @@ def test_new_article_insertion_has_no_fake_node():
 
     assert graph.edges == []
     (issue,) = graph.issues
-    assert (issue.missing, issue.review_state) == ("NEW_UNIT_INSERTION", ReviewState.NEEDS_REVIEW)
+    assert (issue.missing, issue.review_state) == ("NEW_UNIT_ADDITION", ReviewState.NEEDS_REVIEW)
     assert issue.citation.node_id == "a1"
     assert graph.stats["new_unit_insertions"] == 1
 

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from sqlalchemy import (
     BigInteger,
+    CheckConstraint,
     Column,
     DefaultClause,
+    Index,
     Integer,
     LargeBinary,
     MetaData,
@@ -57,3 +59,17 @@ durable_outbox = Table("durable_outbox", metadata, *columns(
 # Match the existing store's omitted insertion fields.
 durable_outbox.c.attempts.server_default = DefaultClause("0")
 durable_runs.c.event_sequence.server_default = DefaultClause("0")
+
+# D9: contract-graph tables live in their own MetaData. Revision 0001 calls
+# ``metadata.create_all``, so a table declared on ``metadata`` would already exist on a fresh
+# database when 0005 creates it (DuplicateTable). 0005 spells its columns out explicitly.
+graph_metadata = MetaData(schema="ai2")
+CONTRACT_EDGE_OPS = ("INSERTION", "SUBSTITUTION", "REPEAL", "REJECTION", "SCOPE_LIMIT")
+contract_edges = Table("contract_edges", graph_metadata, *columns(
+    "tenant_id:s* dossier_id:s* edge_id:s* job_id:s source_snapshot_digest:s op:s "
+    "source_node_id:s target_node_id:s anchor_node_id:s? target_address:s method:s support:s "
+    "standard:i implicit:i review_state:s source_citation_json:s target_citation_json:s "
+    "new_text:s? scope_text:s? digest:s created_ms:n"),
+    CheckConstraint("op IN ({})".format(", ".join(f"'{op}'" for op in CONTRACT_EDGE_OPS)),
+                    name="ck_ai2_contract_edges_op"),
+    Index("idx_ai2_contract_edges_job", "tenant_id", "dossier_id", "job_id"))

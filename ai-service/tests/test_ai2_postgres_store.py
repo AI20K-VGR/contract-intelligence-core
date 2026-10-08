@@ -609,7 +609,7 @@ def test_job_indexes_back_sweep_and_latest_success_queries(pg_url):
             with engine.begin() as cx:
                 cx.execute(text("DROP TABLE public.alembic_version"))
 
-    assert version == "0004_ai2_job_indexes"
+    assert version == _ai2_state(engine)[2]  # script head, not a hardcoded revision (RT-11)
     assert public_after == public_before
     sweep = indexes["idx_ai2_jobs_active_lease"]
     assert sweep["column_names"] == ["status", "lease_until_ms", "updated_ms"]

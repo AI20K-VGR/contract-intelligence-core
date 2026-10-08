@@ -500,7 +500,7 @@ def _planned_issue(digest: str, plan: PlannedEdge, citation: Citation | None) ->
     kind = {
         Status.NOT_FOUND: "TARGET_NOT_FOUND",
         Status.AMBIGUOUS: "TARGET_AMBIGUOUS",
-    }.get(plan.status, "NEW_UNIT_INSERTION")
+    }.get(plan.status, "NEW_UNIT_ADDITION")
     key = f"{plan.source_node_id}|{plan.op.value}|{plan.target_address}|{plan.source_span}"
     return _issue(digest, kind, key, plan.target_address or "?", citation)
 
@@ -508,14 +508,14 @@ def _planned_issue(digest: str, plan: PlannedEdge, citation: Citation | None) ->
 _REASONS = {
     "TARGET_NOT_FOUND": "Không tìm thấy đơn vị đích {key} của thao tác sửa đổi; không suy đoán đích.",
     "TARGET_AMBIGUOUS": "Đích {key} của thao tác sửa đổi khớp nhiều đơn vị; cần người duyệt chọn.",
-    "NEW_UNIT_INSERTION": (
+    "NEW_UNIT_ADDITION": (
         "Thao tác bổ sung đơn vị mới {key}: văn bản gốc không có node đích; cần người duyệt."
     ),
 }
 _STATES = {
     "TARGET_NOT_FOUND": ReviewState.INSUFFICIENT_EVIDENCE,
     "TARGET_AMBIGUOUS": ReviewState.NEEDS_REVIEW,
-    "NEW_UNIT_INSERTION": ReviewState.NEEDS_REVIEW,
+    "NEW_UNIT_ADDITION": ReviewState.NEEDS_REVIEW,
 }
 
 

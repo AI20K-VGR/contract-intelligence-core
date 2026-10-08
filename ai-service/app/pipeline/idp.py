@@ -324,7 +324,26 @@ def run_idp(
                 review_state=ReviewState.NEEDS_REVIEW,
             ))
     _downgrade_uncertain_candidates(candidates, facts)
-    contract_context: ContractContext = build_contract_context(record, candidates=candidates, facts=facts)
+    # Q3: the graph's per-edge findings replace the annex-level signal only when it ran.
+    contract_context: ContractContext = build_contract_context(
+        record, candidates=candidates, facts=facts, suppress_amendment_signal=graph is not None
+    )
+    graph_coverage_value: dict | None = None
+    if _contract_graph_enabled():
+        from app.pipeline.contract_graph.projection import (
+            deduped_with_legacy,
+            edge_findings,
+            graph_coverage,
+        )
+
+        if graph is None:
+            graph_coverage_value = graph_coverage(None, failed=True)
+        else:
+            # D5: before ``context_issues`` so each edge gets its issue/review item like the old signal
+            contract_context.findings.extend(edge_findings(graph.edges, candidates))
+            graph_coverage_value = graph_coverage(
+                graph, deduped_with_legacy=deduped_with_legacy(graph.edges, candidates)
+            )
     context_issues = [
         EvidenceIssue(
             issue_id=f"contract-context:{finding.finding_id}",
@@ -339,6 +358,20 @@ def run_idp(
     issues.extend(context_issues)
     # D4: after every pre-existing issue, so their positional review ids do not move
     issues.extend(graph_issues)
+    coverage = {
+        "n_facts": len(facts),
+        "n_findings": len(candidates) + len(contract_context.findings),
+        "n_candidate_findings": len(candidates),
+        "n_context_findings": len(contract_context.findings),
+        "n_events": len(events),
+        "n_evidence_issues": len(issues),
+        "n_units": len(units),
+        "unit_ids": [unit.unit_id for unit in units],
+        "annex_labels": sorted(annex_labels),
+        "runtime": runtime.snapshot(),
+    }
+    if graph_coverage_value is not None:  # D6: the only new key, flag on only
+        coverage["contract_graph"] = graph_coverage_value
     store_idx = index or IndexStore()
     contrib = store_idx.propose(
         facts=facts,
@@ -347,25 +380,18 @@ def run_idp(
         evidence_issues=issues,
         contract_context=contract_context,
         events=events,
-        coverage={
-            "n_facts": len(facts),
-            "n_findings": len(candidates) + len(contract_context.findings),
-            "n_candidate_findings": len(candidates),
-            "n_context_findings": len(contract_context.findings),
-            "n_events": len(events),
-            "n_evidence_issues": len(issues),
-            "n_units": len(units),
-            "unit_ids": [unit.unit_id for unit in units],
-            "annex_labels": sorted(annex_labels),
-            "runtime": runtime.snapshot(),
-        },
+        coverage=coverage,
         extraction_version=record.pins.extraction_version,
         proposed_index_version=f"idx_{record.pins.extraction_version}",
     )
     record.facts = facts
     record.chunks = chunks
     record.events = events
-    record.review_items = _review_items_for_result(record, issues, candidates)
+    # D8: what this run produced; ``contract_graph_ran`` False (flag off or builder failed) tells
+    # the job store to keep the edges it already has.
+    record.contract_edges = list(graph.edges) if graph is not None else []
+    record.contract_graph_ran = graph is not None
+    record.review_items =_review_items_for_result(record, issues, candidates)
     existing_review_ids = {item.review_item_id for item in record.review_items}
     for fact in facts:
         item_id = f"review:fact:{fact.fact_id}"

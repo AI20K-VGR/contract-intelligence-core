@@ -28,6 +28,7 @@ Tài liệu AI2 mô tả pipeline, thiết kế và trạng thái triển khai h
 22. [AI2-15 - Contract profiles, structure, relations và free-form Q&A](AI2-15-contract-profiles-structure-relations-and-free-form-qa.vi.md)
 23. [AI2-16 - Clause key graph (AI2 v2): cơ chế, quyết định, bằng chứng và lộ trình](AI2-16-clause-key-graph-v2.vi.md) — đề xuất, chưa triển khai
 24. [AI2-18 - Quy tắc phụ lục ký sau sửa văn bản ký trước (ST-068)](AI2-18-amendment-precedence-rules.vi.md) — đề xuất DEC + biên bản 3 cặp, chờ duyệt
+25. [AI2-19 - Contract graph luồng 1 (operation-first): cạnh sửa đổi, wire `AMENDS`, bảng `ai2.contract_edges`](AI2-19-contract-graph-operation-first.vi.md) — sau flag `AI2_CONTRACT_GRAPH_ENABLED` (mặc định tắt)
 
 ## Authority
 

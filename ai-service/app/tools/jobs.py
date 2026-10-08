@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sqlite3
 import time
@@ -30,6 +31,7 @@ from app.tools.durable import (
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB = ROOT / "data" / "ai2" / "jobs.sqlite"
+log = logging.getLogger(__name__)
 
 
 class JobOwnershipConflict(ValueError):
@@ -570,7 +572,25 @@ class PostgresJobStore(SQLiteJobStore):
                 cx.execute(stmt.on_conflict_do_update(index_elements=[query_snapshots.c.tenant_id, query_snapshots.c.dossier_id],
                     set_={"snapshot_digest": stmt.excluded.snapshot_digest, "payload": stmt.excluded.payload,
                           "updated_ms": stmt.excluded.updated_ms}))
+                if getattr(record, "contract_graph_ran", False):
+                    self._replace_contract_edges(cx, record, job_id)
             return True
+
+    def _replace_contract_edges(self, cx, record, job_id) -> None:
+        """D7/RT-04: edges are enrichment; a failed write rolls back its savepoint only.
+
+        The job stays SUCCEEDED with its new snapshot and the previous edge rows stay as they were.
+        """
+        from app.tools import contract_edge_store
+
+        try:
+            with cx.begin_nested():
+                contract_edge_store.replace_contract_edges(
+                    cx, tenant_id=record.tenant_id, dossier_id=record.dossier_id, job_id=job_id,
+                    edges=record.contract_edges, now_ms=self._now_ms())
+        except Exception as exc:  # enrichment only: never fail the completion
+            log.warning("ai2.contract_edges_write_failed job_id=%s tenant_id=%s dossier_id=%s cause=%s",
+                        job_id, record.tenant_id, record.dossier_id, type(exc).__name__)
 
     def _fail_matching(self, condition, update):
         from sqlalchemy import select

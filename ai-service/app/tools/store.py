@@ -1,23 +1,27 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from app.contracts.models import (
     Chunk,
+    Citation,
+    ContractEvent,
     Fact,
+    HandoffIssue,
     LifecycleState,
     PageSnapshot,
     RelationGraph,
+    ReviewItem,
     SourceFile,
     StructuralNode,
     TableSnapshot,
     TenantProfile,
     VersionPins,
-    HandoffIssue,
-    Citation,
-    ReviewItem,
-    ContractEvent,
 )
+
+if TYPE_CHECKING:  # flag off must not import the contract-graph model
+    from app.contracts.contract_graph import ContractEdge
 
 
 @dataclass
@@ -52,6 +56,10 @@ class DossierRecord:
     citation_index: dict[str, Citation] = field(default_factory=dict)
     review_items: list[ReviewItem] = field(default_factory=list)
     events: list[ContractEvent] = field(default_factory=list)
+    # D8: edges reach the job store on the record, never on ``JobResult`` (its dump is persisted).
+    # Not part of ``record_to_dict``; ``contract_graph_ran`` False keeps the stored edges as they are.
+    contract_edges: list[ContractEdge] = field(default_factory=list)
+    contract_graph_ran: bool = False
 
     def evidence_nodes(self) -> list[StructuralNode]:
         """Nodes allowed for UI/reasoning; raw ``nodes`` remains immutable."""
