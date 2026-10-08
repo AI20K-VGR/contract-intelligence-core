@@ -1,0 +1,39 @@
+{
+  "stage": "cook",
+  "plan": "261008-1500-ai2-contract-graph-implicit",
+  "checks": [
+    {
+      "name": "probe_labeler_openai",
+      "status": "PASS"
+    },
+    {
+      "name": "manifest_verify_exit0",
+      "status": "PASS"
+    },
+    {
+      "name": "evals_suite_134_passed",
+      "status": "PASS"
+    },
+    {
+      "name": "ai_service_suite_baseline_13f_1290p",
+      "status": "PASS"
+    },
+    {
+      "name": "ruff_new_files_clean",
+      "status": "PASS"
+    },
+    {
+      "name": "hg1_estimate_198_le_380",
+      "status": "PASS"
+    },
+    {
+      "name": "floors_met_21_sources",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P1",
+  "actor": "user:unknown",
+  "ts": "2026-10-08T18:14:51+00:00",
+  "run_seq": null
+}

@@ -1,0 +1,19 @@
+schema: plan-approval/v1
+plan: 261008-1500-ai2-contract-graph-implicit
+plan_hash: 6cb6385daa1b
+file_hashes:
+  plan.md: 25408170ee21
+  phases/phase-1-pair-label-dataset.md: 26545d4051ec
+  phases/phase-2-structural-candidates.md: 123490e857f2
+  phases/phase-3-llm-pair-classifier.md: b679c48d7e8f
+  phases/phase-4-integration-storage.md: 05bad378492f
+  phases/phase-5-bakeoff-rerun.md: 3562dbc22020
+  plan-graph.yaml: c91cc7a90425
+author: 'decisions: []'
+reviewer: user:unknown
+verdict: APPROVED
+rationale: 'User approved cook start (2026-10-08, ''Co''). Red-team 15/15 ACCEPTED-FIXED,
+  validate Q1-Q8 closed, consistency sweep VL-8 0 open. Keep: 5 linear phases P1-P5
+  with human gate HG-1 between P2 and P5; splitting adds no parallelism.'
+ts: '2026-10-08T14:53:41.313903+00:00'
+run_seq: null

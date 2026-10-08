@@ -1,0 +1,108 @@
+# Phase DAG sidecar for 261008-1500-ai2-contract-graph-implicit.
+# {from: A, to: B} = "A runs BEFORE B". No status here (status lives in plan.md).
+# Linear chain P1 -> P5. Files touched by more than one phase are always on one path:
+#   evals/contract_graph/pairs/run.py        P1 create; P2, P3, P5 modify
+#   evals/contract_graph/pairs/manifest.json P1 create; P2 modify (extension_s4, review_selection);
+#                                            P5 modify (heldout_review)
+#   docs/ai2/AI2-20-contract-graph-pairs.vi.md P4 create; P5 modify (measurements)
+# HG-1 (user review of the held-out sheet exported at the end of P2) is a human gate before P5.
+edges:
+  - {from: P1, to: P2}
+  - {from: P2, to: P3}
+  - {from: P3, to: P4}
+  - {from: P4, to: P5}
+subtasks:
+  P1:
+    files_to_create:
+      - evals/contract_graph/pairs/__init__.py
+      - evals/contract_graph/pairs/README.md
+      - evals/contract_graph/pairs/LABELING.vi.md
+      - evals/contract_graph/pairs/sources.json
+      - evals/contract_graph/pairs/models.py
+      - evals/contract_graph/pairs/corpus.py
+      - evals/contract_graph/pairs/pool.py
+      - evals/contract_graph/pairs/labeler.py
+      - evals/contract_graph/pairs/review.py
+      - evals/contract_graph/pairs/manifest.py
+      - evals/contract_graph/pairs/score.py
+      - evals/contract_graph/pairs/run.py
+      - evals/contract_graph/pairs/manifest.json
+      - evals/contract_graph/reports/l2-p1-dataset.json
+      - evals/contract_graph/reports/l2-p1-dataset.md
+      - evals/contract_graph/tests/test_cg_pairs_corpus.py
+      - evals/contract_graph/tests/test_cg_pairs_pool.py
+      - evals/contract_graph/tests/test_cg_pairs_labeler.py
+      - evals/contract_graph/tests/test_cg_pairs_review.py
+      - evals/contract_graph/tests/test_cg_pairs_manifest.py
+      - evals/contract_graph/tests/test_cg_pairs_score.py
+    files_to_modify:
+      - .gitattributes
+    post: [verification-P1.json]
+  P2:
+    files_to_create:
+      - ai-service/app/pipeline/contract_graph/pair_candidates.py
+      - ai-service/tests/test_contract_graph_pair_candidates.py
+      - evals/contract_graph/pairs/candidate_eval.py
+      - evals/contract_graph/tests/test_cg_pairs_candidate_eval.py
+      - evals/contract_graph/reports/l2-p2-candidates.json
+      - evals/contract_graph/reports/l2-p2-candidates.md
+    files_to_modify:
+      - evals/contract_graph/pairs/run.py
+      - evals/contract_graph/pairs/manifest.json
+    post: [verification-P2.json]
+  P3:
+    files_to_create:
+      - ai-service/app/pipeline/contract_graph/pair_classifier.py
+      - ai-service/app/pipeline/contract_graph/pair_builder.py
+      - ai-service/tests/test_contract_graph_pair_classifier.py
+      - ai-service/tests/test_contract_graph_pair_builder.py
+      - evals/contract_graph/pairs/predictor.py
+      - evals/contract_graph/tests/test_cg_pairs_predictor.py
+      - evals/contract_graph/reports/l2-p3-classifier-dev.json
+      - evals/contract_graph/reports/l2-p3-classifier-dev.md
+    files_to_modify:
+      - ai-service/app/contracts/contract_graph.py
+      - ai-service/app/llm/client.py
+      - ai-service/tests/test_llm_complete_json.py
+      - evals/contract_graph/pairs/run.py
+    post: [verification-P3.json]
+  P4:
+    files_to_create:
+      - ai-service/fixtures/contract_graph/idp_graph_on_golden.json
+      - ai-service/fixtures/contract_graph_pair_records.py
+      - ai-service/app/pipeline/contract_graph/pair_projection.py
+      - ai-service/app/db/migrations/versions/0006_ai2_contract_pair_relations.py
+      - ai-service/app/tools/pair_relation_store.py
+      - ai-service/tests/test_contract_graph_pairs_flag_regression.py
+      - ai-service/tests/test_contract_graph_pairs_idp_integration.py
+      - ai-service/tests/test_contract_graph_pairs_consent.py
+      - ai-service/tests/test_contract_graph_pair_projection.py
+      - ai-service/tests/test_contract_graph_pairs_wire.py
+      - ai-service/tests/test_contract_graph_pair_store.py
+      - ai-service/tests/test_contract_graph_pairs_postgres_store.py
+      - docs/ai2/AI2-20-contract-graph-pairs.vi.md
+    files_to_modify:
+      - ai-service/scripts/capture_idp_golden.py
+      - ai-service/app/pipeline/idp.py
+      - ai-service/app/tools/store.py
+      - ai-service/app/pipeline/ai1_snapshot_adapter.py
+      - ai-service/app/db/tables.py
+      - ai-service/app/tools/jobs.py
+      - ai-service/tests/test_contract_graph_edge_store.py
+      - ai-service/tests/test_contract_graph_postgres_store.py
+      - docs/ai2/README.md
+      - docs/system-architecture.md
+    post: [verification-P4.json]
+  P5:
+    files_to_create:
+      - evals/contract_graph/pairs/bakeoff.py
+      - evals/contract_graph/tests/test_cg_pairs_bakeoff.py
+      - evals/contract_graph/reports/l2-p5-bakeoff.json
+      - evals/contract_graph/reports/l2-p5-bakeoff.md
+      - evals/contract_graph/reports/l2-p5-decision.json
+      - plans/261008-1500-ai2-contract-graph-implicit/bakeoff-verdict.json
+    files_to_modify:
+      - evals/contract_graph/pairs/run.py
+      - evals/contract_graph/pairs/manifest.json
+      - docs/ai2/AI2-20-contract-graph-pairs.vi.md
+    post: [verification-P5.json, review-decision.json]
