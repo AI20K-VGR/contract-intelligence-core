@@ -590,7 +590,7 @@ class PostgresJobStore(SQLiteJobStore):
                     edges=record.contract_edges, now_ms=self._now_ms())
         except Exception as exc:  # enrichment only: never fail the completion
             log.warning("ai2.contract_edges_write_failed job_id=%s tenant_id=%s dossier_id=%s cause=%s",
-                        job_id, record.tenant_id, record.dossier_id, type(exc).__name__)
+                        job_id, record.tenant_id, record.dossier_id, type(exc).__name__, exc_info=True)
 
     def _fail_matching(self, condition, update):
         from sqlalchemy import select

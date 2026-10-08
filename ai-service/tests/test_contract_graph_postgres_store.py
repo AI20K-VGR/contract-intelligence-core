@@ -38,6 +38,9 @@ def fresh_url(pg_url):
         yield url
     finally:
         get_engine(url).dispose()
+        # get_engine() with no argument caches the env-resolved engine under key None; drop it so
+        # later tests do not reuse an engine bound to the database dropped below.
+        get_engine.cache_clear()
         with admin.connect() as cx:
             cx.execute(text(f'DROP DATABASE IF EXISTS "{database}" WITH (FORCE)'))
         admin.dispose()

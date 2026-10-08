@@ -278,8 +278,9 @@ def run_idp(
     }
     # Contract graph (flow 1) only behind its flag: off ⇒ no import, no call, no new value.
     graph = None  # ContractGraphResult when the builder ran (P4 projects it)
+    graph_enabled = _contract_graph_enabled()  # read once: a mid-run env flip must not split the run
     graph_issues: list[EvidenceIssue] = []
-    if _contract_graph_enabled():
+    if graph_enabled:
         try:
             from app.pipeline.contract_graph.builder import build_contract_graph
 
@@ -329,7 +330,7 @@ def run_idp(
         record, candidates=candidates, facts=facts, suppress_amendment_signal=graph is not None
     )
     graph_coverage_value: dict | None = None
-    if _contract_graph_enabled():
+    if graph_enabled:
         from app.pipeline.contract_graph.projection import (
             deduped_with_legacy,
             edge_findings,
