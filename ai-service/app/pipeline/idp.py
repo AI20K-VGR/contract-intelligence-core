@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from uuid import uuid4
 
 from app.contracts.models import (
@@ -275,6 +276,26 @@ def run_idp(
         for edge in (record.relation_graph.edges if record.relation_graph else [])
         if edge.relation_type.value in {"SAME_CLAUSE", "REFERENCES", "AMENDS"}
     }
+    # Contract graph (flow 1) only behind its flag: off ⇒ no import, no call, no new value.
+    graph = None  # ContractGraphResult when the builder ran (P4 projects it)
+    graph_issues: list[EvidenceIssue] = []
+    if _contract_graph_enabled():
+        try:
+            from app.pipeline.contract_graph.builder import build_contract_graph
+
+            graph = build_contract_graph(record, facts)
+        except Exception as exc:  # enrichment only: never fail the job (D11)
+            graph_issues.append(EvidenceIssue(
+                issue_id="contract-graph:CONTRACT_GRAPH_FAILED",
+                missing="CONTRACT_GRAPH_FAILED",
+                reason=f"Không dựng được đồ thị sửa đổi ({type(exc).__name__}); không có cạnh sửa đổi.",
+                review_state=ReviewState.NEEDS_REVIEW,
+            ))
+        else:
+            relation_pairs |= {
+                tuple(sorted((edge.source_node_id, edge.target_node_id))) for edge in graph.edges
+            }
+            graph_issues.extend(graph.issues)
     pairer = CandidatePairer()
     candidates, issues = pairer.pair_with_issues(
         facts,
@@ -316,6 +337,8 @@ def run_idp(
         if finding.review_state != ReviewState.PASS
     ]
     issues.extend(context_issues)
+    # D4: after every pre-existing issue, so their positional review ids do not move
+    issues.extend(graph_issues)
     store_idx = index or IndexStore()
     contrib = store_idx.propose(
         facts=facts,
@@ -376,6 +399,12 @@ def run_idp(
         handoff_issues=handoff.issues,
         contribution=contrib,
     )
+
+
+def _contract_graph_enabled() -> bool:
+    # Same rule as ``contract_graph.builder.contract_graph_enabled``; read here so the flag-off
+    # path never imports the builder package.
+    return os.getenv("AI2_CONTRACT_GRAPH_ENABLED", "false").strip().casefold() in {"1", "true", "yes", "on"}
 
 
 def _dedupe_same_published_key(facts: list) -> list:

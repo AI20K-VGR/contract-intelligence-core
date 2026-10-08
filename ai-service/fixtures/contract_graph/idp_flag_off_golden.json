@@ -1,0 +1,6670 @@
+{
+ "cases": {
+  "EC-001": {
+   "job_result": "ecb45c73564d6f706f2a52eeac0c68429176a82a93b5448d1d8c920f40c8aec6",
+   "record": "689e02d5e149aa7abca5c77cb1368fb496b49f8231640c2c18993927bbfdc643",
+   "wire": null
+  },
+  "EC-002": {
+   "job_result": "cfc8a952840e515c4bd383a98b00233273a8a7450f5e77d590f178d34cdeb614",
+   "record": "eb6155f45e423b73d465b32b63686e2eb8ae4fe35ce2576351390cd6dda64882",
+   "wire": null
+  },
+  "EC-003": {
+   "job_result": "6580b396a3df3aec4bb7baadb1d8964ede00b8c3764c7d33482c111239e6b3be",
+   "record": "966c4f40fd92f83a90db266e1853b4b8ee93314f9b53a27e5ca5a8b57975d283",
+   "wire": null
+  },
+  "EC-004": {
+   "job_result": "4f36cb11ace3d1963e8483be6d5f87ca2b92f497ecf206ee9d29c502727bb656",
+   "record": "8b3a78c2624f2ad24b813b1fd7796db0e8286de08d44edca16c18856e3dce766",
+   "wire": null
+  },
+  "EC-005": {
+   "job_result": "01e1ce1d73355b78fd9aa23bf2d8d4260a23707bc5a25de89fc6730bd7a4c31b",
+   "record": "5d0d7baf634cbd11205b1f51b1dacc75bac4155c99a22b66d4568c868afb893e",
+   "wire": null
+  },
+  "EC-006": {
+   "job_result": "5b05939bba6d822c73b5f7f7f5bb82f0dfa786f282f98b38075840733d40670e",
+   "record": "c07e5514740b4880b74bb4c167a287a9faabd6fd2eadf82730816670e87adacc",
+   "wire": null
+  },
+  "EC-007": {
+   "job_result": "923957e48e0c3ee0ba2cf8b6218e934998251c6ced2494b178bc516217bb7846",
+   "record": "23579cd45d95228567d72d5116b17219a11de3d23e51f086791c47dd2507cf33",
+   "wire": null
+  },
+  "EC-008": {
+   "job_result": "be23a26318fa25e3a18787b4e088714d567f5f4af952152ff962d4cdc0fe935a",
+   "record": "4f2cef993b6f2cfa0ece49b4c77bcda9cd2187a31d8aede14251c14e72a17207",
+   "wire": null
+  },
+  "EC-009": {
+   "job_result": "5873e50c9ad5a28b946abe4caef6f5c1850c6ab42a77b856dbf8d46c10e31b52",
+   "record": "ced854284837eb9ce1f293b6c91937b0bf4eba05bf575eb958d8ec6d275e5bee",
+   "wire": null
+  },
+  "EC-010": {
+   "job_result": "fdd332add9ade4fa43893151ac23c970c883e829f8a5c43bb88aafe446714910",
+   "record": "9623d53ae3ee7007f44d49ff12381c46d9949810f646edaf6fbc4fba5ebd829a",
+   "wire": null
+  },
+  "EC-011": {
+   "job_result": "d4d8749d56019fbbaede39e89db73fe0815006389c1e9aa8a8751ee0e0199549",
+   "record": "ba2fffee3b9b649e0d8c8d22df96e6fc14f928117b1ac6eb3d51267e2e6795a6",
+   "wire": null
+  },
+  "EC-012": {
+   "job_result": "8bf6a702efc670f60ddd8050ff5b4e1fba6472ceb884148e099f3d49e8b85e6a",
+   "record": "5dcbe3b323fac3b900f313fc124857bf0f5f2bc8cda2ed7e3f45c7e4f804b5e2",
+   "wire": null
+  },
+  "EC-013": {
+   "job_result": "ddb3f94c9263de777257ae71283293d6431012d9729c8aa829286b079874f844",
+   "record": "61800f4f2b2528b88466ea89ebb0ada5a927eb18f3fb901940913b8b270e62b1",
+   "wire": null
+  },
+  "EC-014": {
+   "job_result": "096293bda595d4e2c13ef4c0141b9030d95f17ab1d326974ae92e340982a87f7",
+   "record": "01d1825be1e96d6026bd3e2d000b0055461c7d39a680a5245233fc176e1121a2",
+   "wire": null
+  },
+  "EC-015": {
+   "job_result": "197bfd4e7c8d886d13711650e7db5d18b864d95ab5c9bee3a81033fc52834487",
+   "record": "9f4a63bcc5561cb88c77fdb33a697ca13a7eec7436b3db2b539c0d6da96a40fd",
+   "wire": null
+  },
+  "EC-016": {
+   "job_result": "39d14f082724d56754b216bc2c43bdfcda2c17358f95df2b73bceb9c795ce7a0",
+   "record": "14bb9af239081c7a238023d68937eeb680c945932ae79409d802cc013fd043f5",
+   "wire": null
+  },
+  "EC-017": {
+   "job_result": "22fb2a1cb8e1497088993072c515a24b351e58d70df247ecb04d8a3068e7d502",
+   "record": "53456d6c155f9b9f8b75536275522716f9659026efeb7e54f7e31b298d93b8d0",
+   "wire": null
+  },
+  "EC-018": {
+   "job_result": "45a5448308f5d1d845104e75a9f4a9a7fe084879602dfb98b7909a31c3d69692",
+   "record": "7e5487d9e86d82276294923eac791adb35663357d329ccd15ee6f7dc1c52912a",
+   "wire": null
+  },
+  "EC-019": {
+   "job_result": "4d94fb36421e59814b848e57de538ea774520aef2d3c763a496dc82323d7f764",
+   "record": "6c412e2cbb84e9ac028e8f89b0c663599e88b9f10476bd0935796020c11535ec",
+   "wire": null
+  },
+  "EC-020": {
+   "job_result": "2c5e96bf367167c42c0bbdf10bb502cbc7e2e69420094c691a6e372909f88569",
+   "record": "9f33f17c274eb5202620d91ae4e27ac64eb309dcd1744a2cdd5cad50e034e8f5",
+   "wire": null
+  },
+  "EC-021": {
+   "job_result": "c0a6644ce1136fdc51ecdc3f6518a41e5f24a6703922ca7d61fc7af186d97761",
+   "record": "4647a5faaa6f2d41d3468131fd877efcd9c46abef65e56dbf9b5cad8c77e22a9",
+   "wire": null
+  },
+  "EC-022": {
+   "job_result": "b4ee710143cbc1d26b13b0a7df42cdcdc98b16aaf6bcf370b3d1fcecd62b754c",
+   "record": "b522a46b7b52da456212360b166c008ba9afd30cd322fb1ea4772c9067d6a943",
+   "wire": null
+  },
+  "EC-023": {
+   "job_result": "2997b1e221a05cf764fa5641bd49ceda3189591a8d1c9741bfe5e909fec67a2a",
+   "record": "96c473dc0b702d6af143a521f695f7876316a131a735979434f210f3b17fbb8f",
+   "wire": null
+  },
+  "EC-024": {
+   "job_result": "37f4b454f6abbe7c76204c98c1fd3cdbdeb13483d21633de529c931137c04de0",
+   "record": "fa1c686c92f4e4e6511cfcf8c549d3b4b4553631a69c10f87b833032e182cbc2",
+   "wire": null
+  },
+  "EC-025": {
+   "job_result": "7123c1b4863b34a0fc9fcfcf14888984adc243ad25df851460f3b151da3e1244",
+   "record": "b605099ca8313e540a609aa3115ec97f7a76f4fef0217069f237ec7f2b943947",
+   "wire": null
+  },
+  "EC-026": {
+   "job_result": "4819e634ca68bc70614a434c7450dd038c22c8fafea45d512ce50cc3e1b06c99",
+   "record": "d76a15b1a68a4dd82d0f60b2b02f7ca221f7a2e09f98ed3dfce3c6c040d1db55",
+   "wire": null
+  },
+  "EC-027": {
+   "job_result": "a6016125abbd4d0c266bf5bb00bd2d1d43662121be3480944d3997755f84a7f2",
+   "record": "33be895028307b5d0bf5fe8d846975328805f297d2404561af4a80fc5233e632",
+   "wire": null
+  },
+  "EC-028": {
+   "job_result": "bf8f93567cebb80a6bf12dd93df2285e223fee91797a4c0fa3d003397f0dde44",
+   "record": "95ac0ba64f90fb44b192d9e77decaf34bcc7c35be60008fd22c11c59faa2d809",
+   "wire": null
+  },
+  "EC-029": {
+   "job_result": "c91dc5cadee4b8b02f482700dea9d8caa27926f287dcda4ceddc591c28d7a191",
+   "record": "1c6946503738939fb7d95abab96d7f0e21085ea5abaf6744f35b9439bd6108f3",
+   "wire": null
+  },
+  "EC-030": {
+   "job_result": "80a12ea840b13bb7499a9662aadbc13a52f158a9cc75640b7c01c7a3985b60ea",
+   "record": "fe10261dab4e2f2646abe3396d87d9315b05a218fa3f607a0e98434463f6da19",
+   "wire": null
+  },
+  "EC-031": {
+   "job_result": "57f9743c8773de698a0fdb7bfe5b519d3b18e9d0b764d781495f6f639163526e",
+   "record": "7936e43eb0c8f443c6b7b2d2433a93d3a2106364e71cf9fb9de8bc4ce1e33592",
+   "wire": null
+  },
+  "EC-032": {
+   "job_result": "723dd436c8ecc79a5acfa15c917c7f4af4a5215c990209a80c4b98a4b712b07f",
+   "record": "a6da398b1126b80fd89880ff15245c6c0539c3b50006e05d1d2dae65b6938d84",
+   "wire": null
+  },
+  "EC-033": {
+   "job_result": "fe40949c56ae4da8347ba4473efad1ea7d5e439125235a5ab0e2cce9a3a3ab9b",
+   "record": "814d9216810533a8c4a5b7d67447ef07ebf4946084cb72a5e0e2bc3c928bc6e5",
+   "wire": null
+  },
+  "EC-034": {
+   "job_result": "4a199e46df4a0498286d062444bd532f999eb9f5dd4fce5f2e0bf46e42552f49",
+   "record": "1e3f823af504ed0e8702f41bd9d15f007bea5ccf9540688f3926fe4c51a5ea0a",
+   "wire": null
+  },
+  "EC-035": {
+   "job_result": "3d02ee83fac6360b7dce81b65241c6a2efe64631c1c2a8b499005746d40bfe0e",
+   "record": "8d75c6bf09aa1ad0312deee04e88c79b571f2a3220a6462868775a3555455020",
+   "wire": null
+  },
+  "EC-036": {
+   "job_result": "b8d9c6296f470e5b0ebdbefc1de4ba3186afd4824b914d1a77a08d40f0f7ce5a",
+   "record": "c81caccac0f631fd6bb50f0bb99f1602209e54d3b53871c8a48d91c24c13a6c3",
+   "wire": null
+  },
+  "EC-037": {
+   "job_result": "ca19fd74f953d36325e9f966a48b47028b55551197fe8f47d0bfbf858e188507",
+   "record": "7f92079cb2e4d8458c69c20be3ae37c03e08fb304b137b0c007d7dcbbd6d3241",
+   "wire": null
+  },
+  "EC-038": {
+   "job_result": "1a4fcb06ff3b145a860e89882b11b441fa4cb8956de7787124e3ecaf01d8ff76",
+   "record": "290b4ca376fa643c9c6562adf7e2019b310a116f60b6dab4bd5dee59ac96a935",
+   "wire": null
+  },
+  "EC-039": {
+   "job_result": "24f189a8ead32787b8f1933aed5e2398bc6bd1405052e64c2d6db22fd23a3a4f",
+   "record": "6b4ed0120cf3528cf861eef4d466fd0946811c440594a8e820c75bf43516799b",
+   "wire": null
+  },
+  "EC-040": {
+   "job_result": "f0859c6779a489006b76d4e119b30abbb7e3baaed66b6596fb31d245fa8310fa",
+   "record": "626fb2f4be7943799de8acce6077e9e18820efc0b27f85035ee8d582e523d1bc",
+   "wire": null
+  },
+  "EC-041": {
+   "job_result": "25e01e156f507aead98ae0ad574c351c8749aa0e8e72b40764e7af6bc584a6d7",
+   "record": "4c6bd39b5322db803e36d48d5a992f80f38c346fe0d176b550333c80cd53d6f8",
+   "wire": null
+  },
+  "EC-042": {
+   "job_result": "6044a2669d1eb74d2afeb740f125ea9dc5785bfab6ed33498905cabf3a5c2167",
+   "record": "01102cd46fa749e15340eb692085a410ac009992255ba06cd6635639ab2be5e3",
+   "wire": null
+  },
+  "EC-043": {
+   "job_result": "de921651d94a17cdfd4aedbc6787c678333068db286c288728d926a51839b09a",
+   "record": "ac9afab3b88369650d17480739002d7d379e407bc9f6c999aab3a1768e0dab2c",
+   "wire": null
+  },
+  "EC-044": {
+   "job_result": "8727e1d47c2acb22da3019ec06d0496eaebda0ee80976dc686215551fa447977",
+   "record": "d45b4dade8e478413e72dc32527e06255db0e6120adf25daf4cf951dc10c772c",
+   "wire": null
+  },
+  "EC-045": {
+   "job_result": "4cda7a2e04642e72f5652d0c2fb4450c479cb95d2bcc01bd2d43a543461c3d4a",
+   "record": "3a5ec4507ed09971c5770c94c8b37ae91563625ffec250a65044a0d6a5fb2e5f",
+   "wire": null
+  },
+  "EC-046": {
+   "job_result": "e8e0431d9074ef07375d7ea429fd566499b19f455e038c11b94e8e70f630c113",
+   "record": "b1bf6fa6bb8b537a3cb7e552bd3be2375cc0aef58563c491447f3fe3e2408433",
+   "wire": null
+  },
+  "EC-047": {
+   "job_result": "e5be2af987162cffd4baab65f927b793baaf669a298c5590666504ff9f5f4402",
+   "record": "4d7a9b0993e9a5e7fc529b824008c85583dc79a0bd31d1a57daab477909e716a",
+   "wire": null
+  },
+  "EC-048": {
+   "job_result": "f3a96a2b83330f099c66b477c36c285f3ed2277f942170653fd8db4a82bcbc6e",
+   "record": "7208a838704f11d4198a0abe7bb94ba5d0b550e1fedb2067d8435161b7340a0d",
+   "wire": null
+  },
+  "EC-049": {
+   "job_result": "a09e797b49e7efd8ce69e065c28ff41cbb254fa3d7dc4cef478f4951f3e65592",
+   "record": "f4c46cc647158d0f5e682cb63b1b8862353d1dab4c8ba2ecec13bfe90680bfe6",
+   "wire": null
+  },
+  "EC-050": {
+   "job_result": "731fc2197b9dab135efc82e58c72d21ef772f130d3204210de4dc9f6a3273827",
+   "record": "8e4dd6475e99ead2e68099cbad65c5a4c7c435b5b49b6a918b19f486cb99b193",
+   "wire": null
+  },
+  "EC-051": {
+   "job_result": "ae7291c0a4b7ebf50fd2d7ef3acd81d5799dcfc1aeabb0c5acf2cbc97a6c2505",
+   "record": "c04cd71b903b474877aa5a3a38ca1aa59daddb51c51591c79f4fce820a31bad3",
+   "wire": null
+  },
+  "EC-052": {
+   "job_result": "3dd0cba0dc8f30dfad1fe8aad40b8bfd5edd2ba60ae73aa58f15bbc0fa3d060c",
+   "record": "9d6fb8ed7b4141ab1fd1b6e65032103efb2458bbd28121d2c1cad327d7c42ee7",
+   "wire": null
+  },
+  "EC-053": {
+   "job_result": "3bcbe164e5559d46569f0ae2aedac10410528d010d2a12919551d81b66d37de8",
+   "record": "7276c835df9b559c41dcf24c53047b1e1c74e997cf3b9cc8103f7a41b718c785",
+   "wire": null
+  },
+  "EC-054": {
+   "job_result": "3bcbe164e5559d46569f0ae2aedac10410528d010d2a12919551d81b66d37de8",
+   "record": "9437f54868a0142b5c177a24f618dc5a876f157ff70d9ffede009a72a20eb7de",
+   "wire": null
+  },
+  "EC-055": {
+   "job_result": "1e013dd0d61b94000ccf084d41eef1d0d918cd6dcb297f9e5e8dd4360d503587",
+   "record": "108658ee4a75b7e030d6703c6627bdae134b50b20de227c3338775d96cf063b2",
+   "wire": null
+  },
+  "EC-056": {
+   "job_result": "c3698b420c8a9c9f11b9e6164d6eab413a52a035c6dd91fdf837b4be8bf44ed2",
+   "record": "58d49196cf7811afddfa232155fce57eb3f0487360a12941d19330cfaec60362",
+   "wire": null
+  },
+  "HAPPY-001": {
+   "job_result": "6ce93ac1995e9856b853bb3547630034b0e16187193c55f7e2ef117b1958a0c5",
+   "record": "7a4e7a0d191de0c9e1c12665983463d009fa34c5287cd0284f21e16d4cc07bf7",
+   "wire": null
+  },
+  "HAPPY-002": {
+   "job_result": "8c64c3e0f9bdf5c5b968e6438a60a70d4aed6a0c042655d5256451e555bb22ea",
+   "record": "8fa25470e4bfa44655ac5d80e106008f1a5eb8009c8d209968f23f7c026d8bb6",
+   "wire": null
+  },
+  "HAPPY-003": {
+   "job_result": "97a5b57f48939f91766a5e413a31ed1abb7a439b0104f390850fcd14a4d5e890",
+   "record": "3f7fd4775899919df66e9112e4346d36ff630e94bb73101e1f5123da8766f909",
+   "wire": null
+  },
+  "HAPPY-004": {
+   "job_result": "3477dcd094f1d187811fcbe7f27ce487cb7af5fb0a1da27173d584ea0fc0146f",
+   "record": "11bf1252c240e52ac2d1b9beb24bccdcc4414dd6d92e76fe6e5e8f413dd97a72",
+   "wire": null
+  },
+  "HAPPY-005": {
+   "job_result": "6e34c2056e18c62772b6f87048824e09e9921165fd8006edf000e449640fac7b",
+   "record": "8087b9cc0f1ca5301548412da16291a11b9bf793a8efef89fa58262cfef3aabb",
+   "wire": null
+  },
+  "HAPPY-006": {
+   "job_result": "3bcbe164e5559d46569f0ae2aedac10410528d010d2a12919551d81b66d37de8",
+   "record": "68592ccdf23839a9466cf5f50c6034f99bdadcb3789f48f990cfbd4978fd75f5",
+   "wire": null
+  },
+  "HD-TONG-HOP": {
+   "job_result": "5030d4bf8d8e2ae4bf98402032469a93f8ffda8e24379a0c047bd8860dc7d7d6",
+   "record": "0dc2d6ede08bab1a183efd5ffdc05e06ecbeb843ce21a10ea3aacb87cf19a278",
+   "wire": null
+  },
+  "SALE-BRD-07": {
+   "job_result": "f4cfc291465a4cf034ab54face4669dcdf0815ce48e92f1c2ceac5f2f0c4498c",
+   "record": "ffd82057ebafacbb8be044357022306f0b262b46fe33638d8e31d1bd2bc5b1b6",
+   "wire": null
+  },
+  "SERVICE-BRD-08": {
+   "job_result": "717b68aae97414e3acf1324a2b20cc52a5cefdb49b08e62aa1737a5944df6aac",
+   "record": "d96004351428004e32f011d0377c825a7fc1283ecc8fe63d0f7a9501f8ef46f4",
+   "wire": null
+  },
+  "fixtures.mock_record": {
+   "job_result": "ca4d387c90b7dc817b13945bb713d1073f138414327bbefae948c2cc9944c0ab",
+   "record": "d60885a9cff15e9d90980c156fb5f6f3057eb3e5a2d5156b1d29effd14626372",
+   "wire": null
+  },
+  "wire:ai1.snapshot.v1.body+annex": {
+   "job_result": "1e419153eed03ae806676bcf8ff43d59bec3e050ba81923bb04c9f77db0d1294",
+   "record": "81ec2b1c8cc1926dfe083c5a3ee8cbeddcaca6780574c2b088cb2acca3d5715e",
+   "wire": "34382b9161030756bcfd59d2c62e9a6afd2384e055efd9dd00e9e7035e528a67"
+  }
+ },
+ "flag": "AI2_CONTRACT_GRAPH_ENABLED unset",
+ "full": {
+  "EC-001": {
+   "job_result": {
+    "contribution": {
+     "candidates": [],
+     "chunks": [
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        1
+       ],
+       "parent_node_id": "root",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Hợp đồng 62 trang"
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 1"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        1
+       ],
+       "parent_node_id": "cl_1",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 1."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 2"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        2
+       ],
+       "parent_node_id": "cl_2",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 2."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 3"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        3
+       ],
+       "parent_node_id": "cl_3",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 3."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 4"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        4
+       ],
+       "parent_node_id": "cl_4",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 4."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 5"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        5
+       ],
+       "parent_node_id": "cl_5",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 5."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 6"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        6
+       ],
+       "parent_node_id": "cl_6",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 6."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 7"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        7
+       ],
+       "parent_node_id": "cl_7",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 7."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 8"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        8
+       ],
+       "parent_node_id": "cl_8",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 8."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 9"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        9
+       ],
+       "parent_node_id": "cl_9",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 9."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 10"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        10
+       ],
+       "parent_node_id": "cl_10",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 10."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 11"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        11
+       ],
+       "parent_node_id": "cl_11",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 11."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 12"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        12
+       ],
+       "parent_node_id": "cl_12",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 12."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 13"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        13
+       ],
+       "parent_node_id": "cl_13",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 13."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 14"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        14
+       ],
+       "parent_node_id": "cl_14",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 14."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 15"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        15
+       ],
+       "parent_node_id": "cl_15",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 15."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 16"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        16
+       ],
+       "parent_node_id": "cl_16",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 16."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 17"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        17
+       ],
+       "parent_node_id": "cl_17",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 17."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 18"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        18
+       ],
+       "parent_node_id": "cl_18",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 18."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 19"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        19
+       ],
+       "parent_node_id": "cl_19",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 19."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "Điều 20"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        20
+       ],
+       "parent_node_id": "cl_20",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Nội dung điều 20."
+      }
+     ],
+     "contract_context": {
+      "context_id": "context:2b47d752d9592e1a80b655e2",
+      "findings": [],
+      "parts": [
+       {
+        "annex_number": null,
+        "citation": {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 58,
+         "char_start": 0,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p1_rev1_line1"
+         ],
+         "node_id": "page:p1_rev1",
+         "page": 1,
+         "page_range": [
+          1
+         ],
+         "page_revision_id": "p1_rev1",
+         "precision": null,
+         "quote_sha256": "9b77f7b249ebd4d54b098c08aeaee8ff44a2725efefb273f6d2a83efc73367b4",
+         "source_file_id": null,
+         "source_hash": "9b77f7b249ebd4d54b098c08aeaee8ff44a2725efefb273f6d2a83efc73367b4",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Trang 1 hợp đồng khung.\nHợp đồng 62 trang\nNội dung điều 1.",
+         "validation_status": "VALID"
+        },
+        "confidence": 1.0,
+        "kind": "BODY",
+        "label": "Thân hợp đồng",
+        "node_ids": [
+         "root",
+         "cl_1",
+         "cl_2",
+         "cl_3",
+         "cl_4",
+         "cl_5",
+         "cl_6",
+         "cl_7",
+         "cl_8",
+         "cl_9",
+         "cl_10",
+         "cl_11",
+         "cl_12",
+         "cl_13",
+         "cl_14",
+         "cl_15",
+         "cl_16",
+         "cl_17",
+         "cl_18",
+         "cl_19",
+         "cl_20",
+         "node_p2_parties"
+        ],
+        "page_range": [
+         1,
+         2,
+         3,
+         4,
+         5,
+         6,
+         7,
+         8,
+         9,
+         10,
+         11,
+         12,
+         13,
+         14,
+         15,
+         16,
+         17,
+         18,
+         19,
+         20
+        ],
+        "part_id": "body"
+       }
+      ],
+      "scope": "SINGLE_DOCUMENT",
+      "source_file_ids": []
+     },
+     "coverage": {
+      "annex_labels": [],
+      "n_candidate_findings": 0,
+      "n_candidates_suppressed": 0,
+      "n_context_findings": 0,
+      "n_events": 0,
+      "n_evidence_issues": 0,
+      "n_facts": 1,
+      "n_findings": 0,
+      "n_units": 31,
+      "runtime": {
+       "egress_allowed": true,
+       "embedding_tokens_used": 0,
+       "fallback_count": 0,
+       "llm_calls_used": 0,
+       "max_embedding_tokens": 0,
+       "max_llm_calls": 0,
+       "max_processing_seconds": 300,
+       "use_vector": false
+      },
+      "unit_ids": [
+       "unit:1c0a556edf6a86740d41",
+       "unit:ab0f9d4acbf25442daf1",
+       "unit:e17dea3373288eaa44db",
+       "unit:bd3bed6e0dac0b566212",
+       "unit:26b8e0546758c6f05bc0",
+       "unit:a29a2cd877435de2b414",
+       "unit:3ae5f99431f3265dcd20",
+       "unit:beb758a4e132d9b07b64",
+       "unit:2e74eb58eca4ea6f25cf",
+       "unit:0f8711f5bcebf0d9e5be",
+       "unit:aa87232ce7f47deac68f",
+       "unit:3866e786169bc0dbc144",
+       "unit:5c7e9aed4505f22b22e6",
+       "unit:f56e130d5ed01bfbb231",
+       "unit:5c822ae88f0ed3da262c",
+       "unit:c9966fde78c94c610bef",
+       "unit:b923acd93ba0ae105088",
+       "unit:cc30dad29bab31ccbda2",
+       "unit:6ddceee3abf1c78e7426",
+       "unit:8e62de0656050c63f627",
+       "unit:a00f4ed37c300a7ddf4c",
+       "unit:1dc3e5f0351ef6033233",
+       "unit:c7875233f9308bbd78b8",
+       "unit:369743a0546e406d14c0",
+       "unit:fe5692c58146b78d8389",
+       "unit:bae0c90d4d5c05632c4c",
+       "unit:78a96b25c83c51ddadcd",
+       "unit:3b6b558209b899f105be",
+       "unit:cff3c6f9b1f8626a4ba1",
+       "unit:c6e4a6dc17b70350f540",
+       "unit:d106478bb2a003ebf6aa"
+      ]
+     },
+     "events": [],
+     "evidence_issues": [],
+     "extraction_version": 7,
+     "facts": [
+      {
+       "citation": {
+        "bbox": [
+         0.1,
+         0.2,
+         0.8,
+         0.28
+        ],
+        "bbox_fragments": [],
+        "breadcrumb": [
+         "Hợp đồng",
+         "MST Bên Bán"
+        ],
+        "cell_id": null,
+        "char_end": 47,
+        "char_start": 24,
+        "citation_id": null,
+        "coordinate_system": null,
+        "geometry_available": true,
+        "geometry_source": null,
+        "line_ids": [
+         "p2_rev1_line1"
+        ],
+        "node_id": "node_p2_parties",
+        "page": 2,
+        "page_range": [
+         2
+        ],
+        "page_revision_id": "p2_rev1",
+        "precision": null,
+        "quote_sha256": "4d95488106da69d1533e43c9debdeceedd62d8776095597fb8a6561cb173f009",
+        "source_file_id": null,
+        "source_hash": "c3029586855a7636846ee7de5c56b0726da638c30001cbe090922cf2239d240c",
+        "structure_path": "Hợp đồng › MST Bên Bán",
+        "table_id": null,
+        "text_span": "MST bên bán: 0312345678",
+        "validation_status": "VALID"
+       },
+       "condition": null,
+       "currency": null,
+       "fact_id": "fact_2e98f5358e00fb4be7a2e18a",
+       "item_key": "mst_seller",
+       "normalized_value": "0312345678",
+       "period_start": null,
+       "provenance": "L0",
+       "raw_value": "0312345678",
+       "review_state": "PASS",
+       "role": null,
+       "scope": "mst_seller",
+       "source_role": "body",
+       "subject": "MST Bên Bán",
+       "tax_basis": null,
+       "unit": null,
+       "validity": null,
+       "vat_basis": null
+      }
+     ],
+     "proposed_index_version": "idx_7",
+     "publish": "propose"
+    },
+    "error": null,
+    "handoff_issues": [],
+    "job_id": "job_golden",
+    "query_answer": null,
+    "review_state": "PASS",
+    "status": "SUCCEEDED"
+   },
+   "record": {
+    "acl_revision": 12,
+    "active_index_version": null,
+    "active_nodes": null,
+    "budget_exceeded": false,
+    "case_id": "EC-001",
+    "chunks": [
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       1
+      ],
+      "parent_node_id": "root",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Hợp đồng 62 trang"
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 1"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       1
+      ],
+      "parent_node_id": "cl_1",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 1."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 2"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       2
+      ],
+      "parent_node_id": "cl_2",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 2."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 3"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       3
+      ],
+      "parent_node_id": "cl_3",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 3."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 4"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       4
+      ],
+      "parent_node_id": "cl_4",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 4."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 5"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       5
+      ],
+      "parent_node_id": "cl_5",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 5."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 6"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       6
+      ],
+      "parent_node_id": "cl_6",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 6."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 7"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       7
+      ],
+      "parent_node_id": "cl_7",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 7."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 8"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       8
+      ],
+      "parent_node_id": "cl_8",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 8."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 9"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       9
+      ],
+      "parent_node_id": "cl_9",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 9."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 10"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       10
+      ],
+      "parent_node_id": "cl_10",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 10."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 11"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       11
+      ],
+      "parent_node_id": "cl_11",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 11."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 12"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       12
+      ],
+      "parent_node_id": "cl_12",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 12."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 13"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       13
+      ],
+      "parent_node_id": "cl_13",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 13."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 14"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       14
+      ],
+      "parent_node_id": "cl_14",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 14."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 15"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       15
+      ],
+      "parent_node_id": "cl_15",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 15."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 16"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       16
+      ],
+      "parent_node_id": "cl_16",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 16."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 17"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       17
+      ],
+      "parent_node_id": "cl_17",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 17."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 18"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       18
+      ],
+      "parent_node_id": "cl_18",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 18."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 19"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       19
+      ],
+      "parent_node_id": "cl_19",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 19."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Hợp đồng",
+       "Điều 20"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       20
+      ],
+      "parent_node_id": "cl_20",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Nội dung điều 20."
+     }
+    ],
+    "citation_index": {},
+    "dossier_id": "d_long_62",
+    "egress_approved": true,
+    "embedding_budget_exceeded": false,
+    "events": [],
+    "facts": [
+     {
+      "citation": {
+       "bbox": [
+        0.1,
+        0.2,
+        0.8,
+        0.28
+       ],
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Hợp đồng",
+        "MST Bên Bán"
+       ],
+       "cell_id": null,
+       "char_end": 47,
+       "char_start": 24,
+       "citation_id": null,
+       "coordinate_system": null,
+       "geometry_available": true,
+       "geometry_source": null,
+       "line_ids": [
+        "p2_rev1_line1"
+       ],
+       "node_id": "node_p2_parties",
+       "page": 2,
+       "page_range": [
+        2
+       ],
+       "page_revision_id": "p2_rev1",
+       "precision": null,
+       "quote_sha256": "4d95488106da69d1533e43c9debdeceedd62d8776095597fb8a6561cb173f009",
+       "source_file_id": null,
+       "source_hash": "c3029586855a7636846ee7de5c56b0726da638c30001cbe090922cf2239d240c",
+       "structure_path": "Hợp đồng › MST Bên Bán",
+       "table_id": null,
+       "text_span": "MST bên bán: 0312345678",
+       "validation_status": "VALID"
+      },
+      "condition": null,
+      "currency": null,
+      "fact_id": "fact_2e98f5358e00fb4be7a2e18a",
+      "item_key": "mst_seller",
+      "normalized_value": "0312345678",
+      "period_start": null,
+      "provenance": "L0",
+      "raw_value": "0312345678",
+      "review_state": "PASS",
+      "role": null,
+      "scope": "mst_seller",
+      "source_role": "body",
+      "subject": "MST Bên Bán",
+      "tax_basis": null,
+      "unit": null,
+      "validity": null,
+      "vat_basis": null
+     }
+    ],
+    "handoff_issues": [],
+    "index_status": "READY",
+    "input_facts": [],
+    "legal_hold": false,
+    "lifecycle": "ACTIVE",
+    "nodes": [
+     {
+      "bbox": [],
+      "has_children": true,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "root",
+      "order": 0,
+      "page_in_file": null,
+      "page_range": [
+       1
+      ],
+      "page_revision_id": "p1_rev1",
+      "parent_confidence": null,
+      "parent_id": null,
+      "provenance": "AI1",
+      "raw_label": "Hợp đồng",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p1_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Hợp đồng 62 trang",
+      "type": "SECTION"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_1",
+      "order": 1,
+      "page_in_file": null,
+      "page_range": [
+       1
+      ],
+      "page_revision_id": "p1_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 1",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p1_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 1.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_2",
+      "order": 2,
+      "page_in_file": null,
+      "page_range": [
+       2
+      ],
+      "page_revision_id": "p2_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 2",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p2_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 2.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_3",
+      "order": 3,
+      "page_in_file": null,
+      "page_range": [
+       3
+      ],
+      "page_revision_id": "p3_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 3",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p3_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 3.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_4",
+      "order": 4,
+      "page_in_file": null,
+      "page_range": [
+       4
+      ],
+      "page_revision_id": "p4_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 4",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p4_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 4.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_5",
+      "order": 5,
+      "page_in_file": null,
+      "page_range": [
+       5
+      ],
+      "page_revision_id": "p5_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 5",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p5_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 5.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_6",
+      "order": 6,
+      "page_in_file": null,
+      "page_range": [
+       6
+      ],
+      "page_revision_id": "p6_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 6",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p6_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 6.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_7",
+      "order": 7,
+      "page_in_file": null,
+      "page_range": [
+       7
+      ],
+      "page_revision_id": "p7_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 7",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p7_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 7.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_8",
+      "order": 8,
+      "page_in_file": null,
+      "page_range": [
+       8
+      ],
+      "page_revision_id": "p8_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 8",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p8_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 8.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_9",
+      "order": 9,
+      "page_in_file": null,
+      "page_range": [
+       9
+      ],
+      "page_revision_id": "p9_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 9",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p9_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 9.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_10",
+      "order": 10,
+      "page_in_file": null,
+      "page_range": [
+       10
+      ],
+      "page_revision_id": "p10_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 10",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p10_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 10.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_11",
+      "order": 11,
+      "page_in_file": null,
+      "page_range": [
+       11
+      ],
+      "page_revision_id": "p11_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 11",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p11_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 11.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_12",
+      "order": 12,
+      "page_in_file": null,
+      "page_range": [
+       12
+      ],
+      "page_revision_id": "p12_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 12",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p12_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 12.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_13",
+      "order": 13,
+      "page_in_file": null,
+      "page_range": [
+       13
+      ],
+      "page_revision_id": "p13_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 13",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p13_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 13.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_14",
+      "order": 14,
+      "page_in_file": null,
+      "page_range": [
+       14
+      ],
+      "page_revision_id": "p14_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 14",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p14_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 14.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_15",
+      "order": 15,
+      "page_in_file": null,
+      "page_range": [
+       15
+      ],
+      "page_revision_id": "p15_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 15",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p15_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 15.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_16",
+      "order": 16,
+      "page_in_file": null,
+      "page_range": [
+       16
+      ],
+      "page_revision_id": "p16_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 16",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p16_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 16.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_17",
+      "order": 17,
+      "page_in_file": null,
+      "page_range": [
+       17
+      ],
+      "page_revision_id": "p17_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 17",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p17_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 17.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_18",
+      "order": 18,
+      "page_in_file": null,
+      "page_range": [
+       18
+      ],
+      "page_revision_id": "p18_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 18",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p18_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 18.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_19",
+      "order": 19,
+      "page_in_file": null,
+      "page_range": [
+       19
+      ],
+      "page_revision_id": "p19_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 19",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p19_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 19.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "cl_20",
+      "order": 20,
+      "page_in_file": null,
+      "page_range": [
+       20
+      ],
+      "page_revision_id": "p20_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "Điều 20",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p20_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Nội dung điều 20.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [
+       0.1,
+       0.2,
+       0.8,
+       0.28
+      ],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "node_p2_parties",
+      "order": 21,
+      "page_in_file": null,
+      "page_range": [
+       2
+      ],
+      "page_revision_id": "p2_rev1",
+      "parent_confidence": null,
+      "parent_id": "root",
+      "provenance": "AI1",
+      "raw_label": "MST Bên Bán",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [
+       "p2_rev1_line1"
+      ],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": "mst_seller",
+      "structured_value": "0312345678",
+      "text": "MST bên bán: 0312345678",
+      "type": "FIELD"
+     }
+    ],
+    "pages": [
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p1_rev1_line1": "Trang 1 hợp đồng khung.\nHợp đồng 62 trang\nNội dung điều 1."
+      },
+      "page_in_file": null,
+      "page_number": 1,
+      "page_revision_id": "p1_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p1_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "9b77f7b249ebd4d54b098c08aeaee8ff44a2725efefb273f6d2a83efc73367b4",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 1 hợp đồng khung.\nHợp đồng 62 trang\nNội dung điều 1.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p2_rev1_line1": "Trang 2 hợp đồng khung. MST bên bán: 0312345678\nNội dung điều 2."
+      },
+      "page_in_file": null,
+      "page_number": 2,
+      "page_revision_id": "p2_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p2_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "c3029586855a7636846ee7de5c56b0726da638c30001cbe090922cf2239d240c",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 2 hợp đồng khung. MST bên bán: 0312345678\nNội dung điều 2.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p3_rev1_line1": "Trang 3 hợp đồng khung.\nNội dung điều 3."
+      },
+      "page_in_file": null,
+      "page_number": 3,
+      "page_revision_id": "p3_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p3_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "a2225cd17be8f68e6b849cd01fb7b21a7bcb3f13fbe251a5b3a1b6539d68cad1",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 3 hợp đồng khung.\nNội dung điều 3.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p4_rev1_line1": "Trang 4 hợp đồng khung.\nNội dung điều 4."
+      },
+      "page_in_file": null,
+      "page_number": 4,
+      "page_revision_id": "p4_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p4_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "ef461ccb0e270cc67cf99916a6d9a58f0e2cca1660fac068ad3d442af6e3c6c3",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 4 hợp đồng khung.\nNội dung điều 4.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p5_rev1_line1": "Trang 5 hợp đồng khung.\nNội dung điều 5."
+      },
+      "page_in_file": null,
+      "page_number": 5,
+      "page_revision_id": "p5_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p5_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "d81e43e544ca9a4969a6dfb803f81a80c757c3fe988042432f394361c61f65e4",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 5 hợp đồng khung.\nNội dung điều 5.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p6_rev1_line1": "Trang 6 hợp đồng khung.\nNội dung điều 6."
+      },
+      "page_in_file": null,
+      "page_number": 6,
+      "page_revision_id": "p6_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p6_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "94ebaa0a00e96e80b6057450b517d3c5aafc833bf4c0a2e08119669a1b6e4d70",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 6 hợp đồng khung.\nNội dung điều 6.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p7_rev1_line1": "Trang 7 hợp đồng khung.\nNội dung điều 7."
+      },
+      "page_in_file": null,
+      "page_number": 7,
+      "page_revision_id": "p7_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p7_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "d436ecf33234b0f556f2582d2b82b805f9400d4d8c5914bab1c7a1f5ccbaff93",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 7 hợp đồng khung.\nNội dung điều 7.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p8_rev1_line1": "Trang 8 hợp đồng khung.\nNội dung điều 8."
+      },
+      "page_in_file": null,
+      "page_number": 8,
+      "page_revision_id": "p8_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p8_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "de68ba6c1c0025d504ae6935e7a167a3f854f0ed11a132776c77e875aaf87f5e",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 8 hợp đồng khung.\nNội dung điều 8.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p9_rev1_line1": "Trang 9 hợp đồng khung.\nNội dung điều 9."
+      },
+      "page_in_file": null,
+      "page_number": 9,
+      "page_revision_id": "p9_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p9_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "217a3d20fdb3e0eddbd179f80ee31b97ae356492475f74d31bc3eff9b0f914ae",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 9 hợp đồng khung.\nNội dung điều 9.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p10_rev1_line1": "Trang 10 hợp đồng khung.\nNội dung điều 10."
+      },
+      "page_in_file": null,
+      "page_number": 10,
+      "page_revision_id": "p10_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p10_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "bd8623db7d3426c4bf008ff24a4c8cafbf4b9e303fb6df4bc56bef211f07ba9c",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 10 hợp đồng khung.\nNội dung điều 10.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p11_rev1_line1": "Trang 11 hợp đồng khung.\nNội dung điều 11."
+      },
+      "page_in_file": null,
+      "page_number": 11,
+      "page_revision_id": "p11_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p11_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "efb824e261bd3b12c03aff64017f2050b27791a2907448d5b286a021dfa4e422",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 11 hợp đồng khung.\nNội dung điều 11.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p12_rev1_line1": "Trang 12 hợp đồng khung.\nNội dung điều 12."
+      },
+      "page_in_file": null,
+      "page_number": 12,
+      "page_revision_id": "p12_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p12_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "73b7e2d81d417dba649c2fd55fa73a90bbecef8c75e3bfd6e2625bd69b2e9476",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 12 hợp đồng khung.\nNội dung điều 12.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p13_rev1_line1": "Trang 13 hợp đồng khung.\nNội dung điều 13."
+      },
+      "page_in_file": null,
+      "page_number": 13,
+      "page_revision_id": "p13_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p13_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "0d1439bb3b6da45ffbf5877d26b8110502609a98820bbafab63c38b3f482fa2d",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 13 hợp đồng khung.\nNội dung điều 13.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p14_rev1_line1": "Trang 14 hợp đồng khung.\nNội dung điều 14."
+      },
+      "page_in_file": null,
+      "page_number": 14,
+      "page_revision_id": "p14_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p14_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "83d8530b62573875c61f0fcb9445b5df3c5dcbf9c5072295e3a851db23e937e8",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 14 hợp đồng khung.\nNội dung điều 14.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p15_rev1_line1": "Trang 15 hợp đồng khung.\nNội dung điều 15."
+      },
+      "page_in_file": null,
+      "page_number": 15,
+      "page_revision_id": "p15_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p15_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "c064aacd3b353e2eb6366b93e64e1364233345f18defb3122e5ce947572ba9f1",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 15 hợp đồng khung.\nNội dung điều 15.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p16_rev1_line1": "Trang 16 hợp đồng khung.\nNội dung điều 16."
+      },
+      "page_in_file": null,
+      "page_number": 16,
+      "page_revision_id": "p16_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p16_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "99abd2c44d1dfcbc34825b7805f205fad8aade8c9fcd1efc729bd21f7d2c35e8",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 16 hợp đồng khung.\nNội dung điều 16.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p17_rev1_line1": "Trang 17 hợp đồng khung.\nNội dung điều 17."
+      },
+      "page_in_file": null,
+      "page_number": 17,
+      "page_revision_id": "p17_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p17_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "bd7ef50517ab88d94c57a565170120e57748d054e09e4f3c6344e89870922caa",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 17 hợp đồng khung.\nNội dung điều 17.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p18_rev1_line1": "Trang 18 hợp đồng khung.\nNội dung điều 18."
+      },
+      "page_in_file": null,
+      "page_number": 18,
+      "page_revision_id": "p18_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p18_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "159001744079c643c18515172bb31b0fc32c1e83c51c94eda8ad5d44a07195d2",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 18 hợp đồng khung.\nNội dung điều 18.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p19_rev1_line1": "Trang 19 hợp đồng khung.\nNội dung điều 19."
+      },
+      "page_in_file": null,
+      "page_number": 19,
+      "page_revision_id": "p19_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p19_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "1dd4e8d1514191bf1cc0ab0a2b3cd676123d5b6670881872ff8a9caa7b93cc99",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 19 hợp đồng khung.\nNội dung điều 19.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p20_rev1_line1": "Trang 20 hợp đồng khung.\nNội dung điều 20."
+      },
+      "page_in_file": null,
+      "page_number": 20,
+      "page_revision_id": "p20_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p20_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "7c06af97c340e577ee89d0690d25a35c71d2d0eeb1f12bd405c717fd287bd9d2",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 20 hợp đồng khung.\nNội dung điều 20.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p21_rev1_line1": "Trang 21 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 21,
+      "page_revision_id": "p21_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p21_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "b7715745b0a57c90216d678e3bc92b032596ab6e07232231240161b795726537",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 21 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p22_rev1_line1": "Trang 22 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 22,
+      "page_revision_id": "p22_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p22_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "2f15f3b8f228a4ec972c298cca88ac108950a3d878ce6afd699fea2ee8a9b393",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 22 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p23_rev1_line1": "Trang 23 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 23,
+      "page_revision_id": "p23_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p23_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "9286bcef51a90064c6d69056f79ab543650cfd79f8f36235341b2b38fce34723",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 23 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p24_rev1_line1": "Trang 24 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 24,
+      "page_revision_id": "p24_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p24_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "e2cd0b771c1f6606afcc4a675ea5fe50e37f52bd42c07c1b05a4cf95e92f91e2",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 24 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p25_rev1_line1": "Trang 25 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 25,
+      "page_revision_id": "p25_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p25_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "16d340b14e00603f403b54043358f726b66d5e2dcbcc3cc0bdef8e8c1b56e892",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 25 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p26_rev1_line1": "Trang 26 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 26,
+      "page_revision_id": "p26_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p26_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "b293434519435b38c279dca3a3137879108b68c1e6c2323bdefabcbcba4238c1",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 26 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p27_rev1_line1": "Trang 27 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 27,
+      "page_revision_id": "p27_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p27_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "5ec5f4f9a53cffebd3bbdda1cf6261e561a843f4be33f8f4b856c4e86248f4b5",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 27 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p28_rev1_line1": "Trang 28 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 28,
+      "page_revision_id": "p28_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p28_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "d9318eed1eaf201267891348ba76fa728f1fbb5c431d8abefd55eaab9f5d603d",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 28 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p29_rev1_line1": "Trang 29 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 29,
+      "page_revision_id": "p29_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p29_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "3c8678e384829a21058a5686e20989339efeb202319d96ed5f898abcd1171c7a",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 29 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p30_rev1_line1": "Trang 30 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 30,
+      "page_revision_id": "p30_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p30_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "527b5d66e805e7d69d560ef7cf474ae484eeb3c1781f378ad49e2dc9ba7a98ab",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 30 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p31_rev1_line1": "Trang 31 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 31,
+      "page_revision_id": "p31_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p31_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "01e505d61de751d02ee48029342ee6f71d2e6c04ce016e23ffb0b4553be6b277",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 31 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p32_rev1_line1": "Trang 32 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 32,
+      "page_revision_id": "p32_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p32_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "a1113b82bd909680186fbfc9283493c4d73ce201d7de53e682675e52ce3edf2c",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 32 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p33_rev1_line1": "Trang 33 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 33,
+      "page_revision_id": "p33_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p33_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "52083ca98963de0cdb072b0fba3afc99dfb00d931995f0e8731c0511a596a83d",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 33 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p34_rev1_line1": "Trang 34 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 34,
+      "page_revision_id": "p34_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p34_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "bf920b7ca69aa9bc5fc9c28b0a8c2ce5cddcaf3de0a1da2104c4a5327b4d994d",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 34 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p35_rev1_line1": "Trang 35 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 35,
+      "page_revision_id": "p35_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p35_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "9d83089b9dd00ffecece256e19ba3656f8f88c9da03013096012fb18abb9cd02",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 35 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p36_rev1_line1": "Trang 36 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 36,
+      "page_revision_id": "p36_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p36_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "8aeff0ea6cf210ca169bc2f9e8a259b5b20502a5ed5e252ff7b47a89467897ef",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 36 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p37_rev1_line1": "Trang 37 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 37,
+      "page_revision_id": "p37_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p37_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "d886dd8022c8bc14009e4a707b20efa4e01fa4a2c702393707d0511cfe25387e",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 37 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p38_rev1_line1": "Trang 38 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 38,
+      "page_revision_id": "p38_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p38_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "b632c2901c0adf96fae3a9d4688d6e27a8e74251a7d8a73add7b7c46f0c1a7b2",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 38 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p39_rev1_line1": "Trang 39 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 39,
+      "page_revision_id": "p39_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p39_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "07e9f017c29893ed79c8c5db8b6b90623503be98b3d5a95afa28b48491ef2b85",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 39 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p40_rev1_line1": "Trang 40 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 40,
+      "page_revision_id": "p40_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p40_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "97841a56f87196f279dacabf6b87c3cebf678120173a18b14446fdc4050202a9",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 40 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p41_rev1_line1": "Trang 41 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 41,
+      "page_revision_id": "p41_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p41_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "10131f4d965a18d9eef7e25904dad57e5ddf24909a95db934a3572d0a627c897",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 41 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p42_rev1_line1": "Trang 42 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 42,
+      "page_revision_id": "p42_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p42_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "357ddd863e453cee4dcbb9388d84edb8a66869b4a8cc6fee722e1eed3a652647",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 42 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p43_rev1_line1": "Trang 43 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 43,
+      "page_revision_id": "p43_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p43_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "a74f70cca95aa426c467c883bf92b4ee1a93a1fb5e0f89cf62d40d596123ff62",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 43 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p44_rev1_line1": "Trang 44 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 44,
+      "page_revision_id": "p44_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p44_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "1daabda1c147342bb92470ebee71c2fdb6dabc497878608f05142caf7342ebd0",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 44 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p45_rev1_line1": "Trang 45 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 45,
+      "page_revision_id": "p45_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p45_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "a7482bb44c21d18c5e8a1871bef5fed64cf7f6557b81ab10d15470bcdf290783",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 45 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p46_rev1_line1": "Trang 46 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 46,
+      "page_revision_id": "p46_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p46_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "4d6e7351d465e571eec0026a7ffdfb21f416f917443e5708d07d325344b53d21",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 46 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p47_rev1_line1": "Trang 47 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 47,
+      "page_revision_id": "p47_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p47_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "185ab56d697d0e7ac109af8d15421e240373ea80e189509dbe8b281e7aa226e2",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 47 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p48_rev1_line1": "Trang 48 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 48,
+      "page_revision_id": "p48_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p48_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "16da442f15e535cdea528e582cbc6072a8e698a364fde5bf978834d3bc11c896",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 48 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p49_rev1_line1": "Trang 49 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 49,
+      "page_revision_id": "p49_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p49_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "9cda5d034ea0011ec476286043821e05a097d52bc544ab8f9f233208faca2d45",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 49 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p50_rev1_line1": "Trang 50 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 50,
+      "page_revision_id": "p50_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p50_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "ea9a149c5096bf046c16c378d95316bf4926e35f199a2931a5874be04c70d751",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 50 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p51_rev1_line1": "Trang 51 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 51,
+      "page_revision_id": "p51_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p51_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "e4259b319da1291d8800b0259fa4046596af1d4a7cef35b4af7e0f01ed93243e",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 51 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p52_rev1_line1": "Trang 52 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 52,
+      "page_revision_id": "p52_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p52_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "4adce09c29b0213f85e619aab29da30f6915615972712844d1589dba207ffb69",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 52 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p53_rev1_line1": "Trang 53 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 53,
+      "page_revision_id": "p53_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p53_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "8b7c6d901fa2839018127430f163658c463a86a9326f46a6e5b9a581097c911c",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 53 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p54_rev1_line1": "Trang 54 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 54,
+      "page_revision_id": "p54_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p54_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "0b9582f86baa4ab1e86bd9d38096df3b96a50edd78b8b30d0e8c93463614e741",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 54 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p55_rev1_line1": "Trang 55 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 55,
+      "page_revision_id": "p55_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p55_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "a1d469114f7362a3936e1cc93a9ae150ca1559a3b4ad555ebc58e53c9d0ea6b5",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 55 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p56_rev1_line1": "Trang 56 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 56,
+      "page_revision_id": "p56_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p56_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "513e00e1a3bef6396d592f1e4014dfba72a6bfbf93390a48383cf5e0ef8a9867",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 56 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p57_rev1_line1": "Trang 57 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 57,
+      "page_revision_id": "p57_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p57_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "abf4cfc97f53f072e12f0788b0cc5d6277cc0716e3f50b9b98ef6f568ec4e172",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 57 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p58_rev1_line1": "Trang 58 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 58,
+      "page_revision_id": "p58_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p58_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "a1c3306a2a188d93137a270fab9103ccb6246ead16c3b282e00a565e3420cc1d",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 58 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p59_rev1_line1": "Trang 59 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 59,
+      "page_revision_id": "p59_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p59_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "722eb0620fa5042ec240f6ff5a8dc4cd0716efd510eb32d378013d9e835a0345",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 59 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p60_rev1_line1": "Trang 60 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 60,
+      "page_revision_id": "p60_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p60_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "3c2510c6700eb8dd4cf41fdb71a056471025b64810fe92cc1e9447917fd15b03",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 60 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p61_rev1_line1": "Trang 61 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 61,
+      "page_revision_id": "p61_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p61_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "9e540fb257674b5090377a4309a08ea1b9807b3cd685bb1df3a255eb5920b736",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 61 hợp đồng khung.",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 1.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {
+       "p62_rev1_line1": "Trang 62 hợp đồng khung."
+      },
+      "page_in_file": null,
+      "page_number": 62,
+      "page_revision_id": "p62_rev1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p62_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": "f9d16bcecfa67e1aed0b600a1fc321552196d712dc30777a0261d9c1810514c2",
+      "table_coverage": "UNKNOWN",
+      "text": "Trang 62 hợp đồng khung.",
+      "width": null
+     }
+    ],
+    "permissions_by_actor": {
+     "user_001": [
+      "READ_CONTENT"
+     ]
+    },
+    "pins": {
+     "extraction_version": 7,
+     "index_version": "idx_14",
+     "manifest_version": 2,
+     "ocr_run_version": 3,
+     "policy_version": 2,
+     "reconstruction_version": 2,
+     "snapshot_digest": null,
+     "source_digest": null,
+     "source_snapshot_digest": "sha256:aaa",
+     "tenant_profile_version": 5
+    },
+    "processing_budget_exceeded": false,
+    "processing_index": false,
+    "profile": {
+     "aliases": {
+      "Công ty ABC": [
+       "ABC Co.",
+       "ABC"
+      ],
+      "Công ty XYZ": [
+       "XYZ Ltd",
+       "XYZ"
+      ]
+     },
+     "field_keys": [
+      "party_a",
+      "party_b",
+      "mst_seller",
+      "contract_value",
+      "payment_term"
+     ],
+     "version": 5
+    },
+    "relation_graph": {
+     "edges": [
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 58,
+         "char_start": 42,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p1_rev1_line1"
+         ],
+         "node_id": "cl_1",
+         "page": 1,
+         "page_range": [
+          1
+         ],
+         "page_revision_id": "p1_rev1",
+         "precision": null,
+         "quote_sha256": "6c5e326f9d9f3f51bf2a305ad543441065efb8caec5d3689a45d11aabcbec17d",
+         "source_file_id": null,
+         "source_hash": "9b77f7b249ebd4d54b098c08aeaee8ff44a2725efefb273f6d2a83efc73367b4",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 1.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:d5b616487164b62473e86388",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_1"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 64,
+         "char_start": 48,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p2_rev1_line1"
+         ],
+         "node_id": "cl_2",
+         "page": 2,
+         "page_range": [
+          2
+         ],
+         "page_revision_id": "p2_rev1",
+         "precision": null,
+         "quote_sha256": "8cf01784534cf7bdbc99a230ae7f3db47eaf67c94969a57f4ec187da36d0acfb",
+         "source_file_id": null,
+         "source_hash": "c3029586855a7636846ee7de5c56b0726da638c30001cbe090922cf2239d240c",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 2.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:5c0b53ba123267b836d13ad4",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_2"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 40,
+         "char_start": 24,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p3_rev1_line1"
+         ],
+         "node_id": "cl_3",
+         "page": 3,
+         "page_range": [
+          3
+         ],
+         "page_revision_id": "p3_rev1",
+         "precision": null,
+         "quote_sha256": "f8616db935acc87331a2b1c1e60277fb87e4f4ff04f49086d012da8dcf590c15",
+         "source_file_id": null,
+         "source_hash": "a2225cd17be8f68e6b849cd01fb7b21a7bcb3f13fbe251a5b3a1b6539d68cad1",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 3.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:115e2bd319261964114e2f22",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_3"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 40,
+         "char_start": 24,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p4_rev1_line1"
+         ],
+         "node_id": "cl_4",
+         "page": 4,
+         "page_range": [
+          4
+         ],
+         "page_revision_id": "p4_rev1",
+         "precision": null,
+         "quote_sha256": "76b05107a8861c38c7dd6c1412e851d479986c7e8e73b70df3eeb7b95988598c",
+         "source_file_id": null,
+         "source_hash": "ef461ccb0e270cc67cf99916a6d9a58f0e2cca1660fac068ad3d442af6e3c6c3",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 4.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:9eae11e2acbe8d5da81b25d1",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_4"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 40,
+         "char_start": 24,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p5_rev1_line1"
+         ],
+         "node_id": "cl_5",
+         "page": 5,
+         "page_range": [
+          5
+         ],
+         "page_revision_id": "p5_rev1",
+         "precision": null,
+         "quote_sha256": "2de0c5c543a6945c9f7e3aac6ff6c9959d0ccc25ab3d30e3d4ec39ccecce083f",
+         "source_file_id": null,
+         "source_hash": "d81e43e544ca9a4969a6dfb803f81a80c757c3fe988042432f394361c61f65e4",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 5.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:9b9e7aab3a47ab30a8ae8155",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_5"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 40,
+         "char_start": 24,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p6_rev1_line1"
+         ],
+         "node_id": "cl_6",
+         "page": 6,
+         "page_range": [
+          6
+         ],
+         "page_revision_id": "p6_rev1",
+         "precision": null,
+         "quote_sha256": "9924c55d9db035444165d1496dabb597586089a81e23998c2b4f9845c83ef5fc",
+         "source_file_id": null,
+         "source_hash": "94ebaa0a00e96e80b6057450b517d3c5aafc833bf4c0a2e08119669a1b6e4d70",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 6.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:5ebce7a8fe6c565db7b8cf03",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_6"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 40,
+         "char_start": 24,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p7_rev1_line1"
+         ],
+         "node_id": "cl_7",
+         "page": 7,
+         "page_range": [
+          7
+         ],
+         "page_revision_id": "p7_rev1",
+         "precision": null,
+         "quote_sha256": "43e15c177c6b1bebcff54ed702c2a1ccaed39cb27bfa044db240074d8a9e617b",
+         "source_file_id": null,
+         "source_hash": "d436ecf33234b0f556f2582d2b82b805f9400d4d8c5914bab1c7a1f5ccbaff93",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 7.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:334e12990b667d96c5e915c0",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_7"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 40,
+         "char_start": 24,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p8_rev1_line1"
+         ],
+         "node_id": "cl_8",
+         "page": 8,
+         "page_range": [
+          8
+         ],
+         "page_revision_id": "p8_rev1",
+         "precision": null,
+         "quote_sha256": "296de93808f93edd3ce39a0c3866aa2ab82bf2685c7b195893499b79ad73d37b",
+         "source_file_id": null,
+         "source_hash": "de68ba6c1c0025d504ae6935e7a167a3f854f0ed11a132776c77e875aaf87f5e",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 8.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:fe20cd16ab8cfa95cf8f9eb7",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_8"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 40,
+         "char_start": 24,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p9_rev1_line1"
+         ],
+         "node_id": "cl_9",
+         "page": 9,
+         "page_range": [
+          9
+         ],
+         "page_revision_id": "p9_rev1",
+         "precision": null,
+         "quote_sha256": "4429bd38380660f4a064108eabb6bde84507cf068fb39d06185cff4c2502e8b4",
+         "source_file_id": null,
+         "source_hash": "217a3d20fdb3e0eddbd179f80ee31b97ae356492475f74d31bc3eff9b0f914ae",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 9.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:6e229baeeaf5e7b2a464b5bd",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_9"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 42,
+         "char_start": 25,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p10_rev1_line1"
+         ],
+         "node_id": "cl_10",
+         "page": 10,
+         "page_range": [
+          10
+         ],
+         "page_revision_id": "p10_rev1",
+         "precision": null,
+         "quote_sha256": "ac9d41de633d408b51c1f577a240fc7695cb67439c63264c47257c7c4d891bf0",
+         "source_file_id": null,
+         "source_hash": "bd8623db7d3426c4bf008ff24a4c8cafbf4b9e303fb6df4bc56bef211f07ba9c",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 10.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:61cad6093026c1d68fa0bc4e",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_10"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 42,
+         "char_start": 25,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p11_rev1_line1"
+         ],
+         "node_id": "cl_11",
+         "page": 11,
+         "page_range": [
+          11
+         ],
+         "page_revision_id": "p11_rev1",
+         "precision": null,
+         "quote_sha256": "1730a734292b6d8e924958da906d01a86ac71adc000e285229160fbae3f3cc9c",
+         "source_file_id": null,
+         "source_hash": "efb824e261bd3b12c03aff64017f2050b27791a2907448d5b286a021dfa4e422",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 11.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:aca56ae4344427ec3121714f",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_11"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 42,
+         "char_start": 25,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p12_rev1_line1"
+         ],
+         "node_id": "cl_12",
+         "page": 12,
+         "page_range": [
+          12
+         ],
+         "page_revision_id": "p12_rev1",
+         "precision": null,
+         "quote_sha256": "5fba8d7ca6333d799bd20d48a7055adead4aa8e178d8c5a11fe2438c4d26b6b5",
+         "source_file_id": null,
+         "source_hash": "73b7e2d81d417dba649c2fd55fa73a90bbecef8c75e3bfd6e2625bd69b2e9476",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 12.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:012916e1698a95429c5cae9d",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_12"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 42,
+         "char_start": 25,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p13_rev1_line1"
+         ],
+         "node_id": "cl_13",
+         "page": 13,
+         "page_range": [
+          13
+         ],
+         "page_revision_id": "p13_rev1",
+         "precision": null,
+         "quote_sha256": "26f446b2b65a7f6e04d2f9e18790951f2727cf2e3e5a2424fa704e1c858654c3",
+         "source_file_id": null,
+         "source_hash": "0d1439bb3b6da45ffbf5877d26b8110502609a98820bbafab63c38b3f482fa2d",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 13.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:38eb04dcd971f3a947703992",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_13"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 42,
+         "char_start": 25,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p14_rev1_line1"
+         ],
+         "node_id": "cl_14",
+         "page": 14,
+         "page_range": [
+          14
+         ],
+         "page_revision_id": "p14_rev1",
+         "precision": null,
+         "quote_sha256": "dcfa2483785fd4c0630546473404a2237fbd4cc19fc15a14fa0f4142049d8551",
+         "source_file_id": null,
+         "source_hash": "83d8530b62573875c61f0fcb9445b5df3c5dcbf9c5072295e3a851db23e937e8",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 14.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:742d2d7ac0f859c4d72fd5e9",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_14"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 42,
+         "char_start": 25,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p15_rev1_line1"
+         ],
+         "node_id": "cl_15",
+         "page": 15,
+         "page_range": [
+          15
+         ],
+         "page_revision_id": "p15_rev1",
+         "precision": null,
+         "quote_sha256": "7c3034d697badf50a2fa5c314e8ff081184028387d81d05fc84092cf03cd3b46",
+         "source_file_id": null,
+         "source_hash": "c064aacd3b353e2eb6366b93e64e1364233345f18defb3122e5ce947572ba9f1",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 15.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:3d3e19f8cfb48cdc7707d366",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_15"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 42,
+         "char_start": 25,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p16_rev1_line1"
+         ],
+         "node_id": "cl_16",
+         "page": 16,
+         "page_range": [
+          16
+         ],
+         "page_revision_id": "p16_rev1",
+         "precision": null,
+         "quote_sha256": "d0d04e042f6e93e71f96d3a8a5295f8b8ea7af83f896e2fdadaacd63b7084561",
+         "source_file_id": null,
+         "source_hash": "99abd2c44d1dfcbc34825b7805f205fad8aade8c9fcd1efc729bd21f7d2c35e8",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 16.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:5c2aca84e2fd76e5276b0a07",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_16"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 42,
+         "char_start": 25,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p17_rev1_line1"
+         ],
+         "node_id": "cl_17",
+         "page": 17,
+         "page_range": [
+          17
+         ],
+         "page_revision_id": "p17_rev1",
+         "precision": null,
+         "quote_sha256": "2300f7ec163aac768a02a44fd6d1900c0d08624fad76ff489853610850df9905",
+         "source_file_id": null,
+         "source_hash": "bd7ef50517ab88d94c57a565170120e57748d054e09e4f3c6344e89870922caa",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 17.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:97939eb5e2c503767e1cb8e0",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_17"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 42,
+         "char_start": 25,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p18_rev1_line1"
+         ],
+         "node_id": "cl_18",
+         "page": 18,
+         "page_range": [
+          18
+         ],
+         "page_revision_id": "p18_rev1",
+         "precision": null,
+         "quote_sha256": "7adc8d571287c5704422de881f51d4542d59049c3a50901f40ba90297940b053",
+         "source_file_id": null,
+         "source_hash": "159001744079c643c18515172bb31b0fc32c1e83c51c94eda8ad5d44a07195d2",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 18.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:cdb511dda15830e42bcd03da",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_18"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 42,
+         "char_start": 25,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p19_rev1_line1"
+         ],
+         "node_id": "cl_19",
+         "page": 19,
+         "page_range": [
+          19
+         ],
+         "page_revision_id": "p19_rev1",
+         "precision": null,
+         "quote_sha256": "40632471be6def13fa1592060671fdebac30413998d8ba1c505ece713386b2ea",
+         "source_file_id": null,
+         "source_hash": "1dd4e8d1514191bf1cc0ab0a2b3cd676123d5b6670881872ff8a9caa7b93cc99",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 19.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:305690dcc5d5b9cfadfc2825",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_19"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 42,
+         "char_start": 25,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": false,
+         "geometry_source": null,
+         "line_ids": [
+          "p20_rev1_line1"
+         ],
+         "node_id": "cl_20",
+         "page": 20,
+         "page_range": [
+          20
+         ],
+         "page_revision_id": "p20_rev1",
+         "precision": null,
+         "quote_sha256": "3bdf4edb8adaaf7d28c40af581f62b06a230e1b355c4af5a2a0af08ffa5e36ae",
+         "source_file_id": null,
+         "source_hash": "7c06af97c340e577ee89d0690d25a35c71d2d0eeb1f12bd405c717fd287bd9d2",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Nội dung điều 20.",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:cb4f3d0641fb33b7e7a0f8e0",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "cl_20"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [
+          0.1,
+          0.2,
+          0.8,
+          0.28
+         ],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 47,
+         "char_start": 24,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": true,
+         "geometry_source": null,
+         "line_ids": [
+          "p2_rev1_line1"
+         ],
+         "node_id": "node_p2_parties",
+         "page": 2,
+         "page_range": [
+          2
+         ],
+         "page_revision_id": "p2_rev1",
+         "precision": null,
+         "quote_sha256": "4d95488106da69d1533e43c9debdeceedd62d8776095597fb8a6561cb173f009",
+         "source_file_id": null,
+         "source_hash": "c3029586855a7636846ee7de5c56b0726da638c30001cbe090922cf2239d240c",
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "MST bên bán: 0312345678",
+         "validation_status": "VALID"
+        }
+       ],
+       "edge_id": "edge:c0a3f84a8a1c1271bfc965fa",
+       "from_node_id": "root",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "node_p2_parties"
+      }
+     ],
+     "graph_id": "graph:4f855fa620e08360851d8ac4",
+     "issues": [],
+     "nodes": [
+      {
+       "node_id": "root",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        1
+       ],
+       "page_revision_id": "p1_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_1",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        1
+       ],
+       "page_revision_id": "p1_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_2",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        2
+       ],
+       "page_revision_id": "p2_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_3",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        3
+       ],
+       "page_revision_id": "p3_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_4",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        4
+       ],
+       "page_revision_id": "p4_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_5",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        5
+       ],
+       "page_revision_id": "p5_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_6",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        6
+       ],
+       "page_revision_id": "p6_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_7",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        7
+       ],
+       "page_revision_id": "p7_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_8",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        8
+       ],
+       "page_revision_id": "p8_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_9",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        9
+       ],
+       "page_revision_id": "p9_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_10",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        10
+       ],
+       "page_revision_id": "p10_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_11",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        11
+       ],
+       "page_revision_id": "p11_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_12",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        12
+       ],
+       "page_revision_id": "p12_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_13",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        13
+       ],
+       "page_revision_id": "p13_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_14",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        14
+       ],
+       "page_revision_id": "p14_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_15",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        15
+       ],
+       "page_revision_id": "p15_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_16",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        16
+       ],
+       "page_revision_id": "p16_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_17",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        17
+       ],
+       "page_revision_id": "p17_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_18",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        18
+       ],
+       "page_revision_id": "p18_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_19",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        19
+       ],
+       "page_revision_id": "p19_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "cl_20",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        20
+       ],
+       "page_revision_id": "p20_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "node_p2_parties",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        2
+       ],
+       "page_revision_id": "p2_rev1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      }
+     ],
+     "source_snapshot_digest": "sha256:aaa"
+    },
+    "review_items": [],
+    "source_files": [],
+    "tables": [],
+    "tenant_id": "tenant_a"
+   },
+   "wire": null
+  },
+  "fixtures.mock_record": {
+   "job_result": {
+    "contribution": {
+     "candidates": [],
+     "chunks": [
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Điều 1"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        1
+       ],
+       "parent_node_id": "sec_1",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Điều 1. Bên tham gia"
+      },
+      {
+       "bbox_fragments": [
+        [
+         10.0,
+         70.0,
+         400.0,
+         110.0
+        ]
+       ],
+       "breadcrumb": [
+        "Điều 1",
+        "Điều 5.3"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        1
+       ],
+       "parent_node_id": "clause_5_3",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Điều 5.3. Bên A thanh toán trong 15 ngày kể từ ngày nghiệm thu."
+      },
+      {
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "(unnumbered)"
+       ],
+       "chunk_id": "chk_00000000",
+       "continuation": false,
+       "index_version": null,
+       "page_range": [
+        1
+       ],
+       "parent_node_id": "unnum_1",
+       "review_state": "PASS",
+       "source_block_ids": [],
+       "text_span": "Phụ lục không đánh số: điều khoản bảo mật."
+      }
+     ],
+     "contract_context": {
+      "context_id": "context:2b47d752d9592e1a80b655e2",
+      "findings": [],
+      "parts": [
+       {
+        "annex_number": null,
+        "citation": null,
+        "confidence": 1.0,
+        "kind": "BODY",
+        "label": "Thân hợp đồng",
+        "node_ids": [
+         "field_party",
+         "sec_1",
+         "field_value",
+         "clause_5_3",
+         "unnum_1",
+         "tbl_node"
+        ],
+        "page_range": [
+         1
+        ],
+        "part_id": "body"
+       }
+      ],
+      "scope": "SINGLE_DOCUMENT",
+      "source_file_ids": []
+     },
+     "coverage": {
+      "annex_labels": [],
+      "n_candidate_findings": 0,
+      "n_candidates_suppressed": 0,
+      "n_context_findings": 0,
+      "n_events": 0,
+      "n_evidence_issues": 4,
+      "n_facts": 6,
+      "n_findings": 0,
+      "n_units": 1,
+      "runtime": {
+       "egress_allowed": true,
+       "embedding_tokens_used": 0,
+       "fallback_count": 0,
+       "llm_calls_used": 0,
+       "max_embedding_tokens": 0,
+       "max_llm_calls": 0,
+       "max_processing_seconds": 300,
+       "use_vector": false
+      },
+      "unit_ids": [
+       "unit:9f0c93dd04ff3cc97b69"
+      ]
+     },
+     "events": [],
+     "evidence_issues": [
+      {
+       "citation": {
+        "bbox": [
+         10.0,
+         10.0,
+         200.0,
+         30.0
+        ],
+        "bbox_fragments": [],
+        "breadcrumb": [
+         "Điều 1",
+         "Bên A"
+        ],
+        "cell_id": null,
+        "char_end": 18,
+        "char_start": 0,
+        "citation_id": null,
+        "coordinate_system": null,
+        "geometry_available": true,
+        "geometry_source": null,
+        "line_ids": [],
+        "node_id": "field_party",
+        "page": 1,
+        "page_range": [
+         1
+        ],
+        "page_revision_id": "page_1_rev_1",
+        "precision": null,
+        "quote_sha256": "048933b1da929048bbd972daed239873a497b5429b2d10f8c744effc1061c5d6",
+        "source_file_id": null,
+        "source_hash": null,
+        "structure_path": "Điều 1 › Bên A",
+        "table_id": null,
+        "text_span": "Bên A: Công ty ABC",
+        "validation_status": "INVALID"
+       },
+       "issue_id": "citation:field_party:INVALID",
+       "missing": "CITATION_VERIFICATION",
+       "reason": "fact:fact_b6e17197da86859a06834454: citation bbox is invalid",
+       "review_state": "NEEDS_REVIEW"
+      },
+      {
+       "citation": {
+        "bbox": [
+         10.0,
+         40.0,
+         300.0,
+         60.0
+        ],
+        "bbox_fragments": [],
+        "breadcrumb": [
+         "Điều 1",
+         "Giá trị"
+        ],
+        "cell_id": null,
+        "char_end": 55,
+        "char_start": 20,
+        "citation_id": null,
+        "coordinate_system": null,
+        "geometry_available": true,
+        "geometry_source": null,
+        "line_ids": [],
+        "node_id": "field_value",
+        "page": 1,
+        "page_range": [
+         1
+        ],
+        "page_revision_id": "page_1_rev_1",
+        "precision": null,
+        "quote_sha256": "78f88713e173602187c56da2a44818c6ae71ab470e1f5556a63b76fb504fe600",
+        "source_file_id": null,
+        "source_hash": null,
+        "structure_path": "Điều 1 › Giá trị",
+        "table_id": null,
+        "text_span": "Giá trị hợp đồng: 1.000.000.000 VND",
+        "validation_status": "INVALID"
+       },
+       "issue_id": "citation:field_value:INVALID",
+       "missing": "CITATION_VERIFICATION",
+       "reason": "fact:fact_43720b2585e6bfbbcf0c8d1f: citation bbox is invalid",
+       "review_state": "NEEDS_REVIEW"
+      },
+      {
+       "citation": {
+        "bbox": [
+         0.0,
+         0.0,
+         1.0,
+         1.0
+        ],
+        "bbox_fragments": [],
+        "breadcrumb": [],
+        "cell_id": null,
+        "char_end": null,
+        "char_start": null,
+        "citation_id": null,
+        "coordinate_system": null,
+        "geometry_available": false,
+        "geometry_source": null,
+        "line_ids": [],
+        "node_id": "tbl_node",
+        "page": null,
+        "page_range": [],
+        "page_revision_id": "page_1_rev_1",
+        "precision": null,
+        "quote_sha256": null,
+        "source_file_id": null,
+        "source_hash": null,
+        "structure_path": null,
+        "table_id": null,
+        "text_span": "100",
+        "validation_status": "UNVERIFIED"
+       },
+       "issue_id": "citation:tbl_node:UNVERIFIED",
+       "missing": "CITATION_VERIFICATION",
+       "reason": "fact:tbl_f25c2a4a6485ce2fc3802e5d: source hash is missing",
+       "review_state": "NEEDS_REVIEW"
+      },
+      {
+       "citation": {
+        "bbox": [],
+        "bbox_fragments": [],
+        "breadcrumb": [],
+        "cell_id": null,
+        "char_end": null,
+        "char_start": null,
+        "citation_id": null,
+        "coordinate_system": null,
+        "geometry_available": false,
+        "geometry_source": null,
+        "line_ids": [],
+        "node_id": "table_1",
+        "page": null,
+        "page_range": [],
+        "page_revision_id": "",
+        "precision": null,
+        "quote_sha256": null,
+        "source_file_id": null,
+        "source_hash": null,
+        "structure_path": null,
+        "table_id": null,
+        "text_span": "200",
+        "validation_status": "INVALID"
+       },
+       "issue_id": "citation:table_1:INVALID",
+       "missing": "CITATION_VERIFICATION",
+       "reason": "fact:tbl_ee3a1009c5927389716cd064: page_revision_id/source scope did not resolve",
+       "review_state": "NEEDS_REVIEW"
+      }
+     ],
+     "extraction_version": 7,
+     "facts": [
+      {
+       "citation": {
+        "bbox": [
+         10.0,
+         10.0,
+         200.0,
+         30.0
+        ],
+        "bbox_fragments": [],
+        "breadcrumb": [
+         "Điều 1",
+         "Bên A"
+        ],
+        "cell_id": null,
+        "char_end": 18,
+        "char_start": 0,
+        "citation_id": null,
+        "coordinate_system": null,
+        "geometry_available": true,
+        "geometry_source": null,
+        "line_ids": [],
+        "node_id": "field_party",
+        "page": 1,
+        "page_range": [
+         1
+        ],
+        "page_revision_id": "page_1_rev_1",
+        "precision": null,
+        "quote_sha256": "048933b1da929048bbd972daed239873a497b5429b2d10f8c744effc1061c5d6",
+        "source_file_id": null,
+        "source_hash": null,
+        "structure_path": "Điều 1 › Bên A",
+        "table_id": null,
+        "text_span": "Bên A: Công ty ABC",
+        "validation_status": "INVALID"
+       },
+       "condition": null,
+       "currency": null,
+       "fact_id": "fact_b6e17197da86859a06834454",
+       "item_key": "party_a",
+       "normalized_value": "Công ty ABC",
+       "period_start": null,
+       "provenance": "L0",
+       "raw_value": "Công ty ABC",
+       "review_state": "NEEDS_REVIEW",
+       "role": null,
+       "scope": "party_a",
+       "source_role": "body",
+       "subject": "Điều 1",
+       "tax_basis": null,
+       "unit": null,
+       "validity": null,
+       "vat_basis": null
+      },
+      {
+       "citation": {
+        "bbox": [
+         10.0,
+         40.0,
+         300.0,
+         60.0
+        ],
+        "bbox_fragments": [],
+        "breadcrumb": [
+         "Điều 1",
+         "Giá trị"
+        ],
+        "cell_id": null,
+        "char_end": 55,
+        "char_start": 20,
+        "citation_id": null,
+        "coordinate_system": null,
+        "geometry_available": true,
+        "geometry_source": null,
+        "line_ids": [],
+        "node_id": "field_value",
+        "page": 1,
+        "page_range": [
+         1
+        ],
+        "page_revision_id": "page_1_rev_1",
+        "precision": null,
+        "quote_sha256": "78f88713e173602187c56da2a44818c6ae71ab470e1f5556a63b76fb504fe600",
+        "source_file_id": null,
+        "source_hash": null,
+        "structure_path": "Điều 1 › Giá trị",
+        "table_id": null,
+        "text_span": "Giá trị hợp đồng: 1.000.000.000 VND",
+        "validation_status": "INVALID"
+       },
+       "condition": null,
+       "currency": "VND",
+       "fact_id": "fact_43720b2585e6bfbbcf0c8d1f",
+       "item_key": "contract_value",
+       "normalized_value": "1000000000",
+       "period_start": null,
+       "provenance": "L0",
+       "raw_value": "1.000.000.000 VND",
+       "review_state": "NEEDS_REVIEW",
+       "role": null,
+       "scope": "contract_value",
+       "source_role": "body",
+       "subject": "Điều 1",
+       "tax_basis": null,
+       "unit": "VND",
+       "validity": null,
+       "vat_basis": null
+      },
+      {
+       "citation": {
+        "bbox": [
+         0.0,
+         0.0,
+         1.0,
+         1.0
+        ],
+        "bbox_fragments": [],
+        "breadcrumb": [],
+        "cell_id": null,
+        "char_end": null,
+        "char_start": null,
+        "citation_id": null,
+        "coordinate_system": null,
+        "geometry_available": false,
+        "geometry_source": null,
+        "line_ids": [],
+        "node_id": "tbl_node",
+        "page": null,
+        "page_range": [],
+        "page_revision_id": "page_1_rev_1",
+        "precision": null,
+        "quote_sha256": null,
+        "source_file_id": null,
+        "source_hash": null,
+        "structure_path": null,
+        "table_id": null,
+        "text_span": "100",
+        "validation_status": "UNVERIFIED"
+       },
+       "condition": null,
+       "currency": null,
+       "fact_id": "tbl_f25c2a4a6485ce2fc3802e5d",
+       "item_key": null,
+       "normalized_value": "100",
+       "period_start": null,
+       "provenance": "L0",
+       "raw_value": "100",
+       "review_state": "NEEDS_REVIEW",
+       "role": "line_amount",
+       "scope": null,
+       "source_role": null,
+       "subject": "Q1",
+       "tax_basis": null,
+       "unit": null,
+       "validity": null,
+       "vat_basis": null
+      },
+      {
+       "citation": {
+        "bbox": [],
+        "bbox_fragments": [],
+        "breadcrumb": [],
+        "cell_id": null,
+        "char_end": null,
+        "char_start": null,
+        "citation_id": null,
+        "coordinate_system": null,
+        "geometry_available": false,
+        "geometry_source": null,
+        "line_ids": [],
+        "node_id": "table_1",
+        "page": null,
+        "page_range": [],
+        "page_revision_id": "",
+        "precision": null,
+        "quote_sha256": null,
+        "source_file_id": null,
+        "source_hash": null,
+        "structure_path": null,
+        "table_id": null,
+        "text_span": "200",
+        "validation_status": "INVALID"
+       },
+       "condition": null,
+       "currency": null,
+       "fact_id": "tbl_ee3a1009c5927389716cd064",
+       "item_key": null,
+       "normalized_value": "200",
+       "period_start": null,
+       "provenance": "L0",
+       "raw_value": "200",
+       "review_state": "NEEDS_REVIEW",
+       "role": "line_amount",
+       "scope": null,
+       "source_role": null,
+       "subject": "Q2",
+       "tax_basis": null,
+       "unit": null,
+       "validity": null,
+       "vat_basis": null
+      },
+      {
+       "citation": {
+        "bbox": [],
+        "bbox_fragments": [],
+        "breadcrumb": [],
+        "cell_id": null,
+        "char_end": null,
+        "char_start": null,
+        "citation_id": null,
+        "coordinate_system": null,
+        "geometry_available": false,
+        "geometry_source": null,
+        "line_ids": [],
+        "node_id": "table_1",
+        "page": null,
+        "page_range": [],
+        "page_revision_id": "",
+        "precision": null,
+        "quote_sha256": null,
+        "source_file_id": null,
+        "source_hash": null,
+        "structure_path": null,
+        "table_id": null,
+        "text_span": "",
+        "validation_status": "INVALID"
+       },
+       "condition": null,
+       "currency": null,
+       "fact_id": "tbl_bcdd94f8cb20784043f8b479",
+       "item_key": null,
+       "normalized_value": null,
+       "period_start": null,
+       "provenance": "L0",
+       "raw_value": "MISSING",
+       "review_state": "NEEDS_REVIEW",
+       "role": "line_amount",
+       "scope": null,
+       "source_role": null,
+       "subject": "Q3",
+       "tax_basis": null,
+       "unit": null,
+       "validity": null,
+       "vat_basis": null
+      },
+      {
+       "citation": {
+        "bbox": [],
+        "bbox_fragments": [],
+        "breadcrumb": [],
+        "cell_id": null,
+        "char_end": null,
+        "char_start": null,
+        "citation_id": null,
+        "coordinate_system": null,
+        "geometry_available": false,
+        "geometry_source": null,
+        "line_ids": [],
+        "node_id": "table_1",
+        "page": null,
+        "page_range": [],
+        "page_revision_id": "",
+        "precision": null,
+        "quote_sha256": null,
+        "source_file_id": null,
+        "source_hash": null,
+        "structure_path": null,
+        "table_id": null,
+        "text_span": "50",
+        "validation_status": "INVALID"
+       },
+       "condition": null,
+       "currency": null,
+       "fact_id": "tbl_930b09ba4b7b1767e3549604",
+       "item_key": null,
+       "normalized_value": "50",
+       "period_start": null,
+       "provenance": "L0",
+       "raw_value": "50",
+       "review_state": "NEEDS_REVIEW",
+       "role": "line_amount",
+       "scope": null,
+       "source_role": null,
+       "subject": "Q4",
+       "tax_basis": null,
+       "unit": null,
+       "validity": null,
+       "vat_basis": null
+      }
+     ],
+     "proposed_index_version": "idx_7",
+     "publish": "propose"
+    },
+    "error": null,
+    "handoff_issues": [],
+    "job_id": "job_golden",
+    "query_answer": null,
+    "review_state": "NEEDS_REVIEW",
+    "status": "SUCCEEDED"
+   },
+   "record": {
+    "acl_revision": 12,
+    "active_index_version": null,
+    "active_nodes": null,
+    "budget_exceeded": false,
+    "case_id": "DEFAULT",
+    "chunks": [
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "Điều 1"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       1
+      ],
+      "parent_node_id": "sec_1",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Điều 1. Bên tham gia"
+     },
+     {
+      "bbox_fragments": [
+       [
+        10.0,
+        70.0,
+        400.0,
+        110.0
+       ]
+      ],
+      "breadcrumb": [
+       "Điều 1",
+       "Điều 5.3"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       1
+      ],
+      "parent_node_id": "clause_5_3",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Điều 5.3. Bên A thanh toán trong 15 ngày kể từ ngày nghiệm thu."
+     },
+     {
+      "bbox_fragments": [],
+      "breadcrumb": [
+       "(unnumbered)"
+      ],
+      "chunk_id": "chk_00000000",
+      "continuation": false,
+      "index_version": null,
+      "page_range": [
+       1
+      ],
+      "parent_node_id": "unnum_1",
+      "review_state": "PASS",
+      "source_block_ids": [],
+      "text_span": "Phụ lục không đánh số: điều khoản bảo mật."
+     }
+    ],
+    "citation_index": {},
+    "dossier_id": "dossier_001",
+    "egress_approved": true,
+    "embedding_budget_exceeded": false,
+    "events": [],
+    "facts": [
+     {
+      "citation": {
+       "bbox": [
+        10.0,
+        10.0,
+        200.0,
+        30.0
+       ],
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Điều 1",
+        "Bên A"
+       ],
+       "cell_id": null,
+       "char_end": 18,
+       "char_start": 0,
+       "citation_id": null,
+       "coordinate_system": null,
+       "geometry_available": true,
+       "geometry_source": null,
+       "line_ids": [],
+       "node_id": "field_party",
+       "page": 1,
+       "page_range": [
+        1
+       ],
+       "page_revision_id": "page_1_rev_1",
+       "precision": null,
+       "quote_sha256": "048933b1da929048bbd972daed239873a497b5429b2d10f8c744effc1061c5d6",
+       "source_file_id": null,
+       "source_hash": null,
+       "structure_path": "Điều 1 › Bên A",
+       "table_id": null,
+       "text_span": "Bên A: Công ty ABC",
+       "validation_status": "INVALID"
+      },
+      "condition": null,
+      "currency": null,
+      "fact_id": "fact_b6e17197da86859a06834454",
+      "item_key": "party_a",
+      "normalized_value": "Công ty ABC",
+      "period_start": null,
+      "provenance": "L0",
+      "raw_value": "Công ty ABC",
+      "review_state": "NEEDS_REVIEW",
+      "role": null,
+      "scope": "party_a",
+      "source_role": "body",
+      "subject": "Điều 1",
+      "tax_basis": null,
+      "unit": null,
+      "validity": null,
+      "vat_basis": null
+     },
+     {
+      "citation": {
+       "bbox": [
+        10.0,
+        40.0,
+        300.0,
+        60.0
+       ],
+       "bbox_fragments": [],
+       "breadcrumb": [
+        "Điều 1",
+        "Giá trị"
+       ],
+       "cell_id": null,
+       "char_end": 55,
+       "char_start": 20,
+       "citation_id": null,
+       "coordinate_system": null,
+       "geometry_available": true,
+       "geometry_source": null,
+       "line_ids": [],
+       "node_id": "field_value",
+       "page": 1,
+       "page_range": [
+        1
+       ],
+       "page_revision_id": "page_1_rev_1",
+       "precision": null,
+       "quote_sha256": "78f88713e173602187c56da2a44818c6ae71ab470e1f5556a63b76fb504fe600",
+       "source_file_id": null,
+       "source_hash": null,
+       "structure_path": "Điều 1 › Giá trị",
+       "table_id": null,
+       "text_span": "Giá trị hợp đồng: 1.000.000.000 VND",
+       "validation_status": "INVALID"
+      },
+      "condition": null,
+      "currency": "VND",
+      "fact_id": "fact_43720b2585e6bfbbcf0c8d1f",
+      "item_key": "contract_value",
+      "normalized_value": "1000000000",
+      "period_start": null,
+      "provenance": "L0",
+      "raw_value": "1.000.000.000 VND",
+      "review_state": "NEEDS_REVIEW",
+      "role": null,
+      "scope": "contract_value",
+      "source_role": "body",
+      "subject": "Điều 1",
+      "tax_basis": null,
+      "unit": "VND",
+      "validity": null,
+      "vat_basis": null
+     },
+     {
+      "citation": {
+       "bbox": [
+        0.0,
+        0.0,
+        1.0,
+        1.0
+       ],
+       "bbox_fragments": [],
+       "breadcrumb": [],
+       "cell_id": null,
+       "char_end": null,
+       "char_start": null,
+       "citation_id": null,
+       "coordinate_system": null,
+       "geometry_available": false,
+       "geometry_source": null,
+       "line_ids": [],
+       "node_id": "tbl_node",
+       "page": null,
+       "page_range": [],
+       "page_revision_id": "page_1_rev_1",
+       "precision": null,
+       "quote_sha256": null,
+       "source_file_id": null,
+       "source_hash": null,
+       "structure_path": null,
+       "table_id": null,
+       "text_span": "100",
+       "validation_status": "UNVERIFIED"
+      },
+      "condition": null,
+      "currency": null,
+      "fact_id": "tbl_f25c2a4a6485ce2fc3802e5d",
+      "item_key": null,
+      "normalized_value": "100",
+      "period_start": null,
+      "provenance": "L0",
+      "raw_value": "100",
+      "review_state": "NEEDS_REVIEW",
+      "role": "line_amount",
+      "scope": null,
+      "source_role": null,
+      "subject": "Q1",
+      "tax_basis": null,
+      "unit": null,
+      "validity": null,
+      "vat_basis": null
+     },
+     {
+      "citation": {
+       "bbox": [],
+       "bbox_fragments": [],
+       "breadcrumb": [],
+       "cell_id": null,
+       "char_end": null,
+       "char_start": null,
+       "citation_id": null,
+       "coordinate_system": null,
+       "geometry_available": false,
+       "geometry_source": null,
+       "line_ids": [],
+       "node_id": "table_1",
+       "page": null,
+       "page_range": [],
+       "page_revision_id": "",
+       "precision": null,
+       "quote_sha256": null,
+       "source_file_id": null,
+       "source_hash": null,
+       "structure_path": null,
+       "table_id": null,
+       "text_span": "200",
+       "validation_status": "INVALID"
+      },
+      "condition": null,
+      "currency": null,
+      "fact_id": "tbl_ee3a1009c5927389716cd064",
+      "item_key": null,
+      "normalized_value": "200",
+      "period_start": null,
+      "provenance": "L0",
+      "raw_value": "200",
+      "review_state": "NEEDS_REVIEW",
+      "role": "line_amount",
+      "scope": null,
+      "source_role": null,
+      "subject": "Q2",
+      "tax_basis": null,
+      "unit": null,
+      "validity": null,
+      "vat_basis": null
+     },
+     {
+      "citation": {
+       "bbox": [],
+       "bbox_fragments": [],
+       "breadcrumb": [],
+       "cell_id": null,
+       "char_end": null,
+       "char_start": null,
+       "citation_id": null,
+       "coordinate_system": null,
+       "geometry_available": false,
+       "geometry_source": null,
+       "line_ids": [],
+       "node_id": "table_1",
+       "page": null,
+       "page_range": [],
+       "page_revision_id": "",
+       "precision": null,
+       "quote_sha256": null,
+       "source_file_id": null,
+       "source_hash": null,
+       "structure_path": null,
+       "table_id": null,
+       "text_span": "",
+       "validation_status": "INVALID"
+      },
+      "condition": null,
+      "currency": null,
+      "fact_id": "tbl_bcdd94f8cb20784043f8b479",
+      "item_key": null,
+      "normalized_value": null,
+      "period_start": null,
+      "provenance": "L0",
+      "raw_value": "MISSING",
+      "review_state": "NEEDS_REVIEW",
+      "role": "line_amount",
+      "scope": null,
+      "source_role": null,
+      "subject": "Q3",
+      "tax_basis": null,
+      "unit": null,
+      "validity": null,
+      "vat_basis": null
+     },
+     {
+      "citation": {
+       "bbox": [],
+       "bbox_fragments": [],
+       "breadcrumb": [],
+       "cell_id": null,
+       "char_end": null,
+       "char_start": null,
+       "citation_id": null,
+       "coordinate_system": null,
+       "geometry_available": false,
+       "geometry_source": null,
+       "line_ids": [],
+       "node_id": "table_1",
+       "page": null,
+       "page_range": [],
+       "page_revision_id": "",
+       "precision": null,
+       "quote_sha256": null,
+       "source_file_id": null,
+       "source_hash": null,
+       "structure_path": null,
+       "table_id": null,
+       "text_span": "50",
+       "validation_status": "INVALID"
+      },
+      "condition": null,
+      "currency": null,
+      "fact_id": "tbl_930b09ba4b7b1767e3549604",
+      "item_key": null,
+      "normalized_value": "50",
+      "period_start": null,
+      "provenance": "L0",
+      "raw_value": "50",
+      "review_state": "NEEDS_REVIEW",
+      "role": "line_amount",
+      "scope": null,
+      "source_role": null,
+      "subject": "Q4",
+      "tax_basis": null,
+      "unit": null,
+      "validity": null,
+      "vat_basis": null
+     }
+    ],
+    "handoff_issues": [],
+    "index_status": "READY",
+    "input_facts": [],
+    "legal_hold": false,
+    "lifecycle": "ACTIVE",
+    "nodes": [
+     {
+      "bbox": [],
+      "has_children": true,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "sec_1",
+      "order": 1,
+      "page_in_file": null,
+      "page_range": [
+       1
+      ],
+      "page_revision_id": "page_1_rev_1",
+      "parent_confidence": null,
+      "parent_id": null,
+      "provenance": "AI1",
+      "raw_label": "Điều 1",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Điều 1. Bên tham gia",
+      "type": "SECTION"
+     },
+     {
+      "bbox": [
+       10.0,
+       10.0,
+       200.0,
+       30.0
+      ],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "field_party",
+      "order": 1,
+      "page_in_file": null,
+      "page_range": [
+       1
+      ],
+      "page_revision_id": "page_1_rev_1",
+      "parent_confidence": null,
+      "parent_id": "sec_1",
+      "provenance": "AI1",
+      "raw_label": "Bên A",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": "party_a",
+      "structured_value": "Công ty ABC",
+      "text": "Bên A: Công ty ABC",
+      "type": "FIELD"
+     },
+     {
+      "bbox": [
+       10.0,
+       40.0,
+       300.0,
+       60.0
+      ],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "field_value",
+      "order": 2,
+      "page_in_file": null,
+      "page_range": [
+       1
+      ],
+      "page_revision_id": "page_1_rev_1",
+      "parent_confidence": null,
+      "parent_id": "sec_1",
+      "provenance": "AI1",
+      "raw_label": "Giá trị",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": "contract_value",
+      "structured_value": "1.000.000.000 VND",
+      "text": "Giá trị hợp đồng: 1.000.000.000 VND",
+      "type": "FIELD"
+     },
+     {
+      "bbox": [
+       10.0,
+       70.0,
+       400.0,
+       110.0
+      ],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "clause_5_3",
+      "order": 3,
+      "page_in_file": null,
+      "page_range": [
+       1
+      ],
+      "page_revision_id": "page_1_rev_1",
+      "parent_confidence": null,
+      "parent_id": "sec_1",
+      "provenance": "AI1",
+      "raw_label": "Điều 5.3",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Điều 5.3. Bên A thanh toán trong 15 ngày kể từ ngày nghiệm thu.",
+      "type": "CLAUSE"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "unnum_1",
+      "order": 4,
+      "page_in_file": null,
+      "page_range": [
+       1
+      ],
+      "page_revision_id": "page_1_rev_1",
+      "parent_confidence": null,
+      "parent_id": null,
+      "provenance": "AI1",
+      "raw_label": "(unnumbered)",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Phụ lục không đánh số: điều khoản bảo mật.",
+      "type": "UNNUMBERED_BLOCK"
+     },
+     {
+      "bbox": [],
+      "has_children": false,
+      "heading_confidence": null,
+      "is_synthetic": false,
+      "node_id": "tbl_node",
+      "order": 5,
+      "page_in_file": null,
+      "page_range": [
+       1
+      ],
+      "page_revision_id": "page_1_rev_1",
+      "parent_confidence": null,
+      "parent_id": null,
+      "provenance": "AI1",
+      "raw_label": "Bảng 1",
+      "repaired_from_node_id": null,
+      "scope_id": null,
+      "source_file_id": null,
+      "source_line_ids": [],
+      "source_node_id": null,
+      "status": "CONFIRMED",
+      "structure_level": "BLOCK",
+      "structured_key": null,
+      "structured_value": null,
+      "text": "Bảng thanh toán",
+      "type": "TABLE"
+     }
+    ],
+    "pages": [
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 0.99,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {},
+      "page_in_file": null,
+      "page_number": 1,
+      "page_revision_id": "page_1_rev_1",
+      "quality": "OK",
+      "rotation": 0,
+      "source_block_ids": [
+       "p1_b1"
+      ],
+      "source_file_id": null,
+      "source_hash": null,
+      "table_coverage": "UNKNOWN",
+      "text": "Bên A: Công ty ABC. Giá trị hợp đồng: 1.000.000.000 VND.",
+      "width": null
+     }
+    ],
+    "permissions_by_actor": {
+     "user_001": [
+      "READ_CONTENT"
+     ]
+    },
+    "pins": {
+     "extraction_version": 7,
+     "index_version": "idx_14",
+     "manifest_version": 2,
+     "ocr_run_version": 3,
+     "policy_version": 2,
+     "reconstruction_version": 2,
+     "snapshot_digest": null,
+     "source_digest": null,
+     "source_snapshot_digest": "sha256:aaa",
+     "tenant_profile_version": 5
+    },
+    "processing_budget_exceeded": false,
+    "processing_index": false,
+    "profile": {
+     "aliases": {
+      "Công ty ABC": [
+       "ABC Co.",
+       "ABC"
+      ]
+     },
+     "field_keys": [
+      "contract_value",
+      "party_a"
+     ],
+     "version": 5
+    },
+    "relation_graph": {
+     "edges": [
+      {
+       "citations": [
+        {
+         "bbox": [
+          10.0,
+          10.0,
+          200.0,
+          30.0
+         ],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 18,
+         "char_start": 0,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": true,
+         "geometry_source": null,
+         "line_ids": [],
+         "node_id": "field_party",
+         "page": 1,
+         "page_range": [
+          1
+         ],
+         "page_revision_id": "page_1_rev_1",
+         "precision": null,
+         "quote_sha256": "048933b1da929048bbd972daed239873a497b5429b2d10f8c744effc1061c5d6",
+         "source_file_id": null,
+         "source_hash": null,
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Bên A: Công ty ABC",
+         "validation_status": "INVALID"
+        }
+       ],
+       "edge_id": "edge:0c6044f8636d48c8bbecff8c",
+       "from_node_id": "sec_1",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "field_party"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [
+          10.0,
+          40.0,
+          300.0,
+          60.0
+         ],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": 55,
+         "char_start": 20,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": true,
+         "geometry_source": null,
+         "line_ids": [],
+         "node_id": "field_value",
+         "page": 1,
+         "page_range": [
+          1
+         ],
+         "page_revision_id": "page_1_rev_1",
+         "precision": null,
+         "quote_sha256": "78f88713e173602187c56da2a44818c6ae71ab470e1f5556a63b76fb504fe600",
+         "source_file_id": null,
+         "source_hash": null,
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Giá trị hợp đồng: 1.000.000.000 VND",
+         "validation_status": "INVALID"
+        }
+       ],
+       "edge_id": "edge:6634c16f262ca45b38e4787a",
+       "from_node_id": "sec_1",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "field_value"
+      },
+      {
+       "citations": [
+        {
+         "bbox": [
+          10.0,
+          70.0,
+          400.0,
+          110.0
+         ],
+         "bbox_fragments": [],
+         "breadcrumb": [],
+         "cell_id": null,
+         "char_end": null,
+         "char_start": null,
+         "citation_id": null,
+         "coordinate_system": null,
+         "geometry_available": true,
+         "geometry_source": null,
+         "line_ids": [],
+         "node_id": "clause_5_3",
+         "page": 1,
+         "page_range": [
+          1
+         ],
+         "page_revision_id": "page_1_rev_1",
+         "precision": null,
+         "quote_sha256": "6995725f2ae9b7e6fff54c76525c07a8689b75a81d4a6ed46e04ae25e6701283",
+         "source_file_id": null,
+         "source_hash": null,
+         "structure_path": null,
+         "table_id": null,
+         "text_span": "Điều 5.3. Bên A thanh toán trong 15 ngày kể từ ngày nghiệm thu.",
+         "validation_status": "INVALID"
+        }
+       ],
+       "edge_id": "edge:e4e75239bb56c386c9bddd24",
+       "from_node_id": "sec_1",
+       "relation_type": "PARENT_OF",
+       "review_state": "PASS",
+       "source_snapshot_digest": "sha256:aaa",
+       "support": "STRUCTURAL",
+       "to_node_id": "clause_5_3"
+      }
+     ],
+     "graph_id": "graph:935cf6db6c3aa703c82063a0",
+     "issues": [],
+     "nodes": [
+      {
+       "node_id": "field_party",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        1
+       ],
+       "page_revision_id": "page_1_rev_1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "sec_1",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        1
+       ],
+       "page_revision_id": "page_1_rev_1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "field_value",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        1
+       ],
+       "page_revision_id": "page_1_rev_1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "clause_5_3",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        1
+       ],
+       "page_revision_id": "page_1_rev_1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "unnum_1",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        1
+       ],
+       "page_revision_id": "page_1_rev_1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      },
+      {
+       "node_id": "tbl_node",
+       "node_kind": "STRUCTURAL_NODE",
+       "page_range": [
+        1
+       ],
+       "page_revision_id": "page_1_rev_1",
+       "quality": "CONFIRMED",
+       "source_file_id": null,
+       "source_role": null
+      }
+     ],
+     "source_snapshot_digest": "sha256:aaa"
+    },
+    "review_items": [
+     {
+      "candidate_id": null,
+      "citation_ids": [],
+      "kind": "citation:field_party:INVALID",
+      "proposed_action": "VERIFY_EVIDENCE",
+      "reason": "fact:fact_b6e17197da86859a06834454: citation bbox is invalid",
+      "review_item_id": "review:citation:field_party:INVALID:1",
+      "review_state": "NEEDS_REVIEW",
+      "revision": 0,
+      "source_ids": [],
+      "status": "OPEN"
+     },
+     {
+      "candidate_id": null,
+      "citation_ids": [],
+      "kind": "citation:field_value:INVALID",
+      "proposed_action": "VERIFY_EVIDENCE",
+      "reason": "fact:fact_43720b2585e6bfbbcf0c8d1f: citation bbox is invalid",
+      "review_item_id": "review:citation:field_value:INVALID:2",
+      "review_state": "NEEDS_REVIEW",
+      "revision": 0,
+      "source_ids": [],
+      "status": "OPEN"
+     },
+     {
+      "candidate_id": null,
+      "citation_ids": [],
+      "kind": "citation:tbl_node:UNVERIFIED",
+      "proposed_action": "VERIFY_EVIDENCE",
+      "reason": "fact:tbl_f25c2a4a6485ce2fc3802e5d: source hash is missing",
+      "review_item_id": "review:citation:tbl_node:UNVERIFIED:3",
+      "review_state": "NEEDS_REVIEW",
+      "revision": 0,
+      "source_ids": [],
+      "status": "OPEN"
+     },
+     {
+      "candidate_id": null,
+      "citation_ids": [],
+      "kind": "citation:table_1:INVALID",
+      "proposed_action": "VERIFY_EVIDENCE",
+      "reason": "fact:tbl_ee3a1009c5927389716cd064: page_revision_id/source scope did not resolve",
+      "review_item_id": "review:citation:table_1:INVALID:4",
+      "review_state": "NEEDS_REVIEW",
+      "revision": 0,
+      "source_ids": [],
+      "status": "OPEN"
+     },
+     {
+      "candidate_id": null,
+      "citation_ids": [],
+      "kind": "FACT",
+      "proposed_action": "VERIFY_EVIDENCE",
+      "reason": "Verify missing/uncertain value and its source context",
+      "review_item_id": "review:fact:fact_b6e17197da86859a06834454",
+      "review_state": "NEEDS_REVIEW",
+      "revision": 0,
+      "source_ids": [],
+      "status": "OPEN"
+     },
+     {
+      "candidate_id": null,
+      "citation_ids": [],
+      "kind": "FACT",
+      "proposed_action": "VERIFY_EVIDENCE",
+      "reason": "Verify missing/uncertain value and its source context",
+      "review_item_id": "review:fact:fact_43720b2585e6bfbbcf0c8d1f",
+      "review_state": "NEEDS_REVIEW",
+      "revision": 0,
+      "source_ids": [],
+      "status": "OPEN"
+     },
+     {
+      "candidate_id": null,
+      "citation_ids": [],
+      "kind": "FACT",
+      "proposed_action": "VERIFY_EVIDENCE",
+      "reason": "Verify missing/uncertain value and its source context",
+      "review_item_id": "review:fact:tbl_f25c2a4a6485ce2fc3802e5d",
+      "review_state": "NEEDS_REVIEW",
+      "revision": 0,
+      "source_ids": [],
+      "status": "OPEN"
+     },
+     {
+      "candidate_id": null,
+      "citation_ids": [],
+      "kind": "FACT",
+      "proposed_action": "VERIFY_EVIDENCE",
+      "reason": "Verify missing/uncertain value and its source context",
+      "review_item_id": "review:fact:tbl_ee3a1009c5927389716cd064",
+      "review_state": "NEEDS_REVIEW",
+      "revision": 0,
+      "source_ids": [],
+      "status": "OPEN"
+     },
+     {
+      "candidate_id": null,
+      "citation_ids": [],
+      "kind": "FACT",
+      "proposed_action": "VERIFY_EVIDENCE",
+      "reason": "Verify missing/uncertain value and its source context",
+      "review_item_id": "review:fact:tbl_bcdd94f8cb20784043f8b479",
+      "review_state": "NEEDS_REVIEW",
+      "revision": 0,
+      "source_ids": [],
+      "status": "OPEN"
+     },
+     {
+      "candidate_id": null,
+      "citation_ids": [],
+      "kind": "FACT",
+      "proposed_action": "VERIFY_EVIDENCE",
+      "reason": "Verify missing/uncertain value and its source context",
+      "review_item_id": "review:fact:tbl_930b09ba4b7b1767e3549604",
+      "review_state": "NEEDS_REVIEW",
+      "revision": 0,
+      "source_ids": [],
+      "status": "OPEN"
+     }
+    ],
+    "source_files": [],
+    "tables": [
+     {
+      "cell_citations": {
+       "0:1": {
+        "bbox": [
+         0.0,
+         0.0,
+         1.0,
+         1.0
+        ],
+        "bbox_fragments": [],
+        "breadcrumb": [],
+        "cell_id": null,
+        "char_end": null,
+        "char_start": null,
+        "citation_id": null,
+        "coordinate_system": null,
+        "geometry_available": false,
+        "geometry_source": null,
+        "line_ids": [],
+        "node_id": "tbl_node",
+        "page": null,
+        "page_range": [],
+        "page_revision_id": "page_1_rev_1",
+        "precision": null,
+        "quote_sha256": null,
+        "source_file_id": null,
+        "source_hash": null,
+        "structure_path": null,
+        "table_id": null,
+        "text_span": "100",
+        "validation_status": "UNVERIFIED"
+       }
+      },
+      "cells": [],
+      "continuation": false,
+      "continuity_confidence": null,
+      "continuity_decision": null,
+      "geometry_provenance": null,
+      "header": [
+       "period",
+       "amount"
+      ],
+      "header_row_indices": [],
+      "header_source_table_id": null,
+      "logical_table_id": null,
+      "node_id": "tbl_node",
+      "page_revision_id": "page_1_rev_1",
+      "rows": [
+       [
+        "Q1",
+        "100"
+       ],
+       [
+        "Q2",
+        "200"
+       ],
+       [
+        "Q3",
+        null
+       ],
+       [
+        "Q4",
+        "50"
+       ]
+      ],
+      "section_scope": null,
+      "source_role": null,
+      "table_id": "table_1",
+      "title": "Payments"
+     }
+    ],
+    "tenant_id": "tenant_a"
+   },
+   "wire": null
+  },
+  "wire:ai1.snapshot.v1.body+annex": {
+   "job_result": {
+    "contribution": {
+     "candidates": [],
+     "chunks": [],
+     "contract_context": {
+      "context_id": "context:ff55e3ca355f5ef1e0133076",
+      "findings": [],
+      "parts": [
+       {
+        "annex_number": null,
+        "citation": null,
+        "confidence": 0.0,
+        "kind": "UNKNOWN",
+        "label": "Không xác định",
+        "node_ids": [],
+        "page_range": [],
+        "part_id": "unknown"
+       }
+      ],
+      "scope": "SINGLE_DOCUMENT",
+      "source_file_ids": []
+     },
+     "coverage": {
+      "annex_labels": [],
+      "n_candidate_findings": 0,
+      "n_candidates_suppressed": 0,
+      "n_context_findings": 0,
+      "n_events": 0,
+      "n_evidence_issues": 0,
+      "n_facts": 0,
+      "n_findings": 0,
+      "n_units": 1,
+      "runtime": {
+       "egress_allowed": false,
+       "embedding_tokens_used": 0,
+       "fallback_count": 0,
+       "llm_calls_used": 0,
+       "max_embedding_tokens": 0,
+       "max_llm_calls": 0,
+       "max_processing_seconds": 300,
+       "use_vector": false
+      },
+      "unit_ids": [
+       "unit:bd7a8cdfb51cee1ff540"
+      ]
+     },
+     "events": [],
+     "evidence_issues": [],
+     "extraction_version": 1,
+     "facts": [],
+     "proposed_index_version": "idx_1",
+     "publish": "propose"
+    },
+    "error": null,
+    "handoff_issues": [
+     {
+      "citation": null,
+      "code": "PAGE_BLANK_VERIFIED",
+      "document_id": null,
+      "error_id": null,
+      "evidence_refs": [],
+      "location": null,
+      "message": "page 1: no OCR content",
+      "retryable": false,
+      "review_state": "NEEDS_REVIEW",
+      "stage": null
+     },
+     {
+      "citation": null,
+      "code": "PAGE_BLANK_VERIFIED",
+      "document_id": null,
+      "error_id": null,
+      "evidence_refs": [],
+      "location": null,
+      "message": "page 1: no OCR content",
+      "retryable": false,
+      "review_state": "NEEDS_REVIEW",
+      "stage": null
+     },
+     {
+      "citation": null,
+      "code": "TABLE_DETECTION_UNKNOWN",
+      "document_id": null,
+      "error_id": null,
+      "evidence_refs": [],
+      "location": null,
+      "message": "page 1: tables[] is empty without a NOT_PRESENT declaration",
+      "retryable": false,
+      "review_state": "NEEDS_REVIEW",
+      "stage": null
+     },
+     {
+      "citation": null,
+      "code": "EGRESS_DENIED",
+      "document_id": null,
+      "error_id": null,
+      "evidence_refs": [],
+      "location": null,
+      "message": "Chưa cho phép gửi dữ liệu ra mô hình bên ngoài; hồ sơ chỉ được trích xuất cục bộ, cần người xem lại.",
+      "retryable": false,
+      "review_state": "NEEDS_REVIEW",
+      "stage": null
+     },
+     {
+      "citation": null,
+      "code": "PAGE_QUALITY",
+      "document_id": null,
+      "error_id": null,
+      "evidence_refs": [],
+      "location": null,
+      "message": "page-body-example-001",
+      "retryable": false,
+      "review_state": "NEEDS_REVIEW",
+      "stage": null
+     },
+     {
+      "citation": null,
+      "code": "PAGE_QUALITY",
+      "document_id": null,
+      "error_id": null,
+      "evidence_refs": [],
+      "location": null,
+      "message": "page-annex-example-001",
+      "retryable": false,
+      "review_state": "NEEDS_REVIEW",
+      "stage": null
+     }
+    ],
+    "job_id": "job_golden",
+    "query_answer": null,
+    "review_state": "NEEDS_REVIEW",
+    "status": "SUCCEEDED"
+   },
+   "record": {
+    "acl_revision": 1,
+    "active_index_version": null,
+    "active_nodes": [],
+    "budget_exceeded": false,
+    "case_id": "AI2-IDP-REQUEST",
+    "chunks": [],
+    "citation_index": {},
+    "dossier_id": "dossier-example-001",
+    "egress_approved": false,
+    "embedding_budget_exceeded": false,
+    "events": [],
+    "facts": [],
+    "handoff_issues": [
+     {
+      "citation": null,
+      "code": "PAGE_BLANK_VERIFIED",
+      "document_id": null,
+      "error_id": null,
+      "evidence_refs": [],
+      "location": null,
+      "message": "page 1: no OCR content",
+      "retryable": false,
+      "review_state": "NEEDS_REVIEW",
+      "stage": null
+     },
+     {
+      "citation": null,
+      "code": "PAGE_BLANK_VERIFIED",
+      "document_id": null,
+      "error_id": null,
+      "evidence_refs": [],
+      "location": null,
+      "message": "page 1: no OCR content",
+      "retryable": false,
+      "review_state": "NEEDS_REVIEW",
+      "stage": null
+     },
+     {
+      "citation": null,
+      "code": "TABLE_DETECTION_UNKNOWN",
+      "document_id": null,
+      "error_id": null,
+      "evidence_refs": [],
+      "location": null,
+      "message": "page 1: tables[] is empty without a NOT_PRESENT declaration",
+      "retryable": false,
+      "review_state": "NEEDS_REVIEW",
+      "stage": null
+     }
+    ],
+    "index_status": "READY",
+    "input_facts": [],
+    "legal_hold": false,
+    "lifecycle": "ACTIVE",
+    "nodes": [],
+    "pages": [
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 0.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {},
+      "page_in_file": 1,
+      "page_number": 1,
+      "page_revision_id": "page-body-example-001",
+      "quality": "EMPTY",
+      "rotation": 0,
+      "source_block_ids": [],
+      "source_file_id": "doc-body-example-001",
+      "source_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table_coverage": "NOT_PRESENT",
+      "text": "",
+      "width": null
+     },
+     {
+      "analysis_line_texts": {},
+      "analysis_text": null,
+      "coverage": 0.0,
+      "height": null,
+      "image_key": null,
+      "line_bboxes": {},
+      "line_texts": {},
+      "page_in_file": 1,
+      "page_number": 1,
+      "page_revision_id": "page-annex-example-001",
+      "quality": "EMPTY",
+      "rotation": 0,
+      "source_block_ids": [],
+      "source_file_id": "doc-annex-example-001",
+      "source_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "table_coverage": "UNKNOWN",
+      "text": "",
+      "width": null
+     }
+    ],
+    "permissions_by_actor": {
+     "user_001": [
+      "READ_CONTENT"
+     ]
+    },
+    "pins": {
+     "extraction_version": 1,
+     "index_version": null,
+     "manifest_version": 1,
+     "ocr_run_version": 1,
+     "policy_version": 1,
+     "reconstruction_version": 1,
+     "snapshot_digest": "81acddf19b716d5bbe5f7128dbe671f17ca4de5eba59b633cce6619fa96a7af5",
+     "source_digest": null,
+     "source_snapshot_digest": "81acddf19b716d5bbe5f7128dbe671f17ca4de5eba59b633cce6619fa96a7af5",
+     "tenant_profile_version": 1
+    },
+    "processing_budget_exceeded": false,
+    "processing_index": false,
+    "profile": {
+     "aliases": {},
+     "field_keys": [],
+     "version": 1
+    },
+    "relation_graph": {
+     "edges": [],
+     "graph_id": "graph:53a9c4954c24eb1bb2dd6ea2",
+     "issues": [],
+     "nodes": [],
+     "source_snapshot_digest": "81acddf19b716d5bbe5f7128dbe671f17ca4de5eba59b633cce6619fa96a7af5"
+    },
+    "review_items": [
+     {
+      "candidate_id": null,
+      "citation_ids": [],
+      "kind": "PAGE_BLANK_VERIFIED",
+      "proposed_action": "VERIFY_EVIDENCE",
+      "reason": "page 1: no OCR content",
+      "review_item_id": "review:PAGE_BLANK_VERIFIED:1",
+      "review_state": "NEEDS_REVIEW",
+      "revision": 0,
+      "source_ids": [],
+      "status": "OPEN"
+     },
+     {
+      "candidate_id": null,
+      "citation_ids": [],
+      "kind": "PAGE_BLANK_VERIFIED",
+      "proposed_action": "VERIFY_EVIDENCE",
+      "reason": "page 1: no OCR content",
+      "review_item_id": "review:PAGE_BLANK_VERIFIED:2",
+      "review_state": "NEEDS_REVIEW",
+      "revision": 0,
+      "source_ids": [],
+      "status": "OPEN"
+     },
+     {
+      "candidate_id": null,
+      "citation_ids": [],
+      "kind": "TABLE_DETECTION_UNKNOWN",
+      "proposed_action": "VERIFY_EVIDENCE",
+      "reason": "page 1: tables[] is empty without a NOT_PRESENT declaration",
+      "review_item_id": "review:TABLE_DETECTION_UNKNOWN:3",
+      "review_state": "NEEDS_REVIEW",
+      "revision": 0,
+      "source_ids": [],
+      "status": "OPEN"
+     }
+    ],
+    "source_files": [
+     {
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "document_role": null,
+      "engine": null,
+      "file_id": "doc-body-example-001",
+      "filename": "ai1:doc-body-example-001",
+      "input_type": null,
+      "n_pages": 1,
+      "raw_digest": null,
+      "role": "body"
+     },
+     {
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "document_role": null,
+      "engine": null,
+      "file_id": "doc-annex-example-001",
+      "filename": "ai1:doc-annex-example-001",
+      "input_type": null,
+      "n_pages": 1,
+      "raw_digest": null,
+      "role": "annex"
+     }
+    ],
+    "tables": [],
+    "tenant_id": "tenant_a"
+   },
+   "wire": {
+    "attempt": 1,
+    "errors": [
+     {
+      "code": "PAGE_BLANK_VERIFIED",
+      "message": "page 1: no OCR content",
+      "retryable": false
+     },
+     {
+      "code": "PAGE_BLANK_VERIFIED",
+      "message": "page 1: no OCR content",
+      "retryable": false
+     },
+     {
+      "code": "TABLE_DETECTION_UNKNOWN",
+      "message": "page 1: tables[] is empty without a NOT_PRESENT declaration",
+      "retryable": false
+     },
+     {
+      "code": "EGRESS_DENIED",
+      "message": "Chưa cho phép gửi dữ liệu ra mô hình bên ngoài; hồ sơ chỉ được trích xuất cục bộ, cần người xem lại.",
+      "retryable": false
+     },
+     {
+      "code": "PAGE_QUALITY",
+      "message": "page-body-example-001",
+      "retryable": false
+     },
+     {
+      "code": "PAGE_QUALITY",
+      "message": "page-annex-example-001",
+      "retryable": false
+     }
+    ],
+    "idempotency_key": "dossier-example-001:attempt-1",
+    "input_snapshots": [
+     {
+      "snapshot_digest": "6edbc1b2c85989d2a399876ac329b8838e942f884b5bc0dbc10973c2bd4cfbcb",
+      "snapshot_id": "snap-body-example-001",
+      "snapshot_version": "ai1.snapshot.v1",
+      "source_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     },
+     {
+      "snapshot_digest": "e4855ad2cffb41affc93c4391162687bd898f96426502a2e564280a4ff042183",
+      "snapshot_id": "snap-annex-example-001",
+      "snapshot_version": "ai1.snapshot.v1",
+      "source_digest": "1111111111111111111111111111111111111111111111111111111111111111"
+     }
+    ],
+    "job_id": "job_golden",
+    "request_id": "req-wire-001",
+    "result": {
+     "citations": [],
+     "context_findings": [],
+     "events": [],
+     "facts": [],
+     "findings": [],
+     "index_contribution": {
+      "chunks": [],
+      "contract_context": {
+       "context_id": "context:ff55e3ca355f5ef1e0133076",
+       "findings": [],
+       "parts": [
+        {
+         "annex_number": null,
+         "citation": null,
+         "confidence": 0.0,
+         "kind": "UNKNOWN",
+         "label": "Không xác định",
+         "node_ids": [],
+         "page_range": [],
+         "part_id": "unknown"
+        }
+       ],
+       "scope": "SINGLE_DOCUMENT",
+       "source_file_ids": []
+      },
+      "coverage": {
+       "annex_labels": [],
+       "n_candidate_findings": 0,
+       "n_candidates_suppressed": 0,
+       "n_context_findings": 0,
+       "n_events": 0,
+       "n_evidence_issues": 0,
+       "n_facts": 0,
+       "n_findings": 0,
+       "n_units": 1,
+       "runtime": {
+        "egress_allowed": false,
+        "embedding_tokens_used": 0,
+        "fallback_count": 0,
+        "llm_calls_used": 0,
+        "max_embedding_tokens": 0,
+        "max_llm_calls": 0,
+        "max_processing_seconds": 300,
+        "use_vector": false
+       },
+       "unit_ids": [
+        "unit:bd7a8cdfb51cee1ff540"
+       ]
+      },
+      "evidence_issues": [],
+      "extraction_version": 1,
+      "proposed_index_version": "idx_1",
+      "state": "propose"
+     }
+    },
+    "review_state": "NEEDS_REVIEW",
+    "schema_version": "ai2.be.processing.result.v1",
+    "status": "SUCCEEDED"
+   }
+  }
+ },
+ "hashseed": "0",
+ "job_id": "job_golden",
+ "python": "3.12",
+ "schema": "idp-flag-off-golden.v1"
+}
