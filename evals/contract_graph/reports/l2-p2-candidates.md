@@ -2,7 +2,7 @@
 
 - Ground truth: `gpt-labels (approved=false), dev` — nhãn GPT chưa duyệt; recall là độ phủ nhãn GPT-positive của dev, không phải độ chính xác nghiệp vụ.
 - `CANDIDATES_VERSION` `pairs-cand-v1`, `PAIRS_TOP_K` 40 (chọn 40: quy tắc cho K=10 (K nhỏ nhất có recall@K ≥ 0.95 × recall không cắt); người dùng giữ 40: dev degenerate: max 20 candidates/doc so recall@K is flat for every K in the grid; held-out docs reach 42 nodes (user decision 2026-10-09)); vòng chỉnh lexicon/cụm trên dev: 0.
-- Văn bản dev: 7; ứng viên/hồ sơ (không cắt) {'min': 1, 'median': 3, 'max': 20, 'total': 38}.
+- Văn bản dev: 7; ứng viên/hồ sơ (không cắt) {'max': 20, 'median': 3, 'min': 1, 'total': 38}.
 - Recall không cắt: 15/24 (0.625; Wilson95 0.427–0.788)
 - Loại trừ: {'candidates_capped': 0, 'candidates_kept': 38, 'candidates_total': 38, 'excluded_ancestor': 14, 'excluded_external_ref': 0, 'excluded_luong1': 0, 'excluded_short': 1}
 
@@ -10,10 +10,10 @@
 
 | nguồn | recall | biên |
 | --- | --- | --- |
-| SAME_ARTICLE | 6/24 (0.250; Wilson95 0.120–0.449) | 6/24 (0.250; Wilson95 0.120–0.449) |
 | EXPLICIT_REF | 7/24 (0.292; Wilson95 0.149–0.492) | 7/24 (0.292; Wilson95 0.149–0.492) |
-| SAME_KEY | 2/24 (0.083; Wilson95 0.023–0.259) | 2/24 (0.083; Wilson95 0.023–0.259) |
 | REFERENCE_CUE | 0/24 (0.000; Wilson95 0.000–0.138) | 0/24 (0.000; Wilson95 0.000–0.138) |
+| SAME_ARTICLE | 6/24 (0.250; Wilson95 0.120–0.449) | 6/24 (0.250; Wilson95 0.120–0.449) |
+| SAME_KEY | 2/24 (0.083; Wilson95 0.023–0.259) | 2/24 (0.083; Wilson95 0.023–0.259) |
 
 ## Recall@K
 
@@ -44,8 +44,8 @@
 
 ## Held-out S4 và phiếu HG-1
 
-- S4: chưa sinh.
-- Phiếu HG-1: chưa chọn mẫu.
+- S4 (B ∪ C − pool): 31 cặp, nhãn {'CONFLICT': 2, 'GENERAL_SPECIFIC': 2, 'REFERENCE': 3, 'UNRELATED': 24}.
+- Phiếu HG-1: 181 dòng, theo nhãn {'CONFLICT': 30, 'DUPLICATE': 29, 'GENERAL_SPECIFIC': 34, 'REFERENCE': 8, 'UNRELATED': 80}, theo tầng {'S1': 80, 'S2': 12, 'S3': 72, 'S4': 17}.
 
 ## Theo văn bản
 

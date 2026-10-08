@@ -694,7 +694,93 @@
    "url": "https://accgroup.vn/dich-vu-don-dep-ve-sinh"
   }
  ],
- "extension_s4": null,
+ "extension_s4": {
+  "candidates_version": "pairs-cand-v1",
+  "files": {
+   "pd-0cd20d2016": {
+    "labels.s4.gpt.jsonl": "87a9c5ec03711288335ed06d809a9ec669e6be82004e0928afd33220b44b5cee",
+    "s4.jsonl": "a16fd542bc9a9b7dd1297f31bbb95217425219d332f270e995ef88c4f7e73366"
+   },
+   "pd-0dd5942e4e": {
+    "labels.s4.gpt.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "s4.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   },
+   "pd-0ef7060ac8": {
+    "labels.s4.gpt.jsonl": "8ec788607ca8df9f3324db287c41ebc1f3f35314b6cfbd77b3e17e575bb73239",
+    "s4.jsonl": "7ef161ac2074aa32d6973cb0b4a1eb90bc2477f5f9d788551896b4d7d6347333"
+   },
+   "pd-176a825fca": {
+    "labels.s4.gpt.jsonl": "1bdcff2f0cf78f77036950d941ee14665afea486621f43d6f57f47c46c3f6baa",
+    "s4.jsonl": "b79d047c15b67de4ef400321850e553b34f043b66fdb1c3e36e600ac446cb932"
+   },
+   "pd-1c0f85fee4": {
+    "labels.s4.gpt.jsonl": "aa4525cf09f1d317131c5769224b8e8adbacccb750155a1b8695187e4249283b",
+    "s4.jsonl": "cdda131d7b449e977fa8743bd52f73d4de59b3fd415a8d8c1c0f919dad998a77"
+   },
+   "pd-1e78e105fc": {
+    "labels.s4.gpt.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "s4.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   },
+   "pd-21d3913039": {
+    "labels.s4.gpt.jsonl": "07c1539a1161bbf6f7da51dc800bd642639ebf1ba84bc181f34b3af147d8e4b5",
+    "s4.jsonl": "0f20fb591777bbd31b57526b6b8f968e618d5bac0c44d5a38f8d0845697b391c"
+   },
+   "pd-242e0b7a96": {
+    "labels.s4.gpt.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "s4.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   },
+   "pd-2e28a08bfa": {
+    "labels.s4.gpt.jsonl": "3724880559e811ebfb207df18eda2ff0b177054934b28c9dd6a14eedab58e4bf",
+    "s4.jsonl": "f0b8aed23ccd7ba902e573073c11f2564a9667044d46cf938db438913c812c4d"
+   },
+   "pd-3d8842533f": {
+    "labels.s4.gpt.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "s4.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   },
+   "pd-43cd896d78": {
+    "labels.s4.gpt.jsonl": "df805c5141f97bdee2402097a87a679aff6b7791890797a9e36897ca75c07e65",
+    "s4.jsonl": "50a4cdf44bec377b980028355ea9fb74657e4481c170537329826f5d6f2b7c14"
+   },
+   "pd-4b7adfd987": {
+    "labels.s4.gpt.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "s4.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   },
+   "pd-96be63cf8b": {
+    "labels.s4.gpt.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "s4.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   },
+   "pd-a3a3c94483": {
+    "labels.s4.gpt.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "s4.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   }
+  },
+  "labeler": {
+   "family": "openai",
+   "prompt_version": "pairs-labeler-v1",
+   "requested_model": "gpt-4o-mini",
+   "served_model": "gpt-4o-mini-2024-07-18"
+  },
+  "labels_by_label": {
+   "CONFLICT": 2,
+   "GENERAL_SPECIFIC": 2,
+   "REFERENCE": 3,
+   "UNRELATED": 24
+  },
+  "n_pairs": 31,
+  "top_k": 40,
+  "variants": {
+   "B": [
+    "EXPLICIT_REF",
+    "SAME_ARTICLE"
+   ],
+   "C": [
+    "EXPLICIT_REF",
+    "REFERENCE_CUE",
+    "SAME_ARTICLE",
+    "SAME_KEY"
+   ]
+  }
+ },
  "frozen_at": "2026-10-08T18:10:55Z",
  "ground_truth": "GPT labeler pairs-labeler-v1 (approved=false; HG-1 human review pending, P2/P5)",
  "heldout_review": null,
@@ -710,7 +796,41 @@
   "S3_per_doc": 40
  },
  "pool_seed": 20261008,
- "review_selection": null,
+ "review_selection": {
+  "by_label": {
+   "CONFLICT": 30,
+   "DUPLICATE": 29,
+   "GENERAL_SPECIFIC": 34,
+   "REFERENCE": 8,
+   "UNRELATED": 80
+  },
+  "by_stratum": {
+   "S1": 80,
+   "S2": 12,
+   "S3": 72,
+   "S4": 17
+  },
+  "n_rows": 181,
+  "pi_table": {
+   "CONFLICT/S1": 1.0,
+   "CONFLICT/S3": 1.0,
+   "CONFLICT/S4": 1.0,
+   "DUPLICATE/S1": 1.0,
+   "DUPLICATE/S2": 1.0,
+   "GENERAL_SPECIFIC/S1": 1.0,
+   "GENERAL_SPECIFIC/S3": 1.0,
+   "GENERAL_SPECIFIC/S4": 1.0,
+   "REFERENCE/S2": 1.0,
+   "REFERENCE/S3": 1.0,
+   "REFERENCE/S4": 1.0,
+   "UNRELATED/S1": 0.14285714285714285,
+   "UNRELATED/S2": 0.5,
+   "UNRELATED/S3": 0.11316397228637413,
+   "UNRELATED/S4": 0.4166666666666667
+  },
+  "seed": 20261008,
+  "sha256": "4a11541913acd5fab6e9ec5716fa44d77ded7411d5c4c293f77e55bc2d802d12"
+ },
  "schema": "contract-graph-pairs-dataset/1",
  "split_stats": {
   "clusters": 21,

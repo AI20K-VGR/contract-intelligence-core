@@ -255,8 +255,39 @@
    0.7884
   ]
  },
- "review": null,
- "s4": null,
+ "review": {
+  "by_label": {
+   "CONFLICT": 30,
+   "DUPLICATE": 29,
+   "GENERAL_SPECIFIC": 34,
+   "REFERENCE": 8,
+   "UNRELATED": 80
+  },
+  "by_stratum": {
+   "S1": 80,
+   "S2": 12,
+   "S3": 72,
+   "S4": 17
+  },
+  "n_rows": 181
+ },
+ "s4": {
+  "candidates_version": "pairs-cand-v1",
+  "labeler": {
+   "family": "openai",
+   "prompt_version": "pairs-labeler-v1",
+   "requested_model": "gpt-4o-mini",
+   "served_model": "gpt-4o-mini-2024-07-18"
+  },
+  "labels_by_label": {
+   "CONFLICT": 2,
+   "GENERAL_SPECIFIC": 2,
+   "REFERENCE": 3,
+   "UNRELATED": 24
+  },
+  "n_pairs": 31,
+  "top_k": 40
+ },
  "schema": "contract-graph-pairs-candidates/1",
  "split": "dev",
  "stats_total": {
