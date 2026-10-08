@@ -152,8 +152,19 @@ def head_of(text: str) -> str:
     depth = _quote_depth(line)
     for i, ch in enumerate(line):
         if ch in ".;" and depth[i] == 0 and (i + 1 == len(line) or line[i + 1].isspace()):
+            if ch == ";" and _continues_address_list(line, i + 1):
+                continue
             return line[: i + 1]
     return line.rstrip()
+
+
+# "…tại khoản 2 Điều 15; khoản 1 Điều 16; Điều 19" — a ';' followed by another address is a
+# list separator, not a sentence end. A following verb ("; sửa đổi Điều 5") still splits.
+_ADDRESS_AFTER_SEMICOLON = re.compile(r"\s*(?:khoản|điểm|điều|mục|phụ\s+lục)\s+[\wđ]", re.I)
+
+
+def _continues_address_list(text: str, pos: int) -> bool:
+    return bool(_ADDRESS_AFTER_SEMICOLON.match(text, pos))
 
 
 def parse_operation(unit_text: str) -> Operation | None:
@@ -364,7 +375,8 @@ def _sentence_end(text: str, start: int, end: int, depth: list[int]) -> int:
         ch = text[i]
         if depth[i] == 0:
             if ch in ".;" and (i + 1 == end or text[i + 1].isspace()):
-                return i + 1
+                if not (ch == ";" and _continues_address_list(text[:end], i + 1)):
+                    return i + 1
             if ch == "\n":
                 return i
             if ch == ":" and _NEW_TEXT_COLON.search(text[start : i + 1]):

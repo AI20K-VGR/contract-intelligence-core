@@ -7,10 +7,10 @@
 
 | op | n_gold | n_pred | src_found | op_lexical_agreement | op_precision | target_accuracy |
 | --- | --- | --- | --- | --- | --- | --- |
-| SUBSTITUTION | 83 | 63 | 50/83 (0.602; CI95 0.495–0.701) | 50/83 (0.602; CI95 0.495–0.701) | 50/63 (0.794; CI95 0.678–0.875) | 49/50 (0.980; CI95 0.895–0.997) |
+| SUBSTITUTION | 83 | 72 | 59/83 (0.711; CI95 0.606–0.797) | 59/83 (0.711; CI95 0.606–0.797) | 59/72 (0.819; CI95 0.715–0.891) | 58/59 (0.983; CI95 0.910–0.997) |
 | INSERTION | 18 | 17 | 16/18 (0.889; CI95 0.672–0.969) | 16/18 (0.889; CI95 0.672–0.969) | 16/17 (0.941; CI95 0.730–0.990) | 15/16 (0.938; CI95 0.717–0.989) |
 | REPEAL | 12 | 4 | 4/12 (0.333; CI95 0.138–0.609) | 4/12 (0.333; CI95 0.138–0.609) | 4/4 (1.000; CI95 0.510–1.000) | 4/4 (1.000; CI95 0.510–1.000) |
-| ALL | 113 | 84 | 70/113 (0.620; CI95 0.527–0.704) | 70/113 (0.620; CI95 0.527–0.704) | 70/84 (0.833; CI95 0.740–0.898) | 68/70 (0.971; CI95 0.902–0.992) |
+| ALL | 113 | 93 | 79/113 (0.699; CI95 0.609–0.776) | 79/113 (0.699; CI95 0.609–0.776) | 79/93 (0.850; CI95 0.763–0.908) | 77/79 (0.975; CI95 0.912–0.993) |
 
 > `op_lexical_agreement` = đồng thuận từ vựng: gold lấy op từ động từ của chú thích VBHN và predictor map động từ của câu thao tác theo cùng quy ước, nên chỉ số này đo việc tìm đúng câu thao tác + động từ khớp, không đo phân loại đúng nghĩa (RT-09).
 
@@ -27,7 +27,7 @@
 | tt13-2023-btc | 4 | 4/4 (1.000; CI95 0.510–1.000) | 4/4 (1.000; CI95 0.510–1.000) | 4/5 (0.800; CI95 0.376–0.964) | 4/4 (1.000; CI95 0.510–1.000) |
 | tt130-2016-btc | 6 | 5/6 (0.833; CI95 0.436–0.970) | 5/6 (0.833; CI95 0.436–0.970) | 5/5 (1.000; CI95 0.566–1.000) | 5/5 (1.000; CI95 0.566–1.000) |
 | tt14-2019-nhnn | 3 | 0/3 (0.000; CI95 0.000–0.561) | 0/3 (0.000; CI95 0.000–0.561) | 0/2 (0.000; CI95 0.000–0.658) | 0/0 (n/a) |
-| tt21-2018-bct | 14 | 3/14 (0.214; CI95 0.076–0.476) | 3/14 (0.214; CI95 0.076–0.476) | 3/4 (0.750; CI95 0.301–0.954) | 3/3 (1.000; CI95 0.439–1.000) |
+| tt21-2018-bct | 14 | 12/14 (0.857; CI95 0.601–0.960) | 12/14 (0.857; CI95 0.601–0.960) | 12/13 (0.923; CI95 0.667–0.986) | 12/12 (1.000; CI95 0.757–1.000) |
 | tt23-2016-nhnn | 6 | 3/6 (0.500; CI95 0.188–0.812) | 3/6 (0.500; CI95 0.188–0.812) | 3/3 (1.000; CI95 0.439–1.000) | 3/3 (1.000; CI95 0.439–1.000) |
 | tt26-2015-btc | 17 | 12/17 (0.706; CI95 0.469–0.867) | 12/17 (0.706; CI95 0.469–0.867) | 12/15 (0.800; CI95 0.548–0.929) | 12/12 (1.000; CI95 0.757–1.000) |
 | tt27-2014-nhnn | 6 | 3/6 (0.500; CI95 0.188–0.812) | 3/6 (0.500; CI95 0.188–0.812) | 3/6 (0.500; CI95 0.188–0.812) | 3/3 (1.000; CI95 0.439–1.000) |
@@ -55,7 +55,7 @@
 - tt43-2018-nhnn SUBSTITUTION khoan 1 dieu 1 → `khoan 1 dieu 5`
 - tt43-2018-nhnn SUBSTITUTION khoan 1 dieu 1 → `None`
 
-## Gold bị bỏ sót (43)
+## Gold bị bỏ sót (34)
 
 - tt01-2022-bct [2] REPEAL diem a khoan 1 dieu 3 → `khoan 2 dieu 1`
 - tt01-2022-bct [3] REPEAL diem a khoan 1 dieu 3 → `dieu 3`
@@ -71,15 +71,6 @@
 - tt14-2019-nhnn [17] SUBSTITUTION khoan 1 dieu 1 → `dieu 17`
 - tt14-2019-nhnn [30] INSERTION khoan 1 dieu 2 → `None`
 - tt14-2019-nhnn [31] INSERTION khoan 1 dieu 2 → `None`
-- tt21-2018-bct [12] SUBSTITUTION khoan 4 dieu 1 → `khoan 1 dieu 16`
-- tt21-2018-bct [13] SUBSTITUTION khoan 4 dieu 1 → `khoan 2 dieu 17`
-- tt21-2018-bct [14] SUBSTITUTION khoan 4 dieu 1 → `khoan 2 dieu 18`
-- tt21-2018-bct [19] SUBSTITUTION khoan 4 dieu 1 → `khoan 2 dieu 23`
-- tt21-2018-bct [20] SUBSTITUTION khoan 4 dieu 1 → `khoan 1 dieu 24`
-- tt21-2018-bct [21] SUBSTITUTION khoan 4 dieu 1 → `khoan 2 dieu 25`
-- tt21-2018-bct [22] SUBSTITUTION khoan 4 dieu 1 → `khoan 2 dieu 26`
-- tt21-2018-bct [26] SUBSTITUTION khoan 4 dieu 1 → `khoan 1 dieu 32`
-- tt21-2018-bct [27] SUBSTITUTION khoan 4 dieu 1 → `khoan 3 dieu 32`
 - tt21-2018-bct [32] SUBSTITUTION khoan 4 dieu 1 → `None`
 - tt21-2018-bct [34] SUBSTITUTION khoan 4 dieu 1 → `None`
 - tt23-2016-nhnn [7] SUBSTITUTION khoan 3 dieu 1 → `None`
@@ -109,8 +100,8 @@ noise = n_pred − pred khớp op với gold (RT-09: không được tăng so v�
 | --- | --- | --- | --- | --- | --- |
 | INSERTION | 18 | 16 → 16 | 1 → 15 | 20 → 17 | 4 → 1 |
 | REPEAL | 12 | 3 → 4 | 3 → 4 | 6 → 4 | 3 → 0 |
-| SUBSTITUTION | 83 | 48 → 50 | 40 → 49 | 72 → 63 | 24 → 13 |
-| ALL | 113 | 67 → 70 | 44 → 68 | 98 → 84 | 31 → 14 |
+| SUBSTITUTION | 83 | 48 → 59 | 40 → 58 | 72 → 72 | 24 → 13 |
+| ALL | 113 | 67 → 79 | 44 → 77 | 98 → 93 | 31 → 14 |
 
 - unmatched_predictions: P1 30 → P3 14
 - đích UNIQUE sai: toàn bộ 2; nd50-2021: 0

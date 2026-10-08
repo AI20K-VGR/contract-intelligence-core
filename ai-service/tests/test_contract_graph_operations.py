@@ -289,3 +289,33 @@ def test_new_text_is_capped():
     found = parse_operation("Sửa đổi Điều 4 như sau:\n“" + "x" * 3000 + "”")
 
     assert len(found.new_text) == 2000
+
+
+@pytest.mark.parametrize(
+    ("text", "op", "targets"),
+    [
+        (
+            "Thay thế cụm từ “A” bằng cụm từ “B” tại khoản 2 Điều 15; khoản 1 Điều 16; khoản 1 và 3 Điều 32.",
+            EdgeOp.SUBSTITUTION,
+            ["khoan 2 dieu 15", "khoan 1 dieu 16", "khoan 1 dieu 32", "khoan 3 dieu 32"],
+        ),
+        (
+            "Bãi bỏ khoản 2 Điều 1; Điều 3; Điều 4 của Thông tư số 47/2014/TT-BCT.",
+            EdgeOp.REPEAL,
+            ["khoan 2 dieu 1", "dieu 3", "dieu 4"],
+        ),
+    ],
+)
+def test_address_list_continues_across_semicolons(text, op, targets):
+    parsed = parse_operation(text)
+    assert parsed is not None and parsed.op == op
+    assert [canonical(a) for a in parsed.addresses] == targets
+
+
+def test_semicolon_before_a_new_operation_still_splits():
+    text = "Bãi bỏ khoản 2 Điều 3; sửa đổi Điều 5 như sau: “Điều 5. Nội dung mới.”"
+    first = parse_operation(text)
+    assert first is not None and first.op == EdgeOp.REPEAL
+    assert [canonical(a) for a in first.addresses] == ["khoan 2 dieu 3"]
+    ops = [parse_operation(u.text) for u in split_operation_units(text)]
+    assert any(o is not None and o.op == EdgeOp.SUBSTITUTION for o in ops)

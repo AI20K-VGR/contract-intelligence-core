@@ -1053,40 +1053,40 @@
   "tt21-2018-bct": {
    "all": {
     "n_gold": 14,
-    "n_pred": 4,
+    "n_pred": 13,
     "op_lexical_agreement": {
      "denominator": 14,
-     "passed": 3,
-     "rate": 0.2143,
+     "passed": 12,
+     "rate": 0.8571,
      "wilson95": [
-      0.0757,
-      0.4759
+      0.6006,
+      0.9599
      ]
     },
     "op_precision": {
-     "denominator": 4,
-     "passed": 3,
-     "rate": 0.75,
+     "denominator": 13,
+     "passed": 12,
+     "rate": 0.9231,
      "wilson95": [
-      0.3006,
-      0.9544
+      0.6669,
+      0.9863
      ]
     },
     "src_found": {
      "denominator": 14,
-     "passed": 3,
-     "rate": 0.2143,
+     "passed": 12,
+     "rate": 0.8571,
      "wilson95": [
-      0.0757,
-      0.4759
+      0.6006,
+      0.9599
      ]
     },
     "target_accuracy": {
-     "denominator": 3,
-     "passed": 3,
+     "denominator": 12,
+     "passed": 12,
      "rate": 1.0,
      "wilson95": [
-      0.4385,
+      0.7575,
       1.0
      ]
     }
@@ -1174,40 +1174,40 @@
     },
     "SUBSTITUTION": {
      "n_gold": 12,
-     "n_pred": 2,
+     "n_pred": 11,
      "op_lexical_agreement": {
       "denominator": 12,
-      "passed": 1,
-      "rate": 0.0833,
+      "passed": 10,
+      "rate": 0.8333,
       "wilson95": [
-       0.0149,
-       0.3539
+       0.552,
+       0.953
       ]
      },
      "op_precision": {
-      "denominator": 2,
-      "passed": 1,
-      "rate": 0.5,
+      "denominator": 11,
+      "passed": 10,
+      "rate": 0.9091,
       "wilson95": [
-       0.0945,
-       0.9055
+       0.6226,
+       0.9838
       ]
      },
      "src_found": {
       "denominator": 12,
-      "passed": 1,
-      "rate": 0.0833,
+      "passed": 10,
+      "rate": 0.8333,
       "wilson95": [
-       0.0149,
-       0.3539
+       0.552,
+       0.953
       ]
      },
      "target_accuracy": {
-      "denominator": 1,
-      "passed": 1,
+      "denominator": 10,
+      "passed": 10,
       "rate": 1.0,
       "wilson95": [
-       0.2065,
+       0.7225,
        1.0
       ]
      }
@@ -2031,69 +2031,6 @@
    "target_address": null
   },
   {
-   "note_no": 12,
-   "op": "SUBSTITUTION",
-   "pair_id": "tt21-2018-bct",
-   "src_address": "khoan 4 dieu 1",
-   "target_address": "khoan 1 dieu 16"
-  },
-  {
-   "note_no": 13,
-   "op": "SUBSTITUTION",
-   "pair_id": "tt21-2018-bct",
-   "src_address": "khoan 4 dieu 1",
-   "target_address": "khoan 2 dieu 17"
-  },
-  {
-   "note_no": 14,
-   "op": "SUBSTITUTION",
-   "pair_id": "tt21-2018-bct",
-   "src_address": "khoan 4 dieu 1",
-   "target_address": "khoan 2 dieu 18"
-  },
-  {
-   "note_no": 19,
-   "op": "SUBSTITUTION",
-   "pair_id": "tt21-2018-bct",
-   "src_address": "khoan 4 dieu 1",
-   "target_address": "khoan 2 dieu 23"
-  },
-  {
-   "note_no": 20,
-   "op": "SUBSTITUTION",
-   "pair_id": "tt21-2018-bct",
-   "src_address": "khoan 4 dieu 1",
-   "target_address": "khoan 1 dieu 24"
-  },
-  {
-   "note_no": 21,
-   "op": "SUBSTITUTION",
-   "pair_id": "tt21-2018-bct",
-   "src_address": "khoan 4 dieu 1",
-   "target_address": "khoan 2 dieu 25"
-  },
-  {
-   "note_no": 22,
-   "op": "SUBSTITUTION",
-   "pair_id": "tt21-2018-bct",
-   "src_address": "khoan 4 dieu 1",
-   "target_address": "khoan 2 dieu 26"
-  },
-  {
-   "note_no": 26,
-   "op": "SUBSTITUTION",
-   "pair_id": "tt21-2018-bct",
-   "src_address": "khoan 4 dieu 1",
-   "target_address": "khoan 1 dieu 32"
-  },
-  {
-   "note_no": 27,
-   "op": "SUBSTITUTION",
-   "pair_id": "tt21-2018-bct",
-   "src_address": "khoan 4 dieu 1",
-   "target_address": "khoan 3 dieu 32"
-  },
-  {
    "note_no": 32,
    "op": "SUBSTITUTION",
    "pair_id": "tt21-2018-bct",
@@ -2237,41 +2174,41 @@
  "overall": {
   "all": {
    "n_gold": 113,
-   "n_pred": 84,
+   "n_pred": 93,
    "op_lexical_agreement": {
     "denominator": 113,
-    "passed": 70,
-    "rate": 0.6195,
+    "passed": 79,
+    "rate": 0.6991,
     "wilson95": [
-     0.5274,
-     0.7037
+     0.6091,
+     0.776
     ]
    },
    "op_precision": {
-    "denominator": 84,
-    "passed": 70,
-    "rate": 0.8333,
+    "denominator": 93,
+    "passed": 79,
+    "rate": 0.8495,
     "wilson95": [
-     0.7395,
-     0.898
+     0.763,
+     0.9082
     ]
    },
    "src_found": {
     "denominator": 113,
-    "passed": 70,
-    "rate": 0.6195,
+    "passed": 79,
+    "rate": 0.6991,
     "wilson95": [
-     0.5274,
-     0.7037
+     0.6091,
+     0.776
     ]
    },
    "target_accuracy": {
-    "denominator": 70,
-    "passed": 68,
-    "rate": 0.9714,
+    "denominator": 79,
+    "passed": 77,
+    "rate": 0.9747,
     "wilson95": [
-     0.9017,
-     0.9921
+     0.9123,
+     0.993
     ]
    }
   },
@@ -2358,41 +2295,41 @@
    },
    "SUBSTITUTION": {
     "n_gold": 83,
-    "n_pred": 63,
+    "n_pred": 72,
     "op_lexical_agreement": {
      "denominator": 83,
-     "passed": 50,
-     "rate": 0.6024,
+     "passed": 59,
+     "rate": 0.7108,
      "wilson95": [
-      0.4948,
-      0.7009
+      0.6057,
+      0.7973
      ]
     },
     "op_precision": {
-     "denominator": 63,
-     "passed": 50,
-     "rate": 0.7937,
+     "denominator": 72,
+     "passed": 59,
+     "rate": 0.8194,
      "wilson95": [
-      0.6783,
-      0.8752
+      0.7152,
+      0.8913
      ]
     },
     "src_found": {
      "denominator": 83,
-     "passed": 50,
-     "rate": 0.6024,
+     "passed": 59,
+     "rate": 0.7108,
      "wilson95": [
-      0.4948,
-      0.7009
+      0.6057,
+      0.7973
      ]
     },
     "target_accuracy": {
-     "denominator": 50,
-     "passed": 49,
-     "rate": 0.98,
+     "denominator": 59,
+     "passed": 58,
+     "rate": 0.9831,
      "wilson95": [
-      0.895,
-      0.9965
+      0.91,
+      0.997
      ]
     }
    }
@@ -2420,10 +2357,10 @@
    },
    "p3": {
     "n_gold": 113,
-    "n_pred": 84,
+    "n_pred": 93,
     "noise": 14,
-    "op_lexical_agreement": 70,
-    "target_correct": 68
+    "op_lexical_agreement": 79,
+    "target_correct": 77
    }
   },
   "by_op": {
@@ -2469,10 +2406,10 @@
     },
     "p3": {
      "n_gold": 83,
-     "n_pred": 63,
+     "n_pred": 72,
      "noise": 13,
-     "op_lexical_agreement": 50,
-     "target_correct": 49
+     "op_lexical_agreement": 59,
+     "target_correct": 58
     }
    }
   },
