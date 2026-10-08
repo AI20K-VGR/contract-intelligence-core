@@ -9,6 +9,13 @@
   python -m evals.contract_graph.pairs.run freeze     # split dirs + pairs/manifest.json
   python -m evals.contract_graph.pairs.run verify     # exit 0 ok, 2 on any mismatch
 
+P2 (luồng 2 candidates, HG-1 sheet):
+
+  python -m evals.contract_graph.pairs.run candidates --split dev [--tuning-rounds N]
+  python -m evals.contract_graph.pairs.run extend-heldout [--env-file F]   # S4 + GPT labels
+  python -m evals.contract_graph.pairs.run review-select   # locks the sample in manifest.json
+  python -m evals.contract_graph.pairs.run review-export   # sheet from the locked sample only
+
 ``--data-dir`` defaults to ``$AI2_CG_PAIRS_DATA_DIR`` then ``.harness/state/contract-graph-pairs``;
 every writing command checks first that it is git-ignored and outside tracked trees (exit 2).
 """
@@ -30,6 +37,7 @@ from evals.contract_graph.score import rate
 PAIRS_DIR = Path(__file__).resolve().parent
 DEFAULT_SOURCES = PAIRS_DIR / "sources.json"
 DEFAULT_REPORT = PAIRS_DIR.parent / "reports" / "l2-p1-dataset"
+CANDIDATES_REPORT = PAIRS_DIR.parent / "reports" / "l2-p2-candidates"
 USABLE_MIN, PROFILE_MIN, HELDOUT_MIN, DEV_MIN = 15, 6, 10, 5
 NL = "\n"
 
@@ -49,7 +57,23 @@ def main(argv: list[str] | None = None) -> int:
             cmd.add_argument("--workers", type=int, default=8)
         if name == "summary":
             cmd.add_argument("--report-prefix", type=Path, default=DEFAULT_REPORT)
+    for name in ("candidates", "extend-heldout", "review-select", "review-export"):
+        cmd = sub.add_parser(name)
+        cmd.add_argument("--data-dir", type=Path, default=None)
+        cmd.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+        cmd.add_argument("--report-prefix", type=Path, default=CANDIDATES_REPORT)
+        if name == "candidates":
+            cmd.add_argument("--split", default="dev")
+            cmd.add_argument("--tuning-rounds", type=int, default=0)
+            cmd.add_argument("--keep-default-k", default=None, metavar="REASON",
+                             help="human decision to keep PAIRS_TOP_K over the rule's K")
+        if name == "extend-heldout":
+            cmd.add_argument("--env-file", type=Path, default=None)
     args = parser.parse_args(argv)
+    if args.command == "candidates" and args.split != "dev":
+        print("candidates are measured on dev only; held-out is read by extend-heldout",
+              file=sys.stderr)
+        return 2
     args.data_dir = args.data_dir or Path(
         os.environ.get(manifest.DATA_DIR_ENV) or manifest.DEFAULT_DATA_DIR
     )
@@ -59,6 +83,8 @@ def main(argv: list[str] | None = None) -> int:
     return {
         "fetch": _fetch, "build": _build, "cluster": _cluster, "pool": _pool,
         "label": _label, "summary": _summary, "freeze": _freeze,
+        "candidates": _candidates, "extend-heldout": _extend_heldout,
+        "review-select": _review_select, "review-export": _review_export,
     }[args.command](args)
 
 
@@ -416,6 +442,122 @@ def _verify(args: argparse.Namespace) -> int:
         return 2
     print(f"verify ok: {args.manifest}")
     return 0
+
+
+# -- P2 ----------------------------------------------------------------------------------------
+
+
+def _write_report(prefix: Path, report: dict) -> None:
+    manifest.write_json(Path(prefix).with_suffix(".json"), report)
+    with open(Path(prefix).with_suffix(".md"), "w", encoding="utf-8", newline=NL) as fh:
+        fh.write(render_candidates(report))
+
+
+def _candidates(args: argparse.Namespace) -> int:
+    from evals.contract_graph.pairs import candidate_eval as ce
+
+    report = ce.measure_dev(manifest.read_split(args.data_dir, "dev", args.manifest))
+    passed_at_k = {int(k): v["passed"] for k, v in report["recall_at_k"].items()}
+    rule_k, reason = ce.choose_top_k(passed_at_k, report["recall_full"]["passed"])
+    chosen = rule_k
+    if args.keep_default_k:
+        chosen = ce.PAIRS_TOP_K
+        reason = (f"quy tắc cho K={rule_k} ({reason}); người dùng giữ {ce.PAIRS_TOP_K}: "
+                  f"{args.keep_default_k}")
+    report.update({
+        "candidates_version": ce.CANDIDATES_VERSION,
+        "pairs_top_k": ce.PAIRS_TOP_K,
+        "pairs_top_k_rule": rule_k,
+        "pairs_top_k_chosen": chosen,
+        "k_choice_reason": reason,
+        "tuning_rounds": args.tuning_rounds,
+        "s4": None,
+        "review": None,
+    })
+    _write_report(args.report_prefix, report)
+    print(f"dev recall {report['recall_full']['passed']}/{report['recall_full']['denominator']}; "
+          f"K chosen {chosen} ({reason}); code PAIRS_TOP_K {ce.PAIRS_TOP_K}")
+    if chosen != ce.PAIRS_TOP_K:
+        print(f"set PAIRS_TOP_K = {chosen} in pair_candidates.py and rerun before extend-heldout",
+              file=sys.stderr)
+        return 1
+    return 0
+
+
+def _extend_heldout(args: argparse.Namespace) -> int:
+    from evals.contract_graph.pairs import candidate_eval as ce
+
+    report_path = Path(args.report_prefix).with_suffix(".json")
+    block = ce.extend_heldout(args.data_dir, args.manifest, report_path,
+                              label_fn=ce.production_label_fn(args.data_dir, args.env_file))
+    report = manifest.read_json(report_path)
+    report["s4"] = {k: block[k] for k in ("n_pairs", "labels_by_label", "labeler", "top_k",
+                                          "candidates_version")}
+    report["review"] = None
+    _write_report(args.report_prefix, report)
+    print(f"S4 pairs {block['n_pairs']} {block['labels_by_label']}")
+    return 0
+
+
+def _review_select(args: argparse.Namespace) -> int:
+    from evals.contract_graph.pairs import candidate_eval as ce
+
+    block = ce.review_select(args.data_dir, args.manifest)
+    report_path = Path(args.report_prefix).with_suffix(".json")
+    report = manifest.read_json(report_path)
+    report["review"] = {k: block[k] for k in ("n_rows", "by_stratum", "by_label")}
+    _write_report(args.report_prefix, report)
+    print(f"HG-1 rows {block['n_rows']} {block['by_label']} {block['by_stratum']}; "
+          "commit manifest.json before review-export")
+    return 0
+
+
+def _review_export(args: argparse.Namespace) -> int:
+    from evals.contract_graph.pairs import candidate_eval as ce
+
+    rows = ce.review_export(args.data_dir, args.manifest)
+    print(f"HG-1 sheet: {Path(args.data_dir) / ce.REVIEW_DIR / ce.SHEET} ({rows} rows)")
+    return 0
+
+
+def render_candidates(report: dict) -> str:
+    lines = [
+        "# Contract graph luồng 2 — P2 ứng viên cặp cấu trúc",
+        "",
+        f"- Ground truth: `{report['ground_truth']}` — nhãn GPT chưa duyệt; recall là độ phủ "
+        "nhãn GPT-positive của dev, không phải độ chính xác nghiệp vụ.",
+        f"- `CANDIDATES_VERSION` `{report['candidates_version']}`, `PAIRS_TOP_K` "
+        f"{report['pairs_top_k']} (chọn {report['pairs_top_k_chosen']}: {report['k_choice_reason']}); "
+        f"vòng chỉnh lexicon/cụm trên dev: {report['tuning_rounds']}.",
+        f"- Văn bản dev: {report['n_docs']}; ứng viên/hồ sơ (không cắt) "
+        f"{report['candidates_per_doc']}.",
+        f"- Recall không cắt: {_fmt(report['recall_full'])}",
+        f"- Loại trừ: {report['stats_total']}",
+        "",
+        "## Theo nguồn (riêng / chỉ nguồn đó tìm được)",
+        "",
+        "| nguồn | recall | biên |",
+        "| --- | --- | --- |",
+    ]
+    for source, value in report["by_source"].items():
+        lines.append(f"| {source} | {_fmt(value)} | {_fmt(report['by_source_marginal'][source])} |")
+    lines += ["", "## Recall@K", "", "| K | recall |", "| --- | --- |"]
+    lines += [f"| {k} | {_fmt(v)} |" for k, v in report["recall_at_k"].items()]
+    lines += ["", "## Theo tầng P1", "", "| tầng | recall |", "| --- | --- |"]
+    lines += [f"| {s} | {_fmt(v)} |" for s, v in report["by_stratum"].items()]
+    lines += ["", "## Theo nhãn GPT", "", "| nhãn | recall |", "| --- | --- |"]
+    lines += [f"| {lab} | {_fmt(v)} |" for lab, v in report["by_label"].items()]
+    lines += ["", "## Held-out S4 và phiếu HG-1", ""]
+    s4, rv = report.get("s4"), report.get("review")
+    lines.append(f"- S4 (B ∪ C − pool): {s4['n_pairs']} cặp, nhãn {s4['labels_by_label']}."
+                 if s4 else "- S4: chưa sinh.")
+    lines.append(f"- Phiếu HG-1: {rv['n_rows']} dòng, theo nhãn {rv['by_label']}, theo tầng "
+                 f"{rv['by_stratum']}." if rv else "- Phiếu HG-1: chưa chọn mẫu.")
+    lines += ["", "## Theo văn bản", "", "| doc_id | gold | phủ | ứng viên |",
+              "| --- | --- | --- | --- |"]
+    lines += [f"| {d['doc_id']} | {d['gold']} | {d['covered']} | {d['candidates']} |"
+              for d in report["per_doc"]]
+    return NL.join(lines) + NL
 
 
 if __name__ == "__main__":

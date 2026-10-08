@@ -1,0 +1,272 @@
+{
+ "by_label": {
+  "CONFLICT": {
+   "denominator": 5,
+   "passed": 3,
+   "rate": 0.6,
+   "wilson95": [
+    0.2307,
+    0.8824
+   ]
+  },
+  "DUPLICATE": {
+   "denominator": 2,
+   "passed": 2,
+   "rate": 1.0,
+   "wilson95": [
+    0.3424,
+    1.0
+   ]
+  },
+  "GENERAL_SPECIFIC": {
+   "denominator": 13,
+   "passed": 8,
+   "rate": 0.6154,
+   "wilson95": [
+    0.3552,
+    0.8229
+   ]
+  },
+  "REFERENCE": {
+   "denominator": 4,
+   "passed": 2,
+   "rate": 0.5,
+   "wilson95": [
+    0.15,
+    0.85
+   ]
+  }
+ },
+ "by_source": {
+  "EXPLICIT_REF": {
+   "denominator": 24,
+   "passed": 7,
+   "rate": 0.2917,
+   "wilson95": [
+    0.1491,
+    0.4917
+   ]
+  },
+  "REFERENCE_CUE": {
+   "denominator": 24,
+   "passed": 0,
+   "rate": 0.0,
+   "wilson95": [
+    0.0,
+    0.138
+   ]
+  },
+  "SAME_ARTICLE": {
+   "denominator": 24,
+   "passed": 6,
+   "rate": 0.25,
+   "wilson95": [
+    0.12,
+    0.449
+   ]
+  },
+  "SAME_KEY": {
+   "denominator": 24,
+   "passed": 2,
+   "rate": 0.0833,
+   "wilson95": [
+    0.0232,
+    0.2585
+   ]
+  }
+ },
+ "by_source_marginal": {
+  "EXPLICIT_REF": {
+   "denominator": 24,
+   "passed": 7,
+   "rate": 0.2917,
+   "wilson95": [
+    0.1491,
+    0.4917
+   ]
+  },
+  "REFERENCE_CUE": {
+   "denominator": 24,
+   "passed": 0,
+   "rate": 0.0,
+   "wilson95": [
+    0.0,
+    0.138
+   ]
+  },
+  "SAME_ARTICLE": {
+   "denominator": 24,
+   "passed": 6,
+   "rate": 0.25,
+   "wilson95": [
+    0.12,
+    0.449
+   ]
+  },
+  "SAME_KEY": {
+   "denominator": 24,
+   "passed": 2,
+   "rate": 0.0833,
+   "wilson95": [
+    0.0232,
+    0.2585
+   ]
+  }
+ },
+ "by_stratum": {
+  "S1": {
+   "denominator": 6,
+   "passed": 6,
+   "rate": 1.0,
+   "wilson95": [
+    0.6097,
+    1.0
+   ]
+  },
+  "S3": {
+   "denominator": 18,
+   "passed": 9,
+   "rate": 0.5,
+   "wilson95": [
+    0.2903,
+    0.7097
+   ]
+  }
+ },
+ "candidates_per_doc": {
+  "max": 20,
+  "median": 3,
+  "min": 1,
+  "total": 38
+ },
+ "candidates_version": "pairs-cand-v1",
+ "ground_truth": "gpt-labels (approved=false), dev",
+ "k_choice_reason": "quy tắc cho K=10 (K nhỏ nhất có recall@K ≥ 0.95 × recall không cắt); người dùng giữ 40: dev degenerate: max 20 candidates/doc so recall@K is flat for every K in the grid; held-out docs reach 42 nodes (user decision 2026-10-09)",
+ "n_docs": 7,
+ "pairs_top_k": 40,
+ "pairs_top_k_chosen": 40,
+ "pairs_top_k_rule": 10,
+ "per_doc": [
+  {
+   "candidates": 8,
+   "covered": 6,
+   "doc_id": "pd-ae9bb69ee7",
+   "gold": 6
+  },
+  {
+   "candidates": 2,
+   "covered": 2,
+   "doc_id": "pd-b300e5ad70",
+   "gold": 2
+  },
+  {
+   "candidates": 3,
+   "covered": 1,
+   "doc_id": "pd-b6d8628d32",
+   "gold": 2
+  },
+  {
+   "candidates": 20,
+   "covered": 3,
+   "doc_id": "pd-bf1d9346b4",
+   "gold": 9
+  },
+  {
+   "candidates": 1,
+   "covered": 0,
+   "doc_id": "pd-e0d65645f2",
+   "gold": 0
+  },
+  {
+   "candidates": 3,
+   "covered": 3,
+   "doc_id": "pd-eec95ad3b2",
+   "gold": 3
+  },
+  {
+   "candidates": 1,
+   "covered": 0,
+   "doc_id": "pd-fa299625d8",
+   "gold": 2
+  }
+ ],
+ "recall_at_k": {
+  "10": {
+   "denominator": 24,
+   "passed": 15,
+   "rate": 0.625,
+   "wilson95": [
+    0.4271,
+    0.7884
+   ]
+  },
+  "20": {
+   "denominator": 24,
+   "passed": 15,
+   "rate": 0.625,
+   "wilson95": [
+    0.4271,
+    0.7884
+   ]
+  },
+  "30": {
+   "denominator": 24,
+   "passed": 15,
+   "rate": 0.625,
+   "wilson95": [
+    0.4271,
+    0.7884
+   ]
+  },
+  "40": {
+   "denominator": 24,
+   "passed": 15,
+   "rate": 0.625,
+   "wilson95": [
+    0.4271,
+    0.7884
+   ]
+  },
+  "60": {
+   "denominator": 24,
+   "passed": 15,
+   "rate": 0.625,
+   "wilson95": [
+    0.4271,
+    0.7884
+   ]
+  },
+  "80": {
+   "denominator": 24,
+   "passed": 15,
+   "rate": 0.625,
+   "wilson95": [
+    0.4271,
+    0.7884
+   ]
+  }
+ },
+ "recall_full": {
+  "denominator": 24,
+  "passed": 15,
+  "rate": 0.625,
+  "wilson95": [
+   0.4271,
+   0.7884
+  ]
+ },
+ "review": null,
+ "s4": null,
+ "schema": "contract-graph-pairs-candidates/1",
+ "split": "dev",
+ "stats_total": {
+  "candidates_capped": 0,
+  "candidates_kept": 38,
+  "candidates_total": 38,
+  "excluded_ancestor": 14,
+  "excluded_external_ref": 0,
+  "excluded_luong1": 0,
+  "excluded_short": 1
+ },
+ "tuning_rounds": 0
+}

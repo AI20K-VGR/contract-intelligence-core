@@ -229,8 +229,10 @@ def verify(data_dir: Path, repo_manifest: Path = REPO_MANIFEST) -> list[str]:
     if not path.is_file():
         return [f"{path}: manifest missing"]
     try:
-        entries = read_json(path)["docs"]
-    except (ValueError, KeyError, TypeError) as exc:
+        data = read_json(path)
+        entries = data["docs"]
+        extension = (data.get("extension_s4") or {}).get("files", {})
+    except (ValueError, KeyError, TypeError, AttributeError) as exc:
         return [f"{path}: unreadable manifest ({exc})"]
     problems: list[str] = []
     listed: set[tuple[str, str]] = set()
@@ -243,6 +245,8 @@ def verify(data_dir: Path, repo_manifest: Path = REPO_MANIFEST) -> list[str]:
         files = entry.get("files", {})
         if sorted(files) != sorted(DOC_FILES):
             problems.append(f"{split}/{doc_id}: manifest lists {sorted(files)}")
+        if split == "heldout" and doc_id in extension:  # P2 S4 stratum (``extension_s4``)
+            files = {**files, **extension[doc_id]}
         doc_dir = data_dir / split / doc_id
         if not doc_dir.is_dir():
             problems.append(f"{split}/{doc_id}: missing")
