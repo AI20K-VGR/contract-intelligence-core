@@ -40,33 +40,33 @@
  "hg1_estimate": {
   "by_label": {
    "CONFLICT": {
-    "gpt_positive": 34,
-    "selected": 34
+    "gpt_positive": 33,
+    "selected": 33
    },
    "DUPLICATE": {
-    "gpt_positive": 48,
-    "selected": 48
+    "gpt_positive": 31,
+    "selected": 31
    },
    "GENERAL_SPECIFIC": {
-    "gpt_positive": 51,
-    "selected": 51
+    "gpt_positive": 45,
+    "selected": 45
    },
    "REFERENCE": {
-    "gpt_positive": 3,
-    "selected": 3
+    "gpt_positive": 9,
+    "selected": 9
    }
   },
   "includes_s4": false,
   "over_cap": false,
   "row_cap": 380,
-  "total_rows": 216,
+  "total_rows": 198,
   "unrelated": {
    "by_stratum": {
-    "S1": 17,
+    "S1": 10,
     "S2": 10,
-    "S3": 53
+    "S3": 60
    },
-   "gpt_unrelated": 885,
+   "gpt_unrelated": 721,
    "selected": 80
   }
  },
@@ -78,71 +78,71 @@
  },
  "labels": {
   "by_split_label": {
-   "dev/CONFLICT": 6,
-   "dev/DUPLICATE": 7,
-   "dev/GENERAL_SPECIFIC": 15,
-   "dev/REFERENCE": 1,
-   "dev/UNRELATED": 297,
+   "dev/CONFLICT": 5,
+   "dev/DUPLICATE": 2,
+   "dev/GENERAL_SPECIFIC": 13,
+   "dev/REFERENCE": 4,
+   "dev/UNRELATED": 191,
    "heldout/CONFLICT": 28,
-   "heldout/DUPLICATE": 41,
-   "heldout/GENERAL_SPECIFIC": 36,
-   "heldout/REFERENCE": 2,
-   "heldout/UNRELATED": 588
+   "heldout/DUPLICATE": 29,
+   "heldout/GENERAL_SPECIFIC": 32,
+   "heldout/REFERENCE": 5,
+   "heldout/UNRELATED": 530
   },
   "by_stratum_label": {
-   "S1/CONFLICT": 29,
-   "S1/DUPLICATE": 47,
-   "S1/GENERAL_SPECIFIC": 20,
-   "S1/UNRELATED": 191,
+   "S1/CONFLICT": 27,
+   "S1/DUPLICATE": 30,
+   "S1/GENERAL_SPECIFIC": 18,
+   "S1/UNRELATED": 91,
    "S2/DUPLICATE": 1,
-   "S2/GENERAL_SPECIFIC": 3,
-   "S2/UNRELATED": 18,
-   "S3/CONFLICT": 5,
-   "S3/GENERAL_SPECIFIC": 28,
-   "S3/REFERENCE": 3,
-   "S3/UNRELATED": 676
+   "S2/REFERENCE": 1,
+   "S2/UNRELATED": 20,
+   "S3/CONFLICT": 6,
+   "S3/GENERAL_SPECIFIC": 27,
+   "S3/REFERENCE": 8,
+   "S3/UNRELATED": 610
   },
   "grounded_false": {
-   "denominator": 136,
-   "passed": 10,
-   "rate": 0.0735,
+   "denominator": 118,
+   "passed": 7,
+   "rate": 0.0593,
    "wilson95": [
-    0.0404,
-    0.1301
+    0.029,
+    0.1174
    ]
   },
   "grounded_false_scope": "nhãn hợp lệ ≠ UNRELATED (span bắt buộc)",
   "label_invalid": {
-   "denominator": 1021,
+   "denominator": 839,
    "passed": 0,
    "rate": 0.0,
    "wilson95": [
     0.0,
-    0.0037
+    0.0046
    ]
   },
   "label_invalid_by_reason": {},
-  "labeled": 1021,
+  "labeled": 839,
   "unlabeled": 0
  },
  "pairs": {
   "by_split_stratum": {
-   "dev/S1": 94,
-   "dev/S3": 232,
-   "heldout/S1": 193,
+   "dev/S1": 20,
+   "dev/S3": 195,
+   "heldout/S1": 146,
    "heldout/S2": 22,
-   "heldout/S3": 480
+   "heldout/S3": 456
   },
   "by_stratum": {
-   "S1": 287,
+   "S1": 166,
    "S2": 22,
-   "S3": 712
+   "S3": 651
   },
-  "total": 1021,
+  "total": 839,
   "universe_by_stratum": {
-   "S1": 287,
+   "S1": 166,
    "S2": 22,
-   "S3": 3083
+   "S3": 2670
   }
  },
  "per_doc": [
@@ -161,7 +161,8 @@
     "S3": 40
    },
    "profile": "SUPPLY_SERVICE",
-   "split": "heldout"
+   "split": "heldout",
+   "tail_trimmed_chars": 3347
   },
   {
    "cluster_id": "cl-ed52f83937",
@@ -170,8 +171,8 @@
    "has_annex": false,
    "labels_by_label": {
     "CONFLICT": 1,
-    "GENERAL_SPECIFIC": 5,
-    "UNRELATED": 19
+    "GENERAL_SPECIFIC": 3,
+    "UNRELATED": 21
    },
    "n_articles": 5,
    "n_nodes": 8,
@@ -180,7 +181,8 @@
     "S3": 24
    },
    "profile": "SUPPLY_SERVICE",
-   "split": "heldout"
+   "split": "heldout",
+   "tail_trimmed_chars": 3710
   },
   {
    "cluster_id": "cl-920467d2f1",
@@ -198,7 +200,8 @@
     "S3": 40
    },
    "profile": "SALES",
-   "split": "heldout"
+   "split": "heldout",
+   "tail_trimmed_chars": 0
   },
   {
    "cluster_id": "cl-c2c7bcdf6c",
@@ -218,7 +221,8 @@
     "S3": 40
    },
    "profile": "SALES",
-   "split": "heldout"
+   "split": "heldout",
+   "tail_trimmed_chars": 0
   },
   {
    "cluster_id": "cl-a00a96d219",
@@ -228,8 +232,9 @@
    "labels_by_label": {
     "CONFLICT": 1,
     "DUPLICATE": 14,
-    "GENERAL_SPECIFIC": 7,
-    "UNRELATED": 72
+    "GENERAL_SPECIFIC": 4,
+    "REFERENCE": 1,
+    "UNRELATED": 74
    },
    "n_articles": 8,
    "n_nodes": 23,
@@ -239,7 +244,8 @@
     "S3": 40
    },
    "profile": "SALES",
-   "split": "heldout"
+   "split": "heldout",
+   "tail_trimmed_chars": 3266
   },
   {
    "cluster_id": "cl-66c3003368",
@@ -255,7 +261,8 @@
     "S3": 40
    },
    "profile": "SUPPLY_SERVICE",
-   "split": "heldout"
+   "split": "heldout",
+   "tail_trimmed_chars": 0
   },
   {
    "cluster_id": "cl-a1b67a0d3c",
@@ -263,17 +270,18 @@
    "doc_id": "pd-21d3913039",
    "has_annex": false,
    "labels_by_label": {
-    "DUPLICATE": 5,
-    "UNRELATED": 71
+    "GENERAL_SPECIFIC": 1,
+    "REFERENCE": 1,
+    "UNRELATED": 38
    },
    "n_articles": 13,
-   "n_nodes": 24,
+   "n_nodes": 14,
    "pairs_by_stratum": {
-    "S1": 36,
     "S3": 40
    },
    "profile": "SUPPLY_SERVICE",
-   "split": "heldout"
+   "split": "heldout",
+   "tail_trimmed_chars": 4411
   },
   {
    "cluster_id": "cl-f73dec390c",
@@ -281,15 +289,16 @@
    "doc_id": "pd-242e0b7a96",
    "has_annex": false,
    "labels_by_label": {
-    "UNRELATED": 20
+    "UNRELATED": 15
    },
    "n_articles": 6,
-   "n_nodes": 7,
+   "n_nodes": 6,
    "pairs_by_stratum": {
-    "S3": 20
+    "S3": 15
    },
    "profile": "SALES",
-   "split": "heldout"
+   "split": "heldout",
+   "tail_trimmed_chars": 3626
   },
   {
    "cluster_id": "cl-79aeaf564f",
@@ -298,16 +307,16 @@
    "has_annex": false,
    "labels_by_label": {
     "GENERAL_SPECIFIC": 1,
-    "UNRELATED": 40
+    "UNRELATED": 39
    },
    "n_articles": 12,
-   "n_nodes": 14,
+   "n_nodes": 12,
    "pairs_by_stratum": {
-    "S1": 1,
     "S3": 40
    },
    "profile": "SALES",
-   "split": "heldout"
+   "split": "heldout",
+   "tail_trimmed_chars": 7285
   },
   {
    "cluster_id": "cl-94f7b2cf53",
@@ -326,7 +335,8 @@
     "S3": 15
    },
    "profile": "SALES",
-   "split": "heldout"
+   "split": "heldout",
+   "tail_trimmed_chars": 0
   },
   {
    "cluster_id": "cl-7e7b2d2767",
@@ -337,16 +347,18 @@
     "CONFLICT": 1,
     "DUPLICATE": 8,
     "GENERAL_SPECIFIC": 1,
-    "UNRELATED": 62
+    "REFERENCE": 1,
+    "UNRELATED": 61
    },
    "n_articles": 7,
-   "n_nodes": 27,
+   "n_nodes": 26,
    "pairs_by_stratum": {
     "S1": 32,
     "S3": 40
    },
    "profile": "SUPPLY_SERVICE",
-   "split": "heldout"
+   "split": "heldout",
+   "tail_trimmed_chars": 3583
   },
   {
    "cluster_id": "cl-f9b79e7bb2",
@@ -362,7 +374,8 @@
     "S3": 21
    },
    "profile": "SUPPLY_SERVICE",
-   "split": "heldout"
+   "split": "heldout",
+   "tail_trimmed_chars": 3430
   },
   {
    "cluster_id": "cl-c62f273a33",
@@ -370,19 +383,18 @@
    "doc_id": "pd-96be63cf8b",
    "has_annex": false,
    "labels_by_label": {
-    "DUPLICATE": 7,
     "GENERAL_SPECIFIC": 1,
     "REFERENCE": 1,
-    "UNRELATED": 41
+    "UNRELATED": 19
    },
    "n_articles": 7,
-   "n_nodes": 12,
+   "n_nodes": 7,
    "pairs_by_stratum": {
-    "S1": 10,
-    "S3": 40
+    "S3": 21
    },
    "profile": "SALES",
-   "split": "heldout"
+   "split": "heldout",
+   "tail_trimmed_chars": 2475
   },
   {
    "cluster_id": "cl-8b59038c24",
@@ -402,7 +414,8 @@
     "S3": 40
    },
    "profile": "SALES",
-   "split": "heldout"
+   "split": "heldout",
+   "tail_trimmed_chars": 0
   },
   {
    "cluster_id": "cl-4637ce270e",
@@ -410,19 +423,20 @@
    "doc_id": "pd-ae9bb69ee7",
    "has_annex": false,
    "labels_by_label": {
-    "CONFLICT": 2,
+    "CONFLICT": 3,
     "DUPLICATE": 1,
     "GENERAL_SPECIFIC": 2,
-    "UNRELATED": 42
+    "UNRELATED": 41
    },
    "n_articles": 9,
-   "n_nodes": 18,
+   "n_nodes": 17,
    "pairs_by_stratum": {
     "S1": 7,
     "S3": 40
    },
    "profile": "SALES",
-   "split": "dev"
+   "split": "dev",
+   "tail_trimmed_chars": 3946
   },
   {
    "cluster_id": "cl-0fa3021b56",
@@ -440,7 +454,8 @@
     "S3": 10
    },
    "profile": "SUPPLY_SERVICE",
-   "split": "dev"
+   "split": "dev",
+   "tail_trimmed_chars": 0
   },
   {
    "cluster_id": "cl-6ef7261d72",
@@ -448,18 +463,18 @@
    "doc_id": "pd-b6d8628d32",
    "has_annex": false,
    "labels_by_label": {
-    "DUPLICATE": 4,
-    "GENERAL_SPECIFIC": 4,
-    "UNRELATED": 78
+    "GENERAL_SPECIFIC": 1,
+    "REFERENCE": 1,
+    "UNRELATED": 38
    },
    "n_articles": 13,
-   "n_nodes": 24,
+   "n_nodes": 13,
    "pairs_by_stratum": {
-    "S1": 46,
     "S3": 40
    },
    "profile": "SUPPLY_SERVICE",
-   "split": "dev"
+   "split": "dev",
+   "tail_trimmed_chars": 6382
   },
   {
    "cluster_id": "cl-1027a3caf6",
@@ -468,17 +483,19 @@
    "has_annex": false,
    "labels_by_label": {
     "DUPLICATE": 1,
-    "GENERAL_SPECIFIC": 4,
-    "UNRELATED": 48
+    "GENERAL_SPECIFIC": 6,
+    "REFERENCE": 2,
+    "UNRELATED": 44
    },
    "n_articles": 7,
-   "n_nodes": 16,
+   "n_nodes": 15,
    "pairs_by_stratum": {
     "S1": 13,
     "S3": 40
    },
    "profile": "SALES",
-   "split": "dev"
+   "split": "dev",
+   "tail_trimmed_chars": 4489
   },
   {
    "cluster_id": "cl-61cf8fa90c",
@@ -494,7 +511,8 @@
     "S3": 28
    },
    "profile": "SUPPLY_SERVICE",
-   "split": "dev"
+   "split": "dev",
+   "tail_trimmed_chars": 2109
   },
   {
    "cluster_id": "cl-d10ad02902",
@@ -502,19 +520,17 @@
    "doc_id": "pd-eec95ad3b2",
    "has_annex": false,
    "labels_by_label": {
-    "CONFLICT": 2,
-    "DUPLICATE": 1,
     "GENERAL_SPECIFIC": 3,
-    "UNRELATED": 62
+    "UNRELATED": 7
    },
    "n_articles": 5,
-   "n_nodes": 13,
+   "n_nodes": 5,
    "pairs_by_stratum": {
-    "S1": 28,
-    "S3": 40
+    "S3": 10
    },
    "profile": "SUPPLY_SERVICE",
-   "split": "dev"
+   "split": "dev",
+   "tail_trimmed_chars": 10245
   },
   {
    "cluster_id": "cl-b8007cde81",
@@ -523,19 +539,19 @@
    "has_annex": false,
    "labels_by_label": {
     "CONFLICT": 2,
-    "GENERAL_SPECIFIC": 1,
-    "UNRELATED": 31
+    "UNRELATED": 25
    },
    "n_articles": 7,
-   "n_nodes": 9,
+   "n_nodes": 8,
    "pairs_by_stratum": {
-    "S3": 34
+    "S3": 27
    },
    "profile": "SUPPLY_SERVICE",
-   "split": "dev"
+   "split": "dev",
+   "tail_trimmed_chars": 3969
   }
  ],
- "pool_sha256": "7ff6505063fc07ce23088d5ce5c307da7f4da6d0764eb8e5642d0d65be6d005b",
+ "pool_sha256": "9167a02c9b4a88dbb5d794a3b2f417e7f35a5982b009f824e8f258aa9c374019",
  "schema": "contract-graph-pairs-summary/1",
  "sources": {
   "failed": 0,
@@ -546,6 +562,14 @@
   },
   "rejected_segmentation": 0,
   "rejected_segmentation_detail": [],
+  "tail_by_boundary": {
+   "docx": 6,
+   "marker": 1,
+   "signature": 14
+  },
+  "tail_trimmed": 15,
+  "tail_trimmed_chars": 66273,
+  "tail_untrimmed": 0,
   "usable": 21
  },
  "split_stats": {

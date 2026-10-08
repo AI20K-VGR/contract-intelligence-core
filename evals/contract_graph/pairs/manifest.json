@@ -155,8 +155,8 @@
    "contaminated": false,
    "doc_id": "pd-0cd20d2016",
    "files": {
-    "doc.json": "96d8898da4647420e8fc5f44650245b08e0403718054003d2d89dde526fecac5",
-    "labels.gpt.jsonl": "7a73a8b0b38676583c290c4d92da2fa6618f25654699a6d476af4da56ff45348",
+    "doc.json": "875142890b43be2e774955cf16168d56d01591ef7f0214deaae0486ef99dacf6",
+    "labels.gpt.jsonl": "85ef2657b981a999199ac816f92c80f6aff34b156f7f29da84bb9f2304e46df5",
     "pool.jsonl": "7f8105eb8862ea6d694a739b1d1887353f880ae2ac1ba1be22b4bc6248064166"
    },
    "labels_by_label": {
@@ -180,14 +180,14 @@
    "contaminated": false,
    "doc_id": "pd-0dd5942e4e",
    "files": {
-    "doc.json": "586f15153b5c27bca70ef5be628d10558aeafd7a3b268e8f098cc5d8be936c4f",
-    "labels.gpt.jsonl": "dd60955ac984e278eff3256e99fd8cb198bead90e7705b34d467cf5c6e9528da",
+    "doc.json": "ed4e52617b071a91559df157584a79d7f2d20651c2b0323b31ebe3667f7bd288",
+    "labels.gpt.jsonl": "10e4b8a0dba5df3106828c4712aeb24703c0412b73e8334b2ca5daf175c1b484",
     "pool.jsonl": "e4e9f14ac8c957ccaf14739cbddbea731c3124ee3b8af81a384e4bd06ff05d40"
    },
    "labels_by_label": {
     "CONFLICT": 1,
-    "GENERAL_SPECIFIC": 5,
-    "UNRELATED": 19
+    "GENERAL_SPECIFIC": 3,
+    "UNRELATED": 21
    },
    "n_articles": 5,
    "n_nodes": 8,
@@ -259,15 +259,16 @@
    "contaminated": false,
    "doc_id": "pd-1c0f85fee4",
    "files": {
-    "doc.json": "b95e0f8e8b4ac06375f82fcf2ce95025f72571b09ccdca4cb8e8c0c764178121",
-    "labels.gpt.jsonl": "dd6ce70bc605ce871d0b3516babffafb194b284225386b4697e7ced5a8d85ec5",
+    "doc.json": "136cb5d7727236d0e053bfe4a4c016bc364511899848a68e6a1d31bbdc396a84",
+    "labels.gpt.jsonl": "73e5a7c7ed02af7c5e49bff0a320eda644d17b714488460c9a4d7c055a9ab1c8",
     "pool.jsonl": "8a32e94ad8ebe1d3d165a9290389c16b1e6fe27a89e1ac7b3bcbe132ce3a0fe4"
    },
    "labels_by_label": {
     "CONFLICT": 1,
     "DUPLICATE": 14,
-    "GENERAL_SPECIFIC": 7,
-    "UNRELATED": 72
+    "GENERAL_SPECIFIC": 4,
+    "REFERENCE": 1,
+    "UNRELATED": 74
    },
    "n_articles": 8,
    "n_nodes": 23,
@@ -310,18 +311,19 @@
    "contaminated": false,
    "doc_id": "pd-21d3913039",
    "files": {
-    "doc.json": "49a540424725a63869e0f28bb90cbf733f9600f1b1b730786f27ce6eed5be249",
-    "labels.gpt.jsonl": "97dc04bc3479cb5305d260f993e6bd6ac027a485bca4b9033fa86f29be6aeffe",
-    "pool.jsonl": "b24d48dcf48765cc8a0f1bbca9d64aa87195df67f9502c9f2f7a3dfeb3ccd65d"
+    "doc.json": "6f4b14ee1afc5828da9b1e8ac00e05abb0501de29c51b8bcc3a04aeb989bf3fd",
+    "labels.gpt.jsonl": "8483d382feea2f9bd7ea53c5ec058a1a08267365cae54eb5d4eeddda0459c70a",
+    "pool.jsonl": "3c36db7ac04d10e2e4606392ab23e61b991de6b62ed4003e8fd47181ca00a259"
    },
    "labels_by_label": {
-    "DUPLICATE": 5,
-    "UNRELATED": 71
+    "GENERAL_SPECIFIC": 1,
+    "REFERENCE": 1,
+    "UNRELATED": 38
    },
    "n_articles": 13,
-   "n_nodes": 24,
+   "n_nodes": 14,
    "n_pairs_by_stratum": {
-    "S1": 36,
+    "S1": 0,
     "S2": 0,
     "S3": 40
    },
@@ -335,19 +337,19 @@
    "contaminated": false,
    "doc_id": "pd-242e0b7a96",
    "files": {
-    "doc.json": "8a099f9d343ef4d54c56f081210afec6473fb97ce810dd9cab0374de314bd54b",
-    "labels.gpt.jsonl": "a56ddd3a48a364f653fbb25187bf123f2e118707bc946503de657e9b39b4fb09",
-    "pool.jsonl": "dcefa07d70b2886d49c1d98d9c7051cea783d1534e0b3a4d1b4c789cb207a7fd"
+    "doc.json": "933af78f720ef0937a46da05258eccb5559996248f26a356522396f2c2344ee5",
+    "labels.gpt.jsonl": "4f262b1733934a357e5225a5b8bb6d17d17701ed8de2dddf453bb617fff007f4",
+    "pool.jsonl": "19e2bc008525e4ddfe941933439d6eb3020cfcd870118f64af5948ab472a52d5"
    },
    "labels_by_label": {
-    "UNRELATED": 20
+    "UNRELATED": 15
    },
    "n_articles": 6,
-   "n_nodes": 7,
+   "n_nodes": 6,
    "n_pairs_by_stratum": {
     "S1": 0,
     "S2": 0,
-    "S3": 20
+    "S3": 15
    },
    "n_unlabeled": 0,
    "profile": "SALES",
@@ -359,18 +361,18 @@
    "contaminated": false,
    "doc_id": "pd-2e28a08bfa",
    "files": {
-    "doc.json": "a6cc82b0f02d20257f07316b1f86b3b7f79f17b3f24b4bb0652533417dbe1ee4",
-    "labels.gpt.jsonl": "51b6d5345d702a6bedb4f442554d55e9caf06143b8f775694ee16242ce861f60",
-    "pool.jsonl": "10f2997a8178cfd9efec810598fbf0730481dd09e5cd326298f84d71484b050f"
+    "doc.json": "98dca195a6d9418cf7a31bd6a7194a4be58070fd83f5358c4da5aed19ad07798",
+    "labels.gpt.jsonl": "9b1810c0c5465b8e619996f2e33db6872e3e437b3a908cb0347dbb6034f00b74",
+    "pool.jsonl": "3a8eab76492f63686de86cd2447c79c509173a5a1f6bf6fed9b0c33077126797"
    },
    "labels_by_label": {
     "GENERAL_SPECIFIC": 1,
-    "UNRELATED": 40
+    "UNRELATED": 39
    },
    "n_articles": 12,
-   "n_nodes": 14,
+   "n_nodes": 12,
    "n_pairs_by_stratum": {
-    "S1": 1,
+    "S1": 0,
     "S2": 0,
     "S3": 40
    },
@@ -411,18 +413,19 @@
    "contaminated": false,
    "doc_id": "pd-43cd896d78",
    "files": {
-    "doc.json": "d36d379c1f3d23b26f8a923599eb3176cde317bfff48dd621c5aaa936f383cb9",
-    "labels.gpt.jsonl": "938cf3071ba943c7bbda1412fdd19ee81e05ef3ad6428e626c6315f4801e5b73",
-    "pool.jsonl": "be9d680048072eeba585466ee6593b623c7caa2c7f998e32b2825d5f3df3f6ab"
+    "doc.json": "86f7ccb286641bf62238c4eb78a6d950d5e832450e0919ae55782ca0b6a6eee5",
+    "labels.gpt.jsonl": "960483083535f87e48ea9a5f5978503bfd14977cf202b53600aa248ff20bf2cf",
+    "pool.jsonl": "8a15354c80f003c87382b65223133dcb47569569ed43832ed45cc135e65f7f3f"
    },
    "labels_by_label": {
     "CONFLICT": 1,
     "DUPLICATE": 8,
     "GENERAL_SPECIFIC": 1,
-    "UNRELATED": 62
+    "REFERENCE": 1,
+    "UNRELATED": 61
    },
    "n_articles": 7,
-   "n_nodes": 27,
+   "n_nodes": 26,
    "n_pairs_by_stratum": {
     "S1": 32,
     "S2": 0,
@@ -438,8 +441,8 @@
    "contaminated": false,
    "doc_id": "pd-4b7adfd987",
    "files": {
-    "doc.json": "afb652c24528211a7d1273a1f6f27be90ec33175f5ef4dc99804a4779b970cbf",
-    "labels.gpt.jsonl": "e03be6ee4a7637783b8a62e402a0359ffcf0d389240b9e82ba95b0718b02b007",
+    "doc.json": "ba9e4d88d77c8c08a7be7dc5d8be090e93dc27f15024af5c8feceb9500d95965",
+    "labels.gpt.jsonl": "ffd8147e9273fb1a570125ed07e1f5ef865c16f9d30ae6d8fe7587b77b39ac7e",
     "pool.jsonl": "81406363c8d6dcd41d3477470ebe2bd7cce64ebe081b99d0bb97a9bc4bf0bf73"
    },
    "labels_by_label": {
@@ -462,22 +465,21 @@
    "contaminated": false,
    "doc_id": "pd-96be63cf8b",
    "files": {
-    "doc.json": "d305fb6ad75dd3df9df46c54148605f99d4edab604bb2ea80d552d82c4cedb72",
-    "labels.gpt.jsonl": "8469a4ef4d004777c4de5665441b98119305db58f91ff186064d554d707bc07a",
-    "pool.jsonl": "6161fc264e0fe615af4baeff843a53faed82b030d173006295d4559a1abfb3b7"
+    "doc.json": "632fe4e76eb37302f31aea93f87b734780a61a9d85c92cdccc7a7c2c657f7440",
+    "labels.gpt.jsonl": "eda6a327324833aed62b309c8f972510b7a9f3ca473f6b0a1ae0ffa515a3b43f",
+    "pool.jsonl": "1ad76bef52d45c91bffa89754808eac53f9f126732449c931eebae601b8f1a0b"
    },
    "labels_by_label": {
-    "DUPLICATE": 7,
     "GENERAL_SPECIFIC": 1,
     "REFERENCE": 1,
-    "UNRELATED": 41
+    "UNRELATED": 19
    },
    "n_articles": 7,
-   "n_nodes": 12,
+   "n_nodes": 7,
    "n_pairs_by_stratum": {
-    "S1": 10,
+    "S1": 0,
     "S2": 0,
-    "S3": 40
+    "S3": 21
    },
    "n_unlabeled": 0,
    "profile": "SALES",
@@ -516,18 +518,18 @@
    "contaminated": false,
    "doc_id": "pd-ae9bb69ee7",
    "files": {
-    "doc.json": "82b1b76dd76bf0944a7cee7afefbe6381d91e7c0a4d81c98cb168b3628f68893",
-    "labels.gpt.jsonl": "7df4dd9f218ccd10248683bd0a2d6622cbdd479bd64dcc0b93aad564e4a7e38a",
-    "pool.jsonl": "2eb466e462241e2fdb3ab32a4d86685869c1b2f3b08f94b5b3e59f224da4ae96"
+    "doc.json": "335dfc09b7d8a088107aeb0902dd30eaf2b1562307c30556f78e6488227a440d",
+    "labels.gpt.jsonl": "cf3e09358db199e36fac6e5fbefeb6baf40100015bb216f995d9d983e81c3ee7",
+    "pool.jsonl": "e457c2ac8d005f932309cc46ebf3924ccb415beef7969e22927485ec8f42563d"
    },
    "labels_by_label": {
-    "CONFLICT": 2,
+    "CONFLICT": 3,
     "DUPLICATE": 1,
     "GENERAL_SPECIFIC": 2,
-    "UNRELATED": 42
+    "UNRELATED": 41
    },
    "n_articles": 9,
-   "n_nodes": 18,
+   "n_nodes": 17,
    "n_pairs_by_stratum": {
     "S1": 7,
     "S2": 0,
@@ -569,19 +571,19 @@
    "contaminated": false,
    "doc_id": "pd-b6d8628d32",
    "files": {
-    "doc.json": "c13eebd5f9678056887b50d58df84c8b7cc8579c8173001bf34b5fb8a1b026ce",
-    "labels.gpt.jsonl": "7f75cce817ec1ed19605d3cce750bf7dd5ca02ee6b4a0cc4c3fcb34d20b9082a",
-    "pool.jsonl": "dcc859f26c15ca58cf272aa4d693f0200013a9f4fcb1cfe5f4eff60ccb02c8ee"
+    "doc.json": "1c67990240658a3a4bff701c2702cb2f768cae7f760d4718030b9acfcff55460",
+    "labels.gpt.jsonl": "a9013ebc7ce4aafe5657a2dc78388ab3c48909d5937d4d4a6b66b1ae5f8779ca",
+    "pool.jsonl": "1793332246c8da6deb89996c9e64ca3f4f0fba5cba922c58284f8b2cd71060c9"
    },
    "labels_by_label": {
-    "DUPLICATE": 4,
-    "GENERAL_SPECIFIC": 4,
-    "UNRELATED": 78
+    "GENERAL_SPECIFIC": 1,
+    "REFERENCE": 1,
+    "UNRELATED": 38
    },
    "n_articles": 13,
-   "n_nodes": 24,
+   "n_nodes": 13,
    "n_pairs_by_stratum": {
-    "S1": 46,
+    "S1": 0,
     "S2": 0,
     "S3": 40
    },
@@ -595,17 +597,18 @@
    "contaminated": false,
    "doc_id": "pd-bf1d9346b4",
    "files": {
-    "doc.json": "1ff14fa089460aef1a4a58c677bff959cbe665890b4ab9c4fe1074db84aae202",
-    "labels.gpt.jsonl": "337a11b59ab73eaf876eb6784274e2d6102211523782c8febb6d1a717c647b7a",
-    "pool.jsonl": "ee484ff68bb003b22e4ea56e0df51cab17fc96a9ee09160f5cc6bc9efdf9ce4d"
+    "doc.json": "65ea259fa20a3ad9341195027cedc4631a59a80b550ba7fcd6789177c364f86b",
+    "labels.gpt.jsonl": "41d1338af6ea104873f868ad2664c15c5d66de3105ad76e18bbf711dc0fe2270",
+    "pool.jsonl": "a556ce7a00ed58cb9ea8ebf07f55ecf3d8c09d05c39178d1b2bbedd5743ccec6"
    },
    "labels_by_label": {
     "DUPLICATE": 1,
-    "GENERAL_SPECIFIC": 4,
-    "UNRELATED": 48
+    "GENERAL_SPECIFIC": 6,
+    "REFERENCE": 2,
+    "UNRELATED": 44
    },
    "n_articles": 7,
-   "n_nodes": 16,
+   "n_nodes": 15,
    "n_pairs_by_stratum": {
     "S1": 13,
     "S2": 0,
@@ -621,8 +624,8 @@
    "contaminated": false,
    "doc_id": "pd-e0d65645f2",
    "files": {
-    "doc.json": "d95eb102aafb377757058a1c97f6f33938fec0d5159e4156b1054425441eb1ea",
-    "labels.gpt.jsonl": "cfe9b5ca8bc4cbb138e0eeaa0e81cf2de5d0df8d1f165e227ad0cb0b864b4f8a",
+    "doc.json": "61831bdff1e262af3823b944847fa7526cecb2537133d14710bd8d97dabf7e48",
+    "labels.gpt.jsonl": "0f518db0736a212ee791604f31d3f1b6406c89203e963920fd514031f9547df8",
     "pool.jsonl": "0fcac97ab3021ff056eb8e0fe8c44a0cc165c1627a3498fa6cfdf2923c714b25"
    },
    "labels_by_label": {
@@ -645,22 +648,20 @@
    "contaminated": false,
    "doc_id": "pd-eec95ad3b2",
    "files": {
-    "doc.json": "8543e996db8fd7fa75c06aba653cdc5776ff50274d0515712ed183f034f2ea9b",
-    "labels.gpt.jsonl": "81429ad6fe5c8db262a0a7ff667eff626df55d9449f0d348de622202857881e4",
-    "pool.jsonl": "f2588b80083b6e72d2ec6610d677236a83280c98ec26324f48c4743ecdf0db01"
+    "doc.json": "47a327da23e2f63d6409bfa8af4becfd76845d7efa3e52fcb0ff25283ac84774",
+    "labels.gpt.jsonl": "b19033671c6940896126bef82c30b68bd7fb9386d6be243f636665c579eb1504",
+    "pool.jsonl": "a1530c367ec640e0c5dc18d6b1f46c43a2ef89b7f88b8c03bf5ac51853360601"
    },
    "labels_by_label": {
-    "CONFLICT": 2,
-    "DUPLICATE": 1,
     "GENERAL_SPECIFIC": 3,
-    "UNRELATED": 62
+    "UNRELATED": 7
    },
    "n_articles": 5,
-   "n_nodes": 13,
+   "n_nodes": 5,
    "n_pairs_by_stratum": {
-    "S1": 28,
+    "S1": 0,
     "S2": 0,
-    "S3": 40
+    "S3": 10
    },
    "n_unlabeled": 0,
    "profile": "SUPPLY_SERVICE",
@@ -672,21 +673,20 @@
    "contaminated": false,
    "doc_id": "pd-fa299625d8",
    "files": {
-    "doc.json": "5e79fedb662cc6c74e93bb440ecdf31cc4d9aa06cdd8cd5bf9f68037dd5eadfd",
-    "labels.gpt.jsonl": "3d6073089d65497c06fcdf8a92983e51db98ca0a3ed5dea8ab6226e304ef5aac",
-    "pool.jsonl": "b5a6ae0fc6498e2778e6851524141df3a02b5a523f9ab340771614ec47b74e66"
+    "doc.json": "dd576510886e69cb81cf71be8599cd26adcf596bef1f2353c15d531682de44d0",
+    "labels.gpt.jsonl": "0b5a88c4c2261a430ad1332383c9fbfe3666a2f2cde04cf830e5d4828e1f26b7",
+    "pool.jsonl": "53ed135cb1220f10cce124f81c3ed35435a51414a76016c3e625c01b5632a101"
    },
    "labels_by_label": {
     "CONFLICT": 2,
-    "GENERAL_SPECIFIC": 1,
-    "UNRELATED": 31
+    "UNRELATED": 25
    },
    "n_articles": 7,
-   "n_nodes": 9,
+   "n_nodes": 8,
    "n_pairs_by_stratum": {
     "S1": 0,
     "S2": 0,
-    "S3": 34
+    "S3": 27
    },
    "n_unlabeled": 0,
    "profile": "SUPPLY_SERVICE",
@@ -695,7 +695,7 @@
   }
  ],
  "extension_s4": null,
- "frozen_at": "2026-10-08T15:35:40Z",
+ "frozen_at": "2026-10-08T18:10:55Z",
  "ground_truth": "GPT labeler pairs-labeler-v1 (approved=false; HG-1 human review pending, P2/P5)",
  "heldout_review": null,
  "labeler": {
