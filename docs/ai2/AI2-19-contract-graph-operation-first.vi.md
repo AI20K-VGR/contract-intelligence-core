@@ -29,6 +29,18 @@ Rollback nóng không cần deploy: đặt lại flag tắt.
 
 Model: `ai-service/app/contracts/contract_graph.py` (`EdgeOp`, `ContractEdge`), tách khỏi `RelationType` để loại con không thể lọt ra BE qua `relation_type.value` (D1). `edge_id = "cedge:" + sha256(...)[:24]`, ổn định khi retry cùng snapshot. Mọi cạnh mặc định `NEEDS_REVIEW`; thao tác ngầm qua `item_key` (phụ lục không ghi địa chỉ) luôn `NEEDS_REVIEW`.
 
+Một câu có thể có nhiều đích: "…tại khoản 2 Điều 15; khoản 1 Điều 16; khoản 1 và 3 Điều 32" sinh 4 cạnh. Dấu `;` đứng trước một địa chỉ khác là phân cách danh sách; `;` đứng trước động từ ("; sửa đổi Điều 5") mở thao tác mới (`operations.py`, `_continues_address_list`).
+
+### 3.1 Thao tác trỏ sang văn bản ngoài hồ sơ (BL-005)
+
+Resolver chỉ so số hiệu Điều/khoản/điểm. Vì vậy "Sửa đổi điểm a khoản 8 Điều 11" dưới tiêu đề "Điều 1. Sửa đổi, bổ sung Thông tư số 156/2013/TT-BTC" sẽ khớp nhầm Điều 11 của văn bản trong hồ sơ, nếu không chặn. Tương tự: "Điều 5 của Hợp đồng số 15/2023/HĐKT" khi hồ sơ là hợp đồng 01/2024.
+
+- `documents.named_document` rút văn bản có số hiệu (Thông tư, Nghị định, Nghị quyết, Luật, Pháp lệnh, Quyết định, Hợp đồng, Thỏa thuận + `số …/…`). Văn bản trong ngoặc kép bị bỏ qua (đó là nội dung mới). "Hợp đồng này" không tính.
+- Văn bản bị sửa của một thao tác lấy theo thứ tự: chính câu thao tác → mục cha → câu dẫn của node cha → dòng đầu của node → dòng đầu của node cha.
+- `plan_edges(..., known_documents=…)`: nếu văn bản đó không thuộc tập đã biết ⇒ `Status.FOREIGN_DOCUMENT`, **không tạo cạnh**, issue `TARGET_FOREIGN_DOCUMENT` (`NEEDS_REVIEW`), đếm trong `coverage.contract_graph.foreign_document_targets`.
+- **Hướng B (hiện tại):** runtime chưa có danh tính văn bản nào ⇒ mọi thao tác nêu tên văn bản có số hiệu đều bị chặn, kể cả phụ lục ghi lại số của chính hợp đồng trong hồ sơ. Câu không nêu tên văn bản vẫn resolve như cũ.
+- **Hướng A (BL-006):** lấy số hợp đồng/phụ lục từ metadata BE/AI1 truyền vào `known_documents` để nối lại các cạnh đúng.
+
 ## 4. Ánh xạ ra Backend (contract không đổi)
 
 Mỗi cạnh → một `context_finding` (`app/pipeline/contract_graph/projection.py::edge_findings`):
@@ -73,6 +85,7 @@ After (flag bật; giá trị từ fixture `graph_record()` của test):
   "implicit_edges": 0,
   "auto_pass_enabled": false,
   "truncated": 0,
+  "foreign_document_targets": 0,
   "deduped_with_legacy": 1
 }
 ```
@@ -127,10 +140,13 @@ Test: `tests/test_contract_graph_postgres_store.py` (upgrade → downgrade qua e
 
 Gold là `vbhn-note auto-gold (approved=false)`: số đo không phải độ chính xác nghiệp vụ.
 
+Số hiện tại (P3, 11 cặp, 113 cạnh gold): recall 82/113 (72,6%), precision thao tác 82/96 (85,4%), precision cạnh đã resolve 87,0%, REPEAL tìm được 6/12. Predictor đọc mọi điều của văn bản sửa đổi; danh tính văn bản gốc lấy từ tiêu đề điều thao tác khai báo trong manifest. Cạnh `FOREIGN_DOCUMENT` không tính là dự đoán.
+
 ## 10. Giới hạn
 
 - Bộ đo là văn bản quy phạm pháp luật (VBHN), không phải phụ lục hợp đồng; văn phong phụ lục hợp đồng khác (mới có fixture tổng hợp), nên mọi cạnh giữ `NEEDS_REVIEW`.
 - Cạnh nội một tài liệu và cạnh `PASS` không tới BE (mục 4).
 - Bảng chỉ phản ánh job SUCCEEDED mới nhất có chạy graph; tắt flag sau khi từng bật ⇒ dòng cũ còn, mang `job_id` cũ.
 - Kafka/batch không ghi bảng.
+- Hướng B chặn cả thao tác nêu đúng số của hợp đồng trong hồ sơ (mục 3.1) cho tới khi có danh tính từ metadata (BL-006).
 - Không có cạnh `GENERAL_SPECIFIC`, `CONFLICT`, `REPLACEMENT`, `RENUMBERING`.

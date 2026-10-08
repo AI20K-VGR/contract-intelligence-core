@@ -107,5 +107,6 @@ def graph_coverage(
         "implicit_edges": count("implicit_edges"),
         "auto_pass_enabled": auto_pass_enabled(),
         "truncated": count("truncated"),
+        "foreign_document_targets": count("foreign_document_issues"),  # BL-005: refused, no edge
         "deduped_with_legacy": 0 if failed else int(deduped_with_legacy),
     }

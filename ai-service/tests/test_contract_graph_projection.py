@@ -206,6 +206,7 @@ def test_coverage_counts_every_op_including_zero(graph):
     assert coverage["ambiguous_targets"] == graph.stats["ambiguous_targets"]
     assert coverage["implicit_edges"] == graph.stats["implicit_edges"]
     assert coverage["truncated"] == 0
+    assert coverage["foreign_document_targets"] == graph.stats.get("foreign_document_issues", 0)
     assert coverage["auto_pass_enabled"] is False
     assert coverage["deduped_with_legacy"] == 0
     json.dumps(coverage)  # wire-serializable as is
@@ -217,6 +218,12 @@ def test_coverage_failed_status_has_zero_counts():
     assert coverage["status"] == "FAILED"
     assert coverage["edges_total"] == 0
     assert coverage["edges_by_op"] == {op.value: 0 for op in EdgeOp}
-    for key in ("unresolved_targets", "ambiguous_targets", "implicit_edges", "truncated"):
+    for key in (
+        "unresolved_targets",
+        "ambiguous_targets",
+        "implicit_edges",
+        "truncated",
+        "foreign_document_targets",
+    ):
         assert coverage[key] == 0
     assert coverage["deduped_with_legacy"] == 0
