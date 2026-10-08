@@ -1,0 +1,271 @@
+{
+ "digest": "sha256 of UTF-8 text with LF line endings",
+ "extractor_version": "p1-vbhn-notes-1",
+ "ground_truth": "vbhn-note auto-gold (approved=false)",
+ "pairs": [
+  {
+   "amending_doc": "50/2021/NĐ-CP",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/365052-nghi-dinh-so-50-2021-nd-cp-ngay-01-04-2021-cua-chinh-phu-sua-doi-nghi-dinh-37-2015-nd-cp-quy-dinh-chi-tiet-ve-hop-dong-xay-dung",
+   "fetched_at": "2026-10-07T10:21:27Z",
+   "files": {
+    "amending.txt": "2420fdf046afd167fed1c24c553415df7685a7559f99b39f4da92e6686ffc761",
+    "gold.jsonl": "db24985073a6496230fdf598ef975179281ddc6836a5b17a6e49b91c7b2b0285",
+    "vbhn.txt": "bc979e90c0033a2a6769f125fda16a9be8bdafc38a74cffe2abe2759edc5107d"
+   },
+   "gold_by_op": {
+    "INSERTION": 9,
+    "SUBSTITUTION": 17
+   },
+   "issuer": "Chính phủ",
+   "n_gold": 26,
+   "operative_article": "1",
+   "pair_id": "nd50-2021",
+   "raw_sha256": {
+    "amending": "2acfc567b3058be774b6bb8599c3672999ae1cadf526170db62f9bba94e10503",
+    "vbhn": "dc9bd7f0a3e0b590888d0606fbb113d0c27588acb990b301d6e20d499471e28a"
+   },
+   "vbhn_doc": "02/VBHN-BXD",
+   "vbhn_url": "https://www.vcci.com.vn/legal-document/van-ban-hop-nhat-02vbhn-bxd-nam-2021-hop-nhat-nghi-dinh-huong-dan-ve-hop-dong-xay-dung"
+  },
+  {
+   "amending_doc": "01/2022/TT-BCT",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/401505-thong-tu-so-01-2022-tt-bct-ngay-18-01-2022-cua-bo-truong-bo-cong-thuong-sua-doi-thong-tu-47-2014-tt-bct-quy-dinh-ve-quan-ly-website-thuong-mai-dien-tu-va-thong-tu-59-2015-tt-bct-quy-dinh-ve-quan-ly-hoat-dong-thuong-mai-dien-tu-qua-ung-dung-tren-thiet-bi-di-dong",
+   "fetched_at": "2026-10-07T19:09:21Z",
+   "files": {
+    "amending.txt": "bf17d7cb017339f920533da2a6b29f92b16055c00372cdef2475d20f35b6bc26",
+    "gold.jsonl": "45918d533bc88949ec6d17f8567f713d27e6888f57cbbbde229ff464af3ff254",
+    "vbhn.txt": "e47025dd0648218ed97e74ee4963903176e9f59ade13818d5f3fd118d2b8f87d"
+   },
+   "gold_by_op": {
+    "INSERTION": 3,
+    "REPEAL": 5,
+    "SUBSTITUTION": 4
+   },
+   "issuer": "Bộ Công Thương",
+   "n_gold": 12,
+   "operative_article": "1",
+   "pair_id": "tt01-2022-bct",
+   "raw_sha256": {
+    "amending": "88bf0b97ae90ab92deda8a3259d4283d990963d24e82e9b5021fe4b878123aaa",
+    "vbhn": "078c5650d9b7a2d9159c69f7b701467f187dc84c146d91ec02c367da9597cfde"
+   },
+   "vbhn_doc": "06/VBHN-BCT",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/401962-van-ban-hop-nhat-so-06-vbhn-bct-ngay-15-03-2022-cua-bo-truong-bo-cong-thuong-hop-nhat-thong-tu-quy-dinh-ve-quan-ly-website-thuong-mai-dien-tu"
+  },
+  {
+   "amending_doc": "119/2014/TT-BTC",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/264653-thong-tu-119-2014-tt-btc-sua-doi-thong-tu-156-2013-tt-btc-111-2013-tt-btc-219-2013-tt-btc-08-2013-tt-btc-85-2011-tt-btc-39-2014-tt-btc-va-78-2014-tt-btc-de-cai-cach-don-gian-thu-tuc-hanh-chinh-ve-thue-do-bo-truong-bo-tai-chinh-ban-hanh",
+   "fetched_at": "2026-10-07T19:09:14Z",
+   "files": {
+    "amending.txt": "0140bb2dd449b44502d95fe496b1575f6ed1fb00a250a76cf0dc56d068fb9824",
+    "gold.jsonl": "957ef277d1cb8c416cac3b61492f2b39c0bb907ab0a39e4b372ebf0f63628405",
+    "vbhn.txt": "84a7622458eb962f0e6cbf83f2e2628b883796a8bb8b3498f109ef59f699071c"
+   },
+   "gold_by_op": {
+    "INSERTION": 2,
+    "SUBSTITUTION": 9
+   },
+   "issuer": "Bộ Tài chính",
+   "n_gold": 11,
+   "operative_article": "3",
+   "pair_id": "tt119-2014-btc",
+   "raw_sha256": {
+    "amending": "e36ca3ab002d15e7b11724e7671068cb41c8d3920b6feba28d7bc1d7fe6a28b8",
+    "vbhn": "fb9eb6380a0faa81ca2a6dfa9cdc70e88c245aa0217cf789991545fd7de89eb3"
+   },
+   "vbhn_doc": "01/VBHN-BTC",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/461719-van-ban-hop-nhat-so-01-vbhn-btc-ngay-04-01-2024-cua-bo-truong-bo-tai-chinh-hop-nhat-thong-tu-huong-dan-luat-thue-gia-tri-gia-tang-va-nghi-dinh-209-2013-nd-cp-huong-dan-luat-thue-gia-tri-gia-tang"
+  },
+  {
+   "amending_doc": "13/2023/TT-BTC",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/412711-thong-tu-so-13-2023-tt-btc-ngay-28-02-2023-cua-bo-truong-bo-tai-chinh-huong-dan-nghi-dinh-49-2022-nd-cp-sua-doi-nghi-dinh-209-2013-nd-cp-huong-dan-luat-thue-gia-tri-gia-tang-da-duoc-sua-doi-theo-nghi-dinh-12-2015-nd-cp-100-2016-nd-cp-va-146-2017-nd-cp-va-sua-doi-thong-tu-80-2021-tt-btc",
+   "fetched_at": "2026-10-07T19:09:14Z",
+   "files": {
+    "amending.txt": "d5c8bd9f6bd21619196b51202a60d0a9a60ebc8e5a84fc149ca13bd617da07ad",
+    "gold.jsonl": "a7208b60dd1da28cf75367cf10d8a2244da22ac54774af59d333db264befdcc1",
+    "vbhn.txt": "84a7622458eb962f0e6cbf83f2e2628b883796a8bb8b3498f109ef59f699071c"
+   },
+   "gold_by_op": {
+    "SUBSTITUTION": 4
+   },
+   "issuer": "Bộ Tài chính",
+   "n_gold": 4,
+   "operative_article": "1",
+   "pair_id": "tt13-2023-btc",
+   "raw_sha256": {
+    "amending": "3d63dd2cabb752b4b53a9f267cccd98b19948ba20eee46c7553b6d0a9627fcfc",
+    "vbhn": "fb9eb6380a0faa81ca2a6dfa9cdc70e88c245aa0217cf789991545fd7de89eb3"
+   },
+   "vbhn_doc": "01/VBHN-BTC",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/461719-van-ban-hop-nhat-so-01-vbhn-btc-ngay-04-01-2024-cua-bo-truong-bo-tai-chinh-hop-nhat-thong-tu-huong-dan-luat-thue-gia-tri-gia-tang-va-nghi-dinh-209-2013-nd-cp-huong-dan-luat-thue-gia-tri-gia-tang"
+  },
+  {
+   "amending_doc": "130/2016/TT-BTC",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/262416-thong-tu-so-130-2016-tt-btc-ngay-12-08-2016-cua-bo-truong-bo-tai-chinh-huong-dan-nghi-dinh-100-2016-nd-cp-huong-dan-luat-thue-gia-tri-gia-tang-luat-thue-tieu-thu-dac-biet-va-luat-quan-ly-thue-sua-doi-va-sua-doi-cac-thong-tu-ve-thue",
+   "fetched_at": "2026-10-07T19:09:14Z",
+   "files": {
+    "amending.txt": "d14ce5aede3336f36de2d2fcb1adf3243cf9b313a4e0a540996bd84e33feaeaf",
+    "gold.jsonl": "b13e3775bdaf98693d5bc4eb4dd0cea5e4bebc661f86bfaeee9495331cb0c773",
+    "vbhn.txt": "84a7622458eb962f0e6cbf83f2e2628b883796a8bb8b3498f109ef59f699071c"
+   },
+   "gold_by_op": {
+    "SUBSTITUTION": 6
+   },
+   "issuer": "Bộ Tài chính",
+   "n_gold": 6,
+   "operative_article": "1",
+   "pair_id": "tt130-2016-btc",
+   "raw_sha256": {
+    "amending": "1aa585a009ad2e25a34bcaf1315958d7126d172af15ce17cfd887fcd94d0e1a0",
+    "vbhn": "fb9eb6380a0faa81ca2a6dfa9cdc70e88c245aa0217cf789991545fd7de89eb3"
+   },
+   "vbhn_doc": "01/VBHN-BTC",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/461719-van-ban-hop-nhat-so-01-vbhn-btc-ngay-04-01-2024-cua-bo-truong-bo-tai-chinh-hop-nhat-thong-tu-huong-dan-luat-thue-gia-tri-gia-tang-va-nghi-dinh-209-2013-nd-cp-huong-dan-luat-thue-gia-tri-gia-tang"
+  },
+  {
+   "amending_doc": "14/2019/TT-NHNN",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/331088-thong-tu-so-14-2019-tt-nhnn-ngay-30-08-2019-cua-thong-doc-ngan-hang-nha-nuoc-viet-nam-sua-doi-thong-tu-co-quy-dinh-ve-che-do-bao-cao-dinh-ky-cua-ngan-hang-nha-nuoc",
+   "fetched_at": "2026-10-07T19:09:19Z",
+   "files": {
+    "amending.txt": "ec1b34b22c64aed60a8e70d153903f6505fa76112f3832e618a1673cf681da1f",
+    "gold.jsonl": "a9b09eb4f64831cc41f373efceec22ceb2ee4f1f5f775d5bb6af673a3b1b9013",
+    "vbhn.txt": "d7ca4ff31a9cf478a7542612ab5c97617992418fb8b7669dbc1572882930e9e6"
+   },
+   "gold_by_op": {
+    "INSERTION": 2,
+    "SUBSTITUTION": 1
+   },
+   "issuer": "Ngân hàng Nhà nước Việt Nam",
+   "n_gold": 3,
+   "operative_article": "1",
+   "pair_id": "tt14-2019-nhnn",
+   "raw_sha256": {
+    "amending": "3bdb3790ef12acb34f147ed326324a88e955b9d702a0fa036359777de4557270",
+    "vbhn": "114678c1fba18fecafff5f7c6de08db138ec9cdb83e3476fbd1b01f476fbbf3f"
+   },
+   "vbhn_doc": "32/VBHN-NHNN",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/330609-van-ban-hop-nhat-so-32-vbhn-nhnn-ngay-16-09-2019-cua-ngan-hang-nha-nuoc-viet-nam-hop-nhat-thong-tu-huong-dan-thi-hanh-nghi-dinh-10-2010-nd-cp-ve-hoat-dong-thong-tin-tin-dung"
+  },
+  {
+   "amending_doc": "21/2018/TT-BCT",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/322372-thong-tu-so-21-2018-tt-bct-ngay-20-08-2018-cua-bo-truong-bo-cong-thuong-sua-doi-thong-tu-47-2014-tt-bct-quy-dinh-ve-quan-ly-website-thuong-mai-dien-tu-va-thong-tu-59-2015-tt-bct-quy-dinh-ve-quan-ly-hoat-dong-thuong-mai-dien-tu-qua-ung-dung-tren-thiet-bi-di-dong",
+   "fetched_at": "2026-10-07T19:09:21Z",
+   "files": {
+    "amending.txt": "ce163c6bba0adeb6a1ff7fce9552bd23aadaa1f1d54fd66511fa285c494b7e8d",
+    "gold.jsonl": "b876e8de23eb3f97f84ff3f03902a18d9ed5f2b50dfcee9d7ae67505cc330ebf",
+    "vbhn.txt": "e47025dd0648218ed97e74ee4963903176e9f59ade13818d5f3fd118d2b8f87d"
+   },
+   "gold_by_op": {
+    "REPEAL": 2,
+    "SUBSTITUTION": 12
+   },
+   "issuer": "Bộ Công Thương",
+   "n_gold": 14,
+   "operative_article": "1",
+   "pair_id": "tt21-2018-bct",
+   "raw_sha256": {
+    "amending": "9cfec7449de0a24cef4d6b1fa02160b9926b0ec099839aaca855af5752316343",
+    "vbhn": "078c5650d9b7a2d9159c69f7b701467f187dc84c146d91ec02c367da9597cfde"
+   },
+   "vbhn_doc": "06/VBHN-BCT",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/401962-van-ban-hop-nhat-so-06-vbhn-bct-ngay-15-03-2022-cua-bo-truong-bo-cong-thuong-hop-nhat-thong-tu-quy-dinh-ve-quan-ly-website-thuong-mai-dien-tu"
+  },
+  {
+   "amending_doc": "23/2016/TT-NHNN",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/262575-thong-tu-so-23-2016-tt-nhnn-ngay-30-06-2016-cua-thong-doc-ngan-hang-nha-nuoc-viet-nam-sua-doi-thong-tu-16-2010-tt-nhnn-huong-dan-thi-hanh-nghi-dinh-10-2010-nd-cp-ve-hoat-dong-thong-tin-tin-dung",
+   "fetched_at": "2026-10-07T19:09:19Z",
+   "files": {
+    "amending.txt": "75a59f7070f27925f2ccd09ba32a5bc10371043c1056c24f54912831cde72fed",
+    "gold.jsonl": "d0d67bd3adbefc6925a7f1ebb01324678dc2d2386b6393747bfa8c2fec1b4399",
+    "vbhn.txt": "d7ca4ff31a9cf478a7542612ab5c97617992418fb8b7669dbc1572882930e9e6"
+   },
+   "gold_by_op": {
+    "REPEAL": 2,
+    "SUBSTITUTION": 4
+   },
+   "issuer": "Ngân hàng Nhà nước Việt Nam",
+   "n_gold": 6,
+   "operative_article": "1",
+   "pair_id": "tt23-2016-nhnn",
+   "raw_sha256": {
+    "amending": "cb3001e5a823a099e0142d37b6c89e230e9d4a2eddb24a77939c5fd7dca5b9f8",
+    "vbhn": "114678c1fba18fecafff5f7c6de08db138ec9cdb83e3476fbd1b01f476fbbf3f"
+   },
+   "vbhn_doc": "32/VBHN-NHNN",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/330609-van-ban-hop-nhat-so-32-vbhn-nhnn-ngay-16-09-2019-cua-ngan-hang-nha-nuoc-viet-nam-hop-nhat-thong-tu-huong-dan-thi-hanh-nghi-dinh-10-2010-nd-cp-ve-hoat-dong-thong-tin-tin-dung"
+  },
+  {
+   "amending_doc": "26/2015/TT-BTC",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/264002-thong-tu-so-26-2015-tt-btc-ngay-27-02-2015-cua-bo-truong-bo-tai-chinh-huong-dan-thue-gia-tri-gia-tang-va-quan-ly-thue-tai-nghi-dinh-12-2015-nd-cp-sua-doi-thong-tu-39-2014-tt-btc-ve-hoa-don-ban-hang-hoa-cung-ung-dich-vu",
+   "fetched_at": "2026-10-07T19:09:14Z",
+   "files": {
+    "amending.txt": "b4b83dd9447584468e544ebc822204673487ac6b08dbc7547c26e90deb315f31",
+    "gold.jsonl": "33a16d9686fca2c458560176f07cafb493e0592f2394a610472526d69040f9a8",
+    "vbhn.txt": "84a7622458eb962f0e6cbf83f2e2628b883796a8bb8b3498f109ef59f699071c"
+   },
+   "gold_by_op": {
+    "INSERTION": 2,
+    "REPEAL": 3,
+    "SUBSTITUTION": 12
+   },
+   "issuer": "Bộ Tài chính",
+   "n_gold": 17,
+   "operative_article": "1",
+   "pair_id": "tt26-2015-btc",
+   "raw_sha256": {
+    "amending": "167f0604c41c80f6b60de71dbf0e01938a3680aa18cae5684313ac25e57de411",
+    "vbhn": "fb9eb6380a0faa81ca2a6dfa9cdc70e88c245aa0217cf789991545fd7de89eb3"
+   },
+   "vbhn_doc": "01/VBHN-BTC",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/461719-van-ban-hop-nhat-so-01-vbhn-btc-ngay-04-01-2024-cua-bo-truong-bo-tai-chinh-hop-nhat-thong-tu-huong-dan-luat-thue-gia-tri-gia-tang-va-nghi-dinh-209-2013-nd-cp-huong-dan-luat-thue-gia-tri-gia-tang"
+  },
+  {
+   "amending_doc": "27/2014/TT-NHNN",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/264564-thong-tu-so-27-2014-tt-nhnn-ngay-18-09-2014-cua-thong-doc-ngan-hang-nha-nuoc-viet-nam-sua-doi-thong-tu-16-2010-tt-nhnn-huong-dan-nghi-dinh-10-2010-nd-cp-ve-hoat-dong-thong-tin-tin-dung",
+   "fetched_at": "2026-10-07T19:09:19Z",
+   "files": {
+    "amending.txt": "fcc197eda868c86fb60f4a8d1764203a71c11bb82885e5c4f587da4b0bcfedb9",
+    "gold.jsonl": "a7e6986d5bf8c6c83d9ec5629f350ad752bfe14a6deca07f7806c1a99fbfca26",
+    "vbhn.txt": "d7ca4ff31a9cf478a7542612ab5c97617992418fb8b7669dbc1572882930e9e6"
+   },
+   "gold_by_op": {
+    "SUBSTITUTION": 6
+   },
+   "issuer": "Ngân hàng Nhà nước Việt Nam",
+   "n_gold": 6,
+   "operative_article": "1",
+   "pair_id": "tt27-2014-nhnn",
+   "raw_sha256": {
+    "amending": "b8e2f4b140d615115854c5bc9fb168d08d0467a74f177b1dc002c41c7650ea45",
+    "vbhn": "114678c1fba18fecafff5f7c6de08db138ec9cdb83e3476fbd1b01f476fbbf3f"
+   },
+   "vbhn_doc": "32/VBHN-NHNN",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/330609-van-ban-hop-nhat-so-32-vbhn-nhnn-ngay-16-09-2019-cua-ngan-hang-nha-nuoc-viet-nam-hop-nhat-thong-tu-huong-dan-thi-hanh-nghi-dinh-10-2010-nd-cp-ve-hoat-dong-thong-tin-tin-dung"
+  },
+  {
+   "amending_doc": "43/2018/TT-NHNN",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/340729-thong-tu-so-43-2018-tt-nhnn-ngay-28-12-2018-cua-thong-doc-ngan-hang-nha-nuoc-viet-nam-sua-doi-thong-tu-16-2010-tt-nhnn-huong-dan-nghi-dinh-10-2010-nd-cp-ve-hoat-dong-thong-tin-tin-dung",
+   "fetched_at": "2026-10-07T19:09:19Z",
+   "files": {
+    "amending.txt": "748f3544cb5ee2ea3dd59ee0c1326c516d51d8fb6619f8d9eb3af2154fb84bb5",
+    "gold.jsonl": "5a7537b2d7c661a23fd4f9265243ada24e6785ad64aea7c1d2b8ae08a51fd834",
+    "vbhn.txt": "d7ca4ff31a9cf478a7542612ab5c97617992418fb8b7669dbc1572882930e9e6"
+   },
+   "gold_by_op": {
+    "SUBSTITUTION": 8
+   },
+   "issuer": "Ngân hàng Nhà nước Việt Nam",
+   "n_gold": 8,
+   "operative_article": "1",
+   "pair_id": "tt43-2018-nhnn",
+   "raw_sha256": {
+    "amending": "d340f95f6041c8a0ef7b3395216153dd6b4a41848d07a03de5e0f96864630b81",
+    "vbhn": "114678c1fba18fecafff5f7c6de08db138ec9cdb83e3476fbd1b01f476fbbf3f"
+   },
+   "vbhn_doc": "32/VBHN-NHNN",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/330609-van-ban-hop-nhat-so-32-vbhn-nhnn-ngay-16-09-2019-cua-ngan-hang-nha-nuoc-viet-nam-hop-nhat-thong-tu-huong-dan-thi-hanh-nghi-dinh-10-2010-nd-cp-ve-hoat-dong-thong-tin-tin-dung"
+  }
+ ],
+ "schema": "contract-graph-dataset/1",
+ "total_bytes": 2257522
+}

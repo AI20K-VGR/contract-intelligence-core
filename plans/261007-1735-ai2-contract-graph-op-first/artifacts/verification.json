@@ -1,0 +1,31 @@
+{
+  "stage": "cook",
+  "plan": "261007-1735-ai2-contract-graph-op-first",
+  "checks": [
+    {
+      "name": "harness_suite",
+      "status": "PASS"
+    },
+    {
+      "name": "ai_service_suite",
+      "status": "PASS"
+    },
+    {
+      "name": "dataset_contract",
+      "status": "PASS"
+    },
+    {
+      "name": "nd50_spike_repro",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P1",
+  "actor": "user:unknown",
+  "ts": "2026-10-08T00:01:24+00:00",
+  "blastRadius": {
+    "unavailable": true,
+    "reason": "no codemap.yaml at C:\\Users\\dungtv62\\Documents\\VSF\\contract-intelligence-develop"
+  },
+  "run_seq": null
+}

@@ -1,0 +1,90 @@
+# Phase DAG sidecar for 261007-1735-ai2-contract-graph-op-first.
+# {from: A, to: B} = "A runs BEFORE B". No status here (status lives in plan.md).
+# idp.py is modified by P3 and P4; they are ordered (P3 -> P4), so not a parallel conflict.
+edges:
+  - {from: P1, to: P2}
+  - {from: P2, to: P3}
+  - {from: P3, to: P4}
+subtasks:
+  P1:
+    files_to_create:
+      - evals/contract_graph/__init__.py
+      - evals/contract_graph/README.md
+      - evals/contract_graph/sources.json
+      - evals/contract_graph/normalize.py
+      - evals/contract_graph/gold.py
+      - evals/contract_graph/segment.py
+      - evals/contract_graph/dataset.py
+      - evals/contract_graph/score.py
+      - evals/contract_graph/baseline_predictor.py
+      - evals/contract_graph/run_eval.py
+      - evals/contract_graph/data/manifest.json
+      - evals/contract_graph/data/**
+      - evals/contract_graph/reports/p1-baseline.json
+      - evals/contract_graph/reports/p1-baseline.md
+      - evals/contract_graph/tests/conftest.py
+      - evals/contract_graph/tests/fixtures/**
+      - evals/contract_graph/tests/test_cg_normalize.py
+      - evals/contract_graph/tests/test_cg_gold.py
+      - evals/contract_graph/tests/test_cg_segment.py
+      - evals/contract_graph/tests/test_cg_dataset.py
+      - evals/contract_graph/tests/test_cg_score.py
+      - evals/contract_graph/tests/test_cg_baseline_eval.py
+    files_to_modify: []
+    post: [verification-P1.json]
+  P2:
+    files_to_create:
+      - ai-service/app/pipeline/contract_graph/__init__.py
+      - ai-service/app/pipeline/contract_graph/address.py
+      - ai-service/app/pipeline/contract_graph/resolver.py
+      - ai-service/tests/test_contract_graph_address.py
+      - ai-service/tests/test_contract_graph_resolver.py
+      - evals/contract_graph/resolver_eval.py
+      - evals/contract_graph/tests/test_cg_resolver_eval.py
+      - evals/contract_graph/reports/p2-resolver.json
+      - evals/contract_graph/reports/p2-resolver.md
+    files_to_modify: []
+    post: [verification-P2.json]
+  P3:
+    files_to_create:
+      - ai-service/app/contracts/contract_graph.py
+      - ai-service/app/pipeline/contract_graph/operations.py
+      - ai-service/app/pipeline/contract_graph/implicit.py
+      - ai-service/app/pipeline/contract_graph/review_policy.py
+      - ai-service/app/pipeline/contract_graph/calibration.json
+      - ai-service/app/pipeline/contract_graph/builder.py
+      - ai-service/scripts/capture_idp_golden.py
+      - ai-service/fixtures/contract_graph_records.py
+      - ai-service/fixtures/contract_graph/idp_flag_off_golden.json
+      - ai-service/tests/test_contract_graph_operations.py
+      - ai-service/tests/test_contract_graph_implicit.py
+      - ai-service/tests/test_contract_graph_review_policy.py
+      - ai-service/tests/test_contract_graph_flag_off_regression.py
+      - ai-service/tests/test_contract_graph_idp_integration.py
+      - evals/contract_graph/pipeline_predictor.py
+      - evals/contract_graph/tests/test_cg_pipeline_predictor.py
+      - evals/contract_graph/reports/p3-operation-parser.json
+      - evals/contract_graph/reports/p3-operation-parser.md
+    files_to_modify:
+      - ai-service/app/pipeline/idp.py
+    post: [verification-P3.json]
+  P4:
+    files_to_create:
+      - ai-service/app/db/migrations/versions/0005_ai2_contract_edges.py
+      - ai-service/app/pipeline/contract_graph/projection.py
+      - ai-service/app/tools/contract_edge_store.py
+      - ai-service/tests/test_contract_graph_projection.py
+      - ai-service/tests/test_contract_graph_wire.py
+      - ai-service/tests/test_contract_graph_edge_store.py
+      - ai-service/tests/test_contract_graph_postgres_store.py
+      - docs/ai2/AI2-19-contract-graph-operation-first.vi.md
+    files_to_modify:
+      - ai-service/app/db/tables.py
+      - ai-service/app/tools/jobs.py
+      - ai-service/app/tools/store.py
+      - ai-service/app/pipeline/idp.py
+      - ai-service/app/db/migrate.py
+      - ai-service/app/pipeline/contract_context.py
+      - ai-service/tests/test_ai2_postgres_store.py
+      - docs/ai2/README.md
+    post: [verification-P4.json, review-decision.json]

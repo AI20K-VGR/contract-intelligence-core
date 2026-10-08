@@ -1,0 +1,94 @@
+{
+ "note": "Cặp (văn bản sửa đổi, VBHN hợp nhất nó). issuer = cơ quan ban hành văn bản sửa đổi. operative_article = Điều chứa các mục thao tác lên văn bản gốc của VBHN (mặc định \"1\"). Nguồn chọn theo khả năng truy cập (plan Q4): caselaw.vn và vcci.com.vn tải được, thuvienphapluat.vn/luatvietnam.vn trả 403, vbpl.vn đã chuyển sang SPA.",
+ "pairs": [
+  {
+   "pair_id": "nd50-2021",
+   "issuer": "Chính phủ",
+   "amending_doc": "50/2021/NĐ-CP",
+   "vbhn_doc": "02/VBHN-BXD",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/365052-nghi-dinh-so-50-2021-nd-cp-ngay-01-04-2021-cua-chinh-phu-sua-doi-nghi-dinh-37-2015-nd-cp-quy-dinh-chi-tiet-ve-hop-dong-xay-dung",
+   "vbhn_url": "https://www.vcci.com.vn/legal-document/van-ban-hop-nhat-02vbhn-bxd-nam-2021-hop-nhat-nghi-dinh-huong-dan-ve-hop-dong-xay-dung"
+  },
+  {
+   "pair_id": "tt26-2015-btc",
+   "issuer": "Bộ Tài chính",
+   "amending_doc": "26/2015/TT-BTC",
+   "vbhn_doc": "01/VBHN-BTC",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/264002-thong-tu-so-26-2015-tt-btc-ngay-27-02-2015-cua-bo-truong-bo-tai-chinh-huong-dan-thue-gia-tri-gia-tang-va-quan-ly-thue-tai-nghi-dinh-12-2015-nd-cp-sua-doi-thong-tu-39-2014-tt-btc-ve-hoa-don-ban-hang-hoa-cung-ung-dich-vu",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/461719-van-ban-hop-nhat-so-01-vbhn-btc-ngay-04-01-2024-cua-bo-truong-bo-tai-chinh-hop-nhat-thong-tu-huong-dan-luat-thue-gia-tri-gia-tang-va-nghi-dinh-209-2013-nd-cp-huong-dan-luat-thue-gia-tri-gia-tang"
+  },
+  {
+   "pair_id": "tt130-2016-btc",
+   "issuer": "Bộ Tài chính",
+   "amending_doc": "130/2016/TT-BTC",
+   "vbhn_doc": "01/VBHN-BTC",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/262416-thong-tu-so-130-2016-tt-btc-ngay-12-08-2016-cua-bo-truong-bo-tai-chinh-huong-dan-nghi-dinh-100-2016-nd-cp-huong-dan-luat-thue-gia-tri-gia-tang-luat-thue-tieu-thu-dac-biet-va-luat-quan-ly-thue-sua-doi-va-sua-doi-cac-thong-tu-ve-thue",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/461719-van-ban-hop-nhat-so-01-vbhn-btc-ngay-04-01-2024-cua-bo-truong-bo-tai-chinh-hop-nhat-thong-tu-huong-dan-luat-thue-gia-tri-gia-tang-va-nghi-dinh-209-2013-nd-cp-huong-dan-luat-thue-gia-tri-gia-tang"
+  },
+  {
+   "pair_id": "tt13-2023-btc",
+   "issuer": "Bộ Tài chính",
+   "amending_doc": "13/2023/TT-BTC",
+   "vbhn_doc": "01/VBHN-BTC",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/412711-thong-tu-so-13-2023-tt-btc-ngay-28-02-2023-cua-bo-truong-bo-tai-chinh-huong-dan-nghi-dinh-49-2022-nd-cp-sua-doi-nghi-dinh-209-2013-nd-cp-huong-dan-luat-thue-gia-tri-gia-tang-da-duoc-sua-doi-theo-nghi-dinh-12-2015-nd-cp-100-2016-nd-cp-va-146-2017-nd-cp-va-sua-doi-thong-tu-80-2021-tt-btc",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/461719-van-ban-hop-nhat-so-01-vbhn-btc-ngay-04-01-2024-cua-bo-truong-bo-tai-chinh-hop-nhat-thong-tu-huong-dan-luat-thue-gia-tri-gia-tang-va-nghi-dinh-209-2013-nd-cp-huong-dan-luat-thue-gia-tri-gia-tang"
+  },
+  {
+   "pair_id": "tt119-2014-btc",
+   "issuer": "Bộ Tài chính",
+   "amending_doc": "119/2014/TT-BTC",
+   "vbhn_doc": "01/VBHN-BTC",
+   "operative_article": "3",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/264653-thong-tu-119-2014-tt-btc-sua-doi-thong-tu-156-2013-tt-btc-111-2013-tt-btc-219-2013-tt-btc-08-2013-tt-btc-85-2011-tt-btc-39-2014-tt-btc-va-78-2014-tt-btc-de-cai-cach-don-gian-thu-tuc-hanh-chinh-ve-thue-do-bo-truong-bo-tai-chinh-ban-hanh",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/461719-van-ban-hop-nhat-so-01-vbhn-btc-ngay-04-01-2024-cua-bo-truong-bo-tai-chinh-hop-nhat-thong-tu-huong-dan-luat-thue-gia-tri-gia-tang-va-nghi-dinh-209-2013-nd-cp-huong-dan-luat-thue-gia-tri-gia-tang"
+  },
+  {
+   "pair_id": "tt43-2018-nhnn",
+   "issuer": "Ngân hàng Nhà nước Việt Nam",
+   "amending_doc": "43/2018/TT-NHNN",
+   "vbhn_doc": "32/VBHN-NHNN",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/340729-thong-tu-so-43-2018-tt-nhnn-ngay-28-12-2018-cua-thong-doc-ngan-hang-nha-nuoc-viet-nam-sua-doi-thong-tu-16-2010-tt-nhnn-huong-dan-nghi-dinh-10-2010-nd-cp-ve-hoat-dong-thong-tin-tin-dung",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/330609-van-ban-hop-nhat-so-32-vbhn-nhnn-ngay-16-09-2019-cua-ngan-hang-nha-nuoc-viet-nam-hop-nhat-thong-tu-huong-dan-thi-hanh-nghi-dinh-10-2010-nd-cp-ve-hoat-dong-thong-tin-tin-dung"
+  },
+  {
+   "pair_id": "tt23-2016-nhnn",
+   "issuer": "Ngân hàng Nhà nước Việt Nam",
+   "amending_doc": "23/2016/TT-NHNN",
+   "vbhn_doc": "32/VBHN-NHNN",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/262575-thong-tu-so-23-2016-tt-nhnn-ngay-30-06-2016-cua-thong-doc-ngan-hang-nha-nuoc-viet-nam-sua-doi-thong-tu-16-2010-tt-nhnn-huong-dan-thi-hanh-nghi-dinh-10-2010-nd-cp-ve-hoat-dong-thong-tin-tin-dung",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/330609-van-ban-hop-nhat-so-32-vbhn-nhnn-ngay-16-09-2019-cua-ngan-hang-nha-nuoc-viet-nam-hop-nhat-thong-tu-huong-dan-thi-hanh-nghi-dinh-10-2010-nd-cp-ve-hoat-dong-thong-tin-tin-dung"
+  },
+  {
+   "pair_id": "tt27-2014-nhnn",
+   "issuer": "Ngân hàng Nhà nước Việt Nam",
+   "amending_doc": "27/2014/TT-NHNN",
+   "vbhn_doc": "32/VBHN-NHNN",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/264564-thong-tu-so-27-2014-tt-nhnn-ngay-18-09-2014-cua-thong-doc-ngan-hang-nha-nuoc-viet-nam-sua-doi-thong-tu-16-2010-tt-nhnn-huong-dan-nghi-dinh-10-2010-nd-cp-ve-hoat-dong-thong-tin-tin-dung",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/330609-van-ban-hop-nhat-so-32-vbhn-nhnn-ngay-16-09-2019-cua-ngan-hang-nha-nuoc-viet-nam-hop-nhat-thong-tu-huong-dan-thi-hanh-nghi-dinh-10-2010-nd-cp-ve-hoat-dong-thong-tin-tin-dung"
+  },
+  {
+   "pair_id": "tt14-2019-nhnn",
+   "issuer": "Ngân hàng Nhà nước Việt Nam",
+   "amending_doc": "14/2019/TT-NHNN",
+   "vbhn_doc": "32/VBHN-NHNN",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/331088-thong-tu-so-14-2019-tt-nhnn-ngay-30-08-2019-cua-thong-doc-ngan-hang-nha-nuoc-viet-nam-sua-doi-thong-tu-co-quy-dinh-ve-che-do-bao-cao-dinh-ky-cua-ngan-hang-nha-nuoc",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/330609-van-ban-hop-nhat-so-32-vbhn-nhnn-ngay-16-09-2019-cua-ngan-hang-nha-nuoc-viet-nam-hop-nhat-thong-tu-huong-dan-thi-hanh-nghi-dinh-10-2010-nd-cp-ve-hoat-dong-thong-tin-tin-dung"
+  },
+  {
+   "pair_id": "tt21-2018-bct",
+   "issuer": "Bộ Công Thương",
+   "amending_doc": "21/2018/TT-BCT",
+   "vbhn_doc": "06/VBHN-BCT",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/322372-thong-tu-so-21-2018-tt-bct-ngay-20-08-2018-cua-bo-truong-bo-cong-thuong-sua-doi-thong-tu-47-2014-tt-bct-quy-dinh-ve-quan-ly-website-thuong-mai-dien-tu-va-thong-tu-59-2015-tt-bct-quy-dinh-ve-quan-ly-hoat-dong-thuong-mai-dien-tu-qua-ung-dung-tren-thiet-bi-di-dong",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/401962-van-ban-hop-nhat-so-06-vbhn-bct-ngay-15-03-2022-cua-bo-truong-bo-cong-thuong-hop-nhat-thong-tu-quy-dinh-ve-quan-ly-website-thuong-mai-dien-tu"
+  },
+  {
+   "pair_id": "tt01-2022-bct",
+   "issuer": "Bộ Công Thương",
+   "amending_doc": "01/2022/TT-BCT",
+   "vbhn_doc": "06/VBHN-BCT",
+   "amending_url": "https://caselaw.vn/van-ban-phap-luat/401505-thong-tu-so-01-2022-tt-bct-ngay-18-01-2022-cua-bo-truong-bo-cong-thuong-sua-doi-thong-tu-47-2014-tt-bct-quy-dinh-ve-quan-ly-website-thuong-mai-dien-tu-va-thong-tu-59-2015-tt-bct-quy-dinh-ve-quan-ly-hoat-dong-thuong-mai-dien-tu-qua-ung-dung-tren-thiet-bi-di-dong",
+   "vbhn_url": "https://caselaw.vn/van-ban-phap-luat/401962-van-ban-hop-nhat-so-06-vbhn-bct-ngay-15-03-2022-cua-bo-truong-bo-cong-thuong-hop-nhat-thong-tu-quy-dinh-ve-quan-ly-website-thuong-mai-dien-tu"
+  }
+ ]
+}

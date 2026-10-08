@@ -5,3 +5,4 @@ evals/eval_config.* text eol=lf
 evals/data/golden/** text eol=lf
 evals/baselines/* text eol=lf
 evals/corpus/*.json text eol=lf
+evals/contract_graph/data/** text eol=lf
