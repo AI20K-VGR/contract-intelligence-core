@@ -35,12 +35,14 @@ function citationOf(value: unknown): QueryHistoryCitation | null {
   const row = asRecord(value)
   if (!row) return null
   const nested = asRecord(row.citation) ?? {}
+  // Trace của /search lưu nguyên citation AI2 (text_span, page) ở cấp ngoài.
   const quote =
     asText(row.quote) ||
+    asText(row.text_span) ||
     asText(nested.text_span) ||
     asText(row.text) ||
     asText(nested.quote)
-  const page = row.page_no ?? nested.page_no
+  const page = row.page_no ?? row.page ?? nested.page_no ?? nested.page
   return {
     quote,
     pageNo: typeof page === 'number' && Number.isFinite(page) ? page : null,

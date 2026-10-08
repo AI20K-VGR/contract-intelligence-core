@@ -18,8 +18,9 @@ export function ViewShell({
   controls,
   children,
 }: {
-  icon: string
-  title: string
+  /** Bỏ trống thì đầu khung chỉ còn các nút điều khiển. */
+  icon?: string
+  title?: string
   caption?: string
   controls?: ReactNode
   children: ReactNode
@@ -28,13 +29,17 @@ export function ViewShell({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-outline-variant/20 bg-surface-container-lowest shadow-sm">
       <div className="z-10 flex items-center justify-between gap-3 border-b border-outline-variant/20 bg-surface-container-low/60 px-4 py-2">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex min-w-0 items-center gap-2 font-title-sm text-title-sm text-primary">
-            <MaterialIcon
-              name={icon}
-              className="shrink-0 text-[20px] text-primary"
-            />
-            <span className="truncate font-semibold">{title}</span>
-          </div>
+          {title ? (
+            <div className="flex min-w-0 items-center gap-2 font-title-sm text-title-sm text-primary">
+              {icon ? (
+                <MaterialIcon
+                  name={icon}
+                  className="shrink-0 text-[20px] text-primary"
+                />
+              ) : null}
+              <span className="truncate font-semibold">{title}</span>
+            </div>
+          ) : null}
           {caption ? (
             <span
               className="hidden shrink-0 bg-surface-container px-2.5 py-0.5 font-mono text-[11px] text-secondary xl:inline"

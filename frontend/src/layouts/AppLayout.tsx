@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   dossiersLabel,
@@ -10,6 +11,7 @@ import { AccountMenu } from '../components/AccountMenu'
 import { MaterialIcon } from '../components/icons'
 import { NotificationBell } from '../components/NotificationBell'
 import { SidebarLogout } from '../components/SidebarLogout'
+import { SidebarContext } from '../hooks/useSidebar'
 import {
   PageTitleProvider,
   useCurrentBreadcrumb,
@@ -81,6 +83,7 @@ const MONO_PAGES = [
   '/nhat-ky-hoat-dong',
   '/nguoi-dung-phan-quyen',
   '/cai-dat',
+  '/tao-ho-so',
   '/admin/monitoring',
 ]
 
@@ -157,12 +160,14 @@ function HeaderBreadcrumb({ crumbs }: { crumbs: Crumb[] }) {
   )
 }
 
-function navClassName(isActive: boolean) {
+function navClassName(isActive: boolean, collapsed: boolean) {
   return [
-    'flex items-center gap-space-md px-space-md py-2 rounded-[8px] text-[14px] transition-colors whitespace-nowrap',
+    `flex items-center gap-space-md py-2 rounded-[8px] text-[14px] transition-colors whitespace-nowrap ${
+      collapsed ? 'justify-center px-0' : 'px-space-md'
+    }`,
     isActive
-      ? 'bg-white text-brand-700 font-medium shadow-[0_1px_3px_rgba(0,0,0,0.06)]'
-      : 'text-tone-600 hover:bg-brand-100 hover:text-tone-900',
+      ? 'bg-side-active text-side-active-ink font-medium shadow-sm'
+      : 'text-side-muted hover:bg-side-hover hover:text-side-ink',
   ].join(' ')
 }
 
@@ -182,112 +187,138 @@ export function AppLayout({ role }: { role: AppRole }) {
     structurePage ||
     location.pathname === '/doi-soat-xung-dot' ||
     location.pathname === '/admin/monitoring'
+  // Thu gọn: menu chỉ còn icon (rộng 4rem) để nhường chỗ cho nội dung.
+  const [collapsed, setCollapsed] = useState(false)
+  const sideWidth = collapsed ? 'w-16' : 'w-64'
+  const sideOffset = collapsed ? 'pl-16' : 'pl-64'
 
   return (
     <PageTitleProvider>
-      <div
-        className={`bg-background font-body-md text-on-surface antialiased ${mono ? 'theme-soft' : ''} ${
-          fillViewport ? 'h-screen overflow-hidden' : 'min-h-screen'
-        }`}
-      >
-        <aside
-          aria-label="Điều hướng chính"
-          className="fixed left-0 top-0 h-full w-64 bg-brand-50 text-tone-900 border-r border-brand-100 flex flex-col z-50"
+      <SidebarContext.Provider value={{ collapsed, setCollapsed }}>
+        <div
+          className={`bg-background font-body-md text-on-surface antialiased ${mono ? 'theme-soft' : ''} ${
+            fillViewport ? 'h-screen overflow-hidden' : 'min-h-screen'
+          }`}
         >
-          <div className="h-16 flex items-center px-space-lg gap-space-sm">
-            <span className="w-8 h-8 rounded-[8px] bg-brand-100 flex items-center justify-center shrink-0">
-              <MaterialIcon
-                name="shield"
-                className="text-brand-700 text-[18px]"
-              />
-            </span>
-            <div className="flex flex-col">
-              <span className="text-[13px] font-semibold tracking-wide text-tone-900 uppercase">
-                LEXIS INTELLIGENCE
-              </span>
-              <span className="text-[11px] text-tone-500 uppercase tracking-wide">
-                Enterprise Legal AI
-              </span>
-            </div>
-          </div>
-
-          <div className="px-space-md py-space-xs">
-            <div className="bg-brand-100 rounded-[8px] px-space-md py-1.5 flex items-center justify-between">
-              <span className="text-[12px] text-tone-600 flex items-center gap-1">
-                <MaterialIcon
-                  name="verified_user"
-                  className="text-[14px] text-[#1f9d6b]"
-                />
-                SOC2 Type II Active
-              </span>
-            </div>
-          </div>
-
-          <nav className="flex-1 px-space-sm py-space-md flex flex-col gap-1">
-            {navItems.map((item, index) => [
-              item.section && item.section !== navItems[index - 1]?.section ? (
-                <p
-                  key={`section-${item.section}`}
-                  className="mt-space-md px-space-md pb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-tone-400"
-                >
-                  {item.section}
-                </p>
-              ) : null,
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end
-                title={item.to === dossiersTo ? dossiersLabel(role) : undefined}
-                className={() => {
-                  const active =
-                    item.to === dossiersTo
-                      ? location.pathname === dossiersTo || dossierSection
-                      : location.pathname === item.to
-                  return navClassName(active)
-                }}
-              >
-                <span className="flex items-center gap-space-md">
-                  <MaterialIcon name={item.icon} className="text-[18px]" />
-                  <span>{item.label}</span>
-                </span>
-              </NavLink>,
-            ])}
-          </nav>
-
-          <div className="px-space-sm pb-space-md">
-            <SidebarLogout tone="light" />
-          </div>
-        </aside>
-
-        <div className={fillViewport ? 'h-full pl-64' : 'pl-64'}>
-          <header className="fixed top-0 left-64 right-0 h-16 bg-white/90 backdrop-blur-md z-40 flex items-center justify-between px-gutter border-b border-tone-200">
-            <HeaderPageTitle />
-
-            <div className="flex items-center gap-space-md">
-              <NotificationBell
-                buttonClassName="w-9 h-9 rounded flex items-center justify-center text-secondary hover:bg-surface-container hover:text-on-surface relative transition-colors"
-                dotClassName="absolute top-2 right-2 w-2 h-2 rounded-full bg-error"
-              />
-              <div className="h-5 w-[1px] bg-outline-variant" />
-              <AccountMenu
-                gapClassName="gap-space-sm"
-                nameClassName="font-label-md text-label-md text-on-surface leading-none"
-                emailClassName="font-label-sm text-label-sm text-secondary leading-none mt-1"
-              />
-            </div>
-          </header>
-
-          <main
-            className={
-              fillViewport
-                ? 'flex h-screen flex-col overflow-hidden bg-background px-gutter pb-space-md pt-16'
-                : 'w-full min-h-screen bg-background px-gutter py-space-lg pt-16'
-            }
+          <aside
+            aria-label="Điều hướng chính"
+            className={`fixed left-0 top-0 h-full ${sideWidth} bg-side text-side-ink flex flex-col z-50 transition-[width] duration-200`}
           >
-            <Outlet />
-          </main>
+            <div
+              className={`h-16 flex items-center gap-space-sm ${collapsed ? 'justify-center' : 'px-space-lg'}`}
+            >
+              <span className="w-8 h-8 rounded-[8px] bg-side-logo flex items-center justify-center shrink-0">
+                <MaterialIcon
+                  name="shield"
+                  className="text-white text-[18px]"
+                />
+              </span>
+              {collapsed ? null : (
+                <div className="flex flex-col">
+                  <span className="text-[13px] font-semibold tracking-wide text-side-ink uppercase">
+                    LEXIS INTELLIGENCE
+                  </span>
+                  <span className="text-[11px] text-side-muted uppercase tracking-wide">
+                    Enterprise Legal AI
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <nav className="flex-1 px-space-sm py-space-md flex flex-col gap-1">
+              {navItems.map((item, index) => [
+                !collapsed &&
+                item.section &&
+                item.section !== navItems[index - 1]?.section ? (
+                  <p
+                    key={`section-${item.section}`}
+                    className="mt-space-md px-space-md pb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-side-label"
+                  >
+                    {item.section}
+                  </p>
+                ) : null,
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end
+                  title={
+                    collapsed
+                      ? item.label
+                      : item.to === dossiersTo
+                        ? dossiersLabel(role)
+                        : undefined
+                  }
+                  className={() => {
+                    const active =
+                      item.to === dossiersTo
+                        ? location.pathname === dossiersTo || dossierSection
+                        : location.pathname === item.to
+                    return navClassName(active, collapsed)
+                  }}
+                >
+                  <span className="flex items-center gap-space-md">
+                    <MaterialIcon name={item.icon} className="text-[18px]" />
+                    <span className={collapsed ? 'sr-only' : undefined}>
+                      {item.label}
+                    </span>
+                  </span>
+                </NavLink>,
+              ])}
+            </nav>
+
+            <div className="px-space-sm pb-space-md">
+              <SidebarLogout compact={collapsed} tone="side" />
+            </div>
+          </aside>
+
+          <div
+            className={`transition-[padding] duration-200 ${sideOffset} ${fillViewport ? 'h-full' : ''}`}
+          >
+            <header
+              className={`fixed top-0 ${collapsed ? 'left-16' : 'left-64'} right-0 h-16 transition-[left] duration-200 bg-white/90 backdrop-blur-md z-40 flex items-center justify-between px-gutter border-b border-tone-200`}
+            >
+              <div className="flex min-w-0 items-center gap-space-sm">
+                <button
+                  aria-label={collapsed ? 'Mở menu' : 'Thu gọn menu'}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded text-secondary transition-colors hover:bg-surface-container hover:text-on-surface"
+                  title={collapsed ? 'Mở menu' : 'Thu gọn menu'}
+                  type="button"
+                  onClick={() => setCollapsed(!collapsed)}
+                >
+                  <MaterialIcon
+                    name={collapsed ? 'menu' : 'menu_open'}
+                    className="text-[22px]"
+                  />
+                </button>
+                <HeaderPageTitle />
+              </div>
+
+              <div className="flex items-center gap-space-md">
+                <NotificationBell
+                  buttonClassName="w-9 h-9 rounded flex items-center justify-center text-secondary hover:bg-surface-container hover:text-on-surface relative transition-colors"
+                  dotClassName="absolute top-2 right-2 w-2 h-2 rounded-full bg-error"
+                />
+                <div className="h-5 w-[1px] bg-outline-variant" />
+                <AccountMenu
+                  gapClassName="gap-space-sm"
+                  nameClassName="font-label-md text-label-md text-on-surface leading-none"
+                  emailClassName="font-label-sm text-label-sm text-secondary leading-none mt-1"
+                />
+              </div>
+            </header>
+
+            <main
+              className={
+                fillViewport
+                  ? 'flex h-screen flex-col overflow-hidden bg-background px-gutter pb-space-md pt-16'
+                  : 'w-full min-h-screen bg-background px-gutter pb-space-lg pt-[calc(4rem+var(--spacing-space-lg))]'
+              }
+            >
+              <Outlet />
+            </main>
+          </div>
         </div>
-      </div>
+      </SidebarContext.Provider>
     </PageTitleProvider>
   )
 }
