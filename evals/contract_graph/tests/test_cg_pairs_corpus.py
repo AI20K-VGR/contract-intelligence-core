@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import hashlib
+import io
+import zipfile
 
 import pytest
 
+from evals.contract_graph.dataset import raw_to_text
 from evals.contract_graph.pairs import corpus
 
 SALES_URL = "https://example.test/mau-hop-dong-mua-ban"
@@ -223,6 +226,122 @@ def test_content_contamination_detected():
     assert corpus.contaminated(dirty, spike) is True
     assert corpus.contaminated({**clean, "url": "http://www.spike.test/heldout/"}, spike) is True
     assert corpus.contaminated({**clean, "url": "repo:ai-service/fixtures/x.md"}, spike) is True
+
+
+SIGNATURE = "\n".join(
+    ["ĐẠI DIỆN BÊN A ĐẠI DIỆN BÊN B", "Chức vụ Chức vụ", "(Ký tên, đóng dấu) (Ký tên, đóng dấu)"]
+)
+PAGE_COMMENTARY = "\n".join(
+    [
+        "3. Một số câu hỏi thường gặp về hợp đồng mua bán",
+        "1. Hợp đồng mua bán hàng hóa có bắt buộc phải công chứng hay không theo pháp luật?",
+        "2. Mua bán hàng hóa qua email có được xem là giao kết hợp đồng bằng văn bản không?",
+    ]
+)
+SITE_FOOTER = "\n".join(
+    [
+        "Đánh giá bài viết",
+        "2 13.182",
+        "Chia sẻ:",
+        "Tải về",
+        "0 Bình luận",
+        "Bài viết liên quan",
+        "Hỗ trợ 24/7: 1900.0000 — Email: lienhe@example.test",
+        "Bản quyền © 2026 example.test. Địa chỉ: 1 Phố Mẫu, Hà Nội.",
+    ]
+)
+
+
+def html_page(text: str) -> bytes:
+    body = "".join(f"<p>{line}</p>" for line in text.split("\n"))
+    return f"<html><body><article>{body}</article></body></html>".encode()
+
+
+def docx_bytes(text: str) -> bytes:
+    w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    paragraphs = "".join(f"<w:p><w:r><w:t>{line}</w:t></w:r></w:p>" for line in text.split("\n"))
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("word/document.xml",
+                    f'<w:document xmlns:w="{w}"><w:body>{paragraphs}</w:body></w:document>')
+    return buf.getvalue()
+
+
+def all_node_text(doc: dict) -> str:
+    return "\n".join(n["text"] for n in doc["nodes"])
+
+
+def test_tail_after_signature_block_dropped():
+    contract = contract_text(annex=False) + "\n" + SIGNATURE
+    text, tail = corpus.page_text(html_page(f"{contract}\n{PAGE_COMMENTARY}\n{SITE_FOOTER}"))
+
+    assert text == contract
+    assert tail.boundary == "signature"
+    assert tail.trimmed_chars == len(f"\n{PAGE_COMMENTARY}\n{SITE_FOOTER}")
+    doc = corpus.build_doc(source(), text)
+    assert "câu hỏi" not in all_node_text(doc)
+    assert "Bản quyền" not in all_node_text(doc)
+    assert doc["n_articles"] == 6
+
+
+def test_tail_without_signature_cut_at_site_marker():
+    contract = contract_text(annex=False)
+    text, tail = corpus.page_text(html_page(f"{contract}\n{SITE_FOOTER}"))
+
+    assert text == contract
+    assert tail.boundary == "marker"
+    assert tail.trimmed_chars == len(f"\n{SITE_FOOTER}")
+    doc = corpus.build_doc(source(), text)
+    for junk in ("Đánh giá bài viết", "Chia sẻ", "Bình luận", "Bản quyền", "1900.0000"):
+        assert junk not in all_node_text(doc)
+
+
+def test_annex_after_signature_kept_and_its_tail_cut():
+    annex = "\n".join(
+        [
+            "PHỤ LỤC 01",
+            "1. Danh mục hàng hóa gồm máy phát điện, tủ điện và cáp đấu nối đi kèm.",
+            "2. Thông số kỹ thuật chi tiết theo catalogue của nhà sản xuất đính kèm.",
+        ]
+    )
+    contract = f"{contract_text(annex=False)}\nBÊN MUA\nBÊN BÁN\n{annex}"
+    text, tail = corpus.page_text(html_page(f"{contract}\n{SITE_FOOTER}"))
+
+    assert text == contract
+    assert tail.boundary == "marker"
+    doc = corpus.build_doc(source(), text)
+    assert doc["has_annex"] is True
+    assert "Bản quyền" not in all_node_text(doc)
+
+
+def test_contract_without_tail_unchanged():
+    plain = contract_text(annex=False)
+    signed = f"{plain}\n{SIGNATURE}"
+
+    assert corpus.trim_tail(plain) == (plain, corpus.Tail(None, 0))
+    assert corpus.trim_tail(signed) == (signed, corpus.Tail("signature", 0))
+
+
+def test_single_party_line_inside_last_article_is_not_a_signature():
+    contract = contract_text(annex=False) + "\n" + "\n".join(
+        [
+            "3. Trách nhiệm lưu giữ hợp đồng:",
+            "Bên A",
+            "giữ hai bản gốc và chịu trách nhiệm cung cấp bản sao khi cơ quan thuế yêu cầu.",
+        ]
+    )
+
+    assert corpus.trim_tail(contract) == (contract, corpus.Tail(None, 0))
+
+
+def test_docx_source_is_not_trimmed():
+    page = f"{contract_text(annex=False)}\n{SIGNATURE}\n{PAGE_COMMENTARY}\n{SITE_FOOTER}"
+    raw = docx_bytes(page)
+    text, tail = corpus.page_text(raw)
+
+    assert text == raw_to_text(raw)
+    assert "Bản quyền" in text
+    assert tail == corpus.Tail("docx", 0)
 
 
 def test_real_spike_sources_load():

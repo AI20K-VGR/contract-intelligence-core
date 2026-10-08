@@ -66,7 +66,10 @@ bằng `score.score_relations` (precision bảo thủ quyết định cổng; Ho
 
 ## Giới hạn đã biết
 
-- Trang web: html → text giữ cả nội dung trang sau hợp đồng; nó dồn vào node cuối (hoặc tạo khoản
-  giả sau Điều cuối). Người duyệt chọn `reject` cho cặp như vậy. Nguồn docx (Google Docs) sạch
-  nhưng đánh số tự động của Word không vào văn bản nên chỉ tách tới Điều.
+- Trang web: `corpus.trim_tail` cắt phần trang sau hợp đồng (bình luận, FAQ, chân trang) tại
+  ranh giới tin cậy đầu tiên sau Điều cuối: hết khối chữ ký (giữ Phụ lục nếu bắt đầu trong
+  `ANNEX_AFTER_SIGNATURE_LINES` dòng sau đó), nếu không có thì dòng khung trang đầu tiên
+  (`_SITE_MARKER`). Không thấy ranh giới ⇒ giữ nguyên, đếm `tail_untrimmed` trong báo cáo; cặp còn
+  bẩn thì người duyệt chọn `reject`. Nguồn docx (Google Docs) không qua bước này; đánh số tự động
+  của Word không vào văn bản nên chỉ tách tới Điều.
 - Nhãn GPT chưa duyệt không phải độ chính xác nghiệp vụ (`ground_truth` trong manifest/báo cáo).

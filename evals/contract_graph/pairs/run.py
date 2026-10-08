@@ -90,7 +90,7 @@ def _build(args: argparse.Namespace) -> int:
     usable, rejected, failed = [], [], []
     for source in _sources(args.sources):
         try:
-            text = corpus.fetch(source, _raw_cache(args.data_dir), offline=True)
+            text, tail = corpus.fetch(source, _raw_cache(args.data_dir), offline=True)
             doc = corpus.build_doc(source, text)
         except corpus.RejectedDocument as exc:
             rejected.append({"url": source["url"], "profile": source["profile"],
@@ -104,13 +104,29 @@ def _build(args: argparse.Namespace) -> int:
         manifest.write_json(docs_dir / f"{doc['doc_id']}.json", doc)
         usable.append({"doc_id": doc["doc_id"], "url": doc["url"], "profile": doc["profile"],
                        "n_articles": doc["n_articles"], "n_nodes": len(doc["nodes"]),
-                       "has_annex": doc["has_annex"], "contaminated": doc["contaminated"]})
+                       "has_annex": doc["has_annex"], "contaminated": doc["contaminated"],
+                       "tail_boundary": tail.boundary, "tail_trimmed_chars": tail.trimmed_chars})
     manifest.write_json(manifest.work(args.data_dir, "build.json"),
                         {"usable": usable, "rejected_segmentation": rejected, "failed": failed})
     by_profile = Counter(d["profile"] for d in usable)
+    tails = _tail_counts(usable)
     print(f"usable {len(usable)} {dict(sorted(by_profile.items()))}; "
-          f"rejected_segmentation {len(rejected)}; failed {len(failed)}")
+          f"rejected_segmentation {len(rejected)}; failed {len(failed)}; "
+          f"tail_trimmed {tails['tail_trimmed']} ({tails['tail_trimmed_chars']} chars); "
+          f"tail_untrimmed {tails['tail_untrimmed']}")
     return 0
+
+
+def _tail_counts(usable: list[dict]) -> dict:
+    """Web sources cut (``tail_trimmed``) and web sources with no reliable boundary, kept whole
+    (``tail_untrimmed``); docx sources are in neither."""
+
+    return {
+        "tail_trimmed": sum(1 for u in usable if u["tail_trimmed_chars"] > 0),
+        "tail_untrimmed": sum(1 for u in usable if u["tail_boundary"] is None),
+        "tail_trimmed_chars": sum(u["tail_trimmed_chars"] for u in usable),
+        "tail_by_boundary": _count(str(u["tail_boundary"]) for u in usable),
+    }
 
 
 def _docs(data_dir: Path) -> list[dict]:
@@ -195,6 +211,7 @@ def build_summary(data_dir: Path, sources_path: Path) -> dict:
     build = manifest.read_json(manifest.work(data_dir, "build.json"))
     stats = manifest.read_json(manifest.work(data_dir, "pool_stats.json"))
     sources = _sources(sources_path)
+    built = {u["doc_id"]: u for u in build["usable"]}
     contaminated = {d for d, doc in docs.items() if doc.get("contaminated")}
     splits, split_stats = manifest.assign_splits(
         stage["clusters"], contaminated, {d: doc["url"] for d, doc in docs.items()}
@@ -229,6 +246,7 @@ def build_summary(data_dir: Path, sources_path: Path) -> dict:
                 for r in build["rejected_segmentation"]
             ],
             "failed": len(build["failed"]),
+            **_tail_counts(build["usable"]),
         },
         "floors": {"usable_min": USABLE_MIN, "per_profile_min": PROFILE_MIN,
                    "heldout_min": HELDOUT_MIN, "dev_min": DEV_MIN, "met": floors_met},
@@ -283,6 +301,7 @@ def build_summary(data_dir: Path, sources_path: Path) -> dict:
                 "n_articles": doc["n_articles"],
                 "n_nodes": len(doc["nodes"]),
                 "has_annex": doc["has_annex"],
+                "tail_trimmed_chars": built[d]["tail_trimmed_chars"],
                 "contaminated": d in contaminated,
                 "pairs_by_stratum": _count(r["stratum"] for r in pools[d]),
                 "labels_by_label": _count(r["label"] for r in labels[d]
@@ -314,6 +333,9 @@ def render_summary(report: dict) -> str:
         "",
         f"- Nguồn liệt kê {src['listed']} {src['listed_by_profile']}; dùng được {src['usable']}; "
         f"loại do tách < 5 Điều {src['rejected_segmentation']}; lỗi tải/đọc {src['failed']}.",
+        f"- Cắt đuôi trang web: `tail_trimmed` {src['tail_trimmed']} "
+        f"({src['tail_trimmed_chars']} ký tự), `tail_untrimmed` {src['tail_untrimmed']} "
+        f"(không có ranh giới tin cậy, giữ nguyên); theo ranh giới {src['tail_by_boundary']}.",
         f"- Theo profile: {docs['by_profile']}; theo split: {docs['by_split']}; "
         f"profile/split: {docs['by_profile_split']}; có Phụ lục: {docs['with_annex']}.",
         f"- Ngưỡng (≥{report['floors']['usable_min']} dùng được, ≥"
@@ -358,13 +380,15 @@ def render_summary(report: dict) -> str:
         "",
         "## Theo văn bản",
         "",
-        "| doc_id | profile | split | cluster | Điều | node | phụ lục | cặp theo tầng | nhãn |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| doc_id | profile | split | cluster | Điều | node | phụ lục | cắt đuôi | cặp theo tầng "
+        "| nhãn |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for d in report["per_doc"]:
         lines.append(
             f"| {d['doc_id']} | {d['profile']} | {d['split']} | {d['cluster_id']} | "
             f"{d['n_articles']} | {d['n_nodes']} | {'có' if d['has_annex'] else '—'} | "
+            f"{d['tail_trimmed_chars']} | "
             f"{d['pairs_by_stratum']} | {d['labels_by_label']} |"
         )
     return NL.join(lines) + NL

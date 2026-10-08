@@ -6,6 +6,10 @@ fixtures, or any spike clause contained in the text) which forces a cluster to `
 
 Words for shingles are ``\\w+`` runs of the ``fold_for_match`` text: whitespace is collapsed by
 construction and punctuation never splits a match.
+
+Web pages carry the site after the contract (commentary, FAQ, comments, footer). ``trim_tail`` cuts
+it at the first reliable boundary after the last Điều — the end of the signature block, else the
+first site-chrome line — and keeps the text when neither is found. docx sources are never cut.
 """
 
 from __future__ import annotations
@@ -19,7 +23,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-from evals.contract_graph.dataset import fetch_cached, raw_to_text
+from evals.contract_graph.dataset import fetch_cached
+from evals.contract_graph.normalize import docx_to_text, html_to_text
 from evals.contract_graph.segment import segment
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -39,6 +44,28 @@ _ARTICLE_HEAD = re.compile(r"^\s*(?:ĐIỀU|Điều|DIEU)\s+(\d+[a-zđA-ZĐ]?)\s
 _ANNEX_HEAD = re.compile(r"^\s*(?:PHỤ\s+LỤC|Phụ\s+lục|PHU\s+LUC)(?![\w])")
 _WORD = re.compile(r"\w+")
 
+# A signature line holds only party labels, "(Ký …)" notes and "Chức vụ"; a block names ≥ 2 parties.
+_PARTY = re.compile(
+    r"(?:đại\s+diện\s+)?bên\s+(?:[abc]|mua|bán|cho\s+thuê|giao|nhận"
+    r"|(?:cung\s+(?:cấp|ứng)|sử\s+dụng|thuê)(?:\s+dịch\s+vụ)?)\b",
+    re.IGNORECASE,
+)
+_SIGNATURE_LINE = re.compile(
+    rf"(?:(?:{_PARTY.pattern}|\([^()]*\)|chức\s+vụ)[\s:.,]*)+", re.IGNORECASE
+)
+SIGNATURE_LINE_MAX = 120
+SIGNATURE_PARTIES_MIN = 2
+ANNEX_AFTER_SIGNATURE_LINES = 3
+# Site chrome that never opens a contract line: the whole line, or the line's opening words.
+_SITE_MARKER = re.compile(
+    r"(?:đánh giá bài viết|chia sẻ:?|tải về|tham khảo thêm|(?:\d+\s+)?bình luận"
+    r"|nội dung bài viết:?)$"
+    r"|\d+(?:[.,]\d+)?\s+sao của\s+\d+\s+đánh giá|bạn thấy nội dung này"
+    r"|bài viết (?:liên quan|cùng chủ đề)|tham khảo dịch vụ|mời bạn đọc|hãy để lại thông tin"
+    r"|bài viết này được đăng",
+    re.IGNORECASE,
+)
+
 
 class RejectedDocument(ValueError):
     """A source that does not segment into at least ``MIN_ARTICLES`` articles."""
@@ -49,8 +76,72 @@ class RejectedDocument(ValueError):
         self.n_articles = n_articles
 
 
-def fetch(source: dict, cache_dir: Path, offline: bool = False) -> str:
-    return raw_to_text(fetch_cached(source["url"], cache_dir, offline))
+@dataclass(frozen=True)
+class Tail:
+    """Where the page text was cut: ``signature`` / ``marker``; ``None`` = no reliable boundary
+    (text kept); ``docx`` = not a web page, never cut."""
+
+    boundary: str | None
+    trimmed_chars: int
+
+
+def fetch(source: dict, cache_dir: Path, offline: bool = False) -> tuple[str, Tail]:
+    return page_text(fetch_cached(source["url"], cache_dir, offline))
+
+
+def page_text(raw: bytes) -> tuple[str, Tail]:
+    if raw[:2] == b"PK":
+        return docx_to_text(raw), Tail("docx", 0)
+    return trim_tail(html_to_text(raw))
+
+
+def trim_tail(text: str) -> tuple[str, Tail]:
+    """Drop what follows the contract on a web page. After the last Điều heading: cut at the end of
+    the first signature block (≥ 2 party labels) unless a Phụ lục heading opens within
+    ``ANNEX_AFTER_SIGNATURE_LINES`` lines after it; otherwise cut at the first site-chrome line.
+    No boundary ⇒ text unchanged, ``Tail(None, 0)``."""
+
+    lines = text.split("\n")
+    last_article = max((i for i, line in enumerate(lines) if _ARTICLE_HEAD.match(line)),
+                       default=None)
+    if last_article is None:
+        return text, Tail(None, 0)
+    cut, boundary = None, None
+    signature_end = _signature_end(lines, last_article + 1)
+    if signature_end is not None:
+        following = lines[signature_end : signature_end + ANNEX_AFTER_SIGNATURE_LINES]
+        if not any(_ANNEX_HEAD.match(line) for line in following):
+            cut, boundary = signature_end, "signature"
+    if cut is None:
+        cut = next((i for i in range(last_article + 1, len(lines))
+                    if _SITE_MARKER.match(lines[i].strip())), None)
+        boundary = "marker"
+    if cut is None:
+        return text, Tail(None, 0)
+    kept = "\n".join(lines[:cut])
+    return kept, Tail(boundary, len(text) - len(kept))
+
+
+def _is_signature_line(line: str) -> bool:
+    line = line.strip()
+    return len(line) <= SIGNATURE_LINE_MAX and _SIGNATURE_LINE.fullmatch(line) is not None
+
+
+def _signature_end(lines: list[str], start: int) -> int | None:
+    """Index just past the first run of signature lines from ``start`` naming ≥ 2 parties."""
+
+    i = start
+    while i < len(lines):
+        if not (_is_signature_line(lines[i]) and _PARTY.search(lines[i])):
+            i += 1
+            continue
+        end = i
+        while end < len(lines) and _is_signature_line(lines[end]):
+            end += 1
+        if sum(len(_PARTY.findall(line)) for line in lines[i:end]) >= SIGNATURE_PARTIES_MIN:
+            return end
+        i = end
+    return None
 
 
 def normalize_headings(text: str) -> str:
