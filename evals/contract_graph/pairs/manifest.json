@@ -783,7 +783,13 @@
  },
  "frozen_at": "2026-10-08T18:10:55Z",
  "ground_truth": "GPT labeler pairs-labeler-v1 (approved=false; HG-1 human review pending, P2/P5)",
- "heldout_review": null,
+ "heldout_review": {
+  "decisions_sha256": "1271c998e07c6085345522e0da394b293ae6de6ea19a03b20962170e3f805a64",
+  "n_approve": 181,
+  "n_reject": 0,
+  "n_relabel": 0,
+  "n_selected": 181
+ },
  "labeler": {
   "family": "openai",
   "prompt_version": "pairs-labeler-v1",
