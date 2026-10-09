@@ -43,10 +43,12 @@ def pairs_enabled() -> bool:
 
 def classifier_client(llm: Any, model: str | None) -> Any:
     base, key = os.getenv(PAIRS_BASE_URL_ENV), os.getenv(PAIRS_API_KEY_ENV)
+    if bool(base) != bool(key):
+        return None
     if base and key:
         return NineRouterClient(base_url=base, api_key=key, model=model)
     if isinstance(llm, NineRouterClient):
-        return NineRouterClient(base_url=llm.base_url, api_key=llm.api_key, model=model)
+        return None
     return llm
 
 

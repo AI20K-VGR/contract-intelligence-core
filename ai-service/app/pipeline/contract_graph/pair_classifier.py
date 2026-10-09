@@ -12,6 +12,7 @@ from typing import Any
 
 from app.contracts.contract_graph import PAIR_SPAN_MAX, PairLabel
 from app.pipeline.ai1_snapshot_adapter import fold_for_match
+from app.pipeline.contract_graph.model_family import classifier_family_ok
 from app.pipeline.contract_graph.pair_candidates import PairCandidate, PairSource
 from app.pipeline.runtime import ProcessingRuntime, ProcessingTimeout
 
@@ -210,8 +211,8 @@ def classify_pairs(
         served = traces[-1].get("served_model") if traces else None
         if not isinstance(served, str):
             served = None
-        # K-a also applies to runtime: a requested Claude id is not proof of service.
-        if not served or not served.strip().rsplit("/", 1)[-1].lower().startswith("claude"):
+        # K-a also applies to runtime: a requested provider id is not proof of service.
+        if not classifier_family_ok(served):
             stop = "LLM_FALLBACK"
             stats["pairs_unclassified"] += len(pairs) - offset
             break
