@@ -21,7 +21,7 @@ from app.contracts.models import (
 )
 
 if TYPE_CHECKING:  # flag off must not import the contract-graph model
-    from app.contracts.contract_graph import ContractEdge
+    from app.contracts.contract_graph import ContractEdge, PairRelation
 
 
 @dataclass
@@ -60,6 +60,9 @@ class DossierRecord:
     # Not part of ``record_to_dict``; ``contract_graph_ran`` False keeps the stored edges as they are.
     contract_edges: list[ContractEdge] = field(default_factory=list)
     contract_graph_ran: bool = False
+    content_sharing_consent: bool = False
+    pair_relations: list[PairRelation] = field(default_factory=list)
+    pair_relations_ran: bool = False
 
     def evidence_nodes(self) -> list[StructuralNode]:
         """Nodes allowed for UI/reasoning; raw ``nodes`` remains immutable."""

@@ -73,3 +73,12 @@ contract_edges = Table("contract_edges", graph_metadata, *columns(
     CheckConstraint("op IN ({})".format(", ".join(f"'{op}'" for op in CONTRACT_EDGE_OPS)),
                     name="ck_ai2_contract_edges_op"),
     Index("idx_ai2_contract_edges_job", "tenant_id", "dossier_id", "job_id"))
+
+CONTRACT_PAIR_LABELS = ("GENERAL_SPECIFIC", "CONFLICT", "DUPLICATE", "REFERENCE")
+contract_pair_relations = Table("contract_pair_relations", graph_metadata, *columns(
+    "tenant_id:s* dossier_id:s* relation_id:s* job_id:s source_snapshot_digest:s label:s directed:i "
+    "node_a_id:s node_b_id:s candidate_sources_json:s span_a:s span_b:s citation_a_json:s "
+    "citation_b_json:s classifier_model:s prompt_version:s review_state:s digest:s created_ms:n"),
+    CheckConstraint("label IN ({})".format(", ".join(f"'{v}'" for v in CONTRACT_PAIR_LABELS)),
+                    name="ck_ai2_contract_pair_relations_label"),
+    Index("idx_ai2_contract_pair_relations_job", "tenant_id", "dossier_id", "job_id"))

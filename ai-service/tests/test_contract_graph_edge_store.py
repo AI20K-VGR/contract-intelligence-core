@@ -109,7 +109,7 @@ def _offline_sql(fn) -> str:
     return buf.getvalue()
 
 
-def test_0005_is_the_single_head_after_0004():
+def test_migration_chain_has_single_head():
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
@@ -117,7 +117,8 @@ def test_0005_is_the_single_head_after_0004():
     config.set_main_option("script_location", str(ROOT / "app" / "db" / "migrations"))
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_heads() == ["0005_ai2_contract_edges"]
+    assert len(script.get_heads()) == 1
+    assert script.get_revision("0006_ai2_contract_pair_relations").down_revision == "0005_ai2_contract_edges"
     assert script.get_revision("0005_ai2_contract_edges").down_revision == "0004_ai2_job_indexes"
 
 

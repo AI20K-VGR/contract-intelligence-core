@@ -14,6 +14,7 @@ probe explicit flag values. uuid4 is patched with a counter reset per case.
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import os
@@ -62,7 +63,7 @@ def deterministic_uuid4() -> Iterator[None]:
         yield
 
 
-def cases() -> list[Case]:
+def cases(profile: str = "flag_off") -> list[Case]:
     import fixtures
     from fixtures.catalog import all_cases
 
@@ -70,6 +71,14 @@ def cases() -> list[Case]:
     for case_id in sorted(all_cases()):
         out.append((case_id, lambda case_id=case_id: _catalog_case(case_id)))
     out.append((REQUEST_CASE, _request_case))
+    if profile == "graph_on":
+        from fixtures.contract_graph_pair_records import pair_record_embedded
+        from fixtures.contract_graph_records import graph_record
+
+        out.extend([
+            ("contract_graph.graph_record", lambda: (graph_record(), fixtures.envelope(), None)),
+            ("contract_graph.pair_record_embedded", lambda: (pair_record_embedded(), fixtures.envelope(), None)),
+        ])
     return out
 
 
@@ -97,8 +106,35 @@ def shas(full: dict[str, Any]) -> dict[str, str | None]:
     }
 
 
-def emit_shas() -> dict[str, dict[str, str | None]]:
-    return {case_id: shas(run_case(build)) for case_id, build in cases()}
+def strip_pairs(full: dict[str, Any]) -> dict[str, Any]:
+    full = copy.deepcopy(full)
+    for result in (full["job_result"], full.get("wire")):
+        if not result:
+            continue
+        result.pop("review_state", None)
+        contribution = result.get("contribution") or result.get("result", {}).get("index_contribution")
+        if not contribution:
+            continue
+        coverage = contribution.get("coverage", {})
+        graph = coverage.get("contract_graph", {})
+        graph.pop("pairs", None)
+        if graph:
+            graph["graph_mode"] = "operation_first"
+        issues = contribution.get("evidence_issues", [])
+        kept = [i for i in issues if "CONTRACT_GRAPH_PAIRS_" not in i.get("issue_id", "")]
+        coverage["n_evidence_issues"] -= len(issues) - len(kept)
+        contribution["evidence_issues"] = kept
+    full["record"]["review_items"] = [
+        i for i in full["record"].get("review_items", [])
+        if not any("CONTRACT_GRAPH_PAIRS_" in str(i.get(k, ""))
+                   for k in ("issue_id", "review_item_id", "kind"))
+    ]
+    return full
+
+
+def emit_shas(profile: str = "flag_off", *, stripped: bool = False) -> dict[str, dict[str, str | None]]:
+    return {case_id: shas(strip_pairs(full) if stripped else full)
+            for case_id, build in cases(profile) for full in [run_case(build)]}
 
 
 def representative_cases(case_ids: list[str]) -> list[str]:
@@ -106,14 +142,16 @@ def representative_cases(case_ids: list[str]) -> list[str]:
     return [MOCK_CASE, catalog[0], REQUEST_CASE]
 
 
-def capture() -> dict[str, Any]:
-    built = {case_id: run_case(build) for case_id, build in cases()}
+def capture(profile: str = "flag_off") -> dict[str, Any]:
+    built = {case_id: run_case(build) for case_id, build in cases(profile)}
     keep = representative_cases(list(built))
+    if profile == "graph_on":
+        keep = list(built)
     return {
         "schema": SCHEMA,
         "hashseed": os.environ["PYTHONHASHSEED"],
         "python": f"{sys.version_info.major}.{sys.version_info.minor}",
-        "flag": f"{FLAG} unset",
+        "flag": f"{FLAG} {'1' if profile == 'graph_on' else 'unset'}",
         "job_id": JOB_ID,
         "cases": {case_id: shas(full) for case_id, full in built.items()},
         "full": {case_id: built[case_id] for case_id in keep},
@@ -126,22 +164,33 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--emit-shas", action="store_true", help="print sha256 per case as JSON")
     mode.add_argument("--emit-full", metavar="CASE_ID", help="print the full JSON of one case")
     parser.add_argument("--out", type=Path, default=GOLDEN)
+    parser.add_argument("--profile", choices=("flag_off", "graph_on"), default="flag_off")
+    parser.add_argument("--strip-pairs", action="store_true")
     args = parser.parse_args(argv)
     if args.emit_shas:
-        _print(emit_shas())
+        _print(emit_shas(args.profile, stripped=args.strip_pairs))
         return 0
     if args.emit_full:
-        found = dict(cases()).get(args.emit_full)
+        found = dict(cases(args.profile)).get(args.emit_full)
         if found is None:
             print(f"unknown case {args.emit_full!r}", file=sys.stderr)
             return 2
-        _print(run_case(found))
+        full = run_case(found)
+        _print(strip_pairs(full) if args.strip_pairs else full)
         return 0
     if os.environ.get("PYTHONHASHSEED") != "0":
         print("refusing to capture: run with PYTHONHASHSEED=0 (RT-01)", file=sys.stderr)
         return 2
     os.environ.pop(FLAG, None)
-    golden = capture()
+    if args.profile == "graph_on":
+        os.environ[FLAG] = "1"
+        for key in ("AI2_CONTRACT_GRAPH_PAIRS_ENABLED", "AI2_CONTRACT_GRAPH_PAIRS_MODEL",
+                    "AI2_CONTRACT_GRAPH_PAIRS_BASE_URL", "AI2_CONTRACT_GRAPH_PAIRS_API_KEY",
+                    "AI2_CONTRACT_GRAPH_AUTO_PASS"):
+            os.environ.pop(key, None)
+        if args.out == GOLDEN:
+            args.out = GOLDEN.with_name("idp_graph_on_golden.json")
+    golden = capture(args.profile)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with open(args.out, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(json.dumps(golden, ensure_ascii=False, indent=1, sort_keys=True) + "\n")

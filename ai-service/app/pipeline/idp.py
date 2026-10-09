@@ -279,6 +279,7 @@ def run_idp(
     # Contract graph (flow 1) only behind its flag: off ⇒ no import, no call, no new value.
     graph = None  # ContractGraphResult when the builder ran (P4 projects it)
     graph_enabled = _contract_graph_enabled()  # read once: a mid-run env flip must not split the run
+    pairs_on = graph_enabled and _contract_graph_pairs_enabled()
     graph_issues: list[EvidenceIssue] = []
     if graph_enabled:
         try:
@@ -359,6 +360,38 @@ def run_idp(
     issues.extend(context_issues)
     # D4: after every pre-existing issue, so their positional review ids do not move
     issues.extend(graph_issues)
+    pair_result = None
+    if pairs_on:
+        from app.pipeline.contract_graph.pair_projection import (
+            limited_coverage_issue,
+            pair_conflict_candidates,
+            pair_coverage,
+        )
+
+        pairs_status = "SKIPPED_GRAPH_FAILED" if graph is None else "OK"
+        conflict_stats = {}
+        if graph is not None:
+            try:
+                from app.pipeline.contract_graph.pair_builder import build_pair_relations
+
+                pair_result = build_pair_relations(record, graph.edges, llm=llm, runtime=runtime)
+                conflicts, conflict_stats = pair_conflict_candidates(pair_result, candidates, record)
+                candidates.extend(conflicts)
+                if pair_result.mode == "rule_only":
+                    issues.append(limited_coverage_issue(pair_result))
+            except Exception as exc:
+                pair_result = None
+                pairs_status = "FAILED"
+                issues.append(EvidenceIssue(
+                    issue_id="contract-graph:CONTRACT_GRAPH_PAIRS_FAILED",
+                    missing="CONTRACT_GRAPH_PAIRS_FAILED",
+                    reason=f"Không phân loại được quan hệ giữa các khoản ({type(exc).__name__}); "
+                           "không có quan hệ luồng 2.",
+                    review_state=ReviewState.NEEDS_REVIEW,
+                ))
+        graph_coverage_value.update(pair_coverage(
+            pair_result, status=pairs_status, conflict_stats=conflict_stats,
+        ))
     coverage = {
         "n_facts": len(facts),
         "n_findings": len(candidates) + len(contract_context.findings),
@@ -392,6 +425,11 @@ def run_idp(
     # the job store to keep the edges it already has.
     record.contract_edges = list(graph.edges) if graph is not None else []
     record.contract_graph_ran = graph is not None
+    record.pair_relations = list(pair_result.relations) if pair_result else []
+    record.pair_relations_ran = bool(pair_result and (
+        (pair_result.mode == "llm" and pair_result.batches_completed >= 1)
+        or pair_result.rule_only_reason == "NO_CONSENT"
+    ))
     record.review_items =_review_items_for_result(record, issues, candidates)
     existing_review_ids = {item.review_item_id for item in record.review_items}
     for fact in facts:
@@ -432,6 +470,10 @@ def _contract_graph_enabled() -> bool:
     # Same rule as ``contract_graph.builder.contract_graph_enabled``; read here so the flag-off
     # path never imports the builder package.
     return os.getenv("AI2_CONTRACT_GRAPH_ENABLED", "false").strip().casefold() in {"1", "true", "yes", "on"}
+
+
+def _contract_graph_pairs_enabled() -> bool:
+    return os.getenv("AI2_CONTRACT_GRAPH_PAIRS_ENABLED", "false").strip().casefold() in {"1", "true", "yes", "on"}
 
 
 def _dedupe_same_published_key(facts: list) -> list:

@@ -15,10 +15,13 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from alembic.script import ScriptDirectory
+
+from app.db.migrate import _config
 
 ROOT = Path(__file__).resolve().parents[1]
 OLD_HEAD = "0004_ai2_job_indexes"
-NEW_HEAD = "0005_ai2_contract_edges"
+NEW_HEAD = ScriptDirectory.from_config(_config()).get_current_head()
 
 
 @pytest.fixture
@@ -110,7 +113,7 @@ def test_0005_downgrade_entrypoint_then_upgrade(fresh_url):
     assert proc.returncode == 0, proc.stderr.decode("utf-8", "replace")
 
     assert _version(engine) == OLD_HEAD
-    assert _ai2_tables(engine) == before - {"contract_edges"}
+    assert _ai2_tables(engine) == before - {"contract_edges", "contract_pair_relations"}
     migrate(engine)
     assert _version(engine) == NEW_HEAD
     assert _ai2_tables(engine) == before

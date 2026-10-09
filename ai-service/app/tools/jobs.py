@@ -574,6 +574,8 @@ class PostgresJobStore(SQLiteJobStore):
                           "updated_ms": stmt.excluded.updated_ms}))
                 if getattr(record, "contract_graph_ran", False):
                     self._replace_contract_edges(cx, record, job_id)
+                if getattr(record, "pair_relations_ran", False):
+                    self._replace_pair_relations(cx, record, job_id)
             return True
 
     def _replace_contract_edges(self, cx, record, job_id) -> None:
@@ -591,6 +593,19 @@ class PostgresJobStore(SQLiteJobStore):
         except Exception as exc:  # enrichment only: never fail the completion
             log.warning("ai2.contract_edges_write_failed job_id=%s tenant_id=%s dossier_id=%s cause=%s",
                         job_id, record.tenant_id, record.dossier_id, type(exc).__name__, exc_info=True)
+
+    def _replace_pair_relations(self, cx, record, job_id) -> None:
+        from app.tools import pair_relation_store
+
+        try:
+            with cx.begin_nested():
+                pair_relation_store.replace_pair_relations(
+                    cx, tenant_id=record.tenant_id, dossier_id=record.dossier_id, job_id=job_id,
+                    relations=record.pair_relations, now_ms=self._now_ms(),
+                )
+        except Exception as exc:
+            log.warning("ai2.contract_pair_relations_write_failed job_id=%s tenant_id=%s dossier_id=%s cause=%s",
+                        job_id, record.tenant_id, record.dossier_id, type(exc).__name__)
 
     def _fail_matching(self, condition, update):
         from sqlalchemy import select

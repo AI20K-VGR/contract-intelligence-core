@@ -168,6 +168,7 @@ def adapt_be_ai2_processing_request(
         member_documents={item.member_id: item.document_id for item in request.dossier_members},
     )
     result.record.egress_approved = processing_egress_allowed()
+    result.record.content_sharing_consent = bool(request.policy_flags.egress_allowed)
     result.meta.update(
         {
             "source": "be.ai2.processing.request.v1",
