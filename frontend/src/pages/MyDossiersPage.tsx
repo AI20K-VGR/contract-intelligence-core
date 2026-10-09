@@ -16,7 +16,6 @@ import {
 import { ApiError } from '../api/client'
 import { isRunFinished } from '../api/structure'
 import { MaterialIcon } from '../components/icons'
-import { ShareGrantBadge } from '../components/ShareGrantBadge'
 import {
   dossierOpenTo,
   progressPath,
@@ -317,27 +316,6 @@ export const accessLabels: Record<Dossier['access'], string> = {
   mine: 'Hồ sơ của tôi',
   shared_out: 'Hồ sơ đã chia sẻ',
   shared_in: 'Hồ sơ được chia sẻ',
-}
-
-function AccessBadge({ dossier }: { dossier: Dossier }) {
-  const shared = dossier.access !== 'mine'
-  return (
-    <div className="flex flex-col items-start gap-1">
-    <Link
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-body-sm text-label-sm font-medium ${
-        shared
-          ? 'bg-surface-container-high text-on-tertiary-container'
-          : 'bg-surface-container text-on-secondary-container'
-      }`}
-      to={`/quyen-truy-cap?dossier=${encodeURIComponent(dossier.id)}`}
-      onClick={(event) => event.stopPropagation()}
-    >
-      <MaterialIcon name={shared ? 'share' : 'lock'} className="text-[14px]" />
-      <span>{accessLabels[dossier.access]}</span>
-    </Link>
-    <ShareGrantBadge grant={dossier.myGrant} />
-    </div>
-  )
 }
 
 function DossierToolbar({
@@ -704,9 +682,6 @@ export function MyDossiersPage() {
                 <th className="py-3 px-space-md font-semibold w-[12%]">
                   Tải lên
                 </th>
-                <th className="py-3 px-space-md font-semibold w-[12%]">
-                  Quyền truy cập
-                </th>
                 <th className="py-3 px-space-sm text-right pr-space-md font-semibold w-[4%]">
                   Thao tác
                 </th>
@@ -715,7 +690,7 @@ export function MyDossiersPage() {
             <tbody className="divide-y divide-surface-container-low text-on-surface">
               {error ? (
                 <tr>
-                  <td className="py-10 px-space-md" colSpan={6}>
+                  <td className="py-10 px-space-md" colSpan={5}>
                     <div className="flex flex-col items-start gap-space-sm">
                       <p
                         className="font-body-sm text-body-sm text-error"
@@ -738,7 +713,7 @@ export function MyDossiersPage() {
                 <tr>
                   <td
                     className="py-10 px-space-md text-on-surface-variant"
-                    colSpan={6}
+                    colSpan={5}
                   >
                     Đang tải lịch sử hồ sơ…
                   </td>
@@ -746,7 +721,7 @@ export function MyDossiersPage() {
               ) : null}
               {!loading && !error && dossiers.length === 0 ? (
                 <tr>
-                  <td className="py-12 px-space-md" colSpan={6}>
+                  <td className="py-12 px-space-md" colSpan={5}>
                     <div className="flex flex-col items-center gap-space-sm text-center">
                       <MaterialIcon
                         name="folder_open"
@@ -769,7 +744,7 @@ export function MyDossiersPage() {
                 <tr>
                   <td
                     className="py-10 px-space-md text-on-surface-variant"
-                    colSpan={6}
+                    colSpan={5}
                   >
                     Không có hồ sơ khớp bộ lọc.
                   </td>
@@ -848,9 +823,6 @@ export function MyDossiersPage() {
                     <span className="text-on-surface-variant text-body-sm">
                       {dossier.updated}
                     </span>
-                  </td>
-                  <td className="py-3.5 px-space-md whitespace-nowrap">
-                    <AccessBadge dossier={dossier} />
                   </td>
                   <td className="py-3.5 px-space-sm text-right pr-space-md whitespace-nowrap">
                     <button

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NOTIFICATIONS_ENABLED } from '../api/notifications'
 import {
   dossiersLabel,
   dossiersPath,
@@ -84,6 +85,7 @@ const MONO_PAGES = [
   '/nguoi-dung-phan-quyen',
   '/cai-dat',
   '/tao-ho-so',
+  '/doi-soat-xung-dot',
   '/admin/monitoring',
 ]
 
@@ -298,7 +300,9 @@ export function AppLayout({ role }: { role: AppRole }) {
                   buttonClassName="w-9 h-9 rounded flex items-center justify-center text-secondary hover:bg-surface-container hover:text-on-surface relative transition-colors"
                   dotClassName="absolute top-2 right-2 w-2 h-2 rounded-full bg-error"
                 />
-                <div className="h-5 w-[1px] bg-outline-variant" />
+                {NOTIFICATIONS_ENABLED ? (
+                  <div className="h-5 w-[1px] bg-outline-variant" />
+                ) : null}
                 <AccountMenu
                   gapClassName="gap-space-sm"
                   nameClassName="font-label-md text-label-md text-on-surface leading-none"

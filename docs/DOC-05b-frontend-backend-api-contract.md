@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu | **DOC-05b** / Contract Intelligence (PROD-01) |
-| Phiên bản / SemVer | **`v1.5.1`** — lịch sử hỏi đáp có thêm câu hỏi gửi qua `POST /dossiers/{id}/search` (`endpoint: "search"`) và mã lỗi `AI2_UNAVAILABLE`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
+| Phiên bản / SemVer | **`v1.6.0`** — đề xuất 4 endpoint thông báo cá nhân `/notifications` (BE chưa có). Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
 | Trạng thái | Đã chốt — Sẵn sàng triển khai Frontend & Backend |
 | Owner | Tech Lead / Frontend Lead / Backend Lead |
 | Ngày hiệu lực | 17/09/2026 |
@@ -31,6 +31,7 @@
    - [Màn hình 8: Dossier Approval & External Grants](#màn-hình-8-dossier-approval--external-grants)
    - [Màn hình 9: Re-OCR Workbench](#màn-hình-9-re-ocr-workbench)
    - [Màn hình 10: Optimization Studio (Admin)](#màn-hình-10-optimization-studio-admin)
+   - [Thông báo cá nhân (đề xuất, BE chưa có)](#thông-báo-cá-nhân-đề-xuất-be-chưa-có)
 6. [Bộ TypeScript Interfaces & DTOs Chuẩn](#6-bộ-typescript-interfaces--dtos-chuẩn)
 7. [Chiến lược Polling & Thời gian thực (Realtime)](#7-chiến-lược-polling--thời-gian-thực-realtime)
 8. [Quy trình Quản lý Thay đổi (Versioning & Change Management)](#8-quy-trình-quản-lý-thay-đổi-versioning--change-management)
@@ -469,6 +470,46 @@ Phân hệ dành riêng cho Quản trị viên (Administrator) và AI Engineer: 
 
 ---
 
+### Thông báo cá nhân (đề xuất, BE chưa có)
+
+**v1.6.0, đề xuất.** Backend chưa có các endpoint này. Frontend đã có chuông thông báo (`NotificationBell`) gọi đúng 4 endpoint dưới đây, nhưng chuông chỉ hiện khi build với `VITE_ENABLE_NOTIFICATIONS=true`. Mặc định cờ tắt, nên không phát sinh request 404. Khi backend làm xong thì bật cờ, không cần sửa frontend.
+
+Mỗi thông báo thuộc về đúng một người dùng (người nhận) trong tenant của họ. Người dùng chỉ đọc và đánh dấu thông báo của chính mình.
+
+| Phương thức | Endpoint | Phân quyền `x-rbac` | Chức năng |
+|:---:|---|:---:|---|
+| `GET` | `/notifications?limit=10&offset=0` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Thông báo của người gọi, mới nhất trước. Phân trang bằng `limit`/`offset`; `meta.total` là tổng số thông báo |
+| `GET` | `/notifications/unread-count` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | `{ "data": { "count": 3 } }`. Frontend gọi mỗi 30 giây |
+| `POST` | `/notifications/{id}/read` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Đánh dấu một thông báo đã đọc. Thông báo của người khác trả `404` |
+| `POST` | `/notifications/read-all` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Đánh dấu mọi thông báo của người gọi là đã đọc |
+
+Response của `GET /notifications` bọc trong `{ data, meta }`:
+
+```json
+{
+  "data": [
+    {
+      "id": "ntf_…",
+      "type": "analysis_succeeded",
+      "title": "Phân tích xong hồ sơ",
+      "detail": null,
+      "dossier_id": "dos_…",
+      "dossier_name": "Hợp đồng mua bán 2026",
+      "actor_display_name": null,
+      "created_at": "2026-10-09T09:12:00+00:00",
+      "read_at": null
+    }
+  ],
+  "meta": { "trace_id": null, "request_id": null, "page": 1, "page_size": 10, "total": 1 }
+}
+```
+
+- `type` đề xuất: `analysis_succeeded`, `analysis_failed`, `dossier_approved`, `dossier_rejected`, `dossier_needs_more_evidence`, `dossier_shared`, `review_requested`. Frontend vẫn hiện được loại lạ, chỉ không có link tới hồ sơ.
+- `read_at` là `null` khi chưa đọc. `dossier_id`, `dossier_name`, `detail`, `actor_display_name` có thể `null`.
+- Hồ sơ bị xoá, hoặc người nhận mất quyền xem hồ sơ (§20 trong `frontend/API-BE.md`), thì không trả thông báo đó nữa, hoặc trả với `dossier_id: null`.
+
+---
+
 ## 6. Bộ TypeScript Interfaces & DTOs Chuẩn
 
 Đội ngũ Frontend có thể copy trực tiếp khối định nghĩa TypeScript dưới đây vào thư mục `src/types/api.ts`:
@@ -748,6 +789,7 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
+| `v1.6.0` | 09/10/2026 | Đề xuất `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/{id}/read`, `POST /notifications/read-all` (mục "Thông báo cá nhân" ở §5). **BE chưa có**; frontend ẩn chuông bằng cờ `VITE_ENABLE_NOTIFICATIONS` cho tới khi có. Chỉ thêm endpoint, nên là MINOR |
 | `v1.5.1` | 07/10/2026 | `GET /dossiers/{id}/queries` trả thêm câu hỏi gửi qua `POST /dossiers/{id}/search` (`endpoint: "search"`) và mã lỗi `AI2_UNAVAILABLE`. Endpoint và các trường giữ nguyên, nên là PATCH |
 | `v1.5.0` | 04/10/2026 | Thêm `GET /documents/{id}/lines`. `POST /dossiers/{id}/ocr` trả `409` khi hồ sơ đang OCR (job `processing`) thay vì thay run đang chạy; chờ xong hoặc hủy run rồi chạy lại. Response JSON trên 1 KB được gzip khi client gửi `Accept-Encoding: gzip` (SSE, ảnh và PDF không nén). Chỉ thêm endpoint và mã lỗi, nên là MINOR |
 | `v1.4.0` | 04/10/2026 | Thêm `POST /dossiers/{id}/ai2/reindex`: AI2 dựng lại dữ liệu hỏi đáp từ kết quả OCR đã lưu, không OCR lại. Chỉ thêm endpoint, nên là MINOR |
@@ -767,4 +809,4 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 
 ---
 
-**Hết DOC-05b · Frontend-Backend API Contract v1.5.1 (SemVer)**
+**Hết DOC-05b · Frontend-Backend API Contract v1.6.0 (SemVer)**

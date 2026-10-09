@@ -1,6 +1,13 @@
 import { requestJson } from './client'
 import { progressPath, structurePath } from '../data/dossiers'
 
+/**
+ * BE chưa có /api/v1/notifications (đề xuất ở DOC-05b v1.6.0), nên chuông
+ * chỉ hiện khi build với VITE_ENABLE_NOTIFICATIONS=true.
+ */
+export const NOTIFICATIONS_ENABLED =
+  import.meta.env.VITE_ENABLE_NOTIFICATIONS === 'true'
+
 /** Loại thông báo cá nhân BE gửi về. Loại lạ vẫn hiển thị, chỉ không có link. */
 export type NotificationType =
   | 'analysis_succeeded'
