@@ -7,7 +7,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from app.contracts.contract_graph import PairLabel, PairRelation, pair_relation_id_for
 from app.contracts.models import ReviewState
 from app.llm.client import NineRouterClient
@@ -137,7 +136,7 @@ def test_luong1_edges_excluded_from_candidates():
     assert result.stats["candidates_kept"] == 0 and not result.relations
 
 
-def test_classifier_client_env_override_and_inherit(monkeypatch):
+def test_classifier_client_env_override_and_fail_closed(monkeypatch):
     base = NineRouterClient(base_url="http://base.test/v1", api_key="base-test", model="gpt-test")
     monkeypatch.setenv(builder.PAIRS_BASE_URL_ENV, "http://pairs.test/v1")
     monkeypatch.setenv(builder.PAIRS_API_KEY_ENV, "pairs-test")
@@ -147,10 +146,24 @@ def test_classifier_client_env_override_and_inherit(monkeypatch):
     assert builder.classifier_client(None, "claude-test").base_url == own.base_url
     monkeypatch.delenv(builder.PAIRS_BASE_URL_ENV)
     monkeypatch.delenv(builder.PAIRS_API_KEY_ENV)
-    inherited = builder.classifier_client(base, "claude-test")
-    assert inherited.base_url == base.base_url and inherited.api_key == base.api_key
-    assert inherited.model == "claude-test"
+    assert builder.classifier_client(base, "claude-test") is None
     assert builder.classifier_client(None, "claude-test") is None
+    fake = Client()
+    assert builder.classifier_client(fake, "claude-test") is fake
+
+
+@pytest.mark.parametrize("configured", [builder.PAIRS_BASE_URL_ENV, builder.PAIRS_API_KEY_ENV])
+def test_classifier_client_partial_dedicated_config_fails_closed(monkeypatch, configured):
+    monkeypatch.delenv(builder.PAIRS_BASE_URL_ENV, raising=False)
+    monkeypatch.delenv(builder.PAIRS_API_KEY_ENV, raising=False)
+    monkeypatch.setenv(configured, "configured")
+    base = NineRouterClient(base_url="http://base.test/v1", api_key="base-test", model="gpt-test")
+    assert builder.classifier_client(base, "claude-test") is None
+
+
+def test_classifier_client_keeps_fake_clients_without_dedicated_config(monkeypatch):
+    monkeypatch.delenv(builder.PAIRS_BASE_URL_ENV, raising=False)
+    monkeypatch.delenv(builder.PAIRS_API_KEY_ENV, raising=False)
     fake = Client()
     assert builder.classifier_client(fake, "claude-test") is fake
 

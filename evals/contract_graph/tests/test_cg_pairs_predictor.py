@@ -60,6 +60,18 @@ def test_claude_served_passes_family_check():
     assert predictor.predict_doc(doc(), llm=Client(), model="claude-requested", variant="C")["predictions"]
 
 
+def test_gemini_served_passes_family_check():
+    assert predictor.predict_doc(doc(), llm=Client("gemini-3.8-flash"), model="gemini/gemini-3.8-flash", variant="C")["predictions"]
+
+
+def test_different_openai_served_model_passes_family_check():
+    assert predictor.predict_doc(doc(), llm=Client("gpt-6-sol"), model="cx/gpt-6-sol", variant="C")["predictions"]
+
+
+def test_reasoning_openai_model_family_uses_shared_gate():
+    assert predictor.predict_doc(doc(), llm=Client("o5-mini"), model="o5-mini", variant="C")["predictions"]
+
+
 def test_labeler_unknown_or_anthropic_refused_before_call():
     for labeler_model in ("unknown", "claude-labeler", None):
         client = Client()

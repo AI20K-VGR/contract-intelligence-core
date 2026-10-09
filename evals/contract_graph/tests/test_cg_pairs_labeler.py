@@ -190,6 +190,8 @@ def test_family_router_prefix_and_unknown():
         assert family(model_id) == "openai", model_id
     for model_id in ("anthropic/claude-sonnet-x", "claude-3-5-haiku", "CLAUDE-OPUS"):
         assert family(model_id) == "anthropic", model_id
+    for model_id in ("gemini/gemini-3.8-flash", "gemini-2.5-pro", "google/gemma-4-31b-it"):
+        assert family(model_id) == "google", model_id
     for model_id in ("mistral-large", "", None, "openchat-3.5", "olmo-7b"):
         assert family(model_id) == "unknown", model_id
 
