@@ -13,7 +13,7 @@ Cờ mặc định tắt. Code và test tích hợp không thay cổng đo chấ
 |---|---|
 | `AI2_CONTRACT_GRAPH_ENABLED` | Bật luồng 1; phải bật trước khi luồng 2 chạy |
 | `AI2_CONTRACT_GRAPH_PAIRS_ENABLED` | Bật luồng 2; mặc định tắt, đọc một lần mỗi lượt |
-| `AI2_CONTRACT_GRAPH_PAIRS_MODEL` | Model phân loại; model thực phục vụ phải mang tên Claude |
+| `AI2_CONTRACT_GRAPH_PAIRS_MODEL` | Model phân loại; model thực phục vụ phải thuộc họ classifier được nhận diện và khác model cụ thể labeler |
 | `AI2_CONTRACT_GRAPH_PAIRS_BASE_URL` | Endpoint dành riêng cho phân loại |
 | `AI2_CONTRACT_GRAPH_PAIRS_API_KEY` | Khóa tại môi trường chạy; không ghi giá trị vào git |
 
@@ -185,6 +185,23 @@ extension pgvector cần image hỗ trợ riêng.
 
 ## Số đo
 
-P5 điền kết quả bake-off B/C/E, denominator gold đã duyệt, precision bảo thủ/ước lượng,
-recall, grounding, call/token budget và verdict sau chạy thật.
-P4 chỉ chứng minh boundary tích hợp/storage, chưa quyết định bật cờ hoặc chất lượng nghiệp vụ.
+P5 đã hoàn tất đủ sáu trial trên 14 hồ sơ held-out với 181 dòng HG-1 được người dùng
+duyệt approve (181/181; Wilson 95% [0,9792; 1,0000]).
+Classifier snapshot cuối: requested cx/gpt-6-sol, served gpt-6-sol, họ openai.
+Frozen labeler vẫn là gpt-4o-mini-2024-07-18, nên model cụ thể của classifier khác labeler.
+Các trial Claude trước đó có completion rỗng đã được archive và không nằm trong scoreboard.
+
+| Biến thể | Trial | recall_any | Gọi / token | Thời gian (s) | over_budget |
+|---|---:|---:|---:|---:|---|
+| C | 1 | 3/101 = 0,0297 [0,0102; 0,0837] | 28 / 54.743 | 204,676 | không |
+| C | 2 | 4/101 = 0,0396 [0,0160; 0,0945] | 28 / 55.115 | 215,828 | không |
+| B | 1 | 2/101 = 0,0198 [0,0054; 0,0693] | 27 / 51.415 | 186,924 | không |
+| B | 2 | 3/101 = 0,0297 [0,0102; 0,0837] | 27 / 51.388 | 178,249 | không |
+| E | 1 | 9/101 = 0,0891 [0,0476; 0,1607] | 89 / 241.653 | 635,613 | có |
+| E | 2 | 9/101 = 0,0891 [0,0476; 0,1607] | 89 / 241.307 | 639,616 | có |
+
+bakeoff_rank.py xếp E > C > B (gap 0,0594, band 0,0099), nhưng E vượt
+budget thời gian ở cả hai trial. Cổng quyết định ghi HUMAN_DECISION,
+budget_blocked_variants=[E], recommendation_only=true; không tự bật cờ.
+Kết quả thấp hơn nhiều ngưỡng MIN_N=60 và MIN_WILSON_LOWER=0,85, nên người
+dùng phải quyết định tiếp theo trước mọi enablement.
