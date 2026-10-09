@@ -7,6 +7,7 @@ import {
   listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
+  NOTIFICATIONS_ENABLED,
   notificationIcon,
   notificationLink,
 } from '../api/notifications'
@@ -36,7 +37,12 @@ function isMissingApi(error: unknown) {
   return error instanceof ApiError && (error.status === 404 || error.status === 405)
 }
 
-export function NotificationBell({ buttonClassName, dotClassName }: NotificationBellProps) {
+/** Ẩn khi chưa bật cờ, để không gọi API thông báo mỗi 30 giây khi BE chưa có. */
+export function NotificationBell(props: NotificationBellProps) {
+  return NOTIFICATIONS_ENABLED ? <NotificationBellButton {...props} /> : null
+}
+
+function NotificationBellButton({ buttonClassName, dotClassName }: NotificationBellProps) {
   const navigate = useNavigate()
   const rootRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)

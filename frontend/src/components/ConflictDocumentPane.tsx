@@ -270,7 +270,7 @@ export function ConflictDocumentPane({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col bg-slate-200/70">
+    <div className="flex h-full min-h-0 flex-1 flex-col bg-tone-200/70">
       <div className="flex h-11 shrink-0 items-center justify-between gap-space-sm border-b border-outline-variant/40 bg-surface-container-lowest px-space-md">
         <div className="flex min-w-0 items-center gap-space-sm">
           {onBack ? (
@@ -303,7 +303,7 @@ export function ConflictDocumentPane({
                     key={file.id}
                     className={`flex h-7 max-w-[220px] shrink-0 items-center gap-1 rounded px-2 font-body-sm text-body-sm ${
                       active
-                        ? 'bg-primary text-on-primary'
+                        ? 'bg-brand-100 text-brand-700 ring-1 ring-brand-200'
                         : 'text-on-surface hover:bg-surface-container'
                     }`}
                     title={`${roleLabel(file.role)} · ${file.filename}`}
@@ -334,7 +334,7 @@ export function ConflictDocumentPane({
             </>
           )}
           {citeNo ? (
-            <span className="hidden whitespace-nowrap rounded bg-primary-container px-1.5 py-0.5 font-label-sm text-label-sm text-on-primary 2xl:inline-block">
+            <span className="hidden whitespace-nowrap rounded bg-brand-100 px-1.5 py-0.5 font-label-sm text-label-sm text-brand-700 2xl:inline-block">
               [{citeNo}] Đang rà soát
             </span>
           ) : null}
@@ -386,7 +386,7 @@ export function ConflictDocumentPane({
             onChange={(event) => setFindQuery(event.target.value)}
           />
           <button
-            className="h-7 rounded bg-primary-container px-2 font-label-sm text-label-sm text-on-primary"
+            className="h-7 rounded bg-brand-100 px-2 font-label-sm text-label-sm text-brand-700 hover:bg-brand-200"
             type="submit"
           >
             Tìm
@@ -400,7 +400,7 @@ export function ConflictDocumentPane({
       ) : null}
       <div
         ref={scrollerRef}
-        className="flex min-h-0 flex-1 justify-center overflow-y-auto bg-slate-200/70 p-space-md lg:p-space-lg"
+        className="flex min-h-0 flex-1 justify-center overflow-y-auto bg-tone-200/70 p-space-md lg:p-space-lg"
       >
         {documentId ? (
           <div className="w-full max-w-[690px]">
@@ -480,7 +480,7 @@ export function ConflictDocumentPane({
             </div>
           </div>
         ) : (
-          <article className="flex w-full max-w-[690px] flex-col border border-slate-300 bg-white p-space-lg font-serif text-[13px] leading-relaxed text-slate-900 shadow-[0_2px_12px_rgba(0,0,0,0.12)] md:p-12">
+          <article className="flex w-full max-w-[690px] flex-col border border-tone-300 bg-white p-space-lg font-serif text-[13px] leading-relaxed text-tone-900 shadow-[0_2px_12px_rgba(0,0,0,0.12)] md:p-12">
             <h4 className="mb-3 text-center font-sans text-[13px] font-bold uppercase tracking-tight text-primary-container">
               {title || 'Nội dung cần đối soát'}
             </h4>

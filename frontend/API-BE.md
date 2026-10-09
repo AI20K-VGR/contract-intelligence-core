@@ -1141,7 +1141,7 @@ Người có quyền `read` gọi API sửa thì nhận **403**, `detail`: "Bạ
 
 ### `GET /api/v1/dossiers/{dossier_id}/queries?scope=mine|all&limit=20&offset=0`
 
-Trả các lần hỏi đáp (`/ask`, `/query`) trên hồ sơ, mới nhất trước. Dữ liệu lưu trong DB nên vẫn còn sau khi server khởi động lại.
+Trả các lần hỏi đáp (`/ask`, `/query`, `/search`) trên hồ sơ, mới nhất trước. Dữ liệu lưu trong DB nên vẫn còn sau khi server khởi động lại.
 
 | Tham số | Ý nghĩa |
 |---|---|
@@ -1169,7 +1169,7 @@ Cần quyền xem hồ sơ (như `GET /dossiers/{id}`). Người khác tenant, h
 }
 ```
 
-Lần hỏi mà AI2 lỗi vẫn có trong lịch sử, với `answer: null` và `error_code` (ví dụ `AI2_QUERY_FAILED`). Xoá hồ sơ thì câu trả lời bị xoá theo.
+`endpoint` là `ask`, `query` hoặc `search` (thanh hỏi đáp). Lần hỏi mà AI2 lỗi vẫn có trong lịch sử, với `answer: null` và `error_code` (ví dụ `AI2_QUERY_FAILED`). Với `search`, `error_code` là `AI2_UNAVAILABLE` khi AI2 lỗi hoặc quá thời gian chờ. Câu hỏi gửi qua `search` trước DOC-05b v1.5.1 chỉ có trace, nên hiện với `answer: null` và `error_code: null`. Xoá hồ sơ thì câu trả lời bị xoá theo.
 
 ## 22. Chạy lại phần OCR lỗi (giữ phần đã xong)
 
@@ -1227,3 +1227,9 @@ Trả về: `{ dossier_id, status: "queued", documents: [{ id, role, filename, p
 | 403 | Không có quyền sửa hồ sơ |
 
 Chưa có: AI1 tự đề xuất chỗ cắt. Hiện người dùng nhập khoảng trang trên màn xác nhận.
+
+## 24. Thông báo cá nhân (đề xuất, BE chưa có)
+
+Đề xuất trong DOC-05b v1.6.0, mục "Thông báo cá nhân": `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/{id}/read`, `POST /notifications/read-all`. Backend **chưa có**.
+
+`NotificationBell` (`src/api/notifications.ts`) đã gọi đúng 4 endpoint này, nhưng chỉ hiện khi build với `VITE_ENABLE_NOTIFICATIONS=true`. Cờ mặc định tắt. Khi backend xong thì bật cờ.

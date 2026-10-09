@@ -406,7 +406,7 @@ function VerdictButton({
     <button
       className={`flex h-7 items-center justify-center gap-1 rounded px-2 font-label-sm text-label-sm transition-colors ${
         active
-          ? 'bg-primary-container text-on-primary'
+          ? 'bg-brand-100 text-brand-700 ring-1 ring-brand-200'
           : 'border border-outline-variant/70 bg-surface-container-lowest text-on-surface hover:bg-surface-container'
       }`}
       type="button"
@@ -869,7 +869,7 @@ export function ClauseConflictPage() {
                         aria-pressed={on}
                         className={`rounded px-2.5 py-1 font-label-sm text-label-sm transition-colors ${
                           on
-                            ? 'bg-primary-container font-semibold text-on-primary'
+                            ? 'bg-brand-100 font-semibold text-brand-700'
                             : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
                         }`}
                         type="button"
@@ -899,8 +899,8 @@ export function ClauseConflictPage() {
                     <button
                       className={`mx-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full font-code-sm text-[10px] font-bold ${
                         card.id === active?.id
-                          ? 'bg-primary-container text-on-primary'
-                          : 'bg-secondary text-on-secondary'
+                          ? 'bg-brand-100 text-brand-700 ring-1 ring-brand-200'
+                          : 'bg-tone-100 text-tone-700'
                       }`}
                       type="button"
                       onClick={() => setActiveId(card.id)}
@@ -942,7 +942,7 @@ export function ClauseConflictPage() {
                   có, nằm trên cây cấu trúc.
                 </p>
                 <button
-                  className="flex h-10 items-center rounded-lg bg-primary px-space-lg font-body-sm text-body-sm font-semibold text-on-primary"
+                  className="flex h-10 items-center rounded-lg bg-brand-100 px-space-lg font-body-sm text-body-sm font-semibold text-brand-700 hover:bg-brand-200"
                   type="button"
                   onClick={() => navigate(backTo)}
                 >
@@ -973,8 +973,8 @@ export function ClauseConflictPage() {
                       <span
                         className={`flex h-5 w-5 items-center justify-center rounded-full font-code-sm text-code-sm font-bold ${
                           selected
-                            ? 'bg-primary-container text-on-primary shadow-sm'
-                            : 'bg-secondary text-on-secondary'
+                            ? 'bg-brand-100 text-brand-700 shadow-sm ring-1 ring-brand-200'
+                            : 'bg-tone-100 text-tone-700'
                         }`}
                       >
                         {index}
@@ -990,7 +990,7 @@ export function ClauseConflictPage() {
                       </span>
                     </button>
                     {selected ? (
-                      <span className="inline-flex items-center gap-1 rounded bg-primary-container px-1.5 py-0.5 font-label-sm text-[10px] font-semibold uppercase text-on-primary">
+                      <span className="inline-flex items-center gap-1 rounded bg-brand-100 px-1.5 py-0.5 font-label-sm text-[10px] font-semibold uppercase text-brand-700">
                         <MaterialIcon
                           name="visibility"
                           className="text-[12px]"

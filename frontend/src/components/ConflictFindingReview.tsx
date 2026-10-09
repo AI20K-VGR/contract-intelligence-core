@@ -330,7 +330,7 @@ export function ConflictFindingReview({
           </span>
         ) : null}
         <button
-          className="inline-flex items-center gap-1 rounded bg-primary px-3 py-1 font-label-sm text-label-sm font-semibold text-on-primary disabled:opacity-50"
+          className="inline-flex items-center gap-1 rounded bg-brand-100 px-3 py-1 font-label-sm text-label-sm font-semibold text-brand-700 hover:bg-brand-200 disabled:opacity-50"
           type="button"
           disabled={loading || saving || locked}
           onClick={() => void save()}
@@ -366,7 +366,7 @@ function VerdictButton({
     <button
       className={`flex items-center justify-center gap-1 rounded px-1 py-1 font-label-sm text-label-sm ${
         active
-          ? 'bg-primary-container font-semibold text-on-primary shadow-sm'
+          ? 'bg-brand-100 font-semibold text-brand-700 shadow-sm'
           : 'bg-surface-container font-medium text-on-surface-variant hover:bg-surface-container-high'
       }`}
       type="button"
