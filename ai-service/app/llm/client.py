@@ -156,6 +156,7 @@ class NineRouterClient:
                 self.traces.append(trace)
                 NineRouterClient.all_traces.append(dict(trace))
                 raise
+        trace["served_model"] = getattr(resp, "model", None)
         data = _parse_json(text)
         trace["latency_ms"] = round((time.perf_counter() - started) * 1000, 1)
         trace["response_chars"] = len(text)

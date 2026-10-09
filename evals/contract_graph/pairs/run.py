@@ -38,6 +38,7 @@ PAIRS_DIR = Path(__file__).resolve().parent
 DEFAULT_SOURCES = PAIRS_DIR / "sources.json"
 DEFAULT_REPORT = PAIRS_DIR.parent / "reports" / "l2-p1-dataset"
 CANDIDATES_REPORT = PAIRS_DIR.parent / "reports" / "l2-p2-candidates"
+CLASSIFIER_REPORT = PAIRS_DIR.parent / "reports" / "l2-p3-classifier-dev"
 USABLE_MIN, PROFILE_MIN, HELDOUT_MIN, DEV_MIN = 15, 6, 10, 5
 NL = "\n"
 
@@ -69,7 +70,20 @@ def main(argv: list[str] | None = None) -> int:
                              help="human decision to keep PAIRS_TOP_K over the rule's K")
         if name == "extend-heldout":
             cmd.add_argument("--env-file", type=Path, default=None)
+    predict = sub.add_parser("predict")
+    predict.add_argument("--data-dir", type=Path, default=None)
+    predict.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+    predict.add_argument("--split", choices=("dev", "heldout"), default="dev")
+    predict.add_argument("--variant", choices=("B", "C", "E"), default="C")
+    predict.add_argument("--model", required=True)
+    predict.add_argument("--allow-heldout", action="store_true")
+    predict.add_argument("--env-file", type=Path, default=None)
+    predict.add_argument("--prompt-rounds", type=int, choices=range(4), default=0)
+    predict.add_argument("--report-prefix", type=Path, default=CLASSIFIER_REPORT)
     args = parser.parse_args(argv)
+    if args.command == "predict" and args.split == "heldout" and not args.allow_heldout:
+        print("heldout predictions require --allow-heldout (P5)", file=sys.stderr)
+        return 2
     if args.command == "candidates" and args.split != "dev":
         print("candidates are measured on dev only; held-out is read by extend-heldout",
               file=sys.stderr)
@@ -79,6 +93,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     if args.command == "verify":
         return _verify(args)
+    if args.command == "predict":
+        return _predict(args)
     manifest.ensure_outside_repo(args.data_dir)
     return {
         "fetch": _fetch, "build": _build, "cluster": _cluster, "pool": _pool,
@@ -86,6 +102,31 @@ def main(argv: list[str] | None = None) -> int:
         "candidates": _candidates, "extend-heldout": _extend_heldout,
         "review-select": _review_select, "review-export": _review_export,
     }[args.command](args)
+
+
+def _predict(args: argparse.Namespace) -> int:
+    if str(corpus.AI_SERVICE) not in sys.path:
+        sys.path.insert(0, str(corpus.AI_SERVICE))
+    from app.llm.client import NineRouterClient
+
+    from evals.contract_graph.pairs import predictor
+
+    if args.env_file is not None:
+        from dotenv import load_dotenv
+        load_dotenv(args.env_file, override=False)
+    # Verify the complete frozen dataset before constructing a configured network client.
+    problems = manifest.verify(args.data_dir, args.manifest)
+    if problems:
+        print("predict BLOCKED: frozen dataset missing or does not match manifest", file=sys.stderr)
+        return 2
+    report = predictor.predict_split(args.data_dir, split=args.split, variant=args.variant,
+                                      llm=NineRouterClient(), model=args.model,
+                                      repo_manifest=args.manifest, allow_heldout=args.allow_heldout,
+                                      prompt_rounds=args.prompt_rounds)
+    manifest.write_json(args.report_prefix.with_suffix(".json"), report)
+    args.report_prefix.with_suffix(".md").write_text(predictor.render_report(report), encoding="utf-8")
+    print(f"predict {args.variant}/{args.split}: {report['n_pred']} relations, {report['prompt_version']}")
+    return 0
 
 
 def _sources(path: Path) -> list[dict]:
