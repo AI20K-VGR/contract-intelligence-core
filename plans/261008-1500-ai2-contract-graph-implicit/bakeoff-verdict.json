@@ -1,0 +1,55 @@
+{
+  "direction": "higher",
+  "noise": "medium",
+  "rel_band": 0.05,
+  "candidates": [
+    {
+      "candidate": "E",
+      "trials": [
+        0.0891,
+        0.0891
+      ],
+      "rep": 0.0891,
+      "spread": 0.0,
+      "n": 2
+    },
+    {
+      "candidate": "C",
+      "trials": [
+        0.0297,
+        0.0396
+      ],
+      "rep": 0.0297,
+      "spread": 0.009900000000000003,
+      "n": 2
+    },
+    {
+      "candidate": "B",
+      "trials": [
+        0.0198,
+        0.0297
+      ],
+      "rep": 0.0198,
+      "spread": 0.009899999999999999,
+      "n": 2
+    }
+  ],
+  "ranking": [
+    "E",
+    "C",
+    "B"
+  ],
+  "observed_spread_floor": 0.009900000000000003,
+  "band": 0.009900000000000003,
+  "gap": 0.059399999999999994,
+  "verdict": "winner",
+  "winner": "E",
+  "rationale": "gap 0.0594 > band 0.0099 -> E wins",
+  "schema": "artifact-bakeoff-verdict",
+  "run": "contract-pairs-261009-cx-gpt6sol",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-09T10:49:10.360598+00:00",
+  "over_budget": [
+    "E"
+  ]
+}

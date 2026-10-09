@@ -1,0 +1,26 @@
+[
+  {
+    "file": "evals/contract_graph/tests/test_cg_pipeline_predictor.py",
+    "baseline_commit": "cd6a1994",
+    "unchanged": true,
+    "issues": [
+      {
+        "code": "I001",
+        "line": 1,
+        "message": "Import block is un-sorted or un-formatted"
+      }
+    ]
+  },
+  {
+    "file": "evals/contract_graph/tests/test_cg_resolver_eval.py",
+    "baseline_commit": "cd6a1994",
+    "unchanged": true,
+    "issues": [
+      {
+        "code": "I001",
+        "line": 1,
+        "message": "Import block is un-sorted or un-formatted"
+      }
+    ]
+  }
+]

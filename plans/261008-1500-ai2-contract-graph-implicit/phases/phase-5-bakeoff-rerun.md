@@ -13,7 +13,7 @@ harness_schema_version: 1.0
 
 ## Overview
 
-Nhập và **khoá** quyết định duyệt HG-1 trước trial 1 (RT-15), kiểm vũ trụ gold phủ mọi ứng viên (RT-02), rồi chạy `hs:bakeoff` trên held-out: C (đường tích hợp đầy đủ), B (`SAME_ARTICLE`+`EXPLICIT_REF`), E (mọi cặp pool + S4 — chỉ khi khả thi, RT-12) × ≥2 trial, cùng Claude (`served_model` họ anthropic — RT-04), cùng `PROMPT_VERSION`. Báo precision **bảo thủ** (quyết định cổng) + quan sát + ước lượng 1/π (RT-01), recall, McNemar trên cùng item, false `DUPLICATE`, khoảng theo cụm, hiệu chuẩn người gán nhãn (cận trên), chi phí/độ trễ. Cổng dùng đúng ngưỡng `review_policy` + false DUPLICATE = 0 ⇒ khuyến nghị (`ENABLE_CANDIDATE` / `KEEP_OFF_*` / `HUMAN_DECISION`). Không tự bật cờ; `KEEP_OFF_INSUFFICIENT_N` là kết quả được chấp nhận (Q6). Endpoint Claude chưa có ⇒ BLOCKED (Q3).
+Nhập và **khoá** quyết định duyệt HG-1 trước trial 1 (RT-15), kiểm vũ trụ gold phủ mọi ứng viên (RT-02), rồi chạy `hs:bakeoff` trên held-out: C (đường tích hợp đầy đủ), B (`SAME_ARTICLE`+`EXPLICIT_REF`), E (mọi cặp pool + S4 — chỉ khi khả thi, RT-12) × ≥2 trial, cùng một classifier model hợp lệ (`served_model thuộc họ classifier được nhận diện — RT-04), cùng `PROMPT_VERSION`. Báo precision **bảo thủ** (quyết định cổng) + quan sát + ước lượng 1/π (RT-01), recall, McNemar trên cùng item, false `DUPLICATE`, khoảng theo cụm, hiệu chuẩn người gán nhãn (cận trên), chi phí/độ trễ. Cổng dùng đúng ngưỡng `review_policy` + false DUPLICATE = 0 ⇒ khuyến nghị (`ENABLE_CANDIDATE` / `KEEP_OFF_*` / `HUMAN_DECISION`). Không tự bật cờ; `KEEP_OFF_INSUFFICIENT_N` là kết quả được chấp nhận (Q6). Dedicated classifier endpoint/model chưa có ⇒ BLOCKED (Q3).
 
 ## Dependency map
 
@@ -33,7 +33,7 @@ Nhập và **khoá** quyết định duyệt HG-1 trước trial 1 (RT-15), ki�
    - `run.py review-import --csv …` ⇒ `data_dir/review/heldout_review.decisions.jsonl`; mọi dòng được chọn có quyết định; `selection_sha256` của file chọn == `manifest.review_selection.sha256` (P2).
    - **Khoá quyết định** (RT-15): commit `manifest.json` với `heldout_review: {decisions_sha256, n_selected, n_approve, n_relabel, n_reject}` **trước** trial 1 (`git log` chứng minh thứ tự trong `verification-P5.json`).
    - **Vũ trụ gold** (RT-02): sinh lại ứng viên C và B trên held-out bằng code hiện tại ⇒ `candidates ⊆ pool ∪ S4`; `CANDIDATES_VERSION`, `PAIRS_TOP_K` == manifest `extension_s4`; lệch ⇒ mã 2 (code đã trôi sau khi khoá gold).
-   - Claude khả dụng qua đường production (`classifier_client(NineRouterClient(), model)`), `family(served_model) == "anthropic"`, `family(manifest.labeler.served_model) == "openai"`; khác/`unknown` ⇒ mã 2.
+   - Classifier khả dụng qua đường production (classifier_client(NineRouterClient(), model)); classifier_family_ok(served_model) đúng, labeler thuộc họ openai và tên model cụ thể khác labeler; unknown hoặc trùng ⇒ mã 2.
    - `PROMPT_VERSION` == bản chốt ở `l2-p3-classifier-dev.json`.
    - **Khả thi** (RT-12): từ tỷ lệ dự đoán/nhãn của `l2-p3` × số ứng viên C held-out ⇒ `expected_n_L`; nếu mọi nhãn có `expected_n_L` < `MIN_N / 2` ⇒ ghi `feasibility: "KEEP_OFF_INSUFFICIENT_N expected"` và **bỏ biến thể E** (bake-off C vs B, vẫn ≥2 ứng viên); ngược lại giữ E với trần `E_MAX_PAIRS_PER_DOC = 300`.
    - `bakeoff_rank.py preflight` (ứng viên đã chọn, metric dry-run in một số, `--budget-tokens`/`--budget-seconds` rõ ràng từ token/hồ sơ của `l2-p3` × số văn bản × 1,5; nếu vượt trần mặc định của preflight ⇒ ghi lý do + giảm phạm vi E, không bỏ qua preflight).
@@ -136,7 +136,7 @@ Theo Implementation Steps 2–6.
 | Critical | Precision lệch lạc quan do mẫu duyệt (RT-01) | `test_gate_uses_conservative_precision`, `test_weighted_estimate_reported_not_gating` |
 | Critical | Ứng viên C ngoài vũ trụ gold (RT-02) | `test_precondition_candidates_outside_gold_universe_exits_2` |
 | Critical | Quyết định duyệt sửa sau khi thấy scoreboard (RT-15) | `test_decide_refuses_decisions_sha_mismatch` + commit khoá trước trial 1 |
-| Critical | Phân loại không phải Claude / cùng họ GPT (RT-04) | `test_precondition_served_model_family` |
+| Critical | Classifier unknown hoặc trùng model labeler (RT-04) | `test_precondition_served_model_family` |
 | Critical | Ngưỡng bị chép/nới | `test_decide_thresholds_imported_from_review_policy`, `test_decide_below_threshold` |
 | Critical | False DUPLICATE lọt cổng | `test_decide_false_duplicate_veto` |
 | High | Chọn trial đẹp | `test_decide_uses_worse_trial` |
@@ -147,7 +147,7 @@ Theo Implementation Steps 2–6.
 ## Success
 
 - [ ] HG-1 hoàn tất; `heldout_review` (sha quyết định) commit trước trial 1; `selection_sha256` khớp P2.
-- [ ] Biến thể đã chọn × ≥2 trial chạy thật bằng Claude (`served_model` anthropic) — hoặc BLOCKED kèm Q3 (phase không PASS).
+- [ ] Biến thể đã chọn × ≥2 trial chạy thật bằng classifier model được nhận diện (`served_model` thuộc họ classifier) — hoặc BLOCKED kèm Q3 (phase không PASS).
 - [ ] `bakeoff-verdict.json`, `l2-p5-bakeoff.{json,md}`, `l2-p5-decision.json` commit; scoreboard đủ (thua, McNemar, cụm, bảo thủ/quan sát/1/π, hiệu chuẩn cận trên, chi phí).
 - [ ] Verdict tính đúng ngưỡng `review_policy` (test tái tính khớp); không cờ nào bị đổi.
 - [ ] §Số đo AI2-20 điền; hai suite xanh; `review-decision.json` có.
@@ -159,9 +159,13 @@ Theo Implementation Steps 2–6.
 | n < 60 cho hầu hết nhãn | Cao × Trung bình | Q6 chấp nhận; `min_n_needed` + văn bản cần thêm; bỏ E khi chắc (RT-12) |
 | Người dùng chưa duyệt xong | Trung bình × Cao | Chặn ở bước 0; P2 báo khối lượng sớm |
 | Provider dao động giữa trial | Trung bình × Trung bình | Xen kẽ; worse-of; spread trong verdict |
-| Claude không khả dụng | Cao × Cao | BLOCKED (Q3) |
+| Classifier endpoint/model không khả dụng | Cao × Cao | BLOCKED (Q3) |
 | Ngân sách preflight vượt mặc định | Trung bình × Thấp | Đặt budget rõ; thu hẹp E; không bỏ preflight |
 
 ## Rollback
 
 `git revert <commit P5>`: gỡ runner, báo cáo, verdict, khối `heldout_review`, §Số đo doc. Runtime không đổi. Dữ liệu ngoài repo giữ nguyên.
+
+## Amendment 2026-10-09 — final model
+
+Người dùng cho phép model khác Claude. Snapshot cuối giữ một classifier duy nhất cho toàn bộ sáu trial: requested cx/gpt-6-sol, served gpt-6-sol, family openai; frozen labeler là gpt-4o-mini-2024-07-18, nên K-a đạt điều kiện khác model cụ thể. E vẫn bị budget block; HUMAN_DECISION không tự bật cờ.

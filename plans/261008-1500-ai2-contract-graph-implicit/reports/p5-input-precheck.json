@@ -1,0 +1,23 @@
+{
+ "candidates_source_sha256": "c75dd753bf4b16bfa7a6f7a930f78c3334a0ab121d8bf5e5e01c5569234e2079",
+ "dataset_verify": true,
+ "e_max_per_doc": 98,
+ "heldout_docs": 14,
+ "hg1_sheet_sha256": "2257271db6366a49f82d07c46b7e076100aac5f894766ebf558119e7b2274f17",
+ "p2_source_unchanged": true,
+ "selection_sha256": "4a11541913acd5fab6e9ec5716fa44d77ded7411d5c4c293f77e55bc2d802d12",
+ "variants": {
+  "B": {
+   "candidates": 165,
+   "outside_gold": 0
+  },
+  "C": {
+   "candidates": 174,
+   "outside_gold": 0
+  },
+  "E": {
+   "candidates": 655,
+   "outside_gold": 0
+  }
+ }
+}

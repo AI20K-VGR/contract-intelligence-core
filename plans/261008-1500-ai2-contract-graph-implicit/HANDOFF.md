@@ -9,11 +9,9 @@ Ngày: 2026-10-09 · nhánh `feature/ai2-contract-graph` · người tiếp nh�
 2. **Dữ liệu ngoài git (bắt buộc):** giải nén `contract-graph-pairs-data-20261009.zip` (bàn giao kèm, ~4 MB) sao cho có `<repo>/.harness/state/contract-graph-pairs/{cache,work,dev,heldout,review}`. Thư mục phải bị git bỏ qua: `git check-ignore -q .harness/state/contract-graph-pairs/probe` exit 0 (nếu không, thêm `.harness/` vào `.git/info/exclude`). Kiểm: `uv run --project ai-service --frozen --extra web --extra dev python -m evals.contract_graph.pairs.run verify` ⇒ `verify ok`.
 3. `cd ai-service && uv sync --extra web --extra dev --extra kafka --extra openai`.
 4. **Bí mật (không commit, không dán vào chat/log):** tạo `ai-service/.env` (đã git-ignore):
-   - `AI2_CONTRACT_GRAPH_PAIRS_BASE_URL=https://api.anthropic.com/v1/`, `AI2_CONTRACT_GRAPH_PAIRS_API_KEY=<key Anthropic>`, `AI2_CONTRACT_GRAPH_PAIRS_MODEL=claude-sonnet-5-5` — bộ phân loại (P3/P5). Endpoint này **chưa được probe** `[ASSUMED]`.
+   - Dedicated classifier endpoint/model đã được đặt trong ai-service/.env (không commit, không dán key). Snapshot Claude trước đó superseded vì response rỗng; snapshot cuối dùng cx/gpt-6-sol, phục vụ gpt-6-sol, họ openai.
    - Người gán nhãn GPT (chỉ cần khi gán nhãn thêm): đặt `AI2_CG_LABELER_BASE_URL/_API_KEY/_MODEL` trong môi trường process (máy cũ lấy từ `AI2_LLM_*` của `.env` core: OpenAI `gpt-4o-mini`). Không thêm fallback trong code.
-5. Mốc test (OBSERVED 2026-10-09, trước P3):
-   - ai-service (từ `ai-service/`): `uv run --frozen --extra web --extra dev --extra kafka --extra openai pytest -q -p no:cacheprovider` ⇒ **13 failed / 1313 passed / 44 skipped**; 13 lỗi môi trường đã biết: `test_mistral_ocr.py` ×7 (thiếu `mistralai`), thiếu `HD-TONG-HOP.sample.pdf` ×5, `test_p0_contract_baseline` ×1. Lỗi khác = regression. Windows: dùng `--basetemp` ngắn (lỗi `WinError 206`).
-   - evals (từ repo root): `uv run --project ai-service --frozen --extra web --extra dev --extra kafka --extra openai python -m pytest -q -p no:cacheprovider evals/contract_graph/tests` ⇒ **145 passed**.
+5. Mốc test sau P5 (2026-10-09): ai-service full ⇒ **13 failed / 1492 passed / 41 skipped**; đúng 13 lỗi môi trường đã biết: `test_mistral_ocr.py` ×7 (thiếu `mistralai`), thiếu `HD-TONG-HOP.sample.pdf` ×5, `test_p0_contract_baseline` ×1. Evals contract graph ⇒ **219 passed**; focused P5/client ⇒ **62 passed**; targeted Ruff sạch. Windows: dùng `--basetemp` ngắn (lỗi `WinError 206`).
    - ruff: file `ai-service/` chạy từ `ai-service/`; file `evals/` chạy từ root với `--config ai-service/pyproject.toml` (không có config ở root).
 
 ## 2. Trạng thái phase
@@ -22,15 +20,15 @@ Ngày: 2026-10-09 · nhánh `feature/ai2-contract-graph` · người tiếp nh�
 |---|---|---|---|
 | P1 bộ nhãn cặp | PASS | `474cfdd`, `0f499b4`, `562575d`, `46e6625` | 21 văn bản (held-out 14 / dev 7), pool 839, nhãn GPT `gpt-4o-mini-2024-07-18`; cắt đuôi trang web (người dùng chốt) |
 | P2 ứng viên cấu trúc | PASS | `b0022c8`, `29c4dc1` | `pair_candidates.py` **đóng băng** (`pairs-cand-v1`, `PAIRS_TOP_K=40` — người dùng chốt thay K=10 của quy tắc); S4 31 cặp; mẫu HG-1 181 dòng khoá trong `pairs/manifest.json` |
-| P3 bộ phân loại LLM | xem `git log` sau `29c4dc1` và `reports/developer-P3-report.md` nếu có | — | Code + test làm với fake; **đo live BLOCKED** tới khi có key Claude và probe bước 0 |
-| P4 tích hợp + lưu trữ | chưa làm | — | `phases/phase-4-integration-storage.md` |
-| P5 bake-off | chưa làm | — | cần HG-1 + Claude |
+| P3 bộ phân loại LLM | PASS | `bffe37e3` | Code/test + dev probe Claude; trace provider/fingerprint hardening tiếp trong P5 |
+| P4 tích hợp + lưu trữ | PASS | `976521eb`, `599f3677`, `cd6a1994` | Integration/storage, golden, DEC consent và verification đã ghi |
+| P5 bake-off | live complete, final gates pending | (chưa commit) | Model cx/gpt-6-sol → gpt-6-sol; C1 3/101, B1 2/101, E1 9/101, C2 4/101, B2 3/101, E2 9/101; E vượt budget; decision HUMAN_DECISION, rank E > C > B |
 
 Artifact verify từng phase: `artifacts/verification-P1.json`, `verification-P2.json`.
 
 ## 3. Quyết định đã chốt — không đảo lại
 
-- K-a: GPT chỉ gán nhãn, **Claude** phân loại. Không bao giờ cho bộ phân loại chạy bằng GPT; model thực phục vụ phải kiểm bằng `family(served_model)` (fail-closed, mã 2).
+- K-a: GPT gán nhãn; classifier dùng model thuộc họ anthropic|google|openai được nhận diện, tên cụ thể khác labeler; kiểm trên served_model và fail-closed (mã 2).
 - `PAIRS_TOP_K=40`, `CANDIDATES_VERSION=pairs-cand-v1`: không sửa `ai-service/app/pipeline/contract_graph/pair_candidates.py` (P3–P5 chỉ gọi). `extend-heldout` từ chối khi lệch báo cáo.
 - **HG-1 do người dùng tự duyệt** (Q5, D13): phiếu `.harness/state/contract-graph-pairs/review/heldout_review.csv`, cột `decision` = `approve|relabel|reject` (+`label_fixed`, `direction_fixed` cho nhãn có hướng). Agent **không** điền phiếu. P5 bước 0 cần phiếu đủ.
 - Không chạy bộ phân loại trên held-out trước P5; mọi đọc dữ liệu đóng băng đi qua `manifest.read_split` (verify trước).
@@ -40,10 +38,16 @@ Artifact verify từng phase: `artifacts/verification-P1.json`, `verification-P2
 
 ## 4. Việc tiếp theo
 
-1. Xác nhận P3 trong `git log`; nếu dở thì hoàn tất theo `phases/phase-3-llm-pair-classifier.md` (code + test xanh, báo cáo dev ghi BLOCKED).
-2. Khi có key: P3 bước 0 probe (một lời gọi thật qua `classifier_client(NineRouterClient(), model)`, họ `anthropic`), rồi đo dev ⇒ `evals/contract_graph/reports/l2-p3-classifier-dev.{json,md}`.
-3. P4 theo `phases/phase-4-integration-storage.md` (flag `AI2_CONTRACT_GRAPH_PAIRS_ENABLED` mặc định tắt; flag tắt ⇒ output `run_idp` không đổi một byte — golden luồng 1 không được sửa; migration `0006`).
-4. Sau khi người dùng duyệt xong HG-1: P5 theo `phases/phase-5-bakeoff-rerun.md`.
-5. Cuối: test độc lập, code review, cập nhật doc (`docs/ai2/AI2-20…`), đồng bộ plan. Push chỉ khi người dùng yêu cầu.
+1. Đọc `evals/contract_graph/reports/l2-p5-bakeoff.{json,md}`, `l2-p5-decision.json` và `plans/.../bakeoff-verdict.json` của model mới; artifact model cũ nằm trong `tmp/p5-superseded-before-model-switch` và không dùng.
+2. Chạy lại tester/reviewer độc lập trên snapshot mới; ghi `verification-P5.json` và `review-decision.json`. Verdict nghiệp vụ vẫn cần người quyết định vì `HUMAN_DECISION`/E over-budget.
+3. Ghi nhận full-suite baseline 13 lỗi môi trường và chạy lại focused/eval/Ruff sau mọi thay đổi gate.
+4. Xử lý secret-scan gate của `hs:git`: diff chỉ có tên field/sentinel test (`token`, `api_key`, `PRIVATE_KEY`), không có credential; cần quyết định/điều chỉnh trước commit cục bộ. Không push nếu chưa được yêu cầu.
 
 Commit: conventional commit, mỗi message kết thúc bằng dòng trống rồi dòng attribution của công cụ đang dùng. Không commit `.env`, `.harness/state/`, key.
+
+## Tiếp tục sau khi chạy model cx/gpt-6-sol (2026-10-09)
+
+- Đã chạy đủ C1/B1/E1/C2/B2/E2 dưới fingerprint hiện tại, cùng lock HG-1 và cùng requested/served model.
+- Bảng hiện tại: C1 3/101, B1 2/101, E1 9/101 (over-budget), C2 4/101, B2 3/101, E2 9/101 (over-budget).
+- l2-p5-decision.json là HUMAN_DECISION, recommendation_only=true, budget_blocked_variants=[E]; rank artifact là winner=E nhưng phải đọc kèm over_budget=[E].
+- Cần hoàn tất gate cook: tester/reviewer độc lập đọc snapshot này, verification-P5.json, review-decision.json, rồi cook next/close theo envelope. Không bật cờ và không commit key.

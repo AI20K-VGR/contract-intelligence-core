@@ -1,9 +1,13 @@
 # Chuẩn bị P5 trước khi gọi held-out
 
+Đây là snapshot tiền chạy; các lần gọi live và blocker quota sau đó được ghi tại
+`reports/p5-bakeoff-preflight.json` và `reports/l2-p5-bakeoff.{json,md}`.
+
 Chỉ đọc dữ liệu đã đóng băng qua `manifest.read_split`; chưa gọi classifier trên held-out.
 
 - Held-out: 14 văn bản. Sinh lại ứng viên bằng code P3: B = 165, C = 174, E = 655 cặp duy nhất trong pool ∪ S4; E tối đa 98 cặp/văn bản, dưới trần 300.
 - Dev C: 38 ứng viên, 10 dự đoán GENERAL_SPECIFIC, 1 DUPLICATE, 0 CONFLICT, 0 REFERENCE. Dự kiến trên 174 ứng viên C: lần lượt 45,79; 4,58; 0; 0. Không phải mọi nhãn đều dưới MIN_N/2 = 30, nên kế hoạch yêu cầu giữ E.
+- C có tổng 174 ứng viên/trial, nhỏ hơn 4 × MIN_N = 240. Mỗi cặp chỉ nhận một nhãn, nên không thể đồng thời đạt n ≥ 60 cho cả bốn nhãn trong một trial hiện tại. Bake-off vẫn đo chất lượng, coverage và khác biệt giữa các biến thể; cổng có thể ưu tiên veto false DUPLICATE trước verdict thiếu n. Giữ số trial và điều kiện chọn E đã được duyệt.
 - Tổng token dev: 40.968 prompt + 3.140 completion = 44.108; trung bình 6.301,14 token/văn bản. Ước tính C mỗi trial = trung bình × 14 × 1,5 = 132.324 token. E nhân tỷ lệ ứng viên 655/174 ≈ 498.116 token. Đây là ước tính ngân sách, không phải token đã đo của held-out.
 - Độ trễ dev p50 = 6,91961 giây/văn bản. C ước tính p50 × 14 × 1,5 = 145,31 giây/trial; E nhân 655/174 ≈ 547,00 giây/trial. Cả hai dưới trần preflight 600 giây; độ trễ thực có thể vượt ước tính và phải được ghi `over_budget`.
 - Trước trial đầu tiên: nhập quyết định approve của chính người dùng, kiểm selection SHA, ghi quyết định JSONL ngoài Git, commit khối `heldout_review` trong manifest. Không đổi prompt, lexicon hoặc K giữa trial.

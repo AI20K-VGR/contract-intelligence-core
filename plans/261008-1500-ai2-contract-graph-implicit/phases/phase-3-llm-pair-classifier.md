@@ -13,7 +13,7 @@ harness_schema_version: 1.0
 
 ## Overview
 
-Bộ phân loại cặp bằng **Claude** qua `NineRouterClient` + `runtime.complete_json`: nhãn đóng, span nguyên văn **kiểm bằng code**, output đóng chống prompt injection (tín hiệu chỉ đếm — RT-05), ngân sách lô/lần gọi, cổng consent/egress/client/model/ngân sách/hạn (D5; dự trữ bao trọn lô — RT-07); trượt cổng là rule-only (D7). Client phân loại có endpoint riêng tuỳ chọn (D6, RT-08) và trace ghi `served_model` (RT-04). Kèm model `PairLabel`/`PairRelation`/`PairResult` (D3) và `build_pair_relations` — hàm duy nhất P4 gọi từ `run_idp` và eval gọi trên dữ liệu. Mọi quan hệ `NEEDS_REVIEW` (D9). Đo trên **dev** (gold GPT chưa duyệt), ≤3 vòng chỉnh prompt. Đo live **chờ endpoint Claude** người dùng đặt vào `ai-service/.env` (Q3) — chưa có ⇒ BLOCKED, không thay model.
+Bộ phân loại cặp bằng classifier LLM thuộc họ được nhận diện qua `NineRouterClient` + `runtime.complete_json`: nhãn đóng, span nguyên văn **kiểm bằng code**, output đóng chống prompt injection (tín hiệu chỉ đếm — RT-05), ngân sách lô/lần gọi, cổng consent/egress/client/model/ngân sách/hạn (D5; dự trữ bao trọn lô — RT-07); trượt cổng là rule-only (D7). Client phân loại có endpoint riêng tuỳ chọn (D6, RT-08) và trace ghi `served_model` (RT-04). Kèm model `PairLabel`/`PairRelation`/`PairResult` (D3) và `build_pair_relations` — hàm duy nhất P4 gọi từ `run_idp` và eval gọi trên dữ liệu. Mọi quan hệ `NEEDS_REVIEW` (D9). Đo trên **dev** (gold GPT chưa duyệt), ≤3 vòng chỉnh prompt. Đo live **chờ dedicated classifier endpoint/model** người dùng đặt vào `ai-service/.env` (Q3) — chưa có ⇒ BLOCKED, không thay model.
 
 ## Dependency map
 
@@ -47,7 +47,7 @@ Bộ phân loại cặp bằng **Claude** qua `NineRouterClient` + `runtime.comp
    - Không log văn bản/span/response.
 3. **Builder** — `ai-service/app/pipeline/contract_graph/pair_builder.py`:
    - `PAIRS_ENV = "AI2_CONTRACT_GRAPH_PAIRS_ENABLED"`, `PAIRS_MODEL_ENV = "AI2_CONTRACT_GRAPH_PAIRS_MODEL"`, `PAIRS_BASE_URL_ENV = "AI2_CONTRACT_GRAPH_PAIRS_BASE_URL"`, `PAIRS_API_KEY_ENV = "AI2_CONTRACT_GRAPH_PAIRS_API_KEY"`; `pairs_enabled()` đọc env lúc gọi, truthy `{"1","true","yes","on"}`.
-   - `classifier_client(llm, model)` (RT-08): có `PAIRS_BASE_URL_ENV` **và** `PAIRS_API_KEY_ENV` ⇒ `NineRouterClient(base_url=…, api_key=…, model=model)`; không có ⇒ `llm` là `NineRouterClient` thì `NineRouterClient(base_url=llm.base_url, api_key=llm.api_key, model=model)`; `llm` là test double ⇒ trả nguyên; `llm is None` và không env ⇒ `None`.
+   - `classifier_client(llm, model)` (RT-08): có đủ `PAIRS_BASE_URL_ENV` **và** `PAIRS_API_KEY_ENV` ⇒ `NineRouterClient(base_url=…, api_key=…, model=model)`; thiếu một biến hoặc thiếu cả hai khi `llm` là `NineRouterClient` ⇒ `None` (fail-closed, không kế thừa endpoint/key core); `llm` là test double ⇒ trả nguyên để mock; `llm is None` và không env ⇒ `None`.
    - `gate(record, llm, runtime, model) -> str | None` theo D5: `NO_CONSENT` (`getattr(record, "content_sharing_consent", False)`) → `EGRESS_DENIED` (`not runtime.egress_allowed`) → `LLM_UNAVAILABLE` (`llm is None` — `run_idp` đã tắt `llm` khi egress/budget không đạt, `idp.py:80,102` — hoặc `classifier_client` trả `None`/chưa configured) → `MODEL_UNSET` → `BUDGET_EXHAUSTED` → `DEADLINE` (cùng công thức RT-07).
    - `build_pair_relations(record, luong1_edges, *, llm, runtime, sources=ALL_SOURCES, top_k=PAIRS_TOP_K, model=None, candidates=None, max_calls=PAIRS_MAX_CALLS) -> PairResult` — `model=None` ⇒ env; `candidates`/`max_calls` chỉ cho eval biến thể E; **không** tham số nào bỏ qua `gate`. Luồng: `StructureIndex.build` → `excluded` = cặp cạnh luồng 1 → `generate_pair_candidates` (hoặc `candidates`) → `gate` trượt ⇒ `PairResult(mode="rule_only", reason, relations=[], batches_completed=0)` → đạt ⇒ `classify_pairs` → dựng `citation_a/b` từ node + span, `verify`, một phía không `VALID` ⇒ bỏ (`citation_invalid`) → `PairRelation` → dedupe theo `relation_id`.
    - Thuần với input; chỉ gọi mạng qua `runtime.complete_json`.
@@ -55,7 +55,7 @@ Bộ phân loại cặp bằng **Claude** qua `NineRouterClient` + `runtime.comp
 4. **Predictor eval** — `evals/contract_graph/pairs/predictor.py`:
    - `predict_doc(doc, *, llm, model, variant)`: dựng `DossierRecord` tối thiểu từ `doc.json` (node + trang tổng hợp để `CitationResolver` verify — mẫu `ai-service/fixtures/contract_graph_records.py`), gán `record.content_sharing_consent = True` (mẫu công khai), `ProcessingRuntime(egress_allowed=True, max_llm_calls=<đủ>, max_processing_seconds=<rộng>)` ⇒ đi qua đúng `gate`.
    - `variant`: C = mọi nguồn + `PAIRS_TOP_K`; B = `{SAME_ARTICLE, EXPLICIT_REF}` + `PAIRS_TOP_K`; E = `candidates=<cặp pool P1 (+S4 với held-out)>`, `max_calls` đủ (trần chi phí ở P5).
-   - Kiểm K-a (RT-04): sau lời gọi đầu, `family(served_model)` phải `anthropic` và `family(manifest.labeler.served_model)` phải `openai`; `unknown` hoặc trùng ⇒ thoát mã 2.
+   - Kiểm K-a (RT-04): sau lời gọi đầu, `family(served_model)` thuộc họ classifier được nhận diện và `family(manifest.labeler.served_model)` phải `openai`; `unknown` hoặc trùng ⇒ thoát mã 2.
    - CLI `run.py predict --split dev --variant C --model <id>`; `--split heldout` cần `--allow-heldout` (chỉ P5 dùng).
    - Báo cáo `l2-p3-classifier-dev.{json,md}`: precision/recall theo nhãn (k/n + Wilson + cụm) so gold GPT dev, `false_duplicate`, `direction_accuracy`, `rejected`, `injection_signals`, token/hồ sơ (so ước tính D13), lần gọi/hồ sơ, độ trễ p50/p95, `served_model`, `prompt_version`, số vòng prompt (≤3), `ground_truth: "gpt-labels (approved=false), dev"`.
 5. **Client trace** — `ai-service/app/llm/client.py`: sau khi có `resp`, `trace["served_model"] = getattr(resp, "model", None)` (một dòng, cả nhánh fallback). Không đổi giá trị trả về/hành vi khác.
@@ -81,11 +81,11 @@ Bộ phân loại cặp bằng **Claude** qua `NineRouterClient` + `runtime.comp
 | Create | `evals/contract_graph/pairs/predictor.py` | ~150 dòng | `test_cg_pairs_predictor.py` |
 | Create | `evals/contract_graph/tests/test_cg_pairs_predictor.py` | ~6 test | mới |
 | Modify | `evals/contract_graph/pairs/run.py` | +`predict` | `test_cg_pairs_predictor.py` |
-| Create | `evals/contract_graph/reports/l2-p3-classifier-dev.{json,md}` | nhỏ | — (BLOCKED nếu chưa có Claude) |
+| Create | `evals/contract_graph/reports/l2-p3-classifier-dev.{json,md}` | nhỏ | — (BLOCKED nếu chưa có dedicated classifier endpoint/model hợp lệ) |
 
 ## Implementation Steps
 
-0. **Probe Claude qua đường production** (Q3, RT-04, RT-08): khi người dùng đã đặt `AI2_CONTRACT_GRAPH_PAIRS_BASE_URL/_API_KEY/_MODEL` (hoặc router chung qua `AI2_LLM_*`) vào `ai-service/.env`, chạy từ `ai-service/` một lời gọi `classifier_client(NineRouterClient(), os.environ["AI2_CONTRACT_GRAPH_PAIRS_MODEL"]).complete_json(system, user)` trên 1 cặp tổng hợp (sau khi bước 5 xong); ghi `served_model`, `family`, latency, token, `fallback_without_json_format` vào `verification-P3.json`. Chưa có endpoint hoặc `family(served_model) != anthropic` ⇒ `live: BLOCKED (Q3)`, làm bước 1–6 (mock), bỏ bước 7; tiêu chí đo live **mở**. Không thay bằng GPT.
+0. **Probe classifier qua đường production** (Q3, RT-04, RT-08): khi người dùng đã đặt dedicated endpoint/model trong ai-service/.env, gọi classifier_client trên một cặp tổng hợp; ghi served_model, family, latency và usage vào verification-P3.json. Classifier family phải được nhận diện và model cụ thể khác labeler; nếu không thì live BLOCKED, không thay model ngầm.
 1. Viết test RED (model, client trace, classifier, builder, predictor) → FAIL.
 2. Model trong `contract_graph.py`.
 3. `client.py` `served_model`.
@@ -134,7 +134,7 @@ Bộ phân loại cặp bằng **Claude** qua `NineRouterClient` + `runtime.comp
 - [ ] `test_llm_mode_builds_relations_with_valid_citations`.
 - [ ] `test_invalid_citation_dropped`.
 - [ ] `test_luong1_edges_excluded_from_candidates`.
-- [ ] `test_classifier_client_env_override_and_inherit` (RT-08) — có `_PAIRS_BASE_URL/_API_KEY` ⇒ dùng env dù `llm` trỏ chỗ khác; không có ⇒ kế thừa `llm.base_url/api_key`, `model` = model pairs; `llm=None` + không env ⇒ `None` ⇒ gate `LLM_UNAVAILABLE`; test double trả nguyên.
+- [ ] `test_classifier_client_env_override_and_fail_closed` (RT-08) — có `_PAIRS_BASE_URL/_API_KEY` ⇒ dùng env dù `llm` trỏ chỗ khác; thiếu một biến hoặc thiếu cả hai với core `NineRouterClient` ⇒ `None` ⇒ gate `LLM_UNAVAILABLE`; `llm=None` + không env ⇒ `None`; test double trả nguyên.
 - [ ] `test_pairs_enabled_truthy_values`.
 - [ ] `test_builder_does_not_mutate_record`.
 - [ ] `test_stats_keys_fixed`.
@@ -158,7 +158,7 @@ Theo Implementation Steps 2–6.
 ### Tests After
 
 - [ ] Full suite ai-service đúng 13 lỗi môi trường; `test_contract_graph_flag_off_regression.py` xanh.
-- [ ] Nếu có Claude: `l2-p3-classifier-dev.json` đủ trường §4; `false_duplicate` dev được báo (mục tiêu 0; >0 ⇒ phân tích + cân nhắc guard trước P4, không đổi gold); token/hồ sơ thực so với ước D13.
+- [ ] Nếu có probe live: `l2-p3-classifier-dev.json` đủ trường §4; `false_duplicate` dev được báo (mục tiêu 0; >0 ⇒ phân tích + cân nhắc guard trước P4, không đổi gold); token/hồ sơ thực so với ước D13.
 
 ### Regression Gate
 
@@ -178,7 +178,7 @@ Theo Implementation Steps 2–6.
 | Critical | DUPLICATE giả | `test_duplicate_with_different_numbers_rejected` |
 | High | Lọc injection bỏ nhầm khoản lành tính / bỏ sót `context` (RT-05) | `test_benign_clauses_have_no_injection_signal`, `test_injection_signal_counted_but_pair_sent` |
 | High | Lô ăn hết hạn job (RT-07) | `test_deadline_reserve_covers_whole_batch`, `test_processing_timeout_is_swallowed` |
-| High | Probe xanh trên endpoint mà production không tới được (RT-08) | `test_classifier_client_env_override_and_inherit` + bước 0 qua `classifier_client(NineRouterClient(), …)` |
+| High | Probe xanh trên endpoint mà production không tới được (RT-08) | `test_classifier_client_env_override_and_fail_closed` + bước 0 qua `classifier_client(NineRouterClient(), …)` |
 | High | Ăn hết ngân sách LLM chung | `test_budget_checked_before_each_batch`, `test_batches_of_eight_and_max_five_calls` |
 | High | Tham số eval lọt vào runtime | `test_runtime_never_passes_eval_overrides` |
 | Medium | Response sai shape | `test_malformed_response_shapes` |
@@ -187,14 +187,14 @@ Theo Implementation Steps 2–6.
 ## Success
 
 - [ ] Mọi test P3 xanh (mock); hai suite xanh; ruff sạch.
-- [ ] Probe bước 0: OBSERVED (`served_model` họ anthropic, latency, token trong `verification-P3.json`) **hoặc** BLOCKED kèm Q3 — không PASS tiêu chí live khi BLOCKED.
-- [ ] Nếu có Claude: `l2-p3-classifier-dev.{json,md}` commit, ≤3 vòng prompt, `PROMPT_VERSION` cuối.
+- [ ] Probe bước 0: OBSERVED (`served_model thuộc họ classifier được nhận diện, latency, token trong `verification-P3.json`) **hoặc** BLOCKED kèm Q3 — không PASS tiêu chí live khi BLOCKED.
+- [ ] Nếu có probe live: `l2-p3-classifier-dev.{json,md}` commit, ≤3 vòng prompt, `PROMPT_VERSION` cuối.
 
 ## Risks
 
 | Rủi ro | L × I | Xử lý |
 |---|---|---|
-| Chưa có endpoint Claude | Cao × Cao | Q3; BLOCKED có lý do; code/test vẫn xong |
+| Chưa có dedicated classifier endpoint/model | Cao × Cao | Q3; BLOCKED có lý do; code/test vẫn xong |
 | Endpoint từ chối `response_format` | Trung bình × Thấp | Fallback có sẵn (`client.py:132-154`) |
 | CONFLICT tràn lan | Cao × Cao | Ứng viên cấu trúc; "không chắc ⇒ UNRELATED"; guard; P4 trần 5 |
 | Token thực cao hơn ước (khoản dài) | Trung bình × Trung bình | Đo ở bước 7; `CLAUSE_CHARS_MAX`; báo vào l2-p3 |
@@ -203,3 +203,7 @@ Theo Implementation Steps 2–6.
 ## Rollback
 
 `git revert <commit P3>`: gỡ model pairs, dòng `served_model`, classifier, builder, predictor, báo cáo. Runtime không đổi (chưa nối `run_idp`).
+
+## Amendment 2026-10-09 — non-Claude classifier
+
+Cook được người dùng mở rộng cho phép classifier dùng model khác Claude. K-a được thực thi trên model phục vụ: labeler phải thuộc họ OpenAI; classifier phải thuộc họ anthropic|google|openai được nhận diện và phải khác tên model cụ thể của labeler. Probe/rerun cuối dùng cx/gpt-6-sol → gpt-6-sol; response rỗng bị fail-closed ở client và không được coi là dự đoán zero.
