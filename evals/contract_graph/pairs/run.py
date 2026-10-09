@@ -80,6 +80,35 @@ def main(argv: list[str] | None = None) -> int:
     predict.add_argument("--env-file", type=Path, default=None)
     predict.add_argument("--prompt-rounds", type=int, choices=range(4), default=0)
     predict.add_argument("--report-prefix", type=Path, default=CLASSIFIER_REPORT)
+    imported = sub.add_parser("review-import")
+    imported.add_argument("--csv", type=Path, required=True)
+    imported.add_argument("--data-dir", type=Path, default=None)
+    imported.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+    bake = sub.add_parser("bakeoff")
+    bake_commands = bake.add_subparsers(dest="bakeoff_command", required=True)
+    for name in ("run", "metric", "decide", "preflight-checks"):
+        cmd = bake_commands.add_parser(name)
+        cmd.add_argument("--data-dir", type=Path, default=None)
+        cmd.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+        if name in ("run", "metric"):
+            cmd.add_argument("variant", choices=("B", "C", "E"))
+        if name != "preflight-checks":
+            cmd.add_argument("--out", type=Path, required=True)
+        if name == "run":
+            cmd.add_argument("--trial", type=int, required=True)
+            cmd.add_argument("--model", required=True)
+            cmd.add_argument("--env-file", type=Path, required=True)
+            cmd.add_argument("--allow-heldout", action="store_true")
+            cmd.add_argument("--budget-tokens", type=int, default=500000)
+            cmd.add_argument("--budget-seconds", type=float, default=550)
+        if name == "metric":
+            cmd.add_argument("--field", default="recall_any")
+            cmd.add_argument("--dry-run", action="store_true", help="CLI-contract probe: prints 0.0 without a measured trial")
+        if name == "preflight-checks":
+            cmd.add_argument("--served-model", default=None)
+        if name == "decide":
+            cmd.add_argument("--report-prefix", type=Path, default=PAIRS_DIR.parent / "reports/l2-p5-bakeoff")
+            cmd.add_argument("--decision-out", type=Path, default=PAIRS_DIR.parent / "reports/l2-p5-decision.json")
     args = parser.parse_args(argv)
     if args.command == "predict" and args.split == "heldout" and not args.allow_heldout:
         print("heldout predictions require --allow-heldout (P5)", file=sys.stderr)
@@ -93,6 +122,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     if args.command == "verify":
         return _verify(args)
+    if args.command in {"review-import", "bakeoff"}:
+        return _bakeoff(args)
     if args.command == "predict":
         return _predict(args)
     manifest.ensure_outside_repo(args.data_dir)
@@ -102,6 +133,51 @@ def main(argv: list[str] | None = None) -> int:
         "candidates": _candidates, "extend-heldout": _extend_heldout,
         "review-select": _review_select, "review-export": _review_export,
     }[args.command](args)
+
+
+def _bakeoff(args: argparse.Namespace) -> int:
+    import json
+
+    from evals.contract_graph.pairs import bakeoff
+
+    try:
+        if args.command == "review-import":
+            manifest.ensure_outside_repo(args.data_dir)
+            locked = bakeoff.import_review(args.data_dir, args.csv, repo_manifest=args.manifest)
+            print(json.dumps(locked, sort_keys=True))
+        elif args.bakeoff_command == "metric":
+            print(bakeoff.metric(args.variant, args.out, args.field, dry_run=args.dry_run))
+        elif args.bakeoff_command == "preflight-checks":
+            options = {"served_model": args.served_model} if args.served_model is not None else {}
+            print(json.dumps(bakeoff.preconditions(args.data_dir, repo_manifest=args.manifest, **options), sort_keys=True))
+        elif args.bakeoff_command == "run":
+            if not args.allow_heldout or not args.env_file.is_file():
+                print("P5 BLOCKED: --allow-heldout and an existing --env-file required", file=sys.stderr)
+                return 2
+            manifest.ensure_outside_repo(args.out)
+            if args.budget_tokens <= 0 or args.budget_seconds <= 0:
+                return 2
+            bakeoff.preconditions(args.data_dir, repo_manifest=args.manifest)
+            from dotenv import load_dotenv
+            load_dotenv(args.env_file, override=False)
+            result = bakeoff.run(args.variant, args.trial, out_dir=args.out, model=args.model,
+                                 data_dir=args.data_dir, repo_manifest=args.manifest, allow_heldout=True,
+                                 budget_tokens=args.budget_tokens, budget_seconds=args.budget_seconds)
+            print(f"{args.variant}{args.trial}: recall_any={result['recall_any']['rate']}")
+        else:
+            report = bakeoff.assemble_report(args.out, args.data_dir, repo_manifest=args.manifest)
+            decision = bakeoff.decide(report)
+            manifest.write_json(args.report_prefix.with_suffix(".json"), report)
+            args.report_prefix.with_suffix(".md").write_text(bakeoff.render_report(report), encoding="utf-8")
+            manifest.write_json(args.decision_out, decision)
+            print(decision["verdict"])
+        return 0
+    except SystemExit as exc:
+        return int(exc.code)
+    except Exception:
+        # Never echo provider payloads, credentials, prompts or raw sheet content.
+        print("P5 BLOCKED: invalid or unavailable inputs; no recommendation written", file=sys.stderr)
+        return 2
 
 
 def _predict(args: argparse.Namespace) -> int:

@@ -4,23 +4,29 @@ The id may carry a router prefix (``gh/gpt-4o-mini``, ``openai/gpt-4.1``): only 
 the last ``/`` counts. Anything not recognised is ``unknown`` and callers fail closed on it.
 """
 
-from __future__ import annotations
+from app.pipeline.contract_graph.model_family import (
+    ANTHROPIC,
+    CLASSIFIER_FAMILIES,
+    GOOGLE,
+    OPENAI,
+    UNKNOWN,
+    classifier_family_ok,
+    family,
+    model_name,
+)
 
-import re
-
-OPENAI = "openai"
-ANTHROPIC = "anthropic"
-UNKNOWN = "unknown"
-
-# ``o\d`` reasoning models ("o1", "o3-mini"); a bare "o…" word ("openchat", "olmo") is not one
-_OPENAI = re.compile(r"(?:gpt|chatgpt)|o\d+(?![a-z])")
-_ANTHROPIC = re.compile(r"claude")
+__all__ = [
+    "ANTHROPIC", "CLASSIFIER_FAMILIES", "GOOGLE", "OPENAI", "UNKNOWN",
+    "classifier_family_ok", "classifier_model_differs_from_labeler", "family", "model_name",
+]
 
 
-def family(model_id: str | None) -> str:
-    name = (model_id or "").strip().rsplit("/", 1)[-1].lower()
-    if _OPENAI.match(name):
-        return OPENAI
-    if _ANTHROPIC.match(name):
-        return ANTHROPIC
-    return UNKNOWN
+def classifier_model_differs_from_labeler(classifier: str | None, labeler: str | None) -> bool:
+    """Require a different concrete model from the frozen labeler model."""
+
+    classifier_name, labeler_name = model_name(classifier), model_name(labeler)
+    if not labeler_name:
+        return bool(classifier_name)
+    return bool(classifier_name and classifier_name != labeler_name
+                and not classifier_name.startswith(labeler_name + "-")
+                and not labeler_name.startswith(classifier_name + "-"))

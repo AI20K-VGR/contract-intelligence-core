@@ -17,7 +17,12 @@ from typing import Any
 from evals.contract_graph.dataset import file_digest
 from evals.contract_graph.pairs import manifest, review
 from evals.contract_graph.pairs.corpus import AI_SERVICE
-from evals.contract_graph.pairs.models import ANTHROPIC, OPENAI, family
+from evals.contract_graph.pairs.models import (
+    OPENAI,
+    classifier_family_ok,
+    classifier_model_differs_from_labeler,
+    family,
+)
 from evals.contract_graph.pairs.pool import pair_id_for
 from evals.contract_graph.pairs.score import score_relations
 
@@ -56,24 +61,29 @@ _MANIFEST_LABELER = object()
 
 def _family_error() -> None:
     # Fixed diagnostic: never expose a provider error, response or key.
-    print("K-a: classifier served_model must be anthropic; labeler served_model must be openai", file=sys.stderr)
+    print("K-a: classifier served_model must be recognised and differ from labeler; labeler must be openai", file=sys.stderr)
     raise SystemExit(2)
 
 
 class _EvalRuntime(ProcessingRuntime):
+    def __init__(self, *, labeler_served_model: str | None = None, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._labeler_served_model = labeler_served_model
+
     def complete_json(self, client: Any, system: str, user: str, *, strong: bool = False) -> dict | None:
         start = len(getattr(client, "traces", []))
         response = super().complete_json(client, system, user, strong=strong)
         if response is not None:
             traces = getattr(client, "traces", [])[start:]
             served = traces[-1].get("served_model") if traces else None
-            if not isinstance(served, str) or family(served) != ANTHROPIC:
+            if (not isinstance(served, str) or not classifier_family_ok(served)
+                    or not classifier_model_differs_from_labeler(served, self._labeler_served_model)):
                 _family_error()
         return response
 
 
-def eval_runtime(max_calls: int) -> ProcessingRuntime:
-    return _EvalRuntime(egress_allowed=True, max_llm_calls=max_calls * 6,
+def eval_runtime(max_calls: int, labeler_served_model: str | None = None) -> ProcessingRuntime:
+    return _EvalRuntime(labeler_served_model=labeler_served_model, egress_allowed=True, max_llm_calls=max_calls * 6,
                         max_processing_seconds=max(1000, max_calls * 200))
 
 
@@ -155,7 +165,8 @@ def predict_doc(
     candidates = candidate_set(doc, variant=variant, pool=pool)
     max_calls = max(1, math.ceil(len(candidates.candidates) / PAIRS_PER_CALL)) if variant == "E" else PAIRS_MAX_CALLS
     started = time.perf_counter()
-    result = build_pair_relations(record, graph.edges, llm=llm, model=model, runtime=eval_runtime(max_calls),
+    result = build_pair_relations(record, graph.edges, llm=llm, model=model,
+                                  runtime=eval_runtime(max_calls, labeler_served_model),
                                   candidates=candidates, max_calls=max_calls)
     order = {node.node_id: (node.order, node.node_id) for node in record.evidence_nodes()}
     pool_by = {(p["a"], p["b"]): p for p in pool or []}
