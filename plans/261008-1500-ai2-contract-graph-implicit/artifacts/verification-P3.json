@@ -3,7 +3,11 @@
   "plan": "261008-1500-ai2-contract-graph-implicit",
   "checks": [
     {
-      "name": "full_suite_exact_13_baseline_failures_1523_passed",
+      "name": "focused_tests",
+      "status": "PASS"
+    },
+    {
+      "name": "full_suite_matches_13_baseline_failures",
       "status": "PASS"
     },
     {
@@ -11,34 +15,22 @@
       "status": "PASS"
     },
     {
-      "name": "independent_review_resolved_F1_F2",
+      "name": "live_probe_anthropic",
       "status": "PASS"
     },
     {
-      "name": "postgres_real_migration_and_savepoints",
+      "name": "dev_measurement_recorded",
       "status": "PASS"
     },
     {
-      "name": "golden_detached_P3_byte_match",
-      "status": "PASS"
-    },
-    {
-      "name": "flags_consent_wire_and_late_projection",
-      "status": "PASS"
-    },
-    {
-      "name": "lint_and_diff_check",
-      "status": "PASS"
-    },
-    {
-      "name": "simplifier_RETAIN",
+      "name": "frozen_candidates_unchanged",
       "status": "PASS"
     }
   ],
   "verdict": "PASS",
-  "phase": "P4",
+  "phase": "P3",
   "actor": "user:dungskbg2004@gmail.com",
-  "ts": "2026-10-09T01:42:11+00:00",
+  "ts": "2026-10-09T01:20:01+00:00",
   "blastRadius": {
     "unavailable": true,
     "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF-ai2-contract-graph"

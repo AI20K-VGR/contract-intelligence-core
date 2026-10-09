@@ -1,0 +1,11 @@
+{
+  "requested_model": "ag/claude-sonnet-4-6",
+  "served_model": "claude-sonnet-4-6",
+  "family": "anthropic",
+  "json_results_list": true,
+  "elapsed_s": 4.265,
+  "prompt_tokens": 2176,
+  "completion_tokens": 20,
+  "fallback_without_json_format": false,
+  "status": "PASS"
+}

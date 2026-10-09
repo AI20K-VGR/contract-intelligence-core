@@ -1,7 +1,7 @@
 {
  "analysis_notes": [
-  "M?t d? ?o?n DUPLICATE kh?c gold GPT dev ch?a ???c ng??i duy?t x?c nh?n; ??y l? sai kh?c v?i ng??i g?n nh?n, kh?ng ph?i b?ng ch?ng ?? ch?nh x?c nghi?p v?.",
-  "Guard multiset s? ?? ???c ki?m b?ng code; ch?a c? b?ng ch?ng cho m?t guard ng? ngh?a m?i. Gi? pairs-v1, kh?ng tune tr?n held-out, c? pairs m?c ??nh t?t."
+  "Một dự đoán DUPLICATE khác gold GPT dev chưa được người duyệt xác nhận; đây là sai khác với người gán nhãn, không phải bằng chứng độ chính xác nghiệp vụ.",
+  "Guard multiset số đã được kiểm bằng code; chưa có bằng chứng cho một guard ngữ nghĩa mới. Giữ pairs-v1, không tune trên held-out, cờ pairs mặc định tắt."
  ],
  "by_cluster": {
   "cl-0fa3021b56": {
@@ -2955,7 +2955,7 @@
  "split": "dev",
  "status": "OBSERVED",
  "token_estimate_D13": {
-  "note": "??c t?nh t?ng token/h? s? t? D13; token th?c ghi ri?ng theo h? s?.",
+  "note": "Ước tính tổng token/hồ sơ từ D13; token thực ghi riêng theo hồ sơ.",
   "total_per_doc_range": [
    10000,
    16000
