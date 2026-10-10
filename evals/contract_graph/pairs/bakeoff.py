@@ -171,6 +171,11 @@ def _review_decisions_digest(gold: list[dict]) -> str:
     return hashlib.sha256("".join(_json_line(row) for row in canonical).encode("utf-8")).hexdigest()
 
 
+def _review_selection_digest(selection: list[dict]) -> str:
+    """Digest the exact combined HG-1/HG-2 sampling rows used by a run."""
+    return hashlib.sha256("".join(_json_line(row) for row in selection).encode("utf-8")).hexdigest()
+
+
 def import_review(data_dir: Path, csv_path: Path, *, repo_manifest: Path = manifest.REPO_MANIFEST) -> dict:
     """Validate the complete CSV, write canonical decisions, then change only heldout_review."""
     if manifest.verify(data_dir, repo_manifest):
@@ -650,7 +655,9 @@ def preconditions(
         return {"variants": variants, "candidate_counts": counts, "n_docs": len(docs), "budgets": budgets,
                 "feasibility": {"expected_n": expected, "status": "KEEP_OFF_INSUFFICIENT_N expected" if skip_e else "E retained",
                                 "skipped_variants": {"E": "every label expected_n < MIN_N/2"} if skip_e else {}},
-                "decisions_sha256": _review_decisions_digest(gold), "prompt_version": PROMPT_VERSION,
+                "decisions_sha256": _review_decisions_digest(gold),
+                "selection_sha256": _review_selection_digest(selected), "selection_n_rows": len(selected),
+                "prompt_version": PROMPT_VERSION,
                 "code_sha256": _code_fingerprints(),
                 "served_model_check": "OBSERVED" if served_model is not _UNOBSERVED else "pending production probe/per-call check"}
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
@@ -991,9 +998,11 @@ def _checked_trials(report: dict) -> list[dict]:
         raise ValueError("report gold SHA differs from manifest review lock")
     selected = report["selection"]
     selection_lock = report["manifest"]["review_selection"]
+    expected_selection_sha = report["manifest"].get("selection_sha256", selection_lock.get("sha256"))
+    expected_selection_n = report["manifest"].get("selection_n_rows", selection_lock.get("n_rows"))
     selection_digest = hashlib.sha256("".join(_json_line(s) for s in selected).encode("utf-8")).hexdigest()
     selected_by = {s["pair_id"]: s for s in selected}
-    if (selection_digest != selection_lock["sha256"] or len(selected) != selection_lock["n_rows"]
+    if (selection_digest != expected_selection_sha or len(selected) != expected_selection_n
             or len(selected_by) != len(selected) or len(canonical) != len(selected)
             or {g["pair_id"] for g in canonical} != set(selected_by)):
         raise ValueError("selection SHA/IDs/count differ from manifest lock")
@@ -1248,7 +1257,9 @@ def assemble_report(out_dir: Path, data_dir: Path, *, repo_manifest: Path = mani
     report = {"schema": "contract-graph-pairs-bakeoff/1", "status": "OBSERVED",
               "manifest": {"heldout_review": frozen["heldout_review"], "review_selection": frozen["review_selection"],
                            "hg2": frozen.get("hg2"), "docs": frozen["docs"],
-                           "decisions_sha256": checked["decisions_sha256"]},
+                           "decisions_sha256": checked["decisions_sha256"],
+                           "selection_sha256": checked["selection_sha256"],
+                           "selection_n_rows": checked["selection_n_rows"]},
               "decisions_sha256": checked["decisions_sha256"],
               "review_lock": lock, "review_lock_commit": lock["commit"],
               "review_lock_committed_at": lock["committed_at"],
