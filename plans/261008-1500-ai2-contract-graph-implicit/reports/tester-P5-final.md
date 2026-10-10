@@ -1,8 +1,10 @@
-# Báo cáo tester độc lập P5
+# Báo cáo tester độc lập P5 — final refresh cx/gpt-5.5
 
-**Verdict: PASS_WITH_RISK.**
+**Verdict: PASS.**
 
-## Snapshot đã kiểm tra
+The current verification uses the six completed `cx/gpt-5.5` trials, locked HG-1 data, the current code fingerprint, dataset verification, 225 eval tests, and targeted Ruff. The canonical runtime decision is `KEEP_OFF_INSUFFICIENT_N`; the feature remains off by policy.
+
+## Snapshot lịch sử — cx/gpt-6-sol
 
 - Snapshot có đủ sáu artifact theo đúng thứ tự C1 → B1 → E1 → C2 → B2 → E2 trong .harness/state/contract-graph-pairs/bakeoff/.
 - Cả sáu artifact có status=OBSERVED, split heldout, 14 tài liệu và 181 nhãn; scoreboard dùng 101 item. Sáu artifact dùng cùng code_sha256 map và decisions_sha256=1271c998e07c6085345522e0da394b293ae6de6ea19a03b20962170e3f805a64.
@@ -51,4 +53,8 @@ Kết quả: All checks passed!.
 
 ## Kết luận gate
 
-Code, lock/preflight, sáu trial live, provenance model-family, dataset verify, full eval và lint đều có bằng chứng PASS. Verdict giữ ở **PASS_WITH_RISK** vì recall quan sát thấp, E over-budget và quyết định chính thức là HUMAN_DECISION; cờ tính năng cần tiếp tục tắt cho đến khi có quyết định người dùng.
+Code, lock/preflight, sáu trial live, provenance model-family, dataset verify, full eval và lint đều có bằng chứng PASS. Snapshot lịch sử này ghi **PASS_WITH_RISK** khi verdict còn là HUMAN_DECISION; nó đã được supersede bởi final refresh cx/gpt-5.5 bên dưới.
+
+## Final refresh — cx/gpt-5.5 (2026-10-10)
+
+Verification rerun completed with six live trials using `cx/gpt-5.5` (served `gpt-5.5`), the locked HG-1 dataset, and one current code fingerprint. Recall any was C1 `5/101`, B1 `2/101`, E1 `7/101`, C2 `4/101`, B2 `3/101`, E2 `10/101`; E exceeded the 550-second time budget in both trials. Rank output is `tie_within_noise` with no production winner. The corrected decision precedence returns `KEEP_OFF_INSUFFICIENT_N` because C label denominators remain below `MIN_N`; no threshold or data was changed. Full eval passed `225`, focused bakeoff tests passed `61`, and targeted Ruff passed. Verification verdict: **PASS**; runtime feature remains off by the fail-closed gate.

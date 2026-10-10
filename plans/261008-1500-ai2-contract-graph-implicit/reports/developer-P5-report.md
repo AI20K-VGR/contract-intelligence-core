@@ -216,6 +216,10 @@ uv run --project ai-service --frozen --extra dev ruff check --config ai-service/
 # All checks passed!
 ```
 
-Status: DONE_WITH_CONCERNS
+Status: DONE_WITH_CONCERNS (historical cx/gpt-6-sol snapshot; superseded by the final cx/gpt-5.5 refresh below)
 Summary: Snapshot `cx/gpt-6-sol` có provenance và model-family hợp lệ, empty-response guard đã được pin bằng test và không có trace rỗng trong 288 trace hiện tại. Full eval `223 passed` và Ruff PASS; decision vẫn là `HUMAN_DECISION` vì E vượt budget và không được tự động enable.
 Concerns/Blockers: Reviewer receipt cần được refresh riêng cho snapshot cx/gpt-6-sol; audit này không tạo verification/review artifact và không gọi provider.
+
+## Final refresh — cx/gpt-5.5 (2026-10-10)
+
+The implementation refresh completed against the six-trial `cx/gpt-5.5` snapshot. The deterministic gate now reports `KEEP_OFF_INSUFFICIENT_N` before non-gating budget advisory when a C label denominator is below `MIN_N`; E remains over the time budget and no runtime enablement is performed. Verification/review artifacts are PASS, full contract-graph eval is `225 passed`, focused bakeoff tests are `61 passed`, and targeted Ruff passes.

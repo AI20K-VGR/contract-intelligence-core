@@ -146,11 +146,11 @@ Theo Implementation Steps 2–6.
 
 ## Success
 
-- [ ] HG-1 hoàn tất; `heldout_review` (sha quyết định) commit trước trial 1; `selection_sha256` khớp P2.
-- [ ] Biến thể đã chọn × ≥2 trial chạy thật bằng classifier model được nhận diện (`served_model` thuộc họ classifier) — hoặc BLOCKED kèm Q3 (phase không PASS).
-- [ ] `bakeoff-verdict.json`, `l2-p5-bakeoff.{json,md}`, `l2-p5-decision.json` commit; scoreboard đủ (thua, McNemar, cụm, bảo thủ/quan sát/1/π, hiệu chuẩn cận trên, chi phí).
-- [ ] Verdict tính đúng ngưỡng `review_policy` (test tái tính khớp); không cờ nào bị đổi.
-- [ ] §Số đo AI2-20 điền; hai suite xanh; `review-decision.json` có.
+- [x] HG-1 hoàn tất; `heldout_review` (sha quyết định) commit trước trial 1; `selection_sha256` khớp P2.
+- [x] Biến thể đã chọn × ≥2 trial chạy thật bằng classifier model được nhận diện (`served_model` thuộc họ classifier); E over-budget được ghi nhận.
+- [x] `bakeoff-verdict.json`, `l2-p5-bakeoff.{json,md}`, `l2-p5-decision.json` đã ghi; scoreboard đủ (thua, McNemar, cụm, bảo thủ/quan sát/1/π, hiệu chuẩn cận trên, chi phí).
+- [x] Verdict tính đúng ngưỡng `review_policy` (test tái tính khớp); không cờ nào bị đổi.
+- [x] §Số đo AI2-20 điền; eval suite và Ruff xanh; `review-decision.json` có.
 
 ## Risks
 
@@ -169,3 +169,11 @@ Theo Implementation Steps 2–6.
 ## Amendment 2026-10-09 — final model
 
 Người dùng cho phép model khác Claude. Snapshot cuối giữ một classifier duy nhất cho toàn bộ sáu trial: requested cx/gpt-6-sol, served gpt-6-sol, family openai; frozen labeler là gpt-4o-mini-2024-07-18, nên K-a đạt điều kiện khác model cụ thể. E vẫn bị budget block; HUMAN_DECISION không tự bật cờ.
+
+## Amendment 2026-10-10 — cx/gpt-5.5 and deterministic insufficient-N gate
+
+Classifier snapshot mới dùng requested `cx/gpt-5.5`, served `gpt-5.5`, family `openai`.
+Sáu trial mới dùng cùng HG-1 lock và fingerprint: C1/B1/E1/C2/B2/E2 lần lượt
+5/101, 2/101, 7/101, 4/101, 3/101, 10/101; E vượt budget thời gian ở cả hai trial.
+Rank cơ học `tie_within_noise`; cổng ghi `KEEP_OFF_INSUFFICIENT_N`.
+Khi cỡ mẫu C thiếu `MIN_N`, verdict này được ưu tiên trước cảnh báo budget của biến thể không dùng cho cổng; không thay đổi ngưỡng hoặc bật cờ.

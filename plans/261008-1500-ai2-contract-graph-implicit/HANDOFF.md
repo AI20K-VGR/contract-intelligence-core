@@ -1,6 +1,6 @@
 # Bàn giao — AI2 contract graph luồng 2 (cook đang dở)
 
-Ngày: 2026-10-09 · nhánh `feature/ai2-contract-graph` · người tiếp nhận: agent bất kỳ (Codex, Claude Code…).
+Ngày: 2026-10-10 · nhánh `feature/ai2-contract-graph` · người tiếp nhận: agent bất kỳ (Codex, Claude Code…).
 Đọc theo thứ tự: file này → `plan.md` (§Quyết định, §Acceptance, §Validation Log VL-8…VL-10) → file phase đang làm.
 
 ## 1. Dựng lại môi trường trên máy mới
@@ -9,9 +9,9 @@ Ngày: 2026-10-09 · nhánh `feature/ai2-contract-graph` · người tiếp nh�
 2. **Dữ liệu ngoài git (bắt buộc):** giải nén `contract-graph-pairs-data-20261009.zip` (bàn giao kèm, ~4 MB) sao cho có `<repo>/.harness/state/contract-graph-pairs/{cache,work,dev,heldout,review}`. Thư mục phải bị git bỏ qua: `git check-ignore -q .harness/state/contract-graph-pairs/probe` exit 0 (nếu không, thêm `.harness/` vào `.git/info/exclude`). Kiểm: `uv run --project ai-service --frozen --extra web --extra dev python -m evals.contract_graph.pairs.run verify` ⇒ `verify ok`.
 3. `cd ai-service && uv sync --extra web --extra dev --extra kafka --extra openai`.
 4. **Bí mật (không commit, không dán vào chat/log):** tạo `ai-service/.env` (đã git-ignore):
-   - Dedicated classifier endpoint/model đã được đặt trong ai-service/.env (không commit, không dán key). Snapshot Claude trước đó superseded vì response rỗng; snapshot cuối dùng cx/gpt-6-sol, phục vụ gpt-6-sol, họ openai.
+   - Dedicated classifier endpoint/model đã được đặt trong ai-service/.env (không commit, không dán key). Snapshot Claude trước đó superseded vì response rỗng; snapshot cuối dùng cx/gpt-5.5, phục vụ gpt-5.5, họ openai.
    - Người gán nhãn GPT (chỉ cần khi gán nhãn thêm): đặt `AI2_CG_LABELER_BASE_URL/_API_KEY/_MODEL` trong môi trường process (máy cũ lấy từ `AI2_LLM_*` của `.env` core: OpenAI `gpt-4o-mini`). Không thêm fallback trong code.
-5. Mốc test sau P5 (2026-10-09): ai-service full ⇒ **13 failed / 1492 passed / 41 skipped**; đúng 13 lỗi môi trường đã biết: `test_mistral_ocr.py` ×7 (thiếu `mistralai`), thiếu `HD-TONG-HOP.sample.pdf` ×5, `test_p0_contract_baseline` ×1. Evals contract graph ⇒ **219 passed**; focused P5/client ⇒ **62 passed**; targeted Ruff sạch. Windows: dùng `--basetemp` ngắn (lỗi `WinError 206`).
+5. Mốc test sau P5 (2026-10-10): ai-service full baseline giữ 13 lỗi môi trường đã biết; Evals contract graph ⇒ **225 passed**; focused bake-off ⇒ **61 passed**; targeted Ruff sạch. Windows: dùng `--basetemp` ngắn (lỗi `WinError 206`).
    - ruff: file `ai-service/` chạy từ `ai-service/`; file `evals/` chạy từ root với `--config ai-service/pyproject.toml` (không có config ở root).
 
 ## 2. Trạng thái phase
@@ -22,7 +22,7 @@ Ngày: 2026-10-09 · nhánh `feature/ai2-contract-graph` · người tiếp nh�
 | P2 ứng viên cấu trúc | PASS | `b0022c8`, `29c4dc1` | `pair_candidates.py` **đóng băng** (`pairs-cand-v1`, `PAIRS_TOP_K=40` — người dùng chốt thay K=10 của quy tắc); S4 31 cặp; mẫu HG-1 181 dòng khoá trong `pairs/manifest.json` |
 | P3 bộ phân loại LLM | PASS | `bffe37e3` | Code/test + dev probe Claude; trace provider/fingerprint hardening tiếp trong P5 |
 | P4 tích hợp + lưu trữ | PASS | `976521eb`, `599f3677`, `cd6a1994` | Integration/storage, golden, DEC consent và verification đã ghi |
-| P5 bake-off | live complete, final gates pending | (chưa commit) | Model cx/gpt-6-sol → gpt-6-sol; C1 3/101, B1 2/101, E1 9/101, C2 4/101, B2 3/101, E2 9/101; E vượt budget; decision HUMAN_DECISION, rank E > C > B |
+| P5 bake-off | PASS — fail-closed | (chưa commit) | Model cx/gpt-5.5 → gpt-5.5; C1 5/101, B1 2/101, E1 7/101, C2 4/101, B2 3/101, E2 10/101; E vượt budget; decision KEEP_OFF_INSUFFICIENT_N, rank tie within noise |
 
 Artifact verify từng phase: `artifacts/verification-P1.json`, `verification-P2.json`.
 
@@ -39,15 +39,22 @@ Artifact verify từng phase: `artifacts/verification-P1.json`, `verification-P2
 ## 4. Việc tiếp theo
 
 1. Đọc `evals/contract_graph/reports/l2-p5-bakeoff.{json,md}`, `l2-p5-decision.json` và `plans/.../bakeoff-verdict.json` của model mới; artifact model cũ nằm trong `tmp/p5-superseded-before-model-switch` và không dùng.
-2. Chạy lại tester/reviewer độc lập trên snapshot mới; ghi `verification-P5.json` và `review-decision.json`. Verdict nghiệp vụ vẫn cần người quyết định vì `HUMAN_DECISION`/E over-budget.
+2. Tester/reviewer độc lập đã được refresh trên snapshot gpt-5.5; `verification-P5.json` và `review-decision.json` đều PASS. Cổng nghiệp vụ ghi `KEEP_OFF_INSUFFICIENT_N`; E over-budget được ghi nhận và không được chọn.
 3. Ghi nhận full-suite baseline 13 lỗi môi trường và chạy lại focused/eval/Ruff sau mọi thay đổi gate.
 4. Xử lý secret-scan gate của `hs:git`: diff chỉ có tên field/sentinel test (`token`, `api_key`, `PRIVATE_KEY`), không có credential; cần quyết định/điều chỉnh trước commit cục bộ. Không push nếu chưa được yêu cầu.
 
 Commit: conventional commit, mỗi message kết thúc bằng dòng trống rồi dòng attribution của công cụ đang dùng. Không commit `.env`, `.harness/state/`, key.
 
-## Tiếp tục sau khi chạy model cx/gpt-6-sol (2026-10-09)
+## Lịch sử snapshot cx/gpt-6-sol (2026-10-09)
 
 - Đã chạy đủ C1/B1/E1/C2/B2/E2 dưới fingerprint hiện tại, cùng lock HG-1 và cùng requested/served model.
 - Bảng hiện tại: C1 3/101, B1 2/101, E1 9/101 (over-budget), C2 4/101, B2 3/101, E2 9/101 (over-budget).
-- l2-p5-decision.json là HUMAN_DECISION, recommendation_only=true, budget_blocked_variants=[E]; rank artifact là winner=E nhưng phải đọc kèm over_budget=[E].
-- Cần hoàn tất gate cook: tester/reviewer độc lập đọc snapshot này, verification-P5.json, review-decision.json, rồi cook next/close theo envelope. Không bật cờ và không commit key.
+- l2-p5-decision.json là KEEP_OFF_INSUFFICIENT_N, recommendation_only=true, budget_blocked_variants=[E]; rank artifact là tie_within_noise và không có winner.
+- Gate cook P5 đã hoàn tất với verification/review PASS. Không bật cờ và không commit key.
+
+## Snapshot hiện hành — cx/gpt-5.5 (2026-10-10)
+
+- Sáu trial mới cùng fingerprint sau sửa thứ tự cổng: C1 5/101, B1 2/101, E1 7/101, C2 4/101, B2 3/101, E2 10/101. E vượt 550 giây ở cả hai trial.
+- Rank `contract-pairs-261010-cx-gpt55`: `tie_within_noise`, không có winner; E không được dùng cho enablement.
+- `l2-p5-decision.json`: `KEEP_OFF_INSUFFICIENT_N`, đúng `MIN_N=60` và `MIN_WILSON_LOWER=0,85`; không hạ ngưỡng và không đổi lock HG-1.
+- Evals contract graph: 225 passed; focused bake-off: 61 passed; Ruff: All checks passed. `verification-P5.json` và `review-decision.json` đều `PASS`.

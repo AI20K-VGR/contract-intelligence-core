@@ -3,7 +3,7 @@
   "plan": "261008-1500-ai2-contract-graph-implicit",
   "checks": [
     {
-      "name": "live_trials_same_model",
+      "name": "live_trials_same_gpt55_model",
       "status": "PASS"
     },
     {
@@ -19,7 +19,7 @@
       "status": "PASS"
     },
     {
-      "name": "eval_223_passed",
+      "name": "eval_225_passed",
       "status": "PASS"
     },
     {
@@ -35,14 +35,18 @@
       "status": "PASS"
     },
     {
-      "name": "budget_and_human_decision",
+      "name": "decision_keep_off_insufficient_n",
+      "status": "PASS"
+    },
+    {
+      "name": "budget_and_rank_recorded",
       "status": "PASS"
     }
   ],
-  "verdict": "PASS_WITH_RISK",
+  "verdict": "PASS",
   "phase": "P5",
   "actor": "user:dungskbg2004@gmail.com",
-  "ts": "2026-10-09T10:58:23+00:00",
+  "ts": "2026-10-10T06:10:00+07:00",
   "blastRadius": {
     "unavailable": true,
     "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF-ai2-contract-graph"

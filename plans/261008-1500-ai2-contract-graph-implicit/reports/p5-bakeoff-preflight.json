@@ -35,8 +35,8 @@
   "review_lock_commit": "836c91ae8b350ae329546e02cc0808f9ce6954ea",
   "decisions_sha256": "1271c998e07c6085345522e0da394b293ae6de6ea19a03b20962170e3f805a64",
   "served_model_check": "OBSERVED",
-  "requested_model": "cx/gpt-6-sol",
-  "served_model": "gpt-6-sol",
+  "requested_model": "cx/gpt-5.5",
+  "served_model": "gpt-5.5",
   "classifier_family": "openai",
   "labeler_served_model": "gpt-4o-mini-2024-07-18",
   "classifier_model_differs_from_labeler": true,
@@ -51,63 +51,63 @@
     }
   ],
   "current_run": {
-    "run_id": "contract-pairs-261009-cx-gpt6sol",
+    "run_id": "contract-pairs-261010-cx-gpt55",
     "trials": [
       {
         "variant": "C",
         "trial": 1,
-        "recall_any": "3/101",
-        "tokens": 54743,
-        "elapsed_s": 204.675559,
+        "recall_any": "5/101",
+        "tokens": 59640,
+        "elapsed_s": 248.7356,
         "over_budget": false
       },
       {
         "variant": "B",
         "trial": 1,
         "recall_any": "2/101",
-        "tokens": 51415,
-        "elapsed_s": 186.923525,
+        "tokens": 54937,
+        "elapsed_s": 212.048903,
         "over_budget": false
       },
       {
         "variant": "E",
         "trial": 1,
-        "recall_any": "9/101",
-        "tokens": 241653,
-        "elapsed_s": 635.613463,
+        "recall_any": "7/101",
+        "tokens": 250665,
+        "elapsed_s": 714.874393,
         "over_budget": true
       },
       {
         "variant": "C",
         "trial": 2,
         "recall_any": "4/101",
-        "tokens": 55115,
-        "elapsed_s": 215.827651,
+        "tokens": 57960,
+        "elapsed_s": 220.02585,
         "over_budget": false
       },
       {
         "variant": "B",
         "trial": 2,
         "recall_any": "3/101",
-        "tokens": 51388,
-        "elapsed_s": 178.249314,
+        "tokens": 55588,
+        "elapsed_s": 215.901555,
         "over_budget": false
       },
       {
         "variant": "E",
         "trial": 2,
-        "recall_any": "9/101",
-        "tokens": 241307,
-        "elapsed_s": 639.616101,
+        "recall_any": "10/101",
+        "tokens": 251883,
+        "elapsed_s": 737.984944,
         "over_budget": true
       }
     ],
-    "decision": "HUMAN_DECISION",
+    "decision": "KEEP_OFF_INSUFFICIENT_N",
     "budget_blocked_variants": [
       "E"
     ],
-    "rank_verdict": "winner",
-    "rank_winner": "E"
+    "rank_verdict": "tie_within_noise",
+    "rank_winner": null
   },
   "prompt_version": "pairs-v1",
   "feasibility": {
@@ -121,12 +121,13 @@
     "status": "E retained"
   },
   "code_sha256": {
-    "bakeoff.py": "4a2597aca451bf3ef96b44946f071c4e493775945901f223b164df2f37b2bca1",
+    "bakeoff.py": "a4e8ffe07c877c38fa81c6cd0d8f0e265abd19d23d3341521b97d452795be12e",
     "client.py": "fd42c1186f74dbd078663b5705069763d4a4ba1d9694239b0ff2639dfe198bac",
     "pair_builder.py": "772f0409222b789ff8f8af2690e1ba24918780d5a07904a9b352ea7102278999",
     "pair_candidates.py": "7691ba5691e8d2e69fde9ba6968ca7801321ca2130a3276f4d3476bb23100e85",
     "pair_classifier.py": "df66eebd2fb79748cea8397524d79911bb8de06398cca81b94cc660100f2c59e",
     "predictor.py": "04a42287f8de05bea5e173753cbfcfa21af694f3d6b20422c354d2db9feb3bdb",
     "score.py": "a05a1c9a117cb3ca17117a3d56ba077eafd15fcb6807adc52cd17a9a2d5bc5a6"
-  }
+  },
+  "decision_order_fix": "insufficient_n precedes non-gating budget advisory"
 }

@@ -15,24 +15,24 @@
  },
  "mcnemar": {
   "C_vs_B": {
-   "b": 1,
+   "b": 2,
    "c": 0,
    "conclusive": false,
-   "lower": 0.20654931437723745,
+   "lower": 0.34238022750665315,
    "method": "mcnemar-wilson",
-   "n_disc": 1,
+   "n_disc": 2,
    "n_items": 101,
    "upper": 1.0
   },
   "C_vs_E": {
-   "b": 0,
-   "c": 6,
-   "conclusive": true,
-   "lower": 0.0,
+   "b": 2,
+   "c": 5,
+   "conclusive": false,
+   "lower": 0.08221892400405678,
    "method": "mcnemar-wilson",
-   "n_disc": 6,
+   "n_disc": 7,
    "n_items": 101,
-   "upper": 0.3903342879021653
+   "upper": 0.6410655481673806
   }
  },
  "per_label": {
@@ -110,61 +110,61 @@
   },
   "GENERAL_SPECIFIC": {
    "additional_docs_estimate": null,
-   "cluster_lower": 0.0,
+   "cluster_lower": 0.02567962434474358,
    "conf": 0.95,
-   "k": 3,
+   "k": 4,
    "method": "wilson",
    "min_n_all_pass": 22,
    "min_n_needed": null,
-   "n": 28,
+   "n": 27,
    "passed": false,
    "precision_observed": {
-    "denominator": 17,
-    "passed": 3,
-    "rate": 0.1765,
+    "denominator": 18,
+    "passed": 4,
+    "rate": 0.2222,
     "wilson95": [
-     0.0619,
-     0.4103
+     0.09,
+     0.4522
     ]
    },
-   "precision_weighted": 0.1415,
-   "rate": 0.10714285714285714,
+   "precision_weighted": 0.1802,
+   "rate": 0.14814814814814814,
    "recall_observed": {
     "denominator": 34,
-    "passed": 3,
-    "rate": 0.0882,
+    "passed": 4,
+    "rate": 0.1176,
     "wilson95": [
-     0.0305,
-     0.2296
+     0.0467,
+     0.2662
     ]
    },
-   "recall_weighted": 0.0882,
+   "recall_weighted": 0.1176,
    "sizing_note": "Ước tính giữ tỷ lệ đo, dùng floor(p*n); null: chưa có cỡ hữu hạn được chứng minh. all-pass là trường hợp tốt nhất.",
-   "trial": 1,
-   "wilson_lower": 0.03711769205479949,
-   "wilson_upper": 0.2719622536765708
+   "trial": 2,
+   "wilson_lower": 0.059158318596448906,
+   "wilson_upper": 0.32479063346829484
   },
   "REFERENCE": {
    "additional_docs_estimate": null,
-   "cluster_lower": 0,
+   "cluster_lower": 0.0,
    "conf": 0.95,
    "k": 0,
    "method": "wilson",
    "min_n_all_pass": 22,
    "min_n_needed": null,
-   "n": 0,
+   "n": 5,
    "passed": false,
    "precision_observed": {
-    "denominator": 0,
+    "denominator": 3,
     "passed": 0,
-    "rate": null,
+    "rate": 0.0,
     "wilson95": [
      0.0,
-     1.0
+     0.5615
     ]
    },
-   "precision_weighted": null,
-   "rate": null,
+   "precision_weighted": 0.0,
+   "rate": 0.0,
    "recall_observed": {
     "denominator": 8,
     "passed": 0,
@@ -178,7 +178,7 @@
    "sizing_note": "Ước tính giữ tỷ lệ đo, dùng floor(p*n); null: chưa có cỡ hữu hạn được chứng minh. all-pass là trường hợp tốt nhất.",
    "trial": 1,
    "wilson_lower": 0.0,
-   "wilson_upper": 1.0
+   "wilson_upper": 0.43449149475208104
   }
  },
  "recommendation_only": true,
@@ -192,6 +192,6 @@
   "B",
   "E"
  ],
- "verdict": "HUMAN_DECISION",
+ "verdict": "KEEP_OFF_INSUFFICIENT_N",
  "weighted_discrepancies": []
 }

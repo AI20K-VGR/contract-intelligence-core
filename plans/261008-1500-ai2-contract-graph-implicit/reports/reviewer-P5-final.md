@@ -1,10 +1,14 @@
-# Rà soát độc lập cuối P5 — snapshot cx/gpt-6-sol
+# Rà soát độc lập cuối P5 — final refresh cx/gpt-5.5
 
-**Ngày:** 2026-10-09  
+**Ngày:** 2026-10-10
 **Phạm vi:** diff P3–P5, client/classifier, model-family gate, bake-off provenance, sáu artifact live, decision/rank/preflight/probe và tài liệu deviation. Không gọi provider/API và không đọc hoặc ghi secret.
-**Verdict:** **PASS_WITH_RISK**
+**Verdict:** **PASS**
 
-## Kết luận
+## Kết luận hiện hành
+
+Final refresh verifies six completed live trials under requested `cx/gpt-5.5` and served `gpt-5.5`, one HG-1 lock/code fingerprint, valid provenance, dataset verification, 225 eval tests, and targeted Ruff. Rank is `tie_within_noise`; E exceeds the time budget. The hard sample-size gate now precedes the non-gating budget advisory, so the canonical decision is `KEEP_OFF_INSUFFICIENT_N`; runtime remains off.
+
+## Snapshot lịch sử — cx/gpt-6-sol
 
 Snapshot hiện tại có thể dùng làm bằng chứng bake-off quan sát được. Sáu trial C1, B1, E1, C2, B2, E2 đều là artifact mới dưới cùng code fingerprint, review lock và model provenance. Guard response rỗng đã được sửa fail-closed; các artifact Claude có completion bằng 0 được lưu ở archive superseded và không được đưa vào scoreboard.
 
@@ -62,4 +66,8 @@ models.py:26–57 là nguồn quy tắc family chính, nhận anthropic, google 
 - Tester độc lập hiện tại ghi dataset verify ok, full eval 223 passed và targeted Ruff All checks passed trong tester-P5-final.md; các kết quả này khớp snapshot cx/gpt-6-sol. Reviewer không gọi provider.
 - Cần tạo/cập nhật verification-P5.json và review-decision.json theo snapshot hiện tại rồi mới đóng cook gate. Giữ cờ runtime tắt cho tới quyết định của người dùng.
 
-**Reviewer recommendation:** PASS_WITH_RISK cho code và tính toàn vẹn artifact; HUMAN_DECISION cho chất lượng/enablement.
+**Reviewer recommendation (historical snapshot):** PASS_WITH_RISK cho code và tính toàn vẹn artifact; HUMAN_DECISION cho chất lượng/enablement. Final refresh bên dưới là verdict hiện hành.
+
+## Final refresh — cx/gpt-5.5 (2026-10-10)
+
+The final review snapshot uses six completed live trials with requested `cx/gpt-5.5`, served `gpt-5.5`, one lock/fingerprint, and the approved 181-row HG-1 review. Artifact integrity, provenance, dataset verification, 225 contract-graph eval tests, and targeted Ruff all pass. The rank is `tie_within_noise`; E is over the time budget. Decision precedence now evaluates the hard sample-size gate before non-gating budget advisory, so the canonical decision is `KEEP_OFF_INSUFFICIENT_N` and the runtime flag stays off. Review verdict: **PASS**; this is a closed fail-safe outcome, not an unresolved `PASS_WITH_RISK`.

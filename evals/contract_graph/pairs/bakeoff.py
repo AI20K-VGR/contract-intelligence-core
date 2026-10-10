@@ -737,10 +737,13 @@ def decide(report: dict) -> dict:
     budget_blocked_variants = sorted({t["variant"] for t in trials if t["over_budget"]})
     if any(sum(t["false_duplicate"].values()) > 0 for t in c_trials):
         verdict = "KEEP_OFF_FALSE_DUPLICATE"
+    elif any(t["by_label"][label]["denominator"] < MIN_N for t in c_trials for label in SCORED):
+        # A hard sample-size failure is deterministic and takes precedence over a
+        # budget advisory on a non-gating variant.  HUMAN_DECISION is reserved for
+        # a fully sampled run whose other evidence still needs a human ruling.
+        verdict = "KEEP_OFF_INSUFFICIENT_N"
     elif budget_blocked_variants:
         verdict = "HUMAN_DECISION"
-    elif any(t["by_label"][label]["denominator"] < MIN_N for t in c_trials for label in SCORED):
-        verdict = "KEEP_OFF_INSUFFICIENT_N"
     elif discrepancies:
         verdict = "HUMAN_DECISION"
     elif any(not b["passed"] for b in per_label.values()):

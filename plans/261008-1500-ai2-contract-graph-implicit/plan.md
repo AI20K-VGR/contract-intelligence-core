@@ -292,13 +292,13 @@ Rủi ro red-team §4 được chấp nhận kèm điều kiện: `KEEP_OFF_INSU
 
 - **Q1** — dùng `policy_flags.egress_allowed` làm consent (D4); ghi DEC (§DEC cần ghi) trước merge; job thật rule-only cho tới khi BE bật.
 - **Q2** — có issue `CONTRACT_GRAPH_PAIRS_LIMITED_COVERAGE` (`NEEDS_REVIEW`) mỗi job rule-only (D7), có test.
-- **Q3/Q4** — endpoint/model classifier do người dùng đặt vào ai-service/.env; không dán key. GPT vẫn gán nhãn; classifier được phép dùng model Anthropic, Google hoặc OpenAI được nhận diện, với tên cụ thể khác labeler; mọi trial phải ghi requested/served model. Snapshot cuối dùng cx/gpt-6-sol.
+- **Q3/Q4** — endpoint/model classifier do người dùng đặt vào ai-service/.env; không dán key. GPT vẫn gán nhãn; classifier được phép dùng model Anthropic, Google hoặc OpenAI được nhận diện, với tên cụ thể khác labeler; mọi trial phải ghi requested/served model. Snapshot cuối dùng cx/gpt-5.5.
 - **Q5** — người dùng duyệt HG-1 trước P5; ước 250–380 dòng, trần cứng 380 (D18).
 - **Q6** — chấp nhận `KEEP_OFF_INSUFFICIENT_N`.
 - **Q7** — `AI2_CONTRACT_GRAPH_PAIRS_ENABLED`.
 - **Q8** — `AI2_CG_PAIRS_DATA_DIR` = `.harness/state/contract-graph-pairs/`.
 
-P5 đã có đủ scoreboard live dưới model cx/gpt-6-sol (served gpt-6-sol, họ OpenAI, khác labeler gpt-4o-mini-2024-07-18). Rank cơ học xếp E > C > B nhưng E vượt budget ở cả hai trial, nên decision vẫn HUMAN_DECISION; cờ vẫn tắt cho tới khi người dùng quyết định.
+P5 đã có đủ scoreboard live dưới model cx/gpt-5.5 (served gpt-5.5, họ OpenAI, khác labeler gpt-4o-mini-2024-07-18). Rank là `tie_within_noise`, E vượt budget ở cả hai trial, và C chưa đủ `MIN_N`, nên decision chính thức là `KEEP_OFF_INSUFFICIENT_N`; cờ vẫn tắt.
 
 ## Cook deviation ledger — classifier model family (2026-10-09)
 
@@ -306,3 +306,10 @@ P5 đã có đủ scoreboard live dưới model cx/gpt-6-sol (served gpt-6-sol, 
 - Dedicated classifier family được mở rộng có kiểm soát sang anthropic|google|openai; labeler vẫn phải là OpenAI và classifier model cụ thể phải khác labeler.
 - Probe endpoint cho thấy route Claude có response rỗng và route Gemini timeout/quota; route cx/gpt-6-sol phục vụ gpt-6-sol thành công và được dùng nhất quán cho C1/B1/E1/C2/B2/E2.
 - Đây là deviation được người dùng ủy quyền trong cook; không đổi ngưỡng, consent, lock HG-1, hay cờ runtime. E vượt budget nên verdict vẫn chỉ là khuyến nghị HUMAN_DECISION.
+
+## Final cook update — cx/gpt-5.5 (2026-10-10)
+
+- P5 rerun sử dụng requested model `cx/gpt-5.5`, served model `gpt-5.5`, family `openai`; sáu trial C1/B1/E1/C2/B2/E2 cùng HG-1 lock, decisions SHA và code fingerprint.
+- Recall any theo trial: C1 `5/101`, B1 `2/101`, E1 `7/101`, C2 `4/101`, B2 `3/101`, E2 `10/101`; E vượt time budget ở cả hai trial.
+- `bakeoff_rank` ghi `tie_within_noise` (không có winner production). Quy tắc verdict được sửa để kiểm tra denominator `n < MIN_N` trước budget advisory; decision chính thức là `KEEP_OFF_INSUFFICIENT_N`, recommendation-only, feature vẫn tắt.
+- Verification/review artifact hiện hành là `PASS`; full eval `225 passed`, focused bakeoff tests `61 passed`, targeted Ruff sạch. Không hạ ngưỡng, không bổ sung nhãn không có bằng chứng.

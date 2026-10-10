@@ -6,21 +6,21 @@
     {
       "candidate": "E",
       "trials": [
-        0.0891,
-        0.0891
+        0.0693,
+        0.099
       ],
-      "rep": 0.0891,
-      "spread": 0.0,
+      "rep": 0.0693,
+      "spread": 0.029700000000000004,
       "n": 2
     },
     {
       "candidate": "C",
       "trials": [
-        0.0297,
+        0.0495,
         0.0396
       ],
-      "rep": 0.0297,
-      "spread": 0.009900000000000003,
+      "rep": 0.0396,
+      "spread": 0.009899999999999999,
       "n": 2
     },
     {
@@ -39,16 +39,16 @@
     "C",
     "B"
   ],
-  "observed_spread_floor": 0.009900000000000003,
-  "band": 0.009900000000000003,
-  "gap": 0.059399999999999994,
-  "verdict": "winner",
-  "winner": "E",
-  "rationale": "gap 0.0594 > band 0.0099 -> E wins",
+  "observed_spread_floor": 0.029700000000000004,
+  "band": 0.029700000000000004,
+  "gap": 0.029699999999999997,
+  "verdict": "tie_within_noise",
+  "winner": null,
+  "rationale": "gap 0.0297 <= band 0.0297 (max of 5% relative and observed spread 0.0297) -> tie within noise",
   "schema": "artifact-bakeoff-verdict",
-  "run": "contract-pairs-261009-cx-gpt6sol",
+  "run": "contract-pairs-261010-cx-gpt55",
   "actor": "user:dungskbg2004@gmail.com",
-  "ts": "2026-10-09T10:49:10.360598+00:00",
+  "ts": "2026-10-10T06:02:08.840300+00:00",
   "over_budget": [
     "E"
   ]

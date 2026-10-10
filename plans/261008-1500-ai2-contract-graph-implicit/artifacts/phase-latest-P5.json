@@ -1,5 +1,8 @@
 {
   "phase": "P5",
-  "verdict": "PASS_WITH_RISK",
-  "ts": "2026-10-09T10:58:23+00:00"
+  "verdict": "PASS",
+  "ts": "2026-10-10T06:10:00+07:00",
+  "model": "cx/gpt-5.5",
+  "decision": "KEEP_OFF_INSUFFICIENT_N",
+  "rank": "tie_within_noise"
 }

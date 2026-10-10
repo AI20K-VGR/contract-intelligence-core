@@ -187,21 +187,22 @@ extension pgvector cần image hỗ trợ riêng.
 
 P5 đã hoàn tất đủ sáu trial trên 14 hồ sơ held-out với 181 dòng HG-1 được người dùng
 duyệt approve (181/181; Wilson 95% [0,9792; 1,0000]).
-Classifier snapshot cuối: requested cx/gpt-6-sol, served gpt-6-sol, họ openai.
+Classifier snapshot cuối: requested cx/gpt-5.5, served gpt-5.5, họ openai.
 Frozen labeler vẫn là gpt-4o-mini-2024-07-18, nên model cụ thể của classifier khác labeler.
 Các trial Claude trước đó có completion rỗng đã được archive và không nằm trong scoreboard.
 
 | Biến thể | Trial | recall_any | Gọi / token | Thời gian (s) | over_budget |
 |---|---:|---:|---:|---:|---|
-| C | 1 | 3/101 = 0,0297 [0,0102; 0,0837] | 28 / 54.743 | 204,676 | không |
-| C | 2 | 4/101 = 0,0396 [0,0160; 0,0945] | 28 / 55.115 | 215,828 | không |
-| B | 1 | 2/101 = 0,0198 [0,0054; 0,0693] | 27 / 51.415 | 186,924 | không |
-| B | 2 | 3/101 = 0,0297 [0,0102; 0,0837] | 27 / 51.388 | 178,249 | không |
-| E | 1 | 9/101 = 0,0891 [0,0476; 0,1607] | 89 / 241.653 | 635,613 | có |
-| E | 2 | 9/101 = 0,0891 [0,0476; 0,1607] | 89 / 241.307 | 639,616 | có |
+| C | 1 | 5/101 = 0,0495 [0,0213; 0,1107] | 28 / 59.640 | 248,736 | không |
+| C | 2 | 4/101 = 0,0396 [0,0155; 0,0974] | 28 / 57.960 | 220,026 | không |
+| B | 1 | 2/101 = 0,0198 [0,0054; 0,0693] | 27 / 54.937 | 212,049 | không |
+| B | 2 | 3/101 = 0,0297 [0,0102; 0,0837] | 27 / 55.588 | 215,902 | không |
+| E | 1 | 7/101 = 0,0693 [0,0340; 0,1362] | 89 / 250.665 | 714,874 | có |
+| E | 2 | 10/101 = 0,0990 [0,0547; 0,1727] | 89 / 251.883 | 737,985 | có |
 
-bakeoff_rank.py xếp E > C > B (gap 0,0594, band 0,0099), nhưng E vượt
-budget thời gian ở cả hai trial. Cổng quyết định ghi HUMAN_DECISION,
-budget_blocked_variants=[E], recommendation_only=true; không tự bật cờ.
-Kết quả thấp hơn nhiều ngưỡng MIN_N=60 và MIN_WILSON_LOWER=0,85, nên người
-dùng phải quyết định tiếp theo trước mọi enablement.
+bakeoff_rank.py xếp E > C > B nhưng kết luận `tie_within_noise` (gap 0,0297,
+band 0,0297); E vượt budget thời gian ở cả hai trial. Cổng quyết định ghi
+`KEEP_OFF_INSUFFICIENT_N`, `budget_blocked_variants=[E]`, `recommendation_only=true`;
+không tự bật cờ. Thứ tự cổng đã được sửa để thiếu cỡ mẫu quyết định trước cảnh báo
+budget của biến thể không dùng cho cổng. Kết quả vẫn thấp hơn ngưỡng MIN_N=60 và
+MIN_WILSON_LOWER=0,85, nên candidate tiếp tục tắt.

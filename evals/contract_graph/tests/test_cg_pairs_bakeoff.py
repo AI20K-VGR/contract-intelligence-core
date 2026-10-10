@@ -285,6 +285,15 @@ def test_decide_over_budget_requires_human_decision():
     assert result["budget_blocked_variants"] == ["B"]
 
 
+def test_decide_insufficient_n_precedes_non_gating_budget_advisory():
+    r = report(59, 59)
+    r["trials"][2]["over_budget"] = True
+    r["trials"][2]["budget"] = {"tokens": 100, "seconds": 10}
+    result = bakeoff.decide(r)
+    assert result["verdict"] == "KEEP_OFF_INSUFFICIENT_N"
+    assert result["budget_blocked_variants"] == ["B"]
+
+
 def test_min_n_observed_rate_is_not_all_pass():
     assert bakeoff.minimum_sample(.85) is None
     assert bakeoff.minimum_sample(.95) >= 60
