@@ -151,7 +151,7 @@
  "dev_report": {
   "path": "evals/contract_graph/reports/l2-p3-classifier-dev.json",
   "schema": "contract-graph-dev-report-lock/1",
-  "sha256": "7c0d8f36953259b2935dd34878f8bfa411cf16e933ad641536b8a6f7e5abc15e"
+  "sha256": "d8fcb9027600918ac6d4451a8413ab83b4e890fd52f09d49544598917140ab06"
  },
  "dev_review": {
   "approved_by_label": {
@@ -804,6 +804,39 @@
   "n_reject": 0,
   "n_relabel": 0,
   "n_selected": 181
+ },
+ "hg2": {
+  "approved_by_label": {
+   "UNRELATED": 474
+  },
+  "decisions_path": "review/hg2_review.decisions.jsonl",
+  "decisions_sha256": "5a947f5dc5805920e9f8ded06dcebf2d9f1d6caf3629c17200ae377fbbdae05c",
+  "human_approved": true,
+  "manifest_locked": true,
+  "n_approve": 474,
+  "n_reject": 0,
+  "n_relabel": 0,
+  "n_selected": 474,
+  "recall_floor": {
+   "labels": [
+    "GENERAL_SPECIFIC",
+    "CONFLICT",
+    "DUPLICATE",
+    "REFERENCE"
+   ],
+   "method": "wilson_lower",
+   "min": 0.85
+  },
+  "review_path": "plans/261010-1309-contract-graph-recall-remediation/reports/hg2-review.md",
+  "review_sha256": "cf98e2b7ae31ef5dcd8c91963b1beebfc4a125b7e1bb9d5bce7867a6c4fd82c5",
+  "schema": "contract-graph-hg2/1",
+  "scope_consent": true,
+  "selection_n_rows": 474,
+  "selection_path": "review/hg2_selection.jsonl",
+  "selection_sha256": "7488c8422f53f326042672bba81366d377a0a93027991cb610598ff5d94be896",
+  "sizing_path": "plans/261010-1309-contract-graph-recall-remediation/reports/hg2-sizing.json",
+  "sizing_sha256": "698966afeaa6b4210c7a896dbf9e46f60cd39dd3083e0f03df65ace01f316233",
+  "status": "PASS"
  },
  "labeler": {
   "family": "openai",

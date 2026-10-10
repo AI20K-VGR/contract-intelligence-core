@@ -243,12 +243,17 @@ def _selection_hg1(data_dir: Path, frozen: dict) -> list[dict]:
 def _hg2_universe(data_dir: Path, frozen: dict) -> dict[str, dict]:
     universe = {}
     labels = {}
+    extension = (frozen.get("extension_s4") or {}).get("files", {})
     for item in _heldout(data_dir, frozen, manifest.REPO_MANIFEST):
         for pair in item["pool"]:
             if pair["pair_id"] in universe:
                 _blocked("heldout pool has duplicate pair_id")
             universe[pair["pair_id"]] = pair
-        for label in item["labels"]:
+        label_rows = list(item["labels"])
+        doc_id = item["doc"]["doc_id"]
+        if doc_id in extension:
+            label_rows += manifest.read_jsonl(data_dir / "heldout" / doc_id / "labels.s4.gpt.jsonl")
+        for label in label_rows:
             labels[label["pair_id"]] = label
     return {"pairs": universe, "labels": labels}
 
@@ -366,6 +371,14 @@ def lock_hg2(data_dir: Path, *, repo_manifest: Path = manifest.REPO_MANIFEST,
         sizing = manifest.read_json(sizing_path)
     except (OSError, ValueError, TypeError):
         _blocked("HG-2 receipt artifacts are invalid")
+    receipt = receipt.replace("- Status: `PENDING_HUMAN_APPROVAL`", "- Status: `PASS`", 1)
+    receipt = receipt.replace("- `human_approved`: `false`", "- `human_approved`: `true`", 1)
+    receipt = receipt.replace("- `manifest_locked`: `false`", "- `manifest_locked`: `true`", 1)
+    receipt = receipt.replace(
+        "all 474 GPT suggestions are `UNRELATED`; no decision is prefilled.",
+        "all 474 GPT suggestions are `UNRELATED`; the human-confirmed decisions are recorded below.",
+        1,
+    )
     receipt += (
         "\n## Human decision recorded\n\n"
         "- Status: `PASS`\n"
@@ -386,6 +399,11 @@ def lock_hg2(data_dir: Path, *, repo_manifest: Path = manifest.REPO_MANIFEST,
                                                    "labels": list(SCORED)},
                                  "scope_consent": True, "n_selected": len(decisions),
                                  "approved_by_label": approved_by_label}
+    proposal = sizing.get("proposal")
+    if isinstance(proposal, dict):
+        proposal["decisions_recorded"] = True
+        proposal["human_action"] = "human-confirmed decisions recorded; HG-2 lock is PASS"
+    sizing["note"] = "HG-2 PASS is locked with explicit human decisions; additional counts remain lower bounds."
     manifest.write_json(sizing_path, sizing)
     lock = {"schema": HG2_SCHEMA, "status": "PASS", "human_approved": True,
             "manifest_locked": True, "review_path": HG2_REVIEW_PATH.as_posix(),
