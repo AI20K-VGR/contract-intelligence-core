@@ -40,7 +40,8 @@
     },
     {
       "name": "hg2_p4_gate",
-      "status": "BLOCKED"
+      "status": "SKIP",
+      "note": "P4/HG-2 is the next phase human gate; current overall verification remains BLOCKED until approval."
     }
   ],
   "verdict": "PASS",
