@@ -113,3 +113,4 @@ Kế hoạch này cần human approval trước khi cook. Sau approval, chạy P
 - VL-9: Final review found and the cook fixed two provenance bypasses: reviewed rejects now count as observed false-DUPLICATE evidence, and held-out HG-1 rows require strict user-review schema. Eval `257 passed, 1 skipped`, AI focused `144 passed`, Ruff and manifest verification pass. P4/HG-2 remains the only human gate.
 
 - VL-10 | 2026-10-10 | Final code review `PASS`; HG-1 loader hardening rejects duplicate selection IDs, P3 report/manifest fingerprints refreshed, and P3 verification is `PASS`. P4/HG-2 remains the sole human gate; P5 runtime stays off.
+- VL-11 | 2026-10-10 | HG-2 packet prepared from 474 previously unselected held-out rows (`S1=66`, `S2=10`, `S3=384`, `S4=14`), selection SHA `7488c8422f53f326042672bba81366d377a0a93027991cb610598ff5d94be896`; all decisions remain blank and HG-2 is not approved.
