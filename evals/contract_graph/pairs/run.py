@@ -15,6 +15,7 @@ P2 (luồng 2 candidates, HG-1 sheet):
   python -m evals.contract_graph.pairs.run extend-heldout [--env-file F]   # S4 + GPT labels
   python -m evals.contract_graph.pairs.run review-select   # locks the sample in manifest.json
   python -m evals.contract_graph.pairs.run review-export   # sheet from the locked sample only
+  python -m evals.contract_graph.pairs.run recall-diagnostic  # P1 snapshot taxonomy
 
 ``--data-dir`` defaults to ``$AI2_CG_PAIRS_DATA_DIR`` then ``.harness/state/contract-graph-pairs``;
 every writing command checks first that it is git-ignored and outside tracked trees (exit 2).
@@ -79,11 +80,26 @@ def main(argv: list[str] | None = None) -> int:
     predict.add_argument("--allow-heldout", action="store_true")
     predict.add_argument("--env-file", type=Path, default=None)
     predict.add_argument("--prompt-rounds", type=int, choices=range(4), default=0)
+    predict.add_argument("--dev-review", type=Path, default=None,
+                         help="explicit user-reviewed dev decisions JSONL; without it dev remains blocked")
     predict.add_argument("--report-prefix", type=Path, default=CLASSIFIER_REPORT)
+    diagnostic = sub.add_parser("recall-diagnostic")
+    diagnostic.add_argument("--data-dir", type=Path, default=None)
+    diagnostic.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+    diagnostic.add_argument("--snapshot-dir", type=Path, required=True)
+    diagnostic.add_argument("--report-prefix", type=Path,
+                            default=PAIRS_DIR.parent / "reports/l2-p6-recall-diagnostic")
+    diagnostic.add_argument("--variants", nargs="+", choices=("B", "C", "E"),
+                            default=("B", "C", "E"))
+    diagnostic.add_argument("--trials", nargs="+", type=int, default=(1, 2))
     imported = sub.add_parser("review-import")
     imported.add_argument("--csv", type=Path, required=True)
     imported.add_argument("--data-dir", type=Path, default=None)
     imported.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+    dev_locked = sub.add_parser("review-dev-lock")
+    dev_locked.add_argument("--dev-review", type=Path, required=True)
+    dev_locked.add_argument("--data-dir", type=Path, default=None)
+    dev_locked.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
     bake = sub.add_parser("bakeoff")
     bake_commands = bake.add_subparsers(dest="bakeoff_command", required=True)
     for name in ("run", "metric", "decide", "preflight-checks"):
@@ -122,10 +138,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     if args.command == "verify":
         return _verify(args)
-    if args.command in {"review-import", "bakeoff"}:
+    if args.command in {"review-import", "review-dev-lock", "bakeoff"}:
         return _bakeoff(args)
     if args.command == "predict":
         return _predict(args)
+    if args.command == "recall-diagnostic":
+        return _recall_diagnostic(args)
     manifest.ensure_outside_repo(args.data_dir)
     return {
         "fetch": _fetch, "build": _build, "cluster": _cluster, "pool": _pool,
@@ -141,6 +159,8 @@ def _bakeoff(args: argparse.Namespace) -> int:
     from evals.contract_graph.pairs import bakeoff
 
     try:
+        if args.command == "review-dev-lock":
+            return _review_dev_lock(args)
         if args.command == "review-import":
             manifest.ensure_outside_repo(args.data_dir)
             locked = bakeoff.import_review(args.data_dir, args.csv, repo_manifest=args.manifest)
@@ -180,12 +200,65 @@ def _bakeoff(args: argparse.Namespace) -> int:
         return 2
 
 
+def _review_dev_lock(args: argparse.Namespace) -> int:
+    """Lock an externally reviewed dev decision file into the tracked manifest."""
+    from evals.contract_graph.pairs import bakeoff, predictor
+
+    try:
+        manifest.ensure_outside_repo(args.data_dir)
+        review_path = Path(args.dev_review).resolve()
+        review_root = (Path(args.data_dir) / "review").resolve()
+        review_path.relative_to(review_root)
+        docs = manifest.read_split(args.data_dir, "dev", args.manifest)
+        decisions, digest, approved_by_label = predictor._parse_dev_review(review_path, docs)
+        frozen = manifest.read_json(args.manifest)
+        lock = {"schema": predictor.DEV_REVIEW_SCHEMA, "sha256": digest, "n_rows": len(decisions),
+                "approved_by_label": approved_by_label}
+        if frozen.get("dev_review") not in (None, lock):
+            print("dev BLOCKED: an existing dev review lock differs; refusing replacement", file=sys.stderr)
+            return 2
+        report_path = manifest.REPO_ROOT / bakeoff.DEV_REPORT_PATH
+        report_lock = None
+        if report_path.is_file():
+            report = manifest.read_json(report_path)
+            report_review = report.get("dev_review") if isinstance(report, dict) else None
+            report_ready = (isinstance(report_review, dict)
+                            and report.get("status") == "OBSERVED"
+                            and report.get("evaluation_gate") == "PASS"
+                            and report_review.get("sha256") == digest
+                            and report_review.get("manifest_locked") is True
+                            and report.get("report_sha256") == predictor.report_digest(report))
+            if report_ready:
+                report_lock = {"schema": bakeoff.DEV_REPORT_LOCK_SCHEMA,
+                               "path": bakeoff.DEV_REPORT_PATH.as_posix(),
+                               "sha256": manifest.file_digest(report_path)}
+                if frozen.get("dev_report") not in (None, report_lock):
+                    print("dev BLOCKED: an existing dev report lock differs; refusing replacement", file=sys.stderr)
+                    return 2
+            else:
+                # The first invocation records the human review lock.  The next
+                # predict invocation regenerates the report with manifest_locked=true,
+                # after which this command can lock the report digest as well.
+                frozen.pop("dev_report", None)
+        frozen["dev_review"] = lock
+        if report_lock is not None:
+            frozen["dev_report"] = report_lock
+        manifest.write_json(args.manifest, frozen)
+    except (OSError, ValueError, KeyError, SystemExit):
+        print("dev BLOCKED: could not validate or lock reviewed dev gold", file=sys.stderr)
+        return 2
+    import json
+    result = {"dev_review": lock}
+    if report_lock is not None:
+        result["dev_report"] = report_lock
+    print(json.dumps(result, sort_keys=True))
+    return 0
+
+
 def _predict(args: argparse.Namespace) -> int:
     if str(corpus.AI_SERVICE) not in sys.path:
         sys.path.insert(0, str(corpus.AI_SERVICE))
-    from app.llm.client import NineRouterClient
-
-    from evals.contract_graph.pairs import predictor
+    from evals.contract_graph.pairs import bakeoff, predictor
 
     if args.env_file is not None:
         from dotenv import load_dotenv
@@ -195,13 +268,51 @@ def _predict(args: argparse.Namespace) -> int:
     if problems:
         print("predict BLOCKED: frozen dataset missing or does not match manifest", file=sys.stderr)
         return 2
+    if args.split == "heldout":
+        # Keep the CLI path behind the same P3/P4/commit lock as bakeoff.run.
+        # This must happen before constructing a network client or reading held-out
+        # documents, otherwise --allow-heldout becomes a tuning bypass.
+        try:
+            bakeoff.preconditions(args.data_dir, repo_manifest=args.manifest,
+                                  served_model=args.model)
+        except SystemExit as exc:
+            return int(exc.code)
+    from app.llm.client import NineRouterClient
+
     report = predictor.predict_split(args.data_dir, split=args.split, variant=args.variant,
                                       llm=NineRouterClient(), model=args.model,
                                       repo_manifest=args.manifest, allow_heldout=args.allow_heldout,
-                                      prompt_rounds=args.prompt_rounds)
+                                      prompt_rounds=args.prompt_rounds, dev_review=args.dev_review)
     manifest.write_json(args.report_prefix.with_suffix(".json"), report)
     args.report_prefix.with_suffix(".md").write_text(predictor.render_report(report), encoding="utf-8")
+    p3_gate = report.get("p3_classifier_gate") or {}
+    if (report.get("status") != "OBSERVED" or report.get("evaluation_gate") != "PASS"
+            or (args.split == "dev" and p3_gate.get("status") != "PASS")):
+        reason = report.get("evaluation_gate", "unknown gate")
+        if reason == "PASS" and p3_gate.get("status") != "PASS":
+            reason = "P3_CLASSIFIER_GATE_" + str(p3_gate.get("status", "UNKNOWN"))
+        print(f"predict BLOCKED: {reason}", file=sys.stderr)
+        return 2
     print(f"predict {args.variant}/{args.split}: {report['n_pred']} relations, {report['prompt_version']}")
+    return 0
+
+
+def _recall_diagnostic(args: argparse.Namespace) -> int:
+    from evals.contract_graph.pairs import recall_diagnostic
+
+    try:
+        report = recall_diagnostic.diagnose_snapshots(
+            args.snapshot_dir,
+            data_dir=args.data_dir,
+            repo_manifest=args.manifest,
+            variants=args.variants,
+            trials=args.trials,
+        )
+        paths = recall_diagnostic.write_report(report, args.report_prefix)
+    except (OSError, ValueError, KeyError, SystemExit):
+        print("recall-diagnostic BLOCKED: frozen inputs or snapshots are invalid", file=sys.stderr)
+        return 2
+    print(f"recall-diagnostic: {paths[0]} {paths[1]}")
     return 0
 
 
@@ -574,6 +685,16 @@ def _candidates(args: argparse.Namespace) -> int:
     from evals.contract_graph.pairs import candidate_eval as ce
 
     report = ce.measure_dev(manifest.read_split(args.data_dir, "dev", args.manifest))
+    prior_path = Path(args.report_prefix).with_suffix(".json")
+    prior = manifest.read_json(prior_path) if prior_path.is_file() else {}
+    frozen = manifest.read_json(args.manifest)
+    extension = frozen.get("extension_s4") or {}
+    locked_review = frozen.get("review_selection") or {}
+    s4 = prior.get("s4") or ({k: extension[k] for k in
+                               ("n_pairs", "labels_by_label", "labeler", "top_k", "candidates_version")
+                               if k in extension} if extension else None)
+    review = prior.get("review") or ({k: locked_review[k] for k in ("n_rows", "by_stratum", "by_label")
+                                      if k in locked_review} if locked_review else None)
     passed_at_k = {int(k): v["passed"] for k, v in report["recall_at_k"].items()}
     rule_k, reason = ce.choose_top_k(passed_at_k, report["recall_full"]["passed"])
     chosen = rule_k
@@ -588,8 +709,9 @@ def _candidates(args: argparse.Namespace) -> int:
         "pairs_top_k_chosen": chosen,
         "k_choice_reason": reason,
         "tuning_rounds": args.tuning_rounds,
-        "s4": None,
-        "review": None,
+        "s4": s4,
+        "review": review,
+        "engineering_target": ce.assess_engineering_target(report),
     })
     _write_report(args.report_prefix, report)
     print(f"dev recall {report['recall_full']['passed']}/{report['recall_full']['denominator']}; "
@@ -664,6 +786,17 @@ def render_candidates(report: dict) -> str:
     lines += [f"| {s} | {_fmt(v)} |" for s, v in report["by_stratum"].items()]
     lines += ["", "## Theo nhãn GPT", "", "| nhãn | recall |", "| --- | --- |"]
     lines += [f"| {lab} | {_fmt(v)} |" for lab, v in report["by_label"].items()]
+    target = report.get("engineering_target")
+    if target:
+        lines += ["", "## Engineering target va quyet dinh", "",
+                  f"- Muc tieu theo label: >= {target['target_rate']:.2f} tren dev.",
+                  f"- Ket qua: **{'dat' if target['met'] else 'chua dat'}**.",
+                  f"- Quyet dinh: `{target['decision']['status']}`; ly do `{', '.join(target['decision']['reason_codes']) or 'none'}`.",
+                  "", "| label | covered | denominator | required | gap | target |",
+                  "| --- | ---: | ---: | ---: | ---: | --- |"]
+        lines += [f"| {lab} | {cell['passed']} | {cell['denominator']} | {cell['required_for_target']} | "
+                  f"{cell['gap']} | {'yes' if cell['target_met'] else 'no'} |"
+                  for lab, cell in target["by_label"].items()]
     lines += ["", "## Held-out S4 và phiếu HG-1", ""]
     s4, rv = report.get("s4"), report.get("review")
     lines.append(f"- S4 (B ∪ C − pool): {s4['n_pairs']} cặp, nhãn {s4['labels_by_label']}."

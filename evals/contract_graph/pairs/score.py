@@ -42,7 +42,15 @@ def score_relations(
     gold_by = {
         g["pair_id"]: g
         for g in gold
-        if g.get("gold_label") is not None and (g.get("approved") or not approved_only)
+        if g.get("gold_label") is not None and (g.get("approved") is True or not approved_only)
+    }
+    # A reviewed rejection is still human evidence that a predicted relation is
+    # false. Keep it out of recall gold, but include it in the observed
+    # false-duplicate veto. Unreviewed GPT suggestions remain separate.
+    reviewed_by = {
+        g["pair_id"]: g
+        for g in gold
+        if g.get("source") == "user-review"
     }
     sel = {s["pair_id"]: s for s in selection} if selection is not None else None
     meta: dict[str, dict] = {}
@@ -79,8 +87,8 @@ def score_relations(
         "by_doc": split("doc_id"),
         "false_duplicate": {
             "observed": sum(1 for p in duplicates
-                            if p in gold_by and gold_by[p]["gold_label"] != "DUPLICATE"),
-            "unreviewed": sum(1 for p in duplicates if p not in gold_by),
+                            if p in reviewed_by and reviewed_by[p].get("gold_label") != "DUPLICATE"),
+            "unreviewed": sum(1 for p in duplicates if p not in reviewed_by),
         },
     }
 

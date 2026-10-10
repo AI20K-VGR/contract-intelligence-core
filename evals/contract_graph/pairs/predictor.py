@@ -57,6 +57,45 @@ from app.pipeline.runtime import ProcessingRuntime
 from app.tools.store import DossierRecord
 
 _MANIFEST_LABELER = object()
+REPORT_SCHEMA = "contract-graph-pairs-predictor/2"
+SCORING_SCHEMA = "contract-graph-pairs-score/1"
+P3_GATE_SCHEMA = "contract-graph-p3-classifier-gate/1"
+DEV_REVIEW_SCHEMA = "contract-graph-dev-review/1"
+
+
+def code_fingerprints() -> dict[str, str]:
+    paths = [AI_SERVICE / "app/pipeline/contract_graph" / name
+             for name in ("pair_candidates.py", "pair_classifier.py", "pair_builder.py")]
+    paths += [Path(__file__), Path(__file__).with_name("bakeoff.py"), Path(__file__).with_name("score.py"),
+              AI_SERVICE / "app/llm/client.py"]
+    return {path.name: file_digest(path) for path in paths}
+
+
+def report_digest(report: dict) -> str:
+    """Return the canonical digest of a report, excluding its self digest."""
+    payload = {key: value for key, value in report.items() if key != "report_sha256"}
+    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _classifier_gate(scored: dict, evaluation_gate: str) -> dict:
+    required_labels = {}
+    reasons = []
+    for label in ("CONFLICT", "DUPLICATE"):
+        recall = scored["by_label"][label]["recall_observed"]
+        required_labels[label] = {"gold_positive": recall["denominator"], "correct": recall["passed"]}
+        if recall["denominator"] <= 0:
+            reasons.append(f"missing_{label.lower()}_gold")
+        elif recall["passed"] <= 0:
+            reasons.append(f"zero_{label.lower()}_recall")
+    false_duplicate = scored["false_duplicate"]["observed"]
+    if false_duplicate:
+        reasons.append("false_duplicate_observed")
+    if evaluation_gate != "PASS":
+        reasons.append("evaluation_gate_not_pass")
+    return {"schema": P3_GATE_SCHEMA, "status": "PASS" if not reasons else "BLOCKED",
+            "required_labels": required_labels, "false_duplicate_observed": false_duplicate,
+            "reason_codes": reasons}
 
 
 def _family_error() -> None:
@@ -227,29 +266,73 @@ def cluster_intervals(by_cluster: dict) -> dict:
 
 def build_report(
     results: list[dict], gold: list[dict], *, split: str, variant: str, prompt_rounds: int,
+    review_provenance: dict | None = None,
 ) -> dict:
     if not 0 <= prompt_rounds <= 3:
         raise ValueError("prompt_rounds must be 0..3")
     predictions = [p for result in results for p in result["predictions"]]
-    scored = score_relations(gold, predictions, approved_only=(split == "heldout"))
+    # GPT labels remain calibration suggestions until a human records an approval.  The
+    # production metric always uses reviewed gold; dev keeps a weak-label diagnostic below,
+    # but it can never close a recall gate.
+    reviewed = [row.get("source") == "user-review" and isinstance(row.get("approved"), bool)
+                for row in gold]
+    approved_gold = sum(is_reviewed and row.get("approved") is True
+                        for row, is_reviewed in zip(gold, reviewed))
+    # A reviewed rejection is a deliberate negative decision, not unreviewed GPT
+    # gold.  Only rows outside the user-review provenance can block the dev gate.
+    unapproved_gold = sum(not is_reviewed and isinstance(row.get("approved"), bool)
+                          for row, is_reviewed in zip(gold, reviewed))
+    invalid_approval = sum(not isinstance(row.get("approved"), bool) for row in gold)
+    scored_gold = [{**row, "approved": row.get("approved") is True and is_reviewed}
+                   for row, is_reviewed in zip(gold, reviewed)]
+    scored = score_relations(scored_gold, predictions, approved_only=True)
+    weak_scored = score_relations(gold, predictions, approved_only=False) if (unapproved_gold or invalid_approval) else None
+    if split == "dev" and invalid_approval:
+        evaluation_gate = "BLOCKED_INVALID_GOLD_APPROVAL"
+    elif split == "dev" and unapproved_gold:
+        evaluation_gate = "BLOCKED_UNREVIEWED_DEV_GOLD"
+    elif split == "dev" and not approved_gold:
+        evaluation_gate = "BLOCKED_MISSING_DEV_GOLD"
+    else:
+        evaluation_gate = "PASS"
     rejected: Counter = Counter()
     for result in results:
         rejected.update(result["stats"].get("rejected", {}))
+    rejection_reason_versions = sorted({
+        version for result in results
+        if isinstance((version := result["stats"].get("rejection_reason_version")), str)
+    })
     clusters = {r["cluster_id"] for r in results}
     by_cluster = {}
     for cluster in sorted(clusters):
         ids = {r["doc_id"] for r in results if r["cluster_id"] == cluster}
-        by_cluster[cluster] = score_relations([g for g in gold if g.get("doc_id") in ids],
+        by_cluster[cluster] = score_relations([g for g in scored_gold if g.get("doc_id") in ids],
                                              [p for p in predictions if p["doc_id"] in ids],
-                                             approved_only=(split == "heldout"))["by_label"]
+                                             approved_only=True)["by_label"]
     served = sorted({r["stats"]["served_model"] for r in results if r["stats"].get("served_model")})
-    return {**scored, "status": "OBSERVED", "split": split, "variant": variant,
-            "ground_truth": "gpt-labels (approved=false), dev" if split == "dev" else "reviewed gold (approved=true), heldout",
+    p3_classifier_gate = (_classifier_gate(scored, evaluation_gate) if split == "dev" else
+                          {"schema": P3_GATE_SCHEMA, "status": "NOT_APPLICABLE", "required_labels": {},
+                           "false_duplicate_observed": scored["false_duplicate"]["observed"], "reason_codes": []})
+    report = {**scored, "schema": REPORT_SCHEMA, "scoring_schema": SCORING_SCHEMA,
+            "code_sha256": code_fingerprints(),
+            "status": ("BLOCKED" if evaluation_gate != "PASS"
+                       or (split == "dev" and p3_classifier_gate["status"] != "PASS") else "OBSERVED"),
+            "split": split, "variant": variant,
+            "ground_truth": ("unreviewed GPT suggestions (calibration only), dev"
+                              if split == "dev" and (unapproved_gold or invalid_approval)
+                              else "no reviewed gold, dev" if split == "dev" and not approved_gold
+                              else "reviewed gold (approved=true), dev" if split == "dev"
+                              else "reviewed gold (approved=true), heldout"),
+            "evaluation_gate": evaluation_gate,
+            "gold_provenance": {"approved": approved_gold, "unapproved": unapproved_gold,
+                                "invalid_approval": invalid_approval, "scoring": "approved_only"},
+            "p3_classifier_gate": p3_classifier_gate,
             "by_cluster": by_cluster, "cluster_intervals": cluster_intervals(by_cluster),
             "direction_accuracy": {label: block["direction_accuracy"]
                                                               for label, block in scored["by_label"].items()
                                                               if block["direction_accuracy"] is not None},
             "rejected": dict(sorted(rejected.items())),
+            "rejection_reason_versions": rejection_reason_versions,
             "injection_signals": sum(r["stats"].get("injection_signals", 0) for r in results),
             "tokens_per_doc": {r["doc_id"]: {"prompt": r["stats"]["prompt_tokens"],
                                              "completion": r["stats"]["completion_tokens"]} for r in results},
@@ -261,37 +344,135 @@ def build_report(
                                    "note": "Ước tính [ASSUMED] 10–16k token/hồ sơ; token thực ghi riêng."},
             "documents": [{k: r[k] for k in ("doc_id", "cluster_id", "mode", "rule_only_reason", "batches_completed")}
                           for r in results]}
+    if review_provenance is not None:
+        report["dev_review"] = review_provenance
+    if weak_scored is not None:
+        report["unreviewed_diagnostic"] = {
+            "n_gold": weak_scored["n_gold"],
+            "by_label": weak_scored["by_label"],
+            "false_duplicate": weak_scored["false_duplicate"],
+            "note": "Chá»‰ dÃ¹ng Ä‘á»ƒ cháº©n Ä‘oÃ¡n; khÃ´ng dÃ¹ng lÃ  gold hay gate.",
+        }
+    report["report_sha256"] = report_digest(report)
+    return report
 
 
 def render_report(report: dict) -> str:
     lines = ["# P3 — bộ phân loại cặp dev", "", f"Trạng thái: `{report['status']}`.", "",
              f"Ground truth: {report['ground_truth']}.",
+             (f"Evaluation gate: `{report.get('evaluation_gate', 'UNKNOWN')}`; gold provenance: "
+              f"approved={report.get('gold_provenance', {}).get('approved', 0)}, "
+              f"unapproved={report.get('gold_provenance', {}).get('unapproved', 0)}."),
+             f"P3 classifier gate: `{report.get('p3_classifier_gate', {}).get('status', 'UNKNOWN')}`.",
              f"Prompt: `{report['prompt_version']}`; vòng chỉnh: {report['prompt_rounds']}.",
-             f"Model phục vụ: {', '.join(report['served_model']) or 'chưa quan sát'}.", ""]
+             f"Model phục vụ: {', '.join(report['served_model']) or 'chưa quan sát'}.",
+             f"Rejection reason: {', '.join(report.get('rejection_reason_versions', [])) or 'chưa quan sát'}.", ""]
     if report.get("blocked_reasons"):
         lines.extend(f"- {reason}" for reason in report["blocked_reasons"])
     lines += ["", "Số đo (k/n, Wilson95, cụm, token, latency):", "", "```json",
               json.dumps({k: report[k] for k in ("by_label", "by_cluster", "cluster_intervals", "false_duplicate", "direction_accuracy",
                                                 "rejected", "injection_signals", "tokens_per_doc", "calls_per_doc",
                                                 "latency_ms")}, ensure_ascii=False, indent=2), "```", ""]
+    if report.get("unreviewed_diagnostic"):
+        lines += ["", "Weak-label diagnostic (khÃ´ng dÃ¹ng Ä‘á»ƒ Ä‘Ã³ng gate):", "", "```json",
+                  json.dumps(report["unreviewed_diagnostic"], ensure_ascii=False, indent=2), "```", ""]
     return "\n".join(lines)
+
+
+def _parse_dev_review(path: Path, docs: list[dict]) -> tuple[list[dict], str, dict[str, int]]:
+    """Read an explicit user-reviewed dev decision file.
+
+    Dev GPT labels are deliberately never promoted implicitly.  The optional JSONL
+    file is the only path that can make the dev evaluation gate observable.  It
+    contains one decision per audited pair and is fingerprinted into the report;
+    callers must provide ``source=user-review`` and a real boolean ``approved``.
+    """
+    path = Path(path)
+    if not path.is_file():
+        print("dev BLOCKED: reviewed decision file is missing", file=sys.stderr)
+        raise SystemExit(2)
+    try:
+        rows = manifest.read_jsonl(path)
+    except (OSError, ValueError, TypeError):
+        print("dev BLOCKED: reviewed decision file is invalid", file=sys.stderr)
+        raise SystemExit(2) from None
+    pool_by: dict[str, tuple[str, str]] = {}
+    for item in docs:
+        doc_id = item["doc"]["doc_id"]
+        for pair in item["pool"]:
+            pair_id = pair.get("pair_id")
+            if not isinstance(pair_id, str) or pair_id in pool_by:
+                print("dev BLOCKED: dev pool has duplicate or invalid pair_id", file=sys.stderr)
+                raise SystemExit(2)
+            pool_by[pair_id] = (doc_id, pair["stratum"])
+    decisions: list[dict] = []
+    seen: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            print("dev BLOCKED: every reviewed decision must be a JSON object", file=sys.stderr)
+            raise SystemExit(2)
+        pair_id = row.get("pair_id")
+        if not isinstance(pair_id, str) or not pair_id or pair_id in seen or pair_id not in pool_by:
+            print("dev BLOCKED: reviewed decision IDs do not match the dev pool", file=sys.stderr)
+            raise SystemExit(2)
+        seen.add(pair_id)
+        approved = row.get("approved")
+        label = row.get("gold_label")
+        direction = row.get("gold_direction")
+        if (not isinstance(approved, bool) or row.get("source") != "user-review"
+                or (approved and label not in review.LABELS)
+                or (approved and label in review.DIRECTED and direction not in review.DIRECTIONS)
+                or (approved and label not in review.DIRECTED and direction is not None)
+                or (not approved and (label is not None or direction is not None))):
+            print("dev BLOCKED: reviewed decisions have invalid label, direction or approval", file=sys.stderr)
+            raise SystemExit(2)
+        doc_id, stratum = pool_by[pair_id]
+        decisions.append({"pair_id": pair_id, "doc_id": doc_id, "stratum": stratum,
+                          "gold_label": label, "gold_direction": direction,
+                          "approved": approved, "source": "user-review"})
+    if not decisions:
+        print("dev BLOCKED: reviewed decision file is empty", file=sys.stderr)
+        raise SystemExit(2)
+    approved_by_label = Counter(row["gold_label"] for row in decisions if row["approved"])
+    if any(approved_by_label[label] < 1 for label in ("CONFLICT", "DUPLICATE")):
+        print("dev BLOCKED: reviewed dev gold needs an approved CONFLICT and DUPLICATE", file=sys.stderr)
+        raise SystemExit(2)
+    return decisions, file_digest(path), dict(sorted(approved_by_label.items()))
+
+
+def _read_reviewed_dev_gold(path: Path, docs: list[dict], frozen: dict) -> tuple[list[dict], dict]:
+    decisions, digest, approved_by_label = _parse_dev_review(path, docs)
+    locked = frozen.get("dev_review")
+    if (not isinstance(locked, dict) or locked.get("schema") != DEV_REVIEW_SCHEMA
+            or locked.get("sha256") != digest or locked.get("n_rows") != len(decisions)
+            or locked.get("approved_by_label") != approved_by_label):
+        print("dev BLOCKED: reviewed dev gold is not locked in the manifest", file=sys.stderr)
+        raise SystemExit(2)
+    return decisions, {"schema": DEV_REVIEW_SCHEMA, "sha256": digest, "n_rows": len(decisions),
+                       "approved_by_label": approved_by_label, "source": "user-review",
+                       "manifest_locked": True}
 
 
 def predict_split(
     data_dir: Path, *, split: str, variant: str, llm: Any, model: str,
     repo_manifest: Path = manifest.REPO_MANIFEST, allow_heldout: bool = False, prompt_rounds: int = 0,
+    dev_review: Path | None = None,
 ) -> dict:
     if split == "heldout" and not allow_heldout:
         print("heldout predictions require --allow-heldout (P5)", file=sys.stderr)
         raise SystemExit(2)
     if split not in {"dev", "heldout"}:
         raise ValueError("split must be dev or heldout")
+    if dev_review is not None and split != "dev":
+        raise ValueError("--dev-review is valid only for the dev split")
     docs = manifest.read_split(data_dir, split, repo_manifest)
     frozen = manifest.read_json(repo_manifest)
     labeler_model = frozen.get("labeler", {}).get("served_model")
     if not isinstance(labeler_model, str) or family(labeler_model) != OPENAI:
         _family_error()
     reviewed = _read_reviewed_gold(data_dir, frozen) if split == "heldout" else None
+    reviewed_dev, dev_review_provenance = ((None, None) if dev_review is None
+                                           else _read_reviewed_dev_gold(dev_review, docs, frozen))
     clusters = {doc_id: c["cluster_id"] for c in frozen.get("clusters", []) for doc_id in c["doc_ids"]}
     results, gold = [], []
     extension = frozen.get("extension_s4", {}).get("files", {})
@@ -312,8 +493,9 @@ def predict_split(
             gold.append({"pair_id": label["pair_id"], "doc_id": doc["doc_id"], "stratum": row["stratum"],
                          "gold_label": label["label"], "gold_direction": label.get("general") or label.get("referrer"),
                          "approved": False, "source": "gpt"})
-    return build_report(results, reviewed if reviewed is not None else gold,
-                        split=split, variant=variant, prompt_rounds=prompt_rounds)
+    report_gold = reviewed if reviewed is not None else reviewed_dev if reviewed_dev is not None else gold
+    return build_report(results, report_gold, split=split, variant=variant,
+                        prompt_rounds=prompt_rounds, review_provenance=dev_review_provenance)
 
 
 def _read_reviewed_gold(data_dir: Path, frozen: dict) -> list[dict]:
@@ -332,17 +514,34 @@ def _read_reviewed_gold(data_dir: Path, frozen: dict) -> list[dict]:
     except (OSError, ValueError):
         print("heldout BLOCKED: HG-1 review incomplete or invalid", file=sys.stderr)
         raise SystemExit(2) from None
+    if (any(not isinstance(row, dict) for row in rows)
+            or any(not isinstance(row.get("pair_id"), str) or not row["pair_id"]
+                   or not isinstance(row.get("doc_id"), str) or not row["doc_id"]
+                   or not isinstance(row.get("stratum"), str) or not row["stratum"]
+                   or not isinstance(row.get("pi"), (int, float)) or isinstance(row["pi"], bool)
+                   or not 0 < row["pi"] <= 1 for row in rows)):
+        print("heldout BLOCKED: HG-1 selection rows invalid", file=sys.stderr)
+        raise SystemExit(2)
+    if any(not isinstance(decision, dict)
+           or not isinstance(decision.get("pair_id"), str) or not decision["pair_id"]
+           for decision in decisions):
+        print("heldout BLOCKED: HG-1 decision rows invalid", file=sys.stderr)
+        raise SystemExit(2)
     by_id = {r["pair_id"]: r for r in rows}
     decision_ids = [d["pair_id"] for d in decisions]
-    if (len(by_id) != locked.get("n_rows") or len(decisions) != reviewed.get("n_selected")
+    if (len(rows) != len(by_id) or len(by_id) != locked.get("n_rows")
+            or len(decisions) != reviewed.get("n_selected")
             or len(decision_ids) != len(set(decision_ids)) or set(decision_ids) != set(by_id)):
         print("heldout BLOCKED: HG-1 decisions do not match locked selection", file=sys.stderr)
         raise SystemExit(2)
     for decision in decisions:
         label, direction = decision.get("gold_label"), decision.get("gold_direction")
         if (not isinstance(decision.get("approved"), bool)
+                or decision.get("source") != "user-review"
                 or (decision["approved"] and label not in review.LABELS)
-                or (decision["approved"] and label in review.DIRECTED and direction not in {"A", "B"})):
+                or (decision["approved"] and label in review.DIRECTED and direction not in {"A", "B"})
+                or (decision["approved"] and label not in review.DIRECTED and direction is not None)
+                or (not decision["approved"] and (label is not None or direction is not None))):
             print("heldout BLOCKED: reviewed decisions invalid", file=sys.stderr)
             raise SystemExit(2)
     return [{**d, "doc_id": by_id[d["pair_id"]]["doc_id"], "stratum": by_id[d["pair_id"]]["stratum"]}

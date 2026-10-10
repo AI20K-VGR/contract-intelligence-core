@@ -12,6 +12,7 @@ manifest before ``review_export`` may write the sheet.
 
 from __future__ import annotations
 
+import math
 import sys
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
@@ -39,6 +40,7 @@ from app.pipeline.contract_graph.resolver import StructureIndex  # noqa: E402
 K_GRID = (10, 20, 30, 40, 60, 80)
 UNCAPPED = 10**6
 RECALL_SHARE = 0.95
+ENGINEERING_TARGET = 0.95
 VARIANT_B = frozenset({PairSource.SAME_ARTICLE, PairSource.EXPLICIT_REF})
 GROUND_TRUTH = "gpt-labels (approved=false), dev"
 S4 = "S4"
@@ -129,6 +131,9 @@ def measure_dev(entries: Iterable[Mapping], *, k_grid: tuple[int, ...] = K_GRID)
         per_doc.append({"doc_id": doc["doc_id"], "gold": len(gold), "covered": hits,
                         "candidates": result.stats["candidates_total"]})
     counts = sorted(d["candidates"] for d in per_doc)
+    by_label = {lab: rate(cell_hits["label"][lab], n) for lab, n in sorted(cells["label"].items())}
+    by_stratum = {s: rate(cell_hits["stratum"][s], n)
+                  for s, n in sorted(cells["stratum"].items())}
     return {
         "schema": "contract-graph-pairs-candidates/1",
         "ground_truth": GROUND_TRUTH,
@@ -137,8 +142,8 @@ def measure_dev(entries: Iterable[Mapping], *, k_grid: tuple[int, ...] = K_GRID)
         "recall_full": rate(covered["passed"], n_gold),
         "by_source": {s.value: rate(by_source[s.value], n_gold) for s in PairSource},
         "by_source_marginal": {s.value: rate(only_source[s.value], n_gold) for s in PairSource},
-        "by_stratum": {s: rate(cell_hits["stratum"][s], n) for s, n in sorted(cells["stratum"].items())},
-        "by_label": {lab: rate(cell_hits["label"][lab], n) for lab, n in sorted(cells["label"].items())},
+        "by_stratum": by_stratum,
+        "by_label": by_label,
         "recall_at_k": {str(k): rate(at_k[k], n_gold) for k in k_grid},
         "candidates_per_doc": {
             "min": counts[0] if counts else 0,
@@ -148,6 +153,54 @@ def measure_dev(entries: Iterable[Mapping], *, k_grid: tuple[int, ...] = K_GRID)
         },
         "stats_total": dict(sorted(totals.items())),
         "per_doc": per_doc,
+    }
+
+
+def assess_engineering_target(report: Mapping) -> dict:
+    """Explain per-label coverage gaps without tuning against held-out data.
+
+    The current candidate freeze is shared with S4/HG-1. A rule change that adds pairs therefore
+    requires a new S4 extension and a fresh human review lock. This assessment records that
+    boundary instead of silently changing the held-out universe during classifier remediation.
+    """
+
+    def block(values: Mapping[str, Mapping]) -> dict:
+        out = {}
+        for name, value in sorted(values.items()):
+            denominator = int(value.get("denominator", 0))
+            passed = int(value.get("passed", 0))
+            required = math.ceil(ENGINEERING_TARGET * denominator) if denominator else 0
+            out[name] = {
+                "passed": passed,
+                "denominator": denominator,
+                "required_for_target": required,
+                "gap": max(0, required - passed),
+                "target_met": passed >= required,
+            }
+        return out
+
+    by_label = block(report.get("by_label", {}))
+    by_stratum = block(report.get("by_stratum", {}))
+    met = bool(by_label) and all(value["target_met"] for value in by_label.values())
+    return {
+        "target_rate": ENGINEERING_TARGET,
+        "scope": "dev GPT-positive labels only",
+        "met": met,
+        "by_label": by_label,
+        "by_stratum": by_stratum,
+        "decision": {
+            "status": "KEEP_CURRENT" if not met else "TARGET_MET",
+            "reason_codes": ([] if met else [
+                "dev_target_not_met",
+                "candidate_change_requires_new_s4_and_hg2_review",
+            ]),
+            "next_phase": None if met else "P3",
+            "explanation": (
+                "Giữ candidate freeze hiện tại để không làm thay đổi universe S4/HG-1; chuyển phần "
+                "mất recall còn lại sang hiệu chỉnh classifier trên cùng held-out lock."
+                if not met else "Dev coverage đạt engineering target theo từng label."
+            ),
+        },
     }
 
 

@@ -38,18 +38,55 @@ if str(predictor.AI_SERVICE) not in sys.path:
 
 from app.pipeline.contract_graph.pair_candidates import CANDIDATES_VERSION, PAIRS_TOP_K
 from app.pipeline.contract_graph.pair_classifier import PROMPT_VERSION
-from app.pipeline.contract_graph.review_policy import MIN_N, MIN_WILSON_LOWER, wilson_lower
+from app.pipeline.contract_graph.review_policy import (
+    MIN_N,
+    MIN_WILSON_LOWER,
+    wilson_lower,
+)
 
 DEV_REPORT = manifest.REPO_ROOT / "evals/contract_graph/reports/l2-p3-classifier-dev.json"
 E_MAX_PAIRS_PER_DOC = 300
 TRIALS = (1, 2)
 FINGERPRINT_FILES = ("pair_candidates.py", "pair_classifier.py", "pair_builder.py", "predictor.py", "bakeoff.py", "score.py", "client.py")
+HG2_SCHEMA = "contract-graph-hg2/1"
+DEV_REPORT_LOCK_SCHEMA = "contract-graph-dev-report-lock/1"
+DEV_REPORT_PATH = Path("evals/contract_graph/reports/l2-p3-classifier-dev.json")
+HG2_REVIEW_PATH = Path("plans/261010-1309-contract-graph-recall-remediation/reports/hg2-review.md")
+HG2_SIZING_PATH = Path("plans/261010-1309-contract-graph-recall-remediation/reports/hg2-sizing.json")
 _UNOBSERVED = object()
+
+
+def _code_fingerprints() -> dict[str, str]:
+    return predictor.code_fingerprints()
 
 
 def _blocked(reason: str) -> None:
     print(f"P5 BLOCKED: {reason}", file=sys.stderr)
     raise SystemExit(2)
+
+
+def _is_sha256(value: Any) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
+def _repo_artifact(relative: Any) -> Path | None:
+    if not isinstance(relative, str) or not relative or Path(relative).is_absolute():
+        return None
+    root = manifest.REPO_ROOT.resolve()
+    path = (root / relative).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return None
+    return path
+
+
+def _git_blob_digest(relative: str) -> str | None:
+    result = subprocess.run(["git", "-C", str(manifest.REPO_ROOT), "show", f"HEAD:{relative}"],
+                            capture_output=True, check=False)
+    if result.returncode:
+        return None
+    return hashlib.sha256(result.stdout.replace(b"\r\n", b"\n")).hexdigest()
 
 
 def _selection(data_dir: Path, frozen: dict) -> list[dict]:
@@ -124,6 +161,7 @@ def _heldout(data_dir: Path, frozen: dict, repo_manifest: Path) -> list[dict]:
 def preconditions(
     data_dir: Path, *, repo_manifest: Path = manifest.REPO_MANIFEST,
     dev_report: dict | None = None, served_model: Any = _UNOBSERVED,
+    require_commit_lock: bool = True,
 ) -> dict:
     """Offline checks; an actual served model can be supplied from the production probe."""
     data_dir = Path(data_dir)
@@ -131,11 +169,129 @@ def preconditions(
         if manifest.verify(data_dir, repo_manifest):
             _blocked("frozen dataset verification failed")
         frozen = manifest.read_json(repo_manifest)
+        locked_dev_report = frozen.get("dev_report")
+        dev_path = (_repo_artifact(locked_dev_report.get("path"))
+                    if isinstance(locked_dev_report, dict) else None)
+        if (not isinstance(locked_dev_report, dict)
+                or locked_dev_report.get("schema") != DEV_REPORT_LOCK_SCHEMA
+                or locked_dev_report.get("path") != DEV_REPORT_PATH.as_posix()
+                or dev_path is None
+                or not _is_sha256(locked_dev_report.get("sha256"))
+                or not dev_path.is_file()
+                or file_digest(dev_path) != locked_dev_report.get("sha256")):
+            _blocked("dev report artifact is missing or not manifest-locked")
+        locked_dev = manifest.read_json(dev_path)
+        dev = dev_report if dev_report is not None else locked_dev
+        if dev != locked_dev:
+            _blocked("dev report differs from manifest-locked artifact")
+        if dev.get("status") != "OBSERVED":
+            _blocked("dev report status is not OBSERVED")
+        if dev.get("evaluation_gate") != "PASS":
+            _blocked("dev evaluation gate is not PASS")
+        if dev.get("schema") != predictor.REPORT_SCHEMA or dev.get("scoring_schema") != predictor.SCORING_SCHEMA:
+            _blocked("dev report schema is stale")
+        if dev.get("code_sha256") != _code_fingerprints():
+            _blocked("dev report code fingerprint is stale")
+        if (not _is_sha256(dev.get("report_sha256"))
+                or dev.get("report_sha256") != predictor.report_digest(dev)):
+            _blocked("dev report digest is missing or stale")
+        provenance = dev.get("gold_provenance")
+        if (not isinstance(provenance, dict)
+                or any(type(provenance.get(key)) is not int for key in ("approved", "unapproved", "invalid_approval"))
+                or provenance["approved"] <= 0
+                or provenance["unapproved"] != 0
+                or provenance["invalid_approval"] != 0):
+            _blocked("dev report lacks exclusively reviewed gold")
+        p3_gate = dev.get("p3_classifier_gate")
+        required = p3_gate.get("required_labels") if isinstance(p3_gate, dict) else None
+        if (not isinstance(p3_gate, dict) or p3_gate.get("schema") != predictor.P3_GATE_SCHEMA
+                or p3_gate.get("status") != "PASS"
+                or type(p3_gate.get("false_duplicate_observed")) is not int
+                or p3_gate.get("false_duplicate_observed") != 0
+                or not isinstance(required, dict)
+                or any(not isinstance(required.get(label), dict)
+                       or type(required[label].get("gold_positive")) is not int
+                       or type(required[label].get("correct")) is not int
+                       or required[label]["gold_positive"] < 1
+                       or required[label]["correct"] < 1
+                       for label in ("CONFLICT", "DUPLICATE"))):
+            _blocked("P3 classifier gate is not satisfied")
+        by_label = dev.get("by_label")
+        false_duplicate = dev.get("false_duplicate")
+        if (not isinstance(by_label, dict) or not isinstance(false_duplicate, dict)
+                or type(false_duplicate.get("observed")) is not int
+                or false_duplicate.get("observed") != p3_gate["false_duplicate_observed"]
+                or any(not isinstance(by_label.get(label), dict)
+                       or not isinstance(by_label[label].get("recall_observed"), dict)
+                       or type(by_label[label]["recall_observed"].get("denominator")) is not int
+                       or type(by_label[label]["recall_observed"].get("passed")) is not int
+                       for label in ("CONFLICT", "DUPLICATE"))
+                or any(required[label] != {
+                    "gold_positive": by_label.get(label, {}).get("recall_observed", {}).get("denominator"),
+                    "correct": by_label.get(label, {}).get("recall_observed", {}).get("passed"),
+                } for label in ("CONFLICT", "DUPLICATE"))):
+            _blocked("P3 classifier gate does not match dev metrics")
+        dev_review = dev.get("dev_review")
+        locked_dev_review = frozen.get("dev_review")
+        if (not isinstance(dev_review, dict) or dev_review.get("schema") != predictor.DEV_REVIEW_SCHEMA
+                or dev_review.get("source") != "user-review"
+                or dev_review.get("manifest_locked") is not True
+                or not isinstance(locked_dev_review, dict)
+                or locked_dev_review.get("schema") != predictor.DEV_REVIEW_SCHEMA
+                or not _is_sha256(dev_review.get("sha256"))
+                or not _is_sha256(locked_dev_review.get("sha256"))
+                or dev_review.get("sha256") != locked_dev_review.get("sha256")
+                or type(dev_review.get("n_rows")) is not int
+                or type(locked_dev_review.get("n_rows")) is not int
+                or dev_review.get("n_rows") != locked_dev_review.get("n_rows")
+                or dev_review.get("approved_by_label") != locked_dev_review.get("approved_by_label")):
+            _blocked("dev review provenance is not manifest-locked")
+        approved_by_label = dev_review.get("approved_by_label")
+        if (not isinstance(approved_by_label, dict)
+                or any(type(value) is not int or value < 0 for value in approved_by_label.values())
+                or sum(approved_by_label.values()) != provenance["approved"]):
+            _blocked("dev review counts do not match dev gold provenance")
+        hg2 = frozen.get("hg2")
+        floor = hg2.get("recall_floor") if isinstance(hg2, dict) else None
+        floor_min = floor.get("min") if isinstance(floor, dict) else None
+        floor_labels = floor.get("labels") if isinstance(floor, dict) else None
+        hg2_review_path = (_repo_artifact(hg2.get("review_path"))
+                          if isinstance(hg2, dict) else None)
+        hg2_sizing_path = (_repo_artifact(hg2.get("sizing_path"))
+                          if isinstance(hg2, dict) else None)
+        if (not isinstance(hg2, dict)
+                or hg2.get("schema") != HG2_SCHEMA
+                or hg2.get("status") != "PASS"
+                or hg2.get("human_approved") is not True
+                or hg2.get("manifest_locked") is not True
+                or hg2.get("review_path") != HG2_REVIEW_PATH.as_posix()
+                or hg2.get("sizing_path") != HG2_SIZING_PATH.as_posix()
+                or not _is_sha256(hg2.get("review_sha256"))
+                or not _is_sha256(hg2.get("sizing_sha256"))
+                or hg2_review_path is None
+                or hg2_sizing_path is None
+                or not hg2_review_path.is_file()
+                or not hg2_sizing_path.is_file()
+                or file_digest(hg2_review_path) != hg2.get("review_sha256")
+                or file_digest(hg2_sizing_path) != hg2.get("sizing_sha256")
+                or not isinstance(floor, dict)
+                or floor.get("method") != "wilson_lower"
+                or type(floor_min) not in (int, float)
+                or isinstance(floor_min, bool)
+                or not math.isfinite(float(floor_min))
+                or not 0 <= float(floor_min) <= 1
+                or float(floor_min) < MIN_WILSON_LOWER
+                or not isinstance(floor_labels, list)
+                or len(floor_labels) != len(SCORED)
+                or set(floor_labels) != set(SCORED)):
+            _blocked("HG-2/P4 manifest lock missing or invalid")
+        if require_commit_lock:
+            _review_lock(repo_manifest, frozen)
         selected = _selection(data_dir, frozen)
         gold = predictor._read_reviewed_gold(data_dir, frozen)
         locked = frozen["heldout_review"]
         if (sum(locked.get(f"n_{d}", -1) for d in review.DECISIONS) != len(selected)
-                or sum(g["approved"] for g in gold) != locked.get("n_approve", 0) + locked.get("n_relabel", 0)):
+                or sum(g["approved"] is True for g in gold) != locked.get("n_approve", 0) + locked.get("n_relabel", 0)):
             _blocked("review decision counts mismatch")
         for block in (frozen.get("labeler") or {}, (frozen.get("extension_s4") or {}).get("labeler", frozen.get("labeler") or {})):
             model = block.get("served_model")
@@ -146,7 +302,6 @@ def preconditions(
             if (not isinstance(served_model, str) or not classifier_family_ok(served_model)
                     or not classifier_model_differs_from_labeler(served_model, labeler_model)):
                 _blocked("classifier served_model must be recognised and differ from labeler")
-        dev = dev_report if dev_report is not None else manifest.read_json(DEV_REPORT)
         if dev.get("prompt_version") != PROMPT_VERSION:
             _blocked("prompt version changed after dev freeze")
         extension = frozen.get("extension_s4") or {}
@@ -187,15 +342,11 @@ def preconditions(
         multiplier = max(counts[v] for v in variants) / max(1, counts["C"])
         budgets = {"tokens": math.ceil(sum(sum(t.values()) for t in tokens.values()) / len(tokens) * len(docs) * 1.5 * multiplier),
                    "seconds": math.ceil(dev["latency_ms"]["p50"] / 1000 * len(docs) * 1.5 * multiplier)}
-        source_paths = [predictor.AI_SERVICE / "app/pipeline/contract_graph" / name
-                        for name in ("pair_candidates.py", "pair_classifier.py", "pair_builder.py")]
-        source_paths += [Path(predictor.__file__), Path(__file__), Path(__file__).with_name("score.py"),
-                         predictor.AI_SERVICE / "app/llm/client.py"]
         return {"variants": variants, "candidate_counts": counts, "n_docs": len(docs), "budgets": budgets,
                 "feasibility": {"expected_n": expected, "status": "KEEP_OFF_INSUFFICIENT_N expected" if skip_e else "E retained",
                                 "skipped_variants": {"E": "every label expected_n < MIN_N/2"} if skip_e else {}},
                 "decisions_sha256": locked["decisions_sha256"], "prompt_version": PROMPT_VERSION,
-                "code_sha256": {p.name: file_digest(p) for p in source_paths},
+                "code_sha256": _code_fingerprints(),
                 "served_model_check": "OBSERVED" if served_model is not _UNOBSERVED else "pending production probe/per-call check"}
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         _blocked("invalid or incomplete frozen inputs")
@@ -213,6 +364,16 @@ def _review_lock(repo_manifest: Path, frozen: dict) -> dict:
                             capture_output=True, text=True, encoding="utf-8", check=False)
     if result.returncode or json.loads(result.stdout) != frozen:
         _blocked("review lock must be committed before heldout classification")
+    dev_lock = frozen.get("dev_report")
+    hg2_lock = frozen.get("hg2")
+    committed_artifacts = (
+        (DEV_REPORT_PATH.as_posix(), dev_lock.get("sha256") if isinstance(dev_lock, dict) else None),
+        (HG2_REVIEW_PATH.as_posix(), hg2_lock.get("review_sha256") if isinstance(hg2_lock, dict) else None),
+        (HG2_SIZING_PATH.as_posix(), hg2_lock.get("sizing_sha256") if isinstance(hg2_lock, dict) else None),
+    )
+    if any(not _is_sha256(expected) or _git_blob_digest(path) != expected
+           for path, expected in committed_artifacts):
+        _blocked("review lock artifacts must be present with matching content in HEAD")
     head = subprocess.run(["git", "-C", str(manifest.REPO_ROOT), "log", "-1", "--format=%H%n%cI", "--", relative],
                           capture_output=True, text=True, check=False)
     if head.returncode:
@@ -304,7 +465,7 @@ def _release_claim(claim: Path, token: str) -> None:
 
 def _scored(gold: list[dict], predictions: list[dict], selection: list[dict], cluster_of: dict) -> dict:
     scored = score_relations(gold, predictions, approved_only=True, selection=selection)
-    positives = [g for g in gold if g.get("approved") and g.get("gold_label") in SCORED]
+    positives = [g for g in gold if g.get("approved") is True and g.get("gold_label") in SCORED]
     predicted = {p["pair_id"]: p["label"] for p in predictions}
     scored["recall_any"] = rate(sum(predicted.get(g["pair_id"]) == g["gold_label"] for g in positives), len(positives))
     by_cluster = {}
@@ -350,7 +511,8 @@ def run(
     target = Path(out_dir) / f"t{trial}" / f"{variant}.json"
     if target.exists():
         _blocked("trial already exists; refusing overwrite")
-    checked = preconditions(data_dir, repo_manifest=repo_manifest, dev_report=dev_report)
+    checked = preconditions(data_dir, repo_manifest=repo_manifest, dev_report=dev_report,
+                            require_commit_lock=False)
     if variant not in checked["variants"]:
         _blocked("variant excluded by preflight")
     if not 0 < budget_tokens <= 2000000 or not math.isfinite(budget_seconds) or not 0 < budget_seconds <= 600:
@@ -488,7 +650,8 @@ def _statistics():
 
 
 def compare_items(gold: list[dict], a: list[dict], b: list[dict]) -> dict:
-    positives = {g["pair_id"]: g["gold_label"] for g in gold if g.get("approved") and g.get("gold_label") in SCORED}
+    positives = {g["pair_id"]: g["gold_label"] for g in gold
+                 if g.get("approved") is True and g.get("gold_label") in SCORED}
     left = {p["pair_id"]: p["label"] for p in a}
     right = {p["pair_id"]: p["label"] for p in b}
     wins_a = sum(left.get(pid) == label and right.get(pid) != label for pid, label in positives.items())
