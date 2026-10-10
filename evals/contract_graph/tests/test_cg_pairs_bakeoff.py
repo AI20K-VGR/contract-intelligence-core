@@ -18,6 +18,12 @@ CODE_FILES = ("pair_candidates.py", "pair_classifier.py", "pair_builder.py", "pr
 @pytest.fixture
 def frozen(tmp_path, monkeypatch):
     data = tmp_path / "data"
+    monkeypatch.setattr(manifest, "REPO_ROOT", tmp_path)
+    hg2_review = tmp_path / bakeoff.HG2_REVIEW_PATH
+    hg2_sizing = tmp_path / bakeoff.HG2_SIZING_PATH
+    hg2_review.parent.mkdir(parents=True, exist_ok=True)
+    hg2_review.write_text("HG-2 review receipt\n", encoding="utf-8")
+    hg2_sizing.write_text('{"method":"wilson_lower"}\n', encoding="utf-8")
     selected = [{"pair_id": pair_id_for("d", "a", "b"), "doc_id": "d", "a": "a", "b": "b",
                  "stratum": "S1", "gpt_label": "CONFLICT", "pi": 1.0}]
     manifest.write_jsonl(data / "review/selection.jsonl", selected)
@@ -27,15 +33,47 @@ def frozen(tmp_path, monkeypatch):
     lock = {"labeler": {"served_model": "gpt-4o-mini"}, "docs": [], "clusters": [],
             "extension_s4": {"candidates_version": bakeoff.CANDIDATES_VERSION,
                              "top_k": bakeoff.PAIRS_TOP_K, "files": {}},
+            "dev_review": {"schema": bakeoff.predictor.DEV_REVIEW_SCHEMA, "sha256": "d" * 64,
+                           "n_rows": 2, "approved_by_label": {"CONFLICT": 1, "DUPLICATE": 1}},
+            "hg2": {"schema": bakeoff.HG2_SCHEMA, "status": "PASS", "human_approved": True,
+                    "manifest_locked": True, "review_path": bakeoff.HG2_REVIEW_PATH.as_posix(),
+                    "sizing_path": bakeoff.HG2_SIZING_PATH.as_posix(),
+                    "review_sha256": bakeoff.file_digest(hg2_review),
+                    "sizing_sha256": bakeoff.file_digest(hg2_sizing),
+                    "recall_floor": {"method": "wilson_lower", "min": 0.85,
+                                     "labels": list(bakeoff.SCORED)}},
             "review_selection": {"sha256": bakeoff.file_digest(data / "review/selection.jsonl"), "n_rows": 1},
             "heldout_review": {"decisions_sha256": bakeoff.file_digest(data / "review/heldout_review.decisions.jsonl"),
                                "n_selected": 1, "n_approve": 1, "n_relabel": 0, "n_reject": 0}}
     path = tmp_path / "manifest.json"
     manifest.write_json(path, lock)
-    dev = {"prompt_version": bakeoff.PROMPT_VERSION, "prompt_rounds": 0, "n_candidates": 1,
-           "by_label": {label: {"denominator": 0} for label in review.POSITIVE_LABELS},
+    dev = {"schema": bakeoff.predictor.REPORT_SCHEMA, "scoring_schema": bakeoff.predictor.SCORING_SCHEMA,
+           "code_sha256": bakeoff._code_fingerprints(),
+           "status": "OBSERVED", "evaluation_gate": "PASS",
+           "gold_provenance": {"approved": 2, "unapproved": 0, "invalid_approval": 0,
+                                "scoring": "approved_only"},
+           "false_duplicate": {"observed": 0, "unreviewed": 0},
+           "p3_classifier_gate": {"schema": bakeoff.predictor.P3_GATE_SCHEMA, "status": "PASS",
+                                  "required_labels": {"CONFLICT": {"gold_positive": 1, "correct": 1},
+                                                       "DUPLICATE": {"gold_positive": 1, "correct": 1}},
+                                  "false_duplicate_observed": 0, "reason_codes": []},
+           "dev_review": {"schema": bakeoff.predictor.DEV_REVIEW_SCHEMA, "sha256": "d" * 64,
+                          "n_rows": 2, "approved_by_label": {"CONFLICT": 1, "DUPLICATE": 1},
+                          "source": "user-review", "manifest_locked": True},
+           "prompt_version": bakeoff.PROMPT_VERSION, "prompt_rounds": 0, "n_candidates": 1,
+           "by_label": {label: {"denominator": 1 if label in {"CONFLICT", "DUPLICATE"} else 0,
+                                 "recall_observed": {"denominator": 1 if label in {"CONFLICT", "DUPLICATE"} else 0,
+                                                      "passed": 1 if label in {"CONFLICT", "DUPLICATE"} else 0}}
+                       for label in review.POSITIVE_LABELS},
            "calls_per_doc": {"dev": 1}, "tokens_per_doc": {"dev": {"prompt": 100, "completion": 10}},
            "latency_ms": {"p50": 10}}
+    dev["report_sha256"] = bakeoff.predictor.report_digest(dev)
+    dev_artifact = tmp_path / "evals/contract_graph/reports/l2-p3-classifier-dev.json"
+    manifest.write_json(dev_artifact, dev)
+    lock["dev_report"] = {"schema": bakeoff.DEV_REPORT_LOCK_SCHEMA,
+                           "path": "evals/contract_graph/reports/l2-p3-classifier-dev.json",
+                           "sha256": bakeoff.file_digest(dev_artifact)}
+    manifest.write_json(path, lock)
     monkeypatch.setattr(manifest, "verify", lambda *_: [])
     monkeypatch.setattr(manifest, "ensure_outside_repo", lambda *_: None)
     monkeypatch.setattr(manifest, "read_split", lambda *_: [{"doc": {"doc_id": "d"}, "pool": selected,
@@ -47,6 +85,7 @@ def frozen(tmp_path, monkeypatch):
 
 def preflight(frozen, **kwargs):
     data, path, dev, _ = frozen
+    kwargs.setdefault("require_commit_lock", False)
     return bakeoff.preconditions(data, repo_manifest=path, dev_report=dev, **kwargs)
 
 
@@ -110,6 +149,102 @@ def test_precondition_verify_failure_exits_2(frozen, monkeypatch):
     assert error.value.code == 2
 
 
+@pytest.mark.parametrize("mutation", [
+    {"status": "BLOCKED"},
+    {"evaluation_gate": "BLOCKED_UNREVIEWED_DEV_GOLD"},
+    {"gold_provenance": {"approved": 0, "unapproved": 1, "invalid_approval": 0}},
+])
+def test_precondition_refuses_unobserved_or_unreviewed_dev(frozen, mutation):
+    frozen[2].update(mutation)
+    with pytest.raises(SystemExit) as error:
+        preflight(frozen)
+    assert error.value.code == 2
+
+
+@pytest.mark.parametrize("field", ["schema", "scoring_schema", "code_sha256"])
+def test_precondition_refuses_stale_dev_report(frozen, field):
+    frozen[2][field] = "stale" if field != "code_sha256" else {}
+    with pytest.raises(SystemExit) as error:
+        preflight(frozen)
+    assert error.value.code == 2
+
+
+def test_precondition_refuses_p3_gate_or_review_lock_bypass(frozen):
+    for mutation in (
+        {"p3_classifier_gate": {"schema": bakeoff.predictor.P3_GATE_SCHEMA, "status": "BLOCKED"}},
+        {"dev_review": {"schema": bakeoff.predictor.DEV_REVIEW_SCHEMA, "sha256": "e" * 64,
+                         "n_rows": 2, "approved_by_label": {"CONFLICT": 1, "DUPLICATE": 1},
+                         "source": "user-review", "manifest_locked": True}},
+    ):
+        frozen[2].update(mutation)
+        with pytest.raises(SystemExit) as error:
+            preflight(frozen)
+        assert error.value.code == 2
+        frozen[2].update({"p3_classifier_gate": {"schema": bakeoff.predictor.P3_GATE_SCHEMA, "status": "PASS",
+                                                    "required_labels": {"CONFLICT": {"gold_positive": 1, "correct": 1},
+                                                                         "DUPLICATE": {"gold_positive": 1, "correct": 1}},
+                                                    "false_duplicate_observed": 0, "reason_codes": []},
+                          "dev_review": {"schema": bakeoff.predictor.DEV_REVIEW_SCHEMA, "sha256": "d" * 64,
+                                         "n_rows": 2, "approved_by_label": {"CONFLICT": 1, "DUPLICATE": 1},
+                                         "source": "user-review", "manifest_locked": True}})
+
+
+def test_precondition_refuses_missing_hg2_gate(frozen):
+    lock = manifest.read_json(frozen[1])
+    lock.pop("hg2")
+    manifest.write_json(frozen[1], lock)
+    with pytest.raises(SystemExit) as error:
+        preflight(frozen)
+    assert error.value.code == 2
+
+
+def test_precondition_refuses_hg2_artifact_tamper(frozen):
+    lock = manifest.read_json(frozen[1])
+    review_path = manifest.REPO_ROOT / lock["hg2"]["review_path"]
+    review_path.write_text("tampered\n", encoding="utf-8")
+    with pytest.raises(SystemExit) as error:
+        preflight(frozen)
+    assert error.value.code == 2
+
+
+@pytest.mark.parametrize("metric", ["false_duplicate", "recall"])
+def test_precondition_refuses_float_p3_metric(frozen, metric):
+    if metric == "false_duplicate":
+        frozen[2]["false_duplicate"]["observed"] = 0.0
+    else:
+        frozen[2]["by_label"]["CONFLICT"]["recall_observed"]["passed"] = 1.0
+    frozen[2]["report_sha256"] = bakeoff.predictor.report_digest(frozen[2])
+    lock = manifest.read_json(frozen[1])
+    dev_path = manifest.REPO_ROOT / lock["dev_report"]["path"]
+    manifest.write_json(dev_path, frozen[2])
+    lock["dev_report"]["sha256"] = bakeoff.file_digest(dev_path)
+    manifest.write_json(frozen[1], lock)
+    with pytest.raises(SystemExit) as error:
+        preflight(frozen)
+    assert error.value.code == 2
+
+
+def test_precondition_default_checks_commit_lock(frozen, monkeypatch):
+    called = []
+
+    def fail_lock(*_):
+        called.append(True)
+        bakeoff._blocked("test commit lock")
+
+    monkeypatch.setattr(bakeoff, "_review_lock", fail_lock)
+    with pytest.raises(SystemExit) as error:
+        preflight(frozen, require_commit_lock=True)
+    assert error.value.code == 2 and called == [True]
+
+
+def test_precondition_refuses_boolean_p3_metric(frozen):
+    frozen[2]["p3_classifier_gate"]["required_labels"]["CONFLICT"]["correct"] = True
+    frozen[2]["report_sha256"] = bakeoff.predictor.report_digest(frozen[2])
+    with pytest.raises(SystemExit) as error:
+        preflight(frozen)
+    assert error.value.code == 2
+
+
 def test_precondition_review_incomplete_exits_2(frozen):
     (frozen[0] / "review/heldout_review.decisions.jsonl").unlink()
     with pytest.raises(SystemExit) as error:
@@ -152,6 +287,12 @@ def test_precondition_accepts_different_openai_classifier(frozen):
 def test_feasibility_drops_variant_e(frozen):
     assert preflight(frozen)["variants"] == ["C", "B"]
     frozen[2]["by_label"]["GENERAL_SPECIFIC"]["denominator"] = 40
+    frozen[2]["report_sha256"] = bakeoff.predictor.report_digest(frozen[2])
+    lock = manifest.read_json(frozen[1])
+    dev_path = manifest.REPO_ROOT / lock["dev_report"]["path"]
+    manifest.write_json(dev_path, frozen[2])
+    lock["dev_report"]["sha256"] = bakeoff.file_digest(dev_path)
+    manifest.write_json(frozen[1], lock)
     assert preflight(frozen)["variants"] == ["C", "B", "E"]
 
 
@@ -467,7 +608,7 @@ def test_trial_claim_recovers_dead_owner_and_cleans_up(tmp_path):
 
 
 def test_offline_assembly_binds_actual_gold_and_trial_provenance(frozen, tmp_path, monkeypatch):
-    data, path, dev, selected = frozen
+    data, path, _dev, selected = frozen
     original = manifest.read_json(path)
     original["docs"] = [{"doc_id": "d", "cluster_id": "c", "split": "heldout"}]
     original["clusters"] = [{"doc_ids": ["d"], "cluster_id": "c"}]
@@ -541,6 +682,17 @@ def test_runner_requires_explicit_heldout_before_calls(frozen, tmp_path):
     assert error.value.code == 2
 
 
+def test_runner_refuses_blocked_dev_before_heldout_calls(frozen, tmp_path, monkeypatch):
+    data, path, dev, _ = frozen
+    dev["status"] = "BLOCKED"
+    calls = []
+    monkeypatch.setattr(bakeoff.predictor, "predict_doc", lambda *args, **kwargs: calls.append(1))
+    with pytest.raises(SystemExit) as error:
+        bakeoff.run("C", 1, out_dir=tmp_path, model="claude-test", data_dir=data,
+                    repo_manifest=path, allow_heldout=True, dev_report=dev)
+    assert error.value.code == 2 and calls == []
+
+
 @pytest.mark.parametrize("mutation", ["duplicate", "missing", "direction", "sha"])
 def test_importer_refuses_changed_review(frozen, tmp_path, mutation):
     data, path, _, selected = frozen
@@ -573,6 +725,12 @@ def test_committed_decision_matches_report():
     if not report_path.is_file() or not decision_path.is_file():
         pytest.skip("P5 live artifacts pending; phase is not complete")
     report = json.loads(report_path.read_text(encoding="utf-8"))
+    if report.get("prompt_version") != bakeoff.PROMPT_VERSION:
+        pytest.skip("committed P5 artifact predates the current classifier prompt; P5 must be rerun after P3/P4")
+    if report.get("schema") != "contract-graph-pairs-bakeoff/1":
+        pytest.skip("committed P5 artifact has an obsolete report schema; P5 must be rerun")
+    if report.get("code_sha256") != bakeoff._code_fingerprints():
+        pytest.skip("committed P5 artifact predates the current code fingerprint; P5 must be rerun after P3/P4")
     expected = json.loads(decision_path.read_text(encoding="utf-8"))
     expected["budget_blocked_variants"] = sorted({t["variant"] for t in report["trials"] if t["over_budget"]})
     assert bakeoff.decide(report) == expected

@@ -74,6 +74,17 @@ def test_choose_top_k_smallest_reaching_95_percent():
     assert ce.choose_top_k({k: 1 for k in ce.K_GRID}, 10)[0] == 40  # never reached ⇒ keep 40
 
 
+def test_assess_engineering_target_reports_label_gap_and_freeze_decision():
+    entry, _ = _dev_entry()
+    assessment = ce.assess_engineering_target(ce.measure_dev([entry]))
+    assert assessment["target_rate"] == 0.95
+    assert assessment["met"] is False
+    assert assessment["by_label"]["CONFLICT"]["gap"] >= 1
+    assert assessment["decision"]["status"] == "KEEP_CURRENT"
+    assert assessment["decision"]["next_phase"] == "P3"
+    assert "candidate_change_requires_new_s4_and_hg2_review" in assessment["decision"]["reason_codes"]
+
+
 def test_heldout_split_refused_for_candidates(tmp_path: Path):
     assert run.main(["candidates", "--split", "heldout", "--data-dir", str(tmp_path)]) == 2
 

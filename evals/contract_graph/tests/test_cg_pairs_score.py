@@ -70,6 +70,14 @@ def test_false_duplicate_counted():
     assert report["by_label"]["DUPLICATE"]["precision_conservative"]["passed"] == 3
 
 
+def test_false_duplicate_on_reviewed_reject_is_observed():
+    gold = [{"pair_id": "reject", "gold_label": None, "approved": False,
+             "source": "user-review"}]
+    report = score.score_relations(gold, [_pred("reject", "DUPLICATE")], approved_only=True)
+
+    assert report["false_duplicate"] == {"observed": 1, "unreviewed": 0}
+
+
 def test_approved_only_filters_unapproved_gold():
     preds = [_pred("p1", "CONFLICT"), _pred("p2", "CONFLICT"), _pred("p3", "CONFLICT")]
     gold = [_gold("p1", "CONFLICT"), _gold("p2", "CONFLICT", approved=False),
@@ -80,6 +88,15 @@ def test_approved_only_filters_unapproved_gold():
 
     assert (strict["denominator"], strict["covered"], strict["passed"]) == (3, 1, 1)
     assert (loose["denominator"], loose["covered"], loose["passed"]) == (3, 2, 2)
+
+
+def test_approved_only_requires_boolean_true():
+    preds = [_pred("p1", "CONFLICT"), _pred("p2", "CONFLICT")]
+    gold = [_gold("p1", "CONFLICT", approved="true"),
+            _gold("p2", "CONFLICT", approved="false")]
+    strict = score.score_relations(gold, preds, approved_only=True)
+    assert strict["n_gold"] == 0
+    assert strict["by_label"]["CONFLICT"]["passed"] == 0
 
 
 def test_direction_accuracy_separate_from_label_match():

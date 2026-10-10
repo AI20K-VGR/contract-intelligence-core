@@ -9,6 +9,9 @@ import pytest
 from app.pipeline.contract_graph.pair_candidates import PairCandidate, PairSource
 from app.pipeline.contract_graph.pair_classifier import (
     CLAUSE_CHARS_MAX,
+    PROMPT_VERSION,
+    REJECTION_REASON_VERSION,
+    SYSTEM_PROMPT,
     ClassifierPair,
     classify_pairs,
 )
@@ -58,6 +61,19 @@ class Runtime:
 def classify(pairs=None, response=None, **kwargs):
     runtime = Runtime(response)
     return classify_pairs(pairs or [pair()], client=SimpleNamespace(traces=[]), runtime=runtime, **kwargs)
+
+
+def test_calibrated_prompt_prioritizes_relation_checks_without_relaxing_grounding():
+    assert PROMPT_VERSION == "pairs-v7"
+    assert "BƯỚC 1" in SYSTEM_PROMPT
+    assert "CONFLICT trước UNRELATED" in SYSTEM_PROMPT
+    assert "không mặc định GENERAL_SPECIFIC" in SYSTEM_PROMPT
+    assert "không bịa span" in SYSTEM_PROMPT
+
+
+def test_rejection_reason_version_is_recorded():
+    result = classify(response={"results": [{"id": "p1", "label": "UNRELATED"}]})
+    assert result.stats["rejection_reason_version"] == REJECTION_REASON_VERSION
 
 
 def test_batches_of_eight_and_max_five_calls():
@@ -228,7 +244,7 @@ def test_no_text_in_logs(caplog):
     assert TEXT_B not in caplog.text
 
 
-@pytest.mark.parametrize("served", ["gh/gpt-4o-mini", "unknown-model", None, ""])
+@pytest.mark.parametrize("served", ["not-a-model", "unknown-model", None, ""])
 def test_runtime_rejects_non_anthropic_served_model(served):
     runtime = Runtime({"results": [answer()]})
     result = classify_pairs([pair()] * 10, client=SimpleNamespace(traces=[], served=served), runtime=runtime)

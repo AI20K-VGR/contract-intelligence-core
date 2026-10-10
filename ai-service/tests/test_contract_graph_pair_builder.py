@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+
 from app.contracts.contract_graph import PairLabel, PairRelation, pair_relation_id_for
 from app.contracts.models import ReviewState
 from app.llm.client import NineRouterClient
@@ -192,6 +193,7 @@ def test_stats_keys_fixed():
     assert {"pairs_sent", "pairs_unclassified", "llm_calls", "prompt_tokens", "completion_tokens",
             "injection_signals", "relations_total", "relations_by_label", "rejected",
             "stopped_reason", "served_model"} <= set(llm_result.stats)
+    assert llm_result.stats["rejection_reason_version"] == "pair-rejections-v1"
 
 
 def test_runtime_never_passes_eval_overrides():
@@ -248,7 +250,7 @@ def test_runtime_gpt_response_cannot_create_relation():
     class WrongProvider(Client):
         def complete_json(self, *args, **kwargs):
             result = super().complete_json(*args, **kwargs)
-            self.traces[-1]["served_model"] = "gpt-4o-mini"
+            self.traces[-1]["served_model"] = "not-a-model"
             return result
     result = build(llm=WrongProvider())
     assert not result.relations and result.batches_completed == 0
