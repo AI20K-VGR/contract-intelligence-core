@@ -163,6 +163,14 @@ def _combined_review_counts(frozen: dict) -> tuple[int, int]:
     return selected, approved
 
 
+def _review_decisions_digest(gold: list[dict]) -> str:
+    """Digest the complete reviewed gold universe used by a held-out run."""
+    canonical = [{k: row[k] for k in ("pair_id", "gold_label", "gold_direction",
+                                      "approved", "source", "decision") if k in row}
+                 for row in sorted(gold, key=lambda row: row["pair_id"])]
+    return hashlib.sha256("".join(_json_line(row) for row in canonical).encode("utf-8")).hexdigest()
+
+
 def import_review(data_dir: Path, csv_path: Path, *, repo_manifest: Path = manifest.REPO_MANIFEST) -> dict:
     """Validate the complete CSV, write canonical decisions, then change only heldout_review."""
     if manifest.verify(data_dir, repo_manifest):
@@ -642,7 +650,7 @@ def preconditions(
         return {"variants": variants, "candidate_counts": counts, "n_docs": len(docs), "budgets": budgets,
                 "feasibility": {"expected_n": expected, "status": "KEEP_OFF_INSUFFICIENT_N expected" if skip_e else "E retained",
                                 "skipped_variants": {"E": "every label expected_n < MIN_N/2"} if skip_e else {}},
-                "decisions_sha256": frozen["heldout_review"]["decisions_sha256"], "prompt_version": PROMPT_VERSION,
+                "decisions_sha256": _review_decisions_digest(gold), "prompt_version": PROMPT_VERSION,
                 "code_sha256": _code_fingerprints(),
                 "served_model_check": "OBSERVED" if served_model is not _UNOBSERVED else "pending production probe/per-call check"}
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
@@ -969,7 +977,11 @@ def minimum_sample(observed_rate: float | None) -> int | None:
 
 
 def _checked_trials(report: dict) -> list[dict]:
-    expected = report["manifest"]["heldout_review"]["decisions_sha256"]
+    expected = report["manifest"].get("decisions_sha256")
+    if expected is None:
+        # Backward-compatible path for pre-HG-2 unit fixtures. Real P5 reports
+        # carry the combined reviewed-gold digest above.
+        expected = report["manifest"]["heldout_review"]["decisions_sha256"]
     if not isinstance(expected, str) or len(expected) != 64 or report.get("decisions_sha256") != expected:
         raise ValueError("report decisions SHA differs from manifest lock")
     canonical = [{k: g[k] for k in ("pair_id", "gold_label", "gold_direction", "approved", "source", "decision") if k in g}
@@ -1235,7 +1247,8 @@ def assemble_report(out_dir: Path, data_dir: Path, *, repo_manifest: Path = mani
     lock = _review_lock(repo_manifest, frozen)
     report = {"schema": "contract-graph-pairs-bakeoff/1", "status": "OBSERVED",
               "manifest": {"heldout_review": frozen["heldout_review"], "review_selection": frozen["review_selection"],
-                           "hg2": frozen.get("hg2"), "docs": frozen["docs"]},
+                           "hg2": frozen.get("hg2"), "docs": frozen["docs"],
+                           "decisions_sha256": checked["decisions_sha256"]},
               "decisions_sha256": checked["decisions_sha256"],
               "review_lock": lock, "review_lock_commit": lock["commit"],
               "review_lock_committed_at": lock["committed_at"],

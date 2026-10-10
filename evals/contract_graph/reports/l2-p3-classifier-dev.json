@@ -2370,7 +2370,7 @@
   }
  },
  "code_sha256": {
-  "bakeoff.py": "d4d500d6937ac4b6bc3fc9f7f03d1f9e24b08c45e6b804d5c1eecb76ef91bef6",
+  "bakeoff.py": "99982faa66e15523a81b0337cc6ea6abcdf5738b99db89ca4ccf5c1ae40546dd",
   "client.py": "fd42c1186f74dbd078663b5705069763d4a4ba1d9694239b0ff2639dfe198bac",
   "pair_builder.py": "772f0409222b789ff8f8af2690e1ba24918780d5a07904a9b352ea7102278999",
   "pair_candidates.py": "7691ba5691e8d2e69fde9ba6968ca7801321ca2130a3276f4d3476bb23100e85",
@@ -2517,7 +2517,7 @@
  "rejection_reason_versions": [
   "pair-rejections-v1"
  ],
- "report_sha256": "84f97a69412227f850bbce1133ab9c12a85ce03c6cef2d0b6bdeee15901feb65",
+ "report_sha256": "f881b09e35c303fd503354412508e11c058b637225f292211720a859b2cb57e6",
  "schema": "contract-graph-pairs-predictor/2",
  "scoring_schema": "contract-graph-pairs-score/1",
  "served_model": [
