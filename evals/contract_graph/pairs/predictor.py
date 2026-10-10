@@ -499,50 +499,68 @@ def predict_split(
 
 
 def _read_reviewed_gold(data_dir: Path, frozen: dict) -> list[dict]:
-    locked = frozen.get("review_selection")
-    reviewed = frozen.get("heldout_review")
-    selection_path = Path(data_dir) / "review" / "selection.jsonl"
-    decisions_path = Path(data_dir) / "review" / "heldout_review.decisions.jsonl"
-    if (not locked or not reviewed or not selection_path.is_file() or not decisions_path.is_file()
-            or file_digest(selection_path) != locked.get("sha256")
-            or file_digest(decisions_path) != reviewed.get("decisions_sha256")):
-        print("heldout BLOCKED: locked HG-1 review missing or modified", file=sys.stderr)
-        raise SystemExit(2)
-    try:
-        decisions = manifest.read_jsonl(decisions_path)
-        rows = manifest.read_jsonl(selection_path)
-    except (OSError, ValueError):
-        print("heldout BLOCKED: HG-1 review incomplete or invalid", file=sys.stderr)
-        raise SystemExit(2) from None
-    if (any(not isinstance(row, dict) for row in rows)
-            or any(not isinstance(row.get("pair_id"), str) or not row["pair_id"]
-                   or not isinstance(row.get("doc_id"), str) or not row["doc_id"]
-                   or not isinstance(row.get("stratum"), str) or not row["stratum"]
-                   or not isinstance(row.get("pi"), (int, float)) or isinstance(row["pi"], bool)
-                   or not 0 < row["pi"] <= 1 for row in rows)):
-        print("heldout BLOCKED: HG-1 selection rows invalid", file=sys.stderr)
-        raise SystemExit(2)
-    if any(not isinstance(decision, dict)
-           or not isinstance(decision.get("pair_id"), str) or not decision["pair_id"]
-           for decision in decisions):
-        print("heldout BLOCKED: HG-1 decision rows invalid", file=sys.stderr)
-        raise SystemExit(2)
-    by_id = {r["pair_id"]: r for r in rows}
-    decision_ids = [d["pair_id"] for d in decisions]
-    if (len(rows) != len(by_id) or len(by_id) != locked.get("n_rows")
-            or len(decisions) != reviewed.get("n_selected")
-            or len(decision_ids) != len(set(decision_ids)) or set(decision_ids) != set(by_id)):
-        print("heldout BLOCKED: HG-1 decisions do not match locked selection", file=sys.stderr)
-        raise SystemExit(2)
-    for decision in decisions:
-        label, direction = decision.get("gold_label"), decision.get("gold_direction")
-        if (not isinstance(decision.get("approved"), bool)
-                or decision.get("source") != "user-review"
-                or (decision["approved"] and label not in review.LABELS)
-                or (decision["approved"] and label in review.DIRECTED and direction not in {"A", "B"})
-                or (decision["approved"] and label not in review.DIRECTED and direction is not None)
-                or (not decision["approved"] and (label is not None or direction is not None))):
-            print("heldout BLOCKED: reviewed decisions invalid", file=sys.stderr)
+    blocks = [("HG-1", frozen.get("review_selection"), frozen.get("heldout_review"),
+               Path(data_dir) / "review" / "selection.jsonl",
+               Path(data_dir) / "review" / "heldout_review.decisions.jsonl")]
+    hg2 = frozen.get("hg2")
+    if isinstance(hg2, dict) and hg2.get("selection_path"):
+        for key in ("selection_path", "decisions_path"):
+            value = hg2.get(key)
+            if (not isinstance(value, str) or Path(value).is_absolute()
+                    or ".." in Path(value).parts):
+                print("heldout BLOCKED: HG-2 review path is invalid", file=sys.stderr)
+                raise SystemExit(2)
+        blocks.append(("HG-2", {"sha256": hg2.get("selection_sha256"),
+                                 "n_rows": hg2.get("selection_n_rows")}, hg2,
+                       Path(data_dir) / hg2["selection_path"],
+                       Path(data_dir) / hg2["decisions_path"]))
+    gold: list[dict] = []
+    seen: set[str] = set()
+    for name, locked, reviewed, selection_path, decisions_path in blocks:
+        if (not isinstance(locked, dict) or not isinstance(reviewed, dict)
+                or not selection_path.is_file() or not decisions_path.is_file()
+                or file_digest(selection_path) != locked.get("sha256")
+                or file_digest(decisions_path) != reviewed.get("decisions_sha256")):
+            print(f"heldout BLOCKED: locked {name} review missing or modified", file=sys.stderr)
             raise SystemExit(2)
-    return [{**d, "doc_id": by_id[d["pair_id"]]["doc_id"], "stratum": by_id[d["pair_id"]]["stratum"]}
-            for d in decisions]
+        try:
+            decisions = manifest.read_jsonl(decisions_path)
+            rows = manifest.read_jsonl(selection_path)
+        except (OSError, ValueError):
+            print(f"heldout BLOCKED: {name} review incomplete or invalid", file=sys.stderr)
+            raise SystemExit(2) from None
+        if (any(not isinstance(row, dict) for row in rows)
+                or any(not isinstance(row.get("pair_id"), str) or not row["pair_id"]
+                       or not isinstance(row.get("doc_id"), str) or not row["doc_id"]
+                       or not isinstance(row.get("stratum"), str) or not row["stratum"]
+                       or not isinstance(row.get("pi"), (int, float)) or isinstance(row["pi"], bool)
+                       or not 0 < row["pi"] <= 1 for row in rows)):
+            print(f"heldout BLOCKED: {name} selection rows invalid", file=sys.stderr)
+            raise SystemExit(2)
+        if any(not isinstance(decision, dict)
+               or not isinstance(decision.get("pair_id"), str) or not decision["pair_id"]
+               for decision in decisions):
+            print(f"heldout BLOCKED: {name} decision rows invalid", file=sys.stderr)
+            raise SystemExit(2)
+        by_id = {r["pair_id"]: r for r in rows}
+        decision_ids = [d["pair_id"] for d in decisions]
+        if (len(rows) != len(by_id) or len(by_id) != locked.get("n_rows")
+                or len(decisions) != reviewed.get("n_selected")
+                or len(decision_ids) != len(set(decision_ids)) or set(decision_ids) != set(by_id)
+                or seen & set(by_id)):
+            print(f"heldout BLOCKED: {name} decisions do not match locked selection", file=sys.stderr)
+            raise SystemExit(2)
+        for decision in decisions:
+            label, direction = decision.get("gold_label"), decision.get("gold_direction")
+            if (not isinstance(decision.get("approved"), bool)
+                    or decision.get("source") != "user-review"
+                    or (decision["approved"] and label not in review.LABELS)
+                    or (decision["approved"] and label in review.DIRECTED and direction not in {"A", "B"})
+                    or (decision["approved"] and label not in review.DIRECTED and direction is not None)
+                    or (not decision["approved"] and (label is not None or direction is not None))):
+                print(f"heldout BLOCKED: {name} decisions invalid", file=sys.stderr)
+                raise SystemExit(2)
+        seen.update(by_id)
+        gold.extend([{**d, "doc_id": by_id[d["pair_id"]]["doc_id"],
+                      "stratum": by_id[d["pair_id"]]["stratum"]} for d in decisions])
+    return gold

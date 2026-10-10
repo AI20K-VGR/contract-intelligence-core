@@ -485,3 +485,34 @@ def test_heldout_review_loader_rejects_duplicate_selection_ids(tmp_path):
     with pytest.raises(SystemExit) as error:
         predictor._read_reviewed_gold(data_dir, frozen)
     assert error.value.code == 2
+
+
+def test_heldout_review_loader_merges_locked_hg2_without_mutating_hg1(tmp_path):
+    hg1_selection = {"pair_id": "p1", "doc_id": "d1", "stratum": "S1", "pi": 1.0}
+    hg2_selection = {"pair_id": "p2", "doc_id": "d1", "stratum": "S2", "pi": 1.0}
+    data_dir = tmp_path / "data"
+    review_dir = data_dir / "review"
+    review_dir.mkdir(parents=True)
+    hg1_selection_path = review_dir / "selection.jsonl"
+    hg1_decisions_path = review_dir / "heldout_review.decisions.jsonl"
+    hg2_selection_path = review_dir / "hg2_selection.jsonl"
+    hg2_decisions_path = review_dir / "hg2_review.decisions.jsonl"
+    manifest.write_jsonl(hg1_selection_path, [hg1_selection])
+    manifest.write_jsonl(hg1_decisions_path, [{"pair_id": "p1", "gold_label": "CONFLICT",
+                                               "gold_direction": None, "approved": True,
+                                               "source": "user-review"}])
+    manifest.write_jsonl(hg2_selection_path, [hg2_selection])
+    manifest.write_jsonl(hg2_decisions_path, [{"pair_id": "p2", "gold_label": "UNRELATED",
+                                               "gold_direction": None, "approved": True,
+                                               "source": "user-review", "decision": "approve"}])
+    frozen = {"review_selection": {"sha256": predictor.file_digest(hg1_selection_path), "n_rows": 1},
+              "heldout_review": {"decisions_sha256": predictor.file_digest(hg1_decisions_path),
+                                  "n_selected": 1},
+              "hg2": {"selection_path": "review/hg2_selection.jsonl",
+                      "selection_sha256": predictor.file_digest(hg2_selection_path),
+                      "selection_n_rows": 1, "decisions_path": "review/hg2_review.decisions.jsonl",
+                      "decisions_sha256": predictor.file_digest(hg2_decisions_path),
+                      "n_selected": 1}}
+    gold = predictor._read_reviewed_gold(data_dir, frozen)
+    assert [row["pair_id"] for row in gold] == ["p1", "p2"]
+    assert gold[1]["doc_id"] == "d1" and gold[1]["stratum"] == "S2"

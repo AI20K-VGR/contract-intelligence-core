@@ -399,6 +399,68 @@ def test_review_import_cli_exact_selection_and_lock(frozen, tmp_path):
     assert manifest.read_json(path)["heldout_review"]["n_approve"] == 1
 
 
+def test_hg2_lock_requires_explicit_human_gate(tmp_path):
+    with pytest.raises(SystemExit) as error:
+        bakeoff.lock_hg2(tmp_path / "data", repo_manifest=tmp_path / "manifest.json")
+    assert error.value.code == 2
+
+
+def test_hg2_import_validates_and_does_not_promote_draft(frozen, tmp_path, monkeypatch):
+    data, path, _, selected = frozen
+    second = {"pair_id": pair_id_for("d", "a", "c"), "doc_id": "d", "a": "a", "b": "c",
+              "stratum": "S1", "gpt_label": "UNRELATED", "pi": 1.0}
+    hg2_path = data / bakeoff.HG2_SELECTION_REL
+    manifest.write_jsonl(hg2_path, [second])
+    sizing = manifest.REPO_ROOT / bakeoff.HG2_SIZING_PATH
+    manifest.write_json(sizing, {"proposal": {"selection_sha256": bakeoff.file_digest(hg2_path),
+                                                "n_rows": 1}})
+    monkeypatch.setattr(manifest, "read_split", lambda *_: [{"doc": {"doc_id": "d"},
+                                                              "pool": [selected[0], second],
+                                                              "labels": [{"pair_id": selected[0]["pair_id"], "label": "CONFLICT"},
+                                                                          {"pair_id": second["pair_id"], "label": "UNRELATED"}]}])
+    csv_path = tmp_path / "hg2.csv"
+    with csv_path.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=review.SHEET_COLUMNS)
+        writer.writeheader()
+        writer.writerow({"pair_id": second["pair_id"], "doc_id": "d", "gpt_label": "UNRELATED",
+                         "gpt_direction": "", "decision": "approve"})
+    before = manifest.read_json(path)
+    lock = bakeoff.import_hg2_review(data, csv_path, repo_manifest=path)
+    assert lock["n_selected"] == 1
+    assert manifest.read_jsonl(data / bakeoff.HG2_DECISIONS_REL)[0]["source"] == "user-review"
+    assert manifest.read_json(path) == before
+
+
+def test_hg2_lock_records_explicit_gate_and_receipt(frozen, tmp_path, monkeypatch):
+    data, path, _, selected = frozen
+    second = {"pair_id": pair_id_for("d", "a", "c"), "doc_id": "d", "a": "a", "b": "c",
+              "stratum": "S1", "gpt_label": "UNRELATED", "pi": 1.0}
+    hg2_path = data / bakeoff.HG2_SELECTION_REL
+    manifest.write_jsonl(hg2_path, [second])
+    sizing = manifest.REPO_ROOT / bakeoff.HG2_SIZING_PATH
+    manifest.write_json(sizing, {"proposal": {"selection_sha256": bakeoff.file_digest(hg2_path),
+                                                "n_rows": 1}})
+    monkeypatch.setattr(manifest, "read_split", lambda *_: [{"doc": {"doc_id": "d"},
+                                                              "pool": [selected[0], second],
+                                                              "labels": [{"pair_id": selected[0]["pair_id"], "label": "CONFLICT"},
+                                                                          {"pair_id": second["pair_id"], "label": "UNRELATED"}]}])
+    csv_path = tmp_path / "hg2.csv"
+    with csv_path.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=review.SHEET_COLUMNS)
+        writer.writeheader()
+        writer.writerow({"pair_id": second["pair_id"], "doc_id": "d", "gpt_label": "UNRELATED",
+                         "gpt_direction": "", "decision": "approve"})
+    bakeoff.import_hg2_review(data, csv_path, repo_manifest=path)
+    unlocked = manifest.read_json(path)
+    unlocked.pop("hg2")
+    manifest.write_json(path, unlocked)
+    lock = bakeoff.lock_hg2(data, repo_manifest=path, recall_floor=.85,
+                            human_approved=True, scope_consent=True)
+    assert lock["status"] == "PASS" and lock["manifest_locked"] is True
+    assert "Human decision recorded" in (manifest.REPO_ROOT / bakeoff.HG2_REVIEW_PATH).read_text("utf-8")
+    assert manifest.read_json(sizing)["status"] == "PASS"
+
+
 def test_trial_matrix_and_model_consistency():
     for mutate in (lambda r: r["trials"].pop(),
                    lambda r: r["trials"][-1].update(served_model=["claude-other"]),

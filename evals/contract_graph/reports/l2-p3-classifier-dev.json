@@ -2370,13 +2370,13 @@
   }
  },
  "code_sha256": {
+  "bakeoff.py": "7fae3e4aca62db1dddef99e810c82b8773c8a27c97a924e038ded489bfc519b8",
+  "client.py": "fd42c1186f74dbd078663b5705069763d4a4ba1d9694239b0ff2639dfe198bac",
+  "pair_builder.py": "772f0409222b789ff8f8af2690e1ba24918780d5a07904a9b352ea7102278999",
   "pair_candidates.py": "7691ba5691e8d2e69fde9ba6968ca7801321ca2130a3276f4d3476bb23100e85",
   "pair_classifier.py": "1b1f4cfc54f6b22e365d75f8261ffac052c8358626a229a07d1d63346f0e25e3",
-  "pair_builder.py": "772f0409222b789ff8f8af2690e1ba24918780d5a07904a9b352ea7102278999",
-  "predictor.py": "2485b4c52ebd3299556aa5012781738fbbfd2bb659b48b0ed1c4ffc95ca52dd3",
-  "bakeoff.py": "2d806bdce6ef6165e4da1a4fb7f59a64eeca8e8adfa7a7ab89f925524e4bb23c",
-  "score.py": "8d09d0f1b7e43cbd35daffa10741dad39fc3bfe7b7c7cc3d4ed099d7160c4bd1",
-  "client.py": "fd42c1186f74dbd078663b5705069763d4a4ba1d9694239b0ff2639dfe198bac"
+  "predictor.py": "44ebe67d32dc0610920e670061523b7ab40c9c7964788abf6a7f7ace4817d8dc",
+  "score.py": "8d09d0f1b7e43cbd35daffa10741dad39fc3bfe7b7c7cc3d4ed099d7160c4bd1"
  },
  "dev_review": {
   "approved_by_label": {
@@ -2517,7 +2517,7 @@
  "rejection_reason_versions": [
   "pair-rejections-v1"
  ],
- "report_sha256": "59ec48bbf671c6dc1b56f0fa389610241a4b2a9c1e2e805df6c378ec4f886bb7",
+ "report_sha256": "410ad404920561f1761de36c6338ef624e9ab0a5bf7d180a97e8caed4121f375",
  "schema": "contract-graph-pairs-predictor/2",
  "scoring_schema": "contract-graph-pairs-score/1",
  "served_model": [

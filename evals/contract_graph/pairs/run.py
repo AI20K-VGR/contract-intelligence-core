@@ -96,6 +96,16 @@ def main(argv: list[str] | None = None) -> int:
     imported.add_argument("--csv", type=Path, required=True)
     imported.add_argument("--data-dir", type=Path, default=None)
     imported.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+    hg2_imported = sub.add_parser("review-hg2-import")
+    hg2_imported.add_argument("--csv", type=Path, required=True)
+    hg2_imported.add_argument("--data-dir", type=Path, default=None)
+    hg2_imported.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+    hg2_locked = sub.add_parser("review-hg2-lock")
+    hg2_locked.add_argument("--data-dir", type=Path, default=None)
+    hg2_locked.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+    hg2_locked.add_argument("--recall-floor", type=float, default=0.85)
+    hg2_locked.add_argument("--human-approved", action="store_true")
+    hg2_locked.add_argument("--scope-consent", action="store_true")
     dev_locked = sub.add_parser("review-dev-lock")
     dev_locked.add_argument("--dev-review", type=Path, required=True)
     dev_locked.add_argument("--data-dir", type=Path, default=None)
@@ -138,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     if args.command == "verify":
         return _verify(args)
-    if args.command in {"review-import", "review-dev-lock", "bakeoff"}:
+    if args.command in {"review-import", "review-hg2-import", "review-hg2-lock", "review-dev-lock", "bakeoff"}:
         return _bakeoff(args)
     if args.command == "predict":
         return _predict(args)
@@ -164,6 +174,17 @@ def _bakeoff(args: argparse.Namespace) -> int:
         if args.command == "review-import":
             manifest.ensure_outside_repo(args.data_dir)
             locked = bakeoff.import_review(args.data_dir, args.csv, repo_manifest=args.manifest)
+            print(json.dumps(locked, sort_keys=True))
+        elif args.command == "review-hg2-import":
+            manifest.ensure_outside_repo(args.data_dir)
+            locked = bakeoff.import_hg2_review(args.data_dir, args.csv, repo_manifest=args.manifest)
+            print(json.dumps(locked, sort_keys=True))
+        elif args.command == "review-hg2-lock":
+            manifest.ensure_outside_repo(args.data_dir)
+            locked = bakeoff.lock_hg2(
+                args.data_dir, repo_manifest=args.manifest, recall_floor=args.recall_floor,
+                human_approved=args.human_approved, scope_consent=args.scope_consent,
+            )
             print(json.dumps(locked, sort_keys=True))
         elif args.bakeoff_command == "metric":
             print(bakeoff.metric(args.variant, args.out, args.field, dry_run=args.dry_run))

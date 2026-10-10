@@ -151,7 +151,7 @@
  "dev_report": {
   "path": "evals/contract_graph/reports/l2-p3-classifier-dev.json",
   "schema": "contract-graph-dev-report-lock/1",
-  "sha256": "9281c493246ca46964216d540ef0317a1e7f6521ef63583ad3f16d00351fcf27"
+  "sha256": "7c0d8f36953259b2935dd34878f8bfa411cf16e933ad641536b8a6f7e5abc15e"
  },
  "dev_review": {
   "approved_by_label": {

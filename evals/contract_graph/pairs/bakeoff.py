@@ -53,6 +53,8 @@ DEV_REPORT_LOCK_SCHEMA = "contract-graph-dev-report-lock/1"
 DEV_REPORT_PATH = Path("evals/contract_graph/reports/l2-p3-classifier-dev.json")
 HG2_REVIEW_PATH = Path("plans/261010-1309-contract-graph-recall-remediation/reports/hg2-review.md")
 HG2_SIZING_PATH = Path("plans/261010-1309-contract-graph-recall-remediation/reports/hg2-sizing.json")
+HG2_SELECTION_REL = Path("review/hg2_selection.jsonl")
+HG2_DECISIONS_REL = Path("review/hg2_review.decisions.jsonl")
 _UNOBSERVED = object()
 
 
@@ -101,7 +103,64 @@ def _selection(data_dir: Path, frozen: dict) -> list[dict]:
     if any(not isinstance(r.get("pi"), (int, float)) or isinstance(r["pi"], bool)
            or not 0 < r["pi"] <= 1 for r in rows):
         _blocked("selection inclusion probability invalid")
+    hg2 = frozen.get("hg2")
+    if isinstance(hg2, dict) and hg2.get("selection_path"):
+        path = _data_review_path(data_dir, hg2.get("selection_path"))
+        if (path is None or not path.is_file()
+                or file_digest(path) != hg2.get("selection_sha256")):
+            _blocked("HG-2 selection SHA mismatch")
+        extra = manifest.read_jsonl(path)
+        _validate_selection_rows(extra, "HG-2")
+        if len(extra) != hg2.get("selection_n_rows"):
+            _blocked("HG-2 selection count mismatch")
+        if {r["pair_id"] for r in rows} & {r["pair_id"] for r in extra}:
+            _blocked("HG-2 selection overlaps locked HG-1")
+        rows.extend(extra)
     return rows
+
+
+def _data_review_path(data_dir: Path, relative: Any) -> Path | None:
+    """Resolve a review artifact below the ignored data directory only."""
+    if not isinstance(relative, str) or not relative or Path(relative).is_absolute():
+        return None
+    root = Path(data_dir).resolve()
+    path = (root / relative).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return None
+    return path
+
+
+def _validate_selection_rows(rows: list[dict], name: str) -> None:
+    ids = []
+    for row in rows:
+        if (not isinstance(row, dict)
+                or not isinstance(row.get("pair_id"), str) or not row["pair_id"]
+                or not isinstance(row.get("doc_id"), str) or not row["doc_id"]
+                or not isinstance(row.get("stratum"), str) or not row["stratum"]
+                or not isinstance(row.get("pi"), (int, float)) or isinstance(row["pi"], bool)
+                or not 0 < row["pi"] <= 1):
+            _blocked(f"{name} selection rows invalid")
+        ids.append(row["pair_id"])
+    if len(ids) != len(set(ids)):
+        _blocked(f"{name} selection IDs/count mismatch")
+
+
+def _review_locks(frozen: dict) -> list[dict]:
+    locks = [frozen.get("heldout_review")]
+    hg2 = frozen.get("hg2")
+    if isinstance(hg2, dict) and hg2.get("decisions_path"):
+        locks.append(hg2)
+    return [lock for lock in locks if isinstance(lock, dict)]
+
+
+def _combined_review_counts(frozen: dict) -> tuple[int, int]:
+    """Return selected and approved totals across HG-1 and a locked HG-2 block."""
+    locks = _review_locks(frozen)
+    selected = sum(lock.get("n_selected", 0) for lock in locks)
+    approved = sum(lock.get("n_approve", 0) + lock.get("n_relabel", 0) for lock in locks)
+    return selected, approved
 
 
 def import_review(data_dir: Path, csv_path: Path, *, repo_manifest: Path = manifest.REPO_MANIFEST) -> dict:
@@ -145,6 +204,204 @@ def import_review(data_dir: Path, csv_path: Path, *, repo_manifest: Path = manif
     frozen["heldout_review"] = locked
     manifest.write_json(repo_manifest, frozen)
     return locked
+
+
+def _hg2_selection(data_dir: Path, frozen: dict) -> tuple[Path, list[dict]]:
+    """Read the pre-registered HG-2 selection and verify its proposal digest."""
+    path = Path(data_dir) / HG2_SELECTION_REL
+    if not path.is_file():
+        _blocked("HG-2 selection is missing")
+    try:
+        rows = manifest.read_jsonl(path)
+        sizing = manifest.read_json(manifest.REPO_ROOT / HG2_SIZING_PATH)
+    except (OSError, ValueError, TypeError):
+        _blocked("HG-2 selection or sizing receipt is invalid")
+    proposal = sizing.get("proposal") if isinstance(sizing, dict) else None
+    if (not isinstance(proposal, dict)
+            or proposal.get("selection_sha256") != file_digest(path)
+            or proposal.get("n_rows") != len(rows)):
+        _blocked("HG-2 selection does not match the sizing receipt")
+    _validate_selection_rows(rows, "HG-2")
+    hg1 = _selection_hg1(data_dir, frozen)
+    if {r["pair_id"] for r in rows} & {r["pair_id"] for r in hg1}:
+        _blocked("HG-2 selection overlaps locked HG-1")
+    return path, rows
+
+
+def _selection_hg1(data_dir: Path, frozen: dict) -> list[dict]:
+    path = Path(data_dir) / "review/selection.jsonl"
+    locked = frozen.get("review_selection") or {}
+    if not path.is_file() or file_digest(path) != locked.get("sha256"):
+        _blocked("selection SHA mismatch")
+    rows = manifest.read_jsonl(path)
+    _validate_selection_rows(rows, "HG-1")
+    if len(rows) != locked.get("n_rows"):
+        _blocked("selection IDs/count mismatch")
+    return rows
+
+
+def _hg2_universe(data_dir: Path, frozen: dict) -> dict[str, dict]:
+    universe = {}
+    labels = {}
+    for item in _heldout(data_dir, frozen, manifest.REPO_MANIFEST):
+        for pair in item["pool"]:
+            if pair["pair_id"] in universe:
+                _blocked("heldout pool has duplicate pair_id")
+            universe[pair["pair_id"]] = pair
+        for label in item["labels"]:
+            labels[label["pair_id"]] = label
+    return {"pairs": universe, "labels": labels}
+
+
+def _validate_hg2_sheet(data_dir: Path, csv_path: Path,
+                        frozen: dict) -> tuple[list[dict], dict]:
+    """Validate a filled HG-2 sheet without changing either lock."""
+    selection_path, selection = _hg2_selection(data_dir, frozen)
+    try:
+        decisions = review.import_sheet(csv_path)
+        with csv_path.open(encoding="utf-8-sig", newline="") as fh:
+            sheet = list(csv.DictReader(fh))
+    except (OSError, csv.Error, review.SheetError, ValueError):
+        _blocked("HG-2 review sheet is invalid")
+    selected_by_id = {row["pair_id"]: row for row in selection}
+    decision_ids = [row["pair_id"] for row in decisions]
+    if (len(sheet) != len(selection) or len(decisions) != len(selection)
+            or len(decision_ids) != len(set(decision_ids))
+            or set(decision_ids) != set(selected_by_id)):
+        _blocked("HG-2 review must contain exactly the unique selected IDs")
+    universe = _hg2_universe(data_dir, frozen)
+    hg1_ids = {row["pair_id"] for row in _selection_hg1(data_dir, frozen)}
+    if set(selected_by_id) & hg1_ids:
+        _blocked("HG-2 review overlaps locked HG-1")
+    by_sheet = {}
+    for row in sheet:
+        pair_id = (row.get("pair_id") or "").strip()
+        if pair_id in by_sheet:
+            _blocked("HG-2 review contains duplicate pair_id")
+        by_sheet[pair_id] = row
+        sel = selected_by_id.get(pair_id)
+        pair = universe["pairs"].get(pair_id)
+        label = universe["labels"].get(pair_id)
+        if (sel is None or pair is None or label is None
+                or row.get("doc_id") != sel["doc_id"]
+                or row.get("gpt_label") != sel["gpt_label"]
+                or row.get("gpt_direction", "").strip().upper() != review.gpt_direction(label)
+                or pair.get("doc_id") != sel["doc_id"]
+                or pair.get("stratum") != sel["stratum"]):
+            _blocked("HG-2 review metadata differs from frozen selection")
+    canonical = []
+    for decision in sorted(decisions, key=lambda row: row["pair_id"]):
+        sel = selected_by_id[decision["pair_id"]]
+        canonical.append({**decision, "doc_id": sel["doc_id"], "stratum": sel["stratum"],
+                          "decision": by_sheet[decision["pair_id"]]["decision"].strip().casefold()})
+    digest = hashlib.sha256("".join(_json_line(row) for row in canonical).encode("utf-8")).hexdigest()
+    counts = Counter(row["decision"] for row in canonical)
+    lock = {"selection_path": HG2_SELECTION_REL.as_posix(),
+            "selection_sha256": file_digest(selection_path), "selection_n_rows": len(selection),
+            "decisions_path": HG2_DECISIONS_REL.as_posix(), "decisions_sha256": digest,
+            "n_selected": len(canonical),
+            **{f"n_{decision}": counts[decision] for decision in review.DECISIONS},
+            "approved_by_label": dict(sorted(Counter(
+                row["gold_label"] for row in canonical if row["approved"]
+            ).items()))}
+    return canonical, lock
+
+
+def import_hg2_review(data_dir: Path, csv_path: Path,
+                      *, repo_manifest: Path = manifest.REPO_MANIFEST) -> dict:
+    """Validate a completed HG-2 sheet and write decisions outside Git.
+
+    This deliberately does not set ``human_approved`` or mutate the manifest.  The
+    separate lock command requires an explicit human approval and recall-floor choice.
+    """
+    if manifest.verify(data_dir, repo_manifest):
+        _blocked("frozen dataset verification failed")
+    frozen = manifest.read_json(repo_manifest)
+    canonical, lock = _validate_hg2_sheet(data_dir, csv_path, frozen)
+    manifest.write_jsonl(Path(data_dir) / HG2_DECISIONS_REL, canonical)
+    return lock
+
+
+def lock_hg2(data_dir: Path, *, repo_manifest: Path = manifest.REPO_MANIFEST,
+             recall_floor: float = MIN_WILSON_LOWER, human_approved: bool = False,
+             scope_consent: bool = False) -> dict:
+    """Promote imported HG-2 decisions only after an explicit human gate."""
+    if not human_approved or not scope_consent:
+        _blocked("HG-2 lock requires explicit human approval and scope consent")
+    if (not isinstance(recall_floor, (int, float)) or isinstance(recall_floor, bool)
+            or not math.isfinite(float(recall_floor)) or float(recall_floor) < MIN_WILSON_LOWER
+            or float(recall_floor) > 1):
+        _blocked("HG-2 recall floor must be within [0,1] and at least the policy floor")
+    if manifest.verify(data_dir, repo_manifest):
+        _blocked("frozen dataset verification failed")
+    frozen = manifest.read_json(repo_manifest)
+    decisions_path = Path(data_dir) / HG2_DECISIONS_REL
+    if not decisions_path.is_file():
+        _blocked("HG-2 decisions are missing; import the reviewed sheet first")
+    try:
+        decisions = manifest.read_jsonl(decisions_path)
+        selection_path, selection = _hg2_selection(data_dir, frozen)
+    except (OSError, ValueError, TypeError):
+        _blocked("HG-2 decisions or selection is invalid")
+    if (len(decisions) != len(selection)
+            or len({row.get("pair_id") for row in decisions}) != len(decisions)
+            or {row.get("pair_id") for row in decisions} != {row.get("pair_id") for row in selection}):
+        _blocked("HG-2 decisions do not match the locked selection")
+    for row in decisions:
+        if (not isinstance(row, dict) or row.get("source") != "user-review"
+                or not isinstance(row.get("approved"), bool)):
+            _blocked("HG-2 decisions lack user-review provenance")
+    review_path = manifest.REPO_ROOT / HG2_REVIEW_PATH
+    sizing_path = manifest.REPO_ROOT / HG2_SIZING_PATH
+    if not review_path.is_file() or not sizing_path.is_file():
+        _blocked("HG-2 receipt artifacts are missing")
+    if frozen.get("hg2") is not None:
+        _blocked("existing HG-2 lock differs; refusing replacement")
+    counts = Counter(row.get("decision") for row in decisions)
+    approved_by_label = dict(sorted(Counter(
+        row.get("gold_label") for row in decisions if row.get("approved")
+    ).items()))
+    try:
+        receipt = review_path.read_text(encoding="utf-8")
+        sizing = manifest.read_json(sizing_path)
+    except (OSError, ValueError, TypeError):
+        _blocked("HG-2 receipt artifacts are invalid")
+    receipt += (
+        "\n## Human decision recorded\n\n"
+        "- Status: `PASS`\n"
+        "- `human_approved`: `true`\n"
+        "- `scope_consent`: `true`\n"
+        f"- Recall floor: Wilson lower `>={float(recall_floor):.2f}` for "
+        f"{', '.join(SCORED)}.\n"
+        f"- Reviewed rows: `{len(decisions)}`; "
+        f"approve `{counts['approve']}`, relabel `{counts['relabel']}`, reject `{counts['reject']}`.\n"
+        "- HG-1 rows remain unchanged; P5 is permitted only after this manifest is committed.\n"
+    )
+    review_path.write_text(receipt, encoding="utf-8", newline="\n")
+    if not isinstance(sizing, dict):
+        _blocked("HG-2 sizing receipt is not an object")
+    sizing["status"] = "PASS"
+    sizing["manifest_locked"] = True
+    sizing["human_decision"] = {"recall_floor": {"method": "wilson_lower", "min": float(recall_floor),
+                                                   "labels": list(SCORED)},
+                                 "scope_consent": True, "n_selected": len(decisions),
+                                 "approved_by_label": approved_by_label}
+    manifest.write_json(sizing_path, sizing)
+    lock = {"schema": HG2_SCHEMA, "status": "PASS", "human_approved": True,
+            "manifest_locked": True, "review_path": HG2_REVIEW_PATH.as_posix(),
+            "sizing_path": HG2_SIZING_PATH.as_posix(),
+            "review_sha256": file_digest(review_path), "sizing_sha256": file_digest(sizing_path),
+            "selection_path": HG2_SELECTION_REL.as_posix(),
+            "selection_sha256": file_digest(selection_path), "selection_n_rows": len(selection),
+            "decisions_path": HG2_DECISIONS_REL.as_posix(),
+            "decisions_sha256": file_digest(decisions_path), "n_selected": len(decisions),
+            **{f"n_{decision}": counts[decision] for decision in review.DECISIONS},
+            "approved_by_label": approved_by_label,
+            "recall_floor": {"method": "wilson_lower", "min": float(recall_floor),
+                             "labels": list(SCORED)}, "scope_consent": True}
+    frozen["hg2"] = lock
+    manifest.write_json(repo_manifest, frozen)
+    return lock
 
 
 def _heldout(data_dir: Path, frozen: dict, repo_manifest: Path) -> list[dict]:
@@ -285,13 +542,35 @@ def preconditions(
                 or len(floor_labels) != len(SCORED)
                 or set(floor_labels) != set(SCORED)):
             _blocked("HG-2/P4 manifest lock missing or invalid")
+        if hg2.get("selection_path") or hg2.get("decisions_path"):
+            selection_path = _data_review_path(data_dir, hg2.get("selection_path"))
+            decisions_path = _data_review_path(data_dir, hg2.get("decisions_path"))
+            if (selection_path is None or decisions_path is None
+                    or not selection_path.is_file() or not decisions_path.is_file()
+                    or not _is_sha256(hg2.get("selection_sha256"))
+                    or not _is_sha256(hg2.get("decisions_sha256"))
+                    or file_digest(selection_path) != hg2.get("selection_sha256")
+                    or file_digest(decisions_path) != hg2.get("decisions_sha256")):
+                _blocked("HG-2/P4 decision artifacts are missing or modified")
+            try:
+                hg2_selection = manifest.read_jsonl(selection_path)
+                hg2_decisions = manifest.read_jsonl(decisions_path)
+            except (OSError, ValueError, TypeError):
+                _blocked("HG-2/P4 decision artifacts are invalid")
+            _validate_selection_rows(hg2_selection, "HG-2")
+            if (len(hg2_selection) != hg2.get("selection_n_rows")
+                    or len(hg2_decisions) != hg2.get("n_selected")
+                    or len(hg2_decisions) != sum(hg2.get(f"n_{d}", -1) for d in review.DECISIONS)
+                    or any(not isinstance(row, dict) or row.get("source") != "user-review"
+                           or not isinstance(row.get("approved"), bool) for row in hg2_decisions)):
+                _blocked("HG-2/P4 decision counts or provenance are invalid")
         if require_commit_lock:
             _review_lock(repo_manifest, frozen)
         selected = _selection(data_dir, frozen)
         gold = predictor._read_reviewed_gold(data_dir, frozen)
-        locked = frozen["heldout_review"]
-        if (sum(locked.get(f"n_{d}", -1) for d in review.DECISIONS) != len(selected)
-                or sum(g["approved"] is True for g in gold) != locked.get("n_approve", 0) + locked.get("n_relabel", 0)):
+        selected_count, approved_count = _combined_review_counts(frozen)
+        if (selected_count != len(selected)
+                or sum(g["approved"] is True for g in gold) != approved_count):
             _blocked("review decision counts mismatch")
         for block in (frozen.get("labeler") or {}, (frozen.get("extension_s4") or {}).get("labeler", frozen.get("labeler") or {})):
             model = block.get("served_model")
@@ -323,7 +602,7 @@ def preconditions(
                 if not found <= ids:
                     _blocked(f"{variant} candidates outside pool + S4")
                 counts[variant] += len(found)
-        if not set(s["pair_id"] for s in selected) <= universe:
+        if {s["pair_id"] for s in selected} - universe:
             _blocked("review selection outside gold universe")
         dev_candidates = dev.get("n_candidates")
         if dev_candidates is None:
@@ -345,7 +624,7 @@ def preconditions(
         return {"variants": variants, "candidate_counts": counts, "n_docs": len(docs), "budgets": budgets,
                 "feasibility": {"expected_n": expected, "status": "KEEP_OFF_INSUFFICIENT_N expected" if skip_e else "E retained",
                                 "skipped_variants": {"E": "every label expected_n < MIN_N/2"} if skip_e else {}},
-                "decisions_sha256": locked["decisions_sha256"], "prompt_version": PROMPT_VERSION,
+                "decisions_sha256": frozen["heldout_review"]["decisions_sha256"], "prompt_version": PROMPT_VERSION,
                 "code_sha256": _code_fingerprints(),
                 "served_model_check": "OBSERVED" if served_model is not _UNOBSERVED else "pending production probe/per-call check"}
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
@@ -938,7 +1217,8 @@ def assemble_report(out_dir: Path, data_dir: Path, *, repo_manifest: Path = mani
     lock = _review_lock(repo_manifest, frozen)
     report = {"schema": "contract-graph-pairs-bakeoff/1", "status": "OBSERVED",
               "manifest": {"heldout_review": frozen["heldout_review"], "review_selection": frozen["review_selection"],
-                           "docs": frozen["docs"]}, "decisions_sha256": checked["decisions_sha256"],
+                           "hg2": frozen.get("hg2"), "docs": frozen["docs"]},
+              "decisions_sha256": checked["decisions_sha256"],
               "review_lock": lock, "review_lock_commit": lock["commit"],
               "review_lock_committed_at": lock["committed_at"],
               "code_sha256": checked["code_sha256"],
