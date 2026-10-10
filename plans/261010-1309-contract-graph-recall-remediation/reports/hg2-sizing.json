@@ -1,0 +1,47 @@
+{
+  "schema": "contract-graph-hg2-sizing/1",
+  "status": "AWAITING_HUMAN_DECISION",
+  "manifest_locked": false,
+  "source": "evals/contract_graph/pairs/manifest.json heldout_review lock",
+  "current_approved_positive": {
+    "CONFLICT": 30,
+    "DUPLICATE": 29,
+    "GENERAL_SPECIFIC": 34,
+    "REFERENCE": 8
+  },
+  "target": {
+    "min_n": 60,
+    "recall_floor": {
+      "method": "wilson_lower",
+      "min": 0.85,
+      "labels": [
+        "CONFLICT",
+        "DUPLICATE",
+        "GENERAL_SPECIFIC",
+        "REFERENCE"
+      ]
+    }
+  },
+  "additional_minimum_if_valid": {
+    "CONFLICT": 30,
+    "DUPLICATE": 31,
+    "GENERAL_SPECIFIC": 26,
+    "REFERENCE": 52
+  },
+  "sampling_plan": {
+    "scope": "new reviewed scored gold only; do not alter locked HG-1 rows",
+    "selection": "stratified by label and pool stratum; preserve pair_id/doc_id/stratum provenance",
+    "decision_values": [
+      "approve",
+      "relabel",
+      "reject"
+    ],
+    "consent_required": true
+  },
+  "human_decisions_required": [
+    "approve the Wilson lower recall floor and labels",
+    "approve/relabel/reject any added rows",
+    "confirm data scope and consent"
+  ],
+  "note": "The additional counts are lower bounds, not labels to be fabricated. No HG-2 PASS or manifest lock is asserted."
+}

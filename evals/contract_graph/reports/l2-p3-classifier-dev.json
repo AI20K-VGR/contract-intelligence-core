@@ -1,8 +1,4 @@
 {
- "analysis_notes": [
-  "Một dự đoán DUPLICATE khác gold GPT dev chưa được người duyệt xác nhận; đây là sai khác với người gán nhãn, không phải bằng chứng độ chính xác nghiệp vụ.",
-  "Guard multiset số đã được kiểm bằng code; chưa có bằng chứng cho một guard ngữ nghĩa mới. Giữ pairs-v1, không tune trên held-out, cờ pairs mặc định tắt."
- ],
  "by_cluster": {
   "cl-0fa3021b56": {
    "CONFLICT": {
@@ -77,7 +73,7 @@
    },
    "GENERAL_SPECIFIC": {
     "covered": 0,
-    "denominator": 0,
+    "denominator": 1,
     "direction_accuracy": {
      "denominator": 0,
      "passed": 0,
@@ -89,12 +85,12 @@
     },
     "passed": 0,
     "precision_conservative": {
-     "denominator": 0,
+     "denominator": 1,
      "passed": 0,
-     "rate": null,
+     "rate": 0.0,
      "wilson95": [
       0.0,
-      1.0
+      0.7935
      ]
     },
     "precision_observed": {
@@ -108,12 +104,12 @@
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 1,
+     "denominator": 0,
      "passed": 0,
-     "rate": 0.0,
+     "rate": null,
      "wilson95": [
       0.0,
-      0.7935
+      1.0
      ]
     },
     "recall_weighted": null
@@ -151,12 +147,12 @@
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 1,
+     "denominator": 0,
      "passed": 0,
-     "rate": 0.0,
+     "rate": null,
      "wilson95": [
       0.0,
-      0.7935
+      1.0
      ]
     },
     "recall_weighted": null
@@ -200,85 +196,85 @@
    },
    "DUPLICATE": {
     "covered": 1,
-    "denominator": 1,
+    "denominator": 2,
     "direction_accuracy": null,
-    "passed": 0,
+    "passed": 1,
     "precision_conservative": {
-     "denominator": 1,
-     "passed": 0,
-     "rate": 0.0,
+     "denominator": 2,
+     "passed": 1,
+     "rate": 0.5,
      "wilson95": [
-      0.0,
-      0.7935
+      0.0945,
+      0.9055
      ]
     },
     "precision_observed": {
      "denominator": 1,
-     "passed": 0,
-     "rate": 0.0,
+     "passed": 1,
+     "rate": 1.0,
      "wilson95": [
-      0.0,
-      0.7935
+      0.2065,
+      1.0
      ]
     },
     "precision_weighted": null,
     "recall_observed": {
      "denominator": 1,
-     "passed": 0,
-     "rate": 0.0,
+     "passed": 1,
+     "rate": 1.0,
      "wilson95": [
-      0.0,
-      0.7935
+      0.2065,
+      1.0
      ]
     },
     "recall_weighted": null
    },
    "GENERAL_SPECIFIC": {
-    "covered": 6,
-    "denominator": 7,
+    "covered": 0,
+    "denominator": 3,
     "direction_accuracy": {
-     "denominator": 2,
-     "passed": 2,
-     "rate": 1.0,
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
      "wilson95": [
-      0.3424,
+      0.0,
       1.0
      ]
     },
-    "passed": 2,
+    "passed": 0,
     "precision_conservative": {
-     "denominator": 7,
-     "passed": 2,
-     "rate": 0.2857,
+     "denominator": 3,
+     "passed": 0,
+     "rate": 0.0,
      "wilson95": [
-      0.0822,
-      0.6411
+      0.0,
+      0.5615
      ]
     },
     "precision_observed": {
-     "denominator": 6,
-     "passed": 2,
-     "rate": 0.3333,
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
      "wilson95": [
-      0.0968,
-      0.7
+      0.0,
+      1.0
      ]
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 6,
-     "passed": 2,
-     "rate": 0.3333,
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
      "wilson95": [
-      0.0968,
-      0.7
+      0.0,
+      1.0
      ]
     },
     "recall_weighted": null
    },
    "REFERENCE": {
     "covered": 0,
-    "denominator": 0,
+    "denominator": 1,
     "direction_accuracy": {
      "denominator": 0,
      "passed": 0,
@@ -290,12 +286,12 @@
     },
     "passed": 0,
     "precision_conservative": {
-     "denominator": 0,
+     "denominator": 1,
      "passed": 0,
-     "rate": null,
+     "rate": 0.0,
      "wilson95": [
       0.0,
-      1.0
+      0.7935
      ]
     },
     "precision_observed": {
@@ -309,12 +305,12 @@
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 2,
+     "denominator": 0,
      "passed": 0,
-     "rate": 0.0,
+     "rate": null,
      "wilson95": [
       0.0,
-      0.6576
+      1.0
      ]
     },
     "recall_weighted": null
@@ -322,36 +318,36 @@
   },
   "cl-4637ce270e": {
    "CONFLICT": {
-    "covered": 0,
-    "denominator": 0,
+    "covered": 1,
+    "denominator": 1,
     "direction_accuracy": null,
-    "passed": 0,
+    "passed": 1,
     "precision_conservative": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
      "wilson95": [
-      0.0,
+      0.2065,
       1.0
      ]
     },
     "precision_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
      "wilson95": [
-      0.0,
+      0.2065,
       1.0
      ]
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 3,
-     "passed": 0,
-     "rate": 0.0,
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
      "wilson95": [
-      0.0,
-      0.5615
+      0.2065,
+      1.0
      ]
     },
     "recall_weighted": null
@@ -381,60 +377,17 @@
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 1,
+     "denominator": 0,
      "passed": 0,
-     "rate": 0.0,
+     "rate": null,
      "wilson95": [
       0.0,
-      0.7935
+      1.0
      ]
     },
     "recall_weighted": null
    },
    "GENERAL_SPECIFIC": {
-    "covered": 2,
-    "denominator": 2,
-    "direction_accuracy": {
-     "denominator": 2,
-     "passed": 2,
-     "rate": 1.0,
-     "wilson95": [
-      0.3424,
-      1.0
-     ]
-    },
-    "passed": 2,
-    "precision_conservative": {
-     "denominator": 2,
-     "passed": 2,
-     "rate": 1.0,
-     "wilson95": [
-      0.3424,
-      1.0
-     ]
-    },
-    "precision_observed": {
-     "denominator": 2,
-     "passed": 2,
-     "rate": 1.0,
-     "wilson95": [
-      0.3424,
-      1.0
-     ]
-    },
-    "precision_weighted": null,
-    "recall_observed": {
-     "denominator": 2,
-     "passed": 2,
-     "rate": 1.0,
-     "wilson95": [
-      0.3424,
-      1.0
-     ]
-    },
-    "recall_weighted": null
-   },
-   "REFERENCE": {
     "covered": 0,
     "denominator": 0,
     "direction_accuracy": {
@@ -454,6 +407,49 @@
      "wilson95": [
       0.0,
       1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
+     ]
+    },
+    "recall_weighted": null
+   },
+   "REFERENCE": {
+    "covered": 0,
+    "denominator": 1,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
      ]
     },
     "precision_observed": {
@@ -740,12 +736,12 @@
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 1,
+     "denominator": 0,
      "passed": 0,
-     "rate": 0.0,
+     "rate": null,
      "wilson95": [
       0.0,
-      0.7935
+      1.0
      ]
     },
     "recall_weighted": null
@@ -783,12 +779,12 @@
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 1,
+     "denominator": 0,
      "passed": 0,
-     "rate": 0.0,
+     "rate": null,
      "wilson95": [
       0.0,
-      0.7935
+      1.0
      ]
     },
     "recall_weighted": null
@@ -797,16 +793,16 @@
   "cl-b8007cde81": {
    "CONFLICT": {
     "covered": 0,
-    "denominator": 0,
+    "denominator": 1,
     "direction_accuracy": null,
     "passed": 0,
     "precision_conservative": {
-     "denominator": 0,
+     "denominator": 1,
      "passed": 0,
-     "rate": null,
+     "rate": 0.0,
      "wilson95": [
       0.0,
-      1.0
+      0.7935
      ]
     },
     "precision_observed": {
@@ -820,12 +816,12 @@
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 2,
+     "denominator": 0,
      "passed": 0,
-     "rate": 0.0,
+     "rate": null,
      "wilson95": [
       0.0,
-      0.6576
+      1.0
      ]
     },
     "recall_weighted": null
@@ -866,8 +862,8 @@
     "recall_weighted": null
    },
    "GENERAL_SPECIFIC": {
-    "covered": 1,
-    "denominator": 1,
+    "covered": 0,
+    "denominator": 0,
     "direction_accuracy": {
      "denominator": 0,
      "passed": 0,
@@ -879,31 +875,31 @@
     },
     "passed": 0,
     "precision_conservative": {
-     "denominator": 1,
-     "passed": 0,
-     "rate": 0.0,
-     "wilson95": [
-      0.0,
-      0.7935
-     ]
-    },
-    "precision_observed": {
-     "denominator": 1,
-     "passed": 0,
-     "rate": 0.0,
-     "wilson95": [
-      0.0,
-      0.7935
-     ]
-    },
-    "precision_weighted": null,
-    "recall_observed": {
      "denominator": 0,
      "passed": 0,
      "rate": null,
      "wilson95": [
       0.0,
       1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
      ]
     },
     "recall_weighted": null
@@ -1056,12 +1052,12 @@
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 3,
+     "denominator": 0,
      "passed": 0,
-     "rate": 0.0,
+     "rate": null,
      "wilson95": [
       0.0,
-      0.5615
+      1.0
      ]
     },
     "recall_weighted": null
@@ -1114,6 +1110,41 @@
  "by_doc": {
   "pd-ae9bb69ee7": {
    "CONFLICT": {
+    "covered": 1,
+    "denominator": 1,
+    "direction_accuracy": null,
+    "passed": 1,
+    "precision_conservative": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "DUPLICATE": {
     "covered": 0,
     "denominator": 0,
     "direction_accuracy": null,
@@ -1138,20 +1169,28 @@
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 3,
+     "denominator": 0,
      "passed": 0,
-     "rate": 0.0,
+     "rate": null,
      "wilson95": [
       0.0,
-      0.5615
+      1.0
      ]
     },
     "recall_weighted": null
    },
-   "DUPLICATE": {
+   "GENERAL_SPECIFIC": {
     "covered": 0,
     "denominator": 0,
-    "direction_accuracy": null,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
     "passed": 0,
     "precision_conservative": {
      "denominator": 0,
@@ -1183,52 +1222,9 @@
     },
     "recall_weighted": null
    },
-   "GENERAL_SPECIFIC": {
-    "covered": 2,
-    "denominator": 2,
-    "direction_accuracy": {
-     "denominator": 2,
-     "passed": 2,
-     "rate": 1.0,
-     "wilson95": [
-      0.3424,
-      1.0
-     ]
-    },
-    "passed": 2,
-    "precision_conservative": {
-     "denominator": 2,
-     "passed": 2,
-     "rate": 1.0,
-     "wilson95": [
-      0.3424,
-      1.0
-     ]
-    },
-    "precision_observed": {
-     "denominator": 2,
-     "passed": 2,
-     "rate": 1.0,
-     "wilson95": [
-      0.3424,
-      1.0
-     ]
-    },
-    "precision_weighted": null,
-    "recall_observed": {
-     "denominator": 2,
-     "passed": 2,
-     "rate": 1.0,
-     "wilson95": [
-      0.3424,
-      1.0
-     ]
-    },
-    "recall_weighted": null
-   },
    "REFERENCE": {
     "covered": 0,
-    "denominator": 0,
+    "denominator": 1,
     "direction_accuracy": {
      "denominator": 0,
      "passed": 0,
@@ -1240,12 +1236,12 @@
     },
     "passed": 0,
     "precision_conservative": {
-     "denominator": 0,
+     "denominator": 1,
      "passed": 0,
-     "rate": null,
+     "rate": 0.0,
      "wilson95": [
       0.0,
-      1.0
+      0.7935
      ]
     },
     "precision_observed": {
@@ -1343,7 +1339,7 @@
    },
    "GENERAL_SPECIFIC": {
     "covered": 0,
-    "denominator": 0,
+    "denominator": 1,
     "direction_accuracy": {
      "denominator": 0,
      "passed": 0,
@@ -1355,12 +1351,12 @@
     },
     "passed": 0,
     "precision_conservative": {
-     "denominator": 0,
+     "denominator": 1,
      "passed": 0,
-     "rate": null,
+     "rate": 0.0,
      "wilson95": [
       0.0,
-      1.0
+      0.7935
      ]
     },
     "precision_observed": {
@@ -1374,12 +1370,12 @@
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 1,
+     "denominator": 0,
      "passed": 0,
-     "rate": 0.0,
+     "rate": null,
      "wilson95": [
       0.0,
-      0.7935
+      1.0
      ]
     },
     "recall_weighted": null
@@ -1417,170 +1413,12 @@
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 1,
-     "passed": 0,
-     "rate": 0.0,
-     "wilson95": [
-      0.0,
-      0.7935
-     ]
-    },
-    "recall_weighted": null
-   }
-  },
-  "pd-b6d8628d32": {
-   "CONFLICT": {
-    "covered": 0,
-    "denominator": 0,
-    "direction_accuracy": null,
-    "passed": 0,
-    "precision_conservative": {
      "denominator": 0,
      "passed": 0,
      "rate": null,
      "wilson95": [
       0.0,
       1.0
-     ]
-    },
-    "precision_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_weighted": null,
-    "recall_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "recall_weighted": null
-   },
-   "DUPLICATE": {
-    "covered": 0,
-    "denominator": 0,
-    "direction_accuracy": null,
-    "passed": 0,
-    "precision_conservative": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_weighted": null,
-    "recall_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "recall_weighted": null
-   },
-   "GENERAL_SPECIFIC": {
-    "covered": 0,
-    "denominator": 0,
-    "direction_accuracy": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "passed": 0,
-    "precision_conservative": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_weighted": null,
-    "recall_observed": {
-     "denominator": 1,
-     "passed": 0,
-     "rate": 0.0,
-     "wilson95": [
-      0.0,
-      0.7935
-     ]
-    },
-    "recall_weighted": null
-   },
-   "REFERENCE": {
-    "covered": 0,
-    "denominator": 0,
-    "direction_accuracy": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "passed": 0,
-    "precision_conservative": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_weighted": null,
-    "recall_observed": {
-     "denominator": 1,
-     "passed": 0,
-     "rate": 0.0,
-     "wilson95": [
-      0.0,
-      0.7935
      ]
     },
     "recall_weighted": null
@@ -1624,192 +1462,34 @@
    },
    "DUPLICATE": {
     "covered": 1,
-    "denominator": 1,
+    "denominator": 2,
     "direction_accuracy": null,
-    "passed": 0,
+    "passed": 1,
     "precision_conservative": {
-     "denominator": 1,
-     "passed": 0,
-     "rate": 0.0,
+     "denominator": 2,
+     "passed": 1,
+     "rate": 0.5,
      "wilson95": [
-      0.0,
-      0.7935
+      0.0945,
+      0.9055
      ]
     },
     "precision_observed": {
      "denominator": 1,
-     "passed": 0,
-     "rate": 0.0,
-     "wilson95": [
-      0.0,
-      0.7935
-     ]
-    },
-    "precision_weighted": null,
-    "recall_observed": {
-     "denominator": 1,
-     "passed": 0,
-     "rate": 0.0,
-     "wilson95": [
-      0.0,
-      0.7935
-     ]
-    },
-    "recall_weighted": null
-   },
-   "GENERAL_SPECIFIC": {
-    "covered": 6,
-    "denominator": 7,
-    "direction_accuracy": {
-     "denominator": 2,
-     "passed": 2,
+     "passed": 1,
      "rate": 1.0,
      "wilson95": [
-      0.3424,
-      1.0
-     ]
-    },
-    "passed": 2,
-    "precision_conservative": {
-     "denominator": 7,
-     "passed": 2,
-     "rate": 0.2857,
-     "wilson95": [
-      0.0822,
-      0.6411
-     ]
-    },
-    "precision_observed": {
-     "denominator": 6,
-     "passed": 2,
-     "rate": 0.3333,
-     "wilson95": [
-      0.0968,
-      0.7
-     ]
-    },
-    "precision_weighted": null,
-    "recall_observed": {
-     "denominator": 6,
-     "passed": 2,
-     "rate": 0.3333,
-     "wilson95": [
-      0.0968,
-      0.7
-     ]
-    },
-    "recall_weighted": null
-   },
-   "REFERENCE": {
-    "covered": 0,
-    "denominator": 0,
-    "direction_accuracy": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "passed": 0,
-    "precision_conservative": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
+      0.2065,
       1.0
      ]
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 2,
-     "passed": 0,
-     "rate": 0.0,
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
      "wilson95": [
-      0.0,
-      0.6576
-     ]
-    },
-    "recall_weighted": null
-   }
-  },
-  "pd-e0d65645f2": {
-   "CONFLICT": {
-    "covered": 0,
-    "denominator": 0,
-    "direction_accuracy": null,
-    "passed": 0,
-    "precision_conservative": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_weighted": null,
-    "recall_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "recall_weighted": null
-   },
-   "DUPLICATE": {
-    "covered": 0,
-    "denominator": 0,
-    "direction_accuracy": null,
-    "passed": 0,
-    "precision_conservative": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_weighted": null,
-    "recall_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
+      0.2065,
       1.0
      ]
     },
@@ -1817,7 +1497,7 @@
    },
    "GENERAL_SPECIFIC": {
     "covered": 0,
-    "denominator": 0,
+    "denominator": 3,
     "direction_accuracy": {
      "denominator": 0,
      "passed": 0,
@@ -1829,183 +1509,6 @@
     },
     "passed": 0,
     "precision_conservative": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_weighted": null,
-    "recall_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "recall_weighted": null
-   },
-   "REFERENCE": {
-    "covered": 0,
-    "denominator": 0,
-    "direction_accuracy": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "passed": 0,
-    "precision_conservative": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_weighted": null,
-    "recall_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "recall_weighted": null
-   }
-  },
-  "pd-eec95ad3b2": {
-   "CONFLICT": {
-    "covered": 0,
-    "denominator": 0,
-    "direction_accuracy": null,
-    "passed": 0,
-    "precision_conservative": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_weighted": null,
-    "recall_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "recall_weighted": null
-   },
-   "DUPLICATE": {
-    "covered": 0,
-    "denominator": 0,
-    "direction_accuracy": null,
-    "passed": 0,
-    "precision_conservative": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_weighted": null,
-    "recall_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "recall_weighted": null
-   },
-   "GENERAL_SPECIFIC": {
-    "covered": 0,
-    "denominator": 0,
-    "direction_accuracy": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "passed": 0,
-    "precision_conservative": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
-     "wilson95": [
-      0.0,
-      1.0
-     ]
-    },
-    "precision_weighted": null,
-    "recall_observed": {
      "denominator": 3,
      "passed": 0,
      "rate": 0.0,
@@ -2014,11 +1517,30 @@
       0.5615
      ]
     },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
     "recall_weighted": null
    },
    "REFERENCE": {
     "covered": 0,
-    "denominator": 0,
+    "denominator": 1,
     "direction_accuracy": {
      "denominator": 0,
      "passed": 0,
@@ -2030,12 +1552,12 @@
     },
     "passed": 0,
     "precision_conservative": {
-     "denominator": 0,
+     "denominator": 1,
      "passed": 0,
-     "rate": null,
+     "rate": 0.0,
      "wilson95": [
       0.0,
-      1.0
+      0.7935
      ]
     },
     "precision_observed": {
@@ -2063,16 +1585,16 @@
   "pd-fa299625d8": {
    "CONFLICT": {
     "covered": 0,
-    "denominator": 0,
+    "denominator": 1,
     "direction_accuracy": null,
     "passed": 0,
     "precision_conservative": {
-     "denominator": 0,
+     "denominator": 1,
      "passed": 0,
-     "rate": null,
+     "rate": 0.0,
      "wilson95": [
       0.0,
-      1.0
+      0.7935
      ]
     },
     "precision_observed": {
@@ -2086,12 +1608,12 @@
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 2,
+     "denominator": 0,
      "passed": 0,
-     "rate": 0.0,
+     "rate": null,
      "wilson95": [
       0.0,
-      0.6576
+      1.0
      ]
     },
     "recall_weighted": null
@@ -2132,8 +1654,8 @@
     "recall_weighted": null
    },
    "GENERAL_SPECIFIC": {
-    "covered": 1,
-    "denominator": 1,
+    "covered": 0,
+    "denominator": 0,
     "direction_accuracy": {
      "denominator": 0,
      "passed": 0,
@@ -2145,31 +1667,31 @@
     },
     "passed": 0,
     "precision_conservative": {
-     "denominator": 1,
-     "passed": 0,
-     "rate": 0.0,
-     "wilson95": [
-      0.0,
-      0.7935
-     ]
-    },
-    "precision_observed": {
-     "denominator": 1,
-     "passed": 0,
-     "rate": 0.0,
-     "wilson95": [
-      0.0,
-      0.7935
-     ]
-    },
-    "precision_weighted": null,
-    "recall_observed": {
      "denominator": 0,
      "passed": 0,
      "rate": null,
      "wilson95": [
       0.0,
       1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
      ]
     },
     "recall_weighted": null
@@ -2221,61 +1743,104 @@
  },
  "by_label": {
   "CONFLICT": {
-   "covered": 0,
-   "denominator": 0,
+   "covered": 1,
+   "denominator": 2,
    "direction_accuracy": null,
-   "passed": 0,
+   "passed": 1,
    "precision_conservative": {
-    "denominator": 0,
-    "passed": 0,
-    "rate": null,
+    "denominator": 2,
+    "passed": 1,
+    "rate": 0.5,
     "wilson95": [
-     0.0,
-     1.0
+     0.0945,
+     0.9055
     ]
    },
    "precision_observed": {
-    "denominator": 0,
-    "passed": 0,
-    "rate": null,
+    "denominator": 1,
+    "passed": 1,
+    "rate": 1.0,
     "wilson95": [
-     0.0,
+     0.2065,
      1.0
     ]
    },
    "precision_weighted": null,
    "recall_observed": {
-    "denominator": 5,
-    "passed": 0,
-    "rate": 0.0,
+    "denominator": 1,
+    "passed": 1,
+    "rate": 1.0,
     "wilson95": [
-     0.0,
-     0.4345
+     0.2065,
+     1.0
     ]
    },
    "recall_weighted": null
   },
   "DUPLICATE": {
    "covered": 1,
-   "denominator": 1,
+   "denominator": 2,
    "direction_accuracy": null,
-   "passed": 0,
+   "passed": 1,
    "precision_conservative": {
-    "denominator": 1,
-    "passed": 0,
-    "rate": 0.0,
+    "denominator": 2,
+    "passed": 1,
+    "rate": 0.5,
     "wilson95": [
-     0.0,
-     0.7935
+     0.0945,
+     0.9055
     ]
    },
    "precision_observed": {
     "denominator": 1,
+    "passed": 1,
+    "rate": 1.0,
+    "wilson95": [
+     0.2065,
+     1.0
+    ]
+   },
+   "precision_weighted": null,
+   "recall_observed": {
+    "denominator": 1,
+    "passed": 1,
+    "rate": 1.0,
+    "wilson95": [
+     0.2065,
+     1.0
+    ]
+   },
+   "recall_weighted": null
+  },
+  "GENERAL_SPECIFIC": {
+   "covered": 0,
+   "denominator": 4,
+   "direction_accuracy": {
+    "denominator": 0,
+    "passed": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "passed": 0,
+   "precision_conservative": {
+    "denominator": 4,
     "passed": 0,
     "rate": 0.0,
     "wilson95": [
      0.0,
-     0.7935
+     0.4899
+    ]
+   },
+   "precision_observed": {
+    "denominator": 0,
+    "passed": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
     ]
    },
    "precision_weighted": null,
@@ -2290,52 +1855,9 @@
    },
    "recall_weighted": null
   },
-  "GENERAL_SPECIFIC": {
-   "covered": 9,
-   "denominator": 10,
-   "direction_accuracy": {
-    "denominator": 4,
-    "passed": 4,
-    "rate": 1.0,
-    "wilson95": [
-     0.5101,
-     1.0
-    ]
-   },
-   "passed": 4,
-   "precision_conservative": {
-    "denominator": 10,
-    "passed": 4,
-    "rate": 0.4,
-    "wilson95": [
-     0.1682,
-     0.6873
-    ]
-   },
-   "precision_observed": {
-    "denominator": 9,
-    "passed": 4,
-    "rate": 0.4444,
-    "wilson95": [
-     0.1888,
-     0.7334
-    ]
-   },
-   "precision_weighted": null,
-   "recall_observed": {
-    "denominator": 13,
-    "passed": 4,
-    "rate": 0.3077,
-    "wilson95": [
-     0.1268,
-     0.5763
-    ]
-   },
-   "recall_weighted": null
-  },
   "REFERENCE": {
    "covered": 0,
-   "denominator": 0,
+   "denominator": 2,
    "direction_accuracy": {
     "denominator": 0,
     "passed": 0,
@@ -2347,12 +1869,12 @@
    },
    "passed": 0,
    "precision_conservative": {
-    "denominator": 0,
+    "denominator": 2,
     "passed": 0,
-    "rate": null,
+    "rate": 0.0,
     "wilson95": [
      0.0,
-     1.0
+     0.6576
     ]
    },
    "precision_observed": {
@@ -2366,12 +1888,12 @@
    },
    "precision_weighted": null,
    "recall_observed": {
-    "denominator": 4,
+    "denominator": 0,
     "passed": 0,
-    "rate": 0.0,
+    "rate": null,
     "wilson95": [
      0.0,
-     0.4899
+     1.0
     ]
    },
    "recall_weighted": null
@@ -2404,20 +1926,63 @@
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 2,
+     "denominator": 0,
      "passed": 0,
-     "rate": 0.0,
+     "rate": null,
      "wilson95": [
       0.0,
-      0.6576
+      1.0
      ]
     },
     "recall_weighted": null
    },
    "DUPLICATE": {
+    "covered": 1,
+    "denominator": 1,
+    "direction_accuracy": null,
+    "passed": 1,
+    "precision_conservative": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "GENERAL_SPECIFIC": {
     "covered": 0,
     "denominator": 0,
-    "direction_accuracy": null,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
     "passed": 0,
     "precision_conservative": {
      "denominator": 0,
@@ -2439,62 +2004,19 @@
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 2,
+     "denominator": 1,
      "passed": 0,
      "rate": 0.0,
      "wilson95": [
       0.0,
-      0.6576
-     ]
-    },
-    "recall_weighted": null
-   },
-   "GENERAL_SPECIFIC": {
-    "covered": 5,
-    "denominator": 5,
-    "direction_accuracy": {
-     "denominator": 2,
-     "passed": 2,
-     "rate": 1.0,
-     "wilson95": [
-      0.3424,
-      1.0
-     ]
-    },
-    "passed": 2,
-    "precision_conservative": {
-     "denominator": 5,
-     "passed": 2,
-     "rate": 0.4,
-     "wilson95": [
-      0.1176,
-      0.7693
-     ]
-    },
-    "precision_observed": {
-     "denominator": 5,
-     "passed": 2,
-     "rate": 0.4,
-     "wilson95": [
-      0.1176,
-      0.7693
-     ]
-    },
-    "precision_weighted": null,
-    "recall_observed": {
-     "denominator": 2,
-     "passed": 2,
-     "rate": 1.0,
-     "wilson95": [
-      0.3424,
-      1.0
+      0.7935
      ]
     },
     "recall_weighted": null
    },
    "REFERENCE": {
     "covered": 0,
-    "denominator": 0,
+    "denominator": 2,
     "direction_accuracy": {
      "denominator": 0,
      "passed": 0,
@@ -2506,12 +2028,12 @@
     },
     "passed": 0,
     "precision_conservative": {
-     "denominator": 0,
+     "denominator": 2,
      "passed": 0,
-     "rate": null,
+     "rate": 0.0,
      "wilson95": [
       0.0,
-      1.0
+      0.6576
      ]
     },
     "precision_observed": {
@@ -2538,42 +2060,42 @@
   },
   "S3": {
    "CONFLICT": {
-    "covered": 0,
-    "denominator": 0,
+    "covered": 1,
+    "denominator": 2,
     "direction_accuracy": null,
-    "passed": 0,
+    "passed": 1,
     "precision_conservative": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
+     "denominator": 2,
+     "passed": 1,
+     "rate": 0.5,
      "wilson95": [
-      0.0,
-      1.0
+      0.0945,
+      0.9055
      ]
     },
     "precision_observed": {
-     "denominator": 0,
-     "passed": 0,
-     "rate": null,
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
      "wilson95": [
-      0.0,
+      0.2065,
       1.0
      ]
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 3,
-     "passed": 0,
-     "rate": 0.0,
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
      "wilson95": [
-      0.0,
-      0.5615
+      0.2065,
+      1.0
      ]
     },
     "recall_weighted": null
    },
    "DUPLICATE": {
-    "covered": 1,
+    "covered": 0,
     "denominator": 1,
     "direction_accuracy": null,
     "passed": 0,
@@ -2587,12 +2109,12 @@
      ]
     },
     "precision_observed": {
-     "denominator": 1,
+     "denominator": 0,
      "passed": 0,
-     "rate": 0.0,
+     "rate": null,
      "wilson95": [
       0.0,
-      0.7935
+      1.0
      ]
     },
     "precision_weighted": null,
@@ -2608,44 +2130,44 @@
     "recall_weighted": null
    },
    "GENERAL_SPECIFIC": {
-    "covered": 4,
-    "denominator": 4,
+    "covered": 0,
+    "denominator": 3,
     "direction_accuracy": {
-     "denominator": 2,
-     "passed": 2,
-     "rate": 1.0,
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
      "wilson95": [
-      0.3424,
+      0.0,
       1.0
      ]
     },
-    "passed": 2,
+    "passed": 0,
     "precision_conservative": {
-     "denominator": 4,
-     "passed": 2,
-     "rate": 0.5,
+     "denominator": 3,
+     "passed": 0,
+     "rate": 0.0,
      "wilson95": [
-      0.15,
-      0.85
+      0.0,
+      0.5615
      ]
     },
     "precision_observed": {
-     "denominator": 4,
-     "passed": 2,
-     "rate": 0.5,
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
      "wilson95": [
-      0.15,
-      0.85
+      0.0,
+      1.0
      ]
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 11,
-     "passed": 2,
-     "rate": 0.1818,
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
      "wilson95": [
-      0.0514,
-      0.477
+      0.0,
+      0.7935
      ]
     },
     "recall_weighted": null
@@ -2683,12 +2205,12 @@
     },
     "precision_weighted": null,
     "recall_observed": {
-     "denominator": 4,
+     "denominator": 0,
      "passed": 0,
-     "rate": 0.0,
+     "rate": null,
      "wilson95": [
       0.0,
-      0.4899
+      1.0
      ]
     },
     "recall_weighted": null
@@ -2707,28 +2229,54 @@
  "cluster_intervals": {
   "CONFLICT": {
    "direction_accuracy": null,
-   "precision_conservative": null,
-   "precision_observed": null,
-   "recall_observed": {
+   "precision_conservative": {
     "K": 2,
-    "N": 5,
-    "clusters_passed": 0,
+    "N": 2,
+    "clusters_passed": 1,
     "conf": 0.95,
     "deff": null,
     "icc": null,
-    "lower": 0.0,
+    "lower": 0.09453120573423074,
     "method": "harness.scripts.wilson.cluster_adjusted",
     "n_eff": 2.0,
     "pass_threshold": 1.0,
     "route": "cluster-floor",
-    "upper": 0.6576197724933468
+    "upper": 0.9054687942657693
+   },
+   "precision_observed": {
+    "K": 1,
+    "N": 1,
+    "clusters_passed": 1,
+    "conf": 0.95,
+    "deff": null,
+    "icc": null,
+    "lower": 0.20654931437723745,
+    "method": "harness.scripts.wilson.cluster_adjusted",
+    "n_eff": 1.0,
+    "pass_threshold": 1.0,
+    "route": "cluster-floor",
+    "upper": 1.0
+   },
+   "recall_observed": {
+    "K": 1,
+    "N": 1,
+    "clusters_passed": 1,
+    "conf": 0.95,
+    "deff": null,
+    "icc": null,
+    "lower": 0.20654931437723745,
+    "method": "harness.scripts.wilson.cluster_adjusted",
+    "n_eff": 1.0,
+    "pass_threshold": 1.0,
+    "route": "cluster-floor",
+    "upper": 1.0
    }
   },
   "DUPLICATE": {
    "direction_accuracy": null,
    "precision_conservative": {
     "K": 1,
-    "N": 1,
+    "N": 2,
     "clusters_passed": 0,
     "conf": 0.95,
     "deff": null,
@@ -2743,17 +2291,49 @@
    "precision_observed": {
     "K": 1,
     "N": 1,
+    "clusters_passed": 1,
+    "conf": 0.95,
+    "deff": null,
+    "icc": null,
+    "lower": 0.20654931437723745,
+    "method": "harness.scripts.wilson.cluster_adjusted",
+    "n_eff": 1.0,
+    "pass_threshold": 1.0,
+    "route": "cluster-floor",
+    "upper": 1.0
+   },
+   "recall_observed": {
+    "K": 1,
+    "N": 1,
+    "clusters_passed": 1,
+    "conf": 0.95,
+    "deff": null,
+    "icc": null,
+    "lower": 0.20654931437723745,
+    "method": "harness.scripts.wilson.cluster_adjusted",
+    "n_eff": 1.0,
+    "pass_threshold": 1.0,
+    "route": "cluster-floor",
+    "upper": 1.0
+   }
+  },
+  "GENERAL_SPECIFIC": {
+   "direction_accuracy": null,
+   "precision_conservative": {
+    "K": 2,
+    "N": 4,
     "clusters_passed": 0,
     "conf": 0.95,
     "deff": null,
     "icc": null,
     "lower": 0.0,
     "method": "harness.scripts.wilson.cluster_adjusted",
-    "n_eff": 1.0,
+    "n_eff": 2.0,
     "pass_threshold": 1.0,
     "route": "cluster-floor",
-    "upper": 0.7934506856227626
+    "upper": 0.6576197724933468
    },
+   "precision_observed": null,
    "recall_observed": {
     "K": 2,
     "N": 2,
@@ -2769,91 +2349,54 @@
     "upper": 0.6576197724933468
    }
   },
-  "GENERAL_SPECIFIC": {
-   "direction_accuracy": {
-    "K": 2,
-    "N": 4,
-    "clusters_passed": 2,
-    "conf": 0.95,
-    "deff": null,
-    "icc": null,
-    "lower": 0.34238022750665315,
-    "method": "harness.scripts.wilson.cluster_adjusted",
-    "n_eff": 2.0,
-    "pass_threshold": 1.0,
-    "route": "cluster-floor",
-    "upper": 1.0
-   },
-   "precision_conservative": {
-    "K": 3,
-    "N": 10,
-    "clusters_passed": 1,
-    "conf": 0.95,
-    "deff": null,
-    "icc": null,
-    "lower": 0.06149194472039632,
-    "method": "harness.scripts.wilson.cluster_adjusted",
-    "n_eff": 3.0,
-    "pass_threshold": 1.0,
-    "route": "cluster-floor",
-    "upper": 0.7923403991979523
-   },
-   "precision_observed": {
-    "K": 3,
-    "N": 9,
-    "clusters_passed": 1,
-    "conf": 0.95,
-    "deff": null,
-    "icc": null,
-    "lower": 0.06149194472039632,
-    "method": "harness.scripts.wilson.cluster_adjusted",
-    "n_eff": 3.0,
-    "pass_threshold": 1.0,
-    "route": "cluster-floor",
-    "upper": 0.7923403991979523
-   },
-   "recall_observed": {
-    "K": 5,
-    "N": 13,
-    "clusters_passed": 1,
-    "conf": 0.95,
-    "deff": null,
-    "icc": null,
-    "lower": 0.036224108632430085,
-    "method": "harness.scripts.wilson.cluster_adjusted",
-    "n_eff": 5.0,
-    "pass_threshold": 1.0,
-    "route": "cluster-floor",
-    "upper": 0.6244653702374746
-   }
-  },
   "REFERENCE": {
    "direction_accuracy": null,
-   "precision_conservative": null,
-   "precision_observed": null,
-   "recall_observed": {
-    "K": 3,
-    "N": 4,
+   "precision_conservative": {
+    "K": 2,
+    "N": 2,
     "clusters_passed": 0,
     "conf": 0.95,
     "deff": null,
     "icc": null,
     "lower": 0.0,
     "method": "harness.scripts.wilson.cluster_adjusted",
-    "n_eff": 3.0,
+    "n_eff": 2.0,
     "pass_threshold": 1.0,
     "route": "cluster-floor",
-    "upper": 0.5614970317550454
-   }
+    "upper": 0.6576197724933468
+   },
+   "precision_observed": null,
+   "recall_observed": null
   }
+ },
+ "code_sha256": {
+  "pair_candidates.py": "7691ba5691e8d2e69fde9ba6968ca7801321ca2130a3276f4d3476bb23100e85",
+  "pair_classifier.py": "1b1f4cfc54f6b22e365d75f8261ffac052c8358626a229a07d1d63346f0e25e3",
+  "pair_builder.py": "772f0409222b789ff8f8af2690e1ba24918780d5a07904a9b352ea7102278999",
+  "predictor.py": "2485b4c52ebd3299556aa5012781738fbbfd2bb659b48b0ed1c4ffc95ca52dd3",
+  "bakeoff.py": "2d806bdce6ef6165e4da1a4fb7f59a64eeca8e8adfa7a7ab89f925524e4bb23c",
+  "score.py": "8d09d0f1b7e43cbd35daffa10741dad39fc3bfe7b7c7cc3d4ed099d7160c4bd1",
+  "client.py": "fd42c1186f74dbd078663b5705069763d4a4ba1d9694239b0ff2639dfe198bac"
+ },
+ "dev_review": {
+  "approved_by_label": {
+   "CONFLICT": 1,
+   "DUPLICATE": 1,
+   "GENERAL_SPECIFIC": 2
+  },
+  "manifest_locked": true,
+  "n_rows": 7,
+  "schema": "contract-graph-dev-review/1",
+  "sha256": "ec9d084c8f46a83466dc5da41a6db42e6e343b2d235df5af5aee7b65c8ceb038",
+  "source": "user-review"
  },
  "direction_accuracy": {
   "GENERAL_SPECIFIC": {
-   "denominator": 4,
-   "passed": 4,
-   "rate": 1.0,
+   "denominator": 0,
+   "passed": 0,
+   "rate": null,
    "wilson95": [
-    0.5101,
+    0.0,
     1.0
    ]
   },
@@ -2919,43 +2462,71 @@
   }
  ],
  "estimator": null,
+ "evaluation_gate": "PASS",
  "false_duplicate": {
-  "observed": 1,
-  "unreviewed": 0
+  "observed": 0,
+  "unreviewed": 1
  },
- "ground_truth": "gpt-labels (approved=false), dev",
+ "gold_provenance": {
+  "approved": 4,
+  "invalid_approval": 0,
+  "scoring": "approved_only",
+  "unapproved": 0
+ },
+ "ground_truth": "reviewed gold (approved=true), dev",
  "injection_signals": 0,
- "interval_method": "wilson 95%; cluster-adjusted theo cum van ban",
  "latency_ms": {
-  "p50": 6919.61,
-  "p95": 27796.83
+  "p50": 11179.6,
+  "p95": 46470.88
  },
- "n_gold": 215,
- "n_pred": 11,
+ "n_gold": 4,
+ "n_pred": 10,
+ "p3_classifier_gate": {
+  "false_duplicate_observed": 0,
+  "reason_codes": [],
+  "required_labels": {
+   "CONFLICT": {
+    "correct": 1,
+    "gold_positive": 1
+   },
+   "DUPLICATE": {
+    "correct": 1,
+    "gold_positive": 1
+   }
+  },
+  "schema": "contract-graph-p3-classifier-gate/1",
+  "status": "PASS"
+ },
  "prompt_rounds": 0,
- "prompt_version": "pairs-v1",
+ "prompt_version": "pairs-v7",
  "rejected": {
   "bad_span": 0,
   "citation_invalid": 0,
   "conflict_same_span": 0,
   "duplicate_id": 0,
-  "duplicate_value_mismatch": 0,
+  "duplicate_value_mismatch": 5,
   "invalid_label": 0,
   "malformed": 0,
   "missing_direction": 0,
   "no_answer": 0,
-  "reference_explicit": 3,
-  "ungrounded_span": 3,
+  "reference_explicit": 0,
+  "ungrounded_span": 0,
   "unknown_pair": 0,
-  "unrelated": 21
+  "unrelated": 23
  },
+ "rejection_reason_versions": [
+  "pair-rejections-v1"
+ ],
+ "report_sha256": "59ec48bbf671c6dc1b56f0fa389610241a4b2a9c1e2e805df6c378ec4f886bb7",
+ "schema": "contract-graph-pairs-predictor/2",
+ "scoring_schema": "contract-graph-pairs-score/1",
  "served_model": [
-  "claude-sonnet-4-6"
+  "gpt-5.5"
  ],
  "split": "dev",
  "status": "OBSERVED",
  "token_estimate_D13": {
-  "note": "Ước tính tổng token/hồ sơ từ D13; token thực ghi riêng theo hồ sơ.",
+  "note": "Ước tính [ASSUMED] 10–16k token/hồ sơ; token thực ghi riêng.",
   "total_per_doc_range": [
    10000,
    16000
@@ -2963,32 +2534,32 @@
  },
  "tokens_per_doc": {
   "pd-ae9bb69ee7": {
-   "completion": 663,
-   "prompt": 6089
+   "completion": 789,
+   "prompt": 3242
   },
   "pd-b300e5ad70": {
-   "completion": 128,
-   "prompt": 4290
+   "completion": 446,
+   "prompt": 2203
   },
   "pd-b6d8628d32": {
-   "completion": 283,
-   "prompt": 4567
+   "completion": 683,
+   "prompt": 2362
   },
   "pd-bf1d9346b4": {
-   "completion": 1469,
-   "prompt": 13192
+   "completion": 2831,
+   "prompt": 6853
   },
   "pd-e0d65645f2": {
-   "completion": 25,
-   "prompt": 3212
+   "completion": 39,
+   "prompt": 1579
   },
   "pd-eec95ad3b2": {
-   "completion": 401,
-   "prompt": 5963
+   "completion": 818,
+   "prompt": 3208
   },
   "pd-fa299625d8": {
-   "completion": 171,
-   "prompt": 3655
+   "completion": 271,
+   "prompt": 1795
   }
  },
  "variant": "C"

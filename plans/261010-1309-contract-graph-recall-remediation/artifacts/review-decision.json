@@ -1,0 +1,8 @@
+{
+  "verdict": "PASS",
+  "reviewer": "agent:review_recall_gate_fix",
+  "role": "code-reviewer",
+  "rationale": "Final review PASS: strict HG-1 selection/decision schema and duplicate-ID guards; reviewed rejects remain observed false-DUPLICATE evidence; P3/P5 preflight remains fail-closed before network construction; prompt pairs-v7 preserves span, citation, family and rejection checks. P3 is PASS. P4/HG-2 is intentionally blocked until human recall-floor and expanded-gold decisions.",
+  "strategy": "contract-graph-recall-gate-bypass-review",
+  "rounds_run": 3
+}

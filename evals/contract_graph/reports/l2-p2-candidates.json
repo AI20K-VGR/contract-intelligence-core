@@ -140,8 +140,68 @@
   "total": 38
  },
  "candidates_version": "pairs-cand-v1",
+ "engineering_target": {
+  "by_label": {
+   "CONFLICT": {
+    "denominator": 5,
+    "gap": 2,
+    "passed": 3,
+    "required_for_target": 5,
+    "target_met": false
+   },
+   "DUPLICATE": {
+    "denominator": 2,
+    "gap": 0,
+    "passed": 2,
+    "required_for_target": 2,
+    "target_met": true
+   },
+   "GENERAL_SPECIFIC": {
+    "denominator": 13,
+    "gap": 5,
+    "passed": 8,
+    "required_for_target": 13,
+    "target_met": false
+   },
+   "REFERENCE": {
+    "denominator": 4,
+    "gap": 2,
+    "passed": 2,
+    "required_for_target": 4,
+    "target_met": false
+   }
+  },
+  "by_stratum": {
+   "S1": {
+    "denominator": 6,
+    "gap": 0,
+    "passed": 6,
+    "required_for_target": 6,
+    "target_met": true
+   },
+   "S3": {
+    "denominator": 18,
+    "gap": 9,
+    "passed": 9,
+    "required_for_target": 18,
+    "target_met": false
+   }
+  },
+  "decision": {
+   "explanation": "Giữ candidate freeze hiện tại để không làm thay đổi universe S4/HG-1; chuyển phần mất recall còn lại sang hiệu chỉnh classifier trên cùng held-out lock.",
+   "next_phase": "P3",
+   "reason_codes": [
+    "dev_target_not_met",
+    "candidate_change_requires_new_s4_and_hg2_review"
+   ],
+   "status": "KEEP_CURRENT"
+  },
+  "met": false,
+  "scope": "dev GPT-positive labels only",
+  "target_rate": 0.95
+ },
  "ground_truth": "gpt-labels (approved=false), dev",
- "k_choice_reason": "quy tắc cho K=10 (K nhỏ nhất có recall@K ≥ 0.95 × recall không cắt); người dùng giữ 40: dev degenerate: max 20 candidates/doc so recall@K is flat for every K in the grid; held-out docs reach 42 nodes (user decision 2026-10-09)",
+ "k_choice_reason": "quy tắc cho K=10 (K nhỏ nhất có recall@K ≥ 0.95 × recall không cắt); người dùng giữ 40: giu candidate freeze de khong doi S4/HG-1; chuyen P3",
  "n_docs": 7,
  "pairs_top_k": 40,
  "pairs_top_k_chosen": 40,

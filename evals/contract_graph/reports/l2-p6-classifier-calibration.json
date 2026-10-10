@@ -1,0 +1,667 @@
+{
+ "acceptance": {
+  "approved_gold": 4,
+  "unapproved_gold": 0,
+  "invalid_approval": 0,
+  "evaluation_gate": "PASS",
+  "exact_span_and_family_tests": "PASS",
+  "conflict_nonzero_correct": true,
+  "duplicate_nonzero_correct": true,
+  "false_duplicate_observed": 0,
+  "p3_classifier_gate": {
+   "false_duplicate_observed": 0,
+   "reason_codes": [],
+   "required_labels": {
+    "CONFLICT": {
+     "correct": 1,
+     "gold_positive": 1
+    },
+    "DUPLICATE": {
+     "correct": 1,
+     "gold_positive": 1
+    }
+   },
+   "schema": "contract-graph-p3-classifier-gate/1",
+   "status": "PASS"
+  },
+  "passed": true,
+  "raw_unrelated_separated_from_validation": true,
+  "validation_rejections_separated": true
+ },
+ "attempts": [
+  {
+   "by_label": {
+    "CONFLICT": {
+     "correct": 0,
+     "covered": 1,
+     "gold_positive": 5,
+     "predicted": 1,
+     "recall": 0.0
+    },
+    "DUPLICATE": {
+     "correct": 0,
+     "covered": 0,
+     "gold_positive": 2,
+     "predicted": 0,
+     "recall": 0.0
+    },
+    "GENERAL_SPECIFIC": {
+     "correct": 4,
+     "covered": 6,
+     "gold_positive": 13,
+     "predicted": 7,
+     "recall": 0.3077
+    },
+    "REFERENCE": {
+     "correct": 0,
+     "covered": 1,
+     "gold_positive": 4,
+     "predicted": 1,
+     "recall": 0.0
+    }
+   },
+   "direction_accuracy": {
+    "GENERAL_SPECIFIC": {
+     "denominator": 4,
+     "passed": 3,
+     "rate": 0.75,
+     "wilson95": [
+      0.3006,
+      0.9544
+     ]
+    },
+    "REFERENCE": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "evaluation_gate": "BLOCKED_UNREVIEWED_DEV_GOLD",
+   "false_duplicate": {
+    "observed": 0,
+    "unreviewed": 0
+   },
+   "gold_provenance": {
+    "approved": 0,
+    "invalid_approval": 0,
+    "scoring": "approved_only",
+    "unapproved": 215
+   },
+   "n_gold": 215,
+   "n_pred": 9,
+   "prompt_version": "pairs-v4",
+   "rejected_unrelated": 17,
+   "rejection_reason_versions": [
+    "pair-rejections-v1"
+   ],
+   "requested_model": "cx/gpt-5.5",
+   "served_model": [
+    "gpt-5.5"
+   ],
+   "validation_or_policy_rejections": {
+    "bad_span": 0,
+    "citation_invalid": 0,
+    "conflict_same_span": 0,
+    "duplicate_id": 0,
+    "duplicate_value_mismatch": 0,
+    "invalid_label": 0,
+    "malformed": 0,
+    "missing_direction": 0,
+    "no_answer": 0,
+    "reference_explicit": 0,
+    "ungrounded_span": 0,
+    "unknown_pair": 0
+   }
+  },
+  {
+   "by_label": {
+    "CONFLICT": {
+     "correct": 0,
+     "covered": 1,
+     "gold_positive": 5,
+     "predicted": 1,
+     "recall": 0.0
+    },
+    "DUPLICATE": {
+     "correct": 0,
+     "covered": 0,
+     "gold_positive": 2,
+     "predicted": 0,
+     "recall": 0.0
+    },
+    "GENERAL_SPECIFIC": {
+     "correct": 2,
+     "covered": 8,
+     "gold_positive": 13,
+     "predicted": 9,
+     "recall": 0.1538
+    },
+    "REFERENCE": {
+     "correct": 0,
+     "covered": 3,
+     "gold_positive": 4,
+     "predicted": 3,
+     "recall": 0.0
+    }
+   },
+   "direction_accuracy": {
+    "GENERAL_SPECIFIC": {
+     "denominator": 2,
+     "passed": 1,
+     "rate": 0.5,
+     "wilson95": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "REFERENCE": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "false_duplicate": {
+    "observed": 0,
+    "unreviewed": 0
+   },
+   "n_gold": 215,
+   "n_pred": 13,
+   "prompt_version": "pairs-v4",
+   "rejected_unrelated": 24,
+   "rejection_reason_versions": [
+    "pair-rejections-v1"
+   ],
+   "requested_model": "cx/gpt-6-sol",
+   "served_model": [
+    "gpt-6-sol"
+   ],
+   "validation_or_policy_rejections": {
+    "bad_span": 0,
+    "citation_invalid": 0,
+    "conflict_same_span": 0,
+    "duplicate_id": 0,
+    "duplicate_value_mismatch": 1,
+    "invalid_label": 0,
+    "malformed": 0,
+    "missing_direction": 0,
+    "no_answer": 0,
+    "reference_explicit": 0,
+    "ungrounded_span": 0,
+    "unknown_pair": 0
+   }
+  },
+  {
+   "attempt_status": "REJECTED",
+   "by_label": {
+    "CONFLICT": {
+     "correct": 0,
+     "covered": 1,
+     "gold_positive": 5,
+     "predicted": 1,
+     "recall": 0.0
+    },
+    "DUPLICATE": {
+     "correct": 1,
+     "covered": 2,
+     "gold_positive": 2,
+     "predicted": 2,
+     "recall": 0.5
+    },
+    "GENERAL_SPECIFIC": {
+     "correct": 2,
+     "covered": 3,
+     "gold_positive": 13,
+     "predicted": 4,
+     "recall": 0.1538
+    },
+    "REFERENCE": {
+     "correct": 0,
+     "covered": 2,
+     "gold_positive": 4,
+     "predicted": 2,
+     "recall": 0.0
+    }
+   },
+   "false_duplicate": {
+    "observed": 1,
+    "unreviewed": 0
+   },
+   "n_gold": 215,
+   "n_pred": 9,
+   "note": "Prompt-only dev probe; code was reverted to pairs-v4 because false DUPLICATE became nonzero.",
+   "prompt_sha256": "b48caa34c8f2025a1859e649cc41e5b02ce063f37358383bc365f8d675721fdc",
+   "prompt_version": "pairs-v5",
+   "rejected_unrelated": 23,
+   "rejection_reason_versions": [
+    "pair-rejections-v1"
+   ],
+   "requested_model": "cx/gpt-5.5",
+   "served_model": [
+    "gpt-5.5"
+   ],
+   "validation_or_policy_rejections": {
+    "bad_span": 0,
+    "citation_invalid": 0,
+    "conflict_same_span": 0,
+    "duplicate_id": 0,
+    "duplicate_value_mismatch": 6,
+    "invalid_label": 0,
+    "malformed": 0,
+    "missing_direction": 0,
+    "no_answer": 0,
+    "reference_explicit": 0,
+    "ungrounded_span": 0,
+    "unknown_pair": 0
+   }
+  },
+  {
+   "attempt_status": "CURRENT_CANONICAL",
+   "by_label": {
+    "CONFLICT": {
+     "correct": 0,
+     "covered": 1,
+     "gold_positive": 5,
+     "predicted": 1,
+     "recall": 0.0
+    },
+    "DUPLICATE": {
+     "correct": 0,
+     "covered": 0,
+     "gold_positive": 2,
+     "predicted": 0,
+     "recall": 0.0
+    },
+    "GENERAL_SPECIFIC": {
+     "correct": 2,
+     "covered": 8,
+     "gold_positive": 13,
+     "predicted": 9,
+     "recall": 0.1538
+    },
+    "REFERENCE": {
+     "correct": 0,
+     "covered": 1,
+     "gold_positive": 4,
+     "predicted": 1,
+     "recall": 0.0
+    }
+   },
+   "direction_accuracy": {
+    "GENERAL_SPECIFIC": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "REFERENCE": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "evaluation_gate": "BLOCKED_UNREVIEWED_DEV_GOLD",
+   "false_duplicate": {
+    "observed": 0,
+    "unreviewed": 0
+   },
+   "gold_provenance": {
+    "approved": 0,
+    "invalid_approval": 0,
+    "scoring": "approved_only",
+    "unapproved": 215
+   },
+   "n_gold": 0,
+   "n_pred": 11,
+   "prompt_version": "pairs-v4",
+   "rejected_unrelated": 26,
+   "rejection_reason_versions": [
+    "pair-rejections-v1"
+   ],
+   "requested_model": "cx/gpt-5.5",
+   "served_model": [
+    "gpt-5.5"
+   ],
+   "validation_or_policy_rejections": {
+    "bad_span": 0,
+    "citation_invalid": 0,
+    "conflict_same_span": 0,
+    "duplicate_id": 0,
+    "duplicate_value_mismatch": 1,
+    "invalid_label": 0,
+    "malformed": 0,
+    "missing_direction": 0,
+    "no_answer": 0,
+    "reference_explicit": 0,
+    "ungrounded_span": 0,
+    "unknown_pair": 0
+   }
+  },
+  {
+   "attempt_status": "CURRENT_CANONICAL",
+   "by_label": {
+    "CONFLICT": {
+     "correct": 0,
+     "covered": 1,
+     "gold_positive": 5,
+     "predicted": 1,
+     "recall": 0.0
+    },
+    "DUPLICATE": {
+     "correct": 0,
+     "covered": 0,
+     "gold_positive": 2,
+     "predicted": 0,
+     "recall": 0.0
+    },
+    "GENERAL_SPECIFIC": {
+     "correct": 3,
+     "covered": 10,
+     "gold_positive": 13,
+     "predicted": 11,
+     "recall": 0.2308
+    },
+    "REFERENCE": {
+     "correct": 0,
+     "covered": 0,
+     "gold_positive": 4,
+     "predicted": 0,
+     "recall": 0.0
+    }
+   },
+   "direction_accuracy": {
+    "GENERAL_SPECIFIC": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "REFERENCE": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "evaluation_gate": "BLOCKED_UNREVIEWED_DEV_GOLD",
+   "false_duplicate": {
+    "observed": 0,
+    "unreviewed": 0
+   },
+   "gold_provenance": {
+    "approved": 0,
+    "invalid_approval": 0,
+    "scoring": "approved_only",
+    "unapproved": 215
+   },
+   "n_gold": 0,
+   "n_pred": 12,
+   "prompt_version": "pairs-v4",
+   "rejected_unrelated": 24,
+   "rejection_reason_versions": [
+    "pair-rejections-v1"
+   ],
+   "requested_model": "cx/gpt-5.5",
+   "served_model": [
+    "gpt-5.5"
+   ],
+   "validation_or_policy_rejections": {
+    "bad_span": 0,
+    "citation_invalid": 0,
+    "conflict_same_span": 0,
+    "duplicate_id": 0,
+    "duplicate_value_mismatch": 1,
+    "invalid_label": 0,
+    "malformed": 0,
+    "missing_direction": 0,
+    "no_answer": 0,
+    "reference_explicit": 1,
+    "ungrounded_span": 0,
+    "unknown_pair": 0
+   }
+  },
+  {
+   "attempt_status": "CURRENT_CANONICAL",
+   "by_label": {
+    "CONFLICT": {
+     "correct": 0,
+     "covered": 1,
+     "gold_positive": 5,
+     "predicted": 1,
+     "recall": 0.0
+    },
+    "DUPLICATE": {
+     "correct": 0,
+     "covered": 0,
+     "gold_positive": 2,
+     "predicted": 0,
+     "recall": 0.0
+    },
+    "GENERAL_SPECIFIC": {
+     "correct": 3,
+     "covered": 7,
+     "gold_positive": 13,
+     "predicted": 7,
+     "recall": 0.2308
+    },
+    "REFERENCE": {
+     "correct": 0,
+     "covered": 3,
+     "gold_positive": 4,
+     "predicted": 4,
+     "recall": 0.0
+    }
+   },
+   "direction_accuracy": {
+    "GENERAL_SPECIFIC": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "REFERENCE": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "evaluation_gate": "BLOCKED_UNREVIEWED_DEV_GOLD",
+   "false_duplicate": {
+    "observed": 0,
+    "unreviewed": 0
+   },
+   "gold_provenance": {
+    "approved": 0,
+    "invalid_approval": 0,
+    "scoring": "approved_only",
+    "unapproved": 215
+   },
+   "n_gold": 0,
+   "n_pred": 12,
+   "prompt_version": "pairs-v4",
+   "rejected_unrelated": 23,
+   "rejection_reason_versions": [
+    "pair-rejections-v1"
+   ],
+   "requested_model": "cx/gpt-5.5",
+   "served_model": [
+    "gpt-5.5"
+   ],
+   "validation_or_policy_rejections": {
+    "bad_span": 0,
+    "citation_invalid": 0,
+    "conflict_same_span": 0,
+    "duplicate_id": 0,
+    "duplicate_value_mismatch": 3,
+    "invalid_label": 0,
+    "malformed": 0,
+    "missing_direction": 0,
+    "no_answer": 0,
+    "reference_explicit": 0,
+    "ungrounded_span": 0,
+    "unknown_pair": 0
+   }
+  }
+ ],
+ "code_sha256": {
+  "pair_candidates.py": "7691ba5691e8d2e69fde9ba6968ca7801321ca2130a3276f4d3476bb23100e85",
+  "pair_classifier.py": "1b1f4cfc54f6b22e365d75f8261ffac052c8358626a229a07d1d63346f0e25e3",
+  "pair_builder.py": "772f0409222b789ff8f8af2690e1ba24918780d5a07904a9b352ea7102278999",
+  "predictor.py": "2485b4c52ebd3299556aa5012781738fbbfd2bb659b48b0ed1c4ffc95ca52dd3",
+  "bakeoff.py": "2d806bdce6ef6165e4da1a4fb7f59a64eeca8e8adfa7a7ab89f925524e4bb23c",
+  "score.py": "8d09d0f1b7e43cbd35daffa10741dad39fc3bfe7b7c7cc3d4ed099d7160c4bd1",
+  "client.py": "fd42c1186f74dbd078663b5705069763d4a4ba1d9694239b0ff2639dfe198bac"
+ },
+ "dataset_manifest_sha256": "5ec4686918743e4419e74e4e4da20af1f733732a1f14b378bd8efcb5c9182cd7",
+ "decision": {
+  "heldout_touched": false,
+  "next_phase": "P4 after human recall-floor and expanded-gold decision; no heldout bake-off",
+  "reason_codes": [
+   "reviewed_dev_calibration_pass",
+   "p3_classifier_gate_pass",
+   "hg2_human_gate_pending"
+  ],
+  "verdict": "P3_PASS_WAITING_HG2"
+ },
+ "ground_truth": "reviewed gold (source=user-review), dev",
+ "notes": [
+  "The selected production prompt remains pairs-v4; the v5 prompt-only probe was rejected because false DUPLICATE observed became 1 even though one DUPLICATE was correct.",
+  "A smaller batch probe (4 pairs/call) reproduced false DUPLICATE=1 and CONFLICT recall 0; it was not selected.",
+  "The classifier preserved exact span grounding, citation validation and family checks.",
+  "No relation was created from a validation rejection or by weakening the UNRELATED guard.",
+  "The canonical dev report now scores approved gold only; 215 unreviewed GPT labels remain diagnostic and force BLOCKED_UNREVIEWED_DEV_GOLD.",
+  "Final fresh canonical cx/gpt-5.5 dev run served gpt-5.5, produced 9 relations, 17 raw UNRELATED rejections, zero validation/policy rejections, and zero false DUPLICATE.",
+  "Current canonical cx/gpt-5.5 dev run served gpt-5.5, produced 12 relations, 23 raw UNRELATED rejections, three duplicate_value_mismatch rejections, zero false DUPLICATE, and remains blocked because all 215 dev GPT labels are unreviewed.",
+  "User-approved dev audit contains seven decisions: one approved CONFLICT, one approved DUPLICATE, two relabeled GENERAL_SPECIFIC rows, and three rejected rows.",
+  "The current canonical report is manifest-locked and uses pairs-v7; reviewed rejects are intentionally excluded from the scored gold.",
+  "P4/HG-2 is still pending because recall floor and any expanded scored gold require explicit human approval. Held-out data was not read or tuned.",
+  "The current canonical report is manifest-locked and uses pairs-v7; reviewed rejects are intentionally excluded from scored gold while remaining visible to the false-duplicate veto.",
+  "The manifest dev-report lock was refreshed after strict HG-1 loader validation; report self-digest is 59ec48bbf671c6dc1b56f0fa389610241a4b2a9c1e2e805df6c378ec4f886bb7 and artifact SHA is 9281c493246ca46964216d540ef0317a1e7f6521ef63583ad3f16d00351fcf27."
+ ],
+ "prompt_sha256": "b98e42af30dbc2530780d44f6570e33a8e09146f215e89e00cef7abeda769e15",
+ "rejection_reason_versions": [
+  "pair-rejections-v1"
+ ],
+ "schema": "contract-graph-classifier-calibration/1",
+ "split": "dev",
+ "status": "P3_PASS",
+ "variant": "C",
+ "selected_prompt_version": "pairs-v7",
+ "current_reviewed_run": {
+  "attempt_status": "CURRENT_REVIEWED_CANONICAL",
+  "requested_model": "cx/gpt-5.5",
+  "served_model": [
+   "gpt-5.5"
+  ],
+  "prompt_version": "pairs-v7",
+  "n_gold": 4,
+  "n_pred": 10,
+  "by_label": {
+   "CONFLICT": {
+    "correct": 1,
+    "gold_positive": 1,
+    "recall": 1.0
+   },
+   "DUPLICATE": {
+    "correct": 1,
+    "gold_positive": 1,
+    "recall": 1.0
+   },
+   "GENERAL_SPECIFIC": {
+    "correct": 0,
+    "gold_positive": 2,
+    "recall": 0.0
+   },
+   "REFERENCE": {
+    "correct": 0,
+    "gold_positive": 0,
+    "recall": null
+   }
+  },
+  "rejected_unrelated": 23,
+  "validation_or_policy_rejections": {
+   "bad_span": 0,
+   "citation_invalid": 0,
+   "conflict_same_span": 0,
+   "duplicate_id": 0,
+   "duplicate_value_mismatch": 5,
+   "invalid_label": 0,
+   "malformed": 0,
+   "missing_direction": 0,
+   "no_answer": 0,
+   "reference_explicit": 0,
+   "ungrounded_span": 0,
+   "unknown_pair": 0,
+   "unrelated": 23
+  },
+  "false_duplicate": {
+   "observed": 0,
+   "unreviewed": 1
+  },
+  "evaluation_gate": "PASS",
+  "gold_provenance": {
+   "approved": 4,
+   "invalid_approval": 0,
+   "scoring": "approved_only",
+   "unapproved": 0
+  },
+  "dev_review": {
+   "approved_by_label": {
+    "CONFLICT": 1,
+    "DUPLICATE": 1,
+    "GENERAL_SPECIFIC": 2
+   },
+   "manifest_locked": true,
+   "n_rows": 7,
+   "schema": "contract-graph-dev-review/1",
+   "sha256": "ec9d084c8f46a83466dc5da41a6db42e6e343b2d235df5af5aee7b65c8ceb038",
+   "source": "user-review",
+   "report_artifact_sha256": "9281c493246ca46964216d540ef0317a1e7f6521ef63583ad3f16d00351fcf27"
+  },
+  "report_sha256": "59ec48bbf671c6dc1b56f0fa389610241a4b2a9c1e2e805df6c378ec4f886bb7",
+  "p3_classifier_gate": {
+   "false_duplicate_observed": 0,
+   "reason_codes": [],
+   "required_labels": {
+    "CONFLICT": {
+     "correct": 1,
+     "gold_positive": 1
+    },
+    "DUPLICATE": {
+     "correct": 1,
+     "gold_positive": 1
+    }
+   },
+   "schema": "contract-graph-p3-classifier-gate/1",
+   "status": "PASS"
+  },
+  "report_artifact_sha256": "9281c493246ca46964216d540ef0317a1e7f6521ef63583ad3f16d00351fcf27"
+ }
+}

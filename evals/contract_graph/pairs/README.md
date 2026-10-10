@@ -73,3 +73,7 @@ bằng `score.score_relations` (precision bảo thủ quyết định cổng; Ho
   bẩn thì người duyệt chọn `reject`. Nguồn docx (Google Docs) không qua bước này; đánh số tự động
   của Word không vào văn bản nên chỉ tách tới Điều.
 - Nhãn GPT chưa duyệt không phải độ chính xác nghiệp vụ (`ground_truth` trong manifest/báo cáo).
+- `predict --split dev` scores the primary metric only on `approved=true`; remaining GPT labels produce `BLOCKED_UNREVIEWED_DEV_GOLD` and stay diagnostic-only.
+- To close the dev gate, pass an external JSONL review file with `--dev-review`. Each row must contain `pair_id`, `gold_label` (or `null` for a reject), `gold_direction`, a JSON boolean `approved`, and `source: "user-review"`; the report records its SHA-256. Without this file, dev remains blocked.
+- After the human review is complete, first lock the review digest with `python -m evals.contract_graph.pairs.run review-dev-lock --data-dir ... --dev-review ...`. Then rerun the dev prediction with `--dev-review`, and invoke `review-dev-lock` a second time to lock the canonical report path and SHA. The report lock requires `OBSERVED`, `evaluation_gate=PASS`, at least one approved `CONFLICT` and one approved `DUPLICATE`, `manifest_locked=true`, and a self-consistent report digest.
+- P5 additionally requires HG-2/P4 manifest fields with paths and SHA-256 digests for `hg2-review.md` and `hg2-sizing.json`; missing or modified receipts block preflight.

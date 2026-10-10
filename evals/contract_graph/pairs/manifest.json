@@ -148,6 +148,21 @@
    "split": "heldout"
   }
  ],
+ "dev_report": {
+  "path": "evals/contract_graph/reports/l2-p3-classifier-dev.json",
+  "schema": "contract-graph-dev-report-lock/1",
+  "sha256": "9281c493246ca46964216d540ef0317a1e7f6521ef63583ad3f16d00351fcf27"
+ },
+ "dev_review": {
+  "approved_by_label": {
+   "CONFLICT": 1,
+   "DUPLICATE": 1,
+   "GENERAL_SPECIFIC": 2
+  },
+  "n_rows": 7,
+  "schema": "contract-graph-dev-review/1",
+  "sha256": "ec9d084c8f46a83466dc5da41a6db42e6e343b2d235df5af5aee7b65c8ceb038"
+ },
  "digest": "sha256 of UTF-8 text with LF line endings",
  "docs": [
   {

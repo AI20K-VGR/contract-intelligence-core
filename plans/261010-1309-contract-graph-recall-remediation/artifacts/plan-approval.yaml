@@ -1,0 +1,18 @@
+schema: plan-approval/v1
+plan: 261010-1309-contract-graph-recall-remediation
+plan_hash: 17be18b47735
+file_hashes:
+  plan.md: c5e4a801f4c0
+  phases/phase-1-recall-diagnostic.md: 316d7091f1a7
+  phases/phase-2-candidate-coverage.md: 0842689c9444
+  phases/phase-3-classifier-calibration.md: 610b12fd57ef
+  phases/phase-4-gold-expansion.md: cee4ed2d84b1
+  phases/phase-5-final-bakeoff.md: 2fc063fc787c
+  plan-graph.yaml: 4c8d4d98c8d2
+author: user:dungskbg2004@gmail.com
+reviewer: user:dungskbg2004@gmail.com
+verdict: APPROVED
+rationale: Người dùng duyệt kế hoạch remediation recall và yêu cầu cook P1-P5; giữ
+  scope tuần tự để kiểm soát held-out, provenance và budget.
+ts: '2026-10-10T06:22:00.389332+00:00'
+run_seq: null

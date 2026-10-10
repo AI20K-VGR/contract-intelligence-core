@@ -1,0 +1,151 @@
+{
+  "stage": "cook",
+  "plan": "261010-1309-contract-graph-recall-remediation",
+  "checks": [
+    {
+      "name": "regression_test_red_green",
+      "status": "PASS"
+    },
+    {
+      "name": "full_contract_graph_eval",
+      "status": "PASS"
+    },
+    {
+      "name": "focused_evals",
+      "status": "PASS"
+    },
+    {
+      "name": "ai_service_classifier_builder_tests",
+      "status": "PASS"
+    },
+    {
+      "name": "manifest_verify",
+      "status": "PASS"
+    },
+    {
+      "name": "ruff_changed_files",
+      "status": "PASS"
+    },
+    {
+      "name": "dev_gold_gate",
+      "status": "PASS"
+    },
+    {
+      "name": "p3_classifier_gate",
+      "status": "PASS"
+    },
+    {
+      "name": "p5_preflight_guard",
+      "status": "PASS"
+    },
+    {
+      "name": "manifest_locked_dev_review",
+      "status": "PASS"
+    },
+    {
+      "name": "empty_dev_gate",
+      "status": "PASS"
+    },
+    {
+      "name": "strict_approval_type",
+      "status": "PASS"
+    },
+    {
+      "name": "malformed_review_row",
+      "status": "PASS"
+    },
+    {
+      "name": "blocked_cli_exit",
+      "status": "PASS"
+    },
+    {
+      "name": "heldout_cli_preflight_before_network",
+      "status": "PASS"
+    },
+    {
+      "name": "rejection_separation",
+      "status": "PASS"
+    },
+    {
+      "name": "exact_span_and_family",
+      "status": "PASS"
+    },
+    {
+      "name": "fresh_dev_probe",
+      "status": "PASS"
+    },
+    {
+      "name": "dev_conflict_recall",
+      "status": "PASS"
+    },
+    {
+      "name": "dev_duplicate_recall",
+      "status": "PASS"
+    },
+    {
+      "name": "human_dev_audit",
+      "status": "PASS"
+    },
+    {
+      "name": "report_digest",
+      "status": "PASS"
+    },
+    {
+      "name": "hg2_p4_preflight_guard",
+      "status": "PASS"
+    },
+    {
+      "name": "strict_p3_metric_types",
+      "status": "PASS"
+    },
+    {
+      "name": "commit_lock_preflight",
+      "status": "PASS"
+    },
+    {
+      "name": "external_dev_report_lock",
+      "status": "PASS"
+    },
+    {
+      "name": "hg2_artifact_sha_guard",
+      "status": "PASS"
+    },
+    {
+      "name": "strict_float_metric_guard",
+      "status": "PASS"
+    },
+    {
+      "name": "canonical_artifact_paths",
+      "status": "PASS"
+    },
+    {
+      "name": "commit_blob_artifact_lock",
+      "status": "PASS"
+    },
+    {
+      "name": "hg2_human_gate",
+      "status": "BLOCKED"
+    },
+    {
+      "name": "p5_current_preflight",
+      "status": "BLOCKED"
+    },
+    {
+      "name": "reviewed_reject_false_duplicate_guard",
+      "status": "PASS"
+    },
+    {
+      "name": "heldout_review_schema_guard",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "BLOCKED",
+  "phase": "P4",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-10T10:48:36Z",
+  "blastRadius": {
+    "unavailable": true,
+    "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF-ai2-contract-graph"
+  },
+  "run_seq": null
+}

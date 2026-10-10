@@ -2,7 +2,7 @@
 id: 261010-1309-contract-graph-recall-remediation
 title: "AI2 contract graph — remediation recall thấp"
 description: "Tách và sửa mất recall ở candidate generation và classifier, bổ sung gold HG-1 có kiểm soát, rồi xác minh lại P5 trước mọi enablement."
-status: draft
+status: in_progress
 priority: P1
 effort: "~5 phase kỹ thuật + 1 human gate HG-2 cho recall floor và nhãn bổ sung"
 mode: hard
@@ -96,7 +96,20 @@ Evidence sources: `evals/contract_graph/reports/l2-p5-bakeoff.json`, `.harness/s
 - VL-2 | 2026-10-10 | Full eval `225 passed`, focused bake-off `61 passed`, Ruff sạch, manifest verify OK.
 - VL-3 | 2026-10-10 | Decision hiện hành `KEEP_OFF_INSUFFICIENT_N`; verification/review artifact `PASS`; runtime flag vẫn tắt.
 - VL-4 | 2026-10-10 | Scope challenge: HOLD — cần remediation có đo lường trước khi tiếp tục live bake-off; không mở rộng sang BE/UI/storage.
+- VL-5 | 2026-10-10 | Root-cause repro xác nhận dev scorer không được dùng nhãn GPT chưa duyệt để đóng recall gate; report chuyển sang `approved_only` và giữ weak-label diagnostic riêng. P3 vẫn BLOCKED chờ audit dev.
+- VL-6 | 2026-10-10 | Final fresh dev probe `cx/gpt-5.5` served `gpt-5.5`: 12 relations, 23 raw `UNRELATED`, three `duplicate_value_mismatch` validation/policy rejections, weak CONFLICT `0/5`, DUPLICATE `0/2`, false DUPLICATE `0`; P3 classifier gate, manifest-locked dev-review loader, external dev-report digest lock, canonical HG-2/P4 artifact SHA guard, strict metric types and blocked CLI tests pass. P3 remains BLOCKED until explicit human dev decisions.
 
 ## Next step
 
 Kế hoạch này cần human approval trước khi cook. Sau approval, chạy P1 diagnostic; không chạy lại full P5 trước khi P1–P3 có report và code/prompt fingerprint được freeze.
+
+
+## Cook continuation log (2026-10-10)
+
+- VL-7: User-approved dev audit locked seven decisions. The canonical `pairs-v7` report passes P3 with CONFLICT 1/1, DUPLICATE 1/1, and observed false DUPLICATE 0. Dev report and review SHA values are manifest-locked; held-out was not read.
+- VL-8: A code review caught and the scorer fixed a provenance bypass where reviewed rejects were counted as unreviewed false duplicates. New scorer and P3 regression tests pass. P4/HG-2 remains blocked pending explicit recall-floor and expanded-gold approval.
+
+
+- VL-9: Final review found and the cook fixed two provenance bypasses: reviewed rejects now count as observed false-DUPLICATE evidence, and held-out HG-1 rows require strict user-review schema. Eval `257 passed, 1 skipped`, AI focused `144 passed`, Ruff and manifest verification pass. P4/HG-2 remains the only human gate.
+
+- VL-10 | 2026-10-10 | Final code review `PASS`; HG-1 loader hardening rejects duplicate selection IDs, P3 report/manifest fingerprints refreshed, and P3 verification is `PASS`. P4/HG-2 remains the sole human gate; P5 runtime stays off.
