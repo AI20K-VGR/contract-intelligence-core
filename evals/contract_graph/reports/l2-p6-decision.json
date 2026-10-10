@@ -1,0 +1,186 @@
+{
+ "budget_blocked_variants": [],
+ "decisions_sha256": "c7d45402809b71a9a575ff4cca57aadae78eb1d7e1a87bc50758f6e798399952",
+ "feasibility": {
+  "expected_n": {
+   "CONFLICT": 9.157894736842104,
+   "DUPLICATE": 9.157894736842104,
+   "GENERAL_SPECIFIC": 18.31578947368421,
+   "REFERENCE": 9.157894736842104
+  },
+  "skipped_variants": {
+   "E": "every label expected_n < MIN_N/2"
+  },
+  "status": "KEEP_OFF_INSUFFICIENT_N expected"
+ },
+ "mcnemar": {
+  "C_vs_B": {
+   "b": 4,
+   "c": 0,
+   "conclusive": true,
+   "lower": 0.5101091635454027,
+   "method": "mcnemar-wilson",
+   "n_disc": 4,
+   "n_items": 101,
+   "upper": 1.0
+  }
+ },
+ "per_label": {
+  "CONFLICT": {
+   "additional_docs_estimate": null,
+   "cluster_lower": 0.06149194472039632,
+   "conf": 0.95,
+   "k": 4,
+   "method": "wilson",
+   "min_n_all_pass": 22,
+   "min_n_needed": null,
+   "n": 7,
+   "passed": false,
+   "precision_observed": {
+    "denominator": 7,
+    "passed": 4,
+    "rate": 0.5714,
+    "wilson95": [
+     0.2505,
+     0.8418
+    ]
+   },
+   "precision_weighted": 0.4762,
+   "rate": 0.5714285714285714,
+   "recall_observed": {
+    "denominator": 30,
+    "passed": 4,
+    "rate": 0.1333,
+    "wilson95": [
+     0.0531,
+     0.2968
+    ]
+   },
+   "recall_weighted": 0.1333,
+   "sizing_note": "Ước tính giữ tỷ lệ đo, dùng floor(p*n); null: chưa có cỡ hữu hạn được chứng minh. all-pass là trường hợp tốt nhất.",
+   "trial": 1,
+   "wilson_lower": 0.2504542304090258,
+   "wilson_upper": 0.8417830777373732
+  },
+  "DUPLICATE": {
+   "additional_docs_estimate": null,
+   "cluster_lower": 0.0,
+   "conf": 0.95,
+   "k": 0,
+   "method": "wilson",
+   "min_n_all_pass": 22,
+   "min_n_needed": null,
+   "n": 1,
+   "passed": false,
+   "precision_observed": {
+    "denominator": 1,
+    "passed": 0,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.7935
+    ]
+   },
+   "precision_weighted": 0.0,
+   "rate": 0.0,
+   "recall_observed": {
+    "denominator": 29,
+    "passed": 0,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.117
+    ]
+   },
+   "recall_weighted": 0.0,
+   "sizing_note": "Ước tính giữ tỷ lệ đo, dùng floor(p*n); null: chưa có cỡ hữu hạn được chứng minh. all-pass là trường hợp tốt nhất.",
+   "trial": 1,
+   "wilson_lower": 0.0,
+   "wilson_upper": 0.7934567085261071
+  },
+  "GENERAL_SPECIFIC": {
+   "additional_docs_estimate": null,
+   "cluster_lower": 0.0,
+   "conf": 0.95,
+   "k": 1,
+   "method": "wilson",
+   "min_n_all_pass": 22,
+   "min_n_needed": null,
+   "n": 16,
+   "passed": false,
+   "precision_observed": {
+    "denominator": 16,
+    "passed": 1,
+    "rate": 0.0625,
+    "wilson95": [
+     0.0111,
+     0.2833
+    ]
+   },
+   "precision_weighted": 0.0532,
+   "rate": 0.0625,
+   "recall_observed": {
+    "denominator": 34,
+    "passed": 1,
+    "rate": 0.0294,
+    "wilson95": [
+     0.0052,
+     0.1492
+    ]
+   },
+   "recall_weighted": 0.0294,
+   "sizing_note": "Ước tính giữ tỷ lệ đo, dùng floor(p*n); null: chưa có cỡ hữu hạn được chứng minh. all-pass là trường hợp tốt nhất.",
+   "trial": 2,
+   "wilson_lower": 0.01111905730833121,
+   "wilson_upper": 0.2832926836802987
+  },
+  "REFERENCE": {
+   "additional_docs_estimate": null,
+   "cluster_lower": 0.0,
+   "conf": 0.95,
+   "k": 0,
+   "method": "wilson",
+   "min_n_all_pass": 22,
+   "min_n_needed": null,
+   "n": 7,
+   "passed": false,
+   "precision_observed": {
+    "denominator": 7,
+    "passed": 0,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.3543
+    ]
+   },
+   "precision_weighted": 0.0,
+   "rate": 0.0,
+   "recall_observed": {
+    "denominator": 8,
+    "passed": 0,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.3244
+    ]
+   },
+   "recall_weighted": 0.0,
+   "sizing_note": "Ước tính giữ tỷ lệ đo, dùng floor(p*n); null: chưa có cỡ hữu hạn được chứng minh. all-pass là trường hợp tốt nhất.",
+   "trial": 1,
+   "wilson_lower": 0.0,
+   "wilson_upper": 0.35433884297520657
+  }
+ },
+ "recommendation_only": true,
+ "thresholds": {
+  "min_n": 60,
+  "min_wilson_lower": 0.85
+ },
+ "thresholds_source": "review_policy.py",
+ "variants_run": [
+  "C",
+  "B"
+ ],
+ "verdict": "KEEP_OFF_FALSE_DUPLICATE",
+ "weighted_discrepancies": []
+}

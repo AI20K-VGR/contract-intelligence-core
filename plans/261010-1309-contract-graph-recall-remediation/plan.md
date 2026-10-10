@@ -2,7 +2,7 @@
 id: 261010-1309-contract-graph-recall-remediation
 title: "AI2 contract graph — remediation recall thấp"
 description: "Tách và sửa mất recall ở candidate generation và classifier, bổ sung gold HG-1 có kiểm soát, rồi xác minh lại P5 trước mọi enablement."
-status: in_progress
+status: completed
 priority: P1
 effort: "~5 phase kỹ thuật + 1 human gate HG-2 cho recall floor và nhãn bổ sung"
 mode: hard
@@ -114,3 +114,4 @@ Kế hoạch này cần human approval trước khi cook. Sau approval, chạy P
 
 - VL-10 | 2026-10-10 | Final code review `PASS`; HG-1 loader hardening rejects duplicate selection IDs, P3 report/manifest fingerprints refreshed, and P3 verification is `PASS`. P4/HG-2 remains the sole human gate; P5 runtime stays off.
 - VL-11 | 2026-10-10 | HG-2 packet prepared from 474 previously unselected held-out rows (`S1=66`, `S2=10`, `S3=384`, `S4=14`), selection SHA `7488c8422f53f326042672bba81366d377a0a93027991cb610598ff5d94be896`; all decisions remain blank and HG-2 is not approved.
+- VL-12 | 2026-10-10 | HG-2 human confirmation locked 474/474 `approve` rows (`UNRELATED`), floor Wilson lower `>=0.85`, combined gold 655 rows. P5 preflight retained C/B and skipped E (`expected_n < MIN_N/2`). Fresh `cx/gpt-5.5`/`gpt-5.5` trials C1/B1/C2/B2 completed with combined decisions SHA `c7d45402809b71a9a575ff4cca57aadae78eb1d7e1a87bc50758f6e798399952`; each trial observed one false `DUPLICATE`, so recommendation is `KEEP_OFF_FALSE_DUPLICATE` and runtime remains off.

@@ -183,26 +183,28 @@ Không downgrade khi process P4 còn chạy: mỗi process gọi `migrate()` ở
 có thể tự upgrade schema trở lại. Up/down/up đã được test trên PostgreSQL 16 Docker;
 extension pgvector cần image hỗ trợ riêng.
 
-## Số đo
+## S? ?o (P5 c?p nh?t 2026-10-10)
 
-P5 đã hoàn tất đủ sáu trial trên 14 hồ sơ held-out với 181 dòng HG-1 được người dùng
-duyệt approve (181/181; Wilson 95% [0,9792; 1,0000]).
-Classifier snapshot cuối: requested cx/gpt-5.5, served gpt-5.5, họ openai.
-Frozen labeler vẫn là gpt-4o-mini-2024-07-18, nên model cụ thể của classifier khác labeler.
-Các trial Claude trước đó có completion rỗng đã được archive và không nằm trong scoreboard.
+HG-2 ?? ???c ng??i d?ng x?c nh?n v?i 474/474 d?ng `approve`, t?t c? nh?n GPT l? `UNRELATED`,
+recall floor Wilson lower `>=0,85`, v? scope 474 d?ng. Gold held-out h?p nh?t c? 655 d?ng,
+???c kh?a b?ng decisions SHA `c7d45402809b71a9a575ff4cca57aadae78eb1d7e1a87bc50758f6e798399952`
+v? selection SHA `074d071a1ab2c4add79814c99bf855a002ae0665cce5a0e7952a744d74132626`.
 
-| Biến thể | Trial | recall_any | Gọi / token | Thời gian (s) | over_budget |
-|---|---:|---:|---:|---:|---|
-| C | 1 | 5/101 = 0,0495 [0,0213; 0,1107] | 28 / 59.640 | 248,736 | không |
-| C | 2 | 4/101 = 0,0396 [0,0155; 0,0974] | 28 / 57.960 | 220,026 | không |
-| B | 1 | 2/101 = 0,0198 [0,0054; 0,0693] | 27 / 54.937 | 212,049 | không |
-| B | 2 | 3/101 = 0,0297 [0,0102; 0,0837] | 27 / 55.588 | 215,902 | không |
-| E | 1 | 7/101 = 0,0693 [0,0340; 0,1362] | 89 / 250.665 | 714,874 | có |
-| E | 2 | 10/101 = 0,0990 [0,0547; 0,1727] | 89 / 251.883 | 737,985 | có |
+Preflight gi? C/B v? lo?i E v? m?i label scored c? `expected_n < MIN_N/2`; do ?? protocol
+ch?y b?n trial C/B (hai trial m?i bi?n th?). ??y l? k?t qu? h?p l? c?a gate, kh?ng ph?i thi?u
+trial: E kh?ng ???c ph?p ch?y khi preflight ?? lo?i bi?n th? n?y.
 
-bakeoff_rank.py xếp E > C > B nhưng kết luận `tie_within_noise` (gap 0,0297,
-band 0,0297); E vượt budget thời gian ở cả hai trial. Cổng quyết định ghi
-`KEEP_OFF_INSUFFICIENT_N`, `budget_blocked_variants=[E]`, `recommendation_only=true`;
-không tự bật cờ. Thứ tự cổng đã được sửa để thiếu cỡ mẫu quyết định trước cảnh báo
-budget của biến thể không dùng cho cổng. Kết quả vẫn thấp hơn ngưỡng MIN_N=60 và
-MIN_WILSON_LOWER=0,85, nên candidate tiếp tục tắt.
+Classifier snapshot: requested `cx/gpt-5.5`, served `gpt-5.5`, family `openai`. Frozen labeler
+v?n l? `gpt-4o-mini-2024-07-18`, n?n model classifier kh?c model labeler.
+
+| Bi?n th? | Trial | recall_any | G?i / token | Th?i gian (s) | over_budget | false DUPLICATE |
+|---|---:|---:|---:|---:|---|---:|
+| C | 1 | 5/101 = 0,0495 [0,0213; 0,1107] | 28 / 85.437 | 299,093 | kh?ng | 1 |
+| C | 2 | 4/101 = 0,0396 [0,0155; 0,0974] | 28 / 84.980 | 289,823 | kh?ng | 1 |
+| B | 1 | 0/101 = 0,0000 [0,0000; 0,0366] | 27 / 80.196 | 257,704 | kh?ng | 1 |
+| B | 2 | 4/101 = 0,0396 [0,0155; 0,0974] | 27 / 80.670 | 267,435 | kh?ng | 1 |
+
+Decision artifact ghi `KEEP_OFF_FALSE_DUPLICATE`, `recommendation_only=true`. C? false
+`DUPLICATE` quan s?t ???c trong m?i trial; hard veto n?y ??ng tr??c m?i so s?nh recall.
+Recall c?ng th?p xa floor v? c?c denominator theo label ch?a ??t `MIN_N=60`; Wilson lower
+kh?ng ??t `0,85`. Runtime flag ti?p t?c t?t, kh?ng c? enablement.

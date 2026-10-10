@@ -9,3 +9,7 @@
 {"actor": "user:dungskbg2004@gmail.com", "kind": "verify", "phase": "P3", "sha": [], "ts": "2026-10-10T07:31:07+00:00"}
 {"actor": "user:dungskbg2004@gmail.com", "kind": "verify", "phase": "P3", "sha": [], "ts": "2026-10-10T07:41:15+00:00"}
 {"actor": "user:dungskbg2004@gmail.com", "kind": "verify", "phase": "P3", "sha": [], "ts": "2026-10-10T07:45:24+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "open", "mark": "5f356d1eb58512464bab68b6a59e4e13c6b5080f", "phase": "P4", "ts": "2026-10-10T11:44:55+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "verify", "phase": "P4", "sha": [], "ts": "2026-10-10T11:44:55+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "open", "mark": "5f356d1eb58512464bab68b6a59e4e13c6b5080f", "phase": "P5", "ts": "2026-10-10T11:45:01+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "verify", "phase": "P5", "sha": ["c504df83323aa1a47c9ace3336f47aa70af6799d", "0fa5eed216914a04ab3f515b81c12da38afe9ea7"], "ts": "2026-10-10T13:06:13+00:00"}
