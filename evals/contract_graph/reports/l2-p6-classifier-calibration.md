@@ -38,4 +38,3 @@ The historical v5 prompt probe remains rejected because it introduced a false `D
 - Results: 10 relations, 23 raw `UNRELATED` rejections, 5 `duplicate_value_mismatch` rejections; CONFLICT `1/1`, DUPLICATE `1/1`, observed false DUPLICATE `0`.
 - The scorer now treats a reviewed rejection as observed negative evidence for the false-DUPLICATE veto while keeping it out of recall gold. A separate regression test covers this case.
 - P4/HG-2 remains pending. No held-out data was read or tuned; runtime remains off until the human recall floor and expanded-gold decision are recorded.
-
