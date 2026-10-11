@@ -282,6 +282,7 @@ def run_idp(
     graph_enabled = _contract_graph_enabled()  # read once: a mid-run env flip must not split the run
     pairs_on = graph_enabled and _contract_graph_pairs_enabled()
     graph_issues: list[EvidenceIssue] = []
+    contract_graph_stage_status = "SKIPPED"
     if graph_enabled:
         if trace_writer is not None:
             trace_writer.start("contract_graph_operation")
@@ -297,6 +298,7 @@ def run_idp(
                 known_documents=known_documents_for_record(record),
             )
         except Exception as exc:  # enrichment only: never fail the job (D11)
+            contract_graph_stage_status = "FAILED"
             if trace_writer is not None:
                 trace_writer.finish("contract_graph_operation", "FAILED", item_count=0,
                                    reason_code="GRAPH_BUILD_FAILED")
@@ -307,6 +309,7 @@ def run_idp(
                 review_state=ReviewState.NEEDS_REVIEW,
             ))
         else:
+            contract_graph_stage_status = "COMPLETED"
             if trace_writer is not None:
                 trace_writer.finish("contract_graph_operation", "COMPLETED", item_count=len(graph.edges))
             relation_pairs |= {
@@ -378,6 +381,7 @@ def run_idp(
     # D4: after every pre-existing issue, so their positional review ids do not move
     issues.extend(graph_issues)
     pair_result = None
+    pair_relations_stage_status = "SKIPPED"
     if pairs_on:
         from app.pipeline.contract_graph.pair_projection import (
             limited_coverage_issue,
@@ -394,6 +398,7 @@ def run_idp(
                 from app.pipeline.contract_graph.pair_builder import build_pair_relations
 
                 pair_result = build_pair_relations(record, graph.edges, llm=llm, runtime=runtime)
+                pair_relations_stage_status = "COMPLETED"
                 conflicts, conflict_stats = pair_conflict_candidates(pair_result, candidates, record)
                 candidates.extend(conflicts)
                 if trace_writer is not None:
@@ -408,6 +413,7 @@ def run_idp(
                     issues.append(limited_coverage_issue(pair_result))
             except Exception as exc:
                 pair_result = None
+                pair_relations_stage_status = "FAILED"
                 pairs_status = "FAILED"
                 if trace_writer is not None:
                     trace_writer.finish("contract_graph_pairs", "FAILED", item_count=0,
@@ -459,11 +465,13 @@ def run_idp(
     # snapshot; the job store clears any older persisted edges (BL-001).
     record.contract_edges = list(graph.edges) if graph is not None else []
     record.contract_graph_ran = graph is not None
+    record.contract_graph_stage_status = contract_graph_stage_status
     record.pair_relations = list(pair_result.relations) if pair_result else []
     record.pair_relations_ran = bool(pair_result and (
         (pair_result.mode == "llm" and pair_result.batches_completed >= 1)
         or pair_result.rule_only_reason == "NO_CONSENT"
     ))
+    record.pair_relations_stage_status = pair_relations_stage_status
     record.review_items =_review_items_for_result(record, issues, candidates)
     existing_review_ids = {item.review_item_id for item in record.review_items}
     for fact in facts:

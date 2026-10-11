@@ -65,6 +65,7 @@ export type ProcessingTrace = {
   snapshot_digest: string
   status: ProcessingTraceStatus
   trace_status: 'AVAILABLE' | 'UNAVAILABLE'
+  job_status?: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
   stages: ProcessingTraceStage[]
 }
 
@@ -84,6 +85,13 @@ const TRACE_STATUSES = new Set<ProcessingTraceStatus>([
   'INTERRUPTED_UNKNOWN',
   'INCOMPLETE_UNKNOWN',
   'TRACE_UNAVAILABLE',
+])
+const JOB_STATUSES = new Set([
+  'QUEUED',
+  'RUNNING',
+  'SUCCEEDED',
+  'FAILED',
+  'CANCELLED',
 ])
 const STAGE_STATUSES = new Set<ProcessingTraceStage['status']>([
   'RUNNING',
@@ -250,9 +258,18 @@ function validateTrace(
     'reason_code',
   ])
   for (const field of ['execution_id', 'job_status', 'reason_code']) {
-    if (typeof value[field] !== 'undefined' && typeof value[field] !== 'string') {
+    if (
+      typeof value[field] !== 'undefined' &&
+      typeof value[field] !== 'string'
+    ) {
       throw new TypeError(`AI2 trace ${field} is invalid`)
     }
+  }
+  if (
+    typeof value.job_status === 'string' &&
+    !JOB_STATUSES.has(value.job_status)
+  ) {
+    throw new TypeError('AI2 trace job status is invalid')
   }
   if (
     value.job_id !== jobId ||
@@ -309,6 +326,9 @@ function validateTrace(
     snapshot_digest: snapshotDigest,
     status: value.status as ProcessingTraceStatus,
     trace_status: value.trace_status,
+    ...(typeof value.job_status === 'string'
+      ? { job_status: value.job_status as ProcessingTrace['job_status'] }
+      : {}),
     stages,
   }
 }

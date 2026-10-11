@@ -619,35 +619,37 @@ class PostgresJobStore(SQLiteJobStore):
         from app.tools import contract_edge_store
 
         ran = bool(getattr(record, "contract_graph_ran", False))
+        stage_status = getattr(record, "contract_graph_stage_status", None) or ("COMPLETED" if ran else "SKIPPED")
         try:
             with cx.begin_nested():
                 count = contract_edge_store.replace_contract_edges(
                     cx, tenant_id=record.tenant_id, dossier_id=record.dossier_id, job_id=job_id,
                     edges=record.contract_edges, now_ms=self._now_ms())
-            return {"stage_status": "COMPLETED" if ran else "SKIPPED",
+            return {"stage_status": stage_status,
                     "write_status": "COMMITTED" if ran else "SKIPPED", "row_count": count, "error_code": None}
         except Exception as exc:  # enrichment only: never fail the completion
             log.warning("ai2.contract_edges_write_failed job_id=%s tenant_id=%s dossier_id=%s cause=%s",
                         job_id, record.tenant_id, record.dossier_id, type(exc).__name__, exc_info=True)
-            return {"stage_status": "COMPLETED" if ran else "SKIPPED", "write_status": "FAILED",
+            return {"stage_status": stage_status, "write_status": "FAILED",
                     "row_count": 0, "error_code": "GRAPH_STORE_WRITE_FAILED"}
 
     def _replace_pair_relations(self, cx, record, job_id) -> None:
         from app.tools import pair_relation_store
 
         ran = bool(getattr(record, "pair_relations_ran", False))
+        stage_status = getattr(record, "pair_relations_stage_status", None) or ("COMPLETED" if ran else "SKIPPED")
         try:
             with cx.begin_nested():
                 count = pair_relation_store.replace_pair_relations(
                     cx, tenant_id=record.tenant_id, dossier_id=record.dossier_id, job_id=job_id,
                     relations=record.pair_relations if ran else [], now_ms=self._now_ms(),
                 )
-            return {"stage_status": "COMPLETED" if ran else "SKIPPED",
+            return {"stage_status": stage_status,
                     "write_status": "COMMITTED" if ran else "SKIPPED", "row_count": count, "error_code": None}
         except Exception as exc:
             log.warning("ai2.contract_pair_relations_write_failed job_id=%s tenant_id=%s dossier_id=%s cause=%s",
                         job_id, record.tenant_id, record.dossier_id, type(exc).__name__)
-            return {"stage_status": "COMPLETED" if ran else "SKIPPED", "write_status": "FAILED",
+            return {"stage_status": stage_status, "write_status": "FAILED",
                     "row_count": 0, "error_code": "GRAPH_STORE_WRITE_FAILED"}
 
     def _write_graph_receipt(self, cx, record, job_id, graph_kind, outcome) -> None:

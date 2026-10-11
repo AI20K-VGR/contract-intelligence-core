@@ -62,9 +62,11 @@ class DossierRecord:
     # enrichment did not run.
     contract_edges: list[ContractEdge] = field(default_factory=list)
     contract_graph_ran: bool = False
+    contract_graph_stage_status: str | None = None
     content_sharing_consent: bool = False
     pair_relations: list[PairRelation] = field(default_factory=list)
     pair_relations_ran: bool = False
+    pair_relations_stage_status: str | None = None
 
     def evidence_nodes(self) -> list[StructuralNode]:
         """Nodes allowed for UI/reasoning; raw ``nodes`` remains immutable."""

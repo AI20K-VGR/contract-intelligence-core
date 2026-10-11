@@ -112,7 +112,8 @@ def test_flag_on_missing_target_is_insufficient_evidence_issue(graph, monkeypatc
     )
     assert issue.issue_id.startswith("contract-graph:")
 
-    result = _run(graph_record(), enabled=True, monkeypatch=monkeypatch)
+    record = graph_record()
+    result = _run(record, enabled=True, monkeypatch=monkeypatch)
     issues = result.contribution.evidence_issues
     assert issue.issue_id in [i.issue_id for i in issues]
     assert issues[-1].issue_id == graph.issues[-1].issue_id  # D4: appended after every old issue
@@ -293,13 +294,15 @@ def test_builder_failure_becomes_issue_not_job_failure(monkeypatch):
         raise RuntimeError("synthetic builder failure")
 
     monkeypatch.setattr(builder, "build_contract_graph", boom)
-    result = _run(graph_record(), enabled=True, monkeypatch=monkeypatch)
+    record = graph_record()
+    result = _run(record, enabled=True, monkeypatch=monkeypatch)
 
     assert result.status == JobStatus.SUCCEEDED
     failed = [
         i for i in result.contribution.evidence_issues if i.missing == "CONTRACT_GRAPH_FAILED"
     ]
     assert len(failed) == 1
+    assert record.contract_graph_stage_status == "FAILED"
     assert failed[0].review_state == ReviewState.NEEDS_REVIEW
     assert result.contribution.evidence_issues[-1] is failed[0] or (
         result.contribution.evidence_issues[-1].missing == "CONTRACT_GRAPH_FAILED"

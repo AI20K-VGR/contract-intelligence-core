@@ -9,6 +9,43 @@ import pytest
 from contract_intelligence.infrastructure import ai_adapters
 
 
+def test_graph_adapter_preserves_terminal_failed_status():
+    page = ai_adapters._validate_ai2_graph_page(
+        {
+            "status": "FAILED",
+            "graph_kind": "pair",
+            "snapshot_digest": "digest-a",
+            "edges": [],
+            "total_count": 0,
+            "has_more": False,
+            "next_cursor": None,
+        },
+        tenant_id="tenant-a",
+        dossier_id="dossier-a",
+        job_id="job-a",
+        snapshot_digest="digest-a",
+        graph_kind="pair",
+        limit=50,
+    )
+    assert page["status"] == "FAILED"
+
+
+@pytest.mark.parametrize("job_status", [[], {}])
+def test_trace_adapter_rejects_non_string_job_status_cleanly(job_status):
+    with pytest.raises(ai_adapters.AiAdapterError, match="unknown job status"):
+        ai_adapters._validate_ai2_trace(
+            {
+                "schema_version": "ai2.processing-trace.v1",
+                "trace_status": "AVAILABLE",
+                "status": "COMPLETE",
+                "job_status": job_status,
+                "snapshot_digest": "digest-a",
+                "stages": [],
+            },
+            snapshot_digest="digest-a",
+        )
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("headers", "body", "error"),
@@ -256,3 +293,19 @@ async def test_trace_adapter_rejects_unexpected_raw_text(monkeypatch):
             tenant_id="tenant-a",
             actor_id="actor-a",
         )
+
+
+def test_trace_projection_keeps_failure_outcome_and_job_status():
+    trace = ai_adapters._validate_ai2_trace(
+        {
+            "schema_version": "ai2.processing-trace.v1",
+            "trace_status": "AVAILABLE",
+            "status": "COMPLETE",
+            "job_status": "CANCELLED",
+            "snapshot_digest": "digest-a",
+            "stages": [],
+        },
+        snapshot_digest="digest-a",
+    )
+    assert trace["status"] == "COMPLETE"
+    assert trace["job_status"] == "CANCELLED"

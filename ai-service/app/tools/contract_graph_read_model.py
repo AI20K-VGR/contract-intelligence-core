@@ -9,6 +9,11 @@ from typing import Any
 GRAPH_KINDS = frozenset({"operation", "pair"})
 
 
+def graph_job_status(job_status: str) -> str:
+    """Keep terminal job outcomes distinct from work that is still pending."""
+    return "PENDING" if job_status in {"QUEUED", "RUNNING"} else "FAILED"
+
+
 def validate_graph_kind(value: str) -> str:
     if value not in GRAPH_KINDS:
         raise ValueError("unsupported graph kind")
@@ -27,6 +32,8 @@ def validate_graph_cursor(value: str | None, graph_kind: str) -> str | None:
 def graph_read_status(*, stage_status: str, persistence_status: str | None, row_count: int) -> str:
     if persistence_status == "FAILED":
         return "PERSIST_FAILED"
+    if stage_status == "FAILED":
+        return "FAILED"
     if stage_status == "SKIPPED":
         return "SKIPPED"
     if stage_status != "COMPLETED":

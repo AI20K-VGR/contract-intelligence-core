@@ -38,7 +38,7 @@ def test_sqlite_store_ignores_pairs():
     rec = pair_record()
     rec.pair_relations = [relation(rec)]
     rec.pair_relations_ran = True
-    assert not {"pair_relations", "pair_relations_ran"} & record_to_dict(rec).keys()
+    assert not {"pair_relations", "pair_relations_ran", "pair_relations_stage_status"} & record_to_dict(rec).keys()
     from app.tools.jobs import SQLiteJobStore
     assert not hasattr(SQLiteJobStore, "_replace_pair_relations")
 

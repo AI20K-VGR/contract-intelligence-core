@@ -21,6 +21,27 @@ def test_graph_page_allows_verified_empty_graph_only_after_committed_stage():
     assert graph_read_status(stage_status="SKIPPED", persistence_status="FAILED", row_count=0) == "PERSIST_FAILED"
 
 
+def test_failed_builder_is_not_projected_as_skipped_or_ready():
+    from app.tools.contract_graph_read_model import graph_read_status
+
+    assert graph_read_status(stage_status="FAILED", persistence_status="SKIPPED", row_count=0) == "FAILED"
+    assert graph_read_status(stage_status="FAILED", persistence_status="FAILED", row_count=0) == "PERSIST_FAILED"
+
+
+@pytest.mark.parametrize("job_status", ["FAILED", "CANCELLED"])
+def test_terminal_graph_job_is_not_reported_as_pending(job_status):
+    from app.tools.contract_graph_read_model import graph_job_status
+
+    assert graph_job_status(job_status) == "FAILED"
+
+
+@pytest.mark.parametrize("job_status", ["QUEUED", "RUNNING"])
+def test_nonterminal_graph_job_remains_pending(job_status):
+    from app.tools.contract_graph_read_model import graph_job_status
+
+    assert graph_job_status(job_status) == "PENDING"
+
+
 def test_operation_projection_excludes_contract_text_and_citation_spans():
     from app.tools.contract_graph_read_model import project_operation_edge
 
@@ -141,6 +162,52 @@ def test_signed_graph_read_rejects_unscoped_service_envelope(monkeypatch):
     assert response.json()["detail"]["code"] == "SERVICE_SCOPE_MISSING"
 
 
+@pytest.mark.parametrize(
+    ("job_status", "expected"),
+    [("QUEUED", "PENDING"), ("RUNNING", "PENDING"), ("FAILED", "FAILED"), ("CANCELLED", "FAILED")],
+)
+def test_signed_graph_read_distinguishes_nonterminal_and_terminal_jobs(
+    pg_url, monkeypatch, job_status, expected,
+):
+    from sqlalchemy import update
+
+    from app.api import contract_graph_router
+    from app.api.main import app
+    from app.db.tables import jobs
+    from app.security.service_envelope import build_service_envelope
+    from app.tools.jobs import PostgresJobStore
+
+    monkeypatch.setenv("AI2_SERVICE_HMAC_SECRET", "fixture-hmac-material-graph-read-01")
+    store = PostgresJobStore(pg_url)
+    job, _ = store.create_or_get(
+        tenant_id="terminal-status-tenant", dossier_id=f"dossier-{job_status}",
+        request_id=f"request-{job_status}", idempotency_key=f"idem-{job_status}",
+        attempt=1, request={}, wire={},
+    )
+    with store.engine.begin() as cx:
+        cx.execute(update(jobs).where(jobs.c.job_id == job["job_id"]).values(status=job_status))
+    monkeypatch.setattr(contract_graph_router, "database_url", lambda: pg_url)
+    monkeypatch.setattr(contract_graph_router, "get_engine", lambda: store.engine)
+    monkeypatch.setattr(contract_graph_router, "ensure_database", lambda _engine: None)
+    params = {
+        "job_id": job["job_id"], "dossier_id": f"dossier-{job_status}",
+        "snapshot_digest": "digest-a", "graph_kind": "operation", "cursor": None, "limit": 50,
+    }
+    signed = build_service_envelope(
+        params, secret="fixture-hmac-material-graph-read-01", tenant_id="terminal-status-tenant",
+        dossier_id=params["dossier_id"], scopes=["ai2.graph.read"],
+    )
+    with TestClient(app) as client:
+        response = client.get(
+            f"/internal/contract-graph/{job['job_id']}",
+            params={key: value for key, value in params.items() if value is not None and key != "job_id"},
+            headers={"x-ai2-service-envelope": json.dumps(signed)},
+        )
+    assert response.status_code == 200
+    assert response.json()["status"] == expected
+    assert response.json()["edges"] == []
+
+
 def test_postgres_completion_records_verified_empty_and_failed_graph_writes(pg_url, monkeypatch):
     from sqlalchemy import select
 
@@ -187,6 +254,19 @@ def test_postgres_completion_records_verified_empty_and_failed_graph_writes(pg_u
     assert by_kind["operation"]["write_status"] == "COMMITTED"
     assert by_kind["operation"]["row_count"] == 0
     assert by_kind["pair"]["write_status"] == "SKIPPED"
+
+    record.contract_graph_stage_status = "FAILED"
+    record.pair_relations_stage_status = "FAILED"
+    record.contract_graph_ran = False
+    record.pair_relations_ran = False
+    failed_build_job_id = finish("builder-failed")
+    with store.engine.connect() as cx:
+        failed_build_receipts = cx.execute(select(graph_write_receipts).where(
+            graph_write_receipts.c.job_id == failed_build_job_id,
+        )).mappings().all()
+    assert {row["graph_kind"]: row["stage_status"] for row in failed_build_receipts} == {
+        "operation": "FAILED", "pair": "FAILED",
+    }
 
     monkeypatch.setattr(contract_edge_store, "replace_contract_edges", lambda *_a, **_kw: (_ for _ in ()).throw(RuntimeError()))
     failed_job_id = finish("failed")

@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   dossiersLabel,
@@ -101,6 +102,9 @@ function navClassName(isActive: boolean) {
 export function AppLayout({ role }: { role: AppRole }) {
   const { user } = useAuth()
   const location = useLocation()
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
+  const mobileNavigationRef = useRef<HTMLElement>(null)
+  const mobileNavigationTriggerRef = useRef<HTMLButtonElement>(null)
   const navItems = navItemsFor(
     user?.backendRole ?? (role === 'admin' ? 'ADMINISTRATOR' : 'OPERATOR'),
   )
@@ -112,6 +116,80 @@ export function AppLayout({ role }: { role: AppRole }) {
     location.pathname === '/doi-soat-xung-dot' ||
     location.pathname === '/admin/monitoring'
 
+  useEffect(() => {
+    setMobileNavigationOpen((open) => {
+      if (open) {
+        requestAnimationFrame(() => mobileNavigationTriggerRef.current?.focus())
+      }
+      return false
+    })
+  }, [location.pathname])
+
+  useEffect(() => {
+    if (!mobileNavigationOpen) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileNavigationOpen(false)
+        mobileNavigationTriggerRef.current?.focus()
+      } else if (event.key === 'Tab') {
+        const focusable = Array.from(
+          mobileNavigationRef.current?.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ) ?? [],
+        ).filter((element) => element.getClientRects().length > 0)
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+        if (!first || !last) {
+          event.preventDefault()
+          mobileNavigationRef.current?.focus()
+        } else if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault()
+          last.focus()
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault()
+          first.focus()
+        } else if (
+          !mobileNavigationRef.current?.contains(document.activeElement)
+        ) {
+          event.preventDefault()
+          ;(event.shiftKey ? last : first).focus()
+        }
+      }
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [mobileNavigationOpen])
+
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 768px)')
+    const closeDrawerOnDesktop = () => {
+      if (desktop.matches) setMobileNavigationOpen(false)
+    }
+    desktop.addEventListener('change', closeDrawerOnDesktop)
+    return () => desktop.removeEventListener('change', closeDrawerOnDesktop)
+  }, [])
+
+  function toggleMobileNavigation() {
+    setMobileNavigationOpen((open) => {
+      const nextOpen = !open
+      if (nextOpen) {
+        requestAnimationFrame(() => {
+          mobileNavigationRef.current
+            ?.querySelector<HTMLElement>('a, button')
+            ?.focus()
+        })
+      } else {
+        mobileNavigationTriggerRef.current?.focus()
+      }
+      return nextOpen
+    })
+  }
+
+  function closeMobileNavigation() {
+    setMobileNavigationOpen(false)
+    requestAnimationFrame(() => mobileNavigationTriggerRef.current?.focus())
+  }
+
   return (
     <PageTitleProvider>
       <div
@@ -120,8 +198,12 @@ export function AppLayout({ role }: { role: AppRole }) {
         }`}
       >
         <aside
+          ref={mobileNavigationRef}
           aria-label="Điều hướng chính"
-          className="fixed left-0 top-0 h-full w-64 bg-primary-container text-surface flex flex-col z-50 shadow-[0_1px_8px_rgba(0,0,0,0.08)]"
+          role={mobileNavigationOpen ? 'dialog' : undefined}
+          aria-modal={mobileNavigationOpen ? true : undefined}
+          tabIndex={mobileNavigationOpen ? -1 : undefined}
+          className={`fixed left-0 top-0 z-50 flex h-full w-64 flex-col bg-primary-container text-surface shadow-[0_1px_8px_rgba(0,0,0,0.08)] transition-transform md:visible md:translate-x-0 ${mobileNavigationOpen ? 'visible translate-x-0' : 'invisible -translate-x-full'}`}
         >
           <div className="h-16 flex items-center px-space-lg gap-space-sm">
             <MaterialIcon
@@ -136,6 +218,14 @@ export function AppLayout({ role }: { role: AppRole }) {
                 Enterprise Legal AI
               </span>
             </div>
+            <button
+              aria-label="Đóng điều hướng chính"
+              className="ml-auto flex h-10 w-10 items-center justify-center rounded text-surface focus-visible:outline focus-visible:outline-2 md:hidden"
+              onClick={closeMobileNavigation}
+              type="button"
+            >
+              <MaterialIcon name="close" className="text-[22px]" />
+            </button>
           </div>
 
           <div className="px-space-md py-space-xs">
@@ -150,7 +240,10 @@ export function AppLayout({ role }: { role: AppRole }) {
             </div>
           </div>
 
-          <nav className="flex-1 px-space-sm py-space-md flex flex-col gap-1">
+          <nav
+            id="primary-navigation"
+            className="flex-1 px-space-sm py-space-md flex flex-col gap-1"
+          >
             {navItems.map((item, index) => [
               item.section && item.section !== navItems[index - 1]?.section ? (
                 <p
@@ -172,6 +265,7 @@ export function AppLayout({ role }: { role: AppRole }) {
                       : location.pathname === item.to
                   return navClassName(active)
                 }}
+                onClick={closeMobileNavigation}
               >
                 <span className="flex items-center gap-space-md">
                   <MaterialIcon name={item.icon} className="text-[20px]" />
@@ -186,9 +280,44 @@ export function AppLayout({ role }: { role: AppRole }) {
           </div>
         </aside>
 
-        <div className={fillViewport ? 'h-full pl-64' : 'pl-64'}>
-          <header className="fixed top-0 left-64 right-0 h-16 bg-surface/90 backdrop-blur-md z-40 flex items-center justify-between px-gutter shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
-            <HeaderPageTitle />
+        {mobileNavigationOpen ? (
+          <button
+            aria-label="Đóng điều hướng chính"
+            className="fixed inset-0 z-40 bg-black/40 md:hidden"
+            aria-hidden="true"
+            tabIndex={-1}
+            onClick={closeMobileNavigation}
+            type="button"
+          />
+        ) : null}
+
+        <div
+          className={fillViewport ? 'h-full pl-0 md:pl-64' : 'pl-0 md:pl-64'}
+        >
+          <header className="fixed left-0 right-0 top-0 z-40 flex h-16 items-center justify-between gap-2 bg-surface/90 px-space-sm shadow-[0_1px_8px_rgba(0,0,0,0.04)] backdrop-blur-md md:left-64 md:px-gutter">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <button
+                ref={mobileNavigationTriggerRef}
+                aria-controls="primary-navigation"
+                aria-expanded={mobileNavigationOpen}
+                aria-label={
+                  mobileNavigationOpen
+                    ? 'Đóng điều hướng chính'
+                    : 'Mở điều hướng chính'
+                }
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded text-on-surface hover:bg-surface-container focus-visible:outline focus-visible:outline-2 md:hidden"
+                onClick={toggleMobileNavigation}
+                type="button"
+              >
+                <MaterialIcon
+                  name={mobileNavigationOpen ? 'close' : 'menu'}
+                  className="text-[22px]"
+                />
+              </button>
+              <div className="min-w-0 flex-1 truncate">
+                <HeaderPageTitle />
+              </div>
+            </div>
 
             <div className="flex items-center gap-space-md">
               <button
@@ -202,8 +331,8 @@ export function AppLayout({ role }: { role: AppRole }) {
               <div className="h-5 w-[1px] bg-outline-variant" />
               <AccountMenu
                 gapClassName="gap-space-sm"
-                nameClassName="font-label-md text-label-md text-on-surface leading-none"
-                emailClassName="font-label-sm text-label-sm text-secondary leading-none mt-1"
+                nameClassName="hidden font-label-md text-label-md text-on-surface leading-none sm:block"
+                emailClassName="hidden font-label-sm text-label-sm text-secondary leading-none mt-1 sm:block"
               />
             </div>
           </header>
@@ -211,8 +340,8 @@ export function AppLayout({ role }: { role: AppRole }) {
           <main
             className={
               fillViewport
-                ? 'flex h-screen flex-col overflow-hidden bg-background px-gutter pb-space-md pt-16'
-                : 'w-full min-h-screen bg-background px-gutter py-space-lg pt-16'
+                ? 'flex h-screen flex-col overflow-hidden bg-background px-space-sm pb-space-md pt-16 md:px-gutter'
+                : 'w-full min-h-screen bg-background px-space-sm py-space-lg pt-16 md:px-gutter'
             }
           >
             <Outlet />

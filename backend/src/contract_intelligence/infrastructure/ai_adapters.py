@@ -365,8 +365,8 @@ _GRAPH_STATUSES = frozenset(
         "UNAVAILABLE",
         "PERSISTENCE_UNKNOWN",
         "PERSIST_FAILED",
-        "SKIPPED",
         "FAILED",
+        "SKIPPED",
     }
 )
 _GRAPH_TOP_KEYS = frozenset(
@@ -565,6 +565,12 @@ def _validate_ai2_trace(payload: dict[str, Any], *, snapshot_digest: str) -> dic
         raise AiAdapterError("AI2 trace response contains unsupported fields")
     if payload.get("snapshot_digest") != snapshot_digest:
         raise AiAdapterError("AI2 trace response snapshot mismatch")
+    job_status = payload.get("job_status")
+    if job_status is not None and (
+        not isinstance(job_status, str)
+        or job_status not in {"QUEUED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED"}
+    ):
+        raise AiAdapterError("AI2 trace response has an unknown job status")
     status_value = payload.get("status")
     if status_value not in _TRACE_STATUSES or payload.get("trace_status") not in {
         "AVAILABLE",

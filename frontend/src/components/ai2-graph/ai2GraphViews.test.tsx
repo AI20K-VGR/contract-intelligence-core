@@ -8,6 +8,7 @@ import type {
 } from '../../api/contractGraph'
 import { ContractGraphCanvas } from './ContractGraphCanvas'
 import { ProcessingTimeline } from './ProcessingTimeline'
+import { processingTimelineOutcome } from './timelineOutcome'
 import { RelationList } from './RelationList'
 import { ManualGraphFixture } from './ManualGraphFixture'
 import {
@@ -56,7 +57,7 @@ const trace: ProcessingTrace = {
     {
       stage_id: 'contract_graph_operation',
       status: 'INCOMPLETE_UNKNOWN',
-      started_ms: 1,
+      started_ms: 1791720000000,
       duration_ms: null,
       item_count: null,
       reason_code: 'TERMINAL_WITH_OPEN_STAGE',
@@ -154,6 +155,52 @@ describe('AI2 graph accessible views', () => {
     expect(html).not.toContain('Hoàn tất xử lý AI2')
   })
 
+  it('keeps job outcome separate from a failed enrichment stage', () => {
+    const html = renderToStaticMarkup(
+      <ProcessingTimeline
+        trace={{
+          ...trace,
+          status: 'COMPLETE',
+          job_status: 'FAILED',
+          stages: [
+            { ...trace.stages[0]!, status: 'COMPLETED', reason_code: null },
+          ],
+        }}
+      />,
+    )
+    const failedStageTrace = {
+      ...trace,
+      status: 'COMPLETE' as const,
+      stages: [{ ...trace.stages[0]!, status: 'FAILED' as const }],
+    }
+    expect(
+      processingTimelineOutcome({ ...failedStageTrace, job_status: 'FAILED' }),
+    ).toBe('job-failed')
+    expect(
+      processingTimelineOutcome({
+        ...failedStageTrace,
+        job_status: 'CANCELLED',
+      }),
+    ).toBe('job-cancelled')
+    expect(
+      processingTimelineOutcome({ ...failedStageTrace, job_status: 'RUNNING' }),
+    ).toBe('job-running')
+    expect(
+      processingTimelineOutcome({
+        ...failedStageTrace,
+        job_status: 'SUCCEEDED',
+      }),
+    ).toBe('job-succeeded-with-stage-failure')
+    expect(
+      processingTimelineOutcome({
+        ...failedStageTrace,
+        job_status: 'SUCCEEDED',
+        stages: [{ ...failedStageTrace.stages[0]!, status: 'COMPLETED' }],
+      }),
+    ).toBe('job-succeeded')
+    expect(html).toContain('role="status"')
+  })
+
   it('distinguishes a verified empty graph from failed or unavailable persistence', () => {
     const empty = renderToStaticMarkup(
       <RelationList
@@ -241,7 +288,6 @@ describe('AI2 graph accessible views', () => {
       'PERSISTENCE_UNKNOWN',
       'PERSIST_FAILED',
       'SKIPPED',
-      'FAILED',
     ] as const
     expect(new Set(statuses.map(graphStatusLabel)).size).toBe(statuses.length)
     const outcomes = [

@@ -82,6 +82,53 @@ def test_terminal_event_follows_start_with_count_and_safe_reason(tmp_path):
     assert events[1].reason_code == "CONSENT_DENIED"
 
 
+def test_failed_stage_is_not_aggregated_as_complete(tmp_path):
+    jobs, job_id, token = _claimed_job(tmp_path / "jobs.sqlite")
+    writer = ProcessingTraceWriter(
+        ProcessingTraceStore(jobs), tenant_id="tenant-a", dossier_id="dossier-a",
+        job_id=job_id, snapshot_digest="sha256:abc", execution_id="execution-a",
+        worker_token=token,
+    )
+    writer.start("contract_graph_operation")
+    writer.finish("contract_graph_operation", "FAILED", item_count=0, reason_code="GRAPH_BUILD_FAILED")
+    projection = project_processing_trace(ProcessingTraceStore(jobs).read_events(
+        tenant_id="tenant-a", dossier_id="dossier-a", job_id=job_id,
+        snapshot_digest="sha256:abc",
+    ), terminal_job=True)
+    assert projection["status"] == "COMPLETE"
+    assert projection["stages"][0]["status"] == "FAILED"
+
+
+@pytest.mark.parametrize("job_status", ["FAILED", "CANCELLED"])
+def test_trace_route_surfaces_terminal_job_outcome_after_completed_stages(tmp_path, monkeypatch, job_status):
+    jobs, job_id, token = _claimed_job(tmp_path / f"{job_status}.sqlite")
+    store = ProcessingTraceStore(jobs)
+    writer = ProcessingTraceWriter(
+        store, tenant_id="tenant-a", dossier_id="dossier-a", job_id=job_id,
+        snapshot_digest="sha256:abc", execution_id="execution-a", worker_token=token,
+    )
+    writer.start("contract_graph_operation")
+    writer.finish("contract_graph_operation", "COMPLETED", item_count=0)
+    jobs.set_wire(job_id, tenant_id="tenant-a", dossier_id="dossier-a", worker_token=token,
+                  status=job_status, wire={"status": job_status})
+    monkeypatch.setenv("AI2_SERVICE_HMAC_SECRET", "fixture-hmac-material-trace-01")
+    monkeypatch.setattr(processing_trace_router, "job_store_from_env", lambda: jobs)
+    params = {"job_id": job_id, "dossier_id": "dossier-a", "snapshot_digest": "sha256:abc"}
+    signed = build_service_envelope(
+        params, secret="fixture-hmac-material-trace-01", tenant_id="tenant-a", dossier_id="dossier-a",
+        scopes=["ai2.trace.read"],
+    )
+    response = TestClient(api_main.app).get(
+        f"/internal/processing-trace/{job_id}", params=params,
+        headers={"x-ai2-service-envelope": json.dumps(signed)},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["job_status"] == job_status
+    assert response.json()["status"] == "COMPLETE"
+    assert response.json()["stages"][0]["status"] == "COMPLETED"
+
+
 def test_explicit_skip_is_readable_even_without_a_stage_start(tmp_path):
     jobs, job_id, token = _claimed_job(tmp_path / "jobs.sqlite")
     store = ProcessingTraceStore(jobs)
@@ -344,6 +391,23 @@ def test_run_idp_persists_stage_start_before_operation_and_pairs(monkeypatch, tm
     ]
 
 
+def test_pair_builder_failure_is_kept_on_record_for_receipt(monkeypatch):
+    from fixtures import envelope
+    from fixtures.contract_graph_pair_records import pair_record
+
+    monkeypatch.setenv("AI2_CONTRACT_GRAPH_ENABLED", "1")
+    monkeypatch.setenv("AI2_CONTRACT_GRAPH_PAIRS_ENABLED", "1")
+    monkeypatch.delenv("AI2_CONTRACT_GRAPH_PAIRS_API_KEY", raising=False)
+    monkeypatch.delenv("AI2_CONTRACT_GRAPH_PAIRS_BASE_URL", raising=False)
+    monkeypatch.setattr(pair_builder, "build_pair_relations", lambda *_a, **_kw: (_ for _ in ()).throw(RuntimeError()))
+    record = pair_record()
+
+    result = idp.run_idp(record, envelope(), llm=None, job_id="pair-builder-failure")
+
+    assert result.status == "SUCCEEDED"
+    assert record.pair_relations_stage_status == "FAILED"
+
+
 def test_signed_trace_read_is_scoped_and_store_failure_is_unavailable(tmp_path, monkeypatch):
     path = tmp_path / "jobs.sqlite"
     jobs, job_id, token = _claimed_job(path)
@@ -353,12 +417,12 @@ def test_signed_trace_read_is_scoped_and_store_failure_is_unavailable(tmp_path, 
         snapshot_digest="sha256:abc", execution_id="execution-a", worker_token=token,
     )
     writer.start("contract_graph_operation")
-    monkeypatch.setenv("AI2_SERVICE_HMAC_SECRET", "test-secret")
+    monkeypatch.setenv("AI2_SERVICE_HMAC_SECRET", "fixture-hmac-material-test-01")
     monkeypatch.setattr(processing_trace_router, "job_store_from_env", lambda: jobs)
     client = TestClient(api_main.app)
     payload = {"job_id": job_id, "dossier_id": "dossier-a", "snapshot_digest": "sha256:abc"}
     signed = build_service_envelope(
-        payload, secret="test-secret", tenant_id="tenant-a", dossier_id="dossier-a",
+        payload, secret="fixture-hmac-material-test-01", tenant_id="tenant-a", dossier_id="dossier-a",
         scopes=["ai2.trace.read"],
     )
     response = client.get(
@@ -378,9 +442,10 @@ def test_signed_trace_read_is_scoped_and_store_failure_is_unavailable(tmp_path, 
     )
     assert failed_write.json()["status"] == "TRACE_UNAVAILABLE"
     assert failed_write.json()["trace_status"] == "UNAVAILABLE"
+    assert failed_write.json()["job_status"] == "RUNNING"
 
     wrong_scope = build_service_envelope(
-        payload, secret="test-secret", tenant_id="tenant-b", dossier_id="dossier-a",
+        payload, secret="fixture-hmac-material-test-01", tenant_id="tenant-b", dossier_id="dossier-a",
         scopes=["ai2.trace.read"],
     )
     denied = client.get(
@@ -397,6 +462,32 @@ def test_signed_trace_read_is_scoped_and_store_failure_is_unavailable(tmp_path, 
     assert unavailable.status_code == 200
     assert unavailable.json()["status"] == "TRACE_UNAVAILABLE"
     assert unavailable.json()["trace_status"] == "UNAVAILABLE"
+
+
+def test_trace_read_failure_preserves_known_job_status(tmp_path, monkeypatch):
+    path = tmp_path / "jobs.sqlite"
+    jobs, job_id, _token = _claimed_job(path)
+    monkeypatch.setenv("AI2_SERVICE_HMAC_SECRET", "fixture-hmac-material-test-01")
+    monkeypatch.setattr(processing_trace_router, "job_store_from_env", lambda: jobs)
+    monkeypatch.setattr(
+        ProcessingTraceStore,
+        "read_latest_execution",
+        lambda *_a, **_kw: (_ for _ in ()).throw(OSError("trace read failed")),
+    )
+    payload = {"job_id": job_id, "dossier_id": "dossier-a", "snapshot_digest": "sha256:abc"}
+    signed = build_service_envelope(
+        payload, secret="fixture-hmac-material-test-01", tenant_id="tenant-a", dossier_id="dossier-a",
+        scopes=["ai2.trace.read"],
+    )
+
+    response = TestClient(api_main.app).get(
+        f"/internal/processing-trace/{job_id}", params=payload,
+        headers={"x-ai2-service-envelope": json.dumps(signed)},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "TRACE_UNAVAILABLE"
+    assert response.json()["job_status"] == "RUNNING"
 
 
 def test_postgres_adapter_migrates_and_persists_trace_across_store_instances(pg_url):

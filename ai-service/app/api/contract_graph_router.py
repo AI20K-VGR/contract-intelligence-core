@@ -17,6 +17,7 @@ from app.db.tables import (
 )
 from app.security.service_envelope import ServiceEnvelopeError, verify_service_envelope
 from app.tools.contract_graph_read_model import (
+    graph_job_status,
     graph_read_status,
     project_operation_edge,
     project_pair_relation,
@@ -68,8 +69,11 @@ def read_contract_graph(
         )).mappings().first()
         if job is None:
             raise HTTPException(404, detail={"code": "GRAPH_JOB_NOT_FOUND"})
-        if job["status"] != "SUCCEEDED":
+        if job["status"] in {"QUEUED", "RUNNING"}:
             return {"status": "PENDING", "graph_kind": kind, "edges": [], "total_count": 0,
+                    "has_more": False, "next_cursor": None, "snapshot_digest": snapshot_digest}
+        if job["status"] != "SUCCEEDED":
+            return {"status": graph_job_status(job["status"]), "graph_kind": kind, "edges": [], "total_count": 0,
                     "has_more": False, "next_cursor": None, "snapshot_digest": snapshot_digest}
         latest_job_id = cx.execute(select(jobs.c.job_id).where(
             jobs.c.tenant_id == envelope.tenant_id,

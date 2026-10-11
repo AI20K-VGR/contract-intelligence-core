@@ -34,6 +34,7 @@ def read_processing_trace(
 
     if envelope.dossier_id != dossier_id:
         raise HTTPException(403, detail={"code": "TRACE_SCOPE_MISMATCH"})
+    job_status: str | None = None
     try:
         job_store = job_store_from_env()
         job = job_store.get(job_id, tenant_id=envelope.tenant_id, dossier_id=dossier_id)
@@ -44,9 +45,11 @@ def read_processing_trace(
                 "schema_version": "ai2.processing-trace.v1",
                 "trace_status": "UNAVAILABLE",
                 "status": "TRACE_UNAVAILABLE",
+                "job_status": job["status"],
                 "snapshot_digest": snapshot_digest,
                 "stages": [],
             }
+        job_status = job["status"]
         trace_store = ProcessingTraceStore(job_store)
         events = trace_store.read_latest_execution(
             tenant_id=envelope.tenant_id, dossier_id=dossier_id, job_id=job_id,
@@ -72,4 +75,5 @@ def read_processing_trace(
             "reason_code": "TRACE_STORE_UNAVAILABLE",
             "snapshot_digest": snapshot_digest,
             "stages": [],
+            **({"job_status": job_status} if job_status is not None else {}),
         }

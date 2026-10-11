@@ -1,5 +1,4 @@
 import { renderToStaticMarkup } from 'react-dom/server'
-import { performance } from 'node:perf_hooks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ContractGraphPage, ProcessingTrace } from '../api/contractGraph'

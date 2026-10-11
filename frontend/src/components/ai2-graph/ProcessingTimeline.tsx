@@ -1,4 +1,5 @@
 import type { ProcessingTrace } from '../../api/contractGraph'
+import { processingTimelineOutcome } from './timelineOutcome'
 
 const stageLabels: Record<string, string> = {
   contract_graph_operation: 'Tìm quan hệ điều khoản sửa đổi',
@@ -15,11 +16,20 @@ const stageStatusLabels: Record<string, string> = {
 }
 
 const traceStatusLabels: Record<ProcessingTrace['status'], string> = {
-  COMPLETE: 'Hoàn tất xử lý AI2',
+  COMPLETE: 'Các bước xử lý đã kết thúc',
   IN_PROGRESS: 'AI2 đang xử lý',
   INTERRUPTED_UNKNOWN: 'Xử lý AI2 bị gián đoạn, chưa rõ kết quả',
   INCOMPLETE_UNKNOWN: 'Luồng AI2 chưa đầy đủ, chưa rõ kết quả',
   TRACE_UNAVAILABLE: 'Chưa có dấu vết xử lý AI2',
+}
+
+const outcomeLabels: Record<string, string> = {
+  'job-failed': 'AI2 thất bại',
+  'job-cancelled': 'AI2 đã bị hủy',
+  'job-running': 'AI2 đang xử lý',
+  'job-succeeded-with-stage-failure': 'AI2 hoàn tất nhưng có bước xử lý lỗi',
+  'stage-failed-job-unknown': 'Có bước AI2 thất bại; trạng thái job chưa rõ',
+  'job-succeeded': 'AI2 hoàn tất',
 }
 
 export function ProcessingTimeline({ trace }: { trace: ProcessingTrace }) {
@@ -34,7 +44,8 @@ export function ProcessingTimeline({ trace }: { trace: ProcessingTrace }) {
         Luồng xử lý AI2
       </h2>
       <p className="mt-1 font-body-md" role="status">
-        {traceStatusLabels[trace.status]}
+        {outcomeLabels[processingTimelineOutcome(trace)] ??
+          traceStatusLabels[trace.status]}
       </p>
       {unavailable ? (
         <p className="mt-2 break-words text-on-surface-variant">

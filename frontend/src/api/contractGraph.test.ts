@@ -159,7 +159,7 @@ describe('contract graph API client', () => {
     expect(trace.stages[0]?.reason_code).toBe('TERMINAL_WITH_OPEN_STAGE')
   })
 
-  it('accepts Backend trace metadata fields without exposing them in the UI model', async () => {
+  it('preserves job outcome from Backend trace metadata', async () => {
     vi.mocked(getJson).mockResolvedValue({
       job_id: 'job-a',
       schema_version: 'ai2.processing-trace.v1',
@@ -187,8 +187,45 @@ describe('contract graph API client', () => {
     })
 
     expect(trace.status).toBe('COMPLETE')
+    expect(trace.job_status).toBe('SUCCEEDED')
     expect(trace.stages[0]?.stage_id).toBe('contract_graph_pairs')
     expect(trace).not.toHaveProperty('execution_id')
-    expect(trace).not.toHaveProperty('job_status')
+  })
+
+  it('preserves a failed job even when its trace stages are terminal', async () => {
+    vi.mocked(getJson).mockResolvedValue({
+      job_id: 'job-a',
+      schema_version: 'ai2.processing-trace.v1',
+      snapshot_digest: 'digest-a',
+      status: 'COMPLETE',
+      trace_status: 'AVAILABLE',
+      job_status: 'FAILED',
+      stages: [],
+    } as never)
+    const trace = await getProcessingTrace({
+      dossierId: 'dossier-a',
+      jobId: 'job-a',
+      snapshotDigest: 'digest-a',
+    })
+    expect(trace.status).toBe('COMPLETE')
+    expect(trace.job_status).toBe('FAILED')
+  })
+
+  it('preserves cancellation as a terminal job outcome', async () => {
+    vi.mocked(getJson).mockResolvedValue({
+      job_id: 'job-a',
+      schema_version: 'ai2.processing-trace.v1',
+      snapshot_digest: 'digest-a',
+      status: 'COMPLETE',
+      trace_status: 'AVAILABLE',
+      job_status: 'CANCELLED',
+      stages: [],
+    } as never)
+    const trace = await getProcessingTrace({
+      dossierId: 'dossier-a',
+      jobId: 'job-a',
+      snapshotDigest: 'digest-a',
+    })
+    expect(trace.job_status).toBe('CANCELLED')
   })
 })
