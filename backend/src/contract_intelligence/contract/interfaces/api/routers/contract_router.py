@@ -1348,8 +1348,13 @@ def _graph_cursor_secret() -> bytes:
 
 
 def _encode_graph_cursor(
-    inner_cursor: str | None, *, tenant_id: str, dossier_id: str, job_id: str,
-    snapshot_digest: str, graph_kind: str,
+    inner_cursor: str | None,
+    *,
+    tenant_id: str,
+    dossier_id: str,
+    job_id: str,
+    snapshot_digest: str,
+    graph_kind: str,
 ) -> str | None:
     if inner_cursor is None:
         return None
@@ -1357,18 +1362,32 @@ def _encode_graph_cursor(
     import hashlib
     import hmac
 
-    claims = json.dumps({
-        "v": 1, "tenant_id": tenant_id, "dossier_id": dossier_id, "job_id": job_id,
-        "snapshot_digest": snapshot_digest, "graph_kind": graph_kind, "cursor": inner_cursor,
-    }, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    claims = json.dumps(
+        {
+            "v": 1,
+            "tenant_id": tenant_id,
+            "dossier_id": dossier_id,
+            "job_id": job_id,
+            "snapshot_digest": snapshot_digest,
+            "graph_kind": graph_kind,
+            "cursor": inner_cursor,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
     body = base64.urlsafe_b64encode(claims).rstrip(b"=")
     signature = hmac.new(_graph_cursor_secret(), body, hashlib.sha256).digest()
     return (body + b"." + base64.urlsafe_b64encode(signature).rstrip(b"=")).decode("ascii")
 
 
 def _decode_graph_cursor(
-    cursor: str | None, *, tenant_id: str, dossier_id: str, job_id: str,
-    snapshot_digest: str, graph_kind: str,
+    cursor: str | None,
+    *,
+    tenant_id: str,
+    dossier_id: str,
+    job_id: str,
+    snapshot_digest: str,
+    graph_kind: str,
 ) -> str | None:
     if cursor is None:
         return None
@@ -1378,7 +1397,9 @@ def _decode_graph_cursor(
 
     try:
         body, encoded_signature = cursor.encode("ascii").split(b".", 1)
-        signature = base64.urlsafe_b64decode(encoded_signature + b"=" * (-len(encoded_signature) % 4))
+        signature = base64.urlsafe_b64decode(
+            encoded_signature + b"=" * (-len(encoded_signature) % 4)
+        )
         expected = hmac.new(_graph_cursor_secret(), body, hashlib.sha256).digest()
         if not hmac.compare_digest(signature, expected):
             raise ValueError("signature")
@@ -1386,8 +1407,12 @@ def _decode_graph_cursor(
     except (ValueError, UnicodeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=400, detail={"code": "GRAPH_CURSOR_INVALID"}) from exc
     expected_claims = {
-        "v": 1, "tenant_id": tenant_id, "dossier_id": dossier_id, "job_id": job_id,
-        "snapshot_digest": snapshot_digest, "graph_kind": graph_kind,
+        "v": 1,
+        "tenant_id": tenant_id,
+        "dossier_id": dossier_id,
+        "job_id": job_id,
+        "snapshot_digest": snapshot_digest,
+        "graph_kind": graph_kind,
     }
     if (
         not isinstance(claims, dict)
@@ -1403,13 +1428,20 @@ def _decode_graph_cursor(
 
 def _recheck_citation_read(dossier: Any, dossier_id: str, user: AuthenticatedUser) -> bool:
     return dossier_access_decision(
-        action=AclAction.CITATION_READ, principal=user, dossier_id=dossier_id,
-        dossier_tenant_id=getattr(dossier, "tenant_id", user.tenant_id), metadata=dossier.metadata,
+        action=AclAction.CITATION_READ,
+        principal=user,
+        dossier_id=dossier_id,
+        dossier_tenant_id=getattr(dossier, "tenant_id", user.tenant_id),
+        metadata=dossier.metadata,
     )
 
 
 async def _postcheck_graph_read(
-    svc: Any, dossier_id: str, user: AuthenticatedUser, *, expected_digest: str,
+    svc: Any,
+    dossier_id: str,
+    user: AuthenticatedUser,
+    *,
+    expected_digest: str,
 ) -> None:
     try:
         fresh = await svc.get_dossier(dossier_id)
@@ -1441,33 +1473,60 @@ async def get_dossier_ai2_contract_graph(
     if _ai2_snapshot_digest(dossier) != snapshot_digest:
         raise HTTPException(status_code=409, detail={"code": "AI2_SNAPSHOT_CHANGED"})
     inner_cursor = _decode_graph_cursor(
-        cursor, tenant_id=user.tenant_id, dossier_id=dossier_id, job_id=job_id,
-        snapshot_digest=snapshot_digest, graph_kind=graph_kind,
+        cursor,
+        tenant_id=user.tenant_id,
+        dossier_id=dossier_id,
+        job_id=job_id,
+        snapshot_digest=snapshot_digest,
+        graph_kind=graph_kind,
     )
     try:
         page = await read_ai2_contract_graph(
-            job_id, dossier_id=dossier_id, snapshot_digest=snapshot_digest,
-            graph_kind=graph_kind, tenant_id=user.tenant_id, actor_id=user.user_id,
-            cursor=inner_cursor, limit=limit,
+            job_id,
+            dossier_id=dossier_id,
+            snapshot_digest=snapshot_digest,
+            graph_kind=graph_kind,
+            tenant_id=user.tenant_id,
+            actor_id=user.user_id,
+            cursor=inner_cursor,
+            limit=limit,
         )
     except AiAdapterError as exc:
-        logger.warning("dossier.ai2_graph.unavailable", dossier_id=dossier_id, code=type(exc).__name__)
+        logger.warning(
+            "dossier.ai2_graph.unavailable", dossier_id=dossier_id, code=type(exc).__name__
+        )
         raise HTTPException(status_code=503, detail={"code": "AI2_GRAPH_UNAVAILABLE"}) from exc
     await _postcheck_graph_read(svc, dossier_id, user, expected_digest=snapshot_digest)
     if page["status"] == "STALE":
         raise HTTPException(status_code=409, detail={"code": "AI2_GRAPH_STALE"})
     data = {
-        "job_id": job_id, "snapshot_digest": snapshot_digest, "graph_kind": graph_kind,
-        "status": page["status"], "edges": [
-            {key: value for key, value in edge.items() if key not in {
-                "tenant_id", "dossier_id", "job_id", "snapshot_digest",
-            }}
+        "job_id": job_id,
+        "snapshot_digest": snapshot_digest,
+        "graph_kind": graph_kind,
+        "status": page["status"],
+        "edges": [
+            {
+                key: value
+                for key, value in edge.items()
+                if key
+                not in {
+                    "tenant_id",
+                    "dossier_id",
+                    "job_id",
+                    "snapshot_digest",
+                }
+            }
             for edge in page["edges"]
-        ], "total_count": page["total_count"],
+        ],
+        "total_count": page["total_count"],
         "has_more": page["has_more"],
         "next_cursor": _encode_graph_cursor(
-            page["next_cursor"], tenant_id=user.tenant_id, dossier_id=dossier_id, job_id=job_id,
-            snapshot_digest=snapshot_digest, graph_kind=graph_kind,
+            page["next_cursor"],
+            tenant_id=user.tenant_id,
+            dossier_id=dossier_id,
+            job_id=job_id,
+            snapshot_digest=snapshot_digest,
+            graph_kind=graph_kind,
         ),
     }
     return ApiResponse(data=data)
@@ -1491,11 +1550,16 @@ async def get_dossier_ai2_processing_trace(
         raise HTTPException(status_code=409, detail={"code": "AI2_SNAPSHOT_CHANGED"})
     try:
         trace = await read_ai2_processing_trace(
-            job_id, dossier_id=dossier_id, snapshot_digest=snapshot_digest,
-            tenant_id=user.tenant_id, actor_id=user.user_id,
+            job_id,
+            dossier_id=dossier_id,
+            snapshot_digest=snapshot_digest,
+            tenant_id=user.tenant_id,
+            actor_id=user.user_id,
         )
     except AiAdapterError as exc:
-        logger.warning("dossier.ai2_trace.unavailable", dossier_id=dossier_id, code=type(exc).__name__)
+        logger.warning(
+            "dossier.ai2_trace.unavailable", dossier_id=dossier_id, code=type(exc).__name__
+        )
         raise HTTPException(status_code=503, detail={"code": "AI2_TRACE_UNAVAILABLE"}) from exc
     await _postcheck_graph_read(svc, dossier_id, user, expected_digest=snapshot_digest)
     return ApiResponse(data={"job_id": job_id, **trace})

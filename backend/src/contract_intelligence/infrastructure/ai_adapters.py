@@ -124,16 +124,21 @@ async def _get_json(
 
 
 async def _get_json_bounded(
-    url: str, *, headers: dict[str, str] | None, service: str, max_response_bytes: int,
+    url: str,
+    *,
+    headers: dict[str, str] | None,
+    service: str,
+    max_response_bytes: int,
 ) -> dict[str, Any]:
     """Fetch JSON with a streaming byte ceiling for graph and trace projections."""
     logger.info("ai_adapter.request", service=service, url=url)
     try:
         chunks: list[bytes] = []
         size = 0
-        async with httpx.AsyncClient(timeout=_DEFAULT_TIMEOUT) as client, client.stream(
-            "GET", url, headers=headers
-        ) as response:
+        async with (
+            httpx.AsyncClient(timeout=_DEFAULT_TIMEOUT) as client,
+            client.stream("GET", url, headers=headers) as response,
+        ):
             content_length = response.headers.get("content-length")
             if content_length:
                 try:
@@ -522,17 +527,14 @@ def _validate_ai2_graph_page(
         if (
             "target_address" in edge
             and edge["target_address"] is not None
-            and (
-                not isinstance(edge["target_address"], str)
-                or len(edge["target_address"]) > 512
-            )
+            and (not isinstance(edge["target_address"], str) or len(edge["target_address"]) > 512)
         ):
             raise AiAdapterError("AI2 graph edge address is malformed")
         for field in ("source_document_id", "target_document_id"):
             value = edge.get(field)
-            if field not in edge or (value is not None and (
-                not isinstance(value, str) or not value or len(value) > 512
-            )):
+            if field not in edge or (
+                value is not None and (not isinstance(value, str) or not value or len(value) > 512)
+            ):
                 raise AiAdapterError("AI2 graph edge document identity is malformed")
     return {
         "status": status_value,
