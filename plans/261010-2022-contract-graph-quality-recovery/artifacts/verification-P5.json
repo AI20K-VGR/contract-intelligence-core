@@ -1,0 +1,35 @@
+{
+  "stage": "cook",
+  "plan": "261010-2022-contract-graph-quality-recovery",
+  "checks": [
+    {
+      "name": "user_scope_waiver",
+      "status": "PASS"
+    },
+    {
+      "name": "heldout_evaluation",
+      "status": "SKIP"
+    },
+    {
+      "name": "model_calls",
+      "status": "SKIP"
+    },
+    {
+      "name": "product_quality",
+      "status": "SKIP"
+    },
+    {
+      "name": "runtime_off",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P5",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-11T07:23:47+00:00",
+  "blastRadius": {
+    "unavailable": true,
+    "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF-ai2-contract-graph"
+  },
+  "run_seq": null
+}
