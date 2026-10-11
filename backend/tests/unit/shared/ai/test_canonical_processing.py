@@ -28,6 +28,7 @@ def test_processing_request_normalizes_ai1_sha256_prefix_for_ai2_wire_contract()
         document_id="doc-1",
         order_index=0,
         doc_type="contract",
+        document_number="12/2026/HD-DV",
     )
     document = SimpleNamespace(id="doc-1")
 
@@ -45,6 +46,7 @@ def test_processing_request_normalizes_ai1_sha256_prefix_for_ai2_wire_contract()
     assert request["snapshots"][0]["source_digest"] == digest
     assert request["snapshot_identities"][0]["source_digest"] == digest
     assert request["dossier_members"][0]["source_digest"] == digest
+    assert request["dossier_members"][0]["document_number"] == "12/2026/HD-DV"
 
 
 def _compact_request(**overrides: object) -> dict[str, object] | None:

@@ -129,6 +129,9 @@ class DossierDocument(BaseModel):
     )
     role: Literal["body", "annex"]
     source_digest: str = Field(pattern=r"^[a-fA-F0-9]{64}$")
+    # Explicit identity used to safely resolve operations that name a
+    # numbered contract/annex. It is metadata, not an AI2 inference.
+    document_number: str | None = Field(default=None, min_length=1, max_length=160)
 
 
 class DossierManifest(BaseModel):
@@ -334,6 +337,7 @@ class SourceFile(BaseModel):
     file_id: str
     filename: str
     role: Literal["body", "annex"] = "body"
+    document_number: str | None = Field(default=None, min_length=1, max_length=160)
     digest: str = ""
     n_pages: int = 0
     # Raw producer metadata is retained when an upstream document role is not

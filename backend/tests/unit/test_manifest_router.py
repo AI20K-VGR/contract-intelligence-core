@@ -110,6 +110,7 @@ def _valid_body(*, version: int = 1, rel_id: str = "mrel_1") -> ConfirmManifestR
                 document_id="doc_c1",
                 filename="contract.pdf",
                 role=ManifestDocumentRole.CONTRACT,
+                document_number="12/2026/HD-DV",
                 included=True,
                 order_index=0,
                 page_count=2,
@@ -242,6 +243,7 @@ class TestValidateConfirm:
             dossier_documents=_docs(),
         )
         assert len(members) == 2
+        assert members[0].document_number == "12/2026/HD-DV"
         assert all(r.id for r in relations)
         assert any(r.relation_type == "supplements" for r in relations)
 

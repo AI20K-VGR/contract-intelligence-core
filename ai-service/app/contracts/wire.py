@@ -62,6 +62,7 @@ class DossierMemberWire(BaseModel):
     snapshot_id: Id = Field(min_length=1, max_length=160)
     role: Literal["body", "annex"]
     source_digest: str = Field(pattern=r"^[a-fA-F0-9]{64}$")
+    document_number: str | None = Field(default=None, min_length=1, max_length=160)
 
 
 class RoleRelationWire(BaseModel):

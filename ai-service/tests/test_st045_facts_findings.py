@@ -89,3 +89,24 @@ def test_fact_extraction_preserves_typed_evidence_layers():
     assert fact.subject == "Payment term"
     assert fact.citation.node_id == "node-1"
     assert fact.provenance == "L0"
+
+
+def test_fact_extraction_preserves_ascii_annex_amendment_heading_from_ancestors():
+    class Gateway:
+        def call(self, _tool: str, _envelope, *, node_id: str) -> dict:
+            return {
+                "text": "Penalty: 0.1%",
+                "structured_value": "0.1%",
+                "structured_key": "item:penalty_general",
+                "raw_label": "Penalty",
+                "ancestors": ["Phu luc 1 - Sua Dieu 5", "Penalty table"],
+                "citation": {
+                    "node_id": node_id,
+                    "page_revision_id": "page-1",
+                    "text_span": "0.1%",
+                },
+            }
+
+    fact = FactExtractor(Gateway()).extract(envelope(), "node-1", PROFILE)
+
+    assert fact.subject == "Phu luc 1 - Sua Dieu 5"

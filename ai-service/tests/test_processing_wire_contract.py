@@ -182,6 +182,26 @@ def test_processing_request_adapts_full_dossier_and_preserves_roles():
     assert adapted.record.egress_approved is False
 
 
+def test_processing_request_preserves_explicit_document_numbers():
+    payload = _request()
+    payload["dossier_members"][0]["document_number"] = "12/2026/HD-DV"
+    payload["dossier_members"][1]["document_number"] = "01/PL-HD-DV"
+    payload["service_envelope"] = build_service_envelope(
+        payload,
+        secret="test-secret",
+        tenant_id="tenant_a",
+        dossier_id=payload["dossier_id"],
+        actor_id="test-backend",
+    )
+
+    _, adapted = adapt_be_ai2_processing_request(payload)
+
+    assert {item.file_id: item.document_number for item in adapted.record.source_files} == {
+        "doc-body-example-001": "12/2026/HD-DV",
+        "doc-annex-example-001": "01/PL-HD-DV",
+    }
+
+
 def test_processing_request_rejects_membership_mismatch():
     payload = _request()
     payload["dossier_members"][1]["snapshot_id"] = payload["snapshots"][0]["snapshot_id"]

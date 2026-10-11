@@ -57,7 +57,9 @@ class DossierRecord:
     review_items: list[ReviewItem] = field(default_factory=list)
     events: list[ContractEvent] = field(default_factory=list)
     # D8: edges reach the job store on the record, never on ``JobResult`` (its dump is persisted).
-    # Not part of ``record_to_dict``; ``contract_graph_ran`` False keeps the stored edges as they are.
+    # Not part of ``record_to_dict``; the latest successful job replaces the
+    # persisted edge view with this list, including an empty list when graph
+    # enrichment did not run.
     contract_edges: list[ContractEdge] = field(default_factory=list)
     contract_graph_ran: bool = False
     content_sharing_consent: bool = False

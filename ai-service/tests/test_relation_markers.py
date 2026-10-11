@@ -30,6 +30,10 @@ def test_amend_marker_detects_explicit_operations(text):
         "Đơn giá được điều chỉnh theo CPI hằng năm.",
         "Bên B hoàn thành công trình đúng tiến độ.",
         "Bên B bổ sung hồ sơ thanh toán trong 05 ngày.",
+        "Bên B sửa chữa Điều 5 tại hiện trường.",
+        "Ben B sua chua Dieu 5 tai hien truong.",
+        "Không sửa Điều 5.",
+        "Khong sua Dieu 5.",
         "Hai bên thống nhất thay đổi người đại diện liên hệ.",
     ],
 )

@@ -25,6 +25,11 @@ _AMEND_PATTERNS = (
     re.compile(r"\bamend(?:s|ed|ment)?\b[^.;\n]{0,40}?\b(?:article|clause|section|annex)\s+\w+", re.I),
 )
 _AMEND_EXCLUDE = re.compile(r"sửa chữa|điều chỉnh theo\s+(?:cpi|chỉ số|giá thị trường|tỷ giá)", re.I)
+_ANNEX_AMENDMENT_TITLE = re.compile(
+    r"^\s*(?:phụ lục|phu luc)\s+(\d+)\s*[—–:-]\s*(?:(?:cũng|cung)\s+)?"
+    r"(?:sửa|sua)\s+(điều|dieu|khoản|khoan|điểm|diem|mục|muc)\s+([\w.]+)",
+    re.I,
+)
 
 _DEF_MARKER = r"(?:có nghĩa là|được hiểu là|nghĩa là|shall mean|means|co nghia la|duoc hieu la)"
 _DEF_QUOTED = re.compile(rf"[\"“”']([^\"“”']{{2,80}})[\"“”']\s*(?:\([^)]*\)\s*)?{_DEF_MARKER}", re.I)
@@ -44,6 +49,37 @@ def has_amend_marker(text: str | None) -> bool:
 
     stripped = _AMEND_EXCLUDE.sub(" ", _nfc(text))
     return any(p.search(stripped) for p in _AMEND_PATTERNS)
+
+
+def has_annex_amendment_title(text: str | None) -> bool:
+    """True for an explicit annex heading that directly names an address it amends.
+
+    Bare ``sửa`` is too ambiguous for general sentence detection, so accept it only
+    in the narrow, anchored annex-title form ``Phụ lục N — Sửa Điều X``.
+    """
+
+    return bool(_ANNEX_AMENDMENT_TITLE.search(_nfc(text)))
+
+
+def annex_amendment_title_targets(text: str | None, subject: str | None) -> bool:
+    """Whether an explicit annex heading addresses this clause subject."""
+
+    title = _ANNEX_AMENDMENT_TITLE.search(_nfc(text))
+    if not title or not subject:
+        return False
+    def folded(value: str) -> str:
+        decomposed = unicodedata.normalize("NFD", value.casefold())
+        return "".join(c for c in decomposed if unicodedata.category(c) != "Mn").replace("đ", "d")
+
+    subject_match = re.search(
+        r"(?:^|\s)(dieu|khoan|diem|muc)\s+([\w.]+)",
+        folded(_nfc(subject)),
+    )
+    return bool(
+        subject_match
+        and folded(title.group(2)) == subject_match.group(1)
+        and folded(title.group(3)) == folded(subject_match.group(2).rstrip("."))
+    )
 
 
 def defined_term(text: str | None) -> str | None:

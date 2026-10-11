@@ -218,7 +218,11 @@ def test_suffix_labels_indexed(index):
 def test_multi_clause_parent_existence_filter(index):
     res = _resolve(index, Address(dieu="3", diem="b", khoan_options=("1", "2")))
 
-    assert (res.status, res.method, res.node_id) == (Status.UNIQUE, Method.EXACT, "d3k1b")
+    assert (res.status, res.method, res.node_id) == (
+        Status.UNIQUE,
+        Method.EXISTENCE_FILTER,
+        "d3k1b",
+    )
     assert res.canonical == "diem b khoan 1 dieu 3"
 
 

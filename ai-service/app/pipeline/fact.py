@@ -198,7 +198,7 @@ def _guess_unit(raw: str, text: str) -> str | None:
 def _context_subject(ancestors: list, raw_label: str | None) -> str | None:
     labels = [str(a) for a in ancestors if a] + ([str(raw_label)] if raw_label else [])
     for lab in reversed(labels):
-        if re.match(r"^(Điều|ĐIỀU|Phụ lục|PHỤ LỤC|Phần)\b", lab):
+        if re.match(r"^(Điều|ĐIỀU|Phụ lục|PHỤ LỤC|Phu luc|PHU LUC|Phần)\b", lab):
             return lab[:80]
     return labels[-1][:80] if labels else None
 

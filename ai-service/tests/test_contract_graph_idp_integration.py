@@ -86,6 +86,23 @@ def test_flag_on_emits_typed_edges_with_two_sided_citations(graph):
     assert sub.source_citation.text_span == "Sửa đổi điểm c khoản 1 Điều 3 như sau:"
 
 
+def test_flag_on_passes_explicit_document_numbers_to_builder(monkeypatch):
+    record = graph_record()
+    record.source_files[0].document_number = " 15/2023/HĐKT "
+    record.source_files[1].document_number = "01/PL-HĐ"
+    observed = {}
+    original = builder.build_contract_graph
+
+    def wrapped(record, facts, **kwargs):
+        observed.update(kwargs)
+        return original(record, facts, **kwargs)
+
+    monkeypatch.setattr(builder, "build_contract_graph", wrapped)
+    _run(record, enabled=True, monkeypatch=monkeypatch)
+
+    assert observed["known_documents"] == {"15/2023/hđkt", "01/pl-hđ"}
+
+
 def test_flag_on_missing_target_is_insufficient_evidence_issue(graph, monkeypatch):
     assert "a4" not in _edges(graph)
     (issue,) = [i for i in graph.issues if i.citation and i.citation.node_id == "a4"]

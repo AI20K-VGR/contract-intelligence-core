@@ -42,6 +42,9 @@ class Status(StrEnum):
 
 class Method(StrEnum):
     EXACT = "EXACT"
+    # One of several possible clause numbers existed; uniqueness came from
+    # the existence filter, not from an exact address match.
+    EXISTENCE_FILTER = "EXISTENCE_FILTER"
     ANCESTOR = "ANCESTOR"
     SELF = "SELF"
     ORDER_INFERENCE = "ORDER_INFERENCE"
@@ -249,7 +252,7 @@ class StructureIndex:
         if not found:
             return Resolution(Status.NOT_FOUND, canonical=canonical(addr))
         if len(found) == 1 and found[0].status == Status.UNIQUE:
-            return found[0]
+            return replace(found[0], method=Method.EXISTENCE_FILTER)
         candidates: list[str] = []
         for r in found:
             ids = (r.node_id,) if r.status == Status.UNIQUE else r.candidates

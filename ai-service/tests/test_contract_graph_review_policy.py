@@ -95,6 +95,7 @@ def test_pass_only_when_every_condition_holds():
         (_calibration(60, 54), {}, True),
         (_calibration(60, 60), {"standard": False}, True),
         (_calibration(60, 60), {"method": EdgeMethod.ANCESTOR}, True),
+        (_calibration(60, 60), {"method": EdgeMethod.EXISTENCE_FILTER}, True),
         (_calibration(60, 60), {"method": EdgeMethod.ORDER_INFERENCE}, True),
         (_calibration(60, 60), {"method": EdgeMethod.SELF}, True),
         (_calibration(60, 60), {"method": EdgeMethod.ITEM_KEY}, True),

@@ -82,6 +82,8 @@ class SQLiteJobStore:
                     idempotency_key TEXT NOT NULL,
                     attempt INTEGER NOT NULL,
                     status TEXT NOT NULL,
+                    trace_status TEXT NOT NULL DEFAULT 'AVAILABLE',
+                    current_execution_id TEXT,
                     request_json TEXT NOT NULL,
                     wire_json TEXT NOT NULL,
                     result_json TEXT,
@@ -100,6 +102,10 @@ class SQLiteJobStore:
             columns = {row[1] for row in cx.execute("PRAGMA table_info(jobs)").fetchall()}
             if "request_fingerprint" not in columns:
                 cx.execute("ALTER TABLE jobs ADD COLUMN request_fingerprint TEXT")
+            if "trace_status" not in columns:
+                cx.execute("ALTER TABLE jobs ADD COLUMN trace_status TEXT NOT NULL DEFAULT 'AVAILABLE'")
+            if "current_execution_id" not in columns:
+                cx.execute("ALTER TABLE jobs ADD COLUMN current_execution_id TEXT")
             cx.execute(
                 """
                 CREATE TABLE IF NOT EXISTS service_nonces (
@@ -124,6 +130,14 @@ class SQLiteJobStore:
     def _decode(row: sqlite3.Row | None) -> dict[str, Any] | None:
         if row is None:
             return None
+        try:
+            trace_status = row["trace_status"]
+        except (IndexError, KeyError):
+            trace_status = "AVAILABLE"
+        try:
+            current_execution_id = row["current_execution_id"]
+        except (IndexError, KeyError):
+            current_execution_id = None
         return {
             "job_id": row["job_id"],
             "tenant_id": row["tenant_id"],
@@ -132,6 +146,8 @@ class SQLiteJobStore:
             "idempotency_key": row["idempotency_key"],
             "attempt": row["attempt"],
             "status": row["status"],
+            "trace_status": trace_status,
+            "current_execution_id": current_execution_id,
             "request": json.loads(row["request_json"]),
             "wire": json.loads(row["wire_json"]),
             "result": json.loads(row["result_json"]) if row["result_json"] else None,
@@ -253,6 +269,7 @@ class SQLiteJobStore:
         tenant_id: str,
         dossier_id: str,
         lease_ms: int = 60_000,
+        execution_id: str | None = None,
     ) -> str | None:
         """Claim a queued job, or reclaim an expired running job."""
 
@@ -273,10 +290,10 @@ class SQLiteJobStore:
                 return None
             cx.execute(
                 """
-                UPDATE jobs SET status='RUNNING', worker_token=?, lease_until_ms=?, updated_ms=?
+                UPDATE jobs SET status='RUNNING', trace_status='AVAILABLE', current_execution_id=?, worker_token=?, lease_until_ms=?, updated_ms=?
                 WHERE job_id=? AND tenant_id=? AND dossier_id=?
                 """,
-                (token, now + lease_ms, now, job_id, tenant_id, dossier_id),
+                (execution_id, token, now + lease_ms, now, job_id, tenant_id, dossier_id),
             )
             cx.commit()
             return token
@@ -425,6 +442,20 @@ class SQLiteJobStore:
         finally:
             cx.close()
 
+    def mark_trace_unavailable(self, job_id: str, *, tenant_id: str, dossier_id: str,
+                               worker_token: str) -> bool:
+        cx = self._connect()
+        try:
+            updated = cx.execute(
+                "UPDATE jobs SET trace_status='UNAVAILABLE' WHERE job_id=? AND tenant_id=? AND dossier_id=? "
+                "AND status='RUNNING' AND worker_token=?",
+                (job_id, tenant_id, dossier_id, worker_token),
+            ).rowcount == 1
+            cx.commit()
+            return updated
+        finally:
+            cx.close()
+
     def list_succeeded(self) -> list[dict[str, Any]]:
         """Return successful jobs in creation order for snapshot rehydration."""
 
@@ -506,7 +537,7 @@ class PostgresJobStore(SQLiteJobStore):
                     raise JobNonceReplayConflict("service nonce was reused with another payload")
             return self._decode(row), bool(inserted)
 
-    def claim(self, job_id, *, tenant_id, dossier_id, lease_ms=60_000):
+    def claim(self, job_id, *, tenant_id, dossier_id, lease_ms=60_000, execution_id=None):
         from sqlalchemy import and_, func, or_, update
 
         from app.db.tables import jobs
@@ -516,6 +547,7 @@ class PostgresJobStore(SQLiteJobStore):
                 jobs.c.job_id == job_id, jobs.c.tenant_id == tenant_id, jobs.c.dossier_id == dossier_id,
                 or_(jobs.c.status == "QUEUED", and_(jobs.c.status == "RUNNING", func.coalesce(jobs.c.lease_until_ms, 0) <= now)),
             ).values(status="RUNNING", worker_token=token, lease_until_ms=now + lease_ms,
+                     trace_status="AVAILABLE", current_execution_id=execution_id,
                      updated_ms=now).returning(jobs.c.worker_token)).scalar()
 
     def set_wire(self, job_id, *, tenant_id, dossier_id, worker_token, status, wire, result=None):
@@ -572,40 +604,77 @@ class PostgresJobStore(SQLiteJobStore):
                 cx.execute(stmt.on_conflict_do_update(index_elements=[query_snapshots.c.tenant_id, query_snapshots.c.dossier_id],
                     set_={"snapshot_digest": stmt.excluded.snapshot_digest, "payload": stmt.excluded.payload,
                           "updated_ms": stmt.excluded.updated_ms}))
-                if getattr(record, "contract_graph_ran", False):
-                    self._replace_contract_edges(cx, record, job_id)
-                if getattr(record, "pair_relations_ran", False):
-                    self._replace_pair_relations(cx, record, job_id)
+                # ``record.contract_edges`` is the complete graph view for
+                # this snapshot. Replace it even when the graph was disabled
+                # or failed, so an older successful job cannot leave stale
+                # amendment edges attached to the new snapshot (BL-001).
+                operation_receipt = self._replace_contract_edges(cx, record, job_id)
+                pair_receipt = self._replace_pair_relations(cx, record, job_id)
+                self._write_graph_receipt(cx, record, job_id, "operation", operation_receipt)
+                self._write_graph_receipt(cx, record, job_id, "pair", pair_receipt)
             return True
 
     def _replace_contract_edges(self, cx, record, job_id) -> None:
-        """D7/RT-04: edges are enrichment; a failed write rolls back its savepoint only.
-
-        The job stays SUCCEEDED with its new snapshot and the previous edge rows stay as they were.
-        """
+        """Replace operation rows in a savepoint and return a safe persistence receipt."""
         from app.tools import contract_edge_store
 
+        ran = bool(getattr(record, "contract_graph_ran", False))
         try:
             with cx.begin_nested():
-                contract_edge_store.replace_contract_edges(
+                count = contract_edge_store.replace_contract_edges(
                     cx, tenant_id=record.tenant_id, dossier_id=record.dossier_id, job_id=job_id,
                     edges=record.contract_edges, now_ms=self._now_ms())
+            return {"stage_status": "COMPLETED" if ran else "SKIPPED",
+                    "write_status": "COMMITTED" if ran else "SKIPPED", "row_count": count, "error_code": None}
         except Exception as exc:  # enrichment only: never fail the completion
             log.warning("ai2.contract_edges_write_failed job_id=%s tenant_id=%s dossier_id=%s cause=%s",
                         job_id, record.tenant_id, record.dossier_id, type(exc).__name__, exc_info=True)
+            return {"stage_status": "COMPLETED" if ran else "SKIPPED", "write_status": "FAILED",
+                    "row_count": 0, "error_code": "GRAPH_STORE_WRITE_FAILED"}
 
     def _replace_pair_relations(self, cx, record, job_id) -> None:
         from app.tools import pair_relation_store
 
+        ran = bool(getattr(record, "pair_relations_ran", False))
         try:
             with cx.begin_nested():
-                pair_relation_store.replace_pair_relations(
+                count = pair_relation_store.replace_pair_relations(
                     cx, tenant_id=record.tenant_id, dossier_id=record.dossier_id, job_id=job_id,
-                    relations=record.pair_relations, now_ms=self._now_ms(),
+                    relations=record.pair_relations if ran else [], now_ms=self._now_ms(),
                 )
+            return {"stage_status": "COMPLETED" if ran else "SKIPPED",
+                    "write_status": "COMMITTED" if ran else "SKIPPED", "row_count": count, "error_code": None}
         except Exception as exc:
             log.warning("ai2.contract_pair_relations_write_failed job_id=%s tenant_id=%s dossier_id=%s cause=%s",
                         job_id, record.tenant_id, record.dossier_id, type(exc).__name__)
+            return {"stage_status": "COMPLETED" if ran else "SKIPPED", "write_status": "FAILED",
+                    "row_count": 0, "error_code": "GRAPH_STORE_WRITE_FAILED"}
+
+    def _write_graph_receipt(self, cx, record, job_id, graph_kind, outcome) -> None:
+        from sqlalchemy.dialects.postgresql import insert
+
+        from app.db.tables import graph_write_receipts
+
+        stmt = insert(graph_write_receipts).values(
+            tenant_id=record.tenant_id,
+            dossier_id=record.dossier_id,
+            job_id=job_id,
+            graph_kind=graph_kind,
+            source_snapshot_digest=record.pins.source_snapshot_digest,
+            stage_status=outcome["stage_status"],
+            write_status=outcome["write_status"],
+            row_count=outcome["row_count"],
+            error_code=outcome["error_code"],
+            created_ms=self._now_ms(),
+        )
+        cx.execute(stmt.on_conflict_do_update(
+            index_elements=[graph_write_receipts.c.tenant_id, graph_write_receipts.c.dossier_id,
+                           graph_write_receipts.c.job_id, graph_write_receipts.c.graph_kind],
+            set_={"source_snapshot_digest": stmt.excluded.source_snapshot_digest,
+                  "stage_status": stmt.excluded.stage_status, "write_status": stmt.excluded.write_status,
+                  "row_count": stmt.excluded.row_count, "error_code": stmt.excluded.error_code,
+                  "created_ms": stmt.excluded.created_ms},
+        ))
 
     def _fail_matching(self, condition, update):
         from sqlalchemy import select

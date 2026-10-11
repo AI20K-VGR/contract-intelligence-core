@@ -16,6 +16,8 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from app.api.contract_graph_router import router as contract_graph_router
+from app.api.processing_trace_router import router as processing_trace_router
 from app.compat_legacy import cancel_job as cancel_legacy_job
 from app.compat_legacy import create_completed_job, create_failed_job
 from app.compat_legacy import get_job as get_legacy_job
@@ -61,6 +63,7 @@ from app.tools.jobs import (
     job_store_from_env,
 )
 from app.tools.persist import DATA, load_session, save_session
+from app.tools.processing_trace_store import ProcessingTraceStore, ProcessingTraceWriter
 from app.tools.query_store import load_query_snapshot
 from app.tools.store import DossierRecord, InMemorySnapshotStore
 from fixtures.case_pdf import attach_case_pdf
@@ -105,6 +108,8 @@ async def _lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="VSF AI2 IDP", version="0.1.0", lifespan=_lifespan)
+app.include_router(contract_graph_router)
+app.include_router(processing_trace_router)
 if STATIC.exists():
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
@@ -251,11 +256,13 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
             actor_id=service_envelope.actor_id,
         )
         tenant_id = request.service_envelope.tenant_id
+        execution_id = uuid4().hex
         worker_token = JOB_STORE.claim(
             job_id,
             tenant_id=tenant_id,
             dossier_id=request.dossier_id,
             lease_ms=request.policy_flags.budget_limits.max_processing_seconds * 1000 + 30_000,
+            execution_id=execution_id,
         )
         if worker_token is None:
             return
@@ -286,6 +293,15 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
             max_embedding_tokens=request.policy_flags.budget_limits.max_embedding_tokens,
         )
         query_snapshot_digest = adapted.record.pins.source_snapshot_digest
+        trace_writer = ProcessingTraceWriter(
+            ProcessingTraceStore(JOB_STORE),
+            tenant_id=tenant_id,
+            dossier_id=request.dossier_id,
+            job_id=job_id,
+            snapshot_digest=query_snapshot_digest,
+            execution_id=execution_id,
+            worker_token=worker_token,
+        )
         # AI2_PROCESSING_EGRESS_ALLOWED controls whether the configured client
         # can be used. The pipeline itself owns retry/fallback accounting.
         processing_store = InMemorySnapshotStore()
@@ -296,6 +312,7 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
             store=processing_store,
             job_id=job_id,
             runtime=runtime,
+            trace_writer=trace_writer,
         )
         processed_record = processing_store.get(adapted.record.tenant_id, adapted.record.dossier_id) or adapted.record
         wire = job_result_to_wire(result, request, query_snapshot_digest=query_snapshot_digest)
@@ -360,6 +377,13 @@ def _sweep_stale_jobs(store: SQLiteJobStore | None = None, *, queued_grace_ms: i
     target.hold_queued(held, lease_ms=QUEUED_HOLD_MS)
     swept = target.sweep_stale(update, queued_grace_ms=queued_grace_ms)
     if swept:
+        trace_store = ProcessingTraceStore(target)
+        for job_id in swept:
+            try:
+                trace_store.finalize_stale_job(job_id)
+            except Exception as exc:
+                logger.warning("ai2.processing_trace_finalize_failed job_id=%s code=%s",
+                               job_id, type(exc).__name__)
         logger.warning("ai2.jobs_swept count=%s job_ids=%s", len(swept), swept)
     return swept
 

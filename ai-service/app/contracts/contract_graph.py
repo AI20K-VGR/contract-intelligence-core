@@ -30,6 +30,10 @@ class EdgeOp(str, Enum):
 
 class EdgeMethod(str, Enum):
     EXACT = "EXACT"
+    # A clause option was narrowed to one existing node by an existence
+    # check. It is unique, but not an exact textual address and therefore
+    # must never satisfy the auto-pass gate.
+    EXISTENCE_FILTER = "EXISTENCE_FILTER"
     ANCESTOR = "ANCESTOR"
     SELF = "SELF"
     ORDER_INFERENCE = "ORDER_INFERENCE"

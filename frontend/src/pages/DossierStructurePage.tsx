@@ -9,7 +9,9 @@ import {
 } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
+import { getInspectorRecord } from '../api/inspector'
 import { clauseOrdinal } from '../api/clauseReview'
+import type { ContractGraphKind } from '../api/contractGraph'
 import {
   contractDocument,
   countClauses,
@@ -37,6 +39,12 @@ import { SearchCitationReview } from '../components/SearchCitationReview'
 import { StructureDocument } from '../components/StructureDocument'
 import { StructureMindmap } from '../components/StructureMindmap'
 import { StructureOutline } from '../components/StructureOutline'
+import { Ai2GraphDossierView } from '../components/ai2-graph/ContractGraphCanvas'
+import {
+  AI2_GRAPH_UI_ENABLED,
+  createLatestRequestGuard,
+  isLegacyCitationFallbackAllowed,
+} from '../components/ai2-graph/contractGraphRuntime'
 import { SearchAudit } from '../components/SearchAudit'
 import { TableStructure } from '../components/TableStructure'
 import { MaterialIcon } from '../components/icons'
@@ -180,6 +188,14 @@ export function DossierStructurePage() {
     stateStructureMode(location.state),
   )
   const [view, setView] = useState<StructureView>(storedStructureView)
+  const [showAi2Graph, setShowAi2Graph] = useState(false)
+  const [ai2GraphKind, setAi2GraphKind] = useState<ContractGraphKind>('pair')
+  const [ai2Citation, setAi2Citation] = useState<Record<
+    string,
+    unknown
+  > | null>(null)
+  const [ai2CitationError, setAi2CitationError] = useState(false)
+  const ai2CitationRequests = useRef(createLatestRequestGuard())
   const [spots, setSpots] = useState<ReviewSpot[]>([])
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
@@ -216,6 +232,10 @@ export function DossierStructurePage() {
     setSearchCite(null)
     setSearchError(null)
     setReviewCiteId(null)
+    setShowAi2Graph(false)
+    setAi2Citation(null)
+    setAi2CitationError(false)
+    ai2CitationRequests.current.invalidate()
   }, [dossierId])
 
   async function submitSearch(event: FormEvent) {
@@ -392,7 +412,10 @@ export function DossierStructurePage() {
     () => anchorConflicts(spots, nodes, lines ?? [], documentId),
     [documentId, lines, nodes, spots],
   )
-  const markers = useMemo(() => conflictMarkers(anchors, nodes), [anchors, nodes])
+  const markers = useMemo(
+    () => conflictMarkers(anchors, nodes),
+    [anchors, nodes],
+  )
   const answerAnchors = useMemo(
     () =>
       answerNodes === nodes
@@ -428,6 +451,75 @@ export function DossierStructurePage() {
     setSearchCite(null)
     setCiteId(id)
   }, [])
+
+  const resolveGraphNodeLabel = useCallback(
+    (nodeId: string, sourceDocumentId?: string | null) => {
+      const endpointDocumentId = sourceDocumentId ?? null
+      const endpointDocument = endpointDocumentId
+        ? detail?.documents.find((item) => item.id === endpointDocumentId)
+        : undefined
+      const clause =
+        endpointDocumentId === documentId ? findClause(nodes, nodeId) : null
+      if (!clause) {
+        return [endpointDocument?.filename, `Mã điều khoản ${nodeId}`]
+          .filter(Boolean)
+          .join(' · ')
+      }
+      return [
+        endpointDocument?.filename,
+        clause.number,
+        clause.title ?? clause.label,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    },
+    [detail?.documents, documentId, nodes],
+  )
+
+  const clearAi2Citation = useCallback(() => {
+    ai2CitationRequests.current.invalidate()
+    setAi2Citation(null)
+    setAi2CitationError(false)
+  }, [])
+
+  const openAi2Citation = useCallback(
+    async (
+      citationRef: string,
+      nodeId: string,
+      sourceDocumentId?: string | null,
+    ) => {
+      const requestId = ai2CitationRequests.current.start()
+      setAi2Citation(null)
+      setAi2CitationError(false)
+      try {
+        const record = await getInspectorRecord('citation', citationRef)
+        if (ai2CitationRequests.current.isCurrent(requestId))
+          setAi2Citation(record)
+      } catch (error) {
+        if (!ai2CitationRequests.current.isCurrent(requestId)) return
+        // A legacy opaque handle may not be a Backend citation ID; use the already-loaded OCR clause if it maps exactly.
+        const responseStatus =
+          error && typeof error === 'object' && 'status' in error
+            ? error.status
+            : null
+        if (
+          isLegacyCitationFallbackAllowed(
+            citationRef,
+            typeof responseStatus === 'number' ? responseStatus : null,
+            sourceDocumentId,
+            documentId,
+          ) &&
+          findClause(nodes, nodeId) &&
+          citeOf.has(nodeId)
+        ) {
+          openTreeCite(nodeId)
+          return
+        }
+        setAi2CitationError(true)
+      }
+    },
+    [citeOf, documentId, nodes, openTreeCite],
+  )
 
   function openUploadedPdf(id: string) {
     setShowLines(false)
@@ -641,46 +733,46 @@ export function DossierStructurePage() {
               </div>
               {phase === 'ready' ? (
                 <div className="flex w-full shrink-0 items-center gap-space-sm md:w-auto">
-                <Link
-                  className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-outline-variant/30 bg-surface-container-lowest px-3 font-body-sm text-body-sm font-semibold text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] hover:bg-amber-50 hover:text-amber-950"
-                  state={{ dossierId, name: detail?.name }}
-                  title={
-                    openConflicts > 0
-                      ? `${openConflicts} xung đột chưa ai thẩm định`
-                      : spots.length > 0
-                        ? 'Mọi xung đột đã có người thẩm định'
-                        : 'Xem trang đối soát xung đột'
-                  }
-                  to={conflictPagePath(dossierId)}
-                >
-                  <MaterialIcon
-                    name="warning"
-                    className="text-[18px] text-amber-700"
-                  />
-                  Xem xung đột
-                  {openConflicts > 0 ? (
-                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 font-label-sm text-[11px] font-bold text-amber-950">
-                      {openConflicts}
-                    </span>
-                  ) : null}
-                </Link>
-                <form
-                  className="relative min-w-0 w-full shrink md:w-80 lg:w-96"
-                  onSubmit={(event) => void submitSearch(event)}
-                >
-                  <MaterialIcon
-                    name="search"
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-outline"
-                  />
-                  <input
-                    aria-label="Hỏi về hợp đồng"
-                    className="h-10 w-full rounded-full border border-outline-variant/30 bg-surface-container-lowest pl-9 pr-space-md font-body-sm text-body-sm text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-secondary"
-                    placeholder="Hỏi về hợp đồng này…"
-                    type="search"
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                  />
-                </form>
+                  <Link
+                    className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-outline-variant/30 bg-surface-container-lowest px-3 font-body-sm text-body-sm font-semibold text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] hover:bg-amber-50 hover:text-amber-950"
+                    state={{ dossierId, name: detail?.name }}
+                    title={
+                      openConflicts > 0
+                        ? `${openConflicts} xung đột chưa ai thẩm định`
+                        : spots.length > 0
+                          ? 'Mọi xung đột đã có người thẩm định'
+                          : 'Xem trang đối soát xung đột'
+                    }
+                    to={conflictPagePath(dossierId)}
+                  >
+                    <MaterialIcon
+                      name="warning"
+                      className="text-[18px] text-amber-700"
+                    />
+                    Xem xung đột
+                    {openConflicts > 0 ? (
+                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 font-label-sm text-[11px] font-bold text-amber-950">
+                        {openConflicts}
+                      </span>
+                    ) : null}
+                  </Link>
+                  <form
+                    className="relative min-w-0 w-full shrink md:w-80 lg:w-96"
+                    onSubmit={(event) => void submitSearch(event)}
+                  >
+                    <MaterialIcon
+                      name="search"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-outline"
+                    />
+                    <input
+                      aria-label="Hỏi về hợp đồng"
+                      className="h-10 w-full rounded-full border border-outline-variant/30 bg-surface-container-lowest pl-9 pr-space-md font-body-sm text-body-sm text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-secondary"
+                      placeholder="Hỏi về hợp đồng này…"
+                      type="search"
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                    />
+                  </form>
                 </div>
               ) : null}
             </div>
@@ -699,8 +791,8 @@ export function DossierStructurePage() {
                       Đang OCR và dựng cấu trúc
                     </h2>
                     <p className="font-body-sm text-body-sm text-on-surface-variant">
-                      Trang này tự cập nhật. Cây hiện khi job sang trạng thái
-                      đã trích xuất. Worker backend và AI1 cần đang chạy.
+                      Trang này tự cập nhật. Cây hiện khi job sang trạng thái đã
+                      trích xuất. Worker backend và AI1 cần đang chạy.
                     </p>
                   </>
                 ) : (
@@ -768,6 +860,47 @@ export function DossierStructurePage() {
                   ))}
                 </div>
               </ToolbarGroup>
+              {AI2_GRAPH_UI_ENABLED ? (
+                <>
+                  <span
+                    aria-hidden
+                    className="hidden w-px self-stretch bg-outline-variant/30 sm:block"
+                  />
+                  <ToolbarGroup label="Đồ thị AI2">
+                    <div className="flex flex-wrap items-center gap-1">
+                      <button
+                        aria-pressed={showAi2Graph}
+                        className="min-h-11 rounded-full border border-outline px-3 py-2 focus-visible:outline focus-visible:outline-2"
+                        onClick={() => {
+                          if (showAi2Graph) clearAi2Citation()
+                          setShowAi2Graph(!showAi2Graph)
+                        }}
+                        type="button"
+                      >
+                        {showAi2Graph ? 'Đóng graph AI2' : 'Graph quan hệ AI2'}
+                      </button>
+                      {showAi2Graph
+                        ? (['pair', 'operation'] as const).map((kind) => (
+                            <button
+                              key={kind}
+                              aria-pressed={ai2GraphKind === kind}
+                              className="min-h-11 rounded-full border border-outline px-3 py-2 focus-visible:outline focus-visible:outline-2"
+                              onClick={() => {
+                                if (ai2GraphKind !== kind) clearAi2Citation()
+                                setAi2GraphKind(kind)
+                              }}
+                              type="button"
+                            >
+                              {kind === 'pair'
+                                ? 'Quan hệ điều khoản'
+                                : 'Sửa đổi điều khoản'}
+                            </button>
+                          ))
+                        : null}
+                    </div>
+                  </ToolbarGroup>
+                </>
+              ) : null}
               {activeMode !== 'tables' ? (
                 <>
                   <span
@@ -848,34 +981,36 @@ export function DossierStructurePage() {
                           return !clause || !citeOf.has(clause.id)
                         })
                         .map((hit, index) => (
-                        <li
-                          key={`${hit.lineId ?? ''}-${hit.pageNo ?? ''}-${hit.text}`}
-                          className="font-body-sm text-body-sm text-on-surface-variant"
-                        >
-                          {hit.sourceFileId === documentId && hit.pageNo ? (
-                            <button
-                              className="group flex w-full items-start gap-2 rounded-md p-1 text-left hover:bg-primary/5 hover:text-primary"
-                              type="button"
-                              onClick={() => openSearchCitation(hit, index)}
-                              title="Mở trang nguồn"
-                            >
-                              <span className="shrink-0 font-medium">
-                                Trang {hit.pageNo} ·
+                          <li
+                            key={`${hit.lineId ?? ''}-${hit.pageNo ?? ''}-${hit.text}`}
+                            className="font-body-sm text-body-sm text-on-surface-variant"
+                          >
+                            {hit.sourceFileId === documentId && hit.pageNo ? (
+                              <button
+                                className="group flex w-full items-start gap-2 rounded-md p-1 text-left hover:bg-primary/5 hover:text-primary"
+                                type="button"
+                                onClick={() => openSearchCitation(hit, index)}
+                                title="Mở trang nguồn"
+                              >
+                                <span className="shrink-0 font-medium">
+                                  Trang {hit.pageNo} ·
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  {hit.text}
+                                </span>
+                                <MaterialIcon
+                                  name="open_in_new"
+                                  className="shrink-0 text-[15px] opacity-60 group-hover:opacity-100"
+                                />
+                              </button>
+                            ) : (
+                              <span>
+                                {hit.pageNo ? `Trang ${hit.pageNo} · ` : ''}
+                                {hit.text}
                               </span>
-                              <span className="min-w-0 flex-1">{hit.text}</span>
-                              <MaterialIcon
-                                name="open_in_new"
-                                className="shrink-0 text-[15px] opacity-60 group-hover:opacity-100"
-                              />
-                            </button>
-                          ) : (
-                            <span>
-                              {hit.pageNo ? `Trang ${hit.pageNo} · ` : ''}
-                              {hit.text}
-                            </span>
-                          )}
-                        </li>
-                      ))}
+                            )}
+                          </li>
+                        ))}
                     </ul>
                   ) : null}
                 </div>
@@ -897,7 +1032,10 @@ export function DossierStructurePage() {
             />
           ) : null}
 
-          {phase === 'ready' && reviewCiteId && documentId && findClause(answerNodes, reviewCiteId) ? (
+          {phase === 'ready' &&
+          reviewCiteId &&
+          documentId &&
+          findClause(answerNodes, reviewCiteId) ? (
             <SearchCitationReview
               citeNo={answerCiteOf.get(reviewCiteId) ?? 0}
               conflicts={answerAnchors.get(reviewCiteId)}
@@ -922,42 +1060,95 @@ export function DossierStructurePage() {
             />
           ) : null}
 
-          {phase === 'ready' && !reviewCiteId && activeMode !== 'tables' ? (
+          {phase === 'ready' &&
+          !reviewCiteId &&
+          (activeMode !== 'tables' || showAi2Graph) ? (
             <div className="flex min-h-[520px] flex-1 flex-col pb-space-md">
-              {(() => {
-                const shared = {
-                  markers,
-                  citationOf: citeOf,
-                  focusId: citeId,
-                  nodes,
-                  title: detail?.name ?? 'Hợp đồng',
-                  onCite: openTreeCite,
-                }
-                switch (view) {
-                  case 'outline':
-                    return <StructureOutline {...shared} />
-                  case 'document':
-                    return <StructureDocument {...shared} />
-                  case 'tree':
-                    return (
-                      <StructureMindmap
-                        key="tree"
-                        {...shared}
-                        orientation="vertical"
-                        subtitle={filename}
-                      />
-                    )
-                  default:
-                    // key để đổi hướng thì dựng lại, tự căn vừa khung.
-                    return (
-                      <StructureMindmap
-                        key="mindmap"
-                        {...shared}
-                        subtitle={filename}
-                      />
-                    )
-                }
-              })()}
+              {showAi2Graph ? (
+                detail?.latestJobId && detail.snapshotDigest ? (
+                  <Ai2GraphDossierView
+                    key={`${detail.latestJobId}:${detail.snapshotDigest}:${ai2GraphKind}`}
+                    enabled={AI2_GRAPH_UI_ENABLED}
+                    dossierId={dossierId}
+                    jobId={detail.latestJobId}
+                    snapshotDigest={detail.snapshotDigest}
+                    graphKind={ai2GraphKind}
+                    resolveNodeLabel={resolveGraphNodeLabel}
+                    onOpenCitation={openAi2Citation}
+                    onSelectRelation={clearAi2Citation}
+                  />
+                ) : (
+                  <p
+                    role="status"
+                    className="rounded border border-outline-variant p-3"
+                  >
+                    Graph AI2 chưa có mã job và snapshot hiện hành để đọc.
+                  </p>
+                )
+              ) : activeMode !== 'tables' ? (
+                (() => {
+                  const shared = {
+                    markers,
+                    citationOf: citeOf,
+                    focusId: citeId,
+                    nodes,
+                    title: detail?.name ?? 'Hợp đồng',
+                    onCite: openTreeCite,
+                  }
+                  switch (view) {
+                    case 'outline':
+                      return <StructureOutline {...shared} />
+                    case 'document':
+                      return <StructureDocument {...shared} />
+                    case 'tree':
+                      return (
+                        <StructureMindmap
+                          key="tree"
+                          {...shared}
+                          orientation="vertical"
+                          subtitle={filename}
+                        />
+                      )
+                    default:
+                      // key để đổi hướng thì dựng lại, tự căn vừa khung.
+                      return (
+                        <StructureMindmap
+                          key="mindmap"
+                          {...shared}
+                          subtitle={filename}
+                        />
+                      )
+                  }
+                })()
+              ) : null}
+              {showAi2Graph && ai2Citation ? (
+                <section
+                  aria-label="Bằng chứng trích dẫn"
+                  className="mt-3 min-w-0 rounded-lg border border-outline-variant p-3"
+                >
+                  <h2 className="font-title-sm font-semibold">
+                    Bằng chứng qua Backend citation
+                  </h2>
+                  <p className="mt-2 break-words">
+                    {typeof ai2Citation.quote === 'string'
+                      ? ai2Citation.quote
+                      : 'Backend không trả nội dung trích dẫn.'}
+                  </p>
+                  <button
+                    className="mt-2 min-h-11 rounded border border-outline px-3 py-2 focus-visible:outline focus-visible:outline-2"
+                    onClick={() => setAi2Citation(null)}
+                    type="button"
+                  >
+                    Đóng bằng chứng
+                  </button>
+                </section>
+              ) : null}
+              {showAi2Graph && ai2CitationError ? (
+                <p className="mt-3 break-words text-error" role="alert">
+                  Không mở được citation này qua Backend; quan hệ vẫn chỉ là đề
+                  xuất của AI2.
+                </p>
+              ) : null}
             </div>
           ) : null}
         </div>

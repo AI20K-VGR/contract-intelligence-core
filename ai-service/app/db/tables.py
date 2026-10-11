@@ -30,9 +30,10 @@ def columns(spec: str):
 
 
 jobs = Table("jobs", metadata, *columns(
-    "job_id:s* tenant_id:s dossier_id:s request_id:s idempotency_key:s attempt:i status:s "
+    "job_id:s* tenant_id:s dossier_id:s request_id:s idempotency_key:s attempt:i status:s trace_status:s current_execution_id:s? "
     "request_json:s wire_json:s result_json:s? request_fingerprint:s? worker_token:s? lease_until_ms:n? created_ms:n updated_ms:n"),
     UniqueConstraint("tenant_id", "idempotency_key", "attempt", name="uq_ai2_job_idempotency"))
+jobs.c.trace_status.server_default = DefaultClause("'AVAILABLE'")
 service_nonces = Table("service_nonces", metadata, *columns(
     "tenant_id:s* nonce:s* payload_fingerprint:s job_id:s created_ms:n"))
 query_snapshots = Table("dossier_query_snapshots", metadata, *columns(
@@ -82,3 +83,23 @@ contract_pair_relations = Table("contract_pair_relations", graph_metadata, *colu
     CheckConstraint("label IN ({})".format(", ".join(f"'{v}'" for v in CONTRACT_PAIR_LABELS)),
                     name="ck_ai2_contract_pair_relations_label"),
     Index("idx_ai2_contract_pair_relations_job", "tenant_id", "dossier_id", "job_id"))
+
+graph_write_receipts = Table("contract_graph_write_receipts", graph_metadata, *columns(
+    "tenant_id:s* dossier_id:s* job_id:s* graph_kind:s* source_snapshot_digest:s stage_status:s "
+    "write_status:s row_count:i error_code:s? created_ms:n"),
+    CheckConstraint("graph_kind IN ('operation', 'pair')", name="ck_ai2_graph_receipt_kind"),
+    CheckConstraint("stage_status IN ('COMPLETED', 'SKIPPED', 'FAILED', 'UNKNOWN')",
+                    name="ck_ai2_graph_receipt_stage"),
+    CheckConstraint("write_status IN ('COMMITTED', 'SKIPPED', 'FAILED')",
+                    name="ck_ai2_graph_receipt_write"),
+    CheckConstraint("row_count >= 0", name="ck_ai2_graph_receipt_row_count"),
+    Index("idx_ai2_graph_receipts_scope", "tenant_id", "dossier_id", "job_id"))
+
+processing_trace_events = Table("ai2_processing_trace_events", graph_metadata, *columns(
+    "tenant_id:s* dossier_id:s* job_id:s* snapshot_digest:s* execution_id:s* sequence:i* "
+    "stage_id:s status:s created_ms:n started_ms:n? duration_ms:n? item_count:i? reason_code:s?"),
+    CheckConstraint("status IN ('STARTED', 'COMPLETED', 'FAILED', 'SKIPPED', 'INTERRUPTED_UNKNOWN')",
+                    name="ck_ai2_processing_trace_status"),
+    CheckConstraint("duration_ms IS NULL OR duration_ms >= 0", name="ck_ai2_processing_trace_duration"),
+    CheckConstraint("item_count IS NULL OR item_count >= 0", name="ck_ai2_processing_trace_item_count"),
+    Index("idx_ai2_processing_trace_scope", "tenant_id", "dossier_id", "job_id", "snapshot_digest", "sequence"))

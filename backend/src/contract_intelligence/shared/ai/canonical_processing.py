@@ -308,16 +308,19 @@ def build_processing_request(
         }
         for _, snapshot in wire_selected
     ]
-    dossier_members = [
-        {
+    dossier_members = []
+    for member, snapshot in wire_selected:
+        dossier_member = {
             "member_id": str(member.id),
             "document_id": str(member.document_id),
             "snapshot_id": str(snapshot["snapshot_id"]),
             "role": "body" if str(member.doc_type).lower() == "contract" else "annex",
             "source_digest": str(snapshot["source_digest"]),
         }
-        for member, snapshot in wire_selected
-    ]
+        document_number = getattr(member, "document_number", None)
+        if document_number:
+            dossier_member["document_number"] = str(document_number)
+        dossier_members.append(dossier_member)
     selected_member_ids = {str(member.id) for member, _ in selected}
     role_relation_map: list[dict[str, Any]] = []
     # The relation query has no ORDER BY; sort so a resend keeps the same bytes.

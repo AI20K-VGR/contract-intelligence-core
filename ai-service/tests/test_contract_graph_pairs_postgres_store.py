@@ -47,11 +47,11 @@ def finish(store, rec, env, job, token, *, relations, ran=True, edges=()):
                                         record=rec, envelope=env)
 
 
-def test_fresh_database_migrates_to_head_with_pair_relations(fresh_url):
+def test_fresh_database_migrates_to_head_with_graph_receipts(fresh_url):
     from app.db.tables import contract_pair_relations as table
     engine = get_engine(fresh_url)
     migrate(engine)
-    assert _version(engine) == "0006_ai2_contract_pair_relations"
+    assert _version(engine) == "0008_ai2_processing_trace"
     schema = inspect(engine)
     columns = {c["name"]: c for c in schema.get_columns(table.name, schema="ai2")}
     assert set(columns) == {c.name for c in table.columns}
@@ -61,7 +61,7 @@ def test_fresh_database_migrates_to_head_with_pair_relations(fresh_url):
                for i in schema.get_indexes(table.name, schema="ai2"))
 
 
-def test_0006_downgrade_entrypoint_then_upgrade(fresh_url):
+def test_0007_downgrade_entrypoint_then_upgrade(fresh_url):
     engine = get_engine(fresh_url)
     migrate(engine)
     before = _ai2_tables(engine)
@@ -69,9 +69,11 @@ def test_0006_downgrade_entrypoint_then_upgrade(fresh_url):
                           cwd=ROOT, env={**os.environ, "AI2_DATABASE_URL": fresh_url}, capture_output=True, timeout=300)
     assert proc.returncode == 0, proc.stderr.decode("utf8", "replace")
     assert _version(engine) == "0005_ai2_contract_edges"
-    assert _ai2_tables(engine) == before - {"contract_pair_relations"}
+    assert _ai2_tables(engine) == before - {
+        "contract_pair_relations", "contract_graph_write_receipts", "ai2_processing_trace_events",
+    }
     migrate(engine)
-    assert _version(engine) == "0006_ai2_contract_pair_relations"
+    assert _version(engine) == "0008_ai2_processing_trace"
     assert _ai2_tables(engine) == before
 
 
@@ -96,13 +98,13 @@ def test_older_job_completion_does_not_overwrite_newer_relations(fresh_url, monk
     assert [r["job_id"] for r in rows(store.engine, rec)] == [new[0]]
 
 
-def test_ran_false_leaves_relations_untouched(fresh_url, monkeypatch):
+def test_ran_false_clears_stale_relations_for_latest_snapshot(fresh_url, monkeypatch):
     store, rec, env, edges, rel = owner(fresh_url)
     first = _start(store, rec, "first", 100, monkeypatch)
     assert finish(store, rec, env, *first, relations=[rel])
     second = _start(store, rec, "second", 200, monkeypatch)
     assert finish(store, rec, env, *second, relations=[], ran=False)
-    assert [r["job_id"] for r in rows(store.engine, rec)] == [first[0]]
+    assert rows(store.engine, rec) == []
 
 
 def test_pair_write_failure_keeps_job_succeeded_and_edges_written(fresh_url, monkeypatch):

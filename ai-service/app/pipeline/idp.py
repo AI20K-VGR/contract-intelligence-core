@@ -53,6 +53,7 @@ def run_idp(
     index: IndexStore | None = None,
     job_id: str | None = None,
     runtime: ProcessingRuntime | None = None,
+    trace_writer=None,
 ) -> JobResult:
     job_id = job_id or f"job_{uuid4().hex[:10]}"
     runtime = runtime or ProcessingRuntime(
@@ -282,11 +283,23 @@ def run_idp(
     pairs_on = graph_enabled and _contract_graph_pairs_enabled()
     graph_issues: list[EvidenceIssue] = []
     if graph_enabled:
+        if trace_writer is not None:
+            trace_writer.start("contract_graph_operation")
         try:
-            from app.pipeline.contract_graph.builder import build_contract_graph
+            from app.pipeline.contract_graph.builder import (
+                build_contract_graph,
+                known_documents_for_record,
+            )
 
-            graph = build_contract_graph(record, facts)
+            graph = build_contract_graph(
+                record,
+                facts,
+                known_documents=known_documents_for_record(record),
+            )
         except Exception as exc:  # enrichment only: never fail the job (D11)
+            if trace_writer is not None:
+                trace_writer.finish("contract_graph_operation", "FAILED", item_count=0,
+                                   reason_code="GRAPH_BUILD_FAILED")
             graph_issues.append(EvidenceIssue(
                 issue_id="contract-graph:CONTRACT_GRAPH_FAILED",
                 missing="CONTRACT_GRAPH_FAILED",
@@ -294,10 +307,14 @@ def run_idp(
                 review_state=ReviewState.NEEDS_REVIEW,
             ))
         else:
+            if trace_writer is not None:
+                trace_writer.finish("contract_graph_operation", "COMPLETED", item_count=len(graph.edges))
             relation_pairs |= {
                 tuple(sorted((edge.source_node_id, edge.target_node_id))) for edge in graph.edges
             }
             graph_issues.extend(graph.issues)
+    elif trace_writer is not None:
+        trace_writer.skip("contract_graph_operation", "FEATURE_DISABLED")
     pairer = CandidatePairer()
     candidates, issues = pairer.pair_with_issues(
         facts,
@@ -371,17 +388,30 @@ def run_idp(
         pairs_status = "SKIPPED_GRAPH_FAILED" if graph is None else "OK"
         conflict_stats = {}
         if graph is not None:
+            if trace_writer is not None:
+                trace_writer.start("contract_graph_pairs")
             try:
                 from app.pipeline.contract_graph.pair_builder import build_pair_relations
 
                 pair_result = build_pair_relations(record, graph.edges, llm=llm, runtime=runtime)
                 conflicts, conflict_stats = pair_conflict_candidates(pair_result, candidates, record)
                 candidates.extend(conflicts)
+                if trace_writer is not None:
+                    trace_writer.finish("contract_graph_pairs", "COMPLETED",
+                                        item_count=len(pair_result.relations),
+                                        reason_code=(
+                                            f"RULE_ONLY_{pair_result.rule_only_reason}"
+                                            if pair_result.mode == "rule_only" and pair_result.rule_only_reason
+                                            else "RULE_ONLY" if pair_result.mode == "rule_only" else None
+                                        ))
                 if pair_result.mode == "rule_only":
                     issues.append(limited_coverage_issue(pair_result))
             except Exception as exc:
                 pair_result = None
                 pairs_status = "FAILED"
+                if trace_writer is not None:
+                    trace_writer.finish("contract_graph_pairs", "FAILED", item_count=0,
+                                        reason_code="PAIR_BUILD_FAILED")
                 issues.append(EvidenceIssue(
                     issue_id="contract-graph:CONTRACT_GRAPH_PAIRS_FAILED",
                     missing="CONTRACT_GRAPH_PAIRS_FAILED",
@@ -389,9 +419,13 @@ def run_idp(
                            "không có quan hệ luồng 2.",
                     review_state=ReviewState.NEEDS_REVIEW,
                 ))
+        elif trace_writer is not None:
+            trace_writer.skip("contract_graph_pairs", "GRAPH_UNAVAILABLE")
         graph_coverage_value.update(pair_coverage(
             pair_result, status=pairs_status, conflict_stats=conflict_stats,
         ))
+    elif trace_writer is not None:
+        trace_writer.skip("contract_graph_pairs", "FEATURE_DISABLED")
     coverage = {
         "n_facts": len(facts),
         "n_findings": len(candidates) + len(contract_context.findings),
@@ -421,8 +455,8 @@ def run_idp(
     record.facts = facts
     record.chunks = chunks
     record.events = events
-    # D8: what this run produced; ``contract_graph_ran`` False (flag off or builder failed) tells
-    # the job store to keep the edges it already has.
+    # D8: what this run produced. An empty list is authoritative for this
+    # snapshot; the job store clears any older persisted edges (BL-001).
     record.contract_edges = list(graph.edges) if graph is not None else []
     record.contract_graph_ran = graph is not None
     record.pair_relations = list(pair_result.relations) if pair_result else []

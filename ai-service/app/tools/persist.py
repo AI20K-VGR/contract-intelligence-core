@@ -65,7 +65,17 @@ def record_to_dict(rec: DossierRecord) -> dict:
         "profile": rec.profile.model_dump(),
         "acl_revision": rec.acl_revision,
         "permissions_by_actor": rec.permissions_by_actor,
-        "source_files": [f.model_dump() for f in rec.source_files],
+        # Keep the persisted shape byte-compatible for old records when no
+        # explicit document identity was supplied; include the new metadata
+        # only when present (BL-006).
+        "source_files": [
+            {
+                key: value
+                for key, value in f.model_dump().items()
+                if key != "document_number" or value is not None
+            }
+            for f in rec.source_files
+        ],
         "facts": [f.model_dump() for f in rec.facts],
         "input_facts": [f.model_dump() for f in rec.input_facts] if rec.input_facts is not None else None,
         "chunks": [c.model_dump() for c in rec.chunks],

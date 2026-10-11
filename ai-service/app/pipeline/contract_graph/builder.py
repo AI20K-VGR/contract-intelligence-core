@@ -35,7 +35,7 @@ from app.contracts.models import (
 )
 from app.pipeline.citations import CitationResolver
 from app.pipeline.contract_graph.address import Address, canonical, inherit, parse_parent_context
-from app.pipeline.contract_graph.documents import named_document
+from app.pipeline.contract_graph.documents import named_document, normalize_document
 from app.pipeline.contract_graph.implicit import implicit_matches
 from app.pipeline.contract_graph.operations import (
     Operation,
@@ -73,6 +73,22 @@ _LEVEL_ORDER = ("diem", "khoan", "dieu")
 
 def contract_graph_enabled() -> bool:
     return os.getenv(ENABLED_ENV, "false").strip().casefold() in _TRUTHY
+
+
+def known_documents_for_record(record: DossierRecord) -> set[str]:
+    """Return explicit dossier document numbers supplied by upstream metadata.
+
+    A filename or an OCR guess is deliberately not treated as an identity.
+    Only the explicit ``SourceFile.document_number`` field can unlock a
+    numbered-document operation (BL-006); unknown numbers remain fail-closed
+    as ``FOREIGN_DOCUMENT``.
+    """
+
+    return {
+        normalize_document(source.document_number)
+        for source in record.source_files
+        if source.document_number and source.document_number.strip()
+    }
 
 
 @dataclass(frozen=True)
@@ -138,7 +154,11 @@ def plan_edges(
     """
 
     stats = stats if stats is not None else Counter()
-    known = {d.casefold() for d in known_documents}
+    known = {
+        normalize_document(str(document))
+        for document in known_documents
+        if str(document).strip()
+    }
     nodes = sorted(
         (n for n in source_nodes if n.type not in _SKIPPED_TYPES),
         key=lambda n: (_position(index, n.node_id), n.node_id),
@@ -209,13 +229,14 @@ def build_contract_graph(
     *,
     calibration: dict[str, Any] | None = None,
     auto_pass: bool | None = None,
+    known_documents: Iterable[str] = (),
 ) -> ContractGraphResult:
     digest = record.pins.source_snapshot_digest
     nodes = list(record.evidence_nodes())
     roles = {source.file_id: source.role for source in record.source_files}
     index = StructureIndex.build(nodes, roles)
     stats: Counter[str] = Counter()
-    planned = plan_edges(nodes, index, stats=stats)
+    planned = plan_edges(nodes, index, stats=stats, known_documents=known_documents)
     calibration = calibration if calibration is not None else load_calibration()
     enabled = auto_pass if auto_pass is not None else auto_pass_enabled()
     verifier = CitationResolver(record.pages, record.tables)

@@ -113,7 +113,12 @@ def test_0005_downgrade_entrypoint_then_upgrade(fresh_url):
     assert proc.returncode == 0, proc.stderr.decode("utf-8", "replace")
 
     assert _version(engine) == OLD_HEAD
-    assert _ai2_tables(engine) == before - {"contract_edges", "contract_pair_relations"}
+    assert _ai2_tables(engine) == before - {
+        "contract_edges",
+        "contract_pair_relations",
+        "contract_graph_write_receipts",
+        "ai2_processing_trace_events",
+    }
     migrate(engine)
     assert _version(engine) == NEW_HEAD
     assert _ai2_tables(engine) == before
@@ -176,7 +181,7 @@ def test_older_job_completion_does_not_overwrite_newer_edges(fresh_url, monkeypa
     assert store.get(old[0])["status"] == "SUCCEEDED"
 
 
-def test_record_without_graph_run_leaves_edges_untouched(fresh_url, monkeypatch):
+def test_record_without_graph_run_clears_stale_edges(fresh_url, monkeypatch):
     store, record, env, edges = _store_and_owner(fresh_url)
     first = _start(store, record, "one", 100, monkeypatch)
     assert _finish(store, record, env, *first, edges=edges[:2])
@@ -184,7 +189,7 @@ def test_record_without_graph_run_leaves_edges_untouched(fresh_url, monkeypatch)
     second = _start(store, record, "two", 200, monkeypatch)
     assert _finish(store, record, env, *second, edges=[], ran=False)
     rows = _edge_rows(store.engine, record.tenant_id, record.dossier_id)
-    assert [r["job_id"] for r in rows] == [first[0]] * 2
+    assert rows == []
 
 
 def test_edge_write_failure_keeps_job_succeeded(fresh_url, monkeypatch):

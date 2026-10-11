@@ -104,6 +104,22 @@ def adapt_be_ai2_processing_request(
                 acl_revision=acl_revision,
                 scope_id=request.dossier_id,
             )
+            members = normalized_payload.get("dossier_members")
+            if isinstance(members, list):
+                member = next(
+                    (
+                        item
+                        for item in members
+                        if isinstance(item, Mapping)
+                        and str(item.get("snapshot_id"))
+                        == str(original_snapshots[0].get("snapshot_id"))
+                    ),
+                    None,
+                )
+                if isinstance(member, Mapping):
+                    adapted.record.source_files[0].document_number = _optional_text(
+                        member.get("document_number")
+                    )
             # The OCR-lab adapter pins ``sha256:<hex>``; the result wire and
             # /query bind to bare lowercase hex, so normalize once here.
             query_digest = bare_sha256_digest(adapted.record.pins.source_snapshot_digest)
@@ -147,6 +163,11 @@ def adapt_be_ai2_processing_request(
                 "snapshot_id": item.snapshot_id,
                 "role": item.role,
                 "source_digest": item.source_digest,
+                **(
+                    {"document_number": item.document_number}
+                    if item.document_number is not None
+                    else {}
+                ),
             }
             for item in request.dossier_members
         ],
@@ -326,6 +347,7 @@ def adapt_ai2_request(
         )
         result.record.source_files[0].role = document.role
         result.record.source_files[0].digest = document.source_digest
+        result.record.source_files[0].document_number = document.document_number
         results.append(result)
 
     if not results:
@@ -588,6 +610,7 @@ def adapt_ai1_result_v01(
                 file_id=file_id,
                 filename=str(item.get("storage_key") or f"ai1:{file_id}.pdf"),
                 role=role,
+                document_number=_optional_text(item.get("document_number")),
                 digest=_hash_digest(item.get("sha256")),
                 n_pages=int(item.get("page_count") or 0),
             )
@@ -1734,6 +1757,11 @@ def _result_role(value: Any) -> str:
 def _hash_digest(value: Any) -> str:
     text = str(value or "")
     return text if not text or text.startswith("sha256:") else f"sha256:{text}"
+
+
+def _optional_text(value: Any) -> str | None:
+    text = str(value).strip() if value is not None else ""
+    return text or None
 
 
 def _fact_key(value: str) -> str:
