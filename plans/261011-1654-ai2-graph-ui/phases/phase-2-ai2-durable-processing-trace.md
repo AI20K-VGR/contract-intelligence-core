@@ -1,7 +1,7 @@
 ---
 phase: 2
 title: "AI2 durable processing trace"
-status: pending
+status: completed
 plan: 261011-1654-ai2-graph-ui
 created: 2026-10-11
 harness_version: 7.0.0

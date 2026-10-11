@@ -25,7 +25,7 @@
 - Full Frontend suite: `npm test -- --reporter=dot` — 139 passed across 36 files.
 - Frontend lint: `npm run lint` — 0 errors and 13 existing warnings.
 - Production build: `npm run build` — passed; Vite reports the existing >500 kB chunk warning. Final JavaScript bundle is 1,283.79 kB (367.99 kB gzip). Bundle delta and renderer fixture details are in `reports/renderer-spike.md`.
-- Security follow-up: updated only the `source-map-js` lockfile resolution from 1.2.1 to 1.2.2 after the production audit identified GHSA-68fv-2mgg-jv7q; `npm audit --omit=dev --audit-level=high` now reports zero vulnerabilities. Full audit still reports development-only Vitest/Tinypool advisories whose available fix is a major Vitest upgrade; see `plans/reports/security-scan-2026-10-11-ai2-graph-ui.md`.
+- Security follow-up: upgraded Vitest to 5.0.3 and aligned the declared Node engine and frontend CI to Node 24, resolving the previous development dependency advisories. Full `npm audit --audit-level=high` and production-only audit report zero vulnerabilities. Python runtime dependency exports for AI service and Backend both report no known vulnerabilities with pip-audit. A clean `npm ci` passed in an isolated temporary directory; a local in-place attempt could not replace native files held open by active dev-server processes. See `plans/reports/security-scan-2026-10-11-ai2-graph-ui.md`.
 - Format check: Prettier passed on all changed frontend and P5 report files.
 - Feature-gate test confirms the UI flag defaults OFF and graph/trace APIs are not called while disabled or closed.
 - `curl.exe --noproxy "*" http://127.0.0.1:5173/` returned HTTP 200. Backend port 8000 and Keycloak port 8080 were not listening.
@@ -33,6 +33,21 @@
 - Backend adapter tests: `backend/.venv/Scripts/python.exe -m pytest -q tests/unit/test_ai2_contract_graph_adapter.py` — 13 passed, including rejection of missing/invalid endpoint document IDs.
 - Local Compose startup was attempted for Backend, AI2, and Keycloak; it stopped because fixed-name `ci-kafka` already exists in the prior stack. Existing stopped containers were left untouched to avoid changing the original environment/database.
 
-## Remaining verification
+## Final browser verification
 
-The in-app browser runtime reported no available browser. Therefore 320 CSS px overflow, actual browser keyboard/focus behavior, visual clarity, and live citation navigation remain unverified. Do not infer those checks from server-render tests. Compose maps Backend to 8000 and Keycloak to 8080; `frontend/src/api/client.ts` defaults to 8080, so local end-to-end use must set `VITE_API_BASE_URL=http://127.0.0.1:8000`.
+- The initial in-app browser attempt was unavailable, but this was superseded by an Edge/Playwright run against the composed P5 view and an isolated authenticated Backend/Keycloak/AI2 stack; see `../manual-test-log.md` and `../reports/live-citation-e2e.json`.
+- Re-ran the 320 CSS px browser session with a realistic synthetic trace timestamp. Viewport, document, and body widths are 320 px; visible keyboard focus, Space selection, inspector update, and citation callback pass; no page errors or 1970 timestamp. Refreshed screenshot: `../reports/ai2-graph-manual-320px.png`.
+- Reviewed the refreshed screenshot and the no-login offline preview. The canvas may scale down on mobile, while the relation list and inspector remain readable and operable as the full alternative.
+- Live citation validation remains against synthetic uploaded PDFs and seeded graph/trace rows. It verifies authenticated route/ACL and document retrieval, not AI2 graph generation from OCR input.
+- A separate authenticated composed-app check now covers the responsive application shell at 320 CSS px, mobile menu focus/Escape behavior, evidence controls, and graph/trace HTTP 200. The receipt and screenshot are `../reports/live-ui-320-verification.json` and `../reports/ai2-graph-live-320px.png`; data remains synthetic and seeded.
+- Final terminal-state regressions: builder failure persists as a `FAILED` receipt instead of `SKIPPED`; queued/running graph jobs alone return `PENDING`; failed/cancelled jobs return terminal failure; trace/job outcomes remain distinct: trace status reports event completeness; a failed stage is `FAILED`, and the separate job status reports `FAILED`, `CANCELLED`, or `SUCCEEDED`; Frontend retains `job_status` and labels failed/cancelled jobs accurately.
+- Final package suites after terminal-state regressions: AI service 1612 passed / 9 skipped; Backend 661 passed / 18 skipped (PostgreSQL-only tests requiring `CI_TEST_POSTGRES_URL` skipped); Frontend 145 passed / 37 files, lint 0 errors / 13 warnings, and production build passed with existing chunk-size advisory. Earlier P5 runs reported AI service 1606/9 and Backend 659/18 before the final regression tests; current verification totals include those later tests.
+
+
+## Final responsive/security follow-up ? 2026-10-12
+
+- Browser receipt `reports/live-ui-320-verification.json` now also records focus-trap wrap in both directions, NavLink close with focus restoration, Escape close, and automatic dialog/focus-trap teardown when resizing to desktop. At 320 CSS px the main/document/body widths remain 320 px; graph and trace requests return 200 and the browser reports zero errors.
+- Terminal outcome fixes now preserve graph `FAILED`, reject malformed non-string `job_status` values as adapter errors, and retain a known job outcome if trace retrieval fails after job lookup. Focused backend adapter tests: 17 passed; focused AI-service trace/read tests: 36 passed; independent reviewer reran the job-status fallback regression: 1 passed.
+- Full Frontend suite is 37 files / 145 tests; lint 0 errors / 13 warnings; build passes with the existing chunk advisory. `npm audit --audit-level=high` reports zero known vulnerabilities. Vitest 5 requires Node 24, now aligned in package metadata and CI. A clean isolated `npm ci` passed.
+- `pip-audit` on exported runtime dependency sets for AI service and Backend reports no known vulnerabilities.
+- Synthetic seeded data limitation remains: live checks verify the graph/trace read, ACL, UI and citation document retrieval path, not graph generation from OCR. Runtime flags stay OFF.

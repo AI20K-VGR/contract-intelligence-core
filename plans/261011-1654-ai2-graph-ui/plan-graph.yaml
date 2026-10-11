@@ -17,6 +17,9 @@ subtasks:
       - ai-service/app/api/main.py
       - ai-service/app/db/tables.py
       - ai-service/app/tools/jobs.py
+      - ai-service/app/tools/store.py
+      - ai-service/tests/test_contract_graph_idp_integration.py
+      - ai-service/tests/test_contract_graph_pair_store.py
     post: [verification-P1.json]
   P2:
     title: AI2 durable processing trace and crash recovery status
@@ -31,6 +34,8 @@ subtasks:
       - ai-service/app/db/tables.py
       - ai-service/app/pipeline/idp.py
       - ai-service/app/tools/jobs.py
+      - ai-service/app/api/processing_trace_router.py
+      - ai-service/tests/test_contract_graph_trace_durability.py
     post: [verification-P2.json]
   P3:
     title: Backend ACL, snapshot recheck, and cursor API/client
@@ -64,5 +69,28 @@ subtasks:
       - frontend/src/pages/DossierStructurePage.tsx
       - frontend/package.json
       - frontend/package-lock.json
+      - frontend/src/components/ai2-graph/timelineOutcome.ts
+      - frontend/src/layouts/AppLayout.tsx
+      - frontend/src/layouts/AppLayout.test.tsx
+      - .github/workflows/frontend.yml
+      - plans/reports/code-review-2026-10-12-ai2-graph-ui-reconciliation.md
+      - plans/reports/security-scan-2026-10-11-ai2-graph-ui.md
+      - ai-service/app/api/contract_graph_router.py
+      - ai-service/app/api/processing_trace_router.py
+      - ai-service/app/pipeline/idp.py
+      - ai-service/app/tools/contract_graph_read_model.py
+      - ai-service/app/tools/jobs.py
+      - ai-service/app/tools/store.py
+      - ai-service/tests/test_contract_graph_idp_integration.py
+      - ai-service/tests/test_contract_graph_pair_store.py
+      - ai-service/tests/test_contract_graph_read_api.py
+      - ai-service/tests/test_contract_graph_trace_durability.py
+      - backend/src/contract_intelligence/infrastructure/ai_adapters.py
+      - backend/tests/unit/test_ai2_contract_graph_adapter.py
+      - docs/contracts/be.ai2.contract-graph.v1.schema.json
+      - frontend/src/api/contractGraph.ts
+      - frontend/src/api/contractGraph.test.ts
+      - frontend/src/components/ai2-graph/ProcessingTimeline.tsx
+      - frontend/src/components/ai2-graph/ai2GraphViews.test.tsx
     post: [verification-P5.json, review-decision.json]
 

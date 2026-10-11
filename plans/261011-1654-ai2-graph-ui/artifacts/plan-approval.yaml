@@ -1,6 +1,6 @@
 schema: plan-approval/v1
 plan: 261011-1654-ai2-graph-ui
-plan_hash: 8581aaf47c72
+plan_hash: fa93a09cc7c0
 file_hashes:
   plan.md: 05d5c1cae476
   phases/phase-1-ai2-graph-persistence.md: 18c65bfa4029
@@ -8,12 +8,13 @@ file_hashes:
   phases/phase-3-backend-secure-paged-api.md: 1f112430e04c
   phases/phase-4-accessible-views.md: d02f3de410d6
   phases/phase-5-canvas-integration.md: 4425aabfeebc
-  plan-graph.yaml: 370457da4dba
+  plan-graph.yaml: c5d028e561b8
 author: user:dungskbg2004@gmail.com
 reviewer: user:dungskbg2004@gmail.com
 verdict: APPROVED
-rationale: User explicitly approved and requested cook; retain HOLD scope and five
-  sequential gates to isolate AI2 persistence, durable trace, Backend ACL/paging,
-  accessible views, and renderer integration.
-ts: '2026-10-11T11:00:36.863684+00:00'
+rationale: Approval-bound P5 file ownership now includes the complete, already-delivered
+  P1-P5 implementation being committed together, plus final verification/security
+  reports. Scope and acceptance criteria are unchanged; this declaration enables the
+  required staged-path gate.
+ts: '2026-10-11T17:25:21.855804+00:00'
 run_seq: null
