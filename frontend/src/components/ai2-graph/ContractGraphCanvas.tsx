@@ -283,8 +283,8 @@ export function ContractGraphCanvas({
                   className="fill-surface stroke-outline"
                   height="30"
                   rx="8"
-                  width="190"
-                  x="385"
+                  width="260"
+                  x="350"
                   y={(source.y + target.y) / 2 - 15}
                 />
                 <text

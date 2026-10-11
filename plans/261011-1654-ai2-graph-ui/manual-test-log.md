@@ -34,3 +34,12 @@ An independent tester re-ran the new Frontend trace-validator regression and the
 - Screenshot: `C:/Users/dungs/AppData/Local/Temp/ai2-graph-ui-live-citation/live-ui-graph-rerun.png` (temporary machine-local evidence).
 
 This verifies the Frontend ↔ Backend read/display path for one synthetic REFERENCE edge. The graph and trace rows were seeded directly in the isolated database; this does not verify AI2 graph generation. Browser run was executed by the independent tester and is not a user co-sign of visual acceptance.
+
+## Offline manual graph fixture regression — 2026-10-11
+
+- The standalone preview at `http://127.0.0.1:5174/manual-ai2-graph.html` now renders a self-contained synthetic fixture. It does not call Backend APIs and explicitly says the data is synthetic and is not AI2 output from a user's documents.
+- Browser result: timeline, graph canvas, `REFERENCE`, `CONFLICT`, and `GENERAL_SPECIFIC` all visible; zero `/api/v1/` requests; zero page errors.
+- Visual follow-up: widened the edge label box so `GENERAL_SPECIFIC · cần review` fits; replaced the epoch test timestamp so the timeline no longer renders 1970.
+- Evidence: [offline preview screenshot](reports/manual-ai2-graph-offline.png); automated browser receipt: `reports/manual-ai2-graph-offline-verification.json`.
+- Validation after changes: Frontend 36 files / 141 tests PASS; lint 0 errors / 13 warnings; production build PASS (existing large-chunk warning).
+- Scope limit: the fixture is intentionally synthetic and does not exercise AI2 generation or Backend ACL. It makes visual inspection convenient; visual acceptance remains for the user to co-sign.

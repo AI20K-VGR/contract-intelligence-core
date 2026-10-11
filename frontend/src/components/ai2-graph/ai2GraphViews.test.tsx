@@ -9,6 +9,7 @@ import type {
 import { ContractGraphCanvas } from './ContractGraphCanvas'
 import { ProcessingTimeline } from './ProcessingTimeline'
 import { RelationList } from './RelationList'
+import { ManualGraphFixture } from './ManualGraphFixture'
 import {
   appendRelationPage,
   createRelationListState,
@@ -64,6 +65,21 @@ const trace: ProcessingTrace = {
 }
 
 describe('AI2 graph accessible views', () => {
+  it('renders the standalone manual fixture without using Backend API reads', () => {
+    const html = renderToStaticMarkup(<ManualGraphFixture />)
+
+    expect(html).toContain('Dữ liệu demo tổng hợp')
+    expect(html).toContain('Luồng xử lý AI2')
+    expect(html).toContain('Sơ đồ quan hệ AI2')
+    expect(html).toContain('REFERENCE')
+    expect(html).toContain('CONFLICT')
+    expect(html).toContain('GENERAL_SPECIFIC')
+    expect(html).toContain('Hợp đồng gốc')
+    expect(html).toContain('Phụ lục')
+    expect(html).toMatch(/<rect[^>]*width="260"[^>]*x="350"/)
+    expect(html).not.toContain('1970')
+  })
+
   it('keeps same node IDs distinct across source documents', () => {
     const crossDocumentPage = page(
       [
