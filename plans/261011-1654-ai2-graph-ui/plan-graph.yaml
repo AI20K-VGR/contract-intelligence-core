@@ -1,0 +1,68 @@
+edges:
+  - {from: P1, to: P2}
+  - {from: P1, to: P3}
+  - {from: P2, to: P3}
+  - {from: P3, to: P4}
+  - {from: P4, to: P5}
+subtasks:
+  P1:
+    title: AI2 graph read contract and persistence receipts
+    files_to_create:
+      - ai-service/app/api/contract_graph_router.py
+      - ai-service/app/tools/contract_graph_read_model.py
+      - ai-service/app/db/migrations/versions/0007_contract_graph_write_receipts.py
+      - ai-service/tests/test_contract_graph_read_api.py
+      - docs/contracts/ai2.contract-graph.read.v1.schema.json
+    files_to_modify:
+      - ai-service/app/api/main.py
+      - ai-service/app/db/tables.py
+      - ai-service/app/tools/jobs.py
+    post: [verification-P1.json]
+  P2:
+    title: AI2 durable processing trace and crash recovery status
+    files_to_create:
+      - ai-service/app/api/processing_trace_router.py
+      - ai-service/app/tools/processing_trace_store.py
+      - ai-service/app/db/migrations/versions/0008_ai2_processing_trace.py
+      - ai-service/tests/test_contract_graph_trace_durability.py
+      - docs/contracts/ai2.processing-trace.v1.schema.json
+    files_to_modify:
+      - ai-service/app/api/main.py
+      - ai-service/app/db/tables.py
+      - ai-service/app/pipeline/idp.py
+      - ai-service/app/tools/jobs.py
+    post: [verification-P2.json]
+  P3:
+    title: Backend ACL, snapshot recheck, and cursor API/client
+    files_to_create:
+      - docs/contracts/be.ai2.contract-graph.v1.schema.json
+      - backend/tests/unit/test_ai2_contract_graph_adapter.py
+      - backend/tests/unit/test_contract_graph_router.py
+      - frontend/src/api/contractGraph.ts
+      - frontend/src/api/contractGraph.test.ts
+    files_to_modify:
+      - backend/src/contract_intelligence/infrastructure/ai_adapters.py
+      - backend/src/contract_intelligence/contract/interfaces/api/routers/contract_router.py
+    post: [verification-P3.json]
+  P4:
+    title: Accessible processing timeline and paged relation list
+    files_to_create:
+      - frontend/src/components/ai2-graph/ProcessingTimeline.tsx
+      - frontend/src/components/ai2-graph/RelationList.tsx
+      - frontend/src/components/ai2-graph/RelationInspector.tsx
+      - frontend/src/components/ai2-graph/contractGraphViewModel.ts
+      - frontend/src/components/ai2-graph/ai2GraphViews.test.tsx
+    files_to_modify: []
+    post: [verification-P4.json]
+  P5:
+    title: Renderer spike and dossier integration
+    files_to_create:
+      - frontend/src/components/ai2-graph/ContractGraphCanvas.tsx
+      - frontend/src/pages/DossierStructurePage.test.tsx
+      - plans/261011-1654-ai2-graph-ui/reports/renderer-spike.md
+    files_to_modify:
+      - frontend/src/pages/DossierStructurePage.tsx
+      - frontend/package.json
+      - frontend/package-lock.json
+    post: [verification-P5.json, review-decision.json]
+

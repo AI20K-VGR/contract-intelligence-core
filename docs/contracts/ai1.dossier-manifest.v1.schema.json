@@ -25,7 +25,8 @@
         "document_id": {"$ref": "#/$defs/id"},
         "snapshot_id": {"$ref": "#/$defs/id"},
         "role": {"enum": ["body", "annex"]},
-        "source_digest": {"$ref": "#/$defs/sha256"}
+        "source_digest": {"$ref": "#/$defs/sha256"},
+        "document_number": {"type": "string", "minLength": 1, "maxLength": 160}
       }
     }
   },

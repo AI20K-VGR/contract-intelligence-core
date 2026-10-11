@@ -38,8 +38,7 @@ Resolver chỉ so số hiệu Điều/khoản/điểm. Vì vậy "Sửa đổi �
 - `documents.named_document` rút văn bản có số hiệu (Thông tư, Nghị định, Nghị quyết, Luật, Pháp lệnh, Quyết định, Hợp đồng, Thỏa thuận + `số …/…`). Văn bản trong ngoặc kép bị bỏ qua (đó là nội dung mới). "Hợp đồng này" không tính.
 - Văn bản bị sửa của một thao tác lấy theo thứ tự: chính câu thao tác → mục cha → câu dẫn của node cha → dòng đầu của node → dòng đầu của node cha.
 - `plan_edges(..., known_documents=…)`: nếu văn bản đó không thuộc tập đã biết ⇒ `Status.FOREIGN_DOCUMENT`, **không tạo cạnh**, issue `TARGET_FOREIGN_DOCUMENT` (`NEEDS_REVIEW`), đếm trong `coverage.contract_graph.foreign_document_targets`.
-- **Hướng B (hiện tại):** runtime chưa có danh tính văn bản nào ⇒ mọi thao tác nêu tên văn bản có số hiệu đều bị chặn, kể cả phụ lục ghi lại số của chính hợp đồng trong hồ sơ. Câu không nêu tên văn bản vẫn resolve như cũ.
-- **Hướng A (BL-006):** lấy số hợp đồng/phụ lục từ metadata BE/AI1 truyền vào `known_documents` để nối lại các cạnh đúng.
+- **Hướng A (BL-006, đã triển khai):** Backend truyền `document_number` trong manifest member; AI2 giữ trường này trên `SourceFile` và `run_idp` truyền tập số hiệu tường minh vào `build_contract_graph(known_documents=…)`. Vì vậy số hiệu hợp đồng/phụ lục đã khai báo được resolve; số không có metadata vẫn bị chặn như `FOREIGN_DOCUMENT`.
 
 ## 4. Ánh xạ ra Backend (contract không đổi)
 
@@ -111,7 +110,7 @@ Migration `ai-service/app/db/migrations/versions/0005_ai2_contract_edges.py` (`d
 
 Index `idx_ai2_contract_edges_job (tenant_id, dossier_id, job_id)`.
 
-Ghi: `PostgresJobStore.complete_with_snapshot` (`app/tools/jobs.py`), trong cùng transaction + advisory lock theo dossier, **chỉ** khi job là SUCCEEDED mới nhất **và** `record.contract_graph_ran` — `DELETE` theo `(tenant_id, dossier_id)` rồi `INSERT` (`app/tools/contract_edge_store.py::replace_contract_edges`). Ghi nằm trong savepoint `cx.begin_nested()`: lỗi ghi cạnh chỉ rollback savepoint, log `ai2.contract_edges_write_failed`, job vẫn `SUCCEEDED` với snapshot mới và cạnh cũ giữ nguyên. Mọi cột text bị lọc `\x00` (Postgres từ chối NUL).
+Ghi: `PostgresJobStore.complete_with_snapshot` (`app/tools/jobs.py`), trong cùng transaction + advisory lock theo dossier, **mỗi khi job là SUCCEEDED mới nhất** — kể cả graph tắt hoặc builder không chạy — `DELETE` theo `(tenant_id, dossier_id)` rồi `INSERT` (`app/tools/contract_edge_store.py::replace_contract_edges`). Như vậy snapshot mới không giữ cạnh cũ (BL-001). Ghi nằm trong savepoint `cx.begin_nested()`: lỗi ghi cạnh chỉ rollback savepoint, log `ai2.contract_edges_write_failed`, job vẫn `SUCCEEDED`; khi đó cạnh cũ có thể còn lại như trạng thái an toàn khi DB write thất bại. Mọi cột text bị lọc `\x00` (Postgres từ chối NUL).
 
 Không có bảng SQLite (D7): `SQLiteJobStore.complete_with_snapshot` bỏ qua cạnh.
 
@@ -119,7 +118,7 @@ Phạm vi ghi: chỉ đường `POST /jobs/idp` → `_execute_wire_job` (`app/ap
 
 ## 7. Cổng PASS và vì sao đang đóng
 
-Cạnh chỉ `PASS` khi: `AI2_CONTRACT_GRAPH_AUTO_PASS` bật, câu thao tác chuẩn, đích resolve `EXACT` duy nhất, citation hai phía `VALID`, **và** loại cạnh có ≥ `MIN_N = 60` bản ghi calibration `approved=true` với cận dưới Wilson 95% ≥ `MIN_WILSON_LOWER = 0.85` (`app/pipeline/contract_graph/review_policy.py`, hằng số trong code). `calibration.json` commit với `n = 0` mọi loại vì gold tự trích từ chú thích VBHN mang `approved=false` (D13) ⇒ cổng đóng kể cả khi bật env.
+Cạnh chỉ `PASS` khi: `AI2_CONTRACT_GRAPH_AUTO_PASS` bật, câu thao tác chuẩn, đích resolve `EXACT` duy nhất, citation hai phía `VALID`, **và** loại cạnh có ≥ `MIN_N = 60` bản ghi calibration `approved=true` với cận dưới Wilson 95% ≥ `MIN_WILSON_LOWER = 0.85` (`app/pipeline/contract_graph/review_policy.py`, hằng số trong code). Kết quả `UNIQUE` do lọc `khoan_options` được gắn `EXISTENCE_FILTER`, không được coi là `EXACT` (BL-002). `calibration.json` commit với `n = 0` mọi loại vì gold tự trích từ chú thích VBHN mang `approved=false` (D13) ⇒ cổng đóng kể cả khi bật env.
 
 ## 8. Migration và rollback
 
@@ -146,7 +145,7 @@ Số hiện tại (P3, 11 cặp, 113 cạnh gold): recall 82/113 (72,6%), precis
 
 - Bộ đo là văn bản quy phạm pháp luật (VBHN), không phải phụ lục hợp đồng; văn phong phụ lục hợp đồng khác (mới có fixture tổng hợp), nên mọi cạnh giữ `NEEDS_REVIEW`.
 - Cạnh nội một tài liệu và cạnh `PASS` không tới BE (mục 4).
-- Bảng chỉ phản ánh job SUCCEEDED mới nhất có chạy graph; tắt flag sau khi từng bật ⇒ dòng cũ còn, mang `job_id` cũ.
+- Bảng phản ánh snapshot của job SUCCEEDED mới nhất; nếu graph tắt hoặc không sinh cạnh thì bảng được thay bằng tập rỗng, không giữ `job_id` cũ.
 - Kafka/batch không ghi bảng.
-- Hướng B chặn cả thao tác nêu đúng số của hợp đồng trong hồ sơ (mục 3.1) cho tới khi có danh tính từ metadata (BL-006).
+- Số hiệu không có trong metadata BE/AI1 vẫn bị chặn fail-closed (mục 3.1); đây là chủ ý an toàn, không phải lỗi runtime.
 - Không có cạnh `GENERAL_SPECIFIC`, `CONFLICT`, `REPLACEMENT`, `RENUMBERING`.
