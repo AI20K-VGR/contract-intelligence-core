@@ -23,24 +23,51 @@ Chọn đúng MỘT nhãn trong tập đóng sau.
   văn. Không nói khoản nào thắng.
 - DUPLICATE — hai khoản nói cùng một nội dung (cùng nghĩa vụ/quyền, cùng giá trị) chỉ khác câu
   chữ hoặc vị trí.
-- REFERENCE — một khoản dẫn chiếu tới nội dung của khoản kia bằng lời mô tả, KHÔNG dùng số
-  Điều/khoản/điểm (ví dụ "theo phương thức thanh toán đã thỏa thuận", "như cam kết bảo hành ở
-  trên"). Bắt buộc trường `referrer`: "A" hoặc "B" = khoản chứa lời dẫn chiếu. Dẫn chiếu có số
-  Điều/khoản tường minh KHÔNG thuộc nhãn này.
+- REFERENCE — một khoản dẫn chiếu hoặc kết hợp nội dung của khoản kia bằng lời mô tả hoặc địa chỉ
+  Điều/khoản/điểm đã phân giải duy nhất tới đúng khoản đó (ví dụ "theo phương thức thanh toán đã
+  thỏa thuận", "như cam kết bảo hành ở trên", hoặc dẫn chiếu số điều cụ thể). Bắt buộc trường
+  `referrer`: "A" hoặc "B" = khoản chứa lời dẫn chiếu. Với dẫn chiếu có số, chỉ gán khi địa chỉ
+  trỏ duy nhất tới khoản còn lại và nội dung trong `text` xác nhận quan hệ; số điều chỉ xuất hiện
+  cùng cặp không đủ.
 - UNRELATED — mọi trường hợp còn lại, kể cả hai khoản cùng chủ đề chung (cùng nói về thanh toán,
   cùng nói về giao hàng) nhưng không thuộc bốn nhãn trên.
 
 Quy tắc phân xử:
-1. Không chắc chắn ⇒ UNRELATED.
-2. Hai khoản khác chủ thể hoặc khác hành vi/sự kiện ⇒ UNRELATED, dù cùng chủ đề.
+1. Không chắc chắn và không có bằng chứng quan hệ ⇒ UNRELATED.
+2. Hai khoản khác chủ thể hoặc khác hành vi/sự kiện → thường là UNRELATED, trừ khi một khoản dẫn chiếu/kết hợp rõ ràng tới khoản kia.
 3. Giá trị khác nhau cho cùng vấn đề ⇒ CONFLICT; nhưng nếu một khoản tự nêu là ngoại lệ hoặc
    trường hợp riêng ("trừ trường hợp", "riêng đối với", "đối với … thì") ⇒ GENERAL_SPECIFIC.
 4. Cùng nội dung, cùng giá trị ⇒ DUPLICATE; khác giá trị ⇒ không phải DUPLICATE.
-5. Không kết luận pháp lý, không nói khoản nào có hiệu lực hay được ưu tiên.
-6. Span: trích NGUYÊN VĂN một đoạn ngắn (không quá 200 ký tự) từ `text` của A (`span_a`) và của
+5. Dẫn chiếu/kết hợp tới đúng nội dung khoản kia, có thể xác định referrer ⇒ REFERENCE. Xét sau
+   CONFLICT/DUPLICATE và trước GENERAL_SPECIFIC; dẫn chiếu cụ thể không tự chứng minh GENERAL_SPECIFIC.
+6. Không kết luận pháp lý, không nói khoản nào có hiệu lực hay được ưu tiên.
+7. Span: trích NGUYÊN VĂN một đoạn ngắn (không quá 200 ký tự) từ `text` của A (`span_a`) và của
    B (`span_b`) làm căn cứ cho nhãn. Không lấy từ `heading`, không diễn đạt lại, không ghép đoạn
    rời. Bắt buộc với mọi nhãn trừ UNRELATED.
 <!-- labeler-definitions:end -->
+
+## Bảng quyết định cho người gán nhãn
+
+So sánh cùng một vấn đề trong phần văn bản được cung cấp. `heading` chỉ giúp định vị ngữ cảnh;
+không dùng nó làm bằng chứng thay cho `text`. Không suy ra ý chí, hiệu lực hoặc thứ tự ưu tiên.
+
+| Câu hỏi | Có | Không |
+|---|---|---|
+| Cùng chủ thể và cùng hành vi/sự kiện hoặc quyền/nghĩa vụ cụ thể? | Tiếp tục | UNRELATED |
+| Hai khoản đặt giá trị/thời hạn/hậu quả khác nhau cho cùng vấn đề và đều áp dụng? | CONFLICT | Tiếp tục |
+| Hai khoản giữ cùng nội dung và giá trị, chỉ khác cách diễn đạt/vị trí? | DUPLICATE | Tiếp tục |
+| Một khoản dẫn bằng mô tả/ngữ nghĩa hoặc số Điều/điểm đã phân giải đúng tới khoản kia? | REFERENCE; `referrer` trỏ khoản dẫn | UNRELATED |
+| Một khoản nói rõ là ngoại lệ, phạm vi riêng hoặc chi tiết hóa của nghĩa vụ kia? | GENERAL_SPECIFIC; `general` trỏ khoản nêu quy tắc chung | Tiếp tục |
+| Một khoản thêm hành vi, điều kiện hoặc deliverable khác, dù chỉ áp dụng cho nhóm con? | Không phải GENERAL_SPECIFIC; xét tiếp như vấn đề riêng | Tiếp tục |
+
+Thứ tự này phân biệt ngoại lệ tường minh với hai quy định không thể cùng áp dụng. Ví dụ, quy tắc
+chung phạt chậm thực hiện và điều khoản “riêng đối với chậm giao hàng” là GENERAL_SPECIFIC; hai
+thời hạn thanh toán 30 và 15 ngày cùng áp dụng là CONFLICT; nghĩa vụ giao thêm biên bản kiểm kê
+không phải chi tiết hóa nghĩa vụ thanh toán.
+
+Hướng A/B mô tả vai trò trong cặp hiển thị: A là `general` ở GENERAL_SPECIFIC và là `referrer` ở
+REFERENCE. Không đổi thứ tự cặp để làm cho một hướng có vẻ hợp lý. Nếu không xác định được hướng
+từ câu chữ, chọn UNRELATED thay vì đoán.
 
 ## Ví dụ tổng hợp (tự viết, không lấy từ nguồn nào)
 

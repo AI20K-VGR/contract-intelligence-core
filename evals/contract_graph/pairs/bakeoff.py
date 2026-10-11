@@ -29,7 +29,7 @@ from evals.contract_graph.pairs.models import (
     family,
 )
 from evals.contract_graph.pairs.pool import pair_id_for
-from evals.contract_graph.pairs.score import SCORED, score_relations
+from evals.contract_graph.pairs.score import SCORED, quality_gate, score_quality, score_relations
 from evals.contract_graph.score import rate, wilson
 
 # predictor inserts the ai-service source root before importing the production contracts.
@@ -47,7 +47,22 @@ from app.pipeline.contract_graph.review_policy import (
 DEV_REPORT = manifest.REPO_ROOT / "evals/contract_graph/reports/l2-p3-classifier-dev.json"
 E_MAX_PAIRS_PER_DOC = 300
 TRIALS = (1, 2)
-FINGERPRINT_FILES = ("pair_candidates.py", "pair_classifier.py", "pair_builder.py", "predictor.py", "bakeoff.py", "score.py", "client.py")
+FINGERPRINT_FILES = (
+    "ai-service/app/pipeline/contract_graph/pair_candidates.py",
+    "ai-service/app/pipeline/contract_graph/pair_classifier.py",
+    "ai-service/app/pipeline/contract_graph/pair_builder.py",
+    "ai-service/app/pipeline/contract_graph/resolver.py",
+    "ai-service/app/pipeline/contract_graph/builder.py",
+    "evals/contract_graph/pairs/predictor.py",
+    "evals/contract_graph/pairs/bakeoff.py",
+    "evals/contract_graph/pairs/score.py",
+    "evals/contract_graph/pairs/run.py",
+    "evals/contract_graph/pairs/manifest.py",
+    "evals/contract_graph/pairs/review.py",
+    "ai-service/app/llm/client.py",
+    "ai-service/app/pipeline/runtime.py",
+    "ai-service/app/contracts/models.py",
+)
 HG2_SCHEMA = "contract-graph-hg2/1"
 DEV_REPORT_LOCK_SCHEMA = "contract-graph-dev-report-lock/1"
 DEV_REPORT_PATH = Path("evals/contract_graph/reports/l2-p3-classifier-dev.json")
@@ -449,9 +464,13 @@ def _heldout(data_dir: Path, frozen: dict, repo_manifest: Path) -> list[dict]:
 def preconditions(
     data_dir: Path, *, repo_manifest: Path = manifest.REPO_MANIFEST,
     dev_report: dict | None = None, served_model: Any = _UNOBSERVED,
-    require_commit_lock: bool = True,
+    require_commit_lock: bool = True, quality_manifest: Path | None = None,
+    dev_report_path: Path | None = None,
 ) -> dict:
     """Offline checks; an actual served model can be supplied from the production probe."""
+    if quality_manifest is not None:
+        return _quality_preconditions(data_dir, quality_manifest, dev_report_path=dev_report_path,
+                                      served_model=served_model)
     data_dir = Path(data_dir)
     try:
         if manifest.verify(data_dir, repo_manifest):
@@ -662,6 +681,58 @@ def preconditions(
                 "served_model_check": "OBSERVED" if served_model is not _UNOBSERVED else "pending production probe/per-call check"}
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         _blocked("invalid or incomplete frozen inputs")
+
+
+def _quality_preconditions(data_dir: Path, quality_manifest: Path, *,
+                           dev_report_path: Path | None, served_model: Any) -> dict:
+    """Verify locked v1 dev evidence before a held-out run can read data or call a provider."""
+    try:
+        dataset = predictor.read_quality_dataset(data_dir, quality_manifest, require_review_lock=True)
+        frozen = dataset["manifest"]
+        lock = frozen.get("dev_report_lock")
+        path = _repo_artifact(lock.get("path") if isinstance(lock, dict) else None)
+        requested = Path(dev_report_path).resolve() if dev_report_path is not None else path
+        if (not isinstance(lock, dict) or lock.get("schema") != predictor.QUALITY_REPORT_LOCK_SCHEMA
+                or path is None or not path.is_file() or requested != path.resolve()
+                or file_digest(path) != lock.get("sha256")
+                or lock.get("dataset_id") != frozen["dataset_id"]
+                or lock.get("quality_manifest_sha256") != dataset["manifest_sha256"]):
+            _blocked("quality dev report lock is missing, stale or points to another dataset")
+        report = manifest.read_json(path)
+        evidence = report.get("quality_evidence") if isinstance(report, dict) else None
+        if (not isinstance(report, dict)
+                or report.get("quality_report_schema") != predictor.QUALITY_REPORT_SCHEMA
+                or report.get("quality_status") != "PASS"
+                or report.get("quality_dataset") != {"dataset_id": frozen["dataset_id"],
+                                                       "manifest_sha256": dataset["manifest_sha256"]}
+                or report.get("code_sha256") != _code_fingerprints()
+                or report.get("report_sha256") != predictor.report_digest(report)
+                or not isinstance(evidence, dict)):
+            _blocked("quality dev report schema, source fingerprint or digest is stale")
+        recomputed = score_quality(evidence.get("gold", []), evidence.get("predictions", []),
+                                   recall_frame=evidence.get("recall_frame", []),
+                                   precision_frame=evidence.get("precision_frame", []))
+        cluster_intervals = predictor.quality_cluster_intervals(
+            evidence.get("gold", []), evidence.get("predictions", []),
+            evidence.get("cluster_by_pair", {}))
+        verdict = quality_gate(recomputed, cluster_intervals=cluster_intervals)
+        if (recomputed != report.get("quality_score") or verdict != report.get("quality_gate")
+                or cluster_intervals != report.get("quality_cluster_intervals")
+                or verdict.get("status") != "PASS"):
+            _blocked("quality dev metrics do not recompute from raw reviewed evidence")
+        if served_model is not _UNOBSERVED:
+            labeler_model = frozen.get("labeler_model")
+            if (not isinstance(served_model, str) or not classifier_family_ok(served_model)
+                    or not classifier_model_differs_from_labeler(served_model, labeler_model)):
+                _blocked("quality classifier model family check failed")
+        if not isinstance(frozen.get("heldout_review_lock"), dict):
+            _blocked("quality held-out review/frame lock is missing; P5 gate remains closed")
+        return {"status": "PASS", "schema": "contract-graph-quality-preconditions/1",
+                "dataset_id": frozen["dataset_id"], "dev_report_sha256": lock["sha256"]}
+    except SystemExit:
+        raise
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        _blocked("quality dataset or report lock is invalid")
 
 
 def _clusters(frozen: dict) -> dict[str, str]:
@@ -1183,6 +1254,8 @@ def _timestamp(value: str) -> dt.datetime:
 
 def decide(report: dict) -> dict:
     """Pure recommendation: counts are rederived from every trial, never copied from metrics."""
+    if isinstance(report, dict) and report.get("quality_report_schema") == predictor.QUALITY_REPORT_SCHEMA:
+        raise ValueError("development quality report cannot authorize a held-out product decision")
     trials = _checked_trials(report)
     c_trials = [t for t in trials if t["variant"] == "C"]
     per_label = {}

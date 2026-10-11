@@ -189,6 +189,27 @@ def test_near_duplicates_share_cluster():
     assert clusters == corpus.near_duplicate_clusters([original, other, copied])
 
 
+def test_cluster_exposure_audit_marks_whole_cluster_historical():
+    clusters = [
+        {"cluster_id": "fresh", "doc_ids": ["d1"]},
+        {"cluster_id": "mixed", "doc_ids": ["d2", "d3"]},
+    ]
+
+    audited = corpus.audit_cluster_exposure(clusters, {"d3"})
+
+    assert audited == [
+        {"cluster_id": "fresh", "doc_ids": ["d1"], "exposure": "fresh"},
+        {"cluster_id": "mixed", "doc_ids": ["d2", "d3"], "exposure": "historical-exposed"},
+    ]
+
+
+def test_cross_split_template_cluster_is_rejected():
+    clusters = [{"cluster_id": "template", "doc_ids": ["d1", "d2"]}]
+
+    with pytest.raises(ValueError, match="crosses splits"):
+        corpus.validate_cluster_splits(clusters, {"d1": "dev", "d2": "heldout"})
+
+
 def test_same_article_headings_share_cluster_even_when_text_differs():
     first = corpus.build_doc(source("https://a.test/1"), contract_text(annex=False))
     rewritten = contract_text(annex=False)

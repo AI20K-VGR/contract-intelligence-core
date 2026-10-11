@@ -76,6 +76,46 @@ def test_diagnose_trial_records_validation_and_provider_failures_without_raw_pay
     assert "TimeoutError" not in result["gold_outcomes"][0]
 
 
+def test_exact_pair_events_override_aggregate_rejection_attribution():
+    gold = [
+        {"pair_id": "p-unrelated", "doc_id": "d1", "gold_label": "CONFLICT"},
+        {"pair_id": "p-invalid", "doc_id": "d1", "gold_label": "DUPLICATE"},
+        {"pair_id": "p-missing", "doc_id": "d1", "gold_label": "REFERENCE"},
+    ]
+    candidates = {"d1": {row["pair_id"]: {"sources": ["S1"], "score": 1.0} for row in gold}}
+    result = diagnose_trial(
+        _trial(rejected={"unrelated": 1, "bad_span": 1}, pair_events=[
+            {"pair_id": "p-unrelated", "outcome": "model_unrelated", "reason": "unrelated"},
+            {"pair_id": "p-invalid", "outcome": "validator_reject", "reason": "ungrounded_span"},
+            {"pair_id": "p-missing", "outcome": "no_answer", "reason": "no_answer"},
+        ]),
+        gold=gold,
+        candidates=candidates,
+    )
+    by_pair = {row["pair_id"]: row for row in result["gold_outcomes"]}
+    assert by_pair["p-unrelated"]["failure_class"] == "classifier_unrelated"
+    assert by_pair["p-invalid"]["failure_class"] == "validation_reject"
+    assert by_pair["p-missing"]["failure_class"] == "no_answer"
+    assert all(row["evidence_scope"] == "pair" for row in by_pair.values())
+    assert result["failure_counts"]["validation_reject"] == 1
+    assert result["pair_event_accounting"]["candidate_terminal_events"] == 3
+    assert result["pair_event_accounting"]["candidate_terminal_missing"] == 0
+    assert result["pair_event_accounting"]["accepted_event_prediction_difference"] == 0
+
+
+def test_abstained_event_has_its_own_failure_class():
+    result = diagnose_trial(
+        _trial(pair_events=[
+            {"pair_id": "p-abstain", "outcome": "abstained", "reason": "abstained"},
+        ]),
+        gold=[{"pair_id": "p-abstain", "doc_id": "d1", "gold_label": "REFERENCE"}],
+        candidates={"d1": {"p-abstain": {"sources": ["EXPLICIT_REF"], "score": 4.0}}},
+    )
+    outcome = result["gold_outcomes"][0]
+    assert outcome["failure_class"] == "classifier_abstained"
+    assert outcome["pair_event"]["outcome"] == "abstained"
+
+
 def test_false_duplicate_is_a_hard_stop():
     result = diagnose_trial(
         _trial(

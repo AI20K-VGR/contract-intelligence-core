@@ -10,10 +10,10 @@ from types import SimpleNamespace
 import pytest
 
 from evals.contract_graph.dataset import _json_line
-from evals.contract_graph.pairs import bakeoff, manifest, review, run
+from evals.contract_graph.pairs import bakeoff, manifest, predictor, review, run
 from evals.contract_graph.pairs.pool import pair_id_for
 
-CODE_FILES = ("pair_candidates.py", "pair_classifier.py", "pair_builder.py", "predictor.py", "bakeoff.py", "score.py", "client.py")
+CODE_FILES = bakeoff.FINGERPRINT_FILES
 
 @pytest.fixture
 def frozen(tmp_path, monkeypatch):
@@ -113,7 +113,7 @@ def report(k=60, n=60):
                "review_lock_commit": "c" * 40, "started_at": "2026-10-09T03:00:00+00:00",
                "finished_at": "2026-10-09T03:00:01+00:00", "llm_calls": 20,
                "traces": copy.deepcopy(trace_rows), "doc_provenance": copy.deepcopy(per_doc),
-               "code_sha256": {name: "f" * 64 for name in CODE_FILES}}
+                   "code_sha256": {name: "f" * 64 for name in CODE_FILES}}
               for variant in ("C", "B") for trial in (1, 2)]
     result = {"manifest": {"heldout_review": {"decisions_sha256": "a" * 64},
                            "docs": [{"doc_id": f"d{i}", "cluster_id": f"c{i}", "split": "heldout"} for i in range(20)]},
@@ -340,6 +340,12 @@ def test_decide_insufficient_n():
     assert bakeoff.decide(report(59, 59))["verdict"] == "KEEP_OFF_INSUFFICIENT_N"
 
 
+def test_dev_quality_report_cannot_authorize_a_product_decision():
+    with pytest.raises(ValueError, match="cannot authorize"):
+        bakeoff.decide({"quality_report_schema": predictor.QUALITY_REPORT_SCHEMA,
+                        "quality_status": "PASS"})
+
+
 def test_decide_below_threshold():
     r = report(56, 60)
     # False DUPLICATE is tested independently; keep this label perfect.
@@ -465,7 +471,7 @@ def test_trial_matrix_and_model_consistency():
     for mutate in (lambda r: r["trials"].pop(),
                    lambda r: r["trials"][-1].update(served_model=["claude-other"]),
                    lambda r: r["trials"][-1].update(prompt_version="changed"),
-                   lambda r: r["trials"][-1].update(code_sha256={"pair_classifier.py": "changed"})):
+                   lambda r: r["trials"][-1].update(code_sha256={"ai-service/app/pipeline/contract_graph/pair_classifier.py": "changed"})):
         r = report()
         mutate(r)
         with pytest.raises(ValueError):

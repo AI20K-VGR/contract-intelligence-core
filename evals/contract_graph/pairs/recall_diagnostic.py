@@ -138,6 +138,23 @@ def diagnose_trial(
         for pair_id, metadata in pairs.items()
     }
     predictions, duplicate_predictions = _prediction_map(trial.get("predictions", ()))
+    raw_events = trial.get("pair_events")
+    exact_events: dict[str, Mapping[str, Any]] = {}
+    duplicate_event_ids = 0
+    if isinstance(raw_events, list):
+        for event in raw_events:
+            if not isinstance(event, Mapping) or event.get("phase") not in {None, "candidate", "classifier"}:
+                continue
+            pair_id = event.get("pair_id")
+            if not isinstance(pair_id, str) or event.get("outcome") not in {
+                "accepted", "model_unrelated", "abstained", "validator_reject", "citation_reject",
+                "no_answer", "not_sent", "candidate_miss",
+            }:
+                continue
+            if pair_id in exact_events:
+                duplicate_event_ids += 1
+                continue
+            exact_events[pair_id] = event
     rejected = {
         str(code): int(value)
         for code, value in (trial.get("rejected") or {}).items()
@@ -171,12 +188,32 @@ def diagnose_trial(
         if candidate is None:
             outcome["failure_class"] = "candidate_miss"
         elif prediction is None:
-            failure, scope = _failure_for_unpredicted(
-                doc_id=str(row.get("doc_id") or candidate.get("doc_id") or ""),
-                provider_docs=provider_docs,
-                over_budget=over_budget,
-                rejected=rejected,
-            )
+            exact_event = exact_events.get(pair_id)
+            if exact_event is not None:
+                failure = {
+                    "model_unrelated": "classifier_unrelated",
+                    "abstained": "classifier_abstained",
+                    "validator_reject": "validation_reject",
+                    "citation_reject": "citation_reject",
+                    "no_answer": "no_answer",
+                    "not_sent": "not_sent",
+                    "candidate_miss": "candidate_miss",
+                    "accepted": "missing_prediction_after_acceptance",
+                }[exact_event["outcome"]]
+                scope = "pair"
+                outcome["pair_event"] = {"outcome": exact_event["outcome"],
+                                         "reason": exact_event.get("reason"),
+                                         "batch_id": exact_event.get("batch_id"),
+                                         "request_id": exact_event.get("request_id"),
+                                         "requested_model": exact_event.get("requested_model"),
+                                         "served_model": exact_event.get("served_model")}
+            else:
+                failure, scope = _failure_for_unpredicted(
+                    doc_id=str(row.get("doc_id") or candidate.get("doc_id") or ""),
+                    provider_docs=provider_docs,
+                    over_budget=over_budget,
+                    rejected=rejected,
+                )
             outcome["failure_class"] = failure
             outcome["evidence_scope"] = scope
         elif prediction.get("label") != row.get("gold_label"):
@@ -188,6 +225,13 @@ def diagnose_trial(
         outcomes.append(outcome)
 
     candidate_total = sum(len(pairs) for pairs in inventory.values())
+    terminal_events = {pair_id: event for pair_id, event in exact_events.items()
+                       if event.get("outcome") != "candidate_miss"}
+    terminal_candidate_events = {pair_id: event for pair_id, event in terminal_events.items()
+                                 if pair_id in candidate_by_pair}
+    terminal_candidate_ids = set(terminal_candidate_events)
+    missing_candidate_terminal = len(set(candidate_by_pair) - terminal_candidate_ids)
+    extra_candidate_terminal = len(set(terminal_events) - set(candidate_by_pair))
     predicted_in_candidates = sum(1 for pair_id in predictions if pair_id in candidate_by_pair)
     rejected_total = sum(rejected.values())
     residual = candidate_total - predicted_in_candidates - rejected_total
@@ -210,6 +254,8 @@ def diagnose_trial(
         hard_stops.append("false_duplicate")
     if duplicate_predictions:
         hard_stops.append("duplicate_prediction_id")
+    if duplicate_event_ids:
+        hard_stops.append("duplicate_pair_event_id")
     if residual < 0:
         hard_stops.append("candidate_accounting_mismatch")
     failure_counts = Counter(row["failure_class"] for row in outcomes)
@@ -228,6 +274,25 @@ def diagnose_trial(
             "unknown_predictions": len(predictions) - predicted_in_candidates,
         },
         "rejection_counts": dict(sorted(rejected.items())),
+        "pair_event_accounting": ({
+            "available": True,
+            "pair_events_total": len(exact_events),
+            "candidate_terminal_events": len(terminal_candidate_events),
+            "candidate_terminal_missing": missing_candidate_terminal,
+            "candidate_terminal_extra": extra_candidate_terminal,
+            "candidate_terminal_outcomes": dict(sorted(Counter(
+                event["outcome"] for event in terminal_candidate_events.values()
+            ).items())),
+            "candidate_miss_events": sum(event.get("outcome") == "candidate_miss"
+                                          for event in exact_events.values()),
+            "predicted_in_candidates": predicted_in_candidates,
+            "accepted_event_prediction_difference": (
+                sum(event.get("outcome") == "accepted" for event in terminal_candidate_events.values())
+                - predicted_in_candidates
+            ),
+            "duplicate_ids": duplicate_event_ids,
+            "all_event_outcomes": dict(sorted(Counter(event["outcome"] for event in exact_events.values()).items())),
+        } if isinstance(raw_events, list) else {"available": False}),
         "provider_or_budget": {
             **trace_summary,
             "over_budget": over_budget,

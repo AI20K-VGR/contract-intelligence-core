@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from evals.contract_graph.pairs import score
 
 
@@ -139,3 +141,78 @@ def test_markdown_has_no_clause_text():
     assert secret not in md
     assert "Bên Mua" not in md
     assert "CONFLICT" in md and "pd-1" in md
+
+
+def test_quality_score_uses_frozen_recall_frame_and_exact_direction():
+    recall_ids = {f"r{i}" for i in range(60)}
+    precision_ids = recall_ids | {f"u{i}" for i in range(40)}
+    gold = [_gold(pid, "CONFLICT") for pid in recall_ids]
+    gold += [_gold(pid, "CONFLICT") for pid in precision_ids - recall_ids]
+    preds = [_pred(f"r{i}", "CONFLICT") for i in range(53)]
+    preds += [_pred(f"u{i}", "CONFLICT") for i in range(40)]
+
+    report = score.score_quality(gold, preds, recall_frame=recall_ids,
+                                 precision_frame=precision_ids)
+
+    assert report["by_label"]["CONFLICT"]["recall_exact"]["denominator"] == 60
+    assert report["by_label"]["CONFLICT"]["recall_exact"]["passed"] == 53
+    assert report["by_label"]["CONFLICT"]["recall_exact"]["wilson95"][0] < 0.85
+    assert report["by_label"]["CONFLICT"]["recall_exact"]["denominator"] != 100
+
+
+def test_quality_score_counts_missing_or_wrong_direction_as_incorrect():
+    gold = [_gold("a", "GENERAL_SPECIFIC", "A"),
+            _gold("b", "GENERAL_SPECIFIC", "B"),
+            _gold("c", "REFERENCE", "A")]
+    preds = [_pred("a", "GENERAL_SPECIFIC", "A"),
+             _pred("b", "GENERAL_SPECIFIC", None),
+             _pred("c", "REFERENCE", "B")]
+    report = score.score_quality(gold, preds,
+                                 recall_frame={"a", "b", "c"},
+                                 precision_frame={"a", "b", "c"})
+
+    assert report["by_label"]["GENERAL_SPECIFIC"]["recall_exact"]["passed"] == 1
+    assert report["by_label"]["GENERAL_SPECIFIC"]["recall_exact"]["denominator"] == 2
+    assert report["by_label"]["REFERENCE"]["recall_exact"]["passed"] == 0
+
+
+@pytest.mark.parametrize("bad", [None, True, -1, 1.2, float("nan"), float("inf")])
+def test_quality_score_rejects_malformed_frame_membership(bad):
+    with pytest.raises(ValueError):
+        score.score_quality([], [], recall_frame=bad, precision_frame=set())
+
+
+def _complete_quality_report(successes: int) -> dict:
+    metrics = {}
+    for label in score.SCORED:
+        value = score.rate(successes, 60)
+        metrics[label] = {"precision_exact": value, "recall_exact": value,
+                          "precision_exact_direction": value if label in {"GENERAL_SPECIFIC", "REFERENCE"} else None}
+    return {"schema": score.QUALITY_SCHEMA, "frame_version": score.FRAME_VERSION,
+            "by_label": metrics, "false_duplicate": {"observed": 0, "unreviewed": 0}}
+
+
+def _cluster_intervals():
+    return {label: {"precision_conservative": {"lower": 0.90}} for label in score.SCORED}
+
+
+def test_quality_gate_applies_n60_and_wilson_floor_per_metric():
+    passed = score.quality_gate(_complete_quality_report(57), cluster_intervals=_cluster_intervals())
+    failed = score.quality_gate(_complete_quality_report(56), cluster_intervals=_cluster_intervals())
+
+    assert passed["status"] == "PASS"
+    assert failed["status"] == "BLOCKED"
+    assert "below_floor_conflict_recall_exact" in failed["reason_codes"]
+
+
+def test_quality_gate_rejects_bool_count_forged_interval_and_duplicate_safety():
+    report = _complete_quality_report(60)
+    report["by_label"]["CONFLICT"]["recall_exact"] = {
+        "passed": True, "denominator": 60, "rate": 1.0, "wilson95": [1.0, 1.0]}
+    report["false_duplicate"]["unreviewed"] = True
+
+    result = score.quality_gate(report, cluster_intervals=_cluster_intervals())
+
+    assert result["status"] == "BLOCKED"
+    assert "invalid_or_insufficient_conflict_recall_exact" in result["reason_codes"]
+    assert "false_duplicate_safety_veto" in result["reason_codes"]

@@ -21,7 +21,7 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 
 from evals.contract_graph.dataset import _json_line, _write, file_digest
-from evals.contract_graph.pairs.labeler import LABELER_PROMPT_VERSION
+from evals.contract_graph.pairs.labeler import DIRECTED, LABELS, LABELER_PROMPT_VERSION, UNRELATED
 from evals.contract_graph.pairs.models import family
 from evals.contract_graph.pairs.pool import POOL_PARAMS, POOL_SEED, STRATA
 
@@ -37,6 +37,13 @@ SPLITS = ("dev", "heldout")
 WORK = "work"
 DOC_FILES = ("doc.json", "labels.gpt.jsonl", "pool.jsonl")
 FORBIDDEN_UNDER = ("evals", "ai-service", "docs")
+QUALITY_SCHEMA = "contract-graph-quality-dataset/1"
+QUALITY_LABELS = tuple(label for label in LABELS if label != UNRELATED)
+QUALITY_MIN_POSITIVES = 60
+QUALITY_MIN_NEGATIVES = 120
+QUALITY_MIN_CLUSTERS = 30
+QUALITY_MIN_CLUSTERS_PER_LABEL = 3
+QUALITY_MAX_CLUSTER_SHARE = 0.40
 
 
 def work(data_dir: Path, *parts: str) -> Path:
@@ -60,6 +67,140 @@ def read_json(path: Path):
 def read_jsonl(path: Path) -> list[dict]:
     text = Path(path).read_text(encoding="utf-8")
     return [json.loads(line) for line in text.splitlines() if line.strip()]
+
+
+def evaluate_quality_readiness(
+    recall_rows: Iterable[Mapping],
+    reviewed_gold: Iterable[Mapping],
+    *,
+    negative_count: int | None = None,
+) -> dict:
+    """Assess data coverage without interpreting candidate/model outcomes as evidence."""
+
+    recall = list(recall_rows)
+    gold = list(reviewed_gold)
+    recall_by_id: dict[str, Mapping] = {}
+    for row in recall:
+        pair_id, cluster_id = row.get("pair_id"), row.get("cluster_id")
+        if not isinstance(pair_id, str) or not pair_id or pair_id in recall_by_id:
+            raise ValueError("recall frame requires unique non-empty pair_id values")
+        if not isinstance(cluster_id, str) or not cluster_id:
+            raise ValueError("recall frame rows require cluster_id")
+        recall_by_id[pair_id] = row
+    gold_by_id: dict[str, Mapping] = {}
+    for row in gold:
+        pair_id = row.get("pair_id")
+        if not isinstance(pair_id, str) or not pair_id or pair_id in gold_by_id:
+            raise ValueError("reviewed gold requires unique non-empty pair_id values")
+        if pair_id not in recall_by_id:
+            raise ValueError("reviewed gold contains a pair outside the recall frame")
+        if row.get("approved") is not True or row.get("source") != "user-review":
+            raise ValueError("readiness counts only explicitly approved user-review rows")
+        label, direction = row.get("gold_label"), row.get("gold_direction")
+        if label not in LABELS:
+            raise ValueError("reviewed gold contains an invalid label")
+        if label in DIRECTED and direction not in {"A", "B"}:
+            raise ValueError("directed reviewed gold requires A/B direction")
+        if label not in DIRECTED and direction is not None:
+            raise ValueError("non-directed reviewed gold cannot contain direction")
+        gold_by_id[pair_id] = row
+
+    positives = Counter(row["gold_label"] for row in gold_by_id.values()
+                        if row["gold_label"] != UNRELATED)
+    cluster_by_label: dict[str, set[str]] = {label: set() for label in QUALITY_LABELS}
+    cluster_counts: dict[str, Counter[str]] = {label: Counter() for label in QUALITY_LABELS}
+    for pair_id, row in gold_by_id.items():
+        label = row["gold_label"]
+        if label in QUALITY_LABELS:
+            cluster_id = str(recall_by_id[pair_id]["cluster_id"])
+            cluster_by_label[label].add(cluster_id)
+            cluster_counts[label][cluster_id] += 1
+    negative_count = (sum(row["gold_label"] == UNRELATED for row in gold_by_id.values())
+                      if negative_count is None else negative_count)
+    if type(negative_count) is not int or negative_count < 0:
+        raise ValueError("negative_count must be a non-negative integer")
+
+    independent_clusters = len({row["cluster_id"] for row in recall_by_id.values()})
+    reasons = []
+    if independent_clusters < QUALITY_MIN_CLUSTERS:
+        reasons.append("independent_cluster_target_not_met")
+    if negative_count < QUALITY_MIN_NEGATIVES:
+        reasons.append("negative_minimum_not_met")
+    cluster_shares = {}
+    for label in QUALITY_LABELS:
+        if positives[label] < QUALITY_MIN_POSITIVES:
+            reasons.append(f"{label.lower()}_positive_minimum_not_met")
+        if len(cluster_by_label[label]) < QUALITY_MIN_CLUSTERS_PER_LABEL:
+            reasons.append(f"{label.lower()}_cluster_minimum_not_met")
+        share = max(cluster_counts[label].values(), default=0) / positives[label] if positives[label] else 0.0
+        cluster_shares[label] = share
+        if share > QUALITY_MAX_CLUSTER_SHARE:
+            reasons.append(f"{label.lower()}_cluster_dominance_exceeded")
+    return {
+        "status": "PASS" if not reasons else "BLOCKED",
+        "approved_gold_rows": len(gold_by_id),
+        "positives_by_label": {label: positives[label] for label in sorted(QUALITY_LABELS)},
+        "negative_count": negative_count,
+        "independent_clusters": independent_clusters,
+        "clusters_by_label": {label: len(cluster_by_label[label]) for label in sorted(QUALITY_LABELS)},
+        "max_cluster_share_by_label": cluster_shares,
+        "minimums": {"positives_per_label": QUALITY_MIN_POSITIVES,
+                     "negatives": QUALITY_MIN_NEGATIVES,
+                     "independent_clusters": QUALITY_MIN_CLUSTERS,
+                     "clusters_per_label": QUALITY_MIN_CLUSTERS_PER_LABEL,
+                     "max_cluster_share": QUALITY_MAX_CLUSTER_SHARE},
+        "reason_codes": reasons,
+    }
+
+
+def write_quality_manifest(
+    data_dir: Path,
+    manifest_path: Path,
+    *,
+    dataset_id: str,
+    frame_version: str,
+    recall_rows: Iterable[Mapping],
+    precision_rows: Iterable[Mapping],
+    reviewed_gold: Iterable[Mapping],
+) -> dict:
+    """Write immutable data files plus an unlocked v1 manifest after human decisions exist."""
+
+    data_dir, manifest_path = Path(data_dir), Path(manifest_path)
+    ensure_outside_repo(data_dir)
+    if manifest_path.exists():
+        raise FileExistsError(f"refusing to replace quality manifest: {manifest_path}")
+    if not dataset_id or not frame_version:
+        raise ValueError("dataset_id and frame_version are required")
+    rows_by_name = {
+        "recall-frame.v1.jsonl": [dict(row) for row in recall_rows],
+        "precision-frame.v1.jsonl": [dict(row) for row in precision_rows],
+        "reviewed-gold.v1.jsonl": [dict(row) for row in reviewed_gold],
+    }
+    if any(not rows for rows in rows_by_name.values()):
+        raise ValueError("quality manifest requires non-empty recall, precision and reviewed gold files")
+    for path_name in rows_by_name:
+        if (data_dir / path_name).exists():
+            raise FileExistsError(f"refusing to replace quality data file: {data_dir / path_name}")
+    for row in rows_by_name["reviewed-gold.v1.jsonl"]:
+        if row.get("approved") is not True or row.get("source") != "user-review":
+            raise ValueError("reviewed gold must contain explicit user-review decisions")
+    files = {}
+    for name, rows in rows_by_name.items():
+        path = data_dir / name
+        write_jsonl(path, rows)
+        files[name] = {"path": name, "sha256": file_digest(path), "n_rows": len(rows)}
+    payload = {
+        "schema": QUALITY_SCHEMA,
+        "dataset_id": dataset_id,
+        "frame_version": frame_version,
+        "recall_frame": files["recall-frame.v1.jsonl"],
+        "precision_frame": files["precision-frame.v1.jsonl"],
+        "reviewed_gold": files["reviewed-gold.v1.jsonl"],
+        "review_lock": None,
+        "dev_report_lock": None,
+    }
+    write_json(manifest_path, payload)
+    return payload
 
 
 def ensure_outside_repo(data_dir: Path, repo_root: Path = REPO_ROOT) -> None:

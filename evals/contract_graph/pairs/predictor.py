@@ -10,12 +10,15 @@ import os
 import sys
 import time
 from collections import Counter
+from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from evals.contract_graph.dataset import file_digest
 from evals.contract_graph.pairs import manifest, review
+from evals.contract_graph.pairs.labeler import DIRECTED, LABELS
 from evals.contract_graph.pairs.corpus import AI_SERVICE
 from evals.contract_graph.pairs.models import (
     OPENAI,
@@ -24,7 +27,7 @@ from evals.contract_graph.pairs.models import (
     family,
 )
 from evals.contract_graph.pairs.pool import pair_id_for
-from evals.contract_graph.pairs.score import score_relations
+from evals.contract_graph.pairs.score import quality_gate, score_quality, score_relations
 
 if str(AI_SERVICE) not in sys.path:
     sys.path.insert(0, str(AI_SERVICE))
@@ -57,23 +60,143 @@ from app.pipeline.runtime import ProcessingRuntime
 from app.tools.store import DossierRecord
 
 _MANIFEST_LABELER = object()
+_CODE_REPO_ROOT = Path(__file__).resolve().parents[3]
 REPORT_SCHEMA = "contract-graph-pairs-predictor/2"
 SCORING_SCHEMA = "contract-graph-pairs-score/1"
 P3_GATE_SCHEMA = "contract-graph-p3-classifier-gate/1"
 DEV_REVIEW_SCHEMA = "contract-graph-dev-review/1"
+QUALITY_DATASET_SCHEMA = "contract-graph-quality-dataset/1"
+QUALITY_REVIEW_LOCK_SCHEMA = "contract-graph-quality-review-lock/1"
+QUALITY_REPORT_LOCK_SCHEMA = "contract-graph-quality-report-lock/1"
+QUALITY_REPORT_SCHEMA = "contract-graph-pairs-quality-report/1"
 
 
 def code_fingerprints() -> dict[str, str]:
     paths = [AI_SERVICE / "app/pipeline/contract_graph" / name
-             for name in ("pair_candidates.py", "pair_classifier.py", "pair_builder.py")]
+             for name in ("pair_candidates.py", "pair_classifier.py", "pair_builder.py",
+                          "resolver.py", "builder.py")]
     paths += [Path(__file__), Path(__file__).with_name("bakeoff.py"), Path(__file__).with_name("score.py"),
-              AI_SERVICE / "app/llm/client.py"]
-    return {path.name: file_digest(path) for path in paths}
+              Path(__file__).with_name("run.py"), Path(__file__).with_name("manifest.py"),
+              Path(__file__).with_name("review.py"), AI_SERVICE / "app/llm/client.py",
+              AI_SERVICE / "app/pipeline/runtime.py", AI_SERVICE / "app/contracts/models.py"]
+    return {path.resolve().relative_to(_CODE_REPO_ROOT).as_posix(): file_digest(path) for path in paths}
+
+
+def _quality_file(data_dir: Path, entry: Any, name: str) -> tuple[Path, list[dict]]:
+    if (not isinstance(entry, dict) or not isinstance(entry.get("path"), str)
+            or not isinstance(entry.get("sha256"), str)
+            or type(entry.get("n_rows")) is not int or entry["n_rows"] < 1):
+        raise ValueError(f"{name} file lock is malformed")
+    relative = Path(entry["path"])
+    if relative.is_absolute() or not relative.parts or ".." in relative.parts:
+        raise ValueError(f"{name} path is invalid")
+    root = Path(data_dir).resolve()
+    path = (root / relative).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"{name} path escapes the quality dataset") from exc
+    if not path.is_file() or file_digest(path) != entry["sha256"]:
+        raise ValueError(f"{name} SHA does not match the quality manifest")
+    rows = manifest.read_jsonl(path)
+    if len(rows) != entry["n_rows"] or any(not isinstance(row, dict) for row in rows):
+        raise ValueError(f"{name} row count or row shape does not match the quality manifest")
+    return path, rows
+
+
+def read_quality_dataset(data_dir: Path, quality_manifest: Path, *, require_review_lock: bool) -> dict:
+    """Read a separate v1 quality corpus; never fall through to legacy review files."""
+    path = Path(quality_manifest).resolve()
+    try:
+        frozen = manifest.read_json(path)
+    except (OSError, ValueError, TypeError) as exc:
+        raise ValueError("quality manifest is missing or malformed") from exc
+    if (not isinstance(frozen, dict) or frozen.get("schema") != QUALITY_DATASET_SCHEMA
+            or not isinstance(frozen.get("dataset_id"), str) or not frozen["dataset_id"]
+            or frozen.get("frame_version") != score_quality_frame_version()):
+        raise ValueError("quality manifest schema, dataset ID or frame version is unsupported")
+    _, recall_rows = _quality_file(data_dir, frozen.get("recall_frame"), "recall_frame")
+    _, precision_rows = _quality_file(data_dir, frozen.get("precision_frame"), "precision_frame")
+    _, gold = _quality_file(data_dir, frozen.get("reviewed_gold"), "reviewed_gold")
+    recall_ids = _quality_members(recall_rows, "recall")
+    precision_ids = _quality_members(precision_rows, "precision")
+    gold_by = {}
+    for row in gold:
+        pair_id, label, direction = row.get("pair_id"), row.get("gold_label"), row.get("gold_direction")
+        if (not isinstance(pair_id, str) or not pair_id or pair_id in gold_by
+                or type(row.get("approved")) is not bool or row["approved"] is not True
+                or row.get("source") != "user-review"):
+            raise ValueError("quality gold requires unique explicitly approved human decisions")
+        if label not in LABELS:
+            raise ValueError("quality gold labels must be retained and valid")
+        if label in DIRECTED and (not isinstance(direction, str) or direction not in {"A", "B"}):
+            raise ValueError("quality directed gold requires A/B direction")
+        if label not in DIRECTED and direction is not None:
+            raise ValueError("quality non-directed gold cannot carry direction")
+        gold_by[pair_id] = row
+    if not set(recall_ids) <= gold_by.keys():
+        raise ValueError("recall frame contains unreviewed or missing gold")
+    if not gold_by.keys() <= set(recall_ids) | set(precision_ids):
+        raise ValueError("reviewed gold contains a pair outside both locked frames")
+    recall_rows_by_id = {row["pair_id"]: row for row in recall_rows}
+    precision_rows_by_id = {row["pair_id"]: row for row in precision_rows}
+    shared = set(recall_ids) & set(precision_ids)
+    recall_only, precision_only = set(recall_ids) - shared, set(precision_ids) - shared
+    if (any(recall_rows_by_id[pair_id].get("role") != "both"
+            or precision_rows_by_id[pair_id].get("role") != "both" for pair_id in shared)
+            or any(recall_rows_by_id[pair_id].get("role") != "recall" for pair_id in recall_only)
+            or any(precision_rows_by_id[pair_id].get("role") != "precision" for pair_id in precision_only)):
+        raise ValueError("frame roles must match recall-only, precision-only and shared membership")
+    cluster_by_pair = {}
+    for row in recall_rows + precision_rows:
+        pair_id, cluster_id = row["pair_id"], row.get("cluster_id")
+        if not isinstance(cluster_id, str) or not cluster_id:
+            raise ValueError("quality frame rows require a cluster_id")
+        if pair_id in cluster_by_pair and cluster_by_pair[pair_id] != cluster_id:
+            raise ValueError("shared quality frame cluster_id differs")
+        cluster_by_pair[pair_id] = cluster_id
+    if require_review_lock:
+        lock = frozen.get("review_lock")
+        if (not isinstance(lock, dict) or lock.get("schema") != QUALITY_REVIEW_LOCK_SCHEMA
+                or lock.get("source") != "user-review" or lock.get("human_approved") is not True
+                or lock.get("dataset_id") != frozen["dataset_id"]
+                or lock.get("reviewed_gold_sha256") != frozen["reviewed_gold"].get("sha256")
+                or type(lock.get("n_rows")) is not int or lock["n_rows"] != len(gold)):
+            raise ValueError("quality reviewed gold has no matching human review lock")
+    return {"manifest": frozen, "manifest_sha256": quality_manifest_digest(frozen), "recall_frame": recall_ids,
+            "precision_frame": precision_ids, "gold": gold, "gold_by_pair": gold_by,
+            "cluster_by_pair": cluster_by_pair}
+
+
+def score_quality_frame_version() -> str:
+    from evals.contract_graph.pairs.score import FRAME_VERSION
+    return FRAME_VERSION
+
+
+def _quality_members(rows: list[dict], role: str) -> list[str]:
+    ids = []
+    allowed = {role, "both"}
+    for row in rows:
+        pair_id, row_role = row.get("pair_id"), row.get("role")
+        if (not isinstance(pair_id, str) or not pair_id
+                or not isinstance(row_role, str) or row_role not in allowed):
+            raise ValueError(f"{role} frame rows require a pair_id and matching role")
+        ids.append(pair_id)
+    if len(ids) != len(set(ids)):
+        raise ValueError(f"{role} frame contains duplicate pair IDs")
+    return ids
 
 
 def report_digest(report: dict) -> str:
     """Return the canonical digest of a report, excluding its self digest."""
     payload = {key: value for key, value in report.items() if key != "report_sha256"}
+    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def quality_manifest_digest(frozen: dict) -> str:
+    """Digest the reviewed dataset lock while excluding its replaceable report pointer."""
+    payload = {key: value for key, value in frozen.items() if key != "dev_report_lock"}
     canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
@@ -194,6 +317,7 @@ def predict_doc(
     doc: dict, *, llm: Any, model: str, variant: str, pool: list[dict] | None = None,
     labeler_served_model: str | None | object = _MANIFEST_LABELER,
     cluster_id: str | None = None,
+    event_sink: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict:
     if labeler_served_model is _MANIFEST_LABELER:
         labeler_served_model = manifest.read_json(manifest.REPO_MANIFEST).get("labeler", {}).get("served_model")
@@ -204,10 +328,31 @@ def predict_doc(
     candidates = candidate_set(doc, variant=variant, pool=pool)
     max_calls = max(1, math.ceil(len(candidates.candidates) / PAIRS_PER_CALL)) if variant == "E" else PAIRS_MAX_CALLS
     started = time.perf_counter()
+    order = {node.node_id: (node.order, node.node_id) for node in record.evidence_nodes()}
+    request_id = uuid4().hex if event_sink is not None else None
+
+    if event_sink is not None and pool is not None:
+        candidate_pairs = {(candidate.node_a, candidate.node_b) for candidate in candidates.candidates}
+        for row in pool:
+            pair = tuple(sorted((row["a"], row["b"]), key=order.__getitem__))
+            if pair not in candidate_pairs:
+                event_sink({"phase": "candidate", "pair_id": pair_id_for(doc["doc_id"], *pair),
+                            "doc_id": doc["doc_id"], "node_a_id": pair[0], "node_b_id": pair[1],
+                            "outcome": "candidate_miss", "reason": "not_generated",
+                            "batch_id": None, "request_id": request_id, "requested_model": model,
+                            "served_model": None, "truncated_a": False, "truncated_b": False})
+
+    def collect_pair_event(event: dict[str, Any]) -> None:
+        if event_sink is None:
+            return
+        pair = sorted((event["node_a_id"], event["node_b_id"]), key=order.__getitem__)
+        event_sink({**event, "pair_id": pair_id_for(doc["doc_id"], *pair), "doc_id": doc["doc_id"]})
+
     result = build_pair_relations(record, graph.edges, llm=llm, model=model,
                                   runtime=eval_runtime(max_calls, labeler_served_model),
-                                  candidates=candidates, max_calls=max_calls)
-    order = {node.node_id: (node.order, node.node_id) for node in record.evidence_nodes()}
+                                  candidates=candidates, max_calls=max_calls,
+                                  request_id=request_id,
+                                  event_sink=collect_pair_event if event_sink is not None else None)
     pool_by = {(p["a"], p["b"]): p for p in pool or []}
     predictions = []
     for relation in result.relations:
@@ -264,9 +409,30 @@ def cluster_intervals(by_cluster: dict) -> dict:
     return out
 
 
+def quality_cluster_intervals(gold: list[dict], predictions: list[dict],
+                              cluster_by_pair: dict[str, str]) -> dict:
+    """Recompute legacy cluster precision intervals from the new frame's cluster IDs."""
+    cluster_gold: dict[str, list[dict]] = {}
+    cluster_predictions: dict[str, list[dict]] = {}
+    for row in gold:
+        cluster = cluster_by_pair.get(row["pair_id"])
+        if cluster is not None:
+            cluster_gold.setdefault(cluster, []).append({**row, "cluster_id": cluster, "approved": True})
+    for row in predictions:
+        cluster = cluster_by_pair.get(row["pair_id"])
+        if cluster is not None:
+            cluster_predictions.setdefault(cluster, []).append({**row, "cluster_id": cluster})
+    by_cluster = {}
+    for cluster in sorted(set(cluster_gold) | set(cluster_predictions)):
+        by_cluster[cluster] = score_relations(cluster_gold.get(cluster, []),
+                                              cluster_predictions.get(cluster, []),
+                                              approved_only=True)["by_label"]
+    return cluster_intervals(by_cluster)
+
+
 def build_report(
     results: list[dict], gold: list[dict], *, split: str, variant: str, prompt_rounds: int,
-    review_provenance: dict | None = None,
+    review_provenance: dict | None = None, quality_frames: dict | None = None,
 ) -> dict:
     if not 0 <= prompt_rounds <= 3:
         raise ValueError("prompt_rounds must be 0..3")
@@ -313,6 +479,17 @@ def build_report(
     p3_classifier_gate = (_classifier_gate(scored, evaluation_gate) if split == "dev" else
                           {"schema": P3_GATE_SCHEMA, "status": "NOT_APPLICABLE", "required_labels": {},
                            "false_duplicate_observed": scored["false_duplicate"]["observed"], "reason_codes": []})
+    quality_score = None
+    quality_verdict = None
+    if quality_frames is not None:
+        quality_score = score_quality(
+            quality_frames["gold"], predictions,
+            recall_frame=quality_frames["recall_frame"],
+            precision_frame=quality_frames["precision_frame"],
+        )
+        quality_clusters = quality_cluster_intervals(quality_frames["gold"], predictions,
+                                                     quality_frames["cluster_by_pair"])
+        quality_verdict = quality_gate(quality_score, cluster_intervals=quality_clusters)
     report = {**scored, "schema": REPORT_SCHEMA, "scoring_schema": SCORING_SCHEMA,
             "code_sha256": code_fingerprints(),
             "status": ("BLOCKED" if evaluation_gate != "PASS"
@@ -344,6 +521,23 @@ def build_report(
                                    "note": "Ước tính [ASSUMED] 10–16k token/hồ sơ; token thực ghi riêng."},
             "documents": [{k: r[k] for k in ("doc_id", "cluster_id", "mode", "rule_only_reason", "batches_completed")}
                           for r in results]}
+    if quality_frames is not None:
+        report["quality_score"] = quality_score
+        report["quality_gate"] = quality_verdict
+        report["quality_cluster_intervals"] = quality_clusters
+        report["quality_report_schema"] = QUALITY_REPORT_SCHEMA
+        report["quality_status"] = quality_verdict["status"]
+        report["quality_dataset"] = {"dataset_id": quality_frames["manifest"]["dataset_id"],
+                                     "manifest_sha256": quality_frames["manifest_sha256"]}
+        report["quality_evidence"] = {
+            "gold": [{key: row.get(key) for key in ("pair_id", "gold_label", "gold_direction", "approved", "source")}
+                     for row in sorted(quality_frames["gold"], key=lambda row: row["pair_id"])],
+            "predictions": [{key: row.get(key) for key in ("pair_id", "label", "direction")}
+                            for row in sorted(predictions, key=lambda row: row["pair_id"])],
+            "recall_frame": sorted(quality_frames["recall_frame"]),
+            "precision_frame": sorted(quality_frames["precision_frame"]),
+            "cluster_by_pair": quality_frames["cluster_by_pair"],
+        }
     if review_provenance is not None:
         report["dev_review"] = review_provenance
     if weak_scored is not None:
@@ -457,6 +651,7 @@ def predict_split(
     data_dir: Path, *, split: str, variant: str, llm: Any, model: str,
     repo_manifest: Path = manifest.REPO_MANIFEST, allow_heldout: bool = False, prompt_rounds: int = 0,
     dev_review: Path | None = None,
+    quality_manifest: Path | None = None,
 ) -> dict:
     if split == "heldout" and not allow_heldout:
         print("heldout predictions require --allow-heldout (P5)", file=sys.stderr)
@@ -473,6 +668,8 @@ def predict_split(
     reviewed = _read_reviewed_gold(data_dir, frozen) if split == "heldout" else None
     reviewed_dev, dev_review_provenance = ((None, None) if dev_review is None
                                            else _read_reviewed_dev_gold(dev_review, docs, frozen))
+    quality_frames = (None if quality_manifest is None else
+                      read_quality_dataset(data_dir, quality_manifest, require_review_lock=True))
     clusters = {doc_id: c["cluster_id"] for c in frozen.get("clusters", []) for doc_id in c["doc_ids"]}
     results, gold = [], []
     extension = frozen.get("extension_s4", {}).get("files", {})
@@ -495,7 +692,8 @@ def predict_split(
                          "approved": False, "source": "gpt"})
     report_gold = reviewed if reviewed is not None else reviewed_dev if reviewed_dev is not None else gold
     return build_report(results, report_gold, split=split, variant=variant,
-                        prompt_rounds=prompt_rounds, review_provenance=dev_review_provenance)
+                        prompt_rounds=prompt_rounds, review_provenance=dev_review_provenance,
+                        quality_frames=quality_frames)
 
 
 def _read_reviewed_gold(data_dir: Path, frozen: dict) -> list[dict]:

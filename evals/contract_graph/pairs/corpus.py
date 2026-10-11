@@ -269,6 +269,39 @@ def near_duplicate_clusters(docs: Iterable[dict]) -> list[dict]:
     return sorted(clusters, key=lambda c: c["cluster_id"])
 
 
+def audit_cluster_exposure(
+    clusters: Iterable[dict], historically_exposed_doc_ids: set[str]
+) -> list[dict]:
+    """Mark an entire source cluster historical if any member was previously exposed."""
+
+    exposed = set(historically_exposed_doc_ids)
+    audited = []
+    seen_docs: set[str] = set()
+    for cluster in sorted(clusters, key=lambda row: row["cluster_id"]):
+        cluster_id, doc_ids = cluster.get("cluster_id"), cluster.get("doc_ids")
+        if not isinstance(cluster_id, str) or not cluster_id or not isinstance(doc_ids, list) or not doc_ids:
+            raise ValueError("clusters require a non-empty cluster_id and doc_ids")
+        if len(doc_ids) != len(set(doc_ids)) or seen_docs.intersection(doc_ids):
+            raise ValueError("documents must belong to exactly one source cluster")
+        seen_docs.update(doc_ids)
+        audited.append({"cluster_id": cluster_id, "doc_ids": list(doc_ids),
+                        "exposure": "historical-exposed" if exposed.intersection(doc_ids) else "fresh"})
+    return audited
+
+
+def validate_cluster_splits(clusters: Iterable[dict], splits: dict[str, str]) -> None:
+    """Reject template/near-duplicate clusters split across train/evaluation boundaries."""
+
+    for cluster in clusters:
+        doc_ids = cluster.get("doc_ids", [])
+        missing = sorted(set(doc_ids) - splits.keys())
+        if missing:
+            raise ValueError(f"cluster {cluster.get('cluster_id')} has docs without a split: {missing}")
+        assigned = {splits[doc_id] for doc_id in doc_ids}
+        if len(assigned) > 1:
+            raise ValueError(f"cluster {cluster.get('cluster_id')} crosses splits: {sorted(assigned)}")
+
+
 def normalize_url(url: str) -> str:
     url = url.strip()
     if url.startswith("repo:"):

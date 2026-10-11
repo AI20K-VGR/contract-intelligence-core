@@ -40,6 +40,7 @@ DEFAULT_SOURCES = PAIRS_DIR / "sources.json"
 DEFAULT_REPORT = PAIRS_DIR.parent / "reports" / "l2-p1-dataset"
 CANDIDATES_REPORT = PAIRS_DIR.parent / "reports" / "l2-p2-candidates"
 CLASSIFIER_REPORT = PAIRS_DIR.parent / "reports" / "l2-p3-classifier-dev"
+QUALITY_MANIFEST = PAIRS_DIR / "quality-recovery-manifest.v1.json"
 USABLE_MIN, PROFILE_MIN, HELDOUT_MIN, DEV_MIN = 15, 6, 10, 5
 NL = "\n"
 
@@ -74,6 +75,10 @@ def main(argv: list[str] | None = None) -> int:
     predict = sub.add_parser("predict")
     predict.add_argument("--data-dir", type=Path, default=None)
     predict.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+    predict.add_argument("--quality-manifest", type=Path, default=None,
+                         help="separate v1 quality frames and reviewed gold")
+    predict.add_argument("--dev-report", type=Path, default=None,
+                         help="explicit versioned quality dev report for held-out preflight")
     predict.add_argument("--split", choices=("dev", "heldout"), default="dev")
     predict.add_argument("--variant", choices=("B", "C", "E"), default="C")
     predict.add_argument("--model", required=True)
@@ -110,12 +115,24 @@ def main(argv: list[str] | None = None) -> int:
     dev_locked.add_argument("--dev-review", type=Path, required=True)
     dev_locked.add_argument("--data-dir", type=Path, default=None)
     dev_locked.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+    quality_dev_locked = sub.add_parser("review-quality-dev-lock")
+    quality_dev_locked.add_argument("--data-dir", type=Path, default=None)
+    quality_dev_locked.add_argument("--manifest", type=Path, default=QUALITY_MANIFEST)
+    quality_dev_report_locked = sub.add_parser("review-quality-dev-report-lock")
+    quality_dev_report_locked.add_argument("--data-dir", type=Path, default=None)
+    quality_dev_report_locked.add_argument("--manifest", type=Path, default=QUALITY_MANIFEST)
+    quality_dev_report_locked.add_argument("--report", type=Path, required=True)
+    quality_dev_report_locked.add_argument("--predecessor-sha256", required=True)
     bake = sub.add_parser("bakeoff")
     bake_commands = bake.add_subparsers(dest="bakeoff_command", required=True)
     for name in ("run", "metric", "decide", "preflight-checks"):
         cmd = bake_commands.add_parser(name)
         cmd.add_argument("--data-dir", type=Path, default=None)
         cmd.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+        cmd.add_argument("--quality-manifest", type=Path, default=None,
+                         help="separate v1 quality manifest; legacy manifest path remains unchanged")
+        cmd.add_argument("--dev-report", type=Path, default=None,
+                         help="explicit versioned quality dev report lock")
         if name in ("run", "metric"):
             cmd.add_argument("variant", choices=("B", "C", "E"))
         if name != "preflight-checks":
@@ -148,7 +165,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     if args.command == "verify":
         return _verify(args)
-    if args.command in {"review-import", "review-hg2-import", "review-hg2-lock", "review-dev-lock", "bakeoff"}:
+    if args.command in {"review-import", "review-hg2-import", "review-hg2-lock", "review-dev-lock",
+                        "review-quality-dev-lock", "review-quality-dev-report-lock", "bakeoff"}:
         return _bakeoff(args)
     if args.command == "predict":
         return _predict(args)
@@ -171,6 +189,10 @@ def _bakeoff(args: argparse.Namespace) -> int:
     try:
         if args.command == "review-dev-lock":
             return _review_dev_lock(args)
+        if args.command == "review-quality-dev-lock":
+            return _review_quality_dev_lock(args)
+        if args.command == "review-quality-dev-report-lock":
+            return _review_quality_dev_report_lock(args)
         if args.command == "review-import":
             manifest.ensure_outside_repo(args.data_dir)
             locked = bakeoff.import_review(args.data_dir, args.csv, repo_manifest=args.manifest)
@@ -190,7 +212,9 @@ def _bakeoff(args: argparse.Namespace) -> int:
             print(bakeoff.metric(args.variant, args.out, args.field, dry_run=args.dry_run))
         elif args.bakeoff_command == "preflight-checks":
             options = {"served_model": args.served_model} if args.served_model is not None else {}
-            print(json.dumps(bakeoff.preconditions(args.data_dir, repo_manifest=args.manifest, **options), sort_keys=True))
+            print(json.dumps(bakeoff.preconditions(args.data_dir, repo_manifest=args.manifest,
+                                                    quality_manifest=args.quality_manifest,
+                                                    dev_report_path=args.dev_report, **options), sort_keys=True))
         elif args.bakeoff_command == "run":
             if not args.allow_heldout or not args.env_file.is_file():
                 print("P5 BLOCKED: --allow-heldout and an existing --env-file required", file=sys.stderr)
@@ -198,7 +222,9 @@ def _bakeoff(args: argparse.Namespace) -> int:
             manifest.ensure_outside_repo(args.out)
             if args.budget_tokens <= 0 or args.budget_seconds <= 0:
                 return 2
-            bakeoff.preconditions(args.data_dir, repo_manifest=args.manifest)
+            bakeoff.preconditions(args.data_dir, repo_manifest=args.manifest,
+                                  quality_manifest=args.quality_manifest,
+                                  dev_report_path=args.dev_report)
             from dotenv import load_dotenv
             load_dotenv(args.env_file, override=False)
             result = bakeoff.run(args.variant, args.trial, out_dir=args.out, model=args.model,
@@ -206,6 +232,10 @@ def _bakeoff(args: argparse.Namespace) -> int:
                                  budget_tokens=args.budget_tokens, budget_seconds=args.budget_seconds)
             print(f"{args.variant}{args.trial}: recall_any={result['recall_any']['rate']}")
         else:
+            if args.quality_manifest is not None:
+                bakeoff.preconditions(args.data_dir, repo_manifest=args.manifest,
+                                      quality_manifest=args.quality_manifest,
+                                      dev_report_path=args.dev_report)
             report = bakeoff.assemble_report(args.out, args.data_dir, repo_manifest=args.manifest)
             decision = bakeoff.decide(report)
             manifest.write_json(args.report_prefix.with_suffix(".json"), report)
@@ -276,6 +306,84 @@ def _review_dev_lock(args: argparse.Namespace) -> int:
     return 0
 
 
+def _review_quality_dev_lock(args: argparse.Namespace) -> int:
+    """Lock separately reviewed v1 gold without requiring any classifier report."""
+    from evals.contract_graph.pairs import predictor
+
+    try:
+        manifest.ensure_outside_repo(args.data_dir)
+        reviewed = predictor.read_quality_dataset(args.data_dir, args.manifest, require_review_lock=False)
+        frozen = reviewed["manifest"]
+        counts = Counter(row["gold_label"] for row in reviewed["gold"])
+        lock = {"schema": predictor.QUALITY_REVIEW_LOCK_SCHEMA, "dataset_id": frozen["dataset_id"],
+                "reviewed_gold_sha256": frozen["reviewed_gold"]["sha256"],
+                "n_rows": len(reviewed["gold"]), "approved_by_label": dict(sorted(counts.items())),
+                "source": "user-review", "human_approved": True}
+        if frozen.get("review_lock") not in (None, lock):
+            print("quality dev BLOCKED: existing review lock differs; refusing replacement", file=sys.stderr)
+            return 2
+        frozen["review_lock"] = lock
+        manifest.write_json(args.manifest, frozen)
+    except (OSError, ValueError, KeyError, SystemExit):
+        print("quality dev BLOCKED: reviewed gold or frame manifest is invalid", file=sys.stderr)
+        return 2
+    import json
+    print(json.dumps({"review_lock": lock}, sort_keys=True))
+    return 0
+
+
+def _review_quality_dev_report_lock(args: argparse.Namespace) -> int:
+    """Bind a verified quality measurement to a reviewed v1 dataset manifest."""
+    import re
+
+    from evals.contract_graph.pairs import predictor
+
+    try:
+        manifest.ensure_outside_repo(args.data_dir)
+        reviewed = predictor.read_quality_dataset(args.data_dir, args.manifest, require_review_lock=True)
+        manifest_path = Path(args.manifest).resolve()
+        frozen = reviewed["manifest"]
+        predecessor = args.predecessor_sha256
+        if not re.fullmatch(r"[0-9a-f]{64}", predecessor):
+            raise ValueError("predecessor SHA-256 is malformed")
+        report_path = Path(args.report).resolve()
+        report_relative = report_path.relative_to(manifest.REPO_ROOT.resolve()).as_posix()
+        report = manifest.read_json(report_path)
+        gate = report.get("quality_gate") if isinstance(report, dict) else None
+        quality_dataset = report.get("quality_dataset") if isinstance(report, dict) else None
+        if (not isinstance(report, dict)
+                or report.get("quality_report_schema") != predictor.QUALITY_REPORT_SCHEMA
+                or report.get("quality_status") != "PASS"
+                or not isinstance(gate, dict) or gate.get("status") != "PASS"
+                or not isinstance(quality_dataset, dict)
+                or quality_dataset.get("dataset_id") != frozen["dataset_id"]
+                or quality_dataset.get("manifest_sha256") != predictor.quality_manifest_digest(frozen)
+                or report.get("code_sha256") != predictor.code_fingerprints()
+                or report.get("report_sha256") != predictor.report_digest(report)):
+            raise ValueError("quality report is not a passing measurement of this dataset and source")
+        current = frozen.get("dev_report_lock")
+        current_digest = predictor.quality_manifest_digest(frozen)
+        if isinstance(current, dict):
+            if predecessor != current.get("sha256"):
+                raise ValueError("predecessor SHA does not match the prior report lock")
+        elif predecessor != current_digest:
+            raise ValueError("first report lock must name the current quality-manifest digest")
+        lock = {"schema": predictor.QUALITY_REPORT_LOCK_SCHEMA, "path": report_relative,
+                "sha256": manifest.file_digest(report_path), "dataset_id": frozen["dataset_id"],
+                "quality_manifest_sha256": current_digest, "predecessor_sha256": predecessor}
+        if current == lock:
+            print("quality dev report lock already current")
+            return 0
+        frozen["dev_report_lock"] = lock
+        manifest.write_json(manifest_path, frozen)
+    except (OSError, ValueError, KeyError, SystemExit):
+        print("quality dev BLOCKED: report does not match the locked dataset and source", file=sys.stderr)
+        return 2
+    import json
+    print(json.dumps({"dev_report_lock": lock}, sort_keys=True))
+    return 0
+
+
 def _predict(args: argparse.Namespace) -> int:
     if str(corpus.AI_SERVICE) not in sys.path:
         sys.path.insert(0, str(corpus.AI_SERVICE))
@@ -295,7 +403,8 @@ def _predict(args: argparse.Namespace) -> int:
         # documents, otherwise --allow-heldout becomes a tuning bypass.
         try:
             bakeoff.preconditions(args.data_dir, repo_manifest=args.manifest,
-                                  served_model=args.model)
+                                  served_model=args.model, quality_manifest=args.quality_manifest,
+                                  dev_report_path=args.dev_report)
         except SystemExit as exc:
             return int(exc.code)
     from app.llm.client import NineRouterClient
@@ -303,9 +412,16 @@ def _predict(args: argparse.Namespace) -> int:
     report = predictor.predict_split(args.data_dir, split=args.split, variant=args.variant,
                                       llm=NineRouterClient(), model=args.model,
                                       repo_manifest=args.manifest, allow_heldout=args.allow_heldout,
-                                      prompt_rounds=args.prompt_rounds, dev_review=args.dev_review)
+                                      prompt_rounds=args.prompt_rounds, dev_review=args.dev_review,
+                                      quality_manifest=args.quality_manifest)
     manifest.write_json(args.report_prefix.with_suffix(".json"), report)
     args.report_prefix.with_suffix(".md").write_text(predictor.render_report(report), encoding="utf-8")
+    if args.quality_manifest is not None:
+        if report.get("quality_status") != "PASS":
+            print("predict BLOCKED: quality protocol gate is not PASS", file=sys.stderr)
+            return 2
+        print(f"quality report {report['quality_report_schema']} PASS")
+        return 0
     p3_gate = report.get("p3_classifier_gate") or {}
     if (report.get("status") != "OBSERVED" or report.get("evaluation_gate") != "PASS"
             or (args.split == "dev" and p3_gate.get("status") != "PASS")):

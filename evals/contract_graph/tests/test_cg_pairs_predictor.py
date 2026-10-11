@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 from app.pipeline.citations import CitationResolver
 
+from evals.contract_graph.dataset import file_digest
 from evals.contract_graph.pairs import manifest, predictor, run
 from evals.contract_graph.pairs.pool import build_pool, pair_id_for
 
@@ -59,6 +60,39 @@ def test_family_check_on_served_models(served):
 
 def test_claude_served_passes_family_check():
     assert predictor.predict_doc(doc(), llm=Client(), model="claude-requested", variant="C")["predictions"]
+
+
+def test_predict_doc_collects_isolated_safe_pair_events():
+    first_events, second_events = [], []
+    predictor.predict_doc(doc(), llm=Client(), model="claude-requested", variant="C",
+                          event_sink=first_events.append)
+    predictor.predict_doc(doc(), llm=Client(), model="claude-requested", variant="C",
+                          event_sink=second_events.append)
+    assert first_events and first_events is not second_events
+    event = first_events[0]
+    assert event["pair_id"] == pair_id_for("synthetic", "a", "b")
+    assert event["outcome"] == "accepted"
+    assert TEXT_A not in json.dumps(first_events)
+    assert "span_a" not in json.dumps(first_events)
+
+
+def test_predict_doc_records_candidate_miss_only_when_pool_proves_it(monkeypatch):
+    from app.pipeline.contract_graph.pair_candidates import PairCandidateSet
+
+    monkeypatch.setattr(predictor, "candidate_set", lambda *a, **k: PairCandidateSet(()))
+    events = []
+    predictor.predict_doc(doc(), llm=Client(), model="claude-requested", variant="C",
+                          pool=[{"a": "a", "b": "b", "stratum": "S1"}],
+                          event_sink=events.append)
+    assert len(events) == 1
+    event = events[0]
+    assert event == {"phase": "candidate", "pair_id": pair_id_for("synthetic", "a", "b"),
+                     "doc_id": "synthetic", "node_a_id": "a", "node_b_id": "b",
+                     "outcome": "candidate_miss", "reason": "not_generated",
+                     "batch_id": None, "request_id": event["request_id"],
+                     "requested_model": "claude-requested", "served_model": None,
+                     "truncated_a": False, "truncated_b": False}
+    assert isinstance(event["request_id"], str) and event["request_id"]
 
 
 def test_gemini_served_passes_family_check():
@@ -516,3 +550,131 @@ def test_heldout_review_loader_merges_locked_hg2_without_mutating_hg1(tmp_path):
     gold = predictor._read_reviewed_gold(data_dir, frozen)
     assert [row["pair_id"] for row in gold] == ["p1", "p2"]
     assert gold[1]["doc_id"] == "d1" and gold[1]["stratum"] == "S2"
+
+
+def _write_quality_dataset(tmp_path, *, gold_row=None, row_role="both", precision_role=None):
+    data_dir = tmp_path / "quality-data"
+    review_dir = data_dir / "review"
+    review_dir.mkdir(parents=True)
+    files = {
+        "recall_frame": [{"pair_id": "p1", "role": row_role, "cluster_id": "cl-1"}],
+        "precision_frame": [{"pair_id": "p1", "role": precision_role or row_role, "cluster_id": "cl-1"}],
+        "reviewed_gold": [gold_row or {"pair_id": "p1", "gold_label": "GENERAL_SPECIFIC",
+                                        "gold_direction": "A", "approved": True,
+                                        "source": "user-review"}],
+    }
+    entries = {}
+    for name, rows in files.items():
+        path = review_dir / f"{name}.jsonl"
+        manifest.write_jsonl(path, rows)
+        entries[name] = {"path": f"review/{name}.jsonl", "sha256": file_digest(path), "n_rows": len(rows)}
+    quality_manifest = tmp_path / "quality-manifest.json"
+    manifest.write_json(quality_manifest, {"schema": predictor.QUALITY_DATASET_SCHEMA,
+                                           "dataset_id": "quality-test-v1",
+                                           "frame_version": predictor.score_quality_frame_version(),
+                                           **entries})
+    return data_dir, quality_manifest
+
+
+def test_quality_dataset_reader_validates_hashes_schema_and_review_lock(tmp_path):
+    data_dir, quality_manifest = _write_quality_dataset(tmp_path)
+
+    unreviewed = predictor.read_quality_dataset(data_dir, quality_manifest, require_review_lock=False)
+    assert unreviewed["recall_frame"] == ["p1"]
+    assert unreviewed["precision_frame"] == ["p1"]
+    assert unreviewed["cluster_by_pair"] == {"p1": "cl-1"}
+    with pytest.raises(ValueError, match="review lock"):
+        predictor.read_quality_dataset(data_dir, quality_manifest, require_review_lock=True)
+
+
+@pytest.mark.parametrize("gold_row,role", [
+    ({"pair_id": "p1", "gold_label": "GENERAL_SPECIFIC", "gold_direction": ["A"],
+      "approved": True, "source": "user-review"}, "both"),
+    ({"pair_id": "p1", "gold_label": "GENERAL_SPECIFIC", "gold_direction": None,
+      "approved": True, "source": "user-review"}, "both"),
+    ({"pair_id": "p1", "gold_label": "CONFLICT", "gold_direction": "A",
+      "approved": True, "source": "user-review"}, "both"),
+    ({"pair_id": "p1", "gold_label": "CONFLICT", "gold_direction": None,
+      "approved": "true", "source": "user-review"}, "both"),
+    ({"pair_id": "p1", "gold_label": "CONFLICT", "gold_direction": None,
+      "approved": True, "source": "gpt"}, "both"),
+])
+def test_quality_dataset_reader_rejects_invalid_human_gold(tmp_path, gold_row, role):
+    data_dir, quality_manifest = _write_quality_dataset(tmp_path, gold_row=gold_row, row_role=role)
+    with pytest.raises(ValueError):
+        predictor.read_quality_dataset(data_dir, quality_manifest, require_review_lock=False)
+
+
+def test_quality_dataset_reader_rejects_shared_rows_without_both_role(tmp_path):
+    data_dir, quality_manifest = _write_quality_dataset(tmp_path, row_role="recall", precision_role="precision")
+    with pytest.raises(ValueError, match="frame roles"):
+        predictor.read_quality_dataset(data_dir, quality_manifest, require_review_lock=False)
+
+
+def test_quality_dataset_reader_rejects_non_string_frame_role(tmp_path):
+    data_dir, quality_manifest = _write_quality_dataset(tmp_path)
+    frozen = manifest.read_json(quality_manifest)
+    frame = data_dir / frozen["recall_frame"]["path"]
+    manifest.write_jsonl(frame, [{"pair_id": "p1", "role": ["both"], "cluster_id": "cl-1"}])
+    frozen["recall_frame"]["sha256"] = file_digest(frame)
+    manifest.write_json(quality_manifest, frozen)
+
+    with pytest.raises(ValueError, match="pair_id and matching role"):
+        predictor.read_quality_dataset(data_dir, quality_manifest, require_review_lock=False)
+
+
+def test_quality_dataset_reader_rejects_path_escape_and_stale_digest(tmp_path):
+    data_dir, quality_manifest = _write_quality_dataset(tmp_path)
+    frozen = manifest.read_json(quality_manifest)
+    frozen["recall_frame"]["path"] = "../../outside.jsonl"
+    manifest.write_json(quality_manifest, frozen)
+    with pytest.raises(ValueError, match="path is invalid"):
+        predictor.read_quality_dataset(data_dir, quality_manifest, require_review_lock=False)
+
+    data_dir, quality_manifest = _write_quality_dataset(tmp_path / "second")
+    frozen = manifest.read_json(quality_manifest)
+    frozen["precision_frame"]["sha256"] = "0" * 64
+    manifest.write_json(quality_manifest, frozen)
+    with pytest.raises(ValueError, match="SHA"):
+        predictor.read_quality_dataset(data_dir, quality_manifest, require_review_lock=False)
+
+
+def test_quality_protocol_report_has_independent_gate_schema():
+    labels = ("GENERAL_SPECIFIC", "CONFLICT", "DUPLICATE", "REFERENCE")
+    gold = []
+    predictions = []
+    recall_ids = set()
+    precision_ids = set()
+    cluster_by_pair = {}
+    for label in labels:
+        for index in range(60):
+            pair_id = f"{label}-{index}"
+            cluster_id = f"cluster-{index % 30:02d}"
+            direction = "A" if label in {"GENERAL_SPECIFIC", "REFERENCE"} else None
+            gold.append({"pair_id": pair_id, "gold_label": label, "gold_direction": direction,
+                         "cluster_id": cluster_id,
+                         "approved": True, "source": "user-review"})
+            predictions.append({"pair_id": pair_id, "doc_id": "doc", "stratum": "S1",
+                                "cluster_id": cluster_id,
+                                "label": label, "direction": direction})
+            recall_ids.add(pair_id)
+            precision_ids.add(pair_id)
+            cluster_by_pair[pair_id] = cluster_id
+    result = {"doc_id": "doc", "cluster_id": "cluster", "predictions": predictions,
+              "stats": {"served_model": "cx/gpt-5.5", "rejected": {},
+                        "rejection_reason_version": "pair-rejections-v1", "injection_signals": 0,
+                        "prompt_tokens": 1, "completion_tokens": 1, "llm_calls": 1},
+              "latency_ms": 1, "mode": "llm", "rule_only_reason": None,
+              "batches_completed": 1}
+    report = predictor.build_report([result], [], split="dev", variant="C", prompt_rounds=0,
+                                    quality_frames={"manifest": {"dataset_id": "q-v1"},
+                                                    "manifest_sha256": "a" * 64,
+                                                    "gold": gold, "recall_frame": recall_ids,
+                                                    "precision_frame": precision_ids,
+                                                    "cluster_by_pair": cluster_by_pair})
+
+    assert report["quality_report_schema"] == predictor.QUALITY_REPORT_SCHEMA
+    assert report["quality_status"] == "PASS"
+    assert report["quality_gate"]["status"] == "PASS"
+    assert report["quality_cluster_intervals"]["CONFLICT"]["precision_conservative"]["lower"] >= 0.85
+    assert report["evaluation_gate"] == "BLOCKED_MISSING_DEV_GOLD"

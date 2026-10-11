@@ -179,11 +179,14 @@ def test_review_selection_locked_in_manifest_before_export(frozen):
     assert exc.value.code == 2
 
 
-def test_top_k_constant_matches_report():
+def test_candidate_change_invalidates_frozen_report():
     committed = run.CANDIDATES_REPORT.with_suffix(".json")
     report = json.loads(committed.read_text(encoding="utf-8"))
-    assert (report["candidates_version"], report["pairs_top_k"]) == (
-        ce.CANDIDATES_VERSION, ce.PAIRS_TOP_K)
+    # This report is historical evidence for v1. Candidate-source/ranking changes make it stale;
+    # _check_versions and bakeoff preconditions prevent its reuse as current evidence.
+    assert report["candidates_version"] == "pairs-cand-v1"
+    assert ce.CANDIDATES_VERSION != report["candidates_version"]
+    assert report["pairs_top_k"] == ce.PAIRS_TOP_K
     assert report["pairs_top_k_chosen"] == ce.PAIRS_TOP_K
     _assert_no_text(report)
 

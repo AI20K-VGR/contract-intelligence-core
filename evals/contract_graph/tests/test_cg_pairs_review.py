@@ -198,3 +198,87 @@ def test_export_roundtrip_utf8_bom(tmp_path: Path):
     decisions = review.import_sheet(path)
     assert [d["gold_label"] for d in decisions] == [r["gpt_label"] for r in selection]
     assert all(d["approved"] for d in decisions)
+
+
+def test_blind_annotation_sheet_hides_model_suggestions_and_requires_complete_unique_rows(tmp_path):
+    selection = [{"pair_id": "p1", "doc_id": "d1", "cluster_id": "c1", "stratum": "S1",
+                  "a": "a1", "b": "b1"}]
+    nodes = {"a1": {"heading": "Điều 1", "text": "A là nghĩa vụ."},
+             "b1": {"heading": "Điều 2", "text": "B là nghĩa vụ."}}
+    path = tmp_path / "blind.csv"
+
+    review.export_annotation_sheet(path, selection, nodes)
+
+    with open(path, encoding="utf-8-sig", newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    assert "gpt_label" not in rows[0] and "suggestion" not in rows[0]
+    assert rows[0]["text_a"] == "A là nghĩa vụ."
+    rows[0].update(decision="label", label="GENERAL_SPECIFIC", direction="A", note="reviewed")
+    with open(path, "w", encoding="utf-8-sig", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=review.ANNOTATION_COLUMNS)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    imported = review.import_annotation_sheet(path, reviewer_id="human-1", role="primary")
+
+    assert imported == [{"pair_id": "p1", "gold_label": "GENERAL_SPECIFIC", "gold_direction": "A",
+                         "approved": False, "source": "human-annotation", "reviewer_id": "human-1",
+                         "review_role": "primary", "decision": "label"}]
+
+
+def test_blind_annotation_import_rejects_missing_duplicate_and_invalid_direction(tmp_path):
+    path = _sheet(tmp_path, [_row("p1", "")])
+    # The ordinary HG-1 sheet cannot be treated as a blind annotation packet.
+    with pytest.raises(review.SheetError):
+        review.import_annotation_sheet(path, reviewer_id="human-1", role="primary")
+
+    path = tmp_path / "annotations.csv"
+    fields = review.ANNOTATION_COLUMNS
+    rows = [{"pair_id": "p1", "decision": "label", "label": "GENERAL_SPECIFIC", "direction": "C"},
+            {"pair_id": "p1", "decision": "label", "label": "CONFLICT", "direction": ""}]
+    with open(path, "w", encoding="utf-8-sig", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+    with pytest.raises(review.SheetError) as excinfo:
+        review.import_annotation_sheet(path, reviewer_id="human-1", role="independent")
+    assert "duplicate pair_id" in str(excinfo.value)
+    assert "hướng A|B" in str(excinfo.value)
+
+
+def test_blind_annotation_import_requires_every_locked_packet_row(tmp_path):
+    path = tmp_path / "annotations.csv"
+    with open(path, "w", encoding="utf-8-sig", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=review.ANNOTATION_COLUMNS)
+        writer.writeheader()
+        writer.writerow({"pair_id": "p1", "decision": "label", "label": "CONFLICT"})
+
+    with pytest.raises(review.SheetError, match="thiếu 1 pair_id"):
+        review.import_annotation_sheet(
+            path, reviewer_id="human-1", role="primary", expected_pair_ids={"p1", "p2"}
+        )
+
+
+def test_independent_annotation_audit_requires_distinct_human_and_coverage():
+    primary = [
+        {"pair_id": "p1", "gold_label": "CONFLICT", "gold_direction": None,
+         "decision": "label", "reviewer_id": "human-1"},
+        {"pair_id": "p2", "gold_label": "UNRELATED", "gold_direction": None,
+         "decision": "label", "reviewer_id": "human-1"},
+        {"pair_id": "p3", "gold_label": "DUPLICATE", "gold_direction": None,
+         "decision": "label", "reviewer_id": "human-1"},
+        {"pair_id": "p4", "gold_label": "REFERENCE", "gold_direction": "B",
+         "decision": "label", "reviewer_id": "human-1"},
+    ]
+    independent = [{**primary[0], "reviewer_id": "human-2"}]
+
+    result = review.audit_independent_annotations(
+        primary, independent, ambiguous_pair_ids={"p4"},
+        stratum_by_pair={"p1": "positive", "p2": "negative"},
+        required_strata={"positive", "negative"},
+    )
+
+    assert result["status"] == "BLOCKED"
+    assert result["independent_fraction"] == 0.25
+    assert result["missing_ambiguous_pair_ids"] == ["p4"]
+    assert result["missing_required_strata"] == ["negative"]

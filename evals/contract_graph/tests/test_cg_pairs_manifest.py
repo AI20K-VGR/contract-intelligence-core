@@ -222,3 +222,50 @@ def test_ensure_outside_repo(tmp_path: Path):
         with pytest.raises(SystemExit) as excinfo:
             manifest.ensure_outside_repo(bad, repo_root=repo)
         assert excinfo.value.code == 2
+
+
+def test_quality_readiness_reports_cluster_and_label_shortfalls():
+    frames = [{"pair_id": f"p{i}", "role": "recall", "cluster_id": f"c{i % 12}"}
+              for i in range(240)]
+    gold = [{"pair_id": f"p{i}", "gold_label": label, "approved": True,
+             "source": "user-review",
+             "gold_direction": "A" if label in ("GENERAL_SPECIFIC", "REFERENCE") else None}
+            for i, label in enumerate(
+                label for label in ("GENERAL_SPECIFIC", "CONFLICT", "DUPLICATE", "REFERENCE")
+                for _ in range(60)
+            )]
+
+    result = manifest.evaluate_quality_readiness(frames, gold, negative_count=100)
+
+    assert result["status"] == "BLOCKED"
+    assert result["positives_by_label"] == {
+        "CONFLICT": 60, "DUPLICATE": 60, "GENERAL_SPECIFIC": 60, "REFERENCE": 60
+    }
+    assert result["independent_clusters"] == 12
+    assert "independent_cluster_target_not_met" in result["reason_codes"]
+    assert "negative_minimum_not_met" in result["reason_codes"]
+
+
+def test_quality_manifest_is_versioned_and_refuses_overwrite(tmp_path):
+    data_dir = tmp_path / "data"
+    manifest_path = tmp_path / "quality-recovery-manifest.v1.json"
+    frames = [{"pair_id": "p1", "role": "both", "cluster_id": "c1"}]
+    gold = [{"pair_id": "p1", "gold_label": "CONFLICT", "gold_direction": None,
+             "approved": True, "source": "user-review"}]
+
+    from evals.contract_graph.pairs.score import FRAME_VERSION
+    written = manifest.write_quality_manifest(
+        data_dir, manifest_path, dataset_id="dev-v1", frame_version=FRAME_VERSION,
+        recall_rows=frames, precision_rows=frames, reviewed_gold=gold,
+    )
+
+    assert written["schema"] == "contract-graph-quality-dataset/1"
+    assert written["review_lock"] is None
+    assert written["recall_frame"]["n_rows"] == 1
+    from evals.contract_graph.pairs.predictor import read_quality_dataset
+    assert read_quality_dataset(data_dir, manifest_path, require_review_lock=False)["gold"] == gold
+    with pytest.raises(FileExistsError):
+        manifest.write_quality_manifest(
+            data_dir, manifest_path, dataset_id="dev-v1", frame_version=FRAME_VERSION,
+            recall_rows=frames, precision_rows=frames, reviewed_gold=gold,
+        )
