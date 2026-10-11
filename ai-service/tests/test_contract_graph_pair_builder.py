@@ -126,9 +126,13 @@ def test_direction_b_swaps_nodes_and_spans():
 def test_invalid_citation_dropped():
     rec = record()
     rec.pages[0].source_hash = None
-    result = build(rec)
+    events = []
+    result = build(rec, event_sink=events.append)
     assert result.relations == []
     assert result.stats["rejected"]["citation_invalid"] == 1
+    assert len(events) == 1
+    assert events[0]["outcome"] == "citation_reject"
+    assert {events[0]["node_a_id"], events[0]["node_b_id"]} == {"a", "b"}
 
 
 def test_luong1_edges_excluded_from_candidates():

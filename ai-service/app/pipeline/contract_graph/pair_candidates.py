@@ -12,9 +12,10 @@ env; frozen once ``PAIRS_TOP_K`` is chosen on dev (``CANDIDATES_VERSION``).
 
 from __future__ import annotations
 
+import math
 import re
 import unicodedata
-from collections import Counter
+from collections import Counter, deque
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from enum import Enum
@@ -29,7 +30,7 @@ CONTEXT_CHARS_MAX = 300
 MIN_CLAUSE_CHARS = 25
 CUE_LOOKBACK = 3
 EXTERNAL_WINDOW = 60
-CANDIDATES_VERSION = "pairs-cand-v1"
+CANDIDATES_VERSION = "pairs-cand-v5"
 
 _SKIPPED_TYPES = frozenset({"FIELD", "TABLE"})
 
@@ -39,15 +40,29 @@ class PairSource(str, Enum):
     EXPLICIT_REF = "EXPLICIT_REF"
     SAME_KEY = "SAME_KEY"
     REFERENCE_CUE = "REFERENCE_CUE"
+    VALUE_MISMATCH = "VALUE_MISMATCH"
 
 
 ALL_SOURCES = frozenset(PairSource)
+_CORE_SOURCES = frozenset({PairSource.SAME_ARTICLE, PairSource.EXPLICIT_REF})
+_CORE_TOP_K_SHARE = 1.0
 WEIGHTS = {
     PairSource.EXPLICIT_REF: 4,
     PairSource.REFERENCE_CUE: 3,
     PairSource.SAME_KEY: 2,
     PairSource.SAME_ARTICLE: 1,
+    PairSource.VALUE_MISMATCH: 3,
 }
+
+_VALUE_NUMBER = re.compile(r"(?<!\w)\d+(?:[.,]\d+)*(?:\s?%)?(?!\w)")
+_CONTENT_WORD = re.compile(r"\b[a-z]{3,}\b")
+_VALUE_MISMATCH_MIN_SHARED = 4
+_VALUE_MISMATCH_MIN_JACCARD = 0.12
+VALUE_MISMATCH_POSTING_WINDOW = 8
+_VALUE_STOPWORDS = frozenset({
+    "ben", "cac", "cho", "cua", "duoc", "khi", "mot", "nay", "nguoi", "nhan",
+    "sau", "theo", "trong", "tu", "voi", "va", "ve", "tai", "thoi", "han",
+})
 
 
 @dataclass(frozen=True)
@@ -165,6 +180,18 @@ def generate_pair_candidates(
     topics = {nid: topic_of(_context(chains, by_id, nid), by_id[nid].text) for nid in eligible}
     articles = {nid: _article_key(index, chains, nid) for nid in eligible}
     pos = {nid: index.position(nid) for nid in eligible}
+    value_numbers = {}
+    content_words = {}
+    if PairSource.VALUE_MISMATCH in sources:
+        value_numbers = {
+            nid: frozenset(_VALUE_NUMBER.findall(_fold(by_id[nid].text or "")))
+            for nid in eligible
+        }
+        content_words = {
+            nid: frozenset(w for w in _CONTENT_WORD.findall(_fold(by_id[nid].text or ""))
+                           if w not in _VALUE_STOPWORDS)
+            for nid in eligible
+        }
     found: dict[tuple[str, str], set[PairSource]] = {}
     adjacent: set[tuple[str, str]] = set()
 
@@ -206,6 +233,30 @@ def generate_pair_candidates(
             earlier = [e for e in reversed(eligible[:i]) if topics[e] == topic]
             for target in earlier[:CUE_LOOKBACK]:
                 add(target, nid, PairSource.REFERENCE_CUE)
+    if PairSource.VALUE_MISMATCH in sources:
+        # Invert content terms and compare only a bounded neighborhood per posting. Expanding
+        # every posting into all combinations is quadratic for common terms before top-K applies.
+        postings: dict[str, list[str]] = {}
+        for nid in eligible:
+            if not value_numbers[nid]:
+                continue
+            for word in content_words[nid]:
+                postings.setdefault(word, []).append(nid)
+        stats["value_mismatch_terms"] = len(postings)
+        stats["value_mismatch_pair_comparisons"] = 0
+        shared_counts: Counter[tuple[str, str]] = Counter()
+        for members in postings.values():
+            for i, x in enumerate(members):
+                for y in members[i + 1:i + 1 + VALUE_MISMATCH_POSTING_WINDOW]:
+                    shared_counts[_ordered(x, y, pos)] += 1
+                    stats["value_mismatch_pair_comparisons"] += 1
+        for (x, y), shared in shared_counts.items():
+            nums_x, nums_y = value_numbers[x], value_numbers[y]
+            if shared < _VALUE_MISMATCH_MIN_SHARED or not nums_x or not nums_y or nums_x == nums_y:
+                continue
+            union = len(content_words[x] | content_words[y])
+            if union and shared / union >= _VALUE_MISMATCH_MIN_JACCARD and (x, y) not in found:
+                add(x, y, PairSource.VALUE_MISMATCH)
 
     excluded = {tuple(sorted(p)) for p in excluded_pairs}
     candidates: list[PairCandidate] = []
@@ -222,7 +273,48 @@ def generate_pair_candidates(
         topic = topics[a] if topics[a] == topics[b] else None
         candidates.append(PairCandidate(a, b, frozenset(srcs), float(score), topic))
     candidates.sort(key=lambda c: (-c.score, pos[c.node_a], pos[c.node_b], c.node_a, c.node_b))
-    kept = candidates[: max(0, top_k)]
+    limit = max(0, top_k)
+    if _CORE_SOURCES <= sources and limit:
+        # Broader C sources must not evict the legacy B candidates solely by adding score.
+        # Preserve the legacy B candidates within the same per-document budget; fill unused
+        # slots with pairs found only by exploratory sources.
+        core = [candidate for candidate in candidates if candidate.sources & _CORE_SOURCES]
+        exploratory = [candidate for candidate in candidates if not candidate.sources & _CORE_SOURCES]
+
+        def core_rank(candidate: PairCandidate) -> tuple[float, int, int, str, str]:
+            score = sum(WEIGHTS[source] for source in candidate.sources & _CORE_SOURCES)
+            score += int(PairSource.SAME_ARTICLE in candidate.sources
+                         and (candidate.node_a, candidate.node_b) in adjacent)
+            score += int(_body_annex(index, candidate.node_a, candidate.node_b))
+            return (-score, pos[candidate.node_a], pos[candidate.node_b],
+                    candidate.node_a, candidate.node_b)
+
+        core.sort(key=core_rank)
+        # Round-robin equal-priority candidates by their earlier endpoint. Same-article
+        # cliques otherwise fill the cap with pairs starting at the first few clauses.
+        by_priority: dict[float, dict[str, deque[PairCandidate]]] = {}
+        for candidate in core:
+            priority = -core_rank(candidate)[0]
+            by_priority.setdefault(priority, {}).setdefault(candidate.node_a, deque()).append(candidate)
+        diversified_core: list[PairCandidate] = []
+        for priority in sorted(by_priority, reverse=True):
+            queues = by_priority[priority]
+            anchors = sorted(queues, key=lambda node_id: (pos[node_id], node_id))
+            while True:
+                selected_in_round = False
+                for anchor in anchors:
+                    if queues[anchor]:
+                        diversified_core.append(queues[anchor].popleft())
+                        selected_in_round = True
+                if not selected_in_round:
+                    break
+        core = diversified_core
+        core_limit = min(len(core), math.ceil(limit * _CORE_TOP_K_SHARE))
+        kept = core[:core_limit]
+        kept.extend(exploratory[:limit - len(kept)])
+        kept.sort(key=lambda c: (-c.score, pos[c.node_a], pos[c.node_b], c.node_a, c.node_b))
+    else:
+        kept = candidates[:limit]
     by_source = Counter(s.value for c in candidates for s in c.sources)
     out = {
         "candidates_total": len(candidates),
@@ -233,6 +325,8 @@ def generate_pair_candidates(
         "excluded_external_ref": stats["excluded_external_ref"],
         "candidates_capped": len(candidates) - len(kept),
         "candidates_kept": len(kept),
+        "value_mismatch_terms": stats["value_mismatch_terms"],
+        "value_mismatch_pair_comparisons": stats["value_mismatch_pair_comparisons"],
     }
     return PairCandidateSet(tuple(kept), out)
 

@@ -9,6 +9,7 @@ import pytest
 from app.pipeline.contract_graph.pair_candidates import PairCandidate, PairSource
 from app.pipeline.contract_graph.pair_classifier import (
     CLAUSE_CHARS_MAX,
+    PROMPT_ABLATION_VERSION,
     PROMPT_VERSION,
     REJECTION_REASON_VERSION,
     SYSTEM_PROMPT,
@@ -64,11 +65,64 @@ def classify(pairs=None, response=None, **kwargs):
 
 
 def test_calibrated_prompt_prioritizes_relation_checks_without_relaxing_grounding():
-    assert PROMPT_VERSION == "pairs-v7"
+    assert PROMPT_VERSION == "pairs-v13"
     assert "BƯỚC 1" in SYSTEM_PROMPT
     assert "CONFLICT trước UNRELATED" in SYSTEM_PROMPT
     assert "không mặc định GENERAL_SPECIFIC" in SYSTEM_PROMPT
     assert "không bịa span" in SYSTEM_PROMPT
+    assert "candidate_sources có" in SYSTEM_PROMPT
+    assert "chỉ chọn REFERENCE khi ngữ nghĩa trong" in SYSTEM_PROMPT
+    assert "candidate_sources" in SYSTEM_PROMPT
+    assert "REFERENCE nếu một khoản dẫn chiếu hoặc kết hợp khoản kia" in SYSTEM_PROMPT
+
+
+def test_classifier_execution_steps_match_reference_before_general_specific_priority():
+    assert PROMPT_VERSION == "pairs-v13"
+    reference_step = SYSTEM_PROMPT.index("BƯỚC 3 — REFERENCE")
+    specific_step = SYSTEM_PROMPT.index("BƯỚC 4 — GENERAL_SPECIFIC")
+    assert reference_step < specific_step
+
+
+def test_classifier_does_not_exit_unrelated_before_reference_check():
+    step_one = SYSTEM_PROMPT.split("BƯỚC 1", 1)[1].split("BƯỚC 2", 1)[0]
+    assert "vẫn tiếp tục BƯỚC 3" in step_one
+    assert "khác biệt đó tự nó chưa đủ để chọn" in step_one
+    assert "thì UNRELATED" not in step_one
+
+
+def test_reference_prompt_requires_unique_target_and_textual_confirmation():
+    reference_step = SYSTEM_PROMPT.split("BƯỚC 3 — REFERENCE", 1)[1].split("BƯỚC 4", 1)[0]
+    assert "chỉ xác nhận đích dẫn chiếu đã được phân giải duy nhất" in reference_step
+    assert "nội dung hai khoản xác nhận quan hệ" in reference_step
+    assert "xuất hiện trong cặp tự nó chưa đủ" in reference_step
+
+
+def test_prompt_maps_uncertainty_to_closed_taxonomy_without_abstaining():
+    assert "không trả nhãn ABSTAIN" in SYSTEM_PROMPT
+    assert "không đủ bằng chứng" in SYSTEM_PROMPT and "chọn UNRELATED" in SYSTEM_PROMPT
+
+
+def test_checklist_prompt_ablation_changes_the_actual_system_prompt():
+    runtime = Runtime("unrelated")
+    outcome = classify_pairs([pair()], client=SimpleNamespace(traces=[]), runtime=runtime,
+                             prompt_variant="checklist")
+    assert runtime.calls[0][0] != SYSTEM_PROMPT
+    assert "FINAL CHECKLIST FOR EACH PAIR" in runtime.calls[0][0]
+    assert outcome.stats["prompt_version"] == PROMPT_ABLATION_VERSION
+
+
+def test_classifier_passes_candidate_source_provenance_to_model():
+    runtime = Runtime("unrelated")
+    classify_pairs([pair(sources={PairSource.EXPLICIT_REF})], client=SimpleNamespace(traces=[]), runtime=runtime)
+    assert runtime.calls[0][1]["pairs"][0]["candidate_sources"] == ["EXPLICIT_REF"]
+
+
+def test_unknown_prompt_variant_fails_before_model_call():
+    runtime = Runtime("unrelated")
+    with pytest.raises(ValueError, match="unknown classifier prompt variant"):
+        classify_pairs([pair()], client=SimpleNamespace(traces=[]), runtime=runtime,
+                       prompt_variant="metadata-only")
+    assert runtime.calls == []
 
 
 def test_rejection_reason_version_is_recorded():
@@ -182,9 +236,29 @@ def test_conflict_same_span_rejected():
     assert result.stats["rejected"]["conflict_same_span"] == 1
 
 
-def test_reference_on_explicit_ref_pair_rejected():
+def test_reference_on_explicit_ref_pair_kept_when_supported_by_gold_taxonomy():
     result = classify([pair(sources={PairSource.EXPLICIT_REF})], {"results": [answer("REFERENCE", referrer="B")]})
-    assert result.stats["rejected"]["reference_explicit"] == 1
+    assert len(result.decisions) == 1
+    assert result.decisions[0].label.value == "REFERENCE"
+    assert result.decisions[0].direction == "B"
+    assert result.stats["rejected"]["reference_explicit"] == 0
+
+
+def test_reference_missing_direction_is_unclassified_not_silently_dropped():
+    result = classify([pair(sources={PairSource.EXPLICIT_REF})],
+                      {"results": [answer("REFERENCE")]})
+    assert not result.decisions
+    assert result.stats["rejected"]["missing_direction"] == 1
+    assert result.stats["pairs_unclassified"] == 1
+
+
+def test_explicit_abstention_is_counted_separately_and_never_promoted():
+    result = classify(response={"results": [{"id": "p1", "label": "ABSTAIN"}]})
+    assert not result.decisions
+    assert result.stats["abstentions"] == 1
+    assert result.stats["rejected"]["no_answer"] == 1
+    assert result.stats["rejected"]["invalid_label"] == 0
+    assert result.stats["pairs_unclassified"] == 1
 
 
 @pytest.mark.parametrize("response", [{}, {"results": None}, {"results": {}}, {"results": [1, [], {}]}])
@@ -197,6 +271,42 @@ def test_malformed_response_shapes(response):
 def test_no_answer_counted():
     result = classify(response={"results": []})
     assert result.stats["rejected"]["no_answer"] == result.stats["pairs_unclassified"] == 1
+
+
+def test_pair_events_distinguish_unrelated_bad_span_and_missing_answer_without_text():
+    pairs = [pair(TEXT_A + str(index)) for index in range(3)]
+    events = []
+    result = classify_pairs(
+        pairs,
+        client=SimpleNamespace(traces=[]),
+        runtime=Runtime({"results": [
+            {"id": "p1", "label": "UNRELATED"},
+            {"id": "p2", "label": "CONFLICT", "span_a": "invented text", "span_b": TEXT_B},
+        ]}),
+        event_sink=events.append,
+        requested_model="cx/gpt-5.5",
+    )
+    assert [event["outcome"] for event in events if event["phase"] == "classifier"] == [
+        "model_unrelated", "validator_reject", "no_answer",
+    ]
+    assert events[1]["reason"] == "ungrounded_span"
+    assert all(event["requested_model"] == "cx/gpt-5.5" for event in events)
+    assert all("text" not in json.dumps(event) and TEXT_A not in json.dumps(event) for event in events)
+    assert result.stats["pairs_unclassified"] == 2
+
+
+def test_pair_events_keep_unknown_and_duplicate_ids_at_batch_scope():
+    events = []
+    classify_pairs(
+        [pair()],
+        client=SimpleNamespace(traces=[]),
+        runtime=Runtime({"results": [answer(id="unknown"), answer(), answer()]}),
+        event_sink=events.append,
+    )
+    assert [event["outcome"] for event in events if event["phase"] == "classifier"] == ["accepted"]
+    assert {event["outcome"] for event in events if event["phase"] == "batch"} == {
+        "unknown_id", "duplicate_id",
+    }
 
 
 def test_runtime_none_marks_batch_unclassified_and_stops():

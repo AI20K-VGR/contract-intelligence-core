@@ -6,17 +6,19 @@ import json
 import re
 import unicodedata
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
+from uuid import uuid4
 
 from app.contracts.contract_graph import PAIR_SPAN_MAX, PairLabel
 from app.pipeline.ai1_snapshot_adapter import fold_for_match
 from app.pipeline.contract_graph.model_family import classifier_family_ok
-from app.pipeline.contract_graph.pair_candidates import PairCandidate, PairSource
+from app.pipeline.contract_graph.pair_candidates import PairCandidate
 from app.pipeline.runtime import ProcessingRuntime, ProcessingTimeout
 
-PROMPT_VERSION = "pairs-v7"
+PROMPT_VERSION = "pairs-v13"
+PROMPT_ABLATION_VERSION = "pairs-v13-checklist"
 REJECTION_REASON_VERSION = "pair-rejections-v1"
 PAIRS_PER_CALL = 8
 PAIRS_MAX_CALLS = 5
@@ -27,25 +29,33 @@ PAIRS_DEADLINE_RESERVE_S = 30
 SYSTEM_PROMPT = """Bạn là bộ phân loại quan hệ giữa hai khoản hợp đồng tiếng Việt. Với mỗi id, chọn đúng một nhãn.
 
 QUY TRÌNH SUY LUẬN (làm đủ trước khi chọn UNRELATED; không mặc định GENERAL_SPECIFIC):
-BƯỚC 1 — So cùng nghĩa vụ/quyền/chế tài: chủ thể, hành vi hoặc sự kiện, và đối tượng.
-Nếu không có cùng hành vi/sự kiện hoặc khác chủ thể cốt lõi thì UNRELATED.
+BƯỚC 1 — So cùng nghĩa vụ/quyền/chế tài: chủ thể, hành vi hoặc sự kiện, và đối tượng. Đây là
+kiểm tra để phân biệt xung đột/trùng lặp, không phải điều kiện kết thúc. Nếu khác hành vi/sự kiện
+hoặc chủ thể cốt lõi, vẫn tiếp tục BƯỚC 3 để kiểm tra dẫn chiếu; khác biệt đó tự nó chưa đủ để chọn
+UNRELATED.
 BƯỚC 2 — Nếu cùng hành vi/sự kiện, so giá trị, thời hạn, tỷ lệ và hậu quả:
 - CONFLICT trước UNRELATED khi cùng bối cảnh nhưng giá trị/thời hạn/tỷ lệ/hậu quả khác nhau;
   không nói khoản nào thắng.
 - DUPLICATE chỉ khi cùng nghĩa vụ/quyền, cùng chủ thể và các giá trị định lượng/thời hạn giống nhau;
   khác số, phần trăm, ngày hoặc điều kiện định lượng thì không được là DUPLICATE.
-BƯỚC 3 — GENERAL_SPECIFIC chỉ khi có bằng chứng phạm vi: một khoản là quy tắc chung và khoản kia
-là trường hợp riêng/ngoại lệ/chi tiết của cùng nghĩa vụ/quyền/chế tài. Dấu hiệu có thể là “nói chung”,
-“mọi trường hợp”, “nguyên tắc chung” đối lập với “trong trường hợp”, “chỉ khi”, “riêng”, “cụ thể”,
-“ngoại lệ”. Chỉ cùng chủ đề hoặc một khoản dài hơn không đủ. general là A hoặc B chỉ vào khoản chung.
-BƯỚC 4 — REFERENCE khi một khoản mô tả hoặc nhắc lại nội dung của khoản kia bằng ngữ nghĩa,
-không dựa vào số Điều/khoản/điểm; referrer là khoản dẫn chiếu. Nếu candidate có EXPLICIT_REF,
-không dùng REFERENCE.
-BƯỚC 5 — Chỉ dùng UNRELATED khi các kiểm tra trên không chứng minh được quan hệ.
+BƯỚC 3 — REFERENCE khi một khoản mô tả, viện dẫn hoặc kết hợp nội dung của khoản kia; referrer là
+khoản dẫn chiếu. Dẫn chiếu có thể bằng số Điều/khoản/điểm hoặc bằng ngữ nghĩa. candidate_sources có
+EXPLICIT_REF chỉ xác nhận đích dẫn chiếu đã được phân giải duy nhất, không tự nó chứng minh quan hệ;
+chỉ chọn REFERENCE khi nội dung hai khoản xác nhận quan hệ và xác định được referrer. Số Điều/khoản/điểm
+xuất hiện trong cặp tự nó chưa đủ. Nếu không có EXPLICIT_REF, chỉ chọn REFERENCE khi ngữ nghĩa trong
+văn bản cho thấy rõ khoản nào dẫn chiếu.
+BƯỚC 4 — GENERAL_SPECIFIC chỉ khi có bằng chứng phạm vi: một khoản là quy tắc chung và khoản kia
+là trường hợp riêng/ngoại lệ/chi tiết của cùng nghĩa vụ/quyền/chế tài mà không được giải thích bằng
+dẫn chiếu/kết hợp. Dấu hiệu có thể là “nói chung”, “mọi trường hợp”, “nguyên tắc chung” đối lập với
+“trong trường hợp”, “chỉ khi”, “riêng”, “cụ thể”, “ngoại lệ”. Chỉ cùng chủ đề hoặc một khoản dài hơn
+không đủ. general là A hoặc B chỉ vào khoản chung.
+BƯỚC 5 — Chỉ dùng UNRELATED khi các kiểm tra trên không chứng minh được quan hệ. Nếu không chắc chắn,
+không xác định được hướng hoặc không đủ bằng chứng, chọn UNRELATED; không trả nhãn ABSTAIN.
 
 THỨ TỰ ƯU TIÊN NHÃN: (1) CONFLICT nếu cùng hành vi nhưng số/thời hạn/tỷ lệ/hậu quả khác;
-(2) DUPLICATE nếu các giá trị đó giống hệt; (3) GENERAL_SPECIFIC chỉ khi có dấu hiệu phạm vi chung-
-riêng; (4) REFERENCE nếu có dẫn chiếu ngữ nghĩa; (5) UNRELATED. Không chuyển CONFLICT hoặc DUPLICATE
+(2) DUPLICATE nếu các giá trị đó giống hệt; (3) REFERENCE nếu một khoản dẫn chiếu hoặc kết hợp khoản kia;
+(4) GENERAL_SPECIFIC chỉ cho phạm vi con/ngoại lệ của cùng nghĩa vụ không được giải thích bằng dẫn chiếu;
+(5) UNRELATED chỉ sau khi các kiểm tra trên không đạt. Không chuyển CONFLICT hoặc DUPLICATE
 thành GENERAL_SPECIFIC vì một khoản có vẻ rộng hơn.
 VÍ DỤ QUY TẮC (không phải dữ liệu cần sao chép): cùng thanh toán nhưng 30 ngày và 15 ngày →
 CONFLICT; cùng thanh toán cùng số tiền và thời hạn, chỉ đổi câu chữ → DUPLICATE; “nguyên tắc chung
@@ -80,6 +90,17 @@ CALIBRATION OVERRIDE (apply before GENERAL_SPECIFIC):
   con, ngoại lệ, điều kiện hoặc chủ thể khác biệt được nêu rõ.
 - Synthetic checks: fixed total price versus market adjustment -> CONFLICT; itemized order details versus "details in the order" -> DUPLICATE. Cite exact spans and keep the validator rules.
 
+"""
+
+PROMPT_ABLATION_SUFFIX = """
+
+FINAL CHECKLIST FOR EACH PAIR (apply before returning JSON):
+1. Same act/event, but a value, deadline, rate, condition, or consequence differs? CONFLICT.
+2. Same actor, scope, and values, with the same meaning? DUPLICATE.
+3. If candidate_sources includes EXPLICIT_REF, verify the resolved citation against the paired text; otherwise require clear semantic reference. REFERENCE only with a grounded referrer.
+4. One clause is a stated subset, exception, or special case of the other's same obligation? GENERAL_SPECIFIC; identify the general clause.
+5. Only after these checks fail, choose UNRELATED. Never infer a relation from topic similarity alone.
+Re-check that every non-UNRELATED result has exact grounded spans and the required direction field.
 """
 
 _INJECTION = re.compile(
@@ -131,11 +152,20 @@ class ClassifierOutcome:
 
 def classifier_stats() -> dict[str, Any]:
     return {"pairs_sent": 0, "pairs_unclassified": 0, "llm_calls": 0, "prompt_tokens": 0,
-            "completion_tokens": 0, "injection_signals": 0,
+            "completion_tokens": 0, "injection_signals": 0, "abstentions": 0,
             "rejected": dict.fromkeys(REJECTION_CODES, 0),
             "rejection_reason_version": REJECTION_REASON_VERSION,
+            "prompt_version": PROMPT_VERSION,
             "stopped_reason": None,
             "served_model": None}
+
+
+def prompt_for_variant(variant: str) -> tuple[str, str]:
+    if variant == "baseline":
+        return SYSTEM_PROMPT, PROMPT_VERSION
+    if variant == "checklist":
+        return SYSTEM_PROMPT + PROMPT_ABLATION_SUFFIX, PROMPT_ABLATION_VERSION
+    raise ValueError("unknown classifier prompt variant")
 
 
 def deadline_required(runtime: ProcessingRuntime) -> float:
@@ -204,22 +234,51 @@ def _decision(item: dict, pair: ClassifierPair, rejected: dict[str, int], served
     if label == "CONFLICT" and _normalize(span_a) == _normalize(span_b):
         reject("conflict_same_span")
         return None
-    if label == "REFERENCE" and PairSource.EXPLICIT_REF in pair.candidate.sources:
-        reject("reference_explicit")
-        return None
     return PairDecision(pair.candidate, PairLabel(label), span_a, span_b, direction, served)
 
 
 def classify_pairs(
     pairs: Sequence[ClassifierPair], *, client: Any, runtime: ProcessingRuntime,
     max_calls: int = PAIRS_MAX_CALLS,
+    event_sink: Callable[[dict[str, Any]], None] | None = None,
+    requested_model: str | None = None,
+    request_id: str | None = None,
+    prompt_variant: str = "baseline",
 ) -> ClassifierOutcome:
+    system_prompt, prompt_version = prompt_for_variant(prompt_variant)
     stats = classifier_stats()
+    stats["prompt_version"] = prompt_version
     decisions: list[PairDecision] = []
     batches = 0
     initial_calls = runtime.llm_calls_used
     initial_traces = len(getattr(client, "traces", []))
     stop = None
+    request_id = request_id or (uuid4().hex if event_sink is not None else None)
+
+    def emit_pair(pair: ClassifierPair, *, outcome: str, reason: str | None,
+                  batch_id: str, served: str | None = None) -> None:
+        if event_sink is None:
+            return
+        event_sink({
+            "phase": "classifier",
+            "node_a_id": pair.candidate.node_a,
+            "node_b_id": pair.candidate.node_b,
+            "outcome": outcome,
+            "reason": reason,
+            "batch_id": batch_id,
+            "request_id": request_id,
+            "requested_model": requested_model,
+            "served_model": served,
+            "truncated_a": len(pair.text_a) > CLAUSE_CHARS_MAX,
+            "truncated_b": len(pair.text_b) > CLAUSE_CHARS_MAX,
+        })
+
+    def emit_batch(*, outcome: str, batch_id: str, served: str | None = None) -> None:
+        if event_sink is not None:
+            event_sink({"phase": "batch", "outcome": outcome, "batch_id": batch_id,
+                        "request_id": request_id, "requested_model": requested_model,
+                        "served_model": served})
+
     for offset in range(0, len(pairs), PAIRS_PER_CALL):
         if runtime.llm_calls_used >= runtime.max_llm_calls:
             stop = "BUDGET_EXHAUSTED"
@@ -229,25 +288,35 @@ def classify_pairs(
             stop = "DEADLINE"
         if stop:
             stats["pairs_unclassified"] += len(pairs) - offset
+            batch_id = f"batch-{batches + 1}"
+            for pair in pairs[offset:]:
+                emit_pair(pair, outcome="not_sent", reason=stop, batch_id=batch_id)
             break
         batch = pairs[offset:offset + PAIRS_PER_CALL]
+        batch_id = f"batch-{batches + 1}"
         by_id = {f"p{offset + n + 1}": pair for n, pair in enumerate(batch)}
         messages = []
         for pid, pair in by_id.items():
             if any(_INJECTION.search(fold_for_match(value))
                    for value in (pair.text_a, pair.text_b, pair.context_a, pair.context_b)):
                 stats["injection_signals"] += 1
-            messages.append({"id": pid, "a": {"context": pair.context_a, "text": pair.text_a[:CLAUSE_CHARS_MAX]},
+            messages.append({"id": pid, "candidate_sources": sorted(source.value for source in pair.candidate.sources),
+                             "a": {"context": pair.context_a, "text": pair.text_a[:CLAUSE_CHARS_MAX]},
                              "b": {"context": pair.context_b, "text": pair.text_b[:CLAUSE_CHARS_MAX]}})
         stats["pairs_sent"] += len(batch)
         batch_trace_start = len(getattr(client, "traces", []))
         try:
-            response = runtime.complete_json(client, SYSTEM_PROMPT, json.dumps({"pairs": messages}, ensure_ascii=False))
+            response = runtime.complete_json(client, system_prompt, json.dumps({"pairs": messages}, ensure_ascii=False))
         except ProcessingTimeout:
             response, stop = None, "DEADLINE"
         if response is None:
             stop = stop or "LLM_FALLBACK"
             stats["pairs_unclassified"] += len(pairs) - offset
+            emit_batch(outcome=stop.lower(), batch_id=batch_id)
+            for pair in batch:
+                emit_pair(pair, outcome="no_answer", reason=stop, batch_id=batch_id)
+            for pair in pairs[offset + len(batch):]:
+                emit_pair(pair, outcome="not_sent", reason=stop, batch_id=batch_id)
             break
         traces = getattr(client, "traces", [])[batch_trace_start:]
         served = traces[-1].get("served_model") if traces else None
@@ -257,31 +326,62 @@ def classify_pairs(
         if not classifier_family_ok(served):
             stop = "LLM_FALLBACK"
             stats["pairs_unclassified"] += len(pairs) - offset
+            emit_batch(outcome="served_model_rejected", batch_id=batch_id, served=served)
+            for pair in batch:
+                emit_pair(pair, outcome="no_answer", reason="served_model_rejected",
+                          batch_id=batch_id, served=served)
+            for pair in pairs[offset + len(batch):]:
+                emit_pair(pair, outcome="not_sent", reason=stop, batch_id=batch_id, served=served)
             break
         batches += 1
         rows = response.get("results") if isinstance(response, dict) else None
         seen: set[str] = set()
         if not isinstance(rows, list):
             stats["rejected"]["malformed"] += 1
+            emit_batch(outcome="malformed_response", batch_id=batch_id, served=served)
             rows = []
         for item in rows:
             if not isinstance(item, dict) or not isinstance(item.get("id"), str):
                 stats["rejected"]["malformed"] += 1
+                emit_batch(outcome="malformed_row", batch_id=batch_id, served=served)
                 continue
             pid = item["id"]
             if pid not in by_id:
                 stats["rejected"]["unknown_pair"] += 1
+                emit_batch(outcome="unknown_id", batch_id=batch_id, served=served)
                 continue
             if pid in seen:
                 stats["rejected"]["duplicate_id"] += 1
+                emit_batch(outcome="duplicate_id", batch_id=batch_id, served=served)
                 continue
             seen.add(pid)
+            if item.get("label") == "ABSTAIN":
+                stats["abstentions"] += 1
+                stats["rejected"]["no_answer"] += 1
+                stats["pairs_unclassified"] += 1
+                emit_pair(by_id[pid], outcome="abstained", reason="abstained",
+                          batch_id=batch_id, served=served)
+                continue
+            rejected_before = stats["rejected"].copy()
             decision = _decision(item, by_id[pid], stats["rejected"], served)
             if decision:
                 decisions.append(decision)
+                emit_pair(by_id[pid], outcome="accepted", reason=None, batch_id=batch_id, served=served)
+            else:
+                reason = next(code for code, count in stats["rejected"].items()
+                              if count > rejected_before[code])
+                if reason != "unrelated":
+                    stats["pairs_unclassified"] += 1
+                emit_pair(by_id[pid], outcome="model_unrelated" if reason == "unrelated" else "validator_reject",
+                          reason=reason, batch_id=batch_id, served=served)
         missing = len(batch) - len(seen)
         stats["rejected"]["no_answer"] += missing
         stats["pairs_unclassified"] += missing
+        for pair_index, pair in enumerate(batch, start=offset):
+            pid = f"p{pair_index + 1}"
+            if pid not in seen:
+                emit_pair(pair, outcome="no_answer", reason="no_answer",
+                          batch_id=batch_id, served=served)
     stats["llm_calls"] = runtime.llm_calls_used - initial_calls
     traces = getattr(client, "traces", [])[initial_traces:]
     for key in ("prompt_tokens", "completion_tokens"):

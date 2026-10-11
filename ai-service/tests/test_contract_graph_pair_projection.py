@@ -166,7 +166,16 @@ def test_pair_coverage_keys_fixed_and_failed_zero():
     failed = pair_coverage(None, status="FAILED", conflict_stats={})
     assert success["pairs"].keys() == failed["pairs"].keys()
     assert failed["pairs"]["relations_total"] == failed["pairs"]["conflict_findings"] == 0
+    assert failed["pairs"]["abstentions"] == 0
     assert failed["graph_mode"] == "operation_first"
+
+
+def test_pair_coverage_exposes_classifier_abstentions():
+    rec = pair_record()
+    pair_result = result(rec)
+    pair_result.stats["abstentions"] = 2
+    projected = pair_coverage(pair_result, status="OK", conflict_stats={})
+    assert projected["pairs"]["abstentions"] == 2
 
 
 @pytest.mark.parametrize("mode", ["llm", "rule_only"])

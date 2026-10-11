@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from collections import Counter
 
 import pytest
 
@@ -125,6 +126,53 @@ def test_same_key_across_articles():
     assert ("d2k1", "d2k2") not in found  # same article is SAME_ARTICLE, not SAME_KEY
 
 
+def test_value_mismatch_proposes_cross_article_pair_without_topic_heading():
+    nodes, index = _build([
+        _node("d1", "Điều 1", text="Điều khoản chung"),
+        _node("d1k1", "1.", "d1", text=(
+            "Bên mua cung cấp thiết bị máy phát điện công suất lớn lắp đặt tại nhà xưởng "
+            "trong thời hạn 30 ngày kể từ khi nhận đủ hồ sơ" + LONG
+        )),
+        _node("d2", "Điều 2", text="Điều khoản khác"),
+        _node("d2k1", "1.", "d2", text=(
+            "Bên mua cung cấp thiết bị máy phát điện công suất lớn lắp đặt tại nhà xưởng "
+            "trong thời hạn 60 ngày kể từ khi nhận đủ hồ sơ" + LONG
+        )),
+    ])
+
+    baseline = generate_pair_candidates(
+        index, nodes, top_k=10**6,
+        sources=frozenset(pc.ALL_SOURCES - {PairSource.VALUE_MISMATCH}),
+    )
+    assert ("d1k1", "d2k1") not in _pairs(baseline)
+
+    result = generate_pair_candidates(index, nodes, top_k=10**6)
+
+    assert ("d1k1", "d2k1") in _pairs(result, PairSource.VALUE_MISMATCH)
+
+
+def test_value_mismatch_requires_shared_terms_and_different_values():
+    nodes, index = _build([
+        _node("d1", "Điều 1", text="Điều khoản chung"),
+        _node("d1k1", "1.", "d1", text=(
+            "Bên mua cung cấp máy phát điện công suất lớn trong thời hạn 30 ngày làm việc"
+        )),
+        _node("d2", "Điều 2", text="Điều khoản khác"),
+        _node("d2k1", "1.", "d2", text=(
+            "Bên mua cung cấp máy phát điện công suất lớn trong thời hạn 30 ngày làm việc"
+        )),
+        _node("d3", "Điều 3", text="Điều khoản riêng"),
+        _node("d3k1", "1.", "d3", text=(
+            "Bên bán bảo hành linh kiện theo yêu cầu kỹ thuật trong vòng 60 tháng"
+        )),
+    ])
+
+    found = _pairs(generate_pair_candidates(index, nodes, top_k=10**6),
+                   PairSource.VALUE_MISMATCH)
+
+    assert not found
+
+
 def test_reference_cue_links_nearest_preceding_same_topic():
     nodes, index = _build([
         _node("d1", "Điều 1", text="Phạt vi phạm"),
@@ -212,10 +260,64 @@ def test_top_k_cap_counts_capped():
     full = generate_pair_candidates(index, nodes, top_k=10**6)
     capped = generate_pair_candidates(index, nodes, top_k=2)
     assert len(capped.candidates) == 2
-    assert capped.candidates == full.candidates[:2]
+    assert set(_pairs(capped)) <= set(_pairs(full))
     assert capped.stats["candidates_total"] == len(full.candidates)
     assert capped.stats["candidates_capped"] == len(full.candidates) - 2
     assert capped.stats["candidates_kept"] == 2
+
+
+@pytest.mark.parametrize("sources", [
+    pc.ALL_SOURCES,
+    frozenset({PairSource.SAME_ARTICLE, PairSource.EXPLICIT_REF}),
+], ids=["expanded", "base-only"])
+def test_top_k_diversifies_same_article_clique_instead_of_favoring_early_nodes(sources):
+    children = [
+        _node(f"d1k{i}", f"{i}.", "d1", text=f"Bên A thực hiện nghĩa vụ hợp đồng số {i}" + LONG)
+        for i in range(1, 11)
+    ]
+    nodes, index = _build([_node("d1", "Điều 1", text="Nghĩa vụ"), *children])
+
+    result = generate_pair_candidates(index, nodes, sources=sources, top_k=40)
+
+    anchor_counts = Counter(candidate.node_a for candidate in result.candidates)
+    assert len(result.candidates) == 40
+    assert set(anchor_counts) == {f"d1k{i}" for i in range(1, 10)}
+    assert max(anchor_counts.values()) <= 7
+
+
+def test_c_expansion_preserves_b_candidates_within_same_top_k_budget():
+    nodes, index = _build([
+        _node("d1", "Điều 1", text="Thanh toán"),
+        _node("d1k1", "1.", "d1", text="Bên A thanh toán phí dịch vụ tư vấn theo thỏa thuận" + LONG),
+        _node("d1k2", "2.", "d1", text="Bên B thanh toán chi phí tư vấn trong thời hạn quy định" + LONG),
+        _node("d1k3", "3.", "d1", text="Bên A thanh toán phí tư vấn theo phụ lục kèm theo" + LONG),
+        _node("d2", "Điều 2", text="Thanh toán"),
+        _node("d2k1", "1.", "d2", text="Bên A thanh toán phí dịch vụ tư vấn theo quy định" + LONG),
+        _node("d2k2", "2.", "d2", text="Bên B thanh toán chi phí dịch vụ tư vấn" + LONG),
+    ])
+    base_sources = frozenset({PairSource.SAME_ARTICLE, PairSource.EXPLICIT_REF})
+    base = generate_pair_candidates(index, nodes, sources=base_sources, top_k=2)
+    expanded = generate_pair_candidates(index, nodes, sources=pc.ALL_SOURCES, top_k=2)
+
+    assert _pairs(base) <= _pairs(expanded)
+
+
+def test_value_mismatch_pair_work_is_bounded_for_common_terms():
+    nodes, index = _build([
+        _node(f"n{i}", f"{i}.", text=(
+            f"payment breach liability amount delivery penalty value {i + 10}%" + LONG
+        ))
+        for i in range(200)
+    ])
+    result = generate_pair_candidates(
+        index, nodes, sources=frozenset({PairSource.VALUE_MISMATCH}), top_k=10_000,
+    )
+    assert result.stats["value_mismatch_pair_comparisons"] <= (
+        len(nodes) * result.stats["value_mismatch_terms"] * pc.VALUE_MISMATCH_POSTING_WINDOW
+    )
+    assert result.stats["value_mismatch_pair_comparisons"] < (
+        len(nodes) * (len(nodes) - 1) // 2 * result.stats["value_mismatch_terms"]
+    )
 
 
 def test_sources_filter_for_variant_b():
