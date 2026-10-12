@@ -293,7 +293,7 @@ services:
         condition: service_started
     environment:
       TOPIC: ci.ai1.ocr.commands
-      PARTITIONS: ${AI1_OCR_COMMAND_PARTITIONS:-6}
+      PARTITIONS: ${AI1_OCR_COMMAND_PARTITIONS:-8}
     entrypoint:
       - /bin/sh
       - -c
