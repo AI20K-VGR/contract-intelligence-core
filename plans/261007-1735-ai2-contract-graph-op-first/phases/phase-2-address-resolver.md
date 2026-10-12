@@ -50,10 +50,10 @@ Phase này chưa nối vào `run_idp`; P3 gọi nó.
    - **Phần** (`part`): `annex:<node_id>` cho cây con dưới node phụ lục; `body:<source_file_id>` cho phần còn lại; file có `role="annex"` mà không có node phụ lục ⇒ `annex:file:<source_file_id>`.
    - Bỏ node `type == "FIELD"` và `"TABLE"` khỏi chỉ mục địa chỉ.
    - Trùng địa chỉ trong một phần (đánh số lặp) ⇒ giữ cả danh sách để resolve ra `AMBIGUOUS`.
-7. `resolve(addr, *, parts, source_node_id=None, require_existing=True) -> Resolution` với `Resolution(status, node_id, candidates, method, canonical, residual)`; `method ∈ {EXACT, ANCESTOR, SELF, ORDER_INFERENCE}`:
+7. `resolve(addr, *, parts, source_node_id=None, require_existing=True) -> Resolution` với `Resolution(status, node_id, candidates, method, canonical, residual)`; `method ∈ {EXACT, EXISTENCE_FILTER, ANCESTOR, SELF, ORDER_INFERENCE}`:
    - `self_level` ⇒ đi lên tổ tiên của `source_node_id` tới cấp đó ⇒ `UNIQUE/SELF` hoặc `NOT_FOUND`.
    - `phu_luc` ⇒ chỉ xét phần phụ lục đúng số; có thêm `dieu…` thì tìm trong phần đó.
-   - `khoan_options` ⇒ mở thành các địa chỉ ứng viên, lọc theo tồn tại: còn 1 ⇒ `UNIQUE/EXACT`; >1 ⇒ `AMBIGUOUS(candidates)`; 0 ⇒ `NOT_FOUND`.
+   - `khoan_options` ⇒ mở thành các địa chỉ ứng viên, lọc theo tồn tại: còn 1 ⇒ `UNIQUE/EXISTENCE_FILTER`; >1 ⇒ `AMBIGUOUS(candidates)`; 0 ⇒ `NOT_FOUND`. `EXISTENCE_FILTER` không được mở cổng `PASS` vì số khoản được chọn nhờ kiểm tra tồn tại, không phải địa chỉ chính xác.
    - Tra chính xác trong `parts`: 1 ⇒ `UNIQUE/EXACT`; >1 ⇒ `AMBIGUOUS`; 0 ⇒ lùi về tổ tiên gần nhất tồn tại duy nhất ⇒ `UNIQUE/ANCESTOR` + `residual` (vd `("diem c",)`). Với `require_existing=True` (mọi op trừ INSERTION), `ANCESTOR` chỉ được chấp nhận khi nhãn phần dư xuất hiện ở đầu dòng trong text của node tổ tiên (`c)`, `3.`); không thấy ⇒ `NOT_FOUND`.
    - `insert_after` (INSERTION) ⇒ anchor phải tồn tại (node hoặc nhãn trong text container) ⇒ trả container làm `node_id`; anchor không có ⇒ `NOT_FOUND`.
    - **Bất biến INSERTION (RT-02)**: `canonical(addr) == canonical(addr.insert_after)` ⇒ `NOT_FOUND` (`residual=("insert_equals_anchor",)`), không bao giờ `UNIQUE`. Ca thật: "Bổ sung khoản 5a vào sau khoản 5" mà parser mất hậu tố sẽ ra địa chỉ mới = anchor = `khoan 5 dieu 18`; trên hợp đồng gốc khoản 5 có thật nên nếu không chặn sẽ thành cạnh sai lặng lẽ. Với INSERTION, `node_id` luôn là container (Điều/khoản cha), **không bao giờ** là node anchor.
@@ -124,7 +124,7 @@ Phase này chưa nối vào `run_idp`; P3 gọi nó.
 - [ ] `test_insertion_suffix_never_resolves_to_existing_anchor` (RT-02) — cây có `Điều 18` › `5.`; `"Bổ sung khoản 5a vào sau khoản 5 Điều 18"` ⇒ `UNIQUE`, `canonical == "khoan 5a dieu 18"`, `node_id` = node `Điều 18` (container), `node_id` ≠ node `5.`.
 - [ ] `test_insertion_new_equal_anchor_is_not_found` (RT-02) — `Address(dieu="18", khoan="5", insert_after=Address(dieu="18", khoan="5"))` (mô phỏng parser mất hậu tố) ⇒ `NOT_FOUND`, `node_id is None`.
 - [ ] `test_suffix_labels_indexed` (RT-02) — node `d1)`, `Điều 30a` resolve `UNIQUE/EXACT`; `điểm d1 khoản 2 Điều 3` không trúng node `d)`; `Điều 30` không trúng `Điều 30a`.
-- [ ] `test_multi_clause_parent_existence_filter` — điểm `b` chỉ có ở khoản 1 ⇒ `UNIQUE/EXACT`.
+- [ ] `test_multi_clause_parent_existence_filter` — điểm `b` chỉ có ở khoản 1 ⇒ `UNIQUE/EXISTENCE_FILTER` và không đủ điều kiện `PASS`.
 - [ ] `test_multi_clause_parent_both_exist_is_ambiguous`.
 - [ ] `test_order_inference_forces_monotone_assignment` — con a) "điểm c", con b) "điểm a" dưới "khoản 1 và khoản 2" ⇒ a→`diem c khoan 1`, b→`diem a khoan 2`, `method == ORDER_INFERENCE`.
 - [ ] `test_order_inference_keeps_ambiguous_when_not_forced`.
