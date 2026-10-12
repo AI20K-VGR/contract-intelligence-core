@@ -28,6 +28,31 @@ from contract_ocr.infrastructure.ocr.markdown_tables import (
 DEFAULT_MODEL = "mistral-ocr-4"
 
 
+def _retry_config() -> Any:
+    """Retry 429 / 5xx / dropped connections with exponential backoff and jitter.
+
+    The SDK honours ``Retry-After`` / ``retry-after-ms`` when the server sends
+    one and otherwise waits 0.5 s, 1 s, 2 s ... (capped at 8 s) plus up to 1 s
+    of random jitter, so workers rate-limited together do not retry together.
+    It gives up after ``AI1_MISTRAL_RETRY_MAX_MS`` (default 30 s); the caller
+    then falls back as before (GPT reads the page, or the verifier is skipped).
+    Without this the SDK did not retry at all: one 429 failed the call.
+    """
+    from mistralai.client.utils.retries import BackoffStrategy, RetryConfig
+
+    return RetryConfig(
+        "backoff",
+        BackoffStrategy(
+            initial_interval=500,
+            max_interval=8_000,
+            exponent=2.0,
+            max_elapsed_time=int(os.environ.get("AI1_MISTRAL_RETRY_MAX_MS", "30000")),
+            jitter_ms=1_000,
+        ),
+        retry_connection_errors=True,
+    )
+
+
 def _block_bbox(block: Any, width: float, height: float) -> BBox:
     """Normalizes one OCR block's real (measured, pixel) bounding box to [0, 1]
     against the page's own render dimensions -- mirrors
@@ -103,7 +128,7 @@ class MistralOCREngine(OCREngine):
                 raise RuntimeError("MISTRAL_API_KEY is not set")
             from mistralai.client import Mistral
 
-            self._client = Mistral(api_key=api_key)
+            self._client = Mistral(api_key=api_key, retry_config=_retry_config())
         except Exception as exc:
             self._unavailable = f"Mistral OCR unavailable: {type(exc).__name__}: {exc}"
             raise EngineUnavailable(self._unavailable) from exc

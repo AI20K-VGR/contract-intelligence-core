@@ -45,6 +45,7 @@ from contract_ocr.domain.entities import Document, Experiment
 from contract_ocr.infrastructure.backend_ocr_job import (
     MAX_UPLOAD_BYTES,
     BackendOcrJobRequest,
+    max_documents_in_flight,
 )
 from contract_ocr.infrastructure.backend_ocr_job import (
     engine_status as _engine_status,
@@ -96,7 +97,8 @@ _processor = ProcessDocument(
     quality=page_quality_from_env(),
 )
 _engine_lock = threading.Lock()
-_process_lock = threading.Lock()
+# Same bound as the backend job runner (backend_ocr_job.max_documents_in_flight).
+_process_slots = threading.BoundedSemaphore(max_documents_in_flight())
 _engine_cache: dict[str, OCREngine] = {}
 
 
@@ -325,7 +327,7 @@ def ocr_pdf(
         started = perf_counter()
         max_workers = WEB_MAX_WORKERS if engine in PARALLEL_ENGINES else 1
         try:
-            with _process_lock:
+            with _process_slots:
                 document = _processor.execute(
                     source=str(pdf_path),
                     document_id=document_id,
@@ -379,7 +381,7 @@ def _analyze_one(
     pdf_path.write_bytes(content)
 
     max_workers = WEB_MAX_WORKERS if engine_id in PARALLEL_ENGINES else 1
-    with _process_lock:
+    with _process_slots:
         document = _processor.execute(
             source=str(pdf_path),
             document_id=document_id,

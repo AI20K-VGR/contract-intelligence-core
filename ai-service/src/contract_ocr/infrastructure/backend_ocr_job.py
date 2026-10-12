@@ -54,6 +54,24 @@ PARALLEL_ENGINES = {"openai", "gemini", "mistral"}
 WEB_MAX_WORKERS = int(os.environ.get("AI1_MAX_PAGES_IN_FLIGHT", "8"))
 
 
+def max_documents_in_flight() -> int:
+    """Documents one process reads at once: ``AI1_MAX_DOCUMENTS_IN_FLIGHT`` (default 2).
+
+    Size it from the measured peak RSS of one document, never by guess:
+
+        N = (RAM available to the worker - 400 MB headroom) / RSS per document
+
+    With pages streamed to OCR (~200-300 MB per document at 150 DPI whatever
+    its length), a 2 GB VPS gives N = 2 or 3. Above that the worker can run
+    out of memory, which the former single global lock made impossible.
+
+    Note: the Kafka worker reads one command at a time per process, so this
+    only matters where one process takes several documents (the web API).
+    Kafka-side parallelism comes from min(topic partitions, worker replicas).
+    """
+    return max(1, int(os.environ.get("AI1_MAX_DOCUMENTS_IN_FLIGHT", "2")))
+
+
 _processor = ProcessDocument(
     PyMuPDFExtractor(),
     PdfRenderer(),
@@ -62,7 +80,8 @@ _processor = ProcessDocument(
     quality=page_quality_from_env(),
 )
 _engine_lock = threading.Lock()
-_process_lock = threading.Lock()
+# Bounds how many documents this process reads at once (see max_documents_in_flight).
+_process_slots = threading.BoundedSemaphore(max_documents_in_flight())
 _engine_cache: dict[str, OCREngine] = {}
 # Jobs are kept for status polling only, oldest dropped first: an unbounded
 # table held every job of the worker's lifetime, results included, in memory.
@@ -239,8 +258,11 @@ def _get_engine(engine_id: str) -> OCREngine | None:
                         enabled=True, reasoning_effort=gpt_effort
                     ),
                     budget=budget,
-                    verify_all_pages=os.environ.get("AI1_VERIFY_ALL_PAGES", "true").lower()
-                    not in ("0", "false", "no"),
+                    # Off by default: the verifier is called when the page's own
+                    # signals give a reason to doubt it (see VerifiedMistralOCREngine),
+                    # instead of doubling the Mistral calls on every page.
+                    verify_all_pages=os.environ.get("AI1_VERIFY_ALL_PAGES", "false").lower()
+                    in ("1", "true", "yes"),
                 )
         return _engine_cache[engine_id]
 
@@ -349,7 +371,7 @@ def _run_backend_ocr(
                     "dpi": dpi,
                 },
             ) as process_span:
-                with _process_lock:
+                with _process_slots:
                     document = _processor.execute(
                         source=str(pdf_path),
                         document_id=request.document_id,

@@ -73,7 +73,9 @@ class _FakeClient:
 
 def _engine_with(monkeypatch, response, *, config=None, captured=None):
     captured = captured if captured is not None else {}
-    monkeypatch.setattr("mistralai.client.Mistral", lambda api_key: _FakeClient(response, captured))
+    monkeypatch.setattr(
+        "mistralai.client.Mistral", lambda api_key, **kwargs: _FakeClient(response, captured)
+    )
     return MistralOCREngine(api_key="sk-test", **(config or {})), captured
 
 
