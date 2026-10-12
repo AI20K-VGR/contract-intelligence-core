@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from app.contracts.models import IndexContribution
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +25,9 @@ def test_fixture_covers_positive_and_negative_alignment_cases() -> None:
     assert not any("dos_" in json.dumps(case, ensure_ascii=False) for case in cases)
 
 
+# The contract lives outside this repository (two levels above it), so a plain
+# checkout does not have it: the check runs only where the file is present.
+@pytest.mark.skipif(not CONTRACT.exists(), reason=f"{CONTRACT.name} is not in this repository")
 def test_contract_separates_semantic_and_arithmetic_outputs() -> None:
     contract = CONTRACT.read_text(encoding="utf-8")
 

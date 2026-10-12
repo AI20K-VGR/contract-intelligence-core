@@ -170,7 +170,8 @@ def _request() -> dict:
     return payload
 
 
-def test_processing_request_adapts_full_dossier_and_preserves_roles():
+def test_processing_request_adapts_full_dossier_and_preserves_roles(monkeypatch):
+    monkeypatch.setenv("AI2_PROCESSING_EGRESS_ALLOWED", "true")
     request, adapted = adapt_be_ai2_processing_request(_request())
 
     assert request.schema_version == "be.ai2.processing.request.v1"
@@ -181,8 +182,15 @@ def test_processing_request_adapts_full_dossier_and_preserves_roles():
         "doc-annex-example-001": "annex",
     }
     # Processing egress is controlled by the AI2 server environment, not the
-    # request flag. The worktree test environment enables the live lane.
+    # request flag (which says egress_allowed=False here).
     assert adapted.record.egress_approved is True
+
+
+def test_processing_egress_stays_off_without_the_server_switch(monkeypatch):
+    monkeypatch.delenv("AI2_PROCESSING_EGRESS_ALLOWED", raising=False)
+    _request_model, adapted = adapt_be_ai2_processing_request(_request())
+
+    assert adapted.record.egress_approved is False
 
 
 def test_processing_request_rejects_membership_mismatch():
