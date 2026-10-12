@@ -569,6 +569,57 @@ async def test_late_success_does_not_override_failed(
     assert len(await _audits(factory, "ai1.snapshot_persisted")) == 0
 
 
+def _ocr_failed(run_id: str, document_id: str) -> dict[str, Any]:
+    failed = _ocr_completed(run_id, document_id, event_type=worker.EVENT_OCR_FAILED)
+    failed["event_id"] = f"evt_failed_{run_id}_{document_id}"
+    failed["payload"] = {"job_id": None, "status": "failed", "error": {"code": "AI1_OCR_FAILED"}}
+    return failed
+
+
+@pytest.mark.asyncio
+async def test_failed_event_after_the_documents_result_is_ignored(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+
+    await _deliver(factory, _ocr_failed(run_id, DOC_A))
+
+    job = await _job(factory)
+    assert job.status == "processing" and job.error_code is None
+    assert len(await _audits(factory, "ai1.ocr_failed")) == 0
+
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+    assert (await _job(factory)).status == "extracted"
+
+
+@pytest.mark.asyncio
+async def test_failed_event_after_every_result_keeps_the_job_extracted(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+
+    await _deliver(factory, _ocr_failed(run_id, DOC_A))
+
+    job = await _job(factory)
+    assert job.status == "extracted" and job.error_code is None
+
+
+@pytest.mark.asyncio
+async def test_failed_event_for_a_document_without_result_still_fails_the_run(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+
+    await _deliver(factory, _ocr_failed(run_id, DOC_B))
+
+    job = await _job(factory)
+    assert job.status == "failed" and job.error_code == "AI1_OCR_FAILED"
+
+
 @pytest.mark.asyncio
 async def test_envelope_with_wrong_schema_version_is_dropped(
     factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
