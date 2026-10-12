@@ -133,6 +133,7 @@ async def mock_svc() -> AsyncMock:
     svc = AsyncMock(spec=ContractService)
     svc.get_dossier.return_value = _make_dossier(metadata={"created_by": "usr_op_01"})
     svc.review_counts.return_value = (0, 0)
+    svc.lifecycle.return_value = {}
     return svc
 
 

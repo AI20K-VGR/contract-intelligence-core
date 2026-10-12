@@ -61,6 +61,7 @@ from contract_intelligence.contract.application.dtos.dossier_dtos import (
     DossierCreatedDTO,
     DossierDetailDTO,
     DossierSummaryDTO,
+    MyAccessDTO,
 )
 from contract_intelligence.contract.application.dtos.manifest_dtos import (
     ConfirmManifestRequest,
@@ -84,6 +85,7 @@ from contract_intelligence.shared.acl import (
     AclAction,
     dossier_access_decision,
     dossier_denied_message,
+    dossier_my_access,
     visible_dossier_metadata,
 )
 from contract_intelligence.shared.auth import (
@@ -191,8 +193,10 @@ class AccessGrantBody(BaseModel):
     email: str = ""
     display_name: str = ""
     status: Literal["invited", "active", "disabled"] | None = None
-    # "read": xem; "edit": xem + thẩm định, chạy lại, sửa hồ sơ. Bỏ trống = "edit"
-    # (giữ hành vi cũ cho client chưa gửi trường này).
+    # "read": chỉ xem. "edit": thêm quyền thao tác, nhưng làm được gì còn tuỳ vai trò
+    # của người nhận (shared/acl.py): Vận hành sửa hồ sơ và chạy lại; Thẩm định
+    # thẩm định và khoá. Duyệt luôn là việc của Quản trị. Bỏ trống = "edit" (giữ
+    # hành vi cũ cho client chưa gửi trường này).
     permission: Literal["read", "edit"] = "edit"
     # Hết hạn thì quyền không còn tác dụng (API trả 403). None = không hết hạn.
     expires_at: datetime | None = None
@@ -281,14 +285,29 @@ _DossierDTO = TypeVar("_DossierDTO", DossierSummaryDTO, DossierDetailDTO)
 
 
 def _for_viewer(dto: _DossierDTO, user: AuthenticatedUser) -> _DossierDTO:
-    """Chỉ chủ hồ sơ / quản trị viên thấy toàn bộ ``shared_with``."""
-    return dto.model_copy(update={"metadata": visible_dossier_metadata(dto.metadata, user)})
+    """Chỉ chủ hồ sơ / quản trị viên thấy toàn bộ ``shared_with``; kèm ``my_access``."""
+    # The repositories are tenant-scoped, so a dossier here is in the caller's tenant.
+    my_access = MyAccessDTO(
+        **dossier_my_access(
+            principal=user,
+            dossier_id=dto.id,
+            dossier_tenant_id=user.tenant_id,
+            metadata=dto.metadata,
+        )
+    )
+    return dto.model_copy(
+        update={
+            "metadata": visible_dossier_metadata(dto.metadata, user),
+            "my_access": my_access,
+        }
+    )
 
 
 async def _dossier_detail(svc: Any, dossier: Any, user: AuthenticatedUser) -> DossierDetailDTO:
     """Detail DTO with documents, latest job and open review / conflict counts."""
     documents = await svc.list_documents(dossier.id)
     open_review_items, pending_conflicts = await svc.review_counts(dossier.id)
+    locked, approved_at = (await svc.lifecycle([dossier.id])).get(dossier.id, (False, None))
     latest = dossier.latest_job()
     return _for_viewer(
         DossierDetailDTO.from_domain(
@@ -299,6 +318,8 @@ async def _dossier_detail(svc: Any, dossier: Any, user: AuthenticatedUser) -> Do
             latest_job_error_code=latest.error_code if latest else None,
             open_review_items=open_review_items,
             pending_conflicts=pending_conflicts,
+            locked=locked,
+            approved_at=approved_at,
         ),
         user,
     )
@@ -1090,14 +1111,18 @@ async def list_dossiers(
         limit=limit,
         offset=offset,
     )
+    lifecycle = await svc.lifecycle([d.id for d in items])
     summaries: list[DossierSummaryDTO] = []
     for d in items:
         latest = d.latest_job()
+        locked, approved_at = lifecycle.get(d.id, (False, None))
         summaries.append(
             _for_viewer(
                 DossierSummaryDTO.from_domain(
                     d,
                     latest_job_status=latest.status if latest else None,
+                    locked=locked,
+                    approved_at=approved_at,
                 ),
                 user,
             )
