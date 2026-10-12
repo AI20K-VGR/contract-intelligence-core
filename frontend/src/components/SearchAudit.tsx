@@ -26,7 +26,9 @@ export function SearchAudit({ result }: { result: Ai2SearchResult }) {
   const notice = aclNotice(result.aclDecision)
   const layer = Object.entries(result.retrievalLayer)
   // Backend có lúc chỉ gửi mã nội bộ (vd. QUERY_RETRIEVAL) không kèm lời giải thích.
-  const notes = (result.notes ?? []).filter((note) => !/^[A-Z0-9_]+$/.test(note))
+  const notes = (result.notes ?? []).filter(
+    (note) => !/^[A-Z0-9_]+$/.test(note),
+  )
   const blocked = result.reviewState === 'BLOCKED' && result.hits.length === 0
   const nothingFound =
     !blocked &&
@@ -63,7 +65,10 @@ export function SearchAudit({ result }: { result: Ai2SearchResult }) {
         </p>
       ) : null}
       {nothingFound ? (
-        <p className="font-body-sm text-body-sm text-on-surface-variant" role="status">
+        <p
+          className="font-body-sm text-body-sm text-on-surface-variant"
+          role="status"
+        >
           AI không tìm thấy đoạn nào khớp câu hỏi. Thử hỏi đầy đủ hơn, ví dụ
           “Điều 1 quy định gì?”.
         </p>

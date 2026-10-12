@@ -324,9 +324,7 @@ function Section({
             <ConflictBadge marker={marker} />
           ) : null}
           {pages ? (
-            <span className="font-mono text-[10px] text-tone-400">
-              {pages}
-            </span>
+            <span className="font-mono text-[10px] text-tone-400">{pages}</span>
           ) : null}
           <CiteBadge
             active={active}

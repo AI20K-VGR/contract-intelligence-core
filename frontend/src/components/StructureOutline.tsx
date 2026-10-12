@@ -367,9 +367,7 @@ function OutlineRow({
             <ConflictBadge collapsed={!row.open} marker={marker} />
           ) : null}
           {pages ? (
-            <span className="font-mono text-[10px] text-tone-400">
-              {pages}
-            </span>
+            <span className="font-mono text-[10px] text-tone-400">{pages}</span>
           ) : null}
           <CiteBadge active={active} n={cite} tone={tone} />
         </span>

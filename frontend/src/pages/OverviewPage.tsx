@@ -167,7 +167,11 @@ export function OverviewPage() {
           signal: controller.signal,
         })
       : Promise.resolve({ users: [], total: 0 })
-    const dossiers = listDossiers({ limit: 1, offset: 0, signal: controller.signal })
+    const dossiers = listDossiers({
+      limit: 1,
+      offset: 0,
+      signal: controller.signal,
+    })
 
     Promise.allSettled([users, invites, dossiers]).then((results) => {
       if (controller.signal.aborted) return
@@ -302,145 +306,152 @@ export function OverviewPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
         {isAdmin ? (
-        <div
-          className={`lg:col-span-8 flex flex-col overflow-hidden ${CARD}`}
-        >
-          <div className="p-space-lg flex flex-col sm:flex-row sm:items-center justify-between gap-space-md">
-            <div>
-              <h2 className={`text-[16px] font-medium ${INK}`}>
-                Thành viên nhóm
-              </h2>
-            </div>
-            <div className="flex items-center gap-space-sm flex-wrap">
-              <div className="relative flex items-center">
-                <MaterialIcon
-                  name="search"
-                  className="absolute left-2.5 text-secondary text-[16px]"
-                />
-                <input
-                  className="pl-8 pr-space-md py-2 bg-tone-100 text-tone-900 rounded-[8px] font-body-sm text-body-sm placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest focus:ring-1 focus:ring-brand-300 w-44 sm:w-56"
-                  placeholder="Tìm theo tên, email..."
-                  type="search"
-                  value={queryInput}
-                  onChange={(event) => setQueryInput(event.target.value)}
-                />
+          <div
+            className={`lg:col-span-8 flex flex-col overflow-hidden ${CARD}`}
+          >
+            <div className="p-space-lg flex flex-col sm:flex-row sm:items-center justify-between gap-space-md">
+              <div>
+                <h2 className={`text-[16px] font-medium ${INK}`}>
+                  Thành viên nhóm
+                </h2>
               </div>
-              <div className="relative">
-                <select
-                  className="appearance-none bg-tone-100 text-tone-900 font-body-sm text-body-sm py-2 pl-4 pr-8 rounded-[8px] focus:outline-none focus:ring-1 focus:ring-brand-300 cursor-pointer"
-                  value={role}
-                  aria-label="Vai trò"
-                  onChange={(event) => {
-                    setRole(event.target.value as 'all' | ManagedUserRole)
-                    setOffset(0)
-                  }}
+              <div className="flex items-center gap-space-sm flex-wrap">
+                <div className="relative flex items-center">
+                  <MaterialIcon
+                    name="search"
+                    className="absolute left-2.5 text-secondary text-[16px]"
+                  />
+                  <input
+                    className="pl-8 pr-space-md py-2 bg-tone-100 text-tone-900 rounded-[8px] font-body-sm text-body-sm placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest focus:ring-1 focus:ring-brand-300 w-44 sm:w-56"
+                    placeholder="Tìm theo tên, email..."
+                    type="search"
+                    value={queryInput}
+                    onChange={(event) => setQueryInput(event.target.value)}
+                  />
+                </div>
+                <div className="relative">
+                  <select
+                    className="appearance-none bg-tone-100 text-tone-900 font-body-sm text-body-sm py-2 pl-4 pr-8 rounded-[8px] focus:outline-none focus:ring-1 focus:ring-brand-300 cursor-pointer"
+                    value={role}
+                    aria-label="Vai trò"
+                    onChange={(event) => {
+                      setRole(event.target.value as 'all' | ManagedUserRole)
+                      setOffset(0)
+                    }}
+                  >
+                    <option value="all">Tất cả vai trò</option>
+                    <option value="ADMINISTRATOR">Quản trị</option>
+                    <option value="OPERATOR">Vận hành</option>
+                    <option value="REVIEWER">Thẩm định</option>
+                  </select>
+                  <MaterialIcon
+                    name="expand_more"
+                    className="absolute right-2.5 top-2.5 pointer-events-none text-secondary text-[16px]"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {membersError ? (
+              <div className="mx-space-lg mb-space-md px-space-md py-space-sm rounded bg-error-container text-on-error-container font-body-sm text-body-sm">
+                {membersError}
+              </div>
+            ) : null}
+
+            <div className="w-full">
+              <table className="w-full text-left text-on-surface font-body-sm text-body-sm table-fixed">
+                <thead>
+                  <tr
+                    className={`${MUTED} text-[11px] font-semibold uppercase tracking-[0.06em] border-y border-tone-100`}
+                  >
+                    <th className="py-3 px-space-lg w-[40%]" scope="col">
+                      Thành viên
+                    </th>
+                    <th className="py-3 px-space-md w-[18%]" scope="col">
+                      Vai trò
+                    </th>
+                    <th className="py-3 px-space-md w-[22%]" scope="col">
+                      Đăng nhập gần nhất
+                    </th>
+                    <th className="py-3 px-space-md w-[20%]" scope="col">
+                      Trạng thái
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-tone-100">
+                  {membersLoading && members.length === 0 ? (
+                    <tr>
+                      <td
+                        className="py-10 px-space-lg text-secondary"
+                        colSpan={4}
+                      >
+                        Đang tải danh sách thành viên…
+                      </td>
+                    </tr>
+                  ) : null}
+                  {!membersLoading && members.length === 0 ? (
+                    <tr>
+                      <td className="py-12 px-space-lg" colSpan={4}>
+                        <div className="flex flex-col items-center gap-space-sm text-center">
+                          <MaterialIcon
+                            name="group"
+                            className="text-secondary text-[28px]"
+                          />
+                          <p className="font-title-sm text-title-sm text-on-surface">
+                            {membersError
+                              ? 'Chưa tải được danh sách'
+                              : 'Chưa có thành viên khớp bộ lọc'}
+                          </p>
+                          <p className="font-body-sm text-body-sm text-secondary max-w-md">
+                            {membersError
+                              ? 'Danh sách hiện khi backend có API quản lý người dùng.'
+                              : 'Mời thành viên để họ nhận email đặt mật khẩu.'}
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : null}
+                  {members.map((member) => (
+                    <MemberRow key={member.id} member={member} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="px-space-lg py-space-md border-t border-tone-100 flex items-center justify-between">
+              <span className="font-body-sm text-body-sm text-secondary">
+                Hiển thị{' '}
+                <span className="font-semibold text-on-surface">
+                  {from} - {to}
+                </span>{' '}
+                của{' '}
+                <span className="font-semibold text-on-surface">
+                  {memberTotal}
+                </span>{' '}
+                thành viên
+              </span>
+              <div className="flex items-center gap-space-xs">
+                <button
+                  className="px-4 py-1.5 rounded-[8px] border border-tone-200 bg-white text-tone-900 hover:bg-tone-100 font-label-sm text-label-sm transition-colors disabled:text-tone-300 disabled:hover:bg-white disabled:cursor-not-allowed"
+                  disabled={!hasPrev || membersLoading}
+                  type="button"
+                  onClick={() =>
+                    setOffset((current) => Math.max(0, current - PAGE_SIZE))
+                  }
                 >
-                  <option value="all">Tất cả vai trò</option>
-                  <option value="ADMINISTRATOR">Quản trị</option>
-                  <option value="OPERATOR">Vận hành</option>
-                  <option value="REVIEWER">Thẩm định</option>
-                </select>
-                <MaterialIcon
-                  name="expand_more"
-                  className="absolute right-2.5 top-2.5 pointer-events-none text-secondary text-[16px]"
-                />
+                  Trước
+                </button>
+                <button
+                  className="px-4 py-1.5 rounded-[8px] bg-brand-100 text-brand-700 font-medium hover:bg-brand-200 font-label-sm text-label-sm transition-colors disabled:bg-brand-50 disabled:text-tone-300 disabled:font-normal disabled:cursor-not-allowed"
+                  disabled={!hasNext || membersLoading}
+                  type="button"
+                  onClick={() => setOffset((current) => current + PAGE_SIZE)}
+                >
+                  Sau
+                </button>
               </div>
             </div>
           </div>
-
-          {membersError ? (
-            <div className="mx-space-lg mb-space-md px-space-md py-space-sm rounded bg-error-container text-on-error-container font-body-sm text-body-sm">
-              {membersError}
-            </div>
-          ) : null}
-
-          <div className="w-full">
-            <table className="w-full text-left text-on-surface font-body-sm text-body-sm table-fixed">
-              <thead>
-                <tr className={`${MUTED} text-[11px] font-semibold uppercase tracking-[0.06em] border-y border-tone-100`}>
-                  <th className="py-3 px-space-lg w-[40%]" scope="col">
-                    Thành viên
-                  </th>
-                  <th className="py-3 px-space-md w-[18%]" scope="col">
-                    Vai trò
-                  </th>
-                  <th className="py-3 px-space-md w-[22%]" scope="col">
-                    Đăng nhập gần nhất
-                  </th>
-                  <th className="py-3 px-space-md w-[20%]" scope="col">
-                    Trạng thái
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-tone-100">
-                {membersLoading && members.length === 0 ? (
-                  <tr>
-                    <td className="py-10 px-space-lg text-secondary" colSpan={4}>
-                      Đang tải danh sách thành viên…
-                    </td>
-                  </tr>
-                ) : null}
-                {!membersLoading && members.length === 0 ? (
-                  <tr>
-                    <td className="py-12 px-space-lg" colSpan={4}>
-                      <div className="flex flex-col items-center gap-space-sm text-center">
-                        <MaterialIcon
-                          name="group"
-                          className="text-secondary text-[28px]"
-                        />
-                        <p className="font-title-sm text-title-sm text-on-surface">
-                          {membersError
-                            ? 'Chưa tải được danh sách'
-                            : 'Chưa có thành viên khớp bộ lọc'}
-                        </p>
-                        <p className="font-body-sm text-body-sm text-secondary max-w-md">
-                          {membersError
-                            ? 'Danh sách hiện khi backend có API quản lý người dùng.'
-                            : 'Mời thành viên để họ nhận email đặt mật khẩu.'}
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : null}
-                {members.map((member) => (
-                  <MemberRow key={member.id} member={member} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="px-space-lg py-space-md border-t border-tone-100 flex items-center justify-between">
-            <span className="font-body-sm text-body-sm text-secondary">
-              Hiển thị{' '}
-              <span className="font-semibold text-on-surface">
-                {from} - {to}
-              </span>{' '}
-              của{' '}
-              <span className="font-semibold text-on-surface">{memberTotal}</span>{' '}
-              thành viên
-            </span>
-            <div className="flex items-center gap-space-xs">
-              <button
-                className="px-4 py-1.5 rounded-[8px] border border-tone-200 bg-white text-tone-900 hover:bg-tone-100 font-label-sm text-label-sm transition-colors disabled:text-tone-300 disabled:hover:bg-white disabled:cursor-not-allowed"
-                disabled={!hasPrev || membersLoading}
-                type="button"
-                onClick={() =>
-                  setOffset((current) => Math.max(0, current - PAGE_SIZE))
-                }
-              >
-                Trước
-              </button>
-              <button
-                className="px-4 py-1.5 rounded-[8px] bg-brand-100 text-brand-700 font-medium hover:bg-brand-200 font-label-sm text-label-sm transition-colors disabled:bg-brand-50 disabled:text-tone-300 disabled:font-normal disabled:cursor-not-allowed"
-                disabled={!hasNext || membersLoading}
-                type="button"
-                onClick={() => setOffset((current) => current + PAGE_SIZE)}
-              >
-                Sau
-              </button>
-            </div>
-          </div>
-        </div>
         ) : null}
 
         <div
@@ -466,11 +477,16 @@ export function OverviewPage() {
               </p>
             ) : null}
             {!activityLoading && activityError ? (
-              <p className="font-body-sm text-body-sm text-error py-space-md">{activityError}</p>
+              <p className="font-body-sm text-body-sm text-error py-space-md">
+                {activityError}
+              </p>
             ) : null}
             {!activityLoading && !activityError && activity.length === 0 ? (
               <div className="flex flex-col items-start gap-space-sm py-space-md">
-                <MaterialIcon name="history" className="text-secondary text-[28px]" />
+                <MaterialIcon
+                  name="history"
+                  className="text-secondary text-[28px]"
+                />
                 <p className="font-title-sm text-title-sm text-on-surface">
                   Chưa có nhật ký hoạt động
                 </p>
@@ -484,15 +500,23 @@ export function OverviewPage() {
             {!activityLoading && activity.length > 0 ? (
               <ul className="flex flex-col gap-space-sm">
                 {activity.map((event) => (
-                  <li key={event.id} className="flex items-start gap-space-sm rounded-[10px] border border-tone-100 bg-tone-50 p-3">
+                  <li
+                    key={event.id}
+                    className="flex items-start gap-space-sm rounded-[10px] border border-tone-100 bg-tone-50 p-3"
+                  >
                     <span
                       aria-hidden="true"
                       className={`w-8 h-8 rounded-full ${AVATAR_FILL} flex items-center justify-center text-[11px] font-bold shrink-0`}
                     >
-                      {initials(event.actor_display_name ?? '', event.actor_display_name ?? '?')}
+                      {initials(
+                        event.actor_display_name ?? '',
+                        event.actor_display_name ?? '?',
+                      )}
                     </span>
                     <span className="flex flex-col gap-0.5 min-w-0">
-                      <span className={`font-body-sm text-body-sm font-semibold ${INK}`}>
+                      <span
+                        className={`font-body-sm text-body-sm font-semibold ${INK}`}
+                      >
                         {event.actor_display_name
                           ? `${event.actor_display_name} · ${event.title}`
                           : event.title}
@@ -545,7 +569,10 @@ function StorageCard({
           {percent !== null ? (
             <div className="mt-space-sm">
               <div className="h-1.5 rounded-full bg-brand-100 overflow-hidden">
-                <div className="h-full rounded-full bg-brand-600" style={{ width: `${percent}%` }} />
+                <div
+                  className="h-full rounded-full bg-brand-600"
+                  style={{ width: `${percent}%` }}
+                />
               </div>
               <p className={`text-[12px] ${MUTED} mt-space-xs`}>
                 {percent}% của {formatBytes(quota ?? 0)}
@@ -559,7 +586,9 @@ function StorageCard({
         </div>
       ) : (
         <div className="mt-space-md">
-          <span className={`text-[20px] font-bold ${MUTED}`}>Chưa có số liệu</span>
+          <span className={`text-[20px] font-bold ${MUTED}`}>
+            Chưa có số liệu
+          </span>
           <p className={`text-[12px] ${MUTED} mt-space-xs`}>{emptyNote}</p>
         </div>
       )}
@@ -580,7 +609,9 @@ function CardHead({
   return (
     <div className="flex items-center justify-between gap-space-sm">
       <span className="text-[13px] font-medium text-tone-700">{label}</span>
-      <span className={`w-7 h-7 rounded-[6px] ${STAT_TONE[tone]} flex items-center justify-center shrink-0`}>
+      <span
+        className={`w-7 h-7 rounded-[6px] ${STAT_TONE[tone]} flex items-center justify-center shrink-0`}
+      >
         <MaterialIcon name={icon} className="text-[16px]" />
       </span>
     </div>
@@ -645,7 +676,9 @@ function MemberRow({ member }: { member: ManagedUser }) {
             >
               {member.display_name}
             </span>
-            <span className={`text-[12px] ${MUTED} truncate`}>{member.email}</span>
+            <span className={`text-[12px] ${MUTED} truncate`}>
+              {member.email}
+            </span>
           </div>
         </div>
       </td>

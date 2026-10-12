@@ -4,6 +4,7 @@ import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
 import { NotificationBell } from '../components/NotificationBell'
 import { SidebarLogout } from '../components/SidebarLogout'
+import { shareRoleLabels } from '../data/shareGrant'
 
 const navItems = [
   { to: '/ho-so-hop-dong', icon: 'folder_open', label: 'Hồ sơ Hợp đồng' },
@@ -157,9 +158,7 @@ export function ReviewLayout() {
                     {user.name}
                   </span>
                   <span className="font-label-sm text-label-sm text-secondary leading-tight">
-                    {user.role === 'admin'
-                      ? 'Quản trị viên'
-                      : 'Chuyên viên Pháp chế Cấp cao'}
+                    {shareRoleLabels[user.backendRole]}
                   </span>
                 </div>
                 <div className="w-8 h-8 rounded-[9999px] bg-primary flex items-center justify-center">

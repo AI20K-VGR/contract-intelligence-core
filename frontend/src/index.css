@@ -134,7 +134,8 @@
 
 /*
  * Giá trị dự phòng khi chưa có bộ màu nào được chọn. Màu thật của từng bộ nằm ở
- * các khối :root[data-palette='…'] bên dưới (danh sách trong src/theme/palettes.ts).
+ * các khối [data-palette='…'] bên dưới (danh sách trong src/theme/palettes.ts).
+ * Không gắn :root để thẻ xem trước ở Cài đặt tự mang màu của bộ đó.
  * brand là màu chủ đạo, tone là xám slate, ice/blush là màu phụ, side-* là thanh menu.
  */
 @theme {
@@ -224,7 +225,7 @@
  * Bộ màu 2 "Bãi biển": sage #89AEB2, aqua #97F2F3, cát #F1E0B0, đào #F1CDB0,
  * hồng phấn #E7CFC8. Chọn ở Cài đặt; src/theme/palettes.ts đặt data-palette lên <html>.
  */
-:root[data-palette='2'] {
+[data-palette='2'] {
   --color-brand-50: #f3f8f8;
   --color-brand-100: #e3eef0;
   --color-brand-200: #c9dcde;
@@ -252,7 +253,7 @@
 }
 
 /* Bộ màu 3 "Mận chín": #4f4762, #efdecd, #ffadb5, #d63a6f */
-:root[data-palette='3'] {
+[data-palette='3'] {
   --color-brand-50: #fff3f5;
   --color-brand-100: #ffe5ea;
   --color-brand-200: #ffd0d9;
@@ -280,7 +281,7 @@
 }
 
 /* Bộ màu 4 "Xanh công nghệ": #1e3a5f, #1e88ff, #e6e6e6, #f2f2f2 */
-:root[data-palette='4'] {
+[data-palette='4'] {
   --color-brand-50: #f2f7ff;
   --color-brand-100: #e1eeff;
   --color-brand-200: #c9e0ff;
@@ -308,7 +309,7 @@
 }
 
 /* Bộ màu 5 "Vườn hè": #b9e5a6, #e6c27a, #ef9d7a, #e98aa6 */
-:root[data-palette='5'] {
+[data-palette='5'] {
   --color-brand-50: #ecfde6;
   --color-brand-100: #dcf6d1;
   --color-brand-200: #c4ecb5;
@@ -336,7 +337,7 @@
 }
 
 /* Bộ màu 7 "Bạc hà": #addfd0, #f1a6a3, #a98aa8, #eaf6f4 */
-:root[data-palette='7'] {
+[data-palette='7'] {
   --color-brand-50: #e8fcf6;
   --color-brand-100: #d5f5eb;
   --color-brand-200: #b9eadb;
@@ -364,7 +365,7 @@
 }
 
 /* Bộ màu 8 "Hoàng hôn": #fdf6e3, #b7dcd9, #f7a46b, #fdc39c */
-:root[data-palette='8'] {
+[data-palette='8'] {
   --color-brand-50: #e9fbf9;
   --color-brand-100: #d6f4f1;
   --color-brand-200: #bbe9e4;
@@ -392,7 +393,7 @@
 }
 
 /* Bộ màu 9 "Rừng nhiệt đới": #4ba89a, #b5e2c0, #f2edcc, #f2c6c8 */
-:root[data-palette='9'] {
+[data-palette='9'] {
   --color-brand-50: #e7fcf8;
   --color-brand-100: #d3f5ef;
   --color-brand-200: #b7eae1;

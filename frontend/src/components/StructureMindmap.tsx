@@ -482,23 +482,8 @@ export function StructureMindmap({
   const layout = useMemo(() => {
     // Chỉ để ép đo lại chữ khi font web tải xong.
     void fontsVersion
-    return buildLayout(
-      title,
-      source,
-      expanded,
-      rootOpen,
-      markers,
-      orientation,
-    )
-  }, [
-    title,
-    source,
-    expanded,
-    rootOpen,
-    markers,
-    orientation,
-    fontsVersion,
-  ])
+    return buildLayout(title, source, expanded, rootOpen, markers, orientation)
+  }, [title, source, expanded, rootOpen, markers, orientation, fontsVersion])
   const edges = useMemo(
     () => layoutEdges(layout, orientation),
     [layout, orientation],

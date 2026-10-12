@@ -34,7 +34,11 @@ function navItemsFor(role: UserRole): NavItem[] {
   const dossiers =
     role === 'ADMINISTRATOR'
       ? { to: '/ho-so', icon: 'folder_shared', label: 'Hồ sơ' }
-      : { to: '/ho-so-cua-toi', icon: 'folder_shared', label: 'Hồ sơ của tôi' }
+      : {
+          to: '/ho-so-cua-toi',
+          icon: 'folder_shared',
+          label: dossiersLabel('user', role),
+        }
   const shared: NavItem[] = [
     dossiers,
     {
@@ -86,11 +90,12 @@ const MONO_PAGES = [
   '/cai-dat',
   '/tao-ho-so',
   '/doi-soat-xung-dot',
+  '/tien-trinh-phan-tich',
   '/admin/monitoring',
 ]
 
 /** Trang có mã hồ sơ trong đường dẫn: so theo phần đầu. */
-const MONO_PAGE_PREFIXES = ['/cau-truc/']
+const MONO_PAGE_PREFIXES = ['/cau-truc/', '/tien-trinh-phan-tich/']
 
 /** Các trang con của luồng hồ sơ: vẫn sáng mục "Hồ sơ" trên sidebar. */
 function inDossierSection(pathname: string, role: AppRole) {
@@ -247,7 +252,7 @@ export function AppLayout({ role }: { role: AppRole }) {
                     collapsed
                       ? item.label
                       : item.to === dossiersTo
-                        ? dossiersLabel(role)
+                        ? dossiersLabel(role, user?.backendRole)
                         : undefined
                   }
                   className={() => {

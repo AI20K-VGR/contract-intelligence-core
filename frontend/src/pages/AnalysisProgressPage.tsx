@@ -36,11 +36,12 @@ import {
   latestDossierRun,
   runActionErrorMessage,
 } from '../api/runs'
-import { dossiersLabel, dossiersPath } from '../auth/session'
+import { dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
+import { useDossierPermissions } from '../auth/dossierPermissions'
 import { MaterialIcon } from '../components/icons'
 import { structurePath } from '../data/dossiers'
-import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { parseStructureMode, type StructureMode } from '../structure'
 
 const POLL_INTERVAL_MS = 2000
@@ -150,8 +151,10 @@ export function AnalysisProgressPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const backTo = user ? dossiersPath(user.role) : '/ho-so'
-  const backLabel = user ? dossiersLabel(user.role) : 'Hồ sơ'
-  const titleInHeader = useHeaderShowsPageTitle()
+  // Hủy, chạy lại là DOSSIER_EDIT; xóa là DOSSIER_MANAGE (chủ hồ sơ hoặc Quản trị).
+  const permissions = useDossierPermissions(dossierId)
+  const canManageRun = permissions.canEdit
+  const canDelete = permissions.canManage
   const [detail, setDetail] = useState<DossierStructure | null>(null)
   const [pagesByDoc, setPagesByDoc] = useState<Record<string, OcrPageRow[]>>({})
   const [clauseCount, setClauseCount] = useState<number | null>(null)
@@ -620,18 +623,6 @@ export function AnalysisProgressPage() {
     awaitingManifest &&
     steps.S4?.status !== 'running'
 
-  const statusText = failed
-    ? failedLabel
-    : runDone
-      ? 'Đã xử lý xong'
-      : waitingManifest
-        ? 'Chờ xác nhận hồ sơ'
-        : ready
-          ? 'Đang phân tích nội dung'
-          : jobStatus === 'processing' || pageTotals.done > 0
-            ? 'Đang xử lý tự động'
-            : 'Đang chờ worker nhận tệp'
-
   const finished = runDone || failed
   const runningStep = finished
     ? undefined
@@ -649,44 +640,7 @@ export function AnalysisProgressPage() {
             : 'Đang chờ máy chủ nhận tệp'
 
   return (
-    <div className="flex flex-col w-full pb-margin-lg">
-      <div className="flex flex-col gap-space-sm pt-space-md mb-gutter">
-        <div className="flex items-center justify-between gap-space-md">
-          <nav className="flex items-center gap-space-xs text-on-surface-variant font-label-sm text-label-sm uppercase tracking-wider">
-            <Link className="hover:text-primary transition-colors" to={backTo}>
-              {backLabel}
-            </Link>
-            <MaterialIcon name="chevron_right" className="text-[14px]" />
-            <span className="text-on-surface font-semibold">
-              Tiến trình nạp & phân tích tự động
-            </span>
-          </nav>
-          <div className="flex items-center gap-space-sm bg-surface-container-low px-space-md py-space-xs rounded-lg shadow-sm">
-            <span className="relative flex h-2 w-2">
-              {finished ? null : (
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              )}
-              <span
-                className={`relative inline-flex rounded-full h-2 w-2 ${
-                  failed ? 'bg-error' : 'bg-emerald-600'
-                }`}
-              />
-            </span>
-            <span className="font-body-sm text-body-sm text-on-surface font-medium">
-              {statusText}
-            </span>
-          </div>
-        </div>
-        {titleInHeader ? null : (
-          <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">
-            Tiến trình phân tích hợp đồng
-          </h1>
-        )}
-        <span className="font-title-sm text-title-sm text-on-surface font-semibold">
-          {detail?.name ?? passedName ?? 'Hồ sơ vừa tải'}
-        </span>
-      </div>
-
+    <div className="flex flex-col w-full pt-space-md pb-margin-lg">
       {error ? (
         <p
           className="mb-gutter rounded-lg bg-error-container px-space-md py-space-sm font-body-sm text-body-sm text-on-error-container"
@@ -851,26 +805,6 @@ export function AnalysisProgressPage() {
           <section className="bg-surface-container-lowest rounded-lg p-space-lg shadow-sm">
             <div className="flex items-center gap-space-sm mb-space-md">
               <MaterialIcon
-                name="description"
-                className="text-primary text-[20px]"
-              />
-              <span className="font-title-sm text-title-sm text-on-surface font-semibold">
-                Tài liệu trong hồ sơ
-              </span>
-            </div>
-            <div className="flex flex-col gap-space-sm">
-              {files.length === 0 ? (
-                <p className="font-body-sm text-body-sm text-on-surface-variant">
-                  Đang lấy danh sách tệp từ hồ sơ.
-                </p>
-              ) : (
-                files.map((file) => <FileRow key={file.id} file={file} />)
-              )}
-            </div>
-          </section>
-          <section className="bg-surface-container-lowest rounded-lg p-space-lg shadow-sm">
-            <div className="flex items-center gap-space-sm mb-space-md">
-              <MaterialIcon
                 name="history"
                 className="text-on-tertiary-container text-[20px]"
               />
@@ -898,7 +832,7 @@ export function AnalysisProgressPage() {
 
       <div className="mt-gutter pt-space-md flex flex-col md:flex-row items-center justify-between gap-space-md">
         <div className="flex items-center gap-space-md">
-          {finished ? null : (
+          {finished || !canManageRun ? null : (
             <button
               className="font-body-sm text-body-sm text-error hover:underline flex items-center gap-space-xs disabled:opacity-60"
               disabled={busy || !dossierId}
@@ -911,18 +845,7 @@ export function AnalysisProgressPage() {
               <span>Hủy tiến trình này</span>
             </button>
           )}
-          <button
-            className="font-body-sm text-body-sm text-on-surface-variant hover:text-error hover:underline flex items-center gap-space-xs disabled:opacity-60"
-            disabled={busy || !dossierId}
-            type="button"
-            onClick={() => {
-              void deleteJob()
-            }}
-          >
-            <MaterialIcon name="delete" className="text-[16px]" />
-            <span>Xóa hồ sơ</span>
-          </button>
-          {failed && failure.retry !== 'none' ? (
+          {canManageRun && failed && failure.retry !== 'none' ? (
             <button
               className="font-body-sm text-body-sm text-primary hover:underline flex items-center gap-space-xs disabled:opacity-60"
               disabled={busy}
@@ -940,24 +863,39 @@ export function AnalysisProgressPage() {
             </button>
           ) : null}
         </div>
-        <button
-          className={`flex items-center gap-space-sm px-gutter py-space-sm bg-primary text-on-primary rounded-lg font-title-sm text-title-sm shadow-sm transition-all ${
-            ready
-              ? 'hover:bg-primary-container cursor-pointer'
-              : 'opacity-50 cursor-not-allowed'
-          }`}
-          disabled={!ready || !dossierId}
-          type="button"
-          onClick={() => {
-            if (!ready || !dossierId) return
-            navigate(structurePath(dossierId), {
-              state: mode ? { structureMode: mode } : undefined,
-            })
-          }}
-        >
-          <span>Xem hồ sơ</span>
-          <MaterialIcon name="arrow_forward" className="text-[18px]" />
-        </button>
+        <div className="flex items-center gap-space-sm">
+          {canDelete ? (
+            <button
+              className="flex items-center gap-space-sm px-gutter py-space-sm bg-white text-on-surface border border-error/70 rounded-lg font-title-sm text-title-sm shadow-sm transition-all hover:bg-error/5 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={busy || !dossierId}
+              type="button"
+              onClick={() => {
+                void deleteJob()
+              }}
+            >
+              <MaterialIcon name="delete" className="text-[18px] text-error" />
+              <span>Xóa hồ sơ</span>
+            </button>
+          ) : null}
+          <button
+            className={`flex items-center gap-space-sm px-gutter py-space-sm bg-brand-100 text-brand-700 rounded-lg font-title-sm text-title-sm shadow-sm transition-all ${
+              ready
+                ? 'hover:bg-brand-200 cursor-pointer'
+                : 'opacity-50 cursor-not-allowed'
+            }`}
+            disabled={!ready || !dossierId}
+            type="button"
+            onClick={() => {
+              if (!ready || !dossierId) return
+              navigate(structurePath(dossierId), {
+                state: mode ? { structureMode: mode } : undefined,
+              })
+            }}
+          >
+            <span>Xem hồ sơ</span>
+            <MaterialIcon name="arrow_forward" className="text-[18px]" />
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -986,7 +924,7 @@ function StepDot({ status }: { status: string }) {
   }
   if (status === 'running') {
     return (
-      <div className="w-6 h-6 rounded-full bg-primary-container flex items-center justify-center text-primary-fixed shrink-0">
+      <div className="w-6 h-6 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 ring-1 ring-brand-200 shrink-0">
         <MaterialIcon
           name="progress_activity"
           className="text-[16px] animate-spin"
@@ -1004,66 +942,6 @@ function StepDot({ status }: { status: string }) {
   return (
     <div className="w-6 h-6 rounded-full bg-surface-container flex items-center justify-center shrink-0">
       <span className="w-2 h-2 rounded-full bg-outline-variant" />
-    </div>
-  )
-}
-
-function FileRow({ file }: { file: FileRowModel }) {
-  const rowClass =
-    file.status === 'reading'
-      ? 'bg-surface-container-high'
-      : file.status === 'waiting'
-        ? 'bg-surface-container-low opacity-80'
-        : 'bg-surface-container-low'
-  return (
-    <div
-      className={`flex items-center justify-between p-space-md rounded-lg ${rowClass}`}
-    >
-      <div className="flex items-center gap-space-sm min-w-0">
-        {file.status === 'done' ? (
-          <MaterialIcon
-            name="check_circle"
-            className="text-emerald-700 text-[20px] shrink-0"
-          />
-        ) : null}
-        {file.status === 'reading' ? (
-          <MaterialIcon
-            name="progress_activity"
-            className="text-on-tertiary-container text-[20px] animate-spin shrink-0"
-          />
-        ) : null}
-        {file.status === 'waiting' ? (
-          <MaterialIcon
-            name="schedule"
-            className="text-on-surface-variant text-[20px] shrink-0"
-          />
-        ) : null}
-        {file.status === 'failed' ? (
-          <MaterialIcon
-            name="error"
-            className="text-error text-[20px] shrink-0"
-          />
-        ) : null}
-        <span className="font-title-sm text-title-sm text-on-surface truncate font-semibold">
-          {file.name}
-        </span>
-        <span className="text-body-sm text-on-surface-variant">
-          {file.meta}
-        </span>
-      </div>
-      <span
-        className={`font-body-sm text-body-sm font-semibold px-space-sm py-0.5 rounded shrink-0 ${
-          file.status === 'done'
-            ? 'text-emerald-800 bg-emerald-100'
-            : file.status === 'reading'
-              ? 'text-on-tertiary-container bg-surface-container'
-              : file.status === 'failed'
-                ? 'text-error bg-error-container'
-                : 'text-on-secondary-container bg-surface-container'
-        }`}
-      >
-        {file.label}
-      </span>
     </div>
   )
 }

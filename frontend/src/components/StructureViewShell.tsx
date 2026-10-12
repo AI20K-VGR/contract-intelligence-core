@@ -237,7 +237,11 @@ export function ConflictBadge({
     return (
       <span
         className={`inline-flex shrink-0 items-center justify-center rounded-full px-1 font-semibold leading-none ${toneOf(marker.belowState)}`}
-        style={{ height: size, minWidth: size, fontSize: Math.max(9, size - 6) }}
+        style={{
+          height: size,
+          minWidth: size,
+          fontSize: Math.max(9, size - 6),
+        }}
         title={title}
       >
         {marker.below}
@@ -266,12 +270,18 @@ export function ConflictBadge({
     >
       <MaterialIcon name={icon} style={{ fontSize: size - 4 }} />
       {direct > 1 ? (
-        <span className="font-semibold" style={{ fontSize: Math.max(9, size - 6) }}>
+        <span
+          className="font-semibold"
+          style={{ fontSize: Math.max(9, size - 6) }}
+        >
           {direct}
         </span>
       ) : null}
       {collapsed && marker.below > 0 ? (
-        <span className="font-semibold" style={{ fontSize: Math.max(9, size - 6) }}>
+        <span
+          className="font-semibold"
+          style={{ fontSize: Math.max(9, size - 6) }}
+        >
           +{marker.below}
         </span>
       ) : null}

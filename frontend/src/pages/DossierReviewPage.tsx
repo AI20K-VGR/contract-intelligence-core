@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useDossierPermissions } from '../auth/dossierPermissions'
 import {
   getDossierStructure,
   searchDossier,
@@ -54,7 +55,6 @@ import { QueryHistoryPanel } from '../components/QueryHistoryPanel'
 import { RecordDetail } from '../components/RecordDetail'
 import { RunHistoryPanel } from '../components/RunHistoryPanel'
 import { SearchAudit } from '../components/SearchAudit'
-import { useAuth } from '../auth/useAuth'
 import { conflictPagePath, progressPath } from '../data/dossiers'
 
 type ReviewTab = 'search' | 'activity' | 'clauses' | 'risk' | 'runs'
@@ -132,9 +132,6 @@ function exportDossierEvidence(
 export function DossierReviewPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { user } = useAuth()
-  const canManageRuns =
-    user?.backendRole === 'OPERATOR' || user?.backendRole === 'ADMINISTRATOR'
   const params = useParams<{ dossierId?: string }>()
   const state = location.state as {
     dossierId?: string
@@ -147,6 +144,13 @@ export function DossierReviewPage() {
     state?.dossierId ||
     new URLSearchParams(location.search).get('dossierId') ||
     ''
+  const permissions = useDossierPermissions(dossierId)
+  const canManageRuns = permissions.canEdit
+  // Khóa cần REVIEW_MUTATE, phê duyệt cần APPROVE (dependencies_approval.py).
+  const canLock = permissions.canReview
+  const canApprove = permissions.canApprove
+  // Hàng đợi review cần REVIEW_READ: Vận hành gọi sẽ bị 403.
+  const canSeeQueue = permissions.canSeeReview
   const [tab, setTab] = useState<ReviewTab>(
     location.pathname === '/nhat-ky-phap-ly'
       ? 'activity'
@@ -341,7 +345,7 @@ export function DossierReviewPage() {
   }, [dossierId])
 
   useEffect(() => {
-    if (tab !== 'activity' || !dossierId) {
+    if (tab !== 'activity' || !dossierId || !canSeeQueue) {
       setReviewItems([])
       setReviewError(null)
       return
@@ -361,7 +365,7 @@ export function DossierReviewPage() {
       })
       .finally(() => setReviewLoading(false))
     return () => controller.abort()
-  }, [dossierId, tab])
+  }, [dossierId, tab, canSeeQueue])
 
   useEffect(() => {
     if (!selectedReviewItemId) {
@@ -792,7 +796,21 @@ export function DossierReviewPage() {
       ) : null}
 
       {tab === 'activity' ? (
-        dossierId ? (
+        dossierId && !canSeeQueue ? (
+          <section className="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm">
+            <h2 className="font-headline-md text-headline-md text-on-surface">
+              Hàng đợi thẩm định
+            </h2>
+            <p className="mt-space-xs flex items-start gap-1 font-body-sm text-body-sm text-on-surface-variant">
+              <MaterialIcon
+                name="visibility_off"
+                className="mt-0.5 text-[16px]"
+              />
+              Chỉ Thẩm định hoặc Quản trị xem và xử lý hàng đợi thẩm định. Bạn
+              vẫn xem được kết quả thẩm định ở từng xung đột và trích dẫn.
+            </p>
+          </section>
+        ) : dossierId ? (
           <section className="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm space-y-space-md">
             <div className="flex flex-wrap items-center justify-between gap-space-sm">
               <div>
@@ -805,22 +823,30 @@ export function DossierReviewPage() {
                 </p>
               </div>
               <div className="flex gap-space-xs">
-                <button
-                  className="px-space-sm py-space-xs rounded bg-surface-container text-on-surface font-label-sm disabled:opacity-50"
-                  type="button"
-                  disabled={lifecycleBusy}
-                  onClick={() => void handleLifecycleAction('lock')}
-                >
-                  Khóa hồ sơ
-                </button>
-                <button
-                  className="px-space-sm py-space-xs rounded bg-primary text-on-primary font-label-sm disabled:opacity-50"
-                  type="button"
-                  disabled={lifecycleBusy}
-                  onClick={() => void handleLifecycleAction('approve')}
-                >
-                  Phê duyệt
-                </button>
+                {canLock ? (
+                  <button
+                    className="px-space-sm py-space-xs rounded bg-surface-container text-on-surface font-label-sm disabled:opacity-50"
+                    type="button"
+                    disabled={lifecycleBusy}
+                    onClick={() => void handleLifecycleAction('lock')}
+                  >
+                    Khóa hồ sơ
+                  </button>
+                ) : null}
+                {canApprove ? (
+                  <button
+                    className="px-space-sm py-space-xs rounded bg-primary text-on-primary font-label-sm disabled:opacity-50"
+                    type="button"
+                    disabled={lifecycleBusy}
+                    onClick={() => void handleLifecycleAction('approve')}
+                  >
+                    Phê duyệt
+                  </button>
+                ) : (
+                  <span className="self-center font-label-sm text-label-sm text-secondary">
+                    Quản trị viên phê duyệt sau khi thẩm định xong
+                  </span>
+                )}
               </div>
             </div>
 
@@ -896,7 +922,7 @@ export function DossierReviewPage() {
                         <button
                           className="px-space-sm py-space-xs rounded bg-emerald-100 text-emerald-900 font-label-sm disabled:opacity-50"
                           type="button"
-                          disabled={reviewActionItemId !== null}
+                          disabled={reviewActionItemId !== null || !canLock}
                           onClick={() =>
                             void handleReviewAction(item, 'confirm')
                           }
@@ -917,7 +943,9 @@ export function DossierReviewPage() {
                         <button
                           className="px-space-sm py-space-xs rounded bg-amber-100 text-amber-900 font-label-sm disabled:opacity-50"
                           type="button"
-                          disabled={!draft || reviewActionItemId !== null}
+                          disabled={
+                            !draft || reviewActionItemId !== null || !canLock
+                          }
                           onClick={() =>
                             void handleReviewAction(item, 'correct')
                           }
@@ -927,7 +955,7 @@ export function DossierReviewPage() {
                         <button
                           className="px-space-sm py-space-xs rounded bg-red-100 text-red-900 font-label-sm disabled:opacity-50"
                           type="button"
-                          disabled={reviewActionItemId !== null}
+                          disabled={reviewActionItemId !== null || !canLock}
                           onClick={() =>
                             void handleReviewAction(item, 'reject')
                           }
@@ -937,7 +965,7 @@ export function DossierReviewPage() {
                         <button
                           className="px-space-sm py-space-xs rounded bg-surface-container text-on-surface font-label-sm disabled:opacity-50"
                           type="button"
-                          disabled={reviewActionItemId !== null}
+                          disabled={reviewActionItemId !== null || !canLock}
                           onClick={() =>
                             void handleReviewAction(item, 'needs_more_evidence')
                           }

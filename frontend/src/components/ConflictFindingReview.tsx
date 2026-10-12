@@ -17,6 +17,9 @@ import {
   timelineEntries,
 } from '../review/timeline'
 import { MaterialIcon } from './icons'
+import { ReviewReadOnlyNote } from './ReviewReadOnlyNote'
+import { roleCanReview } from '../review/canReview'
+import { useAuth } from '../auth/useAuth'
 import { ReviewTimeline } from './ReviewTimeline'
 import type { FindingSemantic } from '../api/semanticResults'
 
@@ -68,9 +71,12 @@ export function ConflictFindingReview({
   findingId,
   linkedClauses = NO_LINKS,
   onReviewed,
+  reviewBlocked,
   semantic,
 }: {
   findingId: string
+  /** null: được thẩm định; chuỗi: lý do không được; bỏ trống: xét theo vai trò. */
+  reviewBlocked?: string | null
   /** Điều khoản hai bên để kéo lịch sử thẩm định trích dẫn về cùng dòng thời gian. */
   linkedClauses?: LinkedClause[]
   onReviewed?: (reviewed: boolean) => void
@@ -78,6 +84,7 @@ export function ConflictFindingReview({
 }) {
   const [verdict, setVerdict] = useState<Verdict>('correct')
   const [note, setNote] = useState('')
+  const [showDetail, setShowDetail] = useState(false)
   const [saved, setSaved] = useState(false)
   const [review, setReview] = useState<FindingReview | null>(null)
   const [loading, setLoading] = useState(true)
@@ -88,6 +95,15 @@ export function ConflictFindingReview({
   >({})
   const latest = review?.latest ?? null
   const locked = review?.dossierLocked ?? false
+  const { user } = useAuth()
+  // Trang biết quyền trên hồ sơ thì truyền lý do; không thì xét theo vai trò.
+  const blocked =
+    reviewBlocked !== undefined
+      ? reviewBlocked
+      : roleCanReview(user?.backendRole)
+        ? null
+        : 'Chỉ Thẩm định hoặc Quản trị được thẩm định.'
+  const canReview = blocked === null
   const linkKey = linkedClauses
     .map((link) => `${link.documentId}:${link.node.id}:${link.ordinal}`)
     .join('|')
@@ -216,7 +232,21 @@ export function ConflictFindingReview({
   return (
     <div className="mt-2 border-t border-outline-variant/30 pt-2">
       {semantic ? (
-        <div className="rounded border border-amber-200 p-2 font-body-sm text-body-sm">
+        <button
+          aria-expanded={showDetail}
+          className="mb-1 flex items-center gap-1 font-label-sm text-label-sm text-secondary hover:text-on-surface"
+          type="button"
+          onClick={() => setShowDetail((current) => !current)}
+        >
+          <MaterialIcon
+            name={showDetail ? 'expand_less' : 'expand_more'}
+            className="text-[16px]"
+          />
+          {showDetail ? 'Ẩn chi tiết kỹ thuật' : 'Hiện chi tiết kỹ thuật'}
+        </button>
+      ) : null}
+      {semantic && showDetail ? (
+        <div className="mb-2 rounded border border-amber-200 p-2 font-body-sm text-body-sm">
           <p>
             {semantic.pair?.disposition ?? 'CANDIDATE_AMENDMENT'} · NEEDS_REVIEW
             · {semantic.pair?.method ?? semantic.frame.key.method}
@@ -295,57 +325,65 @@ export function ConflictFindingReview({
           </p>
         </div>
       ) : null}
-      <div className="mt-1 grid grid-cols-2 gap-1">
-        <VerdictButton
-          active={verdict === 'correct'}
-          icon="check_circle"
-          label="Đúng"
-          onClick={() => choose('correct')}
-        />
-        <VerdictButton
-          active={verdict === 'deviation'}
-          icon="cancel"
-          label="Sai"
-          onClick={() => choose('deviation')}
-        />
-      </div>
-      <textarea
-        className="mt-2 w-full resize-none rounded bg-surface-container-low p-2 font-body-sm text-body-sm text-on-surface outline-none focus:ring-1 focus:ring-outline-variant"
-        placeholder="Bổ sung hoặc xử lý..."
-        rows={2}
-        disabled={locked}
-        value={note}
-        onChange={(event) => {
-          setNote(event.target.value)
-          setSaved(false)
-        }}
-      />
-      {message ? (
-        <p className="mt-1 font-body-sm text-body-sm text-error">{message}</p>
-      ) : null}
-      <div className="mt-1 flex items-center justify-end gap-2">
-        {locked ? (
-          <span className="font-label-sm text-label-sm text-secondary">
-            Hồ sơ đã khóa
-          </span>
-        ) : null}
-        <button
-          className="inline-flex items-center gap-1 rounded bg-brand-100 px-3 py-1 font-label-sm text-label-sm font-semibold text-brand-700 hover:bg-brand-200 disabled:opacity-50"
-          type="button"
-          disabled={loading || saving || locked}
-          onClick={() => void save()}
-        >
-          <MaterialIcon
-            name={saved ? 'check' : 'save'}
-            className="text-[15px]"
+      {canReview ? (
+        <>
+          <div className="mt-1 grid grid-cols-2 gap-1">
+            <VerdictButton
+              active={verdict === 'correct'}
+              icon="check_circle"
+              label="Đúng"
+              onClick={() => choose('correct')}
+            />
+            <VerdictButton
+              active={verdict === 'deviation'}
+              icon="cancel"
+              label="Sai"
+              onClick={() => choose('deviation')}
+            />
+          </div>
+          <textarea
+            className="mt-2 w-full resize-none rounded bg-surface-container-low p-2 font-body-sm text-body-sm text-on-surface outline-none focus:ring-1 focus:ring-outline-variant"
+            placeholder="Bổ sung hoặc xử lý..."
+            rows={2}
+            disabled={locked}
+            value={note}
+            onChange={(event) => {
+              setNote(event.target.value)
+              setSaved(false)
+            }}
           />
-          {saving
-            ? 'Đang lưu...'
-            : saved
-              ? 'Đã lưu thẩm định'
-              : 'Lưu thẩm định'}
-        </button>
-      </div>
+          {message ? (
+            <p className="mt-1 font-body-sm text-body-sm text-error">
+              {message}
+            </p>
+          ) : null}
+          <div className="mt-1 flex items-center justify-end gap-2">
+            {locked ? (
+              <span className="font-label-sm text-label-sm text-secondary">
+                Hồ sơ đã khóa
+              </span>
+            ) : null}
+            <button
+              className="inline-flex items-center gap-1 rounded bg-brand-100 px-3 py-1 font-label-sm text-label-sm font-semibold text-brand-700 hover:bg-brand-200 disabled:opacity-50"
+              type="button"
+              disabled={loading || saving || locked}
+              onClick={() => void save()}
+            >
+              <MaterialIcon
+                name={saved ? 'check' : 'save'}
+                className="text-[15px]"
+              />
+              {saving
+                ? 'Đang lưu...'
+                : saved
+                  ? 'Đã lưu thẩm định'
+                  : 'Lưu thẩm định'}
+            </button>
+          </div>
+        </>
+      ) : (
+        <ReviewReadOnlyNote reason={blocked} />
+      )}
       <ReviewTimeline entries={timeline} />
     </div>
   )

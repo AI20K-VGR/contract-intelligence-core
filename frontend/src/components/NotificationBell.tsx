@@ -34,7 +34,9 @@ function formatTime(value: string) {
 
 /** BE chưa có API thông báo thì coi như không có thông báo, không báo lỗi. */
 function isMissingApi(error: unknown) {
-  return error instanceof ApiError && (error.status === 404 || error.status === 405)
+  return (
+    error instanceof ApiError && (error.status === 404 || error.status === 405)
+  )
 }
 
 /** Ẩn khi chưa bật cờ, để không gọi API thông báo mỗi 30 giây khi BE chưa có. */
@@ -42,7 +44,10 @@ export function NotificationBell(props: NotificationBellProps) {
   return NOTIFICATIONS_ENABLED ? <NotificationBellButton {...props} /> : null
 }
 
-function NotificationBellButton({ buttonClassName, dotClassName }: NotificationBellProps) {
+function NotificationBellButton({
+  buttonClassName,
+  dotClassName,
+}: NotificationBellProps) {
   const navigate = useNavigate()
   const rootRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
@@ -80,7 +85,8 @@ function NotificationBellButton({ buttonClassName, dotClassName }: NotificationB
       .catch((err: unknown) => {
         if (err instanceof DOMException && err.name === 'AbortError') return
         setItems([])
-        if (!isMissingApi(err)) setError('Không tải được thông báo. Thử lại sau.')
+        if (!isMissingApi(err))
+          setError('Không tải được thông báo. Thử lại sau.')
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
@@ -107,7 +113,9 @@ function NotificationBellButton({ buttonClassName, dotClassName }: NotificationB
   const openNotification = async (item: AppNotification) => {
     if (!item.read_at) {
       setItems((prev) =>
-        prev.map((n) => (n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n)),
+        prev.map((n) =>
+          n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n,
+        ),
       )
       setUnread((count) => Math.max(0, count - 1))
       markNotificationRead(item.id).catch(() => void refreshCount())
@@ -121,7 +129,9 @@ function NotificationBellButton({ buttonClassName, dotClassName }: NotificationB
 
   const markAll = async () => {
     const now = new Date().toISOString()
-    setItems((prev) => prev.map((n) => (n.read_at ? n : { ...n, read_at: now })))
+    setItems((prev) =>
+      prev.map((n) => (n.read_at ? n : { ...n, read_at: now })),
+    )
     setUnread(0)
     try {
       await markAllNotificationsRead()
@@ -169,17 +179,26 @@ function NotificationBellButton({ buttonClassName, dotClassName }: NotificationB
 
           <div className="max-h-[420px] overflow-y-auto">
             {loading ? (
-              <p className="px-4 py-6 text-center text-body-sm text-secondary">Đang tải...</p>
+              <p className="px-4 py-6 text-center text-body-sm text-secondary">
+                Đang tải...
+              </p>
             ) : error ? (
-              <p className="px-4 py-6 text-center text-body-sm text-error">{error}</p>
+              <p className="px-4 py-6 text-center text-body-sm text-error">
+                {error}
+              </p>
             ) : items.length === 0 ? (
-              <p className="px-4 py-6 text-center text-body-sm text-secondary">Chưa có thông báo</p>
+              <p className="px-4 py-6 text-center text-body-sm text-secondary">
+                Chưa có thông báo
+              </p>
             ) : (
               <ul>
                 {items.map((item) => {
                   const isUnread = !item.read_at
                   return (
-                    <li key={item.id} className="border-b border-outline-variant last:border-b-0">
+                    <li
+                      key={item.id}
+                      className="border-b border-outline-variant last:border-b-0"
+                    >
                       <button
                         type="button"
                         onClick={() => void openNotification(item)}
@@ -190,7 +209,9 @@ function NotificationBellButton({ buttonClassName, dotClassName }: NotificationB
                         <MaterialIcon
                           name={notificationIcon(item.type)}
                           className={`text-[20px] shrink-0 mt-0.5 ${
-                            item.type === 'analysis_failed' ? 'text-error' : 'text-secondary'
+                            item.type === 'analysis_failed'
+                              ? 'text-error'
+                              : 'text-secondary'
                           }`}
                         />
                         <span className="flex-1 min-w-0">
@@ -207,12 +228,17 @@ function NotificationBellButton({ buttonClassName, dotClassName }: NotificationB
                             </span>
                           )}
                           <span className="block text-label-sm text-secondary mt-0.5">
-                            {item.actor_display_name ? `${item.actor_display_name} · ` : ''}
+                            {item.actor_display_name
+                              ? `${item.actor_display_name} · `
+                              : ''}
                             {formatTime(item.created_at)}
                           </span>
                         </span>
                         {isUnread && (
-                          <span className="w-2 h-2 rounded-full bg-error shrink-0 mt-2" aria-label="Chưa đọc" />
+                          <span
+                            className="w-2 h-2 rounded-full bg-error shrink-0 mt-2"
+                            aria-label="Chưa đọc"
+                          />
                         )}
                       </button>
                     </li>

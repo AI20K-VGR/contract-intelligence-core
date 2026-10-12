@@ -18,6 +18,7 @@ import {
 import { ApiError } from '../api/client'
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
+import { useDossierPermissions } from '../auth/dossierPermissions'
 import { MaterialIcon } from '../components/icons'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 
@@ -226,9 +227,9 @@ export function ManifestConfirmPage() {
   const { dossierId = '' } = useParams()
   const { user } = useAuth()
   const backTo = user ? dossiersPath(user.role) : '/'
-  const backLabel = user ? dossiersLabel(user.role) : 'Hồ sơ'
-  const canConfirm =
-    user?.backendRole === 'OPERATOR' || user?.backendRole === 'ADMINISTRATOR'
+  const backLabel = user ? dossiersLabel(user.role, user.backendRole) : 'Hồ sơ'
+  const permissions = useDossierPermissions(dossierId)
+  const canConfirm = permissions.canEdit
 
   const [reloadKey, setReloadKey] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -561,10 +562,9 @@ export function ManifestConfirmPage() {
         </div>
       </div>
 
-      {user?.backendRole === 'REVIEWER' ? (
+      {permissions.editBlocked ? (
         <div className="mb-space-lg px-space-md py-space-sm rounded bg-surface-container text-on-surface font-body-sm text-body-sm">
-          Tài khoản thẩm định không xác nhận manifest. Chỉ vận hành và quản trị
-          gọi được API này.
+          Bạn chỉ xem được manifest. {permissions.editBlocked}
         </div>
       ) : null}
 

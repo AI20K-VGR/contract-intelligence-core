@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { clauseOrdinal } from '../api/clauseReview'
 import {
+  conflictName,
   contractDocument,
   getDossierStructure,
   listClauses,
@@ -18,6 +19,7 @@ import {
 } from '../api/structure'
 import { dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
+import { useDossierPermissions } from '../auth/dossierPermissions'
 import { ClauseFrameResults } from '../components/ClauseFrameResults'
 import {
   ConflictFindingReview,
@@ -30,6 +32,7 @@ import {
 import { MaterialIcon } from '../components/icons'
 import { clauseConflicts } from '../data/clauseConflicts'
 import { structurePath } from '../data/dossiers'
+import { useGoBack } from '../hooks/useGoBack'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { findClause, findClauseByQuote } from '../structure/citations'
 import { bodyOf, headOf } from '../structure/display'
@@ -197,7 +200,7 @@ function spotToCard(
   const head = matched ? headOf(matched) : ''
   return {
     id: spot.id,
-    title: spot.topic || head || 'Chỗ cần đối soát',
+    title: head || conflictName(spot),
     quote,
     contrast,
     basis: basisOf(head, pageNo, pageCount),
@@ -432,6 +435,7 @@ export function ClauseConflictPage() {
     findingId?: string
   } | null
   const dossierId = reviewState?.dossierId ?? searchParams.get('dossier') ?? ''
+  const permissions = useDossierPermissions(dossierId)
   // Từ cây / banner nhảy sang: mở đúng xung đột đó và cuộn thẻ vào tầm nhìn.
   const requestedId =
     searchParams.get('finding') ?? reviewState?.findingId ?? ''
@@ -466,6 +470,7 @@ export function ClauseConflictPage() {
     : user
       ? dossiersPath(user.role)
       : '/'
+  const goBack = useGoBack(backTo)
 
   useEffect(() => {
     if (!dossierId) return
@@ -683,8 +688,6 @@ export function ClauseConflictPage() {
   const reviewed = cards.filter((card) =>
     dossierId ? reviewedIds[card.id] : verdicts[card.id],
   ).length
-  const dossierName =
-    detail?.name?.trim() || reviewState?.name?.trim() || 'Hồ sơ hợp đồng'
 
   function choose(id: string, verdict: Verdict) {
     setVerdicts((current) => ({ ...current, [id]: verdict }))
@@ -692,49 +695,27 @@ export function ClauseConflictPage() {
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
-      <section className="mb-space-sm w-full shrink-0 border-b border-outline-variant/40 bg-surface-container-lowest px-gutter py-space-sm">
-        <div className="flex flex-wrap items-center justify-between gap-space-sm">
-          <div className="flex flex-wrap items-center gap-space-md">
-            <div className="flex items-center gap-space-xs font-label-md text-label-md text-secondary">
-              <span>Hồ sơ Hợp đồng</span>
-              <span className="text-outline-variant">/</span>
-              <span className="font-semibold text-on-surface">
-                {dossierName}
-              </span>
-            </div>
-            {comparing ? (
-              <div className="hidden items-center gap-space-sm font-label-sm text-label-sm text-secondary lg:flex">
-                <span className="font-medium text-on-surface">
-                  Đối chiếu {located.length} tài liệu
-                </span>
-              </div>
-            ) : document ? (
-              <div className="hidden items-center gap-space-sm font-label-sm text-label-sm text-secondary lg:flex">
-                <span className="font-medium text-on-surface">
-                  {document.filename}
-                </span>
-                {pageCount > 0 ? (
-                  <span className="font-code-sm text-code-sm text-on-surface-variant">
-                    {pageCount} trang
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </section>
-
-      {dossierId ? (
-        <details className="max-h-[60vh] overflow-auto rounded border border-outline-variant/40 p-2">
-          <summary className="cursor-pointer font-semibold">
-            Điều khoản, cặp nghi vấn và dòng thời gian
-          </summary>
-          <ClauseFrameResults
-            dossierId={dossierId}
-            expectedRun={spots.find((spot) => spot.runId)?.runId ?? undefined}
-          />
-        </details>
-      ) : null}
+      <div className="flex items-start gap-space-sm">
+        <button
+          className="flex h-9 shrink-0 items-center gap-1 rounded px-space-xs font-label-md text-label-md text-secondary hover:bg-surface-container hover:text-on-surface"
+          type="button"
+          onClick={goBack}
+        >
+          <MaterialIcon name="arrow_back" className="text-[18px]" />
+          <span>Quay lại</span>
+        </button>
+        {dossierId ? (
+          <details className="max-h-[60vh] min-w-0 flex-1 overflow-auto rounded border border-outline-variant/40 p-2">
+            <summary className="cursor-pointer font-semibold">
+              Điều khoản, cặp nghi vấn và dòng thời gian
+            </summary>
+            <ClauseFrameResults
+              dossierId={dossierId}
+              expectedRun={spots.find((spot) => spot.runId)?.runId ?? undefined}
+            />
+          </details>
+        ) : null}
+      </div>
 
       <div className="grid min-h-0 w-full flex-1 grid-cols-1 overflow-hidden rounded border border-outline-variant/50 bg-surface-container-low shadow-sm max-xl:grid-rows-[minmax(420px,1fr)_minmax(420px,1fr)] max-xl:overflow-y-auto xl:grid-cols-12">
         <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-r border-outline-variant/60 xl:col-span-7">
@@ -768,7 +749,6 @@ export function ClauseConflictPage() {
                     regions={pane.regions}
                     sourceLabel={pane.label}
                     title={active?.title ?? ''}
-                    onBack={index === 0 ? () => navigate(backTo) : undefined}
                     onPageChange={onPageChange}
                     onPageCount={index === 0 ? onPageCount : ignorePageCount}
                   />
@@ -798,7 +778,6 @@ export function ClauseConflictPage() {
                 (document?.id === contractId ? (active?.regions ?? []) : [])
               }
               title={active?.title ?? ''}
-              onBack={() => navigate(backTo)}
               onPageChange={onPageChange}
               onPageCount={onPageCount}
               onSelectDocument={selectDocument}
@@ -819,38 +798,31 @@ export function ClauseConflictPage() {
                 type="text"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape' && query) {
+                    event.preventDefault()
+                    setQuery('')
+                  }
+                }}
               />
-              <span className="absolute right-2 top-2 rounded bg-surface-container px-1.5 py-0.5 font-code-sm text-code-sm text-secondary">
-                Ctrl+K
-              </span>
-            </div>
-            <div className="flex items-center justify-between pt-0.5 font-label-sm text-label-sm">
-              <div className="flex items-center gap-1.5 font-semibold uppercase tracking-wider text-primary-container">
-                <MaterialIcon
-                  name="fact_check"
-                  className="text-[16px] text-primary-container"
-                />
-                <span>
-                  Câu trả lời tổng hợp & {cards.length} điểm trích dẫn
+              {query ? (
+                <button
+                  aria-label="Xóa tìm kiếm"
+                  className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full text-secondary hover:bg-surface-container hover:text-on-surface"
+                  title="Xóa tìm kiếm (Esc)"
+                  type="button"
+                  onClick={() => {
+                    setQuery('')
+                    searchRef.current?.focus()
+                  }}
+                >
+                  <MaterialIcon name="close" className="text-[16px]" />
+                </button>
+              ) : (
+                <span className="absolute right-2 top-2 rounded bg-surface-container px-1.5 py-0.5 font-code-sm text-code-sm text-secondary">
+                  Ctrl+K
                 </span>
-              </div>
-              {comparing ? (
-                <span className="flex items-center gap-2 font-label-sm text-label-sm text-secondary">
-                  {located.map((pane) => (
-                    <span
-                      key={pane.key}
-                      className="inline-flex items-center gap-1"
-                    >
-                      <span
-                        className={`h-2 w-2 rounded-sm ${
-                          pane.mark === 'sky' ? 'bg-sky-500' : 'bg-amber-500'
-                        }`}
-                      />
-                      {pane.label}
-                    </span>
-                  ))}
-                </span>
-              ) : null}
+              )}
             </div>
             {showKinds ? (
               <div>
@@ -883,33 +855,6 @@ export function ClauseConflictPage() {
                 <p className="mt-1 font-label-sm text-label-sm text-secondary">
                   {KIND_OPTIONS.find((option) => option.id === kind)?.hint}
                 </p>
-              </div>
-            ) : null}
-            {cards.length > 0 ? (
-              <div className="rounded border border-outline-variant/30 bg-surface-container-low p-space-sm font-body-sm text-body-sm leading-snug text-on-surface-variant">
-                Hồ sơ cần đối soát{' '}
-                {cards.map((card, index) => (
-                  <span key={card.id}>
-                    {index > 0
-                      ? index === cards.length - 1
-                        ? ' và '
-                        : ', '
-                      : ''}
-                    {card.title}{' '}
-                    <button
-                      className={`mx-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full font-code-sm text-[10px] font-bold ${
-                        card.id === active?.id
-                          ? 'bg-brand-100 text-brand-700 ring-1 ring-brand-200'
-                          : 'bg-tone-100 text-tone-700'
-                      }`}
-                      type="button"
-                      onClick={() => setActiveId(card.id)}
-                    >
-                      {index + 1}
-                    </button>
-                  </span>
-                ))}
-                .
               </div>
             ) : null}
           </div>
@@ -966,28 +911,13 @@ export function ClauseConflictPage() {
                 >
                   <div className="mb-space-xs flex items-start justify-between gap-space-sm">
                     <button
-                      className="flex items-center gap-space-sm text-left"
+                      className={`text-left font-label-md text-label-md font-semibold ${
+                        selected ? 'text-primary-container' : 'text-on-surface'
+                      }`}
                       type="button"
                       onClick={() => setActiveId(card.id)}
                     >
-                      <span
-                        className={`flex h-5 w-5 items-center justify-center rounded-full font-code-sm text-code-sm font-bold ${
-                          selected
-                            ? 'bg-brand-100 text-brand-700 shadow-sm ring-1 ring-brand-200'
-                            : 'bg-tone-100 text-tone-700'
-                        }`}
-                      >
-                        {index}
-                      </span>
-                      <span
-                        className={`font-label-md text-label-md font-semibold ${
-                          selected
-                            ? 'text-primary-container'
-                            : 'text-on-surface'
-                        }`}
-                      >
-                        {card.title}
-                      </span>
+                      Xung đột {index}
                     </button>
                     {selected ? (
                       <span className="inline-flex items-center gap-1 rounded bg-brand-100 px-1.5 py-0.5 font-label-sm text-[10px] font-semibold uppercase text-brand-700">
@@ -1070,6 +1000,7 @@ export function ClauseConflictPage() {
                   {dossierId ? (
                     <ConflictFindingReview
                       findingId={card.id}
+                      reviewBlocked={permissions.reviewBlocked}
                       semantic={
                         spots.find((spot) => spot.id === card.id)?.semantic
                       }

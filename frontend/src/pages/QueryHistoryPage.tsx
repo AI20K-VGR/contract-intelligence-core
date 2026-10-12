@@ -28,10 +28,13 @@ export function QueryHistoryPage() {
           className="hover:text-primary transition-colors"
           to={user ? dossiersPath(user.role) : '/'}
         >
-          {user ? dossiersLabel(user.role) : 'Hồ sơ'}
+          {user ? dossiersLabel(user.role, user.backendRole) : 'Hồ sơ'}
         </Link>
         <MaterialIcon name="chevron_right" className="text-[14px]" />
-        <Link className="hover:text-primary transition-colors" to={structurePath}>
+        <Link
+          className="hover:text-primary transition-colors"
+          to={structurePath}
+        >
           Cấu trúc cây
         </Link>
         <MaterialIcon name="chevron_right" className="text-[14px]" />
