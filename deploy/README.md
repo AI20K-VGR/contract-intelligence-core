@@ -252,7 +252,6 @@ Mật khẩu admin Keycloak, mật khẩu tài khoản demo và mọi secret n�
 
 ## Giới hạn đã biết
 
-- **Kafka không lưu ra volume.** Mất message đang bay khi restart. Watchdog AI1 sẽ fail run bị ảnh hưởng với `AI1_TIMEOUT`, người dùng bấm chạy lại OCR.
-- **Kafka không lưu ra volume** cũng làm offset quay về 0 sau mỗi lần restart. Mọi event backend gửi đều có `event_id`, nên worker không nhầm event mới với event đã xử lý trước khi restart.
+- **Kafka không lưu ra volume.** Mất message đang bay khi restart: watchdog AI1 sẽ fail run bị ảnh hưởng với `AI1_TIMEOUT`, người dùng bấm chạy lại OCR. Offset cũng quay về 0 sau mỗi lần restart; mọi event backend gửi đều có `event_id`, nên worker không nhầm event mới với event đã xử lý trước khi restart.
 - Kết quả OCR lớn đi qua MinIO (`result_ref`), không gửi thẳng qua Kafka. Đã chạy thử local hồ sơ 200 trang (kết quả 6 MB).
 - **Có giám sát, chưa có cảnh báo.** Dashboard Grafana ở `/admin/monitoring` (docs/MONITORING.md). Chưa có Alertmanager, nên vẫn phải có người xem.
