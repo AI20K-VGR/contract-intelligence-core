@@ -298,14 +298,27 @@ services:
       - /bin/sh
       - -c
       - |
+        # Any failing step fails the service, so backend-worker and ai1-worker
+        # (service_completed_successfully) never start on a 1-partition topic.
+        set -eu
         bin=/opt/kafka/bin/kafka-topics.sh; bs=kafka:29092
-        until $$bin --bootstrap-server $$bs --list >/dev/null 2>&1; do echo 'waiting for kafka...'; sleep 2; done
+        tries=0
+        until $$bin --bootstrap-server $$bs --list >/dev/null 2>&1; do
+          tries=$$((tries + 1))
+          if [ "$$tries" -ge 60 ]; then echo "kafka not reachable after 120 s" >&2; exit 1; fi
+          echo 'waiting for kafka...'; sleep 2
+        done
+        count() { $$bin --bootstrap-server $$bs --describe --topic "$$TOPIC" | grep -c 'Partition: '; }
         $$bin --bootstrap-server $$bs --create --if-not-exists --topic "$$TOPIC" --partitions "$$PARTITIONS" --replication-factor 1
-        have=$$($$bin --bootstrap-server $$bs --describe --topic "$$TOPIC" | grep -c 'Partition: ')
+        have=$$(count)
         if [ "$$have" -lt "$$PARTITIONS" ]; then
+          # Grow only (Kafka cannot shrink). Do it with the queue empty: a key's
+          # new commands may land on another partition than its pending ones.
           $$bin --bootstrap-server $$bs --alter --topic "$$TOPIC" --partitions "$$PARTITIONS"
+          have=$$(count)
         fi
-        echo "$$TOPIC: $$($$bin --bootstrap-server $$bs --describe --topic "$$TOPIC" | grep -c 'Partition: ') partitions"
+        if [ "$$have" -lt "$$PARTITIONS" ]; then echo "$$TOPIC has $$have partitions, wanted $$PARTITIONS" >&2; exit 1; fi
+        echo "$$TOPIC: $$have partitions"
     restart: "no"
     networks:
       - ci-network

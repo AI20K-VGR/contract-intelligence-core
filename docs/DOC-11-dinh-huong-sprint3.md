@@ -73,6 +73,19 @@ Sprint 3 đổi sang xử lý từng cụm:
 
 Số đo bắt buộc trong sprint: file khoảng **50MB** và PDF khoảng **200 trang**. Cỡ 1000 trang dùng cùng cơ chế (cụm trang, một phần treo không kéo cả job). Có file mẫu và còn hạn mức thì chạy thử và ghi số đo. Chưa đo thì không ghi là đã chịu được 1000 trang.
 
+### 2.1 Số đo `AI1_MAX_PAGES_IN_FLIGHT` (sơ bộ cho E6 của DEC-BE-AI1-01)
+
+Đo ngày 07/10/2026 trên máy local: pipeline AI1 thật (cùng engine và processor với Kafka worker), `AI1_COST_MODE=budget`, 150 DPI, mỗi mức chạy 1 lần.
+
+| Trang song song | File | Thời gian | Trang OK | Trang bị rate limit (429) |
+|---|---|---|---|---|
+| 8 | `Hop_dong_kinh_te_20_trang_scan.pdf` (20 trang) | 39,0 s | 20/20 | 0 |
+| 16 | như trên | 25,8 s | 20/20 | 0 |
+| 24 | như trên | 20,3 s | 20/20 | 0 |
+| 32 | 4 file scan ghép (43 trang) | 46,8 s | 43/43 | 0 |
+
+Kết quả đọc giống nhau ở mọi mức. Từ đây chọn mặc định 16 trang mỗi replica, 2 replica là 32 trang, đúng mức cao nhất đã đo không gặp 429. Còn thiếu cho E6: hồ sơ ~200 trang, hai hồ sơ chạy cùng lúc, và chế độ `accuracy` (gấp đôi số lần gọi Mistral).
+
 ---
 
 ## 3. Một database, và mật khẩu nằm ở đâu

@@ -87,7 +87,7 @@ Backend                                   AI1
 - Tài liệu có **tới 20 trang**: một lệnh `ai1.ocr.command` như hiện nay, không có `chunk`, không cần assemble. Hồ sơ nhỏ giữ nguyên đường chạy cũ.
 - `AI1_OCR_CHUNK_PAGES=0`: tắt chia cụm. Dùng để triển khai từng bước (xem [Thứ tự triển khai](#thứ-tự-triển-khai)).
 
-**Vì sao 20:** với 8 trang chạy cùng lúc, một cụm xong trong khoảng 3 lượt gọi engine. Kết quả khoảng 71 KiB/trang (DOC-05d §6), tức khoảng 1,4 MiB cho một cụm. Hạn cụm 720 giây (C6) vẫn đủ ngắn để một trang treo không kéo dài quá lâu.
+**Vì sao 20:** với 16 trang chạy cùng lúc (`AI1_MAX_PAGES_IN_FLIGHT`, xem C4), một cụm xong trong khoảng 2 lượt gọi engine. Kết quả khoảng 71 KiB/trang (DOC-05d §6), tức khoảng 1,4 MiB cho một cụm. Hạn cụm 720 giây (C6) vẫn đủ ngắn để một trang treo không kéo dài quá lâu.
 
 - [x] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
 
@@ -217,15 +217,15 @@ Backend gửi khi mọi cụm của một tài liệu đã `chunk_completed`. To
 ## C4. Song song và trần số cụm
 
 **Đề xuất:**
-- **Kafka:** tạo trước topic `ci.ai1.ocr.commands` với **6 partition** bằng script khởi tạo, không để tự tạo. Key = `chunk_id`, nên các cụm của một tài liệu rải ra nhiều partition. Lệnh assemble dùng key `document_id`.
-- **AI1:** chạy `ai1-worker` thành **nhiều replica** trong cùng group `ci-ai1-ocr`: bỏ `container_name` trong compose, đặt `AI1_WORKER_REPLICAS`, mặc định 2. Mỗi replica vẫn OCR 8 trang cùng lúc như hiện nay.
+- **Kafka:** tạo trước topic `ci.ai1.ocr.commands` với **8 partition** bằng script khởi tạo, không để tự tạo. Key = `chunk_id`, nên các cụm của một tài liệu rải ra nhiều partition. Lệnh assemble dùng key `document_id`.
+- **AI1:** chạy `ai1-worker` thành **nhiều replica** trong cùng group `ci-ai1-ocr`: bỏ `container_name` trong compose, đặt `AI1_WORKER_REPLICAS`, mặc định 2. Mỗi replica OCR 16 trang cùng lúc (`AI1_MAX_PAGES_IN_FLIGHT`).
 - **Backend:** mỗi run gửi tối đa **2 cụm cùng lúc** (`AI1_OCR_MAX_CHUNKS_IN_FLIGHT`). Mỗi khi một cụm xong hoặc lỗi hẳn, Backend gửi cụm kế tiếp. Nhờ vậy một tài liệu 200 trang không đổ cả 10 cụm vào hàng đợi, và cụm của hồ sơ khác được chen vào giữa.
 
 **Trần gọi provider (tính theo số request, không theo số trang):**
-- Số trang OCR cùng lúc tối đa = số replica × `AI1_MAX_PAGES_IN_FLIGHT` = 2 × 8 = 16 trang.
-- Mỗi trang gọi Mistral 1 lần ở `AI1_COST_MODE=budget`, 2 lần ở `accuracy` (2512 và 4-1 chạy song song), có thể thêm GPT cho các dòng mâu thuẫn. Vì vậy số request Mistral cùng lúc khoảng **16** ở `budget` và **32** ở `accuracy`.
-- `ai1-worker` đọc `AI1_COST_MODE` từ `ai-service/.env` qua `env_file` (`docker-compose.yml:427`); `.env.example` đặt `budget`. Code chỉ rơi về `accuracy` (`backend_ocr_job.py:196`) khi `.env` thiếu biến này. Bản online chạy **`budget`** (AI1 chốt 01/10, xem review approve #48): khoảng 16 request Mistral cùng lúc.
-- `AI1_WORKER_REPLICAS = 2` và `AI1_MAX_PAGES_IN_FLIGHT = 8` là giá trị tạm. E6 đo xem có bị 429 không, rồi mới chốt hai giá trị này. Đổi chúng không cần đổi contract.
+- Số trang OCR cùng lúc tối đa = số replica × `AI1_MAX_PAGES_IN_FLIGHT` = 2 × 16 = 32 trang.
+- Mỗi trang gọi Mistral 1 lần ở `AI1_COST_MODE=budget`, 2 lần ở `accuracy` (2512 và 4-1 chạy song song), có thể thêm GPT cho các dòng mâu thuẫn. Vì vậy số request Mistral cùng lúc khoảng **32** ở `budget` và **64** ở `accuracy` (gấp đôi mức đã đo; chạy `accuracy` thì hạ `AI1_MAX_PAGES_IN_FLIGHT` xuống 8).
+- `ai1-worker` đọc `AI1_COST_MODE` từ `ai-service/.env` qua `env_file` (`docker-compose.yml:427`); `.env.example` đặt `budget`. Code chỉ rơi về `accuracy` (`backend_ocr_job.py:196`) khi `.env` thiếu biến này. Bản online chạy **`budget`** (AI1 chốt 01/10, xem review approve #48): khoảng 32 request Mistral cùng lúc.
+- `AI1_WORKER_REPLICAS = 2` và `AI1_MAX_PAGES_IN_FLIGHT = 16` là giá trị tạm. Số đo sơ bộ (ghi ở DOC-11 §2.1): 32 trang song song ở `budget` không gặp 429. E6 đo trên hồ sơ 200 trang rồi mới chốt hai giá trị này. Đổi chúng không cần đổi contract.
 
 - [x] Đức Dũng duyệt  - [x] Chương duyệt  Ghi chú:
 
@@ -373,5 +373,6 @@ SSE đã phát thay đổi của bước, nên không cần sự kiện SSE mớ
 | 2026-10-01 | Bản đề xuất đầu tiên | Chương |
 | 2026-10-01 | Thêm Q7: kiểm tra chất lượng trang (#47) khi chia cụm | Chương |
 | 2026-10-01 | Chốt Q7 theo trả lời của Đức Dũng: phương án (a). Thêm C9 (`ai1.ocr.inspect` / `ai1.ocr.inspected`, `chunk.low_quality_pages`), K5, E7 | Chương |
+| 2026-10-12 | C4: 8 partition thay cho 6 (partition không giảm được); `AI1_MAX_PAGES_IN_FLIGHT` 8 → 16 theo số đo sơ bộ (DOC-11 §2.1), trần provider 2 × 16 = 32 trang. Theo review PR #78 | Đức Dũng |
 | 2026-10-01 | Theo trả lời Q1–Q6 của Đức Dũng: C1 chuyển `mark_duplicate_pages` sang pha assemble; C3 lệnh assemble bắt buộc có `source_blob_get_url`; C4 tính trần provider theo số request, compose đặt rõ `AI1_COST_MODE`, E6 chốt số replica. Đánh dấu Q1–Q6 đã trả lời | Chương |
 | 2026-10-01 | `accepted`: Đức Dũng approve PR #48 (`04f0def`), đánh dấu ô duyệt C1–C9. Việc chép vào DOC-05d dời về bước 5 của thứ tự triển khai. C4/E5 sửa nguồn của `AI1_COST_MODE` (`ai-service/.env`), chốt bản online chạy `budget` | Chương |

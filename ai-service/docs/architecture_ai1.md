@@ -137,7 +137,7 @@ AI1 Kafka worker ── điều phối JOB OCR          infrastructure/kafka_wor
   ▼
 ProcessDocument ─── điều phối TỪNG TRANG       application/use_cases/process_document.py
   │  có lớp chữ → đọc native (0 API) │ trắng / ít chữ / trùng pixel → không OCR (0 API)
-  │  scan/mixed còn lại → engine, song song 8 trang │ cuối cùng: đánh dấu trang trùng văn bản
+  │  scan/mixed còn lại → engine, song song 16 trang │ cuối cùng: đánh dấu trang trùng văn bản
   ▼
 VerifiedMistralOCREngine ─ "planner" TRONG MỘT TRANG   infrastructure/ocr/verified_mistral_ocr.py
      3 nguồn song song → căn chỉnh → cổng kiểm tra → GPT phân xử → nhận/thay/cờ review

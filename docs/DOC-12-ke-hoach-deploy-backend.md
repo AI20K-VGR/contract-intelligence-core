@@ -94,11 +94,11 @@ RAM **ước tính** theo cấu hình hiện tại, chưa đo trên máy thật:
 | 2 PostgreSQL | ~0,5 GB |
 | backend + worker | ~0,6 GB |
 | AI2 | ~0,5–1 GB |
-| AI1 | ~1–2 GB lúc render trang 150 DPI |
+| AI1 (2 replica, `AI1_WORKER_REPLICAS`) | Sau #79 (stream trang): ~0,25 GB mỗi replica khi đang OCR, ~0,5 GB cho 2 replica. Trước #79: ~1,3 GB mỗi replica với hồ sơ 200 trang |
 | MinIO, Caddy, mailpit | ~0,4 GB |
 | **Tổng** | **~5–7 GB** |
 
-Tổng này là lý do đặt mức tối thiểu 8 GB. Số đo thật sẽ ghi vào mục 6 sau lần triển khai đầu.
+Tổng này là lý do đặt mức tối thiểu 8 GB. Máy 8 GB chạy bản trước #79 thì đặt `AI1_WORKER_REPLICAS=1`: hai replica cùng OCR hồ sơ lớn có thể dùng ~2,6 GB. Số đo thật sẽ ghi vào mục 6 sau lần triển khai đầu.
 
 ---
 
