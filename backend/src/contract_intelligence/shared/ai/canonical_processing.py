@@ -250,6 +250,7 @@ def build_processing_request(
     snapshot_created_at: Mapping[str, str],
     attempt: int = 1,
     max_processing_seconds: int = 300,
+    content_sharing_consent: bool = False,
 ) -> dict[str, Any] | None:
     """Return a canonical request only when the confirmed manifest is complete.
 
@@ -377,7 +378,7 @@ def build_processing_request(
         "dossier_members": dossier_members,
         "role_relation_map": role_relation_map,
         "policy_flags": {
-            "egress_allowed": False,
+            "egress_allowed": content_sharing_consent is True,
             "use_vector": True,
             "budget_limits": {
                 "max_processing_seconds": max_processing_seconds,

@@ -89,5 +89,4 @@ export async function loadAi2GraphDataIfVisible(
   return { page, trace, graphError: page === null }
 }
 
-export const AI2_GRAPH_UI_ENABLED =
-  import.meta.env.VITE_AI2_GRAPH_UI_ENABLED === 'true'
+export const AI2_GRAPH_UI_ENABLED = true

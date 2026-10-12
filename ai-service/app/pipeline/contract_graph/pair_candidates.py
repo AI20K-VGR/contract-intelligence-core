@@ -41,10 +41,12 @@ class PairSource(str, Enum):
     SAME_KEY = "SAME_KEY"
     REFERENCE_CUE = "REFERENCE_CUE"
     VALUE_MISMATCH = "VALUE_MISMATCH"
+    STRUCTURED_KEY = "STRUCTURED_KEY"
 
 
 ALL_SOURCES = frozenset(PairSource)
-_CORE_SOURCES = frozenset({PairSource.SAME_ARTICLE, PairSource.EXPLICIT_REF})
+_CORE_SOURCES = frozenset({PairSource.SAME_ARTICLE, PairSource.EXPLICIT_REF, PairSource.STRUCTURED_KEY})
+_BASE_CORE_SOURCES = frozenset({PairSource.SAME_ARTICLE, PairSource.EXPLICIT_REF})
 _CORE_TOP_K_SHARE = 1.0
 WEIGHTS = {
     PairSource.EXPLICIT_REF: 4,
@@ -52,6 +54,7 @@ WEIGHTS = {
     PairSource.SAME_KEY: 2,
     PairSource.SAME_ARTICLE: 1,
     PairSource.VALUE_MISMATCH: 3,
+    PairSource.STRUCTURED_KEY: 8,
 }
 
 _VALUE_NUMBER = re.compile(r"(?<!\w)\d+(?:[.,]\d+)*(?:\s?%)?(?!\w)")
@@ -167,8 +170,14 @@ def generate_pair_candidates(
     ordered = sorted(by_id, key=lambda nid: (index.position(nid), nid))
     stats: Counter[str] = Counter()
     eligible: list[str] = []
+    structured_fields: list[str] = []
     for nid in ordered:
         node = by_id[nid]
+        if node.type == "FIELD" and node.structured_key in {
+            "contract_value", "payment_schedule", "payment_term", "payment_method",
+        }:
+            if len((node.text or "").strip()) >= MIN_CLAUSE_CHARS:
+                structured_fields.append(nid)
         if node.type in _SKIPPED_TYPES:
             continue
         if len((node.text or "").strip()) < MIN_CLAUSE_CHARS:
@@ -177,9 +186,10 @@ def generate_pair_candidates(
         eligible.append(nid)
     eligible_set = set(eligible)
     chains = _containers(index, by_id)
-    topics = {nid: topic_of(_context(chains, by_id, nid), by_id[nid].text) for nid in eligible}
+    candidate_nodes = list(dict.fromkeys((*eligible, *structured_fields)))
+    topics = {nid: topic_of(_context(chains, by_id, nid), by_id[nid].text) for nid in candidate_nodes}
     articles = {nid: _article_key(index, chains, nid) for nid in eligible}
-    pos = {nid: index.position(nid) for nid in eligible}
+    pos = {nid: index.position(nid) for nid in (*eligible, *structured_fields)}
     value_numbers = {}
     content_words = {}
     if PairSource.VALUE_MISMATCH in sources:
@@ -258,6 +268,22 @@ def generate_pair_candidates(
             if union and shared / union >= _VALUE_MISMATCH_MIN_JACCARD and (x, y) not in found:
                 add(x, y, PairSource.VALUE_MISMATCH)
 
+    if PairSource.STRUCTURED_KEY in sources:
+        by_structured_key: dict[str, list[str]] = {}
+        for nid in structured_fields:
+            key = str(by_id[nid].structured_key or "").strip().casefold()
+            if key:
+                by_structured_key.setdefault(key, []).append(nid)
+        for members in by_structured_key.values():
+            for i, x in enumerate(members):
+                for y in members[i + 1:]:
+                    if not _body_annex(index, x, y):
+                        continue
+                    value_x = str(by_id[x].structured_value or "").strip()
+                    value_y = str(by_id[y].structured_value or "").strip()
+                    if value_x and value_y and _fold(value_x) != _fold(value_y):
+                        add(x, y, PairSource.STRUCTURED_KEY)
+
     excluded = {tuple(sorted(p)) for p in excluded_pairs}
     candidates: list[PairCandidate] = []
     for (a, b), srcs in found.items():
@@ -274,7 +300,7 @@ def generate_pair_candidates(
         candidates.append(PairCandidate(a, b, frozenset(srcs), float(score), topic))
     candidates.sort(key=lambda c: (-c.score, pos[c.node_a], pos[c.node_b], c.node_a, c.node_b))
     limit = max(0, top_k)
-    if _CORE_SOURCES <= sources and limit:
+    if _BASE_CORE_SOURCES <= sources and limit:
         # Broader C sources must not evict the legacy B candidates solely by adding score.
         # Preserve the legacy B candidates within the same per-document budget; fill unused
         # slots with pairs found only by exploratory sources.

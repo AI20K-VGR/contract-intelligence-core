@@ -17,6 +17,7 @@ import asyncio
 import functools
 import hashlib
 import json
+import os
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -853,6 +854,7 @@ async def _persist_ai2_snapshot_identity(
     dossier_id: str,
     snapshot_digest: str,
     snapshot_id: str = "",
+    ai2_job_id: str = "",
 ) -> None:
     """Persist the AI2 snapshot identity used to bind later queries.
 
@@ -873,6 +875,9 @@ async def _persist_ai2_snapshot_identity(
     snapshot_id = str(snapshot_id or "").strip()
     if snapshot_id:
         metadata["ai2_snapshot_id"] = snapshot_id
+    ai2_job_id = str(ai2_job_id or "").strip()
+    if ai2_job_id:
+        metadata["ai2_job_id"] = ai2_job_id
     dossier.metadata_json = metadata
     await session.flush()
 
@@ -1104,6 +1109,26 @@ async def _manifest_inputs(
     return members, list(relation_result.scalars().all()), documents
 
 
+async def _dossier_content_sharing_consent(
+    session: AsyncSession, *, dossier_id: str, tenant_id: str
+) -> bool:
+    result = await session.execute(
+        select(DossierORM.metadata_json).where(
+            DossierORM.id == dossier_id,
+            DossierORM.tenant_id == tenant_id,
+        )
+    )
+    metadata = result.scalar_one_or_none()
+    if isinstance(metadata, dict) and isinstance(metadata.get("ai2_content_sharing_consent"), bool):
+        return metadata["ai2_content_sharing_consent"]
+    return os.getenv("AI2_CONTENT_SHARING_CONSENT_DEFAULT", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 async def _run_ai2_if_ready(
     session: AsyncSession,
     *,
@@ -1145,6 +1170,9 @@ async def _run_ai2_if_ready(
     members, relations, documents = await _manifest_inputs(
         session, manifest_id=manifest.id, dossier_id=dossier_id
     )
+    content_sharing_consent = await _dossier_content_sharing_consent(
+        session, dossier_id=dossier_id, tenant_id=tenant_id
+    )
     shape_error = _dossier_shape_error(members)
     if shape_error is not None:
         code, detail = shape_error
@@ -1173,6 +1201,7 @@ async def _run_ai2_if_ready(
         snapshot_created_at=_snapshot_created_at(durable_run) if durable_run else {},
         attempt=attempt,
         max_processing_seconds=budget,
+        content_sharing_consent=content_sharing_consent,
     )
     if request is None:
         logger.info(
@@ -1353,6 +1382,7 @@ async def _finalize_ai2_success(
         dossier_id=dossier_id,
         snapshot_digest=snapshot_digest,
         snapshot_id=snapshot_id,
+        ai2_job_id=ai2_job_id,
     )
     for step in ("S4", "S5", "S6", "S7", "S9", "S10"):
         await update_pipeline_step(
@@ -1945,6 +1975,9 @@ async def _run_ai2_reindex(
     members, relations, documents = await _manifest_inputs(
         session, manifest_id=manifest.id, dossier_id=dossier_id
     )
+    content_sharing_consent = await _dossier_content_sharing_consent(
+        session, dossier_id=dossier_id, tenant_id=tenant_id
+    )
     attempt = _ai2_attempt(run) + 1
     budget = ai2_deadline_seconds(sum(int(d.page_count or 0) for d in documents))
     request = build_processing_request(
@@ -1957,6 +1990,7 @@ async def _run_ai2_reindex(
         snapshot_created_at=_snapshot_created_at(run),
         attempt=attempt,
         max_processing_seconds=budget,
+        content_sharing_consent=content_sharing_consent,
     )
     if request is None:
         await refuse(reason="snapshots")
@@ -2019,6 +2053,7 @@ async def _run_ai2_reindex(
         dossier_id=dossier_id,
         snapshot_digest=_ai2_query_snapshot_digest(request),
         snapshot_id=snapshot_id,
+        ai2_job_id=ai2_job_id,
     )
     add_audit_event(
         session,

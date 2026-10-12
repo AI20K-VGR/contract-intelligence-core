@@ -38,6 +38,14 @@ def _is_format_error(error: Exception) -> bool:
     )
 
 
+def _sampling_options(model: str) -> dict[str, Any]:
+    """Keep deterministic sampling where supported; reasoning GPT-5 rejects temperature."""
+    provider_model = model.rsplit("/", 1)[-1].strip().casefold()
+    if provider_model.startswith("gpt-5"):
+        return {}
+    return {"temperature": 0}
+
+
 def call_with_timeout(fn: Callable[[], Any], seconds: float, *, name: str = "ai2-llm") -> Any:
     """Run ``fn`` and give up after ``seconds``.
 
@@ -105,6 +113,7 @@ class NineRouterClient:
         SDK timeout, e.g. with the time left before a job deadline."""
 
         model = self.strong_model if strong else self.model
+        sampling_options = _sampling_options(model)
         request_options: dict[str, Any] = {} if timeout is None else {"timeout": timeout}
         self.last_http_calls = 0
         started = time.perf_counter()
@@ -128,7 +137,7 @@ class NineRouterClient:
                 model=model,
                 messages=messages,
                 response_format={"type": "json_object"},
-                temperature=0,
+                **sampling_options,
                 **request_options,
             )
             text = resp.choices[0].message.content or ""
@@ -150,7 +159,7 @@ class NineRouterClient:
                 resp = self._client.chat.completions.create(
                     model=model,
                     messages=messages,
-                    temperature=0,
+                    **sampling_options,
                     **request_options,
                 )
                 text = resp.choices[0].message.content or ""

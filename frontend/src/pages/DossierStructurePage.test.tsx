@@ -108,11 +108,11 @@ describe('dossier AI2 graph integration', () => {
     expect(html).toContain('địa chỉ đích Điều 18 khoản 5a')
   })
 
-  it('does not call Backend graph APIs while the feature is disabled or the view is closed', async () => {
-    expect(AI2_GRAPH_UI_ENABLED).toBe(false)
+  it('enables graph by default and does not call APIs when disabled or closed', async () => {
+    expect(AI2_GRAPH_UI_ENABLED).toBe(true)
     await expect(
       loadAi2GraphDataIfVisible({
-        enabled: AI2_GRAPH_UI_ENABLED,
+        enabled: false,
         visible: true,
         dossierId: 'd',
         jobId: 'j',

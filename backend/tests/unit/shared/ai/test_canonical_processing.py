@@ -84,6 +84,15 @@ def test_rebuilding_the_same_run_sends_an_identical_payload() -> None:
     assert first["snapshots"][0]["created_at"] == STORED_AT  # type: ignore[index]
 
 
+def test_processing_egress_requires_explicit_dossier_consent() -> None:
+    denied = _compact_request()
+    allowed = _compact_request(content_sharing_consent=True)
+
+    assert denied is not None and allowed is not None
+    assert denied["policy_flags"]["egress_allowed"] is False  # type: ignore[index]
+    assert allowed["policy_flags"]["egress_allowed"] is True  # type: ignore[index]
+
+
 def test_relation_order_does_not_change_the_payload() -> None:
     snapshots = {
         doc: {

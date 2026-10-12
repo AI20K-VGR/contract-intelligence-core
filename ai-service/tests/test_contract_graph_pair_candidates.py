@@ -18,10 +18,11 @@ from app.pipeline.contract_graph.resolver import StructureIndex
 LONG = " với đầy đủ nội dung để vượt ngưỡng độ dài tối thiểu"
 
 
-def _node(node_id, label, parent=None, *, text="", kind="CLAUSE", file="f-body"):
+def _node(node_id, label, parent=None, *, text="", kind="CLAUSE", file="f-body",
+          structured_key=None, structured_value=None):
     return StructuralNode(
         node_id=node_id, type=kind, raw_label=label, parent_id=parent, text=text,
-        source_file_id=file,
+        source_file_id=file, structured_key=structured_key, structured_value=structured_value,
     )
 
 
@@ -300,6 +301,29 @@ def test_c_expansion_preserves_b_candidates_within_same_top_k_budget():
     expanded = generate_pair_candidates(index, nodes, sources=pc.ALL_SOURCES, top_k=2)
 
     assert _pairs(base) <= _pairs(expanded)
+
+
+def test_cross_document_structured_value_mismatch_survives_top_k_cap():
+    nodes = [
+        _node("body-value", "Giá trị hợp đồng", text="Tổng giá trị hợp đồng là 1.286.400.000 đồng" + LONG,
+              kind="FIELD", file="f-body", structured_key="contract_value", structured_value="1286400000"),
+        _node("annex-value", "Tổng cộng", text="Tổng cộng 4.149.360.000 đồng" + LONG,
+              kind="FIELD", file="f-annex", structured_key="contract_value", structured_value="4149360000"),
+        *[
+            _node(f"body-clause-{i}", f"{i}.", "body-article", text=f"Điều khoản thân hợp đồng số {i}" + LONG)
+            for i in range(1, 15)
+        ],
+        _node("body-article", "Điều 1", text="Điều khoản"),
+    ]
+    for order, node in enumerate(nodes):
+        node.order = order
+    index = StructureIndex.build(nodes, {"f-body": "body", "f-annex": "annex"})
+
+    result = generate_pair_candidates(index, nodes, top_k=2)
+
+    pair = next(c for c in result.candidates if {c.node_a, c.node_b} == {"body-value", "annex-value"})
+    assert PairSource.STRUCTURED_KEY in pair.sources
+    assert len(result.candidates) == 2
 
 
 def test_value_mismatch_pair_work_is_bounded_for_common_terms():

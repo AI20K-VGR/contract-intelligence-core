@@ -1065,12 +1065,12 @@ export function DossierStructurePage() {
           (activeMode !== 'tables' || showAi2Graph) ? (
             <div className="flex min-h-[520px] flex-1 flex-col pb-space-md">
               {showAi2Graph ? (
-                detail?.latestJobId && detail.snapshotDigest ? (
+                detail?.ai2JobId && detail.snapshotDigest ? (
                   <Ai2GraphDossierView
-                    key={`${detail.latestJobId}:${detail.snapshotDigest}:${ai2GraphKind}`}
+                    key={`${detail.ai2JobId}:${detail.snapshotDigest}:${ai2GraphKind}`}
                     enabled={AI2_GRAPH_UI_ENABLED}
                     dossierId={dossierId}
-                    jobId={detail.latestJobId}
+                    jobId={detail.ai2JobId}
                     snapshotDigest={detail.snapshotDigest}
                     graphKind={ai2GraphKind}
                     resolveNodeLabel={resolveGraphNodeLabel}

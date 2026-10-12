@@ -613,6 +613,19 @@ class _ScalarResult:
         return self._value
 
 
+@pytest.mark.asyncio
+async def test_ai2_processing_consent_is_read_only_from_the_target_dossier() -> None:
+    session = SimpleNamespace(
+        execute=AsyncMock(return_value=_ScalarResult({"ai2_content_sharing_consent": True}))
+    )
+
+    consent = await worker._dossier_content_sharing_consent(
+        session, dossier_id="dos_test", tenant_id="tenant_test"
+    )
+
+    assert consent is True
+
+
 class _RowsResult:
     def __init__(self, rows: list[object]) -> None:
         self._rows = rows
@@ -640,6 +653,7 @@ async def test_ai2_transient_failure_can_be_retried(
             _RowsResult([_CONTRACT_MEMBER]),
             _RowsResult([]),
             _RowsResult([]),
+            _ScalarResult(None),
         ]
 
     session = SimpleNamespace(
@@ -711,6 +725,7 @@ async def test_ai2_deadline_miss_fails_run_as_ai2_timeout(
                 _RowsResult([_CONTRACT_MEMBER]),
                 _RowsResult([]),
                 _RowsResult(documents),
+                _ScalarResult(None),
             ]
         ),
         commit=AsyncMock(),
@@ -1513,6 +1528,7 @@ async def test_dossier_with_two_contracts_fails_before_ai2(
                 _RowsResult([_member("contract"), _member("contract")]),
                 _RowsResult([]),
                 _RowsResult([]),
+                _ScalarResult(None),
             ]
         ),
     )
@@ -1576,6 +1592,7 @@ async def test_six_document_dossier_reaches_ai2_whole(monkeypatch: pytest.Monkey
                 _RowsResult(members),
                 _RowsResult([]),
                 _RowsResult([SimpleNamespace(id=doc_id, page_count=1) for doc_id in doc_ids]),
+                _ScalarResult(None),
             ]
         ),
         commit=AsyncMock(),
@@ -1649,6 +1666,7 @@ async def test_failed_result_ignores_review_state(monkeypatch: pytest.MonkeyPatc
                 _RowsResult([_member("contract")]),
                 _RowsResult([]),
                 _RowsResult([]),
+                _ScalarResult(None),
             ]
         ),
         commit=AsyncMock(),

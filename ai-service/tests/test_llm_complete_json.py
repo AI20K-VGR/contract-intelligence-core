@@ -31,6 +31,32 @@ def test_runtime_normalizes_through_complete_json() -> None:
     assert runtime.llm_calls_used == 1
 
 
+@pytest.mark.parametrize(
+    ("model", "temperature_expected"),
+    [("gpt-5.5", False), ("openai/gpt-5.5", False), ("gh/gpt-4o-mini", True)],
+)
+def test_reasoning_models_omit_unsupported_temperature(
+    model: str, temperature_expected: bool
+) -> None:
+    client = NineRouterClient(api_key="sk-test", model=model)
+    captured: dict[str, object] = {}
+
+    def create(**kwargs: object) -> SimpleNamespace:
+        captured.update(kwargs)
+        return SimpleNamespace(
+            model="gpt-5.5-2026-04-23",
+            choices=[SimpleNamespace(message=SimpleNamespace(content='{"ok":true}'))],
+            usage=None,
+        )
+
+    client._client.chat.completions.create = create  # type: ignore[method-assign]
+    assert client.complete_json("system", "user") == {"ok": True}
+    if temperature_expected:
+        assert captured["temperature"] == 0
+    else:
+        assert "temperature" not in captured
+
+
 @pytest.mark.parametrize("fallback", [False, True])
 def test_trace_records_served_model(fallback: bool) -> None:
     client = NineRouterClient(api_key="sk-test", model="gh/gpt-4o-mini")
