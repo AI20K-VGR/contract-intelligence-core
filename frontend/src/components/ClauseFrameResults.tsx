@@ -144,7 +144,10 @@ export function ClauseFrameResults({
       <p role="alert">Lần chạy đã đổi. Tải lại hồ sơ trước khi thẩm định.</p>
     )
   const extension = model.extension
-  const typedTableProjections = model.typedTableProjections ?? { payment_schedules: [], boq_checks: [] }
+  const typedTableProjections = model.typedTableProjections ?? {
+    payment_schedules: [],
+    boq_checks: [],
+  }
   return (
     <section
       aria-label="Kết quả điều khoản AI2"
@@ -207,23 +210,70 @@ export function ClauseFrameResults({
               </div>
             ))}
           </details>
-          {(typedTableProjections.payment_schedules.length || typedTableProjections.boq_checks.length) ? (
-            <section id="typed-table-projections" aria-label="K?t qu? b?ng ??nh l??ng" className="rounded border p-2">
+          {typedTableProjections.payment_schedules.length ||
+          typedTableProjections.boq_checks.length ? (
+            <section
+              id="typed-table-projections"
+              aria-label="K?t qu? b?ng ??nh l??ng"
+              className="rounded border p-2"
+            >
               <h2 className="font-semibold">Ki?m tra b?ng ??nh l??ng</h2>
-              {typedTableProjections.payment_schedules.map((projection, index) => (
-                <article key={`payment-${index}`} className="my-2 rounded border p-2">
-                  <h3>L?ch thanh to?n ? {String(projection.review_state ?? 'NEEDS_REVIEW')}</h3>
-                  <p>{String(projection.table_id ?? '')} ? {String(projection.total_percent ?? 'Ch?a ?? d? li?u')}</p>
-                  {Array.isArray(projection.issues) && projection.issues.map((issue, issueIndex) => <p key={issueIndex}>{String(issue)}</p>)}
-                  <p>Coverage: {String((projection.coverage as Record<string, unknown> | undefined)?.reason ?? '?? ??c theo ph?m vi ngu?n')}</p>
-                </article>
-              ))}
+              {typedTableProjections.payment_schedules.map(
+                (projection, index) => (
+                  <article
+                    key={`payment-${index}`}
+                    className="my-2 rounded border p-2"
+                  >
+                    <h3>
+                      L?ch thanh to?n ?{' '}
+                      {String(projection.review_state ?? 'NEEDS_REVIEW')}
+                    </h3>
+                    <p>
+                      {String(projection.table_id ?? '')} ?{' '}
+                      {String(projection.total_percent ?? 'Ch?a ?? d? li?u')}
+                    </p>
+                    {Array.isArray(projection.issues) &&
+                      projection.issues.map((issue, issueIndex) => (
+                        <p key={issueIndex}>{String(issue)}</p>
+                      ))}
+                    <p>
+                      Coverage:{' '}
+                      {String(
+                        (
+                          projection.coverage as
+                            Record<string, unknown> | undefined
+                        )?.reason ?? '?? ??c theo ph?m vi ngu?n',
+                      )}
+                    </p>
+                  </article>
+                ),
+              )}
               {typedTableProjections.boq_checks.map((projection, index) => (
-                <article key={`boq-${index}`} className="my-2 rounded border p-2">
-                  <h3>Ki?m tra s? h?c BOQ ? {String(projection.review_state ?? 'NEEDS_REVIEW')}</h3>
-                  <p>{String(projection.table_id ?? '')} ? T?ng c?ng {String(projection.grand_total ?? 'UNKNOWN')}</p>
-                  {Array.isArray(projection.issues) && projection.issues.map((issue, issueIndex) => <p key={issueIndex}>{String(issue)}</p>)}
-                  <p>Coverage: {String((projection.coverage as Record<string, unknown> | undefined)?.reason ?? '?? ??c theo ph?m vi ngu?n')}</p>
+                <article
+                  key={`boq-${index}`}
+                  className="my-2 rounded border p-2"
+                >
+                  <h3>
+                    Ki?m tra s? h?c BOQ ?{' '}
+                    {String(projection.review_state ?? 'NEEDS_REVIEW')}
+                  </h3>
+                  <p>
+                    {String(projection.table_id ?? '')} ? T?ng c?ng{' '}
+                    {String(projection.grand_total ?? 'UNKNOWN')}
+                  </p>
+                  {Array.isArray(projection.issues) &&
+                    projection.issues.map((issue, issueIndex) => (
+                      <p key={issueIndex}>{String(issue)}</p>
+                    ))}
+                  <p>
+                    Coverage:{' '}
+                    {String(
+                      (
+                        projection.coverage as
+                          Record<string, unknown> | undefined
+                      )?.reason ?? '?? ??c theo ph?m vi ngu?n',
+                    )}
+                  </p>
                 </article>
               ))}
             </section>
@@ -286,10 +336,13 @@ export function ClauseFrameResults({
                   <p>
                     {p.reason} · {p.method} · {p.candidate_sources.join(', ')}
                   </p>
-                  {p.conflict_kind || p.alignment_key?.length || p.slots_in_difference?.length ? (
+                  {p.conflict_kind ||
+                  p.alignment_key?.length ||
+                  p.slots_in_difference?.length ? (
                     <p>
-                      Kind: {p.conflict_kind ?? 'COMPARABLE_DIFFERENCE'} · Alignment:{' '}
-                      {p.alignment_key?.join(' / ') ?? 'UNKNOWN'} · Different slots:{' '}
+                      Kind: {p.conflict_kind ?? 'COMPARABLE_DIFFERENCE'} ·
+                      Alignment: {p.alignment_key?.join(' / ') ?? 'UNKNOWN'} ·
+                      Different slots:{' '}
                       {p.slots_in_difference?.join(', ') || 'UNKNOWN'}
                     </p>
                   ) : null}

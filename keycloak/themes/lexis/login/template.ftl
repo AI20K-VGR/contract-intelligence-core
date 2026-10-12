@@ -62,6 +62,20 @@
             <span>© 2025 Lexis Contract Intelligence. All rights reserved.</span>
         </div>
     </footer>
+    <script>
+        // Nút con mắt cạnh ô mật khẩu: bấm để ẩn/hiện.
+        document.querySelectorAll('[data-password-toggle]').forEach(function (button) {
+            var input = button.parentElement.querySelector('input');
+            if (!input) return;
+            button.addEventListener('click', function () {
+                var show = input.type === 'password';
+                input.type = show ? 'text' : 'password';
+                button.setAttribute('aria-pressed', String(show));
+                button.setAttribute('aria-label', show ? 'Ẩn mật khẩu' : 'Hiện mật khẩu');
+                input.focus();
+            });
+        });
+    </script>
 </body>
 </html>
 </#macro>

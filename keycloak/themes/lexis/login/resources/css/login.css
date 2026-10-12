@@ -269,6 +269,53 @@ body {
   pointer-events: none;
 }
 
+.lexis-password-toggle {
+  position: absolute;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-outline);
+  cursor: pointer;
+}
+
+.lexis-password-toggle:hover,
+.lexis-password-toggle:focus-visible {
+  color: var(--color-on-surface);
+  background: rgba(0, 0, 0, 0.05);
+  outline: none;
+}
+
+.lexis-password-toggle svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lexis-password-toggle .lexis-eye-hide,
+.lexis-password-toggle[aria-pressed='true'] .lexis-eye-show {
+  display: none;
+}
+
+.lexis-password-toggle[aria-pressed='true'] .lexis-eye-hide {
+  display: block;
+}
+
+/* Edge tự thêm nút con mắt riêng; ẩn đi để không bị hai nút. */
+.lexis-input::-ms-reveal {
+  display: none;
+}
+
 .lexis-field-error {
   margin: 0;
   font-size: 13px;

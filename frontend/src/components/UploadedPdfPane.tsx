@@ -213,9 +213,7 @@ export function UploadedPdfPane({
                 <ToolButton
                   icon="rotate_right"
                   label="Xoay trang"
-                  onClick={() =>
-                    setRotation((current) => (current + 90) % 360)
-                  }
+                  onClick={() => setRotation((current) => (current + 90) % 360)}
                 />
                 {url ? (
                   <a

@@ -4,10 +4,10 @@ import { DEFAULT_PALETTE, PALETTES, parsePalette } from '../src/theme/palettes'
 
 const css = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8')
 
-/** Biến màu khai báo trong khối :root[data-palette='id'] của index.css. */
+/** Biến màu khai báo trong khối [data-palette='id'] của index.css. */
 function paletteVars(id: string) {
   const block = css.match(
-    new RegExp(`:root\\[data-palette='${id}'\\]\\s*\\{([^}]*)\\}`),
+    new RegExp(`^\\[data-palette='${id}'\\]\\s*\\{([^}]*)\\}`, 'm'),
   )
   if (!block) return null
   const vars: Record<string, string> = {}

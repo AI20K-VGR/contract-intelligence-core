@@ -6,7 +6,13 @@ import {
   useState,
   type FormEvent,
 } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useNavigationType,
+  useParams,
+} from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { clauseOrdinal } from '../api/clauseReview'
 import {
@@ -27,6 +33,7 @@ import {
 } from '../api/structure'
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
+import { useDossierPermissions } from '../auth/dossierPermissions'
 import { CitationPane } from '../components/CitationPane'
 import { ConflictNotice } from '../components/ConflictNotice'
 import { UploadedPdfPane } from '../components/UploadedPdfPane'
@@ -154,14 +161,43 @@ function stateQuery(state: unknown) {
   return typeof query === 'string' ? query : ''
 }
 
+/** Khung đang mở trên trang: hỏi đáp (qa) nằm dưới, thẩm định trích dẫn nằm trên. */
+type StructurePanel = 'qa' | 'review' | null
+const PANEL_DEPTH = { qa: 1, review: 2 } as const
+
+function panelDepth(panel: StructurePanel) {
+  return panel ? PANEL_DEPTH[panel] : 0
+}
+
+/**
+ * Mỗi lần mở khung, trang ghi thêm một bước lịch sử (state.panel) để Back của
+ * trình duyệt đóng khung thay vì rời trang. panelSteps là số bước đã ghi thêm.
+ */
+function statePanel(state: unknown): { panel: StructurePanel; steps: number } {
+  const row = asRecord(state)
+  const panel =
+    row?.panel === 'qa' || row?.panel === 'review' ? row.panel : null
+  const steps = typeof row?.panelSteps === 'number' ? row.panelSteps : 0
+  return { panel, steps: panel ? steps : 0 }
+}
+
+function withPanel(state: unknown, panel: StructurePanel, steps: number) {
+  // Bỏ query / focusCitation: chỉ dùng một lần khi vừa mở trang.
+  const rest = { ...(asRecord(state) ?? {}) }
+  delete rest.query
+  delete rest.focusCitation
+  return { ...rest, panel, panelSteps: steps }
+}
+
 export function DossierStructurePage() {
   const titleInHeader = useHeaderShowsPageTitle()
   const { dossierId = '' } = useParams()
+  const permissions = useDossierPermissions(dossierId)
   const location = useLocation()
   const navigate = useNavigate()
   const { user } = useAuth()
   const backTo = user ? dossiersPath(user.role) : '/'
-  const backLabel = user ? dossiersLabel(user.role) : 'Hồ sơ'
+  const backLabel = user ? dossiersLabel(user.role, user.backendRole) : 'Hồ sơ'
   const [attempt, setAttempt] = useState(0)
   const [phase, setPhase] = useState<Phase>('loading')
   const [detail, setDetail] = useState<DossierStructure | null>(null)
@@ -231,18 +267,65 @@ export function DossierStructurePage() {
     setSearchError(null)
     setReviewCiteId(null)
   }, [dossierId])
-  // "Hỏi lại" từ trang lịch sử: điền sẵn câu hỏi.
+  // "Hỏi lại" từ trang lịch sử: điền sẵn câu hỏi, một lần cho mỗi bước lịch sử
+  // (Back về bước đó không điền lại).
+  const queryFilledKey = useRef<string | null>(null)
   useEffect(() => {
     const question = stateQuery(location.state)
-    if (!question) return
+    if (!question || queryFilledKey.current === location.key) return
+    queryFilledKey.current = location.key
     setQuery(question)
     searchInputRef.current?.focus()
-  }, [location.state])
+  }, [location.key, location.state])
 
   const answerOpen = searching || Boolean(searchError) || Boolean(searchResult)
   // Bấm Lịch sử khi chưa hỏi: xem lịch sử hỏi đáp thay cho cấu trúc cây.
   const [historyOpen, setHistoryOpen] = useState(false)
   const qaMode = answerOpen || historyOpen
+
+  // Back của trình duyệt đóng khung đang mở thay vì rời trang.
+  const panel: StructurePanel = reviewCiteId ? 'review' : qaMode ? 'qa' : null
+  const navigationType = useNavigationType()
+  const panelSyncedKey = useRef<string | null>(null)
+  useEffect(() => {
+    const entry = statePanel(location.state)
+    if (entry.panel === panel) {
+      // Khung đã khớp bước lịch sử này: lần đổi khung sau là do người dùng bấm trên trang.
+      panelSyncedKey.current = location.key
+      return
+    }
+    const here = `${location.pathname}${location.search}${location.hash}`
+    if (navigationType === 'POP' && panelSyncedKey.current !== location.key) {
+      // Vừa Back/Forward: đưa khung về đúng bước lịch sử.
+      panelSyncedKey.current = location.key
+      if (panelDepth(entry.panel) < panelDepth(panel)) {
+        if (entry.panel === null) closeAnswer()
+        else setReviewCiteId(null)
+      } else {
+        // Forward tới khung đã đóng: không mở lại được, ghi đè bước này.
+        navigate(here, {
+          replace: true,
+          state: withPanel(location.state, panel, entry.steps),
+        })
+      }
+      return
+    }
+    if (panelDepth(panel) > panelDepth(entry.panel)) {
+      navigate(here, {
+        state: withPanel(location.state, panel, entry.steps + 1),
+      })
+    } else if (panel === null) {
+      // Đóng bằng nút trên trang: bỏ các bước đã ghi thêm.
+      navigate(-Math.max(1, entry.steps))
+    } else if (entry.steps >= 2) {
+      navigate(-1)
+    } else {
+      navigate(here, {
+        replace: true,
+        state: withPanel(location.state, panel, entry.steps),
+      })
+    }
+  }, [location, navigate, navigationType, panel])
 
   async function submitSearch(event: FormEvent) {
     event.preventDefault()
@@ -441,7 +524,10 @@ export function DossierStructurePage() {
     () => anchorConflicts(spots, nodes, lines ?? [], documentId),
     [documentId, lines, nodes, spots],
   )
-  const markers = useMemo(() => conflictMarkers(anchors, nodes), [anchors, nodes])
+  const markers = useMemo(
+    () => conflictMarkers(anchors, nodes),
+    [anchors, nodes],
+  )
   const answerAnchors = useMemo(
     () =>
       answerNodes === nodes
@@ -555,12 +641,23 @@ export function DossierStructurePage() {
       })
   }, [])
 
+  // Mở trích dẫn được chọn từ trang khác, một lần cho mỗi bước lịch sử.
+  const focusOpenedKey = useRef<string | null>(null)
   useEffect(() => {
     if (phase !== 'ready' || !documentId || searchCite) return
+    if (focusOpenedKey.current === location.key) return
     const focused = readFocusedCitation(location.state)
     if (!focused) return
+    focusOpenedKey.current = location.key
     openSearchCitation(focused.hit, focused.index)
-  }, [documentId, location.state, openSearchCitation, phase, searchCite])
+  }, [
+    documentId,
+    location.key,
+    location.state,
+    openSearchCitation,
+    phase,
+    searchCite,
+  ])
 
   const frameRef = useRef<HTMLDivElement>(null)
   const [frameHeight, setFrameHeight] = useState<number | null>(null)
@@ -730,11 +827,8 @@ export function DossierStructurePage() {
                       )}
                     </>
                   ) : null}
-                  {detail && detail.pendingConflicts > 0 ? (
-                    <span className="inline-flex items-center rounded bg-error-container px-space-xs py-0.5 font-label-sm text-label-sm font-semibold text-on-error-container">
-                      {detail.pendingConflicts} xung đột chờ xử lý
-                    </span>
-                  ) : detail?.hasConflicts ? (
+                  {/* Số xung đột chờ xử lý đã hiện trên biểu tượng xung đột. */}
+                  {detail?.hasConflicts && detail.pendingConflicts === 0 ? (
                     <span className="inline-flex items-center rounded bg-amber-50 px-space-xs py-0.5 font-label-sm text-label-sm font-semibold text-amber-900">
                       Có xung đột đã xử lý
                     </span>
@@ -743,7 +837,7 @@ export function DossierStructurePage() {
               </div>
               {phase === 'ready' ? (
                 <div
-                  className={`flex min-w-0 items-center gap-space-sm ${splitView ? 'w-full' : 'md:shrink-0'}`}
+                  className={`flex min-w-0 items-center gap-space-sm pr-2.5 pt-1.5 ${splitView ? 'w-full' : 'md:shrink-0'}`}
                 >
                   <form
                     className={`relative min-w-0 flex-1 ${splitView ? '' : 'md:w-56 md:flex-none lg:w-72'}`}
@@ -817,8 +911,8 @@ export function DossierStructurePage() {
                       Đang OCR và dựng cấu trúc
                     </h2>
                     <p className="font-body-sm text-body-sm text-on-surface-variant">
-                      Trang này tự cập nhật. Cây hiện khi job sang trạng thái
-                      đã trích xuất. Worker backend và AI1 cần đang chạy.
+                      Trang này tự cập nhật. Cây hiện khi job sang trạng thái đã
+                      trích xuất. Worker backend và AI1 cần đang chạy.
                     </p>
                   </>
                 ) : (
@@ -917,20 +1011,20 @@ export function DossierStructurePage() {
                 <div className="flex flex-col gap-space-sm">
                   <SearchAudit result={searchResult} />
                   {searchResult.answer ? (
-                  <CitedAnswer
-                    activeId={reviewCiteId}
-                    answer={searchResult.answer}
-                    citationOf={answerCiteOf}
-                    documentId={documentId}
-                    hits={searchResult.hits}
-                    nodes={answerNodes}
-                    onCite={(cite) => {
-                      if (cite.documentId && cite.documentId !== documentId) {
-                        openForeignSearchCitation(cite)
-                        return
-                      }
-                      setReviewCiteId(cite.id)
-                    }}
+                    <CitedAnswer
+                      activeId={reviewCiteId}
+                      answer={searchResult.answer}
+                      citationOf={answerCiteOf}
+                      documentId={documentId}
+                      hits={searchResult.hits}
+                      nodes={answerNodes}
+                      onCite={(cite) => {
+                        if (cite.documentId && cite.documentId !== documentId) {
+                          openForeignSearchCitation(cite)
+                          return
+                        }
+                        setReviewCiteId(cite.id)
+                      }}
                     />
                   ) : (
                     <p className="font-body-sm text-body-sm text-on-surface">
@@ -957,34 +1051,36 @@ export function DossierStructurePage() {
                           return !clause || !citeOf.has(clause.id)
                         })
                         .map((hit, index) => (
-                        <li
-                          key={`${hit.lineId ?? ''}-${hit.pageNo ?? ''}-${hit.text}`}
-                          className="font-body-sm text-body-sm text-on-surface-variant"
-                        >
-                          {hit.sourceFileId === documentId && hit.pageNo ? (
-                            <button
-                              className="group flex w-full items-start gap-2 rounded-md p-1 text-left hover:bg-primary/5 hover:text-primary"
-                              type="button"
-                              onClick={() => openSearchCitation(hit, index)}
-                              title="Mở trang nguồn"
-                            >
-                              <span className="shrink-0 font-medium">
-                                Trang {hit.pageNo} ·
+                          <li
+                            key={`${hit.lineId ?? ''}-${hit.pageNo ?? ''}-${hit.text}`}
+                            className="font-body-sm text-body-sm text-on-surface-variant"
+                          >
+                            {hit.sourceFileId === documentId && hit.pageNo ? (
+                              <button
+                                className="group flex w-full items-start gap-2 rounded-md p-1 text-left hover:bg-primary/5 hover:text-primary"
+                                type="button"
+                                onClick={() => openSearchCitation(hit, index)}
+                                title="Mở trang nguồn"
+                              >
+                                <span className="shrink-0 font-medium">
+                                  Trang {hit.pageNo} ·
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  {hit.text}
+                                </span>
+                                <MaterialIcon
+                                  name="open_in_new"
+                                  className="shrink-0 text-[15px] opacity-60 group-hover:opacity-100"
+                                />
+                              </button>
+                            ) : (
+                              <span>
+                                {hit.pageNo ? `Trang ${hit.pageNo} · ` : ''}
+                                {hit.text}
                               </span>
-                              <span className="min-w-0 flex-1">{hit.text}</span>
-                              <MaterialIcon
-                                name="open_in_new"
-                                className="shrink-0 text-[15px] opacity-60 group-hover:opacity-100"
-                              />
-                            </button>
-                          ) : (
-                            <span>
-                              {hit.pageNo ? `Trang ${hit.pageNo} · ` : ''}
-                              {hit.text}
-                            </span>
-                          )}
-                        </li>
-                      ))}
+                            )}
+                          </li>
+                        ))}
                     </ul>
                   ) : null}
                 </div>
@@ -1017,7 +1113,10 @@ export function DossierStructurePage() {
             />
           ) : null}
 
-          {phase === 'ready' && !qaMode && activeMode === 'tables' && documentId ? (
+          {phase === 'ready' &&
+          !qaMode &&
+          activeMode === 'tables' &&
+          documentId ? (
             <TableStructure
               activeId={tableCite?.node.id}
               documentId={documentId}
@@ -1031,7 +1130,10 @@ export function DossierStructurePage() {
             />
           ) : null}
 
-          {phase === 'ready' && reviewCiteId && documentId && findClause(answerNodes, reviewCiteId) ? (
+          {phase === 'ready' &&
+          reviewCiteId &&
+          documentId &&
+          findClause(answerNodes, reviewCiteId) ? (
             <SearchCitationReview
               citeNo={answerCiteOf.get(reviewCiteId) ?? 0}
               conflicts={answerAnchors.get(reviewCiteId)}
@@ -1041,11 +1143,15 @@ export function DossierStructurePage() {
               node={findClause(answerNodes, reviewCiteId)!}
               ordinal={clauseOrdinal(answerNodes, reviewCiteId)}
               onOpenConflict={openConflict}
+              reviewBlocked={permissions.reviewBlocked}
               onBack={() => setReviewCiteId(null)}
             />
           ) : null}
 
-          {phase === 'ready' && !qaMode && !reviewCiteId && activeMode !== 'tables' ? (
+          {phase === 'ready' &&
+          !qaMode &&
+          !reviewCiteId &&
+          activeMode !== 'tables' ? (
             <div className="flex min-h-[520px] flex-1 flex-col pb-space-md">
               {(() => {
                 const shared = {
@@ -1071,12 +1177,7 @@ export function DossierStructurePage() {
                     )
                   default:
                     // key để đổi hướng thì dựng lại, tự căn vừa khung.
-                    return (
-                      <StructureMindmap
-                        key="mindmap"
-                        {...shared}
-                      />
-                    )
+                    return <StructureMindmap key="mindmap" {...shared} />
                 }
               })()}
             </div>

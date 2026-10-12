@@ -48,7 +48,9 @@ export function ReviewTimeline({
               </span>
             </span>
             {entry.note ? (
-              <span className="block text-on-surface-variant">{entry.note}</span>
+              <span className="block text-on-surface-variant">
+                {entry.note}
+              </span>
             ) : null}
           </li>
         ))}

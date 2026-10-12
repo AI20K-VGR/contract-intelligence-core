@@ -43,7 +43,6 @@ export function ConflictDocumentPane({
   emptyNote = '',
   alignToken = 0,
   onPageChange,
-  onBack,
   onPageCount,
   onSelectDocument,
 }: {
@@ -64,13 +63,13 @@ export function ConflictDocumentPane({
   /** Tăng số này để kéo lại đúng vùng khoanh, kể cả khi vẫn đang ở trang đó. */
   alignToken?: number
   onPageChange: (page: number) => void
-  onBack?: () => void
   onPageCount: (count: number) => void
   onSelectDocument?: (id: string) => void
 }) {
   const canvasRefs = useRef<Array<HTMLCanvasElement | null>>([])
   const scrollerRef = useRef<HTMLDivElement>(null)
   const [rotation, setRotation] = useState(0)
+  const [showBoxes, setShowBoxes] = useState(true)
   const [pageTotal, setPageTotal] = useState(0)
   const [pageAspectRatios, setPageAspectRatios] = useState<
     Record<number, string>
@@ -273,17 +272,6 @@ export function ConflictDocumentPane({
     <div className="flex h-full min-h-0 flex-1 flex-col bg-tone-200/70">
       <div className="flex h-11 shrink-0 items-center justify-between gap-space-sm border-b border-outline-variant/40 bg-surface-container-lowest px-space-md">
         <div className="flex min-w-0 items-center gap-space-sm">
-          {onBack ? (
-            <button
-              className="flex items-center gap-1 pr-space-xs font-label-sm text-label-sm text-secondary hover:text-on-surface"
-              type="button"
-              onClick={onBack}
-            >
-              <MaterialIcon name="arrow_back" className="text-[16px]" />
-              <span className="hidden md:inline">Danh sách</span>
-            </button>
-          ) : null}
-          {onBack ? <div className="h-4 w-px bg-outline-variant/50" /> : null}
           {sourceLabel ? (
             <span className="inline-flex shrink-0 items-center gap-1 rounded bg-surface-container px-1.5 py-0.5 font-label-sm text-label-sm font-semibold text-on-surface">
               <span
@@ -340,6 +328,24 @@ export function ConflictDocumentPane({
           ) : null}
         </div>
         <div className="flex items-center gap-space-xs">
+          {documentId ? (
+            <button
+              aria-checked={showBoxes}
+              className="mr-space-xs flex shrink-0 items-center gap-2 font-label-sm text-label-sm font-medium text-on-surface"
+              role="switch"
+              type="button"
+              onClick={() => setShowBoxes((current) => !current)}
+            >
+              <span className="whitespace-nowrap">Khung OCR</span>
+              <span
+                className={`relative h-4 w-7 rounded-full transition-colors ${showBoxes ? 'bg-brand-600' : 'bg-tone-300'}`}
+              >
+                <span
+                  className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-all ${showBoxes ? 'left-3.5' : 'left-0.5'}`}
+                />
+              </span>
+            </button>
+          ) : null}
           <button
             className="flex h-7 w-7 items-center justify-center rounded text-secondary hover:bg-surface-container hover:text-on-surface"
             title="Xoay trang"
@@ -464,7 +470,10 @@ export function ConflictDocumentPane({
                           <div
                             key={`${region.pageNo}-${boxIndex}-${region.accent ?? mark}`}
                             data-citation-box
-                            className={`pointer-events-none absolute z-10 border-2 ${boxClass(region.accent ?? mark)}`}
+                            className={`pointer-events-none absolute z-10 border-2 ${boxClass(region.accent ?? mark)} ${
+                              // Tắt khung chỉ làm khung vô hình: vẫn cần nó để cuộn tới câu trích.
+                              showBoxes ? '' : 'invisible'
+                            }`}
                             style={{
                               left: `${region.bbox[0] * 100}%`,
                               top: `${region.bbox[1] * 100}%`,

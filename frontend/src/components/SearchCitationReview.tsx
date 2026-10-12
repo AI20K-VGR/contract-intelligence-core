@@ -8,7 +8,11 @@ import {
   type ClauseReviewEntry,
 } from '../api/clauseReview'
 import { getFindingReview, type FindingReview } from '../api/findingReview'
-import type { ClauseNode, ReviewSpot } from '../api/structure'
+import {
+  conflictName,
+  type ClauseNode,
+  type ReviewSpot,
+} from '../api/structure'
 import { reviewerLabel } from '../review/reviewerLabel'
 import { reviewErrorMessage } from '../review/saveError'
 import { mergeTimelines, timelineEntries } from '../review/timeline'
@@ -16,6 +20,9 @@ import { bodyOf, headOf } from '../structure/display'
 import { CitationPane } from './CitationPane'
 import { ConflictNotice } from './ConflictNotice'
 import { MaterialIcon } from './icons'
+import { ReviewReadOnlyNote } from './ReviewReadOnlyNote'
+import { roleCanReview } from '../review/canReview'
+import { useAuth } from '../auth/useAuth'
 import { ReviewTimeline } from './ReviewTimeline'
 
 type Verdict = 'correct' | 'deviation'
@@ -63,8 +70,11 @@ export function SearchCitationReview({
   conflicts = NO_CONFLICTS,
   onBack,
   onOpenConflict,
+  reviewBlocked,
 }: {
   citeNo: number
+  /** null: được thẩm định; chuỗi: lý do không được; bỏ trống: xét theo vai trò. */
+  reviewBlocked?: string | null
   dossierId?: string
   documentId: string
   filename: string | null
@@ -90,6 +100,15 @@ export function SearchCitationReview({
   const page = node.pageStart || node.regions[0]?.pageNo || 1
   const latest = review?.latest ?? null
   const locked = review?.dossierLocked ?? false
+  const { user } = useAuth()
+  // Trang biết quyền trên hồ sơ thì truyền lý do; không thì xét theo vai trò.
+  const blocked =
+    reviewBlocked !== undefined
+      ? reviewBlocked
+      : roleCanReview(user?.backendRole)
+        ? null
+        : 'Chỉ Thẩm định hoặc Quản trị được thẩm định.'
+  const canReview = blocked === null
   const conflictKey = conflicts.map((spot) => spot.id).join('|')
 
   // Cùng vị trí: kéo lịch sử thẩm định xung đột về để dòng thời gian đủ hai phía.
@@ -126,7 +145,7 @@ export function SearchCitationReview({
         ...conflicts.map((spot) =>
           timelineEntries(
             'finding',
-            spot.topic,
+            conflictName(spot),
             `finding:${spot.id}`,
             findingReviews[spot.id]?.history ?? [],
           ),
@@ -283,92 +302,65 @@ export function SearchCitationReview({
                 </p>
               </div>
             ) : null}
-            <div className="mt-1 grid grid-cols-2 gap-1">
-              <VerdictButton
-                active={verdict === 'correct'}
-                icon="check_circle"
-                label="Đúng"
-                onClick={() => choose('correct')}
-              />
-              <VerdictButton
-                active={verdict === 'deviation'}
-                icon="cancel"
-                label="Sai"
-                onClick={() => choose('deviation')}
-              />
-            </div>
-            <textarea
-              className="mt-2 w-full resize-none rounded bg-surface-container-low p-2 font-body-sm text-body-sm text-on-surface outline-none focus:ring-1 focus:ring-outline-variant"
-              placeholder="Bổ sung hoặc xử lý..."
-              rows={2}
-              disabled={locked}
-              value={note}
-              onChange={(event) => {
-                setNote(event.target.value)
-                setSaved(false)
-              }}
-            />
-            {message ? (
-              <p className="mt-1 font-body-sm text-body-sm text-error">
-                {message}
-              </p>
-            ) : null}
-            <div className="mt-1 flex items-center justify-end gap-2">
-              {locked ? (
-                <span className="font-label-sm text-label-sm text-secondary">
-                  Hồ sơ đã khóa
-                </span>
-              ) : null}
-              <button
-                className="inline-flex items-center gap-1 rounded bg-brand-100 px-3 py-1 font-label-sm text-label-sm font-semibold text-brand-700 hover:bg-brand-200 disabled:opacity-50"
-                type="button"
-                disabled={loading || saving || locked}
-                onClick={() => void save()}
-              >
-                <MaterialIcon
-                  name={saved ? 'check' : 'save'}
-                  className="text-[15px]"
+            {canReview ? (
+              <>
+                <div className="mt-1 grid grid-cols-2 gap-1">
+                  <VerdictButton
+                    active={verdict === 'correct'}
+                    icon="check_circle"
+                    label="Đúng"
+                    onClick={() => choose('correct')}
+                  />
+                  <VerdictButton
+                    active={verdict === 'deviation'}
+                    icon="cancel"
+                    label="Sai"
+                    onClick={() => choose('deviation')}
+                  />
+                </div>
+                <textarea
+                  className="mt-2 w-full resize-none rounded bg-surface-container-low p-2 font-body-sm text-body-sm text-on-surface outline-none focus:ring-1 focus:ring-outline-variant"
+                  placeholder="Bổ sung hoặc xử lý..."
+                  rows={2}
+                  disabled={locked}
+                  value={note}
+                  onChange={(event) => {
+                    setNote(event.target.value)
+                    setSaved(false)
+                  }}
                 />
-                {saving
-                  ? 'Đang lưu...'
-                  : saved
-                    ? 'Đã lưu thẩm định'
-                    : 'Lưu thẩm định'}
-              </button>
-            </div>
-            {conflicts.length > 0 ? (
-              <div className="mt-space-sm border-t border-surface-container pt-space-xs">
-                <p className="font-label-sm text-label-sm font-semibold uppercase text-secondary">
-                  Xung đột liên quan ({conflicts.length})
-                </p>
-                <ul className="mt-1 flex flex-col gap-1">
-                  {conflicts.map((spot) => {
-                    const state = findingReviews[spot.id]?.latest ?? null
-                    return (
-                      <li key={spot.id}>
-                        <button
-                          className="flex w-full items-start justify-between gap-2 rounded bg-amber-50 px-2 py-1 text-left font-body-sm text-body-sm text-on-surface hover:bg-amber-100"
-                          type="button"
-                          onClick={() => onOpenConflict?.(spot.id)}
-                        >
-                          <span className="min-w-0 flex-1">
-                            <span className="font-semibold">{spot.topic}</span>
-                            <span className="block text-on-surface-variant">
-                              {state
-                                ? `Thẩm định xung đột: ${VERDICT_LABEL[VERDICT_OF[state.action] ?? 'correct']} · ${reviewerLabel(state)}`
-                                : 'Chưa ai thẩm định xung đột này.'}
-                            </span>
-                          </span>
-                          <span className="shrink-0 font-label-sm text-label-sm font-semibold text-amber-900">
-                            Đối soát
-                          </span>
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-            ) : null}
+                {message ? (
+                  <p className="mt-1 font-body-sm text-body-sm text-error">
+                    {message}
+                  </p>
+                ) : null}
+                <div className="mt-1 flex items-center justify-end gap-2">
+                  {locked ? (
+                    <span className="font-label-sm text-label-sm text-secondary">
+                      Hồ sơ đã khóa
+                    </span>
+                  ) : null}
+                  <button
+                    className="inline-flex items-center gap-1 rounded bg-brand-100 px-3 py-1 font-label-sm text-label-sm font-semibold text-brand-700 hover:bg-brand-200 disabled:opacity-50"
+                    type="button"
+                    disabled={loading || saving || locked}
+                    onClick={() => void save()}
+                  >
+                    <MaterialIcon
+                      name={saved ? 'check' : 'save'}
+                      className="text-[15px]"
+                    />
+                    {saving
+                      ? 'Đang lưu...'
+                      : saved
+                        ? 'Đã lưu thẩm định'
+                        : 'Lưu thẩm định'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <ReviewReadOnlyNote reason={blocked} />
+            )}
             <ReviewTimeline entries={timeline} />
           </section>
         </div>

@@ -201,52 +201,52 @@ export function TableStructure({
           highlight?.tableId === table.id ||
           Boolean(highlight && table.fragmentIds.includes(highlight.tableId))
         return (
-        <section
-          key={table.id}
-          className={`overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm ${
-            cited ? 'ring-2 ring-primary' : ''
-          }`}
-          ref={
-            cited
-              ? (node) => node?.scrollIntoView({ block: 'center' })
-              : undefined
-          }
-        >
-          <div className="flex items-center gap-space-sm border-b border-outline-variant/20 px-space-md py-3">
-            <MaterialIcon
-              name="table_chart"
-              className="text-[18px] text-secondary"
+          <section
+            key={table.id}
+            className={`overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm ${
+              cited ? 'ring-2 ring-primary' : ''
+            }`}
+            ref={
+              cited
+                ? (node) => node?.scrollIntoView({ block: 'center' })
+                : undefined
+            }
+          >
+            <div className="flex items-center gap-space-sm border-b border-outline-variant/20 px-space-md py-3">
+              <MaterialIcon
+                name="table_chart"
+                className="text-[18px] text-secondary"
+              />
+              <h2 className="font-title-sm text-title-sm text-on-surface">
+                Bảng {index + 1}
+              </h2>
+              {onCite ? (
+                <button
+                  className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full border px-1 text-[11px] font-semibold leading-none ${
+                    activeId === table.id
+                      ? 'border-brand-300 bg-brand-100 text-brand-700'
+                      : 'border-tone-300 bg-white text-tone-700 hover:border-tone-500'
+                  }`}
+                  type="button"
+                  onClick={() => onCite(tableNode(table, index + 1), index + 1)}
+                >
+                  {index + 1}
+                </button>
+              ) : null}
+              <span className="font-body-sm text-body-sm text-on-surface-variant">
+                Trang {table.pageStart || '—'}
+                {table.pageEnd > table.pageStart ? `–${table.pageEnd}` : ''}
+                {table.continued ? ' · nối trang' : ''}
+                {table.rows > 0
+                  ? ` · ${table.rows} dòng × ${table.columns} cột`
+                  : ''}
+              </span>
+            </div>
+            <TableGrid
+              cellId={cited ? (highlight?.cellId ?? null) : null}
+              table={table}
             />
-            <h2 className="font-title-sm text-title-sm text-on-surface">
-              Bảng {index + 1}
-            </h2>
-            {onCite ? (
-              <button
-                className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full border px-1 text-[11px] font-semibold leading-none ${
-                  activeId === table.id
-                    ? 'border-brand-300 bg-brand-100 text-brand-700'
-                    : 'border-tone-300 bg-white text-tone-700 hover:border-tone-500'
-                }`}
-                type="button"
-                onClick={() => onCite(tableNode(table, index + 1), index + 1)}
-              >
-                {index + 1}
-              </button>
-            ) : null}
-            <span className="font-body-sm text-body-sm text-on-surface-variant">
-              Trang {table.pageStart || '—'}
-              {table.pageEnd > table.pageStart ? `–${table.pageEnd}` : ''}
-              {table.continued ? ' · nối trang' : ''}
-              {table.rows > 0
-                ? ` · ${table.rows} dòng × ${table.columns} cột`
-                : ''}
-            </span>
-          </div>
-          <TableGrid
-            cellId={cited ? (highlight?.cellId ?? null) : null}
-            table={table}
-          />
-        </section>
+          </section>
         )
       })}
     </div>

@@ -118,7 +118,9 @@ export function CitationPane({
     const area = Math.max(0, x1 - x0) * Math.max(0, y1 - y0)
     return area > 0 && area <= 1
   })
-  const reviewCount = boxes.filter((region) => needsReview(region.confidence)).length
+  const reviewCount = boxes.filter((region) =>
+    needsReview(region.confidence),
+  ).length
 
   return (
     <aside
@@ -130,14 +132,19 @@ export function CitationPane({
     >
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-outline-variant/20 bg-surface-container px-4 py-2">
         <div className="flex min-w-0 items-center gap-2">
-          <MaterialIcon name="picture_as_pdf" className="text-[18px] text-error" />
+          <MaterialIcon
+            name="picture_as_pdf"
+            className="text-[18px] text-error"
+          />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-on-surface">
               {filename || `Trích dẫn ${citeNo}`}
             </p>
             <p className="truncate text-xs text-secondary">
               Trang {pageNo}
-              {boxes.length === 0 ? ' · không có vùng tô' : ' · vùng trích dẫn được khoanh'}
+              {boxes.length === 0
+                ? ' · không có vùng tô'
+                : ' · vùng trích dẫn được khoanh'}
               {reviewCount > 0 ? (
                 <span className="font-semibold text-red-700">
                   {` · ${reviewCount} vùng cần review`}
@@ -219,12 +226,15 @@ export function CitationPane({
           <canvas ref={canvasRef} className="block h-auto w-full" />
           {(showBoxes ? boxes : []).map((region, index) => {
             const confidence = region.confidence ?? null
-            const level = confidence === null ? null : confidenceLevel(confidence)
+            const level =
+              confidence === null ? null : confidenceLevel(confidence)
             return (
               <div
                 key={`${region.pageNo}-${index}`}
                 className={`absolute border-2 ${
-                  level ? confidenceBoxClasses[level] : 'border-amber-500 bg-amber-300/40'
+                  level
+                    ? confidenceBoxClasses[level]
+                    : 'border-amber-500 bg-amber-300/40'
                 }`}
                 title={
                   level && confidence !== null
