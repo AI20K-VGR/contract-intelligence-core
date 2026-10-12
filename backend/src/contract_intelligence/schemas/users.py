@@ -26,6 +26,20 @@ class UserDTO(BaseModel):
     last_login_at: datetime | None = None
 
 
+class UserDirectoryEntryDTO(BaseModel):
+    """A tenant member as other members may see them: who to share a dossier with.
+
+    Deliberately not ``UserDTO``: no status, invite or login fields.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    email: str
+    display_name: str
+    role: UserRole
+
+
 class UserCreateRequest(BaseModel):
     """POST /api/v1/users — invite a new user."""
 
@@ -64,6 +78,7 @@ class UserInviteRequest(BaseModel):
 __all__ = [
     "UserCreateRequest",
     "UserDTO",
+    "UserDirectoryEntryDTO",
     "UserInviteRequest",
     "UserPatchRequest",
     "UserRole",

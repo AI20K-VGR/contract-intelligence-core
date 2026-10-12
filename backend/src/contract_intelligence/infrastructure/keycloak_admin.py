@@ -433,6 +433,7 @@ def _list_users_sync(
     limit: int,
     offset: int,
     tenant_id: str | None,
+    with_last_login: bool = True,
 ) -> UserListResult:
     admin = _build_keycloak_admin()
     try:
@@ -478,7 +479,7 @@ def _list_users_sync(
         dtos.sort(key=lambda u: (u.email.lower(), u.id))
         total = len(dtos)
         page = dtos[offset : offset + limit]
-        logins = _last_login_times(admin, [dto.id for dto in page])
+        logins = _last_login_times(admin, [dto.id for dto in page]) if with_last_login else {}
         page = [
             dto.model_copy(update={"last_login_at": logins[dto.id]}) if dto.id in logins else dto
             for dto in page
@@ -639,6 +640,7 @@ async def list_users(
     limit: int = 20,
     offset: int = 0,
     tenant_id: str | None = None,
+    with_last_login: bool = True,
 ) -> UserListResult:
     """List/search users with optional filters and offset pagination."""
     return await asyncio.to_thread(
@@ -649,6 +651,7 @@ async def list_users(
         limit=limit,
         offset=offset,
         tenant_id=tenant_id,
+        with_last_login=with_last_login,
     )
 
 
