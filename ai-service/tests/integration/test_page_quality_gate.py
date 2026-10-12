@@ -144,3 +144,39 @@ def test_without_a_quality_check_every_page_is_read_as_before(tmp_path):
         (2, False),
         (3, False),
     ]
+
+
+class DiskWatchingEngine(CountingEngine):
+    """Records how many page images are still waiting on disk at each OCR call."""
+
+    def __init__(self, root) -> None:
+        super().__init__()
+        self.root, self.waiting, self.shapes = root, [], []
+
+    def recognize_page(self, page_image, context: Context) -> OCRResult:
+        self.waiting.append(len(list(self.root.rglob("*.npy"))))
+        self.shapes.append(page_image.shape)
+        return super().recognize_page(page_image, context)
+
+
+def test_page_images_wait_on_disk_and_are_removed_once_read(tmp_path):
+    engine = DiskWatchingEngine(tmp_path / "raw")
+    document = _process(_pdf(tmp_path, 3), tmp_path, engine, None)
+
+    # All three pages are rendered before the first OCR call; each image leaves
+    # the disk as its page is read, so none is held in memory meanwhile.
+    assert engine.waiting == [2, 1, 0]
+    assert engine.shapes == [(400, 300, 3)] * 3
+    assert [page.status for page in document.pages] == [Status.SUCCESS] * 3
+    assert not list((tmp_path / "raw").rglob("*.npy"))
+    assert not list((tmp_path / "raw").glob("page_images_*"))
+
+
+def test_page_images_are_removed_when_the_document_is_refused(tmp_path):
+    engine = CountingEngine()
+    poor = ["blurred"]
+    with pytest.raises(LowQualityDocument):
+        _process(_pdf(tmp_path, 3), tmp_path, engine, ScriptedQuality({1: poor, 2: poor, 3: poor}))
+
+    assert engine.contexts == []
+    assert not list((tmp_path / "raw").rglob("*.npy"))

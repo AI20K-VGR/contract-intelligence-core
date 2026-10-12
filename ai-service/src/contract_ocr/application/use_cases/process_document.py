@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
 from pathlib import Path
@@ -89,6 +90,36 @@ class ProcessDocument:
         the underlying PDF SDK page object is not safe for concurrent access, and a
         single loaded local model is not safe (or faster) for concurrent inference
         either. Callers must only raise max_workers for stateless remote engines."""
+        # Page images wait for OCR on disk, not in RAM: a 200-page scan at 150 DPI
+        # is ~1.3 GB of pixels, all rendered before the first OCR call. Each image
+        # is loaded only while its page is being read, and the folder goes away
+        # however the run ends.
+        output.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="page_images_", dir=output) as image_dir:
+            return self._execute(
+                source,
+                document_id,
+                experiment,
+                engine,
+                output,
+                run_id,
+                dpi,
+                max_workers,
+                Path(image_dir),
+            )
+
+    def _execute(
+        self,
+        source: str,
+        document_id: str,
+        experiment: Experiment,
+        engine: OCREngine | None,
+        output: Path,
+        run_id: str,
+        dpi: int,
+        max_workers: int,
+        image_dir: Path,
+    ) -> Document:
         result = Document(document_id=document_id, source_file=source)
         with self.extractor.open(source) as pdf:
             if len(pdf) == 0:
@@ -206,11 +237,13 @@ class ProcessDocument:
                             output_dir=str(output / f"p{index + 1:03d}"),
                             low_quality=bool(quality_issues),
                         )
+                        image_path = image_dir / f"p{index + 1:03d}.npy"
+                        np.save(image_path, image, allow_pickle=False)
                         ocr_jobs.append(
                             (
                                 index,
                                 page_result,
-                                image,
+                                image_path,
                                 transform,
                                 original.shape,
                                 context,
@@ -231,13 +264,15 @@ class ProcessDocument:
                 (
                     index,
                     page_result,
-                    image,
+                    image_path,
                     transform,
                     original_shape,
                     context,
                     start,
                     quality_issues,
                 ) = job
+                image = np.load(image_path, allow_pickle=False)
+                image_path.unlink(missing_ok=True)
                 with observation(
                     "process-page",
                     input={
