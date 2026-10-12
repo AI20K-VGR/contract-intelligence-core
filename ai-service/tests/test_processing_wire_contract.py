@@ -182,15 +182,8 @@ def test_processing_request_adapts_full_dossier_and_preserves_roles(monkeypatch)
         "doc-annex-example-001": "annex",
     }
     # Processing egress is controlled by the AI2 server environment, not the
-    # request flag (which says egress_allowed=False here).
+    # request flag. test_a8_env_flags.py covers the switch against the flag.
     assert adapted.record.egress_approved is True
-
-
-def test_processing_egress_stays_off_without_the_server_switch(monkeypatch):
-    monkeypatch.delenv("AI2_PROCESSING_EGRESS_ALLOWED", raising=False)
-    _request_model, adapted = adapt_be_ai2_processing_request(_request())
-
-    assert adapted.record.egress_approved is False
 
 
 def test_processing_request_rejects_membership_mismatch():
