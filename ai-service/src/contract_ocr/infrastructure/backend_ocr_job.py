@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import logging
 import os
 import tempfile
 import threading
+import time
 import uuid
 from collections import OrderedDict
 from datetime import UTC, datetime
@@ -35,23 +37,47 @@ from contract_ocr.infrastructure.image.renderer import PdfRenderer
 from contract_ocr.infrastructure.observability import observation
 from contract_ocr.infrastructure.pdf.pymupdf_extractor import PyMuPDFExtractor
 
+logger = logging.getLogger(__name__)
+
+
+def env_positive_int(name: str, default: int) -> int:
+    """A positive integer setting; empty, malformed or <= 0 falls back to ``default``.
+
+    Several of these are read at import time, so a bad value (compose passing
+    an empty ``${VAR}``, or ``200MB``) must not stop the service from starting.
+    """
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 0
+    if value <= 0:
+        logger.warning("ai1.config.invalid name=%s value=%r default=%s", name, raw, default)
+        return default
+    return value
+
 
 def max_upload_bytes() -> int:
     """Largest source PDF accepted: ``AI1_MAX_UPLOAD_MB`` (default 200).
 
     A 200-page scan is ~60 MB, so the former 50 MB cap refused it unread.
     """
-    return int(os.environ.get("AI1_MAX_UPLOAD_MB", "200")) * 1024 * 1024
+    return env_positive_int("AI1_MAX_UPLOAD_MB", 200) * 1024 * 1024
 
 
 MAX_UPLOAD_BYTES = max_upload_bytes()
-# 200 MB at ~1 MB/s; the former 30 s needed a steady 1.6 MB/s for 50 MB.
-SOURCE_DOWNLOAD_TIMEOUT_SECONDS = 300
+# urlopen's timeout is per socket operation: it only fires on a connection that
+# stays silent this long, whatever the transfer rate.
+SOURCE_STALL_TIMEOUT_SECONDS = 30
+# Whole download, checked between chunks, so a trickling transfer also ends.
+_DOWNLOAD_CHUNK_BYTES = 1024 * 1024
 ENGINE_IDS = {"pymupdf", "openai", "gemini", "mistral"}
 PARALLEL_ENGINES = {"openai", "gemini", "mistral"}
 # Pages OCR'd concurrently: every model call is network-bound, so more pages in
 # flight shortens a document almost linearly until provider rate limits bite.
-WEB_MAX_WORKERS = int(os.environ.get("AI1_MAX_PAGES_IN_FLIGHT", "8"))
+WEB_MAX_WORKERS = env_positive_int("AI1_MAX_PAGES_IN_FLIGHT", 8)
 
 
 def max_documents_in_flight() -> int:
@@ -69,7 +95,7 @@ def max_documents_in_flight() -> int:
     only matters where one process takes several documents (the web API).
     Kafka-side parallelism comes from min(topic partitions, worker replicas).
     """
-    return max(1, int(os.environ.get("AI1_MAX_DOCUMENTS_IN_FLIGHT", "2")))
+    return env_positive_int("AI1_MAX_DOCUMENTS_IN_FLIGHT", 2)
 
 
 _processor = ProcessDocument(
@@ -83,9 +109,11 @@ _engine_lock = threading.Lock()
 # Bounds how many documents this process reads at once (see max_documents_in_flight).
 _process_slots = threading.BoundedSemaphore(max_documents_in_flight())
 _engine_cache: dict[str, OCREngine] = {}
-# Jobs are kept for status polling only, oldest dropped first: an unbounded
-# table held every job of the worker's lifetime, results included, in memory.
+# Jobs are kept for status polling only: an unbounded table held every job of
+# the worker's lifetime, results included, in memory. Past this size the oldest
+# *finished* jobs are dropped; a queued or running job is never dropped.
 MAX_REMEMBERED_JOBS = 500
+FINISHED_JOB_STATUSES = frozenset({"completed", "failed", "cancelled"})
 _backend_jobs: OrderedDict[str, dict[str, Any]] = OrderedDict()
 _backend_jobs_lock = threading.Lock()
 
@@ -126,8 +154,15 @@ def new_backend_job(kind: str) -> tuple[str, dict[str, Any]]:
     }
     with _backend_jobs_lock:
         _backend_jobs[job_id] = job
-        while len(_backend_jobs) > MAX_REMEMBERED_JOBS:
-            _backend_jobs.popitem(last=False)
+        excess = len(_backend_jobs) - MAX_REMEMBERED_JOBS
+        if excess > 0:
+            finished = [
+                key
+                for key, kept in _backend_jobs.items()
+                if kept["status"] in FINISHED_JOB_STATUSES
+            ][:excess]
+            for key in finished:
+                del _backend_jobs[key]
     return job_id, job
 
 
@@ -145,13 +180,33 @@ def update_backend_job(job_id: str, **changes: Any) -> None:
 
 
 def read_source_blob(url: str, expected_sha256: str) -> bytes:
+    """Download and check the source PDF.
+
+    Bounded twice: a silent connection fails after ``SOURCE_STALL_TIMEOUT_SECONDS``,
+    and the whole transfer after ``AI1_SOURCE_DOWNLOAD_TIMEOUT_SECONDS`` (default
+    600 s, i.e. 200 MB at ~0.35 MB/s), so a trickling download ends too.
+    """
     limit = max_upload_bytes()
+    deadline = time.monotonic() + env_positive_int("AI1_SOURCE_DOWNLOAD_TIMEOUT_SECONDS", 600)
+    chunks: list[bytes] = []
+    received = 0
     try:
         # The backend supplies a presigned URL.
-        with urlopen(url, timeout=SOURCE_DOWNLOAD_TIMEOUT_SECONDS) as response:  # noqa: S310
-            content = response.read(limit + 1)
+        with urlopen(url, timeout=SOURCE_STALL_TIMEOUT_SECONDS) as response:  # noqa: S310
+            while received <= limit:
+                chunk = response.read(min(_DOWNLOAD_CHUNK_BYTES, limit + 1 - received))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                received += len(chunk)
+                if time.monotonic() > deadline:
+                    raise RuntimeError(
+                        "source download exceeded AI1_SOURCE_DOWNLOAD_TIMEOUT_SECONDS"
+                    )
     except (OSError, URLError) as exc:
         raise RuntimeError(f"cannot download source_blob_get_url: {exc}") from exc
+    content = b"".join(chunks)
+    del chunks
     if not content or len(content) > limit:
         raise RuntimeError(
             f"source document is empty or exceeds the {limit // (1024 * 1024)} MB service limit"
@@ -162,19 +217,6 @@ def read_source_blob(url: str, expected_sha256: str) -> bytes:
     if b"%PDF-" not in content[:1024]:
         raise RuntimeError("source document is not a valid PDF")
     return content
-
-
-def align_pages_to_pdf(request: BackendOcrJobRequest) -> tuple[BackendOcrJobRequest, bytes]:
-    """Force ``pages_to_process`` to the full PDF range (AI1 OCR constraint).
-
-    Also returns the downloaded, checked PDF, so the OCR run does not fetch it again.
-    """
-    content = read_source_blob(request.source_blob_get_url, request.source_sha256)
-    with pymupdf.open(stream=content, filetype="pdf") as source_pdf:
-        pages = list(range(1, source_pdf.page_count + 1))
-    if sorted(set(request.pages_to_process)) != pages:
-        request = request.model_copy(update={"pages_to_process": pages})
-    return request, content
 
 
 def _upload_rendered_pages(
@@ -272,13 +314,14 @@ def run_backend_ocr(
     request: BackendOcrJobRequest,
     *,
     trace_seed: str | None = None,
-    source: list[bytes] | None = None,
+    align_pages: bool = False,
 ) -> None:
     """Execute one OCR job with a privacy-safe Langfuse trace when configured.
 
-    ``source`` is a one-item list holding the already-downloaded PDF. The run
-    takes the bytes out of it, so the caller holds no copy while the document
-    is read. Without it the PDF is downloaded here.
+    ``align_pages`` reads every page of the PDF whatever ``pages_to_process``
+    asks for (the Kafka contract: AI1 OCRs whole documents); the page count is
+    then stored on the job as ``page_count``. Without it a partial page range
+    is refused, as before.
     """
     engine_id = str(request.options.get("engine", "pymupdf"))
     with observation(
@@ -300,7 +343,7 @@ def run_backend_ocr(
         session_id=f"ocr-document:{request.document_id}",
         tags=["ai1", "ocr", engine_id],
     ) as root_span:
-        _run_backend_ocr(job_id, request, source)
+        _run_backend_ocr(job_id, request, align_pages=align_pages)
         if root_span is not None:
             job = get_backend_job(job_id) or {}
             snapshot = (job.get("result") or {}).get("snapshot") or {}
@@ -323,7 +366,7 @@ def run_backend_ocr(
 
 
 def _run_backend_ocr(
-    job_id: str, request: BackendOcrJobRequest, source: list[bytes] | None = None
+    job_id: str, request: BackendOcrJobRequest, *, align_pages: bool = False
 ) -> None:
     """Internal OCR execution; public callers should use :func:`run_backend_ocr`."""
     update_backend_job(job_id, status="processing", progress_pct=5, current_stage="download")
@@ -333,10 +376,9 @@ def _run_backend_ocr(
             input={"document_id": request.document_id},
             metadata={"transport": "presigned-url"},
         ) as download_span:
-            if source:
-                content = source.pop()
-            else:
-                content = read_source_blob(request.source_blob_get_url, request.source_sha256)
+            # Downloaded and opened once: the page count, the page range check
+            # and the OCR run all use this one copy.
+            content = read_source_blob(request.source_blob_get_url, request.source_sha256)
             with pymupdf.open(stream=content, filetype="pdf") as source_pdf:
                 available_pages = list(range(1, source_pdf.page_count + 1))
             if download_span is not None:
@@ -345,7 +387,12 @@ def _run_backend_ocr(
                 )
         requested_pages = sorted(set(request.pages_to_process))
         if requested_pages != available_pages:
-            raise RuntimeError("AI1 OCR job currently supports only the full document page range")
+            if not align_pages:
+                raise RuntimeError(
+                    "AI1 OCR job currently supports only the full document page range"
+                )
+            request = request.model_copy(update={"pages_to_process": available_pages})
+        update_backend_job(job_id, page_count=len(available_pages))
         engine_id = str(request.options.get("engine", "pymupdf"))
         if engine_id not in ENGINE_IDS:
             raise RuntimeError(f"unsupported OCR engine: {engine_id}")

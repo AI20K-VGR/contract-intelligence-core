@@ -35,8 +35,9 @@ def test_documents_in_flight_default_to_two_and_follow_the_environment(monkeypat
     assert jobs.max_documents_in_flight() == 2
     monkeypatch.setenv("AI1_MAX_DOCUMENTS_IN_FLIGHT", "3")
     assert jobs.max_documents_in_flight() == 3
+    # 0, empty or malformed is a mistake, not "one at a time": the default applies.
     monkeypatch.setenv("AI1_MAX_DOCUMENTS_IN_FLIGHT", "0")
-    assert jobs.max_documents_in_flight() == 1
+    assert jobs.max_documents_in_flight() == 2
 
 
 class _WatchingProcessor:
@@ -67,6 +68,7 @@ def test_two_documents_are_read_at_once_and_a_third_waits(tmp_path, monkeypatch)
     watching = _WatchingProcessor(jobs._processor)
     monkeypatch.setattr(jobs, "_processor", watching)
     monkeypatch.setattr(jobs, "_process_slots", threading.BoundedSemaphore(2))
+    monkeypatch.setattr(jobs, "read_source_blob", lambda url, sha256: content)
 
     def run(n: int) -> None:
         job_id, _ = jobs.new_backend_job("ocr")
@@ -80,7 +82,7 @@ def test_two_documents_are_read_at_once_and_a_third_waits(tmp_path, monkeypatch)
             pages_to_process=[1],
             options={"engine": "pymupdf"},
         )
-        jobs._run_backend_ocr(job_id, request, [content])
+        jobs._run_backend_ocr(job_id, request)
         assert jobs.get_backend_job(job_id)["status"] == "completed"
 
     threads = [threading.Thread(target=run, args=(n,)) for n in range(3)]

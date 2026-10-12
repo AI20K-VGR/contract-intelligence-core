@@ -11,6 +11,7 @@ import asyncio
 import hashlib
 import json
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.error import URLError
 
@@ -133,26 +134,55 @@ def test_the_size_cap_follows_ai1_max_upload_mb(monkeypatch):
         served.close()
 
 
-def test_the_download_may_take_up_to_300_seconds(monkeypatch):
+class _Trickle:
+    """A response that hands out ``chunk`` bytes per read, ``total`` in all."""
+
+    def __init__(self, chunk: bytes, total: int, delay: float = 0.0) -> None:
+        self.chunk, self.left, self.delay = chunk, total, delay
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def read(self, size):
+        if self.left <= 0:
+            return b""
+        time.sleep(self.delay)
+        part = self.chunk[: min(size, self.left)]
+        self.left -= len(part)
+        return part
+
+
+def test_a_silent_connection_times_out_after_30_seconds(monkeypatch):
     timeouts = []
-
-    class Response:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *exc):
-            return False
-
-        def read(self, size):
-            return b"%PDF-1.7\n"
+    body = b"%PDF-1.7 minimal"
 
     def fake_urlopen(url, timeout):
         timeouts.append(timeout)
-        return Response()
+        return _Trickle(body, len(body))
 
     monkeypatch.setattr(jobs, "urlopen", fake_urlopen)
-    jobs.read_source_blob("http://minio/x.pdf", hashlib.sha256(b"%PDF-1.7\n").hexdigest())
-    assert timeouts == [300]
+    assert jobs.read_source_blob("http://minio/x.pdf", hashlib.sha256(body).hexdigest()) == body
+    # Per socket operation; the whole transfer has its own deadline (next test).
+    assert timeouts == [30]
+
+
+def test_a_trickling_download_stops_at_the_total_deadline(monkeypatch):
+    monkeypatch.setenv("AI1_SOURCE_DOWNLOAD_TIMEOUT_SECONDS", "1")
+    monkeypatch.setattr(
+        jobs, "urlopen", lambda url, timeout: _Trickle(b"%PDF-" + b"0" * 1000, 10**9, delay=0.2)
+    )
+
+    with pytest.raises(RuntimeError, match="AI1_SOURCE_DOWNLOAD_TIMEOUT_SECONDS"):
+        jobs.read_source_blob("http://minio/x.pdf", "0" * 64)
+
+
+@pytest.mark.parametrize("value", ["", "abc", "200MB", "0", "-5"])
+def test_a_bad_size_cap_falls_back_to_200_mb(monkeypatch, value):
+    monkeypatch.setenv("AI1_MAX_UPLOAD_MB", value)
+    assert jobs.max_upload_bytes() == 200 * 1024 * 1024
 
 
 # 2. One download per command -------------------------------------------------
@@ -212,7 +242,6 @@ def test_the_consumer_may_spend_an_hour_on_one_command(monkeypatch):
     monkeypatch.delenv("KAFKA_MAX_POLL_INTERVAL_MS", raising=False)
     settings = _consumer_settings(monkeypatch)
     assert settings["max_poll_interval_ms"] == 3_600_000
-    assert settings["max_poll_records"] == 1
 
 
 def test_the_poll_interval_follows_the_environment(monkeypatch):
@@ -250,7 +279,14 @@ def test_remembered_events_are_capped(monkeypatch):
 
 
 def test_the_job_table_is_capped():
-    ids = [jobs.new_backend_job("ocr")[0] for _ in range(501)]
+    # Finished jobs are what the cap drops (running ones are kept, see
+    # test_ai1_review_fixes.py).
+    ids = []
+    for _ in range(501):
+        job_id = jobs.new_backend_job("ocr")[0]
+        jobs.update_backend_job(job_id, status="completed")
+        ids.append(job_id)
+    jobs.new_backend_job("ocr")
 
     assert len(jobs._backend_jobs) == 500
     assert jobs.get_backend_job(ids[0]) is None

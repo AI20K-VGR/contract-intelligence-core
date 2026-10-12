@@ -211,6 +211,7 @@ def test_the_backend_job_reports_progress_page_by_page(tmp_path, monkeypatch):
         real_update(job_id, **changes)
 
     monkeypatch.setattr(jobs, "update_backend_job", record)
+    monkeypatch.setattr(jobs, "read_source_blob", lambda url, sha256: content)
     job_id, _ = jobs.new_backend_job("ocr")
     request = jobs.BackendOcrJobRequest(
         task_id=1,
@@ -223,7 +224,7 @@ def test_the_backend_job_reports_progress_page_by_page(tmp_path, monkeypatch):
         options={"engine": "pymupdf"},
     )
 
-    jobs._run_backend_ocr(job_id, request, [content])
+    jobs._run_backend_ocr(job_id, request)
 
     assert jobs.get_backend_job(job_id)["status"] == "completed"
     assert progress == [5, 15, 28, 41, 54, 67, 80, 80, 100]

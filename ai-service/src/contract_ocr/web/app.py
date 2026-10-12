@@ -43,9 +43,11 @@ from contract_ocr.application.use_cases.process_document import (
 )
 from contract_ocr.domain.entities import Document, Experiment
 from contract_ocr.infrastructure.backend_ocr_job import (
-    MAX_UPLOAD_BYTES,
+    FINISHED_JOB_STATUSES,
     BackendOcrJobRequest,
     max_documents_in_flight,
+    max_upload_bytes,
+    update_backend_job,
 )
 from contract_ocr.infrastructure.backend_ocr_job import (
     engine_status as _engine_status,
@@ -246,6 +248,10 @@ def get_backend_job(
     job = _lookup_backend_job(job_id)
     if job is None:
         raise HTTPException(404, "Unknown AI1 job")
+    if job["status"] in FINISHED_JOB_STATUSES and job.get("result") is not None:
+        # The backend reads a finished job's result once; the table keeps no
+        # copy of it (~71 KiB per page) after it has been handed over.
+        update_backend_job(job_id, result=None)
     return job
 
 
@@ -289,11 +295,14 @@ def ocr_pdf(
         raise HTTPException(400, "engine phải là pymupdf, openai, gemini hoặc mistral")
     if not 72 <= dpi <= 600:
         raise HTTPException(400, "DPI phải trong khoảng 72-600")
-    content = file.file.read()
+    limit = max_upload_bytes()
+    # At most one byte past the limit is read: a larger upload is refused
+    # without holding it all in memory first.
+    content = file.file.read(limit + 1)
     if not content:
         raise HTTPException(400, "File rỗng")
-    if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "File vượt quá 50MB")
+    if len(content) > limit:
+        raise HTTPException(413, f"File vượt quá {limit // (1024 * 1024)}MB")
     if is_pdf:
         if b"%PDF-" not in content[:1024]:
             raise HTTPException(400, "File không phải PDF hợp lệ")
@@ -353,11 +362,12 @@ def _read_pdf_upload(file: UploadFile) -> bytes:
     filename = file.filename or "upload.pdf"
     if Path(filename).suffix.lower() != ".pdf":
         raise HTTPException(400, f"'{filename}': chỉ nhận file .pdf cho endpoint này")
-    content = file.file.read()
+    limit = max_upload_bytes()
+    content = file.file.read(limit + 1)
     if not content:
         raise HTTPException(400, f"'{filename}': file rỗng")
-    if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, f"'{filename}': vượt quá 50MB")
+    if len(content) > limit:
+        raise HTTPException(413, f"'{filename}': vượt quá {limit // (1024 * 1024)}MB")
     if b"%PDF-" not in content[:1024]:
         raise HTTPException(400, f"'{filename}': không phải PDF hợp lệ")
     return content

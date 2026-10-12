@@ -19,14 +19,13 @@ import time
 from collections import OrderedDict
 from datetime import UTC, datetime
 from typing import Any
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 
 from contract_ocr.infrastructure.backend_ocr_job import (
     BackendOcrJobRequest,
-    align_pages_to_pdf,
     get_backend_job,
     new_backend_job,
     run_backend_ocr,
@@ -57,12 +56,19 @@ _ENVELOPE_ALLOWANCE = 64 * 1024
 # PUT used to fail the whole job.
 _UPLOAD_RETRY_DELAYS = (1.0, 4.0, 16.0)
 
+# Client errors a retry can fix: request timeout and rate limiting. Any other
+# 4xx (403 expired URL, 400, 413 ...) fails the same way every time.
+_RETRYABLE_CLIENT_ERRORS = frozenset({408, 429})
+
 # Kafka's default (5 min) is far below one long document: past it the
 # consumer leaves the group, the commit fails and the command is read again.
+# Keep it above the longest OCR run; the backend gives a document
+# AI1_DEADLINE_BASE_SECONDS + AI1_DEADLINE_PER_PAGE_SECONDS x pages.
 DEFAULT_MAX_POLL_INTERVAL_MS = 3_600_000
 
 # In-process idempotency for at-least-once redelivery (event_id → result envelope).
-# Only a recent redelivery needs it, so the oldest entries are dropped.
+# Only a recent redelivery needs it, so the oldest entries are dropped, and an
+# envelope carrying an inline result (up to ~10 MiB) is not kept at all.
 MAX_REMEMBERED_EVENTS = 500
 _processed: OrderedDict[str, dict[str, Any]] = OrderedDict()
 
@@ -107,7 +113,9 @@ def _put_result(put_url: str, body: bytes, content_type: str) -> None:
 def _put_result_with_retries(put_url: str, body: bytes, content_type: str) -> None:
     """``_put_result``, retried after each delay of ``_UPLOAD_RETRY_DELAYS``.
 
-    The last error is raised once every attempt has failed.
+    Only failures a retry can fix are retried: 5xx, 408/429, timeouts and
+    dropped connections. Any other 4xx is raised at once. The last error is
+    raised once every attempt has failed.
     """
     attempts = len(_UPLOAD_RETRY_DELAYS) + 1
     for attempt in range(1, attempts + 1):
@@ -115,6 +123,11 @@ def _put_result_with_retries(put_url: str, body: bytes, content_type: str) -> No
             _put_result(put_url, body, content_type)
             return
         except (OSError, URLError) as exc:
+            permanent = (
+                isinstance(exc, HTTPError)
+                and 400 <= exc.code < 500
+                and exc.code not in _RETRYABLE_CLIENT_ERRORS
+            )
             logger.warning(
                 "ai1.kafka.result_upload_failed bytes=%d attempt=%d/%d error=%s",
                 len(body),
@@ -122,7 +135,7 @@ def _put_result_with_retries(put_url: str, body: bytes, content_type: str) -> No
                 attempts,
                 type(exc).__name__,
             )
-            if attempt == attempts:
+            if permanent or attempt == attempts:
                 raise
             time.sleep(_UPLOAD_RETRY_DELAYS[attempt - 1] * random.uniform(0.8, 1.2))  # noqa: S311
 
@@ -186,7 +199,10 @@ def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
         duration_seconds=time.monotonic() - started,
         result=snapshot_result,
     )
-    if event_id:
+    # A redelivered command is answered from here only when the envelope is small
+    # (result by reference, or a failure). One with an inline result is not
+    # kept: a redelivery of it reads the document again rather than holding it.
+    if event_id and (envelope.get("payload") or {}).get("result") is None:
         _processed[event_id] = envelope
         while len(_processed) > MAX_REMEMBERED_EVENTS:
             _processed.popitem(last=False)
@@ -207,17 +223,14 @@ def _process_command(message: dict[str, Any]) -> tuple[dict[str, Any], Any]:
         raise ValueError("command payload must be an object")
 
     request = BackendOcrJobRequest.model_validate(raw_payload)
-    request, content = align_pages_to_pdf(request)
     job_id, _job = new_backend_job("ocr")
-    # Handed over in a list the run empties: this frame keeps no copy of the
-    # PDF in memory while the document is read.
-    source = [content]
-    del content
+    # The run downloads the PDF once and reads every page of it (AI1 OCRs whole
+    # documents), whatever range the command names.
     run_backend_ocr(
         job_id,
         request,
         trace_seed=str(message.get("trace_id") or message.get("event_id") or job_id),
-        source=source,
+        align_pages=True,
     )
     job = get_backend_job(job_id)
     if job is None:
@@ -225,7 +238,7 @@ def _process_command(message: dict[str, Any]) -> tuple[dict[str, Any], Any]:
 
     status = str(job.get("status") or "failed")
     engine = str(request.options.get("engine", "pymupdf"))
-    pages = len(request.pages_to_process)
+    pages = job.get("page_count") or len(request.pages_to_process)
     result, result_ref, error = job.get("result"), None, job.get("error")
     if status == "completed" and isinstance(result, dict):
         result, result_ref, upload_error = _deliver_result(
@@ -276,7 +289,6 @@ async def run_worker() -> None:
         max_poll_interval_ms=int(
             _env("KAFKA_MAX_POLL_INTERVAL_MS", str(DEFAULT_MAX_POLL_INTERVAL_MS))
         ),
-        max_poll_records=1,
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
     )
     producer = AIOKafkaProducer(
@@ -309,6 +321,9 @@ async def run_worker() -> None:
             if not document_id and isinstance(message.get("payload"), dict):
                 document_id = message["payload"].get("document_id")
             key = str(document_id or "").encode("utf-8") or None
+            # Set once a result (completed or failed) has been published; only
+            # then is the offset committed.
+            published = False
             try:
                 envelope = await asyncio.to_thread(_handle_command, message)
                 await producer.send_and_wait(
@@ -316,7 +331,7 @@ async def run_worker() -> None:
                     _encode(envelope),
                     key=key,
                 )
-                await consumer.commit()
+                published = True
                 logger.info(
                     "ai1.kafka.result_published event_type=%s job_id=%s",
                     envelope.get("event_type"),
@@ -347,17 +362,25 @@ async def run_worker() -> None:
                             },
                         },
                     )
-                    # Only commit after publishing failed for permanent errors
-                    # that _handle_command already wraps; for transport issues
-                    # re-raise. Here we treat as permanent after publish.
+                    # Treated as permanent once the failure is published; if that
+                    # publish fails too, the offset stays uncommitted for retry.
                     await producer.send_and_wait(
                         results_topic,
                         _encode(failed),
                         key=key,
                     )
-                    await consumer.commit()
+                    published = True
                 except Exception:
                     logger.exception("ai1.kafka.failed_publish_also_failed")
+            if published:
+                # Outside the processing try: a rejected commit (e.g. the group
+                # rebalanced) must not publish ai1.ocr.failed for a document whose
+                # result was already sent. The command may be read again; the
+                # backend drops a result for a run that is no longer current.
+                try:
+                    await consumer.commit()
+                except Exception:
+                    logger.exception("ai1.kafka.commit_failed event_id=%s", message.get("event_id"))
     finally:
         await consumer.stop()
         await producer.stop()

@@ -135,10 +135,12 @@ def test_worker_records_each_command_once(monkeypatch):
     job = {"job_id": "ai1_1", "status": "completed", "result": SNAPSHOT_RESULT, "error": None}
     monkeypatch.setattr(kw, "_processed", type(kw._processed)())
     monkeypatch.setattr(kw, "_UPLOAD_RETRY_DELAYS", (0.0, 0.0, 0.0))
-    monkeypatch.setattr(kw, "align_pages_to_pdf", lambda request: (request, b"%PDF-1.7"))
     monkeypatch.setattr(kw, "new_backend_job", lambda kind: ("ai1_1", {}))
     monkeypatch.setattr(kw, "run_backend_ocr", lambda *args, **kwargs: None)
     monkeypatch.setattr(kw, "get_backend_job", lambda job_id: job)
+    # Sent by reference, as the backend always asks: only such an envelope is
+    # small enough to keep for answering a redelivery.
+    monkeypatch.setattr(kw, "_put_result", lambda url, body, content_type: None)
     command = {
         "schema_version": kw.SCHEMA_VERSION,
         "event_id": "evt_metrics_1",
@@ -151,7 +153,10 @@ def test_worker_records_each_command_once(monkeypatch):
             "source_blob_get_url": "http://minio:9000/dossiers/doc_1.pdf",
             "source_sha256": "a" * 64,
             "pages_to_process": [1],
-            "options": {"engine": "mistral"},
+            "options": {
+                "engine": "mistral",
+                "result_target": {"put_url": "http://minio/r.json", "uri": "s3://r.json"},
+            },
         },
     }
     before = _value("ai1_ocr_requests_total", engine="mistral", status="completed")
@@ -160,6 +165,6 @@ def test_worker_records_each_command_once(monkeypatch):
     again = kw._handle_command(command)  # Kafka redelivery
 
     assert again is first
-    assert first["payload"]["result"] == SNAPSHOT_RESULT
+    assert first["payload"]["result_ref"]["uri"] == "s3://r.json"
     assert _value("ai1_ocr_requests_total", engine="mistral", status="completed") == before + 1
     assert _value("ai1_ocr_in_progress") == 0

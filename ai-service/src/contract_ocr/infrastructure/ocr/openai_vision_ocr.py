@@ -57,6 +57,15 @@ def _cost_details(model: str, usage: dict[str, int] | None) -> dict[str, float] 
     return {**costs, "total": sum(costs.values())}
 
 
+def _openai_timeout_seconds() -> float:
+    """``AI1_OPENAI_TIMEOUT_SECONDS`` (default 120); a bad value keeps the default."""
+    try:
+        value = float(os.environ.get("AI1_OPENAI_TIMEOUT_SECONDS", "") or 120)
+    except ValueError:
+        return 120.0
+    return value if value > 0 else 120.0
+
+
 class OpenAIVisionOCREngine(OCREngine):
     """Sends the rendered page image to an OpenAI vision model. Not local: page images
     leave this machine. Only use with non-confidential documents."""
@@ -85,7 +94,10 @@ class OpenAIVisionOCREngine(OCREngine):
                 raise RuntimeError("OPENAI_API_KEY is not set")
             from openai import OpenAI
 
-            client_kwargs: dict[str, Any] = {"api_key": api_key}
+            # The SDK's default is 600 s per attempt (x3 with its retries): one
+            # hung call could hold the worker's Kafka partition for half an hour.
+            timeout = self.config.get("timeout_s") or _openai_timeout_seconds()
+            client_kwargs: dict[str, Any] = {"api_key": api_key, "timeout": timeout}
             if self.config.get("base_url"):
                 client_kwargs["base_url"] = self.config["base_url"]
             self._client = OpenAI(**client_kwargs)
