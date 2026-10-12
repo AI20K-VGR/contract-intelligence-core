@@ -371,8 +371,31 @@ class VerifiedMistralOCREngine(OCREngine):
             )
 
             # -- stage 4: second reader (geometry, digits, word agreement) -------
+            verify_reasons = (
+                ["all_pages"]
+                if eager
+                else [
+                    name
+                    for name, hit in (
+                        ("geometry", geometry_doubt),
+                        ("unread_ink", bool(alignment.unread_ink)),
+                        ("tables", bool(unmatched_tables)),
+                        ("critical", bool(critical and not self.budget)),
+                    )
+                    if hit
+                ]
+            )
             if not eager and needs_verifier and not single_read and self.verifier is not None:
                 second, verify_warning = self._verify(page_image, context)
+            # One line per page; the share of verified pages is the verifier's
+            # call count over the text reader's (ai1_ocr_model_calls_total).
+            logger.info(
+                "ocr.verify_decision document_id=%s page=%s verified=%s reasons=%s",
+                context.document_id,
+                context.page,
+                bool(verify_reasons) and not single_read and self.verifier is not None,
+                ",".join(verify_reasons) or "-",
+            )
             if verify_warning:
                 warnings.append(verify_warning)
             content_disputes = 0
