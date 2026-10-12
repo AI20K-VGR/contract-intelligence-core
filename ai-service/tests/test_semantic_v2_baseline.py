@@ -11,7 +11,8 @@ from app.contracts.models import IndexContribution
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "semantic_v2_cases.json"
-CONTRACT = ROOT.parents[2] / "docs" / "contracts" / "ai2-semantic-v2.md"
+# Inside the repository (repo/docs/contracts), never above it.
+CONTRACT = ROOT.parent / "docs" / "contracts" / "ai2-semantic-v2.md"
 
 
 def test_fixture_covers_positive_and_negative_alignment_cases() -> None:
@@ -25,9 +26,9 @@ def test_fixture_covers_positive_and_negative_alignment_cases() -> None:
     assert not any("dos_" in json.dumps(case, ensure_ascii=False) for case in cases)
 
 
-# The contract lives outside this repository (two levels above it), so a plain
-# checkout does not have it: the check runs only where the file is present.
-@pytest.mark.skipif(not CONTRACT.exists(), reason=f"{CONTRACT.name} is not in this repository")
+# Runs once the contract is committed at CONTRACT; until then it is skipped,
+# naming the exact path it looked for.
+@pytest.mark.skipif(not CONTRACT.exists(), reason=f"contract not found at {CONTRACT}")
 def test_contract_separates_semantic_and_arithmetic_outputs() -> None:
     contract = CONTRACT.read_text(encoding="utf-8")
 
