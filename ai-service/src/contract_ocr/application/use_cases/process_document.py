@@ -1,6 +1,8 @@
 import hashlib
 import json
 import logging
+import threading
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
 from pathlib import Path
@@ -83,18 +85,47 @@ class ProcessDocument:
         run_id: str,
         dpi: int = 300,
         max_workers: int = 1,
+        on_page_done: Callable[[int, int], None] | None = None,
     ) -> Document:
         """max_workers only parallelizes the OCR engine call itself (network-bound API
         engines): PDF reading/classification/rendering always stays sequential because
         the underlying PDF SDK page object is not safe for concurrent access, and a
         single loaded local model is not safe (or faster) for concurrent inference
-        either. Callers must only raise max_workers for stateless remote engines."""
+        either. Callers must only raise max_workers for stateless remote engines.
+
+        Pages are read in two passes so memory does not grow with the document:
+
+        1. Survey, one page at a time: classify, render, decide blank / text-layer /
+           duplicate, and judge scan quality. The image is dropped before the next
+           page. The low-quality gate then sees every page before any OCR call.
+        2. OCR: the pages to read are rendered again, in order, each only once one
+           of `max_workers` slots is free, and released when their OCR ends. At
+           most `max_workers` page images are held at once, whatever the length.
+
+        Duplicates of a page are known after the survey, take no slot, and get
+        the source page's reading once all OCR has finished.
+
+        `on_page_done(done, total)` is called after each page is finished, with
+        `done` rising by one per call (serialized, so it never goes back)."""
         result = Document(document_id=document_id, source_file=source)
         with self.extractor.open(source) as pdf:
             if len(pdf) == 0:
                 raise ValueError("document has no pages")
             pages: list[Page | None] = [None] * len(pdf)
-            ocr_jobs = []
+            total = len(pdf)
+            done = 0
+            done_lock = threading.Lock()
+
+            def finish(index: int, page_result: Page, start: float) -> None:
+                nonlocal done
+                self._finish_page(pages, index, page_result, start, experiment, run_id, document_id)
+                if on_page_done is not None:
+                    with done_lock:
+                        done += 1
+                        on_page_done(done, total)
+
+            # (index, page_result, context, start, quality_issues) per page to OCR.
+            planned: list[tuple[int, Page, Context, float, list[str]]] = []
             first_page_with: dict[str, int] = {}
             reused: list[tuple[int, Page, int, float]] = []
             for index in range(len(pdf)):
@@ -120,9 +151,7 @@ class ProcessDocument:
                     if evidence.usable_text and not evidence.requires_ocr_regions:
                         page_result = self.extractor.extract(page, document_id)
                         page_result.evidence, page_result.input_type = evidence, evidence.input_type
-                        self._finish_page(
-                            pages, index, page_result, start, experiment, run_id, document_id
-                        )
+                        finish(index, page_result, start)
                         continue
                     # Every other page is rendered: OCR needs the image, and a look at
                     # it first can make the OCR call unnecessary.
@@ -136,9 +165,7 @@ class ProcessDocument:
                         page_result.evidence = evidence.model_copy(
                             update={"reason_codes": [*evidence.reason_codes, "BLANK_PAGE"]}
                         )
-                        self._finish_page(
-                            pages, index, page_result, start, experiment, run_id, document_id
-                        )
+                        finish(index, page_result, start)
                         continue
                     if "SHORT_NATIVE_TEXT" in evidence.reason_codes:
                         native = self.extractor.extract(page, document_id)
@@ -156,9 +183,7 @@ class ProcessDocument:
                                 }
                             )
                             native.evidence, native.input_type = evidence, evidence.input_type
-                            self._finish_page(
-                                pages, index, native, start, experiment, run_id, document_id
-                            )
+                            finish(index, native, start)
                             continue
                     if engine is None:
                         reason = (
@@ -169,9 +194,7 @@ class ProcessDocument:
                         )
                         page_result.status, page_result.error = Status.SKIPPED, reason
                         page_result.evidence, page_result.input_type = evidence, evidence.input_type
-                        self._finish_page(
-                            pages, index, page_result, start, experiment, run_id, document_id
-                        )
+                        finish(index, page_result, start)
                     else:
                         # Covers both SCANNED and MIXED pages. Known limitation for MIXED:
                         # this re-OCRs the *whole* page rather than compositing the already-
@@ -206,26 +229,15 @@ class ProcessDocument:
                             output_dir=str(output / f"p{index + 1:03d}"),
                             low_quality=bool(quality_issues),
                         )
-                        ocr_jobs.append(
-                            (
-                                index,
-                                page_result,
-                                image,
-                                transform,
-                                original.shape,
-                                context,
-                                start,
-                                quality_issues,
-                            )
-                        )
+                        planned.append((index, page_result, context, start, quality_issues))
+                        # Only the verdicts are kept: the image is rendered again for OCR.
+                        del original, image
                 except Exception as exc:
                     page_result.status, page_result.error = (
                         Status.FAILED,
                         f"{type(exc).__name__}: {exc}",
                     )
-                    self._finish_page(
-                        pages, index, page_result, start, experiment, run_id, document_id
-                    )
+                    finish(index, page_result, start)
 
             def run_ocr_job(job: tuple) -> None:
                 (
@@ -315,34 +327,77 @@ class ProcessDocument:
                                 else None
                             ),
                         )
-                self._finish_page(pages, index, page_result, start, experiment, run_id, document_id)
+                finish(index, page_result, start)
 
-            poor = {job[0] + 1: job[7] for job in ocr_jobs if job[7]}
+            poor = {plan[0] + 1: plan[4] for plan in planned if plan[4]}
             if (
                 poor
                 and len(poor) >= self.min_low_quality_pages
-                and len(poor) >= self.max_low_quality_share * len(ocr_jobs)
+                and len(poor) >= self.max_low_quality_share * len(planned)
             ):
-                raise LowQualityDocument(poor, len(ocr_jobs))
+                raise LowQualityDocument(poor, len(planned))
 
-            if ocr_jobs:
-                if max_workers > 1 and len(ocr_jobs) > 1:
-                    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            def render_job(plan: tuple[int, Page, Context, float, list[str]]) -> tuple | None:
+                """Render one planned page for OCR; a page that fails to render is finished."""
+                index, page_result, context, start, quality_issues = plan
+                try:
+                    original = self.renderer.render(pdf[index], dpi)
+                    image, transform = self.preprocessor.apply(original, experiment.preprocessing)
+                except Exception as exc:
+                    page_result.status, page_result.error = (
+                        Status.FAILED,
+                        f"{type(exc).__name__}: {exc}",
+                    )
+                    finish(index, page_result, start)
+                    return None
+                return (
+                    index,
+                    page_result,
+                    image,
+                    transform,
+                    original.shape,
+                    context,
+                    start,
+                    quality_issues,
+                )
+
+            if planned and max_workers > 1 and len(planned) > 1:
+                # Rendering stays on this thread (the PDF page object is not
+                # thread-safe). A slot is taken before a page is rendered and given
+                # back when its OCR ends, so at most `max_workers` images exist.
+                slots = threading.BoundedSemaphore(max_workers)
+
+                def ocr_then_free_slot(job: tuple) -> None:
+                    try:
+                        run_ocr_job(job)
+                    finally:
+                        slots.release()
+
+                with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                    futures = []
+                    for plan in planned:
+                        slots.acquire()
+                        job = render_job(plan)
+                        if job is None:
+                            slots.release()
+                            continue
                         # OpenTelemetry context is not copied into worker threads by
                         # ThreadPoolExecutor. Give every page its own context copy so
                         # page/model observations stay under the document OCR trace.
-                        futures = [
-                            pool.submit(copy_context().run, run_ocr_job, job) for job in ocr_jobs
-                        ]
-                        for future in futures:
-                            future.result()
-                else:
-                    for job in ocr_jobs:
+                        futures.append(pool.submit(copy_context().run, ocr_then_free_slot, job))
+                        del job
+                    for future in futures:
+                        future.result()
+            else:
+                for plan in planned:
+                    job = render_job(plan)
+                    if job is not None:
                         run_ocr_job(job)
+                    del job
 
             for index, page_result, source_index, start in reused:
                 self._reuse_reading(pages[source_index], page_result, document_id)
-                self._finish_page(pages, index, page_result, start, experiment, run_id, document_id)
+                finish(index, page_result, start)
 
         result.pages = pages
         mark_duplicate_pages(result)
