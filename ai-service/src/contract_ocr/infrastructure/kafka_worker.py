@@ -14,7 +14,9 @@ import hashlib
 import json
 import logging
 import os
+import random
 import time
+from collections import OrderedDict
 from datetime import UTC, datetime
 from typing import Any
 from urllib.error import URLError
@@ -28,6 +30,7 @@ from contract_ocr.infrastructure.backend_ocr_job import (
     get_backend_job,
     new_backend_job,
     run_backend_ocr,
+    update_backend_job,
 )
 from contract_ocr.infrastructure.observability import flush_langfuse
 from contract_ocr.infrastructure.prometheus_metrics import (
@@ -49,8 +52,19 @@ MAX_MESSAGE_BYTES = 10_485_760  # 10 MiB
 # Room left in a message for the envelope around an inline result.
 _ENVELOPE_ALLOWANCE = 64 * 1024
 
+# Waits before each retry of a failed result upload (each gets ±20% jitter).
+# A 200-page result (~14 MB) does not fit a Kafka message, so a single failed
+# PUT used to fail the whole job.
+_UPLOAD_RETRY_DELAYS = (1.0, 4.0, 16.0)
+
+# Kafka's default (5 min) is far below one long document: past it the
+# consumer leaves the group, the commit fails and the command is read again.
+DEFAULT_MAX_POLL_INTERVAL_MS = 3_600_000
+
 # In-process idempotency for at-least-once redelivery (event_id → result envelope).
-_processed: dict[str, dict[str, Any]] = {}
+# Only a recent redelivery needs it, so the oldest entries are dropped.
+MAX_REMEMBERED_EVENTS = 500
+_processed: OrderedDict[str, dict[str, Any]] = OrderedDict()
 
 
 def _env(name: str, default: str) -> str:
@@ -90,6 +104,29 @@ def _put_result(put_url: str, body: bytes, content_type: str) -> None:
         pass
 
 
+def _put_result_with_retries(put_url: str, body: bytes, content_type: str) -> None:
+    """``_put_result``, retried after each delay of ``_UPLOAD_RETRY_DELAYS``.
+
+    The last error is raised once every attempt has failed.
+    """
+    attempts = len(_UPLOAD_RETRY_DELAYS) + 1
+    for attempt in range(1, attempts + 1):
+        try:
+            _put_result(put_url, body, content_type)
+            return
+        except (OSError, URLError) as exc:
+            logger.warning(
+                "ai1.kafka.result_upload_failed bytes=%d attempt=%d/%d error=%s",
+                len(body),
+                attempt,
+                attempts,
+                type(exc).__name__,
+            )
+            if attempt == attempts:
+                raise
+            time.sleep(_UPLOAD_RETRY_DELAYS[attempt - 1] * random.uniform(0.8, 1.2))  # noqa: S311
+
+
 def _deliver_result(
     result: dict[str, Any], result_target: Any
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
@@ -107,11 +144,10 @@ def _deliver_result(
         return result, None, None
     body = _encode(result)
     try:
-        _put_result(put_url, body, str(result_target.get("content_type") or "application/json"))
-    except (OSError, URLError) as exc:
-        logger.warning(
-            "ai1.kafka.result_upload_failed bytes=%d error=%s", len(body), type(exc).__name__
+        _put_result_with_retries(
+            put_url, body, str(result_target.get("content_type") or "application/json")
         )
+    except (OSError, URLError) as exc:
         if len(body) <= MAX_MESSAGE_BYTES - _ENVELOPE_ALLOWANCE:
             return result, None, None
         return (
@@ -152,6 +188,8 @@ def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
     )
     if event_id:
         _processed[event_id] = envelope
+        while len(_processed) > MAX_REMEMBERED_EVENTS:
+            _processed.popitem(last=False)
     return envelope
 
 
@@ -169,12 +207,17 @@ def _process_command(message: dict[str, Any]) -> tuple[dict[str, Any], Any]:
         raise ValueError("command payload must be an object")
 
     request = BackendOcrJobRequest.model_validate(raw_payload)
-    request = align_pages_to_pdf(request)
+    request, content = align_pages_to_pdf(request)
     job_id, _job = new_backend_job("ocr")
+    # Handed over in a list the run empties: this frame keeps no copy of the
+    # PDF in memory while the document is read.
+    source = [content]
+    del content
     run_backend_ocr(
         job_id,
         request,
         trace_seed=str(message.get("trace_id") or message.get("event_id") or job_id),
+        source=source,
     )
     job = get_backend_job(job_id)
     if job is None:
@@ -190,6 +233,9 @@ def _process_command(message: dict[str, Any]) -> tuple[dict[str, Any], Any]:
         )
         if upload_error is not None:
             status, error = "failed", upload_error
+    # The result now lives in MinIO, or inline in the envelope: the job table
+    # needs no copy of it (~71 KiB per page).
+    update_backend_job(job_id, result=None)
     result_payload = {
         "job_id": job["job_id"],
         "kind": job.get("kind", "ocr"),
@@ -226,6 +272,11 @@ async def run_worker() -> None:
         group_id=group_id,
         enable_auto_commit=False,
         auto_offset_reset="earliest",
+        # One command can take far longer than Kafka's 5-minute default.
+        max_poll_interval_ms=int(
+            _env("KAFKA_MAX_POLL_INTERVAL_MS", str(DEFAULT_MAX_POLL_INTERVAL_MS))
+        ),
+        max_poll_records=1,
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
     )
     producer = AIOKafkaProducer(

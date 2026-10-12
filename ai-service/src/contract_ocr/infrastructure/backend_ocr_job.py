@@ -11,6 +11,7 @@ import os
 import tempfile
 import threading
 import uuid
+from collections import OrderedDict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -34,7 +35,18 @@ from contract_ocr.infrastructure.image.renderer import PdfRenderer
 from contract_ocr.infrastructure.observability import observation
 from contract_ocr.infrastructure.pdf.pymupdf_extractor import PyMuPDFExtractor
 
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+
+def max_upload_bytes() -> int:
+    """Largest source PDF accepted: ``AI1_MAX_UPLOAD_MB`` (default 200).
+
+    A 200-page scan is ~60 MB, so the former 50 MB cap refused it unread.
+    """
+    return int(os.environ.get("AI1_MAX_UPLOAD_MB", "200")) * 1024 * 1024
+
+
+MAX_UPLOAD_BYTES = max_upload_bytes()
+# 200 MB at ~1 MB/s; the former 30 s needed a steady 1.6 MB/s for 50 MB.
+SOURCE_DOWNLOAD_TIMEOUT_SECONDS = 300
 ENGINE_IDS = {"pymupdf", "openai", "gemini", "mistral"}
 PARALLEL_ENGINES = {"openai", "gemini", "mistral"}
 # Pages OCR'd concurrently: every model call is network-bound, so more pages in
@@ -52,7 +64,10 @@ _processor = ProcessDocument(
 _engine_lock = threading.Lock()
 _process_lock = threading.Lock()
 _engine_cache: dict[str, OCREngine] = {}
-_backend_jobs: dict[str, dict[str, Any]] = {}
+# Jobs are kept for status polling only, oldest dropped first: an unbounded
+# table held every job of the worker's lifetime, results included, in memory.
+MAX_REMEMBERED_JOBS = 500
+_backend_jobs: OrderedDict[str, dict[str, Any]] = OrderedDict()
 _backend_jobs_lock = threading.Lock()
 
 
@@ -92,6 +107,8 @@ def new_backend_job(kind: str) -> tuple[str, dict[str, Any]]:
     }
     with _backend_jobs_lock:
         _backend_jobs[job_id] = job
+        while len(_backend_jobs) > MAX_REMEMBERED_JOBS:
+            _backend_jobs.popitem(last=False)
     return job_id, job
 
 
@@ -109,13 +126,17 @@ def update_backend_job(job_id: str, **changes: Any) -> None:
 
 
 def read_source_blob(url: str, expected_sha256: str) -> bytes:
+    limit = max_upload_bytes()
     try:
-        with urlopen(url, timeout=30) as response:  # noqa: S310 - backend supplies a presigned URL
-            content = response.read(MAX_UPLOAD_BYTES + 1)
+        # The backend supplies a presigned URL.
+        with urlopen(url, timeout=SOURCE_DOWNLOAD_TIMEOUT_SECONDS) as response:  # noqa: S310
+            content = response.read(limit + 1)
     except (OSError, URLError) as exc:
         raise RuntimeError(f"cannot download source_blob_get_url: {exc}") from exc
-    if not content or len(content) > MAX_UPLOAD_BYTES:
-        raise RuntimeError("source document is empty or exceeds the 50 MB service limit")
+    if not content or len(content) > limit:
+        raise RuntimeError(
+            f"source document is empty or exceeds the {limit // (1024 * 1024)} MB service limit"
+        )
     actual_sha256 = hashlib.sha256(content).hexdigest()
     if actual_sha256 != expected_sha256.removeprefix("sha256:"):
         raise RuntimeError("source_sha256 does not match downloaded document")
@@ -124,14 +145,17 @@ def read_source_blob(url: str, expected_sha256: str) -> bytes:
     return content
 
 
-def align_pages_to_pdf(request: BackendOcrJobRequest) -> BackendOcrJobRequest:
-    """Force ``pages_to_process`` to the full PDF range (AI1 OCR constraint)."""
+def align_pages_to_pdf(request: BackendOcrJobRequest) -> tuple[BackendOcrJobRequest, bytes]:
+    """Force ``pages_to_process`` to the full PDF range (AI1 OCR constraint).
+
+    Also returns the downloaded, checked PDF, so the OCR run does not fetch it again.
+    """
     content = read_source_blob(request.source_blob_get_url, request.source_sha256)
     with pymupdf.open(stream=content, filetype="pdf") as source_pdf:
         pages = list(range(1, source_pdf.page_count + 1))
-    if sorted(set(request.pages_to_process)) == pages:
-        return request
-    return request.model_copy(update={"pages_to_process": pages})
+    if sorted(set(request.pages_to_process)) != pages:
+        request = request.model_copy(update={"pages_to_process": pages})
+    return request, content
 
 
 def _upload_rendered_pages(
@@ -226,8 +250,14 @@ def run_backend_ocr(
     request: BackendOcrJobRequest,
     *,
     trace_seed: str | None = None,
+    source: list[bytes] | None = None,
 ) -> None:
-    """Execute one OCR job with a privacy-safe Langfuse trace when configured."""
+    """Execute one OCR job with a privacy-safe Langfuse trace when configured.
+
+    ``source`` is a one-item list holding the already-downloaded PDF. The run
+    takes the bytes out of it, so the caller holds no copy while the document
+    is read. Without it the PDF is downloaded here.
+    """
     engine_id = str(request.options.get("engine", "pymupdf"))
     with observation(
         "process-ocr-job",
@@ -248,7 +278,7 @@ def run_backend_ocr(
         session_id=f"ocr-document:{request.document_id}",
         tags=["ai1", "ocr", engine_id],
     ) as root_span:
-        _run_backend_ocr(job_id, request)
+        _run_backend_ocr(job_id, request, source)
         if root_span is not None:
             job = get_backend_job(job_id) or {}
             snapshot = (job.get("result") or {}).get("snapshot") or {}
@@ -270,7 +300,9 @@ def run_backend_ocr(
             )
 
 
-def _run_backend_ocr(job_id: str, request: BackendOcrJobRequest) -> None:
+def _run_backend_ocr(
+    job_id: str, request: BackendOcrJobRequest, source: list[bytes] | None = None
+) -> None:
     """Internal OCR execution; public callers should use :func:`run_backend_ocr`."""
     update_backend_job(job_id, status="processing", progress_pct=5, current_stage="download")
     try:
@@ -279,7 +311,10 @@ def _run_backend_ocr(job_id: str, request: BackendOcrJobRequest) -> None:
             input={"document_id": request.document_id},
             metadata={"transport": "presigned-url"},
         ) as download_span:
-            content = read_source_blob(request.source_blob_get_url, request.source_sha256)
+            if source:
+                content = source.pop()
+            else:
+                content = read_source_blob(request.source_blob_get_url, request.source_sha256)
             with pymupdf.open(stream=content, filetype="pdf") as source_pdf:
                 available_pages = list(range(1, source_pdf.page_count + 1))
             if download_span is not None:
@@ -301,6 +336,7 @@ def _run_backend_ocr(job_id: str, request: BackendOcrJobRequest) -> None:
             tmp_path = Path(tmp)
             pdf_path = tmp_path / "source.pdf"
             pdf_path.write_bytes(content)
+            del content  # up to AI1_MAX_UPLOAD_MB; the run reads the file from here on
             engine = _get_engine(engine_id)
             max_workers = WEB_MAX_WORKERS if engine_id in PARALLEL_ENGINES else 1
             with observation(

@@ -133,8 +133,9 @@ def test_generation_stays_none_when_metrics_are_off(monkeypatch):
 
 def test_worker_records_each_command_once(monkeypatch):
     job = {"job_id": "ai1_1", "status": "completed", "result": SNAPSHOT_RESULT, "error": None}
-    monkeypatch.setattr(kw, "_processed", {})
-    monkeypatch.setattr(kw, "align_pages_to_pdf", lambda request: request)
+    monkeypatch.setattr(kw, "_processed", type(kw._processed)())
+    monkeypatch.setattr(kw, "_UPLOAD_RETRY_DELAYS", (0.0, 0.0, 0.0))
+    monkeypatch.setattr(kw, "align_pages_to_pdf", lambda request: (request, b"%PDF-1.7"))
     monkeypatch.setattr(kw, "new_backend_job", lambda kind: ("ai1_1", {}))
     monkeypatch.setattr(kw, "run_backend_ocr", lambda *args, **kwargs: None)
     monkeypatch.setattr(kw, "get_backend_job", lambda job_id: job)
