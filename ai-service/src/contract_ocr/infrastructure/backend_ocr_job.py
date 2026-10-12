@@ -359,6 +359,10 @@ def _run_backend_ocr(
                         run_id=job_id,
                         dpi=dpi,
                         max_workers=max_workers,
+                        # 15 % when OCR starts, 80 % when every page is read.
+                        on_page_done=lambda done, total: update_backend_job(
+                            job_id, progress_pct=15 + int(65 * done / total)
+                        ),
                     )
                 if process_span is not None:
                     process_span.update(
