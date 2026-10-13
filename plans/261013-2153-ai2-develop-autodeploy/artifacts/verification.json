@@ -3,41 +3,33 @@
   "plan": "261013-2153-ai2-develop-autodeploy",
   "checks": [
     {
-      "name": "canonical_guide_and_links",
+      "name": "deploy_unit_tests",
       "status": "PASS"
     },
     {
-      "name": "ignored_local_env_paths",
+      "name": "preflight_ci",
       "status": "PASS"
-    },
-    {
-      "name": "compose_config",
-      "status": "PASS"
-    },
-    {
-      "name": "clean_clone_windows_full_e2e",
-      "status": "BLOCKED"
-    },
-    {
-      "name": "clean_clone_posix_full_e2e",
-      "status": "BLOCKED"
-    },
-    {
-      "name": "provider_backed_inference_smoke",
-      "status": "BLOCKED"
     },
     {
       "name": "final_sha_required_ci",
+      "status": "PASS"
+    },
+    {
+      "name": "production_environment_branch_policy",
+      "status": "BLOCKED"
+    },
+    {
+      "name": "develop_required_ci_status_checks",
+      "status": "BLOCKED"
+    },
+    {
+      "name": "production_deploy_external_smoke",
       "status": "BLOCKED"
     }
   ],
   "verdict": "BLOCKED",
-  "phase": "P6",
+  "phase": "P5",
   "actor": "user:dungskbg2004@gmail.com",
-  "ts": "2026-10-13T21:02:40+00:00",
-  "blastRadius": {
-    "unavailable": true,
-    "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF-ai2-contract-graph"
-  },
+  "ts": "2026-10-13T23:00:09+00:00",
   "run_seq": null
 }
