@@ -677,6 +677,61 @@ async def read_ai2_contract_graph(
     )
 
 
+async def read_ai2_contract_graph_evidence(
+    job_id: str,
+    *,
+    dossier_id: str,
+    snapshot_digest: str,
+    graph_kind: str,
+    node_id: str,
+    citation_ref: str,
+    tenant_id: str,
+    actor_id: str,
+) -> dict[str, Any]:
+    """Read source text from the persisted AI2 citation under a signed scope."""
+    if graph_kind not in {"operation", "pair"} or not node_id or len(node_id) > 512:
+        raise AiAdapterError("AI2 graph evidence request is invalid")
+    if not citation_ref or len(citation_ref) > 256:
+        raise AiAdapterError("AI2 graph evidence reference is invalid")
+    request = {
+        "job_id": job_id,
+        "dossier_id": dossier_id,
+        "snapshot_digest": snapshot_digest,
+        "graph_kind": graph_kind,
+        "node_id": node_id,
+        "citation_ref": citation_ref,
+    }
+    envelope = _service_envelope(
+        request,
+        tenant_id=tenant_id,
+        dossier_id=dossier_id,
+        actor_id=actor_id,
+        scopes=["ai2.graph.read"],
+    )
+    query = urlencode(request)
+    payload = await _get_json_bounded(
+        f"{_canonical_ai2_base_url()}/internal/contract-graph/{job_id}/evidence?{query}",
+        headers={"X-AI2-Service-Envelope": json.dumps(envelope)},
+        max_response_bytes=128_000,
+        service="ai2.contract_graph.evidence",
+    )
+    if (
+        not isinstance(payload, dict)
+        or set(payload) != {"job_id", "snapshot_digest", "graph_kind", "node_id", "citation_ref", "quote", "page"}
+        or payload.get("job_id") != job_id
+        or payload.get("snapshot_digest") != snapshot_digest
+        or payload.get("graph_kind") != graph_kind
+        or payload.get("node_id") != node_id
+        or payload.get("citation_ref") != citation_ref
+        or not isinstance(payload.get("quote"), str)
+        or not payload["quote"].strip()
+        or len(payload["quote"]) > 20_000
+        or (payload.get("page") is not None and (isinstance(payload["page"], bool) or not isinstance(payload["page"], int)))
+    ):
+        raise AiAdapterError("AI2 graph evidence response is malformed")
+    return payload
+
+
 async def read_ai2_processing_trace(
     job_id: str,
     *,
@@ -710,6 +765,7 @@ __all__ = [
     "AiAdapterTimeoutError",
     "is_transient",
     "read_ai2_contract_graph",
+    "read_ai2_contract_graph_evidence",
     "read_ai2_processing_trace",
     "poll_ai2_processing",
     "query_ai2",

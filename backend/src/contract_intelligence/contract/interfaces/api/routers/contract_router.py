@@ -1532,6 +1532,47 @@ async def get_dossier_ai2_contract_graph(
     return ApiResponse(data=data)
 
 
+@router.get("/dossiers/{dossier_id}/ai2/contract-graph/{graph_kind}/evidence")
+async def get_dossier_ai2_contract_graph_evidence(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    graph_kind: Literal["operation", "pair"],
+    job_id: Annotated[str, Query(min_length=1, max_length=256)],
+    snapshot_digest: Annotated[str, Query(min_length=1, max_length=256)],
+    node_id: Annotated[str, Query(min_length=1, max_length=512)],
+    citation_ref: Annotated[str, Query(min_length=1, max_length=256)],
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> ApiResponse[dict[str, Any]]:
+    from contract_intelligence.infrastructure.ai_adapters import (
+        AiAdapterError,
+        read_ai2_contract_graph_evidence,
+    )
+
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.CITATION_READ)
+    if _ai2_snapshot_digest(dossier) != snapshot_digest:
+        raise HTTPException(status_code=409, detail={"code": "AI2_SNAPSHOT_CHANGED"})
+    try:
+        evidence = await read_ai2_contract_graph_evidence(
+            job_id,
+            dossier_id=dossier_id,
+            snapshot_digest=snapshot_digest,
+            graph_kind=graph_kind,
+            node_id=node_id,
+            citation_ref=citation_ref,
+            tenant_id=user.tenant_id,
+            actor_id=user.user_id,
+        )
+    except AiAdapterError as exc:
+        logger.warning(
+            "dossier.ai2_graph_evidence.unavailable",
+            dossier_id=dossier_id,
+            code=type(exc).__name__,
+        )
+        raise HTTPException(status_code=503, detail={"code": "AI2_GRAPH_EVIDENCE_UNAVAILABLE"}) from exc
+    await _postcheck_graph_read(svc, dossier_id, user, expected_digest=snapshot_digest)
+    return ApiResponse(data=evidence)
+
+
 @router.get("/dossiers/{dossier_id}/ai2/processing-trace")
 async def get_dossier_ai2_processing_trace(
     dossier_id: Annotated[str, Path(min_length=1)],

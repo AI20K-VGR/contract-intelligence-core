@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 from fastapi import APIRouter, Header, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from app.db.engine import database_url, ensure_database, get_engine
 from app.db.tables import (
@@ -17,6 +17,7 @@ from app.db.tables import (
 )
 from app.security.service_envelope import ServiceEnvelopeError, verify_service_envelope
 from app.tools.contract_graph_read_model import (
+    _citation_ref,
     graph_job_status,
     graph_read_status,
     project_operation_edge,
@@ -26,6 +27,124 @@ from app.tools.contract_graph_read_model import (
 )
 
 router = APIRouter()
+
+
+@router.get("/internal/contract-graph/{job_id}/evidence")
+def read_contract_graph_evidence(
+    job_id: str,
+    dossier_id: str,
+    snapshot_digest: str,
+    graph_kind: str,
+    node_id: str,
+    citation_ref: str,
+    x_ai2_service_envelope: str | None = Header(default=None),
+) -> dict:
+    """Return one citation quote after verifying the same signed graph scope.
+
+    The ordinary graph projection intentionally contains opaque citation handles
+    only. This separate endpoint is the narrow, auditable path for the UI to read
+    source text after Backend has checked the caller's citation-read permission.
+    """
+    try:
+        kind = validate_graph_kind(graph_kind)
+    except ValueError as exc:
+        raise HTTPException(400, detail={"code": "GRAPH_KIND_INVALID"}) from exc
+    request = {
+        "job_id": job_id,
+        "dossier_id": dossier_id,
+        "snapshot_digest": snapshot_digest,
+        "graph_kind": kind,
+        "node_id": node_id,
+        "citation_ref": citation_ref,
+    }
+    if not x_ai2_service_envelope:
+        raise HTTPException(401, detail={"code": "SERVICE_ENVELOPE_MISSING"})
+    try:
+        envelope = verify_service_envelope(
+            {**request, "service_envelope": json.loads(x_ai2_service_envelope)},
+            required_scope="ai2.graph.read",
+        )
+    except (json.JSONDecodeError, ServiceEnvelopeError) as exc:
+        raise HTTPException(401, detail={"code": getattr(exc, "code", "SERVICE_ENVELOPE_INVALID")}) from exc
+
+    if not database_url():
+        raise HTTPException(503, detail={"code": "GRAPH_EVIDENCE_UNAVAILABLE"})
+    engine = get_engine()
+    ensure_database(engine)
+    with engine.connect() as cx:
+        job = cx.execute(select(jobs).where(
+            jobs.c.job_id == job_id,
+            jobs.c.tenant_id == envelope.tenant_id,
+            jobs.c.dossier_id == dossier_id,
+            jobs.c.status == "SUCCEEDED",
+        )).mappings().first()
+        if job is None:
+            raise HTTPException(404, detail={"code": "GRAPH_JOB_NOT_FOUND"})
+        latest_job_id = cx.execute(select(jobs.c.job_id).where(
+            jobs.c.tenant_id == envelope.tenant_id,
+            jobs.c.dossier_id == dossier_id,
+            jobs.c.status == "SUCCEEDED",
+        ).order_by(jobs.c.created_ms.desc(), jobs.c.job_id.desc()).limit(1)).scalar_one_or_none()
+        if latest_job_id != job_id:
+            raise HTTPException(409, detail={"code": "AI2_GRAPH_STALE"})
+        current_digest = cx.execute(select(query_snapshots.c.snapshot_digest).where(
+            query_snapshots.c.tenant_id == envelope.tenant_id,
+            query_snapshots.c.dossier_id == dossier_id,
+        )).scalar_one_or_none()
+        if current_digest != snapshot_digest:
+            raise HTTPException(409, detail={"code": "AI2_GRAPH_STALE"})
+        receipt = cx.execute(select(graph_write_receipts).where(
+            graph_write_receipts.c.tenant_id == envelope.tenant_id,
+            graph_write_receipts.c.dossier_id == dossier_id,
+            graph_write_receipts.c.job_id == job_id,
+            graph_write_receipts.c.graph_kind == kind,
+            graph_write_receipts.c.source_snapshot_digest == snapshot_digest,
+            graph_write_receipts.c.stage_status == "COMPLETED",
+            graph_write_receipts.c.write_status == "COMMITTED",
+        )).first()
+        if receipt is None:
+            raise HTTPException(404, detail={"code": "GRAPH_EVIDENCE_NOT_FOUND"})
+
+        table = contract_edges if kind == "operation" else contract_pair_relations
+        rows = cx.execute(select(table).where(
+            table.c.tenant_id == envelope.tenant_id,
+            table.c.dossier_id == dossier_id,
+            table.c.job_id == job_id,
+            table.c.source_snapshot_digest == snapshot_digest,
+            or_(
+                table.c.source_node_id == node_id,
+                table.c.target_node_id == node_id,
+            ) if kind == "operation" else or_(
+                table.c.node_a_id == node_id,
+                table.c.node_b_id == node_id,
+            ),
+        )).mappings().all()
+        citation_fields = (
+            (("source_node_id", "source_citation_json"), ("target_node_id", "target_citation_json"))
+            if kind == "operation"
+            else (("node_a_id", "citation_a_json"), ("node_b_id", "citation_b_json"))
+        )
+        for row in rows:
+            for node_field, field in citation_fields:
+                if row[node_field] != node_id:
+                    continue
+                raw = row[field]
+                if _citation_ref(raw) != citation_ref:
+                    continue
+                citation = json.loads(raw)
+                quote = citation.get("text_span") or citation.get("quote")
+                if not isinstance(quote, str) or not quote.strip():
+                    raise HTTPException(404, detail={"code": "GRAPH_EVIDENCE_NOT_FOUND"})
+                return {
+                    "job_id": job_id,
+                    "snapshot_digest": snapshot_digest,
+                    "graph_kind": kind,
+                    "node_id": node_id,
+                    "citation_ref": citation_ref,
+                    "quote": quote[:20000],
+                    "page": citation.get("page"),
+                }
+    raise HTTPException(404, detail={"code": "GRAPH_EVIDENCE_NOT_FOUND"})
 
 
 @router.get("/internal/contract-graph/{job_id}")
