@@ -19,6 +19,10 @@ export function RelationList({
   resolveNodeLabel,
   selectedId: controlledSelectedId,
   onSelectEdge,
+  onResolveEdgeEvidence,
+  citationRecord,
+  citationError,
+  citationLoading,
 }: {
   page: ContractGraphPage
   onLoadPage?: (cursor: string) => Promise<ContractGraphPage>
@@ -30,6 +34,13 @@ export function RelationList({
   resolveNodeLabel?: (nodeId: string, documentId?: string | null) => string
   selectedId?: string | null
   onSelectEdge?: (edgeId: string) => void
+  onResolveEdgeEvidence?: (edge: ContractGraphEdge) => Promise<{
+    sourceText?: string
+    targetText?: string
+  } | null>
+  citationRecord?: Record<string, unknown> | null
+  citationError?: boolean
+  citationLoading?: boolean
 }) {
   const [state, setState] = useState(() => createRelationListState(page))
   const [internalSelectedId, setInternalSelectedId] = useState<string | null>(
@@ -42,7 +53,6 @@ export function RelationList({
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState(false)
   const inFlight = useRef(false)
-  const selected = state.edges.find((edge) => edge.id === selectedId) ?? null
   const complete = isRelationListComplete(state)
 
   async function loadNextPage() {
@@ -102,16 +112,30 @@ export function RelationList({
           </p>
           <ul className="mt-3 flex min-w-0 flex-col gap-2">
             {state.edges.map((edge) => (
-              <RelationRow
-                key={edge.id}
-                edge={edge}
-                selected={edge.id === selectedId}
-                onSelect={(id) => {
-                  setInternalSelectedId(id)
-                  onSelectEdge?.(id)
-                }}
-                resolveNodeLabel={resolveNodeLabel}
-              />
+              <li key={edge.id} className="min-w-0">
+                <RelationRow
+                  edge={edge}
+                  selected={edge.id === selectedId}
+                  onSelect={(id) => {
+                    setInternalSelectedId(id)
+                    onSelectEdge?.(id)
+                    onResolveEdgeEvidence?.(edge)
+                  }}
+                  resolveNodeLabel={resolveNodeLabel}
+                />
+                {edge.id === selectedId ? (
+                  <div className="mt-2">
+                    <RelationInspector
+                      edge={edge}
+                      onOpenCitation={onOpenCitation}
+                      resolveNodeLabel={resolveNodeLabel}
+                      citationRecord={citationRecord}
+                      citationError={citationError}
+                      citationLoading={citationLoading}
+                    />
+                  </div>
+                ) : null}
+              </li>
             ))}
           </ul>
           {state.hasMore && state.nextCursor ? (
@@ -136,15 +160,6 @@ export function RelationList({
                 'Số quan hệ đã nhận chưa khớp tổng số từ máy chủ.'}
             </p>
           ) : null}
-          {selected ? (
-            <div className="mt-3">
-              <RelationInspector
-                edge={selected}
-                onOpenCitation={onOpenCitation}
-                resolveNodeLabel={resolveNodeLabel}
-              />
-            </div>
-          ) : null}
         </>
       )}
     </section>
@@ -163,9 +178,11 @@ function RelationRow({
   resolveNodeLabel?: (nodeId: string, documentId?: string | null) => string
 }) {
   return (
-    <li className="min-w-0">
+    <>
       <button
         aria-pressed={selected}
+        aria-expanded={selected}
+        aria-controls={selected ? 'ai2-selected-relation-detail' : undefined}
         className="min-h-11 w-full min-w-0 rounded-md border border-outline-variant p-3 text-left focus-visible:outline focus-visible:outline-2"
         onClick={() => onSelect(edge.id)}
         type="button"
@@ -179,20 +196,32 @@ function RelationRow({
         <span className="mt-1 grid min-w-0 gap-1 text-sm text-on-surface-variant sm:grid-cols-[1fr_auto_1fr] sm:items-center">
           <span className="break-words">
             Nguồn:{' '}
-            {resolveNodeLabel(edge.source_node_id, edge.source_document_id)}
+            <span title={resolveNodeLabel(edge.source_node_id, edge.source_document_id)}>
+              {compactRelationText(resolveNodeLabel(edge.source_node_id, edge.source_document_id))}
+            </span>
           </span>
           <span aria-hidden="true">{edge.directed ? '→' : '↔'}</span>
           <span className="break-words">
             Đích:{' '}
-            {[
+            <span title={[
               resolveNodeLabel(edge.target_node_id, edge.target_document_id),
               edge.target_address,
             ]
               .filter(Boolean)
-              .join(' · ')}
+              .join(' · ')}>
+              {compactRelationText([
+                resolveNodeLabel(edge.target_node_id, edge.target_document_id),
+                edge.target_address,
+              ].filter(Boolean).join(' · '))}
+            </span>
           </span>
         </span>
       </button>
-    </li>
+    </>
   )
+}
+
+function compactRelationText(value: string): string {
+  const compact = value.replace(/\s+/g, ' ').trim()
+  return compact.length > 140 ? `${compact.slice(0, 139)}…` : compact
 }

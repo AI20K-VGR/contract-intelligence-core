@@ -4,6 +4,9 @@ export function RelationInspector({
   edge,
   onOpenCitation,
   resolveNodeLabel = (nodeId) => `Mã điều khoản ${nodeId}`,
+  citationRecord,
+  citationError = false,
+  citationLoading = false,
 }: {
   edge: ContractGraphEdge
   onOpenCitation: (
@@ -12,9 +15,24 @@ export function RelationInspector({
     sourceDocumentId?: string | null,
   ) => void
   resolveNodeLabel?: (nodeId: string, documentId?: string | null) => string
+  citationRecord?: Record<string, unknown> | null
+  citationError?: boolean
+  citationLoading?: boolean
 }) {
+  const citationNodeId = typeof citationRecord?.__node_id === 'string'
+    ? citationRecord.__node_id
+    : null
+  const citationDocumentId = typeof citationRecord?.__document_id === 'string'
+    ? citationRecord.__document_id
+    : null
+  const citationSide = citationNodeId === edge.source_node_id && citationDocumentId === edge.source_document_id
+    ? 'nguồn'
+    : citationNodeId === edge.target_node_id && citationDocumentId === edge.target_document_id
+      ? 'đích'
+      : null
   return (
     <aside
+      id="ai2-selected-relation-detail"
       aria-label="Chi tiết quan hệ được chọn"
       className="min-w-0 rounded-lg border border-outline-variant p-3"
     >
@@ -26,13 +44,13 @@ export function RelationInspector({
         </div>
         <div className="min-w-0">
           <dt className="font-semibold">Điều khoản nguồn</dt>
-          <dd className="break-words">
+          <dd className="max-h-28 overflow-auto whitespace-pre-wrap break-words rounded bg-surface-container-low p-2 text-sm">
             {resolveNodeLabel(edge.source_node_id, edge.source_document_id)}
           </dd>
         </div>
         <div className="min-w-0">
           <dt className="font-semibold">Điều khoản đích</dt>
-          <dd className="break-words">
+          <dd className="max-h-28 overflow-auto whitespace-pre-wrap break-words rounded bg-surface-container-low p-2 text-sm">
             {[
               resolveNodeLabel(edge.target_node_id, edge.target_document_id),
               edge.target_address,
@@ -78,6 +96,17 @@ export function RelationInspector({
           Mở bằng chứng đích
         </button>
       </div>
+      {citationLoading ? (
+        <p className="mt-3" role="status">Đang tải bằng chứng…</p>
+      ) : typeof citationRecord?.quote === 'string' ? (
+        <section className="mt-3 rounded-md border border-outline-variant p-3" aria-label={`Bằng chứng ${citationSide ?? 'quan hệ'}`}>
+          <h4 className="font-semibold">Bằng chứng {citationSide ?? 'quan hệ'}</h4>
+          <p className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words">{citationRecord.quote}</p>
+          {typeof citationRecord.page === 'number' ? <p className="mt-2 text-xs text-on-surface-variant">Trang {citationRecord.page}</p> : null}
+        </section>
+      ) : citationError ? (
+        <p className="mt-3 text-error" role="alert">Không tải được bằng chứng cho quan hệ này.</p>
+      ) : null}
     </aside>
   )
 }

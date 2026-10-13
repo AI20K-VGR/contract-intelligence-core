@@ -355,6 +355,41 @@ export async function getContractGraphPage(input: {
   return validateGraphPage(raw, input)
 }
 
+export async function getContractGraphEvidence(input: {
+  dossierId: string
+  jobId: string
+  snapshotDigest: string
+  graphKind: ContractGraphKind
+  nodeId: string
+  citationRef: string
+  signal?: AbortSignal
+}): Promise<{ quote: string; page: number | null }> {
+  const params = new URLSearchParams({
+    job_id: input.jobId,
+    snapshot_digest: input.snapshotDigest,
+    node_id: input.nodeId,
+    citation_ref: input.citationRef,
+  })
+  const raw = await getJson<unknown>(
+    `/api/v1/dossiers/${encodeURIComponent(input.dossierId)}/ai2/contract-graph/${input.graphKind}/evidence?${params}`,
+    { signal: input.signal },
+  )
+  const value = record(raw)
+  if (
+    value.job_id !== input.jobId ||
+    value.snapshot_digest !== input.snapshotDigest ||
+    value.graph_kind !== input.graphKind ||
+    value.node_id !== input.nodeId ||
+    value.citation_ref !== input.citationRef ||
+    typeof value.quote !== 'string' ||
+    !value.quote.trim() ||
+    (value.page !== null && (typeof value.page !== 'number' || !Number.isInteger(value.page)))
+  ) {
+    throw new TypeError('AI2 graph evidence identity or content mismatch')
+  }
+  return { quote: value.quote, page: value.page as number | null }
+}
+
 export async function getProcessingTrace(input: {
   dossierId: string
   jobId: string

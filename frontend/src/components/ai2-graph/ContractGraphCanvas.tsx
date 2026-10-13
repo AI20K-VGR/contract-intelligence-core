@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   getContractGraphPage,
+  type ContractGraphEdge,
   type ContractGraphKind,
   type ContractGraphPage,
   type ProcessingTrace,
@@ -18,6 +19,10 @@ export function Ai2GraphDossierView({
   resolveNodeLabel,
   onOpenCitation,
   onSelectRelation,
+  onResolveEdgeEvidence,
+  citationRecord,
+  citationError,
+  citationLoading,
 }: {
   enabled: boolean
   dossierId: string
@@ -27,6 +32,13 @@ export function Ai2GraphDossierView({
   resolveNodeLabel: (nodeId: string, documentId?: string | null) => string
   onOpenCitation: (citationRef: string, nodeId: string) => void
   onSelectRelation: (edgeId: string) => void
+  onResolveEdgeEvidence?: (edge: ContractGraphEdge) => Promise<{
+    sourceText?: string
+    targetText?: string
+  } | null>
+  citationRecord?: Record<string, unknown> | null
+  citationError?: boolean
+  citationLoading?: boolean
 }) {
   const [data, setData] = useState<{
     page: ContractGraphPage | null
@@ -37,6 +49,13 @@ export function Ai2GraphDossierView({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [retry, setRetry] = useState(0)
+  const [resolvedEvidence, setResolvedEvidence] = useState<Record<string, string>>({})
+  const resolveEdgeEvidenceRef = useRef(onResolveEdgeEvidence)
+  const evidenceRequests = useRef(new Map<string, Promise<{
+    sourceText?: string
+    targetText?: string
+  } | null>>())
+  resolveEdgeEvidenceRef.current = onResolveEdgeEvidence
   const load = useCallback(
     async (signal: AbortSignal) => {
       const result = await loadAi2GraphDataIfVisible({
@@ -60,6 +79,7 @@ export function Ai2GraphDossierView({
     setError(false)
     setData(null)
     setSelectedId(null)
+    setResolvedEvidence({})
     load(controller.signal)
       .then((result) => {
         if (cancelled || !result) return
@@ -77,6 +97,55 @@ export function Ai2GraphDossierView({
       controller.abort()
     }
   }, [load, retry])
+
+  const resolveAndStoreEdgeEvidence = useCallback(
+    (edge: ContractGraphEdge) => {
+      const pending = evidenceRequests.current.get(edge.id)
+      if (pending) return pending
+      const resolver = resolveEdgeEvidenceRef.current
+      if (!resolver) return Promise.resolve(null)
+      const request = resolver(edge).then((evidence) => {
+      if (evidence) {
+        setResolvedEvidence((current) => ({
+          ...current,
+          ...(evidence.sourceText && edge.source_document_id
+            ? { [`${edge.source_document_id}\u0000${edge.source_node_id}`]: evidence.sourceText }
+            : {}),
+          ...(evidence.targetText && edge.target_document_id
+            ? { [`${edge.target_document_id}\u0000${edge.target_node_id}`]: evidence.targetText }
+            : {}),
+        }))
+      }
+      return evidence
+      }).finally(() => {
+        evidenceRequests.current.delete(edge.id)
+      })
+      evidenceRequests.current.set(edge.id, request)
+      return request
+    },
+    [],
+  )
+
+  useEffect(() => {
+    const edges = data?.page?.edges ?? []
+    if (!resolveEdgeEvidenceRef.current || edges.length === 0) return
+    void (async () => {
+      for (let start = 0; start < edges.length; start += 3) {
+        await Promise.all(
+          edges
+            .slice(start, start + 3)
+            .map((edge) => resolveAndStoreEdgeEvidence(edge)),
+        )
+      }
+    })()
+  }, [data?.page, resolveAndStoreEdgeEvidence])
+
+  const resolveVisibleNodeLabel = useCallback(
+    (nodeId: string, documentId?: string | null) =>
+      (documentId ? resolvedEvidence[`${documentId}\u0000${nodeId}`] : undefined) ||
+      resolveNodeLabel(nodeId, documentId),
+    [resolveNodeLabel, resolvedEvidence],
+  )
 
   const loadNextPage = useCallback(
     (cursor: string) =>
@@ -142,15 +211,19 @@ export function Ai2GraphDossierView({
             page={data.page}
             selectedId={selectedId}
             onSelectEdge={selectRelation}
-            resolveNodeLabel={resolveNodeLabel}
+            resolveNodeLabel={resolveVisibleNodeLabel}
           />
           <RelationList
             key={`${jobId}:${snapshotDigest}:${graphKind}`}
             page={data.page}
             onLoadPage={loadNextPage}
             onOpenCitation={onOpenCitation}
+            onResolveEdgeEvidence={resolveAndStoreEdgeEvidence}
             onSelectEdge={selectRelation}
-            resolveNodeLabel={resolveNodeLabel}
+            resolveNodeLabel={resolveVisibleNodeLabel}
+            citationRecord={citationRecord}
+            citationError={citationError}
+            citationLoading={citationLoading}
             selectedId={selectedId}
           />
         </>
@@ -191,7 +264,11 @@ export function ContractGraphCanvas({
       `${edge.id}:target`,
     )
   }
-  const height = Math.max(132, 108 + Math.max(0, nodes.size - 1) * 68)
+  const height = Math.max(196, 160 + Math.max(0, nodes.size - 1) * 144)
+  const width = 960
+  const [zoom, setZoom] = useState(1)
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const drag = useRef<{ pointerId: number; x: number; y: number } | null>(null)
   const positions = new Map([...nodes].map(([id, node]) => [id, node]))
   const rows = page.edges.map((edge) => ({
     edge,
@@ -224,21 +301,66 @@ export function ContractGraphCanvas({
         danh sách bên dưới tải theo trang.
       </p>
       <p className="mt-1 text-sm text-on-surface-variant">
-        Sơ đồ chỉ đọc. Không kéo hoặc sửa quan hệ; chọn đường nối để xem chi
-        tiết.
+        Kéo vùng trống để di chuyển; dùng con lăn chuột hoặc nút +/- để phóng to. Chọn đường nối để xem chi tiết.
       </p>
       {page.edges.length === 0 ? (
         <p className="mt-3" role="status">
           Trang này chưa có quan hệ để vẽ.
         </p>
       ) : (
-        <div className="mt-3 max-h-[70vh] min-w-0 overflow-auto rounded border border-outline-variant/50">
+        <>
+          <div className="mt-3 flex flex-wrap items-center justify-end gap-2" aria-label="Điều khiển sơ đồ">
+            <button className="min-h-11 min-w-11 rounded border border-outline px-3 focus-visible:outline focus-visible:outline-2" onClick={() => setZoom((value) => Math.max(0.6, Math.round((value - 0.2) * 10) / 10))} type="button" aria-label="Thu nhỏ sơ đồ">−</button>
+            <span className="min-w-14 text-center text-sm" aria-live="polite">{Math.round(zoom * 100)}%</span>
+            <button className="min-h-11 min-w-11 rounded border border-outline px-3 focus-visible:outline focus-visible:outline-2" onClick={() => setZoom((value) => Math.min(2.5, Math.round((value + 0.2) * 10) / 10))} type="button" aria-label="Phóng to sơ đồ">+</button>
+            <button className="min-h-11 rounded border border-outline px-3 focus-visible:outline focus-visible:outline-2" onClick={() => { setZoom(1); setOffset({ x: 0, y: 0 }) }} type="button">Đặt lại</button>
+          </div>
+          <div className="mt-2 max-h-[70vh] min-w-0 overflow-auto rounded border border-outline-variant/50">
           <svg
             aria-label={`Sơ đồ ${page.graph_kind === 'operation' ? 'thay đổi điều khoản' : 'quan hệ giữa điều khoản'}, ${page.edges.length} quan hệ trong trang`}
-            className="block h-auto w-full"
+            className="block h-auto min-w-[900px] w-full touch-none cursor-grab active:cursor-grabbing"
             role="group"
-            viewBox={`0 0 960 ${height}`}
+            tabIndex={0}
+            viewBox={`0 0 ${width} ${height}`}
             xmlns="http://www.w3.org/2000/svg"
+            onPointerDown={(event) => {
+              if ((event.target as Element).closest('[data-graph-edge="true"]')) return
+              drag.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
+              event.currentTarget.setPointerCapture(event.pointerId)
+            }}
+            onPointerMove={(event) => {
+              if (drag.current?.pointerId !== event.pointerId) return
+              const bounds = event.currentTarget.getBoundingClientRect()
+              const scaleX = width / Math.max(bounds.width, 1) / zoom
+              const scaleY = height / Math.max(bounds.height, 1) / zoom
+              const deltaX = (event.clientX - drag.current.x) * scaleX
+              const deltaY = (event.clientY - drag.current.y) * scaleY
+              drag.current.x = event.clientX
+              drag.current.y = event.clientY
+              setOffset((current) => ({
+                x: current.x + deltaX,
+                y: current.y + deltaY,
+              }))
+            }}
+            onPointerUp={(event) => {
+              if (drag.current?.pointerId !== event.pointerId) return
+              drag.current = null
+              event.currentTarget.releasePointerCapture(event.pointerId)
+            }}
+            onPointerCancel={() => { drag.current = null }}
+            onWheel={(event) => {
+              event.preventDefault()
+              setZoom((value) => Math.max(0.6, Math.min(2.5, Math.round((value + (event.deltaY < 0 ? 0.1 : -0.1)) * 10) / 10)))
+            }}
+            onKeyDown={(event) => {
+              if (event.key === '+' || event.key === '=') setZoom((value) => Math.min(2.5, value + 0.1))
+              if (event.key === '-') setZoom((value) => Math.max(0.6, value - 0.1))
+              const step = 40 / zoom
+              if (event.key === 'ArrowLeft') setOffset((current) => ({ ...current, x: current.x + step }))
+              if (event.key === 'ArrowRight') setOffset((current) => ({ ...current, x: current.x - step }))
+              if (event.key === 'ArrowUp') setOffset((current) => ({ ...current, y: current.y + step }))
+              if (event.key === 'ArrowDown') setOffset((current) => ({ ...current, y: current.y - step }))
+            }}
           >
             <defs>
               <marker
@@ -253,6 +375,7 @@ export function ContractGraphCanvas({
                 <path d="M0,0 L8,4 L0,8 z" fill="currentColor" />
               </marker>
             </defs>
+            <g transform={`translate(${offset.x} ${offset.y}) scale(${zoom})`}>
             {rows.map(({ edge, source, target }) => (
               <g
                 key={edge.id}
@@ -268,6 +391,7 @@ export function ContractGraphCanvas({
                 }}
                 role="button"
                 tabIndex={0}
+                data-graph-edge="true"
               >
                 <title>{`${edge.label} · ${edge.review_state === 'NEEDS_REVIEW' ? 'AI2 đề xuất, cần review' : edge.review_state}`}</title>
                 <path
@@ -305,26 +429,31 @@ export function ContractGraphCanvas({
               <g key={id} aria-label={node.label}>
                 <rect
                   className="fill-surface-container-low stroke-outline"
-                  height="44"
+                  height="124"
                   rx="10"
-                  width="260"
-                  x={node.x - 130}
-                  y={node.y - 22}
+                  width="280"
+                  x={node.x - 140}
+                  y={node.y - 62}
                 />
                 <title>{node.label}</title>
                 <text
                   className="fill-on-surface"
-                  fontSize="15"
+                  fontSize="12"
                   textAnchor="middle"
                   x={node.x}
-                  y={node.y + 5}
                 >
-                  {shortLabel(node.label)}
+                  {wrapGraphLabel(node.label, 39, 6).map((line, index) => (
+                    <tspan key={`${index}:${line}`} x={node.x} y={node.y - 40 + index * 17}>
+                      {line}
+                    </tspan>
+                  ))}
                 </text>
               </g>
             ))}
+            </g>
           </svg>
-        </div>
+          </div>
+        </>
       )}
     </section>
   )
@@ -340,14 +469,16 @@ function addNode(
   unknownIdentity?: string,
 ) {
   const key = nodeKey(id, documentId, unknownIdentity)
-  if (!nodes.has(key))
+  if (!nodes.has(key)) {
+    const label = [resolveNodeLabel(id, documentId), address]
+      .filter(Boolean)
+      .join(' · ')
     nodes.set(key, {
-      label: [resolveNodeLabel(id, documentId), address]
-        .filter(Boolean)
-        .join(' · '),
+      label,
       x,
-      y: 62 + nodes.size * 68,
+      y: 96 + nodes.size * 144,
     })
+  }
 }
 
 function nodeKey(
@@ -360,6 +491,22 @@ function nodeKey(
     : `unknown:${unknownIdentity ?? id}:${id}`
 }
 
-function shortLabel(label: string): string {
-  return label.length > 34 ? `${label.slice(0, 31)}…` : label
+function wrapGraphLabel(label: string, lineLength: number, maxLines: number): string[] {
+  const words = label.replace(/\s+/g, ' ').trim().split(' ')
+  const lines: string[] = []
+  while (words.length > 0 && lines.length < maxLines) {
+    let line = ''
+    while (words.length > 0) {
+      const next = words[0]
+      if (line && line.length + next.length + 1 > lineLength) break
+      words.shift()
+      line = line ? `${line} ${next}` : next
+    }
+    lines.push(line || words.shift() || '')
+  }
+  if (words.length > 0 && lines.length > 0) {
+    const last = lines.length - 1
+    lines[last] = `${lines[last].slice(0, lineLength - 1)}…`
+  }
+  return lines
 }

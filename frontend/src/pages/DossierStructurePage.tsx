@@ -11,7 +11,11 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { getInspectorRecord } from '../api/inspector'
 import { clauseOrdinal } from '../api/clauseReview'
-import type { ContractGraphKind } from '../api/contractGraph'
+import {
+  getContractGraphEvidence,
+  type ContractGraphEdge,
+  type ContractGraphKind,
+} from '../api/contractGraph'
 import {
   contractDocument,
   countClauses,
@@ -190,11 +194,14 @@ export function DossierStructurePage() {
   const [view, setView] = useState<StructureView>(storedStructureView)
   const [showAi2Graph, setShowAi2Graph] = useState(false)
   const [ai2GraphKind, setAi2GraphKind] = useState<ContractGraphKind>('pair')
+  const [graphClauses, setGraphClauses] = useState<Record<string, ClauseNode[]>>({})
+  const [graphLines, setGraphLines] = useState<Record<string, { id: string; pageNo: number; text: string }[]>>({})
   const [ai2Citation, setAi2Citation] = useState<Record<
     string,
     unknown
   > | null>(null)
   const [ai2CitationError, setAi2CitationError] = useState(false)
+  const [ai2CitationLoading, setAi2CitationLoading] = useState(false)
   const ai2CitationRequests = useRef(createLatestRequestGuard())
   const [spots, setSpots] = useState<ReviewSpot[]>([])
   const [query, setQuery] = useState('')
@@ -221,6 +228,37 @@ export function DossierStructurePage() {
     () => (lines ? buildStructureTree(lines, activeMode) : fallbackNodes),
     [lines, activeMode, fallbackNodes],
   )
+  useEffect(() => {
+    if (!showAi2Graph || !detail) return
+    const controller = new AbortController()
+    let cancelled = false
+    void Promise.all(
+      detail.documents.map(async (document) => {
+        const [documentLines, clauses] = await Promise.allSettled([
+          loadDocumentLines(document.id, controller.signal),
+          listClauses(document.id, controller.signal),
+        ])
+        return [
+          document.id,
+          {
+            lines: documentLines.status === 'fulfilled'
+              ? documentLines.value.map(({ id, pageNo, text }) => ({ id, pageNo, text }))
+              : [],
+            clauses: clauses.status === 'fulfilled' ? clauses.value : [],
+          },
+        ] as const
+      }),
+    ).then((entries) => {
+      if (!cancelled) {
+        setGraphClauses(Object.fromEntries(entries.map(([id, value]) => [id, value.clauses])))
+        setGraphLines(Object.fromEntries(entries.map(([id, value]) => [id, value.lines])))
+      }
+    })
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [detail, showAi2Graph])
   // Câu trả lời AI2 không đi theo loại cấu trúc đang xem.
   const answerNodes = useMemo(
     () => (lines ? buildStructureTree(lines, 'numbered') : fallbackNodes),
@@ -233,8 +271,11 @@ export function DossierStructurePage() {
     setSearchError(null)
     setReviewCiteId(null)
     setShowAi2Graph(false)
+    setGraphClauses({})
+    setGraphLines({})
     setAi2Citation(null)
     setAi2CitationError(false)
+    setAi2CitationLoading(false)
     ai2CitationRequests.current.invalidate()
   }, [dossierId])
 
@@ -452,34 +493,81 @@ export function DossierStructurePage() {
     setCiteId(id)
   }, [])
 
-  const resolveGraphNodeLabel = useCallback(
+  const resolveGraphEvidenceText = useCallback(
     (nodeId: string, sourceDocumentId?: string | null) => {
       const endpointDocumentId = sourceDocumentId ?? null
-      const endpointDocument = endpointDocumentId
-        ? detail?.documents.find((item) => item.id === endpointDocumentId)
-        : undefined
-      const clause =
-        endpointDocumentId === documentId ? findClause(nodes, nodeId) : null
-      if (!clause) {
-        return [endpointDocument?.filename, `Mã điều khoản ${nodeId}`]
-          .filter(Boolean)
-          .join(' · ')
-      }
-      return [
-        endpointDocument?.filename,
-        clause.number,
-        clause.title ?? clause.label,
-      ]
-        .filter(Boolean)
-        .join(' · ')
+      if (!endpointDocumentId) return ''
+      const line = (graphLines[endpointDocumentId] ?? []).find((item) => {
+        const graphLineId = `line:${item.pageNo}:${item.id}`
+        return nodeId === graphLineId || nodeId.startsWith(`${graphLineId}:`)
+      })
+      if (!line) return ''
+      const clauseTree = endpointDocumentId === documentId
+        ? nodes
+        : graphClauses[endpointDocumentId] ?? []
+      const clause = findClauseByQuote(clauseTree, line.text, line.pageNo)
+      return (clause?.text || line.text).replace(/\s+/g, ' ').trim()
     },
-    [detail?.documents, documentId, nodes],
+    [documentId, graphClauses, graphLines, nodes],
+  )
+
+  const resolveGraphNodeLabel = useCallback(
+    (nodeId: string, sourceDocumentId?: string | null) =>
+      resolveGraphEvidenceText(nodeId, sourceDocumentId) || 'Không tải được nội dung điều khoản OCR',
+    [resolveGraphEvidenceText],
+  )
+
+  const resolveSelectedGraphEdgeEvidence = useCallback(
+    async (edge: ContractGraphEdge) => {
+      if (!detail?.ai2JobId || !detail.snapshotDigest) return null
+      const endpoints = [
+        {
+          nodeId: edge.source_node_id,
+          documentId: edge.source_document_id,
+          citationRef: edge.source_citation_ref,
+        },
+        {
+          nodeId: edge.target_node_id,
+          documentId: edge.target_document_id,
+          citationRef: edge.target_citation_ref,
+        },
+      ]
+      const found = await Promise.all(endpoints.map(async (endpoint) => {
+        if (
+          !endpoint.documentId ||
+          !detail.documents.some((document) => document.id === endpoint.documentId)
+        ) return null
+        try {
+          const evidence = endpoint.citationRef.startsWith('cite:')
+            ? await getContractGraphEvidence({
+                dossierId,
+                jobId: detail.ai2JobId!,
+                snapshotDigest: detail.snapshotDigest!,
+                graphKind: ai2GraphKind,
+                nodeId: endpoint.nodeId,
+                citationRef: endpoint.citationRef,
+              })
+            : await getInspectorRecord('citation', endpoint.citationRef)
+          return typeof evidence.quote === 'string'
+            ? evidence.quote
+            : null
+        } catch {
+          return null
+        }
+      }))
+      return {
+        ...(found[0] ? { sourceText: found[0] } : {}),
+        ...(found[1] ? { targetText: found[1] } : {}),
+      }
+    },
+    [ai2GraphKind, detail, dossierId],
   )
 
   const clearAi2Citation = useCallback(() => {
     ai2CitationRequests.current.invalidate()
     setAi2Citation(null)
     setAi2CitationError(false)
+    setAi2CitationLoading(false)
   }, [])
 
   const openAi2Citation = useCallback(
@@ -491,10 +579,20 @@ export function DossierStructurePage() {
       const requestId = ai2CitationRequests.current.start()
       setAi2Citation(null)
       setAi2CitationError(false)
+      setAi2CitationLoading(true)
       try {
-        const record = await getInspectorRecord('citation', citationRef)
+        const record = citationRef.startsWith('cite:')
+          ? await getContractGraphEvidence({
+              dossierId,
+              jobId: detail?.ai2JobId ?? '',
+              snapshotDigest: detail?.snapshotDigest ?? '',
+              graphKind: ai2GraphKind,
+              nodeId,
+              citationRef,
+            })
+          : await getInspectorRecord('citation', citationRef)
         if (ai2CitationRequests.current.isCurrent(requestId))
-          setAi2Citation(record)
+          setAi2Citation({ ...record, __node_id: nodeId, __document_id: sourceDocumentId })
       } catch (error) {
         if (!ai2CitationRequests.current.isCurrent(requestId)) return
         // A legacy opaque handle may not be a Backend citation ID; use the already-loaded OCR clause if it maps exactly.
@@ -516,9 +614,12 @@ export function DossierStructurePage() {
           return
         }
         setAi2CitationError(true)
+      } finally {
+        if (ai2CitationRequests.current.isCurrent(requestId))
+          setAi2CitationLoading(false)
       }
     },
-    [citeOf, documentId, nodes, openTreeCite],
+    [ai2GraphKind, citeOf, detail?.ai2JobId, detail?.snapshotDigest, dossierId, documentId, nodes, openTreeCite],
   )
 
   function openUploadedPdf(id: string) {
@@ -1076,6 +1177,10 @@ export function DossierStructurePage() {
                     resolveNodeLabel={resolveGraphNodeLabel}
                     onOpenCitation={openAi2Citation}
                     onSelectRelation={clearAi2Citation}
+                    onResolveEdgeEvidence={resolveSelectedGraphEdgeEvidence}
+                    citationRecord={ai2Citation}
+                    citationError={ai2CitationError}
+                    citationLoading={ai2CitationLoading}
                   />
                 ) : (
                   <p
@@ -1120,34 +1225,6 @@ export function DossierStructurePage() {
                       )
                   }
                 })()
-              ) : null}
-              {showAi2Graph && ai2Citation ? (
-                <section
-                  aria-label="Bằng chứng trích dẫn"
-                  className="mt-3 min-w-0 rounded-lg border border-outline-variant p-3"
-                >
-                  <h2 className="font-title-sm font-semibold">
-                    Bằng chứng qua Backend citation
-                  </h2>
-                  <p className="mt-2 break-words">
-                    {typeof ai2Citation.quote === 'string'
-                      ? ai2Citation.quote
-                      : 'Backend không trả nội dung trích dẫn.'}
-                  </p>
-                  <button
-                    className="mt-2 min-h-11 rounded border border-outline px-3 py-2 focus-visible:outline focus-visible:outline-2"
-                    onClick={() => setAi2Citation(null)}
-                    type="button"
-                  >
-                    Đóng bằng chứng
-                  </button>
-                </section>
-              ) : null}
-              {showAi2Graph && ai2CitationError ? (
-                <p className="mt-3 break-words text-error" role="alert">
-                  Không mở được citation này qua Backend; quan hệ vẫn chỉ là đề
-                  xuất của AI2.
-                </p>
               ) : null}
             </div>
           ) : null}
