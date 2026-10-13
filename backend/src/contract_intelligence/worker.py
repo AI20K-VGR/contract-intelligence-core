@@ -17,7 +17,6 @@ import asyncio
 import functools
 import hashlib
 import json
-import os
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -1119,14 +1118,10 @@ async def _dossier_content_sharing_consent(
         )
     )
     metadata = result.scalar_one_or_none()
-    if isinstance(metadata, dict) and isinstance(metadata.get("ai2_content_sharing_consent"), bool):
-        return metadata["ai2_content_sharing_consent"]
-    return os.getenv("AI2_CONTENT_SHARING_CONSENT_DEFAULT", "false").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
+    if not isinstance(metadata, dict):
+        return False
+    consent = metadata.get("ai2_content_sharing_consent")
+    return consent if isinstance(consent, bool) else False
 
 
 async def _run_ai2_if_ready(

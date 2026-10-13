@@ -626,6 +626,54 @@ async def test_ai2_processing_consent_is_read_only_from_the_target_dossier() -> 
     assert consent is True
 
 
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        None,
+        {},
+        {"ai2_content_sharing_consent": None},
+        {"ai2_content_sharing_consent": "true"},
+        {"ai2_content_sharing_consent": 1},
+        {"ai2_content_sharing_consent": False},
+    ],
+)
+@pytest.mark.asyncio
+async def test_ai2_processing_consent_fails_closed_without_explicit_true(
+    metadata: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI2_CONTENT_SHARING_CONSENT_DEFAULT", "true")
+    session = SimpleNamespace(execute=AsyncMock(return_value=_ScalarResult(metadata)))
+
+    consent = await worker._dossier_content_sharing_consent(
+        session, dossier_id="dos_test", tenant_id="tenant_test"
+    )
+
+    assert consent is False
+
+
+@pytest.mark.asyncio
+async def test_new_dossier_persists_explicit_ai2_content_sharing_consent(
+    contract_service: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AI2_CONTENT_SHARING_CONSENT_DEFAULT", raising=False)
+    dossier = await contract_service.create_dossier(name="New dossier", batch_id=None)
+
+    assert dossier.metadata == {"ai2_content_sharing_consent": True}
+
+
+@pytest.mark.asyncio
+async def test_new_dossier_honors_operator_consent_default(
+    contract_service: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI2_CONTENT_SHARING_CONSENT_DEFAULT", "false")
+    dossier = await contract_service.create_dossier(name="Private dossier", batch_id=None)
+
+    assert dossier.metadata == {"ai2_content_sharing_consent": False}
+
+
 class _RowsResult:
     def __init__(self, rows: list[object]) -> None:
         self._rows = rows

@@ -62,7 +62,7 @@ class TestCreateDossier:
     ) -> None:
         meta = {"tags": ["q2"], "notes": "urgent"}
         dossier = await contract_service.create_dossier(name="Meta", batch_id=None, metadata=meta)
-        assert dossier.metadata == meta
+        assert dossier.metadata == {**meta, "ai2_content_sharing_consent": True}
 
     async def test_creates_dossier_with_batch_id(
         self,
@@ -326,11 +326,11 @@ class TestPatchDossier:
         contract_service: ContractService,
     ) -> None:
         dossier = await contract_service.create_dossier(name="D", batch_id=None)
-        assert dossier.metadata is None
+        assert dossier.metadata == {"ai2_content_sharing_consent": True}
 
         meta = {"tags": ["urgent", "q2-2026"], "notes": "Internal review needed"}
         patched = await contract_service.patch_dossier(dossier.id, name=None, metadata=meta)
-        assert patched.metadata == meta
+        assert patched.metadata == {**meta, "ai2_content_sharing_consent": True}
 
     async def test_updates_name_and_metadata_together(
         self,
@@ -341,7 +341,10 @@ class TestPatchDossier:
             dossier.id, name="New Name", metadata={"priority": "high"}
         )
         assert patched.name == "New Name"
-        assert patched.metadata == {"priority": "high"}
+        assert patched.metadata == {
+            "priority": "high",
+            "ai2_content_sharing_consent": True,
+        }
 
     async def test_metadata_persists_across_get(
         self,
@@ -350,7 +353,10 @@ class TestPatchDossier:
         dossier = await contract_service.create_dossier(name="D", batch_id=None)
         await contract_service.patch_dossier(dossier.id, name=None, metadata={"key": "value"})
         reloaded = await contract_service.get_dossier(dossier.id)
-        assert reloaded.metadata == {"key": "value"}
+        assert reloaded.metadata == {
+            "key": "value",
+            "ai2_content_sharing_consent": True,
+        }
 
     async def test_partial_metadata_patch_preserves_acl_metadata(
         self,
@@ -379,6 +385,7 @@ class TestPatchDossier:
             "access_scope": "mine",
             "shared_with": [],
             "structure_mode": "numbered",
+            "ai2_content_sharing_consent": True,
         }
 
     async def test_metadata_none_does_not_overwrite(
@@ -390,7 +397,10 @@ class TestPatchDossier:
         await contract_service.patch_dossier(dossier.id, name=None, metadata={"existing": True})
         # Patch again without metadata — should keep existing
         patched = await contract_service.patch_dossier(dossier.id, name="Updated")
-        assert patched.metadata == {"existing": True}
+        assert patched.metadata == {
+            "existing": True,
+            "ai2_content_sharing_consent": True,
+        }
 
 
 # =============================================================================

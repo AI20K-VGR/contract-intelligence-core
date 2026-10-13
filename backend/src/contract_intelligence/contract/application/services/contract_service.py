@@ -6,6 +6,7 @@ Layer: application — orchestrates infrastructure impls (qua Protocols).
 from __future__ import annotations
 
 import hashlib
+import os
 from typing import Any, BinaryIO, cast
 
 import structlog
@@ -96,11 +97,17 @@ class ContractService:
         Per openapi.yaml createDossier: dossier/document/job are created together;
         documents are added via upload_document() after this call.
         """
+        dossier_metadata = dict(metadata or {})
+        dossier_metadata.setdefault(
+            "ai2_content_sharing_consent",
+            os.getenv("AI2_CONTENT_SHARING_CONSENT_DEFAULT", "true").strip().lower()
+            in {"1", "true", "yes", "on"},
+        )
         dossier = Dossier(
             id=new_ulid("dos_"),
             name=name,
             batch_id=batch_id,
-            metadata=metadata,
+            metadata=dossier_metadata,
         )
         await self._dossier_repo.add(dossier)
 

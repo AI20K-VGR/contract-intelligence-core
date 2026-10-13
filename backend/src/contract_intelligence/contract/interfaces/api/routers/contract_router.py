@@ -1568,7 +1568,9 @@ async def get_dossier_ai2_contract_graph_evidence(
             dossier_id=dossier_id,
             code=type(exc).__name__,
         )
-        raise HTTPException(status_code=503, detail={"code": "AI2_GRAPH_EVIDENCE_UNAVAILABLE"}) from exc
+        raise HTTPException(
+            status_code=503, detail={"code": "AI2_GRAPH_EVIDENCE_UNAVAILABLE"}
+        ) from exc
     await _postcheck_graph_read(svc, dossier_id, user, expected_digest=snapshot_digest)
     return ApiResponse(data=evidence)
 

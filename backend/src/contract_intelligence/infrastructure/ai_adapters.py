@@ -717,7 +717,16 @@ async def read_ai2_contract_graph_evidence(
     )
     if (
         not isinstance(payload, dict)
-        or set(payload) != {"job_id", "snapshot_digest", "graph_kind", "node_id", "citation_ref", "quote", "page"}
+        or set(payload)
+        != {
+            "job_id",
+            "snapshot_digest",
+            "graph_kind",
+            "node_id",
+            "citation_ref",
+            "quote",
+            "page",
+        }
         or payload.get("job_id") != job_id
         or payload.get("snapshot_digest") != snapshot_digest
         or payload.get("graph_kind") != graph_kind
@@ -726,7 +735,10 @@ async def read_ai2_contract_graph_evidence(
         or not isinstance(payload.get("quote"), str)
         or not payload["quote"].strip()
         or len(payload["quote"]) > 20_000
-        or (payload.get("page") is not None and (isinstance(payload["page"], bool) or not isinstance(payload["page"], int)))
+        or (
+            payload.get("page") is not None
+            and (isinstance(payload["page"], bool) or not isinstance(payload["page"], int))
+        )
     ):
         raise AiAdapterError("AI2 graph evidence response is malformed")
     return payload
