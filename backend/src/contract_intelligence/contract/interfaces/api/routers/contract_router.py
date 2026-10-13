@@ -108,6 +108,7 @@ from contract_intelligence.shared.query_policy import (
     enforce_result_acl,
     save_query_trace,
     server_query_policy_flags,
+    stored_dossier_content_sharing_consent,
 )
 from contract_intelligence.shared.responses import ApiMeta, ApiResponse
 from contract_intelligence.shared.utils import safe_filename
@@ -1662,6 +1663,9 @@ async def search_dossier(
                     "query_contract_version": "ai2.query.v1",
                     "acl_context": user.user_id,
                     "policy_flags": server_query_policy_flags(),
+                    "content_sharing_consent": stored_dossier_content_sharing_consent(
+                        getattr(dossier, "metadata", None)
+                    ),
                     "tenant_id": user.tenant_id,
                     "actor_id": user.user_id,
                 }

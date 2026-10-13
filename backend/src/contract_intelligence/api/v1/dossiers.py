@@ -33,6 +33,7 @@ from contract_intelligence.shared.query_policy import (
     enforce_result_acl,
     save_query_trace,
     server_query_policy_flags,
+    stored_dossier_content_sharing_consent,
 )
 from contract_intelligence.shared.responses import ApiMeta, ApiResponse
 
@@ -129,6 +130,7 @@ async def _run_dossier_query(
         "query_contract_version": _QUERY_CONTRACT_VERSION,
         "acl_context": user.user_id,
         "policy_flags": server_query_policy_flags(),
+        "content_sharing_consent": stored_dossier_content_sharing_consent(metadata),
         "tenant_id": user.tenant_id,
         "actor_id": user.user_id,
     }
