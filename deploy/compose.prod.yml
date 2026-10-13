@@ -114,6 +114,7 @@ services:
       # Caddy is another container: trust its X-Forwarded-* headers.
       FORWARDED_ALLOW_IPS: "*"
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      UPLOAD_MAX_FILE_BYTES: ${UPLOAD_MAX_FILE_BYTES:-52428800}
       MONITORING_SESSION_SECRET: ${MONITORING_SESSION_SECRET:?set in deploy/.env.prod}
       MONITORING_COOKIE_SAMESITE: ${MONITORING_COOKIE_SAMESITE:-none}
       MONITORING_COOKIE_SECURE: "true"

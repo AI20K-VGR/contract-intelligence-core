@@ -47,6 +47,7 @@ class _FakeAdmin:
             _kc_user("ivy", "REVIEWER", invited=True),
             _kc_user("dan", "REVIEWER", enabled=False),
             _kc_user("zoe", "REVIEWER", tenant="tenant_b"),
+            _kc_user("nora", "REVIEWER", tenant=None),
         ]
         self.event_calls = 0
 
@@ -145,6 +146,38 @@ async def test_other_tenant_caller_sees_only_their_own_members(client: AsyncClie
     response = await client.get("/api/v1/users/directory")
 
     assert [item["id"] for item in response.json()["data"]] == ["zoe"]
+
+
+@pytest.mark.asyncio
+async def test_user_without_a_tenant_is_listed_for_nobody(client: AsyncClient) -> None:
+    own = await client.get("/api/v1/users/directory", params={"limit": 100})
+    _as("OPERATOR", "tenant_b")
+    other = await client.get("/api/v1/users/directory", params={"limit": 100})
+
+    assert "nora" not in {item["id"] for item in own.json()["data"]}
+    assert "nora" not in {item["id"] for item in other.json()["data"]}
+
+
+@pytest.mark.asyncio
+async def test_caller_without_a_tenant_sees_nobody(client: AsyncClient) -> None:
+    _as("OPERATOR", "")
+
+    response = await client.get("/api/v1/users/directory")
+
+    assert response.status_code == 200
+    assert response.json()["data"] == []
+    assert response.json()["meta"]["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_administrator_user_list_still_shows_users_without_a_tenant(
+    client: AsyncClient,
+) -> None:
+    _as("ADMINISTRATOR")
+
+    response = await client.get("/api/v1/users", params={"limit": 100})
+
+    assert "nora" in {item["id"] for item in response.json()["data"]}
 
 
 @pytest.mark.asyncio

@@ -434,6 +434,7 @@ def _list_users_sync(
     offset: int,
     tenant_id: str | None,
     with_last_login: bool = True,
+    strict_tenant: bool = False,
 ) -> UserListResult:
     admin = _build_keycloak_admin()
     try:
@@ -454,11 +455,14 @@ def _list_users_sync(
             uid = str(user.get("id") or "")
             if not uid:
                 continue
-            if tenant_id:
-                attrs = user.get("attributes") or {}
-                tid = _attr_first(attrs if isinstance(attrs, dict) else None, "tenant_id")
-                if tid is not None and tid != tenant_id:
+            attrs = user.get("attributes") or {}
+            tid = _attr_first(attrs if isinstance(attrs, dict) else None, "tenant_id")
+            if strict_tenant:
+                # Only users stamped with the caller's tenant; none when it is unknown.
+                if not tenant_id or tid != tenant_id:
                     continue
+            elif tenant_id and tid is not None and tid != tenant_id:
+                continue
             try:
                 user_role = _get_app_role_for_user(admin, uid)
             except KeycloakError:
@@ -641,8 +645,13 @@ async def list_users(
     offset: int = 0,
     tenant_id: str | None = None,
     with_last_login: bool = True,
+    strict_tenant: bool = False,
 ) -> UserListResult:
-    """List/search users with optional filters and offset pagination."""
+    """List/search users with optional filters and offset pagination.
+
+    ``strict_tenant`` drops users without a ``tenant_id`` attribute, which the
+    default filter keeps.
+    """
     return await asyncio.to_thread(
         _list_users_sync,
         q=q,
@@ -652,6 +661,7 @@ async def list_users(
         offset=offset,
         tenant_id=tenant_id,
         with_last_login=with_last_login,
+        strict_tenant=strict_tenant,
     )
 
 

@@ -162,7 +162,8 @@ async def list_directory(
     """RBAC: OPERATOR, ADMINISTRATOR. Active members of the caller's tenant only.
 
     Returns ``id``, ``email``, ``display_name`` and ``role``; nothing an
-    administrator manages (status, invite, last login).
+    administrator manages (status, invite, last login). Unlike ``GET /users``,
+    a user without a ``tenant_id`` attribute in Keycloak is not listed.
     """
     try:
         result = await kc.list_users(
@@ -173,6 +174,7 @@ async def list_directory(
             offset=offset,
             tenant_id=user.tenant_id or None,
             with_last_login=False,
+            strict_tenant=True,
         )
     except kc.UserAdminError as exc:
         return _error_response(exc)

@@ -47,7 +47,9 @@ __version__ = "2.0.0"
 # v1.4.0: POST /dossiers/{id}/ai2/reindex — AI2 dựng lại dữ liệu từ OCR đã lưu.
 # v1.5.0: GET /documents/{id}/lines; 409 trên POST /dossiers/{id}/ocr khi đang OCR.
 # v1.5.1: lịch sử hỏi đáp có endpoint "search" và mã lỗi AI2_UNAVAILABLE.
-__api_contract__ = "v1.5.1"
+# v1.6.0: đề xuất /notifications trong DOC-05b; backend chưa có, nên bỏ qua số này.
+# v1.7.0: GET /users/directory, GET /review-queue; my_access, locked, approved_at trên hồ sơ.
+__api_contract__ = "v1.7.0"
 
 # AI service contract version (DOC-05c) — wrap khi AI service sẵn sàng
 __ai_contract__ = "v1.0.0"

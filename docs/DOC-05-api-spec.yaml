@@ -100,6 +100,8 @@ tags:
     description: Cấp quyền và xác nhận phê duyệt từ hệ thống bên ngoài (DocuSign, SAP, ERP)
   - name: optimization
     description: Tối ưu hóa prompt / heuristic extraction (Campaigns, Candidates, Experiments)
+  - name: users
+    description: Danh bạ thành viên tenant để chọn người chia sẻ hồ sơ
   - name: audit
     description: Audit trail
   - name: ops
@@ -1316,6 +1318,40 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   # ─── Review ──────────────────────────────────────────────────────────────
+  /review-queue:
+    get:
+      tags: [review]
+      summary: Hồ sơ đang chờ người gọi thẩm định
+      description: |
+        Hồ sơ còn mục review mở (`open` hoặc `awaiting_evidence`) mà người gọi được thẩm định:
+        là chủ hồ sơ, hoặc được chia sẻ quyền `edit` còn hạn. ADMINISTRATOR cũng cần là chủ hoặc có chia sẻ;
+        API này không đổi luật truy cập của `/dossiers/{dossier_id}/review-items`.
+
+        Sắp xếp: hồ sơ nhiều mục P1 hơn xếp trước, rồi tới hồ sơ tạo sớm hơn.
+        Không có hồ sơ nào thì trả `data: []`, `meta.total: 0`.
+      operationId: listReviewQueue
+      x-rbac: [REVIEWER, ADMINISTRATOR]
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: offset
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        '200':
+          description: Hồ sơ đang chờ thẩm định
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeReviewQueue'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /dossiers/{dossier_id}/review-items:
     parameters:
       - $ref: '#/components/parameters/DossierId'
@@ -1757,6 +1793,53 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  # ─── Users ───────────────────────────────────────────────────────────────
+  /users/directory:
+    get:
+      tags: [users]
+      summary: Thành viên tenant có thể được chia sẻ hồ sơ
+      description: |
+        Danh bạ để OPERATOR chọn người khi chia sẻ hồ sơ (`PUT /dossiers/{dossier_id}/access`).
+        Dùng `role=REVIEWER` để dựng ô "Giao cho người thẩm định".
+
+        Chỉ trả người đang `active` và có attribute `tenant_id` trong Keycloak **trùng** tenant của người gọi.
+        User không có `tenant_id` không được liệt kê (khác `GET /users` của ADMINISTRATOR, nơi user đó vẫn hiện).
+        Người chưa đặt mật khẩu (`invited`) và người bị khoá (`disabled`) không có trong danh bạ.
+        Sắp xếp theo email.
+      operationId: listUserDirectory
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Tìm theo email hoặc tên hiển thị (không phân biệt hoa thường)
+          schema: { type: string }
+        - name: role
+          in: query
+          required: false
+          schema: { type: string, enum: [OPERATOR, REVIEWER, ADMINISTRATOR] }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: offset
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        '200':
+          description: Danh bạ thành viên
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeUserDirectory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          description: Keycloak không trả lời (`keycloak_unavailable`)
+
   # ─── Audit & Export ──────────────────────────────────────────────────────
   /dossiers/{dossier_id}/audit:
     parameters:
@@ -2051,6 +2134,11 @@ components:
         pending_conflicts:
           type: integer
           description: Số review_item còn mở trên finding (xung đột chưa xử lý)
+        locked:
+          type: boolean
+          description: Hồ sơ đã khoá để phê duyệt; mọi thay đổi và review bị từ chối dù `my_access.can_*` là true
+        approved_at: { type: string, format: date-time, nullable: true }
+        my_access: { $ref: '#/components/schemas/DossierMyAccess' }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
@@ -2064,7 +2152,37 @@ components:
         latest_job_status: { $ref: '#/components/schemas/JobStatus' }
         open_review_items: { type: integer }
         pending_conflicts: { type: integer }
+        locked:
+          type: boolean
+          description: Hồ sơ đã khoá để phê duyệt; mọi thay đổi và review bị từ chối dù `my_access.can_*` là true
+        approved_at: { type: string, format: date-time, nullable: true }
+        my_access: { $ref: '#/components/schemas/DossierMyAccess' }
         created_at: { type: string, format: date-time }
+
+    DossierMyAccess:
+      type: object
+      description: >
+        Việc người gọi làm được trên hồ sơ, tính theo ACL của backend. Client dùng các cờ `can_*`
+        để ẩn/hiện nút thay vì tự suy ra từ `metadata.shared_with`. Chỉ trả lời theo ACL:
+        hồ sơ `locked` vẫn từ chối thay đổi.
+      required: [owner, permission, expires_at, expired, can_edit, can_review, can_see_review, can_manage, can_approve]
+      properties:
+        owner: { type: boolean, description: Người gọi là chủ hồ sơ }
+        permission:
+          type: string
+          nullable: true
+          enum: [read, edit, null]
+          description: >
+            Quyền của lượt chia sẻ dành cho người gọi: lượt còn hạn lâu nhất (ưu tiên `edit`);
+            nếu không còn lượt nào còn hạn thì là lượt hết hạn gần nhất, kèm `expired: true`.
+            `null` khi không có lượt chia sẻ nào (chủ hồ sơ không cần chia sẻ).
+        expires_at: { type: string, format: date-time, nullable: true }
+        expired: { type: boolean }
+        can_edit: { type: boolean, description: Sửa hồ sơ (ACL `DOSSIER_EDIT`) }
+        can_review: { type: boolean, description: Ghi thẩm định (ACL `REVIEW_MUTATE`) }
+        can_see_review: { type: boolean, description: Xem thẩm định (ACL `REVIEW_READ`) }
+        can_manage: { type: boolean, description: Chia sẻ / quản lý hồ sơ (ACL `DOSSIER_MANAGE`) }
+        can_approve: { type: boolean, description: Phê duyệt (ACL `APPROVE`) }
 
     DossierUploadRequest:
       type: object
@@ -3401,6 +3519,82 @@ components:
                   items: { $ref: '#/components/schemas/SplitDocument' }
 
   # ── Responses ───────────────────────────────────────────────────────────
+    UserDirectoryEntry:
+      type: object
+      required: [id, email, display_name, role]
+      properties:
+        id: { type: string, description: Keycloak user id (`sub`), dùng làm `id` trong `shared_with` khi chia sẻ }
+        email: { type: string }
+        display_name: { type: string }
+        role: { type: string, enum: [OPERATOR, REVIEWER, ADMINISTRATOR] }
+
+    ApiEnvelopeUserDirectory:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/UserDirectoryEntry' }
+        meta:
+          type: object
+          properties:
+            trace_id: { type: string, nullable: true }
+            request_id: { type: string, nullable: true }
+            page: { type: integer }
+            page_size: { type: integer }
+            total: { type: integer }
+
+    ReviewQueueEntry:
+      type: object
+      required:
+        - dossier_id
+        - dossier_name
+        - dossier_status
+        - created_at
+        - is_owner
+        - grant_expires_at
+        - open_review_items
+        - pending_conflicts
+        - p1
+        - p2
+        - p3
+      properties:
+        dossier_id: { type: string }
+        dossier_name: { type: string }
+        dossier_status: { type: string }
+        created_at: { type: string, format: date-time }
+        is_owner: { type: boolean }
+        grant_expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Lúc quyền thẩm định của người gọi hết hạn; null với chủ hồ sơ hoặc lượt chia sẻ không có hạn
+        open_review_items:
+          type: integer
+          description: Số mục review còn mở; bằng `p1 + p2 + p3`
+        pending_conflicts:
+          type: integer
+          description: Phần của `open_review_items` nằm trên finding (xung đột chưa xử lý)
+        p1: { type: integer }
+        p2: { type: integer }
+        p3: { type: integer }
+
+    ApiEnvelopeReviewQueue:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ReviewQueueEntry' }
+        meta:
+          type: object
+          properties:
+            trace_id: { type: string, nullable: true }
+            request_id: { type: string, nullable: true }
+            page: { type: integer }
+            page_size: { type: integer }
+            total: { type: integer }
+
   responses:
     Unauthorized:
       description: Token JWT không hợp lệ, đã hết hạn hoặc không được cung cấp (401)

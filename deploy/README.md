@@ -250,6 +250,19 @@ Server đã cài từ trước không có `APP_HOST` nên không đổi gì. Mu�
 
 Mật khẩu admin Keycloak, mật khẩu tài khoản demo và mọi secret nằm trong `deploy/.env.prod` trên server (quyền 600, không commit). Gửi mật khẩu demo cho nhóm qua kênh riêng.
 
+### Cột "Đăng nhập gần nhất": bật login events cho realm đang chạy
+
+Trang Người dùng lấy `last_login_at` từ event `LOGIN` của Keycloak. `keycloak/realm-export.json` đã bật sẵn (`eventsEnabled: true`, `eventsExpiration: 2592000` = 30 ngày), nhưng Keycloak chỉ import file này khi realm **chưa tồn tại**. Realm đã chạy từ trước giữ cấu hình cũ của nó, và `deploy.sh` không sửa phần này. Realm chưa lưu event thì cột luôn trống.
+
+Kiểm tra và bật trên realm đang chạy:
+
+1. Mở Keycloak admin qua SSH tunnel (dòng "Keycloak admin" ở bảng trên), chọn realm `contract-intelligence`.
+2. **Realm settings → Events → User events settings**: bật **Save events**, đặt **Expiration** 30 ngày. Danh sách event được lưu phải có `LOGIN`. Bấm **Save**.
+3. **Clients → `contract-intel-backend` → Service accounts roles**: phải có role `view-events` của client `realm-management`. Thiếu thì backend nhận 403 khi đọc event.
+4. Đăng nhập một tài khoản rồi mở trang Người dùng: cột phải có giá trị. Nếu vẫn trống, tìm dòng `keycloak.login_events.failed` trong log backend.
+
+Chỉ các lần đăng nhập sau khi bật mới được ghi. Ai không đăng nhập quá 30 ngày thì cột trống.
+
 ## Giới hạn đã biết
 
 - **Kafka không lưu ra volume.** Mất message đang bay khi restart: watchdog AI1 sẽ fail run bị ảnh hưởng với `AI1_TIMEOUT`, người dùng bấm chạy lại OCR. Offset cũng quay về 0 sau mỗi lần restart; mọi event backend gửi đều có `event_id`, nên worker không nhầm event mới với event đã xử lý trước khi restart.
