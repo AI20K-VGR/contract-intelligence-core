@@ -1,0 +1,80 @@
+edges:
+  - {from: P1, to: P2}
+  - {from: P2, to: P3}
+  - {from: P3, to: P4}
+  - {from: P4, to: P5}
+  - {from: P5, to: P6}
+subtasks:
+  P1:
+    files_to_create: []
+    files_to_modify:
+      - .github/workflows/ai-service.yml
+      - backend/src/contract_intelligence/infrastructure/ai_adapters.py
+      - backend/src/contract_intelligence/worker.py
+      - backend/src/contract_intelligence/contract/application/services/contract_service.py
+      - backend/src/contract_intelligence/contract/interfaces/api/routers/contract_router.py
+      - backend/tests/unit/test_worker_pipeline_run.py
+      - backend/tests/unit/application/test_contract_service.py
+    post: [verification-P1.json]
+  P2:
+    files_to_create: []
+    files_to_modify:
+      - ai-service/app/pipeline/idp.py
+      - ai-service/app/pipeline/contract_graph/pair_builder.py
+      - ai-service/app/pipeline/contract_graph/builder.py
+      - ai-service/app/pipeline/ai1_snapshot_adapter.py
+      - ai-service/app/api/main.py
+      - ai-service/app/reasoning/vector_recall.py
+      - ai-service/app/db/engine.py
+      - ai-service/.env.example
+      - ai-service/tests/test_contract_graph_flag_off_regression.py
+      - ai-service/tests/test_contract_graph_idp_integration.py
+      - ai-service/tests/test_a8_env_flags.py
+      - ai-service/tests/test_ai2_postgres_store.py
+      - ai-service/scripts/capture_idp_golden.py
+      - ai-service/tests/test_contract_graph_pairs_flag_regression.py
+      - ai-service/tests/test_contract_graph_wire.py
+      - ai-service/tests/test_st067_bounded_jobs.py
+      - ai-service/tests/unit/test_production_query.py
+      - .github/workflows/ai-service.yml
+    post: [verification-P2.json]
+  P3:
+    files_to_create:
+      - backend/scripts/backfill_ai2_content_sharing_consent.py
+      - backend/src/contract_intelligence/contract/interfaces/api/routers/dossier_consent_router.py
+      - frontend/src/components/ai2-graph/ContentSharingConsent.tsx
+      - backend/tests/integration/test_ai2_consent_rollout.py
+    files_to_modify:
+      - backend/src/contract_intelligence/main.py
+      - frontend/src/api/dossiers.ts
+      - frontend/src/pages/DossierStructurePage.tsx
+      - frontend/src/pages/DossierStructurePage.test.tsx
+    post: [verification-P3.json]
+  P4:
+    files_to_create:
+      - backend/tests/unit/test_ai2_query_consent_policy.py
+    files_to_modify:
+      - backend/src/contract_intelligence/config/settings.py
+      - backend/src/contract_intelligence/shared/query_policy.py
+      - backend/src/contract_intelligence/contract/interfaces/api/routers/contract_router.py
+      - backend/src/contract_intelligence/api/v1/dossiers.py
+      - backend/src/contract_intelligence/shared/ai/canonical_processing.py
+      - backend/tests/unit/shared/ai/test_canonical_processing.py
+    post: [verification-P4.json]
+  P5:
+    files_to_create:
+      - deploy/tests/test_keycloak_configure.py
+    files_to_modify:
+      - .github/workflows/deploy.yml
+      - docker-compose.yml
+      - deploy/deploy.sh
+      - deploy/keycloak_configure.py
+    post: [verification-P5.json]
+  P6:
+    files_to_create:
+      - docs/AI2-LOCAL-SETUP.md
+    files_to_modify:
+      - README.md
+      - HUONG-DAN-CHAY.md
+      - deploy/README.md
+    post: [verification-P6.json]

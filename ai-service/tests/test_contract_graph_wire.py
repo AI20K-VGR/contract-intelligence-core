@@ -41,14 +41,16 @@ NEW_UNIT = Spec(
 
 
 def _wide_record():
-    return dossier([(BODY, "body", BODY_NODES), (ANNEX, "annex", [*ANNEX_NODES, NEW_UNIT])], UNLOCK_FACTS)
+    return dossier(
+        [(BODY, "body", BODY_NODES), (ANNEX, "annex", [*ANNEX_NODES, NEW_UNIT])], UNLOCK_FACTS
+    )
 
 
 def _run(record, monkeypatch, *, enabled: bool = True, store=None):
     if enabled:
         monkeypatch.setenv(FLAG, "1")
     else:
-        monkeypatch.delenv(FLAG, raising=False)
+        monkeypatch.setenv(FLAG, "false")
     counter = iter(range(1, 1 << 30))
     with ExitStack() as stack:
         for target in UUID_SOURCES:
@@ -63,11 +65,17 @@ def _wire(result) -> dict:
 def test_flag_on_wire_validates_against_result_schema(monkeypatch):
     wire = _wire(_run(_wide_record(), monkeypatch))
 
-    validate_contract(wire, "ai2.be.processing.result.v1.schema.json", error_code="RESULT_SCHEMA_INVALID")
+    validate_contract(
+        wire, "ai2.be.processing.result.v1.schema.json", error_code="RESULT_SCHEMA_INVALID"
+    )
     assert wire["status"] == "SUCCEEDED"
     graph = wire["result"]["index_contribution"]["coverage"]["contract_graph"]
     assert graph["status"] == "OK" and graph["edges_total"] > 0
-    findings = [f for f in wire["result"]["context_findings"] if f["finding_id"].startswith("contract-graph:")]
+    findings = [
+        f
+        for f in wire["result"]["context_findings"]
+        if f["finding_id"].startswith("contract-graph:")
+    ]
     assert findings and {f["relation_type"] for f in findings} == {"AMENDS"}
 
 
@@ -95,7 +103,9 @@ def test_cross_document_edge_meets_be_context_finding_filter(monkeypatch):
     citations = {c["citation_id"]: c for c in wire["result"]["citations"]}
     edge = next(e for e in record.contract_edges if e.source_node_id == "a1")
     (finding,) = [
-        f for f in wire["result"]["context_findings"] if f["finding_id"] == "contract-graph:" + edge.edge_id
+        f
+        for f in wire["result"]["context_findings"]
+        if f["finding_id"] == "contract-graph:" + edge.edge_id
     ]
 
     # backend/src/contract_intelligence/shared/ai/persistence.py:811-835
@@ -151,7 +161,8 @@ def test_flag_off_has_no_contract_graph_coverage_key(monkeypatch):
 
     assert "contract_graph" not in result.contribution.coverage
     assert not any(
-        f.finding_id.startswith("contract-graph:") for f in result.contribution.contract_context.findings
+        f.finding_id.startswith("contract-graph:")
+        for f in result.contribution.contract_context.findings
     )
     assert record.contract_graph_ran is False and record.contract_edges == []
     wire = _wire(result)

@@ -88,7 +88,9 @@ def _unsigned_lane_with_env_policy(monkeypatch, policy_flags: dict) -> None:
     """A4/A8: these cases exercise the unsigned compatibility lane, and /query
     egress/LLM policy now comes from server env instead of the request."""
     monkeypatch.setenv("AI2_QUERY_REQUIRE_SIGNATURE", "false")
-    monkeypatch.setenv("AI2_QUERY_EGRESS_ALLOWED", str(bool(policy_flags.get("egress_allowed"))).lower())
+    monkeypatch.setenv(
+        "AI2_QUERY_EGRESS_ALLOWED", str(bool(policy_flags.get("egress_allowed"))).lower()
+    )
     monkeypatch.setenv("AI2_QUERY_USE_LLM", str(bool(policy_flags.get("use_llm"))).lower())
 
 
@@ -114,6 +116,8 @@ def test_query_without_persisted_snapshot_fails_closed(monkeypatch) -> None:
 def _serve_fixture_dossier(monkeypatch) -> str:
     """Serve one real fixture dossier through the durable query read model."""
     pack = load_case("HD-TONG-HOP")
+    pack.record.content_sharing_consent = True
+    monkeypatch.setenv("AI2_SERVICE_HMAC_SECRET", "test-secret")
     monkeypatch.setattr(main, "STORE", InMemorySnapshotStore())
     monkeypatch.setattr(
         main,
@@ -123,16 +127,27 @@ def _serve_fixture_dossier(monkeypatch) -> str:
     return pack.record.dossier_id
 
 
-def _ask(dossier_id: str, policy_flags: dict, query: str = "Phí tuyển dụng có phải 20 triệu không?") -> dict:
-    response = client.post(
-        "/query",
-        json={
-            "query": query,
-            "dossier_id": dossier_id,
-            "tenant_id": "tenant_a",
-            "policy_flags": policy_flags,
-        },
+def _ask(
+    dossier_id: str, policy_flags: dict, query: str = "Phí tuyển dụng có phải 20 triệu không?"
+) -> dict:
+    from app.security.service_envelope import build_service_envelope
+
+    payload = {
+        "query": query,
+        "dossier_id": dossier_id,
+        "tenant_id": "tenant_a",
+        "policy_flags": policy_flags,
+        "content_sharing_consent": True,
+    }
+    payload["service_envelope"] = build_service_envelope(
+        payload,
+        secret="test-secret",
+        tenant_id="tenant_a",
+        dossier_id=dossier_id,
+        actor_id="backend-test",
+        scopes=["ai2.query"],
     )
+    response = client.post("/query", json=payload)
     assert response.status_code == 200
     return response.json()
 
@@ -166,7 +181,12 @@ def test_query_enables_llm_only_after_policy_and_evidence(
             seen["llm"] = llm
 
         def query(self, envelope, text, task, *, policy_flags):
-            return {"review_state": "ANSWERED", "answer": "x", "citations": [], "used_llm": llm_on()}
+            return {
+                "review_state": "ANSWERED",
+                "answer": "x",
+                "citations": [],
+                "used_llm": llm_on(),
+            }
 
     def llm_on() -> bool:
         return seen["llm"] is not None

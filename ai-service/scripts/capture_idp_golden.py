@@ -75,10 +75,18 @@ def cases(profile: str = "flag_off") -> list[Case]:
         from fixtures.contract_graph_pair_records import pair_record_embedded
         from fixtures.contract_graph_records import graph_record
 
-        out.extend([
-            ("contract_graph.graph_record", lambda: (graph_record(), fixtures.envelope(), None)),
-            ("contract_graph.pair_record_embedded", lambda: (pair_record_embedded(), fixtures.envelope(), None)),
-        ])
+        out.extend(
+            [
+                (
+                    "contract_graph.graph_record",
+                    lambda: (graph_record(), fixtures.envelope(), None),
+                ),
+                (
+                    "contract_graph.pair_record_embedded",
+                    lambda: (pair_record_embedded(), fixtures.envelope(), None),
+                ),
+            ]
+        )
     return out
 
 
@@ -112,7 +120,9 @@ def strip_pairs(full: dict[str, Any]) -> dict[str, Any]:
         if not result:
             continue
         result.pop("review_state", None)
-        contribution = result.get("contribution") or result.get("result", {}).get("index_contribution")
+        contribution = result.get("contribution") or result.get("result", {}).get(
+            "index_contribution"
+        )
         if not contribution:
             continue
         coverage = contribution.get("coverage", {})
@@ -125,16 +135,24 @@ def strip_pairs(full: dict[str, Any]) -> dict[str, Any]:
         coverage["n_evidence_issues"] -= len(issues) - len(kept)
         contribution["evidence_issues"] = kept
     full["record"]["review_items"] = [
-        i for i in full["record"].get("review_items", [])
-        if not any("CONTRACT_GRAPH_PAIRS_" in str(i.get(k, ""))
-                   for k in ("issue_id", "review_item_id", "kind"))
+        i
+        for i in full["record"].get("review_items", [])
+        if not any(
+            "CONTRACT_GRAPH_PAIRS_" in str(i.get(k, ""))
+            for k in ("issue_id", "review_item_id", "kind")
+        )
     ]
     return full
 
 
-def emit_shas(profile: str = "flag_off", *, stripped: bool = False) -> dict[str, dict[str, str | None]]:
-    return {case_id: shas(strip_pairs(full) if stripped else full)
-            for case_id, build in cases(profile) for full in [run_case(build)]}
+def emit_shas(
+    profile: str = "flag_off", *, stripped: bool = False
+) -> dict[str, dict[str, str | None]]:
+    return {
+        case_id: shas(strip_pairs(full) if stripped else full)
+        for case_id, build in cases(profile)
+        for full in [run_case(build)]
+    }
 
 
 def representative_cases(case_ids: list[str]) -> list[str]:
@@ -181,12 +199,19 @@ def main(argv: list[str] | None = None) -> int:
     if os.environ.get("PYTHONHASHSEED") != "0":
         print("refusing to capture: run with PYTHONHASHSEED=0 (RT-01)", file=sys.stderr)
         return 2
-    os.environ.pop(FLAG, None)
+    # Keep the flag-off golden stable when the production fallback defaults ON.
+    os.environ[FLAG] = "false"
+    os.environ["AI2_CONTRACT_GRAPH_PAIRS_ENABLED"] = "false"
     if args.profile == "graph_on":
         os.environ[FLAG] = "1"
-        for key in ("AI2_CONTRACT_GRAPH_PAIRS_ENABLED", "AI2_CONTRACT_GRAPH_PAIRS_MODEL",
-                    "AI2_CONTRACT_GRAPH_PAIRS_BASE_URL", "AI2_CONTRACT_GRAPH_PAIRS_API_KEY",
-                    "AI2_CONTRACT_GRAPH_AUTO_PASS"):
+        # This golden isolates graph-only output; pair runtime has its own tests/goldens.
+        os.environ["AI2_CONTRACT_GRAPH_PAIRS_ENABLED"] = "false"
+        for key in (
+            "AI2_CONTRACT_GRAPH_PAIRS_MODEL",
+            "AI2_CONTRACT_GRAPH_PAIRS_BASE_URL",
+            "AI2_CONTRACT_GRAPH_PAIRS_API_KEY",
+            "AI2_CONTRACT_GRAPH_AUTO_PASS",
+        ):
             os.environ.pop(key, None)
         if args.out == GOLDEN:
             args.out = GOLDEN.with_name("idp_graph_on_golden.json")

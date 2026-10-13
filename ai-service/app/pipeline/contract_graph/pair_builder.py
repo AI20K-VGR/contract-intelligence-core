@@ -39,7 +39,7 @@ PAIRS_API_KEY_ENV = "AI2_CONTRACT_GRAPH_PAIRS_API_KEY"
 
 
 def pairs_enabled() -> bool:
-    return os.getenv(PAIRS_ENV, "").strip().lower() in {"1", "true", "yes", "on"}
+    return os.getenv(PAIRS_ENV, "true").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def classifier_client(llm: Any, model: str | None) -> Any:
@@ -53,7 +53,9 @@ def classifier_client(llm: Any, model: str | None) -> Any:
     return llm
 
 
-def gate(record: DossierRecord, llm: Any, runtime: ProcessingRuntime, model: str | None) -> str | None:
+def gate(
+    record: DossierRecord, llm: Any, runtime: ProcessingRuntime, model: str | None
+) -> str | None:
     if not getattr(record, "content_sharing_consent", False):
         return "NO_CONSENT"
     if not runtime.egress_allowed:
@@ -71,9 +73,15 @@ def gate(record: DossierRecord, llm: Any, runtime: ProcessingRuntime, model: str
 
 
 def build_pair_relations(
-    record: DossierRecord, luong1_edges: Sequence[Any], *, llm: Any, runtime: ProcessingRuntime,
-    sources: frozenset[PairSource] = ALL_SOURCES, top_k: int = PAIRS_TOP_K,
-    model: str | None = None, candidates: PairCandidateSet | None = None,
+    record: DossierRecord,
+    luong1_edges: Sequence[Any],
+    *,
+    llm: Any,
+    runtime: ProcessingRuntime,
+    sources: frozenset[PairSource] = ALL_SOURCES,
+    top_k: int = PAIRS_TOP_K,
+    model: str | None = None,
+    candidates: PairCandidateSet | None = None,
     max_calls: int = PAIRS_MAX_CALLS,
     event_sink: Callable[[dict[str, Any]], None] | None = None,
     request_id: str | None = None,
@@ -83,37 +91,88 @@ def build_pair_relations(
     nodes = list(record.evidence_nodes())
     by_id = {n.node_id: n for n in nodes}
     index = StructureIndex.build(nodes, {s.file_id: s.role for s in record.source_files})
-    excluded = frozenset(frozenset((edge.source_node_id, edge.target_node_id)) for edge in luong1_edges)
-    candidate_set = candidates if candidates is not None else generate_pair_candidates(
-        index, nodes, excluded_pairs=excluded, sources=sources, top_k=top_k,
+    excluded = frozenset(
+        frozenset((edge.source_node_id, edge.target_node_id)) for edge in luong1_edges
     )
-    candidate_stats = {"candidates_total": len(candidate_set.candidates),
-                       "candidates_kept": len(candidate_set.candidates), "candidates_capped": 0,
-                       "candidates_by_source": {}, "excluded_luong1": 0, "excluded_ancestor": 0,
-                       "excluded_short": 0, "excluded_external_ref": 0,
-                       "value_mismatch_terms": 0, "value_mismatch_pair_comparisons": 0}
-    stats = {**candidate_stats, **candidate_set.stats, **classifier_stats(), "relations_total": 0,
-             "relations_by_label": {label.value: 0 for label in PairLabel}}
+    candidate_set = (
+        candidates
+        if candidates is not None
+        else generate_pair_candidates(
+            index,
+            nodes,
+            excluded_pairs=excluded,
+            sources=sources,
+            top_k=top_k,
+        )
+    )
+    candidate_stats = {
+        "candidates_total": len(candidate_set.candidates),
+        "candidates_kept": len(candidate_set.candidates),
+        "candidates_capped": 0,
+        "candidates_by_source": {},
+        "excluded_luong1": 0,
+        "excluded_ancestor": 0,
+        "excluded_short": 0,
+        "excluded_external_ref": 0,
+        "value_mismatch_terms": 0,
+        "value_mismatch_pair_comparisons": 0,
+    }
+    stats = {
+        **candidate_stats,
+        **candidate_set.stats,
+        **classifier_stats(),
+        "relations_total": 0,
+        "relations_by_label": {label.value: 0 for label in PairLabel},
+    }
     reason = gate(record, llm, runtime, model)
     if reason:
         stats["pairs_unclassified"] = len(candidate_set.candidates)
         stats["stopped_reason"] = reason
         if event_sink is not None:
             for candidate in candidate_set.candidates:
-                event_sink({"phase": "classifier", "node_a_id": candidate.node_a,
-                            "node_b_id": candidate.node_b, "outcome": "not_sent", "reason": reason,
-                            "batch_id": None, "request_id": request_id, "requested_model": model,
-                            "served_model": None, "truncated_a": False, "truncated_b": False})
-        return PairResult(mode="rule_only", rule_only_reason=reason, classifier_model=model,
-                          prompt_version=PROMPT_VERSION, stats=stats)
+                event_sink(
+                    {
+                        "phase": "classifier",
+                        "node_a_id": candidate.node_a,
+                        "node_b_id": candidate.node_b,
+                        "outcome": "not_sent",
+                        "reason": reason,
+                        "batch_id": None,
+                        "request_id": request_id,
+                        "requested_model": model,
+                        "served_model": None,
+                        "truncated_a": False,
+                        "truncated_b": False,
+                    }
+                )
+        return PairResult(
+            mode="rule_only",
+            rule_only_reason=reason,
+            classifier_model=model,
+            prompt_version=PROMPT_VERSION,
+            stats=stats,
+        )
     client = classifier_client(llm, model)
-    pairs = [ClassifierPair(c, by_id[c.node_a].text or "", by_id[c.node_b].text or "",
-                            clause_context(index, by_id, c.node_a), clause_context(index, by_id, c.node_b))
-             for c in candidate_set.candidates]
+    pairs = [
+        ClassifierPair(
+            c,
+            by_id[c.node_a].text or "",
+            by_id[c.node_b].text or "",
+            clause_context(index, by_id, c.node_a),
+            clause_context(index, by_id, c.node_b),
+        )
+        for c in candidate_set.candidates
+    ]
     pair_events: list[dict[str, Any]] = []
-    outcome = classify_pairs(pairs, client=client, runtime=runtime, max_calls=max_calls,
-                             event_sink=pair_events.append if event_sink is not None else None,
-                             requested_model=model, request_id=request_id)
+    outcome = classify_pairs(
+        pairs,
+        client=client,
+        runtime=runtime,
+        max_calls=max_calls,
+        event_sink=pair_events.append if event_sink is not None else None,
+        requested_model=model,
+        request_id=request_id,
+    )
     stats.update(outcome.stats)
     verifier = CitationResolver(record.pages, record.tables, nodes)
     relations: dict[str, PairRelation] = {}
@@ -134,7 +193,9 @@ def build_pair_relations(
         a, b = decision.candidate.node_a, decision.candidate.node_b
         span_a, span_b = decision.span_a, decision.span_b
         directed = decision.label in {PairLabel.GENERAL_SPECIFIC, PairLabel.REFERENCE}
-        if (directed and decision.direction == "B") or (not directed and index.position(a) > index.position(b)):
+        if (directed and decision.direction == "B") or (
+            not directed and index.position(a) > index.position(b)
+        ):
             a, b, span_a, span_b = b, a, span_b, span_a
         ca, cb = citation(a, span_a), citation(b, span_b)
         if ca is None or cb is None:
@@ -151,10 +212,18 @@ def build_pair_relations(
         if relation_id in relations:
             continue
         relations[relation_id] = PairRelation(
-            relation_id=relation_id, label=decision.label, node_a_id=a, node_b_id=b,
-            directed=directed, candidate_sources=sorted(s.value for s in decision.candidate.sources),
-            span_a=span_a, span_b=span_b, citation_a=ca, citation_b=cb,
-            classifier_model=decision.served_model or model, prompt_version=PROMPT_VERSION,
+            relation_id=relation_id,
+            label=decision.label,
+            node_a_id=a,
+            node_b_id=b,
+            directed=directed,
+            candidate_sources=sorted(s.value for s in decision.candidate.sources),
+            span_a=span_a,
+            span_b=span_b,
+            citation_a=ca,
+            citation_b=cb,
+            classifier_model=decision.served_model or model,
+            prompt_version=PROMPT_VERSION,
             source_snapshot_digest=digest,
         )
         stats["relations_by_label"][decision.label.value] += 1
@@ -162,7 +231,15 @@ def build_pair_relations(
     if event_sink is not None:
         for event in pair_events:
             event_sink(event)
-    parts = {nid: index.part_of(nid) for r in relations.values() for nid in (r.node_a_id, r.node_b_id)}
-    return PairResult(relations=list(relations.values()), mode="llm", classifier_model=stats["served_model"] or model,
-                      prompt_version=PROMPT_VERSION, stats=stats, node_parts=parts,
-                      batches_completed=outcome.batches_completed)
+    parts = {
+        nid: index.part_of(nid) for r in relations.values() for nid in (r.node_a_id, r.node_b_id)
+    }
+    return PairResult(
+        relations=list(relations.values()),
+        mode="llm",
+        classifier_model=stats["served_model"] or model,
+        prompt_version=PROMPT_VERSION,
+        stats=stats,
+        node_parts=parts,
+        batches_completed=outcome.batches_completed,
+    )

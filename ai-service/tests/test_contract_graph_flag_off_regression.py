@@ -24,8 +24,10 @@ HASHSEED_SENSITIVE = {"SERVICE-BRD-08": "compare.py:67-71 set order"}
 
 
 def _env(seed: str, **flag: str) -> dict[str, str]:
-    env = {k: v for k, v in os.environ.items() if k != FLAG}
-    env.update(PYTHONHASHSEED=seed, PYTHONIOENCODING="utf-8", **flag)
+    pair_flag = "AI2_CONTRACT_GRAPH_PAIRS_ENABLED"
+    env = {k: v for k, v in os.environ.items() if k not in {FLAG, pair_flag}}
+    env.update({FLAG: "false", pair_flag: "false", **flag})
+    env.update(PYTHONHASHSEED=seed, PYTHONIOENCODING="utf-8")
     return env
 
 
@@ -143,3 +145,78 @@ def test_flag_off_does_not_import_builder():
 
     assert proc.returncode == 0, proc.stderr.decode("utf-8", "replace")
     assert proc.stdout.decode().split() == ["False", "False"]
+
+
+def test_runtime_capability_defaults_are_on_and_database_is_required(monkeypatch):
+    from app.db.engine import validate_database_config
+    from app.pipeline.ai1_snapshot_adapter import processing_egress_allowed
+    from app.pipeline.contract_graph.pair_builder import pairs_enabled
+    from app.pipeline.idp import _contract_graph_enabled, _contract_graph_pairs_enabled
+    from app.reasoning.vector_recall import VectorRecallService
+
+    names = [
+        "AI2_CONTRACT_GRAPH_ENABLED",
+        "AI2_CONTRACT_GRAPH_PAIRS_ENABLED",
+        "AI2_PROCESSING_EGRESS_ALLOWED",
+        "AI2_QUERY_EGRESS_ALLOWED",
+        "AI2_QUERY_USE_LLM",
+        "AI2_QUERY_USE_VECTOR",
+        "AI2_VECTOR_RECALL_ENABLED",
+        "AI2_REQUIRE_DATABASE",
+        "AI2_DATABASE_URL",
+    ]
+    for name in names:
+        monkeypatch.delenv(name, raising=False)
+
+    assert _contract_graph_enabled() is True
+    assert _contract_graph_pairs_enabled() is True
+    assert pairs_enabled() is True
+    assert processing_egress_allowed() is True
+    assert VectorRecallService().enabled is True
+    sample_env = (ROOT / ".env.example").read_text(encoding="utf-8")
+    assert "AI2_CONTRACT_GRAPH_ENABLED=true" in sample_env
+    assert "AI2_CONTRACT_GRAPH_PAIRS_ENABLED=true" in sample_env
+    with pytest.raises(RuntimeError, match="AI2_REQUIRE_DATABASE"):
+        validate_database_config()
+
+    # The isolated unit profile explicitly permits the in-memory job store.
+    monkeypatch.setenv("AI2_REQUIRE_DATABASE", "false")
+    from app.api.main import _query_policy_flags
+
+    assert _query_policy_flags() == {
+        "egress_allowed": True,
+        "use_llm": True,
+        "use_vector": True,
+    }
+
+
+def test_runtime_capability_flags_still_allow_operator_off(monkeypatch):
+    from app.pipeline.ai1_snapshot_adapter import processing_egress_allowed
+    from app.pipeline.contract_graph.pair_builder import pairs_enabled
+    from app.pipeline.idp import _contract_graph_enabled, _contract_graph_pairs_enabled
+    from app.reasoning.vector_recall import VectorRecallService
+
+    for name in (
+        "AI2_CONTRACT_GRAPH_ENABLED",
+        "AI2_CONTRACT_GRAPH_PAIRS_ENABLED",
+        "AI2_PROCESSING_EGRESS_ALLOWED",
+        "AI2_QUERY_EGRESS_ALLOWED",
+        "AI2_QUERY_USE_LLM",
+        "AI2_QUERY_USE_VECTOR",
+        "AI2_VECTOR_RECALL_ENABLED",
+    ):
+        monkeypatch.setenv(name, "false")
+    monkeypatch.setenv("AI2_REQUIRE_DATABASE", "false")
+
+    from app.api.main import _query_policy_flags
+
+    assert _contract_graph_enabled() is False
+    assert _contract_graph_pairs_enabled() is False
+    assert pairs_enabled() is False
+    assert processing_egress_allowed() is False
+    assert _query_policy_flags() == {
+        "egress_allowed": False,
+        "use_llm": False,
+        "use_vector": False,
+    }
+    assert VectorRecallService().enabled is False

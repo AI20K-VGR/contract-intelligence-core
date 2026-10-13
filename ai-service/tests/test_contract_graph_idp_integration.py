@@ -23,11 +23,12 @@ FLAG = "AI2_CONTRACT_GRAPH_ENABLED"
 UUID_SOURCES = ("app.pipeline.idp.uuid4", "app.pipeline.clause.uuid4", "app.pipeline.compare.uuid4")
 
 
-def _run(record, *, enabled: bool, monkeypatch):
+def _run(record, *, enabled: bool, monkeypatch, pairs_enabled: bool = False):
     if enabled:
         monkeypatch.setenv(FLAG, "1")
     else:
-        monkeypatch.delenv(FLAG, raising=False)
+        monkeypatch.setenv(FLAG, "false")
+    monkeypatch.setenv("AI2_CONTRACT_GRAPH_PAIRS_ENABLED", str(pairs_enabled).lower())
     counter = iter(range(1, 1 << 30))
     with ExitStack() as stack:
         for target in UUID_SOURCES:
@@ -143,7 +144,7 @@ def _pair(result, left: str, right: str) -> list:
 
 def test_flag_on_relation_pairs_unlock_cross_file_candidate(monkeypatch):
     off = _run(graph_record(), enabled=False, monkeypatch=monkeypatch)
-    on = _run(graph_record(), enabled=True, monkeypatch=monkeypatch)
+    on = _run(graph_record(), enabled=True, monkeypatch=monkeypatch, pairs_enabled=True)
 
     assert _pair(off, "fact-body-don-gia", "fact-annex-don-gia") == []
     assert any(i.missing == "BODY_ANNEX_RELATION" for i in off.contribution.evidence_issues)
@@ -186,10 +187,13 @@ def test_flag_on_keeps_existing_review_item_ids(monkeypatch):
     off_missing = {i.issue_id: i.missing for i in off.contribution.evidence_issues}
     off_kinds = {i.review_item_id: i.kind for i in off_record.review_items}
     legacy = [
-        k for k, rid in enumerate(off_issues)
+        k
+        for k, rid in enumerate(off_issues)
         if off_missing.get(off_kinds[rid]) == "CONTRACT_CONTEXT_AMENDMENT_SIGNAL"
     ]
-    assert legacy == [len(off_issues) - 1]  # on this dossier the legacy signal is the last old issue
+    assert legacy == [
+        len(off_issues) - 1
+    ]  # on this dossier the legacy signal is the last old issue
     cut = legacy[0]
     assert on_issues[:cut] == off_issues[:cut]
     edge_finding_ids = [
@@ -348,7 +352,7 @@ def test_edge_cap_truncates_with_issue(monkeypatch):
         ("false", False),
         ("off", False),
         ("2", False),
-        (None, False),
+        (None, True),
     ],
 )
 def test_flag_truthy_values(monkeypatch, value, enabled):

@@ -153,7 +153,9 @@ def _hydrate_store_from_jobs() -> int:
                 exc,
             )
             continue
-        persisted = load_query_snapshot(adapted.record.dossier_id, tenant_id=adapted.record.tenant_id)
+        persisted = load_query_snapshot(
+            adapted.record.dossier_id, tenant_id=adapted.record.tenant_id
+        )
         if persisted:
             STORE.put(persisted[0])
         else:
@@ -211,9 +213,9 @@ def _query_policy_flags() -> dict[str, bool]:
     Backend does not decide AI2 egress, LLM or vector use."""
 
     return {
-        "egress_allowed": _env_flag("AI2_QUERY_EGRESS_ALLOWED", False),
-        "use_llm": _env_flag("AI2_QUERY_USE_LLM", False),
-        "use_vector": _env_flag("AI2_QUERY_USE_VECTOR", False),
+        "egress_allowed": _env_flag("AI2_QUERY_EGRESS_ALLOWED", True),
+        "use_llm": _env_flag("AI2_QUERY_USE_LLM", True),
+        "use_vector": _env_flag("AI2_QUERY_USE_VECTOR", True),
     }
 
 
@@ -314,7 +316,10 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
             runtime=runtime,
             trace_writer=trace_writer,
         )
-        processed_record = processing_store.get(adapted.record.tenant_id, adapted.record.dossier_id) or adapted.record
+        processed_record = (
+            processing_store.get(adapted.record.tenant_id, adapted.record.dossier_id)
+            or adapted.record
+        )
         wire = job_result_to_wire(result, request, query_snapshot_digest=query_snapshot_digest)
         accepted = JOB_STORE.complete_with_snapshot(
             job_id,
@@ -357,7 +362,9 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
             JOB_STORE.fail_unclaimed(job_id, update)
 
 
-def _sweep_stale_jobs(store: SQLiteJobStore | None = None, *, queued_grace_ms: int = 60_000) -> list[str]:
+def _sweep_stale_jobs(
+    store: SQLiteJobStore | None = None, *, queued_grace_ms: int = 60_000
+) -> list[str]:
     """Fail jobs a dead worker left QUEUED/RUNNING so a poll always ends (ST-067)."""
 
     update = {
@@ -382,8 +389,11 @@ def _sweep_stale_jobs(store: SQLiteJobStore | None = None, *, queued_grace_ms: i
             try:
                 trace_store.finalize_stale_job(job_id)
             except Exception as exc:
-                logger.warning("ai2.processing_trace_finalize_failed job_id=%s code=%s",
-                               job_id, type(exc).__name__)
+                logger.warning(
+                    "ai2.processing_trace_finalize_failed job_id=%s code=%s",
+                    job_id,
+                    type(exc).__name__,
+                )
         logger.warning("ai2.jobs_swept count=%s job_ids=%s", len(swept), swept)
     return swept
 
@@ -898,9 +908,11 @@ def query_from_backend(payload: dict) -> dict:
     requested_digest = str(payload.get("snapshot_digest") or "").strip()
     query_contract_version = str(payload.get("query_contract_version") or "").strip()
     stored_envelope: ToolEnvelope | object | None = None
-    tenant_id = service_envelope.tenant_id if service_envelope is not None else str(
-        payload.get("tenant_id") or ""
-    ).strip()
+    tenant_id = (
+        service_envelope.tenant_id
+        if service_envelope is not None
+        else str(payload.get("tenant_id") or "").strip()
+    )
     record = STORE.get(tenant_id, dossier_id) if tenant_id else None
     if record is None or database_url() or service_envelope is None:
         hydrated = load_query_snapshot(dossier_id, tenant_id=tenant_id or None)
@@ -957,6 +969,14 @@ def query_from_backend(payload: dict) -> dict:
             else:
                 envelope = stored_envelope
             policy_flags = _query_policy_flags()
+            consent = (
+                service_envelope is not None
+                and payload.get("content_sharing_consent") is True
+                and record.content_sharing_consent
+            )
+            policy_flags["egress_allowed"] = policy_flags["egress_allowed"] and consent
+            policy_flags["use_llm"] = policy_flags["use_llm"] and consent
+            policy_flags["use_vector"] = policy_flags["use_vector"] and consent
             llm = None
             if policy_flags["egress_allowed"] and policy_flags["use_llm"]:
                 timeout = query_llm_timeout_seconds()
@@ -996,9 +1016,12 @@ def query_from_backend(payload: dict) -> dict:
                 "citations": citations,
                 "retrieval_layer": {
                     **(result.get("retrieval_layer") or {}),
-                    **({"reason_code": "EMBEDDING_BUDGET_EXCEEDED"}
-                       if (result.get("retrieval_layer") or {}).get("vector_status") == "BUDGET_EXCEEDED"
-                       else {}),
+                    **(
+                        {"reason_code": "EMBEDDING_BUDGET_EXCEEDED"}
+                        if (result.get("retrieval_layer") or {}).get("vector_status")
+                        == "BUDGET_EXCEEDED"
+                        else {}
+                    ),
                     "dossier_id": dossier_id,
                     "snapshot_version": payload.get("snapshot_version"),
                     "snapshot_digest": expected_digest,

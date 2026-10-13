@@ -53,9 +53,23 @@ class VectorRecallResult:
 
 
 class VectorIndex(Protocol):
-    def upsert(self, segments: list[EvidenceSegment], vectors: list[list[float]], *, model: str, dimensions: int) -> None: ...
+    def upsert(
+        self,
+        segments: list[EvidenceSegment],
+        vectors: list[list[float]],
+        *,
+        model: str,
+        dimensions: int,
+    ) -> None: ...
 
-    def search(self, snapshot_digest: str, vector: list[float], *, k: int, filters: dict[str, Any] | None = None) -> list[tuple[EvidenceSegment, float]]: ...
+    def search(
+        self,
+        snapshot_digest: str,
+        vector: list[float],
+        *,
+        k: int,
+        filters: dict[str, Any] | None = None,
+    ) -> list[tuple[EvidenceSegment, float]]: ...
 
     def has_snapshot(self, snapshot_digest: str, *, model: str, dimensions: int) -> bool: ...
 
@@ -86,11 +100,20 @@ class SQLiteVectorIndex:
                 vector_json TEXT NOT NULL
             )"""
         )
-        cx.execute("CREATE INDEX IF NOT EXISTS idx_vector_snapshot ON vector_segments(snapshot_digest)")
+        cx.execute(
+            "CREATE INDEX IF NOT EXISTS idx_vector_snapshot ON vector_segments(snapshot_digest)"
+        )
         cx.commit()
         return cx
 
-    def upsert(self, segments: list[EvidenceSegment], vectors: list[list[float]], *, model: str, dimensions: int) -> None:
+    def upsert(
+        self,
+        segments: list[EvidenceSegment],
+        vectors: list[list[float]],
+        *,
+        model: str,
+        dimensions: int,
+    ) -> None:
         if len(segments) != len(vectors):
             raise ValueError("segments and vectors must have equal length")
         cx = self._connect()
@@ -132,7 +155,14 @@ class SQLiteVectorIndex:
         cx.close()
         return row is not None
 
-    def search(self, snapshot_digest: str, vector: list[float], *, k: int, filters: dict[str, Any] | None = None) -> list[tuple[EvidenceSegment, float]]:
+    def search(
+        self,
+        snapshot_digest: str,
+        vector: list[float],
+        *,
+        k: int,
+        filters: dict[str, Any] | None = None,
+    ) -> list[tuple[EvidenceSegment, float]]:
         filters = filters or {}
         cx = self._connect()
         query = (
@@ -156,9 +186,17 @@ class SQLiteVectorIndex:
             if filters.get("source_file_id") and row[3] != filters["source_file_id"]:
                 continue
             segment = EvidenceSegment(
-                segment_id=row[0], snapshot_digest=row[1], node_id=row[2], source_file_id=row[3],
-                source_role=row[4], page_revision_id=row[5], char_start=row[6], char_end=row[7],
-                text=row[9], text_digest=row[8], embedding_version=row[10],
+                segment_id=row[0],
+                snapshot_digest=row[1],
+                node_id=row[2],
+                source_file_id=row[3],
+                source_role=row[4],
+                page_revision_id=row[5],
+                char_start=row[6],
+                char_end=row[7],
+                text=row[9],
+                text_digest=row[8],
+                embedding_version=row[10],
             )
             score = _cosine(vector, json.loads(row[11]))
             scored.append((segment, score))
@@ -169,23 +207,34 @@ class SQLiteVectorIndex:
 class PostgresVectorIndex:
     def __init__(self, url: str | None = None):
         from sqlalchemy import text
+
         self.engine = get_engine(url)
         ensure_database(self.engine)
         with self.engine.connect() as cx:
-            self.available = bool(cx.execute(text("""SELECT 1 FROM information_schema.columns
-                WHERE table_schema='ai2' AND table_name='vector_segments' AND column_name='embedding'""")).scalar())
+            self.available = bool(
+                cx.execute(
+                    text("""SELECT 1 FROM information_schema.columns
+                WHERE table_schema='ai2' AND table_name='vector_segments' AND column_name='embedding'""")
+                ).scalar()
+            )
 
     def has_snapshot(self, snapshot_digest: str, *, model: str, dimensions: int) -> bool:
         from sqlalchemy import text
+
         with self.engine.connect() as cx:
-            return bool(cx.execute(text("""SELECT 1 FROM ai2.vector_segments
+            return bool(
+                cx.execute(
+                    text("""SELECT 1 FROM ai2.vector_segments
                 WHERE snapshot_digest=:digest AND embedding_model=:model AND dimensions=:dimensions LIMIT 1"""),
-                {"digest": snapshot_digest, "model": model, "dimensions": dimensions}).scalar())
+                    {"digest": snapshot_digest, "model": model, "dimensions": dimensions},
+                ).scalar()
+            )
 
     def upsert(self, segments, vectors, *, model, dimensions):
         from dataclasses import asdict
 
         from sqlalchemy import text
+
         if not self.available:
             raise RuntimeError("VECTOR_EXTENSION_UNAVAILABLE")
         if len(segments) != len(vectors):
@@ -194,16 +243,30 @@ class PostgresVectorIndex:
             for segment, vector in zip(segments, vectors):
                 if len(vector) != dimensions:
                     raise ValueError("vector dimension mismatch")
-                values = {**asdict(segment), "embedding_model": model, "dimensions": dimensions,
-                          "vector_json": json.dumps(vector), "embedding": json.dumps(vector)}
+                values = {
+                    **asdict(segment),
+                    "embedding_model": model,
+                    "dimensions": dimensions,
+                    "vector_json": json.dumps(vector),
+                    "embedding": json.dumps(vector),
+                }
                 names = list(values)
-                bindings = ["CAST(:embedding AS vector)" if name == "embedding" else f":{name}" for name in names]
+                bindings = [
+                    "CAST(:embedding AS vector)" if name == "embedding" else f":{name}"
+                    for name in names
+                ]
                 updates = [f"{name}=excluded.{name}" for name in names if name != "segment_id"]
-                cx.execute(text(f"INSERT INTO ai2.vector_segments ({','.join(names)}) VALUES ({','.join(bindings)}) "
-                                f"ON CONFLICT (segment_id) DO UPDATE SET {','.join(updates)}"), values)
+                cx.execute(
+                    text(
+                        f"INSERT INTO ai2.vector_segments ({','.join(names)}) VALUES ({','.join(bindings)}) "
+                        f"ON CONFLICT (segment_id) DO UPDATE SET {','.join(updates)}"
+                    ),
+                    values,
+                )
 
     def search(self, snapshot_digest, vector, *, k, filters=None):
         from sqlalchemy import text
+
         filters = filters or {}
         where = ["snapshot_digest=:digest"]
         values = {"digest": snapshot_digest, "embedding": json.dumps(vector), "k": max(1, k)}
@@ -216,11 +279,20 @@ class PostgresVectorIndex:
         where.append("dimensions=:query_dimensions")
         values["query_dimensions"] = len(vector)
         with self.engine.connect() as cx:
-            rows = cx.execute(text("SELECT *, 1-(embedding <=> CAST(:embedding AS vector)) AS score "
-                                   "FROM ai2.vector_segments WHERE " + " AND ".join(where)
-                                   + " ORDER BY embedding <=> CAST(:embedding AS vector), segment_id LIMIT :k"), values).mappings()
+            rows = cx.execute(
+                text(
+                    "SELECT *, 1-(embedding <=> CAST(:embedding AS vector)) AS score "
+                    "FROM ai2.vector_segments WHERE "
+                    + " AND ".join(where)
+                    + " ORDER BY embedding <=> CAST(:embedding AS vector), segment_id LIMIT :k"
+                ),
+                values,
+            ).mappings()
             fields = EvidenceSegment.__dataclass_fields__
-            return [(EvidenceSegment(**{name: row[name] for name in fields}), float(row["score"])) for row in rows]
+            return [
+                (EvidenceSegment(**{name: row[name] for name in fields}), float(row["score"]))
+                for row in rows
+            ]
 
 
 class VectorRecallService:
@@ -235,70 +307,144 @@ class VectorRecallService:
         self.embedding_client = embedding_client or OpenAICompatibleEmbeddingClient()
         self.index = index or (PostgresVectorIndex() if database_url() else SQLiteVectorIndex())
         self.batch_size = max(1, int(os.getenv("AI2_EMBEDDING_BATCH_SIZE", "16")))
-        self.enabled = enabled if enabled is not None else os.getenv("AI2_VECTOR_RECALL_ENABLED", "false").casefold() in {"1", "true", "yes", "on"}
+        self.enabled = (
+            enabled
+            if enabled is not None
+            else os.getenv("AI2_VECTOR_RECALL_ENABLED", "true").casefold()
+            in {"1", "true", "yes", "on"}
+        )
         self.runtime = runtime
 
-    def recall(self, record: DossierRecord, query: str, *, k: int = 12, filters: dict[str, Any] | None = None) -> VectorRecallResult:
+    def recall(
+        self,
+        record: DossierRecord,
+        query: str,
+        *,
+        k: int = 12,
+        filters: dict[str, Any] | None = None,
+    ) -> VectorRecallResult:
         if not self.enabled:
             return VectorRecallResult("DISABLED", trace={"vector_status": "DISABLED"})
         if record.embedding_budget_hit():
             return VectorRecallResult("BUDGET_EXCEEDED", trace={"vector_status": "BUDGET_EXCEEDED"})
-        if not record.egress_approved or (self.runtime is not None and not self.runtime.egress_allowed):
+        if not record.egress_approved or (
+            self.runtime is not None and not self.runtime.egress_allowed
+        ):
             return VectorRecallResult("EGRESS_DENIED", trace={"vector_status": "EGRESS_DENIED"})
         if isinstance(self.index, PostgresVectorIndex) and not self.index.available:
-            return VectorRecallResult("UNAVAILABLE", trace={
-                "vector_status": "UNAVAILABLE", "reason_code": "VECTOR_EXTENSION_UNAVAILABLE",
-            })
+            return VectorRecallResult(
+                "UNAVAILABLE",
+                trace={
+                    "vector_status": "UNAVAILABLE",
+                    "reason_code": "VECTOR_EXTENSION_UNAVAILABLE",
+                },
+            )
         segments = build_segments(record)
         if self.runtime is not None and self.runtime.max_embedding_tokens:
-            required = sum(max(1, (len(text) + 3) // 4) for text in [query, *(s.text for s in segments)])
+            required = sum(
+                max(1, (len(text) + 3) // 4) for text in [query, *(s.text for s in segments)]
+            )
             if self.runtime.embedding_tokens_used + required > self.runtime.max_embedding_tokens:
-                self.runtime.add_issue("EMBEDDING_BUDGET_EXCEEDED", "maximum embedding tokens reached")
-                return VectorRecallResult("BUDGET_EXCEEDED", trace={
-                    "vector_status": "BUDGET_EXCEEDED", "reason_code": "EMBEDDING_BUDGET_EXCEEDED",
-                })
+                self.runtime.add_issue(
+                    "EMBEDDING_BUDGET_EXCEEDED", "maximum embedding tokens reached"
+                )
+                return VectorRecallResult(
+                    "BUDGET_EXCEEDED",
+                    trace={
+                        "vector_status": "BUDGET_EXCEEDED",
+                        "reason_code": "EMBEDDING_BUDGET_EXCEEDED",
+                    },
+                )
         if isinstance(self.embedding_client, OpenAICompatibleEmbeddingClient):
             capability = self.embedding_client.discover(
-                egress_approved=record.egress_approved, before_probe=self._account_embedding_budget,
+                egress_approved=record.egress_approved,
+                before_probe=self._account_embedding_budget,
             )
         else:
             capability = self.embedding_client.discover(egress_approved=record.egress_approved)
-        trace = {"vector_status": capability.status, "embedding_model": capability.selected_model, "embedding_dimensions": capability.dimensions}
-        if capability.status != "READY" or not capability.selected_model or not capability.dimensions:
+        trace = {
+            "vector_status": capability.status,
+            "embedding_model": capability.selected_model,
+            "embedding_dimensions": capability.dimensions,
+        }
+        if (
+            capability.status != "READY"
+            or not capability.selected_model
+            or not capability.dimensions
+        ):
             return VectorRecallResult(capability.status, trace=trace)
         if not segments:
-            return VectorRecallResult("UNAVAILABLE", trace={**trace, "reason": "no evidence segments"})
+            return VectorRecallResult(
+                "UNAVAILABLE", trace={**trace, "reason": "no evidence segments"}
+            )
         has_snapshot = getattr(self.index, "has_snapshot", None)
-        indexed = bool(has_snapshot and has_snapshot(record.pins.source_snapshot_digest, model=capability.selected_model, dimensions=capability.dimensions))
+        indexed = bool(
+            has_snapshot
+            and has_snapshot(
+                record.pins.source_snapshot_digest,
+                model=capability.selected_model,
+                dimensions=capability.dimensions,
+            )
+        )
         if not indexed:
             try:
                 vectors: list[list[float]] = []
                 for offset in range(0, len(segments), self.batch_size):
                     batch = segments[offset : offset + self.batch_size]
                     if not self._account_embedding_budget([segment.text for segment in batch]):
-                        return VectorRecallResult("BUDGET_EXCEEDED", trace={**trace, "vector_status": "BUDGET_EXCEEDED"})
-                    vectors.extend(self.embedding_client.embed([segment.text for segment in batch], model=capability.selected_model, egress_approved=record.egress_approved))
-                self.index.upsert(segments, vectors, model=capability.selected_model, dimensions=capability.dimensions)
+                        return VectorRecallResult(
+                            "BUDGET_EXCEEDED", trace={**trace, "vector_status": "BUDGET_EXCEEDED"}
+                        )
+                    vectors.extend(
+                        self.embedding_client.embed(
+                            [segment.text for segment in batch],
+                            model=capability.selected_model,
+                            egress_approved=record.egress_approved,
+                        )
+                    )
+                self.index.upsert(
+                    segments,
+                    vectors,
+                    model=capability.selected_model,
+                    dimensions=capability.dimensions,
+                )
             except Exception as exc:
-                return VectorRecallResult("PROVIDER_ERROR", trace={**trace, "error": type(exc).__name__})
+                return VectorRecallResult(
+                    "PROVIDER_ERROR", trace={**trace, "error": type(exc).__name__}
+                )
         try:
             if not self._account_embedding_budget([query]):
-                return VectorRecallResult("BUDGET_EXCEEDED", trace={**trace, "vector_status": "BUDGET_EXCEEDED"})
-            query_vector = self.embedding_client.embed([query], model=capability.selected_model, egress_approved=record.egress_approved)[0]
+                return VectorRecallResult(
+                    "BUDGET_EXCEEDED", trace={**trace, "vector_status": "BUDGET_EXCEEDED"}
+                )
+            query_vector = self.embedding_client.embed(
+                [query], model=capability.selected_model, egress_approved=record.egress_approved
+            )[0]
             search_filters = {
                 **(filters or {}),
                 "embedding_model": capability.selected_model,
                 "dimensions": capability.dimensions,
             }
-            raw = self.index.search(record.pins.source_snapshot_digest, query_vector, k=k * 4, filters=search_filters)
+            raw = self.index.search(
+                record.pins.source_snapshot_digest, query_vector, k=k * 4, filters=search_filters
+            )
         except Exception as exc:
-            return VectorRecallResult("PROVIDER_ERROR", trace={**trace, "error": type(exc).__name__})
+            return VectorRecallResult(
+                "PROVIDER_ERROR", trace={**trace, "error": type(exc).__name__}
+            )
         candidates: list[VectorCandidate] = []
         for segment, score in raw:
-            node = next((item for item in record.evidence_nodes() if item.node_id == segment.node_id), None)
-            if node is None or node.status == "FAILED" or segment.char_start < 0 or segment.char_end > len(node.text):
+            node = next(
+                (item for item in record.evidence_nodes() if item.node_id == segment.node_id), None
+            )
+            if (
+                node is None
+                or node.status == "FAILED"
+                or segment.char_start < 0
+                or segment.char_end > len(node.text)
+            ):
                 continue
-            if node.text[segment.char_start:segment.char_end] != segment.text:
+            if node.text[segment.char_start : segment.char_end] != segment.text:
                 continue
             candidates.append(
                 VectorCandidate(
@@ -314,7 +460,9 @@ class VectorRecallService:
             )
             if len(candidates) >= k:
                 break
-        return VectorRecallResult("READY", candidates=candidates, trace={**trace, "vector_hits": len(candidates)})
+        return VectorRecallResult(
+            "READY", candidates=candidates, trace={**trace, "vector_hits": len(candidates)}
+        )
 
     def _account_embedding_budget(self, texts: list[str]) -> bool:
         if self.runtime is None:
@@ -356,7 +504,12 @@ def build_segments(record: DossierRecord) -> list[EvidenceSegment]:
                 if boundary > start + MAX_SEGMENT_CHARS // 2:
                     end = boundary + (1 if text[boundary] == "\n" else 2)
             part = text[start:end]
-            segment_id = "seg:" + hashlib.sha256(f"{digest}|{node.node_id}|{start}|{end}|{part}".encode("utf-8")).hexdigest()[:24]
+            segment_id = (
+                "seg:"
+                + hashlib.sha256(
+                    f"{digest}|{node.node_id}|{start}|{end}|{part}".encode("utf-8")
+                ).hexdigest()[:24]
+            )
             out.append(
                 EvidenceSegment(
                     segment_id=segment_id,

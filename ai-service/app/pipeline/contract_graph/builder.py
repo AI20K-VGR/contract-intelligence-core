@@ -72,7 +72,7 @@ _LEVEL_ORDER = ("diem", "khoan", "dieu")
 
 
 def contract_graph_enabled() -> bool:
-    return os.getenv(ENABLED_ENV, "false").strip().casefold() in _TRUTHY
+    return os.getenv(ENABLED_ENV, "true").strip().casefold() in _TRUTHY
 
 
 def known_documents_for_record(record: DossierRecord) -> set[str]:
@@ -155,9 +155,7 @@ def plan_edges(
 
     stats = stats if stats is not None else Counter()
     known = {
-        normalize_document(str(document))
-        for document in known_documents
-        if str(document).strip()
+        normalize_document(str(document)) for document in known_documents if str(document).strip()
     }
     nodes = sorted(
         (n for n in source_nodes if n.type not in _SKIPPED_TYPES),
@@ -404,7 +402,9 @@ def _first_line(text: str | None) -> str:
     return (text or "").split("\n", 1)[0]
 
 
-def _foreign(node_id: str, source_address: str | None, op: Operation, target: Address) -> PlannedEdge:
+def _foreign(
+    node_id: str, source_address: str | None, op: Operation, target: Address
+) -> PlannedEdge:
     return PlannedEdge(
         op=op.op,
         source_node_id=node_id,
