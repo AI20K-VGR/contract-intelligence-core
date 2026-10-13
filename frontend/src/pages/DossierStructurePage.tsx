@@ -44,6 +44,7 @@ import { StructureDocument } from '../components/StructureDocument'
 import { StructureMindmap } from '../components/StructureMindmap'
 import { StructureOutline } from '../components/StructureOutline'
 import { Ai2GraphDossierView } from '../components/ai2-graph/ContractGraphCanvas'
+import { ContentSharingConsent } from '../components/ai2-graph/ContentSharingConsent'
 import {
   AI2_GRAPH_UI_ENABLED,
   createLatestRequestGuard,
@@ -968,6 +969,25 @@ export function DossierStructurePage() {
                     className="hidden w-px self-stretch bg-outline-variant/30 sm:block"
                   />
                   <ToolbarGroup label="Đồ thị AI2">
+                    {detail ? (
+                      <ContentSharingConsent
+                        dossierId={detail.id}
+                        enabled={detail.metadata?.ai2_content_sharing_consent === true}
+                        onSaved={(enabled) =>
+                          setDetail((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  metadata: {
+                                    ...(current.metadata ?? {}),
+                                    ai2_content_sharing_consent: enabled,
+                                  },
+                                }
+                              : current,
+                          )
+                        }
+                      />
+                    ) : null}
                     <div className="flex flex-wrap items-center gap-1">
                       <button
                         aria-pressed={showAi2Graph}

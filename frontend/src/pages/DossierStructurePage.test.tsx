@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ContractGraphPage, ProcessingTrace } from '../api/contractGraph'
 import { getContractGraphPage, getProcessingTrace } from '../api/contractGraph'
 import { ContractGraphCanvas } from '../components/ai2-graph/ContractGraphCanvas'
+import { ContentSharingConsent } from '../components/ai2-graph/ContentSharingConsent'
 import { RelationList } from '../components/ai2-graph/RelationList'
 import {
   AI2_GRAPH_UI_ENABLED,
@@ -53,6 +54,16 @@ const trace: ProcessingTrace = {
 describe('dossier AI2 graph integration', () => {
   beforeEach(() => vi.clearAllMocks())
 
+  it('renders per-dossier content consent as an accessible, fail-closed control', () => {
+    const html = renderToStaticMarkup(
+      <ContentSharingConsent dossierId="dossier-a" enabled={false} onSaved={() => {}} />,
+    )
+    expect(html).toContain('type="checkbox"')
+    expect(html).not.toContain('checked=""')
+    expect(html).toContain('Cho phép AI2 xử lý nội dung hồ sơ')
+    expect(html).toContain('Thay đổi có hiệu lực từ yêu cầu AI2 tiếp theo.')
+  })
+
   it('allows legacy OCR fallback only for missing opaque citations in the same document', () => {
     expect(
       isLegacyCitationFallbackAllowed('cite:opaque', 404, 'doc-a', 'doc-a'),
@@ -86,7 +97,8 @@ describe('dossier AI2 graph integration', () => {
     expect(html).toContain('Đang xem 1/3 quan hệ')
     expect(html).toContain('danh sách bên dưới tải theo trang')
     expect(html).toContain('REFERENCE')
-    expect(html).toContain('Không kéo hoặc sửa quan hệ')
+    expect(html).toContain('Kéo vùng trống để di chuyển')
+    expect(html).toContain('Chọn đường nối để xem chi tiết')
     expect(html).toContain('tabindex="0"')
     expect(html).toContain('aria-pressed="true"')
   })
