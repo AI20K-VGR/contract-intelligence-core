@@ -14,9 +14,7 @@ import {
   useParams,
 } from 'react-router-dom'
 import { ApiError } from '../api/client'
-import { getInspectorRecord } from '../api/inspector'
 import { clauseOrdinal } from '../api/clauseReview'
-import type { ContractGraphKind } from '../api/contractGraph'
 import {
   contractDocument,
   getDossierStructure,
@@ -45,12 +43,6 @@ import { StructureDocument } from '../components/StructureDocument'
 import { StructureMindmap } from '../components/StructureMindmap'
 import { StructureOutline } from '../components/StructureOutline'
 import { QueryHistoryPanel } from '../components/QueryHistoryPanel'
-import { Ai2GraphDossierView } from '../components/ai2-graph/ContractGraphCanvas'
-import {
-  AI2_GRAPH_UI_ENABLED,
-  createLatestRequestGuard,
-  isLegacyCitationFallbackAllowed,
-} from '../components/ai2-graph/contractGraphRuntime'
 import { SearchAudit } from '../components/SearchAudit'
 import { TableStructure } from '../components/TableStructure'
 import { MaterialIcon } from '../components/icons'
@@ -234,14 +226,6 @@ export function DossierStructurePage() {
   )
   const [view, setView] = useState<StructureView>(storedStructureView)
   const prefs = useReadingPrefs()
-  const [showAi2Graph, setShowAi2Graph] = useState(false)
-  const [ai2GraphKind, setAi2GraphKind] = useState<ContractGraphKind>('pair')
-  const [ai2Citation, setAi2Citation] = useState<Record<
-    string,
-    unknown
-  > | null>(null)
-  const [ai2CitationError, setAi2CitationError] = useState(false)
-  const ai2CitationRequests = useRef(createLatestRequestGuard())
   const [spots, setSpots] = useState<ReviewSpot[]>([])
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
@@ -289,10 +273,6 @@ export function DossierStructurePage() {
     setSearchCite(null)
     setSearchError(null)
     setReviewCiteId(null)
-    setShowAi2Graph(false)
-    setAi2Citation(null)
-    setAi2CitationError(false)
-    ai2CitationRequests.current.invalidate()
   }, [dossierId])
   // "Hỏi lại" từ trang lịch sử: điền sẵn câu hỏi, một lần cho mỗi bước lịch sử
   // (Back về bước đó không điền lại).
@@ -593,75 +573,6 @@ export function DossierStructurePage() {
     setCiteId(id)
   }, [])
 
-  const resolveGraphNodeLabel = useCallback(
-    (nodeId: string, sourceDocumentId?: string | null) => {
-      const endpointDocumentId = sourceDocumentId ?? null
-      const endpointDocument = endpointDocumentId
-        ? detail?.documents.find((item) => item.id === endpointDocumentId)
-        : undefined
-      const clause =
-        endpointDocumentId === documentId ? findClause(nodes, nodeId) : null
-      if (!clause) {
-        return [endpointDocument?.filename, `Mã điều khoản ${nodeId}`]
-          .filter(Boolean)
-          .join(' · ')
-      }
-      return [
-        endpointDocument?.filename,
-        clause.number,
-        clause.title ?? clause.label,
-      ]
-        .filter(Boolean)
-        .join(' · ')
-    },
-    [detail?.documents, documentId, nodes],
-  )
-
-  const clearAi2Citation = useCallback(() => {
-    ai2CitationRequests.current.invalidate()
-    setAi2Citation(null)
-    setAi2CitationError(false)
-  }, [])
-
-  const openAi2Citation = useCallback(
-    async (
-      citationRef: string,
-      nodeId: string,
-      sourceDocumentId?: string | null,
-    ) => {
-      const requestId = ai2CitationRequests.current.start()
-      setAi2Citation(null)
-      setAi2CitationError(false)
-      try {
-        const record = await getInspectorRecord('citation', citationRef)
-        if (ai2CitationRequests.current.isCurrent(requestId))
-          setAi2Citation(record)
-      } catch (error) {
-        if (!ai2CitationRequests.current.isCurrent(requestId)) return
-        // A legacy opaque handle may not be a Backend citation ID; use the already-loaded OCR clause if it maps exactly.
-        const responseStatus =
-          error && typeof error === 'object' && 'status' in error
-            ? error.status
-            : null
-        if (
-          isLegacyCitationFallbackAllowed(
-            citationRef,
-            typeof responseStatus === 'number' ? responseStatus : null,
-            sourceDocumentId,
-            documentId,
-          ) &&
-          findClause(nodes, nodeId) &&
-          citeOf.has(nodeId)
-        ) {
-          openTreeCite(nodeId)
-          return
-        }
-        setAi2CitationError(true)
-      }
-    },
-    [citeOf, documentId, nodes, openTreeCite],
-  )
-
   function openUploadedPdf(id: string) {
     setShowLines(false)
     setCiteId(null)
@@ -858,46 +769,6 @@ export function DossierStructurePage() {
                               onClick={() => changeView(item.value)}
                             />
                           ))}
-                        </div>
-                      ) : null}
-                      {AI2_GRAPH_UI_ENABLED ? (
-                        <div
-                          aria-label="Đồ thị quan hệ AI2"
-                          className="inline-flex items-center gap-0.5 rounded-full bg-surface-container p-1"
-                          role="group"
-                        >
-                          <SegmentButton
-                            active={showAi2Graph}
-                            icon="hub"
-                            label={
-                              showAi2Graph
-                                ? 'Đóng đồ thị quan hệ AI2'
-                                : 'Đồ thị quan hệ AI2'
-                            }
-                            onClick={() => {
-                              if (showAi2Graph) clearAi2Citation()
-                              setShowAi2Graph(!showAi2Graph)
-                            }}
-                          />
-                          {showAi2Graph
-                            ? (['pair', 'operation'] as const).map((kind) => (
-                                <SegmentButton
-                                  key={kind}
-                                  active={ai2GraphKind === kind}
-                                  icon={kind === 'pair' ? 'link' : 'edit_note'}
-                                  label={
-                                    kind === 'pair'
-                                      ? 'Quan hệ điều khoản'
-                                      : 'Sửa đổi điều khoản'
-                                  }
-                                  onClick={() => {
-                                    if (ai2GraphKind !== kind)
-                                      clearAi2Citation()
-                                    setAi2GraphKind(kind)
-                                  }}
-                                />
-                              ))
-                            : null}
                         </div>
                       ) : null}
                       <span
@@ -1287,87 +1158,36 @@ export function DossierStructurePage() {
           {phase === 'ready' &&
           !qaMode &&
           !reviewCiteId &&
-          (activeMode !== 'tables' || showAi2Graph) ? (
+          activeMode !== 'tables' ? (
             <div className="flex min-h-[520px] flex-1 flex-col pb-space-md">
-              {showAi2Graph ? (
-                detail?.ai2JobId && detail.snapshotDigest ? (
-                  <Ai2GraphDossierView
-                    key={`${detail.ai2JobId}:${detail.snapshotDigest}:${ai2GraphKind}`}
-                    enabled={AI2_GRAPH_UI_ENABLED}
-                    dossierId={dossierId}
-                    jobId={detail.ai2JobId}
-                    snapshotDigest={detail.snapshotDigest}
-                    graphKind={ai2GraphKind}
-                    resolveNodeLabel={resolveGraphNodeLabel}
-                    onOpenCitation={openAi2Citation}
-                    onSelectRelation={clearAi2Citation}
-                  />
-                ) : (
-                  <p
-                    role="status"
-                    className="rounded border border-outline-variant p-3"
-                  >
-                    Graph AI2 chưa có mã job và snapshot hiện hành để đọc.
-                  </p>
-                )
-              ) : (
-                (() => {
-                  const shared = {
-                    markers: prefs.highlightConflicts ? markers : undefined,
-                    citationOf: citeOf,
-                    focusId: citeId,
-                    autoScroll: prefs.autoScroll,
-                    nodes,
-                    title: detail?.name ?? 'Hợp đồng',
-                    onCite: openTreeCite,
-                  }
-                  switch (view) {
-                    case 'outline':
-                      return <StructureOutline {...shared} />
-                    case 'document':
-                      return <StructureDocument {...shared} />
-                    case 'tree':
-                      return (
-                        <StructureMindmap
-                          key="tree"
-                          {...shared}
-                          orientation="vertical"
-                        />
-                      )
-                    default:
-                      // key để đổi hướng thì dựng lại, tự căn vừa khung.
-                      return <StructureMindmap key="mindmap" {...shared} />
-                  }
-                })()
-              )}
-              {showAi2Graph && ai2Citation ? (
-                <section
-                  aria-label="Bằng chứng trích dẫn"
-                  className="mt-3 min-w-0 rounded-lg border border-outline-variant p-3"
-                >
-                  <h2 className="font-title-sm font-semibold">
-                    Bằng chứng qua Backend citation
-                  </h2>
-                  <p className="mt-2 break-words">
-                    {typeof ai2Citation.quote === 'string'
-                      ? ai2Citation.quote
-                      : 'Backend không trả nội dung trích dẫn.'}
-                  </p>
-                  <button
-                    className="mt-2 min-h-11 rounded border border-outline px-3 py-2 focus-visible:outline focus-visible:outline-2"
-                    onClick={() => setAi2Citation(null)}
-                    type="button"
-                  >
-                    Đóng bằng chứng
-                  </button>
-                </section>
-              ) : null}
-              {showAi2Graph && ai2CitationError ? (
-                <p className="mt-3 break-words text-error" role="alert">
-                  Không mở được citation này qua Backend; quan hệ vẫn chỉ là đề
-                  xuất của AI2.
-                </p>
-              ) : null}
+              {(() => {
+                const shared = {
+                  markers: prefs.highlightConflicts ? markers : undefined,
+                  citationOf: citeOf,
+                  focusId: citeId,
+                  autoScroll: prefs.autoScroll,
+                  nodes,
+                  title: detail?.name ?? 'Hợp đồng',
+                  onCite: openTreeCite,
+                }
+                switch (view) {
+                  case 'outline':
+                    return <StructureOutline {...shared} />
+                  case 'document':
+                    return <StructureDocument {...shared} />
+                  case 'tree':
+                    return (
+                      <StructureMindmap
+                        key="tree"
+                        {...shared}
+                        orientation="vertical"
+                      />
+                    )
+                  default:
+                    // key để đổi hướng thì dựng lại, tự căn vừa khung.
+                    return <StructureMindmap key="mindmap" {...shared} />
+                }
+              })()}
             </div>
           ) : null}
         </div>

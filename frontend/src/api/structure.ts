@@ -25,12 +25,9 @@ export type StructureDocument = {
 export type DossierStructure = {
   id: string
   name: string
-  latestJobId: string | null
-  ai2JobId: string | null
   latestJobStatus: string | null
   /** Mã lỗi của job mới nhất (AI2_TIMEOUT, RUN_CANCELLED...): chọn endpoint chạy lại. */
   latestJobErrorCode: string | null
-  snapshotDigest: string | null
   documents: StructureDocument[]
   metadata: Record<string, unknown> | null
   hasConflicts: boolean
@@ -294,20 +291,11 @@ export async function getDossierStructure(
   return {
     id,
     name: asString(row.name) || 'Hồ sơ chưa đặt tên',
-    latestJobId: typeof row.latest_job_id === 'string' ? row.latest_job_id : null,
-    ai2JobId:
-      typeof metadata?.ai2_job_id === 'string' && metadata.ai2_job_id
-        ? metadata.ai2_job_id
-        : null,
     latestJobStatus:
       typeof row.latest_job_status === 'string' ? row.latest_job_status : null,
     latestJobErrorCode:
       typeof row.latest_job_error_code === 'string' && row.latest_job_error_code
         ? row.latest_job_error_code
-        : null,
-    snapshotDigest:
-      typeof metadata?.ai2_snapshot_digest === 'string' && metadata.ai2_snapshot_digest
-        ? metadata.ai2_snapshot_digest
         : null,
     documents,
     metadata,
