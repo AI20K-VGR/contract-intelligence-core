@@ -22,12 +22,14 @@ import {
   countClauses,
   getDossierStructure,
   isOcrComplete,
+  isRunFinished,
   listClauses,
   structureErrorMessage,
   type DossierStructure,
   type StructureDocument,
 } from '../api/structure'
-import { jobErrorInfo } from '../api/jobErrors'
+import { isAi2Failure, isCancelledJob, jobErrorInfo } from '../api/jobErrors'
+import { getManifest, manifestConfirmPath } from '../api/manifest'
 import {
   cancelRun,
   isCancellableRun,
@@ -42,6 +44,8 @@ import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 import { parseStructureMode, type StructureMode } from '../structure'
 
 const POLL_INTERVAL_MS = 2000
+// Job đứng ở 'extracted' chờ người dùng xác nhận manifest có thể mất hàng giờ.
+const WAITING_POLL_INTERVAL_MS = 5000
 
 // Job đã dừng hẳn: lỗi, hoặc bị hủy (hủy run đưa job về failed/RUN_CANCELLED).
 function isStoppedJob(status: string | null | undefined) {
@@ -78,12 +82,13 @@ function fileModel(
   pages: OcrPageRow[],
   jobStatus: string | null,
   current: boolean,
+  ocrFailed: boolean,
 ): FileRowModel {
   const total = Math.max(document.pageCount, pages.length)
   const done = pages.filter(pageDone).length
   const failed = pages.filter(pageFailed).length
   const meta = total > 0 ? `• ${total} trang` : '• PDF'
-  if (failed > 0 && jobStatus === 'failed') {
+  if (failed > 0 && ocrFailed) {
     return {
       id: document.id,
       name: document.filename,
@@ -150,6 +155,8 @@ export function AnalysisProgressPage() {
   const [detail, setDetail] = useState<DossierStructure | null>(null)
   const [pagesByDoc, setPagesByDoc] = useState<Record<string, OcrPageRow[]>>({})
   const [clauseCount, setClauseCount] = useState<number | null>(null)
+  // Worker chỉ gọi AI2 sau khi manifest được xác nhận: chưa xác nhận thì job đứng ở 'extracted'.
+  const [awaitingManifest, setAwaitingManifest] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -195,6 +202,9 @@ export function AnalysisProgressPage() {
     let reloadQueued = false
     let finishedRunId: string | null = null
     let polling = false
+    // Trang OCR, điều khoản và manifest không đổi khi job đã 'extracted': tải một lần.
+    let settled = false
+    let slowPoll = false
     setSteps({})
     setLiveLog([])
 
@@ -208,7 +218,10 @@ export function AnalysisProgressPage() {
     function schedulePoll() {
       if (stopped) return
       if (timer !== undefined) window.clearTimeout(timer)
-      timer = window.setTimeout(requestReload, POLL_INTERVAL_MS)
+      timer = window.setTimeout(
+        requestReload,
+        slowPoll ? WAITING_POLL_INTERVAL_MS : POLL_INTERVAL_MS,
+      )
     }
 
     // Server đẩy tin xuống thì chỉ tải lại số liệu; không hẹn giờ hỏi định kỳ.
@@ -256,7 +269,11 @@ export function AnalysisProgressPage() {
           startPolling()
           return
         }
-        if (runId === finishedRunId) return
+        if (runId === finishedRunId) {
+          // Stream đã đóng mà job chưa kết thúc: hỏi định kỳ, không thì trang đứng im.
+          startPolling()
+          return
+        }
         await watchRun(
           runId,
           {
@@ -322,38 +339,59 @@ export function AnalysisProgressPage() {
       try {
         const next = await getDossierStructure(dossierId, controller.signal)
         if (stopped) return
-        const pages = await Promise.all(
-          next.documents.map(async (document) => {
-            try {
-              const rows = await loadDocumentOcrPages(
-                document.id,
-                controller.signal,
-              )
-              return [document.id, rows] as const
-            } catch {
-              return [document.id, [] as OcrPageRow[]] as const
-            }
-          }),
-        )
+        const pages = settled
+          ? null
+          : await Promise.all(
+              next.documents.map(async (document) => {
+                try {
+                  const rows = await loadDocumentOcrPages(
+                    document.id,
+                    controller.signal,
+                  )
+                  return [document.id, rows] as const
+                } catch {
+                  return [document.id, [] as OcrPageRow[]] as const
+                }
+              }),
+            )
         if (stopped) return
         setDetail(next)
-        setPagesByDoc(Object.fromEntries(pages))
+        if (pages) setPagesByDoc(Object.fromEntries(pages))
         setError(null)
         notFoundTries = 0
         if (isOcrComplete(next.latestJobStatus)) {
-          void syncSteps()
-          const contract =
-            next.documents.find(
-              (document) => document.role.toLowerCase() === 'contract',
-            ) ?? next.documents[0]
-          if (contract) {
-            try {
-              const tree = await listClauses(contract.id, controller.signal)
-              if (!stopped) setClauseCount(countClauses(tree))
-            } catch {
-              if (!stopped) setClauseCount(null)
+          const finishedRun = isRunFinished(next.latestJobStatus)
+          if (finishedRun) setAwaitingManifest(false)
+          if (!settled || polling || finishedRun) void syncSteps()
+          if (!settled) {
+            settled = true
+            const contract =
+              next.documents.find(
+                (document) => document.role.toLowerCase() === 'contract',
+              ) ?? next.documents[0]
+            if (contract) {
+              try {
+                const tree = await listClauses(contract.id, controller.signal)
+                if (!stopped) setClauseCount(countClauses(tree))
+              } catch {
+                if (!stopped) setClauseCount(null)
+              }
+            }
+            if (!finishedRun) {
+              try {
+                const manifest = await getManifest(dossierId, controller.signal)
+                const waiting = manifest.status !== 'confirmed'
+                slowPoll = waiting
+                if (!stopped) setAwaitingManifest(waiting)
+              } catch {
+                if (!stopped) setAwaitingManifest(false)
+              }
             }
           }
+          if (stopped || finishedRun) return
+          // Mới dựng xong cấu trúc: AI2 còn chạy nên tiếp tục theo dõi tiến độ.
+          if (polling) schedulePoll()
+          else void watch()
           return
         }
         if (isStoppedJob(next.latestJobStatus)) {
@@ -401,10 +439,16 @@ export function AnalysisProgressPage() {
   const jobStatus = detail?.latestJobStatus ?? null
   const ready = isOcrComplete(jobStatus)
   const failed = isStoppedJob(jobStatus)
+  const runDone = isRunFinished(jobStatus)
   const failure = useMemo(
     () => jobErrorInfo(detail?.latestJobErrorCode),
     [detail?.latestJobErrorCode],
   )
+  // Job dừng sau khi OCR đã xong (AI2 lỗi) hoặc do người dùng hủy thì không phải lỗi OCR.
+  const cancelled = isCancelledJob(jobStatus, detail?.latestJobErrorCode)
+  const ai2Failed =
+    failed && !cancelled && isAi2Failure(detail?.latestJobErrorCode, steps)
+  const ocrFailed = failed && !cancelled && !ai2Failed
   const files = useMemo(() => {
     const current = documents.find((document) => {
       const pages = pagesByDoc[document.id] ?? []
@@ -418,9 +462,10 @@ export function AnalysisProgressPage() {
         pagesByDoc[document.id] ?? [],
         jobStatus,
         current?.id === document.id,
+        ocrFailed,
       ),
     )
-  }, [documents, jobStatus, pagesByDoc])
+  }, [documents, jobStatus, ocrFailed, pagesByDoc])
 
   const pageTotals = documents.reduce(
     (totals, document) => {
@@ -441,8 +486,9 @@ export function AnalysisProgressPage() {
   const percent = hasSteps
     ? Math.round((stepsDone / RUN_STEP_ORDER.length) * 100)
     : pageTotals.total > 0
-      ? Math.round((pageTotals.done / pageTotals.total) * 100)
-      : ready
+      ? // Đọc xong mọi trang mới là phần OCR: chưa tới 100 khi AI2 chưa xong.
+        Math.min(99, Math.round((pageTotals.done / pageTotals.total) * 100))
+      : runDone
         ? 100
         : 0
 
@@ -491,12 +537,12 @@ export function AnalysisProgressPage() {
     const live = liveLog.map((row) =>
       row.status === 'active' &&
       row.step &&
-      (ready || steps[row.step]?.status !== 'running')
+      (runDone || failed || steps[row.step]?.status !== 'running')
         ? { ...row, status: 'done' as const }
         : row,
     )
     return [...received, ...live, ...finish]
-  }, [documents.length, files, liveLog, ready, steps])
+  }, [documents.length, failed, files, liveLog, ready, runDone, steps])
 
   const mode = detail?.structureMode ?? stateStructureMode(location.state)
 
@@ -562,25 +608,45 @@ export function AnalysisProgressPage() {
     }
   }
 
-  const statusText = failed
-    ? 'OCR thất bại'
-    : ready
-      ? 'Đã xử lý xong'
-      : jobStatus === 'processing' || pageTotals.done > 0
-        ? 'Đang xử lý tự động'
-        : 'Đang chờ worker nhận tệp'
+  const failedLabel = cancelled
+    ? 'Đã hủy lần xử lý'
+    : ai2Failed
+      ? 'Phân tích AI2 thất bại'
+      : 'OCR thất bại'
+  const waitingManifest =
+    ready &&
+    !runDone &&
+    !failed &&
+    awaitingManifest &&
+    steps.S4?.status !== 'running'
 
-  const finished = ready || failed
+  const statusText = failed
+    ? failedLabel
+    : runDone
+      ? 'Đã xử lý xong'
+      : waitingManifest
+        ? 'Chờ xác nhận hồ sơ'
+        : ready
+          ? 'Đang phân tích nội dung'
+          : jobStatus === 'processing' || pageTotals.done > 0
+            ? 'Đang xử lý tự động'
+            : 'Đang chờ worker nhận tệp'
+
+  const finished = runDone || failed
   const runningStep = finished
     ? undefined
     : stepList.find((row) => row.status === 'running')
   const activeLabel = failed
-    ? 'OCR thất bại'
-    : ready
-      ? 'Đã dựng xong cấu trúc hồ sơ'
-      : runningStep
-        ? `Đang chạy: ${runningStep.step} · ${RUN_STEP_LABELS[runningStep.step] ?? ''}`
-        : 'Đang chờ máy chủ nhận tệp'
+    ? failedLabel
+    : runDone
+      ? 'Đã phân tích xong'
+      : waitingManifest
+        ? 'Chờ bạn xác nhận hồ sơ để bắt đầu phân tích'
+        : runningStep
+          ? `Đang chạy: ${runningStep.step} · ${RUN_STEP_LABELS[runningStep.step] ?? ''}`
+          : ready
+            ? 'Đang chờ AI2 bắt đầu phân tích'
+            : 'Đang chờ máy chủ nhận tệp'
 
   return (
     <div className="flex flex-col w-full pb-margin-lg">
@@ -597,7 +663,7 @@ export function AnalysisProgressPage() {
           </nav>
           <div className="flex items-center gap-space-sm bg-surface-container-low px-space-md py-space-xs rounded-lg shadow-sm">
             <span className="relative flex h-2 w-2">
-              {ready ? null : (
+              {finished ? null : (
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               )}
               <span
@@ -630,6 +696,21 @@ export function AnalysisProgressPage() {
         </p>
       ) : null}
 
+      {waitingManifest && dossierId ? (
+        <p
+          className="mb-gutter rounded-lg bg-surface-container-low px-space-md py-space-sm font-body-sm text-body-sm text-on-surface"
+          role="status"
+        >
+          OCR đã xong nhưng AI2 chỉ bắt đầu sau khi hồ sơ được xác nhận.{' '}
+          <Link
+            className="font-semibold text-primary hover:underline"
+            to={manifestConfirmPath(dossierId)}
+          >
+            Xác nhận hồ sơ
+          </Link>
+        </p>
+      ) : null}
+
       {failed ? (
         <p
           className="mb-gutter rounded-lg bg-error-container px-space-md py-space-sm font-body-sm text-body-sm text-on-error-container"
@@ -656,7 +737,7 @@ export function AnalysisProgressPage() {
                 {activeLabel}
               </span>
               <span className="font-headline-md text-headline-md text-primary font-bold">
-                {ready ? '100%' : `${percent}%`}
+                {runDone ? '100%' : `${percent}%`}
               </span>
             </div>
             <div className="h-2 w-full rounded-full bg-surface-container overflow-hidden">
@@ -664,7 +745,7 @@ export function AnalysisProgressPage() {
                 className={`h-full rounded-full transition-all duration-500 ${
                   failed ? 'bg-error' : 'bg-primary'
                 }`}
-                style={{ width: `${ready ? 100 : percent}%` }}
+                style={{ width: `${runDone ? 100 : percent}%` }}
               />
             </div>
             <span className="font-label-sm text-label-sm text-on-surface-variant mt-space-xs block">
@@ -817,7 +898,7 @@ export function AnalysisProgressPage() {
 
       <div className="mt-gutter pt-space-md flex flex-col md:flex-row items-center justify-between gap-space-md">
         <div className="flex items-center gap-space-md">
-          {ready || failed ? null : (
+          {finished ? null : (
             <button
               className="font-body-sm text-body-sm text-error hover:underline flex items-center gap-space-xs disabled:opacity-60"
               disabled={busy || !dossierId}

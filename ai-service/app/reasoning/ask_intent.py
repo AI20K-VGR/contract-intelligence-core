@@ -51,7 +51,9 @@ def _attribute(plain: str, low: str) -> str:
         return "mst"
     if "phat" in plain or "penalty" in plain:
         return "penalty"
-    if any(word in low for word in ("thanh toán", "thanh toan", "payment")) or "thanh toan" in plain:
+    if any(word in low for word in ("thanh toán", "thanh toan", "trả tiền", "tra tien", "payment")) or any(
+        word in plain for word in ("thanh toan", "tra tien")
+    ):
         return "payment"
     if any(word in low for word in ("giá trị", "gia tri", "giá hợp đồng", "contract value")) or "gia tri" in plain:
         return "contract_value"
@@ -143,6 +145,30 @@ def parse_ask(text: str) -> dict[str, Any]:
         spec["annex_numbers"] = annexes
         spec["relation_intent"] = plain
         return spec
+
+    if attribute == "payment" and not role:
+        # A bare "payment information" request gets the bounded card. A
+        # timing/milestone/acceptance question remains a term lookup so L1 and
+        # vector policy still participate in the normal retrieval path.
+        detail_cues = (
+            "khi nao",
+            "thoi han",
+            "due",
+            "when",
+            "after",
+            "sau khi",
+            "ngay",
+            "moc",
+            "dot",
+            "nghiem thu",
+            "acceptance",
+            "bao nhieu",
+            "how",
+            "what",
+        )
+        if not any(cue in plain for cue in detail_cues):
+            spec["type"] = "payment_card"
+            return spec
 
     if attribute == "payment" and role:
         spec["type"] = "lookup_term"

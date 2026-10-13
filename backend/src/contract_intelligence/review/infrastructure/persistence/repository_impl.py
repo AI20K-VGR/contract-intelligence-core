@@ -13,10 +13,11 @@ from contract_intelligence.contract.domain.entities.job import JobStatus
 from contract_intelligence.contract.infrastructure.persistence.dossier_status import (
     advance_dossier_status,
 )
-from contract_intelligence.contract.infrastructure.persistence.orm import DossierORM
+from contract_intelligence.contract.infrastructure.persistence.orm import DossierORM, JobORM
 from contract_intelligence.extraction.infrastructure.persistence.orm import (
     ClauseNodeORM,
     OcrLineORM,
+    PipelineRunORM,
 )
 from contract_intelligence.identity.infrastructure.persistence.orm import AppUserORM
 from contract_intelligence.review.domain.entities.review_action import (
@@ -146,7 +147,7 @@ class ReviewRepositoryImpl:
     ) -> dict[str, Any]:
         """Atomic submit với optimistic lock (P0-05).
 
-        Locks the item row, then share-locks its dossier so approval/lock (which
+        Locks the originating job, item and dossier so approval/lock (which
         take the dossier row for update) cannot interleave with the action.
 
         Raises:
@@ -154,6 +155,21 @@ class ReviewRepositoryImpl:
             InvariantViolation: dossier locked, approved or deleted.
             NotFoundError: item missing.
         """
+        # Match worker lock order. Legacy Kafka items have no PipelineRun.
+        job = await self._session.scalar(
+            select(JobORM)
+            .join(PipelineRunORM, PipelineRunORM.job_id == JobORM.id)
+            .join(ReviewItemORM, ReviewItemORM.run_id == PipelineRunORM.id)
+            .where(
+                ReviewItemORM.id == item_id,
+                ReviewItemORM.tenant_id == self._tenant_id,
+                PipelineRunORM.tenant_id == self._tenant_id,
+                JobORM.tenant_id == self._tenant_id,
+                PipelineRunORM.dossier_id == ReviewItemORM.dossier_id,
+                JobORM.dossier_id == ReviewItemORM.dossier_id,
+            )
+            .with_for_update(of=JobORM)
+        )
         stmt = (
             select(ReviewItemORM)
             .where(
@@ -166,6 +182,16 @@ class ReviewRepositoryImpl:
         orm = result.scalar_one_or_none()
         if orm is None:
             raise NotFoundError(entity_type="ReviewItem", entity_id=item_id)
+
+        if job is not None and job.current_run_id != orm.run_id:
+            state = self._item_to_dict(orm)
+            state["current_run_id"] = job.current_run_id
+            raise ReviewVersionConflict(
+                review_item_id=item_id,
+                expected_version=base_version,
+                current_version=orm.version,
+                current_state=state,
+            )
 
         dossier = (
             await self._session.execute(

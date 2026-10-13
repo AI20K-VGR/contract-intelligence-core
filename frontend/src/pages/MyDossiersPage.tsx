@@ -14,6 +14,7 @@ import {
   type OcrState,
 } from '../api/dossiers'
 import { ApiError } from '../api/client'
+import { isRunFinished } from '../api/structure'
 import { MaterialIcon } from '../components/icons'
 import { ShareGrantBadge } from '../components/ShareGrantBadge'
 import {
@@ -85,7 +86,7 @@ function uiStatus(summary: DossierSummary): DossierStatus {
     summary.pending_conflicts > 0
   if (job === 'failed') return 'failed'
   if (needsReview) return 'review'
-  if (job === 'extracted' || job === 'reviewed' || job === 'approved') {
+  if (isRunFinished(job)) {
     return 'ready'
   }
   return 'processing'

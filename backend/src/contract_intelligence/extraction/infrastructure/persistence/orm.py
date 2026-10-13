@@ -16,7 +16,17 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from contract_intelligence.shared.persistence.base import Base
@@ -45,6 +55,10 @@ class PipelineRunORM(Base):
     ai2_result_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     ai2_result_digest: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
     ai2_idempotency_key: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
+    reprocess_idempotency_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reprocess_actor_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reprocess_base_run_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reprocess_source_digest: Mapped[str | None] = mapped_column(Text, nullable=True)
     ai2_job_status: Mapped[str | None] = mapped_column(Text, nullable=True)
     ai2_review_state: Mapped[str | None] = mapped_column(Text, nullable=True)
     ai2_completeness_state: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -62,6 +76,16 @@ class PipelineRunORM(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "dossier_id",
+            "reprocess_actor_id",
+            "reprocess_idempotency_key",
+            name="uq_pipeline_run_reprocess_idempotency",
+        ),
+    )
 
 
 class PipelineStepORM(Base):

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from typing import Any
@@ -143,6 +144,147 @@ class PipelineRunRepositoryImpl:
             await self._session.flush()
 
         return _pipeline_run_to_domain(orm)
+
+    async def create_reprocess(
+        self,
+        *,
+        dossier_id: str,
+        actor_id: str,
+        idempotency_key: str,
+        base_run_id: str,
+        source_snapshot_digest: str,
+        trace_id: str | None,
+        pipeline_version: str = "v1.0.0",
+    ) -> tuple[PipelineRun, bool]:
+        """Atomically claim a reprocess key and create/replay its immutable run."""
+        from contract_intelligence.contract.infrastructure.persistence.orm import (
+            DocumentORM,
+            JobORM,
+        )
+        from contract_intelligence.extraction.application.services.extraction_service import (
+            ReprocessRequestConflict,
+        )
+        from contract_intelligence.shared.base import new_ulid
+        from contract_intelligence.shared.exceptions import NotFoundError
+
+        key_digest = hashlib.sha256(idempotency_key.encode("utf-8")).hexdigest()
+        job_stmt = (
+            select(JobORM)
+            .where(
+                JobORM.dossier_id == dossier_id,
+                JobORM.tenant_id == self._tenant_id,
+            )
+            # A dossier can have several jobs: the newest owns the current run.
+            .order_by(JobORM.created_at.desc(), JobORM.id.desc())
+            .limit(1)
+            .with_for_update()
+        )
+        job = (await self._session.execute(job_stmt)).scalar_one_or_none()
+        if job is None:
+            raise NotFoundError(entity_type="Job", entity_id=dossier_id)
+
+        key_stmt = select(PipelineRunORM).where(
+            PipelineRunORM.tenant_id == self._tenant_id,
+            PipelineRunORM.dossier_id == dossier_id,
+            PipelineRunORM.reprocess_actor_id == actor_id,
+            PipelineRunORM.reprocess_idempotency_key == key_digest,
+        )
+        existing = (await self._session.execute(key_stmt)).scalar_one_or_none()
+        if existing is not None:
+            if (
+                existing.reprocess_base_run_id != base_run_id
+                or existing.reprocess_source_digest != source_snapshot_digest
+            ):
+                raise ReprocessRequestConflict(key_digest)
+            return _pipeline_run_to_domain(existing), False
+
+        if job.current_run_id != base_run_id:
+            raise ReprocessRequestConflict(key_digest)
+        base_run = (
+            await self._session.execute(
+                select(PipelineRunORM).where(
+                    PipelineRunORM.id == base_run_id,
+                    PipelineRunORM.tenant_id == self._tenant_id,
+                    PipelineRunORM.dossier_id == dossier_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if base_run is None or base_run.status != "succeeded":
+            raise ReprocessRequestConflict(key_digest)
+
+        try:
+            config = json.loads(base_run.config_snapshot or "{}")
+            per_document = config.get("ai1_snapshot_digests")
+        except (TypeError, json.JSONDecodeError):
+            per_document = None
+        expected_digest = (
+            hashlib.sha256(
+                json.dumps(per_document, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest()
+            if isinstance(per_document, dict) and per_document
+            else None
+        )
+        if expected_digest != source_snapshot_digest:
+            raise ReprocessRequestConflict(key_digest)
+
+        # Reprocess is an AI2-only operation. Require the complete immutable
+        # AI1 hand-off before creating a run; otherwise the worker could fall
+        # back to OCR for a missing document and silently change the source.
+        document_ids = {
+            str(value)
+            for value in (
+                await self._session.scalars(
+                    select(DocumentORM.id).where(
+                        DocumentORM.tenant_id == self._tenant_id,
+                        DocumentORM.dossier_id == dossier_id,
+                    )
+                )
+            ).all()
+        }
+        snapshots = config.get("ai1_snapshots") if isinstance(config, dict) else None
+        extracted = (
+            {str(value) for value in config.get("ai1_extracted_documents") or []}
+            if isinstance(config, dict)
+            else set()
+        )
+        if (
+            not document_ids
+            or not isinstance(snapshots, dict)
+            or set(snapshots) != document_ids
+            or not document_ids <= extracted
+        ):
+            raise ReprocessRequestConflict(key_digest)
+
+        active_stmt = select(PipelineRunORM.id).where(
+            PipelineRunORM.tenant_id == self._tenant_id,
+            PipelineRunORM.dossier_id == dossier_id,
+            PipelineRunORM.status.in_(("queued", "running")),
+        )
+        if (await self._session.execute(active_stmt)).first() is not None:
+            raise ReprocessRequestConflict(idempotency_key)
+
+        run_id = new_ulid("run_")
+        await self.create(
+            run_id=run_id,
+            dossier_id=dossier_id,
+            pipeline_version=pipeline_version,
+            git_sha=None,
+            trace_id=trace_id,
+        )
+        run_row = (
+            await self._session.execute(
+                select(PipelineRunORM).where(
+                    PipelineRunORM.id == run_id,
+                    PipelineRunORM.tenant_id == self._tenant_id,
+                )
+            )
+        ).scalar_one()
+        run_row.reprocess_actor_id = actor_id
+        run_row.reprocess_idempotency_key = key_digest
+        run_row.reprocess_base_run_id = base_run_id
+        run_row.reprocess_source_digest = source_snapshot_digest
+        await self._session.flush()
+        return _pipeline_run_to_domain(run_row), True
 
     async def list_pipeline_runs(
         self, *, limit: int = 50, offset: int = 0, **filters: Any

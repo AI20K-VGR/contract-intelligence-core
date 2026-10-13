@@ -54,6 +54,10 @@ from contract_intelligence.shared.ai.schemas import (
     FactItem,
     FindingItem,
     FindingSideItem,
+    SemanticExtension,
+    SemanticFrame,
+    SemanticPair,
+    SemanticTimeline,
     UsageLedgerReport,
 )
 from contract_intelligence.shared.base import new_ulid
@@ -69,6 +73,28 @@ _FINDING_REVIEW_DISPOSITIONS = frozenset({"conflict", "needs_review", "uncertain
 
 class Ai2PersistenceConflict(ValueError):
     """The same idempotency key was reused with a different result digest."""
+
+
+def _semantic_finding_disposition(pair: SemanticPair) -> str:
+    """Project semantic diagnostics without collapsing distinct review queues."""
+
+    if pair.conflict_kind == "ARITHMETIC_INCONSISTENCY":
+        return "arithmetic_inconsistency"
+    if pair.conflict_kind == "AMENDMENT_REVIEW":
+        return "amendment_review"
+    if pair.conflict_kind == "SEMANTIC_CONFLICT" or pair.disposition == "CONFLICT_CANDIDATE":
+        return "conflict_candidate"
+    return {
+        "DUPLICATE": "comparable_match",
+        "COMPARABLE_DIFFERENCE": "comparable_difference",
+        "GENERAL_VS_SPECIFIC": "not_comparable",
+        "SCOPE_DIFFERS": "not_comparable",
+        "NOT_COMPARABLE": "not_comparable",
+        "NEEDS_REVIEW_UNPARSED": "insufficient_evidence",
+        "NEEDS_REVIEW_BACKOFF": "insufficient_evidence",
+        "GRADUATED": "comparable_difference",
+        "CUMULATIVE": "comparable_difference",
+    }.get(pair.disposition, "insufficient_evidence")
 
 
 @dataclass(frozen=True)
@@ -105,6 +131,11 @@ def _as_dict_list(value: Any) -> list[dict[str, Any]]:
 def evaluate_ai2_completeness(result: dict[str, Any]) -> dict[str, Any]:
     """Evaluate evidence readiness independently from the wire job status."""
     body = _result_body(result)
+    semantic = (
+        SemanticExtension.model_validate(body["semantic_extension"])
+        if body.get("semantic_extension") is not None
+        else None
+    )
     facts = _as_dict_list(body.get("facts"))
     findings = _as_dict_list(body.get("findings"))
     context_findings = _as_dict_list(body.get("context_findings"))
@@ -166,6 +197,12 @@ def evaluate_ai2_completeness(result: dict[str, Any]) -> dict[str, Any]:
         state = "COMPLETE"
 
     evidence_ready = state == "COMPLETE" and not evidence_issues
+    if index.get("coverage", {}).get("semantic_requested") is True and semantic is None:
+        state, reason_code, evidence_ready = "NEEDS_REVIEW", "SEMANTIC_NOT_MEASURED", False
+    if semantic is not None:
+        state = "NEEDS_REVIEW"
+        reason_code = "SEMANTIC_REVIEW_REQUIRED" if semantic.frames else "SEMANTIC_NOT_MEASURED"
+        evidence_ready = False
     input_counts = {
         str(key): int(value)
         for key, value in (index.get("coverage", {}).get("input", {}) or {}).items()
@@ -181,6 +218,13 @@ def evaluate_ai2_completeness(result: dict[str, Any]) -> dict[str, Any]:
         "evidence_issues": len(evidence_issues),
         "annex_links": len(_as_dict_list(body.get("annex_links"))),
     }
+    if semantic is not None:
+        output_counts.update(
+            semantic_frames=len(semantic.frames),
+            semantic_rows=len(semantic.rows),
+            semantic_pairs=len(semantic.pairs),
+            semantic_timeline=len(semantic.timeline),
+        )
     return {
         "state": state,
         "reason_code": reason_code,
@@ -191,6 +235,7 @@ def evaluate_ai2_completeness(result: dict[str, Any]) -> dict[str, Any]:
         "invalid_record_ids": invalid_record_ids,
         "evidence_issue_count": len(evidence_issues),
         "coverage": index.get("coverage") if isinstance(index.get("coverage"), dict) else {},
+        "semantic_state": semantic.coverage.state if semantic else "NOT_MEASURED",
     }
 
 
@@ -929,6 +974,15 @@ async def persist_ai2_processing_result(
     """
 
     body = _result_body(result)
+    semantic = (
+        SemanticExtension.model_validate(body["semantic_extension"])
+        if body.get("semantic_extension") is not None
+        else None
+    )
+    if semantic is not None and (
+        semantic.tenant_id != tenant_id or semantic.dossier_id != dossier_id
+    ):
+        raise ValueError("semantic result scope mismatch")
     digest = _result_digest(result)
     completeness = evaluate_ai2_completeness(result)
     effective_review_state = (
@@ -939,6 +993,24 @@ async def persist_ai2_processing_result(
     run = await session.get(PipelineRunORM, run_id) if run_id else None
     if run is not None and run.tenant_id != tenant_id:
         raise Ai2PersistenceConflict(f"Pipeline run {run_id!r} belongs to another tenant")
+    if run is not None and run.dossier_id != dossier_id:
+        raise Ai2PersistenceConflict("Pipeline run dossier mismatch")
+    if run is not None and semantic is None:
+        config = json.loads(run.config_snapshot or "{}")
+        if config.get("semantic_profile") is not None:
+            completeness.update(
+                state="NEEDS_REVIEW", reason_code="SEMANTIC_NOT_MEASURED", evidence_ready=False
+            )
+            effective_review_state = "NEEDS_REVIEW"
+    if run is not None and semantic is not None:
+        config = json.loads(run.config_snapshot or "{}")
+        profile = config.get("semantic_profile")
+        if profile is None or (
+            semantic.profile_digest,
+            semantic.alias_version,
+            semantic.alias_digest,
+        ) != (profile.get("digest"), profile.get("alias_version"), profile.get("alias_digest")):
+            raise Ai2PersistenceConflict("semantic frozen profile pin mismatch")
     if run is not None and run.ai2_result_digest:
         if run.ai2_result_digest != digest:
             raise Ai2PersistenceConflict(
@@ -1047,10 +1119,108 @@ async def persist_ai2_processing_result(
     finding_items.extend(
         _context_findings_as_items(body.get("context_findings") or [], citation_by_id)
     )
+    if semantic is not None:
+        frames = {frame.frame_id: frame for frame in semantic.frames}
+        for pair in semantic.pairs:
+            left, right = frames[pair.left_id], frames[pair.right_id]
+            finding_items.append(
+                FindingItem(
+                    finding_type="semantic",
+                    scope="contract_annex"
+                    if left.document_id != right.document_id
+                    else "within_document",
+                    key_or_topic=pair.pair_id,
+                    disposition=_semantic_finding_disposition(pair),
+                    severity="high",
+                    confidence=0.0,
+                    rationale=pair.reason,
+                    method=pair.method,
+                    side_a=FindingSideItem(
+                        document_id=left.document_id,
+                        clause_node_id=None,
+                        citation=_canonical_citation_item(left.evidence[0].citation.model_dump()),
+                        value_snapshot={
+                            "semantic": {
+                                "frame": left.model_dump(mode="json"),
+                                "pair": pair.model_dump(mode="json"),
+                                "profile_digest": semantic.profile_digest,
+                                "alias_version": semantic.alias_version,
+                                "alias_digest": semantic.alias_digest,
+                                "alignment_key": pair.alignment_key,
+                                "conflict_kind": pair.conflict_kind,
+                                "slots_in_difference": pair.slots_in_difference,
+                            }
+                        },
+                    ),
+                    side_b=FindingSideItem(
+                        document_id=right.document_id,
+                        clause_node_id=None,
+                        citation=_canonical_citation_item(right.evidence[0].citation.model_dump()),
+                        value_snapshot={
+                            "semantic": {
+                                "frame": right.model_dump(mode="json"),
+                                "pair": pair.model_dump(mode="json"),
+                                "profile_digest": semantic.profile_digest,
+                                "alias_version": semantic.alias_version,
+                                "alias_digest": semantic.alias_digest,
+                                "alignment_key": pair.alignment_key,
+                                "conflict_kind": pair.conflict_kind,
+                                "slots_in_difference": pair.slots_in_difference,
+                            }
+                        },
+                    ),
+                )
+            )
+        for edge in semantic.timeline:
+            if edge.proposed_value is None or edge.target_id is None:
+                continue
+            target = frames.get(edge.target_id)
+            if target is None:
+                # "missing_target" edges stay visible in the semantic timeline;
+                # without a target frame there is no second side for a finding.
+                continue
+            source = frames[edge.source_id]
+
+            def timeline_side(
+                frame: SemanticFrame, timeline: SemanticTimeline = edge
+            ) -> FindingSideItem:
+                return FindingSideItem(
+                    document_id=frame.document_id,
+                    citation=_canonical_citation_item(frame.evidence[0].citation.model_dump()),
+                    value_snapshot={
+                        "semantic": {
+                            "frame": frame.model_dump(mode="json"),
+                            "timeline": timeline.model_dump(mode="json"),
+                            "profile_digest": semantic.profile_digest,
+                            "alias_version": semantic.alias_version,
+                            "alias_digest": semantic.alias_digest,
+                        }
+                    },
+                )
+
+            finding_items.append(
+                FindingItem(
+                    finding_type="semantic",
+                    scope="contract_annex"
+                    if source.document_id != target.document_id
+                    else "within_document",
+                    key_or_topic=edge.edge_id,
+                    disposition="candidate_amendment",
+                    severity="high",
+                    confidence=0.0,
+                    rationale=";".join(edge.reasons)
+                    or "Explicit amendment proposal requires review",
+                    method="TENANT_ALIAS"
+                    if any(f.key.method == "TENANT_ALIAS" for f in (source, target))
+                    else "CLOSED_SYMBOL",
+                    side_a=timeline_side(target),
+                    side_b=timeline_side(source),
+                )
+            )
     for raw_finding in body.get("findings", []):
         if not isinstance(raw_finding, dict):
             continue
-        left = next(
+        left_citation = next(
             (
                 citation_by_id[item]
                 for item in raw_finding.get("evidence_left_citation_ids", [])
@@ -1058,19 +1228,19 @@ async def persist_ai2_processing_result(
             ),
             None,
         )
-        right = next(
+        right_citation = next(
             (
                 citation_by_id[item]
                 for item in raw_finding.get("evidence_right_citation_ids", [])
                 if item in citation_by_id
             ),
-            left,
+            left_citation,
         )
         if (
-            not left
-            or not right
-            or not left.get("source_file_id")
-            or not right.get("source_file_id")
+            not left_citation
+            or not right_citation
+            or not left_citation.get("source_file_id")
+            or not right_citation.get("source_file_id")
         ):
             finding_ref = str(
                 raw_finding.get("finding_id") or raw_finding.get("item_key") or "unknown"
@@ -1097,12 +1267,12 @@ async def persist_ai2_processing_result(
                 rationale=str(raw_finding.get("reason") or ""),
                 method="ai2.canonical",
                 side_a=FindingSideItem(
-                    document_id=str(left["source_file_id"]),
-                    citation=_canonical_citation_item(left),
+                    document_id=str(left_citation["source_file_id"]),
+                    citation=_canonical_citation_item(left_citation),
                 ),
                 side_b=FindingSideItem(
-                    document_id=str(right["source_file_id"]),
-                    citation=_canonical_citation_item(right),
+                    document_id=str(right_citation["source_file_id"]),
+                    citation=_canonical_citation_item(right_citation),
                 ),
             )
         )
@@ -1121,6 +1291,27 @@ async def persist_ai2_processing_result(
             queue_all_findings=True,
         )
     if run is not None:
+        if semantic is not None:
+            await _create_review_items(
+                session,
+                tenant_id=tenant_id,
+                dossier_id=dossier_id,
+                run_id=run_id or "",
+                targets=[
+                    *(
+                        ("semantic_frame", frame.frame_id, "SEMANTIC_ROW_REVIEW", "P1")
+                        for frame in semantic.frames
+                    ),
+                    *(
+                        ("semantic_timeline", edge.edge_id, "SEMANTIC_TIMELINE_PROPOSAL", "P1")
+                        for edge in semantic.timeline
+                    ),
+                    *(
+                        ("semantic_coverage", f"semantic:{run_id}", reason, "P1")
+                        for reason in semantic.coverage.reasons
+                    ),
+                ],
+            )
         invalid_targets = [*completeness["invalid_record_ids"], *unlocatable_findings]
         if invalid_targets:
             await _create_review_items(
@@ -1372,8 +1563,16 @@ async def _build_citation_orm(
         document_id=document_id,
         quote=guard.quote,
         quote_sha256=guard.quote_sha256,
-        doc_char_start=citation.doc_char_start,
-        doc_char_end=citation.doc_char_end,
+        doc_char_start=(
+            guard.resolved_doc_char_start
+            if guard.resolved_doc_char_start is not None
+            else citation.doc_char_start
+        ),
+        doc_char_end=(
+            guard.resolved_doc_char_end
+            if guard.resolved_doc_char_end is not None
+            else citation.doc_char_end
+        ),
         segments=_segments_json(citation),
     )
 

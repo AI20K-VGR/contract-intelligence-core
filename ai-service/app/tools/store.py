@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from app.contracts.models import (
+    BoqCheckProjection,
     Chunk,
     Citation,
     ContractEvent,
@@ -11,8 +12,11 @@ from app.contracts.models import (
     HandoffIssue,
     LifecycleState,
     PageSnapshot,
+    PaymentScheduleProjection,
     RelationGraph,
     ReviewItem,
+    SemanticExtension,
+    SemanticProfile,
     SourceFile,
     StructuralNode,
     TableSnapshot,
@@ -67,6 +71,12 @@ class DossierRecord:
     pair_relations: list[PairRelation] = field(default_factory=list)
     pair_relations_ran: bool = False
     pair_relations_stage_status: str | None = None
+    semantic_profile: SemanticProfile | None = None
+    semantic_extension: SemanticExtension | None = None
+    semantic_snapshots: dict[str, str] = field(default_factory=dict)
+    # Typed projections are derived per run and remain separate from immutable OCR.
+    payment_schedules: list[PaymentScheduleProjection] = field(default_factory=list)
+    boq_checks: list[BoqCheckProjection] = field(default_factory=list)
 
     def evidence_nodes(self) -> list[StructuralNode]:
         """Nodes allowed for UI/reasoning; raw ``nodes`` remains immutable."""

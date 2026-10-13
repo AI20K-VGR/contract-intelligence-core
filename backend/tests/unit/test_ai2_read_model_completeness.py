@@ -66,6 +66,47 @@ def _succeeded_result() -> dict[str, object]:
     }
 
 
+def test_semantic_review_and_missing_extension_never_become_evidence_ready():
+    from contract_intelligence.shared.ai.schemas import SemanticExtension
+
+    payload = _succeeded_result()
+    extension = SemanticExtension.model_validate(
+        {
+            "schema_version": "ai2.semantic.v1",
+            "tenant_id": "tenant-a",
+            "dossier_id": "dossier-a",
+            "profile_digest": "a" * 64,
+            "alias_version": 0,
+            "alias_digest": None,
+            "frames": [],
+            "rows": [],
+            "pairs": [],
+            "timeline": [],
+            "alias_drafts": [],
+            "coverage": {
+                "state": "NOT_MEASURED",
+                "attempted_nodes": 0,
+                "frames": 0,
+                "grounded_slots": 0,
+                "unresolved_slots": 0,
+                "invalid_evidence": 0,
+                "reasons": ["timeline_chain_not_supplied"],
+                "context_nodes": 0,
+                "context_calls": 0,
+            },
+        }
+    )
+    payload["result"]["semantic_extension"] = extension.model_dump(mode="json")
+    completeness = evaluate_ai2_completeness(payload)
+    assert completeness["evidence_ready"] is False
+    assert completeness["semantic_state"] == "NOT_MEASURED"
+    assert completeness["output_counts"]["semantic_frames"] == 0
+    del payload["result"]["semantic_extension"]
+    assert evaluate_ai2_completeness(payload)["semantic_state"] == "NOT_MEASURED"
+    payload["result"]["index_contribution"]["coverage"]["semantic_requested"] = True
+    assert evaluate_ai2_completeness(payload)["reason_code"] == "SEMANTIC_NOT_MEASURED"
+
+
 @pytest.mark.asyncio
 async def test_succeeded_zero_output_is_not_evidence_ready() -> None:
     engine, factory = await _factory()

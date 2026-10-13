@@ -55,7 +55,7 @@ import { RecordDetail } from '../components/RecordDetail'
 import { RunHistoryPanel } from '../components/RunHistoryPanel'
 import { SearchAudit } from '../components/SearchAudit'
 import { useAuth } from '../auth/useAuth'
-import { progressPath } from '../data/dossiers'
+import { conflictPagePath, progressPath } from '../data/dossiers'
 
 type ReviewTab = 'search' | 'activity' | 'clauses' | 'risk' | 'runs'
 type ExportState = 'idle' | 'saving' | 'done'
@@ -668,7 +668,9 @@ export function DossierReviewPage() {
                 type="button"
                 onClick={() => {
                   if (item.id === 'clauses') {
-                    navigate('/doi-soat-xung-dot', { state: { dossierId } })
+                    navigate(conflictPagePath(dossierId), {
+                      state: { dossierId },
+                    })
                     return
                   }
                   setTab(item.id)
@@ -1053,7 +1055,11 @@ export function DossierReviewPage() {
                               className={`rounded-sm px-1 font-semibold ${confidenceBadgeClasses[confidenceLevel(fact.confidence)]}`}
                             >
                               IDP {formatConfidence(fact.confidence)} ·{' '}
-                              {confidenceLabels[confidenceLevel(fact.confidence)]}
+                              {
+                                confidenceLabels[
+                                  confidenceLevel(fact.confidence)
+                                ]
+                              }
                             </span>
                             {fact.reviewState}
                           </span>

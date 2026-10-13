@@ -48,6 +48,48 @@ SELECT p.oid::regprocedure::text
 """
 
 
+# Objects in schema ai2 another role still owns: AI2 used the backend's ``ci``
+# connection before this role existed, so its tables (alembic_version included)
+# belong to ``ci``. Owning the schema does not let ai2 read them. Indexes and
+# sequences tied to a table follow ALTER TABLE; extension members stay put.
+_FOREIGN_OWNED_OBJECTS = f"""
+SELECT format('ALTER %s %I.%I OWNER TO {ROLE}',
+              CASE c.relkind WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED VIEW'
+                             WHEN 'S' THEN 'SEQUENCE' ELSE 'TABLE' END,
+              n.nspname, c.relname)
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+ WHERE n.nspname = '{SCHEMA}'
+   AND c.relkind IN ('r', 'p', 'v', 'm', 'S')
+   AND c.relowner <> '{ROLE}'::regrole
+   AND NOT EXISTS (
+       SELECT 1 FROM pg_depend d
+        WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid
+          AND (d.deptype = 'e' OR (c.relkind = 'S' AND d.deptype IN ('a', 'i')))
+   )
+UNION ALL
+SELECT format('ALTER TYPE %I.%I OWNER TO {ROLE}', n.nspname, t.typname)
+  FROM pg_type t
+  JOIN pg_namespace n ON n.oid = t.typnamespace
+ WHERE n.nspname = '{SCHEMA}'
+   AND t.typtype IN ('e', 'd')
+   AND t.typowner <> '{ROLE}'::regrole
+   AND NOT EXISTS (
+       SELECT 1 FROM pg_depend d
+        WHERE d.classid = 'pg_type'::regclass AND d.objid = t.oid AND d.deptype = 'e'
+   )
+UNION ALL
+SELECT format('ALTER ROUTINE %s OWNER TO {ROLE}', p.oid::regprocedure)
+  FROM pg_proc p
+ WHERE p.pronamespace = '{SCHEMA}'::regnamespace
+   AND p.proowner <> '{ROLE}'::regrole
+   AND NOT EXISTS (
+       SELECT 1 FROM pg_depend d
+        WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e'
+   )
+"""
+
+
 async def ensure_ai2_role(connection: AsyncConnection, password: str) -> None:
     """Create the role if missing, then reset its attributes, password and schema."""
     await connection.execute(text(_CREATE_ROLE))
@@ -64,6 +106,8 @@ async def ensure_ai2_role(connection: AsyncConnection, password: str) -> None:
     await connection.execute(text(alter_role))
     await connection.execute(text(f"ALTER ROLE {ROLE} SET search_path = {SCHEMA}, public"))
     await connection.execute(text(f"ALTER SCHEMA {SCHEMA} OWNER TO {ROLE}"))
+    for statement in (await connection.execute(text(_FOREIGN_OWNED_OBJECTS))).scalars().all():
+        await connection.execute(text(statement))
     functions = (await connection.execute(text(_SECURITY_DEFINER_FUNCTIONS))).scalars().all()
     for function in functions:
         await connection.execute(text(f"REVOKE EXECUTE ON FUNCTION {function} FROM PUBLIC"))

@@ -8,6 +8,41 @@ from uuid import uuid4
 import pytest
 
 
+@pytest.mark.parametrize("semantic", [False, True])
+def test_queued_signed_raw_payload_survives_pg_reload(pg_url, monkeypatch, semantic):
+    import copy
+
+    from fastapi import BackgroundTasks
+    from test_a1_query_digest import _body_only_request
+    from test_frame_job import semantic_profile
+
+    from app.api import main
+    from app.security.service_envelope import build_service_envelope, verify_service_envelope
+    from app.tools.jobs import PostgresJobStore
+
+    monkeypatch.setenv("AI2_SERVICE_HMAC_SECRET", "test-secret")
+    monkeypatch.setenv("AI2_PROCESSING_EGRESS_ALLOWED", "false")
+    monkeypatch.setenv("AI2_SEMANTIC_ENABLED", "false")
+    monkeypatch.setenv("AI2_DATABASE_URL", pg_url)
+    monkeypatch.setattr(main, "JOB_STORE", PostgresJobStore(pg_url))
+    payload = _body_only_request()
+    if semantic:
+        payload["semantic_profile"] = semantic_profile().model_dump(mode="json")
+        payload["service_envelope"] = build_service_envelope(payload, secret="test-secret", tenant_id="tenant_a",
+            dossier_id=payload["dossier_id"])
+    expected = copy.deepcopy(payload)
+    background = BackgroundTasks()
+    # Do not run the scheduled worker; reproduce an accepted queued job across store recreation.
+    queued = main.create_idp_job(payload, background)
+    reopened = PostgresJobStore(pg_url)
+    stored = reopened.get(queued["job_id"])
+    assert stored["request"] == expected
+    assert verify_service_envelope(stored["request"]).payload_sha256 == expected["service_envelope"]["payload_sha256"]
+    monkeypatch.setattr(main, "JOB_STORE", reopened)
+    main._execute_wire_job(queued["job_id"], stored["request"])
+    assert reopened.get(queued["job_id"])["status"] == "SUCCEEDED"
+
+
 def test_job_persists_its_own_record_when_another_job_changes_shared_store(pg_url, monkeypatch):
     import copy
 

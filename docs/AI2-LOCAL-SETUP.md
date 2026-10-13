@@ -39,7 +39,7 @@ git check-ignore ai-service/.env
 
 Để chạy luồng đầy đủ, cấu hình `MISTRAL_API_KEY` cho OCR và `AI2_LLM_API_KEY` cùng `AI2_EMBEDDING_API_KEY` cho LLM/embedding. Có thể dùng một khóa OpenAI cho cả hai biến AI2. Không cần `AI2_EMBEDDING_DISCOVERY_ENABLED=true`: đây chỉ là chẩn đoán danh sách model, không bật vector runtime.
 
-Graph, pair classifier, processing/query egress, query LLM, query vector và vector recall được bật mặc định trong full Compose profile. Model/key, mạng outbound, DB/pgvector và consent của hồ sơ vẫn phải sẵn sàng để từng capability chạy được. Muốn chủ động giới hạn egress hoặc vector trên toàn máy local, khai báo biến tương ứng trong file `.env` ở repo root, ví dụ `AI2_PROCESSING_EGRESS_ALLOWED=false` hoặc `AI2_QUERY_USE_VECTOR=false`; bỏ biến để trở về mặc định `true`. Backend và AI2 đều áp dụng global cap, còn consent từng hồ sơ là cổng riêng. Không tắt `AI2_SERVICE_HMAC_SECRET` hoặc `AI2_QUERY_REQUIRE_SIGNATURE`.
+Contract graph (operation and pair), semantic extraction/projections, processing/query egress, query LLM/vector và vector recall được bật mặc định trong full Compose profile. Model/key, mạng outbound, DB/pgvector và consent của hồ sơ vẫn phải sẵn sàng để từng capability chạy được. Muốn chủ động giới hạn egress hoặc vector trên toàn máy local, khai báo biến tương ứng trong file `.env` ở repo root, ví dụ `AI2_PROCESSING_EGRESS_ALLOWED=false` hoặc `AI2_QUERY_USE_VECTOR=false`; bỏ biến để trở về mặc định `true`. Backend và AI2 đều áp dụng global cap, còn consent từng hồ sơ là cổng riêng. Không tắt `AI2_SERVICE_HMAC_SECRET` hoặc `AI2_QUERY_REQUIRE_SIGNATURE`.
 
 ## 3. Khởi động dịch vụ
 

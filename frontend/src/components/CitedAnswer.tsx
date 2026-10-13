@@ -6,6 +6,8 @@ import { CiteBadge } from './StructureViewShell'
 
 /** Vị trí hết dòng chứa đoạn khớp. Số đứng sau cả câu trích, không đứng sau nhãn đầu dòng. */
 function locateEnd(answer: string, needle: string): number {
+  const normalizedNeedle = needle.replace(/\s+/g, ' ').trim().toLowerCase()
+  if (!normalizedNeedle) return answer.length
   const flat: string[] = []
   const ends: number[] = []
   let pendingSpace = false
@@ -22,8 +24,11 @@ function locateEnd(answer: string, needle: string): number {
     flat.push((answer[index] ?? '').toLowerCase())
     ends.push(index + 1)
   }
-  const at = flat.join('').indexOf(needle)
-  const matchEnd = at < 0 ? answer.length : (ends[at + needle.length - 1] ?? answer.length)
+  const at = flat.join('').indexOf(normalizedNeedle)
+  const matchEnd =
+    at < 0
+      ? answer.length
+      : (ends[at + normalizedNeedle.length - 1] ?? answer.length)
   const lineEnd = answer.indexOf('\n', matchEnd)
   return lineEnd < 0 ? answer.length : lineEnd
 }
@@ -47,17 +52,19 @@ export function CitedAnswer({
   citationOf,
   activeId,
   onCite,
+  documentId,
 }: {
   answer: string
   hits: DossierSearchHit[]
   nodes: ClauseNode[]
   citationOf: ReadonlyMap<string, number>
   activeId: string | null
-  onCite: (id: string) => void
+  onCite: (cite: SearchCite) => void
+  documentId?: string | null
 }) {
   const cites = useMemo(
-    () => searchCites(nodes, hits, citationOf, answer),
-    [nodes, hits, citationOf, answer],
+    () => searchCites(nodes, hits, citationOf, answer, documentId ?? null),
+    [nodes, hits, citationOf, answer, documentId],
   )
   const branches = useMemo(() => branchMap(nodes), [nodes])
   const marks = useMemo(() => placeCites(answer, cites), [answer, cites])
@@ -72,7 +79,7 @@ export function CitedAnswer({
           active={activeId === mark.cite.id}
           n={mark.cite.n}
           tone={toneAt(branches.get(mark.cite.id) ?? index)}
-          onClick={() => onCite(mark.cite.id)}
+          onClick={() => onCite(mark.cite)}
         />
       </span>,
     )

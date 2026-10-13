@@ -71,6 +71,16 @@ class FakePipelineRunRepo:
         self.cancelled_by = actor_id
         await self.update_status(run_id, "cancelled", error_code="RUN_CANCELLED")
 
+    async def create_reprocess(self, **kwargs: Any) -> tuple[PipelineRun, bool]:
+        run = await self.create(
+            run_id="run_reprocess",
+            dossier_id=kwargs["dossier_id"],
+            pipeline_version=kwargs.get("pipeline_version", "v1"),
+            git_sha=None,
+            trace_id=kwargs.get("trace_id"),
+        )
+        return run, True
+
     async def list_steps(self, run_id: str) -> list[dict[str, Any]]:
         return []
 
@@ -179,7 +189,13 @@ class TestReprocess:
     async def test_returns_accepted_dto(self) -> None:
         repo = FakePipelineRunRepo()
         svc = _svc(repo)
-        accepted = await svc.reprocess_dossier(dossier_id="dos_1")
+        accepted = await svc.reprocess_dossier(
+            dossier_id="dos_1",
+            actor_id="user_1",
+            idempotency_key="request_1",
+            base_run_id="run_base",
+            source_snapshot_digest="a" * 64,
+        )
         assert accepted.dossier_id == "dos_1"
         assert accepted.job_id is not None
         assert accepted.job_id.startswith("run_")

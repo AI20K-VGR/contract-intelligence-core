@@ -95,6 +95,10 @@ async def factory(migrated: None) -> AsyncGenerator[async_sessionmaker[AsyncSess
             )
         )
         await session.flush()
+        # Review actions are refused for items outside the job's current run.
+        job = await session.get(JobORM, JOB_ID)
+        assert job is not None
+        job.current_run_id = RUN_ID
         session.add(
             ReviewItemORM(
                 id=ITEM_ID,

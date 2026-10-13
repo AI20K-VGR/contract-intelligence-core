@@ -9,11 +9,21 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from contract_intelligence.conflict.application.dtos.finding_dtos import FindingDTO
+from contract_intelligence.conflict.application.dtos.finding_dtos import (
+    FindingDTO,
+    FindingSideSemanticDTO,
+)
 from contract_intelligence.conflict.application.services.conflict_service import (
     ConflictService,
 )
 from contract_intelligence.main import app
+from contract_intelligence.shared.ai.schemas import (
+    SemanticCitation,
+    SemanticEvidence,
+    SemanticFrame,
+    SemanticKey,
+    SemanticPair,
+)
 from contract_intelligence.shared.auth.schemas import AuthenticatedUser
 from contract_intelligence.shared.exceptions import NotFoundError
 
@@ -60,6 +70,114 @@ def _finding(**overrides: object) -> FindingDTO:
     }
     base.update(overrides)
     return FindingDTO.from_row(base)
+
+
+async def test_finding_side_semantic_accepts_v2_pair_diagnostics() -> None:
+    evidence = SemanticEvidence(
+        document_id="doc_1",
+        snapshot_id="snap_1",
+        source_ref="node_1",
+        raw="30% payment",
+        citation=SemanticCitation(
+            node_id="node_1",
+            page_revision_id="page_1",
+            text_span="30% payment",
+        ),
+    )
+    frame = SemanticFrame(
+        frame_id="frame_1",
+        family="PARAMETER",
+        profile="SALES",
+        document_id="doc_1",
+        snapshot_id="snap_1",
+        dossier_id="dos_1",
+        evidence=[evidence],
+        slots={},
+        key=SemanticKey(
+            key=["PAYMENT"],
+            certainty="DEFINITE",
+            reason="",
+            method="CLOSED_SYMBOL",
+            alias_digest=None,
+            alias_version=None,
+            alias_proposal_ids=[],
+        ),
+    )
+    pair = SemanticPair(
+        pair_id="pair_1",
+        left_id="frame_1",
+        right_id="frame_2",
+        disposition="COMPARABLE_DIFFERENCE",
+        reason="different amount",
+        left_evidence=[evidence],
+        right_evidence=[evidence],
+        method="CLOSED_SYMBOL",
+        candidate_sources=["SEMANTIC_ALIGNMENT"],
+        conflict_kind="ARITHMETIC_INCONSISTENCY",
+        slots_in_difference=["amount"],
+    )
+    parsed = FindingSideSemanticDTO.model_validate(
+        {
+            "frame": frame.model_dump(mode="json"),
+            "pair": pair.model_dump(mode="json"),
+            "profile_digest": "profile",
+            "alias_version": 1,
+            "alias_digest": None,
+            "alignment_key": ["PAYMENT", "scope:shipping"],
+            "conflict_kind": "ARITHMETIC_INCONSISTENCY",
+            "slots_in_difference": ["amount"],
+        }
+    )
+    assert parsed.alignment_key == ["PAYMENT", "scope:shipping"]
+    assert parsed.conflict_kind == "ARITHMETIC_INCONSISTENCY"
+    assert parsed.slots_in_difference == ["amount"]
+
+    semantic_snapshot = {
+        "frame": frame.model_dump(mode="json"),
+        "pair": pair.model_dump(mode="json"),
+        "profile_digest": "profile",
+        "alias_version": 1,
+        "alias_digest": None,
+        "alignment_key": ["PAYMENT", "scope:shipping"],
+        "conflict_kind": "ARITHMETIC_INCONSISTENCY",
+        "slots_in_difference": ["amount"],
+    }
+    finding = FindingDTO.from_row(
+        {
+            "id": "fnd_semantic",
+            "dossier_id": "dos_1",
+            "finding_type": "semantic",
+            "scope": "contract_annex",
+            "key_or_topic": "pair_1",
+            "disposition": "arithmetic_inconsistency",
+            "severity": "high",
+            "sides": [
+                {
+                    "side": "a",
+                    "document_id": "doc_1",
+                    "value_snapshot": {"semantic": semantic_snapshot},
+                }
+            ],
+            "semantic": {
+                "kind": "PAIR",
+                "disposition": "COMPARABLE_DIFFERENCE",
+                "reason": "different amount",
+                "review_state": "NEEDS_REVIEW",
+                "method": "CLOSED_SYMBOL",
+                "profile_digest": "profile",
+                "alias_version": 1,
+                "alias_digest": None,
+                "alignment_key": ["PAYMENT", "scope:shipping"],
+                "conflict_kind": "ARITHMETIC_INCONSISTENCY",
+                "slots_in_difference": ["amount"],
+            },
+        }
+    )
+    assert finding.semantic is not None
+    assert finding.semantic.conflict_kind == "ARITHMETIC_INCONSISTENCY"
+    assert finding.semantic.slots_in_difference == ["amount"]
+    assert finding.sides[0].semantic is not None
+    assert finding.sides[0].semantic.alignment_key == ["PAYMENT", "scope:shipping"]
 
 
 @pytest_asyncio.fixture

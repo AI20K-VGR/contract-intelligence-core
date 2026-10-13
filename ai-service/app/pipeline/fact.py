@@ -11,6 +11,7 @@ from app.tools.gateway import ToolGateway
 
 
 class FactExtractor:
+    MAX_NORMALIZATION_INPUT_CHARS = 4096
     def __init__(
         self,
         gateway: ToolGateway,
@@ -84,6 +85,10 @@ class FactExtractor:
         return self.gate.ground_fact(fact, source_text=text, profile=profile)
 
     def _normalize(self, raw: str, text: str, profile: TenantProfile) -> tuple[str | None, str]:
+        # Preserve the original fact, but do not spend CPU or provider budget
+        # normalizing unexpectedly large OCR values.
+        if len(raw) > self.MAX_NORMALIZATION_INPUT_CHARS:
+            return None, "L0"
         alias = _alias_match(raw, profile)
         if alias:
             return alias, "L0"

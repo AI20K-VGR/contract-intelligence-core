@@ -24,11 +24,17 @@ def test_runtime_normalizes_through_complete_json() -> None:
     data = runtime.complete_json(
         client,
         "Normalize a contract field. Return JSON {normalized, unit}.",
-        "raw=CÔNG TY CỔ PHẦN PHÚC THỊNH",
+        "raw=CÃ”NG TY Cá»” PHáº¦N PHÃšC THá»ŠNH",
     )
     assert data == {"normalized": "CONG TY CO PHAN PHUC THINH", "unit": None}
     assert runtime.issues == []
     assert runtime.llm_calls_used == 1
+    trace = client.traces[-1]
+    assert trace["trace_id"]
+    assert trace["http_calls"] == 1
+    assert "raw=" not in str(trace)
+
+
 
 
 @pytest.mark.parametrize(
@@ -112,3 +118,12 @@ def test_empty_response_fails_closed_with_safe_trace() -> None:
     assert trace["response_empty"] is True
     assert trace["served_model"] == "gemini-3.8-flash"
     assert trace["completion_tokens"] == 0 and trace["total_tokens"] == 11
+def test_runtime_snapshot_reports_remaining_budgets_without_payload_data() -> None:
+    runtime = ProcessingRuntime(max_llm_calls=3, max_embedding_tokens=20)
+    runtime.llm_calls_used = 2
+    runtime.embedding_tokens_used = 7
+
+    snapshot = runtime.snapshot()
+
+    assert snapshot["llm_calls_remaining"] == 1
+    assert snapshot["embedding_tokens_remaining"] == 13

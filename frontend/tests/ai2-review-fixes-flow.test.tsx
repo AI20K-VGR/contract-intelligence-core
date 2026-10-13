@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { normalizeAi2SearchResult } from '../src/api/ai2'
+import { normalizeFinding } from '../src/api/analysis'
 import {
   ContextFindingsPanel,
   type ContextFindingsPanelModel,
@@ -17,6 +18,28 @@ import {
 const DOSSIER_ID = 'dossier-vsf-ai2'
 
 describe('AI2 review-fixes composition', () => {
+  it('legacy findings keep raw unknown values and do not infer semantics from confidence', () => {
+    const finding = normalizeFinding({
+      id: 'legacy',
+      run_id: 'old-run',
+      disposition: 'not_comparable',
+      confidence: 0.99,
+      sides: [
+        {
+          side: 'A',
+          document_id: 'body',
+          value_snapshot: { value: null, raw_text: 'Chưa đọc được số tiền' },
+        },
+      ],
+    })
+    expect(finding.semantic).toBeNull()
+    expect(finding.runId).toBe('old-run')
+    expect(finding.sides[0].valueSnapshot).toEqual({
+      value: null,
+      raw_text: 'Chưa đọc được số tiền',
+    })
+    expect(finding.sides[0].semantic).toBeNull()
+  })
   it('keeps BLOCKED state, context and evidence visible when the answer is present', () => {
     const result = normalizeAi2SearchResult(
       {

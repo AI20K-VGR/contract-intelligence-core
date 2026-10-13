@@ -76,9 +76,19 @@ class ReprocessAcceptedDTO(BaseModel):
     job_id: str | None = None
 
 
+class ReprocessRequestDTO(BaseModel):
+    """Immutable input binding for a semantic reprocess request."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    base_run_id: str = Field(min_length=1, max_length=128)
+    source_snapshot_digest: str = Field(pattern=r"^[a-fA-F0-9]{64}$")
+
+
 __all__ = [
     "CreateRunConfigOverride",
     "CreateRunRequestDTO",
     "PipelineRunSummaryDTO",
     "ReprocessAcceptedDTO",
+    "ReprocessRequestDTO",
 ]

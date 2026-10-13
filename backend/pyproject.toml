@@ -161,6 +161,7 @@ markers = [
     "unit: unit tests (no DB)",
     "integration: integration tests (needs DB)",
     "architecture: architecture conformance tests",
+    "ai2_local_e2e: needs the local AI2 HTTP service + dedicated PostgreSQL (not run in CI)",
 ]
 
 # -----------------------------------------------------------------------------

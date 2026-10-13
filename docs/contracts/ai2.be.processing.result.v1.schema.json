@@ -5,89 +5,1573 @@
   "description": "Stable asynchronous AI2 result envelope. Index output remains a proposal until Backend review/publish policy accepts it.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "request_id", "idempotency_key", "attempt", "job_id", "status", "review_state", "input_snapshots", "result", "errors"],
+  "required": [
+    "schema_version",
+    "request_id",
+    "idempotency_key",
+    "attempt",
+    "job_id",
+    "status",
+    "review_state",
+    "input_snapshots",
+    "result",
+    "errors"
+  ],
   "$defs": {
-    "id": {"type": "string", "minLength": 1, "maxLength": 240},
-    "sha256": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"},
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
     "identity": {
-      "type": "object", "additionalProperties": false,
-      "required": ["snapshot_id", "snapshot_version", "source_digest", "snapshot_digest"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "snapshot_id",
+        "snapshot_version",
+        "source_digest",
+        "snapshot_digest"
+      ],
       "properties": {
-        "snapshot_id": {"$ref": "#/$defs/id"},
-        "snapshot_version": {"const": "ai1.snapshot.v1"},
-        "source_digest": {"$ref": "#/$defs/sha256"},
-        "snapshot_digest": {"$ref": "#/$defs/sha256"}
+        "snapshot_id": {
+          "$ref": "#/$defs/id"
+        },
+        "snapshot_version": {
+          "const": "ai1.snapshot.v1"
+        },
+        "source_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "snapshot_digest": {
+          "$ref": "#/$defs/sha256"
+        }
       }
     },
     "citation": {
-      "type": "object", "additionalProperties": false,
-      "required": ["citation_id", "node_id", "page_revision_id", "bbox", "bbox_fragments", "text_span", "source_file_id", "page", "page_range", "line_ids", "char_start", "char_end", "breadcrumb", "structure_path", "geometry_available", "source_hash", "quote_sha256", "coordinate_system", "geometry_source", "precision", "validation_status"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "citation_id",
+        "node_id",
+        "page_revision_id",
+        "bbox",
+        "bbox_fragments",
+        "text_span",
+        "source_file_id",
+        "page",
+        "page_range",
+        "line_ids",
+        "char_start",
+        "char_end",
+        "breadcrumb",
+        "structure_path",
+        "geometry_available",
+        "source_hash",
+        "quote_sha256",
+        "coordinate_system",
+        "geometry_source",
+        "precision",
+        "validation_status"
+      ],
       "properties": {
-        "citation_id": {"$ref": "#/$defs/id"}, "node_id": {"type": "string"}, "page_revision_id": {"type": "string"},
-        "bbox": {"type": "array", "items": {"type": "number"}}, "bbox_fragments": {"type": "array", "items": {"type": "array", "items": {"type": "number"}}},
-        "text_span": {"type": "string"}, "source_file_id": {"type": ["string", "null"]}, "page": {"type": ["integer", "null"]}, "page_range": {"type": "array", "items": {"type": "integer"}}, "line_ids": {"type": "array", "items": {"type": "string"}},
-        "char_start": {"type": ["integer", "null"]}, "char_end": {"type": ["integer", "null"]}, "breadcrumb": {"type": "array", "items": {"type": "string"}}, "structure_path": {"type": ["string", "null"]}, "geometry_available": {"type": "boolean"},
-        "source_hash": {"type": ["string", "null"]}, "quote_sha256": {"type": ["string", "null"]}, "coordinate_system": {"type": ["string", "null"]}, "geometry_source": {"type": ["string", "null"]}, "precision": {"type": ["string", "null"]}, "validation_status": {"type": "string"},
-        "table_id": {"type": ["string", "null"]}, "cell_id": {"type": ["string", "null"]}
+        "citation_id": {
+          "$ref": "#/$defs/id"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "page_revision_id": {
+          "type": "string"
+        },
+        "bbox": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "bbox_fragments": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "text_span": {
+          "type": "string"
+        },
+        "source_file_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "page": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "page_range": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "line_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "char_start": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "char_end": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "breadcrumb": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "structure_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "geometry_available": {
+          "type": "boolean"
+        },
+        "source_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "quote_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "coordinate_system": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "geometry_source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "precision": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "validation_status": {
+          "type": "string"
+        },
+        "table_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cell_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       }
     },
     "fact": {
-      "type": "object", "additionalProperties": false,
-      "required": ["fact_id", "raw_value", "normalized_value", "subject", "role", "unit", "currency", "vat_basis", "condition", "scope", "validity", "item_key", "tax_basis", "period_start", "source_role", "provenance", "review_state", "citation_ids"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fact_id",
+        "raw_value",
+        "normalized_value",
+        "subject",
+        "role",
+        "unit",
+        "currency",
+        "vat_basis",
+        "condition",
+        "scope",
+        "validity",
+        "item_key",
+        "tax_basis",
+        "period_start",
+        "source_role",
+        "provenance",
+        "review_state",
+        "citation_ids"
+      ],
       "properties": {
-        "fact_id": {"type": "string"}, "raw_value": {"type": "string"}, "normalized_value": {"type": ["string", "null"]}, "subject": {"type": ["string", "null"]}, "role": {"type": ["string", "null"]}, "unit": {"type": ["string", "null"]}, "currency": {"type": ["string", "null"]}, "vat_basis": {"type": ["string", "null"]}, "condition": {"type": ["string", "null"]}, "scope": {"type": ["string", "null"]}, "validity": {"type": ["string", "null"]}, "item_key": {"type": ["string", "null"]}, "tax_basis": {"type": ["string", "null"]}, "period_start": {"type": ["string", "null"]}, "source_role": {"type": ["string", "null"]}, "provenance": {"type": "string"}, "review_state": {"type": "string"}, "citation_ids": {"type": "array", "items": {"type": "string"}}
-      }
-    },
-    "finding": {
-      "type": "object", "additionalProperties": false,
-      "required": ["finding_id", "left_id", "right_id", "finding_type", "model_disposition", "review_state", "evidence_left_citation_ids", "evidence_right_citation_ids", "reason", "disposition", "scope", "item_key"],
-      "properties": {
-        "finding_id": {"type": "string"}, "left_id": {"type": "string"}, "right_id": {"type": "string"}, "finding_type": {"type": "string"}, "model_disposition": {"type": "string"}, "review_state": {"type": "string"}, "evidence_left_citation_ids": {"type": "array", "items": {"type": "string"}}, "evidence_right_citation_ids": {"type": "array", "items": {"type": "string"}}, "reason": {"type": "string"}, "disposition": {"type": ["string", "null"]}, "scope": {"type": ["string", "null"]}, "item_key": {"type": ["string", "null"]}
-      }
-    },
-    "context_finding": {
-      "type": "object", "additionalProperties": false,
-      "required": ["finding_id", "finding_type", "relation_type", "subject_key", "source_node_ids", "review_state", "reason", "citation_ids", "metadata"],
-      "properties": {
-        "finding_id": {"type": "string"}, "finding_type": {"type": "string"}, "relation_type": {"type": ["string", "null"]}, "subject_key": {"type": ["string", "null"]},
-        "source_node_ids": {"type": "array", "items": {"type": "string"}}, "review_state": {"type": "string"}, "reason": {"type": "string"},
-        "citation_ids": {"type": "array", "items": {"type": "string"}}, "metadata": {"type": "object"}
-      }
-    },
-    "error": {
-      "type": "object", "additionalProperties": false,
-      "required": ["code", "message", "retryable"],
-      "properties": {"code": {"type": "string"}, "message": {"type": "string"}, "retryable": {"type": "boolean"}}
-    },
-    "result": {
-      "type": "object", "additionalProperties": false,
-      "required": ["facts", "findings", "citations", "index_contribution"],
-      "properties": {
-        "facts": {"type": "array", "items": {"$ref": "#/$defs/fact"}},
-        "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
-        "context_findings": {"type": "array", "items": {"$ref": "#/$defs/context_finding"}},
-        "events": {"type": "array", "items": {"type": "object"}},
-        "citations": {"type": "array", "items": {"$ref": "#/$defs/citation"}},
-        "index_contribution": {
-          "type": "object", "additionalProperties": false,
-          "required": ["state", "chunks", "evidence_issues", "coverage", "extraction_version", "proposed_index_version"],
-          "properties": {"state": {"const": "propose"}, "chunks": {"type": "array", "items": {"type": "object"}}, "evidence_issues": {"type": "array", "items": {"type": "object"}}, "coverage": {"type": "object"}, "extraction_version": {"type": "integer"}, "proposed_index_version": {"type": "string"}, "contract_context": {"anyOf": [{"type": "object"}, {"type": "null"}]}
+        "fact_id": {
+          "type": "string"
+        },
+        "raw_value": {
+          "type": "string"
+        },
+        "normalized_value": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subject": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "role": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "currency": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "vat_basis": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "condition": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scope": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "validity": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "item_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tax_basis": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "period_start": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_role": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provenance": {
+          "type": "string"
+        },
+        "review_state": {
+          "type": "string"
+        },
+        "citation_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
           }
         }
       }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "finding_id",
+        "left_id",
+        "right_id",
+        "finding_type",
+        "model_disposition",
+        "review_state",
+        "evidence_left_citation_ids",
+        "evidence_right_citation_ids",
+        "reason",
+        "disposition",
+        "scope",
+        "item_key"
+      ],
+      "properties": {
+        "finding_id": {
+          "type": "string"
+        },
+        "left_id": {
+          "type": "string"
+        },
+        "right_id": {
+          "type": "string"
+        },
+        "finding_type": {
+          "type": "string"
+        },
+        "model_disposition": {
+          "type": "string"
+        },
+        "review_state": {
+          "type": "string"
+        },
+        "evidence_left_citation_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidence_right_citation_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reason": {
+          "type": "string"
+        },
+        "disposition": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scope": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "item_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "context_finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "finding_id",
+        "finding_type",
+        "relation_type",
+        "subject_key",
+        "source_node_ids",
+        "review_state",
+        "reason",
+        "citation_ids",
+        "metadata"
+      ],
+      "properties": {
+        "finding_id": {
+          "type": "string"
+        },
+        "finding_type": {
+          "type": "string"
+        },
+        "relation_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subject_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_node_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "review_state": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "citation_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "metadata": {
+          "type": "object"
+        }
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message",
+        "retryable"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "facts",
+        "findings",
+        "citations",
+        "index_contribution"
+      ],
+      "properties": {
+        "facts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fact"
+          }
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/finding"
+          }
+        },
+        "context_findings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/context_finding"
+          }
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "citations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/citation"
+          }
+        },
+        "index_contribution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "chunks",
+            "evidence_issues",
+            "coverage",
+            "extraction_version",
+            "proposed_index_version"
+          ],
+          "properties": {
+            "state": {
+              "const": "propose"
+            },
+            "chunks": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "evidence_issues": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "coverage": {
+              "type": "object"
+            },
+            "extraction_version": {
+              "type": "integer"
+            },
+            "proposed_index_version": {
+              "type": "string"
+            },
+            "contract_context": {
+              "anyOf": [
+                {
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "semantic_extension": {
+          "$ref": "#/$defs/semantic_extension"
+        }
+      }
+    },
+    "SemanticAlias": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "symbol": {
+          "title": "Symbol",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "action",
+            "qualifier"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "proposal_id": {
+          "title": "Proposal Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "symbol",
+        "kind",
+        "proposal_id"
+      ],
+      "title": "SemanticAlias",
+      "type": "object"
+    },
+    "SemanticCitation": {
+      "additionalProperties": false,
+      "properties": {
+        "node_id": {
+          "title": "Node Id",
+          "type": "string"
+        },
+        "page_revision_id": {
+          "title": "Page Revision Id",
+          "type": "string"
+        },
+        "bbox": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Bbox",
+          "type": "array"
+        },
+        "bbox_fragments": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Bbox Fragments",
+          "type": "array"
+        },
+        "text_span": {
+          "title": "Text Span",
+          "type": "string"
+        },
+        "source_file_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source File Id"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "page_range": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Page Range",
+          "type": "array"
+        },
+        "line_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Line Ids",
+          "type": "array"
+        },
+        "char_start": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Char Start"
+        },
+        "char_end": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Char End"
+        },
+        "breadcrumb": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Breadcrumb",
+          "type": "array"
+        },
+        "structure_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structure Path"
+        },
+        "geometry_available": {
+          "default": false,
+          "title": "Geometry Available",
+          "type": "boolean"
+        },
+        "citation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Citation Id"
+        },
+        "source_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Hash"
+        },
+        "quote_sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Quote Sha256"
+        },
+        "coordinate_system": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coordinate System"
+        },
+        "geometry_source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Geometry Source"
+        },
+        "precision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Precision"
+        },
+        "validation_status": {
+          "default": "UNVERIFIED",
+          "title": "Validation Status",
+          "type": "string"
+        },
+        "table_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Table Id"
+        },
+        "cell_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cell Id"
+        }
+      },
+      "required": [
+        "node_id",
+        "page_revision_id",
+        "text_span"
+      ],
+      "title": "SemanticCitation",
+      "type": "object"
+    },
+    "SemanticCoverage": {
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "enum": [
+            "NEEDS_REVIEW",
+            "NOT_MEASURED"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "attempted_nodes": {
+          "minimum": 0,
+          "title": "Attempted Nodes",
+          "type": "integer"
+        },
+        "frames": {
+          "minimum": 0,
+          "title": "Frames",
+          "type": "integer"
+        },
+        "grounded_slots": {
+          "minimum": 0,
+          "title": "Grounded Slots",
+          "type": "integer"
+        },
+        "unresolved_slots": {
+          "minimum": 0,
+          "title": "Unresolved Slots",
+          "type": "integer"
+        },
+        "invalid_evidence": {
+          "minimum": 0,
+          "title": "Invalid Evidence",
+          "type": "integer"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "context_nodes": {
+          "minimum": 0,
+          "title": "Context Nodes",
+          "type": "integer"
+        },
+        "context_calls": {
+          "minimum": 0,
+          "title": "Context Calls",
+          "type": "integer"
+        },
+        "by_family": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "title": "By Family",
+          "type": "object"
+        },
+        "by_slot": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "title": "By Slot",
+          "type": "object"
+        },
+        "by_output": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "title": "By Output",
+          "type": "object"
+        }
+      },
+      "required": [
+        "state",
+        "attempted_nodes",
+        "frames",
+        "grounded_slots",
+        "unresolved_slots",
+        "invalid_evidence",
+        "reasons",
+        "context_nodes",
+        "context_calls"
+      ],
+      "title": "SemanticCoverage",
+      "type": "object"
+    },
+    "SemanticEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "document_id": {
+          "minLength": 1,
+          "title": "Document Id",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "minLength": 1,
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "source_ref": {
+          "minLength": 1,
+          "title": "Source Ref",
+          "type": "string"
+        },
+        "raw": {
+          "minLength": 1,
+          "title": "Raw",
+          "type": "string"
+        },
+        "citation": {
+          "$ref": "#/$defs/SemanticCitation"
+        }
+      },
+      "required": [
+        "document_id",
+        "snapshot_id",
+        "source_ref",
+        "raw",
+        "citation"
+      ],
+      "title": "SemanticEvidence",
+      "type": "object"
+    },
+    "SemanticFrame": {
+      "additionalProperties": false,
+      "properties": {
+        "frame_id": {
+          "title": "Frame Id",
+          "type": "string"
+        },
+        "family": {
+          "enum": [
+            "OBLIGATION",
+            "RIGHT",
+            "PROHIBITION",
+            "REMEDY",
+            "PARAMETER",
+            "DEFINITION"
+          ],
+          "title": "Family",
+          "type": "string"
+        },
+        "profile": {
+          "title": "Profile",
+          "type": "string"
+        },
+        "document_id": {
+          "title": "Document Id",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "dossier_id": {
+          "title": "Dossier Id",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/SemanticEvidence"
+          },
+          "minItems": 1,
+          "title": "Evidence",
+          "type": "array"
+        },
+        "slots": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SemanticSlot"
+          },
+          "title": "Slots",
+          "type": "object"
+        },
+        "key": {
+          "$ref": "#/$defs/SemanticKey"
+        }
+      },
+      "required": [
+        "frame_id",
+        "family",
+        "profile",
+        "document_id",
+        "snapshot_id",
+        "dossier_id",
+        "evidence",
+        "slots",
+        "key"
+      ],
+      "title": "SemanticFrame",
+      "type": "object"
+    },
+    "SemanticKey": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Key"
+        },
+        "certainty": {
+          "enum": [
+            "DEFINITE",
+            "UNKNOWN"
+          ],
+          "title": "Certainty",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "method": {
+          "enum": [
+            "CLOSED_SYMBOL",
+            "TENANT_ALIAS"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "alias_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Alias Digest"
+        },
+        "alias_version": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Alias Version"
+        },
+        "alias_proposal_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Alias Proposal Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "certainty",
+        "reason",
+        "method",
+        "alias_digest",
+        "alias_version",
+        "alias_proposal_ids"
+      ],
+      "title": "SemanticKey",
+      "type": "object"
+    },
+    "SemanticPair": {
+      "additionalProperties": false,
+      "properties": {
+        "pair_id": {
+          "title": "Pair Id",
+          "type": "string"
+        },
+        "left_id": {
+          "title": "Left Id",
+          "type": "string"
+        },
+        "right_id": {
+          "title": "Right Id",
+          "type": "string"
+        },
+        "disposition": {
+          "enum": [
+            "DUPLICATE",
+            "COMPARABLE_DIFFERENCE",
+            "NOT_COMPARABLE",
+            "GENERAL_VS_SPECIFIC",
+            "SCOPE_DIFFERS",
+            "NEEDS_REVIEW_UNPARSED",
+            "NEEDS_REVIEW_BACKOFF",
+            "GRADUATED",
+            "CUMULATIVE",
+            "CONFLICT_CANDIDATE"
+          ],
+          "title": "Disposition",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "left_evidence": {
+          "items": {
+            "$ref": "#/$defs/SemanticEvidence"
+          },
+          "minItems": 1,
+          "title": "Left Evidence",
+          "type": "array"
+        },
+        "right_evidence": {
+          "items": {
+            "$ref": "#/$defs/SemanticEvidence"
+          },
+          "minItems": 1,
+          "title": "Right Evidence",
+          "type": "array"
+        },
+        "review_state": {
+          "const": "NEEDS_REVIEW",
+          "default": "NEEDS_REVIEW",
+          "title": "Review State",
+          "type": "string"
+        },
+        "method": {
+          "enum": [
+            "CLOSED_SYMBOL",
+            "TENANT_ALIAS"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "candidate_sources": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Candidate Sources",
+          "type": "array"
+        }
+      },
+      "required": [
+        "pair_id",
+        "left_id",
+        "right_id",
+        "disposition",
+        "reason",
+        "left_evidence",
+        "right_evidence",
+        "method",
+        "candidate_sources"
+      ],
+      "title": "SemanticPair",
+      "type": "object"
+    },
+    "SemanticSlot": {
+      "additionalProperties": false,
+      "properties": {
+        "value_type": {
+          "enum": [
+            "DECIMAL",
+            "TEXT",
+            "NONE"
+          ],
+          "title": "Value Type",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "state": {
+          "enum": [
+            "GROUNDED",
+            "UNKNOWN",
+            "ABSENT",
+            "UNSUPPORTED"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/SemanticEvidence"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value_type",
+        "value",
+        "state",
+        "evidence",
+        "reason"
+      ],
+      "title": "SemanticSlot",
+      "type": "object"
+    },
+    "SemanticTimeline": {
+      "additionalProperties": false,
+      "properties": {
+        "edge_id": {
+          "title": "Edge Id",
+          "type": "string"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "target_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Target Id"
+        },
+        "relation": {
+          "enum": [
+            "REFERENCES",
+            "AMENDS"
+          ],
+          "title": "Relation",
+          "type": "string"
+        },
+        "date_role": {
+          "enum": [
+            "EFFECTIVE",
+            "SIGNING",
+            "UNKNOWN"
+          ],
+          "title": "Date Role",
+          "type": "string"
+        },
+        "date_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Date Value"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/SemanticEvidence"
+          },
+          "minItems": 1,
+          "title": "Evidence",
+          "type": "array"
+        },
+        "acceptance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SemanticSlot"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "value_slot": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value Slot"
+        },
+        "proposed_value": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SemanticSlot"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "review_state": {
+          "const": "NEEDS_REVIEW",
+          "default": "NEEDS_REVIEW",
+          "title": "Review State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "edge_id",
+        "source_id",
+        "target_id",
+        "relation",
+        "date_role",
+        "date_value",
+        "evidence",
+        "acceptance",
+        "value_slot",
+        "proposed_value",
+        "reasons"
+      ],
+      "title": "SemanticTimeline",
+      "type": "object"
+    },
+    "semantic_extension": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "ai2.semantic.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "tenant_id": {
+          "title": "Tenant Id",
+          "type": "string"
+        },
+        "dossier_id": {
+          "title": "Dossier Id",
+          "type": "string"
+        },
+        "profile_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Profile Digest",
+          "type": "string"
+        },
+        "alias_version": {
+          "minimum": 0,
+          "title": "Alias Version",
+          "type": "integer"
+        },
+        "alias_digest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Alias Digest"
+        },
+        "frames": {
+          "items": {
+            "$ref": "#/$defs/SemanticFrame"
+          },
+          "title": "Frames",
+          "type": "array"
+        },
+        "rows": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Rows",
+          "type": "array"
+        },
+        "pairs": {
+          "items": {
+            "$ref": "#/$defs/SemanticPair"
+          },
+          "title": "Pairs",
+          "type": "array"
+        },
+        "timeline": {
+          "items": {
+            "$ref": "#/$defs/SemanticTimeline"
+          },
+          "title": "Timeline",
+          "type": "array"
+        },
+        "alias_drafts": {
+          "items": {
+            "$ref": "#/$defs/SemanticAliasDraft"
+          },
+          "title": "Alias Drafts",
+          "type": "array"
+        },
+        "coverage": {
+          "$ref": "#/$defs/SemanticCoverage"
+        }
+      },
+      "required": [
+        "schema_version",
+        "tenant_id",
+        "dossier_id",
+        "profile_digest",
+        "alias_version",
+        "alias_digest",
+        "frames",
+        "rows",
+        "pairs",
+        "timeline",
+        "alias_drafts",
+        "coverage"
+      ],
+      "title": "SemanticExtension",
+      "type": "object"
+    },
+    "SemanticAliasDraft": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "symbol": {
+          "title": "Symbol",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "action",
+            "qualifier"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "source_ref": {
+          "title": "Source Ref",
+          "type": "string"
+        },
+        "status": {
+          "const": "DRAFT",
+          "default": "DRAFT",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "symbol",
+        "kind",
+        "source_ref"
+      ],
+      "title": "SemanticAliasDraft",
+      "type": "object"
     }
   },
   "properties": {
-    "schema_version": {"const": "ai2.be.processing.result.v1"}, "request_id": {"$ref": "#/$defs/id"}, "idempotency_key": {"$ref": "#/$defs/id"}, "attempt": {"type": "integer", "minimum": 1}, "job_id": {"$ref": "#/$defs/id"},
-    "status": {"enum": ["QUEUED", "RUNNING", "SUCCEEDED", "FAILED"]}, "review_state": {"anyOf": [{"enum": ["PASS", "NEEDS_REVIEW", "INSUFFICIENT_EVIDENCE", "BLOCKED"]}, {"type": "null"}]},
-    "input_snapshots": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/identity"}}, "result": {"anyOf": [{"$ref": "#/$defs/result"}, {"type": "null"}]},
+    "schema_version": {
+      "const": "ai2.be.processing.result.v1"
+    },
+    "request_id": {
+      "$ref": "#/$defs/id"
+    },
+    "idempotency_key": {
+      "$ref": "#/$defs/id"
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "job_id": {
+      "$ref": "#/$defs/id"
+    },
+    "status": {
+      "enum": [
+        "QUEUED",
+        "RUNNING",
+        "SUCCEEDED",
+        "FAILED"
+      ]
+    },
+    "review_state": {
+      "anyOf": [
+        {
+          "enum": [
+            "PASS",
+            "NEEDS_REVIEW",
+            "INSUFFICIENT_EVIDENCE",
+            "BLOCKED"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "input_snapshots": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/identity"
+      }
+    },
+    "result": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/result"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "errors": {
       "description": "Ordered issue list. When status=SUCCEEDED and review_state=BLOCKED, errors[0] is the blocking issue (BLOCKED issues first, other issues keep their emitted order). AI2_JOB_FAILED, when present, is last.",
-      "type": "array", "items": {"$ref": "#/$defs/error"}
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/error"
+      }
     },
     "query_snapshot_digest": {
       "description": "Digest that POST /query binds to; Backend sends it back as snapshot_digest. Optional: absent when AI2 never adapted the request.",
-      "type": "string", "pattern": "^[0-9a-f]{64}$"
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
     }
   }
 }

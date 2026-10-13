@@ -28,6 +28,7 @@ from app.pipeline.contract_context import build_contract_context
 from app.pipeline.contract_events import extract_contract_events
 from app.pipeline.edge_flags import dossier_edge_issues
 from app.pipeline.fact import FactExtractor
+from app.pipeline.frame_context import build_semantic_extension, effective_context_bounds
 from app.pipeline.handoff import HandoffValidator
 from app.pipeline.index import IndexStore
 from app.pipeline.router import ObjectRouter
@@ -188,6 +189,8 @@ def run_idp(
         },
     )
     table_ex = TablePipeline(gateway, llm, runtime=runtime)
+    payment_schedules = []
+    boq_checks = []
     unit_failures: list[HandoffIssue] = []
     extraction_units = 0
     successful_extractions = 0
@@ -202,7 +205,14 @@ def run_idp(
                 successful_extractions += 1
             elif route == ObjectRoute.TABLE:
                 extraction_units += 1
-                facts.extend(table_ex.extract(envelope, _table_id_for(record, node["node_id"])))
+                table_result = table_ex.extract_with_projection(
+                    envelope, _table_id_for(record, node["node_id"])
+                )
+                facts.extend(table_result.facts)
+                if table_result.payment_schedule is not None:
+                    payment_schedules.append(table_result.payment_schedule)
+                if table_result.boq_check is not None:
+                    boq_checks.append(table_result.boq_check)
                 successful_extractions += 1
         except ProcessingTimeout:
             # Keep every unit finished so far; the rest of the pipeline is local.
@@ -291,7 +301,7 @@ def run_idp(
         for edge in (record.relation_graph.edges if record.relation_graph else [])
         if edge.relation_type.value in {"SAME_CLAUSE", "REFERENCES", "AMENDS"}
     }
-    # Contract graph (flow 1) only behind its flag: off ⇒ no import, no call, no new value.
+    # Contract graph (flow 1) only behind its flag: off â‡’ no import, no call, no new value.
     graph = None  # ContractGraphResult when the builder ran (P4 projects it)
     graph_enabled = (
         _contract_graph_enabled()
@@ -326,7 +336,7 @@ def run_idp(
                 EvidenceIssue(
                     issue_id="contract-graph:CONTRACT_GRAPH_FAILED",
                     missing="CONTRACT_GRAPH_FAILED",
-                    reason=f"Không dựng được đồ thị sửa đổi ({type(exc).__name__}); không có cạnh sửa đổi.",
+                    reason=f"KhÃ´ng dá»±ng Ä‘Æ°á»£c Ä‘á»“ thá»‹ sá»­a Ä‘á»•i ({type(exc).__name__}); khÃ´ng cÃ³ cáº¡nh sá»­a Ä‘á»•i.",
                     review_state=ReviewState.NEEDS_REVIEW,
                 )
             )
@@ -374,6 +384,10 @@ def run_idp(
                 )
             )
     _downgrade_uncertain_candidates(candidates, facts)
+    # Keep typed table projections available to the semantic bridge for this run;
+    # raw OCR tables remain immutable and are never appended to here.
+    record.payment_schedules = list(payment_schedules)
+    record.boq_checks = list(boq_checks)
     # Q3: the graph's per-edge findings replace the annex-level signal only when it ran.
     contract_context: ContractContext = build_contract_context(
         record, candidates=candidates, facts=facts, suppress_amendment_signal=graph is not None
@@ -461,8 +475,8 @@ def run_idp(
                     EvidenceIssue(
                         issue_id="contract-graph:CONTRACT_GRAPH_PAIRS_FAILED",
                         missing="CONTRACT_GRAPH_PAIRS_FAILED",
-                        reason=f"Không phân loại được quan hệ giữa các khoản ({type(exc).__name__}); "
-                        "không có quan hệ luồng 2.",
+                        reason=f"KhÃ´ng phÃ¢n loáº¡i Ä‘Æ°á»£c quan há»‡ giá»¯a cÃ¡c khoáº£n ({type(exc).__name__}); "
+                        "khÃ´ng cÃ³ quan há»‡ luá»“ng 2.",
                         review_state=ReviewState.NEEDS_REVIEW,
                     )
                 )
@@ -492,6 +506,28 @@ def run_idp(
     if graph_coverage_value is not None:  # D6: the only new key, flag on only
         coverage["contract_graph"] = graph_coverage_value
     store_idx = index or IndexStore()
+    record.semantic_extension = None
+    if record.semantic_profile is not None:
+        if os.getenv("AI2_SEMANTIC_ENABLED", "true").strip().casefold() == "true":
+            bounds = effective_context_bounds(record.semantic_profile.context_bounds)
+            record.semantic_extension = build_semantic_extension(record, runtime, llm, bounds)
+            issues.append(
+                EvidenceIssue(
+                    issue_id="semantic:review",
+                    missing="SEMANTIC_REVIEW",
+                    reason="Semantic projections require independent review; timeline remains a proposal.",
+                    review_state=ReviewState.NEEDS_REVIEW,
+                )
+            )
+        else:
+            issues.append(
+                EvidenceIssue(
+                    issue_id="semantic:disabled",
+                    missing="SEMANTIC_PRODUCER_DISABLED",
+                    reason="Semantic profile is pinned; producer rollout has not been enabled.",
+                    review_state=ReviewState.NEEDS_REVIEW,
+                )
+            )
     contrib = store_idx.propose(
         facts=facts,
         chunks=chunks,
@@ -499,9 +535,26 @@ def run_idp(
         evidence_issues=issues,
         contract_context=contract_context,
         events=events,
-        coverage=coverage,
+        semantic_extension=record.semantic_extension,
+        coverage={
+            **coverage,
+            **({"semantic_requested": True} if record.semantic_profile else {}),
+            "n_facts": len(facts),
+            "n_findings": len(candidates) + len(contract_context.findings),
+            "n_candidate_findings": len(candidates),
+            "n_context_findings": len(contract_context.findings),
+            "n_events": len(events),
+            "n_evidence_issues": len(issues),
+            "n_units": len(units),
+            "unit_ids": [unit.unit_id for unit in units],
+            "annex_labels": sorted(annex_labels),
+            "runtime": runtime.snapshot(),
+        },
         extraction_version=record.pins.extraction_version,
         proposed_index_version=f"idx_{record.pins.extraction_version}",
+    )
+    contrib = contrib.model_copy(
+        update={"payment_schedules": payment_schedules, "boq_checks": boq_checks}
     )
     record.facts = facts
     record.chunks = chunks

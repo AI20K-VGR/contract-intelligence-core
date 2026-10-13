@@ -88,7 +88,7 @@ else
   echo "[bootstrap] public IP $ip → api-$dashed.sslip.io / auth-$dashed.sslip.io / $app"
   cp deploy/.env.prod.example "$ENV_FILE"
   sed -i "s/^API_HOST=.*/API_HOST=api-$dashed.sslip.io/; s/^AUTH_HOST=.*/AUTH_HOST=auth-$dashed.sslip.io/" "$ENV_FILE"
-  sed -i "s|^APP_HOST=.*|APP_HOST=$app|" "$ENV_FILE"
+  sed -i "s/^APP_HOST=.*/APP_HOST=app-$dashed.sslip.io/" "$ENV_FILE"
   sed -i "s|^FRONTEND_ORIGINS=.*|FRONTEND_ORIGINS=https://$app,http://localhost:5173,http://127.0.0.1:5173|" "$ENV_FILE"
   sed -i "s|^FRONTEND_BASE_URL=.*|FRONTEND_BASE_URL=https://$app|" "$ENV_FILE"
   while grep -q '=generate$' "$ENV_FILE"; do

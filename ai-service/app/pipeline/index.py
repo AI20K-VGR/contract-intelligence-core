@@ -1,6 +1,16 @@
 from __future__ import annotations
 
-from app.contracts.models import Candidate, Chunk, ContractContext, ContractEvent, EvidenceIssue, Fact, IndexContribution, ReviewState
+from app.contracts.models import (
+    Candidate,
+    Chunk,
+    ContractContext,
+    ContractEvent,
+    EvidenceIssue,
+    Fact,
+    IndexContribution,
+    ReviewState,
+    SemanticExtension,
+)
 
 
 class IndexStore:
@@ -20,6 +30,7 @@ class IndexStore:
         contract_context: ContractContext | None = None,
         events: list[ContractEvent] | None = None,
         coverage: dict | None = None,
+        semantic_extension: SemanticExtension | None = None,
     ) -> IndexContribution:
         grounded_facts = [f for f in facts if f.review_state != ReviewState.INSUFFICIENT_EVIDENCE]
         grounded_ids = {f.fact_id for f in grounded_facts}
@@ -34,6 +45,7 @@ class IndexStore:
             contract_context=contract_context,
             events=events or [],
             coverage=coverage_data,
+            semantic_extension=semantic_extension.model_copy(deep=True) if semantic_extension else None,
             extraction_version=extraction_version,
             proposed_index_version=proposed_index_version,
             publish="propose",

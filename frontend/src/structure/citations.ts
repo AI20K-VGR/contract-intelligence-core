@@ -82,6 +82,111 @@ export type SearchCite = {
   id: string
   n: number
   quote: string
+  documentId?: string | null
+  pageNo?: number | null
+  lineId?: string | null
+  /** Tọa độ citation AI2 trả về, chuẩn hóa 0..1 theo trang. */
+  bbox?: [number, number, number, number] | null
+}
+
+/** Dựng node tối thiểu để CitationPane dùng chung cho cả tài liệu thân và phụ lục. */
+export function citationNode(cite: SearchCite, fallbackIndex = 0): ClauseNode {
+  const pageNo = cite.pageNo && cite.pageNo > 0 ? cite.pageNo : 1
+  const bbox = cite.bbox
+  const hasBbox =
+    Array.isArray(bbox) &&
+    bbox.length === 4 &&
+    bbox.every((value) => Number.isFinite(value)) &&
+    bbox[2] > bbox[0] &&
+    bbox[3] > bbox[1] &&
+    bbox[0] >= 0 &&
+    bbox[1] >= 0 &&
+    bbox[2] <= 1 &&
+    bbox[3] <= 1
+  return {
+    id: cite.lineId || cite.id || `search-citation-${fallbackIndex}`,
+    nodeType: 'line',
+    label: 'Citation',
+    number: null,
+    title: null,
+    text: cite.quote,
+    pageStart: pageNo,
+    pageEnd: pageNo,
+    confidence: null,
+    regions: hasBbox
+      ? [{ pageNo, bbox: bbox as [number, number, number, number] }]
+      : [],
+    children: [],
+  }
+}
+
+type CitationTable = {
+  pageNo: number
+  cells: ReadonlyArray<{
+    row: number
+    text: string
+    bbox: [number, number, number, number] | null
+    header: boolean
+  }>
+}
+
+function compactCitationText(text: string) {
+  return squash(text).replace(/[|·,:;()[\]"']/g, '').replace(/\s+/g, '')
+}
+
+/** Lấy bbox của dòng bảng khi AI2 chỉ có line text mà OCR không có geometry. */
+export function citationTableBbox(
+  cite: SearchCite,
+  tables: ReadonlyArray<CitationTable>,
+): [number, number, number, number] | null {
+  const needle = compactCitationText(cite.quote)
+  if (needle.length < 8) return null
+  let best: [number, number, number, number] | null = null
+  let bestScore = 0
+  for (const table of tables) {
+    if (cite.pageNo !== null && cite.pageNo !== undefined && table.pageNo !== cite.pageNo)
+      continue
+    const rows = new Map<number, Array<CitationTable['cells'][number]>>()
+    for (const cell of table.cells) {
+      const row = rows.get(cell.row) ?? []
+      row.push(cell)
+      rows.set(cell.row, row)
+    }
+    for (const cells of rows.values()) {
+      const nonHeader = cells.filter((cell) => !cell.header && cell.text.trim())
+      if (nonHeader.length === 0) continue
+      const rowText = compactCitationText(nonHeader.map((cell) => cell.text).join(' '))
+      const matching = nonHeader.filter((cell) => {
+        const value = compactCitationText(cell.text)
+        return value.length >= 4 && (needle.includes(value) || value.includes(needle))
+      })
+      const rowMatches =
+        matching.length >= 2 ||
+        (rowText.length >= 8 && (needle.includes(rowText) || rowText.includes(needle)))
+      if (!rowMatches) continue
+      const boxes = nonHeader
+        .map((cell) => cell.bbox)
+        .filter(
+          (bbox): bbox is [number, number, number, number] =>
+            Array.isArray(bbox) &&
+            bbox.length === 4 &&
+            bbox.every((value) => Number.isFinite(value)) &&
+            bbox[2] > bbox[0] &&
+            bbox[3] > bbox[1],
+        )
+      if (boxes.length === 0) continue
+      const score = matching.length * 100 + Math.min(rowText.length, 100)
+      if (score <= bestScore) continue
+      bestScore = score
+      best = [
+        Math.min(...boxes.map((box) => box[0])),
+        Math.min(...boxes.map((box) => box[1])),
+        Math.max(...boxes.map((box) => box[2])),
+        Math.max(...boxes.map((box) => box[3])),
+      ]
+    }
+  }
+  return best
 }
 
 function hasMatchedDescendant(node: ClauseNode, ids: ReadonlySet<string>): boolean {
@@ -113,28 +218,111 @@ function nodesInsideText(nodes: ClauseNode[], blob: string): ClauseNode[] {
  */
 export function searchCites(
   nodes: ClauseNode[],
-  hits: { text: string; pageNo: number | null }[],
+  hits: {
+    text: string
+    pageNo: number | null
+    lineId?: string | null
+    sourceFileId?: string | null
+    bbox?: [number, number, number, number] | null
+    citation?: {
+      quote?: string | null
+      documentId?: string | null
+      sourceFileId?: string | null
+      lineId?: string | null
+      bbox?: [number, number, number, number] | null
+    }
+  }[],
   numbers: ReadonlyMap<string, number>,
   answer = '',
+  sourceDocumentId: string | null = null,
 ): SearchCite[] {
-  const blobs = [
-    ...hits.map((hit) => hit.text),
-    answer,
-  ].filter((blob) => blob.trim().length >= 8)
+  const answerText = squash(answer)
+  const maxNumber = Math.max(0, ...Array.from(numbers.values()))
+  let nextForeignNumber = maxNumber + 1
+  const lineNode = (lineId: string | null | undefined) => {
+    const match = lineId?.match(/(?:^|:)p(\d+):l(\d+)$/i)
+    return match
+      ? findClause(nodes, `n-${Number(match[1])}-${Number(match[2])}`)
+      : null
+  }
+  const directNode = (hit: (typeof hits)[number]) => {
+    const documentId =
+      hit.citation?.documentId ?? hit.citation?.sourceFileId ?? hit.sourceFileId ?? null
+    if (sourceDocumentId && documentId && documentId !== sourceDocumentId) return null
+    // OCR line ids are more reliable than answer text: the latter may repeat
+    // a phrase such as "phụ lục" in another article.  Use the same node id
+    // convention as buildNumberedTree when the cited line opened a node.
+    const line = lineNode(hit.lineId ?? hit.citation?.lineId)
+    if (line) return line
+    const quote = hit.citation?.quote || hit.text
+    return quote ? findClauseByQuote(nodes, quote, hit.pageNo) : null
+  }
   const seen = new Set<string>()
   const cites: SearchCite[] = []
-  for (const blob of blobs) {
-    for (const clause of nodesInsideText(nodes, blob)) {
-      if (seen.has(clause.id)) continue
-      const n = numbers.get(clause.id)
-      if (!n) continue
-      seen.add(clause.id)
-      const body = squash(clause.text)
+  hits.forEach((hit, index) => {
+    const documentId =
+      hit.citation?.documentId ?? hit.citation?.sourceFileId ?? hit.sourceFileId ?? null
+    const clause = directNode(hit)
+    const candidates = [
+      hit.citation?.quote,
+      hit.text,
+      ...(clause ? [clause.text, `${clause.label} ${clause.title ?? ''}`] : []),
+    ].filter((value): value is string => Boolean(value && value.trim().length >= 4))
+    const quote = candidates.find((value) => answerText.includes(squash(value)))
+      ?? candidates[0]
+    if (!clause) {
+      // The structure page currently loads the contract document only. Keep a
+      // foreign-document citation visible, but never map its page/line id onto
+      // a body node with the same page number (for example annex p2:l5 → Điều 2).
+      if (!sourceDocumentId || !documentId || documentId === sourceDocumentId || !quote) return
+      if (!answerText.includes(squash(quote))) return
+      const id = `foreign:${documentId}:${hit.lineId ?? hit.citation?.lineId ?? hit.pageNo ?? index}`
+      if (seen.has(id)) return
+      seen.add(id)
       cites.push({
-        id: clause.id,
-        n,
-        quote: body.length >= 12 ? body : squash(`${clause.label} ${clause.title ?? ''}`),
+        id,
+        n: nextForeignNumber++,
+        quote,
+        documentId,
+        pageNo: hit.pageNo,
+        lineId: hit.lineId ?? hit.citation?.lineId ?? null,
+        bbox: hit.bbox ?? hit.citation?.bbox ?? null,
       })
+      return
+    }
+    if (seen.has(clause.id)) return
+    const n = numbers.get(clause.id)
+    if (!n || !quote) return
+    seen.add(clause.id)
+    cites.push({
+      id: clause.id,
+      n,
+      quote,
+      documentId: hit.citation?.documentId ?? hit.citation?.sourceFileId ?? hit.sourceFileId ?? null,
+      pageNo: hit.pageNo,
+      lineId: hit.lineId ?? hit.citation?.lineId ?? null,
+      bbox: hit.bbox ?? hit.citation?.bbox ?? null,
+    })
+  })
+
+  // Keep the legacy answer scan only when AI2 returned no mappable citation.
+  // It preserves old snapshots while preventing a repeated phrase from an
+  // unrelated clause from hijacking a real citation.
+  if (cites.length === 0 && (!sourceDocumentId || hits.length === 0)) {
+    const blobs = [answer].filter((blob) => blob.trim().length >= 8)
+    for (const blob of blobs) {
+      for (const clause of nodesInsideText(nodes, blob)) {
+        if (seen.has(clause.id)) continue
+        const n = numbers.get(clause.id)
+        if (!n) continue
+        seen.add(clause.id)
+        const body = squash(clause.text)
+        cites.push({
+          id: clause.id,
+          n,
+          quote: body.length >= 12 ? body : squash(`${clause.label} ${clause.title ?? ''}`),
+        })
+      }
     }
   }
   return cites

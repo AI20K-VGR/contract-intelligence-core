@@ -72,6 +72,10 @@ export function ConflictDocumentPane({
   const scrollerRef = useRef<HTMLDivElement>(null)
   const [rotation, setRotation] = useState(0)
   const [pageTotal, setPageTotal] = useState(0)
+  const [pageAspectRatios, setPageAspectRatios] = useState<
+    Record<number, string>
+  >({})
+  const [paintedPages, setPaintedPages] = useState<Record<number, boolean>>({})
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [finding, setFinding] = useState(false)
@@ -86,6 +90,8 @@ export function ConflictDocumentPane({
     setError(null)
     setReady(false)
     setPageTotal(0)
+    setPageAspectRatios({})
+    setPaintedPages({})
 
     async function load() {
       const bytes = await loadDocumentPdf(documentId!, controller.signal)
@@ -94,6 +100,20 @@ export function ConflictDocumentPane({
       try {
         const pdf = await loadingTask.promise
         if (cancelled) return
+        if (pdf.numPages > 0) {
+          const firstPage = await pdf.getPage(1)
+          try {
+            const viewport = firstPage.getViewport({ scale: 1.4 })
+            if (!cancelled) {
+              setPageAspectRatios((current) => ({
+                ...current,
+                1: `${viewport.width} / ${viewport.height}`,
+              }))
+            }
+          } finally {
+            firstPage.cleanup()
+          }
+        }
         onPageCount(pdf.numPages)
         setPageTotal(pdf.numPages)
       } finally {
@@ -135,6 +155,12 @@ export function ConflictDocumentPane({
           if (!canvas) continue
           const page = await pdf.getPage(index)
           const viewport = page.getViewport({ scale: 1.4 })
+          if (!cancelled) {
+            setPageAspectRatios((current) => ({
+              ...current,
+              [index]: `${viewport.width} / ${viewport.height}`,
+            }))
+          }
           canvas.width = viewport.width
           canvas.height = viewport.height
           const context = canvas.getContext('2d')
@@ -144,6 +170,9 @@ export function ConflictDocumentPane({
           const task = page.render({ canvas, viewport })
           tasks.push(task)
           await task.promise
+          if (!cancelled) {
+            setPaintedPages((current) => ({ ...current, [index]: true }))
+          }
         }
         if (!cancelled) setReady(true)
       } finally {
@@ -376,7 +405,9 @@ export function ConflictDocumentPane({
         {documentId ? (
           <div className="w-full max-w-[690px]">
             {error ? (
-              <p className="mb-3 font-body-sm text-body-sm text-error">{error}</p>
+              <p className="mb-3 font-body-sm text-body-sm text-error">
+                {error}
+              </p>
             ) : null}
             {!ready && !error ? (
               <p className="mb-3 font-body-sm text-body-sm text-secondary">
@@ -388,7 +419,10 @@ export function ConflictDocumentPane({
                 Đang khoanh câu trích trên trang…
               </p>
             ) : null}
-            {ready && !locating && regions.length === 0 && (emptyNote || quote) ? (
+            {ready &&
+            !locating &&
+            regions.length === 0 &&
+            (emptyNote || quote) ? (
               <p
                 className={`mb-3 rounded border px-2 py-1 font-body-sm text-body-sm ${
                   mark === 'sky'
@@ -399,10 +433,7 @@ export function ConflictDocumentPane({
                 {emptyNote || 'Chưa khoanh được câu trích trên tài liệu này.'}
               </p>
             ) : null}
-            <div
-              className={ready ? '' : 'hidden'}
-              style={{ transform: `rotate(${rotation}deg)` }}
-            >
+            <div style={{ transform: `rotate(${rotation}deg)` }}>
               {Array.from({ length: pageTotal }, (_, index) => {
                 const page = index + 1
                 const boxes = regions.filter((region) => {
@@ -415,27 +446,34 @@ export function ConflictDocumentPane({
                   <div
                     key={page}
                     className="relative mx-auto mb-4 w-full bg-white shadow-[0_2px_12px_rgba(0,0,0,0.12)]"
+                    style={{
+                      aspectRatio: pageAspectRatios[page] ?? '595 / 842',
+                    }}
                     data-page={page}
                   >
                     <canvas
                       ref={(node) => {
                         canvasRefs.current[index] = node
                       }}
-                      className="block h-auto w-full"
+                      className={`block h-full w-full ${
+                        paintedPages[page] ? '' : 'opacity-0'
+                      }`}
                     />
-                    {boxes.map((region, boxIndex) => (
-                      <div
-                        key={`${region.pageNo}-${boxIndex}-${region.accent ?? mark}`}
-                        data-citation-box
-                        className={`pointer-events-none absolute z-10 border-2 ${boxClass(region.accent ?? mark)}`}
-                        style={{
-                          left: `${region.bbox[0] * 100}%`,
-                          top: `${region.bbox[1] * 100}%`,
-                          width: `${(region.bbox[2] - region.bbox[0]) * 100}%`,
-                          height: `${(region.bbox[3] - region.bbox[1]) * 100}%`,
-                        }}
-                      />
-                    ))}
+                    {paintedPages[page]
+                      ? boxes.map((region, boxIndex) => (
+                          <div
+                            key={`${region.pageNo}-${boxIndex}-${region.accent ?? mark}`}
+                            data-citation-box
+                            className={`pointer-events-none absolute z-10 border-2 ${boxClass(region.accent ?? mark)}`}
+                            style={{
+                              left: `${region.bbox[0] * 100}%`,
+                              top: `${region.bbox[1] * 100}%`,
+                              width: `${(region.bbox[2] - region.bbox[0]) * 100}%`,
+                              height: `${(region.bbox[3] - region.bbox[1]) * 100}%`,
+                            }}
+                          />
+                        ))
+                      : null}
                   </div>
                 )
               })}
