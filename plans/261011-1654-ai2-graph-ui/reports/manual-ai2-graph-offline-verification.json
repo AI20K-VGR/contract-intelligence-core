@@ -19,7 +19,7 @@
     "No Backend APIs are called; this does not exercise Backend ACL.",
     "User visual acceptance remains pending."
   ],
-  "screenshot": "manual-ai2-graph-offline.png",
+  "screenshot": "../../../docs/assets/manual-ai2-graph-offline.png",
   "frontendTests": { "filesPassed": 36, "testsPassed": 141 },
   "lint": { "errors": 0, "warnings": 13 },
   "build": "PASS; existing large chunk warning"

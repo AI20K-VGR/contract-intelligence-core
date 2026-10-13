@@ -40,7 +40,7 @@ This verifies the Frontend ↔ Backend read/display path for one synthetic REFER
 - The standalone preview at `http://127.0.0.1:5174/manual-ai2-graph.html` now renders a self-contained synthetic fixture. It does not call Backend APIs and explicitly says the data is synthetic and is not AI2 output from a user's documents.
 - Browser result: timeline, graph canvas, `REFERENCE`, `CONFLICT`, and `GENERAL_SPECIFIC` all visible; zero `/api/v1/` requests; zero page errors.
 - Visual follow-up: widened the edge label box so `GENERAL_SPECIFIC · cần review` fits; replaced the epoch test timestamp so the timeline no longer renders 1970.
-- Evidence: [offline preview screenshot](reports/manual-ai2-graph-offline.png); automated browser receipt: `reports/manual-ai2-graph-offline-verification.json`.
+- Evidence: [offline preview screenshot](../../docs/assets/manual-ai2-graph-offline.png); automated browser receipt: `reports/manual-ai2-graph-offline-verification.json`.
 - Validation after changes: Frontend 36 files / 141 tests PASS; lint 0 errors / 13 warnings; production build PASS (existing large-chunk warning).
 - Scope limit: the fixture is intentionally synthetic and does not exercise AI2 generation or Backend ACL. It makes visual inspection convenient; visual acceptance remains for the user to co-sign.
 
@@ -48,7 +48,7 @@ This verifies the Frontend ↔ Backend read/display path for one synthetic REFER
 
 - Re-ran the 320 CSS px Edge/Playwright charter on the composed AI2 graph view after correcting the synthetic trace timestamp. Result: viewport/document/body widths 320 px; visible keyboard focus; Space selected `CONFLICT`; inspector followed selection; citation callback displayed `demo:body-4-2`; no page errors; no 1970 timestamp.
 - Refreshed screenshot: [320 CSS px capture](reports/ai2-graph-manual-320px.png). The relation canvas is a compact overview at this width; list and inspector provide the readable full text path. Reviewed the refreshed screenshot and found the layout readable and non-clipping.
-- The standalone no-login preview also passed: all relation labels and timeline visible, no `/api/v1/` requests, no browser errors. See [offline demo capture](reports/manual-ai2-graph-offline.png) and `reports/manual-ai2-graph-offline-verification.json`.
+- The standalone no-login preview also passed: all relation labels and timeline visible, no `/api/v1/` requests, no browser errors. See [offline demo capture](../../docs/assets/manual-ai2-graph-offline.png) and `reports/manual-ai2-graph-offline-verification.json`.
 - The authenticated live citation smoke remains valid for the synthetic isolated stack described above; it proves Backend ACL, graph/trace reads, and linked document retrieval, not actual graph generation.
 - Decision: the plan's P5 manual UI acceptance is satisfied by the recorded browser checks and visual review. No separate user co-sign was captured; the co-sign was not part of the phase acceptance criteria. Runtime AI2 graph flags remain default OFF.
 
