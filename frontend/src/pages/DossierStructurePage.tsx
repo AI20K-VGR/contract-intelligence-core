@@ -72,6 +72,7 @@ import {
   type StructureMode,
   type StructureView,
 } from '../structure'
+import { readingPrefs, useReadingPrefs } from '../structure/readingPrefs'
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
@@ -151,8 +152,13 @@ function stateStructureMode(state: unknown): StructureMode | null {
   )
 }
 
-/** Kiểu xem nhớ theo trình duyệt; mặc định sơ đồ tư duy. */
+/**
+ * Kiểu xem khi mở trang: theo Cài đặt nếu đã chọn, không thì kiểu dùng lần
+ * trước (nhớ theo trình duyệt); mặc định sơ đồ tư duy.
+ */
 function storedStructureView(): StructureView {
+  const { openView } = readingPrefs()
+  if (openView !== 'last') return openView
   try {
     return (
       parseStructureView(window.localStorage.getItem(STRUCTURE_VIEW_KEY)) ??
@@ -227,6 +233,7 @@ export function DossierStructurePage() {
     stateStructureMode(location.state),
   )
   const [view, setView] = useState<StructureView>(storedStructureView)
+  const prefs = useReadingPrefs()
   const [showAi2Graph, setShowAi2Graph] = useState(false)
   const [ai2GraphKind, setAi2GraphKind] = useState<ContractGraphKind>('pair')
   const [ai2Citation, setAi2Citation] = useState<Record<
@@ -806,7 +813,7 @@ export function DossierStructurePage() {
             )}
             {/* Có khung PDF / trích dẫn bên cạnh thì chỗ hẹp: xếp ô hỏi xuống dòng dưới. */}
             <div
-              className={`flex flex-col gap-space-sm ${splitView ? '' : 'md:flex-row md:items-center md:justify-between'}`}
+              className={`flex flex-col gap-space-sm ${splitView ? '' : 'md:flex-row md:items-start md:justify-between'}`}
             >
               <div className="flex min-w-0 flex-1 flex-col gap-space-xs">
                 {titleInHeader ? null : (
@@ -966,7 +973,7 @@ export function DossierStructurePage() {
               </div>
               {phase === 'ready' ? (
                 <div
-                  className={`flex min-w-0 items-center gap-space-sm pr-2.5 pt-1.5 ${splitView ? 'w-full' : 'md:shrink-0'}`}
+                  className={`flex min-w-0 items-center gap-space-sm pr-2.5 pt-0.5 ${splitView ? 'w-full' : 'md:shrink-0'}`}
                 >
                   <form
                     className={`relative min-w-0 flex-1 ${splitView ? '' : 'md:w-56 md:flex-none lg:w-72'}`}
@@ -1306,9 +1313,10 @@ export function DossierStructurePage() {
               ) : (
                 (() => {
                   const shared = {
-                    markers,
+                    markers: prefs.highlightConflicts ? markers : undefined,
                     citationOf: citeOf,
                     focusId: citeId,
+                    autoScroll: prefs.autoScroll,
                     nodes,
                     title: detail?.name ?? 'Hợp đồng',
                     onCite: openTreeCite,

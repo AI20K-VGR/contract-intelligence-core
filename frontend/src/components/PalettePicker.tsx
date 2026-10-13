@@ -74,7 +74,7 @@ export function PalettePicker() {
                   {palette.swatches.map((color) => (
                     <span
                       key={color}
-                      className="h-3.5 w-3.5 rounded-full ring-2 ring-surface-container-lowest"
+                      className="h-3.5 w-3.5 rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.12)] ring-2 ring-surface-container-lowest"
                       style={{ background: color }}
                     />
                   ))}

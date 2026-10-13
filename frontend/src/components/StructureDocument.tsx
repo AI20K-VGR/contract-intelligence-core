@@ -54,6 +54,7 @@ export function StructureDocument({
   markers,
   citationOf,
   focusId,
+  autoScroll = true,
   onCite,
 }: {
   title: string
@@ -61,6 +62,8 @@ export function StructureDocument({
   markers?: ReadonlyMap<string, ConflictMarker>
   citationOf?: ReadonlyMap<string, number>
   focusId?: string | null
+  /** false: vẫn tô mục được trích dẫn nhưng không tự cuộn tới (Cài đặt). */
+  autoScroll?: boolean
   onCite?: (id: string) => void
 }) {
   const source = useMemo(() => capToMaxLevels(nodes), [nodes])
@@ -113,14 +116,14 @@ export function StructureDocument({
   }, [current])
 
   useEffect(() => {
-    if (!focusId) return
+    if (!focusId || !autoScroll) return
     const frame = window.requestAnimationFrame(() => {
       paneRef.current
         ?.querySelector(`[data-section-id="${CSS.escape(focusId)}"]`)
         ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [focusId])
+  }, [autoScroll, focusId])
 
   function jumpTo(id: string) {
     paneRef.current

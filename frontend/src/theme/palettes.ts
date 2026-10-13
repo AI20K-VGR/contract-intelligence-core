@@ -6,7 +6,7 @@ import { useSyncExternalStore } from 'react'
  * data-palette lên <html>.
  */
 
-export type PaletteId = '2' | '3' | '4' | '5' | '7' | '8' | '9'
+export type PaletteId = '2' | '3' | '4' | '5' | '7' | '8' | '9' | '10' | '12'
 
 export const PALETTES: { id: PaletteId; name: string; swatches: string[] }[] = [
   {
@@ -43,6 +43,23 @@ export const PALETTES: { id: PaletteId; name: string; swatches: string[] }[] = [
     id: '9',
     name: 'Rừng nhiệt đới',
     swatches: ['#4ba89a', '#b5e2c0', '#f2edcc', '#f2c6c8'],
+  },
+  {
+    id: '10',
+    name: 'Hoa anh đào',
+    swatches: [
+      '#f9c4d5',
+      '#ffffff',
+      '#fdf0c4',
+      '#cfe8bd',
+      '#d9c2b6',
+      '#cfe8f7',
+    ],
+  },
+  {
+    id: '12',
+    name: 'Giáng sinh',
+    swatches: ['#2f5d4a', '#fbfbf8', '#b8333a', '#e5c158', '#a8714a'],
   },
 ]
 

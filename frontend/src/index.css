@@ -176,6 +176,65 @@
   --color-side-logo: #2d99ae;
 }
 
+/*
+ * Cỡ chữ chọn ở Cài đặt; src/theme/fontSize.ts đặt data-font-size lên <html>.
+ * Chỉ đè cỡ chữ theo token (font-body-md, text-body-md…); cỡ viết thẳng như
+ * text-[14px] (chủ yếu là icon) giữ nguyên. "Vừa" là cỡ gốc ở @theme trên.
+ */
+:root[data-font-size='sm'] {
+  --text-label-sm: 10px;
+  --text-label-sm--line-height: 13px;
+  --text-label-md: 11px;
+  --text-label-md--line-height: 15px;
+  --text-code-sm: 11px;
+  --text-code-sm--line-height: 15px;
+  --text-body-sm: 12px;
+  --text-body-sm--line-height: 17px;
+  --text-body-md: 13px;
+  --text-body-md--line-height: 19px;
+  --text-body-lg: 14px;
+  --text-body-lg--line-height: 21px;
+  --text-title-sm: 14px;
+  --text-title-sm--line-height: 19px;
+  --text-headline-md: 17px;
+  --text-headline-md--line-height: 23px;
+  --text-headline-lg-mobile: 19px;
+  --text-headline-lg-mobile--line-height: 26px;
+  --text-headline-lg: 22px;
+  --text-headline-lg--line-height: 30px;
+  --text-display-lg: 30px;
+  --text-display-lg--line-height: 38px;
+  --text-xs: 0.6875rem;
+  --text-sm: 0.8125rem;
+}
+
+:root[data-font-size='lg'] {
+  --text-label-sm: 12px;
+  --text-label-sm--line-height: 16px;
+  --text-label-md: 13px;
+  --text-label-md--line-height: 18px;
+  --text-code-sm: 13px;
+  --text-code-sm--line-height: 18px;
+  --text-body-sm: 15px;
+  --text-body-sm--line-height: 21px;
+  --text-body-md: 16px;
+  --text-body-md--line-height: 24px;
+  --text-body-lg: 17px;
+  --text-body-lg--line-height: 26px;
+  --text-title-sm: 17px;
+  --text-title-sm--line-height: 23px;
+  --text-headline-md: 20px;
+  --text-headline-md--line-height: 27px;
+  --text-headline-lg-mobile: 22px;
+  --text-headline-lg-mobile--line-height: 30px;
+  --text-headline-lg: 26px;
+  --text-headline-lg--line-height: 34px;
+  --text-display-lg: 34px;
+  --text-display-lg--line-height: 42px;
+  --text-xs: 0.8125rem;
+  --text-sm: 1rem;
+}
+
 @layer base {
   html,
   body {
@@ -418,6 +477,78 @@
   --color-side-chip: rgb(255 255 255 / 0.6);
   --color-side-label: #409e90;
   --color-side-logo: #1d8376;
+}
+
+/*
+ * Bộ màu 10 "Hoa anh đào": chủ yếu hồng phấn #f9c4d5 và trắng; điểm thêm
+ * pastel vàng nhụy #fdf0c4, xanh lá #cfe8bd, nâu cành #d9c2b6, xanh trời #cfe8f7.
+ */
+[data-palette='10'] {
+  --color-brand-50: #fff7fa;
+  --color-brand-100: #ffedf3;
+  --color-brand-200: #fddbe6;
+  --color-brand-300: #f9c4d5;
+  --color-brand-400: #f2a5bd;
+  --color-brand-500: #e688a5;
+  --color-brand-600: #d46f92;
+  --color-brand-700: #b8577a;
+  --color-brand-800: #934460;
+  --color-brand-900: #6b3146;
+  --color-tone-50: #fffbfc;
+  --color-ice: #cfe8f7;
+  --color-blush-50: #fffbeb;
+  --color-blush-100: #fdf0c4;
+  --color-blush-700: #7a5a10;
+  --color-side: #fbd3e0;
+  --color-side-ink: #5c4038;
+  --color-side-muted: #8a6a5e;
+  --color-side-hover: rgb(255 255 255 / 0.7);
+  --color-side-active: #ffffff;
+  --color-side-active-ink: #b8577a;
+  --color-side-chip: rgb(255 255 255 / 0.7);
+  --color-side-label: #e688a5;
+  --color-side-logo: #a8d18f;
+}
+
+/*
+ * Bộ màu 12 "Giáng sinh": xanh thông #2f5d4a, trắng tuyết #fbfbf8; điểm thêm
+ * đỏ nhung #b8333a, vàng chuông #e5c158, nâu gừng #a8714a.
+ */
+[data-palette='12'] {
+  --color-brand-50: #f1f7f4;
+  --color-brand-100: #dfeee7;
+  --color-brand-200: #c0dccf;
+  --color-brand-300: #96c1ad;
+  --color-brand-400: #67a087;
+  --color-brand-500: #46806a;
+  --color-brand-600: #2f6a54;
+  --color-brand-700: #2f5d4a;
+  --color-brand-800: #23463a;
+  --color-brand-900: #18302a;
+  /* Xám ấm theo trắng tuyết, thay xám slate ánh xanh của mặc định. */
+  --color-tone-50: #fbfbf8;
+  --color-tone-100: #f5f4ef;
+  --color-tone-200: #ebe8e0;
+  --color-tone-300: #dcd7cb;
+  --color-tone-400: #b5ae9f;
+  --color-tone-500: #8c8577;
+  --color-tone-600: #6b6559;
+  --color-tone-700: #514c42;
+  --color-tone-800: #38342d;
+  --color-tone-900: #24211c;
+  --color-ice: #f5e6b0;
+  --color-blush-50: #fdf2f2;
+  --color-blush-100: #f6caca;
+  --color-blush-700: #8f2329;
+  --color-side: #2f5d4a;
+  --color-side-ink: #fbfbf8;
+  --color-side-muted: rgb(251 251 248 / 0.75);
+  --color-side-hover: rgb(255 255 255 / 0.1);
+  --color-side-active: #b8333a;
+  --color-side-active-ink: #ffffff;
+  --color-side-chip: rgb(255 255 255 / 0.1);
+  --color-side-label: rgb(229 193 88 / 0.85);
+  --color-side-logo: #e5c158;
 }
 
 /*

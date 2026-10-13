@@ -700,9 +700,9 @@ function CreateUserDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center px-space-md py-space-lg bg-primary/40">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center px-space-md py-space-lg bg-primary/15">
       <form
-        className="w-full max-w-lg bg-surface-container-lowest rounded shadow-sm p-space-lg flex flex-col gap-space-lg max-h-full overflow-y-auto"
+        className="w-full max-w-lg bg-surface-container-lowest rounded shadow-xl p-space-lg flex flex-col gap-space-lg max-h-full overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -888,9 +888,9 @@ function ConfirmDialog({
   }, [busy, onClose])
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center px-space-md bg-primary/40">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center px-space-md bg-primary/15">
       <div
-        className="w-full max-w-md bg-surface-container-lowest rounded shadow-sm p-space-lg flex flex-col gap-space-md"
+        className="w-full max-w-md bg-surface-container-lowest rounded shadow-xl p-space-lg flex flex-col gap-space-md"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

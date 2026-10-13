@@ -185,7 +185,7 @@ export function LoginPage() {
             <span>Điều khoản sử dụng</span>
           </div>
           <span className="tracking-wide">
-            © 2025 Lexis Contract Intelligence. All rights reserved.
+            © Lexis Contract Intelligence. All rights reserved.
           </span>
         </div>
       </footer>

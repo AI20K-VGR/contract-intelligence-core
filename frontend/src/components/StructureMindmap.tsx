@@ -426,6 +426,7 @@ export function StructureMindmap({
   markers,
   citationOf,
   focusId,
+  autoScroll = true,
   orientation = 'horizontal',
   onCite,
 }: {
@@ -435,6 +436,8 @@ export function StructureMindmap({
   markers?: ReadonlyMap<string, ConflictMarker>
   citationOf?: ReadonlyMap<string, number>
   focusId?: string | null
+  /** false: vẫn tô nút được trích dẫn nhưng không tự mở nhánh, kéo tới (Cài đặt). */
+  autoScroll?: boolean
   /** 'horizontal': sơ đồ tư duy gốc trái; 'vertical': cây từ trên xuống. */
   orientation?: TreeOrientation
   onCite?: (id: string) => void
@@ -588,7 +591,7 @@ export function StructureMindmap({
 
   // Trích dẫn từ nơi khác: mở các cấp cha rồi kéo nút vào khung nếu đang khuất.
   useEffect(() => {
-    if (!focusId) return
+    if (!focusId || !autoScroll) return
     pendingFocus.current = focusId
     setRootOpen(true)
     setExpanded((current) => {
@@ -604,7 +607,7 @@ export function StructureMindmap({
       }
       return changed ? next : current
     })
-  }, [focusId, parents])
+  }, [autoScroll, focusId, parents])
 
   useLayoutEffect(() => {
     const id = pendingFocus.current

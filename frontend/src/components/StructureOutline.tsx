@@ -105,6 +105,7 @@ export function StructureOutline({
   markers,
   citationOf,
   focusId,
+  autoScroll = true,
   onCite,
 }: {
   title: string
@@ -113,6 +114,8 @@ export function StructureOutline({
   markers?: ReadonlyMap<string, ConflictMarker>
   citationOf?: ReadonlyMap<string, number>
   focusId?: string | null
+  /** false: vẫn tô nút được trích dẫn nhưng không tự cuộn tới (Cài đặt). */
+  autoScroll?: boolean
   onCite?: (id: string) => void
 }) {
   const source = useMemo(() => capToMaxLevels(nodes), [nodes])
@@ -145,7 +148,7 @@ export function StructureOutline({
   )
 
   useEffect(() => {
-    if (!focusId) return
+    if (!focusId || !autoScroll) return
     setExpanded((current) => {
       const next = new Set(current)
       for (const id of ancestorIds(focusId, parents)) next.add(id)
@@ -157,7 +160,7 @@ export function StructureOutline({
         ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [focusId, parents])
+  }, [autoScroll, focusId, parents])
 
   function toggle(id: string) {
     setExpanded((current) => {

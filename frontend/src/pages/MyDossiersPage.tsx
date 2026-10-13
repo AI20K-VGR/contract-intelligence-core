@@ -1058,9 +1058,9 @@ export function MyDossiersPage() {
         </div>
       ) : null}
       {pendingDelete ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-space-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-primary/15 p-space-md">
           <div
-            className="w-full max-w-md bg-surface-container-lowest rounded shadow-lg p-space-lg flex flex-col gap-space-md"
+            className="w-full max-w-md bg-surface-container-lowest rounded shadow-xl p-space-lg flex flex-col gap-space-md"
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-dossier-title"
