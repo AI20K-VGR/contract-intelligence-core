@@ -98,7 +98,9 @@ def test_l2_prompt_delimits_retrieved_text_as_untrusted_data():
 
 def _request() -> dict:
     body = json.loads((EXAMPLES / "ai1.snapshot.v1.body.example.json").read_text(encoding="utf-8"))
-    annex = json.loads((EXAMPLES / "ai1.snapshot.v1.annex.example.json").read_text(encoding="utf-8"))
+    annex = json.loads(
+        (EXAMPLES / "ai1.snapshot.v1.annex.example.json").read_text(encoding="utf-8")
+    )
     payload = {
         "schema_version": "be.ai2.processing.request.v1",
         "request_id": "req-wire-001",
@@ -113,7 +115,9 @@ def _request() -> dict:
                 "snapshot_version": "ai1.snapshot.v1",
                 "source_digest": body["source_digest"],
                 "snapshot_digest": hashlib.sha256(
-                    json.dumps(body, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+                    json.dumps(
+                        body, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+                    ).encode("utf-8")
                 ).hexdigest(),
             },
             {
@@ -121,7 +125,9 @@ def _request() -> dict:
                 "snapshot_version": "ai1.snapshot.v1",
                 "source_digest": annex["source_digest"],
                 "snapshot_digest": hashlib.sha256(
-                    json.dumps(annex, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+                    json.dumps(
+                        annex, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+                    ).encode("utf-8")
                 ).hexdigest(),
             },
         ],
@@ -151,7 +157,7 @@ def _request() -> dict:
             }
         ],
         "policy_flags": {
-            "egress_allowed": False,
+            "egress_allowed": True,
             "use_vector": True,
             "budget_limits": {
                 "max_processing_seconds": 300,
@@ -180,8 +186,7 @@ def test_processing_request_adapts_full_dossier_and_preserves_roles():
         "doc-body-example-001": "body",
         "doc-annex-example-001": "annex",
     }
-    # Processing egress is controlled by the AI2 server environment, not the
-    # request flag. The worktree test environment enables the live lane.
+    # Processing egress requires both the enabled server lane and dossier consent.
     assert adapted.record.egress_approved is True
 
 
@@ -268,7 +273,9 @@ def test_processing_request_dto_rejects_noncanonical_snapshot_version():
     snapshot["schema_version"] = "ai1.snapshot.v3"
     payload["snapshots"][0] = snapshot
     payload["snapshot_identities"][0]["snapshot_digest"] = hashlib.sha256(
-        json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
     ).hexdigest()
 
     with pytest.raises(ValueError, match="ai1.snapshot.v1"):
@@ -400,7 +407,9 @@ def test_result_maps_findings_and_resolvable_citations_without_new_geometry():
 
     wire = job_result_to_wire(job, BeAi2ProcessingRequest.model_validate(_request()))
 
-    validate_contract(wire, "ai2.be.processing.result.v1.schema.json", error_code="RESULT_SCHEMA_INVALID")
+    validate_contract(
+        wire, "ai2.be.processing.result.v1.schema.json", error_code="RESULT_SCHEMA_INVALID"
+    )
     assert wire["result"]["findings"][0]["finding_id"] == "finding-1"
     citation_ids = {item["citation_id"] for item in wire["result"]["citations"]}
     assert wire["result"]["facts"][0]["citation_ids"][0] in citation_ids
@@ -452,10 +461,12 @@ def test_result_with_cell_cited_payment_schedule_passes_its_own_validator():
         assert isinstance(refs, list) and set(refs) <= citation_ids
 
 
-def test_api_accepts_idempotent_async_processing_job(monkeypatch):
+def test_api_accepts_idempotent_async_processing_job(monkeypatch, tmp_path):
     from app.api import main
+    from app.tools.jobs import SQLiteJobStore
 
     monkeypatch.setenv("AI2_SERVICE_HMAC_SECRET", "test-secret")
+    monkeypatch.setattr(main, "JOB_STORE", SQLiteJobStore(tmp_path / "wire-jobs.sqlite"))
     main.WIRE_JOBS.clear()
     main.WIRE_IDEMPOTENCY.clear()
     client = TestClient(app)

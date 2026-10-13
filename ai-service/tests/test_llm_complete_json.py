@@ -7,16 +7,19 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+from openai import BadRequestError
+
 from app.llm.client import LLMEmptyResponseError, NineRouterClient
 from app.pipeline.runtime import ProcessingRuntime
-from openai import BadRequestError
 
 
 def test_runtime_normalizes_through_complete_json() -> None:
     client = NineRouterClient(api_key="sk-test", model="gh/gpt-4o-mini")
 
     def create(**_kwargs: object) -> SimpleNamespace:
-        message = SimpleNamespace(content='{"normalized": "CONG TY CO PHAN PHUC THINH", "unit": null}')
+        message = SimpleNamespace(
+            content='{"normalized": "CONG TY CO PHAN PHUC THINH", "unit": null}'
+        )
         return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=None)
 
     client._client.chat.completions.create = create  # type: ignore[method-assign]
@@ -24,7 +27,7 @@ def test_runtime_normalizes_through_complete_json() -> None:
     data = runtime.complete_json(
         client,
         "Normalize a contract field. Return JSON {normalized, unit}.",
-        "raw=CÃ”NG TY Cá»” PHáº¦N PHÃšC THá»ŠNH",
+        "raw=CÔNG TY CỔ PHẦN PHÚC THỊNH",
     )
     assert data == {"normalized": "CONG TY CO PHAN PHUC THINH", "unit": None}
     assert runtime.issues == []
@@ -33,8 +36,6 @@ def test_runtime_normalizes_through_complete_json() -> None:
     assert trace["trace_id"]
     assert trace["http_calls"] == 1
     assert "raw=" not in str(trace)
-
-
 
 
 @pytest.mark.parametrize(
@@ -73,10 +74,14 @@ def test_trace_records_served_model(fallback: bool) -> None:
         calls += 1
         if fallback and calls == 1:
             response = httpx.Response(400, request=httpx.Request("POST", "http://example.test"))
-            raise BadRequestError("unsupported response_format", response=response,
-                                  body={"param": "response_format"})
-        return SimpleNamespace(model="anthropic/claude-x", usage=None,
-                               choices=[SimpleNamespace(message=SimpleNamespace(content='{"ok": true}'))])
+            raise BadRequestError(
+                "unsupported response_format", response=response, body={"param": "response_format"}
+            )
+        return SimpleNamespace(
+            model="anthropic/claude-x",
+            usage=None,
+            choices=[SimpleNamespace(message=SimpleNamespace(content='{"ok": true}'))],
+        )
 
     client._client.chat.completions.create = create
     assert client.complete_json("system", "user") == {"ok": True}
@@ -90,8 +95,11 @@ def test_parse_failure_records_safe_error_trace_with_usage() -> None:
     usage = SimpleNamespace(prompt_tokens=11, completion_tokens=7, total_tokens=18)
 
     def create(**_kwargs: object) -> SimpleNamespace:
-        return SimpleNamespace(model="anthropic/claude-sonnet-4-6", usage=usage,
-                               choices=[SimpleNamespace(message=SimpleNamespace(content="{bad-json}"))])
+        return SimpleNamespace(
+            model="anthropic/claude-sonnet-4-6",
+            usage=usage,
+            choices=[SimpleNamespace(message=SimpleNamespace(content="{bad-json}"))],
+        )
 
     client._client.chat.completions.create = create
     with pytest.raises(json.JSONDecodeError):
@@ -99,7 +107,11 @@ def test_parse_failure_records_safe_error_trace_with_usage() -> None:
     trace = client.traces[-1]
     assert trace["error_type"] == "ResponseParseError"
     assert trace["served_model"] == "anthropic/claude-sonnet-4-6"
-    assert trace["prompt_tokens"] == 11 and trace["completion_tokens"] == 7 and trace["total_tokens"] == 18
+    assert (
+        trace["prompt_tokens"] == 11
+        and trace["completion_tokens"] == 7
+        and trace["total_tokens"] == 18
+    )
 
 
 def test_empty_response_fails_closed_with_safe_trace() -> None:
@@ -107,8 +119,11 @@ def test_empty_response_fails_closed_with_safe_trace() -> None:
     usage = SimpleNamespace(prompt_tokens=11, completion_tokens=0, total_tokens=11)
 
     def create(**_kwargs: object) -> SimpleNamespace:
-        return SimpleNamespace(model="gemini-3.8-flash", usage=usage,
-                               choices=[SimpleNamespace(message=SimpleNamespace(content=""))])
+        return SimpleNamespace(
+            model="gemini-3.8-flash",
+            usage=usage,
+            choices=[SimpleNamespace(message=SimpleNamespace(content=""))],
+        )
 
     client._client.chat.completions.create = create
     with pytest.raises(LLMEmptyResponseError):
@@ -118,6 +133,8 @@ def test_empty_response_fails_closed_with_safe_trace() -> None:
     assert trace["response_empty"] is True
     assert trace["served_model"] == "gemini-3.8-flash"
     assert trace["completion_tokens"] == 0 and trace["total_tokens"] == 11
+
+
 def test_runtime_snapshot_reports_remaining_budgets_without_payload_data() -> None:
     runtime = ProcessingRuntime(max_llm_calls=3, max_embedding_tokens=20)
     runtime.llm_calls_used = 2

@@ -55,14 +55,16 @@ def _conn() -> sqlite3.Connection:
 
 
 def record_to_dict(rec: DossierRecord) -> dict:
-    return {
+    payload = {
         "tenant_id": rec.tenant_id,
         "dossier_id": rec.dossier_id,
         "lifecycle": rec.lifecycle.value,
         "pins": rec.pins.model_dump(),
         "pages": [p.model_dump() for p in rec.pages],
         "nodes": [n.model_dump() for n in rec.nodes],
-        "active_nodes": [n.model_dump() for n in rec.active_nodes] if rec.active_nodes is not None else None,
+        "active_nodes": [n.model_dump() for n in rec.active_nodes]
+        if rec.active_nodes is not None
+        else None,
         "tables": [t.model_dump() for t in rec.tables],
         "profile": rec.profile.model_dump(),
         "acl_revision": rec.acl_revision,
@@ -79,7 +81,9 @@ def record_to_dict(rec: DossierRecord) -> dict:
             for f in rec.source_files
         ],
         "facts": [f.model_dump() for f in rec.facts],
-        "input_facts": [f.model_dump() for f in rec.input_facts] if rec.input_facts is not None else None,
+        "input_facts": [f.model_dump() for f in rec.input_facts]
+        if rec.input_facts is not None
+        else None,
         "chunks": [c.model_dump() for c in rec.chunks],
         "active_index_version": rec.active_index_version,
         "processing_index": rec.processing_index,
@@ -95,10 +99,14 @@ def record_to_dict(rec: DossierRecord) -> dict:
         "citation_index": {key: value.model_dump() for key, value in rec.citation_index.items()},
         "review_items": [item.model_dump() for item in rec.review_items],
         "events": [event.model_dump() for event in rec.events],
-        "semantic_profile": rec.semantic_profile.model_dump(mode="json") if rec.semantic_profile else None,
-        "semantic_extension": rec.semantic_extension.model_dump(mode="json") if rec.semantic_extension else None,
-        "semantic_snapshots": dict(rec.semantic_snapshots),
     }
+    if rec.semantic_profile is not None:
+        payload["semantic_profile"] = rec.semantic_profile.model_dump(mode="json")
+    if rec.semantic_extension is not None:
+        payload["semantic_extension"] = rec.semantic_extension.model_dump(mode="json")
+    if rec.semantic_snapshots:
+        payload["semantic_snapshots"] = dict(rec.semantic_snapshots)
+    return payload
 
 
 def record_from_dict(d: dict) -> DossierRecord:
@@ -120,7 +128,9 @@ def record_from_dict(d: dict) -> DossierRecord:
         permissions_by_actor=d.get("permissions_by_actor") or {},
         source_files=[SourceFile.model_validate(f) for f in d.get("source_files") or []],
         facts=[Fact.model_validate(f) for f in d.get("facts") or []],
-        input_facts=[Fact.model_validate(f) for f in d["input_facts"]] if d.get("input_facts") is not None else None,
+        input_facts=[Fact.model_validate(f) for f in d["input_facts"]]
+        if d.get("input_facts") is not None
+        else None,
         chunks=[Chunk.model_validate(c) for c in d.get("chunks") or []],
         active_index_version=d.get("active_index_version"),
         processing_index=d.get("processing_index", False),
@@ -131,16 +141,24 @@ def record_from_dict(d: dict) -> DossierRecord:
         embedding_budget_exceeded=d.get("embedding_budget_exceeded", False),
         index_status=d.get("index_status", "READY"),
         case_id=d.get("case_id"),
-        handoff_issues=[HandoffIssue.model_validate(issue) for issue in d.get("handoff_issues") or []],
-        relation_graph=RelationGraph.model_validate(d["relation_graph"]) if d.get("relation_graph") else None,
+        handoff_issues=[
+            HandoffIssue.model_validate(issue) for issue in d.get("handoff_issues") or []
+        ],
+        relation_graph=RelationGraph.model_validate(d["relation_graph"])
+        if d.get("relation_graph")
+        else None,
         citation_index={
             key: Citation.model_validate(value)
             for key, value in (d.get("citation_index") or {}).items()
         },
         review_items=[ReviewItem.model_validate(item) for item in d.get("review_items") or []],
         events=[ContractEvent.model_validate(event) for event in d.get("events") or []],
-        semantic_profile=SemanticProfile.model_validate(d["semantic_profile"]) if d.get("semantic_profile") else None,
-        semantic_extension=SemanticExtension.model_validate(d["semantic_extension"]) if d.get("semantic_extension") else None,
+        semantic_profile=SemanticProfile.model_validate(d["semantic_profile"])
+        if d.get("semantic_profile")
+        else None,
+        semantic_extension=SemanticExtension.model_validate(d["semantic_extension"])
+        if d.get("semantic_extension")
+        else None,
         semantic_snapshots=dict(d.get("semantic_snapshots") or {}),
     )
 
@@ -179,20 +197,37 @@ def save_session(sid: str, s: dict, store: InMemorySnapshotStore) -> None:
         from sqlalchemy.dialects.postgresql import insert
 
         from app.db.tables import session_blobs, sessions
+
         engine = get_engine()
         ensure_database(engine)
         with engine.begin() as cx:
-            stmt = insert(sessions).values(session_id=sid, payload=json.dumps(payload, ensure_ascii=False), updated_ms=int(time.time() * 1000))
-            cx.execute(stmt.on_conflict_do_update(index_elements=[sessions.c.session_id],
-                                                 set_={"payload": stmt.excluded.payload, "updated_ms": stmt.excluded.updated_ms}))
+            stmt = insert(sessions).values(
+                session_id=sid,
+                payload=json.dumps(payload, ensure_ascii=False),
+                updated_ms=int(time.time() * 1000),
+            )
+            cx.execute(
+                stmt.on_conflict_do_update(
+                    index_elements=[sessions.c.session_id],
+                    set_={"payload": stmt.excluded.payload, "updated_ms": stmt.excluded.updated_ms},
+                )
+            )
             cx.execute(delete(session_blobs).where(session_blobs.c.session_id == sid))
             if blobs:
-                cx.execute(insert(session_blobs), [{"session_id": sid, "file_id": fid, "content": data} for fid, data in blobs.items()])
+                cx.execute(
+                    insert(session_blobs),
+                    [
+                        {"session_id": sid, "file_id": fid, "content": data}
+                        for fid, data in blobs.items()
+                    ],
+                )
     else:
         cx = _conn()
         try:
-            cx.execute("INSERT OR REPLACE INTO sessions(session_id, payload, updated_ms) VALUES (?,?,?)",
-                       (sid, json.dumps(payload, ensure_ascii=False), int(time.time() * 1000)))
+            cx.execute(
+                "INSERT OR REPLACE INTO sessions(session_id, payload, updated_ms) VALUES (?,?,?)",
+                (sid, json.dumps(payload, ensure_ascii=False), int(time.time() * 1000)),
+            )
             cx.commit()
         finally:
             cx.close()
@@ -209,13 +244,25 @@ def load_session(sid: str, store: InMemorySnapshotStore) -> dict | None:
         engine = get_engine()
         ensure_database(engine)
         with engine.connect() as cx:
-            rows = cx.execute(select(sessions.c.payload, session_blobs.c.file_id, session_blobs.c.content)
-                .select_from(sessions.outerjoin(session_blobs, sessions.c.session_id == session_blobs.c.session_id))
-                .where(sessions.c.session_id == sid)).mappings().all()
+            rows = (
+                cx.execute(
+                    select(sessions.c.payload, session_blobs.c.file_id, session_blobs.c.content)
+                    .select_from(
+                        sessions.outerjoin(
+                            session_blobs, sessions.c.session_id == session_blobs.c.session_id
+                        )
+                    )
+                    .where(sessions.c.session_id == sid)
+                )
+                .mappings()
+                .all()
+            )
         if not rows:
             return None
         payload = json.loads(rows[0]["payload"])
-        blobs = {row["file_id"]: bytes(row["content"]) for row in rows if row["file_id"] is not None}
+        blobs = {
+            row["file_id"]: bytes(row["content"]) for row in rows if row["file_id"] is not None
+        }
     else:
         cx = _conn()
         try:

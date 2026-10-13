@@ -1,222 +1,222 @@
 {
  "cases": {
   "EC-001": {
-   "job_result": "20dd652fb469185d3674a44b64771f8e35edffa61e12b0a4c25c0164db5a0c4c",
+   "job_result": "18899282ee5786fdd662b4de7afd9960c986a3b5cae5b703839f22ce8600bc2b",
    "record": "689e02d5e149aa7abca5c77cb1368fb496b49f8231640c2c18993927bbfdc643",
    "wire": null
   },
   "EC-002": {
-   "job_result": "6dcca072be846f861871b112c6cf5e9af3a3f429e73342e98cd2517f8d1e428b",
+   "job_result": "4d187b618ae2db2e1b553ef277ba054a236f523b21ec4718d0815f46fd7bc5a5",
    "record": "eb6155f45e423b73d465b32b63686e2eb8ae4fe35ce2576351390cd6dda64882",
    "wire": null
   },
   "EC-003": {
-   "job_result": "5e2045eacdd8dc3f263976843e713c4ef6e2bc312d4a27e1fddce52015cb1e59",
+   "job_result": "940c00004342b0a2aa4a6699b624a85d9095b23892f84e0a7ff6dca31027ed2f",
    "record": "966c4f40fd92f83a90db266e1853b4b8ee93314f9b53a27e5ca5a8b57975d283",
    "wire": null
   },
   "EC-004": {
-   "job_result": "44d8f6da215c805d3edc22d54a4cfc63782bada5959e397533acdc536f348775",
+   "job_result": "3d3b9023fcdd9bf1bb4e15ffdb12d1baef4ee97e681fef5eac25828d5b0798e3",
    "record": "8b3a78c2624f2ad24b813b1fd7796db0e8286de08d44edca16c18856e3dce766",
    "wire": null
   },
   "EC-005": {
-   "job_result": "496b377dbd36e233d553c70bfd0de69e4cd80abc5776735bbf1fb1569e85ec8e",
+   "job_result": "59db5e25e20bc89d3f6049719a66298f375eedaa92f8c1a1b7253b8b943681a8",
    "record": "5d0d7baf634cbd11205b1f51b1dacc75bac4155c99a22b66d4568c868afb893e",
    "wire": null
   },
   "EC-006": {
-   "job_result": "8c2a7a62ae702a1a1992365483a04dad8d14850070b0846262af4d20ca8b657a",
+   "job_result": "36b2049c0b66f5b9667b542c7f0b9332b5440d00b8a1c6807f932deca4d64cc9",
    "record": "c07e5514740b4880b74bb4c167a287a9faabd6fd2eadf82730816670e87adacc",
    "wire": null
   },
   "EC-007": {
-   "job_result": "b75ba34a741abd77a347d9ce0d666612683adbd0e820e39cb189f24f5e307397",
+   "job_result": "e26b549f8f91e6e433c3573f542ce37169ebc072237790690be37f4a69abecb6",
    "record": "23579cd45d95228567d72d5116b17219a11de3d23e51f086791c47dd2507cf33",
    "wire": null
   },
   "EC-008": {
-   "job_result": "00295f1990dec10a5704ce81b65bb007d2747853c426f85818c1b58bc602ecc1",
+   "job_result": "28935de630844fb389f1c072b4d79c9fcbf48e9ef2ce87aea02f62da6c842689",
    "record": "4f2cef993b6f2cfa0ece49b4c77bcda9cd2187a31d8aede14251c14e72a17207",
    "wire": null
   },
   "EC-009": {
-   "job_result": "125f1daa5fb36d2eba157ed308cb82ada90cb7ced8a0aed09689dbeb909ffc83",
+   "job_result": "494c7afc679fae88af9ae54459bfe45844834c33450f3b9b4f2d481c03c6afd4",
    "record": "ced854284837eb9ce1f293b6c91937b0bf4eba05bf575eb958d8ec6d275e5bee",
    "wire": null
   },
   "EC-010": {
-   "job_result": "8fd66f1cfc19e5ec784619e26c0459ba87868d3a4b0499457fbe4e33434e3e91",
+   "job_result": "dd03c6094ccf73b590d0e042890df72419156f92b86893558a050c76d27a3f88",
    "record": "9623d53ae3ee7007f44d49ff12381c46d9949810f646edaf6fbc4fba5ebd829a",
    "wire": null
   },
   "EC-011": {
-   "job_result": "b89f40fe48b9078ac86a6ed86d0846ba3289cbd9effdb5b5e464040b0a2f7024",
+   "job_result": "2b6c95e68e893a99a5594e8f9842d10285ffb94eb5ce2cf60c1d0e82b1d49d9d",
    "record": "ba2fffee3b9b649e0d8c8d22df96e6fc14f928117b1ac6eb3d51267e2e6795a6",
    "wire": null
   },
   "EC-012": {
-   "job_result": "3acfe063f28fd1455086393631fced65ff0babfce1af3885c76cf2fe967501be",
+   "job_result": "7bd8b3568fdb582a1bf7d30d1cccde89ecfd3d2763c801aa9278443cfa7038a5",
    "record": "5dcbe3b323fac3b900f313fc124857bf0f5f2bc8cda2ed7e3f45c7e4f804b5e2",
    "wire": null
   },
   "EC-013": {
-   "job_result": "e663a65cc33ce4a1eae6402a80096dcdcbea7c0028167b50f46e6bfcd9dd1d96",
+   "job_result": "3be602b483d2d9c5299b2cb22ac779e0aac45afcb5150c165bae94cef2b35b33",
    "record": "61800f4f2b2528b88466ea89ebb0ada5a927eb18f3fb901940913b8b270e62b1",
    "wire": null
   },
   "EC-014": {
-   "job_result": "7f5a7aa168acc5fe39338bc6a5ae07a4e2712585b6bc95b5fac78de339e9ac01",
+   "job_result": "c37a9197f4f6c9c5710107b4fef2fa983242d404bd485d8a880d92432f78d867",
    "record": "01d1825be1e96d6026bd3e2d000b0055461c7d39a680a5245233fc176e1121a2",
    "wire": null
   },
   "EC-015": {
-   "job_result": "9092b5ff5152e7f51c2cd4ea265e3b58edc12be188e1e90f88cdc82f7e202b48",
+   "job_result": "8f1c1c3cfff0637e06dd7ad04e0bb03904a82ebabe339c1feae78683d7b9aa46",
    "record": "9f4a63bcc5561cb88c77fdb33a697ca13a7eec7436b3db2b539c0d6da96a40fd",
    "wire": null
   },
   "EC-016": {
-   "job_result": "e3ad844b78a5dae90827914dca95ae73c87ce76b89aeb7b66cd0dd5c8a04c58a",
+   "job_result": "d28f09dff3caf89377e6acfa1c237e7bdbf279583e9f14c9626d5ddf887128c3",
    "record": "14bb9af239081c7a238023d68937eeb680c945932ae79409d802cc013fd043f5",
    "wire": null
   },
   "EC-017": {
-   "job_result": "73e0265ce05f9009b5b20456b66a86858bf4fed2ef3806b8f6413e0e1b1cf614",
+   "job_result": "38494b74d23f9104010ded730cc5b35d48abd660de9fb82e1a4643579fa4540a",
    "record": "53456d6c155f9b9f8b75536275522716f9659026efeb7e54f7e31b298d93b8d0",
    "wire": null
   },
   "EC-018": {
-   "job_result": "39058f44cfb59f06a63b9114f4a6f0031b69765839cad759c4296c72efb93e59",
+   "job_result": "5859d3450ea26b8631c5f5968e6b68013868a7b0ea2c25810f2fd18da5d14406",
    "record": "7e5487d9e86d82276294923eac791adb35663357d329ccd15ee6f7dc1c52912a",
    "wire": null
   },
   "EC-019": {
-   "job_result": "04f580650c9d06042703dcf098317402b1ece2d47ed5717611f618c5efc2d3bc",
+   "job_result": "071e8c607589af80b9280a7b2fea2b86dcb40b0e185668f310481c813ffdb8b7",
    "record": "6c412e2cbb84e9ac028e8f89b0c663599e88b9f10476bd0935796020c11535ec",
    "wire": null
   },
   "EC-020": {
-   "job_result": "9ee5028096fa193b31aeeb560e19a422ae11a9e6ec9f8873ed96df1b65d83aa8",
+   "job_result": "d3098e36fda2feeeec4e6ea6a4d06c75998bf036d901b2171f93b7c8b371360d",
    "record": "9f33f17c274eb5202620d91ae4e27ac64eb309dcd1744a2cdd5cad50e034e8f5",
    "wire": null
   },
   "EC-021": {
-   "job_result": "0ac418a20d2cafdecfbbf8f30ea1f22c3755bf3d70d84918cbde7936708edd2b",
+   "job_result": "8bd442ad85fbec3bce5632be397fd76d262b06bca0680b377a90da99afdc5722",
    "record": "4647a5faaa6f2d41d3468131fd877efcd9c46abef65e56dbf9b5cad8c77e22a9",
    "wire": null
   },
   "EC-022": {
-   "job_result": "5635b19543c08db6431f818697689678971dae8168294538f800482d0206c7e2",
+   "job_result": "035ed3eda06ca29692ca0319758c4ff7faace314aa6d57b78c0ae5388cdbb2ed",
    "record": "b522a46b7b52da456212360b166c008ba9afd30cd322fb1ea4772c9067d6a943",
    "wire": null
   },
   "EC-023": {
-   "job_result": "2bfec69da37271e68189345d034b99b4bd4ce5439a47c98790a38278c7ba1356",
+   "job_result": "0e44d7c29d56d3323149f22fdfe3a60bcffa2139e1b499b6942594806b416f29",
    "record": "96c473dc0b702d6af143a521f695f7876316a131a735979434f210f3b17fbb8f",
    "wire": null
   },
   "EC-024": {
-   "job_result": "b05cc1137d3eb46165e2349a5586a56c688f71f4a5d80c14a4d27c5118118b8e",
+   "job_result": "700af1726fefc40674b4eca6373557135b126f27b4ce3bd66b51ae4daeb2e159",
    "record": "fa1c686c92f4e4e6511cfcf8c549d3b4b4553631a69c10f87b833032e182cbc2",
    "wire": null
   },
   "EC-025": {
-   "job_result": "7769281479ee842807430e944eabe74b63d4445df6bfa10ed7c2abe118cdf8e8",
+   "job_result": "8b5ed6d2190e9229e61767d4fefdbfd6c15d8a338ee037eaf23a052dee4d0e23",
    "record": "b605099ca8313e540a609aa3115ec97f7a76f4fef0217069f237ec7f2b943947",
    "wire": null
   },
   "EC-026": {
-   "job_result": "772418be046bf144bebdcbea9c3ee09e78a58c8bbfb4bec4a1f004e0e9e0b1b2",
+   "job_result": "32ea01da73154ffdcdc0239cbdc3add01390fbb68dc2f8aecdf1c12ec8ad20c5",
    "record": "d76a15b1a68a4dd82d0f60b2b02f7ca221f7a2e09f98ed3dfce3c6c040d1db55",
    "wire": null
   },
   "EC-027": {
-   "job_result": "8cf746c4e4b364a0e7a3b5b6687497898846ab2ecadf38453330e2a91370d160",
+   "job_result": "65969425efcbfcb07a50224d6bd035e97b5da165c7eb06563235c9898a9a210c",
    "record": "33be895028307b5d0bf5fe8d846975328805f297d2404561af4a80fc5233e632",
    "wire": null
   },
   "EC-028": {
-   "job_result": "291e6ac44e2f4e12d057b4bb89225a73ffc0ecc0bf67d98d439abfb5abb1dd0e",
+   "job_result": "1c18dc919c377821072dff99d4d343edc4fa3e25a2cf1a950efcfa983417e167",
    "record": "95ac0ba64f90fb44b192d9e77decaf34bcc7c35be60008fd22c11c59faa2d809",
    "wire": null
   },
   "EC-029": {
-   "job_result": "a1e2b728c76550e08b65dc904cb12189af5304403e97adfb72fddf5d0420cda7",
+   "job_result": "6dce00f8664e953bdc0903503a9dae11bfc24d60c0cb5ba25f0ddf2e34c2d974",
    "record": "1c6946503738939fb7d95abab96d7f0e21085ea5abaf6744f35b9439bd6108f3",
    "wire": null
   },
   "EC-030": {
-   "job_result": "0060293bbb5c9cce2efd43d4bbe4257ef1d99891a05c67e7a86a8abadac1eb98",
+   "job_result": "6946c70783f6ddd27d0e0f06499d6ce8b98ce284211a42aa487fe72cbb3ebea3",
    "record": "fe10261dab4e2f2646abe3396d87d9315b05a218fa3f607a0e98434463f6da19",
    "wire": null
   },
   "EC-031": {
-   "job_result": "fa72539e28ae5490449c94bde353801b1553872493c986b0350420a3c53e63a6",
+   "job_result": "0ce1a3439c9092d1aa077ae2a739ea7ce9c3cdbd3b4360dad14d274b3336b268",
    "record": "7936e43eb0c8f443c6b7b2d2433a93d3a2106364e71cf9fb9de8bc4ce1e33592",
    "wire": null
   },
   "EC-032": {
-   "job_result": "8e7f4edd2650360ef189c03d98b1ccd836259b3179e3042a32ea968bacf8a5ea",
+   "job_result": "ae90cae9ca986d74577b5469f7b56933fb2530adb7f94c904820b15e06a00477",
    "record": "a6da398b1126b80fd89880ff15245c6c0539c3b50006e05d1d2dae65b6938d84",
    "wire": null
   },
   "EC-033": {
-   "job_result": "c73f17c0eee2830deafb746f1339781c27f755ae091c000cf05601c84a628971",
+   "job_result": "9f71496ba38b5058b638710a3be6b3363851be49070cfd856579f5327f81ef08",
    "record": "814d9216810533a8c4a5b7d67447ef07ebf4946084cb72a5e0e2bc3c928bc6e5",
    "wire": null
   },
   "EC-034": {
-   "job_result": "366750d2ef24db6a2352accdfd22fcb5dc3f515c640fccf5a40aaf63d115564d",
+   "job_result": "01e90425a8d34238848b25149084d324eb5257c8619889db5a72b2a45c161b70",
    "record": "1e3f823af504ed0e8702f41bd9d15f007bea5ccf9540688f3926fe4c51a5ea0a",
    "wire": null
   },
   "EC-035": {
-   "job_result": "201687dfbcf9b9de73fe60f8be562b9959855cb43d65da092aa4aa9b090e20bf",
+   "job_result": "aec7bdb8c9f306e18b353554b5e64149fd489914410d8d7b0e3e7ea3205d1ddb",
    "record": "8d75c6bf09aa1ad0312deee04e88c79b571f2a3220a6462868775a3555455020",
    "wire": null
   },
   "EC-036": {
-   "job_result": "cfddf96f1163ecf2d8138726f99197c5362cd3a4a9066234fcc4c478b698b592",
+   "job_result": "0e03342f7a447b1f001ea836854cedba334ea9bc6e93909e73662929689c739b",
    "record": "c81caccac0f631fd6bb50f0bb99f1602209e54d3b53871c8a48d91c24c13a6c3",
    "wire": null
   },
   "EC-037": {
-   "job_result": "4e2609ba94ea937f425d786ae5cbcb2b7a195ef956267130e5cfb0bde0064d48",
+   "job_result": "91c1b8d9a02cff79c2980b8421c73a1620d242bffcc07f9c1d61090b27e9c70e",
    "record": "7f92079cb2e4d8458c69c20be3ae37c03e08fb304b137b0c007d7dcbbd6d3241",
    "wire": null
   },
   "EC-038": {
-   "job_result": "8968b4eb2c744f117549307a483cf415f2580a6c431b6e636401be27ecfa39f8",
+   "job_result": "acf717f50776bdf5a39824a2c55c07b9af26618065f140c92fc4f1c617f89430",
    "record": "290b4ca376fa643c9c6562adf7e2019b310a116f60b6dab4bd5dee59ac96a935",
    "wire": null
   },
   "EC-039": {
-   "job_result": "9010a547dda86eed0c5a0a064f74eea63581b456fe822022c12a9a874be6a17f",
+   "job_result": "a595bc5a96eb7ccc6356df370b4a3f5acad66ea1f8488a95e1e98dd2e62dce5a",
    "record": "6b4ed0120cf3528cf861eef4d466fd0946811c440594a8e820c75bf43516799b",
    "wire": null
   },
   "EC-040": {
-   "job_result": "c66fb104873b84850e150add7be2c7eef382f3e09841c62892905b09b496345d",
+   "job_result": "e09cde956ece00fbb2040e192b476b762056f35af25f68a926546cd47f5437b0",
    "record": "626fb2f4be7943799de8acce6077e9e18820efc0b27f85035ee8d582e523d1bc",
    "wire": null
   },
   "EC-041": {
-   "job_result": "03da030c7fd14ca810a976898d1c9d896ce63cc8bbdcdda2cc2bbf7dcac391c3",
+   "job_result": "d654460b03f93a45a1e240cf5916a6146c2fe3746969b03111825f8d9777e41b",
    "record": "4c6bd39b5322db803e36d48d5a992f80f38c346fe0d176b550333c80cd53d6f8",
    "wire": null
   },
   "EC-042": {
-   "job_result": "b48f540df5c287a93f01c3b2f36c9a4172d5863f0f7938c1da28f4317f1d9962",
+   "job_result": "91ddf3e964daf46007e5c08429c279b396eb6b6b8d891eaf37087fb649708bf9",
    "record": "01102cd46fa749e15340eb692085a410ac009992255ba06cd6635639ab2be5e3",
    "wire": null
   },
   "EC-043": {
-   "job_result": "3f5fd727e0f989e91a0267b6d5f9565f9cc10aa941f83705cb4805c7e477d2a5",
+   "job_result": "b5745c6029fcaa3b9c7c3bf74a3492685431942e14ce010d90ad8a8dc147c7d6",
    "record": "ac9afab3b88369650d17480739002d7d379e407bc9f6c999aab3a1768e0dab2c",
    "wire": null
   },
   "EC-044": {
-   "job_result": "d3e0d8bdefa07f1348dd8e66798cf0d7661b638bd93c6d498448e2948210dd2a",
+   "job_result": "6a2a3efe59536569c2cee4213def80c89f0766374eef6a517ce5731d49277926",
    "record": "d45b4dade8e478413e72dc32527e06255db0e6120adf25daf4cf951dc10c772c",
    "wire": null
   },
@@ -226,17 +226,17 @@
    "wire": null
   },
   "EC-046": {
-   "job_result": "89cce428790d643b0280246befe23763a8030fc2f93c0b4a24fc73c3fbffbf02",
+   "job_result": "ad36879f4daf4806ca9783bde5704612c83bd2841e75a5bc0271c51e5b23a276",
    "record": "b1bf6fa6bb8b537a3cb7e552bd3be2375cc0aef58563c491447f3fe3e2408433",
    "wire": null
   },
   "EC-047": {
-   "job_result": "321a5e48e836c11c9208d44ac855d2845befd285806e1fb88da23da05b17a873",
+   "job_result": "cfc97d656af2534759f57a3d2574edbc91f091d27555fe9f0953711ff43d70bc",
    "record": "4d7a9b0993e9a5e7fc529b824008c85583dc79a0bd31d1a57daab477909e716a",
    "wire": null
   },
   "EC-048": {
-   "job_result": "94bed308278aee58b0a677232ce1b002e68ab428b4f6a5e930091a7b03517842",
+   "job_result": "3e4ce1524b96063d073fe7591d98cf2f2344e76c19c53602da9753dbfcdbe1fc",
    "record": "7208a838704f11d4198a0abe7bb94ba5d0b550e1fedb2067d8435161b7340a0d",
    "wire": null
   },
@@ -246,17 +246,17 @@
    "wire": null
   },
   "EC-050": {
-   "job_result": "07ebc71b358d6eb0a1a0a5d7c51f2c36779bec7714f6b9f0480d32c8a43f0538",
+   "job_result": "94291516b4bfcf76819a56f1ba9c12f8d20e7d8d8666751a028f887de88ffe3e",
    "record": "8e4dd6475e99ead2e68099cbad65c5a4c7c435b5b49b6a918b19f486cb99b193",
    "wire": null
   },
   "EC-051": {
-   "job_result": "3d26f2c8d5f2bf0e7ed0e7508639b27120eaf464aaae522d3d1ed11ac25cab6a",
+   "job_result": "56f90f8b03002be02a5c9c7ddfe52481e0fbe175763cf4f68d2b77dd47468a6d",
    "record": "c04cd71b903b474877aa5a3a38ca1aa59daddb51c51591c79f4fce820a31bad3",
    "wire": null
   },
   "EC-052": {
-   "job_result": "13c161066f8b228603fcaffa91e618ccfca643ff75168a04285a9b99ca4573e6",
+   "job_result": "9cd905a43ea2e2f28a5b948025f380c1952e52ae1294b76fb0cbff240c1def85",
    "record": "9d6fb8ed7b4141ab1fd1b6e65032103efb2458bbd28121d2c1cad327d7c42ee7",
    "wire": null
   },
@@ -271,7 +271,7 @@
    "wire": null
   },
   "EC-055": {
-   "job_result": "3e0f8899509659ee54aef74e6596381f33b0f50c44e7aca3a494b4952051826f",
+   "job_result": "ecab600362ed83f3883e26d4d53930cf336a7597c2cd738bb02f396e82ad842f",
    "record": "108658ee4a75b7e030d6703c6627bdae134b50b20de227c3338775d96cf063b2",
    "wire": null
   },
@@ -281,27 +281,27 @@
    "wire": null
   },
   "HAPPY-001": {
-   "job_result": "e6781f6337cc37aade572328e2fc197cdd71bafeba0f4a5aa75379e5efd807ed",
+   "job_result": "e7726e0cf4ae6461f5a94b16413cb04f0d0348fd6c3f575ec80bb937fe3c0523",
    "record": "7a4e7a0d191de0c9e1c12665983463d009fa34c5287cd0284f21e16d4cc07bf7",
    "wire": null
   },
   "HAPPY-002": {
-   "job_result": "2c5d11b7822885c567405793937132769ba648a62db52585363a215a50a90c5d",
+   "job_result": "99175d58c0f78c97092f2068e4fe1be6e3b068ea258ebead267320fa45cb1e23",
    "record": "8fa25470e4bfa44655ac5d80e106008f1a5eb8009c8d209968f23f7c026d8bb6",
    "wire": null
   },
   "HAPPY-003": {
-   "job_result": "41af4af884df0f1fd6faecdb9b3fa0d1bc9ea31c9098e656a5e2c7bb30c3b8d1",
+   "job_result": "e17bc6fb2eb45e477c74fc42579216b34ea7489d5f84a393b608e69f7a4149c5",
    "record": "3f7fd4775899919df66e9112e4346d36ff630e94bb73101e1f5123da8766f909",
    "wire": null
   },
   "HAPPY-004": {
-   "job_result": "a883d2e4d3d7312d28f72c72477f27ac6f4ccd88379c0f36a98737001a46980b",
+   "job_result": "dfee4288eae3c37a3ab0df90880cca5c4c3f796342cba5190c3b1376ee3471bc",
    "record": "11bf1252c240e52ac2d1b9beb24bccdcc4414dd6d92e76fe6e5e8f413dd97a72",
    "wire": null
   },
   "HAPPY-005": {
-   "job_result": "155472c0ab0c3849b7bdf2ad4e08835bce5268d4fad56dcc5ac14b2d8cd832e8",
+   "job_result": "3f50458ae8f36181e47d0210dda4a43dde445cf8092dd7fc5a3457ee56b84989",
    "record": "8087b9cc0f1ca5301548412da16291a11b9bf793a8efef89fa58262cfef3aabb",
    "wire": null
   },
@@ -311,39 +311,39 @@
    "wire": null
   },
   "HD-TONG-HOP": {
-   "job_result": "690724e9ce17177dd8e314886cf576f1b7c81baa7295b2dd74f7724796c2faf8",
+   "job_result": "c91c82d97bdc1004bdf9cceeb206c56a5a1aef4e23e64f5635ec3d91a29f87d7",
    "record": "a8d5fc9b4dbc99c1baacb38d43c9b8a2981bf9e562f5be20d4cab30899bb5c88",
    "wire": null
   },
   "SALE-BRD-07": {
-   "job_result": "e2d5a09f4968bbb4aa538a278a395815dd7612da91a397b24bc2f822c308156c",
+   "job_result": "511f9e5b7a29d9db3da672d808494a2be20865c106fe2183edcffd280dda41f6",
    "record": "ffd82057ebafacbb8be044357022306f0b262b46fe33638d8e31d1bd2bc5b1b6",
    "wire": null
   },
   "SERVICE-BRD-08": {
-   "job_result": "8cd345643267e2c450349346a5292e3876f269e2a30f95fba39e635675803169",
+   "job_result": "8d1c758b6fd9579683205b16ef58ed8c08127820a7f1ce8a99f99df0fbbb4467",
    "record": "d96004351428004e32f011d0377c825a7fc1283ecc8fe63d0f7a9501f8ef46f4",
    "wire": null
   },
   "contract_graph.graph_record": {
-   "job_result": "cf9659fa312a68f1352c41cb0b64e347622fc5983577446f95c7961b99e0527d",
-   "record": "dc7f5ca6ba76379a42901ad6df3d98a6385a299c0c9724be88b8dae336cd0e90",
+   "job_result": "51a29829b2fc84f2d15f339c65ef4372eab49fd512c83d0424b10a0c894ad46b",
+   "record": "25b6c43c237ad98be69f260dfb4573d9dd6b664fa44fa058d69c6826828538e2",
    "wire": null
   },
   "contract_graph.pair_record_embedded": {
-   "job_result": "25de86423134e640ef936d8e0a9b2c8bb03c7981d26e0b836aba13a866255dc6",
+   "job_result": "7bce46c8961312f37254b82a360902c5d319e521abd6e1d7d9f4e16bc2eecef8",
    "record": "be85c406aa8d91cdf2b76b3a03d58a7dcde8d52dfd0740ac045d607ffb971719",
    "wire": null
   },
   "fixtures.mock_record": {
-   "job_result": "f67d401274a7c44ffda306771afc4a705d50bbebcd4d81010bf05c452fef8cfb",
+   "job_result": "8bd7b2e0da2d651c3faf80eac85d4bf61a48823b15d4f06821304d72a96bcc43",
    "record": "d60885a9cff15e9d90980c156fb5f6f3057eb3e5a2d5156b1d29effd14626372",
    "wire": null
   },
   "wire:ai1.snapshot.v1.body+annex": {
-   "job_result": "bd16d54fe8d8f57f29de0cacd357a9232e6a5d7036a5ae2c76200bc65bab545f",
-   "record": "81ec2b1c8cc1926dfe083c5a3ee8cbeddcaca6780574c2b088cb2acca3d5715e",
-   "wire": "cefa00f88d45d9ba818375113fb9d580b044967aa4f80cfcad3f8ca2017ae515"
+   "job_result": "1bfe98d1d39dba70e23598568f4a4e38581a241c44547065bf1bf82dc5b7eca9",
+   "record": "e63a75e9336c2d580eddfe751da4f74103bcaf0542f5c2681e66f3f0ea6ce022",
+   "wire": "aa29168e3ffef04b09bc9d4b7aec063aa2065c67fcc88ef720c752120c4dc8f8"
   }
  },
  "flag": "AI2_CONTRACT_GRAPH_ENABLED 1",
@@ -831,8 +831,10 @@
       "n_units": 31,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -4832,8 +4834,10 @@
       "n_units": 2,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -5922,8 +5926,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -6272,8 +6278,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -6848,8 +6856,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -7291,8 +7301,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -7766,8 +7778,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -8198,8 +8212,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -8872,8 +8888,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -9256,8 +9274,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -54637,8 +54657,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -55478,8 +55500,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -56186,8 +56210,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -56840,8 +56866,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -57303,8 +57331,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -58265,8 +58295,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -59090,8 +59122,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -59695,8 +59729,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -60214,8 +60250,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -60628,8 +60666,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -61458,8 +61498,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -62032,8 +62074,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -62459,8 +62503,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -63069,8 +63115,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -63689,8 +63737,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -64118,8 +64168,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -65159,8 +65211,10 @@
       "n_units": 2,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -66019,8 +66073,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -66529,8 +66585,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -67077,8 +67135,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -67721,8 +67781,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -68130,8 +68192,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -68964,8 +69028,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -69292,8 +69358,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -69689,8 +69757,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -69977,8 +70047,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -71267,8 +71339,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -72555,8 +72629,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -73086,8 +73162,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -73483,8 +73561,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -73734,8 +73814,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -74127,8 +74209,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -74532,8 +74616,10 @@
       "n_units": 2,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -74982,8 +75068,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -75492,8 +75580,10 @@
       "n_units": 2,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -76147,8 +76237,10 @@
       "n_units": 10,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -79912,8 +80004,10 @@
       "n_units": 8,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -84428,8 +84522,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -85727,8 +85823,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -86145,8 +86243,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -87769,8 +87869,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": false,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -89388,8 +89490,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -90674,8 +90778,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -91821,8 +91927,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -93111,8 +93219,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -94516,8 +94626,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -98107,8 +98219,10 @@
       "n_units": 33,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -143427,8 +143541,10 @@
       "n_units": 2,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -145771,8 +145887,10 @@
       "n_units": 2,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -146977,82 +147095,7 @@
   "contract_graph.graph_record": {
    "job_result": {
     "contribution": {
-     "candidates": [
-      {
-       "candidate_id": "cand_00000000",
-       "disposition": "CANDIDATE_AMENDMENT",
-       "evidence_left": [
-        {
-         "bbox": [],
-         "bbox_fragments": [],
-         "breadcrumb": [],
-         "cell_id": null,
-         "char_end": 183,
-         "char_start": 145,
-         "citation_id": null,
-         "coordinate_system": null,
-         "geometry_available": false,
-         "geometry_source": null,
-         "line_ids": [
-          "b_d5k2:l0"
-         ],
-         "node_id": "b_d5k2",
-         "page": 1,
-         "page_range": [
-          1
-         ],
-         "page_revision_id": "f-body:p1",
-         "precision": null,
-         "quote_sha256": "384cb0c587ffcd899d2d31bbbd69308df88bef83647da99f540235717d14751b",
-         "source_file_id": "f-body",
-         "source_hash": "sha256:830e2d516f6e34e0a559038b55d02118df83802c3446d6308202c4e91034bab0",
-         "structure_path": null,
-         "table_id": null,
-         "text_span": "Đơn giá giao hàng là 100.000 đồng/tấn.",
-         "validation_status": "VALID"
-        }
-       ],
-       "evidence_right": [
-        {
-         "bbox": [],
-         "bbox_fragments": [],
-         "breadcrumb": [],
-         "cell_id": null,
-         "char_end": 415,
-         "char_start": 381,
-         "citation_id": null,
-         "coordinate_system": null,
-         "geometry_available": false,
-         "geometry_source": null,
-         "line_ids": [
-          "a7:l0"
-         ],
-         "node_id": "a7",
-         "page": 2,
-         "page_range": [
-          2
-         ],
-         "page_revision_id": "f-annex:p1",
-         "precision": null,
-         "quote_sha256": "a8a502a18a200907514cae42cbba0871152658ac7f63ae54d8a066ac303211be",
-         "source_file_id": "f-annex",
-         "source_hash": "sha256:018b5dfd140d59ed92fdafabd006912e5b826e44328cd41bab9f30cbd0b39197",
-         "structure_path": null,
-         "table_id": null,
-         "text_span": "Điều chỉnh khoản 2 Điều 5 như sau:",
-         "validation_status": "VALID"
-        }
-       ],
-       "finding_type": "CANDIDATE_AMENDMENT",
-       "item_key": "don_gia",
-       "left_id": "fact-body-don-gia",
-       "model_disposition": "INCOMPLETE",
-       "reason": "Nguồn 1 · don_gia: 100000  ↔  Nguồn 2 · Phụ lục: 120000. Tham chiếu sửa/thay rõ — CANDIDATE_AMENDMENT, không xác nhận hiệu lực, không kéo item khác.",
-       "review_state": "NEEDS_REVIEW",
-       "right_id": "fact-annex-don-gia",
-       "scope": "CONTRACT_ANNEX"
-      }
-     ],
+     "candidates": [],
      "chunks": [
       {
        "bbox_fragments": [],
@@ -147741,6 +147784,86 @@
           "bbox_fragments": [],
           "breadcrumb": [
            "Phụ lục 01",
+           "7."
+          ],
+          "cell_id": null,
+          "char_end": 415,
+          "char_start": 381,
+          "citation_id": null,
+          "coordinate_system": null,
+          "geometry_available": false,
+          "geometry_source": null,
+          "line_ids": [
+           "a7:l0",
+           "a7:l1"
+          ],
+          "node_id": "a7",
+          "page": 2,
+          "page_range": [
+           2
+          ],
+          "page_revision_id": "f-annex:p1",
+          "precision": null,
+          "quote_sha256": "a8a502a18a200907514cae42cbba0871152658ac7f63ae54d8a066ac303211be",
+          "source_file_id": "f-annex",
+          "source_hash": "sha256:018b5dfd140d59ed92fdafabd006912e5b826e44328cd41bab9f30cbd0b39197",
+          "structure_path": "Phụ lục 01 › 7.",
+          "table_id": null,
+          "text_span": "Điều chỉnh khoản 2 Điều 5 như sau:",
+          "validation_status": "VALID"
+         },
+         {
+          "bbox": [],
+          "bbox_fragments": [],
+          "breadcrumb": [
+           "Điều 5",
+           "2."
+          ],
+          "cell_id": null,
+          "char_end": 183,
+          "char_start": 145,
+          "citation_id": null,
+          "coordinate_system": null,
+          "geometry_available": false,
+          "geometry_source": null,
+          "line_ids": [
+           "b_d5k2:l0"
+          ],
+          "node_id": "b_d5k2",
+          "page": 1,
+          "page_range": [
+           1
+          ],
+          "page_revision_id": "f-body:p1",
+          "precision": null,
+          "quote_sha256": "384cb0c587ffcd899d2d31bbbd69308df88bef83647da99f540235717d14751b",
+          "source_file_id": "f-body",
+          "source_hash": "sha256:830e2d516f6e34e0a559038b55d02118df83802c3446d6308202c4e91034bab0",
+          "structure_path": "Điều 5 › 2.",
+          "table_id": null,
+          "text_span": "Đơn giá giao hàng là 100.000 đồng/tấn.",
+          "validation_status": "VALID"
+         }
+        ],
+        "finding_id": "contract-graph:cedge:ce85eec1ddf59dcc2576a494",
+        "kind": "AMENDMENT_SIGNAL",
+        "metadata": {},
+        "reason": "AI2 phát hiện quan hệ sửa đổi tới khoan 2 dieu 5; cần người duyệt đối chiếu hai phía.",
+        "relation_type": "AMENDS",
+        "review_state": "NEEDS_REVIEW",
+        "source_node_ids": [
+         "a7",
+         "b_d5k2"
+        ],
+        "subject_key": "khoan 2 dieu 5"
+       },
+       {
+        "citations": [
+         {
+          "bbox": [],
+          "bbox_fragments": [],
+          "breadcrumb": [
+           "Phụ lục 01",
            "8."
           ],
           "cell_id": null,
@@ -148172,7 +148295,7 @@
       "contract_graph": {
        "ambiguous_targets": 0,
        "auto_pass_enabled": false,
-       "deduped_with_legacy": 1,
+       "deduped_with_legacy": 0,
        "edges_by_op": {
         "INSERTION": 2,
         "REJECTION": 1,
@@ -148188,18 +148311,20 @@
        "truncated": 0,
        "unresolved_targets": 1
       },
-      "n_candidate_findings": 1,
+      "n_candidate_findings": 0,
       "n_candidates_suppressed": 0,
-      "n_context_findings": 8,
+      "n_context_findings": 9,
       "n_events": 34,
-      "n_evidence_issues": 13,
+      "n_evidence_issues": 15,
       "n_facts": 2,
       "n_findings": 9,
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -149857,6 +149982,41 @@
         "bbox_fragments": [],
         "breadcrumb": [],
         "cell_id": null,
+        "char_end": 415,
+        "char_start": 381,
+        "citation_id": null,
+        "coordinate_system": null,
+        "geometry_available": false,
+        "geometry_source": null,
+        "line_ids": [
+         "a7:l0"
+        ],
+        "node_id": "a7",
+        "page": 2,
+        "page_range": [
+         2
+        ],
+        "page_revision_id": "f-annex:p1",
+        "precision": null,
+        "quote_sha256": "a8a502a18a200907514cae42cbba0871152658ac7f63ae54d8a066ac303211be",
+        "source_file_id": "f-annex",
+        "source_hash": "sha256:018b5dfd140d59ed92fdafabd006912e5b826e44328cd41bab9f30cbd0b39197",
+        "structure_path": null,
+        "table_id": null,
+        "text_span": "Điều chỉnh khoản 2 Điều 5 như sau:",
+        "validation_status": "VALID"
+       },
+       "issue_id": "body-annex-relation:fact-body-don-gia:fact-annex-don-gia",
+       "missing": "BODY_ANNEX_RELATION",
+       "reason": "Thiếu relation evidence cho body/annex của don_gia; không tạo finding cross-document.",
+       "review_state": "INSUFFICIENT_EVIDENCE"
+      },
+      {
+       "citation": {
+        "bbox": [],
+        "bbox_fragments": [],
+        "breadcrumb": [],
+        "cell_id": null,
         "char_end": 36,
         "char_start": 11,
         "citation_id": null,
@@ -150000,6 +150160,45 @@
        "issue_id": "contract-context:contract-graph:cedge:72d6d132e050ad73a9cf8772",
        "missing": "CONTRACT_CONTEXT_AMENDMENT_SIGNAL",
        "reason": "AI2 phát hiện quan hệ sửa đổi tới dieu 5; cần người duyệt đối chiếu hai phía.",
+       "review_state": "NEEDS_REVIEW"
+      },
+      {
+       "citation": {
+        "bbox": [],
+        "bbox_fragments": [],
+        "breadcrumb": [
+         "Phụ lục 01",
+         "7."
+        ],
+        "cell_id": null,
+        "char_end": 415,
+        "char_start": 381,
+        "citation_id": null,
+        "coordinate_system": null,
+        "geometry_available": false,
+        "geometry_source": null,
+        "line_ids": [
+         "a7:l0",
+         "a7:l1"
+        ],
+        "node_id": "a7",
+        "page": 2,
+        "page_range": [
+         2
+        ],
+        "page_revision_id": "f-annex:p1",
+        "precision": null,
+        "quote_sha256": "a8a502a18a200907514cae42cbba0871152658ac7f63ae54d8a066ac303211be",
+        "source_file_id": "f-annex",
+        "source_hash": "sha256:018b5dfd140d59ed92fdafabd006912e5b826e44328cd41bab9f30cbd0b39197",
+        "structure_path": "Phụ lục 01 › 7.",
+        "table_id": null,
+        "text_span": "Điều chỉnh khoản 2 Điều 5 như sau:",
+        "validation_status": "VALID"
+       },
+       "issue_id": "contract-context:contract-graph:cedge:ce85eec1ddf59dcc2576a494",
+       "missing": "CONTRACT_CONTEXT_AMENDMENT_SIGNAL",
+       "reason": "AI2 phát hiện quan hệ sửa đổi tới khoan 2 dieu 5; cần người duyệt đối chiếu hai phía.",
        "review_state": "NEEDS_REVIEW"
       },
       {
@@ -154093,76 +154292,6 @@
          "bbox_fragments": [],
          "breadcrumb": [],
          "cell_id": null,
-         "char_end": 69,
-         "char_start": 63,
-         "citation_id": null,
-         "coordinate_system": null,
-         "geometry_available": false,
-         "geometry_source": null,
-         "line_ids": [
-          "a1:l0",
-          "a1:l1"
-         ],
-         "node_id": "a1",
-         "page": 2,
-         "page_range": [
-          2
-         ],
-         "page_revision_id": "f-annex:p1",
-         "precision": null,
-         "quote_sha256": "96e9fdb5c155c967ed5026eb047e85c962bc351574e0e17749bc6cd022468e8c",
-         "source_file_id": "f-annex",
-         "source_hash": "sha256:018b5dfd140d59ed92fdafabd006912e5b826e44328cd41bab9f30cbd0b39197",
-         "structure_path": null,
-         "table_id": null,
-         "text_span": "Điều 3",
-         "validation_status": "VALID"
-        },
-        {
-         "bbox": [],
-         "bbox_fragments": [],
-         "breadcrumb": [],
-         "cell_id": null,
-         "char_end": 18,
-         "char_start": 8,
-         "citation_id": null,
-         "coordinate_system": null,
-         "geometry_available": false,
-         "geometry_source": null,
-         "line_ids": [
-          "b_d3:l0"
-         ],
-         "node_id": "b_d3",
-         "page": 1,
-         "page_range": [
-          1
-         ],
-         "page_revision_id": "f-body:p1",
-         "precision": null,
-         "quote_sha256": "d4b946cc5932b6e779b338a177c1b49cd3b39a7880398c5a4e84bb25046e5d9b",
-         "source_file_id": "f-body",
-         "source_hash": "sha256:830e2d516f6e34e0a559038b55d02118df83802c3446d6308202c4e91034bab0",
-         "structure_path": null,
-         "table_id": null,
-         "text_span": "Thanh toán",
-         "validation_status": "VALID"
-        }
-       ],
-       "edge_id": "edge:4dd548aa52f011b78d4d5e30",
-       "from_node_id": "a1",
-       "relation_type": "AMENDS",
-       "review_state": "NEEDS_REVIEW",
-       "source_snapshot_digest": "sha256:aaa",
-       "support": "EXPLICIT_TEXT",
-       "to_node_id": "b_d3"
-      },
-      {
-       "citations": [
-        {
-         "bbox": [],
-         "bbox_fragments": [],
-         "breadcrumb": [],
-         "cell_id": null,
          "char_end": 164,
          "char_start": 158,
          "citation_id": null,
@@ -154221,76 +154350,6 @@
        "edge_id": "edge:f281a563c82d59df88bf23a5",
        "from_node_id": "a2",
        "relation_type": "REFERENCES",
-       "review_state": "NEEDS_REVIEW",
-       "source_snapshot_digest": "sha256:aaa",
-       "support": "EXPLICIT_TEXT",
-       "to_node_id": "b_d7"
-      },
-      {
-       "citations": [
-        {
-         "bbox": [],
-         "bbox_fragments": [],
-         "breadcrumb": [],
-         "cell_id": null,
-         "char_end": 164,
-         "char_start": 158,
-         "citation_id": null,
-         "coordinate_system": null,
-         "geometry_available": false,
-         "geometry_source": null,
-         "line_ids": [
-          "a2:l0",
-          "a2:l1"
-         ],
-         "node_id": "a2",
-         "page": 2,
-         "page_range": [
-          2
-         ],
-         "page_revision_id": "f-annex:p1",
-         "precision": null,
-         "quote_sha256": "a418c9eaea007331a6fdf916fbe22d26fe10cd671865f687602ca89b05fa6a78",
-         "source_file_id": "f-annex",
-         "source_hash": "sha256:018b5dfd140d59ed92fdafabd006912e5b826e44328cd41bab9f30cbd0b39197",
-         "structure_path": null,
-         "table_id": null,
-         "text_span": "Điều 7",
-         "validation_status": "VALID"
-        },
-        {
-         "bbox": [],
-         "bbox_fragments": [],
-         "breadcrumb": [],
-         "cell_id": null,
-         "char_end": 202,
-         "char_start": 192,
-         "citation_id": null,
-         "coordinate_system": null,
-         "geometry_available": false,
-         "geometry_source": null,
-         "line_ids": [
-          "b_d7:l0"
-         ],
-         "node_id": "b_d7",
-         "page": 1,
-         "page_range": [
-          1
-         ],
-         "page_revision_id": "f-body:p1",
-         "precision": null,
-         "quote_sha256": "9fda72d3239d8715f795a974918d782d9e292a3782c9d4df36c88b45782c42bd",
-         "source_file_id": "f-body",
-         "source_hash": "sha256:830e2d516f6e34e0a559038b55d02118df83802c3446d6308202c4e91034bab0",
-         "structure_path": null,
-         "table_id": null,
-         "text_span": "Nghiệm thu",
-         "validation_status": "VALID"
-        }
-       ],
-       "edge_id": "edge:f95e973f9e4f7692360ce15c",
-       "from_node_id": "a2",
-       "relation_type": "AMENDS",
        "review_state": "NEEDS_REVIEW",
        "source_snapshot_digest": "sha256:aaa",
        "support": "EXPLICIT_TEXT",
@@ -154500,76 +154559,6 @@
        "edge_id": "edge:eed10192650ccf72c45e1290",
        "from_node_id": "a10",
        "relation_type": "REFERENCES",
-       "review_state": "NEEDS_REVIEW",
-       "source_snapshot_digest": "sha256:aaa",
-       "support": "EXPLICIT_TEXT",
-       "to_node_id": "b_d18"
-      },
-      {
-       "citations": [
-        {
-         "bbox": [],
-         "bbox_fragments": [],
-         "breadcrumb": [],
-         "cell_id": null,
-         "char_end": 658,
-         "char_start": 651,
-         "citation_id": null,
-         "coordinate_system": null,
-         "geometry_available": false,
-         "geometry_source": null,
-         "line_ids": [
-          "a10:l0",
-          "a10:l1"
-         ],
-         "node_id": "a10",
-         "page": 2,
-         "page_range": [
-          2
-         ],
-         "page_revision_id": "f-annex:p1",
-         "precision": null,
-         "quote_sha256": "de1218baae0bcd27ce881853e6026e983bb91ef83eaf0ca9c1e668981dcf2200",
-         "source_file_id": "f-annex",
-         "source_hash": "sha256:018b5dfd140d59ed92fdafabd006912e5b826e44328cd41bab9f30cbd0b39197",
-         "structure_path": null,
-         "table_id": null,
-         "text_span": "Điều 18",
-         "validation_status": "VALID"
-        },
-        {
-         "bbox": [],
-         "bbox_fragments": [],
-         "breadcrumb": [],
-         "cell_id": null,
-         "char_end": 292,
-         "char_start": 285,
-         "citation_id": null,
-         "coordinate_system": null,
-         "geometry_available": false,
-         "geometry_source": null,
-         "line_ids": [
-          "b_d18:l0"
-         ],
-         "node_id": "b_d18",
-         "page": 1,
-         "page_range": [
-          1
-         ],
-         "page_revision_id": "f-body:p1",
-         "precision": null,
-         "quote_sha256": "e326c8621f7093cab417325d913fbf7c0ac695fc0c0bc157009160a070523d27",
-         "source_file_id": "f-body",
-         "source_hash": "sha256:830e2d516f6e34e0a559038b55d02118df83802c3446d6308202c4e91034bab0",
-         "structure_path": null,
-         "table_id": null,
-         "text_span": "Tạm ứng",
-         "validation_status": "VALID"
-        }
-       ],
-       "edge_id": "edge:93d088b53aba5151881107ca",
-       "from_node_id": "a10",
-       "relation_type": "AMENDS",
        "review_state": "NEEDS_REVIEW",
        "source_snapshot_digest": "sha256:aaa",
        "support": "EXPLICIT_TEXT",
@@ -155099,10 +155088,22 @@
      {
       "candidate_id": null,
       "citation_ids": [],
+      "kind": "body-annex-relation:fact-body-don-gia:fact-annex-don-gia",
+      "proposed_action": "VERIFY_EVIDENCE",
+      "reason": "Thiếu relation evidence cho body/annex của don_gia; không tạo finding cross-document.",
+      "review_item_id": "review:body-annex-relation:fact-body-don-gia:fact-annex-don-gia:5",
+      "review_state": "INSUFFICIENT_EVIDENCE",
+      "revision": 0,
+      "source_ids": [],
+      "status": "OPEN"
+     },
+     {
+      "candidate_id": null,
+      "citation_ids": [],
       "kind": "contract-context:context-finding:da1695b1595428e0c21ee7bf",
       "proposed_action": "VERIFY_EVIDENCE",
       "reason": "Phát hiện Phụ lục 01 nhưng chưa thấy tham chiếu rõ từ thân hợp đồng; cần kiểm tra số phụ lục và căn cứ gắn kèm.",
-      "review_item_id": "review:contract-context:context-finding:da1695b1595428e0c21ee7bf:5",
+      "review_item_id": "review:contract-context:context-finding:da1695b1595428e0c21ee7bf:6",
       "review_state": "NEEDS_REVIEW",
       "revision": 0,
       "source_ids": [],
@@ -155114,7 +155115,7 @@
       "kind": "contract-context:contract-graph:cedge:2299029eaffbebbdb55ee999",
       "proposed_action": "VERIFY_EVIDENCE",
       "reason": "AI2 phát hiện quan hệ sửa đổi tới diem c khoan 1 dieu 3; cần người duyệt đối chiếu hai phía.",
-      "review_item_id": "review:contract-context:contract-graph:cedge:2299029eaffbebbdb55ee999:6",
+      "review_item_id": "review:contract-context:contract-graph:cedge:2299029eaffbebbdb55ee999:7",
       "review_state": "NEEDS_REVIEW",
       "revision": 0,
       "source_ids": [],
@@ -155126,7 +155127,7 @@
       "kind": "contract-context:contract-graph:cedge:ec8ac82194abe95d4b3887db",
       "proposed_action": "VERIFY_EVIDENCE",
       "reason": "AI2 phát hiện quan hệ sửa đổi tới khoan 4 dieu 7; cần người duyệt đối chiếu hai phía.",
-      "review_item_id": "review:contract-context:contract-graph:cedge:ec8ac82194abe95d4b3887db:7",
+      "review_item_id": "review:contract-context:contract-graph:cedge:ec8ac82194abe95d4b3887db:8",
       "review_state": "NEEDS_REVIEW",
       "revision": 0,
       "source_ids": [],
@@ -155138,7 +155139,19 @@
       "kind": "contract-context:contract-graph:cedge:72d6d132e050ad73a9cf8772",
       "proposed_action": "VERIFY_EVIDENCE",
       "reason": "AI2 phát hiện quan hệ sửa đổi tới dieu 5; cần người duyệt đối chiếu hai phía.",
-      "review_item_id": "review:contract-context:contract-graph:cedge:72d6d132e050ad73a9cf8772:8",
+      "review_item_id": "review:contract-context:contract-graph:cedge:72d6d132e050ad73a9cf8772:9",
+      "review_state": "NEEDS_REVIEW",
+      "revision": 0,
+      "source_ids": [],
+      "status": "OPEN"
+     },
+     {
+      "candidate_id": null,
+      "citation_ids": [],
+      "kind": "contract-context:contract-graph:cedge:ce85eec1ddf59dcc2576a494",
+      "proposed_action": "VERIFY_EVIDENCE",
+      "reason": "AI2 phát hiện quan hệ sửa đổi tới khoan 2 dieu 5; cần người duyệt đối chiếu hai phía.",
+      "review_item_id": "review:contract-context:contract-graph:cedge:ce85eec1ddf59dcc2576a494:10",
       "review_state": "NEEDS_REVIEW",
       "revision": 0,
       "source_ids": [],
@@ -155150,7 +155163,7 @@
       "kind": "contract-context:contract-graph:cedge:420073fe6fbd19cf95396eb7",
       "proposed_action": "VERIFY_EVIDENCE",
       "reason": "AI2 phát hiện quan hệ sửa đổi tới dieu 7; cần người duyệt đối chiếu hai phía.",
-      "review_item_id": "review:contract-context:contract-graph:cedge:420073fe6fbd19cf95396eb7:9",
+      "review_item_id": "review:contract-context:contract-graph:cedge:420073fe6fbd19cf95396eb7:11",
       "review_state": "NEEDS_REVIEW",
       "revision": 0,
       "source_ids": [],
@@ -155162,7 +155175,7 @@
       "kind": "contract-context:contract-graph:cedge:4ad8327b7b84ef8c0f263acf",
       "proposed_action": "VERIFY_EVIDENCE",
       "reason": "AI2 phát hiện quan hệ sửa đổi tới khoan 2 dieu 5; cần người duyệt đối chiếu hai phía.",
-      "review_item_id": "review:contract-context:contract-graph:cedge:4ad8327b7b84ef8c0f263acf:10",
+      "review_item_id": "review:contract-context:contract-graph:cedge:4ad8327b7b84ef8c0f263acf:12",
       "review_state": "NEEDS_REVIEW",
       "revision": 0,
       "source_ids": [],
@@ -155174,7 +155187,7 @@
       "kind": "contract-context:contract-graph:cedge:5c23459b82ffa1850a6f457c",
       "proposed_action": "VERIFY_EVIDENCE",
       "reason": "AI2 phát hiện quan hệ sửa đổi tới khoan 5a dieu 18; cần người duyệt đối chiếu hai phía.",
-      "review_item_id": "review:contract-context:contract-graph:cedge:5c23459b82ffa1850a6f457c:11",
+      "review_item_id": "review:contract-context:contract-graph:cedge:5c23459b82ffa1850a6f457c:13",
       "review_state": "NEEDS_REVIEW",
       "revision": 0,
       "source_ids": [],
@@ -155186,7 +155199,7 @@
       "kind": "contract-context:contract-graph:cedge:e3b8508b3ac12c42a036f54d",
       "proposed_action": "VERIFY_EVIDENCE",
       "reason": "AI2 phát hiện quan hệ sửa đổi tới khoan 2 dieu 7; cần người duyệt đối chiếu hai phía.",
-      "review_item_id": "review:contract-context:contract-graph:cedge:e3b8508b3ac12c42a036f54d:12",
+      "review_item_id": "review:contract-context:contract-graph:cedge:e3b8508b3ac12c42a036f54d:14",
       "review_state": "NEEDS_REVIEW",
       "revision": 0,
       "source_ids": [],
@@ -155198,20 +155211,8 @@
       "kind": "contract-graph:f36fcfe1cd57e9e3d944d911",
       "proposed_action": "VERIFY_EVIDENCE",
       "reason": "Không tìm thấy đơn vị đích dieu 9 của thao tác sửa đổi; không suy đoán đích.",
-      "review_item_id": "review:contract-graph:f36fcfe1cd57e9e3d944d911:13",
+      "review_item_id": "review:contract-graph:f36fcfe1cd57e9e3d944d911:15",
       "review_state": "INSUFFICIENT_EVIDENCE",
-      "revision": 0,
-      "source_ids": [],
-      "status": "OPEN"
-     },
-     {
-      "candidate_id": "cand_00000000",
-      "citation_ids": [],
-      "kind": "CANDIDATE",
-      "proposed_action": "REVIEW_COMPARISON",
-      "reason": "Nguồn 1 · don_gia: 100000  ↔  Nguồn 2 · Phụ lục: 120000. Tham chiếu sửa/thay rõ — CANDIDATE_AMENDMENT, không xác nhận hiệu lực, không kéo item khác.",
-      "review_item_id": "review:candidate:cand_00000000",
-      "review_state": "NEEDS_REVIEW",
       "revision": 0,
       "source_ids": [],
       "status": "OPEN"
@@ -155655,8 +155656,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -158726,8 +158729,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -160255,8 +160260,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": false,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -160521,6 +160528,10 @@
       "status": "OPEN"
      }
     ],
+    "semantic_snapshots": {
+     "doc-annex-example-001": "snap-annex-example-001",
+     "doc-body-example-001": "snap-body-example-001"
+    },
     "source_files": [
      {
       "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -160656,8 +160667,10 @@
        "n_units": 1,
        "runtime": {
         "egress_allowed": false,
+        "embedding_tokens_remaining": null,
         "embedding_tokens_used": 0,
         "fallback_count": 0,
+        "llm_calls_remaining": 0,
         "llm_calls_used": 0,
         "max_embedding_tokens": 0,
         "max_llm_calls": 0,

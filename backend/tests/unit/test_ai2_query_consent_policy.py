@@ -66,6 +66,22 @@ class _Session:
 async def test_api_v1_query_signs_stored_consent_separately_from_server_caps(
     monkeypatch, consent, expected, server_flags
 ):
+    # This test isolates signed consent/cap propagation; semantic snapshot reads
+    # are covered by the semantic query tests.
+    monkeypatch.setattr(
+        dossier_api,
+        "_semantic_result",
+        AsyncMock(
+            return_value={
+                "semantic_extension": None,
+                "state": "NOT_MEASURED",
+                "reason": "CURRENT_RUN_ABSENT",
+                "run_id": None,
+                "result_digest": None,
+                "typed_table_projections": {"payment_schedules": [], "boq_checks": []},
+            }
+        ),
+    )
     dossier = _dossier(consent)
     captured: dict[str, Any] = {}
 

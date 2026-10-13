@@ -116,6 +116,7 @@ def test_deploy_workflow_has_develop_preflight_and_requires_all_ssh_settings():
         Loader=yaml.BaseLoader,
     )
     assert workflow["on"]["push"]["branches"] == ["develop"]
+    assert workflow["on"]["pull_request"]["branches"] == ["develop"]
     assert "workflow_dispatch" in workflow["on"]
     jobs = workflow["jobs"]
     assert "preflight" in jobs and "deploy" in jobs
@@ -123,6 +124,7 @@ def test_deploy_workflow_has_develop_preflight_and_requires_all_ssh_settings():
     assert "secrets." not in json.dumps(jobs["preflight"])
     assert "preflight" in jobs["deploy"]["needs"]
     assert jobs["deploy"]["environment"] == "production"
+    assert "github.event_name != 'pull_request'" in jobs["deploy"]["if"]
 
     preflight_text = json.dumps(jobs["preflight"])
     assert "workflow_dispatch" in preflight_text
@@ -138,21 +140,25 @@ def test_deploy_workflow_has_develop_preflight_and_requires_all_ssh_settings():
 
 @pytest.mark.skipif(not HAS_BASH, reason="bash is available on the GitHub deploy runner")
 @pytest.mark.parametrize(
-    ("event_name", "ref", "expected_status"),
+    ("event_name", "ref", "base_ref", "expected_status"),
     [
-        ("push", "refs/heads/develop", 0),
-        ("workflow_dispatch", "refs/heads/develop", 0),
-        ("workflow_dispatch", "refs/heads/feature/example", 1),
+        ("push", "refs/heads/develop", "", 0),
+        ("workflow_dispatch", "refs/heads/develop", "", 0),
+        ("workflow_dispatch", "refs/heads/feature/example", "", 1),
+        ("pull_request", "refs/pull/42/merge", "develop", 0),
+        ("pull_request", "refs/pull/42/merge", "main", 1),
     ],
 )
-def test_deploy_preflight_allows_only_develop(event_name, ref, expected_status):
+def test_deploy_preflight_allows_develop_push_dispatch_or_pr_validation(
+    event_name, ref, base_ref, expected_status
+):
     workflow = yaml.load(
         (ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8"),
         Loader=yaml.BaseLoader,
     )
     step = workflow["jobs"]["preflight"]["steps"][0]
     environment = os.environ.copy()
-    environment.update({"EVENT_NAME": event_name, "REF": ref})
+    environment.update({"EVENT_NAME": event_name, "REF": ref, "BASE_REF": base_ref})
 
     result = subprocess.run(
         [BASH, "-euc", step["run"]],
@@ -164,7 +170,12 @@ def test_deploy_preflight_allows_only_develop(event_name, ref, expected_status):
 
     assert result.returncode == expected_status
     if expected_status:
-        assert "only from refs/heads/develop" in result.stdout
+        expected_error = (
+            "only for PRs targeting develop"
+            if event_name == "pull_request"
+            else "only from refs/heads/develop"
+        )
+        assert expected_error in result.stdout
 
 
 @pytest.mark.skipif(not HAS_BASH, reason="bash is available on the GitHub deploy runner")

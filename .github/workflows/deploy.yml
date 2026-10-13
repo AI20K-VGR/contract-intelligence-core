@@ -7,6 +7,8 @@ name: deploy
 on:
   push:
     branches: [develop]
+  pull_request:
+    branches: [develop]
   workflow_dispatch:
 
 permissions:
@@ -25,14 +27,22 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           REF: ${{ github.ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          if [[ "$REF" != "refs/heads/develop" ]]; then
-            echo "::error::Deployment is allowed only from refs/heads/develop (got $REF)."
-            exit 1
-          fi
-          if [[ "$EVENT_NAME" != "push" && "$EVENT_NAME" != "workflow_dispatch" ]]; then
-            echo "::error::Unsupported deployment event: $EVENT_NAME."
-            exit 1
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            if [[ "$BASE_REF" != "develop" ]]; then
+              echo "::error::Validation is allowed only for PRs targeting develop (got $BASE_REF)."
+              exit 1
+            fi
+          else
+            if [[ "$REF" != "refs/heads/develop" ]]; then
+              echo "::error::Deployment is allowed only from refs/heads/develop (got $REF)."
+              exit 1
+            fi
+            if [[ "$EVENT_NAME" != "push" && "$EVENT_NAME" != "workflow_dispatch" ]]; then
+              echo "::error::Unsupported deployment event: $EVENT_NAME."
+              exit 1
+            fi
           fi
 
       - uses: actions/checkout@v4
@@ -48,7 +58,7 @@ jobs:
 
   deploy:
     needs: preflight
-    if: needs.preflight.result == 'success'
+    if: needs.preflight.result == 'success' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: production

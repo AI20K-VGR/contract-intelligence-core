@@ -13,6 +13,16 @@ def test_record_roundtrip_keeps_nodes():
     assert rec2.pins.source_snapshot_digest == rec.pins.source_snapshot_digest
 
 
+def test_empty_semantic_fields_do_not_change_legacy_record_shape():
+    rec, _env, _meta, _blobs = ingest_files([("a.md", b"Dieu 1", "body")])
+
+    payload = record_to_dict(rec)
+
+    assert "semantic_profile" not in payload
+    assert "semantic_extension" not in payload
+    assert "semantic_snapshots" not in payload
+
+
 def test_record_from_dict_defaults_missing_egress_approval_to_fail_closed():
     rec, _env, _meta, _blobs = ingest_files([("a.md", b"Dieu 1", "body")])
     payload = record_to_dict(rec)
@@ -37,7 +47,9 @@ def test_save_load_session(tmp_path, monkeypatch):
         "source": "upload",
         "step": "reconstruct",
         "ai1": meta,
-        "job": JobResult(job_id="j1", status=JobStatus.SUCCEEDED, review_state=ReviewState.NEEDS_REVIEW),
+        "job": JobResult(
+            job_id="j1", status=JobStatus.SUCCEEDED, review_state=ReviewState.NEEDS_REVIEW
+        ),
         "used_llm": False,
         "blobs": blobs,
         "gold": False,

@@ -1,222 +1,222 @@
 {
  "cases": {
   "EC-001": {
-   "job_result": "ecb45c73564d6f706f2a52eeac0c68429176a82a93b5448d1d8c920f40c8aec6",
+   "job_result": "fe807f61bae3a0be0f51c72a18f3f27c83135b3c0de8c571faaad5d83708eda1",
    "record": "689e02d5e149aa7abca5c77cb1368fb496b49f8231640c2c18993927bbfdc643",
    "wire": null
   },
   "EC-002": {
-   "job_result": "cfc8a952840e515c4bd383a98b00233273a8a7450f5e77d590f178d34cdeb614",
+   "job_result": "10b11a55352a92a7a13ab33699bd9244f437b8a13d2ea6b51d2c5d4b471c34e1",
    "record": "eb6155f45e423b73d465b32b63686e2eb8ae4fe35ce2576351390cd6dda64882",
    "wire": null
   },
   "EC-003": {
-   "job_result": "6580b396a3df3aec4bb7baadb1d8964ede00b8c3764c7d33482c111239e6b3be",
+   "job_result": "8d3f138b3981610e1f1b1010a12de87d6f97fcebda1da82d46ce031fb4df6f56",
    "record": "966c4f40fd92f83a90db266e1853b4b8ee93314f9b53a27e5ca5a8b57975d283",
    "wire": null
   },
   "EC-004": {
-   "job_result": "4f36cb11ace3d1963e8483be6d5f87ca2b92f497ecf206ee9d29c502727bb656",
+   "job_result": "94019042a6bd622befbfb312bdcf755d4e623864615e075f33b0676eb60268fc",
    "record": "8b3a78c2624f2ad24b813b1fd7796db0e8286de08d44edca16c18856e3dce766",
    "wire": null
   },
   "EC-005": {
-   "job_result": "01e1ce1d73355b78fd9aa23bf2d8d4260a23707bc5a25de89fc6730bd7a4c31b",
+   "job_result": "6bdd1f49b20c94754d7ea093b548560a0646856c6c4d954b922c2fff8ed88ce5",
    "record": "5d0d7baf634cbd11205b1f51b1dacc75bac4155c99a22b66d4568c868afb893e",
    "wire": null
   },
   "EC-006": {
-   "job_result": "5b05939bba6d822c73b5f7f7f5bb82f0dfa786f282f98b38075840733d40670e",
+   "job_result": "7373d7ff0fe9d54ec5155c1a3954e48cde41b4e9b6ccabf61e8148d14f9f6228",
    "record": "c07e5514740b4880b74bb4c167a287a9faabd6fd2eadf82730816670e87adacc",
    "wire": null
   },
   "EC-007": {
-   "job_result": "923957e48e0c3ee0ba2cf8b6218e934998251c6ced2494b178bc516217bb7846",
+   "job_result": "0750a9adb84b2c9bd06004723f45e278b40a9cd2256178ab9091d1f4551d08d4",
    "record": "23579cd45d95228567d72d5116b17219a11de3d23e51f086791c47dd2507cf33",
    "wire": null
   },
   "EC-008": {
-   "job_result": "be23a26318fa25e3a18787b4e088714d567f5f4af952152ff962d4cdc0fe935a",
+   "job_result": "79e895cfa7341c5c8e1fea2018f63e1014fc5023d62802e9544e09f06b3045c5",
    "record": "4f2cef993b6f2cfa0ece49b4c77bcda9cd2187a31d8aede14251c14e72a17207",
    "wire": null
   },
   "EC-009": {
-   "job_result": "5873e50c9ad5a28b946abe4caef6f5c1850c6ab42a77b856dbf8d46c10e31b52",
+   "job_result": "642b188b0884f83ef919ef40f2b75f17456c762e972fc642022d626b82a1c63e",
    "record": "ced854284837eb9ce1f293b6c91937b0bf4eba05bf575eb958d8ec6d275e5bee",
    "wire": null
   },
   "EC-010": {
-   "job_result": "fdd332add9ade4fa43893151ac23c970c883e829f8a5c43bb88aafe446714910",
+   "job_result": "4f833a6a7c60b58e44a6d673e97075bc70dc95cd1b8a16676c54d1eb02187659",
    "record": "9623d53ae3ee7007f44d49ff12381c46d9949810f646edaf6fbc4fba5ebd829a",
    "wire": null
   },
   "EC-011": {
-   "job_result": "d4d8749d56019fbbaede39e89db73fe0815006389c1e9aa8a8751ee0e0199549",
+   "job_result": "b05d83403f5b319d0f5595a145ae0c9afe48a928101d26a0046ed82bba169154",
    "record": "ba2fffee3b9b649e0d8c8d22df96e6fc14f928117b1ac6eb3d51267e2e6795a6",
    "wire": null
   },
   "EC-012": {
-   "job_result": "8bf6a702efc670f60ddd8050ff5b4e1fba6472ceb884148e099f3d49e8b85e6a",
+   "job_result": "bc5fc0e6e711d388d768cea13f40109d2f9a59bcd13229e8095b2260ba8a3205",
    "record": "5dcbe3b323fac3b900f313fc124857bf0f5f2bc8cda2ed7e3f45c7e4f804b5e2",
    "wire": null
   },
   "EC-013": {
-   "job_result": "ddb3f94c9263de777257ae71283293d6431012d9729c8aa829286b079874f844",
+   "job_result": "5677c6ee8d78343e3ef204ded81aa1c18aedc39eb9db1f958f655e4c442442a0",
    "record": "61800f4f2b2528b88466ea89ebb0ada5a927eb18f3fb901940913b8b270e62b1",
    "wire": null
   },
   "EC-014": {
-   "job_result": "096293bda595d4e2c13ef4c0141b9030d95f17ab1d326974ae92e340982a87f7",
+   "job_result": "64f2a31e44236320404d9d2a24c9ec265bd76204f8cde41e33f445537bcec063",
    "record": "01d1825be1e96d6026bd3e2d000b0055461c7d39a680a5245233fc176e1121a2",
    "wire": null
   },
   "EC-015": {
-   "job_result": "197bfd4e7c8d886d13711650e7db5d18b864d95ab5c9bee3a81033fc52834487",
+   "job_result": "291350f8c085798dbfb4cbfd07b60d3ea1c79f5f6adcaffe2a1b24b85bb94ba4",
    "record": "9f4a63bcc5561cb88c77fdb33a697ca13a7eec7436b3db2b539c0d6da96a40fd",
    "wire": null
   },
   "EC-016": {
-   "job_result": "39d14f082724d56754b216bc2c43bdfcda2c17358f95df2b73bceb9c795ce7a0",
+   "job_result": "64316a4385f76563d41958e3c7ffb81d16001127697efa2f39e9877ce4dea6ab",
    "record": "14bb9af239081c7a238023d68937eeb680c945932ae79409d802cc013fd043f5",
    "wire": null
   },
   "EC-017": {
-   "job_result": "22fb2a1cb8e1497088993072c515a24b351e58d70df247ecb04d8a3068e7d502",
+   "job_result": "211e794d140e25f65459f89872307cd08f3934c77f795307a1f1b4f8f14c4f9d",
    "record": "53456d6c155f9b9f8b75536275522716f9659026efeb7e54f7e31b298d93b8d0",
    "wire": null
   },
   "EC-018": {
-   "job_result": "45a5448308f5d1d845104e75a9f4a9a7fe084879602dfb98b7909a31c3d69692",
+   "job_result": "2a61ed1bda1485ef2c7d8d4609441cb675fdda22e4744f17be141d4809ed6eed",
    "record": "7e5487d9e86d82276294923eac791adb35663357d329ccd15ee6f7dc1c52912a",
    "wire": null
   },
   "EC-019": {
-   "job_result": "4d94fb36421e59814b848e57de538ea774520aef2d3c763a496dc82323d7f764",
+   "job_result": "abff8af69ae270e0c07e89e11c74b83a268259b859c448f31c54b9730c881d4a",
    "record": "6c412e2cbb84e9ac028e8f89b0c663599e88b9f10476bd0935796020c11535ec",
    "wire": null
   },
   "EC-020": {
-   "job_result": "2c5e96bf367167c42c0bbdf10bb502cbc7e2e69420094c691a6e372909f88569",
+   "job_result": "81710029ec29bcf1f4a8ab5a1997dfe951e26c0325c3d3d361ec743e51ed72a0",
    "record": "9f33f17c274eb5202620d91ae4e27ac64eb309dcd1744a2cdd5cad50e034e8f5",
    "wire": null
   },
   "EC-021": {
-   "job_result": "c0a6644ce1136fdc51ecdc3f6518a41e5f24a6703922ca7d61fc7af186d97761",
+   "job_result": "beeb85cad0e4efffd5db91bf7bca526638b3818270f5ec96ca2ed27581b5de08",
    "record": "4647a5faaa6f2d41d3468131fd877efcd9c46abef65e56dbf9b5cad8c77e22a9",
    "wire": null
   },
   "EC-022": {
-   "job_result": "b4ee710143cbc1d26b13b0a7df42cdcdc98b16aaf6bcf370b3d1fcecd62b754c",
+   "job_result": "2e7cf5bd3979ac17e500538fae5010cb34e9c3e3d459987b2f9f69e8b6aa03df",
    "record": "b522a46b7b52da456212360b166c008ba9afd30cd322fb1ea4772c9067d6a943",
    "wire": null
   },
   "EC-023": {
-   "job_result": "2997b1e221a05cf764fa5641bd49ceda3189591a8d1c9741bfe5e909fec67a2a",
+   "job_result": "cc7c6cb0a9ae09bb6a6737b67b3de6f5844b7c5dba3e0078be4a1f93f65310f1",
    "record": "96c473dc0b702d6af143a521f695f7876316a131a735979434f210f3b17fbb8f",
    "wire": null
   },
   "EC-024": {
-   "job_result": "37f4b454f6abbe7c76204c98c1fd3cdbdeb13483d21633de529c931137c04de0",
+   "job_result": "f02612e6e5c70a3af67bcb6f6e2dbeb6bd780374477b9c03385dea1d3d0f643b",
    "record": "fa1c686c92f4e4e6511cfcf8c549d3b4b4553631a69c10f87b833032e182cbc2",
    "wire": null
   },
   "EC-025": {
-   "job_result": "7123c1b4863b34a0fc9fcfcf14888984adc243ad25df851460f3b151da3e1244",
+   "job_result": "009a4bcd40b64a314648aa1b498e6e7ca04e84ace86fd5b1f174f8fecba7627d",
    "record": "b605099ca8313e540a609aa3115ec97f7a76f4fef0217069f237ec7f2b943947",
    "wire": null
   },
   "EC-026": {
-   "job_result": "4819e634ca68bc70614a434c7450dd038c22c8fafea45d512ce50cc3e1b06c99",
+   "job_result": "01a222b34a54a80adc5290977fde16125337816ca2be4232cdabd4774c90050b",
    "record": "d76a15b1a68a4dd82d0f60b2b02f7ca221f7a2e09f98ed3dfce3c6c040d1db55",
    "wire": null
   },
   "EC-027": {
-   "job_result": "a6016125abbd4d0c266bf5bb00bd2d1d43662121be3480944d3997755f84a7f2",
+   "job_result": "f497ea12f3ffddff00b181b07510715f526702ad38efcf640602b80a37eac928",
    "record": "33be895028307b5d0bf5fe8d846975328805f297d2404561af4a80fc5233e632",
    "wire": null
   },
   "EC-028": {
-   "job_result": "bf8f93567cebb80a6bf12dd93df2285e223fee91797a4c0fa3d003397f0dde44",
+   "job_result": "5dbb94a3f29330b78940b4e0e23f7f6459c9bf7da3a993350b490c2ab7fa0647",
    "record": "95ac0ba64f90fb44b192d9e77decaf34bcc7c35be60008fd22c11c59faa2d809",
    "wire": null
   },
   "EC-029": {
-   "job_result": "c91dc5cadee4b8b02f482700dea9d8caa27926f287dcda4ceddc591c28d7a191",
+   "job_result": "1b0b95973d770be815daeccbfa3fefe06abc6e81503e28a2408910e108e9ab00",
    "record": "1c6946503738939fb7d95abab96d7f0e21085ea5abaf6744f35b9439bd6108f3",
    "wire": null
   },
   "EC-030": {
-   "job_result": "80a12ea840b13bb7499a9662aadbc13a52f158a9cc75640b7c01c7a3985b60ea",
+   "job_result": "b78a53a28ca862abb4e03085b63267a77be2dec7535c54070b967842d741c424",
    "record": "fe10261dab4e2f2646abe3396d87d9315b05a218fa3f607a0e98434463f6da19",
    "wire": null
   },
   "EC-031": {
-   "job_result": "57f9743c8773de698a0fdb7bfe5b519d3b18e9d0b764d781495f6f639163526e",
+   "job_result": "fec4bcb0f965f28c267f47cb6caea09dd25d26a3bdb64fb7b71c52d8b71e7ea5",
    "record": "7936e43eb0c8f443c6b7b2d2433a93d3a2106364e71cf9fb9de8bc4ce1e33592",
    "wire": null
   },
   "EC-032": {
-   "job_result": "723dd436c8ecc79a5acfa15c917c7f4af4a5215c990209a80c4b98a4b712b07f",
+   "job_result": "8e1614e2642438076185d4aa22cb861b6bd30c0b04bdbf1a99e6d597e45ca565",
    "record": "a6da398b1126b80fd89880ff15245c6c0539c3b50006e05d1d2dae65b6938d84",
    "wire": null
   },
   "EC-033": {
-   "job_result": "fe40949c56ae4da8347ba4473efad1ea7d5e439125235a5ab0e2cce9a3a3ab9b",
+   "job_result": "a7d5d66571c53829541b2a6302482c63e71e2df8bedf162dd3423077201223bc",
    "record": "814d9216810533a8c4a5b7d67447ef07ebf4946084cb72a5e0e2bc3c928bc6e5",
    "wire": null
   },
   "EC-034": {
-   "job_result": "4a199e46df4a0498286d062444bd532f999eb9f5dd4fce5f2e0bf46e42552f49",
+   "job_result": "bc03bd84a89daafaea30a1f9fc6b786c055cf39e8661933d19aa8471a9a2ec35",
    "record": "1e3f823af504ed0e8702f41bd9d15f007bea5ccf9540688f3926fe4c51a5ea0a",
    "wire": null
   },
   "EC-035": {
-   "job_result": "3d02ee83fac6360b7dce81b65241c6a2efe64631c1c2a8b499005746d40bfe0e",
+   "job_result": "a93ae952b4eaa4a252259b09511b13f944435e6357ce5c03a7773d8874e9793e",
    "record": "8d75c6bf09aa1ad0312deee04e88c79b571f2a3220a6462868775a3555455020",
    "wire": null
   },
   "EC-036": {
-   "job_result": "b8d9c6296f470e5b0ebdbefc1de4ba3186afd4824b914d1a77a08d40f0f7ce5a",
+   "job_result": "b6e93f2df80848afd5914a2ef375c3b17b83ff7051929a2a175fa0ae674146c8",
    "record": "c81caccac0f631fd6bb50f0bb99f1602209e54d3b53871c8a48d91c24c13a6c3",
    "wire": null
   },
   "EC-037": {
-   "job_result": "ca19fd74f953d36325e9f966a48b47028b55551197fe8f47d0bfbf858e188507",
+   "job_result": "75020bcc180b678300e5dbd6c345a6c1b46ba83d2394820804d037f04df742df",
    "record": "7f92079cb2e4d8458c69c20be3ae37c03e08fb304b137b0c007d7dcbbd6d3241",
    "wire": null
   },
   "EC-038": {
-   "job_result": "1a4fcb06ff3b145a860e89882b11b441fa4cb8956de7787124e3ecaf01d8ff76",
+   "job_result": "ca3369a7bb8fe0a62334ae562c1dbed839d599aa6641eef8509617cb0fd6c773",
    "record": "290b4ca376fa643c9c6562adf7e2019b310a116f60b6dab4bd5dee59ac96a935",
    "wire": null
   },
   "EC-039": {
-   "job_result": "24f189a8ead32787b8f1933aed5e2398bc6bd1405052e64c2d6db22fd23a3a4f",
+   "job_result": "22064e013e3cadf72262a43f5a1e6716442074453316e21cab72a9419ece47ac",
    "record": "6b4ed0120cf3528cf861eef4d466fd0946811c440594a8e820c75bf43516799b",
    "wire": null
   },
   "EC-040": {
-   "job_result": "f0859c6779a489006b76d4e119b30abbb7e3baaed66b6596fb31d245fa8310fa",
+   "job_result": "886a855882bdab821d9dc2d2a1d82d4f835aea01d790c7085dea86ad0581af3f",
    "record": "626fb2f4be7943799de8acce6077e9e18820efc0b27f85035ee8d582e523d1bc",
    "wire": null
   },
   "EC-041": {
-   "job_result": "25e01e156f507aead98ae0ad574c351c8749aa0e8e72b40764e7af6bc584a6d7",
+   "job_result": "3055e8b282ecc41dc4c0a6b70bc7347f74d14462b0596acad0f422e2272a288f",
    "record": "4c6bd39b5322db803e36d48d5a992f80f38c346fe0d176b550333c80cd53d6f8",
    "wire": null
   },
   "EC-042": {
-   "job_result": "6044a2669d1eb74d2afeb740f125ea9dc5785bfab6ed33498905cabf3a5c2167",
+   "job_result": "81711a340c99818e34679c14629f76203d371b44ed789783a5976655901c17e9",
    "record": "01102cd46fa749e15340eb692085a410ac009992255ba06cd6635639ab2be5e3",
    "wire": null
   },
   "EC-043": {
-   "job_result": "de921651d94a17cdfd4aedbc6787c678333068db286c288728d926a51839b09a",
+   "job_result": "416934bd2835a61fafefee704a7cf2065240ff1f83243e1a800d0800148b5aa2",
    "record": "ac9afab3b88369650d17480739002d7d379e407bc9f6c999aab3a1768e0dab2c",
    "wire": null
   },
   "EC-044": {
-   "job_result": "8727e1d47c2acb22da3019ec06d0496eaebda0ee80976dc686215551fa447977",
+   "job_result": "5b766ab7be256e7fa8a0e6978448c116ee124a87eef14a3fa39dd61aca28647e",
    "record": "d45b4dade8e478413e72dc32527e06255db0e6120adf25daf4cf951dc10c772c",
    "wire": null
   },
@@ -226,17 +226,17 @@
    "wire": null
   },
   "EC-046": {
-   "job_result": "e8e0431d9074ef07375d7ea429fd566499b19f455e038c11b94e8e70f630c113",
+   "job_result": "eec19c87d4ec0c6c488d867727dd86517ecef3ffef4321254f50e19cd76a76bd",
    "record": "b1bf6fa6bb8b537a3cb7e552bd3be2375cc0aef58563c491447f3fe3e2408433",
    "wire": null
   },
   "EC-047": {
-   "job_result": "e5be2af987162cffd4baab65f927b793baaf669a298c5590666504ff9f5f4402",
+   "job_result": "a8ca670a28d574f6303e24a3cc01295909b9d137e118982960fe1e99a355e4da",
    "record": "4d7a9b0993e9a5e7fc529b824008c85583dc79a0bd31d1a57daab477909e716a",
    "wire": null
   },
   "EC-048": {
-   "job_result": "f3a96a2b83330f099c66b477c36c285f3ed2277f942170653fd8db4a82bcbc6e",
+   "job_result": "364332e6a944a20ec87d9656d6d752e342c13e30dc03792e5b55b1c54fa864fc",
    "record": "7208a838704f11d4198a0abe7bb94ba5d0b550e1fedb2067d8435161b7340a0d",
    "wire": null
   },
@@ -246,17 +246,17 @@
    "wire": null
   },
   "EC-050": {
-   "job_result": "731fc2197b9dab135efc82e58c72d21ef772f130d3204210de4dc9f6a3273827",
+   "job_result": "fba63dc1e5f073a56bb9e2594709ed7f3c3048d01696c4e4a0bee67dab3e5d77",
    "record": "8e4dd6475e99ead2e68099cbad65c5a4c7c435b5b49b6a918b19f486cb99b193",
    "wire": null
   },
   "EC-051": {
-   "job_result": "ae7291c0a4b7ebf50fd2d7ef3acd81d5799dcfc1aeabb0c5acf2cbc97a6c2505",
+   "job_result": "7f0b2f1808cc3c7b6af8cc0fa2210efd24db75b41eb76a8c18bce231b52f0032",
    "record": "c04cd71b903b474877aa5a3a38ca1aa59daddb51c51591c79f4fce820a31bad3",
    "wire": null
   },
   "EC-052": {
-   "job_result": "3dd0cba0dc8f30dfad1fe8aad40b8bfd5edd2ba60ae73aa58f15bbc0fa3d060c",
+   "job_result": "35778460eb0a7e7b2835bf374ca01ec732b46a2908f7475f71ffff841b0d4531",
    "record": "9d6fb8ed7b4141ab1fd1b6e65032103efb2458bbd28121d2c1cad327d7c42ee7",
    "wire": null
   },
@@ -271,7 +271,7 @@
    "wire": null
   },
   "EC-055": {
-   "job_result": "1e013dd0d61b94000ccf084d41eef1d0d918cd6dcb297f9e5e8dd4360d503587",
+   "job_result": "3b0275ad501d91276ae17192ede82003b9fd5be653f6346ec0899bc7bb448d91",
    "record": "108658ee4a75b7e030d6703c6627bdae134b50b20de227c3338775d96cf063b2",
    "wire": null
   },
@@ -281,27 +281,27 @@
    "wire": null
   },
   "HAPPY-001": {
-   "job_result": "6ce93ac1995e9856b853bb3547630034b0e16187193c55f7e2ef117b1958a0c5",
+   "job_result": "78224a9b3d090423ff3600af2edad6b74a5c893e87f522603421d197b766195d",
    "record": "7a4e7a0d191de0c9e1c12665983463d009fa34c5287cd0284f21e16d4cc07bf7",
    "wire": null
   },
   "HAPPY-002": {
-   "job_result": "8c64c3e0f9bdf5c5b968e6438a60a70d4aed6a0c042655d5256451e555bb22ea",
+   "job_result": "5096ab020206cfb1963ce1dce74341e220cf8c475f4fb69e9752d2075877d4f5",
    "record": "8fa25470e4bfa44655ac5d80e106008f1a5eb8009c8d209968f23f7c026d8bb6",
    "wire": null
   },
   "HAPPY-003": {
-   "job_result": "97a5b57f48939f91766a5e413a31ed1abb7a439b0104f390850fcd14a4d5e890",
+   "job_result": "28dae2b3cb7d19160d222a38e2bd8ceea216270d1536753d0f372a3b0240f460",
    "record": "3f7fd4775899919df66e9112e4346d36ff630e94bb73101e1f5123da8766f909",
    "wire": null
   },
   "HAPPY-004": {
-   "job_result": "3477dcd094f1d187811fcbe7f27ce487cb7af5fb0a1da27173d584ea0fc0146f",
+   "job_result": "f14258a948ea7ad33220c9790adae9b358cad490df39883647eb10b7b80eb309",
    "record": "11bf1252c240e52ac2d1b9beb24bccdcc4414dd6d92e76fe6e5e8f413dd97a72",
    "wire": null
   },
   "HAPPY-005": {
-   "job_result": "6e34c2056e18c62772b6f87048824e09e9921165fd8006edf000e449640fac7b",
+   "job_result": "19d2ef108c809cad0859061ac6860b9cf8fb6e7037e8ccdef03204579e638a86",
    "record": "8087b9cc0f1ca5301548412da16291a11b9bf793a8efef89fa58262cfef3aabb",
    "wire": null
   },
@@ -311,29 +311,29 @@
    "wire": null
   },
   "HD-TONG-HOP": {
-   "job_result": "5030d4bf8d8e2ae4bf98402032469a93f8ffda8e24379a0c047bd8860dc7d7d6",
+   "job_result": "d8e4fc28f618d1c925609fb5a9cbf7a8df7501c7ae218d15bd565a609a2c1c82",
    "record": "0dc2d6ede08bab1a183efd5ffdc05e06ecbeb843ce21a10ea3aacb87cf19a278",
    "wire": null
   },
   "SALE-BRD-07": {
-   "job_result": "f4cfc291465a4cf034ab54face4669dcdf0815ce48e92f1c2ceac5f2f0c4498c",
+   "job_result": "7c14eb7b9ece8019b7d4f803e0a1a4af2b3e74cdb36208e71a0f4ea67bc8bd27",
    "record": "ffd82057ebafacbb8be044357022306f0b262b46fe33638d8e31d1bd2bc5b1b6",
    "wire": null
   },
   "SERVICE-BRD-08": {
-   "job_result": "717b68aae97414e3acf1324a2b20cc52a5cefdb49b08e62aa1737a5944df6aac",
+   "job_result": "7aba0ab8f1678adb52d2bb0e73c153225f723fb72f103ba6fc127985b840560a",
    "record": "d96004351428004e32f011d0377c825a7fc1283ecc8fe63d0f7a9501f8ef46f4",
    "wire": null
   },
   "fixtures.mock_record": {
-   "job_result": "ca4d387c90b7dc817b13945bb713d1073f138414327bbefae948c2cc9944c0ab",
+   "job_result": "39022dc1da9a891d8f397d4473642d3b89ece915a0e3bf6f82357b3031746a91",
    "record": "d60885a9cff15e9d90980c156fb5f6f3057eb3e5a2d5156b1d29effd14626372",
    "wire": null
   },
   "wire:ai1.snapshot.v1.body+annex": {
-   "job_result": "1e419153eed03ae806676bcf8ff43d59bec3e050ba81923bb04c9f77db0d1294",
-   "record": "81ec2b1c8cc1926dfe083c5a3ee8cbeddcaca6780574c2b088cb2acca3d5715e",
-   "wire": "34382b9161030756bcfd59d2c62e9a6afd2384e055efd9dd00e9e7035e528a67"
+   "job_result": "a2972274aaa8ce43027e68051b1548377eda345c013642abce59e0a95085e8a0",
+   "record": "e63a75e9336c2d580eddfe751da4f74103bcaf0542f5c2681e66f3f0ea6ce022",
+   "wire": "8f16f89652679945757180822b82c01ca00e94e0ee6d5f7d817823fbc2aa33d6"
   }
  },
  "flag": "AI2_CONTRACT_GRAPH_ENABLED unset",
@@ -802,8 +802,10 @@
       "n_units": 31,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -4747,8 +4749,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": true,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -6257,8 +6261,10 @@
       "n_units": 1,
       "runtime": {
        "egress_allowed": false,
+       "embedding_tokens_remaining": null,
        "embedding_tokens_used": 0,
        "fallback_count": 0,
+       "llm_calls_remaining": 0,
        "llm_calls_used": 0,
        "max_embedding_tokens": 0,
        "max_llm_calls": 0,
@@ -6523,6 +6529,10 @@
       "status": "OPEN"
      }
     ],
+    "semantic_snapshots": {
+     "doc-annex-example-001": "snap-annex-example-001",
+     "doc-body-example-001": "snap-body-example-001"
+    },
     "source_files": [
      {
       "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -6639,8 +6649,10 @@
        "n_units": 1,
        "runtime": {
         "egress_allowed": false,
+        "embedding_tokens_remaining": null,
         "embedding_tokens_used": 0,
         "fallback_count": 0,
+        "llm_calls_remaining": 0,
         "llm_calls_used": 0,
         "max_embedding_tokens": 0,
         "max_llm_calls": 0,

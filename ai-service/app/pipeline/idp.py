@@ -6,7 +6,9 @@ from uuid import uuid4
 from app.contracts.models import (
     ContractContext,
     ContractEvent,
+    Disposition,
     EvidenceIssue,
+    FindingType,
     HandoffIssue,
     JobResult,
     JobStatus,
@@ -301,7 +303,7 @@ def run_idp(
         for edge in (record.relation_graph.edges if record.relation_graph else [])
         if edge.relation_type.value in {"SAME_CLAUSE", "REFERENCES", "AMENDS"}
     }
-    # Contract graph (flow 1) only behind its flag: off â‡’ no import, no call, no new value.
+    # Contract graph (flow 1) only behind its flag: off ⇒ no import, no call, no new value.
     graph = None  # ContractGraphResult when the builder ran (P4 projects it)
     graph_enabled = (
         _contract_graph_enabled()
@@ -336,7 +338,7 @@ def run_idp(
                 EvidenceIssue(
                     issue_id="contract-graph:CONTRACT_GRAPH_FAILED",
                     missing="CONTRACT_GRAPH_FAILED",
-                    reason=f"KhÃ´ng dá»±ng Ä‘Æ°á»£c Ä‘á»“ thá»‹ sá»­a Ä‘á»•i ({type(exc).__name__}); khÃ´ng cÃ³ cáº¡nh sá»­a Ä‘á»•i.",
+                    reason=f"Không dựng được đồ thị sửa đổi ({type(exc).__name__}); không có cạnh sửa đổi.",
                     review_state=ReviewState.NEEDS_REVIEW,
                 )
             )
@@ -356,8 +358,28 @@ def run_idp(
     candidates, issues = pairer.pair_with_issues(
         facts,
         annex_labels=annex_labels,
-        relation_pairs=relation_pairs,
+        relation_pairs=relation_pairs if pairs_on else set(),
+        require_relation_for_cross_document=not pairs_on,
     )
+    if graph is not None and pairs_on:
+        amendment_pairs = {
+            tuple(sorted((edge.source_node_id, edge.target_node_id))) for edge in graph.edges
+        }
+        for candidate_index, candidate in enumerate(candidates):
+            if not candidate.evidence_left or not candidate.evidence_right:
+                continue
+            pair = tuple(
+                sorted((candidate.evidence_left[0].node_id, candidate.evidence_right[0].node_id))
+            )
+            if pair in amendment_pairs:
+                candidates[candidate_index] = candidate.model_copy(
+                    update={
+                        "finding_type": FindingType.CANDIDATE_AMENDMENT,
+                        "disposition": Disposition.CANDIDATE_AMENDMENT,
+                        "review_state": ReviewState.NEEDS_REVIEW,
+                        "model_disposition": ModelDisposition.UNCLEAR,
+                    }
+                )
     # Free-form clause prose never gets an ``item_key``; compare aligned
     # clauses between the contract body and separately uploaded annex files.
     known_pairs = {(c.left_id, c.right_id) for c in candidates}
@@ -475,8 +497,8 @@ def run_idp(
                     EvidenceIssue(
                         issue_id="contract-graph:CONTRACT_GRAPH_PAIRS_FAILED",
                         missing="CONTRACT_GRAPH_PAIRS_FAILED",
-                        reason=f"KhÃ´ng phÃ¢n loáº¡i Ä‘Æ°á»£c quan há»‡ giá»¯a cÃ¡c khoáº£n ({type(exc).__name__}); "
-                        "khÃ´ng cÃ³ quan há»‡ luá»“ng 2.",
+                        reason=f"Không phân loại được quan hệ giữa các khoản ({type(exc).__name__}); "
+                        "không có quan hệ luồng 2.",
                         review_state=ReviewState.NEEDS_REVIEW,
                     )
                 )
@@ -536,20 +558,7 @@ def run_idp(
         contract_context=contract_context,
         events=events,
         semantic_extension=record.semantic_extension,
-        coverage={
-            **coverage,
-            **({"semantic_requested": True} if record.semantic_profile else {}),
-            "n_facts": len(facts),
-            "n_findings": len(candidates) + len(contract_context.findings),
-            "n_candidate_findings": len(candidates),
-            "n_context_findings": len(contract_context.findings),
-            "n_events": len(events),
-            "n_evidence_issues": len(issues),
-            "n_units": len(units),
-            "unit_ids": [unit.unit_id for unit in units],
-            "annex_labels": sorted(annex_labels),
-            "runtime": runtime.snapshot(),
-        },
+        coverage={**coverage, **({"semantic_requested": True} if record.semantic_profile else {})},
         extraction_version=record.pins.extraction_version,
         proposed_index_version=f"idx_{record.pins.extraction_version}",
     )

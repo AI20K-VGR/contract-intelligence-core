@@ -19,8 +19,8 @@ from app.pipeline.citations import CitationResolver, quote_digest
 from app.pipeline.relation_markers import defined_term, has_amend_marker
 from app.tools.store import DossierRecord
 
-CLAUSE_RE = re.compile(r"(?:Ä‘iá»u|dieu|article)\s+(\d+(?:\.\d+)?)", re.I)
-ANNEX_RE = re.compile(r"(?:phá»¥ lá»¥c|phu luc|annex)\s+(\d+)", re.I)
+CLAUSE_RE = re.compile(r"(?:điều|dieu|article)\s+(\d+(?:\.\d+)?)", re.I)
+ANNEX_RE = re.compile(r"(?:phụ lục|phu luc|annex)\s+(\d+)", re.I)
 
 
 def attach_ancestors(outline: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -44,7 +44,7 @@ def clause_key(label: str | None, text: str | None = None) -> str | None:
         normalized = _normalize_relation_text((source or "").strip())
         match = re.match(r"(?:dieu|article)\s+(\d+(?:\.\d+)?)", normalized, re.I)
         if match:
-            return f"Äiá»u {match.group(1)}"
+            return f"Điều {match.group(1)}"
     return None
 
 
@@ -52,10 +52,10 @@ def doc_side(ancestors: list[str] | None, label: str | None) -> str:
     for heading in [*(ancestors or []), label or ""]:
         m = ANNEX_RE.match(heading.strip())
         if m:
-            return f"Phá»¥ lá»¥c {m.group(1)}"
-        if re.fullmatch(r"phá»¥ lá»¥c|phu luc|annex", heading.strip(), re.I):
-            return "Phá»¥ lá»¥c"
-    return "ThÃ¢n HÄ"
+            return f"Phụ lục {m.group(1)}"
+        if re.fullmatch(r"phụ lục|phu luc|annex", heading.strip(), re.I):
+            return "Phụ lục"
+    return "Thân HĐ"
 
 
 def related_node_ids(
@@ -95,9 +95,10 @@ def related_node_ids(
                     }
                 )
             clause_number = re.search(r"\d+(?:\.\d+)?", k)
-            if side != "Thân HĐ" and (
-                has_amend_marker(blob)
-                or (clause_number and _explicit_amend_reference(blob, clause_number.group(0)))
+            if (
+                clause_number
+                and side != "Thân HĐ"
+                and _explicit_amend_reference(blob, clause_number.group(0))
             ):
                 rels.append({"type": "AMENDS", "clause": k, "from": nid, "side": side})
     return extra[:8], rels[:12]
@@ -110,10 +111,10 @@ _CROSS_RELATIONS = {
     RelationType.DEFINES,
 }
 _RELATION_PHRASE = {
-    RelationType.SAME_CLAUSE: "cÃ¹ng sá»‘ Ä‘iá»u",
-    RelationType.REFERENCES: "dáº«n chiáº¿u",
-    RelationType.AMENDS: "cÃ³ ngÃ´n ngá»¯ sá»­a",
-    RelationType.DEFINES: "Ä‘á»‹nh nghÄ©a",
+    RelationType.SAME_CLAUSE: "cùng số điều",
+    RelationType.REFERENCES: "dẫn chiếu",
+    RelationType.AMENDS: "có ngôn ngữ sửa",
+    RelationType.DEFINES: "định nghĩa",
 }
 
 
@@ -150,7 +151,7 @@ def render_same_item_relations(record: DossierRecord) -> dict[str, Any] | None:
             continue
         grouped.setdefault(key, []).append(fact)
     lines = [
-        "Má»—i má»¥c dÆ°á»›i Ä‘Ã¢y chá»‰ ghÃ©p cÃ¹ng má»™t háº¡ng má»¥c giá»¯a há»£p Ä‘á»“ng vÃ  phá»¥ lá»¥c. Hai háº¡ng má»¥c khÃ¡c nhau khÃ´ng bá»‹ gá»™p. MÃ¡y khÃ´ng káº¿t luáº­n bÃªn nÃ o cÃ³ hiá»‡u lá»±c.",
+        "Mỗi mục dưới đây chỉ ghép cùng một hạng mục giữa hợp đồng và phụ lục. Hai hạng mục khác nhau không bị gộp. Máy không kết luận bên nào có hiệu lực.",
     ]
     citations: list[dict[str, Any]] = []
     wrote = False
@@ -165,14 +166,14 @@ def render_same_item_relations(record: DossierRecord) -> dict[str, Any] | None:
         body_bits = [_value_phrase(fact) for fact in _unique_fact_values(bodies)]
         annex_bits = [_value_phrase(fact) for fact in _unique_fact_values(annexes)]
         currencies = {fact.currency for fact in [*bodies, *annexes] if fact.currency}
-        sentence = f"CÃ¹ng {label}: trÃªn há»£p Ä‘á»“ng lÃ  {'; '.join(body_bits)}; trÃªn phá»¥ lá»¥c lÃ  {'; '.join(annex_bits)}."
+        sentence = f"Cùng {label}: trên hợp đồng là {'; '.join(body_bits)}; trên phụ lục là {'; '.join(annex_bits)}."
         when = _effective_when(annexes) or _effective_when(bodies)
         if when:
-            sentence += f" Má»‘c ghi trÃªn vÄƒn báº£n: {when}."
+            sentence += f" Mốc ghi trên văn bản: {when}."
         else:
-            sentence += " KhÃ´ng tháº¥y ngÃ y báº¯t Ä‘áº§u Ã¡p dá»¥ng trÃªn Ä‘oáº¡n Ä‘Ã£ trÃ­ch."
+            sentence += " Không thấy ngày bắt đầu áp dụng trên đoạn đã trích."
         if len(currencies) > 1:
-            sentence += " Hai bÃªn khÃ¡c tiá»n tá»‡, khÃ´ng quy Ä‘á»•i."
+            sentence += " Hai bên khác tiền tệ, không quy đổi."
         lines.append(sentence)
         for fact in [*bodies, *annexes]:
             if fact.citation and fact.citation.node_id:
@@ -194,18 +195,18 @@ def render_same_item_relations(record: DossierRecord) -> dict[str, Any] | None:
 
 def _item_label(key: str) -> str:
     names = {
-        "contract_value": "giÃ¡ há»£p Ä‘á»“ng",
-        "penalty_general": "pháº¡t cháº­m chung",
-        "penalty_construction": "pháº¡t pháº§n xÃ¢y láº¯p",
-        "penalty_equipment": "pháº¡t pháº§n thiáº¿t bá»‹",
-        "penalty_lt10": "pháº¡t khi cháº­m dÆ°á»›i 10 ngÃ y",
-        "penalty_gte10": "pháº¡t khi cháº­m tá»« 10 ngÃ y",
-        "price_usd": "Ä‘Æ¡n giÃ¡ thiáº¿t bá»‹ nháº­p",
+        "contract_value": "giá hợp đồng",
+        "penalty_general": "phạt chậm chung",
+        "penalty_construction": "phạt phần xây lắp",
+        "penalty_equipment": "phạt phần thiết bị",
+        "penalty_lt10": "phạt khi chậm dưới 10 ngày",
+        "penalty_gte10": "phạt khi chậm từ 10 ngày",
+        "price_usd": "đơn giá thiết bị nhập",
     }
     if key in names:
         return names[key]
     if len(key) <= 3:
-        return f"háº¡ng má»¥c {key}"
+        return f"hạng mục {key}"
     return key.replace("_", " ")
 
 
@@ -230,8 +231,8 @@ def _value_phrase(fact) -> str:
         shown = f"{number}%" if "%" in raw and "%" not in str(number) else str(number)
     span = (fact.citation.text_span if fact.citation else "") or ""
     folded = span.casefold()
-    if "báº£ng tÃ³m táº¯t" in folded or "bang tom tat" in folded:
-        shown += " (báº£ng tÃ³m táº¯t trÃªn há»£p Ä‘á»“ng)"
+    if "bảng tóm tắt" in folded or "bang tom tat" in folded:
+        shown += " (bảng tóm tắt trên hợp đồng)"
     return shown
 
 
@@ -249,15 +250,15 @@ def _grouped_amount(value) -> str:
 def _effective_when(facts: list) -> str | None:
     for fact in facts:
         if fact.period_start:
-            return f"ká»ƒ tá»« {fact.period_start}"
+            return f"kể từ {fact.period_start}"
         text = fact.citation.text_span if fact.citation else ""
         match = re.search(
-            r"(?:ká»ƒ tá»«|ke tu|tá»« ngÃ y|tu ngay)\s+(\d{1,2}/\d{1,2}/\d{2,4})",
+            r"(?:kể từ|ke tu|từ ngày|tu ngay)\s+(\d{1,2}/\d{1,2}/\d{2,4})",
             text or "",
             re.I,
         )
         if match:
-            return f"ká»ƒ tá»« {match.group(1)}"
+            return f"kể từ {match.group(1)}"
     return None
 
 
@@ -280,13 +281,13 @@ def render_relation_verdict(record: DossierRecord) -> dict[str, Any]:
     if not shared:
         return {
             "review_state": ReviewState.INSUFFICIENT_EVIDENCE.value,
-            "answer": "KhÃ´ng tháº¥y Ä‘iá»u nÃ o cá»§a phá»¥ lá»¥c trÃ¹ng sá»‘ vá»›i há»£p Ä‘á»“ng. KhÃ´ng suy ra lÃ  hai vÄƒn báº£n khÃ´ng liÃªn quan.",
+            "answer": "Không thấy điều nào của phụ lục trùng số với hợp đồng. Không suy ra là hai văn bản không liên quan.",
             "citations": [],
             "notes": "relation_absent",
         }
 
     lines = [
-        "Phá»¥ lá»¥c gáº¯n vá»›i há»£p Ä‘á»“ng á»Ÿ cÃ¡c Ä‘iá»u cÃ¹ng sá»‘ dÆ°á»›i Ä‘Ã¢y. Phá»¥ lá»¥c cÃ³ chá»¯ sá»­a thÃ¬ Ä‘Ã³ lÃ  chá»— nÃ³ viáº¿t láº¡i Ä‘iá»u cá»§a há»£p Ä‘á»“ng. MÃ¡y khÃ´ng káº¿t luáº­n Ä‘iá»u nÃ o cÃ³ hiá»‡u lá»±c.",
+        "Phụ lục gắn với hợp đồng ở các điều cùng số dưới đây. Phụ lục có chữ sửa thì đó là chỗ nó viết lại điều của hợp đồng. Máy không kết luận điều nào có hiệu lực.",
     ]
     citations: list[dict[str, Any]] = []
     for number in shared:
@@ -295,16 +296,12 @@ def render_relation_verdict(record: DossierRecord) -> dict[str, Any]:
         annex_label = _short_clause_title(annex.raw_label)
         body_label = _short_clause_title(body.raw_label)
         amended = bool(
-            re.search(r"sá»­a|sua|thay", _normalize_relation_text(annex.raw_label or ""), re.I)
+            re.search(r"sửa|sua|thay", _normalize_relation_text(annex.raw_label or ""), re.I)
         )
         action = (
-            "phá»¥ lá»¥c cÃ³ chá»¯ sá»­a Ä‘iá»u nÃ y"
-            if amended
-            else "cÃ¹ng sá»‘ Ä‘iá»u, phá»¥ lá»¥c khÃ´ng ghi chá»¯ sá»­a"
+            "phụ lục có chữ sửa điều này" if amended else "cùng số điều, phụ lục không ghi chữ sửa"
         )
-        lines.append(
-            f"- Äiá»u {number}: thÃ¢n Â«{body_label}Â»; phá»¥ lá»¥c Â«{annex_label}Â» â€” {action}."
-        )
+        lines.append(f"- Điều {number}: thân «{body_label}»; phụ lục «{annex_label}» — {action}.")
         for node in (body, annex):
             citations.append(
                 {
@@ -326,13 +323,13 @@ def _clause_number(label: str | None, text: str | None) -> str | None:
 
 
 def _short_clause_title(label: str | None) -> str:
-    text = re.sub(r"^\s*Äiá»u\s+\d+\.?\s*", "", label or "", flags=re.I).strip()
-    return text[:80] or (label or "khÃ´ng cÃ³ tiÃªu Ä‘á»")
+    text = re.sub(r"^\s*Điều\s+\d+\.?\s*", "", label or "", flags=re.I).strip()
+    return text[:80] or (label or "không có tiêu đề")
 
 
 def render_related_answer(packed: list[dict[str, Any]], rels: list[dict[str, Any]]) -> str:
     lines = [
-        "CÃ¡c Ä‘oáº¡n liÃªn quan trÃªn thÃ¢n HÄ vÃ  phá»¥ lá»¥c (trÃ­ch nguyÃªn vÄƒn). KhÃ´ng suy ra Ä‘iá»u nÃ o tháº¯ng / thá»© tá»± hiá»‡u lá»±c."
+        "Các đoạn liên quan trên thân HĐ và phụ lục (trích nguyên văn). Không suy ra điều nào thắng / thứ tự hiệu lực."
     ]
     for n in packed:
         side = n.get("side") or ""
@@ -344,15 +341,15 @@ def render_related_answer(packed: list[dict[str, Any]], rels: list[dict[str, Any
         else:
             lines.append(f"- [{side}] {path}")
     if rels:
-        lines.append("Quan há»‡:")
+        lines.append("Quan hệ:")
         for r in rels:
             if r.get("type") == "SAME_CLAUSE":
                 lines.append(
-                    f"- CÃ¹ng {r.get('clause')}: {r.get('left_side')} ({r.get('left')}) â†” {r.get('right_side')} ({r.get('right')})"
+                    f"- Cùng {r.get('clause')}: {r.get('left_side')} ({r.get('left')}) ↔ {r.get('right_side')} ({r.get('right')})"
                 )
             elif r.get("type") == "AMENDS":
                 lines.append(
-                    f"- {r.get('side')} cÃ³ ngÃ´n ngá»¯ sá»­a/Ä‘iá»u chá»‰nh {r.get('clause')} ({r.get('from')})"
+                    f"- {r.get('side')} có ngôn ngữ sửa/điều chỉnh {r.get('clause')} ({r.get('from')})"
                 )
     return "\n".join(lines)
 
@@ -381,8 +378,8 @@ def render_comparison_answer(packed: list[dict[str, Any]], query: str = "") -> s
     if not body_text or not annex_text:
         return None
 
-    body_label = _comparison_label(body_root, "Äiá»u")
-    annex_label = _comparison_label(annex_root, "Phá»¥ lá»¥c")
+    body_label = _comparison_label(body_root, "Điều")
+    annex_label = _comparison_label(annex_root, "Phụ lục")
     body_title = _comparison_title(body_root.get("label") or body_root.get("path") or "")
     annex_title = _comparison_title(annex_root.get("label") or annex_root.get("path") or "")
     body_folded = _comparison_fold(body_title)
@@ -390,26 +387,26 @@ def render_comparison_answer(packed: list[dict[str, Any]], query: str = "") -> s
 
     if "ngay lam viec" in _comparison_fold(body_text):
         body_sentence = (
-            f'{body_label} Ä‘á»‹nh nghÄ©a cÃ¡c thuáº­t ngá»¯ vÃ  quy Ä‘á»‹nh vá» "NgÃ y lÃ m viá»‡c", '
-            f'cá»¥ thá»ƒ lÃ  "{body_text}".'
+            f'{body_label} định nghĩa các thuật ngữ và quy định về "Ngày làm việc", '
+            f'cụ thể là "{body_text}".'
         )
     elif any(cue in body_folded for cue in ("dinh nghia", "giai thich", "definition")):
-        body_sentence = f'{body_label} táº­p trung vÃ o Ä‘á»‹nh nghÄ©a vÃ  giáº£i thÃ­ch; ná»™i dung tiÃªu biá»ƒu lÃ  "{body_text}".'
+        body_sentence = f'{body_label} tập trung vào định nghĩa và giải thích; nội dung tiêu biểu là "{body_text}".'
     else:
-        body_sentence = f'{body_label} quy Ä‘á»‹nh vá» {body_title or "ná»™i dung trong thÃ¢n há»£p Ä‘á»“ng"}; ná»™i dung tiÃªu biá»ƒu lÃ  "{body_text}".'
+        body_sentence = f'{body_label} quy định về {body_title or "nội dung trong thân hợp đồng"}; nội dung tiêu biểu là "{body_text}".'
 
     if "thiet bi" in annex_folded or "dich vu" in annex_folded:
         annex_sentence = (
-            f"Trong khi Ä‘Ã³, {annex_label} liá»‡t kÃª cÃ¡c thiáº¿t bá»‹ vÃ  dá»‹ch vá»¥, "
-            f'vÃ­ dá»¥ nhÆ° "{annex_text}".'
+            f"Trong khi đó, {annex_label} liệt kê các thiết bị và dịch vụ, "
+            f'ví dụ như "{annex_text}".'
         )
         conclusion = (
-            f"Äiá»u nÃ y cho tháº¥y {body_label} táº­p trung vÃ o Ä‘á»‹nh nghÄ©a vÃ  giáº£i thÃ­ch, "
-            f"cÃ²n {annex_label} cung cáº¥p thÃ´ng tin chi tiáº¿t vá» cÃ¡c thiáº¿t bá»‹ vÃ  dá»‹ch vá»¥ cá»¥ thá»ƒ."
+            f"Điều này cho thấy {body_label} tập trung vào định nghĩa và giải thích, "
+            f"còn {annex_label} cung cấp thông tin chi tiết về các thiết bị và dịch vụ cụ thể."
         )
     else:
-        annex_sentence = f'Trong khi Ä‘Ã³, {annex_label} cung cáº¥p thÃ´ng tin theo ná»™i dung "{annex_title or annex_text}"; vÃ­ dá»¥ lÃ  "{annex_text}".'
-        conclusion = f"Äiá»u nÃ y cho tháº¥y {body_label} vÃ  {annex_label} Ä‘ang mÃ´ táº£ hai pháº¡m vi ná»™i dung khÃ¡c nhau trong cÃ¹ng há»“ sÆ¡."
+        annex_sentence = f'Trong khi đó, {annex_label} cung cấp thông tin theo nội dung "{annex_title or annex_text}"; ví dụ là "{annex_text}".'
+        conclusion = f"Điều này cho thấy {body_label} và {annex_label} đang mô tả hai phạm vi nội dung khác nhau trong cùng hồ sơ."
 
     return " ".join(
         [
@@ -432,7 +429,7 @@ def _comparison_side(value: Any) -> str:
 def _comparison_fold(value: str) -> str:
     text = unicodedata.normalize("NFD", value.casefold())
     text = "".join(char for char in text if unicodedata.category(char) != "Mn")
-    return text.replace("Ä‘", "d")
+    return text.replace("đ", "d")
 
 
 def _comparison_text(item: dict[str, Any]) -> str:
@@ -465,17 +462,17 @@ def _comparison_label(item: dict[str, Any], fallback: str) -> str:
     folded = _comparison_fold(text)
     match = re.search(r"(?:dieu|article)\s+0*(\d+)", folded)
     if match:
-        return f"Äiá»u {int(match.group(1))}"
+        return f"Điều {int(match.group(1))}"
     match = re.search(r"(?:phu luc|annex|appendix)\s+0*(\d+)", folded)
     if match:
-        return f"Phá»¥ lá»¥c {int(match.group(1))}"
+        return f"Phụ lục {int(match.group(1))}"
     return fallback
 
 
 def _comparison_title(value: str) -> str:
-    text = re.sub(r"^\s*(?:ÄIá»€U|DIEU|ARTICLE)\s+\d+\.?\s*", "", value, flags=re.I).strip()
+    text = re.sub(r"^\s*(?:ĐIỀU|DIEU|ARTICLE)\s+\d+\.?\s*", "", value, flags=re.I).strip()
     text = re.sub(
-        r"^\s*(?:PHá»¤ Lá»¤C|PHU LUC|ANNEX|APPENDIX)\s+\d+\s*[-â€“:]?\s*", "", text, flags=re.I
+        r"^\s*(?:PHỤ LỤC|PHU LUC|ANNEX|APPENDIX)\s+\d+\s*[-–:]?\s*", "", text, flags=re.I
     ).strip()
     return text[:160]
 
@@ -748,7 +745,7 @@ def _annex_numbers(text: str) -> set[int]:
 def _normalize_relation_text(value: str) -> str:
     text = unicodedata.normalize("NFD", value.casefold())
     text = "".join(char for char in text if unicodedata.category(char) != "Mn")
-    return text.replace("Ä‘", "d").replace("Ã„â€˜", "d")
+    return text.replace("đ", "d").replace("Ä‘", "d")
 
 
 def _resolve_reference(kind: str, value: str, source: Any, nodes: list[Any]) -> list[str]:
@@ -797,7 +794,7 @@ def _graph_issue(digest: str, missing: str, citation: Citation) -> EvidenceIssue
     return EvidenceIssue(
         issue_id=issue_id,
         missing=missing,
-        reason=f"KhÃ´ng resolve Ä‘Æ°á»£c quan há»‡: {missing}; khÃ´ng suy Ä‘oÃ¡n target.",
+        reason=f"Không resolve được quan hệ: {missing}; không suy đoán target.",
         citation=citation,
         review_state=ReviewState.INSUFFICIENT_EVIDENCE,
     )

@@ -77,10 +77,14 @@ def test_graph_on_golden_records_seed_python_and_cases():
         assert {k for k in got if got[k] != golden["cases"][k]} <= {"SERVICE-BRD-08"}
 
 
-def test_pairs_rule_only_differs_only_by_stripped_fields():
+def test_pairs_rule_preserves_legacy_cases_and_projects_unlocked_graph_candidate():
     golden = json.loads(GOLDEN.read_text("utf8"))
     want = {case: shas(strip_pairs(full)) for case, full in golden["full"].items()}
-    assert emit("--emit-shas", "--profile", "graph_on", "--strip-pairs", pairs="1") == want
+    got = emit("--emit-shas", "--profile", "graph_on", "--strip-pairs", pairs="1")
+    # Consent unlocks a grounded fact pair when a contract-graph edge links its exact citations.
+    # That candidate replaces the duplicate amendment edge finding, so graph_record is the one
+    # intentional delta beyond pair coverage. Every unrelated legacy fixture stays byte-stable.
+    assert {case for case in want if got[case] != want[case]} == {"contract_graph.graph_record"}
     for case, full in golden["full"].items():
         got = emit("--emit-full", case, "--profile", "graph_on", pairs="1")
         assert got["job_result"]["review_state"] in {

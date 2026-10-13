@@ -44,7 +44,10 @@ DOC_B = "doc_b"
 
 
 @pytest.fixture(autouse=True)
-def _reset_worker_state() -> Iterator[None]:
+def _reset_worker_state(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    # Lifecycle tests here exercise the durable AI2 handoff independently of
+    # semantic-profile resolution, which has its own focused tests.
+    monkeypatch.setenv("AI2_SEMANTIC_ENABLED", "false")
     worker._ai2_tasks.clear()
     yield
     worker._ai2_tasks.clear()
@@ -825,6 +828,7 @@ async def test_semantic_profile_failure_marks_ai2_run_failed(
             _RowsResult([_CONTRACT_MEMBER]),
             _RowsResult([]),
             _RowsResult([]),
+            _ScalarResult({"ai2_content_sharing_consent": True}),
         ]
 
     session = SimpleNamespace(
@@ -832,6 +836,14 @@ async def test_semantic_profile_failure_marks_ai2_run_failed(
         commit=AsyncMock(),
         rollback=AsyncMock(),
     )
+    monkeypatch.setattr(
+        worker,
+        "build_processing_request",
+        lambda **_kwargs: {"snapshots": [{"snapshot_id": "snap_test"}]},
+    )
+    monkeypatch.setattr(worker, "update_pipeline_run_status", AsyncMock())
+    monkeypatch.setattr(worker, "update_pipeline_step", AsyncMock())
+    monkeypatch.setattr(worker, "_mark_status", AsyncMock())
     monkeypatch.setattr(
         worker,
         "_freeze_semantic_profile",
