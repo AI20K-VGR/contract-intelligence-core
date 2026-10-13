@@ -44,7 +44,7 @@ Thực thi quyết định chủ sản phẩm đã duyệt: mọi dossier đang 
 - [ ] UI hiển thị consent hiện hành và cho opt-out/in qua endpoint riêng; request unauthorized bị 403; toggle lỗi không báo thành công.
 - [ ] Rollback dùng row lock/CAS bao trùm check + write; integration test PostgreSQL điều phối rollback đua với opt-out và chứng minh opt-out không bao giờ bị ghi đè; khôi phục prior false/absent nếu chưa có user edit và bỏ qua mọi dossier đã đổi sau rollout.
 - [ ] Existing consent true/false và hồ sơ mới được test; explicit user false không bị default hoặc backfill tương lai tự bật lại.
-- [ ] Nếu code được deploy trước khi backfill/audit hoàn tất, global processing/query egress caps vẫn OFF; operator chỉ bật caps sau khi backfill và opt-out UI/API được xác minh. Test chứng minh cap OFF tạo zero provider calls. Consent missing/malformed vẫn fail closed; hồ sơ mới chỉ nhận true sau khi API lưu true tường minh.
+- [ ] Các capability/global caps xử lý, query LLM/vector và egress giữ ON mặc định trong product/develop. Mọi provider call vẫn phải qua AND giữa server cap, signed request consent và consent true đã lưu trên đúng hồ sơ; consent missing/malformed/false tạo zero provider calls. Không tắt global capability để thay cho consent rollout. Backfill vẫn dry-run + candidate digest trước và cần `--apply` rõ ràng; không apply dữ liệu vận hành trong cook.
 
 ## Risk Assessment
 

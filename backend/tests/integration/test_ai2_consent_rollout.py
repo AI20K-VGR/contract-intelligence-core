@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import os
@@ -23,6 +24,7 @@ from contract_intelligence.shared.persistence.orm_registry import import_all_mod
 from contract_intelligence.shared.persistence.session import get_async_session
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+import backfill_ai2_content_sharing_consent as rollout_command
 from backfill_ai2_content_sharing_consent import (
     apply_rollout,
     preview_rollback,
@@ -137,6 +139,40 @@ async def test_dry_run_apply_is_idempotent_and_excludes_deleted_or_purged(sessio
         events = (await session.scalars(select(AuditEventORM))).all()
         assert len(events) == 5
         assert all("private" not in (event.detail or "") for event in events)
+
+
+@pytest.mark.asyncio
+async def test_cli_dry_run_digest_is_required_and_apply_emits_counts_only(
+    session_factory, monkeypatch, capsys
+):
+    from contract_intelligence.shared import persistence
+
+    engine_stub = type("EngineStub", (), {"dispose": lambda self: asyncio.sleep(0)})()
+    monkeypatch.setattr(persistence, "create_async_engine", lambda: engine_stub)
+    monkeypatch.setattr(persistence, "bind_engine", lambda engine: None)
+    monkeypatch.setattr(persistence, "get_session_factory", lambda: session_factory)
+    monkeypatch.setattr(persistence, "reset_engine", lambda: None)
+    args = argparse.Namespace(
+        rollout_id="cli-rollout",
+        expected_digest=None,
+        actor="operator",
+        apply=False,
+        rollback=False,
+    )
+
+    await rollout_command._run(args)
+    dry_report = json.loads(capsys.readouterr().out)
+    assert dry_report["mode"] == "dry-run"
+    assert dry_report["candidate_count"] == 6
+    assert "d-false" not in json.dumps(dry_report)
+    assert "private" not in json.dumps(dry_report)
+
+    args.apply = True
+    args.expected_digest = dry_report["candidate_digest"]
+    await rollout_command._run(args)
+    apply_report = json.loads(capsys.readouterr().out)
+    assert apply_report["mode"] == "apply"
+    assert apply_report["updated"] == 4
 
 
 @pytest.mark.asyncio
