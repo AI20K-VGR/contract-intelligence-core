@@ -10,8 +10,10 @@ import asyncio
 import hashlib
 import hmac
 import json
+import re
 import time
 from typing import Any
+from urllib.parse import urlencode
 from uuid import uuid4
 
 import httpx
@@ -119,6 +121,52 @@ async def _get_json(
             return data
         raise AiAdapterError(f"{service} returned non-object JSON")
     raise AiAdapterHTTPError(response.status_code, response.text[:500])
+
+
+async def _get_json_bounded(
+    url: str,
+    *,
+    headers: dict[str, str] | None,
+    service: str,
+    max_response_bytes: int,
+) -> dict[str, Any]:
+    """Fetch JSON with a streaming byte ceiling for graph and trace projections."""
+    logger.info("ai_adapter.request", service=service, url=url)
+    try:
+        chunks: list[bytes] = []
+        size = 0
+        async with (
+            httpx.AsyncClient(timeout=_DEFAULT_TIMEOUT) as client,
+            client.stream("GET", url, headers=headers) as response,
+        ):
+            content_length = response.headers.get("content-length")
+            if content_length:
+                try:
+                    declared_size = int(content_length)
+                except ValueError as exc:
+                    raise AiAdapterError(f"{service} returned malformed Content-Length") from exc
+                if declared_size < 0 or declared_size > max_response_bytes:
+                    raise AiAdapterError(f"{service} response exceeded the size limit")
+            async for chunk in response.aiter_bytes():
+                size += len(chunk)
+                if size > max_response_bytes:
+                    raise AiAdapterError(f"{service} response exceeded the size limit")
+                chunks.append(chunk)
+            raw = b"".join(chunks)
+            if not response.is_success:
+                detail = raw[:500].decode("utf-8", "replace")
+                raise AiAdapterHTTPError(response.status_code, detail)
+    except httpx.TimeoutException as exc:
+        raise AiAdapterTimeoutError(f"{service} request timed out: {url}") from exc
+    except httpx.HTTPError as exc:
+        raise AiAdapterError(f"{service} transport error: {exc}") from exc
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise AiAdapterError(f"{service} returned invalid JSON") from exc
+    if not isinstance(data, dict):
+        raise AiAdapterError(f"{service} returned non-object JSON")
+    return data
 
 
 def _canonical_payload(payload: dict[str, Any]) -> bytes:
@@ -314,12 +362,355 @@ async def query_ai2(payload: dict[str, Any]) -> dict[str, Any]:
     return await _post_json(url, wire, service="ai2.query")
 
 
+_GRAPH_STATUSES = frozenset(
+    {
+        "READY",
+        "PENDING",
+        "STALE",
+        "UNAVAILABLE",
+        "PERSISTENCE_UNKNOWN",
+        "PERSIST_FAILED",
+        "FAILED",
+        "SKIPPED",
+    }
+)
+_GRAPH_TOP_KEYS = frozenset(
+    {
+        "status",
+        "graph_kind",
+        "tenant_id",
+        "dossier_id",
+        "job_id",
+        "snapshot_digest",
+        "edges",
+        "total_count",
+        "has_more",
+        "next_cursor",
+        "error_code",
+    }
+)
+_GRAPH_EDGE_KEYS = frozenset(
+    {
+        "tenant_id",
+        "dossier_id",
+        "job_id",
+        "snapshot_digest",
+        "id",
+        "kind",
+        "label",
+        "directed",
+        "source_node_id",
+        "target_node_id",
+        "source_document_id",
+        "target_document_id",
+        "target_address",
+        "review_state",
+        "source_citation_ref",
+        "target_citation_ref",
+        "digest",
+    }
+)
+_EDGE_OPS = frozenset({"INSERTION", "SUBSTITUTION", "REPEAL", "REJECTION", "SCOPE_LIMIT"})
+_PAIR_LABELS = frozenset({"GENERAL_SPECIFIC", "CONFLICT", "DUPLICATE", "REFERENCE"})
+_REVIEW_STATES = frozenset(
+    {"PASS", "NEEDS_REVIEW", "INSUFFICIENT_EVIDENCE", "BLOCKED", "ANSWERED", "NOT_COMPARABLE"}
+)
+_TRACE_STATUSES = frozenset(
+    {
+        "COMPLETE",
+        "IN_PROGRESS",
+        "INTERRUPTED_UNKNOWN",
+        "INCOMPLETE_UNKNOWN",
+        "TRACE_UNAVAILABLE",
+    }
+)
+_TRACE_STAGE_STATUSES = frozenset(
+    {
+        "RUNNING",
+        "COMPLETED",
+        "FAILED",
+        "SKIPPED",
+        "INTERRUPTED_UNKNOWN",
+        "INCOMPLETE_UNKNOWN",
+    }
+)
+_TRACE_STAGE_IDS = frozenset({"contract_graph_operation", "contract_graph_pairs"})
+_SAFE_REASON_CODE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
+
+
+def _validate_ai2_graph_page(
+    payload: dict[str, Any],
+    *,
+    tenant_id: str,
+    dossier_id: str,
+    job_id: str,
+    snapshot_digest: str,
+    graph_kind: str,
+    limit: int,
+) -> dict[str, Any]:
+    if set(payload) - _GRAPH_TOP_KEYS:
+        raise AiAdapterError("AI2 graph response contains unsupported fields")
+    status_value = payload.get("status")
+    if status_value not in _GRAPH_STATUSES:
+        raise AiAdapterError("AI2 graph response has an unknown status")
+    if payload.get("graph_kind") not in (None, graph_kind):
+        raise AiAdapterError("AI2 graph response scope mismatch")
+    for field, expected in (
+        ("tenant_id", tenant_id),
+        ("dossier_id", dossier_id),
+        ("job_id", job_id),
+    ):
+        if field in payload and payload[field] != expected:
+            raise AiAdapterError("AI2 graph response scope mismatch")
+    if payload.get("snapshot_digest") != snapshot_digest:
+        raise AiAdapterError("AI2 graph response snapshot mismatch")
+    if status_value == "READY" and any(
+        payload.get(key) != expected
+        for key, expected in (
+            ("tenant_id", tenant_id),
+            ("dossier_id", dossier_id),
+            ("job_id", job_id),
+        )
+    ):
+        raise AiAdapterError("AI2 graph page identity is missing")
+    edges = payload.get("edges")
+    count = payload.get("total_count")
+    has_more = payload.get("has_more")
+    cursor = payload.get("next_cursor")
+    if (
+        not isinstance(edges, list)
+        or len(edges) > limit
+        or isinstance(count, bool)
+        or not isinstance(count, int)
+        or count < 0
+        or not isinstance(has_more, bool)
+        or (cursor is not None and (not isinstance(cursor, str) or len(cursor) > 80))
+        or (has_more and not cursor)
+        or (not has_more and cursor is not None)
+    ):
+        raise AiAdapterError("AI2 graph response page is malformed")
+    if status_value != "READY" and edges:
+        raise AiAdapterError("AI2 returned graph rows for a non-ready status")
+    for edge in edges:
+        if not isinstance(edge, dict) or set(edge) - _GRAPH_EDGE_KEYS:
+            raise AiAdapterError("AI2 graph edge contains unsupported fields")
+        if any(
+            edge.get(key) != expected
+            for key, expected in (
+                ("tenant_id", tenant_id),
+                ("dossier_id", dossier_id),
+                ("job_id", job_id),
+                ("snapshot_digest", snapshot_digest),
+            )
+        ):
+            raise AiAdapterError("AI2 graph row identity mismatch")
+        if not all(
+            isinstance(edge.get(key), str) and edge[key] and len(edge[key]) <= 512
+            for key in (
+                "id",
+                "kind",
+                "label",
+                "source_node_id",
+                "target_node_id",
+                "review_state",
+                "source_citation_ref",
+                "target_citation_ref",
+                "digest",
+            )
+        ):
+            raise AiAdapterError("AI2 graph edge identity is malformed")
+        labels = _EDGE_OPS if graph_kind == "operation" else _PAIR_LABELS
+        if edge["label"] not in labels or edge["review_state"] not in _REVIEW_STATES:
+            raise AiAdapterError("AI2 graph edge has an unknown label")
+        if not isinstance(edge.get("directed"), bool):
+            raise AiAdapterError("AI2 graph edge direction is malformed")
+        if (
+            "target_address" in edge
+            and edge["target_address"] is not None
+            and (not isinstance(edge["target_address"], str) or len(edge["target_address"]) > 512)
+        ):
+            raise AiAdapterError("AI2 graph edge address is malformed")
+        for field in ("source_document_id", "target_document_id"):
+            value = edge.get(field)
+            if field not in edge or (
+                value is not None and (not isinstance(value, str) or not value or len(value) > 512)
+            ):
+                raise AiAdapterError("AI2 graph edge document identity is malformed")
+    return {
+        "status": status_value,
+        "graph_kind": graph_kind,
+        "snapshot_digest": snapshot_digest,
+        "edges": edges,
+        "total_count": count,
+        "has_more": has_more,
+        "next_cursor": cursor,
+        **(
+            {"error_code": payload["error_code"]}
+            if isinstance(payload.get("error_code"), str)
+            else {}
+        ),
+    }
+
+
+def _validate_ai2_trace(payload: dict[str, Any], *, snapshot_digest: str) -> dict[str, Any]:
+    allowed = {
+        "schema_version",
+        "trace_status",
+        "status",
+        "execution_id",
+        "snapshot_digest",
+        "job_status",
+        "reason_code",
+        "stages",
+    }
+    if set(payload) - allowed or payload.get("schema_version") != "ai2.processing-trace.v1":
+        raise AiAdapterError("AI2 trace response contains unsupported fields")
+    if payload.get("snapshot_digest") != snapshot_digest:
+        raise AiAdapterError("AI2 trace response snapshot mismatch")
+    job_status = payload.get("job_status")
+    if job_status is not None and (
+        not isinstance(job_status, str)
+        or job_status not in {"QUEUED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED"}
+    ):
+        raise AiAdapterError("AI2 trace response has an unknown job status")
+    status_value = payload.get("status")
+    if status_value not in _TRACE_STATUSES or payload.get("trace_status") not in {
+        "AVAILABLE",
+        "UNAVAILABLE",
+    }:
+        raise AiAdapterError("AI2 trace response has an unknown status")
+    stages = payload.get("stages")
+    if not isinstance(stages, list) or len(stages) > 32:
+        raise AiAdapterError("AI2 trace response stages are malformed")
+    stage_keys = {"stage_id", "status", "started_ms", "duration_ms", "item_count", "reason_code"}
+    for stage in stages:
+        if not isinstance(stage, dict) or set(stage) != stage_keys:
+            raise AiAdapterError("AI2 trace stage contains unsupported fields")
+        if (
+            stage["stage_id"] not in _TRACE_STAGE_IDS
+            or stage["status"] not in _TRACE_STAGE_STATUSES
+        ):
+            raise AiAdapterError("AI2 trace stage is malformed")
+        for key in ("started_ms", "duration_ms", "item_count"):
+            value = stage[key]
+            if value is not None and (
+                isinstance(value, bool) or not isinstance(value, int) or value < 0
+            ):
+                raise AiAdapterError("AI2 trace timing/count is malformed")
+        if stage["reason_code"] is not None and (
+            not isinstance(stage["reason_code"], str)
+            or not _SAFE_REASON_CODE.fullmatch(stage["reason_code"])
+        ):
+            raise AiAdapterError("AI2 trace reason code is malformed")
+    return {
+        "schema_version": "ai2.processing-trace.v1",
+        "trace_status": payload["trace_status"],
+        "status": status_value,
+        "snapshot_digest": snapshot_digest,
+        "stages": stages,
+        **(
+            {"execution_id": payload["execution_id"]}
+            if isinstance(payload.get("execution_id"), str)
+            else {}
+        ),
+        **(
+            {"job_status": payload["job_status"]}
+            if isinstance(payload.get("job_status"), str)
+            else {}
+        ),
+        **(
+            {"reason_code": payload["reason_code"]}
+            if isinstance(payload.get("reason_code"), str)
+            else {}
+        ),
+    }
+
+
+async def read_ai2_contract_graph(
+    job_id: str,
+    *,
+    dossier_id: str,
+    snapshot_digest: str,
+    graph_kind: str,
+    tenant_id: str,
+    actor_id: str,
+    cursor: str | None = None,
+    limit: int = 50,
+) -> dict[str, Any]:
+    if graph_kind not in {"operation", "pair"} or not 1 <= limit <= 100:
+        raise AiAdapterError("AI2 graph request is invalid")
+    if cursor is not None and (
+        len(cursor) > 80
+        or not cursor.startswith("cedge:" if graph_kind == "operation" else "cpair:")
+    ):
+        raise AiAdapterError("AI2 graph cursor is invalid")
+    request = {
+        "job_id": job_id,
+        "dossier_id": dossier_id,
+        "snapshot_digest": snapshot_digest,
+        "graph_kind": graph_kind,
+        "cursor": cursor,
+        "limit": limit,
+    }
+    envelope = _service_envelope(
+        request,
+        tenant_id=tenant_id,
+        dossier_id=dossier_id,
+        actor_id=actor_id,
+        scopes=["ai2.graph.read"],
+    )
+    query = urlencode({key: value for key, value in request.items() if value is not None})
+    payload = await _get_json_bounded(
+        f"{_canonical_ai2_base_url()}/internal/contract-graph/{job_id}?{query}",
+        headers={"X-AI2-Service-Envelope": json.dumps(envelope)},
+        max_response_bytes=512_000,
+        service="ai2.contract_graph.read",
+    )
+    return _validate_ai2_graph_page(
+        payload,
+        tenant_id=tenant_id,
+        dossier_id=dossier_id,
+        job_id=job_id,
+        snapshot_digest=snapshot_digest,
+        graph_kind=graph_kind,
+        limit=limit,
+    )
+
+
+async def read_ai2_processing_trace(
+    job_id: str,
+    *,
+    dossier_id: str,
+    snapshot_digest: str,
+    tenant_id: str,
+    actor_id: str,
+) -> dict[str, Any]:
+    request = {"job_id": job_id, "dossier_id": dossier_id, "snapshot_digest": snapshot_digest}
+    envelope = _service_envelope(
+        request,
+        tenant_id=tenant_id,
+        dossier_id=dossier_id,
+        actor_id=actor_id,
+        scopes=["ai2.trace.read"],
+    )
+    query = urlencode(request)
+    payload = await _get_json_bounded(
+        f"{_canonical_ai2_base_url()}/internal/processing-trace/{job_id}?{query}",
+        headers={"X-AI2-Service-Envelope": json.dumps(envelope)},
+        max_response_bytes=64_000,
+        service="ai2.processing_trace.read",
+    )
+    return _validate_ai2_trace(payload, snapshot_digest=snapshot_digest)
+
+
 __all__ = [
     "AiAdapterDeadlineExceeded",
     "AiAdapterError",
     "AiAdapterHTTPError",
     "AiAdapterTimeoutError",
     "is_transient",
+    "read_ai2_contract_graph",
+    "read_ai2_processing_trace",
     "poll_ai2_processing",
     "query_ai2",
     "submit_ai2_processing",

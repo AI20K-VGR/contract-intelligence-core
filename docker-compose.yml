@@ -462,6 +462,9 @@ services:
       AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-local_hmac_secret}
       AI2_SEMANTIC_ENABLED: ${AI2_SEMANTIC_ENABLED:-true}
       AI2_SEMANTIC_PROFILE_CONFIG: '{"version":1,"contract_type":"SALES","context_bounds":{"max_hops":2,"max_nodes":256,"max_context_tokens":32768,"max_output_tokens":8192,"max_llm_calls":20,"max_seconds":300},"alias_proposal_minimum_length":4}'
+      # Dossiers without their own setting: may AI2 send contract text to the
+      # LLM provider? Off unless set (request policy_flags.egress_allowed).
+      AI2_CONTENT_SHARING_CONSENT_DEFAULT: ${AI2_CONTENT_SHARING_CONSENT_DEFAULT:-false}
       AI1_OCR_ENGINE: ${AI1_OCR_ENGINE:-mistral}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     volumes:

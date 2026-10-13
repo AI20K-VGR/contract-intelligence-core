@@ -82,6 +82,14 @@
         },
         "source_digest": {
           "$ref": "#/$defs/sha256"
+        },
+        "document_number": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 160
         }
       }
     },
