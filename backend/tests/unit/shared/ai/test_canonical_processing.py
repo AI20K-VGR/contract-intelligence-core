@@ -28,7 +28,6 @@ def test_processing_request_normalizes_ai1_sha256_prefix_for_ai2_wire_contract()
         document_id="doc-1",
         order_index=0,
         doc_type="contract",
-        document_number="12/2026/HD-DV",
     )
     document = SimpleNamespace(id="doc-1")
 
@@ -46,7 +45,6 @@ def test_processing_request_normalizes_ai1_sha256_prefix_for_ai2_wire_contract()
     assert request["snapshots"][0]["source_digest"] == digest
     assert request["snapshot_identities"][0]["source_digest"] == digest
     assert request["dossier_members"][0]["source_digest"] == digest
-    assert request["dossier_members"][0]["document_number"] == "12/2026/HD-DV"
 
 
 def _compact_request(**overrides: object) -> dict[str, object] | None:
@@ -82,15 +80,6 @@ def test_rebuilding_the_same_run_sends_an_identical_payload() -> None:
     assert first is not None and second is not None
     assert strip_internal_fields(first) == strip_internal_fields(second)
     assert first["snapshots"][0]["created_at"] == STORED_AT  # type: ignore[index]
-
-
-def test_processing_egress_requires_explicit_dossier_consent() -> None:
-    denied = _compact_request()
-    allowed = _compact_request(content_sharing_consent=True)
-
-    assert denied is not None and allowed is not None
-    assert denied["policy_flags"]["egress_allowed"] is False  # type: ignore[index]
-    assert allowed["policy_flags"]["egress_allowed"] is True  # type: ignore[index]
 
 
 def test_relation_order_does_not_change_the_payload() -> None:

@@ -1211,27 +1211,6 @@ async def _manifest_inputs(
     return members, list(relation_result.scalars().all()), documents
 
 
-async def _dossier_content_sharing_consent(
-    session: AsyncSession, *, dossier_id: str, tenant_id: str
-) -> bool:
-    result = await session.execute(
-        select(DossierORM.metadata_json).where(
-            DossierORM.id == dossier_id,
-            DossierORM.tenant_id == tenant_id,
-        )
-    )
-    metadata = result.scalar_one_or_none()
-    consent = metadata.get("ai2_content_sharing_consent") if isinstance(metadata, dict) else None
-    if isinstance(consent, bool):
-        return consent
-    return os.getenv("AI2_CONTENT_SHARING_CONSENT_DEFAULT", "false").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-
-
 async def _run_ai2_if_ready(
     session: AsyncSession,
     *,
@@ -1273,9 +1252,6 @@ async def _run_ai2_if_ready(
     members, relations, documents = await _manifest_inputs(
         session, manifest_id=manifest.id, dossier_id=dossier_id
     )
-    content_sharing_consent = await _dossier_content_sharing_consent(
-        session, dossier_id=dossier_id, tenant_id=tenant_id
-    )
     shape_error = _dossier_shape_error(members)
     if shape_error is not None:
         code, detail = shape_error
@@ -1311,7 +1287,6 @@ async def _run_ai2_if_ready(
             attempt=attempt,
             max_processing_seconds=budget,
             semantic_profile=semantic_profile,
-            content_sharing_consent=content_sharing_consent,
         )
         if request is None:
             logger.info(
@@ -2099,9 +2074,6 @@ async def _run_ai2_reindex(
     members, relations, documents = await _manifest_inputs(
         session, manifest_id=manifest.id, dossier_id=dossier_id
     )
-    content_sharing_consent = await _dossier_content_sharing_consent(
-        session, dossier_id=dossier_id, tenant_id=tenant_id
-    )
     attempt = _ai2_attempt(run) + 1
     budget = ai2_deadline_seconds(sum(int(d.page_count or 0) for d in documents))
     request = build_processing_request(
@@ -2114,7 +2086,6 @@ async def _run_ai2_reindex(
         snapshot_created_at=_snapshot_created_at(run),
         attempt=attempt,
         max_processing_seconds=budget,
-        content_sharing_consent=content_sharing_consent,
     )
     if request is None:
         await refuse(reason="snapshots")
