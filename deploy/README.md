@@ -2,6 +2,8 @@
 
 Chạy toàn bộ stack (Keycloak, Postgres ×2, Kafka, MinIO, backend, backend-worker, AI1, AI2, giám sát) trên một máy chủ cloud Linux, bằng chính `docker-compose.yml` của dự án cộng với `deploy/compose.prod.yml`. Caddy đứng trước, lo HTTPS. Frontend có thể chạy trên cùng máy (tuỳ chọn).
 
+Hướng dẫn chạy stack AI2 cục bộ nằm tại [docs/AI2-LOCAL-SETUP.md](../docs/AI2-LOCAL-SETUP.md).
+
 Mọi thao tác làm qua SSH từ máy dev. Không cần công cụ của nhà cung cấp cloud nào.
 
 ## Cái gì ra Internet
@@ -58,7 +60,7 @@ Hồ sơ hàng trăm trang vẫn có thể đẩy máy vào swap. Máy 2 GB khô
 | Thông tin | Dùng để |
 |---|---|
 | IP công khai, user SSH, khoá SSH (hoặc mật khẩu) | Đăng nhập máy chủ |
-| Nhánh cần deploy (thường `develop`) | `git checkout` |
+| Nhánh deploy | Workflow chỉ nhận `develop`; PR merge vào `develop` tạo push event và khởi chạy deploy |
 | Quyền đọc repo từ máy chủ | Repo riêng tư thì cần Personal Access Token hoặc deploy key |
 | `MISTRAL_API_KEY`, `OPENAI_API_KEY` | AI1 OCR (`ai-service/.env`) |
 | `AI2_LLM_BASE_URL`, `AI2_LLM_API_KEY` | AI2 (`deploy/.env.prod`) |
@@ -118,7 +120,7 @@ sudo deploy/deploy.sh
 
 1. Build image (và frontend nếu có `APP_HOST`).
 2. `up -d`.
-3. Chờ backend healthy. Backend tự chạy `alembic upgrade head`.
+3. Chờ PostgreSQL và Keycloak readiness probe healthy; Backend tự chạy `alembic upgrade head` rồi phải healthy.
 4. Chạy `keycloak_configure.py`:
    - Thêm `FRONTEND_ORIGINS` vào redirect/web origins.
    - Đổi secret của client backend.
@@ -153,7 +155,7 @@ Trên `https://app-<ip>.sslip.io` (hoặc frontend ở máy dev trỏ vào serve
 
 ## Cập nhật
 
-Tự động: workflow `deploy` (`.github/workflows/deploy.yml`) chạy sau mỗi lần merge vào `develop`, hoặc bấm tay ở GitHub → Actions → `deploy` → Run workflow. Nó SSH vào server, fast-forward checkout tới commit vừa merge, chạy `deploy/deploy.sh`, rồi chạy `deploy/check_external.sh` từ runner (tức từ bên ngoài server).
+Tự động: workflow `deploy` (`.github/workflows/deploy.yml`) chạy sau mỗi push vào `develop` (bao gồm push do PR merge), hoặc bấm tay ở GitHub → Actions → `deploy` → Run workflow. Nó SSH vào server, checkout đúng SHA đã kích hoạt workflow, chạy `deploy/deploy.sh`, rồi chạy `deploy/check_external.sh` từ runner (tức từ bên ngoài server).
 
 Bằng tay, trên server:
 
@@ -178,9 +180,15 @@ ssh-keyscan -t ed25519 <ip>        # so với khoá máy chủ đã biết rồi
 | `DEPLOY_SSH_KEY` | Nội dung file `deploy_key` (khoá bí mật). Xoá file sau khi khai |
 | `DEPLOY_KNOWN_HOSTS` | Dòng `ssh-keyscan` ở trên |
 
-Chưa có `DEPLOY_HOST` thì workflow báo "not configured" và không làm gì. Muốn tạm dừng deploy tự động (ví dụ khi bảo trì server), xoá secret `DEPLOY_HOST`.
+Thiếu một trong bốn SSH secrets thì workflow **fail** với tên cấu hình bị thiếu; nó không báo xanh theo kiểu skip. Không xóa secret để tạm dừng deploy vì khi đó merge tạo ra một deploy check đỏ.
 
-Workflow chỉ fast-forward: nếu checkout trên server có commit riêng thì deploy dừng lại, không ghi đè. Hai lần deploy không chạy chồng nhau; lần sau chờ lần trước xong.
+Workflow fetch và checkout đúng SHA tạo trigger, kiểm tra lại SHA trước/sau deploy, và không ghi đè checkout server có thay đổi cục bộ. Hai lần deploy không chạy chồng nhau; lần sau chờ lần trước xong. Sau đó runner kiểm tra HTTPS/API, OIDC issuer và các cổng nội bộ từ bên ngoài server.
+
+### Tự động deploy sau khi merge
+
+`.github/workflows/deploy.yml` chạy khi có push vào `develop`, vì vậy PR merge vào `develop` tự kích hoạt quy trình. `workflow_dispatch` chỉ được phép từ `develop`; preflight chạy trước production Environment và không nhận secrets. Deployment job chỉ được lên lịch khi preflight thành công.
+
+Environment `production` cần được giới hạn vào nhánh `develop` bởi repository admin. Có thể đặt thêm required reviewers; nếu đặt, lần deploy sẽ chờ duyệt và không còn tự hoàn tất ngay sau merge. Không thêm required reviewers nếu mục tiêu là autodeploy không chờ người duyệt. Branch ruleset và required CI checks cũng được quản lý trong GitHub Settings, không nằm trong YAML workflow.
 
 ### Duyệt trước khi deploy
 
@@ -188,19 +196,17 @@ Job `deploy` chạy trong GitHub Environment `production`. Khi environment này 
 
 Luật duyệt nằm ở cấu hình repo, không nằm trong file workflow, và **chỉ tài khoản có quyền admin repo đặt được**:
 
-- Giao diện: Settings → Environments → `production` → Required reviewers → thêm người duyệt (hiện là `Chuongpham2004`) → Save. Nên đặt thêm Deployment branches = `develop`.
-- Hoặc bằng API (thay `<id>` bằng kết quả của `gh api users/<login> --jq .id`):
+- Giao diện: Settings → Environments → `production` → Deployment branches → Selected branches → `develop`. Bỏ trống Required reviewers nếu muốn deploy tự chạy không chờ người duyệt; thêm reviewer sẽ biến approval thành gate riêng.
+- Hoặc bằng API:
 
   ```bash
-  gh api -X PUT repos/AI20K-VGR/contract-intelligence-core/environments/production --input - <<'JSON'
-  {"wait_timer": 0, "prevent_self_review": false,
-   "reviewers": [{"type": "User", "id": <id>}],
-   "deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}}
+  gh api --method PUT repos/AI20K-VGR/contract-intelligence-core/environments/production --input - <<'JSON'
+  {"deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}}
   JSON
-  gh api -X POST repos/AI20K-VGR/contract-intelligence-core/environments/production/deployment-branch-policies -f name=develop
+  gh api --method POST repos/AI20K-VGR/contract-intelligence-core/environments/production/deployment-branch-policies -f name=develop -f type=branch
   ```
 
-Chưa có luật này thì environment `production` chỉ là một cái tên: workflow chạy ngay như trước. Kiểm tra luật đã có chưa: `gh api repos/AI20K-VGR/contract-intelligence-core/environments/production --jq .protection_rules`.
+Environment settings không thể được đặt bằng workflow YAML và cần quyền admin repo. Kiểm tra protection rules: `gh api repos/AI20K-VGR/contract-intelligence-core/environments/production --jq .protection_rules`; kiểm tra nhánh được phép: `gh api repos/AI20K-VGR/contract-intelligence-core/environments/production/deployment-branch-policies`. Workflow có thêm preflight chỉ cho phép `develop`, nhưng không thay thế deployment branch policy của Environment.
 
 Server cài trước 02/10/2026 (trước issue #52) cần làm thêm một lần trước lần cập nhật đầu tiên:
 

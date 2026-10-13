@@ -24,6 +24,7 @@
 - `backend/src/contract_intelligence/api/v1/dossiers.py`
 - `backend/src/contract_intelligence/shared/ai/canonical_processing.py`
 - `backend/tests/unit/shared/ai/test_canonical_processing.py`
+- `backend/tests/unit/test_contract_router.py` (update the default-cap assertion to distinguish cap ON from stored consent false)
 
 **Delete:** —
 

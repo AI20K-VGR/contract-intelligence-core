@@ -5,14 +5,14 @@
 Luồng 2 đề xuất quan hệ giữa các khoản không có câu thao tác sửa đổi tường minh.
 Luồng 1 vẫn đọc thao tác trước; cặp đã được luồng 1 nối bị loại khỏi luồng 2.
 Mọi quan hệ đều `NEEDS_REVIEW`; AI2 không chọn khoản thắng hoặc kết luận hiệu lực pháp lý.
-Cờ mặc định tắt. Code và test tích hợp không thay cổng đo chất lượng P5 hoặc quyết định bật cờ.
+`AI2_CONTRACT_GRAPH_PAIRS_ENABLED` mặc định bật trong source và full Compose profile hiện tại; operator có thể đặt `false` để tắt rõ ràng. Mặc định bật capability chỉ cho phép thử xử lý pair khi các cổng consent theo hồ sơ, global egress cap, model, budget và timeout đều đạt; không bỏ qua các cổng đó hoặc cổng review.
 
 ## Cấu hình và consent
 
 | Biến | Ý nghĩa |
 |---|---|
 | `AI2_CONTRACT_GRAPH_ENABLED` | Bật luồng 1; phải bật trước khi luồng 2 chạy |
-| `AI2_CONTRACT_GRAPH_PAIRS_ENABLED` | Bật luồng 2; mặc định tắt, đọc một lần mỗi lượt |
+| `AI2_CONTRACT_GRAPH_PAIRS_ENABLED` | Bật luồng 2; mặc định bật, đọc một lần mỗi lượt |
 | `AI2_CONTRACT_GRAPH_PAIRS_MODEL` | Model phân loại; model thực phục vụ phải thuộc họ classifier được nhận diện và khác model cụ thể labeler |
 | `AI2_CONTRACT_GRAPH_PAIRS_BASE_URL` | Endpoint dành riêng cho phân loại |
 | `AI2_CONTRACT_GRAPH_PAIRS_API_KEY` | Khóa tại môi trường chạy; không ghi giá trị vào git |

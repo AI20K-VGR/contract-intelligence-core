@@ -1,6 +1,6 @@
 # AI2-19 — Contract graph luồng 1 (operation-first): cạnh sửa đổi, wire và lưu trữ
 
-> Trạng thái: đã triển khai sau flag `AI2_CONTRACT_GRAPH_ENABLED` (mặc định **tắt**). Plan: `plans/261007-1735-ai2-contract-graph-op-first/` (P1–P4). Tài liệu này mô tả đúng code hiện có; không phải bằng chứng production.
+> Trạng thái: đã triển khai; `AI2_CONTRACT_GRAPH_ENABLED` mặc định **bật** trong source và full Compose profile hiện tại, có thể tắt rõ ràng bằng operator override. Plan: `plans/261007-1735-ai2-contract-graph-op-first/` (P1–P4). Tài liệu này mô tả code hiện có; không phải bằng chứng môi trường production.
 
 ## 1. Mục tiêu
 

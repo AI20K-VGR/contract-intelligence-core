@@ -39,12 +39,20 @@ Thực thi quyết định chủ sản phẩm đã duyệt: mọi dossier đang 
 
 ## Success Criteria
 
-- [ ] Dry-run/apply cho active dossiers đo được, rollout event truy ngược từng record mà không chứa hợp đồng; deleted/purged không bị sửa.
-- [ ] Cùng rollout ID chạy lại không đổi count đã xử lý/không nhân đôi event; lỗi audit không để metadata cập nhật nửa chừng.
-- [ ] UI hiển thị consent hiện hành và cho opt-out/in qua endpoint riêng; request unauthorized bị 403; toggle lỗi không báo thành công.
-- [ ] Rollback dùng row lock/CAS bao trùm check + write; integration test PostgreSQL điều phối rollback đua với opt-out và chứng minh opt-out không bao giờ bị ghi đè; khôi phục prior false/absent nếu chưa có user edit và bỏ qua mọi dossier đã đổi sau rollout.
-- [ ] Existing consent true/false và hồ sơ mới được test; explicit user false không bị default hoặc backfill tương lai tự bật lại.
-- [ ] Các capability/global caps xử lý, query LLM/vector và egress giữ ON mặc định trong product/develop. Mọi provider call vẫn phải qua AND giữa server cap, signed request consent và consent true đã lưu trên đúng hồ sơ; consent missing/malformed/false tạo zero provider calls. Không tắt global capability để thay cho consent rollout. Backfill vẫn dry-run + candidate digest trước và cần `--apply` rõ ràng; không apply dữ liệu vận hành trong cook.
+- [x] Dry-run/apply cho active dossiers đo được, rollout event truy ngược từng record mà không chứa hợp đồng; deleted/purged không bị sửa.
+- [x] Cùng rollout ID chạy lại không đổi count đã xử lý/không nhân đôi event; lỗi audit không để metadata cập nhật nửa chừng.
+- [x] UI hiển thị consent hiện hành và cho opt-out/in qua endpoint riêng; request unauthorized bị 403; toggle lỗi không báo thành công.
+- [x] Rollback dùng row lock/CAS bao trùm check + write; integration test PostgreSQL điều phối rollback đua với opt-out và chứng minh opt-out không bao giờ bị ghi đè; khôi phục prior false/absent nếu chưa có user edit và bỏ qua mọi dossier đã đổi sau rollout.
+- [x] Existing consent true/false và hồ sơ mới được test; explicit user false không bị default hoặc backfill tương lai tự bật lại.
+- [x] Các capability/global caps xử lý, query LLM/vector và egress giữ ON mặc định trong product/develop. Mọi provider call vẫn phải qua AND giữa server cap, signed request consent và consent true đã lưu trên đúng hồ sơ; consent missing/malformed/false tạo zero provider calls. Không tắt global capability để thay cho consent rollout. Backfill vẫn dry-run + candidate digest trước và cần `--apply` rõ ràng; không apply dữ liệu vận hành trong cook.
+
+## Verification (2026-10-14)
+
+- `pytest tests/integration/test_ai2_consent_rollout.py tests/integration/test_tenant_isolation.py -q`: 7 passed locally; PostgreSQL-specific race is included in CI, skipped locally because no test DB is configured.
+- Backend CI run `38462468129` at `7680f1fe`: lint, type, unit, architecture and integration passed; 115 integration tests passed, including the consent rollback/opt-out PostgreSQL race.
+- AI-service CI run `38461625336` at `faccf564`: 1609 deterministic tests passed, 17 deselected, 24 warnings; signed query consent and false/missing consent provider-call gates passed.
+- Frontend Vitest: 146 passed; production build passed; ESLint had 13 existing warnings and no errors.
+- No operational backfill was run; deployment operator must review dry-run count/digest before explicit apply.
 
 ## Risk Assessment
 

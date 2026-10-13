@@ -14,13 +14,13 @@ So sánh commit `HEAD` với `origin/develop` cho thấy nhánh hiện tại **�
 |---|---|---|---|
 | Quan hệ hợp đồng | Đồ thị quan hệ legacy (`PARENT_OF`, `SAME_CLAUSE`, `REFERENCES`, `AMENDS`...) dựng từ relation markers/structure; không có operation-first edge model riêng trong diff này | Thêm `ContractEdge` với thao tác `INSERTION`, `SUBSTITUTION`, `REPEAL`, `REJECTION`, `SCOPE_LIMIT`; resolver địa chỉ điều/khoản; lưu `contract_edges` | Cần migration và kiểm tra tương thích schema/wire; subtype thao tác giữ ở AI2, projected ra finding tương thích `AMENDS` |
 | Quan hệ ngầm | Các quan hệ legacy phục vụ reasoning/retrieval | Thêm pair candidate generation, classifier, `PairRelation`, bảng `contract_pair_relations`, consent/flag gate | Không bật classifier/model calls ở production cho đến khi cấu hình, consent, chất lượng và rollback được duyệt |
-| Runtime switch | Không có hai feature flag Contract Graph mới | Có `AI2_CONTRACT_GRAPH_ENABLED` và `AI2_CONTRACT_GRAPH_PAIRS_ENABLED`, mặc định `false` trong mã hiện tại | Giữ OFF trong lần deploy đầu; bật theo canary riêng sau khi hoàn tất gate |
+| Runtime switch | Không có hai feature flag Contract Graph mới | Có `AI2_CONTRACT_GRAPH_ENABLED` và `AI2_CONTRACT_GRAPH_PAIRS_ENABLED`; source và full Compose profile hiện tại mặc định `true` theo quyết định rollout mới | Mặc định bật capability; consent theo hồ sơ, global egress cap, model/budget và review gate vẫn có hiệu lực |
 | API và review | Backend/front-end hiện có flow finding/review và mindmap cấu trúc hồ sơ | AI2 lưu cạnh và chiếu operation edge vào finding tương thích; diff không có thay đổi `frontend/` | Graph UI sản phẩm chưa được làm; cần API đọc graph theo dossier có authorization và UI riêng |
 | Đánh giá | Không có bộ Contract Graph mới trong develop tại mốc so sánh | Thêm eval corpus, gold, candidate/classifier bakeoff, quality reports và tests | Chọn tập gate có thể tái lập, không đưa toàn bộ artifacts lớn không cần thiết nếu repo policy cho phép |
 
 **Phân biệt hai loại graph:** `ContractMindmap` hiện tại tập trung biểu diễn cấu trúc hồ sơ/tài liệu. Nó chưa trực quan hóa trực tiếp cạnh operation-first và pair relations AI2 đã lưu. Không nên đổi nhãn mindmap hiện hữu để tạo cảm giác rằng yêu cầu Graph UI đã xong.
 
-**Trạng thái vận hành quan sát được trong mã:** hai feature flags mặc định `false`. Đây là bằng chứng trạng thái mặc định trong source, không phải xác nhận trạng thái của một môi trường deploy cụ thể. Trước deploy cần đọc config/secret của chính môi trường đích.
+**Trạng thái vận hành hiện tại:** hai feature flags mặc định `true` trong source/full Compose; có thể bị operator override. Đây không phải xác nhận cấu hình thực tế của một môi trường deploy. Trước deploy cần kiểm tra cấu hình và readiness của môi trường đích.
 
 ## 2. Mục tiêu sản phẩm và tiêu chí chấp nhận
 
@@ -93,7 +93,7 @@ Ví dụ nghiệp vụ/đồ thị cụ thể nằm trong [tài liệu minh họ
 - **Eval artifacts nặng:** diff gần 369k dòng chủ yếu là dữ liệu/báo cáo. Cần xác nhận policy lưu corpus/held-out và không vô tình đưa dữ liệu nhạy cảm hoặc artifact tạm vào develop.
 - **Data contract frontend chưa chốt:** hiện có dữ liệu ở AI2 persistence và finding projection; cần quyết định endpoint, quyền truy cập và snapshot semantics trước thiết kế UI hoàn chỉnh.
 - **Graph không đồng nghĩa auto-legal decision:** review state cần giữ hiển thị xuyên suốt; không dùng màu/nhãn UI khiến người dùng hiểu AI đã xác định hiệu lực pháp lý.
-- **Deploy state chưa được xác nhận:** source mặc định OFF không chứng minh cấu hình của môi trường; cần kiểm tra release manifests/secret trực tiếp trong pha deploy.
+- **Deploy state chưa được xác nhận:** source mặc định ON không chứng minh cấu hình hoặc readiness của môi trường; cần kiểm tra release manifests/secret trực tiếp trong pha deploy.
 
 ## 5. Thứ tự làm tiếp
 

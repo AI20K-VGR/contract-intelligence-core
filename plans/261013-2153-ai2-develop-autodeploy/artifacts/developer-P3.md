@@ -19,7 +19,7 @@
 
 - Backend CI run `38461625711` at `faccf564`: Ruff, MyPy, unit, architecture and PostgreSQL integration jobs passed; 114 integration tests passed, including the PostgreSQL consent race.
 - AI-service CI run `38461625336` at the same SHA: deterministic profile passed with 1609 tests, 17 deselected, 24 warnings.
-- The follow-up CLI-test supplement is committed separately and its refreshed Backend CI run remains the final P3 gate.
+- Refreshed Backend CI run `38462468129` at `7680f1fe`: all jobs passed; 115 integration tests passed, including the digest-gated CLI path and the PostgreSQL rollback/opt-out race. Ruff, MyPy, unit and architecture checks also passed.
 
 ## Follow-up gate
 

@@ -168,7 +168,7 @@ Classifier trả nhãn `REFERENCE` (có hướng từ câu dẫn đến câu đ�
 
 ### 5.4 Flags và trạng thái mặc định
 
-Trong source, `AI2_CONTRACT_GRAPH_ENABLED` và `AI2_CONTRACT_GRAPH_PAIRS_ENABLED` mặc định `false`; luồng 2 còn qua consent/egress/model/budget/time gate. Backend builder hiện đặt `policy_flags.egress_allowed=false`, và adapter AI2 dùng giá trị này làm consent chia sẻ nội dung cho classifier. Vì vậy không nên giả định một lần xử lý tiêu chuẩn hiện đang gọi model classifier hay tạo pair relations. Trạng thái môi trường deploy phải kiểm tra riêng.
+Trong source hiện tại, `AI2_CONTRACT_GRAPH_ENABLED` và `AI2_CONTRACT_GRAPH_PAIRS_ENABLED` mặc định `true`; full Compose profile cũng bật processing/query egress, query LLM/vector và vector recall. Luồng 2 vẫn qua consent chia sẻ nội dung theo từng hồ sơ, global egress cap, model, budget và timeout. Mặc định bật capability không chứng minh inference đã chạy hoặc pair relations đã được tạo; trạng thái môi trường deploy, quyền consent và readiness phải kiểm tra riêng.
 
 ## 6. Ví dụ graph của hợp đồng mẫu
 

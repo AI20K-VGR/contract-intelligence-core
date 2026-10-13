@@ -60,6 +60,7 @@ subtasks:
       - backend/src/contract_intelligence/api/v1/dossiers.py
       - backend/src/contract_intelligence/shared/ai/canonical_processing.py
       - backend/tests/unit/shared/ai/test_canonical_processing.py
+      - backend/tests/unit/test_contract_router.py
     post: [verification-P4.json]
   P5:
     files_to_create:

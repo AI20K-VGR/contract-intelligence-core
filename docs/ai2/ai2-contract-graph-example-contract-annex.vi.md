@@ -143,7 +143,7 @@ Trong hợp đồng mẫu:
 
 Classifier xem nội dung hai phía, trả nhãn như `CONFLICT`, `DUPLICATE`, `GENERAL_SPECIFIC` hoặc `REFERENCE`; kiểm tra đảm bảo span có thật trong văn bản, citation hợp lệ và hướng được chỉ rõ khi cần. Quan hệ được lưu riêng với hai bằng chứng và `NEEDS_REVIEW`. Với `CONFLICT`/`DUPLICATE` không có hướng; `REFERENCE` hướng từ referrer đến node được dẫn. Không có candidate nghĩa là classifier chưa từng được hỏi về cặp đó; candidate bị cắt khỏi top 40 hoặc bị loại cũng có thể làm giảm recall.
 
-Hai cờ `AI2_CONTRACT_GRAPH_ENABLED` và `AI2_CONTRACT_GRAPH_PAIRS_ENABLED` mặc định tắt trong source. Khi cờ, consent chia sẻ nội dung, egress, model, budget hoặc thời gian không đạt, classifier không được gọi; trạng thái đó không được diễn giải là hệ thống đã so sánh và kết luận hai điều khoản không liên quan.
+Hai cờ `AI2_CONTRACT_GRAPH_ENABLED` và `AI2_CONTRACT_GRAPH_PAIRS_ENABLED` mặc định bật trong source hiện tại. Nếu operator tắt cờ, hoặc consent chia sẻ nội dung theo hồ sơ, egress, model, budget hay thời gian không đạt, classifier không được gọi; trạng thái đó không được diễn giải là hệ thống đã so sánh và kết luận hai điều khoản không liên quan.
 
 ## 6. Một cạnh sửa đổi trông như thế nào trong dữ liệu
 
@@ -210,7 +210,7 @@ Cần có chú giải màu/nét, bộ lọc theo tài liệu và loại quan h�
 
 ## 10. Trạng thái thực tế và tài liệu kỹ thuật
 
-Sơ đồ ở trên là tài liệu hướng dẫn, không phải kết quả chạy AI2. Trong source hiện tại, `AI2_CONTRACT_GRAPH_ENABLED` và `AI2_CONTRACT_GRAPH_PAIRS_ENABLED` mặc định tắt; trạng thái cấu hình của môi trường deploy phải được kiểm tra riêng.
+Sơ đồ ở trên là tài liệu hướng dẫn, không phải kết quả chạy AI2. Trong source hiện tại, `AI2_CONTRACT_GRAPH_ENABLED` và `AI2_CONTRACT_GRAPH_PAIRS_ENABLED` mặc định bật; operator vẫn có thể override và cấu hình thực tế của môi trường deploy phải được kiểm tra riêng.
 
 - [Kiểu dữ liệu cạnh](../../ai-service/app/contracts/contract_graph.py)
 - [Luồng sửa đổi tường minh](AI2-19-contract-graph-operation-first.vi.md)

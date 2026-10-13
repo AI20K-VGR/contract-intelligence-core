@@ -3,3 +3,10 @@
 {"actor": "user:dungskbg2004@gmail.com", "kind": "open", "mark": "04b5f57b707d8aba824f5e144429f84de35a9ab4", "phase": "P2", "ts": "2026-10-13T19:04:00+00:00"}
 {"actor": "user:dungskbg2004@gmail.com", "kind": "verify", "phase": "P2", "sha": [], "ts": "2026-10-13T19:57:00+00:00"}
 {"actor": "user:dungskbg2004@gmail.com", "kind": "open", "mark": "04b5f57b707d8aba824f5e144429f84de35a9ab4", "phase": "P3", "ts": "2026-10-13T19:57:11+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "verify", "phase": "P3", "sha": ["7680f1fe08c5d9b016a4a695d7bdca65e9a11a4b", "faccf56486e34091a44dc60178d3c192bff2c396", "5e29ac5dc18723a1a79b318638b48ccced18f220"], "ts": "2026-10-13T20:26:52+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "open", "mark": "7680f1fe08c5d9b016a4a695d7bdca65e9a11a4b", "phase": "P4", "ts": "2026-10-13T20:27:00+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "verify", "phase": "P4", "sha": [], "ts": "2026-10-13T20:46:27+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "open", "mark": "7680f1fe08c5d9b016a4a695d7bdca65e9a11a4b", "phase": "P5", "ts": "2026-10-13T20:46:34+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "verify", "phase": "P5", "sha": [], "ts": "2026-10-13T21:02:01+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "open", "mark": "7680f1fe08c5d9b016a4a695d7bdca65e9a11a4b", "phase": "P6", "ts": "2026-10-13T21:02:40+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "verify", "phase": "P6", "sha": [], "ts": "2026-10-13T21:02:40+00:00"}
