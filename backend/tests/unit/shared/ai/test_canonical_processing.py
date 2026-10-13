@@ -93,6 +93,21 @@ def test_processing_egress_requires_explicit_dossier_consent() -> None:
     assert allowed["policy_flags"]["egress_allowed"] is True  # type: ignore[index]
 
 
+def test_processing_consent_does_not_change_budget_or_vector_capability() -> None:
+    denied = _compact_request(content_sharing_consent=False)
+    allowed = _compact_request(content_sharing_consent=True)
+
+    assert denied is not None and allowed is not None
+    assert denied["policy_flags"]["use_vector"] is True  # type: ignore[index]
+    assert allowed["policy_flags"]["use_vector"] is True  # type: ignore[index]
+    assert (
+        denied["policy_flags"]["budget_limits"]
+        == allowed["policy_flags"][  # type: ignore[index]
+            "budget_limits"
+        ]
+    )
+
+
 def test_relation_order_does_not_change_the_payload() -> None:
     snapshots = {
         doc: {

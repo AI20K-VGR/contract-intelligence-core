@@ -900,7 +900,8 @@ class TestSearchDossierEndpoint:
         assert seen["dossier_id"] == "dos_TEST_01"
         assert seen["tenant_id"] == "tenant_test"
         assert seen["actor_id"] == "usr_op_01"
-        assert seen["policy_flags"]["egress_allowed"] is False
+        assert seen["policy_flags"]["egress_allowed"] is True
+        assert seen["content_sharing_consent"] is False
         assert data["acl_decision"] == "passed"
         # ACL lần 2 phải đọc lại dossier + danh sách tài liệu sau khi AI2 trả lời.
         assert mock_svc.get_dossier.await_count == 2
