@@ -16,6 +16,15 @@
 #                       from outside then also proves its database ports closed
 # Without DEPLOY_HOST the job reports "not configured" and succeeds.
 #
+# AWS server whose security group admits SSH from the operator only
+# (docs/DOC-15-cicd-github-actions.md): set the repository VARIABLES
+#   DEPLOY_SECURITY_GROUP_ID  the app server's security group, e.g. sg-070e3d258f1793c3e
+#   DEPLOY_AWS_REGION         its region, e.g. ap-southeast-2
+# and the secrets AWS_DEPLOY_ACCESS_KEY_ID / AWS_DEPLOY_SECRET_ACCESS_KEY of an
+# IAM user that may only add and remove rules on that group. The job then
+# opens port 22 to this runner's IP alone and closes it again at the end, even
+# when the deploy fails. Without DEPLOY_SECURITY_GROUP_ID nothing changes.
+#
 # Who may deploy is decided by the "production" environment, not by this file
 # (deploy/README.md, "Duyệt trước khi deploy").
 name: deploy
@@ -58,6 +67,16 @@ jobs:
 
       - uses: actions/checkout@v4
         if: steps.target.outputs.configured == 'true'
+
+      - name: Open SSH to this runner only (AWS security group)
+        id: ssh_window
+        if: steps.target.outputs.configured == 'true' && vars.DEPLOY_SECURITY_GROUP_ID != ''
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_DEPLOY_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_DEPLOY_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.DEPLOY_AWS_REGION }}
+          SG: ${{ vars.DEPLOY_SECURITY_GROUP_ID }}
+        run: bash deploy/ssh_window.sh open "$SG"
 
       - name: SSH key and pinned host key
         if: steps.target.outputs.configured == 'true'
@@ -104,3 +123,13 @@ jobs:
           hosts=$(ssh server "sudo=''; [ \"\$(id -u)\" -eq 0 ] || sudo=sudo; \$sudo grep -E '^(API_HOST|AUTH_HOST|APP_HOST)=' '$APP_DIR/deploy/.env.prod'")
           value() { printf '%s\n' "$hosts" | grep -E "^$1=" | tail -1 | cut -d= -f2-; }
           bash deploy/check_external.sh "$(value API_HOST)" "$(value AUTH_HOST)" "$(value APP_HOST)" "$DB_PUBLIC_IP"
+
+      # Last step, and after a failure too: the rule opened above must not stay.
+      - name: Close SSH again (AWS security group)
+        if: always() && steps.ssh_window.outcome != 'skipped' && steps.ssh_window.outcome != ''
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_DEPLOY_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_DEPLOY_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.DEPLOY_AWS_REGION }}
+          SG: ${{ vars.DEPLOY_SECURITY_GROUP_ID }}
+        run: bash deploy/ssh_window.sh close "$SG"

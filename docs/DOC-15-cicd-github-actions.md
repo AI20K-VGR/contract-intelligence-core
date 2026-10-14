@@ -57,6 +57,7 @@ Một lần chạy tối đa 60 phút. `concurrency: deploy-server` bảo đảm
 | `DEPLOY_SSH_KEY` | Khoá bí mật riêng cho GitHub Actions | Có |
 | `DEPLOY_KNOWN_HOSTS` | Dòng `ssh-keyscan -t ed25519 <host>`, đã so tay với khoá của server | Có |
 | `DEPLOY_DB_PUBLIC_IP` | IP công khai của DB server riêng (không bắt buộc) | Chưa |
+| `AWS_DEPLOY_ACCESS_KEY_ID`, `AWS_DEPLOY_SECRET_ACCESS_KEY` | Access key của IAM user `ci-github-deploy`, chỉ dùng để mở/đóng cổng 22 trên AWS | Có (14/10) |
 
 Đặt bằng `gh secret set <TÊN>` (gõ giá trị khi được hỏi), hoặc Settings → Secrets and variables → Actions.
 
@@ -70,20 +71,25 @@ GitHub → Actions → `deploy` → Run workflow, chọn nhánh. Workflow deploy
 
 ## Chuyển CD sang AWS
 
-Việc cần làm theo thứ tự. **Chưa làm bước nào** (14/10).
+Việc cần làm theo thứ tự. **Bước 1 đã xong** (14/10); bước 2–5 làm lúc chuyển hẳn sang AWS.
 
-### 1. Cho runner SSH được vào app server
+### 1. Cho runner SSH được vào app server — đã làm
 
-Security group `ci-app` chỉ mở cổng 22 cho IP của người vận hành. Runner GitHub chạy từ dải IP rất rộng và thay đổi, nên hiện **không SSH vào được**. Có ba cách:
+Security group `ci-app` chỉ mở cổng 22 cho IP của người vận hành, còn runner GitHub chạy từ dải IP rất rộng và thay đổi. Vì vậy mỗi lần deploy, workflow **mở cổng 22 cho đúng IP của runner** rồi đóng lại ở bước cuối, kể cả khi deploy lỗi.
 
-| Cách | Làm gì | Ưu | Nhược |
-|---|---|---|---|
-| **A. Mở cổng 22 tạm thời cho mỗi lần chạy** (đề xuất) | Workflow đăng nhập AWS bằng OIDC (không lưu access key), thêm IP của runner vào `ci-app`, deploy, rồi xoá rule ở bước `always()` | Cổng 22 chỉ mở vài phút cho đúng một IP | Phải tạo IAM role tin GitHub OIDC. Tài khoản nằm trong Organization có policy riêng; chưa thử tạo role |
-| B. Mở cổng 22 cho mọi IP | Thêm `0.0.0.0/0` vào cổng 22 của `ci-app` | Không cần sửa workflow | Ai cũng gõ cửa SSH được (vẫn chỉ đăng nhập bằng khoá). Nên kèm `fail2ban` |
-| C. Self-hosted runner trên app server | Cài GitHub runner trên `ci-app`, chỉ job `deploy` dùng | Không mở cổng nào | Runner chạy code của repo ngay trên server prod; phải giới hạn chặt workflow nào được dùng nó |
+Thông tin xác thực AWS cho việc này: dự định ban đầu là OIDC (không lưu key nào trong GitHub), nhưng policy của Organization chặn tạo OIDC provider (`iam:CreateOpenIDConnectProvider`, policy `p-xs3ungxb`). Vì vậy dùng một IAM user riêng có access key, quyền tối thiểu:
 
-Với cách A, workflow cần `permissions: id-token: write`, bước `aws-actions/configure-aws-credentials` với `role-to-assume`, rồi `aws ec2 authorize-security-group-ingress` và `revoke-security-group-ingress` trên `sg-070e3d258f1793c3e`. Role chỉ cần quyền hai thao tác đó trên đúng security group này.
+| Thành phần | Giá trị |
+|---|---|
+| IAM user | `ci-github-deploy`, inline policy `ssh-window-on-ci-app` |
+| Quyền | `ec2:AuthorizeSecurityGroupIngress`, `ec2:RevokeSecurityGroupIngress` **chỉ trên** `sg-070e3d258f1793c3e`; `ec2:DescribeSecurityGroups`/`DescribeSecurityGroupRules` (chỉ đọc) ở `ap-southeast-2` |
+| Secrets đã đặt | `AWS_DEPLOY_ACCESS_KEY_ID`, `AWS_DEPLOY_SECRET_ACCESS_KEY` |
+| Repo variables (đặt ở bước 4) | `DEPLOY_SECURITY_GROUP_ID=sg-070e3d258f1793c3e`, `DEPLOY_AWS_REGION=ap-southeast-2` |
 
+- Việc mở/đóng nằm trong `deploy/ssh_window.sh`. Mỗi rule mang mô tả `github-actions run <run id>`, nên `close` chỉ xoá đúng rule của lần chạy đó. `open` dọn trước các rule do lần chạy cũ bỏ lại (ví dụ runner chết giữa chừng).
+- Hai bước này chỉ chạy khi có variable `DEPLOY_SECURITY_GROUP_ID`. Chưa đặt thì workflow giống hệt trước, nên deploy vào server cũ không bị ảnh hưởng.
+- **Đã thử ngày 14/10** bằng một workflow tạm trên GitHub với đúng secrets này: mở cổng cho IP runner, đóng lại đúng rule đó; user này bị từ chối (`UnauthorizedOperation`) khi thử sửa security group `ci-db`. Rule SSH của người vận hành không bị đụng tới.
+- Lộ access key thì kẻ xấu chỉ thêm/xoá được rule trên `ci-app`; muốn đăng nhập vẫn cần khoá SSH. Xoay key: `aws iam create-access-key --user-name ci-github-deploy`, đặt lại hai secret, rồi `aws iam delete-access-key` key cũ.
 ### 2. Khoá SSH riêng cho GitHub Actions
 
 Không dùng `ci-deploy-aws.pem` của người vận hành:
@@ -117,6 +123,8 @@ ssh -i ~/.ssh/ci-deploy-aws.pem ubuntu@52.63.103.239 \
 | `DEPLOY_KNOWN_HOSTS` | Dòng `ssh-keyscan` ở bước 2 |
 | `DEPLOY_DB_PUBLIC_IP` | Bỏ trống, hoặc gắn Elastic IP cho DB server rồi điền (thêm khoảng $3,6/tháng) |
 
+Cùng lúc đặt hai **repo variable** (Settings → Secrets and variables → Actions → Variables, hoặc `gh variable set`): `DEPLOY_SECURITY_GROUP_ID=sg-070e3d258f1793c3e` và `DEPLOY_AWS_REGION=ap-southeast-2`, để bật bước mở/đóng cổng 22.
+
 DB server chỉ có IP công khai tự cấp, nên **IP này đổi mỗi lần stop/start**. Điền `DEPLOY_DB_PUBLIC_IP` mà không gắn Elastic IP thì sau lần start tiếp theo, bước kiểm tra sẽ kiểm nhầm một IP không còn là của mình.
 
 ### 5. Chạy thử một lần
@@ -138,7 +146,8 @@ Workflow chỉ đi tới, không có nút rollback. Cách an toàn nhất là re
 
 | Triệu chứng | Nguyên nhân | Xử lý |
 |---|---|---|
-| Bước SSH timeout | Server đang stop, hoặc security group không cho IP của runner | Bật server; xem "Chuyển CD sang AWS", bước 1 |
+| Bước SSH timeout | Server đang stop, hoặc security group không cho IP của runner | Bật server; kiểm tra đã đặt variable `DEPLOY_SECURITY_GROUP_ID` và bước "Open SSH" chạy xanh |
+| Bước "Open SSH" báo `AuthFailure`/`InvalidClientTokenId` | Access key của `ci-github-deploy` sai hoặc đã bị xoá | Tạo key mới, đặt lại `AWS_DEPLOY_ACCESS_KEY_ID`/`AWS_DEPLOY_SECRET_ACCESS_KEY` |
 | `Host key verification failed` | Server được tạo lại nên đổi khoá host | `ssh-keyscan` lại, so tay, cập nhật `DEPLOY_KNOWN_HOSTS` |
 | `Not possible to fast-forward` | Checkout trên server có commit riêng, hoặc đang ở nhánh khác | SSH vào xem `git status` và `git log`, đưa về `develop` |
 | `database … does not answer; nothing was restarted` | DB server đang stop, sai IP/cổng, hoặc security group `ci-db` | Bật `ci-db`; kiểm tra `BACKEND_DB_*`/`KEYCLOAK_DB_*` trong `deploy/.env.prod` |
@@ -148,6 +157,6 @@ Workflow chỉ đi tới, không có nút rollback. Cách an toàn nhất là re
 
 ## Việc đang mở
 
-- **PR #85 viết lại `deploy.yml`.** Thêm job kiểm tra chạy trên PR vào `develop`; chỉ cho deploy từ `develop`; deploy đúng SHA bằng `git checkout --detach`; fail (thay vì bỏ qua) khi thiếu secret; từ chối deploy khi checkout trên server có thay đổi hoặc file chưa track. PR #77 cũng sửa `deploy.yml` (thêm `DEPLOY_DB_PUBLIC_IP`), nên PR merge sau phải gộp tay. Sau khi #85 merge, tài liệu này cần cập nhật các mục "Các bước", "Chạy tay" và "Khi server đang stop".
+- **PR #85 viết lại `deploy.yml`.** PR #77 thêm bước kiểm DB server và hai bước mở/đóng cổng 22; PR nào merge sau phải gộp tay các bước này vào. Thêm job kiểm tra chạy trên PR vào `develop`; chỉ cho deploy từ `develop`; deploy đúng SHA bằng `git checkout --detach`; fail (thay vì bỏ qua) khi thiếu secret; từ chối deploy khi checkout trên server có thay đổi hoặc file chưa track. Sau khi #85 merge, tài liệu này cần cập nhật các mục "Các bước", "Chạy tay" và "Khi server đang stop".
 - Server cũ có hai file chưa track `deploy/.env.prod.bak-*`. Với luật mới của #85, hai file này sẽ chặn deploy cho tới khi được dọn đi.
 - Chưa bật người duyệt cho `production` và branch protection cho `develop`.
