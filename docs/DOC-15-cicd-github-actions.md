@@ -29,7 +29,17 @@ flowchart LR
 | `deploy.yml` | Push vào `develop`; bấm tay (Run workflow) | Deploy lên server, rồi kiểm tra từ bên ngoài |
 | `deploy-external-check.yml` | Chỉ bấm tay | Kiểm tra từ bên ngoài một server bất kỳ: HTTPS, issuer OIDC, `/admin` bị chặn, `/grafana` 401, các cổng nội bộ đóng |
 
-`pr-guard.yml` tự ghi là "required check", nhưng **`develop` chưa có branch protection** (API trả 404 ngày 14/10), nên một PR đỏ vẫn merge được. Muốn bắt buộc thì admin repo bật protection cho `develop` và chọn các check `pr-guard`, `Backend CI`… làm required.
+### Luật merge (ruleset, không phải branch protection kiểu cũ)
+
+Repo dùng **ruleset** (Settings → Rules → Rulesets), nên API branch protection kiểu cũ trả 404 dù nhánh vẫn được bảo vệ. Ruleset `develop`, đọc ngày 14/10:
+
+- Chỉ vào `develop` qua PR, không push thẳng, không force-push, không xoá nhánh.
+- Cần **2 approve**, trong đó có code owner (`.github/CODEOWNERS`: team `@AI20K-VGR/ai20k-ojt-batch-3`, thêm `@hieubui2409` cho `.github/`). Approve phải có sau lần push cuối (push mới tự huỷ approve cũ), và người push cuối không tự approve thay được.
+- Mọi thread review phải resolve.
+- Check bắt buộc: chỉ `pr-guard`, và nhánh phải cập nhật với `develop`. `Backend CI`, `ai-service`, `frontend` chạy nhưng không bắt buộc.
+- Không ai được bỏ qua (danh sách bypass rỗng).
+
+Ruleset `main` giống vậy, thêm: chỉ squash merge và lịch sử thẳng. Ruleset `branch-naming` ép tên nhánh `^(feat|feature|fix|docs|chore|refactor|test|hotfix|release)/[a-z0-9._-]+$`.
 
 ## Workflow `deploy`
 
@@ -159,4 +169,4 @@ Workflow chỉ đi tới, không có nút rollback. Cách an toàn nhất là re
 
 - **PR #85 viết lại `deploy.yml`.** PR #77 thêm bước kiểm DB server và hai bước mở/đóng cổng 22; PR nào merge sau phải gộp tay các bước này vào. Thêm job kiểm tra chạy trên PR vào `develop`; chỉ cho deploy từ `develop`; deploy đúng SHA bằng `git checkout --detach`; fail (thay vì bỏ qua) khi thiếu secret; từ chối deploy khi checkout trên server có thay đổi hoặc file chưa track. Sau khi #85 merge, tài liệu này cần cập nhật các mục "Các bước", "Chạy tay" và "Khi server đang stop".
 - Server cũ có hai file chưa track `deploy/.env.prod.bak-*`. Với luật mới của #85, hai file này sẽ chặn deploy cho tới khi được dọn đi.
-- Chưa bật người duyệt cho `production` và branch protection cho `develop`.
+- Chưa bật người duyệt cho `production`: PR đã đủ 2 approve thì merge xong là deploy ngay.
