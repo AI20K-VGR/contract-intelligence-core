@@ -449,6 +449,8 @@ Cấu hình một lần:
    ```
 
 3. **Lưu `BACKUP_ENCRYPTION_PASSPHRASE` ở một nơi ngoài máy chủ** (trình quản lý mật khẩu của nhóm). Mất passphrase thì không đọc được backup; nếu chỉ để trên máy chủ thì nó mất cùng lúc với máy.
+
+   **Người giữ (Lead chốt ngày 14/10/2026):** Phạm Hoàng Chương giữ `BACKUP_ENCRYPTION_PASSPHRASE` và S3 access key của Supabase, có lưu một bản ngoài server. Lead đồng ý gửi bản backup **đã mã hoá** lên Supabase. Đổi người giữ thì ghi lại ở đây, và người cũ bàn giao cả passphrase lẫn key.
 4. Chạy thử `sudo deploy/backup.sh`, kiểm tra dòng `[backup] off-site: ...` và các file trên bucket.
 
 Giới hạn cần biết: Supabase đặt trần dung lượng cho mỗi file (gói miễn phí 50 MB) và tổng dung lượng Storage (gói miễn phí 1 GB). Mỗi đêm là một bản đầy đủ, nên 7 bản có thể vượt 1 GB khi hồ sơ nhiều; khi đó giảm `BACKUP_REMOTE_KEEP_DAYS` hoặc nâng gói.

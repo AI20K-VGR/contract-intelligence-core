@@ -8,6 +8,21 @@ Trạng thái ngày 14/10/2026. Tài liệu này mô tả các workflow trong `.
 - **CD:** mỗi lần push vào `develop` (tức là merge PR), workflow `deploy` SSH vào server, cập nhật code, chạy `deploy/deploy.sh`, rồi kiểm tra server từ bên ngoài.
 - **Server đích hiện tại vẫn là server cũ** `150.95.104.132` (`contract-intelligence.tech`). Cặp server AWS ở Sydney đã dựng và chạy thử được, nhưng chưa chuyển dữ liệu và chưa nhận deploy tự động (xem "Chuyển CD sang AWS").
 
+## Chi phí AWS và cảnh báo
+
+Lead chốt ngày 14/10/2026: chuyển sang AWS; trần chi phí do Phạm Hoàng Chương (backend) đặt.
+
+| Mục | Giá trị |
+|---|---|
+| Nguồn tiền | $200 credit của tài khoản AWS dự án (Free plan, chỉ dùng được region Sydney) |
+| Trần | Tổng không vượt $200 credit; mỗi tháng không quá **$150** |
+| Mức chi dự kiến | ~$115/tháng khi hai máy chạy 24/7; dưới $10/tháng khi stop cả hai (chỉ còn đĩa và Elastic IP) |
+| Cảnh báo | AWS Budgets `ci-monthly-150`: email khi chi phí thực tế **trong tháng** vượt **$50**, **$100**, **$150**. Budget tính chi phí **không trừ credit**, để cảnh báo phản ánh lượng credit đã tiêu |
+| Người nhận cảnh báo | Phạm Hoàng Chương (email cá nhân đã đăng ký trong Budgets; không ghi địa chỉ vào repo vì repo công khai) |
+| Khi nhận cảnh báo $150, hoặc credit sắp hết | Stop cả hai máy (`ci-app` trước, rồi `ci-db`) và báo Lead trước khi bật lại |
+
+Xem hoặc đổi mức cảnh báo: AWS Console → Billing → Budgets → `ci-monthly-150`, hoặc `aws budgets describe-budget --account-id 706421610602 --budget-name ci-monthly-150`.
+
 ```mermaid
 flowchart LR
   A[PR vào develop] --> B{CI theo path<br/>+ pr-guard}
