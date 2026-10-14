@@ -12,6 +12,8 @@
 #   DEPLOY_SSH_KEY      private key whose public half is in that user's authorized_keys
 #   DEPLOY_KNOWN_HOSTS  the server's line(s) from `ssh-keyscan -t ed25519 <host>`,
 #                       checked by hand once, so the runner never trusts an unknown host
+#   DEPLOY_DB_PUBLIC_IP optional: public IP of a DB server of its own; the check
+#                       from outside then also proves its database ports closed
 # Without DEPLOY_HOST the job reports "not configured" and succeeds.
 #
 # Who may deploy is decided by the "production" environment, not by this file
@@ -96,7 +98,9 @@ jobs:
 
       - name: Check from outside the server
         if: steps.target.outputs.configured == 'true'
+        env:
+          DB_PUBLIC_IP: ${{ secrets.DEPLOY_DB_PUBLIC_IP }}
         run: |
           hosts=$(ssh server "sudo=''; [ \"\$(id -u)\" -eq 0 ] || sudo=sudo; \$sudo grep -E '^(API_HOST|AUTH_HOST|APP_HOST)=' '$APP_DIR/deploy/.env.prod'")
           value() { printf '%s\n' "$hosts" | grep -E "^$1=" | tail -1 | cut -d= -f2-; }
-          bash deploy/check_external.sh "$(value API_HOST)" "$(value AUTH_HOST)" "$(value APP_HOST)"
+          bash deploy/check_external.sh "$(value API_HOST)" "$(value AUTH_HOST)" "$(value APP_HOST)" "$DB_PUBLIC_IP"

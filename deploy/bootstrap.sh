@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
 # One-time setup of a fresh Ubuntu/Debian VPS, run from the repo root:
 #
-#   sudo deploy/bootstrap.sh
+#   sudo deploy/bootstrap.sh        # app server (or the whole stack on one machine)
+#   sudo deploy/bootstrap.sh --db   # DB server of its own (deploy/compose.db.yml)
 #
 # Installs Docker, opens only SSH/HTTP/HTTPS, adds swap on small machines and
 # writes deploy/.env.prod with random secrets and sslip.io hostnames (API,
-# Keycloak, frontend) for this server's public IP. Safe to re-run: an existing
-# deploy/.env.prod is kept.
+# Keycloak, frontend) for this server's public IP. With --db: opens only SSH
+# and writes deploy/.env.db with random passwords and this machine's private
+# address. Safe to re-run: an existing env file is kept.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+MODE=app
+[ "${1:-}" = "--db" ] && MODE=db
 ENV_FILE=deploy/.env.prod
+[ "$MODE" = db ] && ENV_FILE=deploy/.env.db
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "run as root (sudo deploy/bootstrap.sh)" >&2
@@ -60,7 +65,13 @@ else
   echo "[bootstrap] Docker log rotation already configured"
 fi
 
-if command -v ufw >/dev/null 2>&1; then
+if [ "$MODE" = db ] && command -v ufw >/dev/null 2>&1; then
+  # The database ports are published by Docker, which bypasses ufw: the cloud
+  # firewall (security group) is what admits the app server to them.
+  echo "[bootstrap] firewall: allow SSH only"
+  ufw allow OpenSSH >/dev/null
+  ufw --force enable >/dev/null
+elif command -v ufw >/dev/null 2>&1; then
   echo "[bootstrap] firewall: allow SSH, 80, 443 only"
   ufw allow OpenSSH >/dev/null
   ufw allow 80/tcp >/dev/null
@@ -77,6 +88,25 @@ if [ "$mem_kb" -lt 15000000 ] && ! swapon --show | grep -q .; then
   mkswap /swapfile >/dev/null
   swapon /swapfile
   grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
+if [ "$MODE" = db ]; then
+  if [ -f "$ENV_FILE" ]; then
+    echo "[bootstrap] $ENV_FILE exists, not touching it"
+  else
+    # The address the machine sends from: on AWS the instance's private IPv4.
+    private_ip=$(ip -4 route get 1.1.1.1 | awk '{for (i = 1; i < NF; i++) if ($i == "src") print $(i + 1)}')
+    cp deploy/.env.db.example "$ENV_FILE"
+    sed -i "s/^DB_BIND_ADDR=.*/DB_BIND_ADDR=$private_ip/" "$ENV_FILE"
+    while grep -q '=generate$' "$ENV_FILE"; do
+      sed -i "0,/=generate\$/s//=$(openssl rand -hex 24)/" "$ENV_FILE"
+    done
+    chmod 600 "$ENV_FILE"
+    echo "[bootstrap] wrote $ENV_FILE: databases on $private_ip (private address)."
+  fi
+  echo "[bootstrap] next: docker compose -f deploy/compose.db.yml --env-file $ENV_FILE up -d"
+  echo "[bootstrap] then copy DB_BIND_ADDR, the two passwords and the two ports into the app server's deploy/.env.prod"
+  exit 0
 fi
 
 if [ -f "$ENV_FILE" ]; then

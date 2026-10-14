@@ -14,8 +14,22 @@ stamp=$(date -u +%Y%m%dT%H%M%SZ)
 envval() { grep -E "^$1=" "$ENV_FILE" | tail -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//'; }
 
 mkdir -p "$DEST/$stamp"
-docker exec ci-backend-db pg_dump -U ci -d contract_intelligence -Fc > "$DEST/$stamp/backend.dump"
-docker exec ci-keycloak-db pg_dump -U keycloak -d keycloak -Fc > "$DEST/$stamp/keycloak.dump"
+backend_db_host=$(envval BACKEND_DB_HOST || true)
+if [ -n "$backend_db_host" ]; then
+  # Databases on a DB server of their own: dump them over the network with a
+  # Postgres 16 client. Passwords reach pg_dump through the environment.
+  remote_dump() {  # host port user db password-variable
+    PGPASSWORD=$(envval "$5") docker run --rm -e PGPASSWORD pgvector/pgvector:pg16 \
+      pg_dump -h "$1" -p "$2" -U "$3" -d "$4" -Fc
+  }
+  remote_dump "$backend_db_host" "$(envval BACKEND_DB_PORT)" ci contract_intelligence \
+    BACKEND_DB_PASSWORD > "$DEST/$stamp/backend.dump"
+  remote_dump "$(envval KEYCLOAK_DB_HOST)" "$(envval KEYCLOAK_DB_PORT)" keycloak keycloak \
+    KEYCLOAK_DB_PASSWORD > "$DEST/$stamp/keycloak.dump"
+else
+  docker exec ci-backend-db pg_dump -U ci -d contract_intelligence -Fc > "$DEST/$stamp/backend.dump"
+  docker exec ci-keycloak-db pg_dump -U keycloak -d keycloak -Fc > "$DEST/$stamp/keycloak.dump"
+fi
 docker run --rm --user 0:0 --network ci-network -v "$DEST/$stamp/minio:/backup" \
   -e MC_HOST_src="http://$(envval MINIO_ROOT_USER):$(envval MINIO_ROOT_PASSWORD)@minio:9000" \
   cgr.dev/chainguard/minio-client:latest mirror --quiet src /backup
