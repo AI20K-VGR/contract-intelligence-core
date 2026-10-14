@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu | **DOC-05b** / Contract Intelligence (PROD-01) |
-| Phiên bản / SemVer | **`v1.7.0`** — thêm `GET /users/directory`, `GET /review-queue` và `my_access`, `locked`, `approved_at` trên hồ sơ. 4 endpoint `/notifications` của `v1.6.0` vẫn là đề xuất (BE chưa có). Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
+| Phiên bản / SemVer | **`v2.0.0`** — bỏ `scope=all` của `GET /dossiers/{id}/queries`: ai hỏi thì chỉ xem lịch sử của mình (Lead chốt 14/10/2026). Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
 | Trạng thái | Đã chốt — Sẵn sàng triển khai Frontend & Backend |
 | Owner | Tech Lead / Frontend Lead / Backend Lead |
 | Ngày hiệu lực | 17/09/2026 |
@@ -346,9 +346,9 @@ Giao diện xem văn bản trực quan chia đôi màn hình: Bên trái là câ
 | `GET` | `/documents/{id}/lines` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | **v1.5.0.** Dòng OCR của mọi trang trong một response: `[{ page_no, width_pt, height_pt, ocr_lines: [{ id, line_no, text, bbox, confidence }] }]`, theo thứ tự trang rồi dòng. Trang chưa có dòng trả `ocr_lines: []`. Không phân trang. Thay cho gọi `/pages/{id}` từng trang |
 | `GET` | `/documents/{id}/clauses` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Cây Điều khoản hoàn chỉnh dựng theo quan hệ cha-con (`parent_id`) |
 | `GET` | `/documents/{id}/tables` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Danh sách bảng phát hiện được, danh sách cell (`row`, `col`, `span`, text) |
-| `GET` | `/dossiers/{id}/queries` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | **v1.1.0.** Lịch sử hỏi đáp trên hồ sơ, mới nhất trước; còn sau khi server khởi động lại |
+| `GET` | `/dossiers/{id}/queries` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | **v1.1.0, đổi ở v2.0.0.** Lịch sử hỏi đáp **của chính người gọi** trên hồ sơ, mới nhất trước; còn sau khi server khởi động lại |
 
-- **Lịch sử hỏi đáp (v1.1.0):** `GET /dossiers/{id}/queries?scope=mine|all&limit=20&offset=0`. `scope=mine` (mặc định) chỉ trả câu hỏi của người gọi; `scope=all` chỉ dành cho chủ hồ sơ hoặc `ADMINISTRATOR`, người khác nhận `403`. Cần quyền xem hồ sơ. Phân trang bằng `limit` và `offset`, **không** theo `page`/`page_size` của §3.1. Response bọc trong `{ data, meta }`; `meta.page` = `offset / limit + 1`:
+- **Lịch sử hỏi đáp (v1.1.0, đổi ở v2.0.0):** `GET /dossiers/{id}/queries?limit=20&offset=0`. Chỉ trả câu hỏi **của người gọi**, kể cả khi người gọi là chủ hồ sơ hoặc `ADMINISTRATOR`: không ai xem được câu hỏi của người khác (Lead chốt 14/10/2026). `scope` chỉ còn nhận `mine` (mặc định); `scope=all` trả `422`. Cần quyền xem hồ sơ. Phân trang bằng `limit` và `offset`, **không** theo `page`/`page_size` của §3.1. Response bọc trong `{ data, meta }`; `meta.page` = `offset / limit + 1`:
   ```json
   {
     "data": [
@@ -870,6 +870,7 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
+| `v2.0.0` | 14/10/2026 | **Lead chốt bỏ** `scope=all` của `GET /dossiers/{id}/queries`: ai hỏi thì chỉ xem lịch sử của mình, kể cả chủ hồ sơ và `ADMINISTRATOR`. `scope` chỉ còn nhận `mine`; `scope=all` trả `422` (trước đây trả lịch sử của mọi người cho chủ hồ sơ/ADMINISTRATOR, `403` cho người khác). Frontend bỏ `'all'` khỏi `queries.ts` và cập nhật `API-BE.md`. Bỏ một giá trị đang dùng được, nên là MAJOR theo §8 |
 | `v1.7.0` | 13/10/2026 | Thêm `GET /users/directory` (danh bạ thành viên cùng tenant để chia sẻ hồ sơ) và `GET /review-queue` (hồ sơ đang chờ người gọi thẩm định); hồ sơ có thêm `my_access`, `locked`, `approved_at` (mục "Chia sẻ hồ sơ & hàng chờ thẩm định" ở §5). Backend đã có. Header `X-API-Contract` lên thẳng `v1.7.0` từ `v1.5.1`: backend **chưa** làm 4 endpoint `/notifications` của `v1.6.0`, chúng vẫn là đề xuất. Chỉ thêm endpoint và trường tuỳ chọn, nên là MINOR |
 | `v1.6.0` | 09/10/2026 | Đề xuất `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/{id}/read`, `POST /notifications/read-all` (mục "Thông báo cá nhân" ở §5). **BE chưa có**; frontend ẩn chuông bằng cờ `VITE_ENABLE_NOTIFICATIONS` cho tới khi có. Chỉ thêm endpoint, nên là MINOR |
 | `v1.5.1` | 07/10/2026 | `GET /dossiers/{id}/queries` trả thêm câu hỏi gửi qua `POST /dossiers/{id}/search` (`endpoint: "search"`) và mã lỗi `AI2_UNAVAILABLE`. Endpoint và các trường giữ nguyên, nên là PATCH |
@@ -891,4 +892,4 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 
 ---
 
-**Hết DOC-05b · Frontend-Backend API Contract v1.7.0 (SemVer)**
+**Hết DOC-05b · Frontend-Backend API Contract v2.0.0 (SemVer)**

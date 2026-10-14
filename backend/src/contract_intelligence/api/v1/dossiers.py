@@ -474,42 +474,32 @@ async def ask_dossier(
     response_model=ApiResponse[list[QueryHistoryItem]],
     summary="Lịch sử hỏi đáp trên hồ sơ (mới nhất trước)",
     responses={
-        403: {"description": "No read access, or scope=all without being owner/administrator"},
+        403: {"description": "No read access to the dossier"},
         404: {"description": "Dossier not found"},
+        422: {"description": "scope other than mine (scope=all was removed in v2.0.0)"},
     },
 )
 async def list_dossier_queries(
     id: str,  # noqa: A002 — path param name per API contract
     session: Annotated[AsyncSession, Depends(get_async_session)],
     user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-    scope: Annotated[Literal["mine", "all"], Query()] = "mine",
+    scope: Annotated[Literal["mine"], Query()] = "mine",
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ApiResponse[list[QueryHistoryItem]]:
-    """Câu hỏi, câu trả lời và trích dẫn đã lưu.
+    """Câu hỏi, câu trả lời và trích dẫn đã lưu của chính người gọi.
 
-    Mặc định chỉ lịch sử của chính người gọi. ``scope=all`` (mọi người hỏi trên
-    hồ sơ) chỉ cho chủ hồ sơ hoặc ADMINISTRATOR. Cần quyền xem hồ sơ; quyền chia
-    sẻ hết hạn thì 403 như mọi API khác.
+    Ai hỏi thì chỉ xem được câu hỏi của mình, kể cả chủ hồ sơ và ADMINISTRATOR
+    (Lead chốt 14/10/2026, DOC-05b v2.0.0). ``scope`` chỉ còn nhận ``mine``;
+    ``scope=all`` bị từ chối (422) thay vì âm thầm trả lịch sử của người gọi.
+    Cần quyền xem hồ sơ; quyền chia sẻ hết hạn thì 403 như mọi API khác.
     """
-    dossier = await _acl_check_dossier_access(session, dossier_id=id, user=user)
-    actor_filter: str | None = user.user_id
-    if scope == "all":
-        metadata = dossier.metadata_json if isinstance(dossier.metadata_json, dict) else {}
-        if user.role != "ADMINISTRATOR" and metadata.get("created_by") != user.user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail={
-                    "code": "ACL_DENIED",
-                    "message": "Chỉ chủ hồ sơ hoặc quản trị viên xem được lịch sử của mọi người.",
-                },
-            )
-        actor_filter = None
+    await _acl_check_dossier_access(session, dossier_id=id, user=user)
     items, total = await list_query_history(
         session,
         tenant_id=user.tenant_id,
         dossier_id=id,
-        actor_id=actor_filter,
+        actor_id=user.user_id,
         limit=limit,
         offset=offset,
     )

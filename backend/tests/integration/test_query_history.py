@@ -1,6 +1,7 @@
 """Q&A history (Sprint 3 task 4): kept across restarts, never shown across users.
 
-- each asker sees only their own history; owner/administrator can see all
+- each asker sees only their own history, dossier owner and administrator
+  included; scope=all is refused (Lead, 14/10/2026, DOC-05b v2.0.0)
 - the history survives a restart (new engine on the same database file)
 - a failed AI2 call is in the history with its error and no answer
 - the FE search box (/search) lands in the same history
@@ -42,7 +43,7 @@ from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.shared.persistence import Base
 from contract_intelligence.shared.persistence.orm_registry import import_all_models
 from contract_intelligence.shared.persistence.session import get_async_session
-from contract_intelligence.shared.query_history import QueryAnswerORM
+from contract_intelligence.shared.query_history import QueryAnswerORM, list_query_history
 from contract_intelligence.shared.query_policy import QueryTraceORM
 
 pytestmark = pytest.mark.integration
@@ -170,15 +171,47 @@ async def test_history_is_per_user_and_survives_a_restart(db: Path) -> None:
 
         reviewer = (await _history(client, REVIEWER)).json()
         assert [item["answer"] for item in reviewer["data"]] == ["8% giá trị phần vi phạm"]
-
-        everyone = await _history(client, OPERATOR, scope="all")
-        assert everyone.status_code == 200
-        assert everyone.json()["meta"]["total"] == 3
-
-        # Shared with the reviewer, but not theirs to read everyone's questions.
-        assert (await _history(client, REVIEWER, scope="all")).status_code == 403
     await engine.dispose()
     app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "caller",
+    [
+        pytest.param(OPERATOR, id="dossier-owner"),
+        pytest.param(REVIEWER, id="shared-reviewer"),
+        pytest.param(_user("tenant-admin", role="ADMINISTRATOR"), id="administrator"),
+    ],
+)
+async def test_nobody_reads_someone_elses_questions(db: Path, caller: AuthenticatedUser) -> None:
+    # Lead's decision of 14/10/2026 (DOC-05b v2.0.0): each person sees their
+    # own history only, the dossier owner and administrators included.
+    engine, client = await _client(db)
+    async with client:
+        await _ask(client, OPERATOR, "Giá trị hợp đồng?", "1 tỷ")
+        await _ask(client, REVIEWER, "Phạt vi phạm?", "8%")
+
+        everyone = await _history(client, caller, scope="all")
+        assert everyone.status_code == 422, everyone.text
+        assert "Giá trị hợp đồng?" not in everyone.text
+        assert "Phạt vi phạm?" not in everyone.text
+
+        own = await _history(client, caller)
+        if own.status_code == 200:
+            askers = {item["actor_id"] for item in own.json()["data"]}
+            assert askers <= {caller.user_id}, askers
+    await engine.dispose()
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_history_lookup_refuses_an_empty_asker() -> None:
+    # The old "no actor = everyone" reading must not come back by accident.
+    with pytest.raises(ValueError, match="per user"):
+        await list_query_history(
+            AsyncMock(), tenant_id="t", dossier_id="d", actor_id="", limit=20, offset=0
+        )
 
 
 @pytest.mark.asyncio
@@ -255,10 +288,9 @@ async def test_outsiders_cannot_read_history(
     engine, client = await _client(db)
     async with client:
         await _ask(client, OPERATOR, "Bên A là ai?", "Công ty A")
-        for scope in ("mine", "all"):
-            response = await _history(client, outsider, scope=scope)
-            assert response.status_code in expected, (scope, response.text)
-            assert "Công ty A" not in response.text
+        response = await _history(client, outsider)
+        assert response.status_code in expected, response.text
+        assert "Công ty A" not in response.text
     await engine.dispose()
     app.dependency_overrides.clear()
 
