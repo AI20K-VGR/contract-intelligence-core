@@ -19,8 +19,10 @@ export function dossiersPath(role: AppRole) {
   return role === 'admin' ? '/ho-so' : '/ho-so-cua-toi'
 }
 
-export function dossiersLabel(role: AppRole) {
-  return role === 'admin' ? 'Hồ sơ' : 'Hồ sơ của tôi'
+/** Thẩm định không tạo hồ sơ, chỉ nhận hồ sơ được chia sẻ nên gọi là "được giao". */
+export function dossiersLabel(role: AppRole, backendRole?: UserRole) {
+  if (role === 'admin') return 'Hồ sơ'
+  return backendRole === 'REVIEWER' ? 'Hồ sơ được giao' : 'Hồ sơ của tôi'
 }
 
 export function toAppRole(backendRole: UserRole): AppRole {

@@ -19,6 +19,9 @@
 #   - Monitoring: Grafana is served at https://$API_HOST/grafana/ by the
 #     backend (ADMINISTRATOR only). Grafana, Prometheus, node-exporter and
 #     cAdvisor publish no port and sit on the internal ci-monitoring network.
+#   - Databases: on this server by default. With BACKEND_DB_HOST and
+#     KEYCLOAK_DB_HOST set, they live on a DB server of their own
+#     (deploy/compose.db.yml) and deploy.sh adds deploy/compose.external-db.yml.
 #
 # Needs Docker Compose >= 2.24 (`!reset`).
 # =============================================================================
@@ -59,6 +62,7 @@ services:
       # Admin console only through an SSH tunnel to localhost:8080 (deploy/README.md).
       - --hostname-admin=http://localhost:8080
     environment:
+      KC_DB_URL: jdbc:postgresql://${KEYCLOAK_DB_HOST:-keycloak-db}:${KEYCLOAK_DB_PORT:-5432}/keycloak
       KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?set in deploy/.env.prod}
       KC_HOSTNAME: https://${AUTH_HOST:?set in deploy/.env.prod}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set in deploy/.env.prod}
@@ -95,7 +99,7 @@ services:
   backend:
     environment:
       ENV: prod
-      DATABASE_URL: postgresql+asyncpg://ci:${BACKEND_DB_PASSWORD:?set in deploy/.env.prod}@backend-db:5432/contract_intelligence
+      DATABASE_URL: postgresql+asyncpg://ci:${BACKEND_DB_PASSWORD:?set in deploy/.env.prod}@${BACKEND_DB_HOST:-backend-db}:${BACKEND_DB_PORT:-5432}/contract_intelligence
       AI2_DB_PASSWORD: ${AI2_DB_PASSWORD:?set in deploy/.env.prod}
       # Tokens are minted through the public hostname.
       KEYCLOAK_SERVER_URL: https://${AUTH_HOST:?set in deploy/.env.prod}
@@ -114,6 +118,7 @@ services:
       # Caddy is another container: trust its X-Forwarded-* headers.
       FORWARDED_ALLOW_IPS: "*"
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      UPLOAD_MAX_FILE_BYTES: ${UPLOAD_MAX_FILE_BYTES:-52428800}
       MONITORING_SESSION_SECRET: ${MONITORING_SESSION_SECRET:?set in deploy/.env.prod}
       MONITORING_COOKIE_SAMESITE: ${MONITORING_COOKIE_SAMESITE:-none}
       MONITORING_COOKIE_SECURE: "true"
@@ -123,7 +128,7 @@ services:
   backend-worker:
     environment:
       ENV: prod
-      DATABASE_URL: postgresql+asyncpg://ci:${BACKEND_DB_PASSWORD:?set in deploy/.env.prod}@backend-db:5432/contract_intelligence
+      DATABASE_URL: postgresql+asyncpg://ci:${BACKEND_DB_PASSWORD:?set in deploy/.env.prod}@${BACKEND_DB_HOST:-backend-db}:${BACKEND_DB_PORT:-5432}/contract_intelligence
       # The worker loads the same Settings as the API: with ENV=prod it refuses
       # to start on the dev defaults of these two, although it never uses them.
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${BACKEND_KEYCLOAK_ADMIN_SECRET:?set in deploy/.env.prod}
@@ -142,7 +147,7 @@ services:
   ai2-service:
     env_file: !reset []
     environment:
-      AI2_DATABASE_URL: postgresql+psycopg://ai2:${AI2_DB_PASSWORD:?set in deploy/.env.prod}@backend-db:5432/contract_intelligence
+      AI2_DATABASE_URL: postgresql+psycopg://ai2:${AI2_DB_PASSWORD:?set in deploy/.env.prod}@${BACKEND_DB_HOST:-backend-db}:${BACKEND_DB_PORT:-5432}/contract_intelligence
       AI2_REQUIRE_DATABASE: "true"
       AI2_LLM_BASE_URL: ${AI2_LLM_BASE_URL:?set the LLM provider in deploy/.env.prod}
       AI2_LLM_API_KEY: ${AI2_LLM_API_KEY:?set the LLM key in deploy/.env.prod}

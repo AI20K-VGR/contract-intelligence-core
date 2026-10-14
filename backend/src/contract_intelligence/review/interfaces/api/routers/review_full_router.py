@@ -1,6 +1,7 @@
 r"""Review bounded context router — Phase 3 HITL (DOC-05 § review-items).
 
 Endpoints:
+    GET  /review-queue                     — Hồ sơ đang chờ người gọi thẩm định
     GET  /dossiers/{id}/review-items       — Queue ưu tiên P1 > P2 > P3
     GET  /review-items/{id}                — Item detail + version
     GET  /review-items/{id}/revisions      — Append-only audit trail
@@ -23,6 +24,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Path, Query, status
 from fastapi.responses import JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from contract_intelligence.identity.interfaces.api.dependencies import (
     ensure_current_app_user,
@@ -38,6 +40,7 @@ from contract_intelligence.review.application.dtos.review_dtos import (
     ReviewConflictResponseDTO,
     ReviewItemDTO,
     ReviewItemRevisionDTO,
+    ReviewQueueEntryDTO,
 )
 from contract_intelligence.review.application.services.review_service import ReviewService
 from contract_intelligence.review.domain.entities.review_action import ReviewActionType
@@ -51,6 +54,7 @@ from contract_intelligence.review.interfaces.api.dependencies import (
     require_review_item_access,
     require_review_item_mutation_access,
 )
+from contract_intelligence.review.interfaces.api.review_queue import load_review_queue
 from contract_intelligence.shared.acl import (
     AclAction,
     dossier_access_decision,
@@ -58,12 +62,35 @@ from contract_intelligence.shared.acl import (
 )
 from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user, require_role
 from contract_intelligence.shared.exceptions import ReviewVersionConflict
+from contract_intelligence.shared.persistence import get_async_session
 from contract_intelligence.shared.responses import ApiMeta, ApiResponse
 
 router = APIRouter(tags=["Review"])
 
 _REVIEWER_RBAC = Depends(require_role("REVIEWER", "ADMINISTRATOR"))
 _ENSURE_USER = Depends(ensure_current_app_user)
+
+
+@router.get(
+    "/review-queue",
+    response_model=ApiResponse[list[ReviewQueueEntryDTO]],
+    summary="Hồ sơ đang chờ tôi thẩm định",
+)
+async def list_review_queue(
+    session: Annotated[AsyncSession, Depends(get_async_session)],
+    user: Annotated[AuthenticatedUser, _REVIEWER_RBAC],
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> ApiResponse[list[ReviewQueueEntryDTO]]:
+    """Hồ sơ người gọi được thẩm định (chủ hồ sơ hoặc được chia sẻ quyền ``edit``
+    còn hạn) và còn mục mở. Nhiều mục P1 xếp trước, rồi tới hồ sơ tạo sớm hơn.
+    RBAC: REVIEWER, ADMINISTRATOR.
+    """
+    entries, total = await load_review_queue(session, user, limit=limit, offset=offset)
+    return ApiResponse(
+        data=entries,
+        meta=ApiMeta(total=total, page=(offset // limit) + 1, page_size=limit),
+    )
 
 
 @router.get(

@@ -211,10 +211,14 @@ export async function reprocessDossier(dossierId: string) {
 export function runActionErrorMessage(error: unknown) {
   if (error instanceof ApiError) {
     if (error.status === 401) return 'Phiên đăng nhập hết hạn. Đăng nhập lại.'
-    if (error.status === 403) return 'Bạn không có quyền thao tác trên hồ sơ này.'
+    if (error.status === 403)
+      return 'Bạn không có quyền thao tác trên hồ sơ này.'
     if (error.status === 404) return 'Không tìm thấy hồ sơ hoặc lần chạy.'
     if (error.status === 409) {
-      return error.message || 'Hồ sơ đang có lần chạy khác, hoặc lần chạy đã kết thúc.'
+      return (
+        error.message ||
+        'Hồ sơ đang có lần chạy khác, hoặc lần chạy đã kết thúc.'
+      )
     }
     return error.message
   }

@@ -6,6 +6,7 @@ Triển khai cụ thể ở ``infrastructure/persistence/dossier_repository_impl
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Protocol, runtime_checkable
 
 from contract_intelligence.contract.domain.entities.dossier import Dossier
@@ -74,6 +75,12 @@ class DossierRepository(Protocol):
 
     async def review_counts(self, dossier_id: str) -> tuple[int, int]:
         """Return ``(open_review_items, pending_conflicts)`` of the dossier."""
+        ...
+
+    async def lifecycle(
+        self, dossier_ids: Sequence[str]
+    ) -> dict[str, tuple[bool, datetime | None]]:
+        """Return ``{dossier_id: (locked, approved_at)}`` for the given dossiers."""
         ...
 
     async def is_tombstoned(self, dossier_id: str) -> bool:

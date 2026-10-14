@@ -3,6 +3,7 @@
 - each asker sees only their own history; owner/administrator can see all
 - the history survives a restart (new engine on the same database file)
 - a failed AI2 call is in the history with its error and no answer
+- the FE search box (/search) lands in the same history
 - outsiders (other tenant, expired grant) are refused
 - purging the dossier removes the answer text, the audit trace stays
 """
@@ -47,6 +48,11 @@ from contract_intelligence.shared.query_policy import QueryTraceORM
 pytestmark = pytest.mark.integration
 
 QUERY_AI2 = "contract_intelligence.api.v1.dossiers.query_ai2"
+SEARCH_AI2 = "contract_intelligence.infrastructure.ai_adapters.query_ai2"
+SEARCH_FACTORY = (
+    "contract_intelligence.contract.interfaces.api.routers.contract_router."
+    "_optional_session_factory"
+)
 
 
 def _user(user_id: str, *, role: str = "OPERATOR", tenant: str = TENANT_ID) -> AuthenticatedUser:
@@ -116,6 +122,23 @@ async def _ask(client: AsyncClient, user: AuthenticatedUser, question: str, answ
     assert response.status_code == 200, response.text
 
 
+async def _search(
+    client: AsyncClient, db: Path, user: AuthenticatedUser, question: str, ai2: AsyncMock
+) -> Any:
+    """/search opens its own session from the global factory; point it at the test DB."""
+    _as(user)
+    engine, factory = _factory(db)
+    try:
+        with patch(SEARCH_AI2, new=ai2), patch(SEARCH_FACTORY, return_value=factory):
+            response = await client.post(
+                f"/api/v1/dossiers/{DOSSIER_ID}/search", json={"query": question}
+            )
+    finally:
+        await engine.dispose()
+    assert response.status_code == 200, response.text
+    return response.json()["data"]
+
+
 async def _history(client: AsyncClient, user: AuthenticatedUser, **params: Any) -> Any:
     _as(user)
     return await client.get(f"/api/v1/dossiers/{DOSSIER_ID}/queries", params=params)
@@ -172,6 +195,47 @@ async def test_failed_query_is_kept_without_an_answer(db: Path) -> None:
         assert item["question"] == "Còn hiệu lực không?"
         assert item["answer"] is None
         assert item["error_code"] == "AI2_QUERY_FAILED"
+    await engine.dispose()
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_search_box_questions_are_in_the_history(db: Path) -> None:
+    engine, client = await _client(db)
+    async with client:
+        ok = await _search(
+            client, db, OPERATOR, "Giá trị hợp đồng?", AsyncMock(return_value=_answer("1 tỷ"))
+        )
+        assert ok["connected"] is True
+        down = await _search(
+            client,
+            db,
+            OPERATOR,
+            "Còn hiệu lực không?",
+            AsyncMock(side_effect=AiAdapterError("AI2 down")),
+        )
+        assert down["connected"] is False
+        await _search(client, db, REVIEWER, "Phạt vi phạm?", AsyncMock(return_value=_answer("8%")))
+    await engine.dispose()
+    app.dependency_overrides.clear()
+
+    # "Restart": new engine and client, nothing kept in memory.
+    engine, client = await _client(db)
+    async with client:
+        body = (await _history(client, OPERATOR)).json()
+        assert body["meta"]["total"] == 2
+        failed, answered = body["data"]
+        assert failed["question"] == "Còn hiệu lực không?"
+        assert failed["endpoint"] == "search"
+        assert failed["answer"] is None
+        assert failed["error_code"] == "AI2_UNAVAILABLE"
+        assert answered["question"] == "Giá trị hợp đồng?"
+        assert answered["answer"] == "1 tỷ"
+        assert answered["trace_id"] == ok["trace_id"]
+        assert "Phạt vi phạm?" not in str(body)
+
+        reviewer = (await _history(client, REVIEWER)).json()
+        assert [item["answer"] for item in reviewer["data"]] == ["8%"]
     await engine.dispose()
     app.dependency_overrides.clear()
 

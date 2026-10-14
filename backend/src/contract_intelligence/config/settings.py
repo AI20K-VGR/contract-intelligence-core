@@ -226,10 +226,14 @@ class Settings(BaseSettings):
     )
     # Dossier Q&A (POST /dossiers/{id}/search → AI2 POST /query)
     ai2_query_timeout_seconds: float = Field(
-        default=20.0,
+        default=45.0,
         gt=0,
         le=120.0,
-        description="Max wait for AI2 /query before the search box reports AI2 as unavailable.",
+        description=(
+            "Max wait for AI2 /query before the search box reports AI2 as unavailable. "
+            "AI2 spends up to AI2_QUERY_LLM_TIMEOUT_SECONDS (15s) on the LLM alone, on top "
+            "of snapshot load and embedding, so this must stay well above it."
+        ),
     )
     ai2_query_egress_allowed: bool = Field(
         default=False,

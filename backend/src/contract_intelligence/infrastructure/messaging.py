@@ -9,6 +9,7 @@ import structlog
 from aiokafka import AIOKafkaProducer
 
 from contract_intelligence.config.settings import get_settings
+from contract_intelligence.shared.base import new_ulid
 
 logger = structlog.get_logger(__name__)
 
@@ -54,9 +55,17 @@ async def publish_event(
 ) -> None:
     """Serialize ``message`` to JSON bytes and send it to ``topic``.
 
+    A message without ``event_id`` gets one. The worker skips records whose
+    ``event_id`` it has already handled; without one it falls back to
+    ``topic:partition:offset``, and Kafka has no volume on prod: after a broker
+    restart offsets start again at 0, so new ``dossier_events`` matched old
+    rows in ``processed_event`` and were dropped.
+
     In ``env=test`` (or when the producer was never started) this is a no-op so
     unit/integration suites do not require a live Kafka broker.
     """
+    if not message.get("event_id"):
+        message = {"event_id": new_ulid("evt_"), **message}
     settings = get_settings()
     if _producer is None:
         if settings.env == "test":

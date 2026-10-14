@@ -3,16 +3,19 @@
 # Probing the VPS's own public IP from the VPS can loop back inside the host
 # and skip the cloud firewall, so a "closed" result there proves little.
 #
-#   deploy/check_external.sh api-1-2-3-4.sslip.io auth-1-2-3-4.sslip.io app-1-2-3-4.sslip.io
+#   deploy/check_external.sh api-1-2-3-4.sslip.io auth-1-2-3-4.sslip.io app-1-2-3-4.sslip.io [DB_PUBLIC_IP]
 #
 # Exit code 0 only when HTTPS works, /admin is blocked, /grafana refuses an
 # anonymous caller and every internal port (AI2 8002, databases, Kafka, MinIO,
-# Keycloak, mailpit, Grafana, Prometheus, exporters) is unreachable.
+# Keycloak, mailpit, Grafana, Prometheus, exporters) is unreachable. With the
+# public IP of a DB server of its own, its database ports must be closed too.
 set -uo pipefail
 
-API_HOST=${1:?usage: check_external.sh API_HOST AUTH_HOST APP_HOST}
-AUTH_HOST=${2:?usage: check_external.sh API_HOST AUTH_HOST APP_HOST}
-APP_HOST=${3:?usage: check_external.sh API_HOST AUTH_HOST APP_HOST}
+usage="usage: check_external.sh API_HOST AUTH_HOST APP_HOST [DB_PUBLIC_IP]"
+API_HOST=${1:?$usage}
+AUTH_HOST=${2:?$usage}
+APP_HOST=${3:?$usage}
+DB_PUBLIC_IP=${4:-}
 IP=$(python3 -c "import socket, sys; print(socket.gethostbyname(sys.argv[1]))" "$API_HOST")
 # Every port the local stack publishes; production must publish none of them.
 INTERNAL_PORTS=(8002 8000 8080 8443 5432 5433 5434 9000 9001 9092 9093 29092 1025 8025
@@ -69,6 +72,16 @@ for port in "${INTERNAL_PORTS[@]}"; do
     ok "port $port closed"
   fi
 done
+
+if [ -n "$DB_PUBLIC_IP" ]; then
+  for port in 5432 5433; do
+    if timeout 4 bash -c "exec 3<>/dev/tcp/$DB_PUBLIC_IP/$port" 2>/dev/null; then
+      fail "DB server $DB_PUBLIC_IP: port $port is reachable from outside"
+    else
+      ok "DB server $DB_PUBLIC_IP: port $port closed"
+    fi
+  done
+fi
 
 if [ "$failures" -eq 0 ]; then
   echo "All external checks passed."

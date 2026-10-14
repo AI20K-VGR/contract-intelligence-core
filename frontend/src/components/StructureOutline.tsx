@@ -105,6 +105,7 @@ export function StructureOutline({
   markers,
   citationOf,
   focusId,
+  autoScroll = true,
   onCite,
 }: {
   title: string
@@ -113,6 +114,8 @@ export function StructureOutline({
   markers?: ReadonlyMap<string, ConflictMarker>
   citationOf?: ReadonlyMap<string, number>
   focusId?: string | null
+  /** false: vẫn tô nút được trích dẫn nhưng không tự cuộn tới (Cài đặt). */
+  autoScroll?: boolean
   onCite?: (id: string) => void
 }) {
   const source = useMemo(() => capToMaxLevels(nodes), [nodes])
@@ -145,7 +148,7 @@ export function StructureOutline({
   )
 
   useEffect(() => {
-    if (!focusId) return
+    if (!focusId || !autoScroll) return
     setExpanded((current) => {
       const next = new Set(current)
       for (const id of ancestorIds(focusId, parents)) next.add(id)
@@ -157,7 +160,7 @@ export function StructureOutline({
         ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [focusId, parents])
+  }, [autoScroll, focusId, parents])
 
   function toggle(id: string) {
     setExpanded((current) => {
@@ -212,7 +215,7 @@ export function StructureOutline({
     >
       <div
         ref={listRef}
-        className="min-h-0 flex-1 overflow-auto bg-[#fafbff] py-2"
+        className="min-h-0 flex-1 overflow-auto bg-tone-50 py-2"
         role="tree"
       >
         {rows.length === 0 ? (
@@ -269,7 +272,7 @@ function OutlineRow({
       aria-expanded={row.expandable ? row.open : undefined}
       aria-level={depth}
       className={`group relative flex items-start gap-1 pr-4 transition-colors ${
-        active ? 'bg-primary/5' : 'hover:bg-slate-100/70'
+        active ? 'bg-primary/5' : 'hover:bg-tone-100/70'
       }`}
       data-node-id={node.id}
       role="treeitem"
@@ -284,7 +287,7 @@ function OutlineRow({
       {Array.from({ length: depth - 1 }, (_, index) => (
         <span
           key={index}
-          className="pointer-events-none absolute inset-y-0 w-px bg-slate-200"
+          className="pointer-events-none absolute inset-y-0 w-px bg-tone-200"
           style={{ left: 8 + index * 22 + 10 }}
         />
       ))}
@@ -294,7 +297,7 @@ function OutlineRow({
         }
         className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
           row.expandable
-            ? 'text-slate-500 hover:bg-slate-200/80 hover:text-slate-900'
+            ? 'text-tone-500 hover:bg-tone-200/80 hover:text-tone-900'
             : 'cursor-default'
         }`}
         disabled={!row.expandable}
@@ -338,7 +341,7 @@ function OutlineRow({
               </span>
             ) : (
               <span
-                className="shrink-0 rounded px-1.5 py-px text-[11px] font-medium text-slate-600"
+                className="shrink-0 rounded px-1.5 py-px text-[11px] font-medium text-tone-600"
                 style={{ backgroundColor: tone.bgSoft }}
               >
                 {kindOf(node)}
@@ -367,9 +370,7 @@ function OutlineRow({
             <ConflictBadge collapsed={!row.open} marker={marker} />
           ) : null}
           {pages ? (
-            <span className="font-mono text-[10px] text-slate-400">
-              {pages}
-            </span>
+            <span className="font-mono text-[10px] text-tone-400">{pages}</span>
           ) : null}
           <CiteBadge active={active} n={cite} tone={tone} />
         </span>

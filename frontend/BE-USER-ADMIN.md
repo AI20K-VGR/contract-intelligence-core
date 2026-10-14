@@ -27,24 +27,24 @@ type UserRole = 'OPERATOR' | 'REVIEWER' | 'ADMINISTRATOR'
 type UserStatus = 'invited' | 'active' | 'disabled'
 
 type UserDTO = {
-  id: string                 // Keycloak user id
+  id: string // Keycloak user id
   email: string
   display_name: string
   role: UserRole
   status: UserStatus
-  created_at: string         // ISO-8601
-  invited_at: string | null  // lần gửi email đặt mật khẩu gần nhất
+  created_at: string // ISO-8601
+  invited_at: string | null // lần gửi email đặt mật khẩu gần nhất
   last_login_at: string | null
 }
 ```
 
 `status` lấy từ Keycloak, không lưu tay:
 
-| Điều kiện | `status` |
-|---|---|
-| `enabled == false` | `disabled` |
-| `enabled` và `requiredActions` chứa `UPDATE_PASSWORD` | `invited` |
-| còn lại | `active` |
+| Điều kiện                                             | `status`   |
+| ----------------------------------------------------- | ---------- |
+| `enabled == false`                                    | `disabled` |
+| `enabled` và `requiredActions` chứa `UPDATE_PASSWORD` | `invited`  |
+| còn lại                                               | `active`   |
 
 `last_login_at` được null. FE hiện "Chưa đăng nhập" khi `status = invited`, và "—" khi active/disabled mà chưa có mốc. Có thể điền sau từ sự kiện LOGIN của webhook.
 
@@ -52,13 +52,13 @@ type UserDTO = {
 
 Query:
 
-| Param | Quy tắc |
-|---|---|
-| `q` | optional, tối đa 200 ký tự, tìm theo email hoặc tên |
-| `role` | optional, một trong ba role |
-| `status` | optional, `invited` \| `active` \| `disabled` |
-| `limit` | 1..100, mặc định 20 |
-| `offset` | ≥ 0, mặc định 0 |
+| Param    | Quy tắc                                             |
+| -------- | --------------------------------------------------- |
+| `q`      | optional, tối đa 200 ký tự, tìm theo email hoặc tên |
+| `role`   | optional, một trong ba role                         |
+| `status` | optional, `invited` \| `active` \| `disabled`       |
+| `limit`  | 1..100, mặc định 20                                 |
+| `offset` | ≥ 0, mặc định 0                                     |
 
 `200` → `data: UserDTO[]`. `meta.total` là tổng sau lọc. `meta.page` = `offset / limit + 1` (1-based). `meta.page_size` = `limit`.
 
@@ -115,19 +115,19 @@ FE đọc `detail` (string) và `code` (nếu có).
 { "detail": "Email đã tồn tại", "code": "email_exists" }
 ```
 
-| HTTP | `code` | Khi nào |
-|---|---|---|
-| 401 | | JWT không hợp lệ |
-| 403 | | Không phải `ADMINISTRATOR` |
-| 404 | | `{id}` không có trong tenant. Detail `Not Found` thuần (route chưa mount) FE hiểu là API chưa được triển khai |
-| 409 | `email_exists` | Email/username đã có |
-| 409 | `cannot_disable_self` | Admin khóa chính mình |
-| 409 | `cannot_change_own_role` | Admin đổi role của chính mình |
-| 409 | `last_administrator` | Khóa hoặc hạ role của quản trị viên cuối cùng |
-| 409 | `invite_not_applicable` | Gửi lại email khi user không còn `invited` |
-| 422 | | Sai email, tên, role, query |
-| 502 | `keycloak_unavailable` | Admin API Keycloak lỗi |
-| 503 | `email_not_configured` | Chưa có SMTP hoặc Keycloak từ chối gửi mail |
+| HTTP | `code`                   | Khi nào                                                                                                       |
+| ---- | ------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| 401  |                          | JWT không hợp lệ                                                                                              |
+| 403  |                          | Không phải `ADMINISTRATOR`                                                                                    |
+| 404  |                          | `{id}` không có trong tenant. Detail `Not Found` thuần (route chưa mount) FE hiểu là API chưa được triển khai |
+| 409  | `email_exists`           | Email/username đã có                                                                                          |
+| 409  | `cannot_disable_self`    | Admin khóa chính mình                                                                                         |
+| 409  | `cannot_change_own_role` | Admin đổi role của chính mình                                                                                 |
+| 409  | `last_administrator`     | Khóa hoặc hạ role của quản trị viên cuối cùng                                                                 |
+| 409  | `invite_not_applicable`  | Gửi lại email khi user không còn `invited`                                                                    |
+| 422  |                          | Sai email, tên, role, query                                                                                   |
+| 502  | `keycloak_unavailable`   | Admin API Keycloak lỗi                                                                                        |
+| 503  | `email_not_configured`   | Chưa có SMTP hoặc Keycloak từ chối gửi mail                                                                   |
 
 Từ chối khóa / đổi role của chính người gọi (so `sub` hoặc email trong JWT).
 

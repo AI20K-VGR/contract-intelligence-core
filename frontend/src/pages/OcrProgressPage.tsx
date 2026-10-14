@@ -13,6 +13,7 @@ import { ApiError } from '../api/client'
 import { getDossierStructure } from '../api/structure'
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
+import { useDossierPermissions } from '../auth/dossierPermissions'
 import { MaterialIcon } from '../components/icons'
 import { ReOcrPanel } from '../components/ReOcrPanel'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
@@ -68,7 +69,7 @@ export function OcrProgressPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const backTo = user ? dossiersPath(user.role) : '/ho-so'
-  const backLabel = user ? dossiersLabel(user.role) : 'Hồ sơ'
+  const backLabel = user ? dossiersLabel(user.role, user.backendRole) : 'Hồ sơ'
   const [name, setName] = useState('Tiến trình OCR')
   const [filename, setFilename] = useState<string | null>(null)
   const [jobStatus, setJobStatus] = useState<string | null>(null)
@@ -80,10 +81,11 @@ export function OcrProgressPage() {
   const [watching, setWatching] = useState(false)
   const [documentId, setDocumentId] = useState<string | null>(null)
   const [selectedPages, setSelectedPages] = useState<number[]>([])
-  const canReOcr =
-    user?.backendRole === 'OPERATOR' ||
-    user?.backendRole === 'REVIEWER' ||
-    user?.backendRole === 'ADMINISTRATOR'
+  // OCR lại cả hồ sơ là DOSSIER_EDIT; Thẩm định chỉ được yêu cầu OCR lại từng trang.
+  const permissions = useDossierPermissions(dossierId)
+  const canRerunDossier = permissions.canEdit
+  // reocr_router: Thẩm định cần REVIEW_MUTATE, Vận hành/Quản trị cần DOSSIER_EDIT.
+  const canReOcr = permissions.canEdit || permissions.canReview
   const reloadPages = useCallback(() => setReloadKey((value) => value + 1), [])
 
   usePageTitle(name)
@@ -219,7 +221,7 @@ export function OcrProgressPage() {
               {filename ?? 'Chưa có tệp hợp đồng.'}
             </p>
           </div>
-          {state === 'pending' || state === 'error' ? (
+          {canRerunDossier && (state === 'pending' || state === 'error') ? (
             <button
               className="h-10 px-space-lg bg-primary text-on-primary rounded-lg font-body-sm text-body-sm font-semibold self-start"
               disabled={busy}

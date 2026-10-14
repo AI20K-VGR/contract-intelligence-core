@@ -47,6 +47,11 @@ export function conflictPagePath(dossierId: string, findingId?: string) {
   return `/doi-soat-xung-dot${search ? `?${search}` : ''}`
 }
 
+/** Trang lịch sử hỏi đáp của một hồ sơ. */
+export function queryHistoryPath(dossierId: string) {
+  return '/lich-su-hoi-dap/' + encodeURIComponent(dossierId)
+}
+
 export function splitPath(dossierId: string) {
   return `/tach-file/${encodeURIComponent(dossierId)}`
 }

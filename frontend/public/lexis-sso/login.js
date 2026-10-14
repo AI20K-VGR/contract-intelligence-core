@@ -32,12 +32,18 @@ function paintLexisLogin() {
     </ol>`,
   )
 
-  const usernameLabel = document.querySelector('label[for="username"] .pf-v5-c-form__label-text')
+  const usernameLabel = document.querySelector(
+    'label[for="username"] .pf-v5-c-form__label-text',
+  )
   if (usernameLabel) usernameLabel.textContent = 'Email hoặc tên đăng nhập'
-  const passwordLabel = document.querySelector('label[for="password"] .pf-v5-c-form__label-text')
+  const passwordLabel = document.querySelector(
+    'label[for="password"] .pf-v5-c-form__label-text',
+  )
   if (passwordLabel) passwordLabel.textContent = 'Mật khẩu'
 
-  const remember = document.querySelector('label[for="rememberMe"] .pf-v5-c-check__label')
+  const remember = document.querySelector(
+    'label[for="rememberMe"] .pf-v5-c-check__label',
+  )
   if (remember) remember.textContent = 'Ghi nhớ đăng nhập'
   const forgot = document.querySelector('.pf-v5-c-helper-text a')
   if (forgot) forgot.textContent = 'Quên mật khẩu?'

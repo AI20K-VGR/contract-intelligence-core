@@ -140,10 +140,7 @@ export function ReOcrPanel({
         </p>
       ) : null}
       {request ? (
-        <p
-          className="font-body-sm text-body-sm text-on-surface"
-          role="status"
-        >
+        <p className="font-body-sm text-body-sm text-on-surface" role="status">
           Yêu cầu OCR lại trang {request.pageNumbers.join(', ') || '—'}:{' '}
           <strong>
             {STATUS_LABELS[request.status.toLowerCase()] ?? request.status}

@@ -17,7 +17,7 @@
                     <li class="lexis-step-line" aria-hidden="true"></li>
                     <li class="lexis-step lexis-step-current" aria-current="step">
                         <span class="lexis-step-index" aria-hidden="true">2</span>
-                        <span class="lexis-step-label">Mật khẩu</span>
+                        <span class="lexis-step-label">SSO</span>
                     </li>
                 </ol>
                 <div class="lexis-field">
@@ -62,7 +62,10 @@
                             autocomplete="current-password"
                             aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
                         />
-                        <span class="material-symbols-outlined lexis-input-icon">lock</span>
+                        <button type="button" class="lexis-password-toggle" data-password-toggle aria-label="Hiện mật khẩu" aria-pressed="false">
+                            <svg class="lexis-eye-show" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="lexis-eye-hide" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.6 10.6 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.1M6.6 6.6A17.4 17.4 0 0 0 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+                        </button>
                     </div>
                 </div>
 

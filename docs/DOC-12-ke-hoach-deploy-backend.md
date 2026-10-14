@@ -132,10 +132,17 @@ Những việc ngoài backend quyết định bước nào được chạy. **Ch
 | D1 | Chốt máy chủ, LLM provider, người giữ key, trần chi tiêu | Trang (Lead) | 30/09 | Toàn bộ triển khai (5.3 trở đi) | Chưa |
 | D2 | `.dockerignore` cho AI2: image không mang `data/` (mentor #5) | Văn Dũng | 30/09 | 5.6 (build image AI2) | Chưa. Image AI2 hiện vẫn `COPY data/` |
 | D3 | Mentor xác nhận ngoại lệ "một database": AI2 còn SQLite tới Sprint 3 | Trang hỏi mentor | 30/09 | 5.6. Không deploy khi mentor chưa đồng ý | Chưa. Câu hỏi #1 ở mục 9 |
-| D4 | AI1 upload kết quả OCR qua MinIO (`result_ref`, DOC-05d §5). Backend đã xong phần nhận | Đức Dũng | Sprint 3 | C2, và mọi PDF trên ~144 trang (C1 nếu file 50 MB có nhiều trang) | Chưa. **C2 đang BLOCKED** |
+| D4 | AI1 upload kết quả OCR qua MinIO (`result_ref`, DOC-05d §5). Backend đã xong phần nhận | Đức Dũng | Sprint 3 | C2, và mọi PDF trên ~144 trang (C1 nếu file 50 MB có nhiều trang) | **Xong trong code** (cập nhật 12/10): `bed0968` trên `develop` từ 29/09. Đã chạy thử local hồ sơ 200 trang (kết quả 6 MB). Chưa nghiệm thu trên bản online (C2) |
 | D5 | AI2 ghi dữ liệu bền vào PostgreSQL chung, bỏ SQLite ở bản online | Văn Dũng | 18/10 | Đóng ngoại lệ D3 | Chưa (DOC-11 §4.4 #1) |
 
-Khi D4 chưa xong, bản online giới hạn demo ở PDF **≤ 100 trang**. Đây là biên an toàn dưới mức ~144 trang: khoảng 71 KiB mỗi trang so với trần Kafka 10 MB.
+D4 đã có trong code: kết quả OCR đi qua MinIO, nên mức ~144 trang (khoảng 71 KiB mỗi trang so với trần Kafka 10 MB) không còn là trần của đường chính. Bản online giới hạn demo ở PDF **≤ 200 trang** (chốt 12/10); C2 vẫn phải nghiệm thu trên máy chủ.
+
+Giới hạn dung lượng vẫn là 50 MiB mỗi file. Bản scan 200 trang nặng khoảng 60 MB (ước lượng, chưa đo) sẽ bị backend từ chối với `413`. Để nhận file như vậy phải nâng **cả hai** chỗ:
+
+- Backend: `UPLOAD_MAX_FILE_BYTES` trong `deploy/.env.prod` (mẫu ở `deploy/.env.prod.example`, mặc định 52428800).
+- AI1: hằng `MAX_UPLOAD_BYTES` trong `ai-service/src/contract_ocr/infrastructure/backend_ocr_job.py`, đang cố định 50 MiB (việc của Đức Dũng).
+
+Chỉ nâng phía backend thì upload qua, nhưng AI1 từ chối file khi tải về và job OCR lỗi.
 
 ### 5.1 Các bước
 
@@ -182,11 +189,11 @@ A1 chạy trong `deploy.sh` trên chính VPS. A2 chạy **từ máy khác**: Git
 
 | # | Kiểm tra | Mong đợi | Trạng thái |
 |---|---|---|---|
-| C1 | File ~50 MB | Upload nhận (≤ 50 MB/file), OCR xong hoặc lỗi có mã, không treo | Chạy được với file ≤ ~144 trang. File nhiều trang hơn chờ D4 |
-| C2 | PDF ~200 trang | Kết quả OCR qua MinIO, message Kafka vài KB | **BLOCKED bởi D4.** Chạy thử lúc này sẽ ra `AI1_TIMEOUT`, đúng như thiết kế, nhưng chưa phải nghiệm thu |
+| C1 | File ~50 MB | Upload nhận (≤ 50 MB/file), OCR xong hoặc lỗi có mã, không treo | Chạy được, không còn chờ D4: file trên ~144 trang gửi kết quả qua MinIO. Chưa chạy trên máy chủ |
+| C2 | PDF ~200 trang | Kết quả OCR qua MinIO, message Kafka vài KB | Hết BLOCKED (D4 xong trong code). Đã chạy thử local 200 trang; **chưa nghiệm thu trên máy chủ** |
 | C3 | Tắt AI1 giữa chừng | Job `failed` với `AI1_TIMEOUT` sau hạn theo số trang | Chạy được |
 | C4 | Restart `backend-worker` khi đang xử lý | Không xử lý trùng, không mất job | Chạy được |
-| C5 | RAM/CPU lúc chạy C1, C2 | Ghi số đo thật, thay bảng ước tính ở mục 3 | Phần C2 chờ D4 |
+| C5 | RAM/CPU lúc chạy C1, C2 | Ghi số đo thật, thay bảng ước tính ở mục 3 | Chưa đo. Phần C2 không còn chờ D4 |
 
 ---
 
@@ -230,7 +237,7 @@ Mỗi lần cập nhật báo trước trong nhóm. Không cập nhật trong l�
 | Rủi ro | Khả năng | Ảnh hưởng | Phương án |
 |---|---|---|---|
 | Hết quota LLM/OCR giữa demo (đã gặp 429 ngày 29/09) | Trung bình | Job lỗi | Trần chi tiêu + key trả phí. Backend thử lại lỗi tạm có trần. Tách mã `RATE_LIMITED`/`UNAVAILABLE` ở Sprint 3 (DOC-11 #6) |
-| PDF > ~144 trang vượt trần Kafka 10 MB | Cao với file lớn | OCR không về backend, job `AI1_TIMEOUT` | Backend đã sẵn nhận kết quả qua MinIO. Chờ AI1 (D4). Trước đó giới hạn demo ≤ 100 trang |
+| Kết quả OCR của PDF > ~144 trang không upload được lên MinIO | Thấp | Kết quả vượt trần Kafka 10 MB nên không gửi thẳng được; job lỗi với `AI1_RESULT_UPLOAD_FAILED` | Kết quả lớn đi qua MinIO (`result_ref`, D4 xong trong code). Giới hạn demo ≤ 200 trang; C2 còn phải nghiệm thu trên máy chủ. File trên 50 MiB cần nâng `UPLOAD_MAX_FILE_BYTES` và giới hạn của AI1 (đoạn dưới bảng D) |
 | Thiếu RAM | Trung bình ở máy 8 GB | Container bị kill | Swap 4 GB, heap Kafka 512 MB. Đo ở C5, nâng máy nếu cần |
 | AI2 còn SQLite, image còn `data/` | Chắc chắn tới khi Văn Dũng xong | Mentor #4, #5 chưa đạt đủ | D2 và D3 là điều kiện trước deploy (bước 5.2). SQLite AI2 để trong volume `ai2_data`. Chuyển PostgreSQL ở Sprint 3 (D5) |
 | Kafka không lưu ra đĩa | Thấp | Restart mất message đang bay | Watchdog fail run với mã lỗi, người dùng chạy lại. Không mất dữ liệu đã lưu |
@@ -270,7 +277,7 @@ Việc sau MVP (không làm trong đợt này):
 | 30/09 – 01/10 | Triển khai (5.3–5.7), nhóm A (A2 từ GitHub Actions), B |
 | 01/10 | Frontend nối server. Nghiệm thu nhóm B cùng cả nhóm |
 | 02/10 | Đóng băng code nếu demo Sprint 2 đúng lịch (DOC-11). Demo trên bản online |
-| Sprint 3 (05/10 – 18/10) | C1, C3, C4 ngay. C2 và phần lớn của C1 sau D4. D5 đóng ngoại lệ D3. Ghi số đo vào DOC-06 |
+| Sprint 3 (05/10 – 18/10) | C1, C2, C3, C4: D4 đã xong trong code nên không còn phải chờ. D5 đóng ngoại lệ D3. Ghi số đo vào DOC-06 |
 
 ---
 

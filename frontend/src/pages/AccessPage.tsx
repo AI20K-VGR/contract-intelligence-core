@@ -12,18 +12,20 @@ import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
 import { dossierOpenTo, type Dossier } from '../data/dossiers'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { ShareGrantBadge } from '../components/ShareGrantBadge'
 import {
   formatExpiry,
   fromDateInput,
+  grantEffect,
   grantPermission,
   isGrantExpired,
   permissionLabels,
+  shareRoleLabels,
   todayInput,
   toDateInput,
   type SharePermission,
+  type ShareRole,
 } from '../data/shareGrant'
-import { accessLabels, dossierFromSummary } from './MyDossiersPage'
+import { dossierFromSummary } from './MyDossiersPage'
 
 type AccessFilter = 'all' | Dossier['access']
 
@@ -186,6 +188,7 @@ export function AccessPage() {
   const shownFilters = sharedOnly
     ? filters.filter((item) => item.id === 'shared_in')
     : filters
+  const columnCount = sharedOnly ? 5 : 6
 
   return (
     <div className="flex flex-col w-full pb-margin-lg">
@@ -235,15 +238,25 @@ export function AccessPage() {
         </div>
 
         <div className="w-full">
-          <table className="w-full text-left font-body-sm text-body-sm border-collapse">
+          {/* table-fixed: chữ dài bị cắt "…" thay vì đẩy bảng tràn ngang. */}
+          <table className="w-full table-fixed text-left font-body-sm text-body-sm border-collapse">
             <thead>
               <tr className="bg-surface-container-low text-on-secondary-container font-label-sm text-label-sm uppercase tracking-wider">
-                <th className="py-3 px-space-md font-semibold">Tên hồ sơ</th>
-                <th className="py-3 px-space-md font-semibold">
-                  Quyền truy cập
+                <th className="py-3 px-3 font-semibold">Hồ sơ</th>
+                <th className="py-3 px-3 font-semibold w-[8.5rem]">
+                  Phân loại
+                </th>
+                <th className="py-3 px-3 font-semibold">Người có quyền</th>
+                <th className="py-3 px-3 font-semibold w-[9rem]">
+                  Quyền · Hạn
+                </th>
+                <th className="hidden xl:table-cell py-3 px-3 font-semibold w-[7.5rem]">
+                  Tải lên
                 </th>
                 {sharedOnly ? null : (
-                  <th className="py-3 px-space-md font-semibold">Đổi quyền</th>
+                  <th className="py-3 px-3 font-semibold text-right w-[10rem]">
+                    Thao tác
+                  </th>
                 )}
               </tr>
             </thead>
@@ -252,7 +265,7 @@ export function AccessPage() {
                 <tr>
                   <td
                     className="py-10 px-space-md text-error"
-                    colSpan={sharedOnly ? 2 : 3}
+                    colSpan={columnCount}
                   >
                     {error}
                   </td>
@@ -262,7 +275,7 @@ export function AccessPage() {
                 <tr>
                   <td
                     className="py-10 px-space-md text-on-surface-variant"
-                    colSpan={sharedOnly ? 2 : 3}
+                    colSpan={columnCount}
                   >
                     Đang tải danh sách hồ sơ…
                   </td>
@@ -272,7 +285,7 @@ export function AccessPage() {
                 <tr>
                   <td
                     className="py-10 px-space-md text-on-surface-variant"
-                    colSpan={sharedOnly ? 2 : 3}
+                    colSpan={columnCount}
                   >
                     Không có hồ sơ trong nhóm này.
                   </td>
@@ -289,31 +302,36 @@ export function AccessPage() {
                         : 'bg-surface-container-lowest hover:bg-surface-container-low/70'
                     }`}
                   >
-                    <td className="py-3.5 px-space-md">
+                    <td className="py-3.5 px-3 align-top">
                       {item.myGrant?.expired ? (
                         <span
-                          className="font-title-sm text-title-sm font-semibold text-on-surface-variant"
-                          title="Quyền chia sẻ đã hết hạn"
+                          className="block truncate font-title-sm text-title-sm font-semibold text-on-surface-variant"
+                          title={`${item.title} · Quyền chia sẻ đã hết hạn`}
                         >
                           {item.title}
                         </span>
                       ) : (
                         <Link
-                          className="font-title-sm text-title-sm font-semibold text-on-surface hover:text-on-tertiary-container"
+                          className="block truncate font-title-sm text-title-sm font-semibold text-on-surface hover:text-on-tertiary-container"
                           state={{ dossierId: item.id, name: item.title }}
+                          title={item.title}
                           to={dossierOpenTo(item)}
                         >
                           {item.title}
                         </Link>
                       )}
-                      <span className="block font-code-sm text-label-sm text-on-surface-variant mt-1">
+                      <span
+                        className="block truncate font-code-sm text-label-sm text-on-surface-variant mt-1"
+                        title={item.code}
+                      >
                         {item.code}
                       </span>
                     </td>
-                    <td className="py-3.5 px-space-md whitespace-nowrap">
+                    <td className="py-3.5 px-3 align-top">
+                      <AccessTag access={item.access} />
                       {pendingInvite(item, user?.id, user?.email) ? (
                         <button
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-900 font-label-sm text-label-sm"
+                          className="mt-1.5 flex whitespace-nowrap items-center gap-1 rounded bg-amber-50 px-2 py-0.5 font-label-sm text-label-sm text-amber-900 hover:bg-amber-100"
                           type="button"
                           onClick={() =>
                             setNotice({
@@ -326,95 +344,84 @@ export function AccessPage() {
                             name="mark_email_unread"
                             className="text-[14px]"
                           />
-                          Chưa mời
+                          Chưa nhận mời
                         </button>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-surface-container font-label-sm text-label-sm">
-                          <MaterialIcon
-                            name={item.access === 'mine' ? 'lock' : 'share'}
-                            className="text-[14px]"
-                          />
-                          {accessLabels[item.access]}
-                        </span>
-                      )}
-                      {item.myGrant ? (
-                        <div className="mt-1">
-                          <ShareGrantBadge grant={item.myGrant} />
-                        </div>
-                      ) : null}
-                      {item.access === 'shared_out' && item.shares?.length ? (
-                        <ul className="mt-2 flex flex-col gap-1">
-                          {item.shares.map((grant) => {
-                            const expired = isGrantExpired(grant)
-                            return (
-                              <li
-                                key={grant.id}
-                                className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-body-sm text-body-sm"
-                              >
-                                <span className="font-semibold text-on-surface">
-                                  {grant.display_name || grant.email}
-                                </span>
-                                <span className="rounded bg-surface-container px-1.5 py-0.5 font-label-sm text-label-sm text-on-surface">
-                                  {permissionLabels[grantPermission(grant)]}
-                                </span>
-                                <span
-                                  className={`font-label-sm text-label-sm ${
-                                    expired
-                                      ? 'text-error'
-                                      : 'text-on-surface-variant'
-                                  }`}
-                                >
-                                  {expired
-                                    ? 'Đã hết hạn'
-                                    : grant.expires_at
-                                      ? `Hết hạn ${formatExpiry(grant.expires_at)}`
-                                      : 'Không hết hạn'}
-                                </span>
-                              </li>
-                            )
-                          })}
-                        </ul>
                       ) : null}
                     </td>
+                    <td className="py-3.5 px-3 align-top">
+                      <PeopleCell
+                        access={item.access}
+                        rows={grantRows(item, user, people)}
+                      />
+                    </td>
+                    <td className="py-3.5 px-3 align-top">
+                      <GrantCell rows={grantRows(item, user, people)} />
+                    </td>
+                    <td className="hidden xl:table-cell py-3.5 px-3 align-top text-on-surface-variant">
+                      <span className="flex h-10 items-center truncate">
+                        {item.updated || '—'}
+                      </span>
+                    </td>
                     {sharedOnly ? null : (
-                      <td className="py-3.5 px-space-md">
+                      <td className="py-3.5 px-3 align-top text-right">
                         {item.access === 'shared_in' ? (
-                          <span className="font-body-sm text-body-sm text-on-surface-variant">
-                            Người khác chia sẻ
+                          <span className="flex h-10 items-center justify-end font-body-sm text-body-sm text-on-surface-variant">
+                            —
                           </span>
                         ) : (
-                          <div className="relative inline-flex items-center gap-space-sm">
+                          <div className="relative inline-flex items-center justify-end gap-1.5">
                             <button
-                              className={`h-9 px-space-sm rounded font-body-sm text-body-sm disabled:opacity-50 ${
+                              className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 font-label-md text-label-md font-semibold disabled:opacity-50 ${
                                 active
-                                  ? 'bg-primary-container text-on-primary'
-                                  : 'bg-surface-container-low text-on-surface hover:bg-surface-container'
+                                  ? 'bg-brand-200 text-brand-800'
+                                  : 'bg-brand-100 text-brand-700 hover:bg-brand-200'
                               }`}
                               disabled={savingId === item.id}
                               type="button"
                               onClick={() => select(active ? '' : item.id)}
                             >
-                              Chia sẻ với người khác
+                              <MaterialIcon
+                                name="person_add"
+                                className="text-[18px]"
+                              />
+                              Chia sẻ
                             </button>
                             {item.access === 'shared_out' ? (
                               <button
-                                className="h-9 px-space-sm rounded bg-surface-container-low text-on-surface font-body-sm text-body-sm hover:bg-surface-container disabled:opacity-50"
+                                aria-label="Ngừng chia sẻ"
+                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-outline-variant bg-white hover:bg-surface-container-low disabled:opacity-50"
                                 disabled={savingId === item.id}
+                                title="Ngừng chia sẻ: thu hồi quyền của mọi người"
                                 type="button"
                                 onClick={() => {
+                                  if (
+                                    !window.confirm(
+                                      'Ngừng chia sẻ hồ sơ này? Mọi người được chia sẻ sẽ mất quyền truy cập.',
+                                    )
+                                  ) {
+                                    return
+                                  }
                                   void saveAccess(item, 'mine', [])
                                 }}
                               >
-                                {savingId === item.id
-                                  ? 'Đang lưu…'
-                                  : 'Đổi thành hồ sơ của tôi'}
+                                <MaterialIcon
+                                  name={
+                                    savingId === item.id
+                                      ? 'progress_activity'
+                                      : 'link_off'
+                                  }
+                                  className={`text-[18px] text-error ${
+                                    savingId === item.id ? 'animate-spin' : ''
+                                  }`}
+                                />
                               </button>
                             ) : null}
                             {active ? (
-                              <div className="absolute right-0 top-10 z-50 flex w-[26rem] max-w-[calc(100vw-2rem)] flex-col gap-space-sm rounded-lg border border-surface-container bg-surface-container-lowest p-space-md shadow-[0_8px_24px_rgba(15,23,42,0.12)]">
+                              <div className="absolute right-0 top-10 z-50 flex text-left w-[26rem] max-w-[calc(100vw-2rem)] flex-col gap-space-sm rounded-lg border border-surface-container bg-surface-container-lowest p-space-md shadow-[0_8px_24px_rgba(15,23,42,0.12)]">
                                 <p className="font-label-sm text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">
                                   Chia sẻ với
                                 </p>
+                                <AccessLegend />
                                 <div className="flex max-h-72 flex-col gap-space-xs overflow-auto">
                                   {tenants.length === 0 ? (
                                     <p className="px-1 font-body-sm text-body-sm text-secondary">
@@ -463,6 +470,7 @@ export function AccessPage() {
                                                 {person.email}
                                               </span>
                                             </span>
+                                            <RoleBadge role={person.role} />
                                           </label>
                                           {isChosen ? (
                                             <div className="mt-space-sm grid grid-cols-2 gap-space-sm pl-7">
@@ -519,6 +527,16 @@ export function AccessPage() {
                                                   }
                                                 />
                                               </label>
+                                              <p className="col-span-2 flex items-start gap-1 rounded bg-surface-container-lowest px-2 py-1.5 font-label-sm text-label-sm text-on-surface">
+                                                <MaterialIcon
+                                                  name="info"
+                                                  className="mt-px shrink-0 text-[14px] text-brand-700"
+                                                />
+                                                {grantEffect(
+                                                  person.role,
+                                                  option.permission,
+                                                )}
+                                              </p>
                                               <p
                                                 className={`col-span-2 font-label-sm text-label-sm ${
                                                   pastDate
@@ -554,7 +572,7 @@ export function AccessPage() {
                                     Hủy
                                   </button>
                                   <button
-                                    className="h-8 flex-1 px-space-sm rounded bg-primary-container text-on-primary font-label-sm text-label-sm disabled:opacity-50"
+                                    className="h-8 flex-1 px-space-sm rounded bg-brand-100 text-brand-700 hover:bg-brand-200 font-label-sm text-label-sm disabled:opacity-50"
                                     disabled={
                                       savingId === item.id ||
                                       chosen.length === 0 ||
@@ -617,6 +635,207 @@ export function AccessPage() {
           </button>
         </div>
       ) : null}
+    </div>
+  )
+}
+
+const ACCESS_TAG: Record<
+  Dossier['access'],
+  { label: string; dot: string; className: string }
+> = {
+  mine: {
+    label: 'Của tôi',
+    dot: 'bg-emerald-600',
+    className: 'bg-emerald-50 text-emerald-900',
+  },
+  shared_out: {
+    label: 'Đã chia sẻ',
+    dot: 'bg-amber-500',
+    className: 'bg-amber-50 text-amber-900',
+  },
+  shared_in: {
+    label: 'Được chia sẻ',
+    dot: 'bg-[#2563eb]',
+    className: 'bg-blue-50 text-blue-900',
+  },
+}
+
+/** Cùng màu chấm với bộ lọc phía trên. */
+function AccessTag({ access }: { access: Dossier['access'] }) {
+  const tag = ACCESS_TAG[access]
+  return (
+    <span
+      className={`inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 font-label-sm text-label-sm font-semibold ${tag.className}`}
+    >
+      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${tag.dot}`} />
+      {tag.label}
+    </span>
+  )
+}
+
+type GrantRow = {
+  id: string
+  name: string
+  email: string
+  permission: SharePermission
+  role?: ShareRole
+  expiresAt: string | null
+  expired: boolean
+}
+
+/** Mỗi người có quyền trên hồ sơ: người được chia sẻ, hoặc chính bạn ở hồ sơ được chia sẻ. */
+function grantRows(
+  dossier: Dossier,
+  me: { email?: string; backendRole?: ShareRole } | null | undefined,
+  people: ManagedUser[],
+): GrantRow[] {
+  if (dossier.access === 'shared_out') {
+    return (dossier.shares ?? []).map((grant) => ({
+      id: grant.id,
+      name: grant.display_name || grant.email,
+      email: grant.email,
+      permission: grantPermission(grant),
+      role: people.find((person) => person.id === grant.id)?.role,
+      expiresAt: grant.expires_at ?? null,
+      expired: isGrantExpired(grant),
+    }))
+  }
+  if (dossier.access === 'shared_in' && dossier.myGrant) {
+    return [
+      {
+        id: 'me',
+        name: 'Bạn',
+        email: me?.email ?? '',
+        permission: dossier.myGrant.permission,
+        role: me?.backendRole,
+        expiresAt: dossier.myGrant.expires_at,
+        expired: dossier.myGrant.expired,
+      },
+    ]
+  }
+  return []
+}
+
+function initials(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return '?'
+  const first = words[0][0] ?? ''
+  const last = words.length > 1 ? (words[words.length - 1][0] ?? '') : ''
+  return `${first}${last}`.toUpperCase()
+}
+
+// Mỗi người một dòng cao h-10 ở cả hai cột để tên và quyền thẳng hàng.
+function PeopleCell({
+  access,
+  rows,
+}: {
+  access: Dossier['access']
+  rows: GrantRow[]
+}) {
+  if (rows.length === 0) {
+    return (
+      <span className="flex h-10 items-center font-body-sm text-body-sm text-on-surface-variant">
+        {access === 'mine' ? 'Chỉ mình bạn' : '—'}
+      </span>
+    )
+  }
+  return (
+    <ul className="flex flex-col gap-1">
+      {rows.map((row) => (
+        <li
+          key={row.id}
+          className="flex h-10 min-w-0 items-center gap-space-sm"
+        >
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 font-label-sm text-[11px] font-bold text-brand-700">
+            {initials(row.name)}
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate font-body-sm text-body-sm font-semibold text-on-surface">
+              {row.name}
+            </span>
+            {row.email && row.email !== row.name ? (
+              <span className="block truncate font-label-sm text-label-sm text-on-surface-variant">
+                {row.email}
+              </span>
+            ) : null}
+          </span>
+          {row.role ? <RoleBadge role={row.role} /> : null}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function GrantCell({ rows }: { rows: GrantRow[] }) {
+  if (rows.length === 0) {
+    return (
+      <span className="flex h-10 items-center text-on-surface-variant">—</span>
+    )
+  }
+  return (
+    <ul className="flex flex-col gap-1">
+      {rows.map((row) => (
+        <li
+          key={row.id}
+          className="flex h-10 flex-col items-start justify-center gap-0.5"
+        >
+          <span
+            className="inline-flex shrink-0 cursor-help items-center gap-1 rounded bg-surface-container px-1.5 font-label-sm text-label-sm leading-5 text-on-surface"
+            title={grantEffect(row.role, row.permission)}
+          >
+            <MaterialIcon
+              name={row.permission === 'read' ? 'visibility' : 'edit'}
+              className="text-[14px]"
+            />
+            {permissionLabels[row.permission]}
+          </span>
+          <span
+            className={`whitespace-nowrap font-label-sm text-[11px] leading-4 ${
+              row.expired
+                ? 'font-semibold text-error'
+                : 'text-on-surface-variant'
+            }`}
+          >
+            {row.expired
+              ? 'Đã hết hạn'
+              : row.expiresAt
+                ? `Đến ${formatExpiry(row.expiresAt)}`
+                : 'Không hết hạn'}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function RoleBadge({ role }: { role: ShareRole }) {
+  return (
+    <span className="shrink-0 rounded-full bg-brand-50 px-2 font-label-sm text-[11px] font-semibold leading-5 text-brand-700">
+      {shareRoleLabels[role]}
+    </span>
+  )
+}
+
+/** Quyền chia sẻ chỉ mở hồ sơ; việc làm được còn tùy vai trò của người nhận. */
+function AccessLegend() {
+  return (
+    <div className="rounded-lg bg-surface-container-low px-space-sm py-space-sm font-label-sm text-label-sm text-on-surface-variant">
+      <p className="text-on-surface">
+        Người nhận làm được gì phụ thuộc cả <b>vai trò</b> lẫn <b>quyền</b> bạn
+        chọn ở đây:
+      </p>
+      <ul className="mt-1 list-disc space-y-0.5 pl-4">
+        <li>
+          <b>Chỉ xem</b>: xem hồ sơ, kết quả và trích dẫn.
+        </li>
+        <li>
+          <b>Được sửa</b>: Vận hành sửa hồ sơ và chạy lại; Thẩm định rà soát
+          trích dẫn, xung đột.
+        </li>
+        <li>
+          Chỉ Quản trị duyệt hồ sơ. Chỉ chủ hồ sơ hoặc Quản trị đổi được quyền.
+        </li>
+      </ul>
     </div>
   )
 }

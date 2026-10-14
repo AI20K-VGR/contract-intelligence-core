@@ -39,7 +39,8 @@ function statusClass(status: string) {
   if (status === 'failed' || status === 'dead') {
     return 'bg-error-container text-on-error-container'
   }
-  if (status === 'cancelled') return 'bg-surface-container text-on-surface-variant'
+  if (status === 'cancelled')
+    return 'bg-surface-container text-on-surface-variant'
   return 'bg-amber-50 text-amber-900'
 }
 

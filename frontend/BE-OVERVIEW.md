@@ -4,12 +4,12 @@ Frontend màn `/tong-quan` (`src/pages/OverviewPage.tsx`) đã bỏ mock.
 
 Đã nối API có sẵn:
 
-| Việc trên UI | API |
-|---|---|
-| Tổng người dùng | `GET /api/v1/users?limit=1` → `meta.total` |
+| Việc trên UI      | API                                                       |
+| ----------------- | --------------------------------------------------------- |
+| Tổng người dùng   | `GET /api/v1/users?limit=1` → `meta.total`                |
 | Lời mời chờ duyệt | `GET /api/v1/users?status=invited&limit=1` → `meta.total` |
-| Hồ sơ hoạt động | `GET /api/v1/dossiers?limit=1` → `meta.total` |
-| Bảng thành viên | `GET /api/v1/users` (`q`, `role`, `limit`, `offset`) |
+| Hồ sơ hoạt động   | `GET /api/v1/dossiers?limit=1` → `meta.total`             |
+| Bảng thành viên   | `GET /api/v1/users` (`q`, `role`, `limit`, `offset`)      |
 
 Contract user: [`BE-USER-ADMIN.md`](./BE-USER-ADMIN.md). Contract hồ sơ: mục 2 trong [`API-BE.md`](./API-BE.md).
 
@@ -38,11 +38,11 @@ type StorageUsageDTO = {
 
 `quota_bytes` null khi tenant chưa đặt hạn mức. FE hiện thanh phần trăm chỉ khi có quota.
 
-| HTTP | Khi nào |
-|---|---|
-| 401 | JWT không hợp lệ |
-| 403 | Không phải `ADMINISTRATOR` |
-| 404 | Route chưa mount. Detail `Not Found` thuần — FE hiểu là API chưa triển khai |
+| HTTP | Khi nào                                                                     |
+| ---- | --------------------------------------------------------------------------- |
+| 401  | JWT không hợp lệ                                                            |
+| 403  | Không phải `ADMINISTRATOR`                                                  |
+| 404  | Route chưa mount. Detail `Not Found` thuần — FE hiểu là API chưa triển khai |
 
 ---
 
@@ -68,12 +68,12 @@ type ActivityEventDTO = {
 
 Sự kiện tối thiểu cần ghi: mời / khóa user, tạo hồ sơ, chia sẻ hồ sơ, đăng nhập. Không trả payload nhạy cảm (mật khẩu, token, nội dung hợp đồng).
 
-| HTTP | Khi nào |
-|---|---|
-| 401 | JWT không hợp lệ |
-| 403 | Không phải `ADMINISTRATOR` |
-| 404 | Route chưa mount |
-| 422 | `limit` / `offset` sai |
+| HTTP | Khi nào                    |
+| ---- | -------------------------- |
+| 401  | JWT không hợp lệ           |
+| 403  | Không phải `ADMINISTRATOR` |
+| 404  | Route chưa mount           |
+| 422  | `limit` / `offset` sai     |
 
 ---
 
@@ -106,12 +106,12 @@ Query `format`: `csv` (bắt buộc ở bản đầu).
 
 Nội dung: cùng số liệu card tổng quan (số user, số lời mời, số hồ sơ, dung lượng nếu mục 1 đã có) cộng danh sách thành viên trang hiện không phân trang — toàn bộ tenant sau lọc không áp dụng; export là snapshot tenant.
 
-| HTTP | Khi nào |
-|---|---|
-| 401 | JWT không hợp lệ |
-| 403 | Không phải `ADMINISTRATOR` |
-| 404 | Route chưa mount |
-| 422 | `format` không hỗ trợ |
+| HTTP | Khi nào                    |
+| ---- | -------------------------- |
+| 401  | JWT không hợp lệ           |
+| 403  | Không phải `ADMINISTRATOR` |
+| 404  | Route chưa mount           |
+| 422  | `format` không hỗ trợ      |
 
 ---
 

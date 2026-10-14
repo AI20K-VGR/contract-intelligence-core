@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -24,6 +25,9 @@ logger = structlog.get_logger(__name__)
 
 _APP_ROLES: frozenset[str] = frozenset({"OPERATOR", "REVIEWER", "ADMINISTRATOR"})
 _ROLE_PRIORITY: tuple[str, ...] = ("ADMINISTRATOR", "REVIEWER", "OPERATOR")
+# Newest realm-wide LOGIN events read in one call to fill last_login_at for a
+# page of users; users of the page not among them are asked for one by one.
+_LOGIN_EVENTS_MAX = 1000
 
 # Keycloak sometimes returns 409 with these message fragments.
 _EMAIL_EXISTS_RE = re.compile(
@@ -165,7 +169,9 @@ def _derive_status(user: dict[str, Any]) -> UserStatus:
     return "active"
 
 
-def _to_user_dto(user: dict[str, Any], role: UserRole | None) -> UserDTO:
+def _to_user_dto(
+    user: dict[str, Any], role: UserRole | None, *, last_login_at: datetime | None = None
+) -> UserDTO:
     status = _derive_status(user)
     created_at = _ms_to_dt(user.get("createdTimestamp"))
     display_name = (
@@ -175,13 +181,6 @@ def _to_user_dto(user: dict[str, Any], role: UserRole | None) -> UserDTO:
         or (user.get("email") or "").strip()
     )
     invited_at = created_at if status == "invited" else None
-    last_login_raw = _attr_first(user.get("attributes"), "last_login_at")
-    last_login_at: datetime | None = None
-    if last_login_raw:
-        try:
-            last_login_at = datetime.fromisoformat(last_login_raw.replace("Z", "+00:00"))
-        except ValueError:
-            last_login_at = None
 
     return UserDTO(
         id=str(user["id"]),
@@ -193,6 +192,65 @@ def _to_user_dto(user: dict[str, Any], role: UserRole | None) -> UserDTO:
         invited_at=invited_at,
         last_login_at=last_login_at,
     )
+
+
+def _login_events(admin: KeycloakAdmin, query: dict[str, Any]) -> list[Any] | None:
+    """One read of Keycloak's LOGIN events; None (logged) when the call fails."""
+    try:
+        events = admin.get_events(query)
+    except Exception as exc:
+        logger.warning(
+            "keycloak.login_events.failed",
+            error_type=type(exc).__name__,
+            code=getattr(exc, "response_code", None),
+        )
+        return None
+    return events if isinstance(events, list) else []
+
+
+def _keep_newest(events: list[Any], wanted: set[str], latest: dict[str, datetime]) -> None:
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        uid = str(event.get("userId") or "")
+        when = _ms_to_dt(event.get("time"))
+        if uid not in wanted or when is None:
+            continue
+        if uid not in latest or when > latest[uid]:
+            latest[uid] = when
+
+
+def _last_login_times(admin: KeycloakAdmin, user_ids: Iterable[str]) -> dict[str, datetime]:
+    """Latest LOGIN event of each user, read from Keycloak's event log.
+
+    Several users: one call reads the newest ``_LOGIN_EVENTS_MAX`` LOGIN events
+    of the realm. When that window is full, a user of the page who is not in it
+    may still have logged in earlier, so each of them gets a call of their own
+    (newest first, ``max=1``). A window that is not full already holds every
+    event the realm keeps, and no further call is made.
+
+    Best effort: the realm keeps events for a limited time (30 days), so a user
+    who has not logged in since is absent. A failed call (403, timeout, ...)
+    is logged and stops the lookup; users not found by then have no last login,
+    and the caller does not fail.
+    """
+    wanted = {uid for uid in user_ids if uid}
+    if not wanted:
+        return {}
+    latest: dict[str, datetime] = {}
+    missing = sorted(wanted)
+    if len(wanted) > 1:
+        events = _login_events(admin, {"type": "LOGIN", "max": _LOGIN_EVENTS_MAX})
+        if events is None:
+            return {}
+        _keep_newest(events, wanted, latest)
+        missing = [] if len(events) < _LOGIN_EVENTS_MAX else sorted(wanted - latest.keys())
+    for uid in missing:
+        events = _login_events(admin, {"type": "LOGIN", "user": uid, "max": 1})
+        if events is None:
+            break
+        _keep_newest(events, {uid}, latest)
+    return latest
 
 
 def _translate_keycloak_error(exc: Exception, *, email: str | None = None) -> UserAdminError:
@@ -399,6 +457,8 @@ def _list_users_sync(
     limit: int,
     offset: int,
     tenant_id: str | None,
+    with_last_login: bool = True,
+    strict_tenant: bool = False,
 ) -> UserListResult:
     admin = _build_keycloak_admin()
     try:
@@ -419,11 +479,14 @@ def _list_users_sync(
             uid = str(user.get("id") or "")
             if not uid:
                 continue
-            if tenant_id:
-                attrs = user.get("attributes") or {}
-                tid = _attr_first(attrs if isinstance(attrs, dict) else None, "tenant_id")
-                if tid is not None and tid != tenant_id:
+            attrs = user.get("attributes") or {}
+            tid = _attr_first(attrs if isinstance(attrs, dict) else None, "tenant_id")
+            if strict_tenant:
+                # Only users stamped with the caller's tenant; none when it is unknown.
+                if not tenant_id or tid != tenant_id:
                     continue
+            elif tenant_id and tid is not None and tid != tenant_id:
+                continue
             try:
                 user_role = _get_app_role_for_user(admin, uid)
             except KeycloakError:
@@ -444,6 +507,11 @@ def _list_users_sync(
         dtos.sort(key=lambda u: (u.email.lower(), u.id))
         total = len(dtos)
         page = dtos[offset : offset + limit]
+        logins = _last_login_times(admin, [dto.id for dto in page]) if with_last_login else {}
+        page = [
+            dto.model_copy(update={"last_login_at": logins[dto.id]}) if dto.id in logins else dto
+            for dto in page
+        ]
         return UserListResult(items=page, total=total)
     except KeycloakError as exc:
         raise _translate_keycloak_error(exc) from exc
@@ -516,7 +584,9 @@ def _update_role_sync(*, user_id: str, new_role: UserRole) -> UserDTO:
         _replace_app_role(admin, user_id, new_role)
         user = _get_user_or_raise(admin, user_id)
         logger.info("keycloak.update_role.ok", user_id=user_id, role=new_role)
-        return _to_user_dto(user, new_role)
+        return _to_user_dto(
+            user, new_role, last_login_at=_last_login_times(admin, [user_id]).get(user_id)
+        )
     except UserAdminError:
         raise
     except KeycloakError as exc:
@@ -542,7 +612,9 @@ def _set_enabled_sync(*, user_id: str, enabled: bool) -> UserDTO:
             admin.disable_user(user_id)
         user = _get_user_or_raise(admin, user_id)
         logger.info("keycloak.set_enabled.ok", user_id=user_id, enabled=enabled)
-        return _to_user_dto(user, role)
+        return _to_user_dto(
+            user, role, last_login_at=_last_login_times(admin, [user_id]).get(user_id)
+        )
     except UserAdminError:
         raise
     except KeycloakError as exc:
@@ -572,7 +644,9 @@ def _resend_invite_sync(*, user_id: str) -> UserDTO:
         _send_update_password_email(admin, user_id)
         user = _get_user_or_raise(admin, user_id)
         logger.info("keycloak.resend_invite.ok", user_id=user_id)
-        return _to_user_dto(user, role)
+        return _to_user_dto(
+            user, role, last_login_at=_last_login_times(admin, [user_id]).get(user_id)
+        )
     except UserAdminError:
         raise
     except KeycloakError as exc:
@@ -594,8 +668,14 @@ async def list_users(
     limit: int = 20,
     offset: int = 0,
     tenant_id: str | None = None,
+    with_last_login: bool = True,
+    strict_tenant: bool = False,
 ) -> UserListResult:
-    """List/search users with optional filters and offset pagination."""
+    """List/search users with optional filters and offset pagination.
+
+    ``strict_tenant`` drops users without a ``tenant_id`` attribute, which the
+    default filter keeps.
+    """
     return await asyncio.to_thread(
         _list_users_sync,
         q=q,
@@ -604,6 +684,8 @@ async def list_users(
         limit=limit,
         offset=offset,
         tenant_id=tenant_id,
+        with_last_login=with_last_login,
+        strict_tenant=strict_tenant,
     )
 
 

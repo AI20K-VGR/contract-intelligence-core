@@ -9,13 +9,35 @@ Schemas match DOC-05-api-spec.yaml components:
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from contract_intelligence.contract.domain.entities.document import Document, DocumentRole
 from contract_intelligence.contract.domain.entities.dossier import Dossier
 from contract_intelligence.contract.domain.entities.job import JobStatus
+
+
+class MyAccessDTO(BaseModel):
+    """What the caller may do on a dossier (``shared.acl.dossier_my_access``).
+
+    Clients use the ``can_*`` flags to show or hide actions instead of
+    re-deriving them from ``metadata.shared_with``. They answer the ACL only:
+    a ``locked`` dossier still refuses changes.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    owner: bool = False
+    # The share naming the caller; null for none (the owner needs none).
+    permission: Literal["read", "edit"] | None = None
+    expires_at: datetime | None = None
+    expired: bool = False
+    can_edit: bool = False
+    can_review: bool = False
+    can_see_review: bool = False
+    can_manage: bool = False
+    can_approve: bool = False
 
 
 class DossierSummaryDTO(BaseModel):
@@ -30,6 +52,10 @@ class DossierSummaryDTO(BaseModel):
     latest_job_status: JobStatus | None = None
     open_review_items: int = 0
     pending_conflicts: int = 0
+    # Lifecycle: locked for approval (no more edits or review), then approved.
+    locked: bool = False
+    approved_at: datetime | None = None
+    my_access: MyAccessDTO | None = None
     metadata: dict[str, Any] | None = None
     created_at: datetime
 
@@ -41,6 +67,8 @@ class DossierSummaryDTO(BaseModel):
         latest_job_status: JobStatus | None = None,
         open_review_items: int = 0,
         pending_conflicts: int = 0,
+        locked: bool = False,
+        approved_at: datetime | None = None,
     ) -> DossierSummaryDTO:
         return cls(
             id=dossier.id,
@@ -50,6 +78,8 @@ class DossierSummaryDTO(BaseModel):
             latest_job_status=latest_job_status,
             open_review_items=open_review_items,
             pending_conflicts=pending_conflicts,
+            locked=locked,
+            approved_at=approved_at,
             metadata=dossier.metadata,
             created_at=dossier.created_at,
         )
@@ -71,6 +101,9 @@ class DossierDetailDTO(BaseModel):
     documents: list[DocumentSummaryDTO] = Field(default_factory=list)
     open_review_items: int = 0
     pending_conflicts: int = 0
+    locked: bool = False
+    approved_at: datetime | None = None
+    my_access: MyAccessDTO | None = None
     metadata: dict[str, Any] | None = None
     created_at: datetime
     updated_at: datetime
@@ -86,6 +119,8 @@ class DossierDetailDTO(BaseModel):
         latest_job_error_code: str | None = None,
         open_review_items: int = 0,
         pending_conflicts: int = 0,
+        locked: bool = False,
+        approved_at: datetime | None = None,
     ) -> DossierDetailDTO:
         return cls(
             id=dossier.id,
@@ -98,6 +133,8 @@ class DossierDetailDTO(BaseModel):
             documents=[DocumentSummaryDTO.from_domain(d) for d in (documents or [])],
             open_review_items=open_review_items,
             pending_conflicts=pending_conflicts,
+            locked=locked,
+            approved_at=approved_at,
             metadata=dossier.metadata,
             created_at=dossier.created_at,
             updated_at=dossier.updated_at,

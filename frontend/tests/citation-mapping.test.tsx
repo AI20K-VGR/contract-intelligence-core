@@ -9,6 +9,7 @@ import {
 } from '../src/structure/citations'
 import type { OcrLine } from '../src/structure/types'
 import { CitedAnswer } from '../src/components/CitedAnswer'
+import { sentenceEnd } from '../src/structure/citations'
 
 function line(pageNo: number, lineNo: number, text: string): OcrLine {
   return {
@@ -28,7 +29,11 @@ describe('citation mapping', () => {
       line(2, 1, 'Điều 1. Định nghĩa và giải thích'),
       line(2, 2, '1.1. Hệ thống gồm phần mềm và các phụ lục.'),
       line(2, 3, 'Điều 2. Phạm vi công việc'),
-      line(2, 4, '2.1. Các hạng mục ngoài phạm vi chỉ được thực hiện tại phụ lục 1.'),
+      line(
+        2,
+        4,
+        '2.1. Các hạng mục ngoài phạm vi chỉ được thực hiện tại phụ lục 1.',
+      ),
     ])
     const cites = searchCites(
       nodes,
@@ -79,9 +84,7 @@ describe('citation mapping', () => {
   })
 
   it('keeps a foreign citation document and bbox for the shared highlight pane', () => {
-    const nodes = buildNumberedTree([
-      line(2, 1, 'Điều 1. Định nghĩa'),
-    ])
+    const nodes = buildNumberedTree([line(2, 1, 'Điều 1. Định nghĩa')])
     const bbox: [number, number, number, number] = [0.1, 0.2, 0.8, 0.3]
     const cites = searchCites(
       nodes,
@@ -92,7 +95,11 @@ describe('citation mapping', () => {
           lineId: 'doc_annex:s1:p001:l001',
           sourceFileId: 'doc_annex',
           bbox,
-          citation: { quote: 'Phụ lục 1 - bảng thiết bị', sourceFileId: 'doc_annex', bbox },
+          citation: {
+            quote: 'Phụ lục 1 - bảng thiết bị',
+            sourceFileId: 'doc_annex',
+            bbox,
+          },
         },
       ],
       citationNumbers(nodes),
@@ -110,7 +117,8 @@ describe('citation mapping', () => {
     const cite = {
       id: 'foreign:doc_annex:line-11',
       n: 91,
-      quote: '| 11 | Máy chủ ứng dụng cấu hình tiêu chuẩn doanh nghiệp | bộ | 4 | 25.650.000 |',
+      quote:
+        '| 11 | Máy chủ ứng dụng cấu hình tiêu chuẩn doanh nghiệp | bộ | 4 | 25.650.000 |',
       documentId: 'doc_annex',
       pageNo: 2,
       lineId: 'doc_annex:s1:p002:l004',
@@ -189,11 +197,27 @@ describe('citation mapping', () => {
 
   it('keeps both body and annex citations for a compare answer', () => {
     const nodes = buildNumberedTree([
-      line(2, 1, 'HỢP ĐỒNG KINH TẾ - CUNG CẤP VÀ TRIỂN KHAI HỆ THỐNG (tiếp theo)'),
+      line(
+        2,
+        1,
+        'HỢP ĐỒNG KINH TẾ - CUNG CẤP VÀ TRIỂN KHAI HỆ THỐNG (tiếp theo)',
+      ),
       line(2, 2, 'ĐIỀU 1. ĐỊNH NGHĨA VÀ GIẢI THÍCH'),
-      line(2, 3, '1.1. "Hệ thống" là toàn bộ phần mềm, thiết bị, cấu hình, tài liệu và dịch vụ được mô tả trong hợp đồng và các phụ lục.'),
-      line(2, 4, '1.2. "Ngày làm việc" là ngày không bao gồm thứ Bảy, Chủ Nhật và ngày nghỉ lễ theo quy định pháp luật Việt Nam.'),
-      line(2, 5, '1.3. Trường hợp thuật ngữ có nhiều cách hiểu, ưu tiên cách hiểu phù hợp với mục tiêu, phạm vi và tài liệu đã được hai bên phê duyệt.'),
+      line(
+        2,
+        3,
+        '1.1. "Hệ thống" là toàn bộ phần mềm, thiết bị, cấu hình, tài liệu và dịch vụ được mô tả trong hợp đồng và các phụ lục.',
+      ),
+      line(
+        2,
+        4,
+        '1.2. "Ngày làm việc" là ngày không bao gồm thứ Bảy, Chủ Nhật và ngày nghỉ lễ theo quy định pháp luật Việt Nam.',
+      ),
+      line(
+        2,
+        5,
+        '1.3. Trường hợp thuật ngữ có nhiều cách hiểu, ưu tiên cách hiểu phù hợp với mục tiêu, phạm vi và tài liệu đã được hai bên phê duyệt.',
+      ),
     ])
     const cites = searchCites(
       nodes,
@@ -222,7 +246,8 @@ describe('citation mapping', () => {
       'n-2-3',
     ])
 
-    const answer = 'Các đoạn liên quan trên thân HĐ và phụ lục (trích nguyên văn). Không suy ra điều nào thắng / thứ tự hiệu lực.\n- [Phụ lục] |  12 | Thiết bị lưu trữ và phụ kiện mở rộng | gói | 1 | 27.000.000 | 27.000.000 | 8%  |\n- [Thân HĐ] 1.1. "Hệ thống" là toàn bộ phần mềm, thiết bị, cấu hình, tài liệu và dịch vụ được mô tả trong hợp đồng và các phụ lục.'
+    const answer =
+      'Các đoạn liên quan trên thân HĐ và phụ lục (trích nguyên văn). Không suy ra điều nào thắng / thứ tự hiệu lực.\n- [Phụ lục] |  12 | Thiết bị lưu trữ và phụ kiện mở rộng | gói | 1 | 27.000.000 | 27.000.000 | 8%  |\n- [Thân HĐ] 1.1. "Hệ thống" là toàn bộ phần mềm, thiết bị, cấu hình, tài liệu và dịch vụ được mô tả trong hợp đồng và các phụ lục.'
     const html = renderToStaticMarkup(
       <CitedAnswer
         activeId={null}
@@ -243,7 +268,8 @@ describe('citation mapping', () => {
               pageNo: 2,
               bbox: null,
               nodeId: null,
-              quote: '|  12 | Thiết bị lưu trữ và phụ kiện mở rộng | gói | 1 | 27.000.000 | 27.000.000 | 8%  |',
+              quote:
+                '|  12 | Thiết bị lưu trữ và phụ kiện mở rộng | gói | 1 | 27.000.000 | 27.000.000 | 8%  |',
             },
           },
           {
@@ -260,7 +286,8 @@ describe('citation mapping', () => {
               pageNo: 2,
               bbox: null,
               nodeId: null,
-              quote: '1.1. "Hệ thống" là toàn bộ phần mềm, thiết bị, cấu hình, tài liệu và dịch vụ được mô tả trong hợp đồng và các phụ lục.',
+              quote:
+                '1.1. "Hệ thống" là toàn bộ phần mềm, thiết bị, cấu hình, tài liệu và dịch vụ được mô tả trong hợp đồng và các phụ lục.',
             },
           },
         ]}
@@ -270,5 +297,26 @@ describe('citation mapping', () => {
       />,
     )
     expect((html.match(/title="Trích dẫn/g) ?? []).length).toBe(2)
+  })
+})
+
+describe('sentenceEnd', () => {
+  it('puts the citation after the whole sentence, not mid OCR line', () => {
+    const answer =
+      'ĐIỀU 4. GIÁ TRỊ HỢP ĐỒNG\n4.1. Tổng giá trị là 1.286.400.000 đồng (Bằng chữ: Một tỷ hai trăm tám mươi sáu triệu bốn trăm nghìn\nđồng), đã bao gồm thuế. 4.2. Thanh toán 30% sau khi ký; 40% sau nghiệm thu giữa\nkỳ; 30% còn lại.'
+    const after = (needle: string) =>
+      answer.slice(
+        0,
+        sentenceEnd(answer, answer.indexOf(needle) + needle.length),
+      )
+    expect(after('bốn trăm nghìn')).toMatch(/đã bao gồm thuế\.$/)
+    expect(after('nghiệm thu giữa')).toMatch(/giữa\nkỳ;$/)
+    expect(after('ĐIỀU 4. GIÁ TRỊ HỢP ĐỒNG')).toBe('ĐIỀU 4. GIÁ TRỊ HỢP ĐỒNG')
+  })
+
+  it('stops at the end of a table row', () => {
+    const answer =
+      '- [Phụ lục] | 12 | Thiết bị | 27.000.000 |\n- [Thân HĐ] 1.1. Hệ thống.'
+    expect(sentenceEnd(answer, 20)).toBe(answer.indexOf('\n'))
   })
 })

@@ -53,7 +53,9 @@ export function fitSize(width: number, height: number, maxLongSide: number) {
   }
 }
 
-async function decode(file: File): Promise<CanvasImageSource & { width: number; height: number }> {
+async function decode(
+  file: File,
+): Promise<CanvasImageSource & { width: number; height: number }> {
   if (typeof createImageBitmap === 'function') {
     // from-image: xoay theo EXIF để ảnh chụp điện thoại không bị nằm ngang.
     return createImageBitmap(file, { imageOrientation: 'from-image' })
@@ -74,9 +76,15 @@ export async function imageToPdf(file: File): Promise<File> {
   try {
     source = await decode(file)
   } catch {
-    throw new Error(`Không đọc được ảnh "${file.name}". Chỉ nhận JPG, PNG, WebP, BMP.`)
+    throw new Error(
+      `Không đọc được ảnh "${file.name}". Chỉ nhận JPG, PNG, WebP, BMP.`,
+    )
   }
-  const { width, height } = fitSize(source.width, source.height, MAX_LONG_SIDE_PX)
+  const { width, height } = fitSize(
+    source.width,
+    source.height,
+    MAX_LONG_SIDE_PX,
+  )
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height

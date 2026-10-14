@@ -55,7 +55,8 @@ function normalizeEntry(value: unknown): ClauseReviewEntry {
   const row = asRecord(value) ?? {}
   const corrected = asRecord(row.corrected_value)
   return {
-    revisionNumber: typeof row.revision_number === 'number' ? row.revision_number : 0,
+    revisionNumber:
+      typeof row.revision_number === 'number' ? row.revision_number : 0,
     action: asText(row.action) ?? '',
     comment: asText(row.comment),
     assessment: asText(corrected?.assessment),

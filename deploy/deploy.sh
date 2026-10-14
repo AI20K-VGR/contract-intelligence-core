@@ -24,6 +24,21 @@ if [ -n "$app_host" ]; then
     *) echo "FRONTEND_ORIGINS in $ENV_FILE must contain https://$app_host" >&2; exit 1 ;;
   esac
 fi
+# BACKEND_DB_HOST / KEYCLOAK_DB_HOST set: the databases run on a DB server of
+# their own (deploy/compose.db.yml), not here. Both or neither.
+backend_db_host=$(envval BACKEND_DB_HOST || true)
+keycloak_db_host=$(envval KEYCLOAK_DB_HOST || true)
+backend_db_port=$(envval BACKEND_DB_PORT || true)
+keycloak_db_port=$(envval KEYCLOAK_DB_PORT || true)
+if [ -n "$backend_db_host$keycloak_db_host" ]; then
+  for required in BACKEND_DB_HOST BACKEND_DB_PORT KEYCLOAK_DB_HOST KEYCLOAK_DB_PORT; do
+    if [ -z "$(envval "$required" || true)" ]; then
+      echo "$required is empty in $ENV_FILE; a DB server needs all four DB host/port settings" >&2
+      exit 1
+    fi
+  done
+  COMPOSE+=(-f deploy/compose.external-db.yml)
+fi
 COMPOSE+=(--env-file "$ENV_FILE")
 
 if [ -z "$(envval AI2_LLM_BASE_URL)" ]; then
@@ -44,6 +59,22 @@ echo "[deploy] commit $(git rev-parse --short HEAD) on $(git rev-parse --abbrev-
 
 "${COMPOSE[@]}" config --quiet
 "${COMPOSE[@]}" build
+
+# A DB server that does not answer fails the deploy here, before `up -d`
+# touches the running stack. pg_isready proves the address and port, not the
+# password: a wrong password shows up as the backend never turning healthy.
+if [ -n "$backend_db_host" ]; then
+  echo "[deploy] preflight: DB server ($backend_db_host:$backend_db_port, $keycloak_db_host:$keycloak_db_port)"
+  for db in "$backend_db_host $backend_db_port ci contract_intelligence" \
+            "$keycloak_db_host $keycloak_db_port keycloak keycloak"; do
+    read -r host port user name <<<"$db"
+    if ! docker run --rm pgvector/pgvector:pg16 pg_isready -h "$host" -p "$port" -U "$user" -d "$name" -t 10 >/dev/null; then
+      echo "[deploy] database $name on $host:$port does not answer; nothing was restarted." >&2
+      echo "         Check deploy/compose.db.yml on the DB server and the security group." >&2
+      exit 1
+    fi
+  done
+fi
 
 # Preflight: probe AI2's LLM and embedding providers with the NEW image and
 # env in a throwaway container, before `up -d` replaces the running stack (and

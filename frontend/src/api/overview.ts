@@ -28,7 +28,9 @@ export async function listActivity(options?: {
 }
 
 export async function getStorageUsage(signal?: AbortSignal) {
-  const { data } = await requestJson<StorageUsage>('/api/v1/admin/storage', { signal })
+  const { data } = await requestJson<StorageUsage>('/api/v1/admin/storage', {
+    signal,
+  })
   return data
 }
 
