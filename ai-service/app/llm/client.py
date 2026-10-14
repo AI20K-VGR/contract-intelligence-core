@@ -89,7 +89,7 @@ class NineRouterClient:
             self.api_key = os.getenv("AI2_LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
         else:
             self.api_key = api_key
-        self.model = model or os.getenv("AI2_LLM_MODEL", "gpt-4o-mini")
+        self.model = model or os.getenv("AI2_LLM_MODEL", "gpt-5.5")
         self.strong_model = strong_model or os.getenv("AI2_LLM_STRONG_MODEL", self.model)
         if timeout is None:
             timeout = float(os.getenv("AI2_LLM_TIMEOUT_SECONDS", "45"))
