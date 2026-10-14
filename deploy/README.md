@@ -15,6 +15,9 @@ Mọi thao tác làm qua SSH từ máy dev. Không cần công cụ của nhà c
 | `https://auth-<ip>.sslip.io` | Keycloak `:8080` (đăng nhập, OIDC). `/admin` trả 404 | Frontend, người dùng |
 | `https://app-<ip>.sslip.io` | frontend (bản build tĩnh). Chỉ có khi `APP_HOST` được đặt trong `deploy/.env.prod` | Người dùng |
 | `https://api-<ip>.sslip.io/grafana/` | Grafana qua backend. Chỉ ADMINISTRATOR; người lạ 401, user thường 403 | Trang `/admin/monitoring` |
+| **Bản online:** `https://contract-intelligence.tech`, `https://api.contract-intelligence.tech`, `https://auth.contract-intelligence.tech` | Lần lượt frontend, backend, Keycloak, như ba dòng sslip.io ở trên. Đi qua Cloudflare tới app server AWS `52.63.103.239` (Sydney) | Người dùng, frontend |
+
+Các dòng `sslip.io` ở trên là địa chỉ ví dụ của một máy chủ dựng thử. Bản online dùng tên miền thật ở dòng cuối.
 
 Những thứ không ra Internet, chỉ nằm trong mạng `ci-network`:
 
@@ -323,6 +326,12 @@ COMPOSE="docker compose -f docker-compose.yml -f deploy/compose.prod.yml -f depl
 
 Bản online từ 14/10/2026: DNS `contract-intelligence.tech` ở Cloudflare (gói Free), cả ba tên miền **Proxied**, và security group `ci-app` chỉ cho dải IP của Cloudflare vào cổng 80/443. Gọi thẳng IP máy chủ không còn tới được site, nên WAF, giới hạn tần suất và chống DDoS của Cloudflare không bị đi vòng.
 
+**Lead chốt ngày 14/10/2026 (review #91):**
+
+- **Đồng ý dùng proxy Cloudflare.** Cloudflare giải mã HTTPS ở giữa đường, nên PDF và dữ liệu API đi qua Cloudflare ở dạng đọc được. Điều này chấp nhận được vì bản online chỉ xử lý hợp đồng mẫu đã ẩn thông tin (DEC-BE-AI2-01 D6). Bản online nhận hợp đồng thật thì phải xem lại.
+- **Người giữ:** Phạm Hoàng Chương giữ tài khoản Cloudflare của zone, API token của zone và quyền vào nhà đăng ký tên miền (cần để thêm bản ghi DS của DNSSEC). Đổi người giữ thì ghi lại ở đây, và người cũ bàn giao đủ cả ba.
+- **Quy trình:** thay đổi trên bản online (Cloudflare, security group, cấu hình máy chủ) mở PR và chờ duyệt rồi mới áp dụng. Các thiết lập ở mục này được áp trước khi #91 được duyệt; Lead ghi nhận và yêu cầu từ nay làm theo thứ tự PR → duyệt → áp dụng.
+
 ### Cấu hình trên Cloudflare
 
 | Mục | Giá trị | Vì sao |
@@ -339,7 +348,7 @@ Bản online từ 14/10/2026: DNS `contract-intelligence.tech` ở Cloudflare (g
 | Browser Integrity Check | Bật | Chặn User-Agent đáng ngờ, ví dụ `Python-urllib`. Hệ thống không bị ảnh hưởng vì backend lấy JWKS qua `http://keycloak:8080` |
 | DNSSEC | Bật trên Cloudflare, **chờ thêm bản ghi DS ở nhà đăng ký tên miền** | `contract-intelligence.tech. 3600 IN DS 2371 13 2 5F2D6EB7666C3643266B3B71E35783F9086210E4C8CF2BE040AFFBC177989CAD` |
 
-Giới hạn của gói Free cần biết: **mỗi request tối đa 100 MB**. Một lần tải hồ sơ cho phép tới 6 file × 50 MB, nên gửi chung quá 100 MB sẽ bị Cloudflare trả 413 trước khi tới máy chủ. Tải từng đợt nhỏ hơn, hoặc nâng gói.
+Giới hạn của gói Free cần biết: **mỗi request tối đa 100 MB** (ghi trong DOC-05b `v1.7.1`, mục tải hồ sơ). Một lần tải hồ sơ cho phép tới 6 file × 50 MB, nên gửi chung quá 100 MB sẽ bị Cloudflare trả 413 trước khi tới máy chủ. Tải từng đợt nhỏ hơn, hoặc nâng gói.
 
 Khi đang bị tấn công: Security → Settings → **Under Attack Mode** (mọi người vào đều qua một trang kiểm tra). Tắt lại khi hết.
 

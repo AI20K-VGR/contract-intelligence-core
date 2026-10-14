@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu | **DOC-05b** / Contract Intelligence (PROD-01) |
-| Phiên bản / SemVer | **`v1.7.0`** — thêm `GET /users/directory`, `GET /review-queue` và `my_access`, `locked`, `approved_at` trên hồ sơ. 4 endpoint `/notifications` của `v1.6.0` vẫn là đề xuất (BE chưa có). Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
+| Phiên bản / SemVer | **`v1.7.1`** — ghi giới hạn dung lượng tải hồ sơ: 50 MiB mỗi file (backend), 100 MB mỗi request trên bản online (Cloudflare). Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
 | Trạng thái | Đã chốt — Sẵn sàng triển khai Frontend & Backend |
 | Owner | Tech Lead / Frontend Lead / Backend Lead |
 | Ngày hiệu lực | 17/09/2026 |
@@ -172,6 +172,8 @@ Mọi phản hồi lỗi (HTTP status >= 400) đều tuân theo chuẩn RFC 7807
 | `409` | `VERSION_CONFLICT` | Phiên bản `base_version` gửi lên cũ hơn DB | **Refetch item mới nhất**, cảnh báo reviewer có xung đột chỉnh sửa |
 | `422` | `VALIDATION_ERROR` | Request body sai kiểu dữ liệu hoặc thiếu trường | Hiển thị lỗi tương ứng trên form input |
 | `422` | `DOSSIER_TOO_MANY_DOCUMENTS` | **v1.2.0.** Hồ sơ quá 6 tài liệu, khi tải lên (`POST /dossiers`) hoặc sau khi tách (`POST /dossiers/{id}/split`). `details`: `{ limit, count }`. Giới hạn đếm **tài liệu** (mỗi file PDF tải lên, mỗi phần sau khi tách là một tài liệu), không đếm trang | Hiện `error.message`. Tải lên: "Hồ sơ tối đa 6 file PDF (1 hợp đồng và tối đa 5 phụ lục). Bạn đã chọn 7 file." Tách: "Sau khi tách, hồ sơ tối đa 6 tài liệu. Cách tách này làm hồ sơ có 7 tài liệu." (số lấy từ `details`) |
+| `413` | `detail`: `"<tên file>: file exceeds 50 MB"` | **v1.7.1.** Một file PDF vượt `UPLOAD_MAX_FILE_BYTES` (mặc định 50 MiB), ở `POST /dossiers` và `POST /dossiers/{id}/documents`. Backend trả JSON | Báo file nào quá lớn. Nên kiểm `file.size` trước khi gửi |
+| `413` | (không có, body là **HTML** của Cloudflare) | **v1.7.1.** Bản online (`api.contract-intelligence.tech`, sau Cloudflare gói Free): **cả request vượt 100 MB** bị Cloudflare chặn trước khi tới backend. `POST /dossiers` gửi hợp đồng và mọi phụ lục trong **một** request, nên bộ hồ sơ tổng trên 100 MB gặp lỗi này | Kiểm tổng dung lượng các file trước khi gửi, chừa vài MB cho phần đầu multipart. Gặp 413 mà body không phải JSON thì báo "Bộ hồ sơ vượt 100 MB, hãy bớt phụ lục hoặc nén file", đừng parse body |
 | `422` | `contract_required` / `contract_not_unique` | **v1.2.0.** Hồ sơ không có, hoặc có nhiều hơn một, hợp đồng chính (`POST /dossiers/{id}/split`, `POST /dossiers/{id}/manifest/confirm`) | Yêu cầu chọn đúng một phần hoặc tài liệu là hợp đồng |
 | `500` | `INTERNAL_ERROR` | Lỗi phía server / database / AI service | Hiển thị toast lỗi và mã `X-Request-Id` để liên hệ IT |
 
@@ -274,6 +276,8 @@ Màn hình khởi tạo hồ sơ, tải lên các file PDF (hợp đồng gốc 
   - `file`: Binary file PDF
   - `role`: `"CONTRACT"` hoặc `"ANNEX"`
   - `order_index`: `0` (số thứ tự)
+
+- **Giới hạn dung lượng (v1.7.1):** mỗi file tối đa 50 MiB (backend trả `413` JSON); tối đa 6 tài liệu (`422 DOSSIER_TOO_MANY_DOCUMENTS`); trên bản online, **mỗi request tối đa 100 MB** vì Cloudflare gói Free. Quá mức này Cloudflare trả `413` với body HTML, không phải envelope `{ error }` (xem §3.3). Bộ hồ sơ lớn hơn 100 MB phải bớt hoặc nén file; tải từng phụ lục qua `POST /dossiers/{id}/documents` cũng tránh được giới hạn.
 
 - **Tách file trộn (v1.1.0):**
   1. `POST /dossiers` với `metadata.split_pending = true`: Backend lưu file nhưng **chưa gửi OCR**.
@@ -870,6 +874,7 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
+| `v1.7.1` | 14/10/2026 | Ghi giới hạn dung lượng tải hồ sơ (mục "Giới hạn dung lượng" ở Màn hình 3 và hai dòng `413` ở §3.3): 50 MiB mỗi file, do backend trả JSON; 100 MB mỗi request trên bản online, do Cloudflare gói Free trả HTML. `POST /dossiers` gửi mọi file trong một request nên bộ hồ sơ trên 100 MB bị chặn. API không đổi, nên là PATCH |
 | `v1.7.0` | 13/10/2026 | Thêm `GET /users/directory` (danh bạ thành viên cùng tenant để chia sẻ hồ sơ) và `GET /review-queue` (hồ sơ đang chờ người gọi thẩm định); hồ sơ có thêm `my_access`, `locked`, `approved_at` (mục "Chia sẻ hồ sơ & hàng chờ thẩm định" ở §5). Backend đã có. Header `X-API-Contract` lên thẳng `v1.7.0` từ `v1.5.1`: backend **chưa** làm 4 endpoint `/notifications` của `v1.6.0`, chúng vẫn là đề xuất. Chỉ thêm endpoint và trường tuỳ chọn, nên là MINOR |
 | `v1.6.0` | 09/10/2026 | Đề xuất `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/{id}/read`, `POST /notifications/read-all` (mục "Thông báo cá nhân" ở §5). **BE chưa có**; frontend ẩn chuông bằng cờ `VITE_ENABLE_NOTIFICATIONS` cho tới khi có. Chỉ thêm endpoint, nên là MINOR |
 | `v1.5.1` | 07/10/2026 | `GET /dossiers/{id}/queries` trả thêm câu hỏi gửi qua `POST /dossiers/{id}/search` (`endpoint: "search"`) và mã lỗi `AI2_UNAVAILABLE`. Endpoint và các trường giữ nguyên, nên là PATCH |
@@ -891,4 +896,4 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 
 ---
 
-**Hết DOC-05b · Frontend-Backend API Contract v1.7.0 (SemVer)**
+**Hết DOC-05b · Frontend-Backend API Contract v1.7.1 (SemVer)**
