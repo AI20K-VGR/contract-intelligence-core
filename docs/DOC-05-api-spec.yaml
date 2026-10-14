@@ -521,8 +521,8 @@ paths:
       description: |
         Câu hỏi, câu trả lời và trích dẫn của các lượt `/query` và `/ask`, lưu trong DB (còn sau khi restart).
         Cần quyền xem hồ sơ như `GET /dossiers/{dossier_id}`; quyền chia sẻ hết hạn hoặc bị tắt → 403.
-        - `scope=mine` (mặc định): chỉ lịch sử của người gọi.
-        - `scope=all`: của mọi người trên hồ sơ, **chỉ chủ hồ sơ hoặc ADMINISTRATOR**; người khác → 403 `ACL_DENIED`.
+        **Chỉ lịch sử của chính người gọi**, kể cả với chủ hồ sơ và ADMINISTRATOR (Lead chốt 14/10/2026, DOC-05b v2.0.0).
+        `scope` chỉ còn nhận `mine` (mặc định); `scope=all` đã bỏ và trả 422.
 
         Lượt hỏi mà AI2 lỗi vẫn có trong lịch sử, với `answer: null` và `error_code` (ví dụ `AI2_QUERY_FAILED`).
         Xoá hồ sơ thì câu trả lời bị xoá theo.
@@ -532,7 +532,7 @@ paths:
         - name: scope
           in: query
           required: false
-          schema: { type: string, enum: [mine, all], default: mine }
+          schema: { type: string, enum: [mine], default: mine }
         - name: limit
           in: query
           required: false

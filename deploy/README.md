@@ -348,7 +348,7 @@ Bản online từ 14/10/2026: DNS `contract-intelligence.tech` ở Cloudflare (g
 | Browser Integrity Check | Bật | Chặn User-Agent đáng ngờ, ví dụ `Python-urllib`. Hệ thống không bị ảnh hưởng vì backend lấy JWKS qua `http://keycloak:8080` |
 | DNSSEC | Bật trên Cloudflare, **chờ thêm bản ghi DS ở nhà đăng ký tên miền** | `contract-intelligence.tech. 3600 IN DS 2371 13 2 5F2D6EB7666C3643266B3B71E35783F9086210E4C8CF2BE040AFFBC177989CAD` |
 
-Giới hạn của gói Free cần biết: **mỗi request tối đa 100 MB** (ghi trong DOC-05b `v1.7.1`, mục tải hồ sơ). Một lần tải hồ sơ cho phép tới 6 file × 50 MB, nên gửi chung quá 100 MB sẽ bị Cloudflare trả 413 trước khi tới máy chủ. Tải từng đợt nhỏ hơn, hoặc nâng gói.
+Giới hạn của gói Free cần biết: **mỗi request tối đa 100 MB** (ghi trong DOC-05b `v2.0.1`, mục tải hồ sơ). Một lần tải hồ sơ cho phép tới 6 file × 50 MB, nên gửi chung quá 100 MB sẽ bị Cloudflare trả 413 trước khi tới máy chủ. Tải từng đợt nhỏ hơn, hoặc nâng gói.
 
 Khi đang bị tấn công: Security → Settings → **Under Attack Mode** (mọi người vào đều qua một trang kiểm tra). Tắt lại khi hết.
 
