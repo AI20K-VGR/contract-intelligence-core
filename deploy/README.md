@@ -205,19 +205,25 @@ Sau đó `sudo deploy/deploy.sh` như thường. Kiểm tra từ bên ngoài th�
 
 Hai máy EC2 trong cùng VPC, theo mục "Tách DB ra máy riêng". Giá và điều kiện gói miễn phí thay đổi theo thời gian: kiểm tra trên trang Billing và AWS Pricing Calculator trước khi tạo máy.
 
+Tài khoản của dự án (14/10/2026) có hai giới hạn:
+
+- **Chỉ dùng được region Sydney (`ap-southeast-2`).** Policy của Organization chặn EC2 ở các region khác, kể cả Singapore.
+- **Free plan chỉ cho chạy các loại máy Free Tier:** `t3.micro`, `t3.small`, `t4g.micro`, `t4g.small`, `t8i.micro`, `t8i.small`, `c7i-flex.large`, `m7i-flex.large`. Xem lại danh sách bằng `aws ec2 describe-instance-types --filters Name=free-tier-eligible,Values=true`.
+
 ### Tạo máy
 
 | Mục | App server | DB server |
 |---|---|---|
 | AMI | Ubuntu Server 24.04 LTS, **x86-64** | Ubuntu Server 24.04 LTS, **Arm64** |
-| Loại máy | `t3.medium` (2 vCPU, 4 GB) | `t4g.small` (2 vCPU, 2 GB) |
+| Loại máy | `m7i-flex.large` (2 vCPU, 8 GB, ~$87/tháng ở Sydney) | `t4g.small` (2 vCPU, 2 GB, ~$15/tháng) |
 | Đĩa gốc | 40 GB gp3 | 20 GB gp3 |
 | Security group | `ci-app`: TCP 22 từ IP người vận hành; TCP 80, 443 và UDP 443 từ mọi nơi | `ci-db`: TCP 5432–5433 **chỉ từ security group `ci-app`**; TCP 22 chỉ từ `ci-app` |
 | IP công khai | Elastic IP (bắt buộc, xem dưới) | IP tự cấp (chỉ để tải image; không cổng nào mở ra ngoài) |
 | Key pair | Tạo mới, giữ file `.pem`. User SSH là `ubuntu` | Cùng key pair |
 
 - Stack app chưa chạy trên ARM, nên app server dùng x86. Hai image Postgres có bản ARM, nên DB server dùng `t4g` cho rẻ.
-- App server 4 GB: làm theo "Máy chủ ít RAM (4 GB)" ở trên (`KAFKA_HEAP_OPTS`, `KEYCLOAK_HEAP_OPTS`, `AI1_MAX_PAGES_IN_FLIGHT=2`). Khi `ai1-worker` chạy nhiều replica, đặt `AI1_WORKER_REPLICAS=1`.
+- App server 8 GB không cần các chỉnh ở "Máy chủ ít RAM". `c7i-flex.large` (4 GB, ~$81/tháng) rẻ hơn ít mà phải chỉnh, nên không chọn. Khi `ai1-worker` chạy nhiều replica, đặt `AI1_WORKER_REPLICAS=1`.
+- Dòng `t*`: đặt Credit specification là `standard`. `m7i-flex`/`c7i-flex` không dùng CPU credit.
 - SSH vào DB server đi qua app server: `ssh -J ubuntu@<elastic-ip> ubuntu@<ip-nội-bộ-db>`.
 
 Thứ tự: tạo hai security group, tạo DB server rồi app server, gắn Elastic IP cho app server, dựng DB server, rồi dựng app server.
