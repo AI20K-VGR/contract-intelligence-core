@@ -25,7 +25,8 @@ logger = structlog.get_logger(__name__)
 
 _APP_ROLES: frozenset[str] = frozenset({"OPERATOR", "REVIEWER", "ADMINISTRATOR"})
 _ROLE_PRIORITY: tuple[str, ...] = ("ADMINISTRATOR", "REVIEWER", "OPERATOR")
-# LOGIN events read in one call to fill last_login_at for a page of users.
+# Newest realm-wide LOGIN events read in one call to fill last_login_at for a
+# page of users; users of the page not among them are asked for one by one.
 _LOGIN_EVENTS_MAX = 1000
 
 # Keycloak sometimes returns 409 with these message fragments.
@@ -193,20 +194,8 @@ def _to_user_dto(
     )
 
 
-def _last_login_times(admin: KeycloakAdmin, user_ids: Iterable[str]) -> dict[str, datetime]:
-    """Latest LOGIN event of each user, read from Keycloak's event log in one call.
-
-    Best effort: the realm keeps events for a limited time (30 days), so a user
-    who has not logged in since is absent. A failed call (403, timeout, ...)
-    is logged and leaves every user without a last login instead of failing
-    the caller.
-    """
-    wanted = {uid for uid in user_ids if uid}
-    if not wanted:
-        return {}
-    query: dict[str, Any] = {"type": "LOGIN", "max": _LOGIN_EVENTS_MAX}
-    if len(wanted) == 1:
-        query = {"type": "LOGIN", "user": next(iter(wanted)), "max": 1}
+def _login_events(admin: KeycloakAdmin, query: dict[str, Any]) -> list[Any] | None:
+    """One read of Keycloak's LOGIN events; None (logged) when the call fails."""
     try:
         events = admin.get_events(query)
     except Exception as exc:
@@ -215,8 +204,11 @@ def _last_login_times(admin: KeycloakAdmin, user_ids: Iterable[str]) -> dict[str
             error_type=type(exc).__name__,
             code=getattr(exc, "response_code", None),
         )
-        return {}
-    latest: dict[str, datetime] = {}
+        return None
+    return events if isinstance(events, list) else []
+
+
+def _keep_newest(events: list[Any], wanted: set[str], latest: dict[str, datetime]) -> None:
     for event in events:
         if not isinstance(event, dict):
             continue
@@ -226,6 +218,38 @@ def _last_login_times(admin: KeycloakAdmin, user_ids: Iterable[str]) -> dict[str
             continue
         if uid not in latest or when > latest[uid]:
             latest[uid] = when
+
+
+def _last_login_times(admin: KeycloakAdmin, user_ids: Iterable[str]) -> dict[str, datetime]:
+    """Latest LOGIN event of each user, read from Keycloak's event log.
+
+    Several users: one call reads the newest ``_LOGIN_EVENTS_MAX`` LOGIN events
+    of the realm. When that window is full, a user of the page who is not in it
+    may still have logged in earlier, so each of them gets a call of their own
+    (newest first, ``max=1``). A window that is not full already holds every
+    event the realm keeps, and no further call is made.
+
+    Best effort: the realm keeps events for a limited time (30 days), so a user
+    who has not logged in since is absent. A failed call (403, timeout, ...)
+    is logged and stops the lookup; users not found by then have no last login,
+    and the caller does not fail.
+    """
+    wanted = {uid for uid in user_ids if uid}
+    if not wanted:
+        return {}
+    latest: dict[str, datetime] = {}
+    missing = sorted(wanted)
+    if len(wanted) > 1:
+        events = _login_events(admin, {"type": "LOGIN", "max": _LOGIN_EVENTS_MAX})
+        if events is None:
+            return {}
+        _keep_newest(events, wanted, latest)
+        missing = [] if len(events) < _LOGIN_EVENTS_MAX else sorted(wanted - latest.keys())
+    for uid in missing:
+        events = _login_events(admin, {"type": "LOGIN", "user": uid, "max": 1})
+        if events is None:
+            break
+        _keep_newest(events, {uid}, latest)
     return latest
 
 

@@ -1,4 +1,8 @@
-"""last_login_at of a user comes from Keycloak's LOGIN events, read in one call."""
+"""last_login_at of a user comes from Keycloak's LOGIN events.
+
+One realm-wide call covers the newest events; when that window is full, users
+of the page it does not cover are asked for one by one.
+"""
 
 from __future__ import annotations
 
@@ -24,8 +28,14 @@ def _login(user_id: str, time_ms: int) -> dict[str, Any]:
 
 
 class _FakeAdmin:
-    def __init__(self, events: list[dict[str, Any]] | Exception) -> None:
+    def __init__(
+        self,
+        events: list[dict[str, Any]] | Exception,
+        *,
+        fail_for_user: str | None = None,
+    ) -> None:
         self._events = events
+        self._fail_for_user = fail_for_user
         self.event_queries: list[dict[str, Any]] = []
         self.users = [
             {"id": ALICE, "email": "alice@example.com", "enabled": True},
@@ -53,9 +63,12 @@ class _FakeAdmin:
         if isinstance(self._events, Exception):
             raise self._events
         if "user" in query:
+            if query["user"] == self._fail_for_user:
+                raise KeycloakError(error_message="unavailable", response_code=503)
             own = [event for event in self._events if event["userId"] == query["user"]]
             return own[: query["max"]]
-        return self._events
+        # Like Keycloak: newest first, never more than `max`.
+        return self._events[: query["max"]]
 
 
 def _use(monkeypatch: pytest.MonkeyPatch, admin: _FakeAdmin) -> None:
@@ -141,6 +154,64 @@ def test_only_the_returned_page_is_looked_up_in_one_call(monkeypatch: pytest.Mon
     assert [user.id for user in result.items] == [BOB, CAROL]
     assert all(user.last_login_at is not None for user in result.items)
     assert len(admin.event_queries) == 1
+
+
+def test_login_older_than_the_realm_window_is_still_found(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The realm-wide window holds 2 events and is full: Alice's last login is
+    # older than both, so she (and Carol) are asked for one by one.
+    monkeypatch.setattr(keycloak_admin, "_LOGIN_EVENTS_MAX", 2)
+    admin = _FakeAdmin(
+        [
+            _login(BOB, _ms(11, 9)),
+            _login("kc-someone-else", _ms(11, 8)),
+            _login(ALICE, _ms(5)),
+        ]
+    )
+    _use(monkeypatch, admin)
+
+    by_id = {user.id: user for user in _list().items}
+
+    assert by_id[ALICE].last_login_at == datetime(2026, 10, 5, tzinfo=UTC)
+    assert by_id[BOB].last_login_at == datetime(2026, 10, 11, 9, tzinfo=UTC)
+    assert by_id[CAROL].last_login_at is None
+    assert admin.event_queries == [
+        {"type": "LOGIN", "max": 2},
+        {"type": "LOGIN", "user": ALICE, "max": 1},
+        {"type": "LOGIN", "user": CAROL, "max": 1},
+    ]
+
+
+def test_window_that_is_not_full_needs_no_per_user_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Fewer events than the window holds: that is every event the realm keeps,
+    # so Carol has no login to find and is not asked for separately.
+    admin = _FakeAdmin([_login(ALICE, _ms(10)), _login(BOB, _ms(9))])
+    _use(monkeypatch, admin)
+
+    by_id = {user.id: user for user in _list().items}
+
+    assert by_id[CAROL].last_login_at is None
+    assert admin.event_queries == [{"type": "LOGIN", "max": 1000}]
+
+
+def test_failed_per_user_call_keeps_what_was_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(keycloak_admin, "_LOGIN_EVENTS_MAX", 1)
+    admin = _FakeAdmin(
+        [_login(BOB, _ms(11)), _login(ALICE, _ms(5)), _login(CAROL, _ms(4))],
+        fail_for_user=ALICE,
+    )
+    _use(monkeypatch, admin)
+
+    by_id = {user.id: user for user in _list().items}
+
+    assert by_id[BOB].last_login_at == datetime(2026, 10, 11, tzinfo=UTC)
+    assert by_id[ALICE].last_login_at is None
+    # The failure stops the lookup: Carol is not asked for.
+    assert by_id[CAROL].last_login_at is None
+    assert admin.event_queries[-1] == {"type": "LOGIN", "user": ALICE, "max": 1}
 
 
 def test_empty_page_does_not_call_events(monkeypatch: pytest.MonkeyPatch) -> None:
