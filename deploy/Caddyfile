@@ -69,6 +69,12 @@
 	@admin path /admin /admin/*
 	respond @admin 404
 
+	# Keycloak asks browsers to keep theme files 30 days, and the path
+	# (/resources/<tag>/...) does not change when the theme does, so an edit to
+	# keycloak/themes/ would stay invisible that long. Ten minutes instead.
+	@theme path /resources/*
+	header @theme >Cache-Control "public, max-age=600"
+
 	reverse_proxy keycloak:8080
 }
 

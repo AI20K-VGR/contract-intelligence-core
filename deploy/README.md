@@ -335,6 +335,7 @@ Bản online từ 14/10/2026: DNS `contract-intelligence.tech` ở Cloudflare (g
 | WAF custom rule 3 | Chặn method `TRACE`, `TRACK` | |
 | WAF custom rule 4 | Chặn `api.…/docs`, `/docs/*`, `/redoc`, `/openapi.json` | Không công khai cấu trúc API trên bản online. Cần xem thì chạy local, hoặc tạm tắt rule này trên Cloudflare |
 | Rate limiting | POST `auth.…/login-actions/authenticate`: quá 5 lần / 10 giây / IP thì chặn 10 giây | Thêm một lớp trước cơ chế khoá tài khoản của Keycloak. Cloudflare đếm theo từng PoP nên không chính xác tuyệt đối |
+| Cache Rule | `auth.…/resources/*`: Cloudflare giữ tối đa 10 phút (Edge TTL 600 giây) | Keycloak gửi `max-age` 30 ngày cho file theme, và đường dẫn `/resources/<tag>/` không đổi khi sửa theme. Ngày 14/10 Cloudflare đã giữ `login.css` cũ khoảng 29 giờ, nên nút con mắt ở trang đăng nhập không hiện. Phía trình duyệt, Caddy ghi đè thành `max-age=600`, vì Cloudflare chỉ kéo dài được chứ không rút ngắn được thời gian cache của trình duyệt |
 | Browser Integrity Check | Bật | Chặn User-Agent đáng ngờ, ví dụ `Python-urllib`. Hệ thống không bị ảnh hưởng vì backend lấy JWKS qua `http://keycloak:8080` |
 | DNSSEC | Bật trên Cloudflare, **chờ thêm bản ghi DS ở nhà đăng ký tên miền** | `contract-intelligence.tech. 3600 IN DS 2371 13 2 5F2D6EB7666C3643266B3B71E35783F9086210E4C8CF2BE040AFFBC177989CAD` |
 
@@ -358,6 +359,8 @@ sudo openssl req -new -key deploy/certs/origin.key -subj "/CN=contract-intellige
 # Cloudflare → SSL/TLS → Origin Server → Create Certificate → "Use my private key and CSR",
 # dán origin.csr, hạn 15 năm; lưu chứng chỉ vào deploy/certs/origin.pem, rồi sudo deploy/deploy.sh
 ```
+
+Sửa theme Keycloak mà cần thấy ngay, không chờ 10 phút: Cloudflare → Caching → Configuration → Purge Cache → Custom Purge, dán URL của file (ví dụ `https://auth.contract-intelligence.tech/resources/839wz/login/lexis/css/login.css`; phần `839wz` lấy từ HTML trang đăng nhập). Gói Free không purge theo tiền tố được.
 
 Cloudflare đổi dải IP (hiếm): cập nhật danh sách trong `deploy/compose.cloudflare.yml` và các entry của prefix list `cloudflare-ipv4` trên AWS cùng lúc.
 
