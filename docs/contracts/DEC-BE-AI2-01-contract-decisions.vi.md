@@ -285,7 +285,7 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
 - **Response:** `state`, `answer`, `citations[]`, `used_llm`, `reasoning_trace`, `retrieval_layer`.
   - `state` nhận **bốn** giá trị: `ANSWERED`, `NEEDS_REVIEW`, `INSUFFICIENT_EVIDENCE`, `BLOCKED`. Chốt 30/09 theo đề xuất của AI2: `/query` hiện đã trả `BLOCKED`, và "hồ sơ bị khoá hoặc bị chính sách chặn" có nghĩa riêng, không gộp vào thiếu bằng chứng. Backend hiển thị `BLOCKED` là "không trả lời được do bị chặn", không coi là lỗi hệ thống.
   - UI hiện `used_llm` dưới dạng một nhãn nhỏ.
-- **Timeout:** Backend chờ `/query` 30 giây; AI2 giới hạn LLM trong `/query` ở 15 giây, quá thì trả kết quả truy xuất kèm citation (`NEEDS_REVIEW`), như D6 và `BE-AI2-PROCESSING-CONTRACT` §6.4. Đo lại trên máy chủ ngày 02/10 (O7).
+- **Timeout:** Backend chờ `/query` 45 giây (`AI2_QUERY_TIMEOUT_SECONDS`, tối đa 120). Bản trước ghi 30 giây nhưng code dùng 20; ngày 06/10 nâng lên 45 (`5532ab1`) vì nạp snapshot, embedding và LLM cộng lại vượt mức cũ. AI2 giới hạn riêng phần LLM trong `/query` ở 15 giây (`AI2_QUERY_LLM_TIMEOUT_SECONDS`), quá thì trả kết quả truy xuất kèm citation (`NEEDS_REVIEW`), như D6 và `BE-AI2-PROCESSING-CONTRACT` §6.4. Mức chờ của backend phải luôn lớn hơn mức LLM của AI2 cộng thời gian nạp snapshot và embedding. Đo lại trên máy chủ ngày 02/10 (O7).
 
 **Việc cần làm:**
 - AI2 (**việc gấp nhất**): thêm `query_snapshot_digest` (64 hex, lấy từ `record.pins.source_snapshot_digest`) vào `ai2.be.processing.result.v1` và cập nhật file schema. Backend chờ việc này mới bỏ được code tự tính digest.
