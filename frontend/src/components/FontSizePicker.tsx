@@ -12,8 +12,8 @@ export function FontSizePicker() {
       <div className="flex flex-col gap-space-xs">
         <h2 className="font-title-sm text-title-sm text-on-surface">Cỡ chữ</h2>
         <p className="font-body-sm text-body-sm text-on-surface-variant">
-          Áp dụng cho chữ trên mọi trang, kể cả nội dung hợp đồng. Được nhớ
-          trên trình duyệt này.
+          Áp dụng cho chữ trên mọi trang, kể cả nội dung hợp đồng. Được nhớ trên
+          trình duyệt này.
         </p>
       </div>
 

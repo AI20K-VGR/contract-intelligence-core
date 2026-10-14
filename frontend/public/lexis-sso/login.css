@@ -4,7 +4,11 @@ body,
 .pf-v5-theme-dark,
 .pf-v5-theme-dark body {
   background: #f8f9ff !important;
-  background-image: radial-gradient(circle, #c4c6ce 0.75px, transparent 0.75px) !important;
+  background-image: radial-gradient(
+    circle,
+    #c4c6ce 0.75px,
+    transparent 0.75px
+  ) !important;
   background-size: 24px 24px !important;
   color: #0b1c30 !important;
   font-family: 'IBM Plex Sans', sans-serif !important;

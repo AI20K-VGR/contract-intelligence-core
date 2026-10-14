@@ -1,6 +1,6 @@
 import { requestJson } from './client'
 
-export type QueryScope = 'mine' | 'all'
+export type QueryScope = 'mine'
 
 export type QueryHistoryCitation = {
   quote: string
@@ -76,7 +76,8 @@ export function normalizeQueryHistoryItem(
 
 /**
  * GET /dossiers/{id}/queries. Phân trang bằng limit/offset (không phải
- * page/page_size). `scope=all` chỉ chủ hồ sơ hoặc quản trị xem được (403).
+ * page/page_size). Frontend chỉ gọi `scope=mine` theo chốt của Lead: ai tự xem
+ * câu hỏi của người đấy, không xem được của người khác.
  */
 export async function listDossierQueries(
   dossierId: string,

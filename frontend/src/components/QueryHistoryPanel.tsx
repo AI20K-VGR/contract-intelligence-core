@@ -7,6 +7,12 @@ import {
 } from '../api/queries'
 import { structureErrorMessage } from '../api/structure'
 import { MaterialIcon } from './icons'
+import {
+  answerBlocks,
+  citesByBlock,
+  norm,
+  type NumberedCitation,
+} from './queryAnswer'
 
 type QueryHistoryPanelProps = {
   dossierId: string
@@ -36,41 +42,6 @@ function failureText(item: QueryHistoryItem) {
   return 'Chưa có câu trả lời được lưu.'
 }
 
-/** Dòng bắt đầu một mục mới: tiêu đề Điều/Chương, khoản đánh số, gạch đầu dòng. */
-const ITEM_START = /^(\d+(\.\d+)*\.?\s|(điều|chương|mục|phụ lục)\s|[-•*]\s)/i
-
-/**
- * OCR ngắt dòng giữa câu; gộp lại thành từng mục: tiêu đề Điều và từng khoản.
- * "4.1. Nội dung" tách thành số "4.1" và phần chữ để trình bày riêng.
- */
-function answerBlocks(answer: string) {
-  const blocks: {
-    kind: 'heading' | 'item' | 'text'
-    no?: string
-    text: string
-  }[] = []
-  for (const raw of answer.split(/\n+/)) {
-    const line = raw.trim()
-    if (!line) continue
-    const last = blocks[blocks.length - 1]
-    if (last && !ITEM_START.test(line)) {
-      last.text = `${last.text} ${line}`
-      continue
-    }
-    if (/^(điều|chương|mục|phụ lục)\s/i.test(line)) {
-      blocks.push({ kind: 'heading', text: line })
-      continue
-    }
-    const numbered = /^(\d+(?:\.\d+)*)\.?\s+(.*)$/.exec(line)
-    if (numbered) {
-      blocks.push({ kind: 'item', no: numbered[1], text: numbered[2] ?? '' })
-      continue
-    }
-    blocks.push({ kind: 'text', text: line })
-  }
-  return blocks
-}
-
 const STATE_LABELS: Record<string, string> = {
   ANSWERED: 'Đã trả lời',
   PARTIAL: 'Trả lời một phần',
@@ -81,35 +52,7 @@ const STATE_LABELS: Record<string, string> = {
 /** Câu trả lời dài chỉ hiện vài mục đầu, bấm để xem hết. */
 const PREVIEW_BLOCKS = 4
 
-const norm = (text: string) => text.toLowerCase().replace(/\s+/g, ' ').trim()
-
-/** Trích dẫn thuộc mục nào: so phần đầu câu trích (bỏ số khoản) với nội dung mục. */
-function citesByBlock(
-  blocks: ReturnType<typeof answerBlocks>,
-  citations: QueryHistoryCitation[],
-) {
-  const placed = new Map<
-    number,
-    { citation: QueryHistoryCitation; n: number }[]
-  >()
-  citations.forEach((citation, index) => {
-    const key = norm(citation.quote)
-      .replace(/^\d+(\.\d+)*\.?\s*/, '')
-      .slice(0, 40)
-    if (!key) return
-    const at = blocks.findIndex((block) =>
-      norm(`${block.no ?? ''} ${block.text}`).includes(key),
-    )
-    const target = at < 0 ? blocks.length - 1 : at
-    placed.set(target, [
-      ...(placed.get(target) ?? []),
-      { citation, n: index + 1 },
-    ])
-  })
-  return placed
-}
-
-function AnswerView({
+export function AnswerView({
   answer,
   citations,
   onCite,
@@ -121,10 +64,10 @@ function AnswerView({
   const [open, setOpen] = useState(false)
   const [activeNo, setActiveNo] = useState<number | null>(null)
   const blocks = answerBlocks(answer)
-  const cites = citesByBlock(blocks, citations)
+  const { placed, unplaced } = citesByBlock(blocks, citations)
   const shown = open ? blocks : blocks.slice(0, PREVIEW_BLOCKS)
-  const badges = (index: number) =>
-    (cites.get(index) ?? []).map(({ citation, n }) => (
+  const citeButtons = (entries: NumberedCitation[]) =>
+    entries.map(({ citation, n }) => (
       <button
         key={n}
         className={`ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full border px-1 align-super text-[10px] font-semibold leading-none ${
@@ -152,7 +95,7 @@ function AnswerView({
             className="font-body-sm text-body-sm font-semibold text-brand-700"
           >
             {block.text}
-            {badges(index)}
+            {citeButtons(placed.get(index) ?? [])}
           </p>
         ) : block.kind === 'item' ? (
           <p
@@ -164,7 +107,7 @@ function AnswerView({
             </span>
             <span>
               {block.text}
-              {badges(index)}
+              {citeButtons(placed.get(index) ?? [])}
             </span>
           </p>
         ) : (
@@ -173,7 +116,7 @@ function AnswerView({
             className="font-body-sm text-body-sm leading-relaxed text-on-surface"
           >
             {block.text}
-            {badges(index)}
+            {citeButtons(placed.get(index) ?? [])}
           </p>
         ),
       )}
@@ -185,6 +128,12 @@ function AnswerView({
         >
           {open ? 'Thu gọn' : `Xem thêm ${blocks.length - PREVIEW_BLOCKS} mục`}
         </button>
+      ) : null}
+      {unplaced.length > 0 ? (
+        <p className="font-label-sm text-label-sm text-secondary">
+          Trích dẫn khác (chưa xác định đoạn liên quan):
+          {citeButtons(unplaced)}
+        </p>
       ) : null}
     </div>
   )
@@ -309,9 +258,7 @@ export function QueryHistoryPanel({
               {answered.answer ? (
                 <AnswerView
                   answer={answered.answer}
-                  citations={answered.citations.filter(
-                    (citation) => citation.quote,
-                  )}
+                  citations={answered.citations}
                   onCite={onCite}
                 />
               ) : (

@@ -60,7 +60,9 @@ export async function markNotificationRead(id: string) {
 }
 
 export async function markAllNotificationsRead() {
-  await requestJson<unknown>('/api/v1/notifications/read-all', { method: 'POST' })
+  await requestJson<unknown>('/api/v1/notifications/read-all', {
+    method: 'POST',
+  })
 }
 
 export function notificationIcon(type: string) {

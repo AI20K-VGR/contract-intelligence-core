@@ -12,7 +12,8 @@ function keycloakDevProxy(target: string): ProxyOptions {
     target: upstream,
     changeOrigin: true,
     secure: true,
-    rewrite: (path) => path.replace(new RegExp(`^${keycloakProxyPrefix}`), '') || '/',
+    rewrite: (path) =>
+      path.replace(new RegExp(`^${keycloakProxyPrefix}`), '') || '/',
     selfHandleResponse: true,
     configure: (proxy) => {
       proxy.on('proxyReq', (proxyReq) => {
@@ -67,7 +68,10 @@ function keycloakDevProxy(target: string): ProxyOptions {
             for (const hostUrl of upstreamHosts) {
               location = location.split(hostUrl).join(localBase)
             }
-            if (location.startsWith('/realms/') || location.startsWith('/resources/')) {
+            if (
+              location.startsWith('/realms/') ||
+              location.startsWith('/resources/')
+            ) {
               location = `${keycloakProxyPrefix}${location}`
             }
             headers.location = location
@@ -81,7 +85,10 @@ function keycloakDevProxy(target: string): ProxyOptions {
                 .replace(/;\s*Secure/gi, '')
                 .replace(/;\s*SameSite=None/gi, '; SameSite=Lax')
                 .replace(/;\s*Path=\/realms/gi, '; Path=/keycloak/realms')
-                .replace(/;\s*Path=\/resources/gi, '; Path=/keycloak/resources'),
+                .replace(
+                  /;\s*Path=\/resources/gi,
+                  '; Path=/keycloak/resources',
+                ),
             )
           }
           res.writeHead(proxyRes.statusCode ?? 502, headers)
@@ -95,10 +102,9 @@ function keycloakDevProxy(target: string): ProxyOptions {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const keycloakUrl = env.VITE_KEYCLOAK_URL?.replace(/\/$/, '') ?? ''
-  const proxy =
-    keycloakUrl.includes('loca.lt')
-      ? { [keycloakProxyPrefix]: keycloakDevProxy(keycloakUrl) }
-      : undefined
+  const proxy = keycloakUrl.includes('loca.lt')
+    ? { [keycloakProxyPrefix]: keycloakDevProxy(keycloakUrl) }
+    : undefined
 
   return {
     plugins: [react(), tailwindcss()],

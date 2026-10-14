@@ -180,7 +180,12 @@ describe('conflictMarkers', () => {
   })
 
   it('uses the worst non-dismissed descendant state when the collapsed node has no direct spots', () => {
-    const anchors = anchorConflicts([spot('c', 1, 4, 'confirm')], tree, lines, CONTRACT)
+    const anchors = anchorConflicts(
+      [spot('c', 1, 4, 'confirm')],
+      tree,
+      lines,
+      CONTRACT,
+    )
     const markers = conflictMarkers(anchors, tree)
     expect(markers.get('3')).toMatchObject({ below: 1, belowState: 'reviewed' })
   })
@@ -205,11 +210,24 @@ describe('conflictMarkers', () => {
     const nested = spot('nested', 6, 1, null)
     nested.sides = [
       { ...nested.sides[0], documentId: CONTRACT, pageNo: 6, lineNo: 1 },
-      { ...nested.sides[1], documentId: CONTRACT, label: 'annex', pageNo: 6, lineNo: 2 },
+      {
+        ...nested.sides[1],
+        documentId: CONTRACT,
+        label: 'annex',
+        pageNo: 6,
+        lineNo: 2,
+      },
     ]
-    const anchors = anchorConflicts([nested], [root], [parentLine, childLine], CONTRACT)
+    const anchors = anchorConflicts(
+      [nested],
+      [root],
+      [parentLine, childLine],
+      CONTRACT,
+    )
     const markers = conflictMarkers(anchors, [root])
-    expect(markers.get('nestedRoot')?.spots.map((item) => item.id)).toEqual(['nested'])
+    expect(markers.get('nestedRoot')?.spots.map((item) => item.id)).toEqual([
+      'nested',
+    ])
     expect(markers.get('nestedRoot')?.below).toBe(0)
   })
 })
@@ -231,9 +249,16 @@ describe('same-file anchors', () => {
         lineNo: 18,
       },
     ]
-    const anchors = anchorConflicts([pair], [body, annex], [page3, page17], CONTRACT)
+    const anchors = anchorConflicts(
+      [pair],
+      [body, annex],
+      [page3, page17],
+      CONTRACT,
+    )
     expect([...anchors.keys()].sort()).toEqual(['annex', 'body'])
-    const markers = conflictMarkers(anchors, [node('root', 1, [], [body, annex])])
+    const markers = conflictMarkers(anchors, [
+      node('root', 1, [], [body, annex]),
+    ])
     expect(markers.get('body')?.spots.map((item) => item.id)).toEqual(['pair'])
     expect(markers.get('annex')?.spots.map((item) => item.id)).toEqual(['pair'])
     expect(markers.get('root')?.below).toBe(1)

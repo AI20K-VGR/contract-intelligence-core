@@ -31,7 +31,7 @@ type ManifestMemberDTO = {
   document_id: string
   filename: string
   role: DocumentRole
-  included: boolean          // true = thuộc hồ sơ sau khi xác nhận
+  included: boolean // true = thuộc hồ sơ sau khi xác nhận
   order_index: number
   page_count?: number | null
   file_size_bytes?: number | null
@@ -57,12 +57,12 @@ type ManifestRelationDTO = {
 
 Câu trên UI:
 
-| `relation_type` | Nghĩa |
-|---|---|
-| `annex_of` | nguồn là phụ lục của đích |
-| `amends` | nguồn sửa đổi đích |
-| `supersedes` | nguồn thay thế đích |
-| `supplements` | nguồn bổ sung đích |
+| `relation_type` | Nghĩa                     |
+| --------------- | ------------------------- |
+| `annex_of`      | nguồn là phụ lục của đích |
+| `amends`        | nguồn sửa đổi đích        |
+| `supersedes`    | nguồn thay thế đích       |
+| `supplements`   | nguồn bổ sung đích        |
 
 `unconfirmed` là đề xuất, chưa phải sự thật. FE tô dòng này (nền và nhãn "Chưa xác nhận") cho đến khi người dùng bấm xác nhận hoặc bác bỏ.
 
@@ -72,7 +72,7 @@ Câu trên UI:
 type ManifestDTO = {
   dossier_id: string
   status: 'pending' | 'confirmed'
-  version: number             // tăng 1 mỗi lần confirm thành công
+  version: number // tăng 1 mỗi lần confirm thành công
   latest_job_status?: string | null
   members: ManifestMemberDTO[]
   relations: ManifestRelationDTO[]
@@ -150,24 +150,24 @@ FE đọc `detail` (string) và `code` (nếu có).
 { "detail": "Còn quan hệ chưa xác nhận", "code": "relations_unconfirmed" }
 ```
 
-| HTTP | `code` | Khi nào |
-|---|---|---|
-| 401 | | JWT không hợp lệ hoặc hết hạn |
-| 403 | | Không phải `OPERATOR` hoặc `ADMINISTRATOR` |
-| 404 | | `{dossier_id}` không có trong tenant. Detail `Not Found` thuần (route chưa mount) FE hiểu là API chưa được triển khai |
-| 409 | `manifest_version_conflict` | `version` lệch. FE tải lại GET |
-| 409 | `manifest_already_confirmed` | Gửi confirm khi đã `confirmed` |
-| 422 | `relations_unconfirmed` | Còn quan hệ `unconfirmed`, hoặc body gửi `confirmation: "unconfirmed"` |
-| 422 | `relation_missing` | Body bỏ một quan hệ đã có |
-| 422 | `contract_required` | Không còn hợp đồng chính thuộc hồ sơ |
-| 422 | `contract_not_unique` | Nhiều hơn một hợp đồng chính (AI2 nhận đúng một thân hợp đồng, tới khi làm D12) |
-| 422 | `member_missing` | Thiếu document của hồ sơ |
-| 422 | `member_unknown` | `document_id` không thuộc hồ sơ |
-| 422 | `member_role_invalid` | `role` ngoài `contract` \| `annex` |
-| 422 | `relation_member_invalid` | Quan hệ `confirmed` không nối hai member đang thuộc hồ sơ |
-| 422 | `relation_self` | Nguồn và đích trùng nhau |
-| 422 | `relation_duplicate` | Trùng bộ nguồn, đích, loại quan hệ |
-| 422 | `relation_type_invalid` | `relation_type` ngoài enum |
-| 422 | | Body sai kiểu, thiếu field |
+| HTTP | `code`                       | Khi nào                                                                                                               |
+| ---- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| 401  |                              | JWT không hợp lệ hoặc hết hạn                                                                                         |
+| 403  |                              | Không phải `OPERATOR` hoặc `ADMINISTRATOR`                                                                            |
+| 404  |                              | `{dossier_id}` không có trong tenant. Detail `Not Found` thuần (route chưa mount) FE hiểu là API chưa được triển khai |
+| 409  | `manifest_version_conflict`  | `version` lệch. FE tải lại GET                                                                                        |
+| 409  | `manifest_already_confirmed` | Gửi confirm khi đã `confirmed`                                                                                        |
+| 422  | `relations_unconfirmed`      | Còn quan hệ `unconfirmed`, hoặc body gửi `confirmation: "unconfirmed"`                                                |
+| 422  | `relation_missing`           | Body bỏ một quan hệ đã có                                                                                             |
+| 422  | `contract_required`          | Không còn hợp đồng chính thuộc hồ sơ                                                                                  |
+| 422  | `contract_not_unique`        | Nhiều hơn một hợp đồng chính (AI2 nhận đúng một thân hợp đồng, tới khi làm D12)                                       |
+| 422  | `member_missing`             | Thiếu document của hồ sơ                                                                                              |
+| 422  | `member_unknown`             | `document_id` không thuộc hồ sơ                                                                                       |
+| 422  | `member_role_invalid`        | `role` ngoài `contract` \| `annex`                                                                                    |
+| 422  | `relation_member_invalid`    | Quan hệ `confirmed` không nối hai member đang thuộc hồ sơ                                                             |
+| 422  | `relation_self`              | Nguồn và đích trùng nhau                                                                                              |
+| 422  | `relation_duplicate`         | Trùng bộ nguồn, đích, loại quan hệ                                                                                    |
+| 422  | `relation_type_invalid`      | `relation_type` ngoài enum                                                                                            |
+| 422  |                              | Body sai kiểu, thiếu field                                                                                            |
 
 Không có idempotent replay. Lần POST thứ hai sau khi đã confirmed trả 409 `manifest_already_confirmed`.
