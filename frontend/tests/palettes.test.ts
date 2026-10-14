@@ -53,9 +53,10 @@ describe('palettes', () => {
       const vars = paletteVars(id)
       expect(vars, `palette ${id}`).not.toBeNull()
       for (const step of brandSteps) {
-        expect(vars![`color-brand-${step}`], `palette ${id} brand-${step}`).toMatch(
-          /^#[0-9a-f]{6}$/i,
-        )
+        expect(
+          vars![`color-brand-${step}`],
+          `palette ${id} brand-${step}`,
+        ).toMatch(/^#[0-9a-f]{6}$/i)
       }
     }
   })

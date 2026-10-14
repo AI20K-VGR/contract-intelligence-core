@@ -24,7 +24,11 @@ describe('AI2 query state passthrough', () => {
 
   it('does not infer answered from answer and hits', () => {
     const result = normalizeAi2SearchResult(
-      { answer: 'looks complete', connected: true, hits: [{ text: 'evidence' }] },
+      {
+        answer: 'looks complete',
+        connected: true,
+        hits: [{ text: 'evidence' }],
+      },
       'dos_1',
     )
 

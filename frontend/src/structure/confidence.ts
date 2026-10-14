@@ -11,7 +11,10 @@ export const REVIEW_THRESHOLD = 0.85
 export type ConfidenceLevel = 'high' | 'medium' | 'low'
 
 export function asConfidence(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1
+  return typeof value === 'number' &&
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= 1
     ? value
     : null
 }
@@ -34,7 +37,9 @@ export function formatConfidence(confidence: number) {
 
 /** Vùng gộp nhiều dòng tin cậy bằng dòng yếu nhất của nó. */
 export function weakestConfidence(values: (number | null | undefined)[]) {
-  const known = values.filter((value): value is number => typeof value === 'number')
+  const known = values.filter(
+    (value): value is number => typeof value === 'number',
+  )
   return known.length > 0 ? Math.min(...known) : null
 }
 

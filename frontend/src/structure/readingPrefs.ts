@@ -22,7 +22,9 @@ const DEFAULTS: ReadingPrefs = {
 function parse(raw: string | null): ReadingPrefs {
   if (!raw) return DEFAULTS
   try {
-    const value = JSON.parse(raw) as Partial<Record<keyof ReadingPrefs, unknown>>
+    const value = JSON.parse(raw) as Partial<
+      Record<keyof ReadingPrefs, unknown>
+    >
     return {
       openView: parseStructureView(value.openView) ?? 'last',
       autoScroll:

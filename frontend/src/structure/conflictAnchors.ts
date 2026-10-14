@@ -60,7 +60,8 @@ export type ConflictMarker = {
 
 /** Số xung đột trực tiếp còn hiệu lực (loại các xung đột đã đánh Sai lệch). */
 export function directCount(marker: ConflictMarker): number {
-  return marker.spots.filter((spot) => conflictState(spot) !== 'dismissed').length
+  return marker.spots.filter((spot) => conflictState(spot) !== 'dismissed')
+    .length
 }
 
 function sidesOn(spot: ReviewSpot, documentId: string | null) {
@@ -147,7 +148,8 @@ export function conflictMarkers(
       })
     }
     for (const spot of spots) {
-      if (conflictState(spot) !== 'dismissed') descendant.set(spot.id, conflictState(spot))
+      if (conflictState(spot) !== 'dismissed')
+        descendant.set(spot.id, conflictState(spot))
     }
     return descendant
   }

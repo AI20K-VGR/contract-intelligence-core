@@ -42,7 +42,13 @@ describe('image upload filters', () => {
 
 describe('jpegPdf', () => {
   it('writes a single-page PDF whose startxref points at the xref table', async () => {
-    const blob = jpegPdf(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), 595, 842, 10, 14)
+    const blob = jpegPdf(
+      new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
+      595,
+      842,
+      10,
+      14,
+    )
     const bytes = new Uint8Array(await blob.arrayBuffer())
     const text = new TextDecoder('latin1').decode(bytes)
     expect(text.startsWith('%PDF-1.4')).toBe(true)
