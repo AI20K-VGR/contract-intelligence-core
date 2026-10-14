@@ -11,7 +11,7 @@ Mọi thao tác làm qua SSH từ máy dev. Không cần công cụ của nhà c
 | Địa chỉ | Tới | Dùng bởi |
 |---|---|---|
 | `https://app-<ip>.sslip.io` | frontend `:80` qua Caddy | Người dùng cuối |
-| `https://api-<ip>.sslip.io` | backend `:8000` (REST, SSE `/api/v1/runs/{id}/events`, `/docs`) | Frontend |
+| `https://api-<ip>.sslip.io` | backend `:8000` (REST, SSE `/api/v1/runs/{id}/events`, `/docs`; trên bản online `/docs` và `/openapi.json` bị chặn ở Cloudflare) | Frontend |
 | `https://auth-<ip>.sslip.io` | Keycloak `:8080` (đăng nhập, OIDC). `/admin` trả 404 | Frontend, người dùng |
 | `https://app-<ip>.sslip.io` | frontend (bản build tĩnh). Chỉ có khi `APP_HOST` được đặt trong `deploy/.env.prod` | Người dùng |
 | `https://api-<ip>.sslip.io/grafana/` | Grafana qua backend. Chỉ ADMINISTRATOR; người lạ 401, user thường 403 | Trang `/admin/monitoring` |
@@ -333,6 +333,7 @@ Bản online từ 14/10/2026: DNS `contract-intelligence.tech` ở Cloudflare (g
 | WAF custom rule 1 | Chặn `auth.…/admin*` và `auth.…/realms/master*` | Admin Keycloak chỉ dùng qua SSH tunnel; backend và `keycloak_configure.py` gọi realm `master` qua mạng nội bộ |
 | WAF custom rule 2 | Chặn đường dò: `/.env`, `/.git`, `/.aws`, `/.ssh`, `wp-admin`, `wp-login`, `xmlrpc`, `phpmyadmin`, `*.php` | Site không có các thứ này; chặn sớm để bớt rác ở log |
 | WAF custom rule 3 | Chặn method `TRACE`, `TRACK` | |
+| WAF custom rule 4 | Chặn `api.…/docs`, `/docs/*`, `/redoc`, `/openapi.json` | Không công khai cấu trúc API trên bản online. Cần xem thì chạy local, hoặc tạm tắt rule này trên Cloudflare |
 | Rate limiting | POST `auth.…/login-actions/authenticate`: quá 5 lần / 10 giây / IP thì chặn 10 giây | Thêm một lớp trước cơ chế khoá tài khoản của Keycloak. Cloudflare đếm theo từng PoP nên không chính xác tuyệt đối |
 | Browser Integrity Check | Bật | Chặn User-Agent đáng ngờ, ví dụ `Python-urllib`. Hệ thống không bị ảnh hưởng vì backend lấy JWKS qua `http://keycloak:8080` |
 | DNSSEC | Bật trên Cloudflare, **chờ thêm bản ghi DS ở nhà đăng ký tên miền** | `contract-intelligence.tech. 3600 IN DS 2371 13 2 5F2D6EB7666C3643266B3B71E35783F9086210E4C8CF2BE040AFFBC177989CAD` |
