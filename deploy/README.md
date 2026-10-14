@@ -156,6 +156,47 @@ Trên `https://app-<ip>.sslip.io` (hoặc frontend ở máy dev trỏ vào serve
 | 5 | Đăng nhập `reviewer@ci.local`, thẩm định một xung đột | Trạng thái xung đột đổi |
 | 6 | Đăng nhập `admin@ci.local`, mở Giám sát hệ thống | Dashboard Grafana hiện, có số liệu OCR vừa chạy |
 
+## Triển khai trên AWS EC2
+
+Các bước ở "Kế hoạch triển khai qua SSH" dùng nguyên cho EC2. Mục này chỉ ghi phần riêng của AWS, làm **trước** Bước 1. Giá và điều kiện gói miễn phí thay đổi theo thời gian: kiểm tra trên trang Billing và AWS Pricing Calculator trước khi tạo máy.
+
+### Tạo máy
+
+| Mục | Giá trị | Vì sao |
+|---|---|---|
+| AMI | Ubuntu Server 24.04 LTS, **x86-64** | Stack chưa chạy trên ARM (`t4g`) |
+| Loại máy | 2 vCPU, 8 GB RAM trở lên (ví dụ `m7i-flex.large`, `t3.large`) | Stack dùng khoảng 2,7 GB khi nhàn rỗi; máy 2 GB không đủ |
+| Đĩa gốc | **60 GB gp3** | Mặc định của EC2 là 8 GB, không đủ cho image và dữ liệu |
+| Security group | TCP 22 chỉ từ IP người vận hành; TCP 80 và 443 từ mọi nơi | Caddy cần 80/443 để xin chứng chỉ. `bootstrap.sh` còn bật `ufw` trong máy với cùng ba cổng |
+| Key pair | Tạo mới, giữ file `.pem` | User SSH là `ubuntu` |
+
+Máy 2 vCPU thấp hơn mức 4 vCPU ở mục "Máy chủ cần": stack vẫn chạy, build image và OCR hồ sơ lớn chậm hơn. Khi `ai1-worker` chạy nhiều replica, đặt `AI1_WORKER_REPLICAS=1` trong `deploy/.env.prod`.
+
+### Gắn Elastic IP trước khi chạy `bootstrap.sh`
+
+`bootstrap.sh` đọc IP công khai của máy và ghi vào `API_HOST`, `AUTH_HOST`, `APP_HOST` (`api-<ip>.sslip.io`, …) trong `deploy/.env.prod`. IP công khai mặc định của EC2 **đổi mỗi lần stop rồi start**; khi đó cả ba tên miền, chứng chỉ và cấu hình Keycloak đều sai.
+
+1. EC2 → Elastic IPs → Allocate, rồi Associate với máy vừa tạo.
+2. SSH bằng IP đó: `ssh -i <key>.pem ubuntu@<elastic-ip>`.
+3. Sau đó mới làm Bước 1–6 ở trên.
+
+Đã lỡ chạy `bootstrap.sh` trước khi gắn Elastic IP:
+
+- **Chưa chạy `deploy.sh`:** xoá `deploy/.env.prod` rồi chạy lại `bootstrap.sh`.
+- **Đã chạy `deploy.sh`:** không xoá file, vì mật khẩu DB trong đó đã nằm trong volume. Sửa tay `API_HOST`, `AUTH_HOST`, `APP_HOST`, `FRONTEND_ORIGINS` và `FRONTEND_BASE_URL` sang IP mới, rồi chạy lại `deploy.sh`.
+
+### Giữ chi phí thấp
+
+- Đặt cảnh báo ngân sách (Billing → Budgets) ngay khi tạo tài khoản.
+- Không dùng thì **stop** máy, đừng terminate: dữ liệu trên đĩa còn nguyên, chỉ còn trả tiền đĩa và Elastic IP. Start lại thì các container tự chạy (`restart: unless-stopped`) và địa chỉ không đổi.
+- Dòng `t3`: đặt Credit specification là `standard`. Chế độ `unlimited` tính thêm tiền khi CPU chạy cao kéo dài (build, OCR hồ sơ lớn).
+- Máy chạy bằng credits thì có ngày hết: bật "Backup ra ngoài máy" bên dưới trước khi có dữ liệu cần giữ.
+
+### Khác với máy chủ thường
+
+- **Thư:** EC2 chặn cổng 25 chiều ra theo mặc định. Đặt `SMTP_PORT=587` với nhà cung cấp SMTP, hoặc để mặc định (thư vào mailpit).
+- **Đổi máy chủ:** địa chỉ `sslip.io` đổi theo IP. Gửi nhóm frontend các biến `VITE_*` mà `deploy.sh` in ra, và cập nhật secret của workflow deploy trên GitHub (mục "Cài CI/CD") sang máy mới.
+
 ## Cập nhật
 
 Tự động: workflow `deploy` (`.github/workflows/deploy.yml`) chạy sau mỗi lần merge vào `develop`, hoặc bấm tay ở GitHub → Actions → `deploy` → Run workflow. Nó SSH vào server, fast-forward checkout tới commit vừa merge, chạy `deploy/deploy.sh`, rồi chạy `deploy/check_external.sh` từ runner (tức từ bên ngoài server).
@@ -245,7 +286,7 @@ Server đã cài từ trước không có `APP_HOST` nên không đổi gì. Mu�
 | Log backend / worker | `... logs -f backend backend-worker` |
 | Keycloak admin | Trên server lấy IP container: `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ci-keycloak`. Trên máy mình: `ssh -L 8080:<IP đó>:8080 <user>@<ip>`, rồi mở `http://localhost:8080/admin` (user `admin`, mật khẩu `KEYCLOAK_ADMIN_PASSWORD`) |
 | Đọc email (mailpit) | Như trên với `ci-mailpit` và cổng `8025`, rồi mở `http://localhost:8025` |
-| Backup | `sudo deploy/backup.sh` (2 DB + MinIO vào `/var/backups/contract-intelligence`, giữ 7 ngày). Cron: `0 2 * * * /opt/contract-intelligence/deploy/backup.sh >> /var/log/ci-backup.log 2>&1` |
+| Backup | `sudo deploy/backup.sh` (2 DB + MinIO vào `/var/backups/contract-intelligence`, giữ 7 ngày; chép ra ngoài máy: xem "Backup ra ngoài máy" bên dưới). Cron: `0 2 * * * /opt/contract-intelligence/deploy/backup.sh >> /var/log/ci-backup.log 2>&1` |
 | Khôi phục DB backend | Chạy stack trước để backend tạo extension `vector` và role `ai2` (`pg_dump` không lưu role), rồi `docker exec -i ci-backend-db pg_restore -U ci -d contract_intelligence --clean < backend.dump` |
 
 Mật khẩu admin Keycloak, mật khẩu tài khoản demo và mọi secret nằm trong `deploy/.env.prod` trên server (quyền 600, không commit). Gửi mật khẩu demo cho nhóm qua kênh riêng.
@@ -262,6 +303,47 @@ Kiểm tra và bật trên realm đang chạy:
 4. Đăng nhập một tài khoản rồi mở trang Người dùng: cột phải có giá trị. Nếu vẫn trống, tìm dòng `keycloak.login_events.failed` trong log backend.
 
 Chỉ các lần đăng nhập sau khi bật mới được ghi. Ai không đăng nhập quá 30 ngày thì cột trống.
+
+### Backup ra ngoài máy (Supabase Storage)
+
+Mặc định `deploy/backup.sh` chỉ lưu backup trên chính máy chủ; máy hỏng thì backup mất theo. Khi `BACKUP_S3_ENDPOINT` có giá trị trong `deploy/.env.prod`, mỗi lần chạy script còn làm thêm:
+
+1. Gom backup của lần chạy đó (2 DB + MinIO) thành một file, mã hoá AES-256 bằng `BACKUP_ENCRYPTION_PASSPHRASE`.
+2. Cắt thành các phần `BACKUP_PART_SIZE` (mặc định 45 MB) và đẩy lên `<bucket>/<thời điểm>/`, kèm file `SHA256SUMS`.
+3. Xoá các bản trên bucket cũ hơn `BACKUP_REMOTE_KEEP_DAYS` ngày (mặc định bằng bản local, 7 ngày).
+
+Đẩy lên lỗi thì script exit 1 và ghi `off-site copy FAILED` vào log; bản backup local vẫn còn nguyên. Lúc chạy, máy chủ cần thêm chỗ trống bằng dung lượng một bản backup cho file tạm.
+
+Cấu hình một lần:
+
+1. Trên Supabase: tạo một bucket **private** (ví dụ `ci-backups`), rồi tạo S3 access key trong phần cài đặt Storage.
+2. Điền vào `deploy/.env.prod`:
+
+   ```env
+   BACKUP_S3_ENDPOINT=https://<project-ref>.supabase.co/storage/v1/s3
+   BACKUP_S3_REGION=<vùng của project, ví dụ ap-southeast-1>
+   BACKUP_S3_BUCKET=ci-backups
+   BACKUP_S3_ACCESS_KEY_ID=...
+   BACKUP_S3_SECRET_ACCESS_KEY=...
+   BACKUP_ENCRYPTION_PASSPHRASE=<ít nhất 20 ký tự>
+   ```
+
+3. **Lưu `BACKUP_ENCRYPTION_PASSPHRASE` ở một nơi ngoài máy chủ** (trình quản lý mật khẩu của nhóm). Mất passphrase thì không đọc được backup; nếu chỉ để trên máy chủ thì nó mất cùng lúc với máy.
+4. Chạy thử `sudo deploy/backup.sh`, kiểm tra dòng `[backup] off-site: ...` và các file trên bucket.
+
+Giới hạn cần biết: Supabase đặt trần dung lượng cho mỗi file (gói miễn phí 50 MB) và tổng dung lượng Storage (gói miễn phí 1 GB). Mỗi đêm là một bản đầy đủ, nên 7 bản có thể vượt 1 GB khi hồ sơ nhiều; khi đó giảm `BACKUP_REMOTE_KEEP_DAYS` hoặc nâng gói.
+
+Khôi phục từ bucket: tải cả thư mục của một lần backup về, rồi:
+
+```bash
+sha256sum -c SHA256SUMS
+export BACKUP_ENCRYPTION_PASSPHRASE='...'
+cat backup.tar.enc.part-* \
+  | openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:BACKUP_ENCRYPTION_PASSPHRASE \
+  | tar -xf -
+```
+
+Kết quả là thư mục `<thời điểm>/` gồm `backend.dump`, `keycloak.dump` và `minio/`, giống bản backup local. Khôi phục DB theo dòng "Khôi phục DB backend" ở bảng trên.
 
 ## Giới hạn đã biết
 
