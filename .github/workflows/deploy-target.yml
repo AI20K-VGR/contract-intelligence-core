@@ -1,0 +1,147 @@
+# =============================================================================
+# One deployment of the exact triggering SHA to one server: production or
+# staging. Called by deploy.yml only; see that file and deploy/README.md
+# ("Staging").
+#
+# Each target has its own SSH settings. Staging reads STAGING_* secrets and
+# variables and never falls back to the production ones: a missing staging
+# setting fails the run instead of deploying to the production server.
+#
+#   target       production                    staging
+#   host         DEPLOY_HOST                   STAGING_DEPLOY_HOST
+#   user         DEPLOY_USER                   STAGING_DEPLOY_USER
+#   key          DEPLOY_SSH_KEY                STAGING_DEPLOY_SSH_KEY
+#   known hosts  DEPLOY_KNOWN_HOSTS            STAGING_DEPLOY_KNOWN_HOSTS
+#   SG (var)     DEPLOY_SECURITY_GROUP_ID      STAGING_SECURITY_GROUP_ID
+#   Cloudflare   DEPLOY_BEHIND_CLOUDFLARE      STAGING_BEHIND_CLOUDFLARE
+#   DB check     DEPLOY_DB_PUBLIC_IP           (none: staging keeps its DB local)
+# =============================================================================
+name: deploy-target
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        description: production or staging
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: ${{ inputs.target }}
+    env:
+      DEPLOY_HOST: ${{ inputs.target == 'staging' && secrets.STAGING_DEPLOY_HOST || '' }}${{ inputs.target != 'staging' && secrets.DEPLOY_HOST || '' }}
+      DEPLOY_USER: ${{ inputs.target == 'staging' && secrets.STAGING_DEPLOY_USER || '' }}${{ inputs.target != 'staging' && secrets.DEPLOY_USER || '' }}
+      DEPLOY_SECURITY_GROUP_ID: ${{ inputs.target == 'staging' && vars.STAGING_SECURITY_GROUP_ID || '' }}${{ inputs.target != 'staging' && vars.DEPLOY_SECURITY_GROUP_ID || '' }}
+      BEHIND_CLOUDFLARE: ${{ inputs.target == 'staging' && vars.STAGING_BEHIND_CLOUDFLARE || '' }}${{ inputs.target != 'staging' && vars.DEPLOY_BEHIND_CLOUDFLARE || '' }}
+      APP_DIR: /opt/contract-intelligence
+    steps:
+      - name: Require a known deployment target
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          if [[ "$TARGET" != "production" && "$TARGET" != "staging" ]]; then
+            echo "::error::Unknown deployment target: $TARGET."
+            exit 1
+          fi
+
+      - name: Require complete SSH configuration
+        env:
+          DEPLOY_SSH_KEY: ${{ inputs.target == 'staging' && secrets.STAGING_DEPLOY_SSH_KEY || '' }}${{ inputs.target != 'staging' && secrets.DEPLOY_SSH_KEY || '' }}
+          DEPLOY_KNOWN_HOSTS: ${{ inputs.target == 'staging' && secrets.STAGING_DEPLOY_KNOWN_HOSTS || '' }}${{ inputs.target != 'staging' && secrets.DEPLOY_KNOWN_HOSTS || '' }}
+        run: |
+          missing=()
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS; do
+            value=${!name-}
+            if [[ -z "$value" ]]; then
+              echo "::error::Required deployment setting $name is missing."
+              missing+=("$name")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            exit 1
+          fi
+          if [[ ! "$DEPLOY_HOST" =~ ^[A-Za-z0-9.-]+$ || ! "$DEPLOY_USER" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            echo "::error::DEPLOY_HOST or DEPLOY_USER contains unsupported characters."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: Open SSH to this runner only (AWS security group)
+        id: ssh_window
+        if: env.DEPLOY_SECURITY_GROUP_ID != ''
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_DEPLOY_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_DEPLOY_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.DEPLOY_AWS_REGION }}
+          SG: ${{ env.DEPLOY_SECURITY_GROUP_ID }}
+        run: bash deploy/ssh_window.sh open "$SG"
+
+      - name: Install SSH identity and pinned host key
+        env:
+          DEPLOY_SSH_KEY: ${{ inputs.target == 'staging' && secrets.STAGING_DEPLOY_SSH_KEY || '' }}${{ inputs.target != 'staging' && secrets.DEPLOY_SSH_KEY || '' }}
+          DEPLOY_KNOWN_HOSTS: ${{ inputs.target == 'staging' && secrets.STAGING_DEPLOY_KNOWN_HOSTS || '' }}${{ inputs.target != 'staging' && secrets.DEPLOY_KNOWN_HOSTS || '' }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<CONFIG
+          Host server
+            HostName $DEPLOY_HOST
+            User $DEPLOY_USER
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 30
+          CONFIG
+
+      - name: Deploy the exact triggering SHA
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          ssh server "APP_DIR='$APP_DIR' SHA='$SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+          sudo=""; [ "$(id -u)" -eq 0 ] || sudo="sudo"
+          cd "$APP_DIR"
+          if ! $sudo git diff --quiet || ! $sudo git diff --cached --quiet || [ -n "$($sudo git ls-files --others --exclude-standard)" ]; then
+            echo "deployment checkout has local changes; refusing to deploy over them" >&2
+            exit 1
+          fi
+          $sudo git fetch --quiet origin "$SHA"
+          $sudo git checkout --detach "$SHA"
+          deployed_sha=$($sudo git rev-parse HEAD)
+          [ "$deployed_sha" = "$SHA" ] || { echo "deploy SHA mismatch" >&2; exit 1; }
+          $sudo deploy/deploy.sh
+          deployed_sha=$($sudo git rev-parse HEAD)
+          [ "$deployed_sha" = "$SHA" ] || { echo "deploy source changed during release" >&2; exit 1; }
+          REMOTE
+
+      - name: Check HTTPS, authentication, and external exposure
+        env:
+          DB_PUBLIC_IP: ${{ inputs.target != 'staging' && secrets.DEPLOY_DB_PUBLIC_IP || '' }}
+          ORIGIN_IP: ${{ env.BEHIND_CLOUDFLARE == 'true' && env.DEPLOY_HOST || '' }}
+        run: |
+          hosts=$(ssh server "sudo=''; [ \"\$(id -u)\" -eq 0 ] || sudo=sudo; \$sudo grep -E '^(API_HOST|AUTH_HOST|APP_HOST)=' '$APP_DIR/deploy/.env.prod'")
+          value() { printf '%s\n' "$hosts" | grep -E "^$1=" | tail -1 | cut -d= -f2-; }
+          api_host=$(value API_HOST)
+          auth_host=$(value AUTH_HOST)
+          app_host=$(value APP_HOST)
+          [[ -n "$api_host" && -n "$auth_host" ]] || { echo "::error::API_HOST or AUTH_HOST is missing in deploy/.env.prod"; exit 1; }
+          bash deploy/check_external.sh "$api_host" "$auth_host" "$app_host" "$DB_PUBLIC_IP"
+
+      # Last step, and after a failure too: the rule opened above must not stay.
+      - name: Close SSH again (AWS security group)
+        if: always() && steps.ssh_window.outcome != 'skipped' && steps.ssh_window.outcome != ''
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_DEPLOY_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_DEPLOY_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.DEPLOY_AWS_REGION }}
+          SG: ${{ env.DEPLOY_SECURITY_GROUP_ID }}
+        run: bash deploy/ssh_window.sh close "$SG"
