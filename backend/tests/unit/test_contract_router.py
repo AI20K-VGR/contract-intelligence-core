@@ -33,7 +33,6 @@ from contract_intelligence.contract.interfaces.api.routers.contract_router impor
 from contract_intelligence.main import app
 from contract_intelligence.shared.auth.schemas import AuthenticatedUser
 from contract_intelligence.shared.exceptions import NotFoundError
-from contract_intelligence.shared.storage import stream_bytes
 
 pytestmark = pytest.mark.asyncio
 
@@ -451,144 +450,24 @@ class TestGetDocumentEndpoint:
 # ---------------------------------------------------------------------------
 
 
-_PDF = b"%PDF-1.4 fake content of a long contract"
-
-
-def _serve(mock_svc: AsyncMock, data: bytes = _PDF) -> None:
-    mock_svc.get_content_document.return_value = _make_document()
-    mock_svc.open_document_content.side_effect = lambda _doc, byte_range=None: stream_bytes(
-        data, byte_range
-    )
-
-
 class TestGetDocumentContentEndpoint:
     async def test_returns_200_with_pdf_binary(
         self, client: AsyncClient, mock_svc: AsyncMock
     ) -> None:
-        _serve(mock_svc)
+        pdf_bytes = b"%PDF-1.4 fake content"
+        mock_svc.get_document_blob.return_value = (pdf_bytes, "contract.pdf")
 
         resp = await client.get("/api/v1/documents/doc_TEST_01/content")
 
         assert resp.status_code == 200
         assert resp.headers["content-type"] == "application/pdf"
         assert "contract.pdf" in resp.headers.get("content-disposition", "")
-        assert resp.headers["content-length"] == str(len(_PDF))
-        assert resp.headers["accept-ranges"] == "bytes"
-        assert resp.headers["etag"] == '"abc123"'
-        assert resp.headers["cache-control"] == "private, no-cache"
-        assert resp.content == _PDF
-
-    async def test_streams_a_file_larger_than_one_chunk(
-        self, client: AsyncClient, mock_svc: AsyncMock
-    ) -> None:
-        big = bytes(range(256)) * 4096  # 1 MiB: four chunks
-        _serve(mock_svc, big)
-
-        resp = await client.get("/api/v1/documents/doc_TEST_01/content")
-
-        assert resp.status_code == 200
-        assert resp.content == big
-
-    @pytest.mark.parametrize(
-        ("header", "first", "last"),
-        [
-            ("bytes=2-5", 2, 5),
-            ("bytes=10-", 10, len(_PDF) - 1),
-            ("bytes=-4", len(_PDF) - 4, len(_PDF) - 1),
-            ("bytes=3-9999", 3, len(_PDF) - 1),
-        ],
-    )
-    async def test_range_returns_206_with_that_slice(
-        self, client: AsyncClient, mock_svc: AsyncMock, header: str, first: int, last: int
-    ) -> None:
-        _serve(mock_svc)
-
-        resp = await client.get("/api/v1/documents/doc_TEST_01/content", headers={"Range": header})
-
-        assert resp.status_code == 206
-        assert resp.content == _PDF[first : last + 1]
-        assert resp.headers["content-range"] == f"bytes {first}-{last}/{len(_PDF)}"
-        assert resp.headers["content-length"] == str(last - first + 1)
-
-    @pytest.mark.parametrize("header", ["bytes=999-", "bytes=-0"])
-    async def test_range_outside_the_file_is_416(
-        self, client: AsyncClient, mock_svc: AsyncMock, header: str
-    ) -> None:
-        _serve(mock_svc)
-
-        resp = await client.get("/api/v1/documents/doc_TEST_01/content", headers={"Range": header})
-
-        assert resp.status_code == 416
-        assert resp.headers["content-range"] == f"bytes */{len(_PDF)}"
-
-    @pytest.mark.parametrize("header", ["bytes=0-1,4-5", "items=0-5", "bytes=5-2", "bytes=-"])
-    async def test_unusable_range_sends_the_whole_file(
-        self, client: AsyncClient, mock_svc: AsyncMock, header: str
-    ) -> None:
-        _serve(mock_svc)
-
-        resp = await client.get("/api/v1/documents/doc_TEST_01/content", headers={"Range": header})
-
-        assert resp.status_code == 200
-        assert resp.content == _PDF
-
-    async def test_if_range_for_another_version_sends_the_whole_file(
-        self, client: AsyncClient, mock_svc: AsyncMock
-    ) -> None:
-        _serve(mock_svc)
-
-        resp = await client.get(
-            "/api/v1/documents/doc_TEST_01/content",
-            headers={"Range": "bytes=2-5", "If-Range": '"old-sha"'},
-        )
-
-        assert resp.status_code == 200
-        assert resp.content == _PDF
-
-    async def test_if_range_for_this_version_keeps_the_range(
-        self, client: AsyncClient, mock_svc: AsyncMock
-    ) -> None:
-        _serve(mock_svc)
-
-        resp = await client.get(
-            "/api/v1/documents/doc_TEST_01/content",
-            headers={"Range": "bytes=2-5", "If-Range": '"abc123"'},
-        )
-
-        assert resp.status_code == 206
-        assert resp.content == _PDF[2:6]
-
-    @pytest.mark.parametrize("header", ['"abc123"', 'W/"abc123"', '"other", "abc123"', "*"])
-    async def test_matching_if_none_match_is_304_without_reading_storage(
-        self, client: AsyncClient, mock_svc: AsyncMock, header: str
-    ) -> None:
-        _serve(mock_svc)
-
-        resp = await client.get(
-            "/api/v1/documents/doc_TEST_01/content", headers={"If-None-Match": header}
-        )
-
-        assert resp.status_code == 304
-        assert resp.content == b""
-        assert resp.headers["etag"] == '"abc123"'
-        mock_svc.open_document_content.assert_not_called()
-
-    async def test_other_if_none_match_sends_the_file(
-        self, client: AsyncClient, mock_svc: AsyncMock
-    ) -> None:
-        _serve(mock_svc)
-
-        resp = await client.get(
-            "/api/v1/documents/doc_TEST_01/content", headers={"If-None-Match": '"old-sha"'}
-        )
-
-        assert resp.status_code == 200
-        assert resp.content == _PDF
+        assert resp.content == pdf_bytes
 
     async def test_returns_404_when_document_not_found(
         self, client: AsyncClient, mock_svc: AsyncMock
     ) -> None:
-        mock_svc.get_content_document.side_effect = NotFoundError(
+        mock_svc.get_document_blob.side_effect = NotFoundError(
             entity_type="Document", entity_id="doc_MISSING"
         )
 

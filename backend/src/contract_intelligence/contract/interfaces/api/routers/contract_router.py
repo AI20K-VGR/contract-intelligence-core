@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -41,14 +40,11 @@ from fastapi import (
     HTTPException,
     Path,
     Query,
-    Request,
-    Response,
     UploadFile,
     status,
 )
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
-from starlette.background import BackgroundTask
 
 from contract_intelligence.admin.activity_feed import record_activity
 from contract_intelligence.api.dossier_guard import (
@@ -117,7 +113,6 @@ from contract_intelligence.shared.query_policy import (
     server_query_policy_flags,
 )
 from contract_intelligence.shared.responses import ApiMeta, ApiResponse
-from contract_intelligence.shared.storage import ByteRange, RangeNotSatisfiableError
 from contract_intelligence.shared.utils import safe_filename
 
 router = APIRouter(tags=["Contract"])
@@ -1792,35 +1787,6 @@ def _content_disposition(filename: str) -> str:
     return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{encoded}"
 
 
-_BYTE_RANGE = re.compile(r"bytes=(\d*)-(\d*)")
-
-
-def _parse_range(value: str | None) -> ByteRange | None:
-    """One ``bytes=`` range, or None to send the whole file.
-
-    A missing, malformed or multi-range header is ignored (RFC 9110 §14.2).
-    """
-    if not value:
-        return None
-    match = _BYTE_RANGE.fullmatch(value.strip())
-    if match is None:
-        return None
-    first, last = match.groups()
-    if not first:
-        return ByteRange(start=None, end=int(last)) if last else None
-    if last and int(last) < int(first):
-        return None
-    return ByteRange(start=int(first), end=int(last) if last else None)
-
-
-def _etag_matches(header: str | None, etag: str) -> bool:
-    """``If-None-Match`` names this entity tag (weak comparison, RFC 9110 §13.1.2)."""
-    if not header:
-        return False
-    tags = [tag.strip().removeprefix("W/") for tag in header.split(",")]
-    return "*" in tags or etag in tags
-
-
 @router.get(
     "/documents/{document_id}/content",
     dependencies=[Depends(acl_document)],
@@ -1830,64 +1796,27 @@ def _etag_matches(header: str | None, etag: str) -> bool:
             "content": {"application/pdf": {}},
             "description": "PDF binary stream",
         },
-        206: {
-            "content": {"application/pdf": {}},
-            "description": "One byte range of the PDF (``Range: bytes=…``)",
-        },
-        304: {"description": "``If-None-Match`` matches the ETag: the cached copy is current"},
         404: {"description": "Document not found"},
-        416: {"description": "Range outside the file"},
     },
 )
 async def get_document_content(
-    request: Request,
     document_id: Annotated[str, Path(min_length=1)],
     svc: ContractServiceDep,
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-) -> Response:
+) -> StreamingResponse:
     """Tải PDF gốc — trả về binary stream từ storage.
 
     Có ngay sau khi tải lên, trước OCR (kể cả hồ sơ ``split_pending``), nên màn
     tách file dựng ảnh trang bằng pdf.js từ đây. Cần quyền xem hồ sơ.
-
-    File đi thẳng từ MinIO ra theo từng khúc, không nạp cả file vào RAM.
-    ``Range`` cho pdf.js tải đúng phần trang cần vẽ; ``ETag`` (sha256 của file)
-    cho trình duyệt dùng lại bản đã tải (304) mà vẫn kiểm tra quyền mỗi lần.
     """
-    doc = await svc.get_content_document(document_id)
-    headers = {
-        "Accept-Ranges": "bytes",
-        # private: never kept by Cloudflare; no-cache: every reuse is re-authorized.
-        "Cache-Control": "private, no-cache",
-        "Content-Disposition": _content_disposition(doc.filename),
-    }
-    etag = f'"{doc.sha256}"' if doc.sha256 else None
-    if etag:
-        headers["ETag"] = etag
-        if _etag_matches(request.headers.get("if-none-match"), etag):
-            return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
-
-    byte_range = _parse_range(request.headers.get("range"))
-    if_range = request.headers.get("if-range")
-    if byte_range is not None and if_range is not None and if_range != etag:
-        byte_range = None  # the client's copy is another version: send it whole
-    try:
-        stream = await svc.open_document_content(doc, byte_range)
-    except RangeNotSatisfiableError as exc:
-        headers["Content-Range"] = f"bytes */{exc.size}"
-        return Response(status_code=status.HTTP_416_RANGE_NOT_SATISFIABLE, headers=headers)
-
-    headers["Content-Length"] = str(stream.length)
-    status_code = status.HTTP_200_OK
-    if byte_range is not None:
-        status_code = status.HTTP_206_PARTIAL_CONTENT
-        headers["Content-Range"] = f"bytes {stream.first}-{stream.last}/{stream.size}"
+    data, filename = await svc.get_document_blob(document_id)
     return StreamingResponse(
-        stream.chunks,
-        status_code=status_code,
+        iter([data]),
         media_type="application/pdf",
-        headers=headers,
-        background=BackgroundTask(stream.close),
+        headers={
+            "Content-Disposition": _content_disposition(filename),
+            "Content-Length": str(len(data)),
+        },
     )
 
 

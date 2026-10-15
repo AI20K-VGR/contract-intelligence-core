@@ -18,10 +18,8 @@ import pytest
 from contract_intelligence.contract.application.services.contract_service import (
     ContractService,
 )
-from contract_intelligence.contract.domain.entities.document import Document, DocumentRole
-from contract_intelligence.infrastructure import storage
+from contract_intelligence.contract.domain.entities.document import DocumentRole
 from contract_intelligence.shared.exceptions import NotFoundError
-from contract_intelligence.shared.storage import ByteRange, ObjectStream, RangeNotSatisfiableError
 
 pytestmark = pytest.mark.asyncio
 
@@ -468,17 +466,11 @@ class TestGetDocument:
             await contract_service.get_document("doc_MISSING")
 
 
-async def _read(stream: ObjectStream) -> bytes:
-    try:
-        return b"".join([chunk async for chunk in stream.chunks])
-    finally:
-        await stream.close()
-
-
-class TestDocumentContent:
+class TestGetDocumentBlob:
     async def test_streams_blob_bytes_from_storage(
         self,
         contract_service: ContractService,
+        fake_repos: dict[str, Any],
     ) -> None:
         dossier = await contract_service.create_dossier(name="D", batch_id=None)
         payload = b"%PDF-1.4 content here"
@@ -490,66 +482,13 @@ class TestDocumentContent:
             order_index=0,
         )
 
-        doc = await contract_service.get_content_document(uploaded.id)
-        stream = await contract_service.open_document_content(doc)
-
-        assert doc.filename == "dl.pdf"
-        assert doc.sha256 == hashlib.sha256(payload).hexdigest()
-        assert (stream.size, stream.first, stream.last) == (len(payload), 0, len(payload) - 1)
-        assert await _read(stream) == payload
-
-    async def test_streams_one_range(self, contract_service: ContractService) -> None:
-        dossier = await contract_service.create_dossier(name="D", batch_id=None)
-        payload = b"%PDF-1.4 content here"
-        uploaded = await contract_service.upload_document(
-            dossier_id=dossier.id,
-            filename="dl.pdf",
-            content=BytesIO(payload),
-            role=DocumentRole.CONTRACT,
-            order_index=0,
-        )
-        doc = await contract_service.get_content_document(uploaded.id)
-
-        stream = await contract_service.open_document_content(doc, ByteRange(start=4, end=7))
-
-        assert (stream.first, stream.last, stream.length) == (4, 7, 4)
-        assert await _read(stream) == payload[4:8]
-
-    async def test_range_outside_the_file_raises(self, contract_service: ContractService) -> None:
-        dossier = await contract_service.create_dossier(name="D", batch_id=None)
-        uploaded = await contract_service.upload_document(
-            dossier_id=dossier.id,
-            filename="dl.pdf",
-            content=BytesIO(b"%PDF-1.4"),
-            role=DocumentRole.CONTRACT,
-            order_index=0,
-        )
-        doc = await contract_service.get_content_document(uploaded.id)
-
-        with pytest.raises(RangeNotSatisfiableError) as caught:
-            await contract_service.open_document_content(doc, ByteRange(start=100, end=None))
-        assert caught.value.size == len(b"%PDF-1.4")
-
-    async def test_s3_blob_is_streamed_from_object_storage(
-        self, contract_service: ContractService
-    ) -> None:
-        payload = b"%PDF-1.4 stored in MinIO"
-        blob_uri = await storage.upload_file("dos_X/00_contract.pdf", payload)
-        doc = Document(dossier_id="dos_X", filename="contract.pdf", blob_uri=blob_uri)
-
-        stream = await contract_service.open_document_content(doc, ByteRange(start=None, end=5))
-
-        assert await _read(stream) == payload[-5:]
-
-    async def test_missing_s3_blob_is_not_found(self, contract_service: ContractService) -> None:
-        doc = Document(dossier_id="dos_X", filename="gone.pdf", blob_uri="s3://dossiers/gone.pdf")
-
-        with pytest.raises(NotFoundError):
-            await contract_service.open_document_content(doc)
+        data, filename = await contract_service.get_document_blob(uploaded.id)
+        assert data == payload
+        assert filename == "dl.pdf"
 
     async def test_raises_not_found_for_missing_document(
         self,
         contract_service: ContractService,
     ) -> None:
         with pytest.raises(NotFoundError):
-            await contract_service.get_content_document("doc_MISSING")
+            await contract_service.get_document_blob("doc_MISSING")

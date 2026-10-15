@@ -38,13 +38,7 @@ from contract_intelligence.contract.domain.repositories.manifest_repository impo
 )
 from contract_intelligence.shared.base import new_ulid
 from contract_intelligence.shared.exceptions import InvalidStateTransition, NotFoundError
-from contract_intelligence.shared.storage import (
-    ByteRange,
-    FileStorage,
-    ObjectStream,
-    RangeNotSatisfiableError,
-    stream_bytes,
-)
+from contract_intelligence.shared.storage import FileStorage
 from contract_intelligence.shared.utils import safe_filename
 
 logger = structlog.get_logger(__name__)
@@ -60,7 +54,7 @@ class ContractService:
         get_dossier(...)
         patch_dossier(...)
         list_documents(...)
-        get_content_document(...) / open_document_content(...)
+        get_document_blob(...)
         get_or_create_manifest(...)
         confirm_manifest(...)
     """
@@ -336,41 +330,35 @@ class ContractService:
         await self.get_dossier(doc.dossier_id)
         return doc
 
-    async def get_content_document(self, document_id: str) -> Document:
-        """The document whose file ``/content`` may serve: visible, not purged, stored."""
+    async def get_document_blob(self, document_id: str) -> tuple[bytes, str]:
+        """Trả về (file_bytes, filename) — cho content endpoint streaming."""
         doc = await self.get_document(document_id)
         if await self._dossier_repo.is_tombstoned(doc.dossier_id):
             raise NotFoundError(entity_type="Document", entity_id=document_id)
         if not doc.blob_uri:
             raise NotFoundError(entity_type="Document", entity_id=document_id)
-        return doc
-
-    async def open_document_content(
-        self, doc: Document, byte_range: ByteRange | None = None
-    ) -> ObjectStream:
-        """Stream the stored file (or one range of it) without loading it whole.
-
-        Raises ``RangeNotSatisfiableError`` for a range outside the file.
-        """
         if doc.blob_uri.startswith("s3://"):
-            from contract_intelligence.infrastructure import storage
+            from contract_intelligence.infrastructure.storage import download_object
 
             try:
-                return await storage.open_object(doc.blob_uri, byte_range=byte_range)
-            except RangeNotSatisfiableError:
-                raise
+                data = await download_object(doc.blob_uri)
             except Exception as exc:
                 logger.warning(
                     "document.content.missing",
-                    document_id=doc.id,
+                    document_id=document_id,
                     blob_uri=doc.blob_uri,
                     error=str(exc),
                 )
-        try:
-            data = await self._storage.get(doc.blob_uri)
-        except FileNotFoundError as exc:
-            raise NotFoundError(entity_type="Document", entity_id=doc.id) from exc
-        return stream_bytes(data, byte_range)
+                try:
+                    data = await self._storage.get(doc.blob_uri)
+                except FileNotFoundError:
+                    raise NotFoundError(entity_type="Document", entity_id=document_id) from exc
+        else:
+            try:
+                data = await self._storage.get(doc.blob_uri)
+            except FileNotFoundError as exc:
+                raise NotFoundError(entity_type="Document", entity_id=document_id) from exc
+        return data, doc.filename
 
     async def remove_split_source(self, dossier_id: str, document_id: str) -> None:
         """Drop a mixed upload after it was cut into documents (never OCR'd).

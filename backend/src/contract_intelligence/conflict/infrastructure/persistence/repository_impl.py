@@ -5,9 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from sqlalchemy import Float, and_, cast, func, not_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql.elements import ColumnElement
 
 from contract_intelligence.conflict.infrastructure.persistence.orm import (
     AnnexLinkORM,
@@ -70,22 +69,6 @@ def _citation_payload(orm: CitationORM) -> dict[str, Any]:
         "quote": orm.quote,
         "segments": segments,
     }
-
-
-def _semantic_parts(
-    snapshot: object,
-) -> tuple[dict[str, Any], Any, dict[str, Any]] | None:
-    """``(metadata, pair, projection)`` of a side's semantic snapshot, None without one."""
-    if isinstance(snapshot, str):
-        snapshot = json.loads(snapshot)
-    metadata = snapshot.get("semantic") if isinstance(snapshot, dict) else None
-    if not isinstance(metadata, dict):
-        return None
-    pair = metadata.get("pair")
-    projection = pair if isinstance(pair, dict) else metadata.get("timeline")
-    if not isinstance(projection, dict):
-        return None
-    return metadata, pair, projection
 
 
 class FindingRepositoryImpl:
@@ -159,77 +142,36 @@ class FindingRepositoryImpl:
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[dict[str, Any]], int]:
-        """Findings needing reviewer attention — mirrors ``v_conflict`` view.
-
-        The filter runs on ids and two columns for the whole run; sides,
-        citations and review history are loaded for the requested page only,
-        so a long contract with many findings costs one page of enrichment.
-        """
+        """Findings needing reviewer attention — mirrors ``v_conflict`` view."""
+        stmt = (
+            select(FindingORM)
+            .where(
+                FindingORM.dossier_id == dossier_id,
+                FindingORM.tenant_id == self._tenant_id,
+            )
+            .order_by(FindingORM.created_at.desc())
+        )
+        result = await self._session.execute(stmt)
+        rows = list(result.scalars().all())
         # Findings are append-only; a re-run appends a fresh set. Only the
         # latest run reflects the current documents, so older runs are hidden.
         has_job, current_run = await self._current_job_run(dossier_id)
+        latest_run = current_run if has_job else next((f.run_id for f in rows if f.run_id), None)
         if has_job and not current_run:
             return [], 0
-        in_dossier = and_(
-            FindingORM.dossier_id == dossier_id,
-            FindingORM.tenant_id == self._tenant_id,
-        )
-        run_id = current_run if has_job else await self._latest_finding_run(in_dossier)
-        if run_id:
-            in_dossier = and_(in_dossier, FindingORM.run_id == run_id)
-
-        flagged = or_(
-            FindingORM.disposition.in_(_CONFLICT_DISPOSITIONS),
-            cast(FindingORM.confidence, Float) < _CONFLICT_CONFIDENCE_THRESHOLD,
-        )
-        rows = (
-            await self._session.execute(
-                select(FindingORM.id, flagged)
-                .where(in_dossier)
-                .order_by(FindingORM.created_at.desc(), FindingORM.id.desc())
-            )
-        ).all()
-        needs_review = await self._semantic_needs_review(and_(in_dossier, not_(flagged)))
-        matched = [finding_id for finding_id, hit in rows if hit or finding_id in needs_review]
-
-        page_ids = matched[offset : offset + limit]
-        if not page_ids:
-            return [], len(matched)
-        result = await self._session.execute(
-            select(FindingORM).where(
-                FindingORM.id.in_(page_ids), FindingORM.tenant_id == self._tenant_id
-            )
-        )
-        by_id = {finding.id: finding for finding in result.scalars().all()}
-        page = await self._enrich_findings([by_id[i] for i in page_ids if i in by_id])
-        return page, len(matched)
-
-    async def _latest_finding_run(self, in_dossier: ColumnElement[bool]) -> str | None:
-        """Run of the newest finding that has one (dossiers without a job)."""
-        return await self._session.scalar(
-            select(FindingORM.run_id)
-            .where(in_dossier, FindingORM.run_id.is_not(None), FindingORM.run_id != "")
-            .order_by(FindingORM.created_at.desc())
-            .limit(1)
-        )
-
-    async def _semantic_needs_review(self, findings: ColumnElement[bool]) -> set[str]:
-        """Ids among ``findings`` whose semantic projection asks for review."""
-        rows = await self._session.execute(
-            select(FindingSideORM.finding_id, FindingSideORM.value_snapshot)
-            .join(FindingORM, FindingORM.id == FindingSideORM.finding_id)
-            .where(
-                findings,
-                FindingSideORM.tenant_id == self._tenant_id,
-                FindingSideORM.value_snapshot.like('%"semantic"%'),
-            )
-        )
-        state_by_finding: dict[str, object] = {}
-        for finding_id, snapshot in rows.all():
-            parts = _semantic_parts(snapshot)
-            if parts is not None and finding_id not in state_by_finding:
-                state_by_finding[finding_id] = parts[2]["review_state"]
-        return {fid for fid, state in state_by_finding.items() if state == "NEEDS_REVIEW"}
+        if latest_run:
+            rows = [f for f in rows if f.run_id == latest_run]
+        enriched_rows = await self._enrich_findings(rows)
+        filtered = [
+            f
+            for f in enriched_rows
+            if f["disposition"] in _CONFLICT_DISPOSITIONS
+            or float(f["confidence"]) < _CONFLICT_CONFIDENCE_THRESHOLD
+            or (f.get("semantic") or {}).get("review_state") == "NEEDS_REVIEW"
+        ]
+        total = len(filtered)
+        page = filtered[offset : offset + limit]
+        return page, total
 
     async def add(self, finding: object) -> None:
         """Stub: real impl sẽ convert dict → FindingORM."""
@@ -368,10 +310,17 @@ class FindingRepositoryImpl:
             }
         semantic = None
         for side in sides or []:
-            parts = _semantic_parts(side.get("value_snapshot"))
-            if parts is None:
+            snapshot = side.get("value_snapshot")
+            if isinstance(snapshot, str):
+                snapshot = json.loads(snapshot)
+            metadata = snapshot.get("semantic") if isinstance(snapshot, dict) else None
+            if not isinstance(metadata, dict):
                 continue
-            metadata, pair, projection = parts
+            pair = metadata.get("pair")
+            timeline = metadata.get("timeline")
+            projection = pair if isinstance(pair, dict) else timeline
+            if not isinstance(projection, dict):
+                continue
             semantic = {
                 "kind": "PAIR" if pair else "TIMELINE",
                 "disposition": pair["disposition"] if pair else "CANDIDATE_AMENDMENT",

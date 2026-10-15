@@ -1,24 +1,15 @@
-"""Async MinIO / S3 file upload and download via aioboto3."""
+"""Async MinIO / S3 file upload via aioboto3."""
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
-from contextlib import AsyncExitStack
 from typing import Any
 from urllib.parse import urlparse
 
 import aioboto3
 import structlog
 from botocore.config import Config
-from botocore.exceptions import ClientError
 
 from contract_intelligence.config.settings import get_settings
-from contract_intelligence.shared.storage import (
-    STREAM_CHUNK_BYTES,
-    ByteRange,
-    ObjectStream,
-    RangeNotSatisfiableError,
-)
 
 logger = structlog.get_logger(__name__)
 
@@ -97,54 +88,6 @@ async def download_object(object_path: str) -> bytes:
         data: bytes = await body.read()
     logger.info("storage.download_ok", bucket=bucket, key=key, size_bytes=len(data))
     return data
-
-
-async def open_object(object_path: str, *, byte_range: ByteRange | None = None) -> ObjectStream:
-    """Open an S3/MinIO object (or one range of it) for reading chunk by chunk.
-
-    Nothing is buffered: the first chunk goes out as soon as MinIO sends it.
-    Raises ``FileNotFoundError`` for a missing object and
-    :class:`RangeNotSatisfiableError` for a range outside it.
-    """
-    bucket, key = parse_s3_uri(object_path)
-    key = key.lstrip("/")
-    stack = AsyncExitStack()
-    try:
-        s3 = await stack.enter_async_context(aioboto3.Session().client(**_s3_client_kwargs()))
-        request: dict[str, Any] = {"Bucket": bucket, "Key": key}
-        if byte_range is not None:
-            request["Range"] = byte_range.header()
-        try:
-            response = await s3.get_object(**request)
-        except ClientError as exc:
-            code = exc.response.get("Error", {}).get("Code")
-            if code in ("NoSuchKey", "404"):
-                raise FileNotFoundError(object_path) from exc
-            if code == "InvalidRange":
-                head = await s3.head_object(Bucket=bucket, Key=key)
-                raise RangeNotSatisfiableError(int(head["ContentLength"])) from exc
-            raise
-    except BaseException:
-        await stack.aclose()
-        raise
-
-    length = int(response["ContentLength"])
-    first, last, size = 0, length - 1, length
-    content_range = response.get("ContentRange")  # "bytes first-last/size"
-    if content_range:
-        span, _, total = str(content_range).removeprefix("bytes ").partition("/")
-        first_text, _, last_text = span.partition("-")
-        first, last, size = int(first_text), int(last_text), int(total)
-    body = response["Body"]
-
-    async def chunks() -> AsyncIterator[bytes]:
-        try:
-            async for chunk in body.iter_chunks(STREAM_CHUNK_BYTES):
-                yield chunk
-        finally:
-            await stack.aclose()
-
-    return ObjectStream(size=size, first=first, last=last, chunks=chunks(), close=stack.aclose)
 
 
 async def delete_object(object_path: str) -> None:

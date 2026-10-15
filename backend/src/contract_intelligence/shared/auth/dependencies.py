@@ -30,7 +30,6 @@ Usage pattern:
 
 from __future__ import annotations
 
-import asyncio
 from typing import Annotated, Any
 
 from fastapi import Depends, Header, HTTPException, Request, status
@@ -125,9 +124,7 @@ async def get_current_user(
     # Decode & validate
     try:
         jwt_svc = get_jwt_service()
-        # In a thread: a JWKS refetch is a blocking HTTP call to Keycloak, and
-        # it must not stall every other request on the event loop.
-        user = await asyncio.to_thread(jwt_svc.decode_and_validate_access, token)
+        user = jwt_svc.decode_and_validate_access(token)
     except AuthenticationError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
