@@ -147,18 +147,24 @@ kc_status=$(docker inspect -f '{{.State.Health.Status}}' ci-keycloak-readiness 2
 # "Address already in use".
 echo "[deploy] waiting for AI2 full LLM/vector readiness"
 ai2_ready=0
-for _ in $(seq 1 60); do
-  if "${COMPOSE[@]}" exec -T ai2-service /app/.venv/bin/python -c \
-      "import urllib.request; urllib.request.urlopen('http://localhost:8002/readyz', timeout=90)" \
+ai2_deadline=$((SECONDS + 600))
+while (( SECONDS < ai2_deadline )); do
+  ai2_remaining=$((ai2_deadline - SECONDS))
+  ai2_probe_timeout=$((ai2_remaining < 90 ? ai2_remaining : 90))
+  if timeout --kill-after=5s "${ai2_probe_timeout}s" \
+      "${COMPOSE[@]}" exec -T ai2-service /app/.venv/bin/python -c \
+      "import urllib.request; urllib.request.urlopen('http://localhost:8002/readyz', timeout=$ai2_probe_timeout)" \
       >/dev/null 2>&1; then
     ai2_ready=1
     break
   fi
-  sleep 5
+  ai2_remaining=$((ai2_deadline - SECONDS))
+  (( ai2_remaining > 0 )) || break
+  sleep "$((ai2_remaining < 5 ? ai2_remaining : 5))"
 done
 if [ "$ai2_ready" -ne 1 ]; then
   echo "[deploy] AI2 did not become ready; refusing to report a successful deployment" >&2
-  "${COMPOSE[@]}" logs --tail 120 ai2-service >&2 || true
+  timeout --kill-after=5s 10s "${COMPOSE[@]}" logs --tail 120 ai2-service >&2 || true
   exit 1
 fi
 echo "[deploy] AI2 full capability: ready"
