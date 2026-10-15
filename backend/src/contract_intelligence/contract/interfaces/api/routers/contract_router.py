@@ -447,17 +447,18 @@ async def _read_pdf_upload(file: UploadFile) -> _PdfUpload:
     to AI1 — and AI1 gets the real page range (one render URL per page).
     """
     limit = get_settings().upload_max_file_bytes
-    chunks: list[bytes] = []
-    total_size = 0
-    while chunk := await file.read(1024 * 1024):
-        total_size += len(chunk)
-        if total_size > limit:
-            raise HTTPException(
-                status_code=413,
-                detail=f"{file.filename}: file exceeds {limit // (1024 * 1024)} MB",
-            )
-        chunks.append(chunk)
-    data = b"".join(chunks)
+    too_large = HTTPException(
+        status_code=413,
+        detail=f"{file.filename}: file exceeds {limit // (1024 * 1024)} MB",
+    )
+    # The multipart parser has already spooled the part to disk and knows its
+    # size: refuse before reading, then read once. Collecting 1 MiB chunks and
+    # joining them held every file twice at the peak of an upload.
+    if file.size is not None and file.size > limit:
+        raise too_large
+    data = await file.read(limit + 1)
+    if len(data) > limit:
+        raise too_large
     try:
         page_count = await asyncio.to_thread(count_pdf_pages, data)
     except InvalidPdfError as exc:

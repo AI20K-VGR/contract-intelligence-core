@@ -231,13 +231,21 @@ async def poll_ai2_processing(
     ``ai2_max_consecutive_errors`` in a row, so one slow or failed poll no
     longer fails a run whose AI2 job is still healthy.
 
+    AI2 runs a bounded number of jobs at once and keeps the rest QUEUED. Its
+    processing budget starts when a job leaves the queue, so ``timeout_seconds``
+    is counted from then too; time spent QUEUED is capped separately by
+    ``ai2_max_queue_wait_seconds``.
+
     Raises:
-        AiAdapterDeadlineExceeded: the job was still running at the deadline.
+        AiAdapterDeadlineExceeded: the job was still running at the deadline,
+            or still queued past the queue cap.
         AiAdapterError: a non-transient error, or too many transient ones in a row.
     """
     settings = get_settings()
     interval = settings.ai_dispatcher_poll_interval_seconds
-    deadline = time.monotonic() + timeout_seconds
+    started = time.monotonic()
+    queue_deadline = started + settings.ai2_max_queue_wait_seconds
+    deadline = started + timeout_seconds
     failures = 0
     while True:
         request = {
@@ -261,8 +269,18 @@ async def poll_ai2_processing(
             logger.warning("ai2.poll.retry", job_id=job_id, failures=failures, error=str(exc))
         else:
             failures = 0
-            if str(report.get("status", "")).upper() in {"SUCCEEDED", "FAILED"}:
+            status = str(report.get("status", "")).upper()
+            if status in {"SUCCEEDED", "FAILED"}:
                 return report
+            if status == "QUEUED":
+                now = time.monotonic()
+                if now >= queue_deadline:
+                    raise AiAdapterDeadlineExceeded(
+                        f"AI2 job {job_id} was still queued after "
+                        f"{settings.ai2_max_queue_wait_seconds}s"
+                    )
+                # Not started yet: the processing budget has not begun.
+                deadline = now + timeout_seconds
         if time.monotonic() >= deadline:
             raise AiAdapterDeadlineExceeded(
                 f"AI2 job {job_id} did not finish within {int(timeout_seconds)}s"
