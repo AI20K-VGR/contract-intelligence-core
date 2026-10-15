@@ -110,7 +110,7 @@ jmespath==1.1.0
     #   botocore
 jwcrypto==1.6.1
     # via python-keycloak
-mako==1.4.1
+mako==1.4.3
     # via alembic
 markupsafe==3.0.3
     # via mako
@@ -155,6 +155,8 @@ packaging==26.3
     #   deprecation
     #   opentelemetry-instrumentation
 passlib==1.7.4
+    # via contract-intelligence-backend
+prometheus-client==0.26.0
     # via contract-intelligence-backend
 propcache==0.5.4
     # via
