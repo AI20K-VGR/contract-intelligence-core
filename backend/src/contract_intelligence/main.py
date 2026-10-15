@@ -288,6 +288,9 @@ def create_app() -> FastAPI:
         allow_credentials=settings.cors_allow_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
+        # The frontend is another origin (api.… vs the app host): without these,
+        # pdf.js cannot read the range headers of /documents/{id}/content.
+        expose_headers=["Accept-Ranges", "Content-Range", "Content-Length", "ETag"],
     )
 
     # Backend headers — X-Backend-Version + X-Request-Id

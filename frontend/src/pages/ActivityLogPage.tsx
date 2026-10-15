@@ -221,6 +221,7 @@ export function ActivityLogPage() {
   const [filter, setFilter] = useState<ActionType | 'all'>('all')
   const [userId, setUserId] = useState('all')
   const [showUsers, setShowUsers] = useState(false)
+  const [showTypes, setShowTypes] = useState(false)
   const [fromDay, setFromDay] = useState('')
   const [toDay, setToDay] = useState('')
 
@@ -314,6 +315,8 @@ export function ActivityLogPage() {
       .includes(term)
   })
 
+  const activeType = typeFilters.find((item) => item.id === filter)
+
   const userLabel =
     userId === 'all'
       ? `Tất cả người dùng (${Math.max(users.length - 1, 0)})`
@@ -323,7 +326,7 @@ export function ActivityLogPage() {
     <div className="flex h-[calc(100vh-6rem)] min-h-0 w-full flex-col gap-space-md">
       <div className="shrink-0 bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col gap-space-md">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-md items-center">
-          <div className="lg:col-span-5 relative">
+          <div className="lg:col-span-4 relative">
             <MaterialIcon
               name="search"
               className="absolute left-space-md top-1/2 -translate-y-1/2 text-secondary text-[18px]"
@@ -375,12 +378,15 @@ export function ActivityLogPage() {
               </button>
             ) : null}
           </div>
-          <div className="lg:col-span-3 relative">
+          <div className="lg:col-span-2 relative">
             {seesEveryone ? (
               <button
                 className="w-full flex items-center gap-space-xs bg-surface-container-low h-10 px-space-md rounded text-on-surface hover:bg-surface-container transition-colors"
                 type="button"
-                onClick={() => setShowUsers((current) => !current)}
+                onClick={() => {
+                  setShowUsers((current) => !current)
+                  setShowTypes(false)
+                }}
               >
                 <MaterialIcon
                   name="group"
@@ -425,41 +431,66 @@ export function ActivityLogPage() {
               </div>
             ) : null}
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-space-xs pt-space-xs">
-          <span className="font-label-sm text-label-sm uppercase text-secondary font-semibold mr-space-xs">
-            Phân loại:
-          </span>
-          {typeFilters
-            .filter((item) => item.id === 'all' || counts[item.id] > 0)
-            .map((item) => {
-              const active = filter === item.id
-              return (
-                <button
-                  key={item.id}
-                  className={`flex items-center gap-1.5 px-space-md py-1 rounded font-label-md text-label-md transition-colors ${
-                    active
-                      ? 'bg-brand-100 text-brand-700 ring-1 ring-brand-200'
-                      : 'bg-surface-container-low text-on-surface hover:bg-surface-container'
-                  }`}
-                  type="button"
-                  onClick={() => {
-                    setFilter(item.id)
-                  }}
-                >
-                  {item.dot ? (
-                    <span className={`w-2 h-2 rounded-[9999px] ${item.dot}`} />
-                  ) : null}
-                  <span>{item.label}</span>
-                  <span
-                    className={`font-code-sm text-code-sm ${active ? 'opacity-80' : 'text-secondary'}`}
-                  >
-                    ({counts[item.id]})
-                  </span>
-                </button>
-              )
-            })}
+          <div className="lg:col-span-2 relative">
+            <button
+              aria-label="Phân loại"
+              className="w-full flex items-center gap-space-xs bg-surface-container-low h-10 px-space-md rounded text-on-surface hover:bg-surface-container transition-colors"
+              type="button"
+              onClick={() => {
+                setShowTypes((current) => !current)
+                setShowUsers(false)
+              }}
+            >
+              {activeType?.dot ? (
+                <span
+                  className={`w-2 h-2 shrink-0 rounded-[9999px] ${activeType.dot}`}
+                />
+              ) : (
+                <MaterialIcon
+                  name="filter_list"
+                  className="text-secondary text-[18px]"
+                />
+              )}
+              <span className="font-body-sm text-body-sm font-medium truncate">
+                {activeType?.label ?? 'Tất cả'} ({counts[filter]})
+              </span>
+              <MaterialIcon
+                name="arrow_drop_down"
+                className="text-secondary text-[16px] ml-auto"
+              />
+            </button>
+            {showTypes ? (
+              <div className="absolute right-0 z-20 mt-1 w-full min-w-[14rem] bg-surface-container-lowest rounded shadow-md border border-outline-variant/40 overflow-hidden max-h-72 overflow-y-auto">
+                {typeFilters
+                  .filter((item) => item.id === 'all' || counts[item.id] > 0)
+                  .map((item) => (
+                    <button
+                      key={item.id}
+                      className={`w-full flex items-center gap-1.5 text-left px-space-md py-2 font-body-sm text-body-sm hover:bg-surface-container-low ${
+                        filter === item.id ? 'bg-brand-50 text-brand-700' : ''
+                      }`}
+                      type="button"
+                      onClick={() => {
+                        setFilter(item.id)
+                        setShowTypes(false)
+                      }}
+                    >
+                      {item.dot ? (
+                        <span
+                          className={`w-2 h-2 shrink-0 rounded-[9999px] ${item.dot}`}
+                        />
+                      ) : (
+                        <span className="w-2 h-2 shrink-0" />
+                      )}
+                      <span>{item.label}</span>
+                      <span className="font-code-sm text-code-sm text-secondary ml-auto">
+                        ({counts[item.id]})
+                      </span>
+                    </button>
+                  ))}
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 
