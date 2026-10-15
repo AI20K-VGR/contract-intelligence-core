@@ -1,0 +1,19 @@
+# Replaces deploy/cloudflare-tls.caddy when deploy/certs/origin-pull-ca.pem
+# exists (deploy/compose.cloudflare-aop.yml, added by deploy.sh).
+#
+# Zone-level Authenticated Origin Pulls: Cloudflare presents a client
+# certificate issued by OUR CA (deploy/certs/origin-pull-ca.pem, made on the
+# server) and uploaded to this zone only. Cloudflare's global AOP certificate
+# is shared by every Cloudflare account, so it would not tell this zone's
+# traffic from another account's; this CA does.
+#
+# ORIGIN_CLIENT_AUTH (deploy/.env.prod):
+#   verify_if_given     default: a certificate is checked when sent, none is required
+#   require_and_verify  once zone-level AOP is on in Cloudflare and verified.
+#                       Turning this on first refuses Cloudflare itself: every site down.
+tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key {
+	client_auth {
+		mode {$ORIGIN_CLIENT_AUTH:verify_if_given}
+		trust_pool file /etc/caddy/certs/origin-pull-ca.pem
+	}
+}

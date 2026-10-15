@@ -9,7 +9,9 @@ Runs inside the running backend container on ci-network (deploy/deploy.sh does i
   realm-export.json, which overrides --hostname and makes Keycloak answer
   "HTTPS required" to every caller from the Internet;
 - frontend client: add FRONTEND_ORIGINS to redirect URIs, web origins and
-  post-logout redirects (localhost:5173 stays for local frontend work);
+  post-logout redirects, and drop the localhost / 127.0.0.1 ones realm-export.json
+  brings for local work (a token must not be sent to a page on the user's own
+  machine). KEYCLOAK_KEEP_LOCAL_REDIRECTS=true keeps them;
 - backend client: replace the repo's dev secret with BACKEND_KEYCLOAK_ADMIN_SECRET;
 - seeded demo users: replace the passwords committed in realm-export.json with
   DEMO_*_PASSWORD from deploy/.env.prod;
@@ -126,21 +128,39 @@ def _merge(existing: list[str] | None, extra: list[str]) -> list[str]:
     return merged
 
 
+_LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1"})
+
+
+def _is_local(url: str) -> bool:
+    return (urllib.parse.urlsplit(url).hostname or "") in _LOCAL_HOSTS
+
+
+def _online(urls: list[str] | None, keep_local: bool) -> list[str]:
+    return [u for u in urls or [] if keep_local or not _is_local(u)]
+
+
 def configure_frontend(token: str, origins: list[str]) -> None:
     client = _client(token, FRONTEND_CLIENT)
+    keep_local = _env("KEYCLOAK_KEEP_LOCAL_REDIRECTS", required=False).lower() == "true"
+    # FRONTEND_ORIGINS may list localhost for CORS (team frontend against this
+    # API); Keycloak gets it only when kept on purpose.
+    origins = _online(origins, keep_local)
     client["redirectUris"] = _merge(
-        client.get("redirectUris"),
+        _online(client.get("redirectUris"), keep_local),
         [f"{o}/" for o in origins]
         + [f"{o}/auth/callback" for o in origins]
         + [f"{o}/auth/silent-callback" for o in origins],
     )
-    client["webOrigins"] = _merge(client.get("webOrigins"), origins)
+    client["webOrigins"] = _merge(_online(client.get("webOrigins"), keep_local), origins)
     attributes = dict(client.get("attributes") or {})
     logout = [u for u in attributes.get("post.logout.redirect.uris", "").split("##") if u]
-    attributes["post.logout.redirect.uris"] = "##".join(_merge(logout, [f"{o}/*" for o in origins]))
+    attributes["post.logout.redirect.uris"] = "##".join(
+        _merge(_online(logout, keep_local), [f"{o}/*" for o in origins])
+    )
     client["attributes"] = attributes
     _request("PUT", f"/admin/realms/{REALM}/clients/{client['id']}", token, client)
-    print(f"[keycloak] frontend client allows {', '.join(origins)}")
+    local = "kept" if keep_local else "removed"
+    print(f"[keycloak] frontend client allows {', '.join(origins)}; localhost redirects {local}")
 
 
 def configure_frontend_url(token: str, public_url: str) -> None:

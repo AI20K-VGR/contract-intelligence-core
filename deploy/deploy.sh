@@ -47,6 +47,10 @@ if [ -f deploy/certs/origin.pem ] || [ -f deploy/certs/origin.key ]; then
     exit 1
   fi
   COMPOSE+=(-f deploy/compose.cloudflare.yml)
+  # Zone-level Authenticated Origin Pulls once our CA is on the server.
+  if [ -f deploy/certs/origin-pull-ca.pem ]; then
+    COMPOSE+=(-f deploy/compose.cloudflare-aop.yml)
+  fi
 fi
 COMPOSE+=(--env-file "$ENV_FILE")
 
@@ -164,6 +168,7 @@ echo "[deploy] configuring Keycloak"
   -e KEYCLOAK_ADMIN_PASSWORD="$(envval KEYCLOAK_ADMIN_PASSWORD)" \
   -e KEYCLOAK_PUBLIC_URL="https://$(envval AUTH_HOST)" \
   -e FRONTEND_ORIGINS="$(envval FRONTEND_ORIGINS)" \
+  -e KEYCLOAK_KEEP_LOCAL_REDIRECTS="$(envval KEYCLOAK_KEEP_LOCAL_REDIRECTS || true)" \
   -e BACKEND_KEYCLOAK_ADMIN_SECRET="$(envval BACKEND_KEYCLOAK_ADMIN_SECRET)" \
   -e DEMO_ADMIN_PASSWORD="$(envval DEMO_ADMIN_PASSWORD)" \
   -e DEMO_REVIEWER_PASSWORD="$(envval DEMO_REVIEWER_PASSWORD)" \

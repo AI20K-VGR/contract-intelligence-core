@@ -54,7 +54,9 @@ __version__ = "2.0.0"
 # v2.0.2: /documents/{id}/content nhận Range (206/416) và If-None-Match (304), có ETag.
 # v2.1.0: GET /dossiers/{id}/ai2/contract-graph, .../evidence, .../processing-trace;
 #         PATCH /dossiers/{id}/ai2-content-sharing-consent.
-__api_contract__ = "v2.1.0"
+# v3.0.0: token không có role ứng dụng → 403; /ai/jobs chỉ ADMINISTRATOR; batch
+#         cancel/resume chỉ người tạo hoặc ADMINISTRATOR (#96). Thu hẹp quyền nên MAJOR.
+__api_contract__ = "v3.0.0"
 
 # AI service contract version (DOC-05c) — wrap khi AI service sẵn sàng
 __ai_contract__ = "v1.0.0"
