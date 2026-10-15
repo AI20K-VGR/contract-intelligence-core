@@ -35,11 +35,15 @@ from typing import Annotated, Any
 
 from fastapi import Depends, Header, HTTPException, Request, status
 
+from contract_intelligence.config.logging import get_logger
 from contract_intelligence.shared.auth.exceptions import (
     AuthenticationError,
+    client_auth_message,
 )
 from contract_intelligence.shared.auth.jwt_service import get_jwt_service
 from contract_intelligence.shared.auth.schemas import AuthenticatedUser
+
+logger = get_logger(__name__)
 
 # -----------------------------------------------------------------------------
 # Header constants
@@ -129,9 +133,12 @@ async def get_current_user(
         # it must not stall every other request on the event loop.
         user = await asyncio.to_thread(jwt_svc.decode_and_validate_access, token)
     except AuthenticationError as exc:
+        # The reason (issuer, audience, kid, ...) goes to the log only: telling
+        # the caller which check failed helps someone forging tokens.
+        logger.info("auth.token_rejected", reason=str(exc))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(exc),
+            detail=client_auth_message(exc),
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
 

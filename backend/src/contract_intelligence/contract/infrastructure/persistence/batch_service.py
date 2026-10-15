@@ -119,9 +119,10 @@ class BatchService:
             "error_code_distribution": {},
         }
 
-    async def cancel_batch(self, batch_id: str) -> dict[str, Any]:
+    async def cancel_batch(self, batch_id: str, *, owner_id: str | None = None) -> dict[str, Any]:
+        """``owner_id`` set: only that user's batch (others read as not found)."""
         batch = await self._get_orm(batch_id)
-        if batch is None:
+        if batch is None or (owner_id is not None and batch.created_by != owner_id):
             raise NotFoundError(entity_type="Batch", entity_id=batch_id)
         if batch.status in _TERMINAL_STATUSES:
             raise InvalidStateTransition(
@@ -135,9 +136,10 @@ class BatchService:
         data["dossiers"] = []
         return data
 
-    async def resume_batch(self, batch_id: str) -> dict[str, Any]:
+    async def resume_batch(self, batch_id: str, *, owner_id: str | None = None) -> dict[str, Any]:
+        """``owner_id`` set: only that user's batch (others read as not found)."""
         batch = await self._get_orm(batch_id)
-        if batch is None:
+        if batch is None or (owner_id is not None and batch.created_by != owner_id):
             raise NotFoundError(entity_type="Batch", entity_id=batch_id)
         if batch.status not in ("paused", "failed", "partial_failed"):
             raise InvalidStateTransition(
