@@ -379,7 +379,8 @@ async def _run_dossier_query(
         await session.commit()
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail={"code": "AI2_QUERY_FAILED", "message": str(exc)},
+            # The reason (AI2's URL, its error body) stays in the log above.
+            detail={"code": "AI2_QUERY_FAILED", "message": "AI2 could not answer; try again."},
         ) from exc
     latency_ms = int((time.monotonic() - started) * 1000)
 

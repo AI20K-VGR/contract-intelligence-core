@@ -13,6 +13,7 @@ from contract_intelligence.shared.auth.dependencies import (
 )
 from contract_intelligence.shared.auth.exceptions import (
     AuthenticationError,
+    TokenExpiredError,
 )
 from contract_intelligence.shared.auth.schemas import AuthenticatedUser
 
@@ -80,13 +81,33 @@ class TestGetCurrentUser:
     @pytest.mark.asyncio
     async def test_expired_token_returns_401(self, mock_request: MagicMock) -> None:
         with patch("contract_intelligence.shared.auth.dependencies.get_jwt_service") as mock_jwt:
-            mock_jwt.return_value.decode_and_validate_access.side_effect = AuthenticationError(
-                "Token has expired"
-            )
+            mock_jwt.return_value.decode_and_validate_access.side_effect = TokenExpiredError()
             with pytest.raises(HTTPException) as exc_info:
                 await get_current_user(mock_request, authorization="Bearer expired.jwt.token")
             assert exc_info.value.status_code == 401
-            assert "expired" in exc_info.value.detail
+            assert exc_info.value.detail == "Token has expired"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "reason",
+        [
+            "Invalid token issuer: Invalid issuer",
+            "Invalid token audience: Audience doesn't match",
+            "Signing key 'kid=abc' not found in JWKS",
+            "Malformed token header",
+        ],
+    )
+    async def test_rejected_token_does_not_say_which_check_failed(
+        self, mock_request: MagicMock, reason: str
+    ) -> None:
+        with patch("contract_intelligence.shared.auth.dependencies.get_jwt_service") as mock_jwt:
+            mock_jwt.return_value.decode_and_validate_access.side_effect = AuthenticationError(
+                reason
+            )
+            with pytest.raises(HTTPException) as exc_info:
+                await get_current_user(mock_request, authorization="Bearer forged.jwt.token")
+            assert exc_info.value.status_code == 401
+            assert exc_info.value.detail == "Invalid token"
 
 
 # -----------------------------------------------------------------------
