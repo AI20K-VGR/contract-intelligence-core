@@ -530,9 +530,9 @@ class TestSseEvents:
 
         # Ít nhất phải có event "run.started"
         # (run.completed có thể đến sau khi stream đóng)
-        assert any(
-            "run.started" in e for e in events_received
-        ), f"expected run.started event, got: {events_received}"
+        assert any("run.started" in e for e in events_received), (
+            f"expected run.started event, got: {events_received}"
+        )
 
     @pytest.mark.asyncio
     async def test_sse_stream_replays_cancel_and_closes(
