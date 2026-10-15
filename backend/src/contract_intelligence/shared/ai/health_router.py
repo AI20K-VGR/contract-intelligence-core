@@ -100,14 +100,13 @@ async def backend_readyz() -> ApiResponse[dict[str, Any]]:
 )
 async def ai_get_job_status(
     job_id: Annotated[str, Path(min_length=1)],
-    user: Annotated[
-        AuthenticatedUser, Depends(require_role("OPERATOR", "REVIEWER", "ADMINISTRATOR"))
-    ],
+    user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
-    """Proxy sang AI service GET /jobs/{id} (DOC-05c §4.5).
+    """Proxy sang AI service GET /jobs/{id} (DOC-05c §4.5). Chỉ ADMINISTRATOR.
 
-    Frontend có thể poll trực tiếp job_id (do Backend trả về qua dispatcher)
-    mà không cần biết nó thuộc dossier/run nào.
+    Job không gắn với hồ sơ nào ở đây nên không kiểm được quyền theo hồ sơ:
+    mở cho mọi role thì ai cũng xem được job của người khác. Frontend không
+    dùng endpoint này; người vận hành theo dõi qua run và SSE của hồ sơ.
     """
     client = get_ai_service_client()
     try:
@@ -126,9 +125,13 @@ async def ai_get_job_status(
 )
 async def ai_cancel_job(
     job_id: Annotated[str, Path(min_length=1)],
-    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    user: Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))],
 ) -> ApiResponse[dict[str, Any]]:
-    """Cancel job tại AI service (DOC-05c §4.6). RBAC: ADMINISTRATOR inherits OPERATOR."""
+    """Cancel job tại AI service (DOC-05c §4.6). Chỉ ADMINISTRATOR.
+
+    Không kiểm được job thuộc hồ sơ nào, nên OPERATOR từng huỷ được job của
+    người khác. Huỷ lần xử lý của một hồ sơ: ``POST /runs/{run_id}/cancel``.
+    """
     client = get_ai_service_client()
     try:
         report = await client.cancel_job(job_id)

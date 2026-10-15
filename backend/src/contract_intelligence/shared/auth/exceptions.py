@@ -11,6 +11,18 @@ class AuthenticationError(Exception):
         self.reason = reason
 
 
+class TokenExpiredError(AuthenticationError):
+    """Access token hết hạn — client làm mới token rồi gọi lại."""
+
+    def __init__(self) -> None:
+        super().__init__("Token has expired")
+
+
+def client_auth_message(exc: AuthenticationError) -> str:
+    """What a 401 tells the caller: expired, or just invalid — never which check failed."""
+    return str(exc) if isinstance(exc, TokenExpiredError) else "Invalid token"
+
+
 class TenantMismatchError(Exception):
     """Header X-Tenant-Id không khớp với JWT claim tenant_id."""
 

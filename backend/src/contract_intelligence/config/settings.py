@@ -566,6 +566,11 @@ class Settings(BaseSettings):
     def monitoring_enabled(self) -> bool:
         return bool(self.grafana_upstream_url and self.monitoring_session_secret)
 
+    @property
+    def exposed(self) -> bool:
+        """Staging or prod: reachable from outside a developer machine."""
+        return self.env in _GUARDED_ENVS
+
     @model_validator(mode="after")
     def _refuse_dev_secrets_outside_dev(self) -> Settings:
         """Refuse to start in staging/prod with a dev default or placeholder secret.
@@ -574,7 +579,7 @@ class Settings(BaseSettings):
         they would be public passwords. Only field names are reported, never
         the values.
         """
-        if self.env not in _GUARDED_ENVS:
+        if not self.exposed:
             return self
         secrets = {
             "DATABASE_URL (password)": urlsplit(self.database_url).password,
