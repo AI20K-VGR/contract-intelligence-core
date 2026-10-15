@@ -1,0 +1,47 @@
+{
+  "stage": "cook",
+  "plan": "261008-1500-ai2-contract-graph-implicit",
+  "checks": [
+    {
+      "name": "full_suite_exact_13_baseline_failures_1523_passed",
+      "status": "PASS"
+    },
+    {
+      "name": "eval_161_passed",
+      "status": "PASS"
+    },
+    {
+      "name": "independent_review_resolved_F1_F2",
+      "status": "PASS"
+    },
+    {
+      "name": "postgres_real_migration_and_savepoints",
+      "status": "PASS"
+    },
+    {
+      "name": "golden_detached_P3_byte_match",
+      "status": "PASS"
+    },
+    {
+      "name": "flags_consent_wire_and_late_projection",
+      "status": "PASS"
+    },
+    {
+      "name": "lint_and_diff_check",
+      "status": "PASS"
+    },
+    {
+      "name": "simplifier_RETAIN",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P4",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-09T01:42:11+00:00",
+  "blastRadius": {
+    "unavailable": true,
+    "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF-ai2-contract-graph"
+  },
+  "run_seq": null
+}

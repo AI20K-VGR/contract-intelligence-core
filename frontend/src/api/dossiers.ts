@@ -197,6 +197,20 @@ export async function patchDossier(dossierId: string, body: DossierUpdateBody) {
   return data
 }
 
+export type DossierAi2Consent = {
+  dossier_id: string
+  enabled: boolean
+  effective_from: 'next_request'
+}
+
+export async function updateDossierAi2Consent(dossierId: string, enabled: boolean) {
+  const { data } = await requestJson<DossierAi2Consent>(
+    `${DOSSIERS_PATH}/${encodeURIComponent(dossierId)}/ai2-content-sharing-consent`,
+    { method: 'PATCH', json: { enabled } },
+  )
+  return data
+}
+
 export type DossierAccessScope = 'mine' | 'shared_out' | 'shared_in'
 
 export type DossierShareGrant = {

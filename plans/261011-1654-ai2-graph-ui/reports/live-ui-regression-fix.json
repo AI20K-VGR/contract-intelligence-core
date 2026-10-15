@@ -1,0 +1,27 @@
+﻿{
+  "plan": "261011-1654-ai2-graph-ui",
+  "date": "2026-10-11",
+  "bug": "Frontend trace validation rejected valid optional Backend fields execution_id and job_status, causing the processing timeline to report unavailable while the Backend trace was AVAILABLE.",
+  "reproduction": "Authenticated live dossier page; graph and processing-trace routes returned HTTP 200; before the fix the timeline showed that no processing trace was available.",
+  "red_green": {
+    "red": "Focused contractGraph test failed with 'AI2 graph response contains unsupported fields' in validateTrace.",
+    "green": "Focused regression passed after allowing and type-checking optional execution_id, job_status, and reason_code fields."
+  },
+  "changes": [
+    "frontend/src/api/contractGraph.ts accepts and validates optional Backend trace metadata while keeping the UI model limited to fields it uses.",
+    "frontend/src/api/contractGraph.test.ts covers the Backend trace payload and confirms metadata is not exposed to the UI model.",
+    "frontend/src/manual-ai2-graph.tsx removes an unused constant that prevented Frontend lint/build."
+  ],
+  "independent_verification": {
+    "focused_tests": "1 file / 5 tests passed",
+    "frontend_suite": "36 files / 140 tests passed",
+    "lint": "passed, 0 errors / 14 warnings",
+    "build": "passed; existing large-chunk warning",
+    "live_ui": "graph shown, relation visible, graph/trace HTTP [200,200], 0 browser errors, timeline shows completed stage",
+    "screenshot_local_only": "C:/Users/dungs/AppData/Local/Temp/ai2-graph-ui-live-citation/live-ui-graph-rerun.png"
+  },
+  "evidence_limits": [
+    "Dossier, PDFs, graph relation, and trace rows are synthetic; relation and trace rows were seeded directly in an isolated database, so this validates read, ACL, citation, and UI wiring, not AI2 graph generation.",
+    "Browser evidence has no user co-sign of visual acceptance."
+  ]
+}

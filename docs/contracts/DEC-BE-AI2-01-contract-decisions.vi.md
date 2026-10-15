@@ -1,6 +1,6 @@
 # DEC-BE-AI2-01: Các điểm chốt của contract Backend ↔ AI2
 
-**Trạng thái:** `accepted-backend`. Backend (Chương) chốt D1–D12. Lead (Trang) đã duyệt D8, D11 (phương án A) và D12 ngày 30/09; D6 duyệt ngày 30/09 (review PR #42). Chờ Văn Dũng (AI2) duyệt lại đúng commit này.
+**Trạng thái:** `accepted-backend`. Backend (Chương) chốt D1–D12. Lead (Trang) đã duyệt D8, D11 (phương án A) và D12 ngày 30/09; D6 duyệt ngày 30/09 (review PR #42), **đổi model và mặc định bật egress ngày 15/10** (review PR #85, xem D6). Chờ Văn Dũng (AI2) duyệt lại đúng commit này.
 **Ngày:** 2026-09-29
 **Người soạn:** Chương (Backend)
 **Người duyệt:** Chương (Backend), Văn Dũng (AI2), Trang (Lead) cho D6, D8, D11 và D12. Trang đã duyệt D6, D8, D11 (phương án A) và D12 ngày 30/09.
@@ -31,7 +31,7 @@ Khi cả hai bên duyệt xong:
 | D3 | Mạng | Không publish 8002; healthcheck gọi `/healthz` | 01/10 |
 | D4 | Snapshot và digest | Chỉ `ai1.snapshot.v1`; `source_digest` là 64 hex chữ thường, không có tiền tố | 30/09 |
 | D5 | Hồ sơ nhiều file | Gửi đủ snapshot, **tối đa 6 file**; role theo `doc_type`; quan hệ `ANNEX_OF` do Backend quyết định | 01/10 |
-| D6 | `policy_flags` | Cờ egress, vector, LLM chuyển về env của `ai2-service`, mặc định `false`; Backend thôi gửi sau khi AI2 deploy A8. Online: OpenAI `gpt-4o-mini` và `text-embedding-3-small`, trần 5 USD/tháng, chỉ hợp đồng mẫu đã ẩn thông tin | 01/10 (Lead duyệt 30/09) |
+| D6 | `policy_flags` | Cờ egress, vector, LLM nằm ở env của `ai2-service`. **Từ 15/10: bản online đặt mặc định `true`**, consent theo hồ sơ ở Backend vẫn là cổng cuối. Online: OpenAI `gpt-5.5` và `text-embedding-3-small`, trần 30 USD/tháng (Trang xác nhận 15/10), chỉ hợp đồng mẫu đã ẩn thông tin | 01/10 (Lead duyệt 30/09; đổi 15/10) |
 | D7 | Idempotency và retry | Key `<run_id>:ai2`, cố định trong một run; `attempt` tăng khi retry; payload tất định; chỉ retry khi `FAILED` và có lỗi `retryable=true` | 01/10 |
 | D8 | Ánh xạ trạng thái | Tách "AI2 xong" khỏi "chờ review" | 01/10 (Lead) |
 | D9 | Xử lý kết quả | Lưu ở dạng đề xuất, publish sau khi reviewer duyệt | 01/10 |
@@ -185,13 +185,21 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
   2. AI2 deploy A8 xong và báo, Backend mới thôi gửi cờ (B3).
 - **Timeout `/query`:** AI2 giới hạn LLM trong `/query` ở 15 giây; quá thì trả kết quả truy xuất kèm citation, `NEEDS_REVIEW`. Backend chờ `/query` 30 giây.
 
+**Quyết định của Lead (Trang, 15/10/2026, review PR #85).** Thay cho các dòng "LLM", "Trần" và "Chia cờ" của quyết định 30/09 ở trên; các dòng còn lại (provider, embedding, dữ liệu, thứ tự A8/B3, timeout `/query`) giữ nguyên.
+- **Model:** `gpt-5.5` cho xử lý hồ sơ, `/query`, bước suy luận khó và ghép cặp đồ thị (`AI2_LLM_MODEL`, `AI2_LLM_STRONG_MODEL`, `AI2_CONTRACT_GRAPH_PAIRS_MODEL`). Embedding vẫn `text-embedding-3-small`.
+- **Mặc định bật:** `AI2_PROCESSING_EGRESS_ALLOWED`, `AI2_QUERY_EGRESS_ALLOWED`, `AI2_QUERY_USE_LLM`, `AI2_QUERY_USE_VECTOR`, `AI2_VECTOR_RECALL_ENABLED` và `AI2_CONTENT_SHARING_CONSENT_DEFAULT` đều `true`: `docker-compose.yml` đặt mặc định, `deploy/compose.prod.yml` (và `deploy/.env.prod.example` cho năm cờ egress/vector/LLM) kế thừa hoặc ghi lại cùng giá trị. Đồ thị hợp đồng bật theo: `AI2_CONTRACT_GRAPH_ENABLED=true`, `AI2_CONTRACT_GRAPH_PAIRS_ENABLED=true`. `AI2_EMBEDDING_DISCOVERY_ENABLED` và `AI2_CONTRACT_GRAPH_AUTO_PASS` vẫn `false`: quan hệ do đồ thị sinh ra phải qua rà soát, không tự duyệt.
+- **Consent theo hồ sơ vẫn là cổng.** Backend lưu `metadata.ai2_content_sharing_consent` trên từng hồ sơ; hồ sơ mới nhận giá trị mặc định của server (`AI2_CONTENT_SHARING_CONSENT_DEFAULT`, giá trị client gửi lên bị bỏ) và ghi audit `ai2.content_sharing_consent_default_applied`. Chỉ chủ hồ sơ hoặc `ADMINISTRATOR` (`DOSSIER_MANAGE`) đổi được qua `PATCH /dossiers/{id}/ai2-content-sharing-consent` (audit `ai2.content_sharing_consent_changed`); `PATCH /dossiers/{id}` thường không đổi được trường này. Egress thực tế của một lần xử lý = env của AI2 **và** consent của hồ sơ; của `/query` = env **và** consent trong request **và** consent lưu trong snapshot. Backend gửi consent qua `policy_flags.egress_allowed` (xử lý) và `content_sharing_consent` (`/query`); phần consent này thay cho câu "Backend thôi gửi cờ" của B3.
+- **Điều kiện giữ nguyên:** bản online chỉ xử lý hợp đồng mẫu đã ẩn thông tin. Consent mặc định `true` không kiểm tra được nội dung hồ sơ, nên đây vẫn là quy tắc vận hành.
+- **Key và chi phí:** Văn Dũng giữ OpenAI API key của bản online, đặt hard limit trên tài khoản OpenAI và tự theo dõi chi phí. **Trần: 30 USD/tháng** (Văn Dũng đề xuất ngày 15/10; Lead giao quyền chọn số cho Văn Dũng và **Trang xác nhận con số ngày 15/10** ở review PR #85, chặn bằng hard limit trên tài khoản OpenAI). Giữ trần theo hồ sơ: tối đa 20 lần gọi LLM và 100.000 token embedding.
+- **Cảnh báo khi chạm trần:** không có cảnh báo chủ động (Văn Dũng chọn ngày 15/10). Cơ chế chặn: chạm hard limit thì OpenAI từ chối, AI2 trả `NEEDS_REVIEW` thay vì `FAILED` theo cam kết D6, và Văn Dũng tắt các cờ egress trong `deploy/.env.prod` rồi deploy lại. Hệ quả cần chấp nhận: không ai biết sắp chạm trần cho tới khi lời gọi bắt đầu bị từ chối.
+
 **Lịch:** đóng băng code giữ tối 02/10 (DOC-11); deploy 03/10.
 
 **Việc cần làm:**
 - AI2 (A3, A8): vector trên `/query` dựa vào egress của `/query`; trần embedding cho `/query` đọc từ env của AI2; đọc các cờ từ env và nhận cờ trong `policy_flags` là tuỳ chọn; viết test cho hai cam kết của mục này: egress tắt thì vẫn `SUCCEEDED`, vượt `max_llm_calls` thì trả `NEEDS_REVIEW`.
 - Backend (B3): sau khi AI2 deploy A8, thôi gửi `egress_allowed` và `use_vector`, bỏ các env cờ phía `backend` và `backend-worker`; nâng timeout `/query` lên 30 giây.
 
-- [x] Chương duyệt  - [x] Dũng duyệt (review PR #42, 30/09)  - [x] Trang duyệt (review PR #42, 30/09)  Ghi chú: bật trên bản online sau khi A8 deploy; tên model cho bước suy luận khó do Văn Dũng ghi.
+- [x] Chương duyệt  - [x] Dũng duyệt (review PR #42, 30/09)  - [x] Trang duyệt (review PR #42, 30/09)  Ghi chú: bật trên bản online sau khi A8 deploy; tên model cho bước suy luận khó do Văn Dũng ghi. Quyết định 15/10 (`gpt-5.5`, mặc định bật): Trang chốt ở review PR #85; Chương duyệt 15/10 (review PR #85); con số trần 30 USD: Trang xác nhận 15/10.
 
 ## D7. Idempotency, attempt và retry
 
@@ -414,7 +422,7 @@ Review của Văn Dũng ở PR #37 xác nhận D2, D4, D5, D7 (409 và cùng `jo
 | B7 | D1 | Xoá `submit_idp_job`/`get_idp_job`/`poll_idp_job`/`build_idp_request` trong `ai_adapters.py` | 02/10 |
 | B8 | D2 | Test CI ký bằng vector mẫu của AI2 | Theo A4 |
 
-**Lead (Trang):** đã duyệt D8, D11 (phương án A), D12 ngày 30/09; D6 và pgvector ngày 30/09 (review PR #42).
+**Lead (Trang):** đã duyệt D8, D11 (phương án A), D12 ngày 30/09; D6 và pgvector ngày 30/09 (review PR #42); đổi D6 sang `gpt-5.5` và mặc định bật ngày 15/10 (review PR #85).
 
 ---
 
@@ -443,3 +451,4 @@ Các mục sau để lại cho Sprint 3:
 | 2026-09-29 | Theo review của Trang ở PR #37: thêm D12 (nhiều hợp đồng); D5 chỉ áp dụng cho Sprint 2; D11 nêu mâu thuẫn với ADR-02 kèm phương án A/B và ADR-14 (Đề xuất); D4 sửa ADR-05 cho khớp; DOC-05e trỏ tới D1 (phần sửa DOC-05e đã rút ở `2bc7515`, PR này không còn sửa file đó) | Chương |
 | 2026-10-01 | D5/B4: câu lỗi `DOSSIER_TOO_MANY_DOCUMENTS` tách theo chỗ (tải lên nói "file PDF", tách nói "tài liệu") và nêu số đã chọn, vì "6 tài liệu" dễ đọc thành 6 trang (Trang đồng ý ở review PR #46). Mã lỗi và `details` không đổi. Bỏ câu "`API-BE.md` và DOC-05b cập nhật cùng việc B4, không nằm trong PR này" ở D5, vì PR #46 đã cập nhật hai tài liệu đó (review của Trang) | Chương |
 | 2026-10-02 | D6: vượt `max_llm_calls` trả `NEEDS_REVIEW` (không còn `INSUFFICIENT_EVIDENCE`) và issue `EGRESS_DENIED` mang `NEEDS_REVIEW`, theo D-4 Sprint 3 và B5 (run `BLOCKED` bị đánh `failed`). Lead (Trang) đồng ý trong review PR #56; sửa cả mục D6, việc A3/A8 và bảng việc | Văn Dũng |
+| 2026-10-15 | D6: Lead (Trang) chốt ở review PR #85: model `gpt-5.5`; bật mặc định mọi cờ egress, vector, LLM và `AI2_CONTENT_SHARING_CONSENT_DEFAULT`; đồ thị hợp đồng bật, auto-pass và embedding discovery tắt; consent theo hồ sơ giữ ở Backend (`PATCH .../ai2-content-sharing-consent`, có audit; `PATCH /dossiers/{id}` không đổi được); điều kiện hợp đồng mẫu đã ẩn thông tin giữ nguyên; Văn Dũng giữ key, trần 30 USD/tháng (Trang xác nhận 15/10), không cảnh báo chủ động. Thay các dòng "LLM", "Trần", "Chia cờ" của 30/09 | Văn Dũng |

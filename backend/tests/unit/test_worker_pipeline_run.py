@@ -44,7 +44,10 @@ DOC_B = "doc_b"
 
 
 @pytest.fixture(autouse=True)
-def _reset_worker_state() -> Iterator[None]:
+def _reset_worker_state(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    # Lifecycle tests here exercise the durable AI2 handoff independently of
+    # semantic-profile resolution, which has its own focused tests.
+    monkeypatch.setenv("AI2_SEMANTIC_ENABLED", "false")
     worker._ai2_tasks.clear()
     yield
     worker._ai2_tasks.clear()
@@ -740,6 +743,67 @@ class _ScalarResult:
         return self._value
 
 
+@pytest.mark.asyncio
+async def test_ai2_processing_consent_is_read_only_from_the_target_dossier() -> None:
+    session = SimpleNamespace(
+        execute=AsyncMock(return_value=_ScalarResult({"ai2_content_sharing_consent": True}))
+    )
+
+    consent = await worker._dossier_content_sharing_consent(
+        session, dossier_id="dos_test", tenant_id="tenant_test"
+    )
+
+    assert consent is True
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        None,
+        {},
+        {"ai2_content_sharing_consent": None},
+        {"ai2_content_sharing_consent": "true"},
+        {"ai2_content_sharing_consent": 1},
+        {"ai2_content_sharing_consent": False},
+    ],
+)
+@pytest.mark.asyncio
+async def test_ai2_processing_consent_fails_closed_without_explicit_true(
+    metadata: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI2_CONTENT_SHARING_CONSENT_DEFAULT", "true")
+    session = SimpleNamespace(execute=AsyncMock(return_value=_ScalarResult(metadata)))
+
+    consent = await worker._dossier_content_sharing_consent(
+        session, dossier_id="dos_test", tenant_id="tenant_test"
+    )
+
+    assert consent is False
+
+
+@pytest.mark.asyncio
+async def test_new_dossier_persists_explicit_ai2_content_sharing_consent(
+    contract_service: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AI2_CONTENT_SHARING_CONSENT_DEFAULT", raising=False)
+    dossier = await contract_service.create_dossier(name="New dossier", batch_id=None)
+
+    assert dossier.metadata == {"ai2_content_sharing_consent": True}
+
+
+@pytest.mark.asyncio
+async def test_new_dossier_honors_operator_consent_default(
+    contract_service: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI2_CONTENT_SHARING_CONSENT_DEFAULT", "false")
+    dossier = await contract_service.create_dossier(name="Private dossier", batch_id=None)
+
+    assert dossier.metadata == {"ai2_content_sharing_consent": False}
+
+
 class _RowsResult:
     def __init__(self, rows: list[object]) -> None:
         self._rows = rows
@@ -767,6 +831,7 @@ async def test_ai2_transient_failure_can_be_retried(
             _RowsResult([_CONTRACT_MEMBER]),
             _RowsResult([]),
             _RowsResult([]),
+            _ScalarResult(None),
         ]
 
     session = SimpleNamespace(
@@ -814,6 +879,7 @@ async def test_semantic_profile_failure_marks_ai2_run_failed(
             _RowsResult([_CONTRACT_MEMBER]),
             _RowsResult([]),
             _RowsResult([]),
+            _ScalarResult({"ai2_content_sharing_consent": True}),
         ]
 
     session = SimpleNamespace(
@@ -821,6 +887,14 @@ async def test_semantic_profile_failure_marks_ai2_run_failed(
         commit=AsyncMock(),
         rollback=AsyncMock(),
     )
+    monkeypatch.setattr(
+        worker,
+        "build_processing_request",
+        lambda **_kwargs: {"snapshots": [{"snapshot_id": "snap_test"}]},
+    )
+    monkeypatch.setattr(worker, "update_pipeline_run_status", AsyncMock())
+    monkeypatch.setattr(worker, "update_pipeline_step", AsyncMock())
+    monkeypatch.setattr(worker, "_mark_status", AsyncMock())
     monkeypatch.setattr(
         worker,
         "_freeze_semantic_profile",
@@ -881,6 +955,7 @@ async def test_ai2_deadline_miss_fails_run_as_ai2_timeout(
                 _RowsResult([_CONTRACT_MEMBER]),
                 _RowsResult([]),
                 _RowsResult(documents),
+                _ScalarResult(None),
             ]
         ),
         commit=AsyncMock(),
@@ -1741,6 +1816,7 @@ async def test_dossier_with_two_contracts_fails_before_ai2(
                 _RowsResult([_member("contract"), _member("contract")]),
                 _RowsResult([]),
                 _RowsResult([]),
+                _ScalarResult(None),
             ]
         ),
     )
@@ -1804,6 +1880,7 @@ async def test_six_document_dossier_reaches_ai2_whole(monkeypatch: pytest.Monkey
                 _RowsResult(members),
                 _RowsResult([]),
                 _RowsResult([SimpleNamespace(id=doc_id, page_count=1) for doc_id in doc_ids]),
+                _ScalarResult(None),
             ]
         ),
         commit=AsyncMock(),
@@ -1877,6 +1954,7 @@ async def test_failed_result_ignores_review_state(monkeypatch: pytest.MonkeyPatc
                 _RowsResult([_member("contract")]),
                 _RowsResult([]),
                 _RowsResult([]),
+                _ScalarResult(None),
             ]
         ),
         commit=AsyncMock(),

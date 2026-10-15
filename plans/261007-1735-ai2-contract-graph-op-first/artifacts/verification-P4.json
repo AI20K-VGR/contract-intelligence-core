@@ -1,0 +1,27 @@
+{
+  "stage": "cook",
+  "plan": "261007-1735-ai2-contract-graph-op-first",
+  "checks": [
+    {
+      "name": "ai_service_suite",
+      "status": "PASS"
+    },
+    {
+      "name": "flag_off_golden",
+      "status": "PASS"
+    },
+    {
+      "name": "wire_schema_no_leak",
+      "status": "PASS"
+    },
+    {
+      "name": "postgres_migration",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P4",
+  "actor": "user:unknown",
+  "ts": "2026-10-08T05:26:58+00:00",
+  "run_seq": null
+}

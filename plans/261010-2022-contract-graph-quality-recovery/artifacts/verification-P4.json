@@ -1,0 +1,39 @@
+{
+  "stage": "cook",
+  "plan": "261010-2022-contract-graph-quality-recovery",
+  "checks": [
+    {
+      "name": "offline_tests",
+      "status": "PASS"
+    },
+    {
+      "name": "candidate_quality_gate",
+      "status": "BLOCKED"
+    },
+    {
+      "name": "classifier_quality_gate",
+      "status": "BLOCKED"
+    },
+    {
+      "name": "baseline_repeats",
+      "status": "PASS"
+    },
+    {
+      "name": "prompt_ablation",
+      "status": "PASS"
+    },
+    {
+      "name": "heldout",
+      "status": "BLOCKED"
+    }
+  ],
+  "verdict": "BLOCKED",
+  "phase": "P4",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-10T20:40:32+00:00",
+  "blastRadius": {
+    "unavailable": true,
+    "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF-ai2-contract-graph"
+  },
+  "run_seq": null
+}

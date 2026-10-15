@@ -887,6 +887,7 @@ def _manifest_item_to_domain(orm: ManifestItemORM) -> ManifestItem:
         document_id=orm.document_id or "",
         filename=orm.filename,
         doc_type=orm.doc_type,
+        document_number=orm.document_number,
         sha256=orm.sha256 or "",
         confidence=str(orm.confidence),
         order_index=int(orm.order_index),
@@ -969,6 +970,9 @@ class ManifestRepositoryImpl:
                 document_id=doc_id,
                 filename=str(doc.get("filename", "")),
                 doc_type=role,
+                document_number=(
+                    str(doc.get("document_number")) if doc.get("document_number") else None
+                ),
                 sha256=str(doc.get("sha256", "")),
                 confidence="1.0",
                 order_index=_coerce_int(doc.get("order_index", idx), idx) or idx,
@@ -1089,6 +1093,7 @@ class ManifestRepositoryImpl:
                     document_id=member.document_id,
                     filename=member.filename,
                     doc_type=member.doc_type,
+                    document_number=member.document_number,
                     sha256=member.sha256,
                     confidence=member.confidence or "1.0",
                     order_index=member.order_index,

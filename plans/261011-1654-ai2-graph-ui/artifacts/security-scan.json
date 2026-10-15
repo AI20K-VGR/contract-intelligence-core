@@ -1,0 +1,23 @@
+{
+  "verdict": "PASS",
+  "stage": "ship",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-11T17:09:44+00:00",
+  "findings": [
+    {
+      "severity": "high",
+      "category": "cve",
+      "location": "frontend/package-lock.json: Vitest 3.2.7 / Tinypool advisories (historical)",
+      "finding": "Initial scan identified dev dependency advisories; Vitest was upgraded to 5.0.3 and full npm audit now reports zero vulnerabilities.",
+      "status": "fixed"
+    },
+    {
+      "severity": "high",
+      "category": "cve",
+      "location": "source-map-js 1.2.1 (historical)",
+      "finding": "Production dependency advisory fixed by updating lockfile to 1.2.2; production audit is clean.",
+      "status": "fixed"
+    }
+  ],
+  "tool": "npm audit --audit-level=high; pip-audit exported runtime requirements; source review"
+}

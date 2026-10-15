@@ -14,7 +14,13 @@ import {
   useParams,
 } from 'react-router-dom'
 import { ApiError } from '../api/client'
+import { getInspectorRecord } from '../api/inspector'
 import { clauseOrdinal } from '../api/clauseReview'
+import {
+  getContractGraphEvidence,
+  type ContractGraphEdge,
+  type ContractGraphKind,
+} from '../api/contractGraph'
 import {
   contractDocument,
   getDossierStructure,
@@ -42,6 +48,14 @@ import { SearchCitationReview } from '../components/SearchCitationReview'
 import { StructureDocument } from '../components/StructureDocument'
 import { StructureMindmap } from '../components/StructureMindmap'
 import { StructureOutline } from '../components/StructureOutline'
+
+import { Ai2GraphDossierView } from '../components/ai2-graph/ContractGraphCanvas'
+import { ContentSharingConsent } from '../components/ai2-graph/ContentSharingConsent'
+import {
+  AI2_GRAPH_UI_ENABLED,
+  createLatestRequestGuard,
+  isLegacyCitationFallbackAllowed,
+} from '../components/ai2-graph/contractGraphRuntime'
 import { QueryHistoryPanel } from '../components/QueryHistoryPanel'
 import { SearchAudit } from '../components/SearchAudit'
 import { TableStructure } from '../components/TableStructure'
@@ -225,6 +239,18 @@ export function DossierStructurePage() {
     stateStructureMode(location.state),
   )
   const [view, setView] = useState<StructureView>(storedStructureView)
+
+  const [showAi2Graph, setShowAi2Graph] = useState(false)
+  const [ai2GraphKind, setAi2GraphKind] = useState<ContractGraphKind>('pair')
+  const [graphClauses, setGraphClauses] = useState<Record<string, ClauseNode[]>>({})
+  const [graphLines, setGraphLines] = useState<Record<string, { id: string; pageNo: number; text: string }[]>>({})
+  const [ai2Citation, setAi2Citation] = useState<Record<
+    string,
+    unknown
+  > | null>(null)
+  const [ai2CitationError, setAi2CitationError] = useState(false)
+  const [ai2CitationLoading, setAi2CitationLoading] = useState(false)
+  const ai2CitationRequests = useRef(createLatestRequestGuard())
   const prefs = useReadingPrefs()
   const [spots, setSpots] = useState<ReviewSpot[]>([])
   const [query, setQuery] = useState('')
@@ -262,6 +288,37 @@ export function DossierStructurePage() {
     () => (lines ? buildStructureTree(lines, activeMode) : fallbackNodes),
     [lines, activeMode, fallbackNodes],
   )
+  useEffect(() => {
+    if (!showAi2Graph || !detail) return
+    const controller = new AbortController()
+    let cancelled = false
+    void Promise.all(
+      detail.documents.map(async (document) => {
+        const [documentLines, clauses] = await Promise.allSettled([
+          loadDocumentLines(document.id, controller.signal),
+          listClauses(document.id, controller.signal),
+        ])
+        return [
+          document.id,
+          {
+            lines: documentLines.status === 'fulfilled'
+              ? documentLines.value.map(({ id, pageNo, text }) => ({ id, pageNo, text }))
+              : [],
+            clauses: clauses.status === 'fulfilled' ? clauses.value : [],
+          },
+        ] as const
+      }),
+    ).then((entries) => {
+      if (!cancelled) {
+        setGraphClauses(Object.fromEntries(entries.map(([id, value]) => [id, value.clauses])))
+        setGraphLines(Object.fromEntries(entries.map(([id, value]) => [id, value.lines])))
+      }
+    })
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [detail, showAi2Graph])
   // Câu trả lời AI2 không đi theo loại cấu trúc đang xem.
   const answerNodes = useMemo(
     () => (lines ? buildStructureTree(lines, 'numbered') : fallbackNodes),
@@ -273,6 +330,13 @@ export function DossierStructurePage() {
     setSearchCite(null)
     setSearchError(null)
     setReviewCiteId(null)
+    setShowAi2Graph(false)
+    setGraphClauses({})
+    setGraphLines({})
+    setAi2Citation(null)
+    setAi2CitationError(false)
+    setAi2CitationLoading(false)
+    ai2CitationRequests.current.invalidate()
   }, [dossierId])
   // "Hỏi lại" từ trang lịch sử: điền sẵn câu hỏi, một lần cho mỗi bước lịch sử
   // (Back về bước đó không điền lại).
@@ -573,6 +637,135 @@ export function DossierStructurePage() {
     setCiteId(id)
   }, [])
 
+  const resolveGraphEvidenceText = useCallback(
+    (nodeId: string, sourceDocumentId?: string | null) => {
+      const endpointDocumentId = sourceDocumentId ?? null
+      if (!endpointDocumentId) return ''
+      const line = (graphLines[endpointDocumentId] ?? []).find((item) => {
+        const graphLineId = `line:${item.pageNo}:${item.id}`
+        return nodeId === graphLineId || nodeId.startsWith(`${graphLineId}:`)
+      })
+      if (!line) return ''
+      const clauseTree = endpointDocumentId === documentId
+        ? nodes
+        : graphClauses[endpointDocumentId] ?? []
+      const clause = findClauseByQuote(clauseTree, line.text, line.pageNo)
+      return (clause?.text || line.text).replace(/\s+/g, ' ').trim()
+    },
+    [documentId, graphClauses, graphLines, nodes],
+  )
+
+  const resolveGraphNodeLabel = useCallback(
+    (nodeId: string, sourceDocumentId?: string | null) =>
+      resolveGraphEvidenceText(nodeId, sourceDocumentId) || 'Không tải được nội dung điều khoản OCR',
+    [resolveGraphEvidenceText],
+  )
+
+  const resolveSelectedGraphEdgeEvidence = useCallback(
+    async (edge: ContractGraphEdge) => {
+      if (!detail?.ai2JobId || !detail.snapshotDigest) return null
+      const endpoints = [
+        {
+          nodeId: edge.source_node_id,
+          documentId: edge.source_document_id,
+          citationRef: edge.source_citation_ref,
+        },
+        {
+          nodeId: edge.target_node_id,
+          documentId: edge.target_document_id,
+          citationRef: edge.target_citation_ref,
+        },
+      ]
+      const found = await Promise.all(endpoints.map(async (endpoint) => {
+        if (
+          !endpoint.documentId ||
+          !detail.documents.some((document) => document.id === endpoint.documentId)
+        ) return null
+        try {
+          const evidence = endpoint.citationRef.startsWith('cite:')
+            ? await getContractGraphEvidence({
+                dossierId,
+                jobId: detail.ai2JobId!,
+                snapshotDigest: detail.snapshotDigest!,
+                graphKind: ai2GraphKind,
+                nodeId: endpoint.nodeId,
+                citationRef: endpoint.citationRef,
+              })
+            : await getInspectorRecord('citation', endpoint.citationRef)
+          return typeof evidence.quote === 'string'
+            ? evidence.quote
+            : null
+        } catch {
+          return null
+        }
+      }))
+      return {
+        ...(found[0] ? { sourceText: found[0] } : {}),
+        ...(found[1] ? { targetText: found[1] } : {}),
+      }
+    },
+    [ai2GraphKind, detail, dossierId],
+  )
+
+  const clearAi2Citation = useCallback(() => {
+    ai2CitationRequests.current.invalidate()
+    setAi2Citation(null)
+    setAi2CitationError(false)
+    setAi2CitationLoading(false)
+  }, [])
+
+  const openAi2Citation = useCallback(
+    async (
+      citationRef: string,
+      nodeId: string,
+      sourceDocumentId?: string | null,
+    ) => {
+      const requestId = ai2CitationRequests.current.start()
+      setAi2Citation(null)
+      setAi2CitationError(false)
+      setAi2CitationLoading(true)
+      try {
+        const record = citationRef.startsWith('cite:')
+          ? await getContractGraphEvidence({
+              dossierId,
+              jobId: detail?.ai2JobId ?? '',
+              snapshotDigest: detail?.snapshotDigest ?? '',
+              graphKind: ai2GraphKind,
+              nodeId,
+              citationRef,
+            })
+          : await getInspectorRecord('citation', citationRef)
+        if (ai2CitationRequests.current.isCurrent(requestId))
+          setAi2Citation({ ...record, __node_id: nodeId, __document_id: sourceDocumentId })
+      } catch (error) {
+        if (!ai2CitationRequests.current.isCurrent(requestId)) return
+        // A legacy opaque handle may not be a Backend citation ID; use the already-loaded OCR clause if it maps exactly.
+        const responseStatus =
+          error && typeof error === 'object' && 'status' in error
+            ? error.status
+            : null
+        if (
+          isLegacyCitationFallbackAllowed(
+            citationRef,
+            typeof responseStatus === 'number' ? responseStatus : null,
+            sourceDocumentId,
+            documentId,
+          ) &&
+          findClause(nodes, nodeId) &&
+          citeOf.has(nodeId)
+        ) {
+          openTreeCite(nodeId)
+          return
+        }
+        setAi2CitationError(true)
+      } finally {
+        if (ai2CitationRequests.current.isCurrent(requestId))
+          setAi2CitationLoading(false)
+      }
+    },
+    [ai2GraphKind, citeOf, detail?.ai2JobId, detail?.snapshotDigest, dossierId, documentId, nodes, openTreeCite],
+  )
+
   function openUploadedPdf(id: string) {
     setShowLines(false)
     setCiteId(null)
@@ -843,11 +1036,44 @@ export function DossierStructurePage() {
                 </div>
               </div>
               {phase === 'ready' ? (
-                <div
-                  className={`flex min-w-0 items-center gap-space-sm pr-2.5 pt-0.5 ${splitView ? 'w-full' : 'md:shrink-0'}`}
-                >
+
+                <div className="flex w-full shrink-0 items-center gap-space-sm md:w-auto">
+                  {AI2_GRAPH_UI_ENABLED ? (
+                    <button
+                      aria-pressed={showAi2Graph}
+                      className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 font-body-sm text-body-sm font-semibold shadow-sm ${showAi2Graph ? 'border-primary bg-primary text-white' : 'border-outline-variant/30 bg-surface-container-lowest text-on-surface hover:bg-surface-container'}`}
+                      type="button"
+                      onClick={() => setShowAi2Graph((shown) => !shown)}
+                    >
+                      <MaterialIcon name="hub" className="text-[18px]" />
+                      Graph AI2
+                    </button>
+                  ) : null}
+                  <Link
+                    className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-outline-variant/30 bg-surface-container-lowest px-3 font-body-sm text-body-sm font-semibold text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] hover:bg-amber-50 hover:text-amber-950"
+                    state={{ dossierId, name: detail?.name }}
+                    title={
+                      openConflicts > 0
+                        ? `${openConflicts} xung đột chưa ai thẩm định`
+                        : spots.length > 0
+                          ? 'Mọi xung đột đã có người thẩm định'
+                          : 'Xem trang đối soát xung đột'
+                    }
+                    to={conflictPagePath(dossierId)}
+                  >
+                    <MaterialIcon
+                      name="warning"
+                      className="text-[18px] text-amber-700"
+                    />
+                    Xem xung đột
+                    {openConflicts > 0 ? (
+                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 font-label-sm text-[11px] font-bold text-amber-950">
+                        {openConflicts}
+                      </span>
+                    ) : null}
+                  </Link>
                   <form
-                    className={`relative min-w-0 flex-1 ${splitView ? '' : 'md:w-56 md:flex-none lg:w-72'}`}
+                    className="relative min-w-0 w-full shrink md:w-80 lg:w-96"
                     onSubmit={(event) => void submitSearch(event)}
                   >
                     <MaterialIcon
@@ -856,14 +1082,15 @@ export function DossierStructurePage() {
                     />
                     <input
                       aria-label="Hỏi về hợp đồng"
-                      className="h-9 w-full rounded-full border border-outline-variant/30 bg-surface-container-lowest pl-9 pr-space-md font-body-sm text-body-sm text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-secondary"
+
+                      className="h-10 w-full rounded-full border border-outline-variant/30 bg-surface-container-lowest pl-9 pr-space-md font-body-sm text-body-sm text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-secondary"
                       placeholder="Hỏi về hợp đồng này…"
-                      ref={searchInputRef}
                       type="search"
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
                     />
                   </form>
+
                   {/* Đang hỏi đáp: về cấu trúc cây. Đang ở cấu trúc cây: mở lịch sử hỏi đáp. */}
                   <button
                     className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-outline-variant/30 bg-surface-container-lowest text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] hover:bg-surface-container"
@@ -965,6 +1192,7 @@ export function DossierStructurePage() {
               </button>
             </section>
           ) : null}
+
 
           {phase === 'ready' && answerOpen ? (
             <section className="mb-space-md rounded-xl bg-surface-container-lowest px-space-md py-space-md shadow-sm">
@@ -1155,39 +1383,107 @@ export function DossierStructurePage() {
             />
           ) : null}
 
+          {phase === 'ready' && showAi2Graph && detail ? (
+            <div className="mb-space-sm flex flex-wrap items-center justify-between gap-space-sm rounded-xl border border-outline-variant/20 bg-surface-container-lowest p-space-sm">
+              <div className="flex flex-wrap items-center gap-space-xs" role="group" aria-label="Loại graph AI2">
+                {(['pair', 'operation'] as const).map((kind) => (
+                  <button
+                    key={kind}
+                    aria-pressed={ai2GraphKind === kind}
+                    className={`rounded-full px-3 py-1.5 font-body-sm text-body-sm ${ai2GraphKind === kind ? 'bg-primary text-white' : 'bg-surface-container text-on-surface hover:bg-primary/10'}`}
+                    type="button"
+                    onClick={() => setAi2GraphKind(kind)}
+                  >
+                    {kind === 'pair' ? 'Quan hệ điều khoản' : 'Sửa đổi điều khoản'}
+                  </button>
+                ))}
+              </div>
+              <ContentSharingConsent
+                dossierId={dossierId}
+                enabled={detail.metadata?.ai2_content_sharing_consent === true}
+                canChange={permissions.known && permissions.canManage}
+                onSaved={(enabled) =>
+                  setDetail((current) =>
+                    current
+                      ? {
+                          ...current,
+                          metadata: {
+                            ...(current.metadata ?? {}),
+                            ai2_content_sharing_consent: enabled,
+                          },
+                        }
+                      : current,
+                  )
+                }
+              />
+            </div>
+          ) : null}
+
           {phase === 'ready' &&
           !qaMode &&
           !reviewCiteId &&
-          activeMode !== 'tables' ? (
+          (activeMode !== 'tables' || showAi2Graph) ? (
             <div className="flex min-h-[520px] flex-1 flex-col pb-space-md">
-              {(() => {
-                const shared = {
-                  markers: prefs.highlightConflicts ? markers : undefined,
-                  citationOf: citeOf,
-                  focusId: citeId,
-                  autoScroll: prefs.autoScroll,
-                  nodes,
-                  title: detail?.name ?? 'Hợp đồng',
-                  onCite: openTreeCite,
-                }
-                switch (view) {
-                  case 'outline':
-                    return <StructureOutline {...shared} />
-                  case 'document':
-                    return <StructureDocument {...shared} />
-                  case 'tree':
-                    return (
-                      <StructureMindmap
-                        key="tree"
-                        {...shared}
-                        orientation="vertical"
-                      />
-                    )
-                  default:
-                    // key để đổi hướng thì dựng lại, tự căn vừa khung.
-                    return <StructureMindmap key="mindmap" {...shared} />
-                }
-              })()}
+              {showAi2Graph ? (
+                detail?.ai2JobId && detail.snapshotDigest ? (
+                  <Ai2GraphDossierView
+                    key={`${detail.ai2JobId}:${detail.snapshotDigest}:${ai2GraphKind}`}
+                    enabled={AI2_GRAPH_UI_ENABLED}
+                    dossierId={dossierId}
+                    jobId={detail.ai2JobId}
+                    snapshotDigest={detail.snapshotDigest}
+                    graphKind={ai2GraphKind}
+                    resolveNodeLabel={resolveGraphNodeLabel}
+                    onOpenCitation={openAi2Citation}
+                    onSelectRelation={clearAi2Citation}
+                    onResolveEdgeEvidence={resolveSelectedGraphEdgeEvidence}
+                    citationRecord={ai2Citation}
+                    citationError={ai2CitationError}
+                    citationLoading={ai2CitationLoading}
+                  />
+                ) : (
+                  <p
+                    role="status"
+                    className="rounded border border-outline-variant p-3"
+                  >
+                    Graph AI2 chưa có mã job và snapshot hiện hành để đọc.
+                  </p>
+                )
+              ) : activeMode !== 'tables' ? (
+                (() => {
+                  const shared = {
+                    markers: prefs.highlightConflicts ? markers : undefined,
+                    citationOf: citeOf,
+                    focusId: citeId,
+                    autoScroll: prefs.autoScroll,
+                    nodes,
+                    title: detail?.name ?? 'Hợp đồng',
+                    onCite: openTreeCite,
+                  }
+                  switch (view) {
+                    case 'outline':
+                      return <StructureOutline {...shared} />
+                    case 'document':
+                      return <StructureDocument {...shared} />
+                    case 'tree':
+                      return (
+                        <StructureMindmap
+                          key="tree"
+                          {...shared}
+                          orientation="vertical"
+                        />
+                      )
+                    default:
+                      // key để đổi hướng thì dựng lại, tự căn vừa khung.
+                      return (
+                        <StructureMindmap
+                          key="mindmap"
+                          {...shared}
+                        />
+                      )
+                  }
+                })()
+              ) : null}
             </div>
           ) : null}
         </div>

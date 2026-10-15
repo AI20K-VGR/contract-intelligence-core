@@ -1,3 +1,5 @@
+import pytest
+
 from app.contracts.models import Citation, ComparisonScope, Disposition, Fact, FindingType
 from app.pipeline.compare import compare_facts
 from app.pipeline.idp import run_idp
@@ -82,6 +84,110 @@ def test_two_sources_same_context_only():
     price = [x for x in cands if x.item_key == "contract_value"]
     assert len(price) == 1
     assert all(len(x.evidence_left) == 1 and len(x.evidence_right) == 1 for x in cands)
+
+
+@pytest.mark.parametrize(
+    ("annex_title", "expected"),
+    [
+        ("Phụ lục 1 — Sửa Điều 5 (mức 1)", Disposition.CANDIDATE_AMENDMENT),
+        ("Phụ lục 2 — Cũng sửa Điều 5 (mức 2)", Disposition.CANDIDATE_AMENDMENT),
+        ("Phu luc 2 - Cung sua Dieu 5", Disposition.CANDIDATE_AMENDMENT),
+        ("Phụ lục 1 — Không sửa Điều 5", Disposition.COMPARABLE_DIFFERENCE),
+        ("Phụ lục 1 — Sửa chữa Điều 5", Disposition.COMPARABLE_DIFFERENCE),
+        ("Phu luc 1 - Sua Dieu 5", Disposition.CANDIDATE_AMENDMENT),
+    ],
+)
+def test_explicit_annex_title_saying_sua_dieu_changes_comparison(annex_title, expected):
+    facts = [
+        Fact(
+            fact_id="body-penalty",
+            raw_value="0,2%",
+            citation=Citation(node_id="body", page_revision_id="p1", text_span="Phạt chậm 0,2%"),
+            item_key="penalty_general",
+            source_role="body",
+            scope="penalty_general",
+            subject="Điều 5. Phạt vi phạm",
+            unit="percent",
+        ),
+        Fact(
+            fact_id="annex-penalty",
+            raw_value="0,1%",
+            citation=Citation(node_id="annex", page_revision_id="p2", text_span="Phạt chậm 0,1%"),
+            item_key="penalty_general",
+            source_role="annex",
+            scope="penalty_general",
+            validity="PL1",
+            subject=annex_title,
+            unit="percent",
+        ),
+    ]
+
+    candidates, _ = compare_facts(facts)
+
+    assert len(candidates) == 1
+    assert candidates[0].disposition == expected
+
+
+def test_annex_amendment_title_must_address_compared_body_clause():
+    facts = [
+        Fact(
+            fact_id="body-penalty-article-9",
+            raw_value="0,2%",
+            citation=Citation(node_id="body", page_revision_id="p1", text_span="Phạt chậm 0,2%"),
+            item_key="penalty_general",
+            source_role="body",
+            scope="penalty_general",
+            subject="Điều 9. Phạt vi phạm",
+            unit="percent",
+        ),
+        Fact(
+            fact_id="annex-penalty-article-9",
+            raw_value="0,1%",
+            citation=Citation(node_id="annex", page_revision_id="p2", text_span="Phạt chậm 0,1%"),
+            item_key="penalty_general",
+            source_role="annex",
+            scope="penalty_general",
+            validity="PL1",
+            subject="Phụ lục 1 — Sửa Điều 5",
+            unit="percent",
+        ),
+    ]
+
+    candidates, _ = compare_facts(facts)
+
+    assert len(candidates) == 1
+    assert candidates[0].disposition == Disposition.COMPARABLE_DIFFERENCE
+
+
+def test_annex_amendment_title_does_not_apply_to_other_items_in_same_annex():
+    facts = [
+        Fact(
+            fact_id="body-value",
+            raw_value="1000000000",
+            citation=Citation(node_id="body", page_revision_id="p1", text_span="Giá hợp đồng 1.000.000.000"),
+            item_key="contract_value",
+            source_role="body",
+            scope="contract_value",
+            subject="Điều 9. Giá hợp đồng",
+            unit="VND",
+        ),
+        Fact(
+            fact_id="annex-value",
+            raw_value="1100000000",
+            citation=Citation(node_id="annex", page_revision_id="p2", text_span="Giá hợp đồng 1.100.000.000"),
+            item_key="contract_value",
+            source_role="annex",
+            scope="contract_value",
+            validity="PL1",
+            subject="Phụ lục 1 — Sửa Điều 5 (mức 1)",
+            unit="VND",
+        ),
+    ]
+
+    candidates, _ = compare_facts(facts)
+
+    assert len(candidates) == 1
+    assert candidates[0].disposition == Disposition.COMPARABLE_DIFFERENCE
 
 
 def test_party_identity_facts_are_not_comparable_terms():

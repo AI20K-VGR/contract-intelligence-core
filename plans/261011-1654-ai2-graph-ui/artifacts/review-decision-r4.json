@@ -1,0 +1,10 @@
+{
+  "verdict": "BLOCKED",
+  "reviewer": "agent:p5_review",
+  "role": "reviewer",
+  "rationale": "P5 còn blocker về provenance: RelationList và RelationInspector chọn target_address thay cho endpoint label nên relation operation không hiện filename của tài liệu đích trong đường duyệt đầy đủ; test hiện chỉ xác nhận địa chỉ trên canvas. Đồng thời Backend adapter và frontend parser chấp nhận thiếu source_document_id/target_document_id dù schema khai báo bắt buộc (nullable), khiến response sai contract âm thầm mất metadata provenance. Manual 320 CSS px và live citation vẫn chưa được kiểm chứng.",
+  "plan_hash": "3ae3749f3aeea755d1701648c568f3898e5b3974e8f7719c6bcf2a9a94b5dc0d",
+  "effort": "xhigh",
+  "rounds_run": 4,
+  "run_seq": null
+}

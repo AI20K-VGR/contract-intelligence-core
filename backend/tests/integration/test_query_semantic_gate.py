@@ -53,7 +53,7 @@ async def test_pending_semantic_run_blocks_without_calling_ai2(
     client: AsyncClient,  # noqa: F811
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("AI2_SEMANTIC_ENABLED", "true")
+    monkeypatch.delenv("AI2_SEMANTIC_ENABLED", raising=False)
     await _set_run(factory, status="running")
 
     body, ai2 = await _query(client)

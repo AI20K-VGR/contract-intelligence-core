@@ -1,0 +1,72 @@
+{
+  "schema": "contract-graph-p3-postapproval-readiness/1",
+  "dataset_id": "quality-recovery-dev-20261011-v2",
+  "source_packet": "evals/contract_graph/pairs/quality-recovery-manifest.v2.json",
+  "approval_receipt": ".harness/state/quality-recovery-p3-dev-20261011-v2/user-approval.v2.json",
+  "approval_receipt_sha256": "109e266c33c93d68706c6e3a529e54e744d82e980d814e5492bec5ca2238aaee",
+  "approval_scope": {
+    "rows": 600,
+    "decision": "approve_all_suggestions",
+    "granularity": "blanket approval; not line-by-line review",
+    "independent_human_annotation": "waived_by_user"
+  },
+  "approved_label_counts": {
+    "GENERAL_SPECIFIC": 27,
+    "DUPLICATE": 2,
+    "REFERENCE": 1,
+    "CONFLICT": 0,
+    "UNRELATED": 570
+  },
+  "readiness": {
+    "status": "BLOCKED",
+    "approved_positive_rows": 30,
+    "negative_rows": 570,
+    "independent_clusters": 31,
+    "clusters_by_positive_label": {
+      "GENERAL_SPECIFIC": 14,
+      "DUPLICATE": 2,
+      "REFERENCE": 1,
+      "CONFLICT": 0
+    },
+    "max_cluster_share_by_positive_label": {
+      "GENERAL_SPECIFIC": 0.18518518518518517,
+      "DUPLICATE": 0.5,
+      "REFERENCE": 1.0,
+      "CONFLICT": 0.0
+    },
+    "minimums": {
+      "positives_per_label": 60,
+      "negatives": 120,
+      "independent_clusters": 30,
+      "clusters_per_label": 3,
+      "max_cluster_share": 0.4
+    },
+    "reason_codes": [
+      "general_specific_positive_minimum_not_met",
+      "conflict_positive_minimum_not_met",
+      "conflict_cluster_minimum_not_met",
+      "duplicate_positive_minimum_not_met",
+      "duplicate_cluster_minimum_not_met",
+      "duplicate_cluster_dominance_exceeded",
+      "reference_positive_minimum_not_met",
+      "reference_cluster_minimum_not_met",
+      "reference_cluster_dominance_exceeded"
+    ]
+  },
+  "remaining_gates": {
+    "hash_bound_hg_qr1_decision": "missing",
+    "independent_annotation": "waived_by_user; no agreement evidence",
+    "candidate_union_precision_frame": "not built; P4 locked",
+    "candidate_code": "pairs-cand-v2; old v1 measurement is stale",
+    "p4_p5": "locked",
+    "runtime": "OFF"
+  },
+  "user_review_packet": {
+    "path": ".harness/state/quality-recovery-p3-conflict-triage-20261011-v1/conflict-triage-review-v2.csv",
+    "sha256": "cd641672cd4119d3a3970dc7a74ea982598cd876f2734203df7bc38bcf926ea4",
+    "rows": 191,
+    "scope": "diagnostic high-overlap numeric-mismatch slice; not representative prevalence",
+    "suggestions_are_gold": false
+  },
+  "interpretation": "Blanket approval is recorded as the user's decision, but it does not create missing conflict positives or satisfy readiness quotas. No product quality PASS is claimed."
+}

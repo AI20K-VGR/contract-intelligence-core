@@ -1,0 +1,39 @@
+{
+  "stage": "cook",
+  "plan": "261013-2153-ai2-develop-autodeploy",
+  "checks": [
+    {
+      "name": "consent_rollout_cli_sqlite",
+      "status": "PASS"
+    },
+    {
+      "name": "consent_api_acl_audit_atomicity",
+      "status": "PASS"
+    },
+    {
+      "name": "postgres_optout_rollback_race_CI",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend_tests_build",
+      "status": "PASS"
+    },
+    {
+      "name": "backend_CI",
+      "status": "PASS"
+    },
+    {
+      "name": "AI_service_CI_consent_gates",
+      "status": "PASS"
+    },
+    {
+      "name": "ruff",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P3",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-13T20:26:52+00:00",
+  "run_seq": null
+}

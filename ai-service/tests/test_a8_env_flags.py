@@ -129,7 +129,11 @@ def _processing_request(policy_flags: dict[str, Any]) -> dict:
         },
     }
     payload["service_envelope"] = build_service_envelope(
-        payload, secret=SECRET, tenant_id=TENANT, dossier_id=payload["dossier_id"], actor_id="backend"
+        payload,
+        secret=SECRET,
+        tenant_id=TENANT,
+        dossier_id=payload["dossier_id"],
+        actor_id="backend",
     )
     return payload
 
@@ -139,7 +143,9 @@ def _poll(client: TestClient, job_id: str, dossier_id: str) -> dict:
     envelope = build_service_envelope(
         poll, secret=SECRET, tenant_id=TENANT, dossier_id=dossier_id, actor_id="backend"
     )
-    response = client.get(f"/jobs/{job_id}", headers={"X-AI2-Service-Envelope": json.dumps(envelope)})
+    response = client.get(
+        f"/jobs/{job_id}", headers={"X-AI2-Service-Envelope": json.dumps(envelope)}
+    )
     assert response.status_code == 200, response.text
     return response.json()
 
@@ -161,11 +167,15 @@ def _spy_run_idp(monkeypatch, module: Any) -> dict[str, Any]:
 
 
 @pytest.mark.parametrize(
-    ("env_value", "request_egress", "expected"),
-    [(None, True, False), ("false", True, False), ("true", False, True)],
+    ("env_value", "request_egress", "expected_runtime", "expected_consent"),
+    [(None, True, True, True), ("false", True, False, False), ("true", False, True, False)],
 )
 def test_processing_egress_comes_from_env_not_request(
-    monkeypatch, env_value: str | None, request_egress: bool, expected: bool
+    monkeypatch,
+    env_value: str | None,
+    request_egress: bool,
+    expected_runtime: bool,
+    expected_consent: bool,
 ):
     if env_value is not None:
         monkeypatch.setenv("AI2_PROCESSING_EGRESS_ALLOWED", env_value)
@@ -177,12 +187,13 @@ def test_processing_egress_comes_from_env_not_request(
     assert accepted.status_code == 202, accepted.text
     _poll(client, accepted.json()["job_id"], payload["dossier_id"])
 
-    assert captured["runtime"].egress_allowed is expected
-    assert captured["egress_approved"] is expected
-    assert (captured["llm"] is not None) is expected
+    assert captured["runtime"].egress_allowed is expected_runtime
+    assert captured["egress_approved"] is expected_consent
+    assert (captured["llm"] is not None) is expected_runtime
 
 
 def test_kafka_processing_ignores_request_egress_when_env_is_off(monkeypatch):
+    monkeypatch.setenv("AI2_PROCESSING_EGRESS_ALLOWED", "false")
     captured = _spy_run_idp(monkeypatch, kafka_worker)
     payload = _processing_request({"egress_allowed": True, "use_vector": False})
     command = {
@@ -206,9 +217,13 @@ def test_request_without_egress_and_vector_flags_is_valid():
     assert "use_vector" not in payload["policy_flags"]
 
     validate_contract(
-        payload, "be.ai2.processing.request.v1.schema.json", error_code="PROCESSING_REQUEST_SCHEMA_INVALID"
+        payload,
+        "be.ai2.processing.request.v1.schema.json",
+        error_code="PROCESSING_REQUEST_SCHEMA_INVALID",
     )
-    request, adapted = adapt_be_ai2_processing_request(payload, tenant_id=TENANT, actor_id="backend")
+    request, adapted = adapt_be_ai2_processing_request(
+        payload, tenant_id=TENANT, actor_id="backend"
+    )
     assert adapted.record.egress_approved is False
     assert request.policy_flags.use_vector is False
 
@@ -224,6 +239,7 @@ def test_request_without_egress_and_vector_flags_is_valid():
 
 def _compare_record():
     record = mock_record()
+    record.content_sharing_consent = True
     record.nodes.append(
         record.nodes[0].model_copy(
             update={
@@ -239,12 +255,16 @@ def _compare_record():
     return record
 
 
-def _signed_query(policy_flags: dict[str, Any] | None = None) -> dict:
+def _signed_query(
+    policy_flags: dict[str, Any] | None = None, *, consent: bool | None = True
+) -> dict:
     payload: dict[str, Any] = {
         "query": "Điều 5 liên quan đến phụ lục 1?",
         "dossier_id": "dossier_001",
         "snapshot_version": "ai1.snapshot.v1",
     }
+    if consent is not None:
+        payload["content_sharing_consent"] = consent
     if policy_flags is not None:
         payload["policy_flags"] = policy_flags
     payload["service_envelope"] = build_service_envelope(
@@ -259,6 +279,8 @@ def _signed_query(policy_flags: dict[str, Any] | None = None) -> dict:
 
 
 def test_query_ignores_request_egress_when_env_is_off(monkeypatch):
+    monkeypatch.setenv("AI2_QUERY_EGRESS_ALLOWED", "false")
+    monkeypatch.setenv("AI2_QUERY_USE_LLM", "false")
     monkeypatch.setattr(main, "NineRouterClient", FakeLLM)
     main.STORE.put(_compare_record())
 
@@ -284,7 +306,7 @@ def test_query_uses_llm_only_when_env_allows_it(monkeypatch):
     assert response.json()["used_llm"] is True
 
 
-@pytest.mark.parametrize(("env_value", "expected"), [(None, False), ("true", True)])
+@pytest.mark.parametrize(("env_value", "expected"), [(None, True), ("true", True)])
 def test_query_vector_comes_from_env(monkeypatch, env_value: str | None, expected: bool):
     if env_value is not None:
         monkeypatch.setenv("AI2_QUERY_USE_VECTOR", env_value)
@@ -307,10 +329,69 @@ def test_query_vector_comes_from_env(monkeypatch, env_value: str | None, expecte
 
 
 @pytest.mark.parametrize(
-    ("env_value", "expected"),
-    [(None, 15.0), ("30", 15.0), ("15", 15.0), ("2.5", 2.5), ("0", 15.0), ("-1", 15.0), ("abc", 15.0)],
+    ("consent", "stored_consent"), [(None, True), (False, True), (True, False)]
 )
-def test_query_llm_timeout_is_min_of_15s_and_env(monkeypatch, env_value: str | None, expected: float):
+def test_query_requires_signed_and_dossier_consent_even_when_server_caps_are_on(
+    monkeypatch, consent, stored_consent
+):
+    monkeypatch.setenv("AI2_QUERY_EGRESS_ALLOWED", "true")
+    monkeypatch.setenv("AI2_QUERY_USE_LLM", "true")
+    monkeypatch.setattr(main, "NineRouterClient", FakeLLM)
+    record = _compare_record()
+    record.content_sharing_consent = stored_consent
+    main.STORE.put(record)
+
+    response = TestClient(main.app).post("/query", json=_signed_query(consent=consent))
+
+    assert response.status_code == 200, response.text
+    assert _llm_calls() == 0
+    assert response.json()["used_llm"] is False
+
+
+def test_unsigned_query_cannot_open_egress_even_if_it_claims_consent(monkeypatch):
+    monkeypatch.setenv("AI2_QUERY_REQUIRE_SIGNATURE", "false")
+    monkeypatch.setenv("AI2_QUERY_EGRESS_ALLOWED", "true")
+    monkeypatch.setenv("AI2_QUERY_USE_LLM", "true")
+    monkeypatch.setattr(main, "NineRouterClient", FakeLLM)
+    record = _compare_record()
+    record.content_sharing_consent = True
+    main.STORE.put(record)
+    monkeypatch.setattr(
+        main,
+        "load_query_snapshot",
+        lambda *_args, **_kwargs: (record, fixture_envelope()),
+    )
+
+    response = TestClient(main.app).post(
+        "/query",
+        json={
+            "query": "Điều 5 liên quan đến phụ lục 1?",
+            "dossier_id": "dossier_001",
+            "tenant_id": TENANT,
+            "content_sharing_consent": True,
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert _llm_calls() == 0
+    assert response.json()["used_llm"] is False
+
+
+@pytest.mark.parametrize(
+    ("env_value", "expected"),
+    [
+        (None, 15.0),
+        ("30", 15.0),
+        ("15", 15.0),
+        ("2.5", 2.5),
+        ("0", 15.0),
+        ("-1", 15.0),
+        ("abc", 15.0),
+    ],
+)
+def test_query_llm_timeout_is_min_of_15s_and_env(
+    monkeypatch, env_value: str | None, expected: float
+):
     if env_value is not None:
         monkeypatch.setenv("AI2_QUERY_LLM_TIMEOUT_SECONDS", env_value)
 
