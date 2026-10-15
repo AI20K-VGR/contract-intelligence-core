@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu | **DOC-05b** / Contract Intelligence (PROD-01) |
-| Phiên bản / SemVer | **`v2.1.0`** — thêm đồ thị hợp đồng AI2, vết xử lý AI2 và consent chia sẻ nội dung theo hồ sơ (xem [Lịch sử phiên bản](#lịch-sử-phiên-bản)). Trước đó v2.0.2: `GET /documents/{id}/content` stream từ storage, nhận `Range` (`206`/`416`) và `If-None-Match` (`304`), có `ETag`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
+| Phiên bản / SemVer | **`v3.0.0`** — siết quyền trước pentest (#96): token không có role ứng dụng trả `403` thay vì thành `OPERATOR`; `/ai/jobs/{id}` chỉ `ADMINISTRATOR`; batch cancel/resume chỉ người tạo hoặc `ADMINISTRATOR`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
 | Trạng thái | Đã chốt — Sẵn sàng triển khai Frontend & Backend |
 | Owner | Tech Lead / Frontend Lead / Backend Lead |
 | Ngày hiệu lực | 17/09/2026 |
@@ -115,7 +115,7 @@ Frontend                          Keycloak                  Backend
 | `ci_administrator` | `ADMINISTRATOR` |
 | `ci_reviewer` | `REVIEWER` |
 | `ci_operator` | `OPERATOR` |
-| *(không match)* | `OPERATOR` (fallback) |
+| *(không match)* | **Không có.** Request bị từ chối `403 FORBIDDEN` (**v3.0.0**; trước đây được coi là `OPERATOR`) |
 
 ### 2.2 Quy tắc Tenant Isolation
 - Client **bắt buộc** truyền header `X-Tenant-Id: <tenant_id>`.
@@ -166,7 +166,7 @@ Mọi phản hồi lỗi (HTTP status >= 400) đều tuân theo chuẩn RFC 7807
 ### 3.3 Mã Lỗi Doanh nghiệp Thường Gặp
 | HTTP Status | Code Doanh nghiệp | Khi nào xảy ra? | Hành động của Frontend |
 |:---:|---|---|---|
-| `401` | `UNAUTHORIZED` | Token hết hạn hoặc không hợp lệ | Điều hướng người dùng về màn hình Login hoặc gọi refresh token |
+| `401` | `UNAUTHORIZED` | Token hết hạn hoặc không hợp lệ. **v3.0.0:** `error.message` chỉ là `Token has expired` hoặc `Invalid token`, không nói kiểm tra nào hỏng (issuer, audience, kid); lý do ghi ở log backend | Điều hướng người dùng về màn hình Login hoặc gọi refresh token. Không dựa vào nội dung `message` |
 | `403` | `FORBIDDEN` | Sai `X-Tenant-Id` hoặc không đủ quyền `x-rbac` | Hiển thị thông báo "Không có quyền thực hiện chức năng này" |
 | `404` | `NOT_FOUND` | Không tìm thấy ID hồ sơ / tài liệu / run | Hiển thị màn hình 404 hoặc thông báo mục đã bị xóa |
 | `409` | `VERSION_CONFLICT` | Phiên bản `base_version` gửi lên cũ hơn DB | **Refetch item mới nhất**, cảnh báo reviewer có xung đột chỉnh sửa |
@@ -251,8 +251,8 @@ Hiển thị tổng quan các lô xử lý (Batches), KPI trạng thái hợp đ
 | `POST` | `/batches` | `OPERATOR`, `ADMINISTRATOR` | Tạo lô mới (hỗ trợ upload gói ZIP chứa nhiều hồ sơ) |
 | `GET` | `/batches/{id}` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Chi tiết một lô và danh sách dossier bên trong |
 | `GET` | `/batches/{id}/summary` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Thống kê số lượng hồ sơ (thành công, lỗi, cần review, chi phí) |
-| `POST` | `/batches/{id}/cancel` | `OPERATOR`, `ADMINISTRATOR` | Dừng khẩn cấp toàn bộ tác vụ đang chạy trong batch |
-| `POST` | `/batches/{id}/resume` | `OPERATOR`, `ADMINISTRATOR` | Tiếp tục chạy lại các hồ sơ bị tạm dừng / lỗi |
+| `POST` | `/batches/{id}/cancel` | `OPERATOR`, `ADMINISTRATOR` | Dừng khẩn cấp toàn bộ tác vụ đang chạy trong batch. **v3.0.0:** OPERATOR chỉ với batch do mình tạo; batch của người khác trả `404`. ADMINISTRATOR: mọi batch trong tenant |
+| `POST` | `/batches/{id}/resume` | `OPERATOR`, `ADMINISTRATOR` | Tiếp tục chạy lại các hồ sơ bị tạm dừng / lỗi. **v3.0.0:** như `cancel`, OPERATOR chỉ với batch của mình |
 | `GET` | `/ops/metrics` | `ADMINISTRATOR` | Dashboard thống kê tải server, độ trễ và chi phí token theo ngày |
 
 ---
@@ -916,6 +916,7 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
+| `v3.0.0` | 15/10/2026 | Siết quyền trước đợt pentest bản online (#96). **Breaking** theo §8 vì thu hẹp quyền đã công bố: (1) token không có role ứng dụng nào trả `403 FORBIDDEN` thay vì được coi là `OPERATOR` (§2.1); (2) `GET`/`DELETE /ai/jobs/{id}` chỉ `ADMINISTRATOR`, trước đây `OPERATOR`/`REVIEWER` cũng gọi được; (3) `POST /batches/{id}/cancel` và `/resume`: OPERATOR chỉ với batch do mình tạo, batch của người khác trả `404`. Không đổi payload hay mã lỗi: `401` chỉ còn `message` `Token has expired`/`Invalid token`; `502 AI2_QUERY_FAILED` của `/query`, `/ask` không còn kèm URL và nội dung lỗi của AI2. Staging/prod không phục vụ `/docs`, `/redoc`, `/openapi.json`, không gửi `X-Backend-Version`, và `/health` chỉ trả `{"status":"ok"}`. Frontend không dùng các endpoint và header này nên không phải sửa |
 | `v2.1.0` | 15/10/2026 | Thêm `GET /dossiers/{id}/ai2/contract-graph/{graph_kind}` (+ `/evidence`), `GET /dossiers/{id}/ai2/processing-trace` và `PATCH /dossiers/{id}/ai2-content-sharing-consent` (mục "Đồ thị hợp đồng, vết xử lý và consent AI2" ở §5), kèm các mã lỗi `AI2_SNAPSHOT_CHANGED`, `AI2_GRAPH_STALE`, `GRAPH_CURSOR_INVALID`, `GRAPH_CURSOR_STALE`, `CITATION_READ_REVOKED`, `AI2_GRAPH_UNAVAILABLE`, `AI2_GRAPH_EVIDENCE_UNAVAILABLE`, `AI2_TRACE_UNAVAILABLE`. `PATCH /dossiers/{id}` bỏ qua `metadata.ai2_content_sharing_consent`. Chỉ thêm endpoint và mã lỗi, nên là MINOR |
 | `v2.0.2` | 15/10/2026 | `GET /documents/{id}/content` (mục "Tải PDF theo khoảng" ở Màn hình 5): stream từ storage thay vì đọc cả file vào bộ nhớ; nhận một khoảng `Range` → `206` + `Content-Range`, khoảng ngoài file → `416`; `If-Range`; `ETag` = sha256 và `If-None-Match` → `304`; `Cache-Control: private, no-cache`; CORS cho đọc `Accept-Ranges`, `Content-Range`, `Content-Length`, `ETag`. Response `200` không đổi, chỉ thêm mã và header, nên là PATCH |
 | `v2.0.1` | 14/10/2026 | Ghi giới hạn dung lượng tải hồ sơ (mục "Giới hạn dung lượng" ở Màn hình 3 và hai dòng `413` ở §3.3): 50 MiB mỗi file, do backend trả JSON; 100 MB mỗi request trên bản online, do Cloudflare gói Free trả HTML. `POST /dossiers` gửi mọi file trong một request nên bộ hồ sơ trên 100 MB bị chặn. API không đổi, nên là PATCH |
@@ -937,8 +938,8 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 - Hồ sơ: `DELETE /dossiers/{id}`, `PUT /dossiers/{id}/access` (chia sẻ), `POST /dossiers/{id}/ocr`, `/reprocess`, `/ai2/retry`, `/dossiers/{id}/facts`, `/conflicts`.
 - Hỏi đáp: `POST /dossiers/{id}/search`, `/ask`, `/query`.
 - Review: `GET|POST /clause-nodes/{id}/review`, `GET|POST /findings/{id}/review`.
-- Khác: `GET /runs/{id}/events` (SSE), `GET /documents/{id}/pages/{page_no}/image`, `GET /re-ocr-requests/{id}`, `/ai/jobs/{id}`, `/readyz`.
+- Khác: `GET /runs/{id}/events` (SSE), `GET /documents/{id}/pages/{page_no}/image`, `GET /re-ocr-requests/{id}`, `/ai/jobs/{id}` (**v3.0.0:** `GET` và `DELETE` chỉ `ADMINISTRATOR`; huỷ lần xử lý của hồ sơ dùng `POST /runs/{run_id}/cancel`), `/readyz`.
 
 ---
 
-**Hết DOC-05b · Frontend-Backend API Contract v2.1.0 (SemVer)**
+**Hết DOC-05b · Frontend-Backend API Contract v3.0.0 (SemVer)**
