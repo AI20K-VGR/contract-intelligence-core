@@ -13,6 +13,7 @@ Cần cài `cryptography` lib — đã có sẵn vì Keycloak service yêu cầu
 
 from __future__ import annotations
 
+import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import patch
@@ -25,6 +26,8 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from contract_intelligence.config.settings import Settings
 from contract_intelligence.shared.auth.exceptions import AuthenticationError
 from contract_intelligence.shared.auth.jwt_service import (
+    _JWKS_FETCH_TIMEOUT_SECONDS,
+    _MIN_REFRESH_INTERVAL_SECONDS,
     JWTService,
     _JWKSCache,
     _map_keycloak_role,
@@ -380,6 +383,68 @@ class TestDecodeAccessTokenErrors:
         svc = JWTService()
         with pytest.raises(AuthenticationError, match="kid"):
             svc.decode_and_validate_access(token)
+
+
+# -----------------------------------------------------------------------------
+# Tests — JWKS refetch limits
+# -----------------------------------------------------------------------------
+
+
+@pytest.fixture
+def fetches(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    """Record each JWKS fetch instead of calling Keycloak."""
+    calls: list[float] = []
+
+    def _fake_fetch(self: _JWKSCache) -> None:
+        calls.append(time.monotonic())
+        self._cached_at = time.monotonic()  # noqa: SLF001
+
+    monkeypatch.setattr(_JWKSCache, "_fetch", _fake_fetch)
+    return calls
+
+
+class TestJWKSRefresh:
+    def test_fresh_cache_is_not_refetched(self, fetches: list[float]) -> None:
+        cache = _JWKSCache()
+        cache._cached_at = time.monotonic()  # noqa: SLF001
+
+        assert cache.get_signing_key("any") is None
+        assert fetches == []
+
+    def test_first_use_and_expiry_fetch_once(self, fetches: list[float]) -> None:
+        cache = _JWKSCache()
+
+        cache.get_signing_key("any")
+        cache.get_signing_key("any")
+
+        assert len(fetches) == 1
+
+    def test_unknown_kids_refetch_at_most_once_per_interval(self, fetches: list[float]) -> None:
+        cache = _JWKSCache()
+
+        for _ in range(50):
+            cache.force_refresh()
+
+        assert len(fetches) == 1
+
+    def test_unknown_kid_refetches_after_the_interval(self, fetches: list[float]) -> None:
+        cache = _JWKSCache()
+        cache._cached_at = time.monotonic() - _MIN_REFRESH_INTERVAL_SECONDS - 1  # noqa: SLF001
+
+        cache.force_refresh()
+
+        assert len(fetches) == 1
+
+    def test_failed_fetch_also_waits_for_the_interval(self) -> None:
+        cache = _JWKSCache()
+        with patch("contract_intelligence.shared.auth.jwt_service.jwt.PyJWKClient") as client:
+            client.return_value.get_jwk_set.side_effect = OSError("Keycloak down")
+
+            cache.force_refresh()
+            cache.force_refresh()
+
+        assert client.call_count == 1
+        assert client.call_args.kwargs["timeout"] == _JWKS_FETCH_TIMEOUT_SECONDS
 
 
 # -----------------------------------------------------------------------------
