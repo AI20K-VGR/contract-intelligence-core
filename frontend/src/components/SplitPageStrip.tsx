@@ -57,7 +57,7 @@ function Thumb({
     <figure className="flex w-32 shrink-0 flex-col gap-2">
       <div
         className={`relative overflow-hidden rounded-lg bg-white shadow-sm ring-2 ${
-          annex ? 'ring-sky-400' : 'ring-amber-300'
+          annex ? 'ring-brand-300' : 'ring-brand-600'
         }`}
       >
         <canvas ref={canvasRef} className="block h-auto w-full" />
@@ -67,8 +67,8 @@ function Thumb({
           </span>
         )}
         <span
-          className={`absolute left-1.5 top-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold text-white shadow ${
-            annex ? 'bg-sky-600' : 'bg-amber-600'
+          className={`absolute left-1.5 top-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold shadow ${
+            annex ? 'bg-brand-300 text-brand-900' : 'bg-brand-700 text-white'
           }`}
         >
           Phần {partNo}
@@ -87,12 +87,12 @@ function Thumb({
           Trang {page}
         </span>
         {startsAnnex ? (
-          <span className="inline-flex items-center justify-center gap-1 rounded-md bg-sky-600 px-2 py-1 text-[12px] font-semibold text-white">
+          <span className="inline-flex items-center justify-center gap-1 rounded-md bg-brand-300 px-2 py-1 text-[12px] font-semibold text-brand-900">
             Phụ lục bắt đầu
           </span>
         ) : page > 1 ? (
           <button
-            className="rounded-md border border-sky-300 bg-sky-50 px-2 py-1 text-[12px] font-semibold text-sky-800 transition-colors hover:bg-sky-100 disabled:opacity-50"
+            className="rounded-md border border-brand-300 bg-brand-50 px-2 py-1 text-[12px] font-semibold text-brand-800 transition-colors hover:bg-brand-100 disabled:opacity-50"
             disabled={disabled}
             type="button"
             onClick={() => onStartAnnex(page)}
