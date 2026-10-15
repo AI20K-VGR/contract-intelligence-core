@@ -307,9 +307,9 @@ export function OverviewPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
         {isAdmin ? (
           <div
-            className={`lg:col-span-8 flex flex-col overflow-hidden ${CARD}`}
+            className={`lg:col-span-8 flex flex-col min-h-0 overflow-hidden lg:h-[380px] ${CARD}`}
           >
-            <div className="p-space-lg flex flex-col sm:flex-row sm:items-center justify-between gap-space-md">
+            <div className="p-space-lg flex flex-col sm:flex-row sm:items-center justify-between gap-space-md shrink-0">
               <div>
                 <h2 className={`text-[16px] font-medium ${INK}`}>
                   Thành viên nhóm
@@ -353,16 +353,16 @@ export function OverviewPage() {
             </div>
 
             {membersError ? (
-              <div className="mx-space-lg mb-space-md px-space-md py-space-sm rounded bg-error-container text-on-error-container font-body-sm text-body-sm">
+              <div className="shrink-0 mx-space-lg mb-space-md px-space-md py-space-sm rounded bg-error-container text-on-error-container font-body-sm text-body-sm">
                 {membersError}
               </div>
             ) : null}
 
-            <div className="w-full">
+            <div className="w-full min-h-0 flex-1 overflow-y-auto">
               <table className="w-full text-left text-on-surface font-body-sm text-body-sm table-fixed">
                 <thead>
                   <tr
-                    className={`${MUTED} text-[11px] font-semibold uppercase tracking-[0.06em] border-y border-tone-100`}
+                    className={`${MUTED} text-[11px] font-semibold uppercase tracking-[0.06em] border-y border-tone-100 sticky top-0 z-10 bg-white`}
                   >
                     <th className="py-3 px-space-lg w-[40%]" scope="col">
                       Thành viên
@@ -418,7 +418,7 @@ export function OverviewPage() {
               </table>
             </div>
 
-            <div className="px-space-lg py-space-md border-t border-tone-100 flex items-center justify-between">
+            <div className="shrink-0 px-space-lg py-space-md border-t border-tone-100 flex items-center justify-between">
               <span className="font-body-sm text-body-sm text-secondary">
                 Hiển thị{' '}
                 <span className="font-semibold text-on-surface">

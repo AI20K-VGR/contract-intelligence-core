@@ -18,11 +18,14 @@ QUAN TRỌNG — Kiến trúc SSO:
 Keycloak JWKS caching:
     - Fetch public key từ {keycloak_server_url}/realms/{realm}/protocol/openid-connect/certs
     - Cache trong memory với TTL mặc định 3600s (1 giờ)
-    - Tự refresh khi key không verify được (kid mismatch — VD: Keycloak rotate key)
+    - Tự refresh khi key không verify được (kid mismatch — VD: Keycloak rotate key),
+      nhưng tối đa 1 lần / 30s: token giả với ``kid`` ngẫu nhiên không được biến
+      mỗi request thành một lần gọi Keycloak
 """
 
 from __future__ import annotations
 
+import threading
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -44,15 +47,24 @@ if TYPE_CHECKING:
 # -----------------------------------------------------------------------------
 
 
+# An unknown ``kid`` refetches the JWKS (Keycloak may have rotated its key),
+# but no more often than this.
+_MIN_REFRESH_INTERVAL_SECONDS = 30.0
+# Requests wait on a fetch; Keycloak answers in milliseconds when healthy.
+_JWKS_FETCH_TIMEOUT_SECONDS = 5.0
+
+
 class _JWKSCache:
     """In-memory JWKS cache với TTL — singleton dùng chung cho cả process."""
 
-    __slots__ = ("_cached_at", "_client", "_keys")
+    __slots__ = ("_cached_at", "_client", "_keys", "_lock")
 
     def __init__(self) -> None:
         self._client: PyJWKClient | None = None
-        self._cached_at: float = 0.0
+        # Last fetch attempt (time.monotonic), successful or not.
+        self._cached_at: float = float("-inf")
         self._keys: dict[str, PyJWK] = {}
+        self._lock = threading.Lock()
 
     def get_signing_key(self, kid: str) -> PyJWK | None:
         """Lấy signing key từ JWKS, tự refresh nếu hết TTL hoặc key not found.
@@ -63,18 +75,23 @@ class _JWKSCache:
         Returns:
             PyJWK object hoặc None nếu không tìm thấy.
         """
-        settings = get_settings()
-        ttl = settings.keycloak_jwks_cache_ttl_seconds
-        now = time.monotonic()
-        if self._client is None or (now - self._cached_at) > ttl:
-            self._refresh()
+        ttl = get_settings().keycloak_jwks_cache_ttl_seconds
+        if time.monotonic() - self._cached_at > ttl:
+            self._refresh(min_age=ttl)
         return self._keys.get(kid)
 
     def force_refresh(self) -> None:
-        """Force refresh JWKS — dùng khi kid không tìm thấy (key rotation)."""
-        self._refresh()
+        """Refetch JWKS khi kid không tìm thấy (key rotation) — tối đa 1 lần / 30s."""
+        self._refresh(min_age=_MIN_REFRESH_INTERVAL_SECONDS)
 
-    def _refresh(self) -> None:
+    def _refresh(self, *, min_age: float) -> None:
+        with self._lock:
+            # Another request may have fetched while this one waited for the lock.
+            if time.monotonic() - self._cached_at <= min_age:
+                return
+            self._fetch()
+
+    def _fetch(self) -> None:
         settings = get_settings()
         jwks_uri = settings.keycloak_jwks_uri
         if not jwks_uri:
@@ -82,7 +99,7 @@ class _JWKSCache:
             realm = settings.keycloak_realm
             jwks_uri = f"{server}/realms/{realm}/protocol/openid-connect/certs"
 
-        self._client = jwt.PyJWKClient(jwks_uri)
+        self._client = jwt.PyJWKClient(jwks_uri, timeout=_JWKS_FETCH_TIMEOUT_SECONDS)
         try:
             keys_data = self._client.get_jwk_set()
             self._keys = {}
