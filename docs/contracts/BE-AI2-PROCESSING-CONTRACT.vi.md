@@ -198,7 +198,7 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
   - Khi `egress_allowed=false`, AI2 vẫn trả `SUCCEEDED` với phần xử lý bằng luật cố định.
   - Vượt `max_llm_calls` thì AI2 trả `SUCCEEDED` với `review_state=NEEDS_REVIEW` kèm issue `LLM_BUDGET_EXCEEDED`, không trả `FAILED` (D6, Lead duyệt 02/10).
   - Luồng xử lý hồ sơ: `use_vector=false`.
-  - Bản online (Lead, 30/09; đổi 15/10): OpenAI gọi thẳng `https://api.openai.com/v1`, **`gpt-5.5`** cho xử lý hồ sơ, `/query`, bước suy luận khó và ghép cặp đồ thị, embedding `text-embedding-3-small`; tối đa 20 lần gọi LLM và 100.000 token embedding một hồ sơ, hard limit **30 USD/tháng** (đề xuất, chờ Lead xác nhận), không cảnh báo chủ động, hết trần thì tắt env. Cả nhóm được tải hồ sơ lên bản online, chỉ hợp đồng mẫu đã ẩn thông tin, không gửi hồ sơ thật.
+  - Bản online (Lead, 30/09; đổi 15/10): OpenAI gọi thẳng `https://api.openai.com/v1`, **`gpt-5.5`** cho xử lý hồ sơ, `/query`, bước suy luận khó và ghép cặp đồ thị, embedding `text-embedding-3-small`; tối đa 20 lần gọi LLM và 100.000 token embedding một hồ sơ, hard limit **30 USD/tháng** (Lead xác nhận 15/10), không cảnh báo chủ động, hết trần thì tắt env. Cả nhóm được tải hồ sơ lên bản online, chỉ hợp đồng mẫu đã ẩn thông tin, không gửi hồ sơ thật.
   - Công tắc thật của vector là `AI2_VECTOR_RECALL_ENABLED`; vector trên `/query` dựa vào egress của chính `/query`; trần embedding do AI2 đọc từ env của mình, Backend không gửi.
 
 ### 6.3 Vòng đời job
