@@ -765,6 +765,9 @@ paths:
       description: |
         Chỉ chủ hồ sơ hoặc `ADMINISTRATOR` (`DOSSIER_MANAGE`). Ghi audit `ai2.content_sharing_consent_changed`.
         Có hiệu lực từ request kế tiếp. `PATCH /dossiers/{dossier_id}` thường không đổi được giá trị này.
+        Bật consent (từ chưa bật sang true) khi lượt chạy cuối đã qua AI2 (pending_review, reviewed,
+        approved): backend tự reindex AI2 như `POST /dossiers/{dossier_id}/ai2/reindex`, audit
+        `ai2.reindex_on_consent`, và trả `ai2_reindex_queued: true` (DOC-05b v3.1.0).
         DOC-05b v2.1.0, DEC-BE-AI2-01 D6.
       operationId: updateDossierAi2ContentSharingConsent
       x-rbac: [OPERATOR, ADMINISTRATOR]
@@ -795,6 +798,9 @@ paths:
                   effective_from:
                     type: string
                     enum: [next_request]
+                  ai2_reindex_queued:
+                    type: boolean
+                    description: Bật consent đã xếp một lượt AI2 dựng lại hồ sơ (v3.1.0)
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
