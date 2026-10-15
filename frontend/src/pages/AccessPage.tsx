@@ -188,7 +188,7 @@ export function AccessPage() {
   const shownFilters = sharedOnly
     ? filters.filter((item) => item.id === 'shared_in')
     : filters
-  const columnCount = sharedOnly ? 5 : 6
+  const columnCount = sharedOnly ? 4 : 5
 
   return (
     <div className="flex flex-col w-full pb-margin-lg">
@@ -243,9 +243,6 @@ export function AccessPage() {
             <thead>
               <tr className="bg-surface-container-low text-on-secondary-container font-label-sm text-label-sm uppercase tracking-wider">
                 <th className="py-3 px-3 font-semibold">Hồ sơ</th>
-                <th className="py-3 px-3 font-semibold w-[8.5rem]">
-                  Phân loại
-                </th>
                 <th className="py-3 px-3 font-semibold">Người có quyền</th>
                 <th className="py-3 px-3 font-semibold w-[9rem]">
                   Quyền · Hạn
@@ -254,7 +251,7 @@ export function AccessPage() {
                   Tải lên
                 </th>
                 {sharedOnly ? null : (
-                  <th className="py-3 px-3 font-semibold text-right w-[10rem]">
+                  <th className="py-3 px-3 font-semibold w-[10rem]">
                     Thao tác
                   </th>
                 )}
@@ -326,9 +323,6 @@ export function AccessPage() {
                       >
                         {item.code}
                       </span>
-                    </td>
-                    <td className="py-3.5 px-3 align-top">
-                      <AccessTag access={item.access} />
                       {pendingInvite(item, user?.id, user?.email) ? (
                         <button
                           className="mt-1.5 flex whitespace-nowrap items-center gap-1 rounded bg-amber-50 px-2 py-0.5 font-label-sm text-label-sm text-amber-900 hover:bg-amber-100"
@@ -363,13 +357,13 @@ export function AccessPage() {
                       </span>
                     </td>
                     {sharedOnly ? null : (
-                      <td className="py-3.5 px-3 align-top text-right">
+                      <td className="py-3.5 px-3 align-top">
                         {item.access === 'shared_in' ? (
-                          <span className="flex h-10 items-center justify-end font-body-sm text-body-sm text-on-surface-variant">
+                          <span className="flex h-10 items-center font-body-sm text-body-sm text-on-surface-variant">
                             —
                           </span>
                         ) : (
-                          <div className="relative inline-flex items-center justify-end gap-1.5">
+                          <div className="relative inline-flex items-center gap-1.5">
                             <button
                               className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 font-label-md text-label-md font-semibold disabled:opacity-50 ${
                                 active
@@ -636,40 +630,6 @@ export function AccessPage() {
         </div>
       ) : null}
     </div>
-  )
-}
-
-const ACCESS_TAG: Record<
-  Dossier['access'],
-  { label: string; dot: string; className: string }
-> = {
-  mine: {
-    label: 'Của tôi',
-    dot: 'bg-emerald-600',
-    className: 'bg-emerald-50 text-emerald-900',
-  },
-  shared_out: {
-    label: 'Đã chia sẻ',
-    dot: 'bg-amber-500',
-    className: 'bg-amber-50 text-amber-900',
-  },
-  shared_in: {
-    label: 'Được chia sẻ',
-    dot: 'bg-[#2563eb]',
-    className: 'bg-blue-50 text-blue-900',
-  },
-}
-
-/** Cùng màu chấm với bộ lọc phía trên. */
-function AccessTag({ access }: { access: Dossier['access'] }) {
-  const tag = ACCESS_TAG[access]
-  return (
-    <span
-      className={`inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 font-label-sm text-label-sm font-semibold ${tag.className}`}
-    >
-      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${tag.dot}`} />
-      {tag.label}
-    </span>
   )
 }
 
