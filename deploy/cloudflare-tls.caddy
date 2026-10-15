@@ -2,4 +2,21 @@
 # deploy/compose.cloudflare.yml is in use: serve the Cloudflare Origin
 # Certificate instead of asking Let's Encrypt. Cloudflare's "Full (strict)"
 # mode trusts this certificate; browsers never see it.
-tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+#
+# Authenticated Origin Pulls: Cloudflare presents a client certificate signed
+# by its origin-pull CA (deploy/cloudflare-origin-pull-ca.pem, public). The
+# security group already admits Cloudflare's ranges only, but those ranges
+# serve every Cloudflare customer; requiring the certificate makes the origin
+# answer this zone's traffic only, so the WAF rules always apply.
+#
+# ORIGIN_CLIENT_AUTH (deploy/.env.prod):
+#   verify_if_given     default: a certificate is checked when sent, none is required
+#   require_and_verify  once "Authenticated Origin Pulls" is on in Cloudflare
+#                       (SSL/TLS > Origin Server). Turning this on first would
+#                       refuse Cloudflare itself: every site down.
+tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key {
+	client_auth {
+		mode {$ORIGIN_CLIENT_AUTH:verify_if_given}
+		trust_pool file /etc/caddy/cloudflare-origin-pull-ca.pem
+	}
+}
