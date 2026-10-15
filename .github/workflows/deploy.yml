@@ -1,6 +1,36 @@
 # =============================================================================
 # Deploy the exact develop commit after it is pushed (including a PR merge).
 # Manual dispatch is supported only from develop. See deploy/README.md.
+#
+# Pull requests into develop run only the `preflight` job (policy + deploy
+# tests); `deploy` never runs on a PR. Merging to develop IS a production deploy:
+# there is no staging stage.
+#
+# Server: prepared once by hand (deploy/README.md steps 1-3): clone in
+# /opt/contract-intelligence, deploy/bootstrap.sh, deploy/.env.prod and
+# ai-service/.env filled in. This workflow only updates and restarts it.
+#
+# Repository secrets (required unless noted):
+#   DEPLOY_HOST                  server address (IP or name)
+#   DEPLOY_USER                  SSH user (root, or one with passwordless sudo)
+#   DEPLOY_SSH_KEY               private key whose public half is in authorized_keys
+#   DEPLOY_KNOWN_HOSTS           `ssh-keyscan -t ed25519 <host>` line(s), checked by
+#                                hand once, so the runner never trusts an unknown host
+#   DEPLOY_DB_PUBLIC_IP          (optional) DB server address; the external check
+#                                asserts its Postgres ports are closed to the Internet
+#   AWS_DEPLOY_ACCESS_KEY_ID /
+#   AWS_DEPLOY_SECRET_ACCESS_KEY (only with DEPLOY_SECURITY_GROUP_ID) IAM key that may
+#                                open/close port 22 for this runner on that group
+# Repository variables:
+#   DEPLOY_SECURITY_GROUP_ID     (optional) AWS security group; enables the
+#                                open/close-SSH steps. Unset = those steps are skipped
+#   DEPLOY_AWS_REGION            region of that group
+#   DEPLOY_BEHIND_CLOUDFLARE     "true" when the hostnames sit behind Cloudflare: the
+#                                external check then probes DEPLOY_HOST directly and
+#                                asserts 80/443 refuse non-Cloudflare callers
+#
+# Who may deploy is decided by the "production" environment, not by this file
+# (deploy/README.md, "Duyệt trước khi deploy"; DOC-15).
 # =============================================================================
 name: deploy
 
