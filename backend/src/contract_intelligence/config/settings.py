@@ -215,6 +215,15 @@ class Settings(BaseSettings):
         ge=0,
         description="The worker keeps polling this long past AI2's own budget.",
     )
+    ai2_max_queue_wait_seconds: int = Field(
+        default=1800,
+        ge=0,
+        description=(
+            "How long an AI2 job may stay QUEUED (AI2 runs a bounded number of "
+            "jobs at once) before the run fails. Queue time does not count "
+            "against the processing budget."
+        ),
+    )
     ai2_max_consecutive_errors: int = Field(
         default=5,
         ge=1,

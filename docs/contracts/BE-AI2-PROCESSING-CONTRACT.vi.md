@@ -111,6 +111,8 @@ Backend không poll. Timeout do watchdog của Backend quyết định: thời g
 
 Trên HTTP (demo/fallback): `POST /jobs/idp` trả job envelope với `202 Accepted`; Backend poll `GET /jobs/{job_id}`.
 
+Hàng đợi (cả hai kênh): AI2 chạy tối đa `AI2_MAX_CONCURRENT_JOBS` job cùng lúc (mặc định 1). Job đã nhận mà chưa tới lượt ở `QUEUED`; `max_processing_seconds` chỉ bắt đầu tính khi job rời hàng đợi. Backend không tính thời gian `QUEUED` vào hạn xử lý: trên HTTP, hạn poll được đặt lại mỗi lần thấy `QUEUED`, và thời gian chờ có trần riêng `AI2_MAX_QUEUE_WAIT_SECONDS` (mặc định 1800 s, quá thì `AI2_TIMEOUT`). Backend gửi cùng lúc không quá số job AI2 chạy (`WORKER_AI2_MAX_CONCURRENCY` lấy cùng giá trị), nên phần dư chờ ở Backend, nơi không có hạn.
+
 Public job status ở cả hai kênh là:
 
 `QUEUED → RUNNING → SUCCEEDED | FAILED`

@@ -101,11 +101,40 @@ def get_backend_job(job_id: str) -> dict[str, Any] | None:
         return dict(job) if job is not None else None
 
 
+def pop_backend_job(job_id: str) -> dict[str, Any] | None:
+    """Remove and return a job. The Kafka worker calls it once it has the result."""
+    with _backend_jobs_lock:
+        return _backend_jobs.pop(job_id, None)
+
+
+_FINISHED = frozenset({"completed", "failed", "cancelled"})
+
+
+def _finished_jobs_kept() -> int:
+    try:
+        return max(1, int(os.environ.get("AI1_FINISHED_JOBS_KEPT", "16")))
+    except ValueError:
+        return 16
+
+
+def _prune_finished_jobs() -> None:
+    """Keep only the most recent finished jobs (caller holds the lock).
+
+    A finished job carries the whole OCR snapshot of its document; the HTTP API
+    keeps a few for polling, never every job the process ever ran.
+    """
+    finished = [job_id for job_id, job in _backend_jobs.items() if job.get("status") in _FINISHED]
+    for job_id in finished[: max(0, len(finished) - _finished_jobs_kept())]:
+        del _backend_jobs[job_id]
+
+
 def update_backend_job(job_id: str, **changes: Any) -> None:
     with _backend_jobs_lock:
         job = _backend_jobs.get(job_id)
         if job is not None:
             job.update(changes, updated_at=_now())
+            if job.get("status") in _FINISHED:
+                _prune_finished_jobs()
 
 
 def read_source_blob(url: str, expected_sha256: str) -> bytes:

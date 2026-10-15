@@ -100,6 +100,35 @@ async def test_poll_raises_deadline_exceeded_while_job_still_runs(
     assert not ai_adapters.is_transient(AiAdapterDeadlineExceeded("x"))
 
 
+async def test_poll_does_not_count_queue_time_against_the_processing_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # AI2 runs one job at a time: this one waits ~100 s behind another, then
+    # runs ~20 s. The 25 s budget starts when it leaves the queue.
+    statuses = ["QUEUED"] * 10 + ["RUNNING", "RUNNING", "SUCCEEDED"]
+    monkeypatch.setattr(
+        ai_adapters, "_get_json", AsyncMock(side_effect=[{"status": s} for s in statuses])
+    )
+    clock = iter(float(n) for n in range(0, 1000, 5))
+    monkeypatch.setattr(ai_adapters.time, "monotonic", lambda: next(clock))
+
+    report = await _poll(timeout_seconds=25)
+
+    assert report["status"] == "SUCCEEDED"
+
+
+async def test_poll_gives_up_on_a_job_queued_past_the_queue_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(get_settings(), "ai2_max_queue_wait_seconds", 60)
+    monkeypatch.setattr(ai_adapters, "_get_json", AsyncMock(return_value={"status": "QUEUED"}))
+    clock = iter(float(n) for n in range(0, 10_000, 10))
+    monkeypatch.setattr(ai_adapters.time, "monotonic", lambda: next(clock))
+
+    with pytest.raises(AiAdapterDeadlineExceeded, match="still queued"):
+        await _poll(timeout_seconds=25)
+
+
 async def test_submit_retries_transient_errors_then_succeeds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
