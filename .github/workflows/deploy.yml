@@ -25,6 +25,10 @@
 # opens port 22 to this runner's IP alone and closes it again at the end, even
 # when the deploy fails. Without DEPLOY_SECURITY_GROUP_ID nothing changes.
 #
+# Hosts behind Cloudflare's proxy: set the repository variable
+# DEPLOY_BEHIND_CLOUDFLARE=true (DEPLOY_HOST must then be the server's IP), so
+# the check from outside probes the server, not Cloudflare.
+#
 # Who may deploy is decided by the "production" environment, not by this file
 # (deploy/README.md, "Duyệt trước khi deploy").
 name: deploy
@@ -119,6 +123,9 @@ jobs:
         if: steps.target.outputs.configured == 'true'
         env:
           DB_PUBLIC_IP: ${{ secrets.DEPLOY_DB_PUBLIC_IP }}
+          # Behind Cloudflare the hostnames resolve to Cloudflare: probe the
+          # ports on the server itself (DEPLOY_HOST is its IP).
+          ORIGIN_IP: ${{ vars.DEPLOY_BEHIND_CLOUDFLARE == 'true' && secrets.DEPLOY_HOST || '' }}
         run: |
           hosts=$(ssh server "sudo=''; [ \"\$(id -u)\" -eq 0 ] || sudo=sudo; \$sudo grep -E '^(API_HOST|AUTH_HOST|APP_HOST)=' '$APP_DIR/deploy/.env.prod'")
           value() { printf '%s\n' "$hosts" | grep -E "^$1=" | tail -1 | cut -d= -f2-; }

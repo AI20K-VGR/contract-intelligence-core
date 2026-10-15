@@ -14,6 +14,9 @@ on:
       app_host:
         description: "Frontend host, e.g. app-1-2-3-4.sslip.io (empty: not hosted on the server)"
         required: false
+      origin_ip:
+        description: "Server IP when the hosts sit behind Cloudflare's proxy (empty: probe the API host's address)"
+        required: false
       db_public_ip:
         description: "Public IP of a DB server of its own (empty: databases on the app server)"
         required: false
@@ -32,4 +35,5 @@ jobs:
           AUTH_HOST: ${{ inputs.auth_host }}
           APP_HOST: ${{ inputs.app_host }}
           DB_PUBLIC_IP: ${{ inputs.db_public_ip }}
+          ORIGIN_IP: ${{ inputs.origin_ip }}
         run: bash deploy/check_external.sh "$API_HOST" "$AUTH_HOST" "$APP_HOST" "$DB_PUBLIC_IP"

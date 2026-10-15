@@ -11,10 +11,13 @@ Mọi thao tác làm qua SSH từ máy dev. Không cần công cụ của nhà c
 | Địa chỉ | Tới | Dùng bởi |
 |---|---|---|
 | `https://app-<ip>.sslip.io` | frontend `:80` qua Caddy | Người dùng cuối |
-| `https://api-<ip>.sslip.io` | backend `:8000` (REST, SSE `/api/v1/runs/{id}/events`, `/docs`) | Frontend |
+| `https://api-<ip>.sslip.io` | backend `:8000` (REST, SSE `/api/v1/runs/{id}/events`, `/docs`; trên bản online `/docs` và `/openapi.json` bị chặn ở Cloudflare) | Frontend |
 | `https://auth-<ip>.sslip.io` | Keycloak `:8080` (đăng nhập, OIDC). `/admin` trả 404 | Frontend, người dùng |
 | `https://app-<ip>.sslip.io` | frontend (bản build tĩnh). Chỉ có khi `APP_HOST` được đặt trong `deploy/.env.prod` | Người dùng |
 | `https://api-<ip>.sslip.io/grafana/` | Grafana qua backend. Chỉ ADMINISTRATOR; người lạ 401, user thường 403 | Trang `/admin/monitoring` |
+| **Bản online:** `https://contract-intelligence.tech`, `https://api.contract-intelligence.tech`, `https://auth.contract-intelligence.tech` | Lần lượt frontend, backend, Keycloak, như ba dòng sslip.io ở trên. Đi qua Cloudflare tới app server AWS `52.63.103.239` (Sydney) | Người dùng, frontend |
+
+Các dòng `sslip.io` ở trên là địa chỉ ví dụ của một máy chủ dựng thử. Bản online dùng tên miền thật ở dòng cuối.
 
 Những thứ không ra Internet, chỉ nằm trong mạng `ci-network`:
 
@@ -26,6 +29,8 @@ Những thứ không ra Internet, chỉ nằm trong mạng `ci-network`:
 `sslip.io` phân giải `app-1-2-3-4.sslip.io`, `api-1-2-3-4.sslip.io` và
 `auth-1-2-3-4.sslip.io` về `1.2.3.4`. Vì vậy không cần mua domain mà vẫn có
 chứng chỉ Let's Encrypt thật.
+
+Bản online (`contract-intelligence.tech`, AWS) đứng sau Cloudflare: cả ba tên miền đi qua proxy của Cloudflare, và máy chủ chỉ nhận kết nối web từ Cloudflare. Xem "Đứng sau Cloudflare".
 
 ## Máy chủ cần
 
@@ -316,6 +321,67 @@ COMPOSE="docker compose -f docker-compose.yml -f deploy/compose.prod.yml -f depl
 9. **Kiểm tra:** chạy `deploy/check_external.sh` (kèm IP công khai của DB server) và Bước 6 "Chạy thử luồng chính". Mở một hồ sơ cũ: PDF gốc phải hiện, nghĩa là MinIO đã về đủ.
 10. **Cập nhật CI/CD:** đổi secret `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`, thêm `DEPLOY_DB_PUBLIC_IP` (mục "Cài CI/CD").
 11. **Giữ server cũ** (đã dừng app) khoảng một tuần rồi mới xoá. Có sự cố thì trỏ DNS về lại và `start` các service đã dừng.
+
+## Đứng sau Cloudflare
+
+Bản online từ 14/10/2026: DNS `contract-intelligence.tech` ở Cloudflare (gói Free), cả ba tên miền **Proxied**, và security group `ci-app` chỉ cho dải IP của Cloudflare vào cổng 80/443. Gọi thẳng IP máy chủ không còn tới được site, nên WAF, giới hạn tần suất và chống DDoS của Cloudflare không bị đi vòng.
+
+**Lead chốt ngày 14/10/2026 (review #91):**
+
+- **Đồng ý dùng proxy Cloudflare.** Cloudflare giải mã HTTPS ở giữa đường, nên PDF và dữ liệu API đi qua Cloudflare ở dạng đọc được. Điều này chấp nhận được vì bản online chỉ xử lý hợp đồng mẫu đã ẩn thông tin (DEC-BE-AI2-01 D6). Bản online nhận hợp đồng thật thì phải xem lại.
+- **Người giữ:** Phạm Hoàng Chương giữ tài khoản Cloudflare của zone, API token của zone và quyền vào nhà đăng ký tên miền (cần để thêm bản ghi DS của DNSSEC). Đổi người giữ thì ghi lại ở đây, và người cũ bàn giao đủ cả ba.
+- **Quy trình:** thay đổi trên bản online (Cloudflare, security group, cấu hình máy chủ) mở PR và chờ duyệt rồi mới áp dụng. Các thiết lập ở mục này được áp trước khi #91 được duyệt; Lead ghi nhận và yêu cầu từ nay làm theo thứ tự PR → duyệt → áp dụng.
+
+### Cấu hình trên Cloudflare
+
+| Mục | Giá trị | Vì sao |
+|---|---|---|
+| DNS | `@`, `api`, `auth` → Elastic IP, đều **Proxied** | Không tên nào lộ đường vào thẳng máy chủ |
+| SSL/TLS | **Full (strict)**, Always Use HTTPS, TLS tối thiểu **1.2**, TLS 1.3 bật | Cloudflare chỉ nối tới máy chủ bằng chứng chỉ hợp lệ; bỏ TLS 1.0/1.1 |
+| WAF managed | Cloudflare Managed Free Ruleset, DDoS L7 (có sẵn) | |
+| WAF custom rule 1 | Chặn `auth.…/admin*` và `auth.…/realms/master*` | Admin Keycloak chỉ dùng qua SSH tunnel; backend và `keycloak_configure.py` gọi realm `master` qua mạng nội bộ |
+| WAF custom rule 2 | Chặn đường dò: `/.env`, `/.git`, `/.aws`, `/.ssh`, `wp-admin`, `wp-login`, `xmlrpc`, `phpmyadmin`, `*.php` | Site không có các thứ này; chặn sớm để bớt rác ở log |
+| WAF custom rule 3 | Chặn method `TRACE`, `TRACK` | |
+| WAF custom rule 4 | Chặn `api.…/docs`, `/docs/*`, `/redoc`, `/openapi.json` | Không công khai cấu trúc API trên bản online. Cần xem thì chạy local, hoặc tạm tắt rule này trên Cloudflare |
+| Rate limiting | POST `auth.…/login-actions/authenticate`: quá 5 lần / 10 giây / IP thì chặn 10 giây | Thêm một lớp trước cơ chế khoá tài khoản của Keycloak. Cloudflare đếm theo từng PoP nên không chính xác tuyệt đối |
+| Cache Rule | `auth.…/resources/*`: Cloudflare giữ tối đa 10 phút (Edge TTL 600 giây) | Keycloak gửi `max-age` 30 ngày cho file theme, và đường dẫn `/resources/<tag>/` không đổi khi sửa theme. Ngày 14/10 Cloudflare đã giữ `login.css` cũ khoảng 29 giờ, nên nút con mắt ở trang đăng nhập không hiện. Phía trình duyệt, Caddy ghi đè thành `max-age=600`, vì Cloudflare chỉ kéo dài được chứ không rút ngắn được thời gian cache của trình duyệt |
+| Browser Integrity Check | Bật | Chặn User-Agent đáng ngờ, ví dụ `Python-urllib`. Hệ thống không bị ảnh hưởng vì backend lấy JWKS qua `http://keycloak:8080` |
+| DNSSEC | Bật trên Cloudflare, **chờ thêm bản ghi DS ở nhà đăng ký tên miền** | `contract-intelligence.tech. 3600 IN DS 2371 13 2 5F2D6EB7666C3643266B3B71E35783F9086210E4C8CF2BE040AFFBC177989CAD` |
+
+Giới hạn của gói Free cần biết: **mỗi request tối đa 100 MB** (ghi trong DOC-05b `v2.0.1`, mục tải hồ sơ). Một lần tải hồ sơ cho phép tới 6 file × 50 MB, nên gửi chung quá 100 MB sẽ bị Cloudflare trả 413 trước khi tới máy chủ. Tải từng đợt nhỏ hơn, hoặc nâng gói.
+
+Khi đang bị tấn công: Security → Settings → **Under Attack Mode** (mọi người vào đều qua một trang kiểm tra). Tắt lại khi hết.
+
+### Máy chủ
+
+- **Security group `ci-app`:** TCP 80 và 443 chỉ từ prefix list `cloudflare-ipv4` (`pl-0bb37c6203e631aff`, các dải ở https://api.cloudflare.com/client/v4/ips); không mở UDP 443 hay IPv6 vì Cloudflare nối tới máy chủ bằng TCP IPv4. TCP 22 chỉ từ IP người vận hành.
+- **Chứng chỉ:** Cloudflare Origin Certificate cho `contract-intelligence.tech` và `*.contract-intelligence.tech`, hạn 10/2041, ở `deploy/certs/origin.pem` và `origin.key` trên máy chủ (quyền 600, không commit). Let's Encrypt không dùng được nữa vì máy chủ không nhận kết nối của họ. Khi hai file này có mặt, `deploy.sh` thêm `deploy/compose.cloudflare.yml`.
+- **IP người dùng thật:** Caddy đọc `CF-Connecting-IP`, và chỉ tin header này khi kết nối đến từ dải IP Cloudflare (`compose.cloudflare.yml`). Backend và Keycloak nhận `X-Forwarded-For` là IP người dùng, không phải IP của Cloudflare.
+
+Tạo lại Origin Certificate (ví dụ khi đổi máy chủ). Khoá riêng sinh trên máy chủ và không rời máy; chỉ gửi CSR lên Cloudflare:
+
+```bash
+sudo install -d -m 700 deploy/certs
+sudo openssl ecparam -name prime256v1 -genkey -noout -out deploy/certs/origin.key
+sudo openssl req -new -key deploy/certs/origin.key -subj "/CN=contract-intelligence.tech" \
+  -addext "subjectAltName=DNS:contract-intelligence.tech,DNS:*.contract-intelligence.tech" > origin.csr
+# Cloudflare → SSL/TLS → Origin Server → Create Certificate → "Use my private key and CSR",
+# dán origin.csr, hạn 15 năm; lưu chứng chỉ vào deploy/certs/origin.pem, rồi sudo deploy/deploy.sh
+```
+
+Sửa theme Keycloak mà cần thấy ngay, không chờ 10 phút: Cloudflare → Caching → Configuration → Purge Cache → Custom Purge, dán URL của file (ví dụ `https://auth.contract-intelligence.tech/resources/839wz/login/lexis/css/login.css`; phần `839wz` lấy từ HTML trang đăng nhập). Gói Free không purge theo tiền tố được.
+
+Cloudflare đổi dải IP (hiếm): cập nhật danh sách trong `deploy/compose.cloudflare.yml` và các entry của prefix list `cloudflare-ipv4` trên AWS cùng lúc.
+
+### Kiểm tra từ bên ngoài
+
+Tên miền giờ phân giải về Cloudflare, mà Cloudflare tự mở 8080, 8443 và vài cổng khác, nên dò cổng trên tên miền sẽ báo sai. Truyền IP máy chủ qua `ORIGIN_IP`:
+
+```bash
+ORIGIN_IP=52.63.103.239 deploy/check_external.sh api.contract-intelligence.tech auth.contract-intelligence.tech contract-intelligence.tech <ip-công-khai-db>
+```
+
+Script khi đó dò các cổng nội bộ trên máy chủ, và kiểm thêm rằng máy chủ **từ chối 80/443** với người gọi không phải Cloudflare. Workflow `deploy` làm việc này khi có repo variable `DEPLOY_BEHIND_CLOUDFLARE=true`; `deploy-external-check` có input `origin_ip`.
 
 ## Cập nhật
 
