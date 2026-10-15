@@ -181,6 +181,37 @@ export const RUN_STEP_LABELS: Record<string, string> = {
   S10: 'Xếp hàng rà soát và chốt kết quả',
 }
 
+/**
+ * Phần nào chạy bước nào, theo nơi BE ghi trạng thái bước (worker.py):
+ * BE đánh dấu S0–S1 lúc nhận tệp; kết quả AI1 đánh dấu S2, S3, S8; kết quả
+ * hoặc lỗi của AI2 đánh dấu S4–S7, S9, S10. FE chỉ hiển thị, không chạy bước nào.
+ */
+export const RUN_STEP_GROUPS = [
+  {
+    id: 'backend',
+    label: 'Backend',
+    hint: 'Nhận và kiểm tra tệp',
+    steps: ['S0', 'S1'],
+  },
+  {
+    id: 'ai1',
+    label: 'AI1 · OCR',
+    hint: 'Đọc PDF thành chữ và ảnh trang',
+    steps: ['S2', 'S3', 'S8'],
+  },
+  {
+    id: 'ai2',
+    label: 'AI2 · Phân tích',
+    hint: 'Cấu trúc, dữ kiện, mâu thuẫn',
+    steps: ['S4', 'S5', 'S6', 'S7', 'S9', 'S10'],
+  },
+] as const satisfies readonly {
+  id: string
+  label: string
+  hint: string
+  steps: readonly (typeof RUN_STEP_ORDER)[number][]
+}[]
+
 /** Đọc payload `step.changed` do BE đẩy xuống; null nếu thiếu mã bước. */
 export function stepFromEvent(event: RunEvent): RunStep | null {
   if (event.event !== 'step.changed') return null
