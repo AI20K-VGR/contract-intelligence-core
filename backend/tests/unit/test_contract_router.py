@@ -23,6 +23,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from tests.pdf_bytes import make_pdf
 
+from contract_intelligence.config.settings import get_settings
 from contract_intelligence.contract.application.services.contract_service import (
     ContractService,
 )
@@ -584,6 +585,25 @@ class TestGetDocumentContentEndpoint:
 
         assert resp.status_code == 200
         assert resp.content == _PDF
+
+    async def test_range_headers_are_readable_from_the_frontend_origin(
+        self, client: AsyncClient, mock_svc: AsyncMock
+    ) -> None:
+        """pdf.js on the app host reads Content-Range cross-origin only if CORS exposes it."""
+        _serve(mock_svc)
+        origin = get_settings().cors_allow_origins[0]
+
+        resp = await client.get(
+            "/api/v1/documents/doc_TEST_01/content",
+            headers={"Range": "bytes=0-3", "Origin": origin},
+        )
+
+        assert resp.status_code == 206
+        exposed = {
+            name.strip().lower()
+            for name in resp.headers["access-control-expose-headers"].split(",")
+        }
+        assert {"accept-ranges", "content-range", "content-length", "etag"} <= exposed
 
     async def test_returns_404_when_document_not_found(
         self, client: AsyncClient, mock_svc: AsyncMock
