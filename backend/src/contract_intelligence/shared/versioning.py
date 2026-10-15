@@ -56,7 +56,8 @@ __version__ = "2.0.0"
 #         PATCH /dossiers/{id}/ai2-content-sharing-consent.
 # v3.0.0: token không có role ứng dụng → 403; /ai/jobs chỉ ADMINISTRATOR; batch
 #         cancel/resume chỉ người tạo hoặc ADMINISTRATOR (#96). Thu hẹp quyền nên MAJOR.
-__api_contract__ = "v3.0.0"
+# v3.1.0: bật consent AI2 tự reindex hồ sơ đã qua AI2; consent trả thêm ai2_reindex_queued.
+__api_contract__ = "v3.1.0"
 
 # AI service contract version (DOC-05c) — wrap khi AI service sẵn sàng
 __ai_contract__ = "v1.0.0"
