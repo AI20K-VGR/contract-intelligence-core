@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { createSseParser, type RunEvent } from '../src/api/runEvents'
+import {
+  createSseParser,
+  RUN_STEP_GROUPS,
+  RUN_STEP_ORDER,
+  type RunEvent,
+} from '../src/api/runEvents'
 
 function collect() {
   const events: RunEvent[] = []
@@ -30,5 +35,23 @@ describe('createSseParser', () => {
     const { events, parse } = collect()
     parse(':heartbeat\n\n')
     expect(events).toHaveLength(0)
+  })
+})
+
+describe('RUN_STEP_GROUPS', () => {
+  it('puts every step in exactly one group', () => {
+    const grouped = RUN_STEP_GROUPS.flatMap((group) => [...group.steps])
+    expect([...grouped].sort()).toEqual([...RUN_STEP_ORDER].sort())
+    expect(new Set(grouped).size).toBe(grouped.length)
+  })
+
+  it('follows who marks each step on the backend', () => {
+    const owner = (code: string) =>
+      RUN_STEP_GROUPS.find((group) =>
+        (group.steps as readonly string[]).includes(code),
+      )?.id
+    expect(owner('S1')).toBe('backend')
+    expect(owner('S8')).toBe('ai1')
+    expect(owner('S4')).toBe('ai2')
   })
 })

@@ -63,6 +63,28 @@ Chạy được cho demo ít người dùng, chậm hơn và ít dư địa hơn
 
 Hồ sơ hàng trăm trang vẫn có thể đẩy máy vào swap. Máy 2 GB không đủ: stack dùng khoảng 2,7 GB ngay khi nhàn rỗi.
 
+### Bộ nhớ
+
+Đo trên bản online ngày 15/10/2026 (máy 8 GB, DB ở máy riêng): khi nhàn rỗi stack dùng khoảng 2,5 GB. Trước bản sửa này, AI2 giữ lại kết quả và bản ghi của mọi hồ sơ đã xử lý nên RAM chỉ tăng, không giảm: 142 MiB lúc khởi động, 1,3 GiB sau hai lượt xử lý ngày 14–15/10. AI1 cũng giữ snapshot OCR của mọi tài liệu. Đo lại AI2 với ba hồ sơ 202 trang liên tiếp: bản cũ 417 → 614 → 772 MiB, bản mới 230 → 288 → 281 MiB (đỉnh trong lúc xử lý khoảng 620 MiB).
+
+Mỗi container có trần bộ nhớ (`mem_limit` trong `docker-compose.yml`). Trần là giới hạn trên, không phải phần RAM giữ trước, nên tổng các trần được phép lớn hơn RAM của máy: trên app server tổng là khoảng 10 GiB (11 GiB nếu chạy cả hai Postgres trên cùng máy) cho máy 8 GB. Các service không chạm trần cùng lúc; trần chỉ chặn một service chạy loạn. Container vượt trần thì dùng swap tới mức bằng trần, sau đó bị khởi động lại, thay vì kéo cả máy vào swap. Đổi trần trong `deploy/.env.prod`:
+
+| Biến | Mặc định | Ghi chú |
+|---|---|---|
+| `AI2_MEM_LIMIT` | `2g` | Một hồ sơ 202 trang chạm đỉnh khoảng 620 MiB |
+| `AI1_MEM_LIMIT` | `1536m` | 8 trang OCR song song (`AI1_MAX_PAGES_IN_FLIGHT`) |
+| `BACKEND_MEM_LIMIT`, `BACKEND_WORKER_MEM_LIMIT` | `1g` | Upload giữ cả bộ hồ sơ (≤ 100 MB qua Cloudflare) trong RAM |
+| `KEYCLOAK_MEM_LIMIT` / `KEYCLOAK_HEAP_OPTS` | `1g` / `-Xms256m -Xmx512m` | Không đặt heap thì Keycloak lấy tới 70% RAM |
+| `KAFKA_MEM_LIMIT` / `KAFKA_HEAP_OPTS` | `1g` / `-Xmx512m -Xms128m` | `-Xms` bằng `-Xmx` giữ cả heap ngay từ đầu |
+| `MINIO_MEM_LIMIT`, `PROMETHEUS_MEM_LIMIT` | `768m`, `512m` | |
+| `CADDY_MEM_LIMIT` | `256m` | Giữ mọi kết nối TLS; công cụ quét mở hàng nghìn kết nối |
+
+AI2 chạy mỗi lần một hồ sơ (`AI2_MAX_CONCURRENT_JOBS=1`), và backend-worker gửi sang AI2 đúng chừng ấy hồ sơ cùng lúc (`WORKER_AI2_MAX_CONCURRENCY` lấy cùng biến trong `docker-compose.yml`). Hồ sơ đến sau chờ ở backend, ở bước AI2 (S4) chưa bắt đầu; chỗ chờ này không có hạn và được giữ qua restart (run vẫn `EXTRACTED`). Nếu một job vẫn phải chờ ở AI2 (`QUEUED`, ví dụ khi chạy nhiều backend-worker), backend không tính thời gian đó vào hạn xử lý và chỉ cho chờ tối đa `AI2_MAX_QUEUE_WAIT_SECONDS` giây (mặc định 1800). Chỉ tăng `AI2_MAX_CONCURRENT_JOBS` khi máy còn dư RAM: mỗi job cộng thêm khoảng 500 MiB lúc đỉnh.
+
+Theo dõi ở `/admin/monitoring` (Grafana, biểu đồ RAM theo container). Nếu một container cứ bị khởi động lại, kiểm tra bằng `docker inspect -f '{{.State.OOMKilled}}' ci-ai2-service` rồi tăng trần của nó.
+
+Máy đã cài trước bản này có thể còn `KAFKA_HEAP_OPTS="-Xmx512m -Xms512m"` trong `deploy/.env.prod` (chép từ bản mẫu cũ). Để trống dòng đó để dùng mặc định mới.
+
 ## Kế hoạch triển khai qua SSH
 
 ### Thông tin cần có trước khi bắt đầu
@@ -359,6 +381,35 @@ Khi đang bị tấn công: Security → Settings → **Under Attack Mode** (m�
 - **Security group `ci-app`:** TCP 80 và 443 chỉ từ prefix list `cloudflare-ipv4` (`pl-0bb37c6203e631aff`, các dải ở https://api.cloudflare.com/client/v4/ips); không mở UDP 443 hay IPv6 vì Cloudflare nối tới máy chủ bằng TCP IPv4. TCP 22 chỉ từ IP người vận hành.
 - **Chứng chỉ:** Cloudflare Origin Certificate cho `contract-intelligence.tech` và `*.contract-intelligence.tech`, hạn 10/2041, ở `deploy/certs/origin.pem` và `origin.key` trên máy chủ (quyền 600, không commit). Let's Encrypt không dùng được nữa vì máy chủ không nhận kết nối của họ. Khi hai file này có mặt, `deploy.sh` thêm `deploy/compose.cloudflare.yml`.
 - **IP người dùng thật:** Caddy đọc `CF-Connecting-IP`, và chỉ tin header này khi kết nối đến từ dải IP Cloudflare (`compose.cloudflare.yml`). Backend và Keycloak nhận `X-Forwarded-For` là IP người dùng, không phải IP của Cloudflare.
+- **Chỉ nhận lưu lượng mang chứng chỉ của zone này (Authenticated Origin Pulls cấp zone):** dải IP Cloudflare dùng chung cho mọi tài khoản Cloudflare, nên security group chỉ chứng minh request đi qua mạng Cloudflare, không chứng minh nó thuộc zone `contract-intelligence.tech`. Chứng chỉ AOP "global" của Cloudflare cũng dùng chung cho mọi tài khoản, nên **không** dùng nó. Thay vào đó máy chủ có CA riêng; Cloudflare chỉ có client certificate do CA này cấp vì ta tải nó lên **zone này**; Caddy chỉ tin CA này (`deploy/cloudflare-tls-aop.caddy`).
+
+  Khi chưa có `deploy/certs/origin-pull-ca.pem`, `deploy.sh` không thêm `deploy/compose.cloudflare-aop.yml` và Caddy chạy TLS như cũ. Bật **đúng thứ tự**, ngược lại mọi site sập:
+  1. Tạo CA và client certificate trên máy chủ (RSA 2048). Khoá của CA nằm ở `/root/ci-origin-pull-ca/`, **không** trong `deploy/certs/`: thư mục đó được mount vào container Caddy (đứng ra Internet), chiếm được Caddy thì đọc được khoá và tự ký chứng chỉ mà origin chấp nhận. Vào `deploy/certs/` chỉ có `origin-pull-ca.pem` (công khai). Khoá của client certificate chỉ dùng để tải lên Cloudflare:
+
+     ```bash
+     cd /opt/contract-intelligence
+     sudo install -d -m 700 /root/ci-origin-pull-ca
+     sudo openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 3650 \
+       -subj "/CN=contract-intelligence origin-pull CA" \
+       -keyout /root/ci-origin-pull-ca/origin-pull-ca.key -out /root/ci-origin-pull-ca/origin-pull-ca.pem
+     sudo openssl req -newkey rsa:2048 -nodes -subj "/CN=cloudflare-origin-pull" \
+       -keyout /root/ci-origin-pull-ca/client.key -out /root/ci-origin-pull-ca/client.csr
+     printf 'basicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=clientAuth\n' \
+       | sudo tee /root/ci-origin-pull-ca/client.ext >/dev/null
+     sudo openssl x509 -req -sha256 -days 730 -in /root/ci-origin-pull-ca/client.csr \
+       -CA /root/ci-origin-pull-ca/origin-pull-ca.pem -CAkey /root/ci-origin-pull-ca/origin-pull-ca.key \
+       -CAcreateserial -extfile /root/ci-origin-pull-ca/client.ext -out /root/ci-origin-pull-ca/client.pem
+     sudo install -m 644 /root/ci-origin-pull-ca/origin-pull-ca.pem deploy/certs/origin-pull-ca.pem
+     ```
+  2. Cloudflare → SSL/TLS → Origin Server → Authenticated Origin Pulls → **Zone-level** → Upload certificate: dán `/root/ci-origin-pull-ca/client.pem` và `client.key`, rồi bật toggle **Zone-level**. Không bật toggle global. Xong thì `sudo shred -u /root/ci-origin-pull-ca/client.*`, và chuyển `origin-pull-ca.key` ra khỏi máy chủ (người giữ tài khoản Cloudflare giữ, rồi `sudo shred -u /root/ci-origin-pull-ca/origin-pull-ca.key`) để ai chiếm được máy chủ cũng không cấp được chứng chỉ mới.
+  3. `sudo deploy/deploy.sh`: có CA nên Caddy chuyển sang `cloudflare-tls-aop.caddy`, vẫn `verify_if_given`. Kiểm: mở web, đăng nhập, xem một hồ sơ.
+  4. `deploy/.env.prod`: `ORIGIN_CLIENT_AUTH=require_and_verify`, rồi `sudo deploy/deploy.sh`. Kiểm như bước 3; `deploy/check_external.sh` (hoặc bước kiểm tra trong workflow `deploy`) vẫn xanh. Site trả 525/526: Caddy đang đòi chứng chỉ mà Cloudflare chưa gửi, đặt lại `verify_if_given` và deploy.
+
+  Xoay chứng chỉ (client certificate hạn 2 năm; Cloudflare báo trước 30 và 14 ngày): lấy khoá CA từ người giữ về `/root/ci-origin-pull-ca/` (không bao giờ vào `deploy/certs/`), cấp chứng chỉ mới như bước 1, tải lên zone-level, xoá lại khoá CA khỏi máy chủ, xoá chứng chỉ cũ trên Cloudflare. CA không đổi nên máy chủ không cần deploy lại. Đổi CA thì đặt `verify_if_given` trước, thay `origin-pull-ca.pem`, tải chứng chỉ mới, rồi mới `require_and_verify`.
+  Gỡ: đặt lại `verify_if_given`, deploy, rồi mới tắt toggle Zone-level trên Cloudflare. Bỏ hẳn: xoá `deploy/certs/origin-pull-ca.pem` rồi deploy.
+- **Header bảo mật của frontend** (`deploy/frontend.caddy`): `Content-Security-Policy` chỉ cho nạp script từ chính site, gọi tới API và Keycloak, nhúng iframe của API (`/grafana`) và Keycloak (làm mới token), font của Google; `frame-ancestors 'self'` và `X-Frame-Options: SAMEORIGIN` chống clickjacking; `Permissions-Policy` tắt camera, micro, vị trí, thanh toán. Thêm nguồn mới ở frontend (CDN, iframe khác) thì sửa CSP ở đây cùng lúc.
+- **Realm `master`:** Caddy trả 404 cho `auth.…/realms/master*` (WAF rule 1 cũng chặn); `keycloak_configure.py` gọi realm này qua `http://keycloak:8080` nội bộ.
+- **Redirect về localhost của client frontend:** `keycloak_configure.py` gỡ `http://localhost…` và `http://127.0.0.1…` khỏi redirect URI, web origin và post-logout của `contract-intel-frontend`, trừ khi `KEYCLOAK_KEEP_LOCAL_REDIRECTS=true`. CORS của API vẫn theo `FRONTEND_ORIGINS`.
 
 Tạo lại Origin Certificate (ví dụ khi đổi máy chủ). Khoá riêng sinh trên máy chủ và không rời máy; chỉ gửi CSR lên Cloudflare:
 

@@ -1041,37 +1041,15 @@ export function DossierStructurePage() {
                   {AI2_GRAPH_UI_ENABLED ? (
                     <button
                       aria-pressed={showAi2Graph}
-                      className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 font-body-sm text-body-sm font-semibold shadow-sm ${showAi2Graph ? 'border-primary bg-primary text-white' : 'border-outline-variant/30 bg-surface-container-lowest text-on-surface hover:bg-surface-container'}`}
+                      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border shadow-[0_1px_2px_rgba(15,23,42,0.06)] ${showAi2Graph ? 'border-primary bg-primary text-white' : 'border-outline-variant/30 bg-surface-container-lowest text-on-surface hover:bg-surface-container'}`}
+                      title="Graph AI2"
                       type="button"
                       onClick={() => setShowAi2Graph((shown) => !shown)}
                     >
                       <MaterialIcon name="hub" className="text-[18px]" />
-                      Graph AI2
+                      <span className="sr-only">Graph AI2</span>
                     </button>
                   ) : null}
-                  <Link
-                    className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-outline-variant/30 bg-surface-container-lowest px-3 font-body-sm text-body-sm font-semibold text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] hover:bg-amber-50 hover:text-amber-950"
-                    state={{ dossierId, name: detail?.name }}
-                    title={
-                      openConflicts > 0
-                        ? `${openConflicts} xung đột chưa ai thẩm định`
-                        : spots.length > 0
-                          ? 'Mọi xung đột đã có người thẩm định'
-                          : 'Xem trang đối soát xung đột'
-                    }
-                    to={conflictPagePath(dossierId)}
-                  >
-                    <MaterialIcon
-                      name="warning"
-                      className="text-[18px] text-amber-700"
-                    />
-                    Xem xung đột
-                    {openConflicts > 0 ? (
-                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 font-label-sm text-[11px] font-bold text-amber-950">
-                        {openConflicts}
-                      </span>
-                    ) : null}
-                  </Link>
                   <form
                     className="relative min-w-0 w-full shrink md:w-80 lg:w-96"
                     onSubmit={(event) => void submitSearch(event)}
@@ -1401,16 +1379,19 @@ export function DossierStructurePage() {
               <ContentSharingConsent
                 dossierId={dossierId}
                 enabled={detail.metadata?.ai2_content_sharing_consent === true}
+                canChange={permissions.known && permissions.canManage}
                 onSaved={(enabled) =>
-                  setDetail((current) => current
-                    ? {
-                        ...current,
-                        metadata: {
-                          ...(current.metadata ?? {}),
-                          ai2_content_sharing_consent: enabled,
-                        },
-                      }
-                    : current)
+                  setDetail((current) =>
+                    current
+                      ? {
+                          ...current,
+                          metadata: {
+                            ...(current.metadata ?? {}),
+                            ai2_content_sharing_consent: enabled,
+                          },
+                        }
+                      : current,
+                  )
                 }
               />
             </div>

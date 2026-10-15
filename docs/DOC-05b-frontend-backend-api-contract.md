@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu | **DOC-05b** / Contract Intelligence (PROD-01) |
-| Phiên bản / SemVer | **`v2.0.1`** — ghi giới hạn dung lượng tải hồ sơ: 50 MiB mỗi file (backend), 100 MB mỗi request trên bản online (Cloudflare). Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
+| Phiên bản / SemVer | **`v3.1.0`** — bật consent AI2 tự reindex hồ sơ, response thêm `ai2_reindex_queued`. **`v3.0.0`** — siết quyền trước pentest (#96): token không có role ứng dụng trả `403` thay vì thành `OPERATOR`; `/ai/jobs/{id}` chỉ `ADMINISTRATOR`; batch cancel/resume chỉ người tạo hoặc `ADMINISTRATOR`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
 | Trạng thái | Đã chốt — Sẵn sàng triển khai Frontend & Backend |
 | Owner | Tech Lead / Frontend Lead / Backend Lead |
 | Ngày hiệu lực | 17/09/2026 |
@@ -115,7 +115,7 @@ Frontend                          Keycloak                  Backend
 | `ci_administrator` | `ADMINISTRATOR` |
 | `ci_reviewer` | `REVIEWER` |
 | `ci_operator` | `OPERATOR` |
-| *(không match)* | `OPERATOR` (fallback) |
+| *(không match)* | **Không có.** Request bị từ chối `403 FORBIDDEN` (**v3.0.0**; trước đây được coi là `OPERATOR`) |
 
 ### 2.2 Quy tắc Tenant Isolation
 - Client **bắt buộc** truyền header `X-Tenant-Id: <tenant_id>`.
@@ -166,7 +166,7 @@ Mọi phản hồi lỗi (HTTP status >= 400) đều tuân theo chuẩn RFC 7807
 ### 3.3 Mã Lỗi Doanh nghiệp Thường Gặp
 | HTTP Status | Code Doanh nghiệp | Khi nào xảy ra? | Hành động của Frontend |
 |:---:|---|---|---|
-| `401` | `UNAUTHORIZED` | Token hết hạn hoặc không hợp lệ | Điều hướng người dùng về màn hình Login hoặc gọi refresh token |
+| `401` | `UNAUTHORIZED` | Token hết hạn hoặc không hợp lệ. **v3.0.0:** `error.message` chỉ là `Token has expired` hoặc `Invalid token`, không nói kiểm tra nào hỏng (issuer, audience, kid); lý do ghi ở log backend | Điều hướng người dùng về màn hình Login hoặc gọi refresh token. Không dựa vào nội dung `message` |
 | `403` | `FORBIDDEN` | Sai `X-Tenant-Id` hoặc không đủ quyền `x-rbac` | Hiển thị thông báo "Không có quyền thực hiện chức năng này" |
 | `404` | `NOT_FOUND` | Không tìm thấy ID hồ sơ / tài liệu / run | Hiển thị màn hình 404 hoặc thông báo mục đã bị xóa |
 | `409` | `VERSION_CONFLICT` | Phiên bản `base_version` gửi lên cũ hơn DB | **Refetch item mới nhất**, cảnh báo reviewer có xung đột chỉnh sửa |
@@ -251,8 +251,8 @@ Hiển thị tổng quan các lô xử lý (Batches), KPI trạng thái hợp đ
 | `POST` | `/batches` | `OPERATOR`, `ADMINISTRATOR` | Tạo lô mới (hỗ trợ upload gói ZIP chứa nhiều hồ sơ) |
 | `GET` | `/batches/{id}` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Chi tiết một lô và danh sách dossier bên trong |
 | `GET` | `/batches/{id}/summary` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Thống kê số lượng hồ sơ (thành công, lỗi, cần review, chi phí) |
-| `POST` | `/batches/{id}/cancel` | `OPERATOR`, `ADMINISTRATOR` | Dừng khẩn cấp toàn bộ tác vụ đang chạy trong batch |
-| `POST` | `/batches/{id}/resume` | `OPERATOR`, `ADMINISTRATOR` | Tiếp tục chạy lại các hồ sơ bị tạm dừng / lỗi |
+| `POST` | `/batches/{id}/cancel` | `OPERATOR`, `ADMINISTRATOR` | Dừng khẩn cấp toàn bộ tác vụ đang chạy trong batch. **v3.0.0:** OPERATOR chỉ với batch do mình tạo; batch của người khác trả `404`. ADMINISTRATOR: mọi batch trong tenant |
+| `POST` | `/batches/{id}/resume` | `OPERATOR`, `ADMINISTRATOR` | Tiếp tục chạy lại các hồ sơ bị tạm dừng / lỗi. **v3.0.0:** như `cancel`, OPERATOR chỉ với batch của mình |
 | `GET` | `/ops/metrics` | `ADMINISTRATOR` | Dashboard thống kê tải server, độ trễ và chi phí token theo ngày |
 
 ---
@@ -323,6 +323,10 @@ Theo dõi hành trình chạy của Pipeline AI qua 11 bước (S0..S10), xem lo
 | `POST` | `/runs/{id}/cancel` | `OPERATOR`, `ADMINISTRATOR` | Hủy run đang trong trạng thái `running` |
 | `POST` | `/dossiers/{id}/ocr/retry-failed` | `OPERATOR`, `ADMINISTRATOR` | **v1.1.0.** Hồ sơ lỗi ở bước OCR: mở run mới, giữ kết quả OCR đã có, chỉ OCR lại tài liệu còn thiếu |
 | `POST` | `/dossiers/{id}/ai2/reindex` | `OPERATOR`, `ADMINISTRATOR` | **v1.4.0.** Hồ sơ đã phân tích xong: gửi lại kết quả OCR đã lưu cho AI2 dựng lại dữ liệu hỏi đáp. Không OCR lại |
+| `GET` | `/dossiers/{id}/ai2/contract-graph/{graph_kind}` | quyền đọc trích dẫn (`CITATION_READ`) | **v2.1.0.** Trang các cạnh đồ thị hợp đồng AI2. `graph_kind` là `operation` hoặc `pair`. Query bắt buộc `job_id`, `snapshot_digest`; tuỳ chọn `cursor` (≤ 2048 ký tự), `limit` (1–100, mặc định 50). Trả `status`, `edges[]`, `total_count`, `has_more`, `next_cursor` |
+| `GET` | `/dossiers/{id}/ai2/contract-graph/{graph_kind}/evidence` | `CITATION_READ` | **v2.1.0.** Bằng chứng (trích dẫn) cho một nút của đồ thị. Query bắt buộc `job_id`, `snapshot_digest`, `node_id`, `citation_ref` |
+| `GET` | `/dossiers/{id}/ai2/processing-trace` | `CITATION_READ` | **v2.1.0.** Vết xử lý của AI2 cho một lần chạy. Query bắt buộc `job_id`, `snapshot_digest`. Trả `{job_id, ...trace}` |
+| `PATCH` | `/dossiers/{id}/ai2-content-sharing-consent` | chủ hồ sơ hoặc `ADMINISTRATOR` (`DOSSIER_MANAGE`) | **v2.1.0.** Bật/tắt việc gửi nội dung hồ sơ ra LLM bên ngoài. Body `{"enabled": true\|false}` (`StrictBool`, chuỗi `"true"` bị `422`). Trả `{dossier_id, enabled, effective_from: "next_request", ai2_reindex_queued}`. Có audit `ai2.content_sharing_consent_changed`. **v3.1.0:** bật consent (từ chưa bật sang `true`) khi lượt chạy cuối đã qua AI2 (`pending_review`/`reviewed`/`approved`) thì backend tự cho AI2 dựng lại hồ sơ, như `POST /dossiers/{id}/ai2/reindex`; `ai2_reindex_queued: true` |
 
 - **Chạy lại OCR lỗi (v1.1.0):** response `202`:
   ```json
@@ -344,13 +348,28 @@ Giao diện xem văn bản trực quan chia đôi màn hình: Bên trái là câ
 | Phương thức | Endpoint | Phân quyền `x-rbac` | Chức năng |
 |:---:|---|:---:|---|
 | `GET` | `/documents/{id}` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Lấy chi tiết thông tin file, tổng số trang, ngôn ngữ |
-| `GET` | `/documents/{id}/content` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Tải về hoặc stream nhị phân file PDF gốc (`application/pdf`) |
+| `GET` | `/documents/{id}/content` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Tải về hoặc stream nhị phân file PDF gốc (`application/pdf`). **v2.0.2:** tải theo khoảng byte (`Range` → `206`), dùng lại bản đã tải (`If-None-Match` → `304`); xem mục "Tải PDF theo khoảng" bên dưới |
 | `GET` | `/documents/{id}/pages` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Danh sách trang, kích thước points và link ảnh thumbnail |
 | `GET` | `/pages/{id}` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Chi tiết trang kèm danh sách các dòng OCR (`ocr_line`) và Bbox |
 | `GET` | `/documents/{id}/lines` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | **v1.5.0.** Dòng OCR của mọi trang trong một response: `[{ page_no, width_pt, height_pt, ocr_lines: [{ id, line_no, text, bbox, confidence }] }]`, theo thứ tự trang rồi dòng. Trang chưa có dòng trả `ocr_lines: []`. Không phân trang. Thay cho gọi `/pages/{id}` từng trang |
 | `GET` | `/documents/{id}/clauses` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Cây Điều khoản hoàn chỉnh dựng theo quan hệ cha-con (`parent_id`) |
 | `GET` | `/documents/{id}/tables` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Danh sách bảng phát hiện được, danh sách cell (`row`, `col`, `span`, text) |
 | `GET` | `/dossiers/{id}/queries` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | **v1.1.0, đổi ở v2.0.0.** Lịch sử hỏi đáp **của chính người gọi** trên hồ sơ, mới nhất trước; còn sau khi server khởi động lại |
+
+- **Tải PDF theo khoảng (v2.0.2):** `GET /documents/{id}/content` gửi file thẳng từ storage theo từng khúc, không chờ đọc hết file. Quyền xem hồ sơ được kiểm trước mọi trường hợp, kể cả `304`.
+
+  | Request | Response |
+  |---|---|
+  | Không có `Range` | `200`, cả file. Header `Accept-Ranges: bytes`, `ETag: "<sha256>"`, `Cache-Control: private, no-cache`, `Content-Length` |
+  | `Range: bytes=a-b`, `bytes=a-` hoặc `bytes=-n` (một khoảng) | `206`, đúng khoảng đó. `Content-Range: bytes a-b/<tổng>`, `Content-Length` = độ dài khoảng. Khoảng vượt cuối file được cắt về byte cuối |
+  | Khoảng nằm ngoài file (`bytes=<≥ tổng>-`, `bytes=-0`) | `416`, không có body, `Content-Range: bytes */<tổng>` |
+  | Nhiều khoảng (`bytes=0-1,5-6`) hoặc header sai | Bỏ qua `Range`, trả `200` cả file |
+  | `If-Range` khác `ETag` hiện tại | Bỏ qua `Range`, trả `200` cả file |
+  | `If-None-Match` khớp `ETag` (cả dạng `W/"…"` và `*`) | `304`, không có body, không đọc storage |
+
+  - CORS cho trình duyệt đọc `Accept-Ranges`, `Content-Range`, `Content-Length`, `ETag` từ origin của frontend (`api.…` khác origin với trang).
+  - Để hiện trang đầu mà không chờ tải cả file, pdf.js nên nhận URL thay cho bytes: `getDocument({ url, httpHeaders: { Authorization: 'Bearer …' } })`; pdf.js tự gửi `Range`. Cách cũ (`arrayBuffer()` rồi `getDocument({ data })`) vẫn chạy, response `200` không đổi.
+  - `Cache-Control: private, no-cache`: Cloudflare không giữ file; trình duyệt giữ được nhưng phải hỏi lại server (có kiểm quyền) trước khi dùng.
 
 - **Lịch sử hỏi đáp (v1.1.0, đổi ở v2.0.0):** `GET /dossiers/{id}/queries?limit=20&offset=0`. Chỉ trả câu hỏi **của người gọi**, kể cả khi người gọi là chủ hồ sơ hoặc `ADMINISTRATOR`: không ai xem được câu hỏi của người khác (Lead chốt 14/10/2026). `scope` chỉ còn nhận `mine` (mặc định); `scope=all` trả `422`. Cần quyền xem hồ sơ. Phân trang bằng `limit` và `offset`, **không** theo `page`/`page_size` của §3.1. Response bọc trong `{ data, meta }`; `meta.page` = `offset / limit + 1`:
   ```json
@@ -474,6 +493,29 @@ Phân hệ dành riêng cho Quản trị viên (Administrator) và AI Engineer: 
 | `GET` | `/optimization/experiments/{id}/results` | `ADMINISTRATOR` | Báo cáo so sánh điểm F1, độ chính xác, độ trễ và chi phí |
 
 ---
+
+### Đồ thị hợp đồng, vết xử lý và consent AI2 (v2.1.0)
+
+Ba `GET` đọc kết quả AI2 qua Backend; frontend không gọi AI2 trực tiếp.
+
+- **Điều kiện chung.** `snapshot_digest` phải bằng `ai2_snapshot_digest` hiện tại của hồ sơ, nếu không trả `409 AI2_SNAPSHOT_CHANGED`. Backend kiểm lại quyền đọc sau khi AI2 trả dữ liệu; quyền bị thu hồi giữa chừng thì `403 CITATION_READ_REVOKED`. Các trường định danh nội bộ (`tenant_id`, `dossier_id`, `job_id`, `snapshot_digest`) bị bỏ khỏi từng cạnh.
+- **Phân trang.** `next_cursor` là con trỏ ký HMAC, gắn với tenant, hồ sơ, `job_id`, `snapshot_digest` và `graph_kind`. Con trỏ sai chữ ký hoặc quá dài: `400 GRAPH_CURSOR_INVALID`; con trỏ của hồ sơ, lần chạy hoặc snapshot khác: `409 GRAPH_CURSOR_STALE`. Client gửi lại nguyên văn, không tự dựng.
+- **Quan hệ do đồ thị sinh ra mặc định ở trạng thái chờ rà soát** (`AI2_CONTRACT_GRAPH_AUTO_PASS=false`); UI không được hiển thị như đã duyệt.
+- **Lỗi riêng:**
+
+| Mã | HTTP | Khi nào |
+|---|---|---|
+| `AI2_SNAPSHOT_CHANGED` | 409 | `snapshot_digest` không còn là của hồ sơ |
+| `AI2_GRAPH_STALE` | 409 | AI2 báo đồ thị cũ so với snapshot (`status=STALE`) |
+| `GRAPH_CURSOR_INVALID` | 400 | Con trỏ hỏng, sai chữ ký hoặc quá dài |
+| `GRAPH_CURSOR_STALE` | 409 | Con trỏ thuộc hồ sơ, lần chạy hoặc snapshot khác |
+| `CITATION_READ_REVOKED` | 403 | Quyền đọc bị thu hồi trong lúc xử lý |
+| `AI2_GRAPH_UNAVAILABLE` | 503 | AI2 không trả được trang đồ thị |
+| `AI2_GRAPH_EVIDENCE_UNAVAILABLE` | 503 | AI2 không trả được bằng chứng |
+| `AI2_TRACE_UNAVAILABLE` | 503 | AI2 không trả được vết xử lý |
+| `AI2_GRAPH_CURSOR_UNAVAILABLE` | 503 | Backend thiếu khoá ký con trỏ (`AI2_SERVICE_HMAC_SECRET`) |
+
+- **Consent (`PATCH .../ai2-content-sharing-consent`).** Giá trị nằm ở `metadata.ai2_content_sharing_consent` của hồ sơ; frontend đọc `detail.metadata.ai2_content_sharing_consent === true`. Hồ sơ mới nhận mặc định của server (bản online: bật), có audit `ai2.content_sharing_consent_default_applied`. `PATCH /dossiers/{id}` thường **bỏ qua** khoá này, nên người chỉ có quyền sửa không tự bật được. Tắt consent thì lần xử lý và lần hỏi kế tiếp không gọi LLM ngoài (xem DEC-BE-AI2-01 D6). **Bật consent (v3.1.0)**: nếu lượt chạy cuối của hồ sơ đã qua AI2, backend gửi lại kết quả OCR đã lưu cho AI2 dựng lại (không OCR lại), có audit `ai2.reindex_on_consent`, và trả `ai2_reindex_queued: true`; kết quả mới (ví dụ đồ thị quan hệ điều khoản không còn `RULE_ONLY_NO_CONSENT`) có sau khi lượt đó xong, nên frontend nên báo "Đang chạy lại AI2" và tải lại khi run xong. `false` khi hồ sơ chưa qua AI2 (lượt đầu sẽ dùng consent mới), khi tắt consent, khi consent đã bật sẵn, hoặc khi không gửi được sự kiện (consent vẫn được lưu; dùng `POST /dossiers/{id}/ai2/reindex`). Lỗi: `404` (không có hồ sơ hoặc đã xoá), `403` (không đủ `DOSSIER_MANAGE`), `422` (body không phải boolean thật).
 
 ### Chia sẻ hồ sơ & hàng chờ thẩm định (v1.7.0)
 
@@ -874,6 +916,10 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
+| `v3.1.0` | 15/10/2026 | `PATCH /dossiers/{id}/ai2-content-sharing-consent`: bật consent khi lượt chạy cuối đã qua AI2 thì backend tự reindex AI2 (như `POST /dossiers/{id}/ai2/reindex`); response thêm `ai2_reindex_queued` (boolean). Trước đây bật consent chỉ lưu giá trị và kết quả cũ (`RULE_ONLY_NO_CONSENT`) vẫn hiển thị. Thêm trường và hành vi, không bỏ gì, nên là MINOR |
+| `v3.0.0` | 15/10/2026 | Siết quyền trước đợt pentest bản online (#96). **Breaking** theo §8 vì thu hẹp quyền đã công bố: (1) token không có role ứng dụng nào trả `403 FORBIDDEN` thay vì được coi là `OPERATOR` (§2.1); (2) `GET`/`DELETE /ai/jobs/{id}` chỉ `ADMINISTRATOR`, trước đây `OPERATOR`/`REVIEWER` cũng gọi được; (3) `POST /batches/{id}/cancel` và `/resume`: OPERATOR chỉ với batch do mình tạo, batch của người khác trả `404`. Không đổi payload hay mã lỗi: `401` chỉ còn `message` `Token has expired`/`Invalid token`; `502 AI2_QUERY_FAILED` của `/query`, `/ask` không còn kèm URL và nội dung lỗi của AI2. Staging/prod không phục vụ `/docs`, `/redoc`, `/openapi.json` và không gửi `X-Backend-Version`; `/health` chỉ trả `{"status":"ok"}` ở **mọi** môi trường (dev/test cũng không còn phiên bản). Frontend không dùng các endpoint và header này nên không phải sửa |
+| `v2.1.0` | 15/10/2026 | Thêm `GET /dossiers/{id}/ai2/contract-graph/{graph_kind}` (+ `/evidence`), `GET /dossiers/{id}/ai2/processing-trace` và `PATCH /dossiers/{id}/ai2-content-sharing-consent` (mục "Đồ thị hợp đồng, vết xử lý và consent AI2" ở §5), kèm các mã lỗi `AI2_SNAPSHOT_CHANGED`, `AI2_GRAPH_STALE`, `GRAPH_CURSOR_INVALID`, `GRAPH_CURSOR_STALE`, `CITATION_READ_REVOKED`, `AI2_GRAPH_UNAVAILABLE`, `AI2_GRAPH_EVIDENCE_UNAVAILABLE`, `AI2_TRACE_UNAVAILABLE`. `PATCH /dossiers/{id}` bỏ qua `metadata.ai2_content_sharing_consent`. Chỉ thêm endpoint và mã lỗi, nên là MINOR |
+| `v2.0.2` | 15/10/2026 | `GET /documents/{id}/content` (mục "Tải PDF theo khoảng" ở Màn hình 5): stream từ storage thay vì đọc cả file vào bộ nhớ; nhận một khoảng `Range` → `206` + `Content-Range`, khoảng ngoài file → `416`; `If-Range`; `ETag` = sha256 và `If-None-Match` → `304`; `Cache-Control: private, no-cache`; CORS cho đọc `Accept-Ranges`, `Content-Range`, `Content-Length`, `ETag`. Response `200` không đổi, chỉ thêm mã và header, nên là PATCH |
 | `v2.0.1` | 14/10/2026 | Ghi giới hạn dung lượng tải hồ sơ (mục "Giới hạn dung lượng" ở Màn hình 3 và hai dòng `413` ở §3.3): 50 MiB mỗi file, do backend trả JSON; 100 MB mỗi request trên bản online, do Cloudflare gói Free trả HTML. `POST /dossiers` gửi mọi file trong một request nên bộ hồ sơ trên 100 MB bị chặn. API không đổi, nên là PATCH |
 | `v2.0.0` | 14/10/2026 | **Lead chốt bỏ** `scope=all` của `GET /dossiers/{id}/queries`: ai hỏi thì chỉ xem lịch sử của mình, kể cả chủ hồ sơ và `ADMINISTRATOR`. `scope` chỉ còn nhận `mine`; `scope=all` trả `422` (trước đây trả lịch sử của mọi người cho chủ hồ sơ/ADMINISTRATOR, `403` cho người khác). Frontend bỏ `'all'` khỏi `queries.ts` và cập nhật `API-BE.md`. Bỏ một giá trị đang dùng được, nên là MAJOR theo §8 |
 | `v1.7.0` | 13/10/2026 | Thêm `GET /users/directory` (danh bạ thành viên cùng tenant để chia sẻ hồ sơ) và `GET /review-queue` (hồ sơ đang chờ người gọi thẩm định); hồ sơ có thêm `my_access`, `locked`, `approved_at` (mục "Chia sẻ hồ sơ & hàng chờ thẩm định" ở §5). Backend đã có. Header `X-API-Contract` lên thẳng `v1.7.0` từ `v1.5.1`: backend **chưa** làm 4 endpoint `/notifications` của `v1.6.0`, chúng vẫn là đề xuất. Chỉ thêm endpoint và trường tuỳ chọn, nên là MINOR |
@@ -893,8 +939,8 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 - Hồ sơ: `DELETE /dossiers/{id}`, `PUT /dossiers/{id}/access` (chia sẻ), `POST /dossiers/{id}/ocr`, `/reprocess`, `/ai2/retry`, `/dossiers/{id}/facts`, `/conflicts`.
 - Hỏi đáp: `POST /dossiers/{id}/search`, `/ask`, `/query`.
 - Review: `GET|POST /clause-nodes/{id}/review`, `GET|POST /findings/{id}/review`.
-- Khác: `GET /runs/{id}/events` (SSE), `GET /documents/{id}/pages/{page_no}/image`, `GET /re-ocr-requests/{id}`, `/ai/jobs/{id}`, `/readyz`.
+- Khác: `GET /runs/{id}/events` (SSE), `GET /documents/{id}/pages/{page_no}/image`, `GET /re-ocr-requests/{id}`, `/ai/jobs/{id}` (**v3.0.0:** `GET` và `DELETE` chỉ `ADMINISTRATOR`; huỷ lần xử lý của hồ sơ dùng `POST /runs/{run_id}/cancel`), `/readyz`.
 
 ---
 
-**Hết DOC-05b · Frontend-Backend API Contract v2.0.1 (SemVer)**
+**Hết DOC-05b · Frontend-Backend API Contract v3.1.0 (SemVer)**

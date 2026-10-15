@@ -1,4 +1,9 @@
-"""v21__manifest_document_number — explicit contract/annex identities for AI2."""
+"""v21__manifest_document_number — explicit contract/annex identities for AI2.
+
+Shares the "v21" prefix with v21__tenant_lexicon (both branched from v20__ai2_schema
+on different PRs). Revision ids are the full strings, so they do not collide; a merge
+revision joins the two heads. Read the chain with `alembic history`, not the prefix.
+"""
 
 from __future__ import annotations
 

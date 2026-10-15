@@ -73,6 +73,7 @@ services:
         VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID:-contract-intel-frontend}
     container_name: ci-frontend
     restart: unless-stopped
+    mem_limit: ${FRONTEND_MEM_LIMIT:-128m}
     depends_on:
       - backend
       - keycloak
@@ -94,6 +95,7 @@ services:
     image: postgres:16-alpine            # postgres:15-alpine trở lên đều OK
     container_name: ci-keycloak-db
     restart: unless-stopped
+    mem_limit: ${KEYCLOAK_DB_MEM_LIMIT:-512m}
     environment:
       POSTGRES_DB: keycloak
       POSTGRES_USER: keycloak
@@ -128,6 +130,7 @@ services:
     image: ci-keycloak:26
     container_name: ci-keycloak
     restart: unless-stopped
+    mem_limit: ${KEYCLOAK_MEM_LIMIT:-1g}
     depends_on:
       keycloak-db:
         condition: service_healthy        # ⬅ đợi pg_isready pass mới start
@@ -153,6 +156,10 @@ services:
 
       # ---- Logging ----
       KC_LOG_LEVEL: INFO,org.keycloak.events:DEBUG,io.phasetwo:INFO
+
+      # ---- Memory ----
+      # Keycloak's default heap is up to 70% of the RAM the JVM sees.
+      JAVA_OPTS_KC_HEAP: ${KEYCLOAK_HEAP_OPTS:--Xms128m -Xmx512m}
 
       # ---- Admin bootstrap (chỉ dev — staging/prod xoá 2 var này) ----
       KEYCLOAK_ADMIN: admin
@@ -240,6 +247,7 @@ services:
     image: pgvector/pgvector:pg16
     container_name: ci-backend-db
     restart: unless-stopped
+    mem_limit: ${BACKEND_DB_MEM_LIMIT:-1g}
     environment:
       POSTGRES_DB: contract_intelligence
       POSTGRES_USER: ci
@@ -271,6 +279,7 @@ services:
     image: apache/kafka:3.7.0
     container_name: ci-kafka
     restart: unless-stopped
+    mem_limit: ${KAFKA_MEM_LIMIT:-1g}
     environment:
       # ---- KRaft mode (combined controller + broker) ----
       KAFKA_NODE_ID: 1
@@ -296,6 +305,9 @@ services:
       KAFKA_REPLICA_FETCH_MAX_BYTES: 10485760
       # Must be >= message.max.bytes so the broker accepts the full request frame
       KAFKA_SOCKET_REQUEST_MAX_BYTES: 10485760
+      # Heap: the image's default is -Xmx1G -Xms1G, a whole GiB held from the
+      # start for a single broker that carries a few OCR results.
+      KAFKA_HEAP_OPTS: ${KAFKA_HEAP_OPTS:--Xmx384m -Xms128m}
     ports:
       - "${KAFKA_HOST_PORT:-9093}:9093"
     networks:
@@ -310,6 +322,7 @@ services:
       dockerfile: Dockerfile
     container_name: ci-backend
     restart: unless-stopped
+    mem_limit: ${BACKEND_MEM_LIMIT:-1g}
     depends_on:
       backend-db:
         condition: service_healthy        # ⬅ đợi pg_isready pass
@@ -383,6 +396,8 @@ services:
       # narrow egress or vector recall from the project .env.
       AI2_QUERY_EGRESS_ALLOWED: ${AI2_QUERY_EGRESS_ALLOWED:-true}
       AI2_QUERY_USE_VECTOR: ${AI2_QUERY_USE_VECTOR:-true}
+      # Initial per-dossier consent is set where the dossier is created (API), not the worker.
+      AI2_CONTENT_SHARING_CONSENT_DEFAULT: ${AI2_CONTENT_SHARING_CONSENT_DEFAULT:-true}
       # Clause-frame producer: freeze one trusted semantic profile per run.
       # This must be present in the API and Kafka worker so both paths build
       # the same request contract when semantic processing is enabled.
@@ -394,6 +409,9 @@ services:
 
       # ---- Logging ----
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # glibc makes one heap per allocating thread (up to 8 x CPUs); two keep
+      # fragmentation and the post-job footprint lower.
+      MALLOC_ARENA_MAX: "2"
 
       # ---- SMTP: cùng hộp thư với thư mời Keycloak. Mặc định Mailpit nếu chưa cấu hình. ----
       SMTP_HOST: ${SMTP_HOST:-mailpit}
@@ -454,6 +472,7 @@ services:
       dockerfile: Dockerfile
     container_name: ci-backend-worker
     restart: unless-stopped
+    mem_limit: ${BACKEND_WORKER_MEM_LIMIT:-1g}
     command: ["python", "-m", "contract_intelligence.worker"]
     depends_on:
       backend:
@@ -484,12 +503,19 @@ services:
       MINIO_BUCKET_RENDER: ci-render
       # Docker DNS — do NOT interpolate host .env (localhost:8002 breaks in-container).
       AI2_BASE_URL: http://ai2-service:8002
+      # Hand AI2 no more jobs than it runs at once (AI2_MAX_CONCURRENT_JOBS on
+      # ai2-service): the rest wait here, where there is no deadline, instead
+      # of QUEUED in AI2 against AI2_MAX_QUEUE_WAIT_SECONDS.
+      WORKER_AI2_MAX_CONCURRENCY: ${AI2_MAX_CONCURRENT_JOBS:-1}
       AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-ci_ai2_hmac_secret_dev}
       AI2_CONTENT_SHARING_CONSENT_DEFAULT: ${AI2_CONTENT_SHARING_CONSENT_DEFAULT:-true}
       AI2_SEMANTIC_ENABLED: ${AI2_SEMANTIC_ENABLED:-true}
       AI2_SEMANTIC_PROFILE_CONFIG: '{"version":1,"contract_type":"SALES","context_bounds":{"max_hops":2,"max_nodes":256,"max_context_tokens":32768,"max_output_tokens":8192,"max_llm_calls":20,"max_seconds":300},"alias_proposal_minimum_length":4}'
       AI1_OCR_ENGINE: ${AI1_OCR_ENGINE:-mistral}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # glibc makes one heap per allocating thread (up to 8 x CPUs); two keep
+      # fragmentation and the post-job footprint lower.
+      MALLOC_ARENA_MAX: "2"
     volumes:
       - ./backend/src:/app/src:ro
     networks:
@@ -504,6 +530,7 @@ services:
       dockerfile: Dockerfile
     container_name: ci-ai1-worker
     restart: unless-stopped
+    mem_limit: ${AI1_MEM_LIMIT:-1536m}
     depends_on:
       kafka:
         condition: service_started
@@ -521,6 +548,9 @@ services:
       KAFKA_AI1_OCR_RESULTS_TOPIC: ci.ai1.ocr.results
       KAFKA_AI1_OCR_GROUP_ID: ci-ai1-ocr
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # glibc makes one heap per allocating thread (up to 8 x CPUs); two keep
+      # fragmentation and the post-job footprint lower.
+      MALLOC_ARENA_MAX: "2"
       # Aggregate OCR metrics for Prometheus (internal port, not published).
       AI1_METRICS_PORT: "9108"
     volumes:
@@ -538,6 +568,7 @@ services:
       dockerfile: Dockerfile.ai2
     container_name: ci-ai2-service
     restart: unless-stopped
+    mem_limit: ${AI2_MEM_LIMIT:-2g}
     env_file:
       - path: ./ai-service/.env
         required: false
@@ -572,6 +603,12 @@ services:
       AI2_EMBEDDING_DISCOVERY_ENABLED: ${AI2_EMBEDDING_DISCOVERY_ENABLED:-false}
       AI2_EMBEDDING_MODEL: ${AI2_EMBEDDING_MODEL:-text-embedding-3-small}
       AI2_SEMANTIC_CONTEXT_CAPS: '{"max_hops":2,"max_nodes":256,"max_context_tokens":32768,"max_output_tokens":8192,"max_llm_calls":20,"max_seconds":300}'
+      # glibc makes one heap per allocating thread (up to 8 x CPUs); two keep
+      # fragmentation and the post-job footprint lower.
+      MALLOC_ARENA_MAX: "2"
+      # IDP jobs run one at a time; the rest wait QUEUED (the backend does not
+      # count queue time against the processing budget).
+      AI2_MAX_CONCURRENT_JOBS: ${AI2_MAX_CONCURRENT_JOBS:-1}
     depends_on:
       backend-db:
         condition: service_healthy
@@ -584,10 +621,13 @@ services:
       ci-network:
         aliases:
           - ai2
+    # Liveness only. /readyz probes the LLM provider: deploy.sh calls it once per
+    # deploy; probing it every 15 s cost a paid request each time and let a
+    # provider outage mark AI2 itself unhealthy.
     healthcheck:
       test:
         - CMD-SHELL
-        - '/app/.venv/bin/python -c "import urllib.request; urllib.request.urlopen(''http://localhost:8002/readyz'', timeout=5)"'
+        - '/app/.venv/bin/python -c "import urllib.request; urllib.request.urlopen(''http://localhost:8002/healthz'', timeout=5)"'
       interval: 15s
       timeout: 5s
       retries: 6
@@ -606,6 +646,7 @@ services:
     user: "0:0"
     container_name: ci-minio
     restart: unless-stopped
+    mem_limit: ${MINIO_MEM_LIMIT:-768m}
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: admin
@@ -626,6 +667,7 @@ services:
     image: axllent/mailpit:latest
     container_name: ci-mailpit
     restart: unless-stopped
+    mem_limit: ${MAILPIT_MEM_LIMIT:-128m}
     profiles: ["core"]
     ports:
       - "1025:1025"
@@ -664,6 +706,7 @@ services:
     image: prom/prometheus:v3.5.0
     container_name: ci-prometheus
     restart: unless-stopped
+    mem_limit: ${PROMETHEUS_MEM_LIMIT:-512m}
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -680,6 +723,7 @@ services:
     image: grafana/grafana-oss:12.1.1
     container_name: ci-grafana
     restart: unless-stopped
+    mem_limit: ${GRAFANA_MEM_LIMIT:-256m}
     depends_on:
       - prometheus
     environment:
@@ -734,6 +778,7 @@ services:
     image: prom/node-exporter:v1.9.1
     container_name: ci-node-exporter
     restart: unless-stopped
+    mem_limit: ${NODE_EXPORTER_MEM_LIMIT:-64m}
     command:
       - --path.rootfs=/host
       - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+)($$|/)
@@ -749,6 +794,7 @@ services:
     image: ghcr.io/google/cadvisor:v0.53.0
     container_name: ci-cadvisor
     restart: unless-stopped
+    mem_limit: ${CADVISOR_MEM_LIMIT:-256m}
     privileged: true
     devices:
       - /dev/kmsg:/dev/kmsg

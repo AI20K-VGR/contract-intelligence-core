@@ -39,7 +39,8 @@ info:
     - Phân trang: cursor (`?cursor=&limit=`), mặc định limit=50, tối đa 200
     - Header phản hồi `X-Trace-Id` để debug
     - Header `Idempotency-Key` cho các mutation POST quan trọng
-    - Tài liệu OpenAPI UI: `GET /docs` (Swagger UI), `GET /redoc`
+    - Tài liệu OpenAPI UI: `GET /docs` (Swagger UI), `GET /redoc`, `GET /openapi.json`, chỉ ở dev/test;
+      staging/prod không phục vụ (DOC-05b v3.0.0)
 
     ## Optimistic concurrency cho review
     Mọi API trả về fact/finding/clause… ở chế độ "effective" đều kèm `current_version`.
@@ -596,6 +597,218 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
 
+  /dossiers/{dossier_id}/ai2/contract-graph/{graph_kind}:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    get:
+      tags: [dossiers]
+      summary: Trang các cạnh đồ thị hợp đồng AI2
+      description: |
+        Cần quyền đọc trích dẫn (`CITATION_READ`). `snapshot_digest` phải bằng `ai2_snapshot_digest` hiện tại của hồ sơ.
+        `next_cursor` là con trỏ ký HMAC; gửi lại nguyên văn. DOC-05b v2.1.0.
+      operationId: getDossierAi2ContractGraph
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      parameters:
+        - name: graph_kind
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [operation, pair]
+        - name: job_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: snapshot_digest
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Con trỏ không hợp lệ (`GRAPH_CURSOR_INVALID`)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: '`AI2_SNAPSHOT_CHANGED`, `AI2_GRAPH_STALE` hoặc `GRAPH_CURSOR_STALE`'
+        '503':
+          description: AI2 không trả được dữ liệu (`AI2_GRAPH_UNAVAILABLE`, `AI2_GRAPH_CURSOR_UNAVAILABLE`)
+  /dossiers/{dossier_id}/ai2/contract-graph/{graph_kind}/evidence:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    get:
+      tags: [dossiers]
+      summary: Bằng chứng cho một nút đồ thị hợp đồng AI2
+      description: |
+        Cần `CITATION_READ`. DOC-05b v2.1.0.
+      operationId: getDossierAi2ContractGraphEvidence
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      parameters:
+        - name: graph_kind
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [operation, pair]
+        - name: job_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: snapshot_digest
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: node_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: citation_ref
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Con trỏ không hợp lệ (`GRAPH_CURSOR_INVALID`)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: '`AI2_SNAPSHOT_CHANGED`, `AI2_GRAPH_STALE` hoặc `GRAPH_CURSOR_STALE`'
+        '503':
+          description: AI2 không trả được dữ liệu (`AI2_GRAPH_EVIDENCE_UNAVAILABLE`)
+  /dossiers/{dossier_id}/ai2/processing-trace:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    get:
+      tags: [dossiers]
+      summary: Vết xử lý AI2 của một lần chạy
+      description: |
+        Cần `CITATION_READ`. DOC-05b v2.1.0.
+      operationId: getDossierAi2ProcessingTrace
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      parameters:
+        - name: job_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: snapshot_digest
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Con trỏ không hợp lệ (`GRAPH_CURSOR_INVALID`)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: '`AI2_SNAPSHOT_CHANGED`, `AI2_GRAPH_STALE` hoặc `GRAPH_CURSOR_STALE`'
+        '503':
+          description: AI2 không trả được dữ liệu (`AI2_TRACE_UNAVAILABLE`)
+  /dossiers/{dossier_id}/ai2-content-sharing-consent:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    patch:
+      tags: [dossiers]
+      summary: Bật hoặc tắt việc gửi nội dung hồ sơ ra LLM bên ngoài
+      description: |
+        Chỉ chủ hồ sơ hoặc `ADMINISTRATOR` (`DOSSIER_MANAGE`). Ghi audit `ai2.content_sharing_consent_changed`.
+        Có hiệu lực từ request kế tiếp. `PATCH /dossiers/{dossier_id}` thường không đổi được giá trị này.
+        Bật consent (từ chưa bật sang true) khi lượt chạy cuối đã qua AI2 (pending_review, reviewed,
+        approved): backend tự reindex AI2 như `POST /dossiers/{dossier_id}/ai2/reindex`, audit
+        `ai2.reindex_on_consent`, và trả `ai2_reindex_queued: true` (DOC-05b v3.1.0).
+        DOC-05b v2.1.0, DEC-BE-AI2-01 D6.
+      operationId: updateDossierAi2ContentSharingConsent
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              additionalProperties: false
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Đã ghi
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [dossier_id, enabled, effective_from]
+                properties:
+                  dossier_id:
+                    type: string
+                  enabled:
+                    type: boolean
+                  effective_from:
+                    type: string
+                    enum: [next_request]
+                  ai2_reindex_queued:
+                    type: boolean
+                    description: Bật consent đã xếp một lượt AI2 dựng lại hồ sơ (v3.1.0)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: '`enabled` không phải boolean thật'
   /dossiers/{dossier_id}/ai2/reindex:
     parameters:
       - $ref: '#/components/parameters/DossierId'
@@ -923,6 +1136,9 @@ paths:
     post:
       tags: [batches]
       summary: Huỷ bỏ xử lý batch (dừng toàn bộ các job đang chờ chạy)
+      description: |
+        OPERATOR chỉ huỷ được batch do chính mình tạo; batch của người khác trả 404 như batch
+        không tồn tại. ADMINISTRATOR huỷ được mọi batch trong tenant (DOC-05b v3.0.0).
       operationId: cancelBatch
       x-rbac: [OPERATOR, ADMINISTRATOR]
       responses:
@@ -937,7 +1153,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
-          $ref: '#/components/responses/NotFound'
+          description: Không có batch này, hoặc batch của OPERATOR khác
         '409':
           description: Batch already completed or cannot be cancelled
           content:
@@ -975,6 +1191,9 @@ paths:
     post:
       tags: [batches]
       summary: Bỏ auto_paused của batch
+      description: |
+        OPERATOR chỉ tiếp tục được batch do chính mình tạo; batch của người khác trả 404.
+        ADMINISTRATOR: mọi batch trong tenant (DOC-05b v3.0.0).
       operationId: resumeBatch
       x-rbac: [OPERATOR, ADMINISTRATOR]
       responses:
@@ -984,6 +1203,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiEnvelopeBatchSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Không có batch này, hoặc batch của OPERATOR khác
+        '409':
+          description: Batch không ở trạng thái tiếp tục được
 
   # ─── Documents & Pages ───────────────────────────────────────────────────
   /documents/{document_id}:
@@ -1014,22 +1241,67 @@ paths:
     get:
       tags: [documents]
       summary: Tải về hoặc stream file PDF gốc của tài liệu từ Object Storage
+      description: |
+        File đi thẳng từ Object Storage ra theo từng khúc, không nạp cả file vào bộ nhớ (DOC-05b v2.0.2).
+        Quyền xem hồ sơ được kiểm trước mọi trường hợp dưới đây, kể cả `304`.
+        - **Range:** một khoảng `bytes=a-b`, `bytes=a-` hoặc `bytes=-n` → `206` kèm `Content-Range`.
+          Nhiều khoảng hoặc header sai → bỏ qua, trả cả file `200`. Khoảng nằm ngoài file → `416`.
+        - **If-Range:** khác `ETag` hiện tại → bỏ qua `Range`, trả cả file `200`.
+        - **If-None-Match:** khớp `ETag` → `304`, không đọc storage.
+        - `ETag` là sha256 của file. `Cache-Control: private, no-cache`: CDN không giữ, trình duyệt dùng lại sau khi hỏi lại server.
+        - CORS cho đọc `Accept-Ranges`, `Content-Range`, `Content-Length`, `ETag` từ origin khác.
       operationId: getDocumentContent
       x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      parameters:
+        - name: Range
+          in: header
+          required: false
+          schema: { type: string, example: 'bytes=0-65535' }
+        - name: If-Range
+          in: header
+          required: false
+          schema: { type: string }
+        - name: If-None-Match
+          in: header
+          required: false
+          schema: { type: string }
       responses:
         '200':
-          description: Binary PDF stream
+          description: Binary PDF stream, cả file
+          headers:
+            Accept-Ranges: { schema: { type: string, enum: [bytes] } }
+            ETag: { schema: { type: string }, description: 'sha256 của file, trong dấu ngoặc kép' }
+            Cache-Control: { schema: { type: string, example: 'private, no-cache' } }
+            Content-Length: { schema: { type: integer } }
           content:
             application/pdf:
               schema:
                 type: string
                 format: binary
+        '206':
+          description: Một khoảng byte của file
+          headers:
+            Content-Range: { schema: { type: string, example: 'bytes 0-65535/48211375' } }
+            Accept-Ranges: { schema: { type: string, enum: [bytes] } }
+            ETag: { schema: { type: string } }
+            Content-Length: { schema: { type: integer } }
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '304':
+          description: '`If-None-Match` khớp `ETag`: bản trình duyệt đang giữ vẫn đúng, không có body'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '416':
+          description: Khoảng byte nằm ngoài file; không có body
+          headers:
+            Content-Range: { schema: { type: string, example: 'bytes */48211375' } }
 
   /documents/{document_id}/re-ocr:
     parameters:

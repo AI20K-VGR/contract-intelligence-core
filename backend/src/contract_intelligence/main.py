@@ -27,7 +27,7 @@ from contract_intelligence.api.v1.monitoring import router as monitoring_router
 from contract_intelligence.api.v1.service_logs import router as service_logs_router
 from contract_intelligence.api.v1.users import router as users_router
 from contract_intelligence.config.logging import configure_logging, get_logger
-from contract_intelligence.config.settings import get_settings
+from contract_intelligence.config.settings import Settings, get_settings
 from contract_intelligence.conflict.interfaces.api.routers.conflict_full_router import (
     router as conflict_router,
 )
@@ -87,6 +87,7 @@ from contract_intelligence.shared.auth.exceptions import (
     InsufficientRoleError,
     TenantMismatchError,
     UserDeactivatedError,
+    client_auth_message,
 )
 from contract_intelligence.shared.exceptions import DomainException
 from contract_intelligence.shared.middleware import BackendHeadersMiddleware
@@ -245,9 +246,30 @@ def split_url(url: str) -> str:
         return url
 
 
+def _refuse_unsafe_api_settings(settings: Settings) -> None:
+    """Staging/prod API: no wildcard CORS, and tokens must name this API as audience.
+
+    Checked here, not in Settings: the worker shares Settings but never sees a
+    browser or a token, and has neither variable set.
+    """
+    if not settings.exposed:
+        return
+    problems = []
+    if "*" in settings.cors_allow_origins:
+        problems.append("CORS_ALLOW_ORIGINS (no '*')")
+    if not settings.keycloak_audience:
+        problems.append("KEYCLOAK_AUDIENCE (must be set)")
+    if problems:
+        msg = f"ENV={settings.env} refuses API settings: {', '.join(problems)}"
+        raise RuntimeError(msg)
+
+
 def create_app() -> FastAPI:
     """Compose FastAPI app với tất cả routers + middleware + exception handlers."""
     settings = get_settings()
+    _refuse_unsafe_api_settings(settings)
+    # Staging/prod publish no API docs: the endpoint map stays with the team (DOC-05).
+    docs = not settings.exposed
     app = FastAPI(
         title="Contract Intelligence API",
         description=(
@@ -256,9 +278,9 @@ def create_app() -> FastAPI:
         ),
         version=full_version(),
         lifespan=lifespan,
-        docs_url="/docs",
-        redoc_url="/redoc",
-        openapi_url="/openapi.json",
+        docs_url="/docs" if docs else None,
+        redoc_url="/redoc" if docs else None,
+        openapi_url="/openapi.json" if docs else None,
         dependencies=[Depends(_http_bearer)],
     )
 
@@ -269,6 +291,9 @@ def create_app() -> FastAPI:
         allow_credentials=settings.cors_allow_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
+        # The frontend is another origin (api.… vs the app host): without these,
+        # pdf.js cannot read the range headers of /documents/{id}/content.
+        expose_headers=["Accept-Ranges", "Content-Range", "Content-Length", "ETag"],
     )
 
     # Backend headers — X-Backend-Version + X-Request-Id
@@ -306,7 +331,7 @@ def create_app() -> FastAPI:
         return JSONResponse(
             status_code=401,
             content=ErrorResponse(
-                error=ErrorPayload(code="UNAUTHORIZED", message=str(exc)),
+                error=ErrorPayload(code="UNAUTHORIZED", message=client_auth_message(exc)),
             ).model_dump(mode="json"),
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -394,7 +419,8 @@ def create_app() -> FastAPI:
     # Backend liveness (root — không qua /api/v1)
     @app.get("/health", tags=["health"])
     async def health() -> dict[str, str]:
-        return {"status": "ok", "version": full_version()}
+        # No version here: anonymous callers need not learn what to look up CVEs for.
+        return {"status": "ok"}
 
     return app
 

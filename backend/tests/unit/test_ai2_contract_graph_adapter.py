@@ -309,3 +309,44 @@ def test_trace_projection_keeps_failure_outcome_and_job_status():
     )
     assert trace["status"] == "COMPLETE"
     assert trace["job_status"] == "CANCELLED"
+
+
+class _StopAfterUrl(Exception):
+    pass
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["graph", "evidence", "trace"])
+async def test_job_id_is_percent_encoded_in_ai2_path(monkeypatch, kind):
+    urls: list[str] = []
+
+    async def fake_get(url, *, headers=None, service, max_response_bytes):
+        urls.append(url)
+        raise _StopAfterUrl
+
+    monkeypatch.setattr(ai_adapters, "_get_json_bounded", fake_get)
+    monkeypatch.setattr(ai_adapters, "_service_envelope", lambda data, **kw: {"signed": True})
+    common = {
+        "dossier_id": "dossier-a",
+        "snapshot_digest": "digest-a",
+        "tenant_id": "tenant-a",
+        "actor_id": "actor-a",
+    }
+    hostile = "../admin?x=1#frag"
+
+    with pytest.raises(_StopAfterUrl):
+        if kind == "graph":
+            await ai_adapters.read_ai2_contract_graph(
+                hostile, graph_kind="pair", cursor=None, limit=50, **common
+            )
+        elif kind == "evidence":
+            await ai_adapters.read_ai2_contract_graph_evidence(
+                hostile, graph_kind="pair", node_id="n", citation_ref="c", **common
+            )
+        else:
+            await ai_adapters.read_ai2_processing_trace(hostile, **common)
+
+    parts = urlsplit(urls[0])
+    assert "%2E%2E" in parts.path or "..%2Fadmin" in parts.path or "%2F" in parts.path
+    assert "/admin" not in parts.path
+    assert "?" not in parts.path and "#" not in parts.path

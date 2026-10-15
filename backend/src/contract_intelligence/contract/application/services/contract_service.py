@@ -37,9 +37,16 @@ from contract_intelligence.contract.domain.repositories.job_repository import (
 from contract_intelligence.contract.domain.repositories.manifest_repository import (
     ManifestRepository,
 )
+from contract_intelligence.shared.audit import SYSTEM_WORKER, add_audit_event
 from contract_intelligence.shared.base import new_ulid
 from contract_intelligence.shared.exceptions import InvalidStateTransition, NotFoundError
-from contract_intelligence.shared.storage import FileStorage
+from contract_intelligence.shared.storage import (
+    ByteRange,
+    FileStorage,
+    ObjectStream,
+    RangeNotSatisfiableError,
+    stream_bytes,
+)
 from contract_intelligence.shared.utils import safe_filename
 
 logger = structlog.get_logger(__name__)
@@ -55,7 +62,7 @@ class ContractService:
         get_dossier(...)
         patch_dossier(...)
         list_documents(...)
-        get_document_blob(...)
+        get_content_document(...) / open_document_content(...)
         get_or_create_manifest(...)
         confirm_manifest(...)
     """
@@ -100,11 +107,11 @@ class ContractService:
         documents are added via upload_document() after this call.
         """
         dossier_metadata = dict(metadata or {})
-        dossier_metadata.setdefault(
-            "ai2_content_sharing_consent",
-            os.getenv("AI2_CONTENT_SHARING_CONSENT_DEFAULT", "true").strip().lower()
-            in {"1", "true", "yes", "on"},
-        )
+        # The server default decides the initial consent; a client value is dropped.
+        consent_default = os.getenv(
+            "AI2_CONTENT_SHARING_CONSENT_DEFAULT", "true"
+        ).strip().lower() in {"1", "true", "yes", "on"}
+        dossier_metadata["ai2_content_sharing_consent"] = consent_default
         dossier = Dossier(
             id=new_ulid("dos_"),
             name=name,
@@ -112,6 +119,20 @@ class ContractService:
             metadata=dossier_metadata,
         )
         await self._dossier_repo.add(dossier)
+        session = getattr(self._dossier_repo, "_session", None)
+        if session is not None:
+            add_audit_event(
+                session,
+                tenant_id=self._tenant_id,
+                actor_id=str(dossier_metadata.get("created_by") or SYSTEM_WORKER),
+                action="ai2.content_sharing_consent_default_applied",
+                entity_type="dossier",
+                entity_id=dossier.id,
+                dossier_id=dossier.id,
+                from_state="absent",
+                to_state=str(consent_default).lower(),
+                detail={"new": consent_default, "source": "AI2_CONTENT_SHARING_CONSENT_DEFAULT"},
+            )
 
         job = Job(
             id=new_ulid("job_"),
@@ -250,7 +271,15 @@ class ContractService:
             merged_metadata = dict(dossier.metadata or {})
             incoming_metadata = dict(metadata)
             if not acl_update:
-                for key in ("created_by", "created_by_name", "access_scope", "shared_with"):
+                for key in (
+                    "created_by",
+                    "created_by_name",
+                    "access_scope",
+                    "shared_with",
+                    # Consent to send content to the external LLM is owner-only
+                    # and audited: PATCH /dossiers/{id}/ai2-content-sharing-consent.
+                    "ai2_content_sharing_consent",
+                ):
                     incoming_metadata.pop(key, None)
             merged_metadata.update(incoming_metadata)
             dossier.metadata = merged_metadata
@@ -337,35 +366,41 @@ class ContractService:
         await self.get_dossier(doc.dossier_id)
         return doc
 
-    async def get_document_blob(self, document_id: str) -> tuple[bytes, str]:
-        """Trả về (file_bytes, filename) — cho content endpoint streaming."""
+    async def get_content_document(self, document_id: str) -> Document:
+        """The document whose file ``/content`` may serve: visible, not purged, stored."""
         doc = await self.get_document(document_id)
         if await self._dossier_repo.is_tombstoned(doc.dossier_id):
             raise NotFoundError(entity_type="Document", entity_id=document_id)
         if not doc.blob_uri:
             raise NotFoundError(entity_type="Document", entity_id=document_id)
+        return doc
+
+    async def open_document_content(
+        self, doc: Document, byte_range: ByteRange | None = None
+    ) -> ObjectStream:
+        """Stream the stored file (or one range of it) without loading it whole.
+
+        Raises ``RangeNotSatisfiableError`` for a range outside the file.
+        """
         if doc.blob_uri.startswith("s3://"):
-            from contract_intelligence.infrastructure.storage import download_object
+            from contract_intelligence.infrastructure import storage
 
             try:
-                data = await download_object(doc.blob_uri)
+                return await storage.open_object(doc.blob_uri, byte_range=byte_range)
+            except RangeNotSatisfiableError:
+                raise
             except Exception as exc:
                 logger.warning(
                     "document.content.missing",
-                    document_id=document_id,
+                    document_id=doc.id,
                     blob_uri=doc.blob_uri,
                     error=str(exc),
                 )
-                try:
-                    data = await self._storage.get(doc.blob_uri)
-                except FileNotFoundError:
-                    raise NotFoundError(entity_type="Document", entity_id=document_id) from exc
-        else:
-            try:
-                data = await self._storage.get(doc.blob_uri)
-            except FileNotFoundError as exc:
-                raise NotFoundError(entity_type="Document", entity_id=document_id) from exc
-        return data, doc.filename
+        try:
+            data = await self._storage.get(doc.blob_uri)
+        except FileNotFoundError as exc:
+            raise NotFoundError(entity_type="Document", entity_id=doc.id) from exc
+        return stream_bytes(data, byte_range)
 
     async def remove_split_source(self, dossier_id: str, document_id: str) -> None:
         """Drop a mixed upload after it was cut into documents (never OCR'd).

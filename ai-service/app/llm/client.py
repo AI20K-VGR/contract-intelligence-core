@@ -2,16 +2,20 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import threading
 import time
 import uuid
+from collections import deque
 from typing import Any, Callable
 
 from openai import BadRequestError, OpenAI, UnprocessableEntityError
 
 _FORMAT_ERRORS = (BadRequestError, UnprocessableEntityError)
+
+logger = logging.getLogger(__name__)
 
 
 class LLMRequestBudgetExceeded(RuntimeError):
@@ -39,12 +43,26 @@ def _is_format_error(error: Exception) -> bool:
     )
 
 
+def _is_gpt5(model: str) -> bool:
+    """GPT-5 family, also behind a provider prefix such as ``openai/gpt-5.5``."""
+
+    return model.rsplit("/", 1)[-1].strip().casefold().startswith("gpt-5")
+
+
 def _sampling_options(model: str) -> dict[str, Any]:
     """Keep deterministic sampling where supported; reasoning GPT-5 rejects temperature."""
-    provider_model = model.rsplit("/", 1)[-1].strip().casefold()
-    if provider_model.startswith("gpt-5"):
+    if _is_gpt5(model):
         return {}
     return {"temperature": 0}
+
+
+def _output_limit(model: str, tokens: int) -> dict[str, int]:
+    """Chat Completions output cap: GPT-5 refuses ``max_tokens`` and takes
+    ``max_completion_tokens``; other models keep ``max_tokens``."""
+
+    if _is_gpt5(model):
+        return {"max_completion_tokens": tokens}
+    return {"max_tokens": tokens}
 
 
 def call_with_timeout(fn: Callable[[], Any], seconds: float, *, name: str = "ai2-llm") -> Any:
@@ -73,8 +91,20 @@ def call_with_timeout(fn: Callable[[], Any], seconds: float, *, name: str = "ai2
     return outcome["value"]
 
 
+def _trace_history_size() -> int | None:
+    """Most recent traces kept process-wide: AI2_LLM_TRACE_HISTORY, 0 = all."""
+
+    try:
+        size = int(os.getenv("AI2_LLM_TRACE_HISTORY", "1000"))
+    except ValueError:
+        return 1000
+    return None if size <= 0 else size
+
+
 class NineRouterClient:
-    all_traces: list[dict[str, Any]] = []
+    # Shared by every client for the life of the process (live evals read it):
+    # bounded, or a long-running service keeps one entry per LLM call forever.
+    all_traces: deque[dict[str, Any]] = deque(maxlen=_trace_history_size())
 
     def __init__(
         self,
@@ -120,7 +150,7 @@ class NineRouterClient:
         if max_output_tokens is not None:
             if type(max_output_tokens) is not int or max_output_tokens <= 0:
                 raise ValueError("max_output_tokens must be a positive integer")
-            request_options["max_tokens"] = max_output_tokens
+            request_options.update(_output_limit(model, max_output_tokens))
         self.last_http_calls = 0
         started = time.perf_counter()
         trace: dict[str, Any] = {
@@ -271,17 +301,27 @@ def llm_status(
     check = probe or _ping_configured_model
     try:
         check(client)
-    except Exception:
+    except Exception as exc:
+        # Model, HTTP status and exception type only: the message can echo the
+        # request, and the key never belongs in a log.
+        logger.warning(
+            "ai2.llm_probe_failed model=%s http_status=%s error=%s",
+            client.model,
+            getattr(exc, "status_code", None),
+            type(exc).__name__,
+        )
         return "unreachable"
     return "ready"
 
 
 def _ping_configured_model(client: NineRouterClient) -> None:
+    # Same parameter rules as complete_json(): a GPT-5 model refuses max_tokens
+    # and temperature, which made /readyz report a working model unreachable.
     client._client.with_options(timeout=3.0, max_retries=0).chat.completions.create(
         model=client.model,
         messages=[{"role": "user", "content": "ping"}],
-        max_tokens=1,
-        temperature=0,
+        **_output_limit(client.model, 1),
+        **_sampling_options(client.model),
     )
 
 

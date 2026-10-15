@@ -23,6 +23,7 @@ from contract_intelligence.config.settings import Settings
 from contract_intelligence.shared.auth.exceptions import AuthenticationError
 from contract_intelligence.shared.auth.jwt_service import _JWKSCache
 from contract_intelligence.shared.auth.schemas import AuthenticatedUser
+from contract_intelligence.shared.storage import ByteRange, ObjectStream, stream_bytes
 
 
 @pytest.fixture
@@ -233,7 +234,7 @@ def mock_minio_and_kafka() -> Iterator[None]:
     """Stub MinIO upload/download + Kafka publish for all tests (no live infra).
 
     Patches the infrastructure modules so callers that resolve
-    ``storage.upload_file`` / ``storage.download_object`` /
+    ``storage.upload_file`` / ``storage.download_object`` / ``storage.open_object`` /
     ``messaging.publish_event`` via attribute access never hit real MinIO/Kafka.
     Uploaded bytes are kept in-memory so content streaming tests still work.
     """
@@ -251,6 +252,9 @@ def mock_minio_and_kafka() -> Iterator[None]:
             raise FileNotFoundError(msg)
         return blobs[object_path]
 
+    async def _fake_open(object_path: str, *, byte_range: ByteRange | None = None) -> ObjectStream:
+        return stream_bytes(await _fake_download(object_path), byte_range)
+
     async def _fake_delete(object_path: str) -> None:
         blobs.pop(object_path, None)
 
@@ -262,6 +266,10 @@ def mock_minio_and_kafka() -> Iterator[None]:
         patch(
             "contract_intelligence.infrastructure.storage.download_object",
             side_effect=_fake_download,
+        ),
+        patch(
+            "contract_intelligence.infrastructure.storage.open_object",
+            side_effect=_fake_open,
         ),
         patch(
             "contract_intelligence.infrastructure.storage.delete_object",
