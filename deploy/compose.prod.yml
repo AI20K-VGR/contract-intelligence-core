@@ -218,7 +218,8 @@ services:
     image: caddy:2.8-alpine
     container_name: ci-caddy
     restart: unless-stopped
-    mem_limit: ${CADDY_MEM_LIMIT:-128m}
+    # Holds every TLS connection: a scan opening thousands must not OOM it.
+    mem_limit: ${CADDY_MEM_LIMIT:-256m}
     depends_on:
       - backend
       - keycloak

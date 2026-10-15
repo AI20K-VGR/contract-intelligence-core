@@ -274,3 +274,70 @@ def test_release_memory_never_raises():
     from app.ops.memory import release_memory
 
     assert release_memory() in {True, False}
+
+
+ONLINE_FLAGS = (
+    "AI2_SEMANTIC_ENABLED",
+    "AI2_PROCESSING_EGRESS_ALLOWED",
+    "AI2_QUERY_EGRESS_ALLOWED",
+    "AI2_QUERY_USE_LLM",
+    "AI2_QUERY_USE_VECTOR",
+    "AI2_VECTOR_RECALL_ENABLED",
+)
+
+
+def test_readyz_is_200_with_the_online_configuration_and_a_cached_probe(monkeypatch):
+    """deploy.sh polls /readyz every 5 s after `up -d` (deploy/deploy.sh)."""
+
+    from fastapi.testclient import TestClient
+
+    from app.api import main
+    from app.llm.embeddings import EmbeddingCapability, EmbeddingModelInfo
+
+    for name in ONLINE_FLAGS:
+        monkeypatch.setenv(name, "true")
+    monkeypatch.setenv("AI2_EMBEDDING_DISCOVERY_ENABLED", "true")  # deploy/.env.prod online
+    monkeypatch.setenv("AI2_LLM_API_KEY", "sk-test")
+    monkeypatch.setenv("AI2_READYZ_PROBE_TTL_SECONDS", "60")
+    ready = EmbeddingCapability(
+        status="READY",
+        models=[EmbeddingModelInfo(model="text-embedding-3-small", dimensions=1536)],
+        selected_model="text-embedding-3-small",
+        dimensions=1536,
+    )
+    monkeypatch.setattr(main.EMBEDDING_CLIENT, "discover", lambda **_kwargs: ready)
+    probes = []
+    monkeypatch.setattr(main, "llm_status", lambda client: probes.append(client) or "ready")
+    monkeypatch.setattr(main, "_PROBE_RESULT", None)
+
+    client = TestClient(main.app)
+    for _ in range(5):
+        response = client.get("/readyz")
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "ready"
+    assert len(probes) == 1
+
+
+def test_readyz_turns_ready_soon_after_the_provider_recovers(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.api import main
+    from app.llm.embeddings import EmbeddingCapability
+
+    for name in ONLINE_FLAGS:
+        monkeypatch.setenv(name, "true")
+    monkeypatch.setenv("AI2_EMBEDDING_DISCOVERY_ENABLED", "true")
+    monkeypatch.setenv("AI2_LLM_API_KEY", "sk-test")
+    monkeypatch.setattr(
+        main.EMBEDDING_CLIENT, "discover", lambda **_kwargs: EmbeddingCapability(status="READY")
+    )
+    states = iter(["unreachable", "ready"])
+    monkeypatch.setattr(main, "llm_status", lambda client: next(states))
+    monkeypatch.setattr(main, "_PROBE_RESULT", None)
+    clock = [1000.0]
+    monkeypatch.setattr(main.time, "monotonic", lambda: clock[0])
+
+    client = TestClient(main.app)
+    assert client.get("/readyz").status_code == 503
+    clock[0] += 11  # a failure is reused for 10 s only
+    assert client.get("/readyz").status_code == 200
