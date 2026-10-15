@@ -18,10 +18,14 @@ Mọi quan hệ đều `NEEDS_REVIEW`; AI2 không chọn khoản thắng hoặc 
 | `AI2_CONTRACT_GRAPH_PAIRS_API_KEY` | Khóa tại môi trường chạy; không ghi giá trị vào git |
 
 Adapter HTTP và Kafka gán `record.content_sharing_consent` từ
-`request.policy_flags.egress_allowed`. Field record mặc định `False`, không serialize
-vào snapshot hoặc wire. Không thêm field vào `ProcessingPolicyFlags` hay JSON Schema.
+`request.policy_flags.egress_allowed`. Field record mặc định `False` và được lưu trong
+snapshot nội bộ để query khôi phục consent khi đọc lại từ PostgreSQL. Chỉ boolean
+`true` được chấp nhận; snapshot cũ thiếu field vẫn mặc định `False`. Không thêm field
+vào wire, `ProcessingPolicyFlags` hay JSON Schema.
 Consent request phải đồng thời đáp ứng egress server và runtime; request không tự mở egress.
-Backend hiện gửi `False`, nên job thật dùng rule-only cho tới khi Backend gửi consent.
+Backend chuyển tiếp consent của hồ sơ qua cả hai lần dựng request xử lý.
+Snapshot cũ thiếu field cần chạy lại xử lý AI2 với consent hiện hành sau khi deploy;
+bản sửa không tự cấp consent hoặc thay đổi snapshot cũ. Không cần chạy lại OCR.
 Đây là D4/Q1 của plan `261008-1500-ai2-contract-graph-implicit`, đã ghi tại
 `DEC-dungskbg2004-1` trong `docs/decisions.md` theo quyết định người dùng.
 Bật cờ còn cần verdict P5 và quyết định của người dùng.
