@@ -1,0 +1,72 @@
+# CI for deploy/. Runs when deploy/ changes.
+#
+# A green PR used to say nothing about Caddy, the CSP or keycloak_configure.py
+# (review of #97). This checks them before the server sees them:
+#   - the Caddyfile adapts with the Caddy image the server runs, with each TLS
+#     snippet in deploy/ and both ORIGIN_CLIENT_AUTH modes;
+#   - deploy/tests pass (stdlib scripts, fake Keycloak);
+#   - the shell scripts parse.
+name: deploy-config
+
+on:
+  pull_request:
+    paths: ["deploy/**", ".github/workflows/deploy-config.yml"]
+  push:
+    branches: [develop, main]
+    paths: ["deploy/**", ".github/workflows/deploy-config.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  caddy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Caddyfile adapts with the server's Caddy
+        run: |
+          set -euo pipefail
+          # The image deploy/compose.prod.yml runs, so a newer Caddy never hides a parse error.
+          image=$(grep -oE 'caddy:[0-9.]+-alpine' deploy/compose.prod.yml | head -1)
+          echo "image: $image"
+          root=$(mktemp -d)
+          mkdir -p "$root/tls" "$root/sites"
+          cp deploy/Caddyfile "$root/Caddyfile"
+          if [ -f deploy/frontend.caddy ]; then cp deploy/frontend.caddy "$root/sites/"; fi
+          # "none" = Let's Encrypt (no snippet); then every TLS snippet in deploy/.
+          variants="none"
+          for snippet in deploy/cloudflare-tls*.caddy; do
+            [ -e "$snippet" ] && variants="$variants $(basename "$snippet")"
+          done
+          for variant in $variants; do
+            rm -f "$root/tls/"*.caddy
+            if [ "$variant" != none ]; then cp "deploy/$variant" "$root/tls/origin.caddy"; fi
+            for mode in verify_if_given require_and_verify; do
+              echo "::group::$variant, ORIGIN_CLIENT_AUTH=$mode"
+              docker run --rm --network none -v "$root:/etc/caddy:ro" \
+                -e API_HOST=api.example.test -e AUTH_HOST=auth.example.test \
+                -e APP_HOST=app.example.test -e ORIGIN_CLIENT_AUTH="$mode" \
+                "$image" caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
+              echo "::endgroup::"
+            done
+          done
+
+  scripts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Shell scripts parse
+        run: for f in deploy/*.sh; do bash -n "$f"; done
+      - name: deploy/tests
+        run: |
+          if [ ! -d deploy/tests ]; then
+            echo "::notice::no deploy/tests yet"
+            exit 0
+          fi
+          python -m pip install --disable-pip-version-check 'pytest==9.1.1' 'PyYAML==6.0.3'
+          python -m pytest deploy/tests -q
