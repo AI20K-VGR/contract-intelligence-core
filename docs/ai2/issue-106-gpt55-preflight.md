@@ -22,6 +22,10 @@ Probe giới hạn 1 completion token có thể bị GPT-5.5 từ chối với H
   Khi tùy chỉnh timeout vượt mức này, người vận hành cần điều chỉnh cả caller.
 - Giữ nguyên hard cap `max_output_tokens` của inference và semantic profile;
   không tự cộng token reasoning hoặc thêm retry ngầm.
+- BE worker truyền lại consent của đúng hồ sơ ở lần dựng request có semantic profile.
+  Consent true/false được giữ nguyên qua cả hai lần dựng request và retry;
+  hồ sơ chưa đồng ý tiếp tục bị chặn. Bản sửa tránh consent rơi về mặc định false
+  trước lúc submit và gây `RULE_ONLY_NO_CONSENT` ngoài ý muốn.
 
 ## BE triển khai
 
