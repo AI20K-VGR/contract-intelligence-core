@@ -38,8 +38,6 @@ desktop.ini
 .env.local
 .env.*.local
 *.pem
-# Cloudflare's origin-pull CA: a public certificate, no key (deploy/cloudflare-tls.caddy).
-!deploy/cloudflare-origin-pull-ca.pem
 *.key
 secrets/
 

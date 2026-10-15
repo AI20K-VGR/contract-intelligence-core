@@ -47,6 +47,10 @@ if [ -f deploy/certs/origin.pem ] || [ -f deploy/certs/origin.key ]; then
     exit 1
   fi
   COMPOSE+=(-f deploy/compose.cloudflare.yml)
+  # Zone-level Authenticated Origin Pulls once our CA is on the server.
+  if [ -f deploy/certs/origin-pull-ca.pem ]; then
+    COMPOSE+=(-f deploy/compose.cloudflare-aop.yml)
+  fi
 fi
 COMPOSE+=(--env-file "$ENV_FILE")
 

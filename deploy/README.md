@@ -359,12 +359,31 @@ Khi đang bị tấn công: Security → Settings → **Under Attack Mode** (m�
 - **Security group `ci-app`:** TCP 80 và 443 chỉ từ prefix list `cloudflare-ipv4` (`pl-0bb37c6203e631aff`, các dải ở https://api.cloudflare.com/client/v4/ips); không mở UDP 443 hay IPv6 vì Cloudflare nối tới máy chủ bằng TCP IPv4. TCP 22 chỉ từ IP người vận hành.
 - **Chứng chỉ:** Cloudflare Origin Certificate cho `contract-intelligence.tech` và `*.contract-intelligence.tech`, hạn 10/2041, ở `deploy/certs/origin.pem` và `origin.key` trên máy chủ (quyền 600, không commit). Let's Encrypt không dùng được nữa vì máy chủ không nhận kết nối của họ. Khi hai file này có mặt, `deploy.sh` thêm `deploy/compose.cloudflare.yml`.
 - **IP người dùng thật:** Caddy đọc `CF-Connecting-IP`, và chỉ tin header này khi kết nối đến từ dải IP Cloudflare (`compose.cloudflare.yml`). Backend và Keycloak nhận `X-Forwarded-For` là IP người dùng, không phải IP của Cloudflare.
-- **Chỉ nhận lưu lượng của zone này (Authenticated Origin Pulls):** dải IP Cloudflare dùng chung cho mọi khách hàng của Cloudflare, nên một tài khoản Cloudflare khác vẫn trỏ được tên miền của họ về IP máy chủ. Khi bật, Cloudflare gửi client certificate ký bởi CA origin-pull (`deploy/cloudflare-origin-pull-ca.pem`, công khai) và Caddy chỉ nhận kết nối có chứng chỉ đó (`deploy/cloudflare-tls.caddy`). Bật **đúng thứ tự**, ngược lại mọi site sập:
-  1. Cloudflare → SSL/TLS → Origin Server → **Authenticated Origin Pulls: On** (cấp zone). Lúc này Caddy vẫn ở `verify_if_given`, không gì thay đổi.
-  2. `deploy/.env.prod`: `ORIGIN_CLIENT_AUTH=require_and_verify`, rồi `sudo deploy/deploy.sh`.
-  3. Kiểm: mở web, đăng nhập, xem một hồ sơ; `deploy/check_external.sh` (hoặc bước kiểm tra trong workflow `deploy`) vẫn xanh. Nếu site trả lỗi 526/525 thì Caddy đang đòi chứng chỉ mà Cloudflare chưa gửi: đặt lại `verify_if_given` và deploy.
+- **Chỉ nhận lưu lượng mang chứng chỉ của zone này (Authenticated Origin Pulls cấp zone):** dải IP Cloudflare dùng chung cho mọi tài khoản Cloudflare, nên security group chỉ chứng minh request đi qua mạng Cloudflare, không chứng minh nó thuộc zone `contract-intelligence.tech`. Chứng chỉ AOP "global" của Cloudflare cũng dùng chung cho mọi tài khoản, nên **không** dùng nó. Thay vào đó máy chủ có CA riêng; Cloudflare chỉ có client certificate do CA này cấp vì ta tải nó lên **zone này**; Caddy chỉ tin CA này (`deploy/cloudflare-tls-aop.caddy`).
 
-  Gỡ: đặt lại `verify_if_given`, deploy, rồi mới tắt trên Cloudflare.
+  Khi chưa có `deploy/certs/origin-pull-ca.pem`, `deploy.sh` không thêm `deploy/compose.cloudflare-aop.yml` và Caddy chạy TLS như cũ. Bật **đúng thứ tự**, ngược lại mọi site sập:
+  1. Tạo CA và client certificate trên máy chủ (RSA 2048; khoá của client certificate chỉ dùng để tải lên Cloudflare):
+
+     ```bash
+     cd /opt/contract-intelligence
+     sudo openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 3650 \
+       -subj "/CN=contract-intelligence origin-pull CA" \
+       -keyout deploy/certs/origin-pull-ca.key -out deploy/certs/origin-pull-ca.pem
+     sudo openssl req -newkey rsa:2048 -nodes -subj "/CN=cloudflare-origin-pull" \
+       -keyout /tmp/origin-pull-client.key -out /tmp/origin-pull-client.csr
+     printf 'basicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=clientAuth\n' \
+       > /tmp/client.ext
+     sudo openssl x509 -req -sha256 -days 730 -in /tmp/origin-pull-client.csr \
+       -CA deploy/certs/origin-pull-ca.pem -CAkey deploy/certs/origin-pull-ca.key -CAcreateserial \
+       -extfile /tmp/client.ext -out /tmp/origin-pull-client.pem
+     sudo chmod 600 deploy/certs/origin-pull-ca.key
+     ```
+  2. Cloudflare → SSL/TLS → Origin Server → Authenticated Origin Pulls → **Zone-level** → Upload certificate: dán `/tmp/origin-pull-client.pem` và `/tmp/origin-pull-client.key`, rồi bật toggle **Zone-level**. Không bật toggle global. Xong thì `sudo shred -u /tmp/origin-pull-client.*`; chuyển `deploy/certs/origin-pull-ca.key` ra khỏi máy chủ (người giữ tài khoản Cloudflare giữ) để ai chiếm được máy chủ cũng không cấp được chứng chỉ mới.
+  3. `sudo deploy/deploy.sh`: có CA nên Caddy chuyển sang `cloudflare-tls-aop.caddy`, vẫn `verify_if_given`. Kiểm: mở web, đăng nhập, xem một hồ sơ.
+  4. `deploy/.env.prod`: `ORIGIN_CLIENT_AUTH=require_and_verify`, rồi `sudo deploy/deploy.sh`. Kiểm như bước 3; `deploy/check_external.sh` (hoặc bước kiểm tra trong workflow `deploy`) vẫn xanh. Site trả 525/526: Caddy đang đòi chứng chỉ mà Cloudflare chưa gửi, đặt lại `verify_if_given` và deploy.
+
+  Xoay chứng chỉ (client certificate hạn 2 năm; Cloudflare báo trước 30 và 14 ngày): cấp chứng chỉ mới từ cùng CA như bước 1, tải lên zone-level, xoá chứng chỉ cũ trên Cloudflare. CA không đổi nên máy chủ không cần deploy lại. Đổi CA thì đặt `verify_if_given` trước, thay `origin-pull-ca.pem`, tải chứng chỉ mới, rồi mới `require_and_verify`.
+  Gỡ: đặt lại `verify_if_given`, deploy, rồi mới tắt toggle Zone-level trên Cloudflare. Bỏ hẳn: xoá `deploy/certs/origin-pull-ca.pem` rồi deploy.
 - **Header bảo mật của frontend** (`deploy/frontend.caddy`): `Content-Security-Policy` chỉ cho nạp script từ chính site, gọi tới API và Keycloak, nhúng iframe của API (`/grafana`) và Keycloak (làm mới token), font của Google; `frame-ancestors 'self'` và `X-Frame-Options: SAMEORIGIN` chống clickjacking; `Permissions-Policy` tắt camera, micro, vị trí, thanh toán. Thêm nguồn mới ở frontend (CDN, iframe khác) thì sửa CSP ở đây cùng lúc.
 - **Realm `master`:** Caddy trả 404 cho `auth.…/realms/master*` (WAF rule 1 cũng chặn); `keycloak_configure.py` gọi realm này qua `http://keycloak:8080` nội bộ.
 - **Redirect về localhost của client frontend:** `keycloak_configure.py` gỡ `http://localhost…` và `http://127.0.0.1…` khỏi redirect URI, web origin và post-logout của `contract-intel-frontend`, trừ khi `KEYCLOAK_KEEP_LOCAL_REDIRECTS=true`. CORS của API vẫn theo `FRONTEND_ORIGINS`.
