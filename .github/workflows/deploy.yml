@@ -141,6 +141,9 @@ jobs:
           REMOTE
 
       - name: Check HTTPS, authentication, and external exposure
+        env:
+          DB_PUBLIC_IP: ${{ secrets.DEPLOY_DB_PUBLIC_IP }}
+          ORIGIN_IP: ${{ vars.DEPLOY_BEHIND_CLOUDFLARE == 'true' && secrets.DEPLOY_HOST || '' }}
         run: |
           hosts=$(ssh server "sudo=''; [ \"\$(id -u)\" -eq 0 ] || sudo=sudo; \$sudo grep -E '^(API_HOST|AUTH_HOST|APP_HOST)=' '$APP_DIR/deploy/.env.prod'")
           value() { printf '%s\n' "$hosts" | grep -E "^$1=" | tail -1 | cut -d= -f2-; }
@@ -148,7 +151,7 @@ jobs:
           auth_host=$(value AUTH_HOST)
           app_host=$(value APP_HOST)
           [[ -n "$api_host" && -n "$auth_host" ]] || { echo "::error::API_HOST or AUTH_HOST is missing in deploy/.env.prod"; exit 1; }
-          bash deploy/check_external.sh "$api_host" "$auth_host" "$app_host"
+          bash deploy/check_external.sh "$api_host" "$auth_host" "$app_host" "$DB_PUBLIC_IP"
 
       # Last step, and after a failure too: the rule opened above must not stay.
       - name: Close SSH again (AWS security group)

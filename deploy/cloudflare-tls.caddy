@@ -1,0 +1,5 @@
+# Imported into every site by the (common) snippet of deploy/Caddyfile when
+# deploy/compose.cloudflare.yml is in use: serve the Cloudflare Origin
+# Certificate instead of asking Let's Encrypt. Cloudflare's "Full (strict)"
+# mode trusts this certificate; browsers never see it.
+tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key

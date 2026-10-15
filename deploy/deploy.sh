@@ -39,6 +39,15 @@ if [ -n "$backend_db_host$keycloak_db_host" ]; then
   done
   COMPOSE+=(-f deploy/compose.external-db.yml)
 fi
+# A Cloudflare Origin Certificate on disk: the hosts sit behind Cloudflare's
+# proxy (deploy/compose.cloudflare.yml, deploy/README.md "Đứng sau Cloudflare").
+if [ -f deploy/certs/origin.pem ] || [ -f deploy/certs/origin.key ]; then
+  if [ ! -f deploy/certs/origin.pem ] || [ ! -f deploy/certs/origin.key ]; then
+    echo "deploy/certs needs both origin.pem and origin.key (Cloudflare Origin Certificate)" >&2
+    exit 1
+  fi
+  COMPOSE+=(-f deploy/compose.cloudflare.yml)
+fi
 COMPOSE+=(--env-file "$ENV_FILE")
 
 if [ -z "$(envval AI2_LLM_BASE_URL)" ]; then
@@ -177,7 +186,10 @@ curl -fsS "$app/healthz" >/dev/null && echo "frontend health: ok"
 curl -fsS "$auth/realms/contract-intelligence/.well-known/openid-configuration" \
   | grep -o '"issuer":"[^"]*"'
 code=$(curl -s -o /dev/null -w '%{http_code}' "$auth/admin/master/console/")
-[ "$code" = 404 ] && echo "admin console blocked publicly: ok" || echo "WARNING: admin console answered $code"
+case "$code" in  # 404 from Caddy, 403 when Cloudflare's WAF stops it first
+  404|403) echo "admin console blocked publicly ($code): ok" ;;
+  *) echo "WARNING: admin console answered $code" ;;
+esac
 code=$(curl -s -o /dev/null -w '%{http_code}' -H 'X-WEBAUTH-USER: admin' "$api/grafana/")
 [ "$code" = 401 ] && echo "grafana refuses anonymous callers: ok" || echo "WARNING: /grafana answered $code"
 if [ -n "$app_host" ]; then
