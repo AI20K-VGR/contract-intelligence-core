@@ -4,6 +4,7 @@ import { ApiError } from '../api/client'
 import {
   findLatestRunId,
   listRunSteps,
+  RUN_STEP_GROUPS,
   RUN_STEP_LABELS,
   RUN_STEP_ORDER,
   stepFromEvent,
@@ -14,7 +15,6 @@ import {
   deleteDossier,
   loadDocumentOcrPages,
   rerunDossierOcr,
-  retryDossierFailed,
   restartOcrErrorMessage,
   type OcrPageRow,
 } from '../api/dossiers'
@@ -593,24 +593,6 @@ export function AnalysisProgressPage() {
     }
   }
 
-  async function retry() {
-    if (!dossierId || busy) return
-    setBusy(true)
-    setError(null)
-    try {
-      if (failure.retry === 'none') {
-        setBusy(false)
-        return
-      }
-      await retryDossierFailed(dossierId, failure.retry)
-      setAttempt((value) => value + 1)
-      setBusy(false)
-    } catch (cause) {
-      setError(restartOcrErrorMessage(cause))
-      setBusy(false)
-    }
-  }
-
   const failedLabel = cancelled
     ? 'Đã hủy lần xử lý'
     : ai2Failed
@@ -731,74 +713,92 @@ export function AnalysisProgressPage() {
               Các bước xử lý
             </span>
           </div>
-          <ol className="flex flex-col">
-            {RUN_STEP_ORDER.map((code, index) => {
-              const row = steps[code]
-              const rawStatus = row?.status ?? 'queued'
-              // Run đã kết thúc mà BE không ghi nhận bước này thì không để xoay/chờ mãi.
-              const status =
-                finished && rawStatus !== 'succeeded' && rawStatus !== 'failed'
-                  ? 'unrecorded'
-                  : rawStatus
-              const last = index === RUN_STEP_ORDER.length - 1
-              return (
-                <li key={code} className="flex gap-space-md">
-                  <div className="flex flex-col items-center">
-                    <StepDot status={status} />
-                    {last ? null : (
-                      <div
-                        className={`w-px flex-1 min-h-4 ${
-                          status === 'succeeded'
-                            ? 'bg-emerald-300'
-                            : 'bg-outline-variant'
-                        }`}
-                      />
-                    )}
-                  </div>
-                  <div className="flex flex-1 items-start justify-between gap-space-sm pb-space-md">
-                    <div className="flex flex-col">
-                      <span
-                        className={`font-body-sm text-body-sm ${
-                          status === 'queued'
-                            ? 'text-on-surface-variant'
-                            : 'text-on-surface font-semibold'
-                        }`}
-                      >
-                        {RUN_STEP_LABELS[code]}
-                      </span>
-                      <span className="font-label-sm text-label-sm text-on-surface-variant">
-                        {code}
-                        {row?.pages != null ? ` · ${row.pages} trang` : ''}
-                      </span>
-                    </div>
-                    <span
-                      className={`font-label-sm text-label-sm font-semibold shrink-0 ${
-                        status === 'succeeded'
-                          ? 'text-emerald-700'
-                          : status === 'failed'
-                            ? 'text-error'
-                            : status === 'running'
-                              ? 'text-on-tertiary-container'
-                              : 'text-on-surface-variant'
-                      }`}
-                    >
-                      {status === 'succeeded'
-                        ? row?.durationMs != null
-                          ? `Xong · ${(row.durationMs / 1000).toFixed(1)}s`
-                          : 'Xong'
-                        : status === 'running'
-                          ? 'Đang chạy…'
-                          : status === 'failed'
-                            ? 'Lỗi'
-                            : status === 'unrecorded'
-                              ? 'Không ghi nhận'
-                              : 'Chờ'}
-                    </span>
-                  </div>
-                </li>
-              )
-            })}
-          </ol>
+          <div className="flex flex-col gap-space-md">
+            {RUN_STEP_GROUPS.map((group) => (
+              <div key={group.id} className="flex flex-col gap-space-sm">
+                <div className="flex items-baseline gap-space-sm">
+                  <span className="font-label-md text-label-md text-on-surface font-semibold">
+                    {group.label}
+                  </span>
+                  <span className="font-label-sm text-label-sm text-on-surface-variant">
+                    {group.hint}
+                  </span>
+                </div>
+                <ol className="flex flex-col">
+                  {group.steps.map((code, index) => {
+                    const row = steps[code]
+                    const rawStatus = row?.status ?? 'queued'
+                    // Run đã kết thúc mà BE không ghi nhận bước này thì không để xoay/chờ mãi.
+                    const status =
+                      finished &&
+                      rawStatus !== 'succeeded' &&
+                      rawStatus !== 'failed'
+                        ? 'unrecorded'
+                        : rawStatus
+                    const last = index === group.steps.length - 1
+                    return (
+                      <li key={code} className="flex gap-space-md">
+                        <div className="flex flex-col items-center">
+                          <StepDot status={status} />
+                          {last ? null : (
+                            <div
+                              className={`w-px flex-1 min-h-4 ${
+                                status === 'succeeded'
+                                  ? 'bg-emerald-300'
+                                  : 'bg-outline-variant'
+                              }`}
+                            />
+                          )}
+                        </div>
+                        <div className="flex flex-1 items-start justify-between gap-space-sm pb-space-md">
+                          <div className="flex flex-col">
+                            <span
+                              className={`font-body-sm text-body-sm ${
+                                status === 'queued'
+                                  ? 'text-on-surface-variant'
+                                  : 'text-on-surface font-semibold'
+                              }`}
+                            >
+                              {RUN_STEP_LABELS[code]}
+                            </span>
+                            <span className="font-label-sm text-label-sm text-on-surface-variant">
+                              {code}
+                              {row?.pages != null
+                                ? ` · ${row.pages} trang`
+                                : ''}
+                            </span>
+                          </div>
+                          <span
+                            className={`font-label-sm text-label-sm font-semibold shrink-0 ${
+                              status === 'succeeded'
+                                ? 'text-emerald-700'
+                                : status === 'failed'
+                                  ? 'text-error'
+                                  : status === 'running'
+                                    ? 'text-on-tertiary-container'
+                                    : 'text-on-surface-variant'
+                            }`}
+                          >
+                            {status === 'succeeded'
+                              ? row?.durationMs != null
+                                ? `Xong · ${(row.durationMs / 1000).toFixed(1)}s`
+                                : 'Xong'
+                              : status === 'running'
+                                ? 'Đang chạy…'
+                                : status === 'failed'
+                                  ? 'Lỗi'
+                                  : status === 'unrecorded'
+                                    ? 'Không ghi nhận'
+                                    : 'Chờ'}
+                          </span>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ol>
+              </div>
+            ))}
+          </div>
         </section>
 
         <div className="xl:col-span-5 flex flex-col gap-gutter">
@@ -845,23 +845,6 @@ export function AnalysisProgressPage() {
               <span>Hủy tiến trình này</span>
             </button>
           )}
-          {canManageRun && failed && failure.retry !== 'none' ? (
-            <button
-              className="font-body-sm text-body-sm text-primary hover:underline flex items-center gap-space-xs disabled:opacity-60"
-              disabled={busy}
-              type="button"
-              onClick={() => {
-                void retry()
-              }}
-            >
-              <MaterialIcon name="refresh" className="text-[16px]" />
-              <span>
-                {failure.retry === 'ai2'
-                  ? 'Chạy lại AI2'
-                  : 'Chạy lại phần OCR lỗi'}
-              </span>
-            </button>
-          ) : null}
         </div>
         <div className="flex items-center gap-space-sm">
           {canDelete ? (
@@ -878,9 +861,9 @@ export function AnalysisProgressPage() {
             </button>
           ) : null}
           <button
-            className={`flex items-center gap-space-sm px-gutter py-space-sm bg-brand-100 text-brand-700 rounded-lg font-title-sm text-title-sm shadow-sm transition-all ${
+            className={`flex items-center gap-space-sm px-gutter py-space-sm bg-white text-on-surface border border-brand-500/70 rounded-lg font-title-sm text-title-sm shadow-sm transition-all ${
               ready
-                ? 'hover:bg-brand-200 cursor-pointer'
+                ? 'hover:bg-brand-500/5 cursor-pointer'
                 : 'opacity-50 cursor-not-allowed'
             }`}
             disabled={!ready || !dossierId}
@@ -893,7 +876,10 @@ export function AnalysisProgressPage() {
             }}
           >
             <span>Xem hồ sơ</span>
-            <MaterialIcon name="arrow_forward" className="text-[18px]" />
+            <MaterialIcon
+              name="arrow_forward"
+              className="text-[18px] text-brand-700"
+            />
           </button>
         </div>
       </div>
