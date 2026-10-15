@@ -4,19 +4,26 @@
 # and skip the cloud firewall, so a "closed" result there proves little.
 #
 #   deploy/check_external.sh api-1-2-3-4.sslip.io auth-1-2-3-4.sslip.io app-1-2-3-4.sslip.io [DB_PUBLIC_IP]
+#   ORIGIN_IP=52.63.103.239 deploy/check_external.sh api.example.com auth.example.com example.com
 #
 # Exit code 0 only when HTTPS works, /admin is blocked, /grafana refuses an
 # anonymous caller and every internal port (AI2 8002, databases, Kafka, MinIO,
 # Keycloak, mailpit, Grafana, Prometheus, exporters) is unreachable. With the
 # public IP of a DB server of its own, its database ports must be closed too.
+#
+# Behind Cloudflare's proxy the hostnames resolve to Cloudflare, which itself
+# listens on 8080, 8443 and more, so the ports must be probed on the server's
+# own address: pass it as ORIGIN_IP. The origin must then also refuse HTTP and
+# HTTPS from here, i.e. nobody can go around Cloudflare.
 set -uo pipefail
 
-usage="usage: check_external.sh API_HOST AUTH_HOST APP_HOST [DB_PUBLIC_IP]"
+usage="usage: [ORIGIN_IP=<server ip>] check_external.sh API_HOST AUTH_HOST APP_HOST [DB_PUBLIC_IP]"
 API_HOST=${1:?$usage}
 AUTH_HOST=${2:?$usage}
 APP_HOST=${3:?$usage}
 DB_PUBLIC_IP=${4:-}
-IP=$(python3 -c "import socket, sys; print(socket.gethostbyname(sys.argv[1]))" "$API_HOST")
+ORIGIN_IP=${ORIGIN_IP:-}
+IP=${ORIGIN_IP:-$(python3 -c "import socket, sys; print(socket.gethostbyname(sys.argv[1]))" "$API_HOST")}
 # Every port the local stack publishes; production must publish none of them.
 INTERNAL_PORTS=(8002 8000 8080 8443 5432 5433 5434 9000 9001 9092 9093 29092 1025 8025
   3000 9090 9100 9101 9108)
@@ -52,7 +59,11 @@ else
 fi
 
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "https://$AUTH_HOST/admin/master/console/")
-[ "$code" = 404 ] && ok "Keycloak /admin blocked (404)" || fail "Keycloak /admin answered $code"
+# 404 from Caddy, or 403 when Cloudflare's WAF stops it first.
+case "$code" in
+  404|403) ok "Keycloak /admin blocked ($code)" ;;
+  *) fail "Keycloak /admin answered $code" ;;
+esac
 
 # Monitoring: Grafana only behind the backend's ADMINISTRATOR check, and a
 # forged auth-proxy header must not help.
@@ -72,6 +83,17 @@ for port in "${INTERNAL_PORTS[@]}"; do
     ok "port $port closed"
   fi
 done
+
+if [ -n "$ORIGIN_IP" ]; then
+  # Behind Cloudflare: the server itself must not answer the web from here.
+  for port in 80 443; do
+    if timeout 4 bash -c "exec 3<>/dev/tcp/$ORIGIN_IP/$port" 2>/dev/null; then
+      fail "origin $ORIGIN_IP: port $port answers directly, Cloudflare can be bypassed"
+    else
+      ok "origin $ORIGIN_IP: port $port closed to non-Cloudflare callers"
+    fi
+  done
+fi
 
 if [ -n "$DB_PUBLIC_IP" ]; then
   for port in 5432 5433; do
