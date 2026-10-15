@@ -56,12 +56,31 @@ describe('dossier AI2 graph integration', () => {
 
   it('renders per-dossier content consent as an accessible, fail-closed control', () => {
     const html = renderToStaticMarkup(
-      <ContentSharingConsent dossierId="dossier-a" enabled={false} onSaved={() => {}} />,
+      <ContentSharingConsent
+        dossierId="dossier-a"
+        enabled={false}
+        canChange
+        onSaved={() => {}}
+      />,
     )
     expect(html).toContain('type="checkbox"')
     expect(html).not.toContain('checked=""')
     expect(html).toContain('Cho phép AI2 xử lý nội dung hồ sơ')
     expect(html).toContain('Thay đổi có hiệu lực từ yêu cầu AI2 tiếp theo.')
+  })
+
+  it('shows consent read-only to someone who may not change it', () => {
+    const html = renderToStaticMarkup(
+      <ContentSharingConsent
+        dossierId="dossier-a"
+        enabled
+        canChange={false}
+        onSaved={() => {}}
+      />,
+    )
+    expect(html).not.toContain('type="checkbox"')
+    expect(html).toContain('AI2 xử lý nội dung hồ sơ: đang bật')
+    expect(html).toContain('Chỉ chủ hồ sơ hoặc Quản trị đổi được.')
   })
 
   it('allows legacy OCR fallback only for missing opaque citations in the same document', () => {

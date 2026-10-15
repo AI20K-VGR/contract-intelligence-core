@@ -1401,16 +1401,19 @@ export function DossierStructurePage() {
               <ContentSharingConsent
                 dossierId={dossierId}
                 enabled={detail.metadata?.ai2_content_sharing_consent === true}
+                canChange={permissions.known && permissions.canManage}
                 onSaved={(enabled) =>
-                  setDetail((current) => current
-                    ? {
-                        ...current,
-                        metadata: {
-                          ...(current.metadata ?? {}),
-                          ai2_content_sharing_consent: enabled,
-                        },
-                      }
-                    : current)
+                  setDetail((current) =>
+                    current
+                      ? {
+                          ...current,
+                          metadata: {
+                            ...(current.metadata ?? {}),
+                            ai2_content_sharing_consent: enabled,
+                          },
+                        }
+                      : current,
+                  )
                 }
               />
             </div>
