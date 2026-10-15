@@ -1157,6 +1157,8 @@ RBAC: **OPERATOR** hoặc **ADMINISTRATOR**. `REVIEWER` nhận 403. Confirm khô
 
 Chỉ **chủ hồ sơ** hoặc **ADMINISTRATOR** gọi được. Người khác nhận 403, kể cả khi được chia sẻ quyền `edit`.
 
+**Phạm vi bản hiện tại (15/10/2026):** frontend chỉ mở màn chia sẻ (trang Quyền truy cập, nút "Chia sẻ") cho **ADMINISTRATOR**. **OPERATOR (Vận hành) chưa có màn chia sẻ** ở bản này: trang Quyền truy cập chỉ hiện tab "Hồ sơ được chia sẻ". Backend đã cho OPERATOR chia sẻ hồ sơ của chính mình (`DOSSIER_MANAGE`, danh bạ `GET /users/directory`), và DOC-02 ghi Operator "chia sẻ trong tenant"; phần giao diện này để **bản sau**. REVIEWER không chia sẻ được ở mọi bản.
+
 ```json
 {
   "scope": "shared_out",
