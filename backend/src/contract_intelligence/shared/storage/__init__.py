@@ -15,7 +15,8 @@ from __future__ import annotations
 import asyncio
 import hashlib
 from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO
 
@@ -23,6 +24,82 @@ import aiofiles
 import structlog
 
 logger = structlog.get_logger(__name__)
+
+# Large enough to keep per-chunk overhead low, small enough that a 50 MB scan
+# never sits in memory whole while it is sent.
+STREAM_CHUNK_BYTES = 256 * 1024
+
+
+@dataclass(frozen=True, slots=True)
+class ByteRange:
+    """One ``Range: bytes=`` spec: ``a-b``, ``a-`` (``end`` None) or ``-n`` (``start`` None)."""
+
+    start: int | None
+    end: int | None
+
+    def header(self) -> str:
+        first = "" if self.start is None else str(self.start)
+        last = "" if self.end is None else str(self.end)
+        return f"bytes={first}-{last}"
+
+    def resolve(self, size: int) -> tuple[int, int] | None:
+        """Inclusive ``(first, last)`` inside ``size`` bytes, None when unsatisfiable."""
+        if self.start is None:
+            suffix = self.end or 0
+            if suffix == 0 or size == 0:
+                return None
+            return max(0, size - suffix), size - 1
+        if self.start >= size:
+            return None
+        last = size - 1 if self.end is None else min(self.end, size - 1)
+        return self.start, last
+
+
+class RangeNotSatisfiableError(Exception):
+    """The requested range lies outside the object; ``size`` goes in ``Content-Range``."""
+
+    def __init__(self, size: int) -> None:
+        super().__init__(f"Range not satisfiable for an object of {size} bytes")
+        self.size = size
+
+
+@dataclass(frozen=True, slots=True)
+class ObjectStream:
+    """Bytes ``first..last`` (inclusive) of an object of ``size`` bytes, read in chunks.
+
+    ``close`` releases the connection behind ``chunks``; call it even when
+    ``chunks`` is never read (the response may fail before it starts).
+    """
+
+    size: int
+    first: int
+    last: int
+    chunks: AsyncIterator[bytes]
+    close: Callable[[], Awaitable[None]]
+
+    @property
+    def length(self) -> int:
+        return self.last - self.first + 1
+
+
+def stream_bytes(data: bytes, byte_range: ByteRange | None = None) -> ObjectStream:
+    """An :class:`ObjectStream` over bytes already in memory."""
+    size = len(data)
+    first, last = 0, size - 1
+    if byte_range is not None:
+        span = byte_range.resolve(size)
+        if span is None:
+            raise RangeNotSatisfiableError(size)
+        first, last = span
+
+    async def chunks() -> AsyncIterator[bytes]:
+        for offset in range(first, last + 1, STREAM_CHUNK_BYTES):
+            yield data[offset : min(offset + STREAM_CHUNK_BYTES, last + 1)]
+
+    async def close() -> None:
+        return None
+
+    return ObjectStream(size=size, first=first, last=last, chunks=chunks(), close=close)
 
 
 class FileStorage(ABC):
@@ -170,9 +247,14 @@ def reset_file_storage() -> None:
 
 
 __all__ = [
+    "STREAM_CHUNK_BYTES",
+    "ByteRange",
     "FileStorage",
     "LocalFileStorage",
+    "ObjectStream",
+    "RangeNotSatisfiableError",
     "get_file_storage",
     "reset_file_storage",
     "set_file_storage",
+    "stream_bytes",
 ]
