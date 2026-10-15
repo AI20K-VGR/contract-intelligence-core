@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from time import monotonic
 from typing import Any, Callable
 
 import httpx
 from openai import OpenAI
 
 PROBE_TEXT = "ai2_embedding_capability_probe_v1"
+DISCOVERY_FAILURE_TTL_SECONDS = 10.0
 
 
 @dataclass(frozen=True)
@@ -68,6 +70,7 @@ class OpenAICompatibleEmbeddingClient:
         timeout = float(os.getenv("AI2_EMBEDDING_TIMEOUT_SECONDS", "45"))
         self.client = client or OpenAI(base_url=self.base_url, api_key=self.api_key or "missing", timeout=timeout, max_retries=0)
         self._capability: EmbeddingCapability | None = None
+        self._capability_checked_at = 0.0
 
     def configured(self) -> bool:
         return bool(self.api_key) and self.api_key != "sk-replace-me"
@@ -77,7 +80,11 @@ class OpenAICompatibleEmbeddingClient:
         before_probe: Callable[[list[str]], bool] | None = None,
     ) -> EmbeddingCapability:
         if self._capability is not None and not force:
-            return self._capability
+            if self._capability.status in {"READY", "CONFIG_REQUIRED"} or (
+                monotonic() - self._capability_checked_at < DISCOVERY_FAILURE_TTL_SECONDS
+            ):
+                return self._capability
+        self._capability_checked_at = monotonic()
         if not egress_approved:
             self._capability = EmbeddingCapability(status="EGRESS_DENIED")
             return self._capability
