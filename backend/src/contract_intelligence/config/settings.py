@@ -236,15 +236,18 @@ class Settings(BaseSettings):
         ),
     )
     ai2_query_egress_allowed: bool = Field(
-        default=False,
+        default=True,
         description=(
-            "Allow AI2 to call an external LLM for dossier Q&A. Fail-closed by default: "
-            "AI2 answers from deterministic citation retrieval only."
+            "Server-side cap for AI2 external LLM calls in dossier Q&A. Enabled in the full "
+            "product profile; AI2 still requires signed, stored per-dossier consent."
         ),
     )
     ai2_query_use_vector: bool = Field(
-        default=False,
-        description="Ask AI2 to use vector recall for dossier Q&A (needs embeddings configured).",
+        default=True,
+        description=(
+            "Server-side cap for AI2 vector recall in dossier Q&A. Requires signed, stored "
+            "per-dossier consent and a configured embedding provider."
+        ),
     )
     query_rate_limit_per_minute: int = Field(
         default=20,

@@ -77,24 +77,36 @@ def _admin_token() -> str:
     deadline = time.monotonic() + 300
     while True:
         try:
-            return str(
-                _request("POST", "/realms/master/protocol/openid-connect/token", body=form)[
-                    "access_token"
-                ]
+            payload = _request(
+                "POST", "/realms/master/protocol/openid-connect/token", body=form
             )
+            token = payload.get("access_token") if isinstance(payload, dict) else None
+            if not token:
+                sys.exit("[keycloak] admin token response did not contain access_token")
+            return str(token)
         except urllib.error.HTTPError as exc:
-            if exc.code in (400, 401, 403):
+            if 400 <= exc.code < 500 and exc.code != 429:
                 sys.exit(
-                    f"[keycloak] admin login refused ({exc.code}): check KEYCLOAK_ADMIN_PASSWORD"
+                    f"[keycloak] admin token request rejected ({exc.code}); "
+                    "check Keycloak URL and credentials"
                 )
-            if time.monotonic() > deadline:
-                sys.exit(f"[keycloak] not ready after 300s: {exc}")
-            time.sleep(5)
-        except (urllib.error.URLError, ConnectionError, KeyError) as exc:
-            if time.monotonic() > deadline:
-                sys.exit(f"[keycloak] not ready after 300s: {exc}")
-            print("[keycloak] waiting for Keycloak...", flush=True)
-            time.sleep(5)
+            _wait_for_keycloak_retry(deadline, exc)
+        except (urllib.error.URLError, ConnectionError, TimeoutError) as exc:
+            _wait_for_keycloak_retry(deadline, exc)
+
+
+def _wait_for_keycloak_retry(deadline: float, error: BaseException) -> None:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        sys.exit(
+            f"[keycloak] not ready after 300s ({type(error).__name__}); "
+            "check service health and internal URL"
+        )
+    if isinstance(error, urllib.error.HTTPError):
+        print(f"[keycloak] server returned HTTP {error.code}; retrying readiness", flush=True)
+    else:
+        print("[keycloak] waiting for Keycloak readiness", flush=True)
+    time.sleep(min(5, remaining))
 
 
 def _client(token: str, client_id: str) -> dict[str, Any]:

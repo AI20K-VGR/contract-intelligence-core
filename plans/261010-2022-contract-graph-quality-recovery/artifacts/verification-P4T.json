@@ -1,0 +1,47 @@
+{
+  "stage": "cook",
+  "plan": "261010-2022-contract-graph-quality-recovery",
+  "checks": [
+    {
+      "name": "focused_offline_tests",
+      "status": "PASS"
+    },
+    {
+      "name": "reference_prompt_regression",
+      "status": "PASS"
+    },
+    {
+      "name": "abstention_accounting",
+      "status": "PASS"
+    },
+    {
+      "name": "candidate_cap_diversification",
+      "status": "PASS"
+    },
+    {
+      "name": "candidate_quality",
+      "status": "SKIP"
+    },
+    {
+      "name": "classifier_quality",
+      "status": "SKIP"
+    },
+    {
+      "name": "heldout",
+      "status": "SKIP"
+    },
+    {
+      "name": "runtime_off",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P4T",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-11T07:23:18+00:00",
+  "blastRadius": {
+    "unavailable": true,
+    "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF-ai2-contract-graph"
+  },
+  "run_seq": null
+}

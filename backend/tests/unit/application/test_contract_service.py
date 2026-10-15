@@ -64,7 +64,7 @@ class TestCreateDossier:
     ) -> None:
         meta = {"tags": ["q2"], "notes": "urgent"}
         dossier = await contract_service.create_dossier(name="Meta", batch_id=None, metadata=meta)
-        assert dossier.metadata == meta
+        assert dossier.metadata == {**meta, "ai2_content_sharing_consent": True}
 
     async def test_creates_dossier_with_batch_id(
         self,
@@ -328,11 +328,11 @@ class TestPatchDossier:
         contract_service: ContractService,
     ) -> None:
         dossier = await contract_service.create_dossier(name="D", batch_id=None)
-        assert dossier.metadata is None
+        assert dossier.metadata == {"ai2_content_sharing_consent": True}
 
         meta = {"tags": ["urgent", "q2-2026"], "notes": "Internal review needed"}
         patched = await contract_service.patch_dossier(dossier.id, name=None, metadata=meta)
-        assert patched.metadata == meta
+        assert patched.metadata == {**meta, "ai2_content_sharing_consent": True}
 
     async def test_updates_name_and_metadata_together(
         self,
@@ -343,7 +343,10 @@ class TestPatchDossier:
             dossier.id, name="New Name", metadata={"priority": "high"}
         )
         assert patched.name == "New Name"
-        assert patched.metadata == {"priority": "high"}
+        assert patched.metadata == {
+            "priority": "high",
+            "ai2_content_sharing_consent": True,
+        }
 
     async def test_metadata_persists_across_get(
         self,
@@ -352,7 +355,10 @@ class TestPatchDossier:
         dossier = await contract_service.create_dossier(name="D", batch_id=None)
         await contract_service.patch_dossier(dossier.id, name=None, metadata={"key": "value"})
         reloaded = await contract_service.get_dossier(dossier.id)
-        assert reloaded.metadata == {"key": "value"}
+        assert reloaded.metadata == {
+            "key": "value",
+            "ai2_content_sharing_consent": True,
+        }
 
     async def test_partial_metadata_patch_preserves_acl_metadata(
         self,
@@ -381,6 +387,7 @@ class TestPatchDossier:
             "access_scope": "mine",
             "shared_with": [],
             "structure_mode": "numbered",
+            "ai2_content_sharing_consent": True,
         }
 
     async def test_metadata_none_does_not_overwrite(
@@ -392,7 +399,10 @@ class TestPatchDossier:
         await contract_service.patch_dossier(dossier.id, name=None, metadata={"existing": True})
         # Patch again without metadata — should keep existing
         patched = await contract_service.patch_dossier(dossier.id, name="Updated")
-        assert patched.metadata == {"existing": True}
+        assert patched.metadata == {
+            "existing": True,
+            "ai2_content_sharing_consent": True,
+        }
 
 
 # =============================================================================
@@ -553,3 +563,67 @@ class TestDocumentContent:
     ) -> None:
         with pytest.raises(NotFoundError):
             await contract_service.get_content_document("doc_MISSING")
+
+
+# =============================================================================
+# AI2 content-sharing consent: owner-only, audited
+# =============================================================================
+
+
+class _FakeAuditSession:
+    def __init__(self) -> None:
+        self.added: list[Any] = []
+
+    def add(self, row: Any) -> None:
+        self.added.append(row)
+
+
+class TestAi2ConsentGuard:
+    async def test_plain_patch_cannot_change_consent(
+        self,
+        contract_service: ContractService,
+    ) -> None:
+        dossier = await contract_service.create_dossier(name="D", batch_id=None)
+        patched = await contract_service.patch_dossier(
+            dossier.id, name=None, metadata={"ai2_content_sharing_consent": False}
+        )
+        assert patched.metadata["ai2_content_sharing_consent"] is True
+
+    async def test_plain_patch_cannot_enable_consent(
+        self,
+        contract_service: ContractService,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("AI2_CONTENT_SHARING_CONSENT_DEFAULT", "false")
+        dossier = await contract_service.create_dossier(name="D", batch_id=None)
+        patched = await contract_service.patch_dossier(
+            dossier.id, name=None, metadata={"ai2_content_sharing_consent": True}
+        )
+        assert patched.metadata["ai2_content_sharing_consent"] is False
+
+    async def test_create_ignores_client_consent_value(
+        self,
+        contract_service: ContractService,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("AI2_CONTENT_SHARING_CONSENT_DEFAULT", "false")
+        dossier = await contract_service.create_dossier(
+            name="D", batch_id=None, metadata={"ai2_content_sharing_consent": True}
+        )
+        assert dossier.metadata["ai2_content_sharing_consent"] is False
+
+    async def test_create_writes_audit_event_for_default(
+        self,
+        contract_service: ContractService,
+        fake_repos: dict[str, Any],
+    ) -> None:
+        session = _FakeAuditSession()
+        fake_repos["dossier_repo"]._session = session
+        dossier = await contract_service.create_dossier(
+            name="D", batch_id=None, metadata={"created_by": "usr_owner"}
+        )
+        (row,) = session.added
+        assert row.action == "ai2.content_sharing_consent_default_applied"
+        assert row.entity_id == dossier.id
+        assert row.actor_id == "usr_owner"
+        assert row.to_state == "true"

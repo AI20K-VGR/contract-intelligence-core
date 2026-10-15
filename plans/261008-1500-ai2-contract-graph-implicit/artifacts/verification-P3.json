@@ -1,0 +1,39 @@
+{
+  "stage": "cook",
+  "plan": "261008-1500-ai2-contract-graph-implicit",
+  "checks": [
+    {
+      "name": "focused_tests",
+      "status": "PASS"
+    },
+    {
+      "name": "full_suite_matches_13_baseline_failures",
+      "status": "PASS"
+    },
+    {
+      "name": "eval_161_passed",
+      "status": "PASS"
+    },
+    {
+      "name": "live_probe_anthropic",
+      "status": "PASS"
+    },
+    {
+      "name": "dev_measurement_recorded",
+      "status": "PASS"
+    },
+    {
+      "name": "frozen_candidates_unchanged",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P3",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-09T01:20:01+00:00",
+  "blastRadius": {
+    "unavailable": true,
+    "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF-ai2-contract-graph"
+  },
+  "run_seq": null
+}

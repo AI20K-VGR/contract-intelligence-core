@@ -68,7 +68,13 @@ done
 if [ "${1:-}" = "--pull" ]; then
   git pull --ff-only
 fi
-echo "[deploy] commit $(git rev-parse --short HEAD) on $(git rev-parse --abbrev-ref HEAD)"
+expected_sha=${SHA:-$(git rev-parse HEAD)}
+actual_sha=$(git rev-parse HEAD)
+[ "$actual_sha" = "$expected_sha" ] || {
+  echo "[deploy] expected SHA $expected_sha but checkout is $actual_sha" >&2
+  exit 1
+}
+echo "[deploy] deploying SHA $actual_sha"
 
 "${COMPOSE[@]}" config --quiet
 "${COMPOSE[@]}" build
@@ -129,6 +135,12 @@ for _ in $(seq 1 60); do
   sleep 5
 done
 [ "$status" = healthy ] || { "${COMPOSE[@]}" logs --tail 80 backend; exit 1; }
+
+kc_status=$(docker inspect -f '{{.State.Health.Status}}' ci-keycloak-readiness 2>/dev/null || echo missing)
+[ "$kc_status" = healthy ] || {
+  echo "[deploy] Keycloak readiness probe is $kc_status" >&2
+  exit 1
+}
 
 # Inside the running backend container, not `compose run`: a second backend
 # container would ask for the same fixed ci-monitoring address and fail with

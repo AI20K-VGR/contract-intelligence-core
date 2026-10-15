@@ -49,4 +49,4 @@ def test_contract_header_follows_the_doc_05b_version() -> None:
 
     response = TestClient(create_app()).get("/health")
 
-    assert response.headers["X-API-Contract"] == versioning.__api_contract__ == "v2.0.2"
+    assert response.headers["X-API-Contract"] == versioning.__api_contract__ == "v2.1.0"

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vsf.example/contracts/be.ai2.contract-graph.v1.schema.json",
+  "title": "Backend AI2 Contract Graph and Processing Trace v1",
+  "oneOf": [
+    {"$ref": "#/$defs/graphPage"},
+    {"$ref": "#/$defs/processingTrace"}
+  ],
+  "$defs": {
+    "graphPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["job_id", "snapshot_digest", "graph_kind", "status", "edges", "total_count", "has_more", "next_cursor"],
+      "properties": {
+        "job_id": {"type": "string", "minLength": 1},
+        "snapshot_digest": {"type": "string", "minLength": 1},
+        "graph_kind": {"enum": ["operation", "pair"]},
+        "status": {"enum": ["READY", "PENDING", "STALE", "UNAVAILABLE", "PERSISTENCE_UNKNOWN", "PERSIST_FAILED", "SKIPPED", "FAILED"]},
+        "edges": {"type": "array", "items": {"$ref": "#/$defs/edge"}},
+        "total_count": {"type": "integer", "minimum": 0},
+        "has_more": {"type": "boolean"},
+        "next_cursor": {"type": ["string", "null"], "maxLength": 2048}
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "label", "directed", "source_node_id", "target_node_id", "source_document_id", "target_document_id", "review_state", "source_citation_ref", "target_citation_ref", "digest"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["OPERATION", "PAIR"]},
+        "label": {"type": "string", "minLength": 1},
+        "directed": {"type": "boolean"},
+        "source_node_id": {"type": "string", "minLength": 1},
+        "target_node_id": {"type": "string", "minLength": 1},
+        "source_document_id": {"type": ["string", "null"], "maxLength": 512},
+        "target_document_id": {"type": ["string", "null"], "maxLength": 512},
+        "target_address": {"type": ["string", "null"]},
+        "review_state": {"type": "string", "minLength": 1},
+        "source_citation_ref": {"type": "string", "minLength": 1},
+        "target_citation_ref": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "minLength": 1}
+      }
+    },
+    "processingTrace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["job_id", "schema_version", "snapshot_digest", "status", "trace_status", "stages"],
+      "properties": {
+        "job_id": {"type": "string", "minLength": 1},
+        "schema_version": {"const": "ai2.processing-trace.v1"},
+        "snapshot_digest": {"type": "string", "minLength": 1},
+        "status": {"enum": ["COMPLETE", "IN_PROGRESS", "INTERRUPTED_UNKNOWN", "INCOMPLETE_UNKNOWN", "TRACE_UNAVAILABLE"]},
+        "trace_status": {"enum": ["AVAILABLE", "UNAVAILABLE"]},
+        "job_status": {"enum": ["QUEUED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED"]},
+        "stages": {"type": "array", "items": {"$ref": "#/$defs/stage"}}
+      }
+    },
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage_id", "status", "started_ms", "duration_ms", "item_count", "reason_code"],
+      "properties": {
+        "stage_id": {"type": "string", "minLength": 1},
+        "status": {"enum": ["RUNNING", "COMPLETED", "FAILED", "SKIPPED", "INTERRUPTED_UNKNOWN", "INCOMPLETE_UNKNOWN"]},
+        "started_ms": {"type": ["integer", "null"], "minimum": 0},
+        "duration_ms": {"type": ["integer", "null"], "minimum": 0},
+        "item_count": {"type": ["integer", "null"], "minimum": 0},
+        "reason_code": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "schema": "contract-graph-quality-recovery-verification/1",
+  "phase": "P1",
+  "verdict": "PASS",
+  "status": "PASS",
+  "replay_status": "INCOMPLETE_HISTORICAL_REPLAY",
+  "head_at_phase_start": "681ff4ca300b1d03c131453d5290f8bba1d9bc8f",
+  "dirty_scope_at_start": "clean across all eight owned source/test files; pre-existing dirty changes were outside this phase's ownership",
+  "tdd": {
+    "red": "5 failed, 137 passed; 5 failures matched newly added event and exact-attribution contracts",
+    "green": "143 passed in 1.55s"
+  },
+  "regression": {
+    "command": "$env:PYTHONPATH='ai-service;.'; .\\ai-service\\.venv\\Scripts\\python.exe -m pytest -q ai-service/tests/test_contract_graph_pairs_consent.py ai-service/tests/test_contract_graph_pairs_flag_regression.py -m 'not live' --basetemp .harness/state/pytest-quality-P1-regression-final",
+    "result": "16 passed in 143.92s"
+  },
+  "provider_requests": 0,
+  "scoped_diff_check": "git diff --check PASS",
+  "artifact_refs": [
+    "evals/contract_graph/reports/quality-recovery-p1-evidence.json",
+    "evals/contract_graph/reports/quality-recovery-p1-evidence.md"
+  ],
+  "historical_replay": {
+    "status": "INCOMPLETE_HISTORICAL_REPLAY",
+    "detail": "The diagnostic commit does not match P5 hashes for pair_classifier.py, predictor.py, bakeoff.py or score.py. Existing P5 snapshots have aggregate data only and no pair-level events. Preserve historical causes as unknown; do not attribute aggregate counters to individual pairs.",
+    "data_manifest_sha256": "5ec4686918743e4419e74e4e4da20af1f733732a1f14b378bd8efcb5c9182cd7",
+    "data_manifest_verification_errors": []
+  },
+  "limitations": [
+    "Prior P5 pair-level failure reasons remain unknown where the historical snapshot contains only aggregate counters.",
+    "New pair-level telemetry is opt-in and supports subsequent evaluation runs; it does not retrofit prior snapshots."
+  ]
+}

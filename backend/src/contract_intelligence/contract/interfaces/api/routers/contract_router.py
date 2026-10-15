@@ -115,6 +115,7 @@ from contract_intelligence.shared.query_policy import (
     enforce_result_acl,
     save_query_trace,
     server_query_policy_flags,
+    stored_dossier_content_sharing_consent,
 )
 from contract_intelligence.shared.responses import ApiMeta, ApiResponse
 from contract_intelligence.shared.storage import ByteRange, RangeNotSatisfiableError
@@ -1376,6 +1377,274 @@ async def _save_search_trace(
         return trace.id
 
 
+def _graph_cursor_secret() -> bytes:
+    secret = (get_settings().ai2_service_hmac_secret or "").strip()
+    if not secret:
+        raise HTTPException(status_code=503, detail={"code": "AI2_GRAPH_CURSOR_UNAVAILABLE"})
+    return secret.encode("utf-8")
+
+
+def _encode_graph_cursor(
+    inner_cursor: str | None,
+    *,
+    tenant_id: str,
+    dossier_id: str,
+    job_id: str,
+    snapshot_digest: str,
+    graph_kind: str,
+) -> str | None:
+    if inner_cursor is None:
+        return None
+    import base64
+    import hashlib
+    import hmac
+
+    claims = json.dumps(
+        {
+            "v": 1,
+            "tenant_id": tenant_id,
+            "dossier_id": dossier_id,
+            "job_id": job_id,
+            "snapshot_digest": snapshot_digest,
+            "graph_kind": graph_kind,
+            "cursor": inner_cursor,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    body = base64.urlsafe_b64encode(claims).rstrip(b"=")
+    signature = hmac.new(_graph_cursor_secret(), body, hashlib.sha256).digest()
+    return (body + b"." + base64.urlsafe_b64encode(signature).rstrip(b"=")).decode("ascii")
+
+
+def _decode_graph_cursor(
+    cursor: str | None,
+    *,
+    tenant_id: str,
+    dossier_id: str,
+    job_id: str,
+    snapshot_digest: str,
+    graph_kind: str,
+) -> str | None:
+    if cursor is None:
+        return None
+    import base64
+    import hashlib
+    import hmac
+
+    try:
+        body, encoded_signature = cursor.encode("ascii").split(b".", 1)
+        signature = base64.urlsafe_b64decode(
+            encoded_signature + b"=" * (-len(encoded_signature) % 4)
+        )
+        expected = hmac.new(_graph_cursor_secret(), body, hashlib.sha256).digest()
+        if not hmac.compare_digest(signature, expected):
+            raise ValueError("signature")
+        claims = json.loads(base64.urlsafe_b64decode(body + b"=" * (-len(body) % 4)))
+    except (ValueError, UnicodeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail={"code": "GRAPH_CURSOR_INVALID"}) from exc
+    expected_claims = {
+        "v": 1,
+        "tenant_id": tenant_id,
+        "dossier_id": dossier_id,
+        "job_id": job_id,
+        "snapshot_digest": snapshot_digest,
+        "graph_kind": graph_kind,
+    }
+    if (
+        not isinstance(claims, dict)
+        or set(claims) != set(expected_claims) | {"cursor"}
+        or any(claims.get(key) != value for key, value in expected_claims.items())
+    ):
+        raise HTTPException(status_code=409, detail={"code": "GRAPH_CURSOR_STALE"})
+    inner = claims.get("cursor")
+    if not isinstance(inner, str) or len(inner) > 80:
+        raise HTTPException(status_code=400, detail={"code": "GRAPH_CURSOR_INVALID"})
+    return inner
+
+
+def _recheck_citation_read(dossier: Any, dossier_id: str, user: AuthenticatedUser) -> bool:
+    return dossier_access_decision(
+        action=AclAction.CITATION_READ,
+        principal=user,
+        dossier_id=dossier_id,
+        dossier_tenant_id=getattr(dossier, "tenant_id", user.tenant_id),
+        metadata=dossier.metadata,
+    )
+
+
+async def _postcheck_graph_read(
+    svc: Any,
+    dossier_id: str,
+    user: AuthenticatedUser,
+    *,
+    expected_digest: str,
+) -> None:
+    try:
+        fresh = await svc.get_dossier(dossier_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=403, detail={"code": "CITATION_READ_REVOKED"}) from exc
+    if not _recheck_citation_read(fresh, dossier_id, user):
+        raise HTTPException(status_code=403, detail={"code": "CITATION_READ_REVOKED"})
+    if _ai2_snapshot_digest(fresh) != expected_digest:
+        raise HTTPException(status_code=409, detail={"code": "AI2_SNAPSHOT_CHANGED"})
+
+
+@router.get("/dossiers/{dossier_id}/ai2/contract-graph/{graph_kind}")
+async def get_dossier_ai2_contract_graph(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    graph_kind: Literal["operation", "pair"],
+    job_id: Annotated[str, Query(min_length=1, max_length=256)],
+    snapshot_digest: Annotated[str, Query(min_length=1, max_length=256)],
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    cursor: Annotated[str | None, Query(max_length=2048)] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> ApiResponse[dict[str, Any]]:
+    from contract_intelligence.infrastructure.ai_adapters import (
+        AiAdapterError,
+        read_ai2_contract_graph,
+    )
+
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.CITATION_READ)
+    if _ai2_snapshot_digest(dossier) != snapshot_digest:
+        raise HTTPException(status_code=409, detail={"code": "AI2_SNAPSHOT_CHANGED"})
+    inner_cursor = _decode_graph_cursor(
+        cursor,
+        tenant_id=user.tenant_id,
+        dossier_id=dossier_id,
+        job_id=job_id,
+        snapshot_digest=snapshot_digest,
+        graph_kind=graph_kind,
+    )
+    try:
+        page = await read_ai2_contract_graph(
+            job_id,
+            dossier_id=dossier_id,
+            snapshot_digest=snapshot_digest,
+            graph_kind=graph_kind,
+            tenant_id=user.tenant_id,
+            actor_id=user.user_id,
+            cursor=inner_cursor,
+            limit=limit,
+        )
+    except AiAdapterError as exc:
+        logger.warning(
+            "dossier.ai2_graph.unavailable", dossier_id=dossier_id, code=type(exc).__name__
+        )
+        raise HTTPException(status_code=503, detail={"code": "AI2_GRAPH_UNAVAILABLE"}) from exc
+    await _postcheck_graph_read(svc, dossier_id, user, expected_digest=snapshot_digest)
+    if page["status"] == "STALE":
+        raise HTTPException(status_code=409, detail={"code": "AI2_GRAPH_STALE"})
+    data = {
+        "job_id": job_id,
+        "snapshot_digest": snapshot_digest,
+        "graph_kind": graph_kind,
+        "status": page["status"],
+        "edges": [
+            {
+                key: value
+                for key, value in edge.items()
+                if key
+                not in {
+                    "tenant_id",
+                    "dossier_id",
+                    "job_id",
+                    "snapshot_digest",
+                }
+            }
+            for edge in page["edges"]
+        ],
+        "total_count": page["total_count"],
+        "has_more": page["has_more"],
+        "next_cursor": _encode_graph_cursor(
+            page["next_cursor"],
+            tenant_id=user.tenant_id,
+            dossier_id=dossier_id,
+            job_id=job_id,
+            snapshot_digest=snapshot_digest,
+            graph_kind=graph_kind,
+        ),
+    }
+    return ApiResponse(data=data)
+
+
+@router.get("/dossiers/{dossier_id}/ai2/contract-graph/{graph_kind}/evidence")
+async def get_dossier_ai2_contract_graph_evidence(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    graph_kind: Literal["operation", "pair"],
+    job_id: Annotated[str, Query(min_length=1, max_length=256)],
+    snapshot_digest: Annotated[str, Query(min_length=1, max_length=256)],
+    node_id: Annotated[str, Query(min_length=1, max_length=512)],
+    citation_ref: Annotated[str, Query(min_length=1, max_length=256)],
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> ApiResponse[dict[str, Any]]:
+    from contract_intelligence.infrastructure.ai_adapters import (
+        AiAdapterError,
+        read_ai2_contract_graph_evidence,
+    )
+
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.CITATION_READ)
+    if _ai2_snapshot_digest(dossier) != snapshot_digest:
+        raise HTTPException(status_code=409, detail={"code": "AI2_SNAPSHOT_CHANGED"})
+    try:
+        evidence = await read_ai2_contract_graph_evidence(
+            job_id,
+            dossier_id=dossier_id,
+            snapshot_digest=snapshot_digest,
+            graph_kind=graph_kind,
+            node_id=node_id,
+            citation_ref=citation_ref,
+            tenant_id=user.tenant_id,
+            actor_id=user.user_id,
+        )
+    except AiAdapterError as exc:
+        logger.warning(
+            "dossier.ai2_graph_evidence.unavailable",
+            dossier_id=dossier_id,
+            code=type(exc).__name__,
+        )
+        raise HTTPException(
+            status_code=503, detail={"code": "AI2_GRAPH_EVIDENCE_UNAVAILABLE"}
+        ) from exc
+    await _postcheck_graph_read(svc, dossier_id, user, expected_digest=snapshot_digest)
+    return ApiResponse(data=evidence)
+
+
+@router.get("/dossiers/{dossier_id}/ai2/processing-trace")
+async def get_dossier_ai2_processing_trace(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    job_id: Annotated[str, Query(min_length=1, max_length=256)],
+    snapshot_digest: Annotated[str, Query(min_length=1, max_length=256)],
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> ApiResponse[dict[str, Any]]:
+    from contract_intelligence.infrastructure.ai_adapters import (
+        AiAdapterError,
+        read_ai2_processing_trace,
+    )
+
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.CITATION_READ)
+    if _ai2_snapshot_digest(dossier) != snapshot_digest:
+        raise HTTPException(status_code=409, detail={"code": "AI2_SNAPSHOT_CHANGED"})
+    try:
+        trace = await read_ai2_processing_trace(
+            job_id,
+            dossier_id=dossier_id,
+            snapshot_digest=snapshot_digest,
+            tenant_id=user.tenant_id,
+            actor_id=user.user_id,
+        )
+    except AiAdapterError as exc:
+        logger.warning(
+            "dossier.ai2_trace.unavailable", dossier_id=dossier_id, code=type(exc).__name__
+        )
+        raise HTTPException(status_code=503, detail={"code": "AI2_TRACE_UNAVAILABLE"}) from exc
+    await _postcheck_graph_read(svc, dossier_id, user, expected_digest=snapshot_digest)
+    return ApiResponse(data={"job_id": job_id, **trace})
+
+
 @router.post(
     "/dossiers/{dossier_id}/search",
     response_model=ApiResponse[DossierSearchDTO],
@@ -1430,6 +1699,9 @@ async def search_dossier(
                     "query_contract_version": "ai2.query.v1",
                     "acl_context": user.user_id,
                     "policy_flags": server_query_policy_flags(),
+                    "content_sharing_consent": stored_dossier_content_sharing_consent(
+                        getattr(dossier, "metadata", None)
+                    ),
                     "tenant_id": user.tenant_id,
                     "actor_id": user.user_id,
                 }

@@ -1,0 +1,63 @@
+{
+  "packet_schema": "contract-graph-p3-review-packet/2",
+  "dataset_id": "quality-recovery-dev-20261011-v2",
+  "frame_version": "contract-graph-quality-frame/2",
+  "created_at": "2026-10-11",
+  "predecessor": {
+    "dataset_id": "quality-recovery-dev-20261011-v1",
+    "manifest_sha256": "4f4f51d89dfad7f9c95169287106595150584a031dda1ade90760ed335d270ab"
+  },
+  "hashes": {
+    "source_list_sha256": "4c114ff7f0c72329d96162f33935028112b1557c1f04697b401fda2ff8227b12",
+    "rubric_sha256": "7f01c0826f0b068127d49f5d0b44c7b06f04a326abcc37cffc222e9f92d19d55",
+    "primary_packet_sha256": "d813bc43edcdab271c65c541c37ca09102013681f83600d9eb88caa499ef7d3b",
+    "independent_packet_sha256": "018cec9801496cfb7dc2857eb021f8e1cf3ca23b710952dedf7662f66235a4d7",
+    "recall_membership_sha256": "53b124e0f5814d03f9c159a26f29e3dae7821e5b4ada1460faf8557abd320ddb",
+    "independent_membership_sha256": "8a74409b486097f113d0943870407d14f05fcd6750f634c99e280f780faad5ec",
+    "precision_frame_seed_sha256": "0a446ac5fb94c62b861c72789320f5264874f9a37f335fceb1ce6346f72f197c",
+    "fresh_pool_sha256": "d989effb05941914b145046e1762f16aac20e91eb81deab08cf23505fbf48ef3"
+  },
+  "source_universe": {
+    "staged_docs": 34,
+    "fresh_docs": 32,
+    "fresh_independent_clusters": 31,
+    "total_clusters": 33,
+    "historical_or_template_exposed_docs_excluded": 2,
+    "historical_heldout_docs_in_cache": 13,
+    "pool_rows_all": 5038,
+    "pool_rows_fresh": 4834,
+    "pool_by_stratum_fresh": {"S1": 3427, "S2": 200, "S3": 1207}
+  },
+  "sampling": {
+    "candidate_independent_frame_rows": 600,
+    "primary_annotation_rows": 600,
+    "independent_annotation_rows": 150,
+    "independent_fraction": 0.25,
+    "fresh_clusters_represented": 31,
+    "recall_rows_by_stratum": {"S1": 411, "S2": 24, "S3": 165},
+    "independent_rows_by_stratum": {"S1": 89, "S2": 5, "S3": 56},
+    "seed": 20261011,
+    "method": "SRS without replacement per independent-cluster x pool-stratum cell; one minimum row per non-empty cell, remaining allocation proportional to cell capacity with deterministic largest remainder",
+    "precision_frame_scope": "seed equals candidate-independent recall membership; P4 must append and review actual candidate union before quality scoring"
+  },
+  "private_files": {
+    "primary_annotation": ".harness/state/quality-recovery-p3-dev-20261011-v2/primary-blind-v2.csv",
+    "independent_annotation": ".harness/state/quality-recovery-p3-dev-20261011-v2/independent-blind-v2.csv",
+    "recall_frame": ".harness/state/quality-recovery-p3-dev-20261011-v2/recall-frame.v2.jsonl",
+    "independent_selection": ".harness/state/quality-recovery-p3-dev-20261011-v2/independent-selection.v2.jsonl"
+  },
+  "readiness": {
+    "status": "BLOCKED",
+    "reason_codes": [
+      "primary_annotation_pending",
+      "independent_human_reviewer_pending",
+      "human_HG-QR1_not_approved",
+      "annotation_yield_unmeasured",
+      "precision_candidate_union_pending"
+    ]
+  },
+  "human_gate": {"id": "HG-QR1", "decision": null, "signed_by": null, "scope_counts": null},
+  "approved_gold": null,
+  "review_lock": null,
+  "state": "DRAFT_REVIEW_PENDING"
+}

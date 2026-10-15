@@ -1,0 +1,18 @@
+{
+  "doc_id": "pd-0ef7060ac8",
+  "variant": "B",
+  "candidate_count": 2,
+  "predictions": 1,
+  "llm_calls": 1,
+  "requested_model": "cx/gpt-6-sol",
+  "served_model": "gpt-6-sol",
+  "family": "openai",
+  "labeler_served_model": "gpt-4o-mini-2024-07-18",
+  "prompt_tokens": 1740,
+  "completion_tokens": 235,
+  "total_tokens": 1975,
+  "latency_ms": 17164.0,
+  "fallback_without_json_format": false,
+  "response_chars_recorded": true,
+  "secret_redaction": "no key, endpoint, prompt, response body, or clause text recorded"
+}

@@ -211,6 +211,27 @@ services:
     networks:
       - ci-network
 
+  # The minimal Keycloak image has no curl/wget. Probe its management readiness
+  # endpoint from a tiny curl sidecar so dependents can wait for the real ready
+  # state instead of merely waiting for the process to start.
+  keycloak-readiness:
+    image: curlimages/curl:8.10.1
+    container_name: ci-keycloak-readiness
+    restart: unless-stopped
+    depends_on:
+      keycloak:
+        condition: service_started
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["while :; do sleep 3600; done"]
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--max-time", "3", "http://keycloak:9000/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+    networks:
+      - ci-network
+
   # =============================================================================
   # SERVICE 3 — Backend PostgreSQL (isolated)
   # =============================================================================
@@ -292,8 +313,8 @@ services:
     depends_on:
       backend-db:
         condition: service_healthy        # ⬅ đợi pg_isready pass
-      keycloak:
-        condition: service_started        # ⬅ keycloak đã chạy (healthcheck tạm disabled)
+      keycloak-readiness:
+        condition: service_healthy        # ⬅ đợi /health/ready của Keycloak
       kafka:
         condition: service_started        # ⬅ Kafka broker đã start (KRaft)
       minio:
@@ -357,7 +378,13 @@ services:
       AI_SERVICE_MODE: http
       # Docker DNS — do NOT interpolate host .env (localhost:8002 breaks in-container).
       AI2_BASE_URL: http://ai2-service:8002
-      AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-local_hmac_secret}
+      AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-ci_ai2_hmac_secret_dev}
+      # Backend caps are ON for the full local/product profile; operators can
+      # narrow egress or vector recall from the project .env.
+      AI2_QUERY_EGRESS_ALLOWED: ${AI2_QUERY_EGRESS_ALLOWED:-true}
+      AI2_QUERY_USE_VECTOR: ${AI2_QUERY_USE_VECTOR:-true}
+      # Initial per-dossier consent is set where the dossier is created (API), not the worker.
+      AI2_CONTENT_SHARING_CONSENT_DEFAULT: ${AI2_CONTENT_SHARING_CONSENT_DEFAULT:-true}
       # Clause-frame producer: freeze one trusted semantic profile per run.
       # This must be present in the API and Kafka worker so both paths build
       # the same request contract when semantic processing is enabled.
@@ -429,7 +456,7 @@ services:
       dockerfile: Dockerfile
     container_name: ci-backend-worker
     restart: unless-stopped
-    command: ["uv", "run", "python", "-m", "contract_intelligence.worker"]
+    command: ["python", "-m", "contract_intelligence.worker"]
     depends_on:
       backend:
         condition: service_healthy
@@ -459,7 +486,8 @@ services:
       MINIO_BUCKET_RENDER: ci-render
       # Docker DNS — do NOT interpolate host .env (localhost:8002 breaks in-container).
       AI2_BASE_URL: http://ai2-service:8002
-      AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-local_hmac_secret}
+      AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-ci_ai2_hmac_secret_dev}
+      AI2_CONTENT_SHARING_CONSENT_DEFAULT: ${AI2_CONTENT_SHARING_CONSENT_DEFAULT:-true}
       AI2_SEMANTIC_ENABLED: ${AI2_SEMANTIC_ENABLED:-true}
       AI2_SEMANTIC_PROFILE_CONFIG: '{"version":1,"contract_type":"SALES","context_bounds":{"max_hops":2,"max_nodes":256,"max_context_tokens":32768,"max_output_tokens":8192,"max_llm_calls":20,"max_seconds":300},"alias_proposal_minimum_length":4}'
       AI1_OCR_ENGINE: ${AI1_OCR_ENGINE:-mistral}
@@ -524,9 +552,12 @@ services:
       AI2_REQUIRE_DATABASE: "true"
       AI2_LLM_BASE_URL: ${AI2_LLM_BASE_URL:-https://api.openai.com/v1}
       AI2_LLM_API_KEY: ${AI2_LLM_API_KEY:-}
-      AI2_LLM_MODEL: ${AI2_LLM_MODEL:-gpt-4o-mini}
-      AI2_LLM_STRONG_MODEL: ${AI2_LLM_STRONG_MODEL:-gpt-4o-mini}
-      AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-local_hmac_secret}
+      AI2_LLM_MODEL: ${AI2_LLM_MODEL:-gpt-5.5}
+      AI2_LLM_STRONG_MODEL: ${AI2_LLM_STRONG_MODEL:-gpt-5.5}
+      AI2_CONTRACT_GRAPH_ENABLED: ${AI2_CONTRACT_GRAPH_ENABLED:-true}
+      AI2_CONTRACT_GRAPH_PAIRS_ENABLED: ${AI2_CONTRACT_GRAPH_PAIRS_ENABLED:-true}
+      AI2_CONTRACT_GRAPH_PAIRS_MODEL: ${AI2_CONTRACT_GRAPH_PAIRS_MODEL:-gpt-5.5}
+      AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-ci_ai2_hmac_secret_dev}
       AI2_SERVICE_ISSUER: ${AI2_SERVICE_ISSUER:-backend-service}
       AI2_SERVICE_AUDIENCE: ${AI2_SERVICE_AUDIENCE:-vsf-ai2}
       AI2_SERVICE_KEY_ID: ${AI2_SERVICE_KEY_ID:-default}
@@ -540,7 +571,7 @@ services:
       AI2_QUERY_LLM_TIMEOUT_SECONDS: "15"
       AI2_EMBEDDING_BASE_URL: ${AI2_EMBEDDING_BASE_URL:-https://api.openai.com/v1}
       AI2_EMBEDDING_API_KEY: ${AI2_EMBEDDING_API_KEY:-}
-      AI2_EMBEDDING_DISCOVERY_ENABLED: ${AI2_EMBEDDING_DISCOVERY_ENABLED:-true}
+      AI2_EMBEDDING_DISCOVERY_ENABLED: ${AI2_EMBEDDING_DISCOVERY_ENABLED:-false}
       AI2_EMBEDDING_MODEL: ${AI2_EMBEDDING_MODEL:-text-embedding-3-small}
       AI2_SEMANTIC_CONTEXT_CAPS: '{"max_hops":2,"max_nodes":256,"max_context_tokens":32768,"max_output_tokens":8192,"max_llm_calls":20,"max_seconds":300}'
     depends_on:

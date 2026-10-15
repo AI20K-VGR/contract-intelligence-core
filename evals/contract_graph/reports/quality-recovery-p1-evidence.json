@@ -1,0 +1,107 @@
+{
+  "schema": "contract-graph-quality-recovery-p1-evidence/1",
+  "status": "INCOMPLETE_HISTORICAL_REPLAY",
+  "phase": "P1",
+  "generated_at": "2026-10-10",
+  "provider_requests_made_by_p1": 0,
+  "historical_replay": {
+    "diagnostic_source_commit": "533b8e051442d788e58536e0ccc521371c89c412",
+    "p5_review_lock_commit": "c504df83323aa1a47c9ace3336f47aa70af6799d",
+    "p5_code_comparison": {
+      "bakeoff.py": {
+        "p5_sha256": "0977c533e72aa1a84df7ca617acbd488ace152d4f27eae17625d553feae467c9",
+        "historical_commit_sha256": "a4e8ffe07c877c38fa81c6cd0d8f0e265abd19d23d3341521b97d452795be12e",
+        "matches": false
+      },
+      "client.py": {
+        "p5_sha256": "fd42c1186f74dbd078663b5705069763d4a4ba1d9694239b0ff2639dfe198bac",
+        "historical_commit_sha256": "fd42c1186f74dbd078663b5705069763d4a4ba1d9694239b0ff2639dfe198bac",
+        "matches": true
+      },
+      "pair_builder.py": {
+        "p5_sha256": "772f0409222b789ff8f8af2690e1ba24918780d5a07904a9b352ea7102278999",
+        "historical_commit_sha256": "772f0409222b789ff8f8af2690e1ba24918780d5a07904a9b352ea7102278999",
+        "matches": true
+      },
+      "pair_candidates.py": {
+        "p5_sha256": "7691ba5691e8d2e69fde9ba6968ca7801321ca2130a3276f4d3476bb23100e85",
+        "historical_commit_sha256": "7691ba5691e8d2e69fde9ba6968ca7801321ca2130a3276f4d3476bb23100e85",
+        "matches": true
+      },
+      "pair_classifier.py": {
+        "p5_sha256": "1b1f4cfc54f6b22e365d75f8261ffac052c8358626a229a07d1d63346f0e25e3",
+        "historical_commit_sha256": "95f67eca62e71f0dbdcd6e3eaa7d14b7148692b269ee69d5dd823e612e462397",
+        "matches": false
+      },
+      "predictor.py": {
+        "p5_sha256": "44ebe67d32dc0610920e670061523b7ab40c9c7964788abf6a7f7ace4817d8dc",
+        "historical_commit_sha256": "04a42287f8de05bea5e173753cbfcfa21af694f3d6b20422c354d2db9feb3bdb",
+        "matches": false
+      },
+      "score.py": {
+        "p5_sha256": "8d09d0f1b7e43cbd35daffa10741dad39fc3bfe7b7c7cc3d4ed099d7160c4bd1",
+        "historical_commit_sha256": "a05a1c9a117cb3ca17117a3d56ba077eafd15fcb6807adc52cd17a9a2d5bc5a6",
+        "matches": false
+      }
+    },
+    "frozen_data_manifest_sha256": "5ec4686918743e4419e74e4e4da20af1f733732a1f14b378bd8efcb5c9182cd7",
+    "review_selection_sha256": "4a11541913acd5fab6e9ec5716fa44d77ded7411d5c4c293f77e55bc2d802d12",
+    "heldout_decisions_sha256": "1271c998e07c6085345522e0da394b293ae6de6ea19a03b20962170e3f805a64",
+    "frozen_data_verification_errors": [],
+    "p5_existing_trial_pair_event_snapshots": 0,
+    "p5_trial_count": 4,
+    "historical_pair_failures": "unknown where P5 snapshots contain aggregate counters only",
+    "reason": "The P5 source hashes for pair_classifier.py, predictor.py, bakeoff.py and score.py do not match source at the diagnostic commit. Matching pair_candidates.py alone cannot establish full historical pipeline/context parity."
+  },
+  "historical_metrics": {
+    "positive_pair_count": 101,
+    "candidate_coverage_from_prior_diagnostic": {
+      "B": {"covered": 77, "denominator": 101, "rate": 0.7624},
+      "C": {"covered": 74, "denominator": 101, "rate": 0.7327},
+      "E": {"covered": 101, "denominator": 101, "rate": 1.0}
+    },
+    "p5_trials": [
+      {"variant": "C", "trial": 1, "recall_any": {"passed": 5, "denominator": 101}, "false_duplicate": {"observed": 1, "unreviewed": 0}, "requested_model": "cx/gpt-5.5", "served_model": "gpt-5.5"},
+      {"variant": "B", "trial": 1, "recall_any": {"passed": 0, "denominator": 101}, "false_duplicate": {"observed": 1, "unreviewed": 0}, "requested_model": "cx/gpt-5.5", "served_model": "gpt-5.5"},
+      {"variant": "C", "trial": 2, "recall_any": {"passed": 4, "denominator": 101}, "false_duplicate": {"observed": 1, "unreviewed": 0}, "requested_model": "cx/gpt-5.5", "served_model": "gpt-5.5"},
+      {"variant": "B", "trial": 2, "recall_any": {"passed": 4, "denominator": 101}, "false_duplicate": {"observed": 1, "unreviewed": 0}, "requested_model": "cx/gpt-5.5", "served_model": "gpt-5.5"}
+    ]
+  },
+  "current_source_sha256_lf_normalized": {
+    "ai-service/app/llm/client.py": "fd42c1186f74dbd078663b5705069763d4a4ba1d9694239b0ff2639dfe198bac",
+    "ai-service/app/pipeline/contract_graph/builder.py": "9146a083fecc389d3a758e9c1743a4a4f5edd82dcbfbe30916bdef7a4f6dc3f4",
+    "ai-service/app/pipeline/contract_graph/pair_builder.py": "4c988cfbf12b8b12b96c3600975254eeb3eb91ae58309651f72f89fc7c5e3c56",
+    "ai-service/app/pipeline/contract_graph/pair_candidates.py": "7691ba5691e8d2e69fde9ba6968ca7801321ca2130a3276f4d3476bb23100e85",
+    "ai-service/app/pipeline/contract_graph/pair_classifier.py": "967f72037b984b21b9573a80b5cf4be946ef72dbd0c23da97ab108d448379fbc",
+    "ai-service/app/pipeline/contract_graph/resolver.py": "d6d6f1d5bd536b1a502f2deca9e8ad6d2bb7fb23f1a180acf4c1d6b13564bf41",
+    "ai-service/app/pipeline/runtime.py": "7ea16080f1ab8326ff138c64027032e708000b486ad20f551c4a3f97b7107554",
+    "evals/contract_graph/pairs/manifest.py": "00b97c25d21b3ddebd65b9d275d6a34c42dd27ab5d6ebce0b6635c5c0b77decf",
+    "evals/contract_graph/pairs/pool.py": "77a4e9f5911b811ecde9766b7424d88eca07a010d4c156f526680eae66b655ef",
+    "evals/contract_graph/pairs/predictor.py": "e804110f8029db5176ba337e46b64f38a6ae0b568474cfe6cba110d0f88a0b19",
+    "evals/contract_graph/pairs/recall_diagnostic.py": "44cd89d339bfdcd81b3dfcd6eab5b2796b2bd1f2a1f5ff6871bc75fa7be93369",
+    "evals/contract_graph/pairs/review.py": "8ca53fa4bf2c5d4159708d4d1a60bff535fc7a15dcfb8ed1991d0e88b161f3b6"
+  },
+  "telemetry_contract": {
+    "default": "disabled; event_sink=None",
+    "pair_event_fields": ["pair_id", "doc_id", "node_a_id", "node_b_id", "phase", "outcome", "reason", "batch_id", "request_id", "requested_model", "served_model", "truncated_a", "truncated_b"],
+    "pair_outcomes": ["accepted", "model_unrelated", "validator_reject", "citation_reject", "no_answer", "not_sent", "candidate_miss"],
+    "batch_anomalies": ["malformed_response", "malformed_row", "unknown_id", "duplicate_id", "served_model_rejected", "deadline", "llm_fallback", "llm_non_retryable", "llm_budget_exceeded"],
+    "content_policy": "No clause text, spans, prompts, provider payloads, credentials or raw exception messages are emitted.",
+    "scope": "Evaluation callback only; no product stats, coverage, wire or persistent store changes."
+  },
+  "tests": {
+    "red_before_implementation": {
+      "command": "$env:PYTHONPATH='ai-service;.'; .\\ai-service\\.venv\\Scripts\\python.exe -m pytest -q ai-service/tests/test_contract_graph_pair_classifier.py ai-service/tests/test_contract_graph_pair_builder.py evals/contract_graph/tests/test_cg_pairs_predictor.py evals/contract_graph/tests/test_cg_pairs_recall_diagnostic.py -m 'not live' --basetemp .harness/state/pytest-quality-P1",
+      "result": "5 failed, 137 passed",
+      "failures": ["classifier event callback absent (2)", "builder citation event callback absent (1)", "predictor event collection absent (1)", "diagnostic used aggregate attribution despite exact pair event (1)"]
+    },
+    "focused_green": {
+      "command": "$env:PYTHONPATH='ai-service;.'; .\\ai-service\\.venv\\Scripts\\python.exe -m pytest -q ai-service/tests/test_contract_graph_pair_classifier.py ai-service/tests/test_contract_graph_pair_builder.py evals/contract_graph/tests/test_cg_pairs_predictor.py evals/contract_graph/tests/test_cg_pairs_recall_diagnostic.py -m 'not live' --basetemp .harness/state/pytest-quality-P1-verification",
+      "result": "143 passed in 1.55s"
+    },
+    "consent_flag_off_regression": {
+      "command": "$env:PYTHONPATH='ai-service;.'; .\\ai-service\\.venv\\Scripts\\python.exe -m pytest -q ai-service/tests/test_contract_graph_pairs_consent.py ai-service/tests/test_contract_graph_pairs_flag_regression.py -m 'not live' --basetemp .harness/state/pytest-quality-P1-regression-final",
+      "result": "16 passed in 143.92s"
+    }
+  }
+}

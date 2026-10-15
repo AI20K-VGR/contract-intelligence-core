@@ -1,0 +1,47 @@
+{
+  "stage": "cook",
+  "plan": "261011-1654-ai2-graph-ui",
+  "checks": [
+    {
+      "name": "focused-p5",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend-suite",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend-lint",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend-build",
+      "status": "PASS"
+    },
+    {
+      "name": "feature-gate",
+      "status": "PASS"
+    },
+    {
+      "name": "renderer-spike",
+      "status": "PASS"
+    },
+    {
+      "name": "manual-320px",
+      "status": "BLOCKED"
+    },
+    {
+      "name": "live-citation",
+      "status": "BLOCKED"
+    }
+  ],
+  "verdict": "PASS_WITH_RISK",
+  "phase": "P5",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-11T13:50:55+00:00",
+  "blastRadius": {
+    "unavailable": true,
+    "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF-ai2-contract-graph"
+  },
+  "run_seq": null
+}

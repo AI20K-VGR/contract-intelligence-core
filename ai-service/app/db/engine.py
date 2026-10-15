@@ -13,7 +13,10 @@ def database_url() -> str | None:
 
 
 def validate_database_config() -> None:
-    if os.getenv("AI2_REQUIRE_DATABASE", "false").casefold() in {"1", "true", "yes", "on"} and not database_url():
+    if (
+        os.getenv("AI2_REQUIRE_DATABASE", "true").casefold() in {"1", "true", "yes", "on"}
+        and not database_url()
+    ):
         raise RuntimeError("AI2_REQUIRE_DATABASE requires AI2_DATABASE_URL")
     if database_url() and make_url(database_url()).get_backend_name() != "postgresql":
         raise RuntimeError("AI2_DATABASE_URL must select PostgreSQL")
@@ -28,8 +31,14 @@ def get_engine(url: str | None = None) -> Engine:
     if parsed.get_backend_name() != "postgresql":
         raise ValueError("AI2 persistence requires PostgreSQL")
     parsed = parsed.set(drivername="postgresql+psycopg")
-    return create_engine(parsed, pool_pre_ping=True, pool_size=5, max_overflow=5,
-                         connect_args={"connect_timeout": 10}, hide_parameters=True)
+    return create_engine(
+        parsed,
+        pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=5,
+        connect_args={"connect_timeout": 10},
+        hide_parameters=True,
+    )
 
 
 _ready: set[Engine] = set()
@@ -40,6 +49,7 @@ def ensure_database(engine: Engine) -> None:
     with _ready_lock:
         if engine not in _ready:
             from app.db.migrate import migrate
+
             migrate(engine)
             _ready.add(engine)
 
@@ -85,7 +95,11 @@ class DurableConnection:
         query = parts[0]
         for index, part in enumerate(parts[1:]):
             query += f":p{index}" + part
-        return SqlResult(self.connection.execute(text(query), {f"p{i}": value for i, value in enumerate(parameters)}))
+        return SqlResult(
+            self.connection.execute(
+                text(query), {f"p{i}": value for i, value in enumerate(parameters)}
+            )
+        )
 
     def commit(self) -> None:
         self.connection.commit()

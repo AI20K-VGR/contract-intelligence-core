@@ -1,0 +1,36 @@
+{
+ "dataset_id": "quality-recovery-dev-20261011-v3",
+ "dev_report_lock": null,
+ "frame_version": "contract-graph-quality-frame/1",
+ "precision_frame": {
+  "n_rows": 600,
+  "path": "precision-frame.v1.jsonl",
+  "sha256": "b6822aade6a7812e0391c686f3ee4b98e41291a0aca19cced577ab4e8dedcd3c"
+ },
+ "recall_frame": {
+  "n_rows": 600,
+  "path": "recall-frame.v1.jsonl",
+  "sha256": "b6822aade6a7812e0391c686f3ee4b98e41291a0aca19cced577ab4e8dedcd3c"
+ },
+ "review_lock": {
+  "approved_by_label": {
+   "CONFLICT": 1,
+   "DUPLICATE": 2,
+   "GENERAL_SPECIFIC": 27,
+   "REFERENCE": 7,
+   "UNRELATED": 563
+  },
+  "dataset_id": "quality-recovery-dev-20261011-v3",
+  "human_approved": true,
+  "n_rows": 600,
+  "reviewed_gold_sha256": "11355553a39300a5557941ae38edc450e9ef72f8f8926666b9fa7a835865a0b3",
+  "schema": "contract-graph-quality-review-lock/1",
+  "source": "user-review"
+ },
+ "reviewed_gold": {
+  "n_rows": 600,
+  "path": "reviewed-gold.v1.jsonl",
+  "sha256": "11355553a39300a5557941ae38edc450e9ef72f8f8926666b9fa7a835865a0b3"
+ },
+ "schema": "contract-graph-quality-dataset/1"
+}

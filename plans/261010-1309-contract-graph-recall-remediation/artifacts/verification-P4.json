@@ -1,0 +1,35 @@
+{
+  "stage": "cook",
+  "plan": "261010-1309-contract-graph-recall-remediation",
+  "checks": [
+    {
+      "name": "hg2_human_gate",
+      "status": "PASS"
+    },
+    {
+      "name": "hg2_decision_digest",
+      "status": "PASS"
+    },
+    {
+      "name": "hg2_receipt_sha",
+      "status": "PASS"
+    },
+    {
+      "name": "manifest_verify",
+      "status": "PASS"
+    },
+    {
+      "name": "p5_preflight",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P4",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-10T11:44:55+00:00",
+  "blastRadius": {
+    "unavailable": true,
+    "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF-ai2-contract-graph"
+  },
+  "run_seq": null
+}

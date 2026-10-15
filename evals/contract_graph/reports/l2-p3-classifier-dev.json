@@ -1,0 +1,2566 @@
+{
+ "by_cluster": {
+  "cl-0fa3021b56": {
+   "CONFLICT": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "DUPLICATE": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "GENERAL_SPECIFIC": {
+    "covered": 0,
+    "denominator": 1,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "REFERENCE": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   }
+  },
+  "cl-1027a3caf6": {
+   "CONFLICT": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "DUPLICATE": {
+    "covered": 1,
+    "denominator": 2,
+    "direction_accuracy": null,
+    "passed": 1,
+    "precision_conservative": {
+     "denominator": 2,
+     "passed": 1,
+     "rate": 0.5,
+     "wilson95": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "precision_observed": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "GENERAL_SPECIFIC": {
+    "covered": 0,
+    "denominator": 3,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 3,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.5615
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "REFERENCE": {
+    "covered": 0,
+    "denominator": 1,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   }
+  },
+  "cl-4637ce270e": {
+   "CONFLICT": {
+    "covered": 1,
+    "denominator": 1,
+    "direction_accuracy": null,
+    "passed": 1,
+    "precision_conservative": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "DUPLICATE": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "GENERAL_SPECIFIC": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
+     ]
+    },
+    "recall_weighted": null
+   },
+   "REFERENCE": {
+    "covered": 0,
+    "denominator": 1,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   }
+  },
+  "cl-61cf8fa90c": {
+   "CONFLICT": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "DUPLICATE": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "GENERAL_SPECIFIC": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "REFERENCE": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   }
+  },
+  "cl-6ef7261d72": {
+   "CONFLICT": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "DUPLICATE": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "GENERAL_SPECIFIC": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "REFERENCE": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   }
+  },
+  "cl-b8007cde81": {
+   "CONFLICT": {
+    "covered": 0,
+    "denominator": 1,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "DUPLICATE": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "GENERAL_SPECIFIC": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
+     ]
+    },
+    "recall_weighted": null
+   },
+   "REFERENCE": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   }
+  },
+  "cl-d10ad02902": {
+   "CONFLICT": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "DUPLICATE": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "GENERAL_SPECIFIC": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "REFERENCE": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   }
+  }
+ },
+ "by_doc": {
+  "pd-ae9bb69ee7": {
+   "CONFLICT": {
+    "covered": 1,
+    "denominator": 1,
+    "direction_accuracy": null,
+    "passed": 1,
+    "precision_conservative": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "DUPLICATE": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "GENERAL_SPECIFIC": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
+     ]
+    },
+    "recall_weighted": null
+   },
+   "REFERENCE": {
+    "covered": 0,
+    "denominator": 1,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   }
+  },
+  "pd-b300e5ad70": {
+   "CONFLICT": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "DUPLICATE": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "GENERAL_SPECIFIC": {
+    "covered": 0,
+    "denominator": 1,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "REFERENCE": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   }
+  },
+  "pd-bf1d9346b4": {
+   "CONFLICT": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "DUPLICATE": {
+    "covered": 1,
+    "denominator": 2,
+    "direction_accuracy": null,
+    "passed": 1,
+    "precision_conservative": {
+     "denominator": 2,
+     "passed": 1,
+     "rate": 0.5,
+     "wilson95": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "precision_observed": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "GENERAL_SPECIFIC": {
+    "covered": 0,
+    "denominator": 3,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 3,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.5615
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "REFERENCE": {
+    "covered": 0,
+    "denominator": 1,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   }
+  },
+  "pd-fa299625d8": {
+   "CONFLICT": {
+    "covered": 0,
+    "denominator": 1,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "DUPLICATE": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "GENERAL_SPECIFIC": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
+     ]
+    },
+    "recall_weighted": null
+   },
+   "REFERENCE": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   }
+  }
+ },
+ "by_label": {
+  "CONFLICT": {
+   "covered": 1,
+   "denominator": 2,
+   "direction_accuracy": null,
+   "passed": 1,
+   "precision_conservative": {
+    "denominator": 2,
+    "passed": 1,
+    "rate": 0.5,
+    "wilson95": [
+     0.0945,
+     0.9055
+    ]
+   },
+   "precision_observed": {
+    "denominator": 1,
+    "passed": 1,
+    "rate": 1.0,
+    "wilson95": [
+     0.2065,
+     1.0
+    ]
+   },
+   "precision_weighted": null,
+   "recall_observed": {
+    "denominator": 1,
+    "passed": 1,
+    "rate": 1.0,
+    "wilson95": [
+     0.2065,
+     1.0
+    ]
+   },
+   "recall_weighted": null
+  },
+  "DUPLICATE": {
+   "covered": 1,
+   "denominator": 2,
+   "direction_accuracy": null,
+   "passed": 1,
+   "precision_conservative": {
+    "denominator": 2,
+    "passed": 1,
+    "rate": 0.5,
+    "wilson95": [
+     0.0945,
+     0.9055
+    ]
+   },
+   "precision_observed": {
+    "denominator": 1,
+    "passed": 1,
+    "rate": 1.0,
+    "wilson95": [
+     0.2065,
+     1.0
+    ]
+   },
+   "precision_weighted": null,
+   "recall_observed": {
+    "denominator": 1,
+    "passed": 1,
+    "rate": 1.0,
+    "wilson95": [
+     0.2065,
+     1.0
+    ]
+   },
+   "recall_weighted": null
+  },
+  "GENERAL_SPECIFIC": {
+   "covered": 0,
+   "denominator": 4,
+   "direction_accuracy": {
+    "denominator": 0,
+    "passed": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "passed": 0,
+   "precision_conservative": {
+    "denominator": 4,
+    "passed": 0,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.4899
+    ]
+   },
+   "precision_observed": {
+    "denominator": 0,
+    "passed": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "precision_weighted": null,
+   "recall_observed": {
+    "denominator": 2,
+    "passed": 0,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.6576
+    ]
+   },
+   "recall_weighted": null
+  },
+  "REFERENCE": {
+   "covered": 0,
+   "denominator": 2,
+   "direction_accuracy": {
+    "denominator": 0,
+    "passed": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "passed": 0,
+   "precision_conservative": {
+    "denominator": 2,
+    "passed": 0,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.6576
+    ]
+   },
+   "precision_observed": {
+    "denominator": 0,
+    "passed": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "precision_weighted": null,
+   "recall_observed": {
+    "denominator": 0,
+    "passed": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "recall_weighted": null
+  }
+ },
+ "by_stratum": {
+  "S1": {
+   "CONFLICT": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "DUPLICATE": {
+    "covered": 1,
+    "denominator": 1,
+    "direction_accuracy": null,
+    "passed": 1,
+    "precision_conservative": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "GENERAL_SPECIFIC": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
+     ]
+    },
+    "recall_weighted": null
+   },
+   "REFERENCE": {
+    "covered": 0,
+    "denominator": 2,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 2,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.6576
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   }
+  },
+  "S3": {
+   "CONFLICT": {
+    "covered": 1,
+    "denominator": 2,
+    "direction_accuracy": null,
+    "passed": 1,
+    "precision_conservative": {
+     "denominator": 2,
+     "passed": 1,
+     "rate": 0.5,
+     "wilson95": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "precision_observed": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "DUPLICATE": {
+    "covered": 0,
+    "denominator": 1,
+    "direction_accuracy": null,
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   },
+   "GENERAL_SPECIFIC": {
+    "covered": 0,
+    "denominator": 3,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 3,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.5615
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
+     ]
+    },
+    "recall_weighted": null
+   },
+   "REFERENCE": {
+    "covered": 0,
+    "denominator": 0,
+    "direction_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "passed": 0,
+    "precision_conservative": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "precision_weighted": null,
+    "recall_observed": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "recall_weighted": null
+   }
+  }
+ },
+ "calls_per_doc": {
+  "pd-ae9bb69ee7": 1,
+  "pd-b300e5ad70": 1,
+  "pd-b6d8628d32": 1,
+  "pd-bf1d9346b4": 3,
+  "pd-e0d65645f2": 1,
+  "pd-eec95ad3b2": 1,
+  "pd-fa299625d8": 1
+ },
+ "cluster_intervals": {
+  "CONFLICT": {
+   "direction_accuracy": null,
+   "precision_conservative": {
+    "K": 2,
+    "N": 2,
+    "clusters_passed": 1,
+    "conf": 0.95,
+    "deff": null,
+    "icc": null,
+    "lower": 0.09453120573423074,
+    "method": "harness.scripts.wilson.cluster_adjusted",
+    "n_eff": 2.0,
+    "pass_threshold": 1.0,
+    "route": "cluster-floor",
+    "upper": 0.9054687942657693
+   },
+   "precision_observed": {
+    "K": 1,
+    "N": 1,
+    "clusters_passed": 1,
+    "conf": 0.95,
+    "deff": null,
+    "icc": null,
+    "lower": 0.20654931437723745,
+    "method": "harness.scripts.wilson.cluster_adjusted",
+    "n_eff": 1.0,
+    "pass_threshold": 1.0,
+    "route": "cluster-floor",
+    "upper": 1.0
+   },
+   "recall_observed": {
+    "K": 1,
+    "N": 1,
+    "clusters_passed": 1,
+    "conf": 0.95,
+    "deff": null,
+    "icc": null,
+    "lower": 0.20654931437723745,
+    "method": "harness.scripts.wilson.cluster_adjusted",
+    "n_eff": 1.0,
+    "pass_threshold": 1.0,
+    "route": "cluster-floor",
+    "upper": 1.0
+   }
+  },
+  "DUPLICATE": {
+   "direction_accuracy": null,
+   "precision_conservative": {
+    "K": 1,
+    "N": 2,
+    "clusters_passed": 0,
+    "conf": 0.95,
+    "deff": null,
+    "icc": null,
+    "lower": 0.0,
+    "method": "harness.scripts.wilson.cluster_adjusted",
+    "n_eff": 1.0,
+    "pass_threshold": 1.0,
+    "route": "cluster-floor",
+    "upper": 0.7934506856227626
+   },
+   "precision_observed": {
+    "K": 1,
+    "N": 1,
+    "clusters_passed": 1,
+    "conf": 0.95,
+    "deff": null,
+    "icc": null,
+    "lower": 0.20654931437723745,
+    "method": "harness.scripts.wilson.cluster_adjusted",
+    "n_eff": 1.0,
+    "pass_threshold": 1.0,
+    "route": "cluster-floor",
+    "upper": 1.0
+   },
+   "recall_observed": {
+    "K": 1,
+    "N": 1,
+    "clusters_passed": 1,
+    "conf": 0.95,
+    "deff": null,
+    "icc": null,
+    "lower": 0.20654931437723745,
+    "method": "harness.scripts.wilson.cluster_adjusted",
+    "n_eff": 1.0,
+    "pass_threshold": 1.0,
+    "route": "cluster-floor",
+    "upper": 1.0
+   }
+  },
+  "GENERAL_SPECIFIC": {
+   "direction_accuracy": null,
+   "precision_conservative": {
+    "K": 2,
+    "N": 4,
+    "clusters_passed": 0,
+    "conf": 0.95,
+    "deff": null,
+    "icc": null,
+    "lower": 0.0,
+    "method": "harness.scripts.wilson.cluster_adjusted",
+    "n_eff": 2.0,
+    "pass_threshold": 1.0,
+    "route": "cluster-floor",
+    "upper": 0.6576197724933468
+   },
+   "precision_observed": null,
+   "recall_observed": {
+    "K": 2,
+    "N": 2,
+    "clusters_passed": 0,
+    "conf": 0.95,
+    "deff": null,
+    "icc": null,
+    "lower": 0.0,
+    "method": "harness.scripts.wilson.cluster_adjusted",
+    "n_eff": 2.0,
+    "pass_threshold": 1.0,
+    "route": "cluster-floor",
+    "upper": 0.6576197724933468
+   }
+  },
+  "REFERENCE": {
+   "direction_accuracy": null,
+   "precision_conservative": {
+    "K": 2,
+    "N": 2,
+    "clusters_passed": 0,
+    "conf": 0.95,
+    "deff": null,
+    "icc": null,
+    "lower": 0.0,
+    "method": "harness.scripts.wilson.cluster_adjusted",
+    "n_eff": 2.0,
+    "pass_threshold": 1.0,
+    "route": "cluster-floor",
+    "upper": 0.6576197724933468
+   },
+   "precision_observed": null,
+   "recall_observed": null
+  }
+ },
+ "code_sha256": {
+  "bakeoff.py": "0977c533e72aa1a84df7ca617acbd488ace152d4f27eae17625d553feae467c9",
+  "client.py": "fd42c1186f74dbd078663b5705069763d4a4ba1d9694239b0ff2639dfe198bac",
+  "pair_builder.py": "772f0409222b789ff8f8af2690e1ba24918780d5a07904a9b352ea7102278999",
+  "pair_candidates.py": "7691ba5691e8d2e69fde9ba6968ca7801321ca2130a3276f4d3476bb23100e85",
+  "pair_classifier.py": "1b1f4cfc54f6b22e365d75f8261ffac052c8358626a229a07d1d63346f0e25e3",
+  "predictor.py": "44ebe67d32dc0610920e670061523b7ab40c9c7964788abf6a7f7ace4817d8dc",
+  "score.py": "8d09d0f1b7e43cbd35daffa10741dad39fc3bfe7b7c7cc3d4ed099d7160c4bd1"
+ },
+ "dev_review": {
+  "approved_by_label": {
+   "CONFLICT": 1,
+   "DUPLICATE": 1,
+   "GENERAL_SPECIFIC": 2
+  },
+  "manifest_locked": true,
+  "n_rows": 7,
+  "schema": "contract-graph-dev-review/1",
+  "sha256": "ec9d084c8f46a83466dc5da41a6db42e6e343b2d235df5af5aee7b65c8ceb038",
+  "source": "user-review"
+ },
+ "direction_accuracy": {
+  "GENERAL_SPECIFIC": {
+   "denominator": 0,
+   "passed": 0,
+   "rate": null,
+   "wilson95": [
+    0.0,
+    1.0
+   ]
+  },
+  "REFERENCE": {
+   "denominator": 0,
+   "passed": 0,
+   "rate": null,
+   "wilson95": [
+    0.0,
+    1.0
+   ]
+  }
+ },
+ "documents": [
+  {
+   "batches_completed": 1,
+   "cluster_id": "cl-4637ce270e",
+   "doc_id": "pd-ae9bb69ee7",
+   "mode": "llm",
+   "rule_only_reason": null
+  },
+  {
+   "batches_completed": 1,
+   "cluster_id": "cl-0fa3021b56",
+   "doc_id": "pd-b300e5ad70",
+   "mode": "llm",
+   "rule_only_reason": null
+  },
+  {
+   "batches_completed": 1,
+   "cluster_id": "cl-6ef7261d72",
+   "doc_id": "pd-b6d8628d32",
+   "mode": "llm",
+   "rule_only_reason": null
+  },
+  {
+   "batches_completed": 3,
+   "cluster_id": "cl-1027a3caf6",
+   "doc_id": "pd-bf1d9346b4",
+   "mode": "llm",
+   "rule_only_reason": null
+  },
+  {
+   "batches_completed": 1,
+   "cluster_id": "cl-61cf8fa90c",
+   "doc_id": "pd-e0d65645f2",
+   "mode": "llm",
+   "rule_only_reason": null
+  },
+  {
+   "batches_completed": 1,
+   "cluster_id": "cl-d10ad02902",
+   "doc_id": "pd-eec95ad3b2",
+   "mode": "llm",
+   "rule_only_reason": null
+  },
+  {
+   "batches_completed": 1,
+   "cluster_id": "cl-b8007cde81",
+   "doc_id": "pd-fa299625d8",
+   "mode": "llm",
+   "rule_only_reason": null
+  }
+ ],
+ "estimator": null,
+ "evaluation_gate": "PASS",
+ "false_duplicate": {
+  "observed": 0,
+  "unreviewed": 1
+ },
+ "gold_provenance": {
+  "approved": 4,
+  "invalid_approval": 0,
+  "scoring": "approved_only",
+  "unapproved": 0
+ },
+ "ground_truth": "reviewed gold (approved=true), dev",
+ "injection_signals": 0,
+ "latency_ms": {
+  "p50": 11179.6,
+  "p95": 46470.88
+ },
+ "n_gold": 4,
+ "n_pred": 10,
+ "p3_classifier_gate": {
+  "false_duplicate_observed": 0,
+  "reason_codes": [],
+  "required_labels": {
+   "CONFLICT": {
+    "correct": 1,
+    "gold_positive": 1
+   },
+   "DUPLICATE": {
+    "correct": 1,
+    "gold_positive": 1
+   }
+  },
+  "schema": "contract-graph-p3-classifier-gate/1",
+  "status": "PASS"
+ },
+ "prompt_rounds": 0,
+ "prompt_version": "pairs-v7",
+ "rejected": {
+  "bad_span": 0,
+  "citation_invalid": 0,
+  "conflict_same_span": 0,
+  "duplicate_id": 0,
+  "duplicate_value_mismatch": 5,
+  "invalid_label": 0,
+  "malformed": 0,
+  "missing_direction": 0,
+  "no_answer": 0,
+  "reference_explicit": 0,
+  "ungrounded_span": 0,
+  "unknown_pair": 0,
+  "unrelated": 23
+ },
+ "rejection_reason_versions": [
+  "pair-rejections-v1"
+ ],
+ "report_sha256": "0db79ec9a5a0c75dfc803fa63e2f3ab14671da9e2ed4595183d087325ede15b6",
+ "schema": "contract-graph-pairs-predictor/2",
+ "scoring_schema": "contract-graph-pairs-score/1",
+ "served_model": [
+  "gpt-5.5"
+ ],
+ "split": "dev",
+ "status": "OBSERVED",
+ "token_estimate_D13": {
+  "note": "Ước tính [ASSUMED] 10–16k token/hồ sơ; token thực ghi riêng.",
+  "total_per_doc_range": [
+   10000,
+   16000
+  ]
+ },
+ "tokens_per_doc": {
+  "pd-ae9bb69ee7": {
+   "completion": 789,
+   "prompt": 3242
+  },
+  "pd-b300e5ad70": {
+   "completion": 446,
+   "prompt": 2203
+  },
+  "pd-b6d8628d32": {
+   "completion": 683,
+   "prompt": 2362
+  },
+  "pd-bf1d9346b4": {
+   "completion": 2831,
+   "prompt": 6853
+  },
+  "pd-e0d65645f2": {
+   "completion": 39,
+   "prompt": 1579
+  },
+  "pd-eec95ad3b2": {
+   "completion": 818,
+   "prompt": 3208
+  },
+  "pd-fa299625d8": {
+   "completion": 271,
+   "prompt": 1795
+  }
+ },
+ "variant": "C"
+}

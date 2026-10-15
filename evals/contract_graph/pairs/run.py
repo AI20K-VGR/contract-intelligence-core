@@ -1,0 +1,951 @@
+"""CLI for the pair-label dataset (P1). Run from the repo root:
+
+  python -m evals.contract_graph.pairs.run fetch      # sources → raw cache
+  python -m evals.contract_graph.pairs.run build      # cache → segmented docs (offline)
+  python -m evals.contract_graph.pairs.run cluster    # near-duplicate clusters
+  python -m evals.contract_graph.pairs.run pool       # S1–S3 pools, prints the pool sha256
+  python -m evals.contract_graph.pairs.run label [--env-file F]   # GPT labels (cached)
+  python -m evals.contract_graph.pairs.run summary    # reports/l2-p1-dataset.{json,md}
+  python -m evals.contract_graph.pairs.run freeze     # split dirs + pairs/manifest.json
+  python -m evals.contract_graph.pairs.run verify     # exit 0 ok, 2 on any mismatch
+
+P2 (luồng 2 candidates, HG-1 sheet):
+
+  python -m evals.contract_graph.pairs.run candidates --split dev [--tuning-rounds N]
+  python -m evals.contract_graph.pairs.run extend-heldout [--env-file F]   # S4 + GPT labels
+  python -m evals.contract_graph.pairs.run review-select   # locks the sample in manifest.json
+  python -m evals.contract_graph.pairs.run review-export   # sheet from the locked sample only
+  python -m evals.contract_graph.pairs.run recall-diagnostic  # P1 snapshot taxonomy
+
+``--data-dir`` defaults to ``$AI2_CG_PAIRS_DATA_DIR`` then ``.harness/state/contract-graph-pairs``;
+every writing command checks first that it is git-ignored and outside tracked trees (exit 2).
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+import sys
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+from evals.contract_graph.dataset import CacheMiss, fetch_cached
+from evals.contract_graph.pairs import corpus, labeler, manifest, pool
+from evals.contract_graph.score import rate
+
+PAIRS_DIR = Path(__file__).resolve().parent
+DEFAULT_SOURCES = PAIRS_DIR / "sources.json"
+DEFAULT_REPORT = PAIRS_DIR.parent / "reports" / "l2-p1-dataset"
+CANDIDATES_REPORT = PAIRS_DIR.parent / "reports" / "l2-p2-candidates"
+CLASSIFIER_REPORT = PAIRS_DIR.parent / "reports" / "l2-p3-classifier-dev"
+QUALITY_MANIFEST = PAIRS_DIR / "quality-recovery-manifest.v1.json"
+USABLE_MIN, PROFILE_MIN, HELDOUT_MIN, DEV_MIN = 15, 6, 10, 5
+NL = "\n"
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="python -m evals.contract_graph.pairs.run")
+    sub = parser.add_subparsers(dest="command", required=True)
+    for name in ("fetch", "build", "cluster", "pool", "label", "summary", "freeze", "verify"):
+        cmd = sub.add_parser(name)
+        cmd.add_argument("--data-dir", type=Path, default=None)
+        if name in ("fetch", "build", "summary"):
+            cmd.add_argument("--sources", type=Path, default=DEFAULT_SOURCES)
+        if name in ("freeze", "verify"):
+            cmd.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+        if name == "label":
+            cmd.add_argument("--env-file", type=Path, default=None)
+            cmd.add_argument("--workers", type=int, default=8)
+        if name == "summary":
+            cmd.add_argument("--report-prefix", type=Path, default=DEFAULT_REPORT)
+    for name in ("candidates", "extend-heldout", "review-select", "review-export"):
+        cmd = sub.add_parser(name)
+        cmd.add_argument("--data-dir", type=Path, default=None)
+        cmd.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+        cmd.add_argument("--report-prefix", type=Path, default=CANDIDATES_REPORT)
+        if name == "candidates":
+            cmd.add_argument("--split", default="dev")
+            cmd.add_argument("--tuning-rounds", type=int, default=0)
+            cmd.add_argument("--keep-default-k", default=None, metavar="REASON",
+                             help="human decision to keep PAIRS_TOP_K over the rule's K")
+        if name == "extend-heldout":
+            cmd.add_argument("--env-file", type=Path, default=None)
+    predict = sub.add_parser("predict")
+    predict.add_argument("--data-dir", type=Path, default=None)
+    predict.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+    predict.add_argument("--quality-manifest", type=Path, default=None,
+                         help="separate v1 quality frames and reviewed gold")
+    predict.add_argument("--dev-report", type=Path, default=None,
+                         help="explicit versioned quality dev report for held-out preflight")
+    predict.add_argument("--split", choices=("dev", "heldout"), default="dev")
+    predict.add_argument("--variant", choices=("B", "C", "E"), default="C")
+    predict.add_argument("--model", required=True)
+    predict.add_argument("--allow-heldout", action="store_true")
+    predict.add_argument("--env-file", type=Path, default=None)
+    predict.add_argument("--prompt-rounds", type=int, choices=range(4), default=0)
+    predict.add_argument("--dev-review", type=Path, default=None,
+                         help="explicit user-reviewed dev decisions JSONL; without it dev remains blocked")
+    predict.add_argument("--report-prefix", type=Path, default=CLASSIFIER_REPORT)
+    diagnostic = sub.add_parser("recall-diagnostic")
+    diagnostic.add_argument("--data-dir", type=Path, default=None)
+    diagnostic.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+    diagnostic.add_argument("--snapshot-dir", type=Path, required=True)
+    diagnostic.add_argument("--report-prefix", type=Path,
+                            default=PAIRS_DIR.parent / "reports/l2-p6-recall-diagnostic")
+    diagnostic.add_argument("--variants", nargs="+", choices=("B", "C", "E"),
+                            default=("B", "C", "E"))
+    diagnostic.add_argument("--trials", nargs="+", type=int, default=(1, 2))
+    imported = sub.add_parser("review-import")
+    imported.add_argument("--csv", type=Path, required=True)
+    imported.add_argument("--data-dir", type=Path, default=None)
+    imported.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+    hg2_imported = sub.add_parser("review-hg2-import")
+    hg2_imported.add_argument("--csv", type=Path, required=True)
+    hg2_imported.add_argument("--data-dir", type=Path, default=None)
+    hg2_imported.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+    hg2_locked = sub.add_parser("review-hg2-lock")
+    hg2_locked.add_argument("--data-dir", type=Path, default=None)
+    hg2_locked.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+    hg2_locked.add_argument("--recall-floor", type=float, default=0.85)
+    hg2_locked.add_argument("--human-approved", action="store_true")
+    hg2_locked.add_argument("--scope-consent", action="store_true")
+    dev_locked = sub.add_parser("review-dev-lock")
+    dev_locked.add_argument("--dev-review", type=Path, required=True)
+    dev_locked.add_argument("--data-dir", type=Path, default=None)
+    dev_locked.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+    quality_dev_locked = sub.add_parser("review-quality-dev-lock")
+    quality_dev_locked.add_argument("--data-dir", type=Path, default=None)
+    quality_dev_locked.add_argument("--manifest", type=Path, default=QUALITY_MANIFEST)
+    quality_dev_report_locked = sub.add_parser("review-quality-dev-report-lock")
+    quality_dev_report_locked.add_argument("--data-dir", type=Path, default=None)
+    quality_dev_report_locked.add_argument("--manifest", type=Path, default=QUALITY_MANIFEST)
+    quality_dev_report_locked.add_argument("--report", type=Path, required=True)
+    quality_dev_report_locked.add_argument("--predecessor-sha256", required=True)
+    bake = sub.add_parser("bakeoff")
+    bake_commands = bake.add_subparsers(dest="bakeoff_command", required=True)
+    for name in ("run", "metric", "decide", "preflight-checks"):
+        cmd = bake_commands.add_parser(name)
+        cmd.add_argument("--data-dir", type=Path, default=None)
+        cmd.add_argument("--manifest", type=Path, default=manifest.REPO_MANIFEST)
+        cmd.add_argument("--quality-manifest", type=Path, default=None,
+                         help="separate v1 quality manifest; legacy manifest path remains unchanged")
+        cmd.add_argument("--dev-report", type=Path, default=None,
+                         help="explicit versioned quality dev report lock")
+        if name in ("run", "metric"):
+            cmd.add_argument("variant", choices=("B", "C", "E"))
+        if name != "preflight-checks":
+            cmd.add_argument("--out", type=Path, required=True)
+        if name == "run":
+            cmd.add_argument("--trial", type=int, required=True)
+            cmd.add_argument("--model", required=True)
+            cmd.add_argument("--env-file", type=Path, required=True)
+            cmd.add_argument("--allow-heldout", action="store_true")
+            cmd.add_argument("--budget-tokens", type=int, default=500000)
+            cmd.add_argument("--budget-seconds", type=float, default=550)
+        if name == "metric":
+            cmd.add_argument("--field", default="recall_any")
+            cmd.add_argument("--dry-run", action="store_true", help="CLI-contract probe: prints 0.0 without a measured trial")
+        if name == "preflight-checks":
+            cmd.add_argument("--served-model", default=None)
+        if name == "decide":
+            cmd.add_argument("--report-prefix", type=Path, default=PAIRS_DIR.parent / "reports/l2-p5-bakeoff")
+            cmd.add_argument("--decision-out", type=Path, default=PAIRS_DIR.parent / "reports/l2-p5-decision.json")
+    args = parser.parse_args(argv)
+    if args.command == "predict" and args.split == "heldout" and not args.allow_heldout:
+        print("heldout predictions require --allow-heldout (P5)", file=sys.stderr)
+        return 2
+    if args.command == "candidates" and args.split != "dev":
+        print("candidates are measured on dev only; held-out is read by extend-heldout",
+              file=sys.stderr)
+        return 2
+    args.data_dir = args.data_dir or Path(
+        os.environ.get(manifest.DATA_DIR_ENV) or manifest.DEFAULT_DATA_DIR
+    )
+    if args.command == "verify":
+        return _verify(args)
+    if args.command in {"review-import", "review-hg2-import", "review-hg2-lock", "review-dev-lock",
+                        "review-quality-dev-lock", "review-quality-dev-report-lock", "bakeoff"}:
+        return _bakeoff(args)
+    if args.command == "predict":
+        return _predict(args)
+    if args.command == "recall-diagnostic":
+        return _recall_diagnostic(args)
+    manifest.ensure_outside_repo(args.data_dir)
+    return {
+        "fetch": _fetch, "build": _build, "cluster": _cluster, "pool": _pool,
+        "label": _label, "summary": _summary, "freeze": _freeze,
+        "candidates": _candidates, "extend-heldout": _extend_heldout,
+        "review-select": _review_select, "review-export": _review_export,
+    }[args.command](args)
+
+
+def _bakeoff(args: argparse.Namespace) -> int:
+    import json
+
+    from evals.contract_graph.pairs import bakeoff
+
+    try:
+        if args.command == "review-dev-lock":
+            return _review_dev_lock(args)
+        if args.command == "review-quality-dev-lock":
+            return _review_quality_dev_lock(args)
+        if args.command == "review-quality-dev-report-lock":
+            return _review_quality_dev_report_lock(args)
+        if args.command == "review-import":
+            manifest.ensure_outside_repo(args.data_dir)
+            locked = bakeoff.import_review(args.data_dir, args.csv, repo_manifest=args.manifest)
+            print(json.dumps(locked, sort_keys=True))
+        elif args.command == "review-hg2-import":
+            manifest.ensure_outside_repo(args.data_dir)
+            locked = bakeoff.import_hg2_review(args.data_dir, args.csv, repo_manifest=args.manifest)
+            print(json.dumps(locked, sort_keys=True))
+        elif args.command == "review-hg2-lock":
+            manifest.ensure_outside_repo(args.data_dir)
+            locked = bakeoff.lock_hg2(
+                args.data_dir, repo_manifest=args.manifest, recall_floor=args.recall_floor,
+                human_approved=args.human_approved, scope_consent=args.scope_consent,
+            )
+            print(json.dumps(locked, sort_keys=True))
+        elif args.bakeoff_command == "metric":
+            print(bakeoff.metric(args.variant, args.out, args.field, dry_run=args.dry_run))
+        elif args.bakeoff_command == "preflight-checks":
+            options = {"served_model": args.served_model} if args.served_model is not None else {}
+            print(json.dumps(bakeoff.preconditions(args.data_dir, repo_manifest=args.manifest,
+                                                    quality_manifest=args.quality_manifest,
+                                                    dev_report_path=args.dev_report, **options), sort_keys=True))
+        elif args.bakeoff_command == "run":
+            if not args.allow_heldout or not args.env_file.is_file():
+                print("P5 BLOCKED: --allow-heldout and an existing --env-file required", file=sys.stderr)
+                return 2
+            manifest.ensure_outside_repo(args.out)
+            if args.budget_tokens <= 0 or args.budget_seconds <= 0:
+                return 2
+            bakeoff.preconditions(args.data_dir, repo_manifest=args.manifest,
+                                  quality_manifest=args.quality_manifest,
+                                  dev_report_path=args.dev_report)
+            from dotenv import load_dotenv
+            load_dotenv(args.env_file, override=False)
+            result = bakeoff.run(args.variant, args.trial, out_dir=args.out, model=args.model,
+                                 data_dir=args.data_dir, repo_manifest=args.manifest, allow_heldout=True,
+                                 budget_tokens=args.budget_tokens, budget_seconds=args.budget_seconds)
+            print(f"{args.variant}{args.trial}: recall_any={result['recall_any']['rate']}")
+        else:
+            if args.quality_manifest is not None:
+                bakeoff.preconditions(args.data_dir, repo_manifest=args.manifest,
+                                      quality_manifest=args.quality_manifest,
+                                      dev_report_path=args.dev_report)
+            report = bakeoff.assemble_report(args.out, args.data_dir, repo_manifest=args.manifest)
+            decision = bakeoff.decide(report)
+            manifest.write_json(args.report_prefix.with_suffix(".json"), report)
+            args.report_prefix.with_suffix(".md").write_text(bakeoff.render_report(report), encoding="utf-8")
+            manifest.write_json(args.decision_out, decision)
+            print(decision["verdict"])
+        return 0
+    except SystemExit as exc:
+        return int(exc.code)
+    except Exception:
+        # Never echo provider payloads, credentials, prompts or raw sheet content.
+        print("P5 BLOCKED: invalid or unavailable inputs; no recommendation written", file=sys.stderr)
+        return 2
+
+
+def _review_dev_lock(args: argparse.Namespace) -> int:
+    """Lock an externally reviewed dev decision file into the tracked manifest."""
+    from evals.contract_graph.pairs import bakeoff, predictor
+
+    try:
+        manifest.ensure_outside_repo(args.data_dir)
+        review_path = Path(args.dev_review).resolve()
+        review_root = (Path(args.data_dir) / "review").resolve()
+        review_path.relative_to(review_root)
+        docs = manifest.read_split(args.data_dir, "dev", args.manifest)
+        decisions, digest, approved_by_label = predictor._parse_dev_review(review_path, docs)
+        frozen = manifest.read_json(args.manifest)
+        lock = {"schema": predictor.DEV_REVIEW_SCHEMA, "sha256": digest, "n_rows": len(decisions),
+                "approved_by_label": approved_by_label}
+        if frozen.get("dev_review") not in (None, lock):
+            print("dev BLOCKED: an existing dev review lock differs; refusing replacement", file=sys.stderr)
+            return 2
+        report_path = manifest.REPO_ROOT / bakeoff.DEV_REPORT_PATH
+        report_lock = None
+        if report_path.is_file():
+            report = manifest.read_json(report_path)
+            report_review = report.get("dev_review") if isinstance(report, dict) else None
+            report_ready = (isinstance(report_review, dict)
+                            and report.get("status") == "OBSERVED"
+                            and report.get("evaluation_gate") == "PASS"
+                            and report_review.get("sha256") == digest
+                            and report_review.get("manifest_locked") is True
+                            and report.get("report_sha256") == predictor.report_digest(report))
+            if report_ready:
+                report_lock = {"schema": bakeoff.DEV_REPORT_LOCK_SCHEMA,
+                               "path": bakeoff.DEV_REPORT_PATH.as_posix(),
+                               "sha256": manifest.file_digest(report_path)}
+                if frozen.get("dev_report") not in (None, report_lock):
+                    print("dev BLOCKED: an existing dev report lock differs; refusing replacement", file=sys.stderr)
+                    return 2
+            else:
+                # The first invocation records the human review lock.  The next
+                # predict invocation regenerates the report with manifest_locked=true,
+                # after which this command can lock the report digest as well.
+                frozen.pop("dev_report", None)
+        frozen["dev_review"] = lock
+        if report_lock is not None:
+            frozen["dev_report"] = report_lock
+        manifest.write_json(args.manifest, frozen)
+    except (OSError, ValueError, KeyError, SystemExit):
+        print("dev BLOCKED: could not validate or lock reviewed dev gold", file=sys.stderr)
+        return 2
+    import json
+    result = {"dev_review": lock}
+    if report_lock is not None:
+        result["dev_report"] = report_lock
+    print(json.dumps(result, sort_keys=True))
+    return 0
+
+
+def _review_quality_dev_lock(args: argparse.Namespace) -> int:
+    """Lock separately reviewed v1 gold without requiring any classifier report."""
+    from evals.contract_graph.pairs import predictor
+
+    try:
+        manifest.ensure_outside_repo(args.data_dir)
+        reviewed = predictor.read_quality_dataset(args.data_dir, args.manifest, require_review_lock=False)
+        frozen = reviewed["manifest"]
+        counts = Counter(row["gold_label"] for row in reviewed["gold"])
+        lock = {"schema": predictor.QUALITY_REVIEW_LOCK_SCHEMA, "dataset_id": frozen["dataset_id"],
+                "reviewed_gold_sha256": frozen["reviewed_gold"]["sha256"],
+                "n_rows": len(reviewed["gold"]), "approved_by_label": dict(sorted(counts.items())),
+                "source": "user-review", "human_approved": True}
+        if frozen.get("review_lock") not in (None, lock):
+            print("quality dev BLOCKED: existing review lock differs; refusing replacement", file=sys.stderr)
+            return 2
+        frozen["review_lock"] = lock
+        manifest.write_json(args.manifest, frozen)
+    except (OSError, ValueError, KeyError, SystemExit):
+        print("quality dev BLOCKED: reviewed gold or frame manifest is invalid", file=sys.stderr)
+        return 2
+    import json
+    print(json.dumps({"review_lock": lock}, sort_keys=True))
+    return 0
+
+
+def _review_quality_dev_report_lock(args: argparse.Namespace) -> int:
+    """Bind a verified quality measurement to a reviewed v1 dataset manifest."""
+    import re
+
+    from evals.contract_graph.pairs import predictor
+
+    try:
+        manifest.ensure_outside_repo(args.data_dir)
+        reviewed = predictor.read_quality_dataset(args.data_dir, args.manifest, require_review_lock=True)
+        manifest_path = Path(args.manifest).resolve()
+        frozen = reviewed["manifest"]
+        predecessor = args.predecessor_sha256
+        if not re.fullmatch(r"[0-9a-f]{64}", predecessor):
+            raise ValueError("predecessor SHA-256 is malformed")
+        report_path = Path(args.report).resolve()
+        report_relative = report_path.relative_to(manifest.REPO_ROOT.resolve()).as_posix()
+        report = manifest.read_json(report_path)
+        gate = report.get("quality_gate") if isinstance(report, dict) else None
+        quality_dataset = report.get("quality_dataset") if isinstance(report, dict) else None
+        if (not isinstance(report, dict)
+                or report.get("quality_report_schema") != predictor.QUALITY_REPORT_SCHEMA
+                or report.get("quality_status") != "PASS"
+                or not isinstance(gate, dict) or gate.get("status") != "PASS"
+                or not isinstance(quality_dataset, dict)
+                or quality_dataset.get("dataset_id") != frozen["dataset_id"]
+                or quality_dataset.get("manifest_sha256") != predictor.quality_manifest_digest(frozen)
+                or report.get("code_sha256") != predictor.code_fingerprints()
+                or report.get("report_sha256") != predictor.report_digest(report)):
+            raise ValueError("quality report is not a passing measurement of this dataset and source")
+        current = frozen.get("dev_report_lock")
+        current_digest = predictor.quality_manifest_digest(frozen)
+        if isinstance(current, dict):
+            if predecessor != current.get("sha256"):
+                raise ValueError("predecessor SHA does not match the prior report lock")
+        elif predecessor != current_digest:
+            raise ValueError("first report lock must name the current quality-manifest digest")
+        lock = {"schema": predictor.QUALITY_REPORT_LOCK_SCHEMA, "path": report_relative,
+                "sha256": manifest.file_digest(report_path), "dataset_id": frozen["dataset_id"],
+                "quality_manifest_sha256": current_digest, "predecessor_sha256": predecessor}
+        if current == lock:
+            print("quality dev report lock already current")
+            return 0
+        frozen["dev_report_lock"] = lock
+        manifest.write_json(manifest_path, frozen)
+    except (OSError, ValueError, KeyError, SystemExit):
+        print("quality dev BLOCKED: report does not match the locked dataset and source", file=sys.stderr)
+        return 2
+    import json
+    print(json.dumps({"dev_report_lock": lock}, sort_keys=True))
+    return 0
+
+
+def _predict(args: argparse.Namespace) -> int:
+    if str(corpus.AI_SERVICE) not in sys.path:
+        sys.path.insert(0, str(corpus.AI_SERVICE))
+    from evals.contract_graph.pairs import bakeoff, predictor
+
+    if args.env_file is not None:
+        from dotenv import load_dotenv
+        load_dotenv(args.env_file, override=False)
+    # Verify the complete frozen dataset before constructing a configured network client.
+    problems = manifest.verify(args.data_dir, args.manifest)
+    if problems:
+        print("predict BLOCKED: frozen dataset missing or does not match manifest", file=sys.stderr)
+        return 2
+    if args.split == "heldout":
+        # Keep the CLI path behind the same P3/P4/commit lock as bakeoff.run.
+        # This must happen before constructing a network client or reading held-out
+        # documents, otherwise --allow-heldout becomes a tuning bypass.
+        try:
+            bakeoff.preconditions(args.data_dir, repo_manifest=args.manifest,
+                                  served_model=args.model, quality_manifest=args.quality_manifest,
+                                  dev_report_path=args.dev_report)
+        except SystemExit as exc:
+            return int(exc.code)
+    from app.llm.client import NineRouterClient
+
+    report = predictor.predict_split(args.data_dir, split=args.split, variant=args.variant,
+                                      llm=NineRouterClient(), model=args.model,
+                                      repo_manifest=args.manifest, allow_heldout=args.allow_heldout,
+                                      prompt_rounds=args.prompt_rounds, dev_review=args.dev_review,
+                                      quality_manifest=args.quality_manifest)
+    manifest.write_json(args.report_prefix.with_suffix(".json"), report)
+    args.report_prefix.with_suffix(".md").write_text(predictor.render_report(report), encoding="utf-8")
+    if args.quality_manifest is not None:
+        if report.get("quality_status") != "PASS":
+            print("predict BLOCKED: quality protocol gate is not PASS", file=sys.stderr)
+            return 2
+        print(f"quality report {report['quality_report_schema']} PASS")
+        return 0
+    p3_gate = report.get("p3_classifier_gate") or {}
+    if (report.get("status") != "OBSERVED" or report.get("evaluation_gate") != "PASS"
+            or (args.split == "dev" and p3_gate.get("status") != "PASS")):
+        reason = report.get("evaluation_gate", "unknown gate")
+        if reason == "PASS" and p3_gate.get("status") != "PASS":
+            reason = "P3_CLASSIFIER_GATE_" + str(p3_gate.get("status", "UNKNOWN"))
+        print(f"predict BLOCKED: {reason}", file=sys.stderr)
+        return 2
+    print(f"predict {args.variant}/{args.split}: {report['n_pred']} relations, {report['prompt_version']}")
+    return 0
+
+
+def _recall_diagnostic(args: argparse.Namespace) -> int:
+    from evals.contract_graph.pairs import recall_diagnostic
+
+    try:
+        report = recall_diagnostic.diagnose_snapshots(
+            args.snapshot_dir,
+            data_dir=args.data_dir,
+            repo_manifest=args.manifest,
+            variants=args.variants,
+            trials=args.trials,
+        )
+        paths = recall_diagnostic.write_report(report, args.report_prefix)
+    except (OSError, ValueError, KeyError, SystemExit):
+        print("recall-diagnostic BLOCKED: frozen inputs or snapshots are invalid", file=sys.stderr)
+        return 2
+    print(f"recall-diagnostic: {paths[0]} {paths[1]}")
+    return 0
+
+
+def _sources(path: Path) -> list[dict]:
+    return manifest.read_json(path)["sources"]
+
+
+def _raw_cache(data_dir: Path) -> Path:
+    return Path(data_dir) / "cache" / "raw"
+
+
+def _fetch(args: argparse.Namespace) -> int:
+    sources = _sources(args.sources)
+    failed = []
+    for source in sources:
+        try:
+            fetch_cached(source["url"], _raw_cache(args.data_dir))
+        except (OSError, ValueError) as exc:
+            failed.append(source["url"])
+            print(f"fetch failed: {source['url']}: {type(exc).__name__}: {exc}", file=sys.stderr)
+    print(f"cached {len(sources) - len(failed)}/{len(sources)} sources")
+    return 1 if failed else 0
+
+
+def _build(args: argparse.Namespace) -> int:
+    docs_dir = manifest.work(args.data_dir, "docs")
+    if docs_dir.exists():
+        shutil.rmtree(docs_dir)
+    usable, rejected, failed = [], [], []
+    for source in _sources(args.sources):
+        try:
+            text, tail = corpus.fetch(source, _raw_cache(args.data_dir), offline=True)
+            doc = corpus.build_doc(source, text)
+        except corpus.RejectedDocument as exc:
+            rejected.append({"url": source["url"], "profile": source["profile"],
+                             "n_articles": exc.n_articles})
+            continue
+        except (CacheMiss, OSError, ValueError) as exc:
+            failed.append({"url": source["url"], "profile": source["profile"],
+                           "error": type(exc).__name__})
+            continue
+        doc["contaminated"] = corpus.contaminated(doc)
+        manifest.write_json(docs_dir / f"{doc['doc_id']}.json", doc)
+        usable.append({"doc_id": doc["doc_id"], "url": doc["url"], "profile": doc["profile"],
+                       "n_articles": doc["n_articles"], "n_nodes": len(doc["nodes"]),
+                       "has_annex": doc["has_annex"], "contaminated": doc["contaminated"],
+                       "tail_boundary": tail.boundary, "tail_trimmed_chars": tail.trimmed_chars})
+    manifest.write_json(manifest.work(args.data_dir, "build.json"),
+                        {"usable": usable, "rejected_segmentation": rejected, "failed": failed})
+    by_profile = Counter(d["profile"] for d in usable)
+    tails = _tail_counts(usable)
+    print(f"usable {len(usable)} {dict(sorted(by_profile.items()))}; "
+          f"rejected_segmentation {len(rejected)}; failed {len(failed)}; "
+          f"tail_trimmed {tails['tail_trimmed']} ({tails['tail_trimmed_chars']} chars); "
+          f"tail_untrimmed {tails['tail_untrimmed']}")
+    return 0
+
+
+def _tail_counts(usable: list[dict]) -> dict:
+    """Web sources cut (``tail_trimmed``) and web sources with no reliable boundary, kept whole
+    (``tail_untrimmed``); docx sources are in neither."""
+
+    return {
+        "tail_trimmed": sum(1 for u in usable if u["tail_trimmed_chars"] > 0),
+        "tail_untrimmed": sum(1 for u in usable if u["tail_boundary"] is None),
+        "tail_trimmed_chars": sum(u["tail_trimmed_chars"] for u in usable),
+        "tail_by_boundary": _count(str(u["tail_boundary"]) for u in usable),
+    }
+
+
+def _docs(data_dir: Path) -> list[dict]:
+    return [manifest.read_json(p) for p in sorted(manifest.work(data_dir, "docs").glob("*.json"))]
+
+
+def _cluster(args: argparse.Namespace) -> int:
+    clusters = corpus.near_duplicate_clusters(_docs(args.data_dir))
+    manifest.write_json(manifest.work(args.data_dir, "clusters.json"), clusters)
+    multi = [c for c in clusters if len(c["doc_ids"]) > 1]
+    print(f"{len(clusters)} clusters; near-duplicate clusters {len(multi)} "
+          f"({sum(len(c['doc_ids']) for c in multi)} docs)")
+    return 0
+
+
+def _pool(args: argparse.Namespace) -> int:
+    pools_dir = manifest.work(args.data_dir, "pools")
+    if pools_dir.exists():
+        shutil.rmtree(pools_dir)
+    stats, everything = {}, []
+    for doc in _docs(args.data_dir):
+        records, stats[doc["doc_id"]] = pool.build_pool(doc)
+        manifest.write_jsonl(pools_dir / f"{doc['doc_id']}.jsonl", records)
+        everything.extend(records)
+    manifest.write_json(manifest.work(args.data_dir, "pool_stats.json"), stats)
+    by_stratum = Counter(r["stratum"] for r in everything)
+    print(f"pairs {len(everything)} {dict(sorted(by_stratum.items()))}; excluded_luong1 "
+          f"{sum(s['excluded_luong1'] for s in stats.values())}")
+    print(f"pool_sha256 {pool.pool_digest(everything)}")
+    return 0
+
+
+def _label(args: argparse.Namespace) -> int:
+    config = labeler.load_config(args.env_file)
+    client = labeler.OpenAICompatClient(config)
+    cache_dir = Path(args.data_dir) / "cache" / "labeler"
+    errors = labeled = 0
+    for doc in _docs(args.data_dir):
+        records = manifest.read_jsonl(manifest.work(args.data_dir, "pools",
+                                                    f"{doc['doc_id']}.jsonl"))
+        nodes = {n["node_id"]: n for n in doc["nodes"]}
+
+        def one(pair: dict) -> dict | None:
+            try:
+                return labeler.label_pair(pair, nodes[pair["a"]], nodes[pair["b"]],
+                                          client=client, model=config.model, cache_dir=cache_dir)
+            except labeler.LabelerCallError as exc:
+                print(f"label failed: {pair['pair_id']}: {exc}", file=sys.stderr)
+                return None
+
+        with ThreadPoolExecutor(max_workers=max(1, args.workers)) as executor:
+            results = list(executor.map(one, records))
+        out = sorted((r for r in results if r is not None), key=lambda r: r["pair_id"])
+        errors += len(records) - len(out)
+        labeled += len(out)
+        manifest.write_jsonl(manifest.work(args.data_dir, "labels", f"{doc['doc_id']}.jsonl"), out)
+        print(f"{doc['doc_id']}: {len(out)}/{len(records)} labeled")
+    print(f"labeled {labeled}; call errors {errors}")
+    return 1 if errors else 0
+
+
+def _summary(args: argparse.Namespace) -> int:
+    report = build_summary(args.data_dir, args.sources)
+    prefix = Path(args.report_prefix)
+    manifest.write_json(prefix.with_suffix(".json"), report)
+    prefix.with_suffix(".md").parent.mkdir(parents=True, exist_ok=True)
+    with open(prefix.with_suffix(".md"), "w", encoding="utf-8", newline=NL) as fh:
+        fh.write(render_summary(report))
+    est = report["hg1_estimate"]
+    print(f"HG-1 rows (before S4): {est['total_rows']} / cap {est['row_cap']}; "
+          f"floors met: {report['floors']['met']}")
+    if est["over_cap"]:
+        print("HG-1 estimate over the 380-row cap: stop before freeze and ask the user",
+              file=sys.stderr)
+        return 1
+    return 0
+
+
+def build_summary(data_dir: Path, sources_path: Path) -> dict:
+    stage = manifest.load_stage(data_dir)
+    docs, pools, labels = stage["docs"], stage["pools"], stage["labels"]
+    build = manifest.read_json(manifest.work(data_dir, "build.json"))
+    stats = manifest.read_json(manifest.work(data_dir, "pool_stats.json"))
+    sources = _sources(sources_path)
+    built = {u["doc_id"]: u for u in build["usable"]}
+    contaminated = {d for d, doc in docs.items() if doc.get("contaminated")}
+    splits, split_stats = manifest.assign_splits(
+        stage["clusters"], contaminated, {d: doc["url"] for d, doc in docs.items()}
+    )
+    cluster_of = {d: c["cluster_id"] for c in stage["clusters"] for d in c["doc_ids"]}
+    multi = [c for c in stage["clusters"] if len(c["doc_ids"]) > 1]
+    all_pool = [r for d in sorted(pools) for r in pools[d]]
+    all_labels = [r for d in sorted(labels) for r in labels[d]]
+    stratum_of = {r["pair_id"]: r["stratum"] for r in all_pool}
+    split_of = {r["pair_id"]: splits[r["doc_id"]] for r in all_pool}
+    valid = [r for r in all_labels if not r.get("label_invalid")]
+    needs_span = [r for r in valid if r["label"] != labeler.UNRELATED]
+    by_profile = Counter(doc["profile"] for doc in docs.values())
+    by_split = Counter(splits.values())
+    floors_met = (
+        len(docs) >= USABLE_MIN
+        and all(by_profile[p] >= PROFILE_MIN for p in corpus.PROFILES)
+        and by_split["heldout"] >= HELDOUT_MIN
+        and by_split["dev"] >= DEV_MIN
+        and not any(splits[d] == "heldout" for d in contaminated)
+    )
+    return {
+        "schema": "contract-graph-pairs-summary/1",
+        "ground_truth": manifest.GROUND_TRUTH,
+        "sources": {
+            "listed": len(sources),
+            "listed_by_profile": _count(s["profile"] for s in sources),
+            "usable": len(docs),
+            "rejected_segmentation": len(build["rejected_segmentation"]),
+            "rejected_segmentation_detail": [
+                {"url": r["url"], "n_articles": r["n_articles"]}
+                for r in build["rejected_segmentation"]
+            ],
+            "failed": len(build["failed"]),
+            **_tail_counts(build["usable"]),
+        },
+        "floors": {"usable_min": USABLE_MIN, "per_profile_min": PROFILE_MIN,
+                   "heldout_min": HELDOUT_MIN, "dev_min": DEV_MIN, "met": floors_met},
+        "docs": {
+            "by_profile": _count(doc["profile"] for doc in docs.values()),
+            "by_split": _count(splits.values()),
+            "by_profile_split": _count(f"{doc['profile']}/{splits[d]}" for d, doc in docs.items()),
+            "with_annex": sum(1 for doc in docs.values() if doc["has_annex"]),
+        },
+        "clusters": {
+            "n": len(stage["clusters"]),
+            "near_duplicate_clusters": len(multi),
+            "docs_in_near_duplicate_clusters": sum(len(c["doc_ids"]) for c in multi),
+            "by_split": _count(splits[c["doc_ids"][0]] for c in stage["clusters"]),
+        },
+        "split_stats": split_stats,
+        "contaminated_docs": len(contaminated),
+        "forced_dev_contaminated": split_stats["forced_dev_contaminated"],
+        "contaminated_in_heldout": sum(1 for d in contaminated if splits[d] == "heldout"),
+        "pairs": {
+            "total": len(all_pool),
+            "by_stratum": _count(r["stratum"] for r in all_pool),
+            "by_split_stratum": _count(f"{split_of[r['pair_id']]}/{r['stratum']}"
+                                       for r in all_pool),
+            "universe_by_stratum": {
+                s: sum(v[f"{s}_universe"] for v in stats.values()) for s in pool.STRATA
+            },
+        },
+        "excluded_luong1": sum(v["excluded_luong1"] for v in stats.values()),
+        "pool_sha256": pool.pool_digest(all_pool),
+        "labels": {
+            "labeled": len(all_labels),
+            "unlabeled": len(all_pool) - len(all_labels),
+            "by_split_label": _count(f"{split_of[r['pair_id']]}/{r['label']}" for r in valid),
+            "by_stratum_label": _count(f"{stratum_of[r['pair_id']]}/{r['label']}"
+                                       for r in valid),
+            "label_invalid": rate(len(all_labels) - len(valid), len(all_labels)),
+            "label_invalid_by_reason": _count(r["invalid_reason"] for r in all_labels
+                                              if r.get("label_invalid")),
+            "grounded_false": rate(sum(1 for r in needs_span if not r["grounded"]),
+                                   len(needs_span)),
+            "grounded_false_scope": "nhãn hợp lệ ≠ UNRELATED (span bắt buộc)",
+        },
+        "labeler": manifest.labeler_block(all_labels),
+        "hg1_estimate": pool.estimate_review_rows(all_pool, all_labels),
+        "per_doc": [
+            {
+                "doc_id": d,
+                "profile": doc["profile"],
+                "split": splits[d],
+                "cluster_id": cluster_of[d],
+                "n_articles": doc["n_articles"],
+                "n_nodes": len(doc["nodes"]),
+                "has_annex": doc["has_annex"],
+                "tail_trimmed_chars": built[d]["tail_trimmed_chars"],
+                "contaminated": d in contaminated,
+                "pairs_by_stratum": _count(r["stratum"] for r in pools[d]),
+                "labels_by_label": _count(r["label"] for r in labels[d]
+                                          if not r.get("label_invalid")),
+            }
+            for d, doc in sorted(docs.items())
+        ],
+    }
+
+
+def _count(values) -> dict:
+    return dict(sorted(Counter(values).items()))
+
+
+def render_summary(report: dict) -> str:
+    src, docs, cl, pairs, lab = (report["sources"], report["docs"], report["clusters"],
+                                 report["pairs"], report["labels"])
+    est, model = report["hg1_estimate"], report["labeler"]
+    lines = [
+        "# Contract graph luồng 2 — P1 bộ nhãn cặp",
+        "",
+        f"- Ground truth: `{report['ground_truth']}` — nhãn GPT chưa duyệt, không phải độ chính "
+        "xác nghiệp vụ.",
+        f"- Người gán nhãn: yêu cầu `{model['requested_model']}`, phục vụ "
+        f"`{model['served_model']}`, họ `{model['family']}`, prompt `{model['prompt_version']}`.",
+        f"- Pool sha256: `{report['pool_sha256']}`",
+        "",
+        "## Nguồn và văn bản",
+        "",
+        f"- Nguồn liệt kê {src['listed']} {src['listed_by_profile']}; dùng được {src['usable']}; "
+        f"loại do tách < 5 Điều {src['rejected_segmentation']}; lỗi tải/đọc {src['failed']}.",
+        f"- Cắt đuôi trang web: `tail_trimmed` {src['tail_trimmed']} "
+        f"({src['tail_trimmed_chars']} ký tự), `tail_untrimmed` {src['tail_untrimmed']} "
+        f"(không có ranh giới tin cậy, giữ nguyên); theo ranh giới {src['tail_by_boundary']}.",
+        f"- Theo profile: {docs['by_profile']}; theo split: {docs['by_split']}; "
+        f"profile/split: {docs['by_profile_split']}; có Phụ lục: {docs['with_annex']}.",
+        f"- Ngưỡng (≥{report['floors']['usable_min']} dùng được, ≥"
+        f"{report['floors']['per_profile_min']}/profile, held-out ≥"
+        f"{report['floors']['heldout_min']}, dev ≥{report['floors']['dev_min']}, không nhiễm bẩn "
+        f"trong held-out): **{'đạt' if report['floors']['met'] else 'KHÔNG đạt'}**.",
+        "",
+        "## Cụm và nhiễm bẩn (RT-13)",
+        "",
+        f"- Cụm: {cl['n']} (held-out/dev: {cl['by_split']}); cụm gần trùng "
+        f"{cl['near_duplicate_clusters']} gồm {cl['docs_in_near_duplicate_clusters']} văn bản.",
+        f"- Văn bản nhiễm bẩn: {report['contaminated_docs']}; ép dev "
+        f"(`forced_dev_contaminated`): {report['forced_dev_contaminated']}; nhiễm bẩn trong "
+        f"held-out: {report['contaminated_in_heldout']}.",
+        "",
+        "## Pool (D17)",
+        "",
+        f"- Cặp: {pairs['total']} — theo tầng {pairs['by_stratum']}; split/tầng "
+        f"{pairs['by_split_stratum']}; vũ trụ trước trần/mẫu {pairs['universe_by_stratum']}.",
+        f"- `excluded_luong1`: {report['excluded_luong1']}.",
+        "",
+        "## Nhãn GPT",
+        "",
+        f"- Đã gán {lab['labeled']}, chưa gán (lỗi gọi) {lab['unlabeled']}.",
+        f"- Split/nhãn: {lab['by_split_label']}",
+        f"- Tầng/nhãn: {lab['by_stratum_label']}",
+        f"- `label_invalid`: {_fmt(lab['label_invalid'])} {lab['label_invalid_by_reason']}",
+        f"- `grounded=false` ({lab['grounded_false_scope']}): {_fmt(lab['grounded_false'])}",
+        "",
+        "## Ước số dòng HG-1 (D18, chưa gồm S4 — P2 cập nhật)",
+        "",
+        "| nhãn | GPT | chọn |",
+        "| --- | --- | --- |",
+    ]
+    for label, row in est["by_label"].items():
+        lines.append(f"| {label} | {row['gpt_positive']} | {row['selected']} |")
+    lines += [
+        f"| UNRELATED | {est['unrelated']['gpt_unrelated']} | {est['unrelated']['selected']} "
+        f"{est['unrelated']['by_stratum']} |",
+        "",
+        f"- Tổng: **{est['total_rows']}** / trần {est['row_cap']}.",
+        "",
+        "## Theo văn bản",
+        "",
+        "| doc_id | profile | split | cluster | Điều | node | phụ lục | cắt đuôi | cặp theo tầng "
+        "| nhãn |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for d in report["per_doc"]:
+        lines.append(
+            f"| {d['doc_id']} | {d['profile']} | {d['split']} | {d['cluster_id']} | "
+            f"{d['n_articles']} | {d['n_nodes']} | {'có' if d['has_annex'] else '—'} | "
+            f"{d['tail_trimmed_chars']} | "
+            f"{d['pairs_by_stratum']} | {d['labels_by_label']} |"
+        )
+    return NL.join(lines) + NL
+
+
+def _fmt(r: dict) -> str:
+    if not r["denominator"]:
+        return "0/0"
+    lo, hi = r["wilson95"]
+    return f"{r['passed']}/{r['denominator']} ({r['rate']:.3f}; Wilson95 {lo:.3f}–{hi:.3f})"
+
+
+def _freeze(args: argparse.Namespace) -> int:
+    frozen = manifest.freeze(args.data_dir, args.manifest)
+    print(f"froze {len(frozen['docs'])} docs ({_count(d['split'] for d in frozen['docs'])}) "
+          f"-> {args.manifest}")
+    return 0
+
+
+def _verify(args: argparse.Namespace) -> int:
+    problems = manifest.verify(args.data_dir, args.manifest)
+    for problem in problems:
+        print(problem, file=sys.stderr)
+    if problems:
+        return 2
+    print(f"verify ok: {args.manifest}")
+    return 0
+
+
+# -- P2 ----------------------------------------------------------------------------------------
+
+
+def _write_report(prefix: Path, report: dict) -> None:
+    manifest.write_json(Path(prefix).with_suffix(".json"), report)
+    with open(Path(prefix).with_suffix(".md"), "w", encoding="utf-8", newline=NL) as fh:
+        fh.write(render_candidates(report))
+
+
+def _candidates(args: argparse.Namespace) -> int:
+    from evals.contract_graph.pairs import candidate_eval as ce
+
+    report = ce.measure_dev(manifest.read_split(args.data_dir, "dev", args.manifest))
+    prior_path = Path(args.report_prefix).with_suffix(".json")
+    prior = manifest.read_json(prior_path) if prior_path.is_file() else {}
+    frozen = manifest.read_json(args.manifest)
+    extension = frozen.get("extension_s4") or {}
+    locked_review = frozen.get("review_selection") or {}
+    s4 = prior.get("s4") or ({k: extension[k] for k in
+                               ("n_pairs", "labels_by_label", "labeler", "top_k", "candidates_version")
+                               if k in extension} if extension else None)
+    review = prior.get("review") or ({k: locked_review[k] for k in ("n_rows", "by_stratum", "by_label")
+                                      if k in locked_review} if locked_review else None)
+    passed_at_k = {int(k): v["passed"] for k, v in report["recall_at_k"].items()}
+    rule_k, reason = ce.choose_top_k(passed_at_k, report["recall_full"]["passed"])
+    chosen = rule_k
+    if args.keep_default_k:
+        chosen = ce.PAIRS_TOP_K
+        reason = (f"quy tắc cho K={rule_k} ({reason}); người dùng giữ {ce.PAIRS_TOP_K}: "
+                  f"{args.keep_default_k}")
+    report.update({
+        "candidates_version": ce.CANDIDATES_VERSION,
+        "pairs_top_k": ce.PAIRS_TOP_K,
+        "pairs_top_k_rule": rule_k,
+        "pairs_top_k_chosen": chosen,
+        "k_choice_reason": reason,
+        "tuning_rounds": args.tuning_rounds,
+        "s4": s4,
+        "review": review,
+        "engineering_target": ce.assess_engineering_target(report),
+    })
+    _write_report(args.report_prefix, report)
+    print(f"dev recall {report['recall_full']['passed']}/{report['recall_full']['denominator']}; "
+          f"K chosen {chosen} ({reason}); code PAIRS_TOP_K {ce.PAIRS_TOP_K}")
+    if chosen != ce.PAIRS_TOP_K:
+        print(f"set PAIRS_TOP_K = {chosen} in pair_candidates.py and rerun before extend-heldout",
+              file=sys.stderr)
+        return 1
+    return 0
+
+
+def _extend_heldout(args: argparse.Namespace) -> int:
+    from evals.contract_graph.pairs import candidate_eval as ce
+
+    report_path = Path(args.report_prefix).with_suffix(".json")
+    block = ce.extend_heldout(args.data_dir, args.manifest, report_path,
+                              label_fn=ce.production_label_fn(args.data_dir, args.env_file))
+    report = manifest.read_json(report_path)
+    report["s4"] = {k: block[k] for k in ("n_pairs", "labels_by_label", "labeler", "top_k",
+                                          "candidates_version")}
+    report["review"] = None
+    _write_report(args.report_prefix, report)
+    print(f"S4 pairs {block['n_pairs']} {block['labels_by_label']}")
+    return 0
+
+
+def _review_select(args: argparse.Namespace) -> int:
+    from evals.contract_graph.pairs import candidate_eval as ce
+
+    block = ce.review_select(args.data_dir, args.manifest)
+    report_path = Path(args.report_prefix).with_suffix(".json")
+    report = manifest.read_json(report_path)
+    report["review"] = {k: block[k] for k in ("n_rows", "by_stratum", "by_label")}
+    _write_report(args.report_prefix, report)
+    print(f"HG-1 rows {block['n_rows']} {block['by_label']} {block['by_stratum']}; "
+          "commit manifest.json before review-export")
+    return 0
+
+
+def _review_export(args: argparse.Namespace) -> int:
+    from evals.contract_graph.pairs import candidate_eval as ce
+
+    rows = ce.review_export(args.data_dir, args.manifest)
+    print(f"HG-1 sheet: {Path(args.data_dir) / ce.REVIEW_DIR / ce.SHEET} ({rows} rows)")
+    return 0
+
+
+def render_candidates(report: dict) -> str:
+    lines = [
+        "# Contract graph luồng 2 — P2 ứng viên cặp cấu trúc",
+        "",
+        f"- Ground truth: `{report['ground_truth']}` — nhãn GPT chưa duyệt; recall là độ phủ "
+        "nhãn GPT-positive của dev, không phải độ chính xác nghiệp vụ.",
+        f"- `CANDIDATES_VERSION` `{report['candidates_version']}`, `PAIRS_TOP_K` "
+        f"{report['pairs_top_k']} (chọn {report['pairs_top_k_chosen']}: {report['k_choice_reason']}); "
+        f"vòng chỉnh lexicon/cụm trên dev: {report['tuning_rounds']}.",
+        f"- Văn bản dev: {report['n_docs']}; ứng viên/hồ sơ (không cắt) "
+        f"{report['candidates_per_doc']}.",
+        f"- Recall không cắt: {_fmt(report['recall_full'])}",
+        f"- Loại trừ: {report['stats_total']}",
+        "",
+        "## Theo nguồn (riêng / chỉ nguồn đó tìm được)",
+        "",
+        "| nguồn | recall | biên |",
+        "| --- | --- | --- |",
+    ]
+    for source, value in report["by_source"].items():
+        lines.append(f"| {source} | {_fmt(value)} | {_fmt(report['by_source_marginal'][source])} |")
+    lines += ["", "## Recall@K", "", "| K | recall |", "| --- | --- |"]
+    lines += [f"| {k} | {_fmt(v)} |" for k, v in report["recall_at_k"].items()]
+    lines += ["", "## Theo tầng P1", "", "| tầng | recall |", "| --- | --- |"]
+    lines += [f"| {s} | {_fmt(v)} |" for s, v in report["by_stratum"].items()]
+    lines += ["", "## Theo nhãn GPT", "", "| nhãn | recall |", "| --- | --- |"]
+    lines += [f"| {lab} | {_fmt(v)} |" for lab, v in report["by_label"].items()]
+    target = report.get("engineering_target")
+    if target:
+        lines += ["", "## Engineering target va quyet dinh", "",
+                  f"- Muc tieu theo label: >= {target['target_rate']:.2f} tren dev.",
+                  f"- Ket qua: **{'dat' if target['met'] else 'chua dat'}**.",
+                  f"- Quyet dinh: `{target['decision']['status']}`; ly do `{', '.join(target['decision']['reason_codes']) or 'none'}`.",
+                  "", "| label | covered | denominator | required | gap | target |",
+                  "| --- | ---: | ---: | ---: | ---: | --- |"]
+        lines += [f"| {lab} | {cell['passed']} | {cell['denominator']} | {cell['required_for_target']} | "
+                  f"{cell['gap']} | {'yes' if cell['target_met'] else 'no'} |"
+                  for lab, cell in target["by_label"].items()]
+    lines += ["", "## Held-out S4 và phiếu HG-1", ""]
+    s4, rv = report.get("s4"), report.get("review")
+    lines.append(f"- S4 (B ∪ C − pool): {s4['n_pairs']} cặp, nhãn {s4['labels_by_label']}."
+                 if s4 else "- S4: chưa sinh.")
+    lines.append(f"- Phiếu HG-1: {rv['n_rows']} dòng, theo nhãn {rv['by_label']}, theo tầng "
+                 f"{rv['by_stratum']}." if rv else "- Phiếu HG-1: chưa chọn mẫu.")
+    lines += ["", "## Theo văn bản", "", "| doc_id | gold | phủ | ứng viên |",
+              "| --- | --- | --- | --- |"]
+    lines += [f"| {d['doc_id']} | {d['gold']} | {d['covered']} | {d['candidates']} |"
+              for d in report["per_doc"]]
+    return NL.join(lines) + NL
+
+
+if __name__ == "__main__":
+    sys.exit(main())

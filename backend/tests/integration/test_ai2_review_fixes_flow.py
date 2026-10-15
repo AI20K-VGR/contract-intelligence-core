@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import json
 from collections.abc import AsyncGenerator
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -230,6 +231,9 @@ async def _seed_dossier(factory: async_sessionmaker[AsyncSession]) -> None:
                     dossier_id=DOSSIER_ID,
                     status="running",
                     pipeline_version="test-v1",
+                    # This shared fixture exercises the legacy query lane. Tests
+                    # for pending semantic runs explicitly clear this pin.
+                    config_snapshot=json.dumps({"semantic_profile": None}),
                 ),
                 DocumentORM(
                     id=BODY_DOCUMENT_ID,

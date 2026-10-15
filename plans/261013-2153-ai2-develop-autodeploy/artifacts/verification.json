@@ -1,0 +1,35 @@
+{
+  "stage": "cook",
+  "plan": "261013-2153-ai2-develop-autodeploy",
+  "checks": [
+    {
+      "name": "deploy_unit_tests",
+      "status": "PASS"
+    },
+    {
+      "name": "preflight_ci",
+      "status": "PASS"
+    },
+    {
+      "name": "final_sha_required_ci",
+      "status": "PASS"
+    },
+    {
+      "name": "production_environment_branch_policy",
+      "status": "BLOCKED"
+    },
+    {
+      "name": "develop_required_ci_status_checks",
+      "status": "BLOCKED"
+    },
+    {
+      "name": "production_deploy_external_smoke",
+      "status": "BLOCKED"
+    }
+  ],
+  "verdict": "BLOCKED",
+  "phase": "P5",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-13T23:00:09+00:00",
+  "run_seq": null
+}
