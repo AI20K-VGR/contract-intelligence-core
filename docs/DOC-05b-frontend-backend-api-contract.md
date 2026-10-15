@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu | **DOC-05b** / Contract Intelligence (PROD-01) |
-| Phiên bản / SemVer | **`v3.0.0`** — siết quyền trước pentest (#96): token không có role ứng dụng trả `403` thay vì thành `OPERATOR`; `/ai/jobs/{id}` chỉ `ADMINISTRATOR`; batch cancel/resume chỉ người tạo hoặc `ADMINISTRATOR`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
+| Phiên bản / SemVer | **`v3.1.0`** — bật consent AI2 tự reindex hồ sơ, response thêm `ai2_reindex_queued`. **`v3.0.0`** — siết quyền trước pentest (#96): token không có role ứng dụng trả `403` thay vì thành `OPERATOR`; `/ai/jobs/{id}` chỉ `ADMINISTRATOR`; batch cancel/resume chỉ người tạo hoặc `ADMINISTRATOR`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
 | Trạng thái | Đã chốt — Sẵn sàng triển khai Frontend & Backend |
 | Owner | Tech Lead / Frontend Lead / Backend Lead |
 | Ngày hiệu lực | 17/09/2026 |
@@ -326,7 +326,7 @@ Theo dõi hành trình chạy của Pipeline AI qua 11 bước (S0..S10), xem lo
 | `GET` | `/dossiers/{id}/ai2/contract-graph/{graph_kind}` | quyền đọc trích dẫn (`CITATION_READ`) | **v2.1.0.** Trang các cạnh đồ thị hợp đồng AI2. `graph_kind` là `operation` hoặc `pair`. Query bắt buộc `job_id`, `snapshot_digest`; tuỳ chọn `cursor` (≤ 2048 ký tự), `limit` (1–100, mặc định 50). Trả `status`, `edges[]`, `total_count`, `has_more`, `next_cursor` |
 | `GET` | `/dossiers/{id}/ai2/contract-graph/{graph_kind}/evidence` | `CITATION_READ` | **v2.1.0.** Bằng chứng (trích dẫn) cho một nút của đồ thị. Query bắt buộc `job_id`, `snapshot_digest`, `node_id`, `citation_ref` |
 | `GET` | `/dossiers/{id}/ai2/processing-trace` | `CITATION_READ` | **v2.1.0.** Vết xử lý của AI2 cho một lần chạy. Query bắt buộc `job_id`, `snapshot_digest`. Trả `{job_id, ...trace}` |
-| `PATCH` | `/dossiers/{id}/ai2-content-sharing-consent` | chủ hồ sơ hoặc `ADMINISTRATOR` (`DOSSIER_MANAGE`) | **v2.1.0.** Bật/tắt việc gửi nội dung hồ sơ ra LLM bên ngoài. Body `{"enabled": true\|false}` (`StrictBool`, chuỗi `"true"` bị `422`). Trả `{dossier_id, enabled, effective_from: "next_request"}`. Có audit `ai2.content_sharing_consent_changed` |
+| `PATCH` | `/dossiers/{id}/ai2-content-sharing-consent` | chủ hồ sơ hoặc `ADMINISTRATOR` (`DOSSIER_MANAGE`) | **v2.1.0.** Bật/tắt việc gửi nội dung hồ sơ ra LLM bên ngoài. Body `{"enabled": true\|false}` (`StrictBool`, chuỗi `"true"` bị `422`). Trả `{dossier_id, enabled, effective_from: "next_request", ai2_reindex_queued}`. Có audit `ai2.content_sharing_consent_changed`. **v3.1.0:** bật consent (từ chưa bật sang `true`) khi lượt chạy cuối đã qua AI2 (`pending_review`/`reviewed`/`approved`) thì backend tự cho AI2 dựng lại hồ sơ, như `POST /dossiers/{id}/ai2/reindex`; `ai2_reindex_queued: true` |
 
 - **Chạy lại OCR lỗi (v1.1.0):** response `202`:
   ```json
@@ -515,7 +515,7 @@ Ba `GET` đọc kết quả AI2 qua Backend; frontend không gọi AI2 trực ti
 | `AI2_TRACE_UNAVAILABLE` | 503 | AI2 không trả được vết xử lý |
 | `AI2_GRAPH_CURSOR_UNAVAILABLE` | 503 | Backend thiếu khoá ký con trỏ (`AI2_SERVICE_HMAC_SECRET`) |
 
-- **Consent (`PATCH .../ai2-content-sharing-consent`).** Giá trị nằm ở `metadata.ai2_content_sharing_consent` của hồ sơ; frontend đọc `detail.metadata.ai2_content_sharing_consent === true`. Hồ sơ mới nhận mặc định của server (bản online: bật), có audit `ai2.content_sharing_consent_default_applied`. `PATCH /dossiers/{id}` thường **bỏ qua** khoá này, nên người chỉ có quyền sửa không tự bật được. Tắt consent thì lần xử lý và lần hỏi kế tiếp không gọi LLM ngoài (xem DEC-BE-AI2-01 D6). Lỗi: `404` (không có hồ sơ hoặc đã xoá), `403` (không đủ `DOSSIER_MANAGE`), `422` (body không phải boolean thật).
+- **Consent (`PATCH .../ai2-content-sharing-consent`).** Giá trị nằm ở `metadata.ai2_content_sharing_consent` của hồ sơ; frontend đọc `detail.metadata.ai2_content_sharing_consent === true`. Hồ sơ mới nhận mặc định của server (bản online: bật), có audit `ai2.content_sharing_consent_default_applied`. `PATCH /dossiers/{id}` thường **bỏ qua** khoá này, nên người chỉ có quyền sửa không tự bật được. Tắt consent thì lần xử lý và lần hỏi kế tiếp không gọi LLM ngoài (xem DEC-BE-AI2-01 D6). **Bật consent (v3.1.0)**: nếu lượt chạy cuối của hồ sơ đã qua AI2, backend gửi lại kết quả OCR đã lưu cho AI2 dựng lại (không OCR lại), có audit `ai2.reindex_on_consent`, và trả `ai2_reindex_queued: true`; kết quả mới (ví dụ đồ thị quan hệ điều khoản không còn `RULE_ONLY_NO_CONSENT`) có sau khi lượt đó xong, nên frontend nên báo "Đang chạy lại AI2" và tải lại khi run xong. `false` khi hồ sơ chưa qua AI2 (lượt đầu sẽ dùng consent mới), khi tắt consent, khi consent đã bật sẵn, hoặc khi không gửi được sự kiện (consent vẫn được lưu; dùng `POST /dossiers/{id}/ai2/reindex`). Lỗi: `404` (không có hồ sơ hoặc đã xoá), `403` (không đủ `DOSSIER_MANAGE`), `422` (body không phải boolean thật).
 
 ### Chia sẻ hồ sơ & hàng chờ thẩm định (v1.7.0)
 
@@ -916,6 +916,7 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
+| `v3.1.0` | 15/10/2026 | `PATCH /dossiers/{id}/ai2-content-sharing-consent`: bật consent khi lượt chạy cuối đã qua AI2 thì backend tự reindex AI2 (như `POST /dossiers/{id}/ai2/reindex`); response thêm `ai2_reindex_queued` (boolean). Trước đây bật consent chỉ lưu giá trị và kết quả cũ (`RULE_ONLY_NO_CONSENT`) vẫn hiển thị. Thêm trường và hành vi, không bỏ gì, nên là MINOR |
 | `v3.0.0` | 15/10/2026 | Siết quyền trước đợt pentest bản online (#96). **Breaking** theo §8 vì thu hẹp quyền đã công bố: (1) token không có role ứng dụng nào trả `403 FORBIDDEN` thay vì được coi là `OPERATOR` (§2.1); (2) `GET`/`DELETE /ai/jobs/{id}` chỉ `ADMINISTRATOR`, trước đây `OPERATOR`/`REVIEWER` cũng gọi được; (3) `POST /batches/{id}/cancel` và `/resume`: OPERATOR chỉ với batch do mình tạo, batch của người khác trả `404`. Không đổi payload hay mã lỗi: `401` chỉ còn `message` `Token has expired`/`Invalid token`; `502 AI2_QUERY_FAILED` của `/query`, `/ask` không còn kèm URL và nội dung lỗi của AI2. Staging/prod không phục vụ `/docs`, `/redoc`, `/openapi.json` và không gửi `X-Backend-Version`; `/health` chỉ trả `{"status":"ok"}` ở **mọi** môi trường (dev/test cũng không còn phiên bản). Frontend không dùng các endpoint và header này nên không phải sửa |
 | `v2.1.0` | 15/10/2026 | Thêm `GET /dossiers/{id}/ai2/contract-graph/{graph_kind}` (+ `/evidence`), `GET /dossiers/{id}/ai2/processing-trace` và `PATCH /dossiers/{id}/ai2-content-sharing-consent` (mục "Đồ thị hợp đồng, vết xử lý và consent AI2" ở §5), kèm các mã lỗi `AI2_SNAPSHOT_CHANGED`, `AI2_GRAPH_STALE`, `GRAPH_CURSOR_INVALID`, `GRAPH_CURSOR_STALE`, `CITATION_READ_REVOKED`, `AI2_GRAPH_UNAVAILABLE`, `AI2_GRAPH_EVIDENCE_UNAVAILABLE`, `AI2_TRACE_UNAVAILABLE`. `PATCH /dossiers/{id}` bỏ qua `metadata.ai2_content_sharing_consent`. Chỉ thêm endpoint và mã lỗi, nên là MINOR |
 | `v2.0.2` | 15/10/2026 | `GET /documents/{id}/content` (mục "Tải PDF theo khoảng" ở Màn hình 5): stream từ storage thay vì đọc cả file vào bộ nhớ; nhận một khoảng `Range` → `206` + `Content-Range`, khoảng ngoài file → `416`; `If-Range`; `ETag` = sha256 và `If-None-Match` → `304`; `Cache-Control: private, no-cache`; CORS cho đọc `Accept-Ranges`, `Content-Range`, `Content-Length`, `ETag`. Response `200` không đổi, chỉ thêm mã và header, nên là PATCH |
@@ -942,4 +943,4 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 
 ---
 
-**Hết DOC-05b · Frontend-Backend API Contract v3.0.0 (SemVer)**
+**Hết DOC-05b · Frontend-Backend API Contract v3.1.0 (SemVer)**
