@@ -1014,22 +1014,67 @@ paths:
     get:
       tags: [documents]
       summary: Tải về hoặc stream file PDF gốc của tài liệu từ Object Storage
+      description: |
+        File đi thẳng từ Object Storage ra theo từng khúc, không nạp cả file vào bộ nhớ (DOC-05b v2.0.2).
+        Quyền xem hồ sơ được kiểm trước mọi trường hợp dưới đây, kể cả `304`.
+        - **Range:** một khoảng `bytes=a-b`, `bytes=a-` hoặc `bytes=-n` → `206` kèm `Content-Range`.
+          Nhiều khoảng hoặc header sai → bỏ qua, trả cả file `200`. Khoảng nằm ngoài file → `416`.
+        - **If-Range:** khác `ETag` hiện tại → bỏ qua `Range`, trả cả file `200`.
+        - **If-None-Match:** khớp `ETag` → `304`, không đọc storage.
+        - `ETag` là sha256 của file. `Cache-Control: private, no-cache`: CDN không giữ, trình duyệt dùng lại sau khi hỏi lại server.
+        - CORS cho đọc `Accept-Ranges`, `Content-Range`, `Content-Length`, `ETag` từ origin khác.
       operationId: getDocumentContent
       x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      parameters:
+        - name: Range
+          in: header
+          required: false
+          schema: { type: string, example: 'bytes=0-65535' }
+        - name: If-Range
+          in: header
+          required: false
+          schema: { type: string }
+        - name: If-None-Match
+          in: header
+          required: false
+          schema: { type: string }
       responses:
         '200':
-          description: Binary PDF stream
+          description: Binary PDF stream, cả file
+          headers:
+            Accept-Ranges: { schema: { type: string, enum: [bytes] } }
+            ETag: { schema: { type: string }, description: 'sha256 của file, trong dấu ngoặc kép' }
+            Cache-Control: { schema: { type: string, example: 'private, no-cache' } }
+            Content-Length: { schema: { type: integer } }
           content:
             application/pdf:
               schema:
                 type: string
                 format: binary
+        '206':
+          description: Một khoảng byte của file
+          headers:
+            Content-Range: { schema: { type: string, example: 'bytes 0-65535/48211375' } }
+            Accept-Ranges: { schema: { type: string, enum: [bytes] } }
+            ETag: { schema: { type: string } }
+            Content-Length: { schema: { type: integer } }
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '304':
+          description: '`If-None-Match` khớp `ETag`: bản trình duyệt đang giữ vẫn đúng, không có body'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '416':
+          description: Khoảng byte nằm ngoài file; không có body
+          headers:
+            Content-Range: { schema: { type: string, example: 'bytes */48211375' } }
 
   /documents/{document_id}/re-ocr:
     parameters:

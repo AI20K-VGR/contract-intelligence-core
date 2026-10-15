@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu | **DOC-05b** / Contract Intelligence (PROD-01) |
-| Phiên bản / SemVer | **`v2.0.1`** — ghi giới hạn dung lượng tải hồ sơ: 50 MiB mỗi file (backend), 100 MB mỗi request trên bản online (Cloudflare). Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
+| Phiên bản / SemVer | **`v2.0.2`** — `GET /documents/{id}/content` stream từ storage, nhận `Range` (`206`/`416`) và `If-None-Match` (`304`), có `ETag`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
 | Trạng thái | Đã chốt — Sẵn sàng triển khai Frontend & Backend |
 | Owner | Tech Lead / Frontend Lead / Backend Lead |
 | Ngày hiệu lực | 17/09/2026 |
@@ -344,13 +344,28 @@ Giao diện xem văn bản trực quan chia đôi màn hình: Bên trái là câ
 | Phương thức | Endpoint | Phân quyền `x-rbac` | Chức năng |
 |:---:|---|:---:|---|
 | `GET` | `/documents/{id}` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Lấy chi tiết thông tin file, tổng số trang, ngôn ngữ |
-| `GET` | `/documents/{id}/content` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Tải về hoặc stream nhị phân file PDF gốc (`application/pdf`) |
+| `GET` | `/documents/{id}/content` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Tải về hoặc stream nhị phân file PDF gốc (`application/pdf`). **v2.0.2:** tải theo khoảng byte (`Range` → `206`), dùng lại bản đã tải (`If-None-Match` → `304`); xem mục "Tải PDF theo khoảng" bên dưới |
 | `GET` | `/documents/{id}/pages` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Danh sách trang, kích thước points và link ảnh thumbnail |
 | `GET` | `/pages/{id}` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Chi tiết trang kèm danh sách các dòng OCR (`ocr_line`) và Bbox |
 | `GET` | `/documents/{id}/lines` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | **v1.5.0.** Dòng OCR của mọi trang trong một response: `[{ page_no, width_pt, height_pt, ocr_lines: [{ id, line_no, text, bbox, confidence }] }]`, theo thứ tự trang rồi dòng. Trang chưa có dòng trả `ocr_lines: []`. Không phân trang. Thay cho gọi `/pages/{id}` từng trang |
 | `GET` | `/documents/{id}/clauses` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Cây Điều khoản hoàn chỉnh dựng theo quan hệ cha-con (`parent_id`) |
 | `GET` | `/documents/{id}/tables` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Danh sách bảng phát hiện được, danh sách cell (`row`, `col`, `span`, text) |
 | `GET` | `/dossiers/{id}/queries` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | **v1.1.0, đổi ở v2.0.0.** Lịch sử hỏi đáp **của chính người gọi** trên hồ sơ, mới nhất trước; còn sau khi server khởi động lại |
+
+- **Tải PDF theo khoảng (v2.0.2):** `GET /documents/{id}/content` gửi file thẳng từ storage theo từng khúc, không chờ đọc hết file. Quyền xem hồ sơ được kiểm trước mọi trường hợp, kể cả `304`.
+
+  | Request | Response |
+  |---|---|
+  | Không có `Range` | `200`, cả file. Header `Accept-Ranges: bytes`, `ETag: "<sha256>"`, `Cache-Control: private, no-cache`, `Content-Length` |
+  | `Range: bytes=a-b`, `bytes=a-` hoặc `bytes=-n` (một khoảng) | `206`, đúng khoảng đó. `Content-Range: bytes a-b/<tổng>`, `Content-Length` = độ dài khoảng. Khoảng vượt cuối file được cắt về byte cuối |
+  | Khoảng nằm ngoài file (`bytes=<≥ tổng>-`, `bytes=-0`) | `416`, không có body, `Content-Range: bytes */<tổng>` |
+  | Nhiều khoảng (`bytes=0-1,5-6`) hoặc header sai | Bỏ qua `Range`, trả `200` cả file |
+  | `If-Range` khác `ETag` hiện tại | Bỏ qua `Range`, trả `200` cả file |
+  | `If-None-Match` khớp `ETag` (cả dạng `W/"…"` và `*`) | `304`, không có body, không đọc storage |
+
+  - CORS cho trình duyệt đọc `Accept-Ranges`, `Content-Range`, `Content-Length`, `ETag` từ origin của frontend (`api.…` khác origin với trang).
+  - Để hiện trang đầu mà không chờ tải cả file, pdf.js nên nhận URL thay cho bytes: `getDocument({ url, httpHeaders: { Authorization: 'Bearer …' } })`; pdf.js tự gửi `Range`. Cách cũ (`arrayBuffer()` rồi `getDocument({ data })`) vẫn chạy, response `200` không đổi.
+  - `Cache-Control: private, no-cache`: Cloudflare không giữ file; trình duyệt giữ được nhưng phải hỏi lại server (có kiểm quyền) trước khi dùng.
 
 - **Lịch sử hỏi đáp (v1.1.0, đổi ở v2.0.0):** `GET /dossiers/{id}/queries?limit=20&offset=0`. Chỉ trả câu hỏi **của người gọi**, kể cả khi người gọi là chủ hồ sơ hoặc `ADMINISTRATOR`: không ai xem được câu hỏi của người khác (Lead chốt 14/10/2026). `scope` chỉ còn nhận `mine` (mặc định); `scope=all` trả `422`. Cần quyền xem hồ sơ. Phân trang bằng `limit` và `offset`, **không** theo `page`/`page_size` của §3.1. Response bọc trong `{ data, meta }`; `meta.page` = `offset / limit + 1`:
   ```json
@@ -874,6 +889,7 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
+| `v2.0.2` | 15/10/2026 | `GET /documents/{id}/content` (mục "Tải PDF theo khoảng" ở Màn hình 5): stream từ storage thay vì đọc cả file vào bộ nhớ; nhận một khoảng `Range` → `206` + `Content-Range`, khoảng ngoài file → `416`; `If-Range`; `ETag` = sha256 và `If-None-Match` → `304`; `Cache-Control: private, no-cache`; CORS cho đọc `Accept-Ranges`, `Content-Range`, `Content-Length`, `ETag`. Response `200` không đổi, chỉ thêm mã và header, nên là PATCH |
 | `v2.0.1` | 14/10/2026 | Ghi giới hạn dung lượng tải hồ sơ (mục "Giới hạn dung lượng" ở Màn hình 3 và hai dòng `413` ở §3.3): 50 MiB mỗi file, do backend trả JSON; 100 MB mỗi request trên bản online, do Cloudflare gói Free trả HTML. `POST /dossiers` gửi mọi file trong một request nên bộ hồ sơ trên 100 MB bị chặn. API không đổi, nên là PATCH |
 | `v2.0.0` | 14/10/2026 | **Lead chốt bỏ** `scope=all` của `GET /dossiers/{id}/queries`: ai hỏi thì chỉ xem lịch sử của mình, kể cả chủ hồ sơ và `ADMINISTRATOR`. `scope` chỉ còn nhận `mine`; `scope=all` trả `422` (trước đây trả lịch sử của mọi người cho chủ hồ sơ/ADMINISTRATOR, `403` cho người khác). Frontend bỏ `'all'` khỏi `queries.ts` và cập nhật `API-BE.md`. Bỏ một giá trị đang dùng được, nên là MAJOR theo §8 |
 | `v1.7.0` | 13/10/2026 | Thêm `GET /users/directory` (danh bạ thành viên cùng tenant để chia sẻ hồ sơ) và `GET /review-queue` (hồ sơ đang chờ người gọi thẩm định); hồ sơ có thêm `my_access`, `locked`, `approved_at` (mục "Chia sẻ hồ sơ & hàng chờ thẩm định" ở §5). Backend đã có. Header `X-API-Contract` lên thẳng `v1.7.0` từ `v1.5.1`: backend **chưa** làm 4 endpoint `/notifications` của `v1.6.0`, chúng vẫn là đề xuất. Chỉ thêm endpoint và trường tuỳ chọn, nên là MINOR |
@@ -897,4 +913,4 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 
 ---
 
-**Hết DOC-05b · Frontend-Backend API Contract v2.0.1 (SemVer)**
+**Hết DOC-05b · Frontend-Backend API Contract v2.0.2 (SemVer)**
