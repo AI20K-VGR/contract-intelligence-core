@@ -383,6 +383,8 @@ services:
       # narrow egress or vector recall from the project .env.
       AI2_QUERY_EGRESS_ALLOWED: ${AI2_QUERY_EGRESS_ALLOWED:-true}
       AI2_QUERY_USE_VECTOR: ${AI2_QUERY_USE_VECTOR:-true}
+      # Initial per-dossier consent is set where the dossier is created (API), not the worker.
+      AI2_CONTENT_SHARING_CONSENT_DEFAULT: ${AI2_CONTENT_SHARING_CONSENT_DEFAULT:-true}
       # Clause-frame producer: freeze one trusted semantic profile per run.
       # This must be present in the API and Kafka worker so both paths build
       # the same request contract when semantic processing is enabled.

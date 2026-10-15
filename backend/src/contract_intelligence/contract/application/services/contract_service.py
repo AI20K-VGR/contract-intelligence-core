@@ -37,6 +37,7 @@ from contract_intelligence.contract.domain.repositories.job_repository import (
 from contract_intelligence.contract.domain.repositories.manifest_repository import (
     ManifestRepository,
 )
+from contract_intelligence.shared.audit import SYSTEM_WORKER, add_audit_event
 from contract_intelligence.shared.base import new_ulid
 from contract_intelligence.shared.exceptions import InvalidStateTransition, NotFoundError
 from contract_intelligence.shared.storage import (
@@ -106,11 +107,11 @@ class ContractService:
         documents are added via upload_document() after this call.
         """
         dossier_metadata = dict(metadata or {})
-        dossier_metadata.setdefault(
-            "ai2_content_sharing_consent",
-            os.getenv("AI2_CONTENT_SHARING_CONSENT_DEFAULT", "true").strip().lower()
-            in {"1", "true", "yes", "on"},
-        )
+        # The server default decides the initial consent; a client value is dropped.
+        consent_default = os.getenv(
+            "AI2_CONTENT_SHARING_CONSENT_DEFAULT", "true"
+        ).strip().lower() in {"1", "true", "yes", "on"}
+        dossier_metadata["ai2_content_sharing_consent"] = consent_default
         dossier = Dossier(
             id=new_ulid("dos_"),
             name=name,
@@ -118,6 +119,20 @@ class ContractService:
             metadata=dossier_metadata,
         )
         await self._dossier_repo.add(dossier)
+        session = getattr(self._dossier_repo, "_session", None)
+        if session is not None:
+            add_audit_event(
+                session,
+                tenant_id=self._tenant_id,
+                actor_id=str(dossier_metadata.get("created_by") or SYSTEM_WORKER),
+                action="ai2.content_sharing_consent_default_applied",
+                entity_type="dossier",
+                entity_id=dossier.id,
+                dossier_id=dossier.id,
+                from_state="absent",
+                to_state=str(consent_default).lower(),
+                detail={"new": consent_default, "source": "AI2_CONTENT_SHARING_CONSENT_DEFAULT"},
+            )
 
         job = Job(
             id=new_ulid("job_"),
@@ -256,7 +271,15 @@ class ContractService:
             merged_metadata = dict(dossier.metadata or {})
             incoming_metadata = dict(metadata)
             if not acl_update:
-                for key in ("created_by", "created_by_name", "access_scope", "shared_with"):
+                for key in (
+                    "created_by",
+                    "created_by_name",
+                    "access_scope",
+                    "shared_with",
+                    # Consent to send content to the external LLM is owner-only
+                    # and audited: PATCH /dossiers/{id}/ai2-content-sharing-consent.
+                    "ai2_content_sharing_consent",
+                ):
                     incoming_metadata.pop(key, None)
             merged_metadata.update(incoming_metadata)
             dossier.metadata = merged_metadata
