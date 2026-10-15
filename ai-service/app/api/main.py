@@ -859,6 +859,12 @@ def readyz() -> dict:
             "AI2_VECTOR_RECALL_ENABLED",
         )
     )
+    if full_path and capabilities["embedding"].get("status") == "NOT_RUN":
+        # AI2_EMBEDDING_DISCOVERY_ENABLED only adds the diagnostic to /health. The
+        # full path needs a working embedding provider, so readiness checks it
+        # whether or not that diagnostic is on (the provider answer is cached, and
+        # egress stays decided per dossier in discover()).
+        capabilities["embedding"] = EMBEDDING_CLIENT.discover(egress_approved=True).as_dict()
     llm_ready = str(capabilities["llm_status"]).casefold() == "ready"
     embedding_ready = capabilities["embedding"].get("status") == "READY"
     if full_path and (not llm_ready or not embedding_ready):

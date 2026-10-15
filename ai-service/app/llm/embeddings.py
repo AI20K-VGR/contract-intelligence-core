@@ -7,6 +7,7 @@ serve chat models without serving an embeddings model.
 from __future__ import annotations
 
 import os
+import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -55,47 +56,72 @@ class OpenAICompatibleEmbeddingClient:
         dimensions: int | None = None,
         client: Any | None = None,
     ) -> None:
-        self.base_url = base_url or os.getenv("AI2_EMBEDDING_BASE_URL") or os.getenv(
-            "AI2_LLM_BASE_URL", "http://localhost:20128/v1"
+        self.base_url = (
+            base_url
+            or os.getenv("AI2_EMBEDDING_BASE_URL")
+            or os.getenv("AI2_LLM_BASE_URL", "http://localhost:20128/v1")
         )
-        self.api_key = api_key or os.getenv("AI2_EMBEDDING_API_KEY") or os.getenv("AI2_LLM_API_KEY") or os.getenv(
-            "OPENAI_API_KEY", ""
+        self.api_key = (
+            api_key
+            or os.getenv("AI2_EMBEDDING_API_KEY")
+            or os.getenv("AI2_LLM_API_KEY")
+            or os.getenv("OPENAI_API_KEY", "")
         )
         self.model = model or os.getenv("AI2_EMBEDDING_MODEL") or ""
-        raw_dimensions = dimensions if dimensions is not None else os.getenv("AI2_EMBEDDING_DIMENSIONS")
+        raw_dimensions = (
+            dimensions if dimensions is not None else os.getenv("AI2_EMBEDDING_DIMENSIONS")
+        )
         self.dimensions = int(raw_dimensions) if raw_dimensions else None
         self._client_injected = client is not None
         timeout = float(os.getenv("AI2_EMBEDDING_TIMEOUT_SECONDS", "45"))
-        self.client = client or OpenAI(base_url=self.base_url, api_key=self.api_key or "missing", timeout=timeout, max_retries=0)
+        self.client = client or OpenAI(
+            base_url=self.base_url,
+            api_key=self.api_key or "missing",
+            timeout=timeout,
+            max_retries=0,
+        )
         self._capability: EmbeddingCapability | None = None
+        self._capability_at = 0.0
 
     def configured(self) -> bool:
         return bool(self.api_key) and self.api_key != "sk-replace-me"
 
     def discover(
-        self, *, egress_approved: bool = True, force: bool = False,
+        self,
+        *,
+        egress_approved: bool = True,
+        force: bool = False,
         before_probe: Callable[[list[str]], bool] | None = None,
     ) -> EmbeddingCapability:
-        if self._capability is not None and not force:
-            return self._capability
+        # One client serves /readyz and every dossier, so the cache holds only what
+        # the provider said. Egress is decided per call: answering it from the cache
+        # would let a probe made with egress on stand in for a dossier without
+        # consent, and a dossier without consent would deny all that follow.
         if not egress_approved:
-            self._capability = EmbeddingCapability(status="EGRESS_DENIED")
-            return self._capability
+            return EmbeddingCapability(status="EGRESS_DENIED")
+        cached = self._capability
+        if cached is not None and not force and not self._failure_expired(cached):
+            return cached
         if not self.configured():
-            self._capability = EmbeddingCapability(status="UNAVAILABLE", error="embedding credentials not configured")
-            return self._capability
+            return self._remember(
+                EmbeddingCapability(
+                    status="UNAVAILABLE", error="embedding credentials not configured"
+                )
+            )
         if self.model:
             candidates = [self.model]
         else:
             try:
                 model_ids = self._list_embedding_model_ids()
             except Exception as exc:
-                self._capability = EmbeddingCapability(status="PROVIDER_ERROR", error=type(exc).__name__)
-                return self._capability
+                return self._remember(
+                    EmbeddingCapability(status="PROVIDER_ERROR", error=type(exc).__name__)
+                )
             candidates = _embedding_candidates(model_ids)
         if not candidates:
-            self._capability = EmbeddingCapability(status="UNAVAILABLE", error="no candidate model advertised")
-            return self._capability
+            return self._remember(
+                EmbeddingCapability(status="UNAVAILABLE", error="no candidate model advertised")
+            )
 
         found: list[EmbeddingModelInfo] = []
         failures: list[str] = []
@@ -105,31 +131,60 @@ class OpenAICompatibleEmbeddingClient:
                 return EmbeddingCapability(status="BUDGET_EXCEEDED")
             try:
                 vector = self._embed([PROBE_TEXT], model=model)[0]
-                if not vector or not all(isinstance(value, (int, float)) and value == value for value in vector):
+                if not vector or not all(
+                    isinstance(value, (int, float)) and value == value for value in vector
+                ):
                     raise ValueError("embedding response is empty or non-finite")
                 found.append(EmbeddingModelInfo(model=model, dimensions=len(vector)))
             except Exception as exc:
                 failures.append(f"{model}:{type(exc).__name__}")
 
         if self.model and not found:
-            self._capability = EmbeddingCapability(status="PROVIDER_ERROR", error=";".join(failures))
-        elif len(found) == 1:
+            return self._remember(
+                EmbeddingCapability(status="PROVIDER_ERROR", error=";".join(failures))
+            )
+        if len(found) == 1:
             selected = found[0]
-            self._capability = EmbeddingCapability(
-                status="READY",
-                models=found,
-                selected_model=selected.model,
-                dimensions=selected.dimensions,
+            return self._remember(
+                EmbeddingCapability(
+                    status="READY",
+                    models=found,
+                    selected_model=selected.model,
+                    dimensions=selected.dimensions,
+                )
             )
-        elif len(found) > 1:
-            self._capability = EmbeddingCapability(
-                status="CONFIG_REQUIRED",
-                models=found,
-                error="multiple embedding models succeeded; set AI2_EMBEDDING_MODEL",
+        if len(found) > 1:
+            return self._remember(
+                EmbeddingCapability(
+                    status="CONFIG_REQUIRED",
+                    models=found,
+                    error="multiple embedding models succeeded; set AI2_EMBEDDING_MODEL",
+                )
             )
-        else:
-            self._capability = EmbeddingCapability(status="UNAVAILABLE", error="no model accepted /embeddings")
-        return self._capability
+        return self._remember(
+            EmbeddingCapability(status="UNAVAILABLE", error="no model accepted /embeddings")
+        )
+
+    def _remember(self, capability: EmbeddingCapability) -> EmbeddingCapability:
+        self._capability = capability
+        self._capability_at = time.monotonic()
+        return capability
+
+    def _failure_expired(self, capability: EmbeddingCapability) -> bool:
+        """A provider error may be transient: keep it only for a short while.
+
+        Without this a hiccup during the first probe would keep ``/readyz`` at 503
+        (and vector recall off) until the process restarts, while re-probing on
+        every call would cost a provider timeout per query during an outage.
+        """
+
+        if capability.status != "PROVIDER_ERROR":
+            return False
+        try:
+            ttl = max(0.0, float(os.getenv("AI2_EMBEDDING_FAILURE_TTL_SECONDS", "30")))
+        except ValueError:
+            ttl = 30.0
+        return time.monotonic() - self._capability_at >= ttl
 
     def _list_embedding_model_ids(self) -> list[str]:
         """Read NineRouter's embedding catalog before generic `/models`.
@@ -146,18 +201,24 @@ class OpenAICompatibleEmbeddingClient:
                 timeout=10.0,
             )
             if response.is_success:
-                model_ids = sorted({_model_id(item) for item in _response_data(response.json()) if _model_id(item)})
+                model_ids = sorted(
+                    {_model_id(item) for item in _response_data(response.json()) if _model_id(item)}
+                )
                 if model_ids:
                     return model_ids
         response = self.client.models.list()
         return sorted({_model_id(item) for item in _response_data(response) if _model_id(item)})
 
-    def embed(self, texts: list[str], *, model: str | None = None, egress_approved: bool = True) -> list[list[float]]:
+    def embed(
+        self, texts: list[str], *, model: str | None = None, egress_approved: bool = True
+    ) -> list[list[float]]:
         if not egress_approved:
             raise PermissionError("embedding egress is not approved")
         if not texts or any(not str(text).strip() for text in texts):
             raise ValueError("embedding input must contain non-empty text")
-        selected = model or self.model or (self._capability.selected_model if self._capability else None)
+        selected = (
+            model or self.model or (self._capability.selected_model if self._capability else None)
+        )
         if not selected:
             capability = self.discover(egress_approved=egress_approved)
             selected = capability.selected_model
