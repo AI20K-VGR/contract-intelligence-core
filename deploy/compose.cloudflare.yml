@@ -6,6 +6,8 @@
 #     once on the server, never committed) instead of Let's Encrypt: the
 #     security group admits Cloudflare only, so Let's Encrypt could not reach
 #     the server to renew.
+#   - With deploy/certs/origin-pull-ca.pem, deploy/compose.cloudflare-aop.yml
+#     adds zone-level Authenticated Origin Pulls on top of this file.
 #   - The client address is read from CF-Connecting-IP, and only on
 #     connections coming from Cloudflare's ranges, so a direct caller cannot
 #     forge it. The backend and Keycloak then log and rate-limit real users.
