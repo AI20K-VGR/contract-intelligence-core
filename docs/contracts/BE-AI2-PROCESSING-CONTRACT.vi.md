@@ -47,7 +47,8 @@ Kênh runtime đích: event `ai2.idp.command` trên topic `ci.ai2.idp.commands`;
       "document_id": "doc-body-001",
       "snapshot_id": "snap-body-001",
       "role": "body",
-      "source_digest": "<64 hex>"
+      "source_digest": "<64 hex>",
+      "document_number": "HD-001/2026"
     }
   ],
   "role_relation_map": [
@@ -94,7 +95,9 @@ Ví dụ trên là **hiện trạng** request Backend đang gửi (ví dụ `use
 
 Backend phải gửi đúng một member `body`, mọi member phải trỏ tới một snapshot trong `snapshots[]`, và các `source_digest` phải khớp với snapshot tương ứng. Adapter hiện tại kiểm tra các ràng buộc cross-field này ngoài JSON Schema.
 
-`policy_flags` là authoritative từ Backend. AI2 không được mở rộng quyền egress, vector hoặc budget. `egress_allowed=false` phải chạy fail-closed đối với external LLM.
+`dossier_members[].document_number` (tuỳ chọn, chuỗi 1–160 ký tự, `null` được) là số hiệu văn bản đã xác nhận ở manifest. Backend chỉ thêm trường khi có giá trị; trường không nằm trong `required`, không đổi `source_digest` hay snapshot. AI2 dùng nó để biết một điều khoản tham chiếu văn bản nào khác, nên consumer phải chấp nhận trường này trước khi Backend gửi (schema `be.ai2.processing.request.v1`).
+
+`policy_flags.egress_allowed` mang **consent theo hồ sơ** (`metadata.ai2_content_sharing_consent`, xem D6 ngày 15/10), không phải quyết định egress cuối cùng. Egress thực tế của một lần xử lý là `AI2_PROCESSING_EGRESS_ALLOWED` (env của AI2) **và** `policy_flags.egress_allowed`; thiếu một trong hai thì AI2 chạy fail-closed đối với external LLM, vẫn `SUCCEEDED` với phần xử lý bằng luật cố định. AI2 không được mở rộng egress, vector hoặc budget vượt giá trị Backend gửi. Consent chỉ coi là bật khi giá trị lưu đúng là boolean `true`; thiếu hoặc sai kiểu là `false`.
 
 ## 3. Async lifecycle và retry
 
@@ -189,12 +192,13 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
   - Phụ lục không có `ANNEX_OF` vẫn được gửi với `role=annex`; finding liên tài liệu khi đó ghi là "quan hệ chưa xác nhận".
   - AI2 không suy luận, không sửa role hay quan hệ.
 - **`policy_flags` (D6, Lead duyệt 30/09).**
-  - Cờ egress, vector và LLM là cấu hình của `ai2-service`, đọc từ env `AI2_PROCESSING_EGRESS_ALLOWED`, `AI2_QUERY_EGRESS_ALLOWED`, `AI2_QUERY_USE_LLM`, `AI2_QUERY_USE_VECTOR`, `AI2_VECTOR_RECALL_ENABLED`, mặc định `false`. Env của AI2 là nguồn quyết định; Backend không gửi `use_llm`.
-  - Thứ tự: AI2 đổi `egress_allowed` và `use_vector` trong `policy_flags` thành tuỳ chọn và bỏ qua giá trị trong request (A8); AI2 deploy xong thì Backend mới thôi gửi hai cờ này. Trước đó Backend vẫn gửi, vì hiện AI2 bắt buộc hai trường này. `max_processing_seconds` và `budget_limits` vẫn do Backend gửi.
+  - Cờ egress, vector và LLM là cấu hình của `ai2-service`, đọc từ env `AI2_PROCESSING_EGRESS_ALLOWED`, `AI2_QUERY_EGRESS_ALLOWED`, `AI2_QUERY_USE_LLM`, `AI2_QUERY_USE_VECTOR`, `AI2_VECTOR_RECALL_ENABLED`. Mặc định ban đầu `false`; **từ 15/10 bản online đặt `true`** (Lead, review PR #85). Env của AI2 là điều kiện cần; consent theo hồ sơ là điều kiện đủ (dòng dưới). Backend không gửi `use_llm`.
+  - **Consent theo hồ sơ (15/10).** Backend lưu `ai2_content_sharing_consent` trên hồ sơ và gửi: ở xử lý qua `policy_flags.egress_allowed`; ở `/query` qua trường `content_sharing_consent` của request. Egress, LLM và vector của `/query` chỉ bật khi env AI2 bật **và** request mang `content_sharing_consent=true` **và** snapshot đã lưu consent `true`, trong một request có `service_envelope` hợp lệ. Hồ sơ mới nhận mặc định của server `AI2_CONTENT_SHARING_CONSENT_DEFAULT` (`true` trên bản online). Chỉ chủ hồ sơ hoặc `ADMINISTRATOR` đổi được qua `PATCH /dossiers/{id}/ai2-content-sharing-consent` (DOC-05b). Consent đổi thì có hiệu lực từ request kế tiếp (`effective_from: next_request`), không sửa lại kết quả đã xử lý.
+  - Thứ tự: AI2 đổi `egress_allowed` và `use_vector` trong `policy_flags` thành tuỳ chọn (A8). `use_vector` trong request không quyết định vector (công tắc là `AI2_VECTOR_RECALL_ENABLED`). `egress_allowed` không còn bị bỏ qua: nó là consent theo hồ sơ như trên, nên Backend **tiếp tục gửi** trường này (B3 chỉ áp dụng cho `use_vector`). `max_processing_seconds` và `budget_limits` vẫn do Backend gửi.
   - Khi `egress_allowed=false`, AI2 vẫn trả `SUCCEEDED` với phần xử lý bằng luật cố định.
-  - Vượt `max_llm_calls` thì AI2 trả `INSUFFICIENT_EVIDENCE` kèm lý do, không trả `FAILED`.
+  - Vượt `max_llm_calls` thì AI2 trả `SUCCEEDED` với `review_state=NEEDS_REVIEW` kèm issue `LLM_BUDGET_EXCEEDED`, không trả `FAILED` (D6, Lead duyệt 02/10).
   - Luồng xử lý hồ sơ: `use_vector=false`.
-  - Bản online (Lead, 30/09): OpenAI gọi thẳng `https://api.openai.com/v1`, `gpt-4o-mini` cho xử lý hồ sơ và `/query`, model cho bước suy luận khó do AI2 (Văn Dũng) chốt, embedding `text-embedding-3-small`; tối đa 20 lần gọi LLM và 100.000 token embedding một hồ sơ, hard limit 5 USD/tháng, hết trần thì tắt env. Cả nhóm được tải hồ sơ lên bản online, chỉ hợp đồng mẫu đã ẩn thông tin, không gửi hồ sơ thật.
+  - Bản online (Lead, 30/09; đổi 15/10): OpenAI gọi thẳng `https://api.openai.com/v1`, **`gpt-5.5`** cho xử lý hồ sơ, `/query`, bước suy luận khó và ghép cặp đồ thị, embedding `text-embedding-3-small`; tối đa 20 lần gọi LLM và 100.000 token embedding một hồ sơ, hard limit **30 USD/tháng** (đề xuất, chờ Lead xác nhận), không cảnh báo chủ động, hết trần thì tắt env. Cả nhóm được tải hồ sơ lên bản online, chỉ hợp đồng mẫu đã ẩn thông tin, không gửi hồ sơ thật.
   - Công tắc thật của vector là `AI2_VECTOR_RECALL_ENABLED`; vector trên `/query` dựa vào egress của chính `/query`; trần embedding do AI2 đọc từ env của mình, Backend không gửi.
 
 ### 6.3 Vòng đời job
