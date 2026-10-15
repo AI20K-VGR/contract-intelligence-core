@@ -1386,7 +1386,7 @@ export function DossierStructurePage() {
           {phase === 'ready' && showAi2Graph && detail ? (
             <div className="mb-space-sm flex flex-wrap items-center justify-between gap-space-sm rounded-xl border border-outline-variant/20 bg-surface-container-lowest p-space-sm">
               <div className="flex flex-wrap items-center gap-space-xs" role="group" aria-label="Loại graph AI2">
-                {(['pair', 'amendment'] as const).map((kind) => (
+                {(['pair', 'operation'] as const).map((kind) => (
                   <button
                     key={kind}
                     aria-pressed={ai2GraphKind === kind}
@@ -1468,7 +1468,6 @@ export function DossierStructurePage() {
                           key="tree"
                           {...shared}
                           orientation="vertical"
-                          subtitle={filename}
                         />
                       )
                     default:
@@ -1477,7 +1476,6 @@ export function DossierStructurePage() {
                         <StructureMindmap
                           key="mindmap"
                           {...shared}
-                          subtitle={filename}
                         />
                       )
                   }
