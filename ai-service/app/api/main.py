@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import threading
+import time
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from uuid import uuid4
@@ -32,6 +33,7 @@ from app.contracts.wire import BeAi2ProcessingRequest, job_result_to_wire
 from app.db.engine import database_url, ensure_database, get_engine, validate_database_config
 from app.llm.client import DeadlineLLM, NineRouterClient, llm_status, query_llm_timeout_seconds
 from app.llm.embeddings import OpenAICompatibleEmbeddingClient
+from app.ops.memory import release_memory
 from app.pipeline.ai1_ingest import ingest_files
 from app.pipeline.ai1_snapshot_adapter import (
     SnapshotContractError,
@@ -53,6 +55,7 @@ from app.reasoning.relations import build_relation_graph
 from app.reasoning.stack import FourLayerReasoner
 from app.reasoning.vector_recall import VectorRecallService, query_embedding_token_cap
 from app.security.service_envelope import ServiceEnvelopeError, verify_service_envelope
+from app.tools.bounded import BoundedDict, env_capacity
 from app.tools.gateway import ToolGateway
 from app.tools.jobs import (
     JobNonceReplayConflict,
@@ -109,11 +112,25 @@ app = FastAPI(title="VSF AI2 IDP", version="0.1.0", lifespan=_lifespan)
 if STATIC.exists():
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
-STORE = InMemorySnapshotStore()
+def _store_capacity() -> int | None:
+    # With Postgres, /query reloads every dossier from ai2.dossier_query_snapshots,
+    # so the in-memory store is a cache. Without it the store is the only copy.
+    return env_capacity("AI2_STORE_MAX_DOSSIERS", 4 if database_url() else None)
+
+
+STORE = InMemorySnapshotStore(max_entries=_store_capacity())
 logger = logging.getLogger(__name__)
-JOBS: dict[str, JobResult] = {}
-WIRE_JOBS: dict[str, dict] = {}
-WIRE_IDEMPOTENCY: dict[tuple[str, str, int], str] = {}
+# Every job's durable state is in JOB_STORE; these maps only cache recent jobs
+# so a long-lived process does not keep every result it ever produced.
+JOBS: BoundedDict[str, JobResult] = BoundedDict(env_capacity("AI2_JOBS_CACHE_SIZE", 8))
+WIRE_JOBS: BoundedDict[str, dict] = BoundedDict(env_capacity("AI2_WIRE_JOBS_CACHE_SIZE", 256))
+WIRE_IDEMPOTENCY: BoundedDict[tuple[str, str, int], str] = BoundedDict(
+    env_capacity("AI2_WIRE_JOBS_CACHE_SIZE", 256)
+)
+# Jobs that run IDP at once. Each holds a whole dossier (and its peak working
+# set) in memory; the others wait QUEUED, held by this process (see the sweep).
+MAX_CONCURRENT_JOBS = env_capacity("AI2_MAX_CONCURRENT_JOBS", 1) or 1
+_JOB_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_JOBS)
 JOB_STORE = job_store_from_env()
 LAST_CASE: dict[str, str] = {}
 SESSIONS: dict[str, dict] = {}
@@ -231,11 +248,38 @@ def _queued_wire_result(
     }
 
 
+def _known_wire(job_id: str) -> dict:
+    """Last wire of ``job_id``: the in-process cache, else the durable store."""
+
+    cached = WIRE_JOBS.get(job_id)
+    if cached is not None:
+        return cached
+    try:
+        stored = JOB_STORE.get(job_id)
+    except Exception:  # the caller is already handling a failure
+        logger.warning("ai2.wire_lookup_failed job_id=%s", job_id, exc_info=True)
+        return {}
+    if not stored:
+        return {}
+    return dict(stored.get("wire") if "wire" in stored else stored)
+
+
 def _run_wire_job(job_id: str, payload: dict) -> None:
-    """Execute one accepted wire request; this process stops holding it after."""
+    """Execute one accepted wire request; this process stops holding it after.
+
+    Waits for one of ``MAX_CONCURRENT_JOBS`` slots first. Meanwhile the job is
+    QUEUED and in ``_HELD_JOB_IDS``, so the sweep renews its lease instead of
+    failing it, and the processing budget starts only once it runs.
+    """
 
     try:
-        _execute_wire_job(job_id, payload)
+        with _JOB_SLOTS:
+            try:
+                _execute_wire_job(job_id, payload)
+            finally:
+                # The job's records are garbage now; give their pages back
+                # before the next job, not at the end of the process.
+                release_memory()
     finally:
         with _HELD_LOCK:
             _HELD_JOB_IDS.discard(job_id)
@@ -265,9 +309,9 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
         )
         if worker_token is None:
             return
-        queued = WIRE_JOBS.get(job_id) or JOB_STORE.get(job_id)
-        if queued is not None:
-            wire = dict(queued.get("wire") if "wire" in queued else queued)
+        queued = _known_wire(job_id)
+        if queued:
+            wire = dict(queued)
             wire["status"] = "RUNNING"
             WIRE_JOBS[job_id] = wire
             JOB_STORE.set_wire(
@@ -317,11 +361,17 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
             envelope=adapted.envelope,
         )
         if accepted:
-            JOBS[job_id] = result
-            WIRE_JOBS[job_id] = wire
-            persisted = load_query_snapshot(request.dossier_id, tenant_id=tenant_id)
-            if persisted is not None:
-                STORE.put(persisted[0])
+            # The finished wire carries the whole result and JOB_STORE already
+            # has it (GET /jobs/{id} reads it there): keep no second copy.
+            WIRE_JOBS.pop(job_id, None)
+            if database_url():
+                # /query reads ai2.dossier_query_snapshots on every call. A cached
+                # 200-page record held ~200 MiB for the rest of the process.
+                STORE.discard(tenant_id, request.dossier_id)
+            else:
+                persisted = load_query_snapshot(request.dossier_id, tenant_id=tenant_id)
+                if persisted is not None:
+                    STORE.put(persisted[0])
     except Exception as exc:  # worker boundary: every failure ends the job
         code = exc.code if isinstance(exc, SnapshotContractError) else "AI2_WORKER_FAILED"
         update = {
@@ -330,7 +380,7 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
             "result": None,
             "errors": [{"code": code, "message": str(exc), "retryable": False}],
         }
-        wire = {**(WIRE_JOBS.get(job_id) or {}), **update}
+        wire = {**_known_wire(job_id), **update}
         WIRE_JOBS[job_id] = wire
         if "worker_token" in locals() and worker_token:
             JOB_STORE.set_wire(
@@ -777,6 +827,59 @@ def _table_view(rec: DossierRecord, table_id: str, offset: int, limit: int) -> d
     }
 
 
+# /health and /readyz are polled (deploy.sh, monitors). Each probe used to
+# build a new OpenAI client and send a real chat request: with the old 15 s
+# Docker healthcheck, ~5,800 paid requests a day. One client is reused while
+# the LLM settings stay the same, and a probe result is reused for a while.
+_PROBE_LOCK = threading.Lock()
+_PROBE_CLIENT: tuple[tuple[str, str, str], NineRouterClient] | None = None
+_PROBE_RESULT: tuple[tuple, str, float] | None = None
+_PROBE_FAILURE_TTL_SECONDS = 10.0
+
+
+def _llm_settings_key() -> tuple[str, str, str]:
+    api_key = os.getenv("AI2_LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
+    return (
+        os.getenv("AI2_LLM_BASE_URL", ""),
+        os.getenv("AI2_LLM_MODEL", ""),
+        hashlib.sha256(api_key.encode("utf-8")).hexdigest(),
+    )
+
+
+def _probe_client() -> NineRouterClient:
+    global _PROBE_CLIENT
+    key = _llm_settings_key()
+    with _PROBE_LOCK:
+        if _PROBE_CLIENT is None or _PROBE_CLIENT[0] != key:
+            _PROBE_CLIENT = (key, NineRouterClient())
+        return _PROBE_CLIENT[1]
+
+
+def _probe_ttl_seconds() -> float:
+    try:
+        return max(0.0, float(os.getenv("AI2_READYZ_PROBE_TTL_SECONDS", "60")))
+    except ValueError:
+        return 60.0
+
+
+def _cached_llm_status(llm: NineRouterClient) -> str:
+    """``llm_status`` of ``llm``, reused for ``AI2_READYZ_PROBE_TTL_SECONDS``
+    when ready and for 10 s otherwise, so a recovered provider shows up fast."""
+
+    global _PROBE_RESULT
+    ttl = _probe_ttl_seconds()
+    key = (_llm_settings_key(), llm_status)
+    now = time.monotonic()
+    cached = _PROBE_RESULT
+    if ttl > 0 and cached is not None and cached[0] == key:
+        _, state, at = cached
+        if now - at < (ttl if state == "ready" else min(ttl, _PROBE_FAILURE_TTL_SECONDS)):
+            return state
+    state = llm_status(llm)
+    _PROBE_RESULT = (key, state, time.monotonic())
+    return state
+
+
 def _capability_snapshot() -> dict:
     """Return provider capability without exposing credentials.
 
@@ -785,7 +888,7 @@ def _capability_snapshot() -> dict:
     visible instead of silently becoming lexical-only behavior.
     """
 
-    llm = NineRouterClient()
+    llm = _probe_client()
     if os.getenv("AI2_EMBEDDING_DISCOVERY_ENABLED", "false").casefold() in {
         "1",
         "true",
@@ -795,7 +898,7 @@ def _capability_snapshot() -> dict:
         embedding = EMBEDDING_CLIENT.discover(egress_approved=True).as_dict()
     else:
         embedding = {"status": "NOT_RUN", "models": [], "selected_model": None, "dimensions": None}
-    llm_state = llm_status(llm)
+    llm_state = _cached_llm_status(llm)
     return {
         "llm_status": llm_state,
         "llm": llm_state,
@@ -924,7 +1027,12 @@ def query_from_backend(payload: dict) -> dict:
         hydrated = load_query_snapshot(dossier_id, tenant_id=tenant_id or None)
         if hydrated is not None:
             record, stored_envelope = hydrated
-            STORE.put(record)
+            if database_url():
+                # Reloaded per query: caching it only pins memory (and a
+                # stale entry must not outlive the newer snapshot).
+                STORE.discard(record.tenant_id, record.dossier_id)
+            else:
+                STORE.put(record)
         elif database_url() or service_envelope is None:
             record = None
 
@@ -1916,7 +2024,11 @@ def get_job(
         )
     wire = dict(stored["wire"])
     wire["job_id"] = job_id
-    WIRE_JOBS[job_id] = wire
+    if str(wire.get("status") or "").upper() in {"QUEUED", "RUNNING"}:
+        WIRE_JOBS[job_id] = wire
+    else:
+        # A finished wire holds the full result; it is served from JOB_STORE.
+        WIRE_JOBS.pop(job_id, None)
     return wire
 
 

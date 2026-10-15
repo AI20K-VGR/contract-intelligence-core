@@ -22,6 +22,7 @@ from app.contracts.models import (
     TenantProfile,
     VersionPins,
 )
+from app.tools.bounded import BoundedDict
 
 
 @dataclass
@@ -80,14 +81,26 @@ class DossierRecord:
 
 
 class InMemorySnapshotStore:
-    def __init__(self) -> None:
-        self._dossiers: dict[tuple[str, str], DossierRecord] = {}
+    """Dossier records by (tenant, dossier).
+
+    ``max_entries=None`` keeps every record: right when this store is the only
+    copy (no database). With Postgres behind it, it is a cache and keeps only
+    the ``max_entries`` most recently used records.
+    """
+
+    def __init__(self, max_entries: int | None = None) -> None:
+        self._dossiers: BoundedDict[tuple[str, str], DossierRecord] = BoundedDict(max_entries)
 
     def put(self, rec: DossierRecord) -> None:
         self._dossiers[(rec.tenant_id, rec.dossier_id)] = rec
 
     def get(self, tenant_id: str, dossier_id: str) -> DossierRecord | None:
-        return self._dossiers.get((tenant_id, dossier_id))
+        key = (tenant_id, dossier_id)
+        self._dossiers.touch(key)
+        return self._dossiers.get(key)
+
+    def discard(self, tenant_id: str, dossier_id: str) -> None:
+        self._dossiers.pop((tenant_id, dossier_id), None)
 
     def get_for_scope(
         self, tenant_id: str, dossier_id: str, snapshot_digest: str

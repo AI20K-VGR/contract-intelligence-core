@@ -122,7 +122,9 @@ def test_query_reads_current_postgres_snapshot_instead_of_cached_previous_versio
     assert response.json()["state"] != "BLOCKED"
     assert response.json()["citations"]
     if not interleave_cache_write:
-        assert main.STORE.get(record.tenant_id, record.dossier_id).pins.source_snapshot_digest == "b" * 64
+        # With Postgres the query reloads the snapshot and drops the stale
+        # cache entry rather than pinning a copy of the dossier in memory.
+        assert main.STORE.get(record.tenant_id, record.dossier_id) is None
 
 
 def test_job_completion_fences_snapshot_and_keeps_newer_success(pg_url, monkeypatch):

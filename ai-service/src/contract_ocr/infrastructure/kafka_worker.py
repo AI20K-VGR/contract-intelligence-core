@@ -27,8 +27,10 @@ from contract_ocr.infrastructure.backend_ocr_job import (
     align_pages_to_pdf,
     get_backend_job,
     new_backend_job,
+    pop_backend_job,
     run_backend_ocr,
 )
+from contract_ocr.infrastructure.memory import release_memory
 from contract_ocr.infrastructure.observability import flush_langfuse
 from contract_ocr.infrastructure.prometheus_metrics import (
     ocr_in_progress,
@@ -50,7 +52,24 @@ MAX_MESSAGE_BYTES = 10_485_760  # 10 MiB
 _ENVELOPE_ALLOWANCE = 64 * 1024
 
 # In-process idempotency for at-least-once redelivery (event_id → result envelope).
+# A redelivery follows its original closely, so only the most recent envelopes
+# are kept: an envelope can carry a whole inline OCR result (up to 10 MiB).
 _processed: dict[str, dict[str, Any]] = {}
+
+
+def _processed_kept() -> int:
+    try:
+        return max(1, int(os.environ.get("AI1_PROCESSED_EVENTS_KEPT", "32")))
+    except ValueError:
+        return 32
+
+
+def _remember_processed(event_id: str, envelope: dict[str, Any]) -> None:
+    _processed.pop(event_id, None)
+    _processed[event_id] = envelope
+    excess = len(_processed) - _processed_kept()
+    for oldest in list(_processed)[: max(0, excess)]:
+        del _processed[oldest]
 
 
 def _env(name: str, default: str) -> str:
@@ -140,19 +159,24 @@ def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
         return _processed[event_id]
 
     started = time.monotonic()
-    with ocr_in_progress():
-        envelope, snapshot_result = _process_command(message)
-    payload = envelope["payload"]
-    record_ocr_job(
-        engine=_command_engine(message),
-        status=str(payload.get("status")),
-        error=payload.get("error"),
-        duration_seconds=time.monotonic() - started,
-        result=snapshot_result,
-    )
-    if event_id:
-        _processed[event_id] = envelope
-    return envelope
+    try:
+        with ocr_in_progress():
+            envelope, snapshot_result = _process_command(message)
+        payload = envelope["payload"]
+        record_ocr_job(
+            engine=_command_engine(message),
+            status=str(payload.get("status")),
+            error=payload.get("error"),
+            duration_seconds=time.monotonic() - started,
+            result=snapshot_result,
+        )
+        if event_id:
+            _remember_processed(event_id, envelope)
+        return envelope
+    finally:
+        # Page renders and the snapshot are garbage now: hand the pages back
+        # instead of holding the job's peak until the worker restarts.
+        release_memory()
 
 
 def _process_command(message: dict[str, Any]) -> tuple[dict[str, Any], Any]:
@@ -177,6 +201,9 @@ def _process_command(message: dict[str, Any]) -> tuple[dict[str, Any], Any]:
         trace_seed=str(message.get("trace_id") or message.get("event_id") or job_id),
     )
     job = get_backend_job(job_id)
+    # The worker is this job's only reader: drop it from the registry, which
+    # otherwise keeps every document's full snapshot for the process's life.
+    pop_backend_job(job_id)
     if job is None:
         raise RuntimeError(f"OCR job disappeared: {job_id}")
 
